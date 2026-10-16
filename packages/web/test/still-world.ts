@@ -21,6 +21,7 @@ const DEVICE: Device = {
   from: '127.0.0.1',
   revoked: null,
   owner: false,
+  passkey: null,
 }
 
 export const TEST_WORLD: World = {

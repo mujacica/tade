@@ -12,6 +12,8 @@ import {
   LOCAL_ONLY_SHORT,
   OFFLINE_NEEDS_HTTPS,
   OFFLINE_NEEDS_HTTPS_SHORT,
+  PASSKEY_BEFORE_ACTING,
+  PASSKEY_BEFORE_ACTING_SHORT,
   PUBLIC_IS_THE_INTERNET,
   PUBLIC_IS_THE_INTERNET_SHORT,
   TALKING_IS_NOT_YOU,
@@ -335,6 +337,7 @@ describe('what the surface is turned on as', () => {
       port: 7654,
       trusted_hosts: ['x'],
       public: '',
+      passkey_hours: 12,
       acting: false,
       orchestrator: false,
       push: false,
@@ -365,6 +368,7 @@ describe('what the surface is turned on as', () => {
       port: 7654,
       trusted_hosts: [],
       public: '',
+      passkey_hours: 12,
       acting: false,
       orchestrator: false,
       push: false,
@@ -393,14 +397,15 @@ describe('what the surface is turned on as', () => {
     // `::` with `ipv6Only: false` accepts IPv4-mapped connections on many
     // systems and not all, so one listener would make which addresses are
     // served a property of the machine rather than of the setting.
-    expect(
+    const on = (bind: 'loopback' | 'lan') =>
       listenOn(
         surfaceOf({
           enabled: true,
-          bind: 'loopback',
+          bind,
           port: 1,
           trusted_hosts: [],
           public: '',
+          passkey_hours: 12,
           acting: false,
           orchestrator: false,
           push: false,
@@ -410,27 +415,9 @@ describe('what the surface is turned on as', () => {
           install: false,
           offline: false,
         }),
-      ),
-    ).toEqual(['127.0.0.1', '::1'])
-    expect(
-      listenOn(
-        surfaceOf({
-          enabled: true,
-          bind: 'lan',
-          port: 1,
-          trusted_hosts: [],
-          public: '',
-          acting: false,
-          orchestrator: false,
-          push: false,
-          push_details: false,
-          drafts: false,
-          settings: false,
-          install: false,
-          offline: false,
-        }),
-      ),
-    ).toEqual(['0.0.0.0', '::'])
+      )
+    expect(on('loopback')).toEqual(['127.0.0.1', '::1'])
+    expect(on('lan')).toEqual(['0.0.0.0', '::'])
   })
 
   it('knows this machine in each of its spellings, and nothing else', () => {
@@ -468,6 +455,7 @@ describe('what a session minted on an origin may ever do', () => {
     port: 7654,
     trusted_hosts: ['studio.yak-bebop.ts.net'],
     public: '',
+    passkey_hours: 12,
     acting: true,
     orchestrator: false,
     push: false,
@@ -547,6 +535,8 @@ describe('the sentences', () => {
       LAN_IS_PLAINTEXT_SHORT,
       PUBLIC_IS_THE_INTERNET,
       PUBLIC_IS_THE_INTERNET_SHORT,
+      PASSKEY_BEFORE_ACTING,
+      PASSKEY_BEFORE_ACTING_SHORT,
       COOKIES_IGNORE_PORTS,
       DEVICES_AND_AGENTS,
       ACTING_IS_NOT_YOU,

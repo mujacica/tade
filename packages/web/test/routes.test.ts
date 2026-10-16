@@ -22,15 +22,18 @@ import { OFF, type Surface } from '../src/surface.ts'
 //   **No route mutates a project or a task.**
 
 describe('the shape of the table', () => {
-  it('has exactly two non-GET routes, and they are these two by name', () => {
+  it('has exactly the lifecycle routes as its non-GET routes, by name', () => {
     const changing = ROUTES.filter((route) => route.method !== 'GET')
     expect(changing.map((route) => route.name).sort()).toEqual([...LIFECYCLE].sort())
-    // Both are session lifecycle: this browser's own credential, created and
-    // destroyed. A third one fails this test until somebody puts it in
-    // `LIFECYCLE` deliberately, which is the conversation the claim is for.
+    // All four are session lifecycle: this browser's own credential, created,
+    // destroyed and proved with its passkey. A fifth fails this test until
+    // somebody puts it in `LIFECYCLE` deliberately, which is the conversation
+    // the claim is for.
     expect(changing.map((route) => `${route.method} ${route.path}`).sort()).toEqual([
       'DELETE /api/devices/:id',
       'POST /api/pair',
+      'POST /api/passkey/answer',
+      'POST /api/passkey/challenge',
     ])
   })
 

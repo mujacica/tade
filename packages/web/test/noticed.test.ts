@@ -10,6 +10,8 @@ import {
   NOTICE_TITLE,
   type Noticing,
   noticeFor,
+  payloadOf,
+  rootOf,
   type TaskNow,
   wasOf,
 } from '../src/noticed.ts'
@@ -318,5 +320,35 @@ describe('everything that stops one being sent', () => {
     // task that is blocked across twenty beats is one.
     expect(keyOf({ task: 'a/one', project: 'a', what: 'red', title: 'x' })).toBe('a/one\nred')
     expect(keyOf({ task: 'a/one', project: 'a', what: 'stuck', title: 'x' })).not.toBe('a/one\nred')
+  })
+})
+
+describe('the bytes a notification is sent as', () => {
+  const notice = { title: NOTICE_TITLE, body: 'two things want you', tag: NOTICE_TAG }
+
+  it('is the three fields alone where the page to open is not known', () => {
+    expect(payloadOf(notice, null)).toEqual(notice)
+  })
+
+  it('is a Declarative Web Push message too, with the three fields kept at the top', () => {
+    // The top three are what `sw.js` reads, so a browser that cannot read the
+    // declarative half — Chrome, Firefox, Safari before 18.4, or WebKit
+    // refusing it — hands the worker exactly what it always got.
+    const sent = payloadOf(notice, 'https://tade.example.com/')
+    expect(sent).toEqual({
+      ...notice,
+      web_push: 8030,
+      notification: { ...notice, navigate: 'https://tade.example.com/', silent: false },
+    })
+    // Never `mutable`: a phone that reads it draws it with no worker at all.
+    expect(JSON.stringify(sent)).not.toContain('mutable')
+  })
+
+  it('opens the root of the host the device paired on, never a project', () => {
+    expect(rootOf('tade.example.com')).toBe('https://tade.example.com/')
+    expect(rootOf('studio.yak-bebop.ts.net')).toBe('https://studio.yak-bebop.ts.net/')
+    expect(rootOf('localhost:7654')).toBe('http://localhost:7654/')
+    expect(rootOf('127.0.0.1:7654')).toBe('http://127.0.0.1:7654/')
+    expect(rootOf('[::1]:7654')).toBe('http://[::1]:7654/')
   })
 })

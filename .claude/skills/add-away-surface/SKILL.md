@@ -83,6 +83,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | **where** a grant withholds, and what a page says *not granted* about | `WITHHOLDS` in `src/reach.ts` — one line per place on the wire; `test/withholds.test.ts` takes each grant away and asserts the snapshot changes there and nowhere else. The page asks by path (`mayFor(store, 'plans')`, `src/assets/access.js`, a copy held equal), never by a grant's name, so a new gate is a line here or the test fails |
 | what a box in the panel grants | `BOXES` in `packages/app/src/wire/web-boxes.ts`: each box's scopes, the reading grants that go with them and the places its page draws — ticked only when it has all of them (`ticked`), so `talk to Tade` carries the conversation and `change settings` the settings |
 | the credential | `src/sessions.ts` |
+| **a device's passkey**: the gate, the two routes, checking an answer, the page's bar | `proven` in `src/guard.ts` (the eighth layer); `src/passkeys.ts` (the challenges, `ENROL_MS`, what a device is offered and told — `passkeyStanding`); `src/passkeyed.ts` (the two routes, in order); `src/webauthn.ts` and `src/cbor.ts` (an answer, checked); the `passkey` and `proved` lines in `src/devices.ts`; `src/assets/passkey.js` (the bar and its press); `passkey_hours` in `@tade/core`'s `away.ts` |
 | the device list | `src/devices.ts` — `<home>/web-devices.jsonl` |
 | the headers and the content policy | `src/headers.ts` |
 | what a refusal says | `src/errors.ts` — and what the **page** draws for one is `src/assets/trouble.js`: a title and a fix per kind, never the body's own text, drawn by `ui.js`'s `problem`/`answerIn` (red, an icon, one press). A new kind there is a row here or `trouble-client.test.ts` fails |
@@ -122,10 +123,39 @@ a device still has none of the scopes that change anything until somebody at thi
   offset for Back, which the browser restores only for a document. The page has no doctype, so it
   is laid out in quirks mode and `document.scrollingElement` is the body. Where each part lands is
   `scripts/browser-frame.ts`'s.
-- **No route in `ROUTES` mutates a project or a task.** The two non-`GET` routes there are session
-  lifecycle — this browser's own credential, created and destroyed — and `test/routes.test.ts`
-  asserts that set is exactly those two **by name**. A third fails the test until somebody puts it
-  in `LIFECYCLE` deliberately, which is the conversation the rule is for.
+- **No route in `ROUTES` mutates a project or a task.** The non-`GET` routes there are session
+  lifecycle — this browser's own credential, created, destroyed and proved with its passkey — and
+  `test/routes.test.ts` asserts that set is exactly `LIFECYCLE` **by name**. Another fails the test
+  until somebody puts it there deliberately, which is the conversation the rule is for.
+- **From the public listener, anything above `read` needs a passkey proved within
+  `passkey_hours`** (`proven`, after the scope and the origin, so it never says more than they
+  would). The **listener and never the host**, like `thisMachine`: this machine, an SSH forward and a
+  tailnet name come in on the loopback listener, behind something of the person's own. Reading never
+  asks, and nor do the two passkey routes — proving may not need the proof. `test/proven.test.ts` is
+  the cross-product; `passkey.test.ts` is it over Caddy's socket with a software authenticator.
+- **A passkey is made in the minutes after pairing and never later** (`ENROL_MS`). The pairing is
+  the one moment something stood behind the session; later, a session copied off a phone that never
+  made one could make its own and act. Missed, the device reads until it pairs again — said on the
+  page (`missed`) and in `PASSKEY_BEFORE_ACTING`. One per device, and its user id is the device's,
+  so two devices on one keychain never replace each other's.
+- **A read cannot say its scheme.** A browser sends no `Origin` on a same-origin `GET`, so a read
+  through Caddy's plaintext socket is `http` to `originOf` while the page is `https`. Anything a read
+  decides (`asks`, `passkeyStanding`) goes by listener and host; the two passkey routes are mutations
+  and ask `https` themselves. A test client that sends `Origin` on a `GET` hides exactly this —
+  Chromium found it, the socket test did not.
+- **The page draws from the machine's answer, never its own clock** (`proven` on `you.passkey`): a
+  phone's clock is somebody else's. A proof that runs out with a page open is said by the act it
+  refuses — `unproven` makes `ask` read `/api/devices` again and the bar goes up.
+- **A press goes straight to the authenticator, and only a press.** The challenge is fetched while
+  the bar is up and replaced before the machine's five minutes run out; the press awaits nothing
+  before `create()`/`get()`; one ceremony at a time, abandoned after `GIVE_UP_MS`. Safari
+  rate-limits a page that asks repeatedly (WebKit 273712) and a burst of asks has put Face ID inside
+  another home-screen app (WebKit 291258). Never the Signal API: on iOS 26 it deletes other
+  accounts' passkeys (WebKit 322267).
+- **The verifier is Tade's own** (`webauthn.ts`), not `@simplewebauthn/server`, whose ten packages
+  are almost all attestation, which Tade asks for none of and checks none of. What it checks is a
+  list, and `test/webauthn.test.ts` is that list as rows over a software authenticator and over
+  answers real authenticators gave; a refusal's reason goes in `web_proved`, never to the page.
 - **There are five second tables, each with its own setting, and absence is
   the enforcement for all five.** `ACTS` is `surfaces.web.acting`, `ASKS` is
   `surfaces.web.orchestrator`, `DRAFTS` is `surfaces.web.drafts`, `PUSHES` is
@@ -141,6 +171,18 @@ a device still has none of the scopes that change anything until somebody at thi
   `LIFECYCLE` beside pairing and signing out, and it is a table of its own only
   because it has a setting — and in this package a setting is enforced by a
   table that is not built when it is off.
+- **The page re-sends the subscription its browser holds on every visit, and a
+  repeat writes nothing** (`resend` in `push.js`, `sameSubscription` in
+  `web-push.ts`). iOS may answer for a subscription it replaced and never fires
+  `pushsubscriptionchange` (WebKit 249766, 294421). It reads what is held —
+  never a prompt, never a new subscription — and a row is written only where
+  the endpoint or a key moved; a visit also clears a device's failures.
+- **A notification is a Declarative Web Push message too** (`payloadOf`): drawn
+  by an iOS 18.4+ phone with no worker at all, and with the three fields kept at
+  the top for everything else, which hands the worker the message as data. Not
+  `mutable`. Its `navigate` is the root of the device's own host (`rootOf`), and
+  the worker's tap calls `preventDefault` so an open page is focused rather than
+  navigated over what was typed in it.
 - **A notification is sent on the window's beat or not at all, and nothing is
   caught up.** The transitions are between this beat and the last one, held in
   memory, so a window that has just opened sends nothing: a laptop shut
@@ -493,7 +535,7 @@ agent printed. Everything about it is in the direction of reading less.
 - **The page stops asking when it is left** (`screen.leave()` from the router), and the harness
   counts the asks after leaving off the browser's own resource timeline.
 
-## Eight sentences that may never get more comfortable
+## Nine sentences that may never get more comfortable
 
 In `src/surface.ts` (re-exported from `@tade/core`'s `away.ts`), said once so no control, README
 line or commit message can say the easy half. `test/separation.test.ts` holds each of them.
@@ -522,6 +564,10 @@ line or commit message can say the easy half. `test/separation.test.ts` holds ea
 - `PUBLIC_IS_THE_INTERNET` — anybody can load the page and ask to pair, said **before** what
   still stands (the code on this machine's screen; nothing that arrives that way is this machine),
   and clearing the name is the way out. Held in `public.test.ts`, and among the never-private ones.
+- `PASSKEY_BEFORE_ACTING` — a copied session reads and cannot act; and the two halves the easy
+  version drops: a synced passkey is the **keychain's, not the phone's**, and the proof still rides
+  on that device's own session. Nought is off, and says that a session then acts alone. Held in
+  `passkey.test.ts`, and among the never-private ones.
 
 ## The config, and the five controls over it
 
@@ -803,6 +849,17 @@ week; and how it behaves in Safari and Firefox — the harness drives Chromium, 
 named rather than claimed. Each is **named as outstanding** rather than ticked. `test/qr.test.ts`
 proves the *encoding* by decoding it with `jsqr`, which is a different codebase — that is the most a
 machine here can say.
+
+**A passkey on a real phone** is the person's to try, and what is known instead: WebAuthn runs in an
+iOS home-screen app (WebKit 291258 is a working Face ID flow from one, with the bug that follows a
+burst of asks); since iOS 17.2 the app gets a copy of Safari's cookies **once, at install**, and the
+two drift after (WebKit 181849, 325412), so a device paired in Safari and installed within its
+minutes can make its passkey in either — not checked on a phone. What *was* checked, end to end:
+Chromium's own virtual authenticator (CDP `WebAuthn.addVirtualAuthenticator`, ctap2, internal, user
+verified) made an Ed25519 passkey through the real page on a public name — a TLS front over the
+public socket, `--host-resolver-rules` and `--ignore-certificate-errors-spki-list` — and the page
+made it, was refused an act, was asked again thirteen hours on (the server's clock), used it, and a
+refused press on an open page brought the bar back. Safari, Firefox and a hardware key are named.
 
 **A typed URL cannot pair.** The ticket is in the QR's fragment, so a person who types the address
 reaches the pairing page with nothing to present and is told to scan the code in the window.

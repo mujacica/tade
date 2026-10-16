@@ -47,6 +47,9 @@ import {
 // 6. **The session** — present, not expired, not revoked, and minted for
 //    *this* host.
 // 7. **The scope** — what the device was granted, against what the route needs.
+// 8. **The passkey** — from the public listener, anything above `read` needs a
+//    proof younger than `passkey_hours` (`proven`), so a session copied off a
+//    phone reads and cannot act.
 //
 // All of them, because each fails differently and the cost of all of them is
 // this file. And **nothing here reads a forwarded header** (`NEVER_TRUSTED`,
@@ -102,6 +105,8 @@ export interface Guarding {
   bound: readonly string[]
   /** The session behind this cookie, or null. Already checked for expiry. */
   session: Session | null
+  /** The moment of the request, which a passkey's proof is measured against. */
+  now: number
 }
 
 /** A session, as the guard reads one. Minting and storing it is `sessions.ts`. */
@@ -118,6 +123,27 @@ export interface Session {
    */
   host: string
   csrf: string
+  /** When this device last used its passkey, or null for never (`proven`). */
+  proved: number | null
+}
+
+/**
+ * Whether a request may act as far as the passkey is concerned: off the public
+ * listener, or with the setting at nought, there is nothing to prove; on it, a
+ * proof younger than the setting.
+ *
+ * **The listener and never the host**, for `thisMachine`'s reason: which socket
+ * accepted the request is the one fact about it nobody outside can claim. A
+ * proof from the future — a line somebody wrote by hand — proves nothing.
+ */
+export function proven(
+  origin: Origin,
+  proved: number | null,
+  surface: Surface,
+  now: number,
+): boolean {
+  if (origin.listener !== 'public' || surface.passkeyMs <= 0) return true
+  return proved !== null && proved <= now && now - proved < surface.passkeyMs
 }
 
 /**
@@ -359,6 +385,13 @@ export function allowed(asking: Asking, route: Route, guarding: Guarding): Verdi
       'locked',
       `${route.needs} from ${origin.scheme}://${origin.host}, which is not a trusted origin`,
     )
+  }
+
+  // **And from the public listener, the passkey** — asked at every act, like
+  // the origin, because a proof runs out while a page stays open. Reading never
+  // asks: the snapshot and the stream are `read`, and so is making the proof.
+  if (route.needs !== 'read' && !proven(origin, session.proved, guarding.surface, guarding.now)) {
+    return no('unproven', `${route.needs} from the public listener with no passkey proved lately`)
   }
 
   return { ok: true, device: session.device, scopes: session.scopes, origin }

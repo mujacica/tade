@@ -617,6 +617,7 @@ function device(id: string, label: string, pairedDaysAgo: number): Device {
     from: '127.0.0.1',
     revoked: null,
     owner: false,
+    passkey: null,
   }
 }
 

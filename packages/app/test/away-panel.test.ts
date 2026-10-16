@@ -519,6 +519,16 @@ describe('what the panel never carries', () => {
     expect(text).toMatch(/owner · over SSH · paired/)
     expect(text).not.toContain('from over SSH')
   })
+
+  it('says when a device last used its passkey, and nothing where it made none', () => {
+    const phone = view().devices[0]
+    if (phone === undefined) throw new Error('the fixture has a phone')
+    const used = Date.parse('2026-09-12T08:00:00.000Z')
+    // After the date it paired, wrapped where the row runs out.
+    const text = said({ devices: [{ ...phone, passkey: used }] }, { height: 64 })
+    expect(text).toContain('passkey used 2026-09-12T08:00:00.000Z')
+    expect(said({ devices: [phone] }, { height: 64 })).not.toContain('passkey')
+  })
 })
 
 describe('letting one device act', () => {

@@ -188,6 +188,10 @@ export function registerWeb(program: Command, io: Io, setExit: (code: number) =>
               : reads.length === 0
                 ? 'names and counts'
                 : reads.join(', ')
+          }${
+            // Whether it can still act from a public name is its passkey, and
+            // when it last used it is the question about a phone gone missing.
+            one.passkey === null ? '' : `  passkey, used ${when(one.passkey.proved)}`
           }`,
         )
       }
@@ -408,6 +412,16 @@ function asJson(device: Device) {
     reads: readsOf(reachOf(device)),
     projects: device.projects,
     owner: device.owner,
+    // Its passkey's dates and whether it syncs — never its id or its key,
+    // which are nobody's business in a terminal's scrollback.
+    passkey:
+      device.passkey === null
+        ? null
+        : {
+            made: new Date(device.passkey.at).toISOString(),
+            used: new Date(device.passkey.proved).toISOString(),
+            synced: device.passkey.synced,
+          },
   }
 }
 

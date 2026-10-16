@@ -240,6 +240,12 @@ function text(value, floor, most) {
  */
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
+  // **And the browser does not open one of its own.** A Declarative Web Push
+  // notification (`payloadOf` in `noticed.ts`) names a page to open, and a
+  // browser that hands the tap to this worker first opens it only where the
+  // worker did not say it would — so this says it, and an open page is focused
+  // rather than navigated, which would throw away whatever was typed in it.
+  event.preventDefault()
   event.waitUntil(open())
 })
 

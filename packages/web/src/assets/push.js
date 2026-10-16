@@ -7,7 +7,8 @@
 // screen — so this is a control somebody taps and never something the page
 // does on load. That is not only a browser rule: a prompt nobody asked for is
 // the thing people answer *no* to for ever, and a *no* on this origin cannot
-// be asked again from here.
+// be asked again from here. The one thing that runs on its own is `resend`,
+// which asks nothing: it tells the machine again what the browser holds.
 //
 // **Two switches, and this is the second one.** The machine decides whether it
 // will send anything (`surfaces.web.push`, and the public key it answers
@@ -92,11 +93,7 @@ export async function pushState(shell) {
   if (Notification.permission === 'denied') return DENIED
   const reg = await registered()
   if (reg === null) return OFF
-  try {
-    return (await reg.pushManager.getSubscription()) === null ? OFF : ON
-  } catch {
-    return OFF
-  }
+  return (await heldBy(reg)) === null ? OFF : ON
 }
 
 /**
@@ -148,6 +145,48 @@ export async function subscribe(shell, ask) {
     return CANNOT
   }
   return ON
+}
+
+/**
+ * Tell the machine, again, the subscription this browser already holds — on
+ * every visit, **never a new one and never a prompt**.
+ *
+ * Because a push service may go on answering `201` for a subscription it has
+ * quietly replaced: iOS does not guarantee a `410` for a dead endpoint
+ * (WebKit bug 249766, closed *won't fix*) and never fires
+ * `pushsubscriptionchange` (WebKit bug 294421), so a machine that is always on
+ * could send into nothing for weeks. Apple's own advice is this: send
+ * `getSubscription()` on each visit. The machine writes a row only where it
+ * changed (`web-push.ts`).
+ *
+ * It asks for nothing, which is why it may run without a press: reading what
+ * the browser holds raises no prompt, and the permission it checks is the one
+ * somebody already gave. A refusal is left alone — it is the machine saying
+ * notifications are off, and the press is where that is said.
+ */
+export async function resend(shell, ask) {
+  if (shell === null || shell.notifying?.offered !== true) return false
+  if (!pushable() || Notification.permission !== 'granted') return false
+  const reg = await registered()
+  if (reg === null) return false
+  const held = await heldBy(reg)
+  if (held === null) return false
+  const sent = await ask('POST', '/api/notify/subscribe', bodyOf(held))
+  return sent.status === 200
+}
+
+/**
+ * The subscription a registration holds, or null — for none, and for a browser
+ * that will not answer about one, which is the same thing to every caller:
+ * nothing this page can send to, so nothing is drawn as on and nothing is
+ * told to the machine.
+ */
+async function heldBy(reg) {
+  try {
+    return await reg.pushManager.getSubscription()
+  } catch {
+    return null
+  }
 }
 
 /**

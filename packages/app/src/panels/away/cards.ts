@@ -146,6 +146,7 @@ export function deviceLines(
     kind,
     device.owner ? device.from : `from ${device.from}`,
     `paired ${ctx.date(device.pairedAt)}`,
+    device.passkey === undefined ? '' : `passkey used ${ctx.date(device.passkey)}`,
   ]
   for (const part of wrap(about.filter(Boolean).join(' · '), inner - 5)) {
     lines.push(row().space(4).text(part, skin.hint).build())

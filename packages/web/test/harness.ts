@@ -74,6 +74,7 @@ export const BASE: Surface = {
   port: 0,
   trustedHosts: ['studio.yak-bebop.ts.net'],
   publicName: null,
+  passkeyMs: 0,
   // Off, like the config's default: the read-only tests are about a listener
   // that has no route to change anything, and `acting.test.ts` turns it on
   // deliberately. A fixture that was kinder than the default would be the one
@@ -195,6 +196,8 @@ export async function start(
     home?: string
     /** Where the public listener's socket goes, for a test that sets a public name. */
     publicSocket?: string
+    /** The server's clock, for a test that has to move it: a passkey's hours, a pairing's minutes. */
+    now?: () => number
   } = {},
 ): Promise<Running> {
   settingRows = opts.settings ?? []
@@ -234,6 +237,7 @@ export async function start(
     ...(opts.configuring === undefined ? {} : { configuring: opts.configuring }),
     ...(opts.confirmMs === undefined ? {} : { confirmMs: opts.confirmMs }),
     ...(opts.publicSocket === undefined ? {} : { publicSocket: opts.publicSocket }),
+    ...(opts.now === undefined ? {} : { now: opts.now }),
   })
   epoch = one.server.epoch
   one.epoch = epoch

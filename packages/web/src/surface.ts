@@ -83,6 +83,16 @@ export interface Surface {
    */
   publicName: string | null
   /**
+   * How long a passkey's proof lets a device act from the public listener, in
+   * milliseconds; nought for never asking (`surfaces.web.passkey_hours`).
+   *
+   * **Asked of the public listener alone** (`proven`, `guard.ts`): it is the
+   * one a copied session reaches from anywhere. This machine, an SSH forward
+   * and a tailnet name each come in on the loopback listener, already behind
+   * something of the person's own.
+   */
+  passkeyMs: number
+  /**
    * Whether a paired device may change anything at all.
    *
    * **Read twice, and the two readings are different questions.** At start-up
@@ -190,6 +200,7 @@ export interface WebConfig {
   port: number
   trusted_hosts: readonly string[]
   public: string
+  passkey_hours: number
   acting: boolean
   orchestrator: boolean
   drafts: boolean
@@ -207,6 +218,7 @@ export const OFF: Surface = {
   port: 7654,
   trustedHosts: [],
   publicName: null,
+  passkeyMs: 0,
   acting: false,
   talking: false,
   drafting: false,
@@ -235,6 +247,7 @@ export function surfaceOf(web: WebConfig): Surface {
     port: web.port,
     trustedHosts: web.enabled ? [...new Set([...named, ...web.trusted_hosts])] : [],
     publicName: web.enabled ? (named[0] ?? null) : null,
+    passkeyMs: web.enabled ? web.passkey_hours * 3_600_000 : 0,
     acting: web.enabled && web.acting,
     talking: web.enabled && web.orchestrator,
     drafting: web.enabled && web.drafts,

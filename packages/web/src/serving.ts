@@ -76,6 +76,7 @@ export type Told = (
         | 'web_asked'
         | 'web_subscribed'
         | 'web_pushed'
+        | 'web_proved'
       detail: Record<string, string | number | boolean>
     }
   | { type: 'warning'; detail: { message: string } & Record<string, string | number | boolean> }

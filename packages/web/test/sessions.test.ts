@@ -36,6 +36,7 @@ function device(over: Partial<Device> = {}): Device {
     from: '192.168.1.42',
     revoked: null,
     owner: false,
+    passkey: null,
     ...over,
   }
 }

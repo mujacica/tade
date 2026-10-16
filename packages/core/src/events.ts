@@ -461,6 +461,18 @@ export const EventType = z.enum([
    */
   'web_subscribed',
   /**
+   * A paired device made its passkey, used it, or failed to: the device, which
+   * ceremony, and what came of it — never the credential, its key or anything
+   * the authenticator said.
+   *
+   * **Its own type and not a `web_paired`**: pairing decides what a device may
+   * read; this is it proving, from the public name, that it may still act
+   * (`passkey_hours`). Routine, because the person is the one holding the
+   * phone when it happens, every few hours; a copied session trying to act
+   * without one is a `web_did` refused at the door, which is notable.
+   */
+  'web_proved',
+  /**
    * A notification was sent to a device, or could not be: the device, what the
    * transition was, and what the push service said.
    *
@@ -625,6 +637,10 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // about a phone, and whoever was not holding it is the one who needs to see
   // that it does.
   web_subscribed: 'notable',
+  // Routine: the person proving it is them, every few hours, with the phone in
+  // their hand. What matters — something acting without the proof — is a
+  // refused `web_did`, which is notable.
+  web_proved: 'routine',
   // Routine, and the one `web_` line that is not a refusal and still is: the
   // person has already been interrupted by the notification itself, so an
   // earcon here is the same news twice.

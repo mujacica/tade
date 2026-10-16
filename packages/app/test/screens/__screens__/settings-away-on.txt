@@ -41,7 +41,7 @@
     │                            ▕│    phone · from your network · paired Fri 11 Sep 09:12                        █│    
     │                            ▕│    reads     names   states   counts   titles   intent                        █│    
     │                            ▕│    may      □ full access  □ answer & steer  □ stop agents  □ close projects  █│    
-    │                            ▕│             □ talk to Tade  □ change settings  □ see screens  □ read settings █│    
+    │                            ▕│             □ talk to Tade  □ change settings  □ see screens  □ read settings ▕│    
     │                            ▕│                                                                               ▕│    
     │                            ▕│                                                                               ▕│    
     │                            ▕│ an agent on this machine could pair itself            Disconnect everything   ▕│    
@@ -54,7 +54,7 @@
 ━   │                            ▕│                                                                               ▕│   ━
     │                            ▕│ Public name                none                                               ▕│    
     │                            ▕│                                                                               ▕│   ▕
-    │                            ▕│ Notification signing key   generated when it is first needed                  ▕│   ▕
+    │                            ▕│ Passkey before acting       ‹   12   ›                                        ▕│   ▕
     │                            ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕

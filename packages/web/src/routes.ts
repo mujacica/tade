@@ -16,11 +16,11 @@ import { VERBS } from './verbs.ts'
 //
 //   **No route in `ROUTES` mutates a project or a task.**
 //
-// The two non-`GET` entries are *session lifecycle* — this browser's own
-// credential, created and destroyed — and `test/routes.test.ts` asserts the set
-// of them is exactly those two, by name. A third one fails that test until
-// somebody puts it in the set deliberately, which is the conversation the
-// claim was for.
+// The non-`GET` entries are *session lifecycle* — this browser's own
+// credential, created, destroyed and proved with its passkey — and
+// `test/routes.test.ts` asserts the set of them is exactly `LIFECYCLE`, by
+// name. Another fails that test until somebody puts it in the set
+// deliberately, which is the conversation the claim was for.
 //
 // **And the acting routes are not in it.** They are `ACTS`, a second table
 // built from `VERBS`, and `routesFor` adds them only where
@@ -288,16 +288,37 @@ export const ROUTES: readonly Route[] = [
     needs: 'read',
     mutates: true,
   },
+
+  // **This device's passkey: a challenge, and its answer** (`passkeyed.ts`).
+  // Lifecycle like the two above — this browser's own credential, made in the
+  // minutes after pairing and used before acting from the public name — and
+  // `read`, because proving it may act cannot itself need the proof. A
+  // mutation, so the token and the exact `Origin` are asked like any other.
+  {
+    method: 'POST',
+    path: '/api/passkey/challenge',
+    name: 'passkey challenge',
+    needs: 'read',
+    mutates: true,
+  },
+  {
+    method: 'POST',
+    path: '/api/passkey/answer',
+    name: 'passkey answer',
+    needs: 'read',
+    mutates: true,
+  },
 ]
 
 /**
  * The routes that are not `GET` in `ROUTES`, by name.
  *
  * Written out here rather than computed in the test, so that adding one is a
- * line in this file next to the argument for it. Both are session lifecycle;
- * neither touches a project or a task.
+ * line in this file next to the argument for it. All four are session
+ * lifecycle — minting one, ending one, and its passkey — and none touches a
+ * project or a task.
  */
-export const LIFECYCLE = ['pair', 'sign out'] as const
+export const LIFECYCLE = ['pair', 'sign out', 'passkey challenge', 'passkey answer'] as const
 
 /**
  * The acting routes: **one path per verb**, and the table is `VERBS`.

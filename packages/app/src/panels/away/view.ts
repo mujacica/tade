@@ -124,6 +124,12 @@ export interface AwayDevice {
    */
   owner?: boolean
   pairedAt: number
+  /**
+   * When it last used its passkey, where it made one: whether it can still
+   * act from a public name is the question about a phone gone missing. Absent
+   * is none.
+   */
+  passkey?: number
   /** What it was granted beyond names and counts, already in grant order. */
   reads: readonly string[]
   /** Whether a person at the machine has let it answer and steer. */

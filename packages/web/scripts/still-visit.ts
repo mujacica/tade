@@ -104,7 +104,15 @@ function staged(world: World, device: Device, visit: Visit, reading: ReturnType<
     if (url.pathname === '/api/devices')
       return answered(
         200,
-        listing(device, world.devices, keepingOf({ installing: false, keepsView: false })),
+        listing(device, world.devices, keepingOf({ installing: false, keepsView: false }), {
+          // Loopback, so acting asks for no passkey and the page draws no bar.
+          asks: false,
+          made: false,
+          proven: false,
+          until: null,
+          makeBy: null,
+          hours: 12,
+        }),
       )
     if (url.pathname === '/api/snapshot') return answered(200, reading.snapshot())
     if (url.pathname === '/api/settings') return answered(200, reading.settings())

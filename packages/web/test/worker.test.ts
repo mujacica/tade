@@ -98,6 +98,8 @@ function run(shell: Shell, caches: FakeCaches) {
   const listeners = new Map<string, ((event: Scope) => void)[]>()
   const said: string[] = []
   const shown: { title: string; opts: Scope }[] = []
+  /** Taps whose handler told the browser not to open a page of its own. */
+  const prevented: number[] = []
   const opened: string[] = []
   const focused: string[] = []
   const state = { claimed: 0, skipped: 0, unregistered: false }
@@ -161,6 +163,7 @@ function run(shell: Shell, caches: FakeCaches) {
     said,
     state,
     shown,
+    prevented,
     opened,
     focused,
     pages,
@@ -186,6 +189,7 @@ function run(shell: Shell, caches: FakeCaches) {
         notification: {
           close: () => closed.push(1),
         },
+        preventDefault: () => prevented.push(1),
       }).then(() => closed.length)
     },
     /** A request, and what the worker answered — or `null` for *not ours*. */
@@ -548,6 +552,29 @@ describe('a notification, arriving', () => {
     expect(await worker.tapped()).toBe(1)
     expect(worker.focused).toEqual(['https://machine.example/queue'])
     expect(worker.opened).toEqual([])
+  })
+
+  it('draws a Declarative Web Push message by the three fields it always read', async () => {
+    // A browser that cannot draw the declarative half hands the worker the
+    // whole message; the top three are what it reads, and the rest is not its.
+    const { shell, caches } = machineServing(FIRST)
+    const worker = run(shell, caches)
+    const plain = { title: 'Tade', body: '2 want your answer', tag: 'tade' }
+    await worker.push({
+      ...plain,
+      web_push: 8030,
+      notification: { ...plain, navigate: 'https://tade.example.com/', silent: false },
+    })
+    expect(worker.shown[0]?.title).toBe('Tade')
+    expect(worker.shown[0]?.opts.body).toBe('2 want your answer')
+  })
+
+  it('keeps the browser from opening a page of its own over one already open', async () => {
+    const { shell, caches } = machineServing(FIRST)
+    const worker = run(shell, caches)
+    await worker.tapped()
+    expect(worker.prevented).toEqual([1])
+    expect(worker.focused).toEqual(['https://machine.example/queue'])
   })
 
   it('opens the root, and never a path out of the payload', async () => {

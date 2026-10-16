@@ -31,6 +31,7 @@ describe('nothing listens unless it is turned on', () => {
         port: 0,
         trustedHosts: [],
         publicName: null,
+        passkeyMs: 0,
         acting: false,
         talking: false,
         drafting: false,

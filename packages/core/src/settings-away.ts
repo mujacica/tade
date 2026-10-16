@@ -11,6 +11,8 @@ import {
   LAST_VIEW_IS_A_COPY_SHORT,
   OFFLINE_NEEDS_HTTPS,
   OFFLINE_NEEDS_HTTPS_SHORT,
+  PASSKEY_BEFORE_ACTING,
+  PASSKEY_BEFORE_ACTING_SHORT,
   PUBLIC_IS_THE_INTERNET,
   PUBLIC_IS_THE_INTERNET_SHORT,
   PUSH_GOES_THROUGH_A_STRANGER,
@@ -32,7 +34,7 @@ import type { SettingGroup } from './settings.ts'
 /** The heading the capability rows are drawn under: what a paired device may do. */
 export const DEVICE_MAY = 'A paired device may'
 
-// The away view's thirteen controls, as a person changes them.
+// The away view's fourteen controls, as a person changes them.
 //
 // Its own half of `settingsOf`, split off for the reason the projects half
 // was: that file reached the size a file is allowed to be. It is a seam rather
@@ -49,9 +51,9 @@ export const DEVICE_MAY = 'A paired device may'
 // the whole of it, every domain sentence included, because it is still what
 // search, `tade config` and `tade_settings` read.
 //
-// **All thirteen are `live: true`.** `enabled` brings the listener up or
-// closes it at once (`Away.follow`). The nine the listener is built from — who
-// can reach it, the port, the trusted hostnames and every capability — waited
+// **All fourteen are `live: true`.** `enabled` brings the listener up or
+// closes it at once (`Away.follow`). The ones the listener is built from — who
+// can reach it, the port, the names, the passkey's hours, every capability — waited
 // for a restart, because the route table and the epoch a connected phone holds
 // are made when the listener comes up; a change to any of them while it is on
 // now closes it and brings it up again (`web-follow.ts`), so a page open on a
@@ -162,6 +164,20 @@ export function awayGroup(config: Config): SettingGroup {
         type: { kind: 'text', placeholder: 'tade.example.com' },
         live: true,
         keywords: ['caddy', 'domain', 'internet', 'vps', 'certificate', 'reverse proxy', 'dns'],
+      },
+      {
+        path: 'surfaces.web.passkey_hours',
+        // Beside the public name because it is about nothing else: only that
+        // listener asks. A number of hours rather than a switch, because the
+        // person's decision was *how long*, and nought is the switch's off.
+        title: 'Passkey before acting',
+        means: `how many hours a device may act from the public name after using its passkey; nought for never asking. ${PASSKEY_BEFORE_ACTING}`,
+        short: PASSKEY_BEFORE_ACTING_SHORT,
+        value: String(web.passkey_hours),
+        fallback: '12',
+        type: { kind: 'number', unit: 'hours, nought for never', from: 0 },
+        live: true,
+        keywords: ['passkey', 'webauthn', 'face id', 'touch id', 'step up', 'second factor', '2fa'],
       },
       {
         path: 'surfaces.web.push_key',

@@ -16,6 +16,7 @@ import { mint, SESSION_MS } from '../src/sessions.ts'
 import { DEVICES_AND_AGENTS, DEVICES_SEEN_BY_AGENTS, reachOf } from '../src/surface.ts'
 
 const NOW = Date.parse('2026-10-08T12:00:00Z')
+const HOUR = 3_600_000
 const homes: string[] = []
 
 async function home(): Promise<string> {
@@ -186,6 +187,71 @@ describe('the fold', () => {
     // The old secret is then unusable, which is the whole point of replacing
     // rather than keeping two rows for one phone.
     expect(devices[0]?.digest).not.toBe(first.digest)
+  })
+})
+
+describe('a passkey, in the file', () => {
+  const at = (ms: number) => new Date(NOW + ms).toISOString()
+  const passkeyLine = (device: string, over: Record<string, unknown> = {}) => ({
+    kind: 'passkey',
+    device,
+    at: at(60_000),
+    id: 'a'.repeat(43),
+    key: 'b'.repeat(120),
+    alg: -7,
+    counter: 0,
+    synced: true,
+    transports: ['internal'],
+    ...over,
+  })
+  const fold = (...lines: unknown[]) =>
+    devicesIn(lines.map((line) => `${JSON.stringify(line)}\n`).join(''))
+
+  it('is no passkey for a device that made none', () => {
+    expect(fold(pairedLine()).devices[0]?.passkey).toBeNull()
+  })
+
+  it('is the one it made, proved at the moment it was made', () => {
+    const paired = pairedLine()
+    const device = String(paired.device)
+    const passkey = fold(paired, passkeyLine(device)).devices[0]?.passkey
+    expect(passkey).toMatchObject({ alg: -7, synced: true, counter: 0, transports: ['internal'] })
+    expect(passkey?.proved).toBe(NOW + 60_000)
+    expect(passkey?.at).toBe(NOW + 60_000)
+  })
+
+  it('moves its proof and its counter on a proved line, and nothing else', () => {
+    const paired = pairedLine()
+    const device = String(paired.device)
+    const proved = { kind: 'proved', device, at: at(HOUR), counter: 3 }
+    const after = fold(paired, passkeyLine(device), proved).devices[0]?.passkey
+    expect(after).toMatchObject({ proved: NOW + HOUR, counter: 3, at: NOW + 60_000 })
+  })
+
+  it('proves nothing for a device with no passkey, and makes none for a device nobody paired', () => {
+    const paired = pairedLine()
+    const device = String(paired.device)
+    const lone = fold(paired, { kind: 'proved', device, at: at(HOUR), counter: 0 })
+    expect(lone.devices[0]?.passkey).toBeNull()
+    expect(lone.skipped).toBe(0)
+    const nobody = fold(passkeyLine('ffeeddccbbaa9988'))
+    expect(nobody.devices).toEqual([])
+    expect(nobody.skipped).toBe(0)
+  })
+
+  it('skips a line whose key is not base64url or whose kind of key Tade never asked for', () => {
+    const paired = pairedLine()
+    const device = String(paired.device)
+    expect(fold(paired, passkeyLine(device, { key: 'not base64url!' })).skipped).toBe(1)
+    expect(fold(paired, passkeyLine(device, { alg: -35 })).skipped).toBe(1)
+    expect(fold(paired, passkeyLine(device, { secret: 'x' })).skipped).toBe(1)
+  })
+
+  it('is gone with a device that pairs again, which is a new device with none', () => {
+    const paired = pairedLine()
+    const device = String(paired.device)
+    const again = { ...pairedLine(), device }
+    expect(fold(paired, passkeyLine(device), again).devices[0]?.passkey).toBeNull()
   })
 })
 

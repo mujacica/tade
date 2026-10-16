@@ -548,6 +548,7 @@ it — and each is still nothing to a device until you grant that device here:
 | **Serve the away view** | off | a listener while this window is open, and the code to pair with drawn under the switch |
 | **Who can reach it: lan** | this machine | plain HTTP on your wifi, and read-only whatever else is on — `tailscale serve localhost:7654` gives a phone HTTPS and leaves Tade listening here |
 | **Public name** | none | the internet, through Caddy on a server of yours: a second listener on a socket only Caddy can open, where nothing is ever this machine, and each phone's own pairing limit — `tade host domain` and `tade host caddy` say the rest |
+| **Passkey before acting** | 12 hours | from the public name, a device acts only within this many hours of using its passkey — a face, a fingerprint, a passcode — made on it in the minutes after it pairs, so a session copied off a phone reads and cannot act. Reading never asks; nought asks nothing |
 | **Act** | on | eight bounded things on work you already set up — plus stopping or reopening an agent and closing or reopening a project, each only on a device you granted it — and only from this machine or an `https` name you trusted |
 | **Talk to Tade** | on | free text into the same conversation, answered with its tools narrowed to that device's own view |
 | **Save draft workflows** | on | one field at a time, into a file no run reads until you publish it here |
@@ -736,7 +737,9 @@ trusted hostname when you say so; Settings › Away view shows the same look und
 site block and the one root line that makes the socket's directory, and writes nothing. `tade host caddy --check` looks from
 the box at the directory, the socket, the certificate the name answers with — loudly when renewing
 has stopped — and whether this Tade is behind, which the away view also says loudly while it is
-public.
+public. A phone paired through the name makes a passkey right after it pairs — inside the app it
+lives in, if you added the page to the home screen — and uses it before acting from there, every
+twelve hours by default; one that missed the moment reads until it pairs again.
 
 macOS Terminal puts its own parts around the title Tade sets — the folder, the program and its
 arguments (`node …/pnpm.cjs run tade` under `pnpm tade`), the size — and for a title that is only

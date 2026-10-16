@@ -511,6 +511,10 @@ declare module '*/assets/push.js' {
   export function unsubscribe(
     ask: (method: string, path: string, body: unknown) => Promise<{ status: number }>,
   ): Promise<string>
+  export function resend(
+    shell: { notifying?: { offered?: boolean; key?: string } } | null,
+    ask: (method: string, path: string, body: unknown) => Promise<{ status: number }>,
+  ): Promise<boolean>
   export function bodyOf(made: {
     toJSON(): { endpoint?: string; keys?: Record<string, string> }
   }): {
@@ -519,6 +523,60 @@ declare module '*/assets/push.js' {
     auth: string
   }
   export function keyBytes(key: string): Uint8Array
+}
+
+declare module '*/assets/passkey.js' {
+  type You = {
+    scopes?: readonly string[]
+    passkey?: {
+      asks: boolean
+      made: boolean
+      proven: boolean
+      until: string | null
+      makeBy: string | null
+      hours: number
+    } | null
+  } | null
+  type Asker = (
+    method: string,
+    path: string,
+    body?: unknown,
+  ) => Promise<{ status: number; body: Record<string, unknown> | null }>
+  export interface Bar {
+    key: string
+    tone?: string
+    glyph: string
+    lead: string
+    under: string
+    press?: { said: string; does: () => void }
+  }
+  export const FRESH_MS: number
+  export const GIVE_UP_MS: number
+  export const RETRY_MS: number
+  export function actsAtAll(scopes: unknown): boolean
+  export function passkeyNeed(you: You): 'make' | 'use' | 'missed' | null
+  export function passkeyBar(
+    need: 'make' | 'use' | 'missed' | null,
+    you: You,
+    now: number,
+    state: { busy?: boolean; said?: string; does?: () => void },
+  ): Bar | null
+  export function passkeys(deps: {
+    ask: Asker
+    freshen: () => Promise<void>
+    paint: () => void
+    credentials?: () => {
+      create(opts: { publicKey: Record<string, unknown>; signal?: unknown }): Promise<unknown>
+      get(opts: { publicKey: Record<string, unknown>; signal?: unknown }): Promise<unknown>
+    }
+    now?: () => number
+  }): { bars(you: You, at?: number): Bar[]; ready(): void; press(): Promise<void> }
+  export function bytesOf(text: string): Uint8Array
+  export function textOf(buffer: ArrayBuffer | Uint8Array): string
+  export function creationIn(options: Record<string, unknown>): Record<string, unknown>
+  export function requestIn(options: Record<string, unknown>): Record<string, unknown>
+  export function answerOf(made: unknown, ceremony: string): Record<string, unknown>
+  export function refusedBy(error: unknown): string
 }
 
 declare module '*/assets/tree.js' {

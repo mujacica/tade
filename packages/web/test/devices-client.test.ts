@@ -64,6 +64,7 @@ function device(over: Partial<Device> = {}): Device {
     from: '192.168.1.20',
     revoked: null,
     owner: false,
+    passkey: null,
     ...over,
   }
 }
@@ -74,9 +75,12 @@ const KEEPING: Keeping = {
   notifying: { offered: false, key: null },
 } as unknown as Keeping
 
+/** A device whose acting asks for no passkey: this machine, a tailnet. */
+const NOT_ASKED = { asks: false, made: false, proven: false, until: null, makeBy: null, hours: 12 }
+
 /** What `/api/devices` answers this device with, for these devices. */
 function listed(me: Device, others: Device[] = []) {
-  return listing(me, [me, ...others], KEEPING) as unknown as {
+  return listing(me, [me, ...others], KEEPING, NOT_ASKED) as unknown as {
     you: { device: string; label: string; reads: string[]; scopes: string[]; until: string }
     devices: { device: string; label: string; pairedAt: string; you: boolean }[]
   }

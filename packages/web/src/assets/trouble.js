@@ -19,6 +19,7 @@ export const TROUBLES = {
   bad_origin: { title: 'Request refused', fix: 'Reload this page' },
   out_of_scope: { title: 'Not granted', fix: 'Grant it at the machine' },
   locked: { title: 'Turned off', fix: 'Turn it on at the machine' },
+  unproven: { title: 'Passkey needed', fix: 'Use this device’s passkey, then try again' },
   stale: { title: 'Screen was old', fix: 'Refreshed — try again' },
   gone: { title: 'Changed meanwhile', fix: 'Look again, then retry' },
   reused: { title: 'Already used', fix: 'Try again' },

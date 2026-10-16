@@ -28,6 +28,7 @@ import {
   pusher,
   reachOf,
   readPushes,
+  rootOf,
   type Signing,
   sendable,
   signingFrom,
@@ -101,6 +102,11 @@ const KEPT_KEYS = 200
  */
 export const TRIES = 3
 
+/** Whether a row and a subscription are the same one: the endpoint and both keys. */
+export function sameSubscription(row: PushCall, call: PushCall): boolean {
+  return row.endpoint === call.endpoint && row.p256dh === call.p256dh && row.auth === call.auth
+}
+
 /** What the push half needs of the rest of the window. Accessors, every one. */
 export interface Pushes {
   /**
@@ -129,6 +135,12 @@ export interface Pushes {
    * project it cannot see.
    */
   reach: (device: string) => Reach | null
+  /**
+   * The page a notification to this device opens (`rootOf` its host), or
+   * null where it is no longer paired — then the message is the three fields
+   * alone.
+   */
+  opens?: (device: string) => string | null
   /** When somebody last typed in the window, or null where nothing says. */
   lastInputAt: () => number | null
   /** Write one setting, through the one door that writes one. */
@@ -329,7 +341,12 @@ export class WebPush {
     keys: readonly string[],
     standing: Standing,
   ): Promise<void> {
-    const to: PushTo = { endpoint: push.endpoint, p256dh: push.p256dh, auth: push.auth }
+    const to: PushTo = {
+      endpoint: push.endpoint,
+      p256dh: push.p256dh,
+      auth: push.auth,
+      opens: this.deps.opens?.(push.device) ?? null,
+    }
     let answer: Awaited<ReturnType<Pusher['send']>>
     try {
       answer = await this.senderNow().send(to, notice)
@@ -398,6 +415,18 @@ export class WebPush {
     // Checked here as well as at the parse and at the send, because this is
     // the moment the row is written and the setting could have moved.
     if (!checked.ok) throw new NotThere(`that endpoint ${checked.why}`)
+    // **The same subscription again is a visit, not a change.** The page sends
+    // what its browser holds every time it is opened (`push.js`'s `resend`),
+    // so a row is written only where the endpoint or a key moved — a browser
+    // that renewed one without saying so, which iOS does. A visit still says
+    // the phone is alive, so a device left alone after `TRIES` failures is
+    // tried again; what it was already told stays told.
+    const held = this.pushes.find((one) => one.device === device && one.forgotten === null)
+    if (held !== undefined && sameSubscription(held, call)) {
+      const standing = this.standing.get(device)
+      if (standing !== undefined) standing.failures = 0
+      return { did: false, rev: '', said: `is told through ${checked.host}, as it was` }
+    }
     await appendPush(this.deps.home(), {
       kind: 'subscribed',
       device,
@@ -655,6 +684,10 @@ export function pushFor(
     reach: (device) => {
       const held = away.devices().find((one) => one.id === device && one.revoked === null)
       return held === undefined ? null : reachOf(held)
+    },
+    opens: (device) => {
+      const held = away.devices().find((one) => one.id === device && one.revoked === null)
+      return held === undefined ? null : rootOf(held.host)
     },
     lastInputAt: () => wire.state.lastInputAt,
     writeKey: deps.writeKey,

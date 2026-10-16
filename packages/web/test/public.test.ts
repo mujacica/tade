@@ -284,6 +284,7 @@ describe('what a public name is turned on as', () => {
       port: 7654,
       trusted_hosts: ['studio.yak-bebop.ts.net', 'tade.example.com'],
       public: 'Tade.Example.com',
+      passkey_hours: 12,
       acting: false,
       orchestrator: false,
       push: false,

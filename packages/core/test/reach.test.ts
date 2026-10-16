@@ -416,6 +416,9 @@ describe('the shape of the rule', () => {
       // show: a key added under `surfaces.web` is refused on the day it is
       // written, by somebody who never read `reach.ts`.
       'surfaces.web.orchestrator',
+      // How long a passkey lets a phone act from the public name: lengthen it,
+      // or set it to nought, and a copied session acts. Never a model's.
+      'surfaces.web.passkey_hours',
       'surfaces.web.port',
       // The name the internet reaches this machine by: who can reach the
       // control room, as widely as it goes, and never a model's to set.
@@ -476,6 +479,7 @@ describe('what the person’s own words reach under intake and the away view', (
       'port',
       'trusted_hosts',
       'public',
+      'passkey_hours',
       'acting',
       'orchestrator',
       'drafts',
@@ -523,6 +527,7 @@ describe('what the person’s own words reach under intake and the away view', (
       'surfaces.web.port': 'never',
       'surfaces.web.trusted_hosts': 'never',
       'surfaces.web.public': 'never',
+      'surfaces.web.passkey_hours': 'never',
       'surfaces.web.push_key': 'never',
       'surfaces.web.acting': 'never',
       'surfaces.web.orchestrator': 'never',

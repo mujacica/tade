@@ -15,16 +15,16 @@
   M │                            █│                                                                               █│    
   A │  Voice                     █│ Public name                none                                               █│    
   M │                            █│                                                                               █│    
-    │  Window                    █│ Notification signing key   generated when it is first needed                  █│    
+    │  Window                    █│ Passkey before acting       ‹   12   ›                                        █│    
  ▾ F│                            █│                                                                               █│    
-   ▾│▌ Away view                 █│ A PAIRED DEVICE MAY                                                           █│    
-    │▌                           █│ Act                       ────████ on                                         █│    
-    │  Intake                    █│                                                                               ▕│    
-   ▸│                            █│ Talk to Tade              ────████ on                                         ▕│    
+   ▾│▌ Away view                 █│ Notification signing key   generated when it is first needed                  █│    
+    │▌                           █│                                                                               ▕│    
+    │  Intake                    █│ A PAIRED DEVICE MAY                                                           ▕│    
+   ▸│                            █│ Act                       ────████ on                                         ▕│    
 ━   │  Projects              ● 1 █│                                                                               ▕│   ━
-    │                            ▕│ Save draft workflows      ────████ on                                         ▕│    
+    │                            ▕│ Talk to Tade              ────████ on                                         ▕│    
     │  Journal                   ▕│                                                                               ▕│   ▕
-    │                            ▕│ Change settings           ────████ on                                         ▕│   ▕
+    │                            ▕│ Save draft workflows      ────████ on                                         ▕│   ▕
     │  Telemetry                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕

@@ -21,6 +21,7 @@ export const ERRORS = [
   'bad_origin',
   'out_of_scope',
   'locked',
+  'unproven',
   'stale',
   'gone',
   'reused',
@@ -73,6 +74,10 @@ const SAID: Readonly<Record<ErrorKind, { status: number; said: string }>> = {
   bad_origin: { status: 403, said: 'that request did not come from this address' },
   out_of_scope: { status: 403, said: 'this device was not granted that' },
   locked: { status: 403, said: 'that needs turning on at the machine' },
+  // A session that is good for reading and has not used its passkey lately:
+  // the one refusal whose fix is in the person's hand rather than at the
+  // machine, and the page draws the press that makes it (`passkey.js`).
+  unproven: { status: 403, said: 'acting from here needs this device’s passkey' },
   // The four an *act* can be refused with, and all four are `409`: each is
   // "the world is not what your screen said", which is a thing to redraw and
   // never a thing to retry. A client that retried any of them would be a

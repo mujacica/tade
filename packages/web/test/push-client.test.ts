@@ -13,6 +13,7 @@ import {
   PUSH_SAID,
   pushable,
   pushState,
+  resend,
   subscribe,
   unsubscribe,
 } from '../src/assets/push.js'
@@ -320,6 +321,62 @@ describe('subscribing, which only ever happens from a press', () => {
     expect(await subscribe(shell(), asking().ask)).toBe(INSECURE)
     browser({ pushManager: false })
     expect(await subscribe(shell(), asking().ask)).toBe(CANNOT)
+  })
+})
+
+describe('telling the machine again, on every visit', () => {
+  // REMOTE-TADE.md §5.3: iOS may go on answering for a subscription it has
+  // replaced and never says so (WebKit bugs 249766, 294421), so the page tells
+  // the machine what its browser holds each time it opens — and that may
+  // never be a prompt or a new subscription, because it happens without a
+  // press.
+  it('sends what the browser already holds, and asks the browser for nothing', async () => {
+    const fake = browser({ notification: 'granted', subscribed: true })
+    const asks = asking()
+    expect(await resend(shell(), asks.ask)).toBe(true)
+    expect(fake.asked).toEqual([])
+    expect(asks.sent).toEqual([
+      { method: 'POST', path: '/api/notify/subscribe', body: { endpoint: ENDPOINT, ...KEYS } },
+    ])
+  })
+
+  it('sends nothing, and never subscribes, where there is nothing held', async () => {
+    const fake = browser({ notification: 'granted', subscribed: false })
+    const asks = asking()
+    expect(await resend(shell(), asks.ask)).toBe(false)
+    expect(fake.asked).toEqual([])
+    expect(asks.sent).toEqual([])
+  })
+
+  it('never raises a prompt where the permission is undecided or refused', async () => {
+    for (const notification of ['default', 'denied'] as const) {
+      const fake = browser({ notification, subscribed: true })
+      const asks = asking()
+      expect(await resend(shell(), asks.ask)).toBe(false)
+      expect(fake.asked).toEqual([])
+      expect(asks.sent).toEqual([])
+    }
+  })
+
+  it('sends nothing where the machine offers nothing, or the browser will not say', async () => {
+    browser({ notification: 'granted', subscribed: true })
+    const asks = asking()
+    expect(await resend(shell({ offered: false }), asks.ask)).toBe(false)
+    expect(await resend(null, asks.ask)).toBe(false)
+    browser({ notification: 'granted', subscribed: true, opaque: true })
+    expect(await resend(shell(), asks.ask)).toBe(false)
+    browser({ notification: 'granted', subscribed: true, sealed: true })
+    expect(await resend(shell(), asks.ask)).toBe(false)
+    expect(asks.sent).toEqual([])
+  })
+
+  it('leaves the browser’s subscription alone where the machine refused it', async () => {
+    // Unlike a press: a refusal here is notifications being off at the
+    // machine, and the press is where that is said.
+    const fake = browser({ notification: 'granted', subscribed: true })
+    expect(await resend(shell(), asking(404).ask)).toBe(false)
+    expect(fake.isSubscribed()).toBe(true)
+    expect(fake.asked).toEqual([])
   })
 })
 

@@ -3,8 +3,10 @@ import { dirname, join } from 'node:path'
 import { z } from 'zod'
 import { hostOf } from './guard.ts'
 import type { Keeping } from './installable.ts'
+import type { PasskeyStanding } from './passkeys.ts'
 import { GRANTS, readsOf } from './reach.ts'
 import { loopbackHost, reachOf, SCOPES } from './surface.ts'
+import { type Algorithm, CREDENTIAL_ID_MOST } from './webauthn.ts'
 
 // The paired devices, in `<home>/web-devices.jsonl`: append-only, `0600`, a bad
 // line skipped rather than thrown over.
@@ -181,6 +183,51 @@ const GrantedLine = z.strictObject({
   granted: Granted,
 })
 
+/**
+ * A device's passkey, made on it in the minutes after it paired
+ * (`passkeyed.ts`): the credential's id and its **public** key, which nothing
+ * can sign with — so this line, unlike a session's digest, is worth nothing to
+ * whoever reads it. One per device; a device that pairs again is a new device
+ * and makes a new one.
+ */
+const PasskeyLine = z.strictObject({
+  kind: z.literal('passkey'),
+  device: z.string().regex(/^[0-9a-f]{16}$/),
+  at: z.string(),
+  /** The credential's id, base64url, as the authenticator gave it. */
+  id: z
+    .string()
+    .min(1)
+    .max(Math.ceil((CREDENTIAL_ID_MOST * 4) / 3))
+    .regex(/^[A-Za-z0-9_-]+$/),
+  /** Its public key, SPKI DER, base64url. */
+  key: z
+    .string()
+    .min(1)
+    .max(2048)
+    .regex(/^[A-Za-z0-9_-]+$/),
+  alg: z.union([z.literal(-8), z.literal(-7), z.literal(-257)]),
+  /** The signature counter it reported, nought for one that does not count. */
+  counter: z.int().min(0).max(0xffffffff),
+  /** Whether it may leave the device it was made on: a synced passkey. */
+  synced: z.boolean(),
+  /** How the browser said it can be reached again, as the browser said it. */
+  transports: z.array(z.string().max(32)).max(8),
+})
+
+/**
+ * A device used its passkey: **the moment acting from the public name is
+ * measured from** (`passkey_hours`), and the counter it reported. Written on
+ * the disk rather than held in memory, so a window that restarts does not ask
+ * every phone again.
+ */
+const ProvedLine = z.strictObject({
+  kind: z.literal('proved'),
+  device: z.string().regex(/^[0-9a-f]{16}$/),
+  at: z.string(),
+  counter: z.int().min(0).max(0xffffffff),
+})
+
 const Line = z.discriminatedUnion('kind', [
   PairedLine,
   RevokedLine,
@@ -189,6 +236,8 @@ const Line = z.discriminatedUnion('kind', [
   GrantedLine,
   PendingLine,
   ClaimedLine,
+  PasskeyLine,
+  ProvedLine,
 ])
 export type DeviceLine = z.infer<typeof Line>
 export type Paired = z.infer<typeof PairedLine>
@@ -225,6 +274,22 @@ export interface Device {
   revoked: string | null
   /** An owner device, bound to this machine (`ownerOf`). */
   owner: boolean
+  /** The passkey it made, and when it last proved it — or null for none. */
+  passkey: Passkey | null
+}
+
+/** A device's passkey, as the fold has it. */
+export interface Passkey {
+  id: string
+  key: string
+  alg: Algorithm
+  counter: number
+  synced: boolean
+  transports: readonly string[]
+  /** When it was made. */
+  at: number
+  /** When it was last used, which making it counts as. The fold has no clock: a reader compares. */
+  proved: number
 }
 
 /**
@@ -273,6 +338,7 @@ export function devicesIn(text: string): {
         from: parsed.from,
         revoked: null,
         owner: ownerOf(parsed),
+        passkey: null,
       })
       continue
     }
@@ -311,6 +377,15 @@ export function devicesIn(text: string): {
       devices.set(parsed.device, { ...held, scopes })
     } else if (parsed.kind === 'granted') {
       devices.set(parsed.device, { ...held, granted: parsed.granted })
+    } else if (parsed.kind === 'passkey') {
+      const at = Date.parse(parsed.at)
+      const { kind: _kind, device: _device, at: _at, ...kept } = parsed
+      devices.set(parsed.device, { ...held, passkey: { ...kept, at, proved: at } })
+    } else if (parsed.kind === 'proved') {
+      // A proof of a passkey the device does not have proves nothing.
+      if (held.passkey === null) continue
+      const passkey = { ...held.passkey, proved: Date.parse(parsed.at), counter: parsed.counter }
+      devices.set(parsed.device, { ...held, passkey })
     } else devices.set(parsed.device, { ...held, until: Date.parse(parsed.until) })
   }
   return { devices: [...devices.values()], skipped, pending: [...pending.values()] }
@@ -472,6 +547,7 @@ export function listing(
   me: Device,
   devices: readonly Device[],
   shell: Keeping,
+  passkey: PasskeyStanding,
 ): Record<string, unknown> {
   return {
     shell,
@@ -482,6 +558,9 @@ export function listing(
       scopes: me.scopes,
       csrf: me.csrf,
       until: new Date(me.until).toISOString(),
+      // Whether acting from here asks for this device's passkey, and where it
+      // stands: a drawing hint like `scopes`, decided again at every act.
+      passkey,
     },
     devices: devices
       .filter((one) => one.revoked === null)

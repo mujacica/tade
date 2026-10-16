@@ -412,6 +412,28 @@ export const PUBLIC_IS_THE_INTERNET =
 export const PUBLIC_IS_THE_INTERNET_SHORT = 'anybody on the internet can load it and ask to pair'
 
 /**
+ * What a passkey before acting stops, and what it does not, said where the
+ * hours are set (`surfaces.web.passkey_hours`).
+ *
+ * The comfortable version is *only that phone can act*, and it is wrong twice:
+ * a synced passkey is the keychain's, and the proof still rides on a session.
+ * What it does stop is the one thing a session cookie alone cannot: a copy of
+ * it acting. And a device that never made one reads until it pairs again —
+ * there is no later moment to make one at, because a session could be anybody's.
+ */
+export const PASSKEY_BEFORE_ACTING =
+  'From the public name, a device acts only within this many hours of using its passkey — a ' +
+  'face, a fingerprint or a passcode — so a session copied off it reads and cannot act. The ' +
+  'passkey is made on the device in the minutes after it pairs: one that missed them, or paired ' +
+  'before this asked, reads until it pairs again. A passkey that syncs is your keychain’s rather ' +
+  'than the phone’s, so any device signed into it can make the proof, and still needs that ' +
+  'device’s own session. Reading never asks. Nought asks nothing, and then a session alone acts.'
+
+/** The short clause, for the line under the row. */
+export const PASSKEY_BEFORE_ACTING_SHORT =
+  'a copied session reads and cannot act; nought asks nothing'
+
+/**
  * The away view's own config block: `surfaces.web`.
  *
  * Here rather than in `config.ts` for the reason the sentences above are here:
@@ -492,6 +514,18 @@ export const WebSurface = z
       })
       .refine((name) => refusedName(name) === null, { message: TADE_SH_IS_THE_INSTALLER })
       .default(''),
+    /**
+     * How many hours a passkey's proof lets a device act from the public name;
+     * nought for never asking.
+     *
+     * Only the public listener asks, because it is the one a copied session
+     * reaches from anywhere: this machine, an SSH forward and a tailnet name
+     * are each already behind something of yours. Only acting asks — reading
+     * never does. Twelve hours is the person's decision (REMOTE-TADE §14,
+     * decision 7). `PASSKEY_BEFORE_ACTING` is what is said where it is set; a
+     * change builds the listener again, like every key here.
+     */
+    passkey_hours: z.int().min(0).max(720).default(12),
     /**
      * Whether a paired device may change anything at all.
      *

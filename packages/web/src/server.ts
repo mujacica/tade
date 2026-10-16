@@ -24,6 +24,8 @@ import { headersFor } from './headers.ts'
 import { keepingOf } from './installable.ts'
 import { listenAll } from './listeners.ts'
 import { carryPairing } from './paired.ts'
+import { Passkeys } from './passkeyed.ts'
+import { passkeyStanding } from './passkeys.ts'
 import { type Sink, Streams } from './peers.ts'
 import { carryPush } from './pushed.ts'
 import { Receipts } from './receipts.ts'
@@ -144,6 +146,7 @@ export function webServer(opts: ServerOptions): WebServer {
   // of refusals is worth one line in the journal.
   const pairing = new Window(PAIR_TRIES, PAIR_WINDOW_MS)
   const refusals = new Window(REFUSALS_BEFORE_SAYING, REFUSAL_WINDOW_MS)
+  const passkeys = new Passkeys({ home: opts.home, surface: opts.surface, now, tell })
 
   async function handle(req: IncomingMessage, res: Res, listener: Listener): Promise<void> {
     const request = randomUUID()
@@ -204,6 +207,7 @@ export function webServer(opts: ServerOptions): WebServer {
       bound: boundHosts,
       session:
         host === null ? null : sessionOf(asking.cookie, devices.devices, asking.host ?? '', now()),
+      now: now(),
     }
 
     const verdict = allowed(asking, found.route, guarding)
@@ -343,10 +347,16 @@ export function webServer(opts: ServerOptions): WebServer {
             // never draw the control again. Never allowed to throw a request
             // over — the safe answer is that nothing is offered.
             keepingOf(opts.surface, asked(opts.vapid, '')),
+            passkeyStanding(device, verdict.origin, opts.surface, now()),
           ),
         )
       case 'sign out':
         return signOut(res, verdict.origin, device, found.params.id ?? '')
+      case 'passkey challenge':
+      case 'passkey answer': {
+        const said = await passkeys.carry(found.route.name, at, device, asking.origin ?? '')
+        return 'refusal' in said ? answer(res, said.refusal) : json(res, said.body)
+      }
       default:
         if (found.route.verb !== undefined) return act(res, found.route, device, at)
         if (found.route.says !== undefined) return say(res, found.route.says, device, at)
@@ -737,6 +747,7 @@ export function webServer(opts: ServerOptions): WebServer {
       unwatch()
       unwatch = () => {}
       opts.tickets.clear()
+      passkeys.clear()
       // Every open stream is told why before the listener goes, which is the
       // difference between a page that says *Tade is closing* and one that
       // says nothing and reconnects for the rest of the afternoon. Nothing is

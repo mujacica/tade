@@ -321,8 +321,16 @@ kbd {
 
 /* ── the bars: stale, unreachable, closed, resynced, and a read that failed ── */
 
+/*
+  **One column no wider than the frame.** A grid's own track is as wide as its
+  widest line's words, `nowrap` and all, so a bar whose lead was longer than a
+  phone pushed its press past the edge — clipped, since the page never scrolls
+  sideways, and so a press nobody could reach. `minmax(0, 1fr)` is the track
+  the frame gives it, and the lead's ellipsis is what gives way.
+*/
 .bars {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--s2);
   padding-block: var(--s2) 0;
 }
@@ -338,6 +346,7 @@ kbd {
 */
 .bar {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   border-radius: var(--r2);
   background: var(--panel);
   border: var(--border);

@@ -36,6 +36,7 @@ const SURFACE: Surface = {
   port: 7654,
   trustedHosts: [],
   publicName: null,
+  passkeyMs: 0,
   acting: true,
   talking: false,
   drafting: false,

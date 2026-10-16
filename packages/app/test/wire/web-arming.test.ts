@@ -180,6 +180,7 @@ describe('an owner device’s arm, built at the turn', () => {
     from: '',
     revoked: null,
     owner,
+    passkey: null,
   })
 
   async function armedFor(owner: boolean, here: boolean): Promise<Arm[]> {

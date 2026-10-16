@@ -274,8 +274,10 @@ describe('the real folder', () => {
     // until the evaluations (a page of its own under Insight: the whole of the
     // work as tiles, then the scorecards by harness, model, persona or
     // template as ranked bars, and the judge's precision beside them) took it
-    // to 399.
-    expect(wire).toBeLessThan(402 * 1024)
+    // to 399. 402 until this device's passkey (`passkey.js`: the bar, its
+    // press and the bytes an authenticator takes, and the push re-sent on
+    // every visit — not a page, so every page pays for it) took it to 405.
+    expect(wire).toBeLessThan(408 * 1024)
     // And the files as they sit, which is what a browser holds once it has
     // them: about a megabyte, with the comments every module carries. 768
     // until the pages were redrawn one at a time, each 40–90 KB as it sits.
@@ -289,8 +291,10 @@ describe('the real folder', () => {
     // it to 1243. 1248 until the landing desk (three files and 23 KB as they
     // sit, where there were none) took it to 1267. 1272 until the evaluations
     // (three files and 13 KB as they sit, where there were none) took it to
-    // 1281: the pages still to come spend the rest, and the next one is this
-    // conversation again.
-    expect(raw).toBeLessThan(1288 * 1024)
+    // 1281. 1288 until this device's passkey (one module of 11 KB as it sits,
+    // most of it the reasons a press goes straight to the authenticator) took
+    // it to 1299: the pages still to come spend the rest, and the next one is
+    // this conversation again.
+    expect(raw).toBeLessThan(1304 * 1024)
   })
 })

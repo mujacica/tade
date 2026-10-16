@@ -1,6 +1,8 @@
 import { type AttentionSettings, inQuietHours, type TaskState } from '@tade/core'
+import { hostOf } from './guard.ts'
 import type { TaskIn } from './input.ts'
 import { type Reach, sees } from './reach.ts'
+import { loopbackHost } from './surface.ts'
 
 // What is worth waking a phone for, what it is allowed to say, and everything
 // that stops one being sent. Pure: facts in, a notice or nothing out — no
@@ -255,12 +257,14 @@ export type Noticed =
   | { send: false; why: string }
 
 /**
- * A notification, as the bytes that go on the wire.
+ * A notification, as the machine decides it.
  *
- * Three fields and no more: there is no icon path, no url, no data and no
- * action. A payload with a `url` in it would be a notification that opens a
- * deep link — which is a project and a task in something a push service keeps,
- * and the page already opens where it was last left.
+ * Three fields and no more: there is no icon path, no deep link, no data and
+ * no action. A payload with a project's page in it would be a notification
+ * that opens a deep link — which is a project and a task in something a push
+ * service keeps, and the page already opens where it was last left. The one
+ * address that does go is the page's root, and only as Declarative Web Push
+ * requires one (`payloadOf`).
  */
 export interface Notice {
   /** The heading. Always Tade's own name: never a project, never a task. */
@@ -359,4 +363,39 @@ function bodyOf(changes: readonly Change[], details: boolean): string {
     return `${named === '' ? 'Work ' : named}${says.one}${also}`
   }
   return `${says.many(mine.length)}${also}`
+}
+
+/**
+ * The page a notification opens: the root of the host this device paired on,
+ * `http` only for this machine's own names, because a subscription needs a
+ * secure context and every other host that has one is `https`.
+ */
+export function rootOf(host: string): string {
+  return `${loopbackHost(hostOf(host) ?? '') ? 'http' : 'https'}://${host}/`
+}
+
+/**
+ * The bytes a notification is sent as: the three fields, and — where the page
+ * to open is known — the same three again as a **Declarative Web Push**
+ * message (WebKit, iOS and iPadOS 18.4, Safari 18.5; the Push API's
+ * declarative message).
+ *
+ * Declarative because it is drawn by the phone **without the worker**: a
+ * worker iOS evicted, or whose script failed to start, still shows Tade's
+ * sentence rather than nothing, and on an always-on machine that is the
+ * difference between a notification and a subscription quietly going cold.
+ * Not `mutable`, so the worker is not woken for it at all on a phone that
+ * understands it — there is nothing a worker would add.
+ *
+ * **The three fields stay at the top as well**, which is the whole of the
+ * compatibility: Chrome, Firefox and Safari before 18.4 hand the message to the
+ * worker as data, and a message a phone cannot read as declarative is handed
+ * to the worker too (the specification's fallback), where `sw.js` reads the
+ * top three as it always did. `navigate` is required, and is the root, never a
+ * project's page: what a notification says is `PUSH_SAYS_NOTHING`'s.
+ */
+export function payloadOf(notice: Notice, opens: string | null): Record<string, unknown> {
+  const plain = { title: notice.title, body: notice.body, tag: notice.tag }
+  if (opens === null) return plain
+  return { ...plain, web_push: 8030, notification: { ...plain, navigate: opens, silent: false } }
 }

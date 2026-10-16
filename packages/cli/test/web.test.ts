@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { writeDevices } from '@tade/web'
+import { appendDevice, writeDevices } from '@tade/web'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 
@@ -151,6 +151,28 @@ describe('tade web', () => {
     // mitigation: an agent on this machine can append a line to that file.
     expect(said.stdout).toContain('an agent is not another person')
     expect(said.stdout).toContain('Disconnect everything')
+  })
+
+  it('says when a device last used its passkey, and nothing of the key', async () => {
+    await paired({ device: '00112233445566aa', label: 'iPhone' })
+    const key = 'k'.repeat(120)
+    await appendDevice(home, {
+      kind: 'passkey',
+      device: '00112233445566aa',
+      at: new Date(Date.now() - 3 * 3_600_000).toISOString(),
+      id: 'c'.repeat(43),
+      key,
+      alg: -7,
+      counter: 0,
+      synced: true,
+      transports: ['internal'],
+    })
+    expect((await tade('web', 'devices')).stdout).toContain('passkey, used 3h ago')
+    const json = (await tade('web', 'devices', '--json')).stdout
+    const listed = JSON.parse(json) as { passkey: { synced: boolean } | null }[]
+    expect(listed[0]?.passkey?.synced).toBe(true)
+    expect(json).not.toContain(key)
+    expect(json).not.toContain('c'.repeat(43))
   })
 
   it('answers --json with the same facts the lines are made of', async () => {

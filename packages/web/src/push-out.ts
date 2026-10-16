@@ -3,7 +3,7 @@ import { lookup as dnsLookup } from 'node:dns'
 import { request as httpsRequest } from 'node:https'
 import { createRequire } from 'node:module'
 import { type Resolved, reachable } from './endpoint.ts'
-import type { Notice } from './noticed.ts'
+import { type Notice, payloadOf } from './noticed.ts'
 
 // Sending one notification: the vetted library for the cryptography, and
 // Tade's own socket for the request.
@@ -75,6 +75,12 @@ export interface PushTo {
   endpoint: string
   p256dh: string
   auth: string
+  /**
+   * The page a tap opens, where the device's host is known (`rootOf`): what
+   * makes the message a declarative one (`payloadOf`). Null sends the three
+   * fields alone.
+   */
+  opens?: string | null
 }
 
 /**
@@ -280,7 +286,7 @@ export function pusher(opts: Sending): Pusher {
       }
       const details = webpush().generateRequestDetails(
         { endpoint: to.endpoint, keys: { p256dh: to.p256dh, auth: to.auth } },
-        JSON.stringify(notice),
+        JSON.stringify(payloadOf(notice, to.opens ?? null)),
         {
           vapidDetails: {
             subject: VAPID_SUBJECT,

@@ -30,6 +30,7 @@ const LAN: Surface = {
   port: 7654,
   trustedHosts: ['studio.yak-bebop.ts.net'],
   publicName: null,
+  passkeyMs: 0,
   acting: true,
   talking: false,
   drafting: false,
@@ -45,10 +46,14 @@ const SESSION = {
   scopes: ['read'] as const,
   host: '192.168.1.10:7654',
   csrf: 'x'.repeat(43),
+  proved: null,
 }
 
+/** The moment every request here is made at. */
+const NOW = Date.parse('2026-10-16T12:00:00Z')
+
 function guarding(over: Partial<Guarding> = {}): Guarding {
-  return { surface: LAN, bound: ['192.168.1.10', '::1'], session: SESSION, ...over }
+  return { surface: LAN, bound: ['192.168.1.10', '::1'], session: SESSION, now: NOW, ...over }
 }
 
 function asking(over: Partial<Asking> = {}): Asking {

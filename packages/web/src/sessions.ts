@@ -129,6 +129,7 @@ export function sessionOf(
     scopes: device.scopes as readonly Scope[],
     host: device.host,
     csrf: device.csrf,
+    proved: device.passkey?.proved ?? null,
   }
 }
 

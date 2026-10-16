@@ -104,6 +104,10 @@ async function made(over: Over = {}) {
             granted: over.titled === true ? ['titles'] : [],
           }
         : null,
+    opens: (device) =>
+      (over.devices ?? [{ id: DEVICE, revoked: null }]).some((one) => one.id === device)
+        ? 'https://tade.example.com/'
+        : null,
     lastInputAt: () => over.lastInputAt ?? null,
     writeKey: async (one, value) => {
       written.push({ key: one, value })
@@ -267,7 +271,8 @@ describe('one notification, sent', () => {
     await it_.beat(() => it_.pusher.sent.length === 1)
     expect(it_.pusher.sent).toHaveLength(1)
     const sent = it_.pusher.sent[0]
-    expect(sent?.to).toEqual({ endpoint: ENDPOINT, ...KEYS })
+    // The page a tap opens, which makes it a Declarative Web Push message too.
+    expect(sent?.to).toEqual({ endpoint: ENDPOINT, ...KEYS, opens: 'https://tade.example.com/' })
     expect(sent?.notice.body).toBe('Work wants your answer')
     // Nothing of the work, and nothing of the work in the journal line either.
     const line = it_.told.find((one) => one.type === 'web_pushed')
@@ -433,6 +438,31 @@ describe('what a push service says back', () => {
     }
   })
 
+  it('tries a device it had stopped trying once its page says it is still there', async () => {
+    // Left alone after `TRIES` failures *until the phone subscribes again* —
+    // and a visit that sends the same subscription is the phone saying so.
+    const it_ = await start([503, 503, 503, 201])
+    for (const [at, over] of [
+      [1, { waiting: true }],
+      [2, { waiting: true, state: 'failed' as const }],
+      [3, { waiting: true, state: 'failed' as const, finished: true }],
+    ] as const) {
+      it_.sees([task(over)])
+      await it_.beat(() => it_.pusher.sent.length >= at)
+    }
+    it_.sees([task({ waiting: true, state: 'failed', finished: true, queue: 'held' })])
+    await it_.beat()
+    expect(it_.pusher.sent).toHaveLength(TRIES)
+    await it_.push
+      .half()
+      .subscribe({ endpoint: ENDPOINT, ...KEYS }, { how: 'remote', device: DEVICE })
+    it_.sees([task({ waiting: false, state: 'failed', finished: true, queue: 'held' })])
+    await it_.beat()
+    it_.sees([task({ waiting: true, state: 'failed', finished: true, queue: 'held' })])
+    await it_.beat(() => it_.pusher.sent.length > TRIES)
+    expect(it_.pusher.sent.length).toBe(TRIES + 1)
+  })
+
   it('says a refusal in a warning a person can act on, and never retries it', async () => {
     const it_ = await start([401])
     it_.sees([task({ waiting: true })])
@@ -578,6 +608,24 @@ describe('a device asking to be told', () => {
     const { pushes } = await readPushes(it_.home)
     expect(pushes).toHaveLength(1)
     expect(pushes[0]?.endpoint).toBe(`${ENDPOINT}-new`)
+  })
+
+  it('writes nothing for the same subscription told again on a visit, and a row where it moved', async () => {
+    // REMOTE-TADE.md §5.3: the page sends what its browser holds every time
+    // it is opened, so a visit is not a change — and a browser that renewed
+    // its subscription without saying so is, which iOS does.
+    const it_ = await half()
+    const from = { how: 'remote', device: DEVICE } as const
+    await it_.half.subscribe({ endpoint: ENDPOINT, ...KEYS }, from)
+    const again = await it_.half.subscribe({ endpoint: ENDPOINT, ...KEYS }, from)
+    expect(again.did).toBe(false)
+    const lines = async () =>
+      (await readFile(join(it_.home, 'web-pushes.jsonl'), 'utf8')).trim().split('\n')
+    expect(await lines()).toHaveLength(1)
+    const renewed = { endpoint: ENDPOINT, ...KEYS, auth: 'B'.repeat(22) }
+    expect((await it_.half.subscribe(renewed, from)).did).toBe(true)
+    expect(await lines()).toHaveLength(2)
+    expect((await readPushes(it_.home)).pushes[0]?.auth).toBe('B'.repeat(22))
   })
 
   it('forgets its own, and says so where there was nothing to forget', async () => {

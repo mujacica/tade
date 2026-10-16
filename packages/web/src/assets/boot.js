@@ -51,6 +51,8 @@ import { spendScreen } from './pages/spend.js'
 import { workflowScreen, workflowsScreen } from './pages/workflows.js'
 import { pairScreen } from './pair.js'
 import { palette } from './palette.js'
+import { passkeys } from './passkey.js'
+import { resend } from './push.js'
 import { movedFrom, PAGE_OF, viewOf } from './routes.js'
 import {
   barsFor,
@@ -136,6 +138,9 @@ async function ask(method, path, body) {
   } catch {
     said = null
   }
+  // **A proof that ran out while the page was open**, answered at the act: the
+  // device list is asked again, so the bar that makes a new one goes up.
+  if (said?.error === 'unproven') void ctx.freshen()
   return { status: answer.status, body: said }
 }
 
@@ -189,6 +194,15 @@ const ctx = {
     }
   },
 }
+
+// This device's passkey (`passkey.js`): a bar with a press, where acting from
+// here asks for one, and nothing anywhere else.
+const proving = passkeys({
+  ask,
+  freshen: () => ctx.freshen(),
+  paint: () => paint(),
+  credentials: () => navigator.credentials,
+})
 
 // The frame, with the desk's three parts in it: built once, after the context
 // they send through, and patched on every paint like a screen.
@@ -433,6 +447,10 @@ function offered() {
   const said = []
   const ending = endingBar(held.session?.until, Date.now())
   if (ending !== null && outside === null) said.push(ending)
+  if (outside === null) {
+    said.push(...proving.bars(held.session))
+    proving.ready()
+  }
   if (refused !== null) {
     // **The silent failure, said once.** A browser on a plain address over a
     // network refuses a worker, a cache and an install without a word, so a
@@ -899,6 +917,9 @@ async function install() {
   const offering = held.shell?.install === true
   refused = offering && (how === 'insecure' || how === 'cannot') ? how : null
   paint()
+  // The subscription this browser already holds, told again on every visit —
+  // never a new one and never a prompt (`push.js`'s `resend`).
+  if (outside === null) void resend(held.shell, ask)
 }
 
 start().catch(() => {
