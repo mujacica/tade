@@ -5,6 +5,18 @@ Every change to Tade, newest first, in the words whoever made it wrote. Generate
 explains the reasoning in the body, and a tool that reshaped them into `feat:` and `fix:` would
 say less than the history already does.
 
+## [0.2.3](https://github.com/mujacica/tade/compare/v0.2.2...v0.2.3) — 2026-10-16
+
+- A task file is written aside and moved over, so a wait read in the middle of a park never finds it empty ([`53a7e49`](https://github.com/mujacica/tade/commit/53a7e4947d1c0569865067a40bdb7df37ddc47a2))
+- brace-expansion is 5.0.12, out of reach of three denial-of-service advisories ([`e4fb8f3`](https://github.com/mujacica/tade/commit/e4fb8f30d538bec688e56b89d6c064a0fd8c404d))
+- Work a watch parks goes to the orchestrator as a proposal, and so does a check it proposes; only intake waits on the person ([`a4642a8`](https://github.com/mujacica/tade/commit/a4642a8fc878315b2f4a89b3617e5558f814739c))
+- A queue row's ▶ starts it, the same press as Start now: it lifts a park, its own pause and its queue's for that one piece ([`d23732d`](https://github.com/mujacica/tade/commit/d23732d2846985c61467fec296ba4b1538686795))
+- An error being handed on can be replaced by the cleanup before it, and that is counted, per file, and may only go down ([`486d269`](https://github.com/mujacica/tade/commit/486d2697f7afb0af2f968662dbcf7125ba7897ea))
+- The swallowed-errors test read a file it could not read as one that was not there ([`968fc22`](https://github.com/mujacica/tade/commit/968fc22ab34dfff67741e11e8930c66fd2ca85ac))
+- A caught error the program carries on without is counted, per file, and the number may only go down ([`e7c500c`](https://github.com/mujacica/tade/commit/e7c500cbbc194612ec7b55efd4da54c9e2cc762c))
+- Ctrl+V pastes wherever a person types: a lane is sent 0x16 and reads its own clipboard, and Tade's own lines read it for themselves ([`285db01`](https://github.com/mujacica/tade/commit/285db014626d3d3a8feb7797d28103b95a40c442))
+- Starting parked work picks it up: Start now, the away view's start and tade_queue_change start lift the park as whoever asked, then start it ([`ecb2bcb`](https://github.com/mujacica/tade/commit/ecb2bcb5afec51ff10d3b675d46b0f2778117a93))
+
 ## [0.2.2](https://github.com/mujacica/tade/compare/v0.2.1...v0.2.2) — 2026-10-16
 
 - The README stops saying the landing story is not in tade-sh: 0.2.2 is the release after 0.2.1 ([`462c36c`](https://github.com/mujacica/tade/commit/462c36c608ff2e7326e2f12c5e780c8b699c9c5b))
