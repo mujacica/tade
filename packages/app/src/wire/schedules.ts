@@ -1,17 +1,19 @@
 import {
   DEFAULT_MOST,
+  type Decides,
   type DoneRule,
+  decidesOf,
   describeWhen,
   dueNow,
   joined,
   LINES_LOOKED_BACK,
+  madeByWords,
   newFindings,
   nothingToWatch,
   type Schedule,
   type ScheduleDoes,
   scheduleIdOf,
   standingSchedules,
-  taskOrigin,
   WATCH_REACH,
   type When,
   watchedFrom,
@@ -39,8 +41,10 @@ import {
   whenShort,
   why,
 } from './context.ts'
+import { type Tellable, tellOrKeep } from './handed.ts'
 import { Kept } from './kept.ts'
 import { mayRun, type Network, networkOf, wasOffline } from './network.ts'
+import { actOnFound, offerRun } from './proposals.ts'
 
 /** What a schedule's row and its menu offer to do to it. */
 const CHANGES = ['open', 'run', 'pause', 'resume', 'remove', 'rename'] as const
@@ -82,23 +86,24 @@ export interface ScheduleRequest {
   found?: 'agent' | 'ask'
   /** At most this many new things acted on from one look. */
   most?: number
+  /** Who decides whether the work it makes starts: the orchestrator unless said (`DECIDES`). */
+  decides?: Decides
   done?: DoneRule
   missed?: 'once' | 'skip'
   by?: string
-}
-
-/** Who made a schedule, in words for the orchestrator. */
-function askedByWords(by: string): string {
-  const origin = taskOrigin(by)
-  return origin.kind === 'you' ? 'the person' : origin.kind === 'orchestrator' ? 'you' : origin.name
 }
 
 /** What this subject needs from the rest of the window. */
 export interface SchedulesDeps {
   /** Something happened the orchestrator has not heard yet: it goes with the next thing said. */
   news(said: string): void
-  /** Tell the orchestrator now rather than with the next thing you say. */
-  tell(text: string): Promise<void>
+  /**
+   * The orchestrator, to tell now rather than with the next thing you say —
+   * or, where it is not running or a tell fails, to keep as news and say so
+   * (`tellOrKeep`), so what a schedule asks is never lost on the way. Asked
+   * for at the moment of telling: the window makes it after this subject.
+   */
+  orchestrator(): Tellable
   /** Start whatever the queue can now start. */
   advanceQueue(): void
 }
@@ -407,7 +412,9 @@ export class Schedules implements Subject {
     how: { asked?: boolean } = {},
   ): Promise<string> {
     this.fired.set(one.id, due.due)
-    const { task } = await this.wire.opts.client.fireSchedule(one.id, due, this.wire.now())
+    const proposing = decidesOf(one.does) === 'orchestrator'
+    const client = this.wire.opts.client
+    const { task } = await client.fireSchedule(one.id, due, this.wire.now(), proposing)
     const missed =
       due.missed > 0
         ? `, ${due.missed} run${due.missed === 1 ? '' : 's'} missed while Tade was closed`
@@ -420,17 +427,19 @@ export class Schedules implements Subject {
       // for is waited on, so whoever asked hears what it found, nothing included.
       const looking = this.lookWith(one, how.asked === true)
       return how.asked ? await looking : ''
+    } else if (one.does.kind === 'agent' && proposing && task) {
+      said = `${one.name} ran: ${offerRun(this.wire, this.deps.orchestrator(), one, task)}${missed}`
     } else if (one.does.kind === 'agent') {
       said = `${one.name} ran: ${task ?? 'its agent'} is queued${missed}`
       this.deps.advanceQueue()
     } else {
       said = `${one.name} ran: the orchestrator is asked${missed}`
-      const who = askedByWords(one.by)
-      void this.deps
-        .tell(
-          `It is time for "${one.name}", a schedule ${who} made to run ${describeWhen(one.when)}. ${one.does.kind === 'ask' ? one.does.prompt : ''}`,
-        )
-        .catch(() => {})
+      tellOrKeep(
+        this.wire,
+        this.deps.orchestrator(),
+        `It is time for "${one.name}", a schedule ${madeByWords(one.by)} made to run ${describeWhen(one.when)}. ${one.does.kind === 'ask' ? one.does.prompt : ''}`,
+        `"${one.name}" came due`,
+      )
     }
     this.deps.news(said)
     this.wire.put(
@@ -560,18 +569,19 @@ export class Schedules implements Subject {
       for (const finding of acting) {
         await client.watchFound(one.id, finding, { told: 'orchestrator' }).catch(() => {})
       }
-      void this.deps
-        .tell(
-          foundMessage({
-            name: one.name,
-            watch: does.watch,
-            project: one.project,
-            who: askedByWords(one.by),
-            found: acting,
-            left,
-          }),
-        )
-        .catch(() => {})
+      tellOrKeep(
+        this.wire,
+        this.deps.orchestrator(),
+        foundMessage({
+          name: one.name,
+          watch: does.watch,
+          project: one.project,
+          who: madeByWords(one.by),
+          found: acting,
+          left,
+        }),
+        `${one.name} found something`,
+      )
       const said = `${one.name} found ${fresh.length} new: the orchestrator is told${waits}`
       this.wire.put(
         withTranscript(this.wire.state, tadeDid(this.wire.state.transcript, said, this.wire.now())),
@@ -579,41 +589,18 @@ export class Schedules implements Subject {
       this.wire.draw()
       return said
     }
-    const started: string[] = []
-    const failed: string[] = []
-    // What was found and deliberately not started on: a request the owner's own
-    // rule refused, one held for a person to answer, one waiting to be tried
-    // again. None of those is a failed start, and reading them as one is how a
-    // rule working exactly as written looks like something going wrong.
-    const decided: string[] = []
-    for (const finding of acting) {
-      try {
-        const agent = await looked.agent(finding).catch(async (err: unknown) => {
-          // Written down as found, with why: tried again at every look, it would say so at every look.
-          await client.watchFound(one.id, finding, { problem: why(err) }).catch(() => {})
-          throw err
-        })
-        const { task, said } = await client.watchFound(one.id, finding, {
-          agent: { ...agent, links: agent.links ?? finding.links ?? [] },
-        })
-        // A proposal is made parked (`WatchAgent.parked`): it waits for a person.
-        if (task && agent.parked) decided.push(`${task} is parked for somebody to pick up`)
-        else if (task) started.push(task)
-        else if (said) decided.push(said)
-        // Nothing is said back from here. A status is due when it becomes
-        // true, not when a look happened, so the one place that posts is the
-        // inbox's own fold (`wire/intake-reply.ts`) — which refolds on the
-        // `intake_accepted` line this just wrote. One path, and `outcome` is
-        // only what this look came to.
-      } catch (err) {
-        failed.push(`${finding.title} (${why(err)})`)
-      }
-    }
+    // What it found becomes work — parked for the orchestrator to decide
+    // unless the schedule says it decides itself (`proposals.ts`).
+    const { started, decided, failed, offered } = await actOnFound(this.wire, one, looked, acting, {
+      orchestrator: decidesOf(does) === 'orchestrator' ? this.deps.orchestrator() : null,
+      left,
+    })
     if (started.length > 0) {
       await this.wire.live?.refresh()
       this.deps.advanceQueue()
     }
     const parts = [
+      offered,
       started.length > 0 ? `queued ${joined(started)}` : '',
       decided.length > 0 ? decided.join('; ') : '',
       failed.length > 0 ? `could not start work on ${failed.join('; ')}` : '',
@@ -622,7 +609,7 @@ export class Schedules implements Subject {
       `${one.name} found ${fresh.length} new: ${parts.join('; ')}${waits}`,
       // Trouble only where something actually went wrong. A rule that said no
       // is Tade working, and drawing it red teaches people to ignore red.
-      started.length === 0 && decided.length === 0,
+      started.length === 0 && decided.length === 0 && !offered,
     )
   }
 
@@ -674,6 +661,7 @@ export class Schedules implements Subject {
         // it: what is right for a watch that starts agents is not what is right
         // for one that asks a question.
         most: req.most ?? offer.most ?? DEFAULT_MOST,
+        ...(req.decides ? { decides: req.decides } : {}),
       }
       when ??= { every: offer.every }
       // Turned on while its extension cannot look is allowed, and said.
@@ -681,7 +669,18 @@ export class Schedules implements Subject {
     } else if (req.ask !== undefined) {
       does = { kind: 'ask', prompt: req.ask }
     } else {
-      does = { kind: 'agent', prompt: req.agent ?? '', ...(req.done ? { done: req.done } : {}) }
+      does = {
+        kind: 'agent',
+        prompt: req.agent ?? '',
+        ...(req.done ? { done: req.done } : {}),
+        ...(req.decides ? { decides: req.decides } : {}),
+      }
+    }
+    // Refused rather than kept: a word nothing would ever read.
+    if (req.decides && decidesOf(does) === null) {
+      throw new Error(
+        'decides is about work a schedule starts, and one that asks or tells starts none',
+      )
     }
     if (does.kind !== 'watch' && !does.prompt.trim()) {
       throw new Error('say what it does each time: agent (what to tell it) or ask')

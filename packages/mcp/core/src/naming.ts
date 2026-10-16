@@ -55,6 +55,7 @@ export const RESERVED: readonly string[] = [
   'park',
   'plan',
   'project',
+  'proposal',
   'propose',
   'queue',
   'race',

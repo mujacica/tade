@@ -107,6 +107,43 @@ describe('what the orchestrator opens knowing', () => {
     expect(answered).not.toContain('Held, and waiting')
   })
 
+  it('puts work a watch proposed back in front of it while nobody has decided, so a shut window drops none', () => {
+    const proposed = (task: string, key: string, minutesAgo: number) =>
+      event(
+        'watch_found',
+        task,
+        {
+          schedule: 'review-branch-checks-tade',
+          key,
+          title: `check (macos-latest) failing on main at ${key}`,
+          proposed: true,
+        },
+        minutesAgo,
+      )
+    const said = composeBriefing({
+      now: NOW,
+      events: [
+        proposed('tade/check-macos-a', 'aaa', 90),
+        proposed('tade/check-macos-b', 'bbb', 30),
+        proposed('tade/check-macos-c', 'ccc', 20),
+        event(
+          'proposal_decided',
+          'tade/check-macos-a',
+          { decision: 'leave', because: 'b has it' },
+          80,
+        ),
+        event('state_change', 'tade/check-macos-c', { state: 'resumed', by: 'you' }, 10),
+      ],
+    })
+    expect(said).toContain('tade_proposal_decide')
+    expect(said).toContain(
+      '- tade/check-macos-b: check (macos-latest) failing on main at bbb (30m ago)',
+    )
+    // Decided, or picked up by the person, it is nobody's to decide any more.
+    expect(said).not.toContain('- tade/check-macos-a: check')
+    expect(said).not.toContain('- tade/check-macos-c: check')
+  })
+
   it("passes the queue's own words through, so the two can never disagree", () => {
     const said = composeBriefing({
       now: NOW,

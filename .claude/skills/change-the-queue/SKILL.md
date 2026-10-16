@@ -20,21 +20,24 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 | `packages/workbench/src/documents.ts` | triage (an approval needs the person's line), `deleteDocument`, `cleanupDocuments`, `settleDocuments` on open, `removedDocument` |
 | `packages/workbench/src/agent-tools.ts` | `tade_document_ready`: an agent handing its document over before it finishes |
 | `packages/core/src/effort.ts` | one change across repositories: `effortsIn`, `effortSays` |
-| `packages/core/src/schedule.ts` | `When`, `ScheduleDoes`, `runsOf`, `dueNow`, `watchedFrom`, `newFindings`, `standingSchedules`, `scheduleIdOf`, the words for each |
-| `packages/core/src/events.ts` | `task_done`, `effort_named`, `queue_*`, `schedule_*`, `watch_*` |
+| `packages/core/src/schedule.ts` | `When`, `ScheduleDoes`, `runsOf`, `dueNow`, `watchedFrom`, `newFindings`, `standingSchedules`, `scheduleIdOf`, `DECIDES` and `decidesOf`, the words for each |
+| `packages/core/src/proposals.ts` | what a schedule or a watch puts to the orchestrator instead of starting: `relatedWork`, `describeProposals`, `proposalsIn`, `PROPOSAL_DECISIONS` |
+| `packages/core/src/events.ts` | `task_done`, `effort_named`, `queue_*`, `schedule_*`, `watch_*`, `proposal_decided` |
 | `packages/workbench/src/workbench.ts` | writing it down: `markDone`, `planTasks`, `startQueued`, `holdQueued`, `setSchedule`, `fireSchedule`, `watchChecked`, `watchFound` |
+| `packages/workbench/src/found.ts` | a finding or a schedule's run made into work — queued, or parked as a proposal: `makeFoundWork`, `fireAgentSchedule` |
 | `packages/workbench/src/queue-changes.ts` | `changeQueued`: a choice about queued work, and `after` and `retell` written into its task file; `handOnWaits` for a removal |
 | `packages/workbench/src/schedules.ts` | `schedules.jsonl`: every change a line, with who made it; `readEverMade` |
 | `packages/workbench/src/tasks.ts` | `by`, `done`, `start` and `produces` in a task file; `producedDetail`; `beginFrom` for stacked worktrees |
 | `packages/app/src/live.ts` | `QUEUE_READS`: what the rules read, from the whole journal; `lookAtTrees` at the moment of starting |
 | `packages/app/src/app.ts` | the passes: `advanceQueue`, `runSchedules`, `fire`, `lookWith`, and `queueTools` for the orchestrator |
 | `packages/app/src/wire/schedules.ts` | the one door: `Schedules.set`, `mayWatch`, `turnWatch`, `writeStanding` |
+| `packages/app/src/wire/proposals.ts` | what a look's findings become, and a decision carried out: `actOnFound`, `offerProposals`, `workNow`, `decideProposal` |
 | `packages/app/src/queue.ts` | what is said: the schedule card's facts, what the orchestrator is told, why an empty list is empty (`queueEmptySays`) |
 | `packages/app/src/queue-view.ts` | what the SMART QUEUE shows: the scope, `shownBy` |
 | `packages/app/src/schedules-view.ts` | a watch's trouble and when it may stop being drawn: `hush`, `unhush`, `wasHushed` |
 | `packages/app/src/view/queue.ts`, `view/plan.ts`, `plan-graph.ts` | the SMART QUEUE, the cards, the plan |
 | `packages/app/src/view/schedule.ts` | SCHEDULES: the section, a rule's row, a watch's card |
-| `packages/orchestrator/src/tools-extension.ts`, `tools-queue.ts`, `tool-host.ts` | `tade_done`, `tade_plan`, `tade_schedule`; `tade_queue`, `tade_queue_change` |
+| `packages/orchestrator/src/tools-extension.ts`, `tools-queue.ts`, `tool-host.ts`, `host-queue.ts` | `tade_done`, `tade_plan`; `tade_queue`, `tade_queue_change`, `tade_schedule`, `tade_proposal_decide` |
 | `packages/cli/src/commands/queue.ts` | `tade queue` start, wait, pause, resume, order, after, retell: `changeQueued` as yours, refused while a window holds the home |
 | `packages/extensions/core/src/port.ts`, `host.ts` | `ExtensionWatch`, and the host that looks with one |
 | `packages/extensions/deps/src/updates.ts` | the worked example of a watch that edits a project |
@@ -309,6 +312,38 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   pause or exceed `max_parallel`, and nothing recomputes it: the last line written wins, so nothing
   can be starved by something newer looking better. A model may suggest one; a person or the
   orchestrator writes it down, with a reason of their own.
+- **What a schedule or a watch would start is the orchestrator's to decide** (`decidesOf`,
+  `core/src/proposals.ts`, `wire/proposals.ts`). A watch only knows its keys, and one red commit is one
+  key — so `review.branch-checks` put an agent on red CI on main, and ten minutes later put a second
+  one on the next red commit, in the same checkout, while the first was still fixing the first
+  (`tade/check-ubuntu-latest-failing-on-main-a`, `tade/check-macos-latest-failing-on-main-the`,
+  2026-10-15). Whether a second agent helps is a judgement, and the orchestrator is the one with every
+  task in front of it. So the work is made **exactly as before** — the same task, prompt, context the
+  watch fetched and links — but **parked**, which is already what a proposal is (`WatchAgent.parked`,
+  intake under `propose`), and `watch_found` / `schedule_fired` say `proposed: true`. The orchestrator
+  is told **now** (`tellOrKeep`'s shape, never news, because the work waits on exactly this): what was
+  found, its key, and what may already be on it — `relatedWork`, three facts and never a reading of
+  meaning: made by the same schedule, sharing a link (the finding's links go on `watch_found` for
+  this), or a name that starts the same way — each with where it stands and how long its agent has
+  run (`RuntimeFold.openRuns`). It answers with **one tool**, `tade_proposal_decide`: `start` (the
+  park lifted, the queue starts it), `after` (a wait written *while it is still parked*, then the
+  park lifted — so "properly scheduled with the queue", never a hold by hand), `steer` (the agent on
+  the task named is told, what this one would have read is added to its context file, and this one is
+  removed) or `leave` (removed), each through the queue's own door, and then `proposal_decided` with
+  `because` in its own words — the only record a `leave` has. The keys are untouched: a proposal is
+  a finding found, so one finding is still offered once whatever became of it. **Nothing about it
+  can start work silently or drop a finding**: with no orchestrator running, or a tell that failed,
+  the work stays parked, the reason is said on screen as trouble and the message is kept as news;
+  `proposalsIn` folds every proposal and what settled it — a decision, a person picking it up,
+  a run starting, a removal — and the briefing lists the undecided ones uncapped, so a window shut
+  before anybody decided opens knowing. With the window closed nothing looks, so nothing is found.
+  **Two kinds of finding are never proposals**: intake, whose owner's grant is already the person's
+  rule about whether that source's work starts (`takeIntake`), and work a watch says is a proposal
+  *for a person* (`WatchAgent.parked`), which is theirs and never the orchestrator's to unpark. And
+  it is a setting on the schedule, `decides: orchestrator | itself`, absent meaning the orchestrator
+  so every schedule written before it is routed: `itself` is the old way, for a schedule somebody
+  wants run unwatched, and `Schedules.set` refuses `decides` where nothing starts (an ask, a watch
+  that only tells) rather than keep a word nothing reads.
 - **Only while a window is open.** What came due while none was is caught up once or skipped, as
   the schedule says (`dueNow`), never once per run missed.
 - **A standing watch is written once, and removed it stays removed.** A watch may declare that it

@@ -210,7 +210,7 @@ export class App {
     })
     this.schedules = new Schedules(this.wire, {
       news: (said) => this.orchestrator.note(said),
-      tell: (text) => this.orchestrator.tell(text),
+      orchestrator: () => this.orchestrator,
       advanceQueue: () => void this.advanceQueue(),
     })
     this.intake = new Intake(this.wire, { advanceQueue: () => void this.advanceQueue() })

@@ -51,6 +51,22 @@ export type When = z.infer<typeof When>
  */
 export const DEFAULT_MOST = 2
 
+/**
+ * Who decides whether the work a schedule makes starts.
+ *
+ * `orchestrator`, which is what a schedule says by saying nothing: the work is
+ * made parked, with everything its agent would be told, and the orchestrator is
+ * told what it is and what is already working on anything like it — and starts
+ * it, puts it after that, tells the agent already on it, or leaves it
+ * (`proposals.ts`). `itself` is the old way, started as soon as there is room,
+ * for a schedule somebody wants to run unwatched. Only where there is work to
+ * start: an `ask`, or a watch whose findings are only told, has nothing to
+ * decide, and `Schedules.set` refuses it there rather than keeping a word
+ * nothing reads.
+ */
+export const DECIDES = ['orchestrator', 'itself'] as const
+export type Decides = (typeof DECIDES)[number]
+
 /** What a schedule does each time it runs. */
 export const ScheduleDoes = z.discriminatedUnion('kind', [
   z.object({
@@ -60,6 +76,8 @@ export const ScheduleDoes = z.discriminatedUnion('kind', [
     done: z.enum(DONE_RULES).optional(),
     model: z.object({ provider: z.string().optional(), id: z.string() }).optional(),
     thinking: z.string().optional(),
+    /** Who decides whether each run's agent starts; the orchestrator unless said. */
+    decides: z.enum(DECIDES).optional(),
   }),
   z.object({
     kind: z.literal('ask'),
@@ -82,9 +100,22 @@ export const ScheduleDoes = z.discriminatedUnion('kind', [
      * told to the orchestrator. The rest wait for its next look.
      */
     most: z.number().int().positive().default(DEFAULT_MOST),
+    /** Who decides whether work on what it finds starts, where it finds work; the orchestrator unless said. */
+    decides: z.enum(DECIDES).optional(),
   }),
 ])
 export type ScheduleDoes = z.infer<typeof ScheduleDoes>
+
+/**
+ * Who decides whether this schedule's work starts, or null where it makes none.
+ *
+ * The one reader of `decides`, so a schedule written before it existed — which
+ * says nothing — and one that says `orchestrator` are the same schedule.
+ */
+export function decidesOf(does: ScheduleDoes): Decides | null {
+  if (does.kind === 'ask' || (does.kind === 'watch' && does.found === 'ask')) return null
+  return does.decides ?? 'orchestrator'
+}
 
 export const Schedule = z.object({
   /** Its own name for good: what the journal and its tasks are named by. */

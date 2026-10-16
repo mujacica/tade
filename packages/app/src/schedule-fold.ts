@@ -18,6 +18,8 @@ export interface ScheduleRun {
   ran: boolean
   missed: number
   task: string | null
+  /** That its task was made parked, for the orchestrator to decide (`proposals.ts`). */
+  proposed?: boolean
 }
 
 /** What a schedule has done: how many times it ran in all, and its newest runs, oldest first. */
@@ -54,6 +56,7 @@ export class ScheduleFold {
         ran,
         missed: typeof event.detail.missed === 'number' ? event.detail.missed : 0,
         task: event.task,
+        ...(event.detail.proposed === true ? { proposed: true } : {}),
       })
     } else if (event.type === 'watch_checked') {
       const kept = this.looked.get(schedule) ?? { lines: [], since: null }

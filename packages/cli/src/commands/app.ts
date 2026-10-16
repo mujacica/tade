@@ -280,6 +280,10 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
             if (!queue) throw opening()
             return queue.schedule(req)
           },
+          decide: async (req) => {
+            if (!queue) throw opening()
+            return queue.decide(req)
+          },
         },
         config: {
           settings: async (find) => {

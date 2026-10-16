@@ -315,6 +315,7 @@ describe('a plan that spans repositories, as it reaches the window', () => {
         describe: async () => '',
         change: async () => '',
         schedule: async () => '',
+        decide: async () => '',
         plan: async (plan) => {
           made.push(plan)
           return 'made'
@@ -389,6 +390,7 @@ describe('changing queued work, from the tool to the window', () => {
       path,
       queue: {
         describe: async () => '',
+        decide: async () => '',
         change: async (req) => {
           asked.push(req)
           return 'done'
@@ -488,6 +490,10 @@ describe('putting work on a clock', () => {
           asked.push(req as unknown as Record<string, unknown>)
           return 'scheduled'
         },
+        decide: async (req) => {
+          asked.push({ decided: req })
+          return 'decided'
+        },
       },
     })
     const base = { name: 'New errors', project: 'app', said: 'fix new errors as they come' }
@@ -519,6 +525,41 @@ describe('putting work on a clock', () => {
       (await call(path, 'queue/schedule', { ...base, when: { every: 3 }, agent: 'x' })).error
         ?.message,
     ).toMatch(/when is not a rule/)
+    // Who decides is carried when it is one of the two answers, and dropped
+    // rather than guessed when it is not.
+    await call(path, 'queue/schedule', {
+      ...base,
+      agent: 'x',
+      when: { every: '1d' },
+      decides: 'itself',
+    })
+    expect(asked.at(-1)).toMatchObject({ agent: 'x', decides: 'itself' })
+    await call(path, 'queue/schedule', {
+      ...base,
+      agent: 'x',
+      when: { every: '1d' },
+      decides: 'me',
+    })
+    expect(asked.at(-1)).not.toHaveProperty('decides')
+    // A decision about proposed work is handed on as the model sent it.
+    expect(
+      (
+        await call(path, 'queue/decide', {
+          task: 'app/fix-ci',
+          decision: 'after',
+          because: 'the other agent is on the same commit',
+          on: 'app/fix-ci-first',
+        })
+      ).result,
+    ).toBe('decided')
+    expect(asked.at(-1)).toEqual({
+      decided: {
+        task: 'app/fix-ci',
+        decision: 'after',
+        because: 'the other agent is on the same commit',
+        on: 'app/fix-ci-first',
+      },
+    })
   })
 })
 

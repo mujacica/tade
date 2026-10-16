@@ -84,7 +84,7 @@ describe('the schedules the SMART QUEUE shows', () => {
     }
     const subject = new Schedules(wire as never, {
       news: () => {},
-      tell: async () => {},
+      orchestrator: () => ({ started: false, tell: async () => {}, note: () => {} }),
       advanceQueue: () => {},
     })
     return {

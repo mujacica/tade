@@ -39,8 +39,13 @@ export function askAboutWatches(steps: readonly Step[]): boolean {
   return steps.some((step) => step.id === 'extensions' && !step.done)
 }
 
-/** What being on costs, for a watch that puts work in the queue by itself. */
-export const STARTS_AGENTS = 'starts an agent on each thing it finds'
+/**
+ * What being on costs, for a watch that makes work: an agent each time, once
+ * the orchestrator — which is told what is already on the same thing — says
+ * it should start (`decidesOf`, `proposals.ts`).
+ */
+export const STARTS_AGENTS =
+  'proposes an agent on each thing it finds, and the orchestrator decides whether it starts'
 
 /** And for one that only ever tells somebody. */
 export const ONLY_TELLS = 'tells you what it finds, and starts nothing'

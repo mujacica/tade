@@ -136,6 +136,77 @@ describe('schedules', () => {
     })
   })
 
+  it('makes the work parked and says it is proposed, where the orchestrator decides whether it starts', async () => {
+    await client.setSchedule(deps(), 'orchestrator')
+    const now = Date.parse('2026-09-21T09:00:30Z')
+    const run = await client.fireSchedule(
+      'deps-weekly',
+      { run: true, due: now, missed: 0 },
+      now,
+      true,
+    )
+    expect(run.task).toBe('app/deps-weekly-0921')
+    // Everything its agent would be told is there, and nothing starts it: parked.
+    const ran = await readTaskFile(home, 'app/deps-weekly-0921')
+    expect(ran).toMatchObject({
+      parked: true,
+      start: { prompt: 'Update dependencies within their major versions.' },
+    })
+    expect((await client.events({ types: ['schedule_fired'] })).at(-1)).toMatchObject({
+      task: 'app/deps-weekly-0921',
+      detail: { schedule: 'deps-weekly', ran: true, proposed: true, title: 'deps weekly' },
+    })
+
+    await client.setSchedule(
+      deps({
+        id: 'branch-checks',
+        name: 'Failing CI',
+        when: { every: '10m' },
+        does: { kind: 'watch', watch: 'review.branch-checks', input: {}, found: 'agent', most: 2 },
+      }),
+      'you',
+    )
+    const ci = {
+      title: 'check (ubuntu) failing on main',
+      prompt: 'CI is failing on main.',
+      context: '## What failed\n\nthe log',
+      links: [{ title: 'check on app', url: 'https://ci.example/runs/7' }],
+    }
+    const made = await client.watchFound(
+      'branch-checks',
+      { key: 'github.com/acme/app@aaa', title: 'check (ubuntu) failing on main — one' },
+      { agent: ci, proposed: true },
+    )
+    expect(await readTaskFile(home, made.task ?? '')).toMatchObject({ parked: true })
+    const found = (await client.events({ types: ['watch_found'] })).at(-1)
+    expect(found).toMatchObject({
+      task: made.task,
+      detail: {
+        key: 'github.com/acme/app@aaa',
+        proposed: true,
+        links: ['https://ci.example/runs/7'],
+      },
+    })
+    // The key is kept as found like any other, so the next look never offers it again.
+    const watched = watchedFrom(await client.events({ types: ['watch_found'] }), 'branch-checks')
+    expect(watched.seen.has('github.com/acme/app@aaa')).toBe(true)
+    expect(watched.findings[0]).toMatchObject({
+      proposed: true,
+      links: ['https://ci.example/runs/7'],
+    })
+
+    // A proposal for a person stays theirs: parked, and never marked as the orchestrator's to decide.
+    const theirs = await client.watchFound(
+      'branch-checks',
+      { key: 'github.com/acme/app@bbb', title: 'a check to add' },
+      { agent: { ...ci, title: 'propose a check', parked: true }, proposed: true },
+    )
+    expect(await readTaskFile(home, theirs.task ?? '')).toMatchObject({ parked: true })
+    expect((await client.events({ types: ['watch_found'] })).at(-1)?.detail).not.toHaveProperty(
+      'proposed',
+    )
+  })
+
   it('writes down what a watch finds, once each, and makes queued work named for what it is about', async () => {
     await client.setSchedule(
       deps({

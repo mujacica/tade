@@ -8,7 +8,7 @@ import { documentTools } from './tools-documents.ts'
 import { type Gateable, gateTools } from './tools-gate.ts'
 import { lessonTools } from './tools-lessons.ts'
 import { machineTools } from './tools-machine.ts'
-import { PLAN_AFTER, PLAN_CONTEXT, queueTools, stringList, TOUCHES } from './tools-queue.ts'
+import { done, PLAN_AFTER, PLAN_CONTEXT, queueTools, stringList, TOUCHES } from './tools-queue.ts'
 import { raceTools, replayTools } from './tools-race.ts'
 import { intakeTools, templateTools } from './tools-templates.ts'
 
@@ -98,18 +98,6 @@ const object = (
 })
 
 const string = (description: string) => ({ type: 'string', description })
-
-/**
- * How a task counts as finished, as core's `DONE_RULES` says. Spelled out here
- * because pi loads this file on its own; the golden tool list is what notices
- * the two drifting apart.
- */
-const done = {
-  type: 'string',
-  enum: ['said', 'idle', 'committed', 'merged', 'manual'],
-  description:
-    'how this task counts as finished, which is what work waiting on it waits for. said: its agent says it has finished (the usual choice); idle: its agent ends a turn with nothing waiting on anyone, for small jobs done in one go; committed: its agent stopped with its work committed (worktree mode only); merged: its branch is merged into the base (worktree mode only); manual: only when someone marks it finished. Anyone can also mark any task finished by hand.',
-}
 
 /** One of Tade's own tools, as any harness is given it. */
 export interface OrchestratorTool {
@@ -308,63 +296,8 @@ export function orchestratorTools(
     (p) => rpc('queue/plan', p),
   )
 
-  // Changing work already queued: its own file, `tools-queue.ts`.
+  // Changing work already queued, and work on a clock: its own file, `tools-queue.ts`.
   for (const spec of queueTools(rpc)) tools.push(spec)
-
-  tool(
-    'tade_schedule',
-    'Put work on a clock: once at a moment, or again and again — every so often, at times of day, on days of the week or month, or by cron. Each time, it starts an agent (agent: what to tell it), asks you something (ask), or looks with a watch an extension offers (watch: listed with the extension, like sentry.new-errors), which starts an agent on each new thing it finds — or tells you, with found: ask. A watch looks as often as it says unless when is given, and turning one on needs the person to have asked for that watch in their own words (tade_watches lists them, and tade_watch_change is the tool for it); scheduling an agent or an ask needs no such thing. It runs while Tade is open, and catches up once for what came due while it was closed unless told to skip. Made again under the same name, it is changed. Say back when it next runs, which this answers with.',
-    object(
-      {
-        name: string('what it is called, in a few words'),
-        project: string('project name, as configured'),
-        said: string('what the human said, word for word'),
-        when: object({
-          at: string('once, at this moment: ISO 8601 with a time zone'),
-          every: string(
-            'every so often, like 30m, 2h, 1d; or day, weekday, week or month with times and on',
-          ),
-          times: stringList('times of day, HH:MM, for day, weekday, week or month'),
-          on: {
-            type: 'array',
-            description: 'days: mon to sun for week, 1 to 31 for month',
-            items: { type: ['string', 'number'] },
-          },
-          cron: string('for anything else: minute hour day-of-month month day-of-week'),
-          count: { type: 'number', description: 'stop after this many runs' },
-          until: string('stop after this moment: ISO 8601'),
-          tz: string('an IANA time zone, like Europe/Sarajevo; the machine’s own when not said'),
-        }),
-        agent: string('start an agent each time, told this'),
-        ask: string('ask you this each time, instead of starting an agent'),
-        watch: string("look with this extension's watch each time, like sentry.new-errors"),
-        input: {
-          type: 'object',
-          description: 'what the watch is turned on with, when it takes anything',
-        },
-        found: {
-          type: 'string',
-          enum: ['agent', 'ask'],
-          description:
-            'what each new thing a watch finds becomes: an agent on it, or a question for you. Left out, it is what the watch says it is for — and one with nothing to start, like an agent going in circles, only ever tells you',
-        },
-        most: {
-          type: 'number',
-          description:
-            'at most this many new things one look acts on; the rest wait for the next. Left out, it is what the watch says is right for it, and two otherwise — a ceiling on agents started, which is the wrong ceiling for a watch that only tells you something',
-        },
-        done,
-        missed: {
-          type: 'string',
-          enum: ['once', 'skip'],
-          description:
-            'what happens to runs that came due while Tade was closed: once (the default) or skip',
-        },
-      },
-      ['name', 'project', 'said'],
-    ),
-    (p) => rpc('queue/schedule', p),
-  )
 
   // Tade's extensions: listed when Tade started this orchestrator, run by
   // Tade, which is where their settings, secrets and window are.

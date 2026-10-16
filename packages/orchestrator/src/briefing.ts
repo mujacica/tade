@@ -6,6 +6,7 @@ import {
   historyFrom,
   producedClause,
   type TadeEvent,
+  undecidedProposals,
   waitingDocuments,
 } from '@tade/core'
 
@@ -191,6 +192,22 @@ export function composeBriefing(input: BriefingInput): string | null {
       [
         'Held, and waiting on the person for an answer:',
         ...held.map((one) => `- ${one.task}: ${one.because} (${since(one.ts)})`),
+      ].join('\n'),
+    )
+  }
+
+  // Uncapped and not aged, for `held`'s reason: each is waiting on exactly
+  // one decision, and a window shut before anybody made it must open knowing.
+  // The message that put it to the orchestrator may have gone with a window
+  // that closed before it was said, and this list is folded from the journal.
+  const proposed = undecidedProposals(events)
+  if (proposed.length > 0) {
+    sections.push(
+      [
+        'Work a schedule or a watch made and put to you instead of starting it, parked and started by nobody until you decide each with tade_proposal_decide — look at what is working on the same thing first:',
+        ...proposed.map(
+          (one) => `- ${one.task}: ${one.title} (${ago(Math.max(0, input.now - one.at))})`,
+        ),
       ].join('\n'),
     )
   }

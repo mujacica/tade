@@ -260,6 +260,8 @@ export function describeEvent(event: TadeEvent): string {
       return 'started'
     case 'agent_continued':
       return 'was told to carry on after the machine slept'
+    case 'proposal_decided':
+      return `was proposed, and the decision was ${String(event.detail.decision ?? 'made')}`
     // Said like any wait on you, in a line: what the document says is the
     // orchestrator's to tell, having read it.
     case 'document_ready':

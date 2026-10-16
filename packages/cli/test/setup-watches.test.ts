@@ -73,7 +73,9 @@ describe('the watches setting up offers', () => {
     // the real list rather than a made-up one. The dependency watch is the
     // honest case: it is useful and it starts agents, and it says so.
     expect(said).toContain('Vulnerable dependencies')
-    expect(said).toContain('starts an agent on each thing it finds')
+    expect(said).toContain(
+      'proposes an agent on each thing it finds, and the orchestrator decides whether it starts',
+    )
     expect(said).toContain('every day')
     expect(ui.asked.some((one) => one.startsWith('Which should Tade watch for in app?'))).toBe(true)
     expect(readSchedules(home)).toEqual([])

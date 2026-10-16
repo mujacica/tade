@@ -191,6 +191,10 @@ async function ask(
         asked.queue.push({ change: 'schedule', ...req })
         return 'scheduled'
       },
+      decide: async (req) => {
+        asked.queue.push({ change: 'decide', ...req })
+        return 'decided'
+      },
     },
     config: {
       settings: async (find) => {

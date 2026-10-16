@@ -244,9 +244,11 @@ Watches can fix what is red, answer the bots, and settle a review of Tade's that
 base — the base merged in from a tree of its own, never a rebase and never a force-push — and
 nothing merges a review unless you asked for exactly that. **CI on the branch itself is watched
 too**, which is the half of it that has no
-review: push straight to `main`, and a red commit puts one agent on reproducing it here and fixing
-the cause. One agent per red commit, however many checks went red; a re-run of the same commit
-starts nothing new; and it never force-pushes, never reverts and never merges.
+review: push straight to `main`, and a red commit becomes one agent's work reproducing it here and
+fixing the cause. One per red commit, however many checks went red; a re-run of the same commit
+starts nothing new; the next red commit while the first fix is still going is put to the
+orchestrator beside it rather than becoming a second agent in the same checkout; and it never
+force-pushes, never reverts and never merges.
 
 ![The REVIEWS section: every review open on the project you are in, as two rows — where it stands, and what its checks and verdicts came to](https://raw.githubusercontent.com/mujacica/tade/main/images/reviews.svg)
 
@@ -337,13 +339,17 @@ opens, or skipped, as the schedule says.
 Down the side the clockwork has a section of its own, under the queue: a rule that fires again and
 again is not a piece of work waiting its turn, and each row says how often it fires, whether firing
 starts an agent or only tells you, and — for a watch — when it last looked and what it came to.
+What a schedule would start goes to the orchestrator first, parked, with whatever is already working
+on anything like it: it starts it, has it wait for that, hands it to the agent already on it, or
+leaves it, and says why — unless you set the schedule to start its work by itself.
 
 ![A schedule: every Monday at 09:00 it starts an agent, what it is told, when it runs next, and every run so far](https://raw.githubusercontent.com/mujacica/tade/main/images/schedules.svg)
 
 ## Watches
 
-A watch is a schedule that looks before it acts: a cheap check, and an agent on each new finding —
-or, where the work is already going and going badly, a sentence for the orchestrator to bring you.
+A watch is a schedule that looks before it acts: a cheap check, and an agent on each new finding,
+which the orchestrator decides about with what is already on the same thing in front of it — or,
+where the work is already going and going badly, a sentence for the orchestrator to bring you.
 **Agents going in circles** is the second kind: it counts what each agent keeps doing, and where the
 same failing call keeps coming round it asks whether that is a loop or a method, and tells you which
 agent and what it keeps trying. It never stops one, steers one or starts one.

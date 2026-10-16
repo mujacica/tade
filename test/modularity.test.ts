@@ -109,7 +109,10 @@ const BUDGET: Record<string, number> = {
   //
   // 916 -> 881 when `tade_propose_skill` went to `tools-lessons.ts`, beside the
   // `tade_propose_check` that is the second time of the same lesson.
-  'packages/orchestrator/src/tools-extension.ts': 881,
+  //
+  // 881 -> 814 when `tade_schedule` went to `tools-queue.ts`, beside the
+  // `tade_proposal_decide` that answers what a schedule makes.
+  'packages/orchestrator/src/tools-extension.ts': 814,
   // The facade is the point and stays: ~1,700 lines of it are the one object
   // the CLI, the window and the orchestrator all call, average method 19 lines,
   // already delegating to eight split collaborators — splitting a facade
@@ -122,8 +125,9 @@ const BUDGET: Record<string, number> = {
   // `guardName`'s harness keys became one method a plan asks too; 2,386 when
   // an agent's tool calls went to `agent-tools.ts`, Tade's own first; 2,372
   // when `holdQueued` joined `changeQueued` and a plan learned races; 2,315
-  // when making a finding into work went to `found.ts`, as it learned to park.
-  'packages/workbench/src/workbench.ts': 2_315,
+  // when making a finding into work went to `found.ts`, as it learned to park;
+  // 2,291 when a schedule's run followed it there, as both learned to propose.
+  'packages/workbench/src/workbench.ts': 2_291,
   // 1,100 -> 1,045 when what each agent has been doing went to `doing.ts`, as
   // it learned which files each one wrote for the conflict forecast.
   'packages/workbench/src/workers.ts': 1_045,

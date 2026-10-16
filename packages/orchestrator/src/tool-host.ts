@@ -3,7 +3,6 @@ import { createServer, type Server, type Socket } from 'node:net'
 import { dirname } from 'node:path'
 import {
   type Arm,
-  DONE_RULES,
   type DoneRule,
   inboxProvenance,
   inboxWaiting,
@@ -11,7 +10,7 @@ import {
   LOCAL,
   type Plan,
   planReport,
-  When,
+  type When,
 } from '@tade/core'
 import type { PermissionDecision, RunId, WorkerImage } from '@tade/harnesses-core'
 import {
@@ -28,6 +27,7 @@ import {
 import { documentMethods } from './host-documents.ts'
 import { lessonMethods } from './host-lessons.ts'
 import { machineMethods, type UpdateHost } from './host-machine.ts'
+import { doneRuleOf, scheduleMethods } from './host-queue.ts'
 import { type RaceHost, raceMethods } from './host-race.ts'
 import { type ReplayHost, replayMethods } from './host-replay.ts'
 import { templateMethods } from './host-templates.ts'
@@ -105,8 +105,17 @@ export interface ToolHostOptions {
       input?: Record<string, unknown>
       found?: 'agent' | 'ask'
       most?: number
+      decides?: 'orchestrator' | 'itself'
       done?: DoneRule
       missed?: 'once' | 'skip'
+    }): Promise<string>
+    /** What was decided about work a schedule or a watch made parked for the orchestrator. */
+    decide(req: {
+      task: string
+      decision: string
+      because: string
+      on?: string
+      message?: string
     }): Promise<string>
   }
   /**
@@ -284,40 +293,8 @@ export class ToolHost {
           ...(p.dependents === undefined ? {} : { dependents: dependentsOf(p.dependents) }),
           change: String(p.change ?? ''),
         }),
-      'queue/schedule': async (p) => {
-        // A watch looks as often as it says it should unless told otherwise: an
-        // empty rule is no rule, not one that can never be kept.
-        const unsaid =
-          p.when === undefined ||
-          p.when === null ||
-          (typeof p.when === 'object' && Object.keys(p.when).length === 0)
-        const when = unsaid ? null : When.safeParse(p.when)
-        if (when && !when.success) {
-          throw new Error(
-            `when is not a rule: ${when.error.issues.map((issue) => issue.message).join('; ')}`,
-          )
-        }
-        const text = (value: unknown) => (typeof value === 'string' ? value : '')
-        const missed = p.missed === 'skip' ? 'skip' : p.missed === 'once' ? 'once' : undefined
-        const found = p.found === 'ask' ? 'ask' : p.found === 'agent' ? 'agent' : undefined
-        if (p.input !== undefined && (typeof p.input !== 'object' || p.input === null)) {
-          throw new Error('input is what the watch is turned on with: an object')
-        }
-        return queueOf(opts).schedule({
-          name: text(p.name),
-          project: text(p.project),
-          said: text(p.said),
-          ...(when?.success ? { when: when.data } : {}),
-          ...(p.agent !== undefined ? { agent: text(p.agent) } : {}),
-          ...(p.ask !== undefined ? { ask: text(p.ask) } : {}),
-          ...(p.watch !== undefined ? { watch: text(p.watch) } : {}),
-          ...(p.input !== undefined ? { input: p.input as Record<string, unknown> } : {}),
-          ...(found ? { found } : {}),
-          ...(typeof p.most === 'number' ? { most: p.most } : {}),
-          ...(p.done ? { done: doneRuleOf(p.done) } : {}),
-          ...(missed ? { missed } : {}),
-        })
-      },
+      // Work on a clock, and what is decided about what one makes: `host-queue.ts`.
+      ...scheduleMethods(() => queueOf(opts)),
       'config/settings': async (p) => configOf(opts).settings(p.find ? String(p.find) : ''),
       'config/change': async (p) =>
         configOf(opts).change({
@@ -716,13 +693,6 @@ function planOf(p: Record<string, unknown>): Plan {
       }
     }),
   }
-}
-
-/** A rule for finishing, as asked: one there is, or the reason it is not. */
-function doneRuleOf(value: unknown): DoneRule {
-  const rule = DONE_RULES.find((one) => one === String(value).trim().toLowerCase())
-  if (!rule) throw new Error(`${String(value)} is not a way to finish: ${DONE_RULES.join(', ')}`)
-  return rule
 }
 
 /**

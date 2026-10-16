@@ -19,15 +19,24 @@ export interface Tellable {
   note(text: string): void
 }
 
-/** Tell it now, or keep it as news where it cannot be told, saying why on screen. */
-export function tellOrKeep(wire: Wiring, orchestrator: Tellable, text: string): void {
+/**
+ * Tell it now, or keep it as news where it cannot be told, saying why on
+ * screen. `what` is what was being told, in a clause: a document, a schedule
+ * that came due, what a watch found.
+ */
+export function tellOrKeep(
+  wire: Wiring,
+  orchestrator: Tellable,
+  text: string,
+  what = 'a document was handed over',
+): void {
   if (!orchestrator.started) {
     orchestrator.note(text)
     return
   }
   void orchestrator.tell(text).catch((err) => {
     orchestrator.note(text)
-    const said = `Could not tell the orchestrator a document was handed over (${why(err)}), so it goes with the next thing you say.`
+    const said = `Could not tell the orchestrator ${what} (${why(err)}), so it goes with the next thing you say.`
     wire.put(withTranscript(wire.state, tadeDid(wire.state.transcript, said, wire.now())))
   })
 }

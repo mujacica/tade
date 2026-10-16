@@ -193,6 +193,8 @@ export const REMOTE_TOOLS: Readonly<Record<string, Reaching>> = {
   // Spends real money on work that already landed, on a line of theirs (`REPLAY_START`).
   tade_replay: { kind: 'local', because: EXECUTES },
   tade_schedule: { kind: 'local', because: EXECUTES },
+  // Starts the work a schedule or a watch proposed, or drops it.
+  tade_proposal_decide: { kind: 'local', because: EXECUTES },
   // Installs software on this machine, and ends the window: both are acts the
   // person at it asks for in their own words (`UPDATE_REACH`, `RELOAD_REACH`).
   tade_updates_run: { kind: 'local', because: EXECUTES },
@@ -414,6 +416,7 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
   'documents/cleanup': never(CONFIRMS),
   'queue/change': never(PUBLISHES),
   'queue/schedule': never(EXECUTES),
+  'queue/decide': never(EXECUTES),
   'template/list': never(READS_WIDE),
   'template/dry-run': never(READS_WIDE),
   'template/use': never(EXECUTES),

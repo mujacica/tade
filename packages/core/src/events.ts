@@ -177,6 +177,15 @@ export const EventType = z.enum([
   'watch_checked',
   /** Something a watch found for the first time, and the work started on it or who was told. */
   'watch_found',
+  /**
+   * What was decided about work a schedule or a watch made and put to the
+   * orchestrator first (`proposed: true` on its `watch_found` or
+   * `schedule_fired`): `decision`, one of `PROPOSAL_DECISIONS`, `because` in
+   * the decider's own words, `on` for the task it waits on or was handed to,
+   * and `by`. Written after it was done, and the only record of a `leave` —
+   * a proposal dropped is otherwise just a task that went.
+   */
+  'proposal_decided',
   // intake: work that came from outside this machine
   /**
    * An external request was handed to this machine — a ticket, a message, a
@@ -504,6 +513,9 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // What it found is, and that is `watch_found`.
   watch_checked: 'routine',
   watch_found: 'notable',
+  // Notable: what became of something a watch found, and why, is exactly what
+  // somebody coming back asks. Never blocking — the decision is made.
+  proposal_decided: 'notable',
   // Notable, all four of them, and none is `routine`: an outside request is
   // the one kind of news nobody at this machine asked for, so somebody coming
   // back wants to see that it arrived, what was decided and what is waiting.

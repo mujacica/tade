@@ -43,14 +43,28 @@ describe('the window, and what it watches', () => {
     await until('the first frame', () => terminal.written.includes('refunds'))
     const tools = window.queueTools()
     const soon = new Date(Date.now() + 1_500).toISOString()
+    // One that decides itself, which is the old way: its agent starts as
+    // soon as there is room. Left to the orchestrator: `proposals.test.ts`.
     const answer = await tools.schedule({
       name: 'Release notes',
       project: 'app',
-      said: 'draft the release notes in a moment',
+      said: 'draft the release notes in a moment, without asking anybody',
       when: { at: soon },
       agent: 'Draft the release notes from what merged today.',
+      decides: 'itself',
     })
     expect(answer).toMatch(/^Release notes \(release-notes\): once, .+, starts an agent\. Next: /)
+    // An ask starts nothing, so there is nothing for anybody to decide.
+    await expect(
+      tools.schedule({
+        name: 'Ping',
+        project: 'app',
+        said: 'ask me later',
+        when: { at: soon },
+        ask: 'Anything?',
+        decides: 'itself',
+      }),
+    ).rejects.toThrow(/starts none/)
     await tools.schedule({
       name: 'Morning brief',
       project: 'app',
@@ -80,7 +94,7 @@ describe('the window, and what it watches', () => {
     expect(await client.events({ types: ['schedule_fired'] })).toHaveLength(2)
   })
 
-  it('turns a watch on from the Extensions panel, starts work on what it finds once, and says when it cannot look', async () => {
+  it('turns a watch on from the Extensions panel, puts what it finds to the orchestrator once, and says when it cannot look', async () => {
     terminal.columns = 120
     terminal.rows = 50
     let clock = Date.now()
@@ -160,21 +174,31 @@ describe('the window, and what it watches', () => {
       'Rain looked: found nothing.',
     )
 
-    // On its clock: the first two new things start work; the third waits for the next look.
+    // On its clock: the first two new things are made — parked, everything
+    // their agents would be told kept — and put to the orchestrator to decide;
+    // the third waits for the next look. Nothing starts.
     found.push(
       { key: 'shed', title: 'rain over the shed' },
       { key: 'yard', title: 'rain over the yard' },
       { key: 'roof', title: 'rain over the roof' },
     )
     clock += 3_600_000 + 1_000
-    await until(
-      'work on the first two',
-      () =>
-        ['app/bring-in-shed', 'app/bring-in-yard'].every((task) =>
-          client.runs().some((run) => run.task === task),
-        ),
-      SPAWNING_MS,
+    await until('the orchestrator told about the first two', () =>
+      told.some((text) => text.includes('(weather.rain), found 2 new things to start work on')),
     )
+    const first = told.find((text) => text.includes('found 2 new things')) ?? ''
+    expect(first).toContain('"Rain", a watch the person turned on in app')
+    expect(first).toContain('- app/bring-in-shed: rain over the shed (key shed)')
+    // One look, two findings: each is the other's relation, and says it waits too.
+    expect(first).toContain(
+      '  - app/bring-in-yard, parked, waiting for your decision too: rain over the yard (found by the same watch)',
+    )
+    expect(first).toContain('1 more waits for its next look.')
+    expect(first).toContain('tade_proposal_decide')
+    expect(client.runs()).toEqual([])
+    for (const task of ['app/bring-in-shed', 'app/bring-in-yard']) {
+      expect((await readTaskFile(home, task))?.parked).toBe(true)
+    }
     const file = readFileSync(join(taskDir(home, 'app/bring-in-shed'), 'task.yaml'), 'utf8')
     expect(file).toContain('by: schedule:rain')
     // The panel is over the conversation, which is where Tade says what a
@@ -182,13 +206,100 @@ describe('the window, and what it watches', () => {
     terminal.press('\x1b')
     await until('said where you would look', () =>
       screenOf(terminal.written).some((row) =>
-        row.includes('Rain found 3 new: queued app/bring-in-shed and app/bring-in-yard'),
+        row.includes('Rain found 3 new: app/bring-in-shed and app/bring-in-yard wait'),
       ),
     )
-    // Found again, those are not new; the one that waited is.
-    expect(await tools.change({ schedule: 'rain', change: 'start' })).toBe(
-      'Rain found 1 new: queued app/bring-in-roof.',
+
+    // The orchestrator decides each, and each goes through the queue's own door.
+    await expect(
+      tools.decide({ task: 'app/bring-in-shed', decision: 'later', because: 'x' }),
+    ).rejects.toThrow('later is not a decision: start, after, steer, leave')
+    await expect(
+      tools.decide({ task: 'app/bring-in-shed', decision: 'start', because: ' ' }),
+    ).rejects.toThrow(/say why in a sentence/)
+    await expect(
+      tools.decide({ task: 'app/refunds', decision: 'start', because: 'why not' }),
+    ).rejects.toThrow(/is not work a schedule or a watch put to you/)
+    await tools.decide({
+      task: 'app/bring-in-shed',
+      decision: 'start',
+      because: 'nothing else is bringing it in',
+    })
+    await until(
+      'its agent started',
+      () => client.runs().some((run) => run.task === 'app/bring-in-shed'),
+      SPAWNING_MS,
     )
+    await expect(
+      tools.decide({ task: 'app/bring-in-yard', decision: 'after', because: 'one at a time' }),
+    ).rejects.toThrow(/after needs on/)
+    expect(
+      await tools.decide({
+        task: 'app/bring-in-yard',
+        decision: 'after',
+        because: 'one person at the line at a time',
+        on: 'app/bring-in-shed',
+      }),
+    ).toContain('app/bring-in-yard waits on app/bring-in-shed')
+    expect((await readTaskFile(home, 'app/bring-in-yard'))?.parked).toBeFalsy()
+    expect(client.runs().some((run) => run.task === 'app/bring-in-yard')).toBe(false)
+    // Decided once is decided: asked again, it says so rather than deciding twice.
+    await expect(
+      tools.decide({ task: 'app/bring-in-shed', decision: 'leave', because: 'changed my mind' }),
+    ).rejects.toThrow(/already settled/)
+
+    // The one that waited is found by the next look, and what is already on
+    // the same thing is named with where it stands.
+    expect(await tools.change({ schedule: 'rain', change: 'start' })).toBe(
+      'Rain found 1 new: app/bring-in-roof waits for the orchestrator to decide.',
+    )
+    await until('the orchestrator told about the roof', () =>
+      told.some((text) => text.includes('- app/bring-in-roof: rain over the roof')),
+    )
+    const second = told.find((text) => text.includes('- app/bring-in-roof')) ?? ''
+    expect(second).toMatch(
+      / {2}- app\/bring-in-shed, [^:]+: rain over the shed \(found by the same watch\)/,
+    )
+    expect(second).toMatch(
+      / {2}- app\/bring-in-yard, [^:]+: rain over the yard \(found by the same watch\)/,
+    )
+    // Handed to the agent already on it: told, with what this one would have read.
+    await expect(
+      tools.decide({
+        task: 'app/bring-in-roof',
+        decision: 'steer',
+        because: 'one line',
+        on: 'app/bring-in-yard',
+        message: 'the roof too',
+      }),
+    ).rejects.toThrow(/no agent is running on app\/bring-in-yard/)
+    expect(
+      await tools.decide({
+        task: 'app/bring-in-roof',
+        decision: 'steer',
+        because: 'it is the same washing line',
+        on: 'app/bring-in-shed',
+        message: 'Bring in what is on the roof as well.',
+      }),
+    ).toContain("app/bring-in-shed's agent is told, and app/bring-in-roof is dropped")
+    expect(await readTaskFile(home, 'app/bring-in-roof')).toBeNull()
+    const shedContext = readFileSync(join(taskDir(home, 'app/bring-in-shed'), 'context.md'), 'utf8')
+    expect(shedContext).toContain('by schedule:rain')
+    expect(shedContext).toContain('rain over the roof')
+    // Every decision written down, with its reason in the decider's own words.
+    const decided = await client.events({ types: ['proposal_decided'] })
+    expect(
+      decided.map((event) => [event.task, event.detail.decision, event.detail.on ?? null]),
+    ).toEqual([
+      ['app/bring-in-shed', 'start', null],
+      ['app/bring-in-yard', 'after', 'app/bring-in-shed'],
+      ['app/bring-in-roof', 'steer', 'app/bring-in-shed'],
+    ])
+    expect(decided[2]?.detail).toMatchObject({
+      key: 'roof',
+      because: 'it is the same washing line',
+    })
+    // Found again, none of it is new: a finding is offered once, whatever became of it.
     expect(await tools.change({ schedule: 'rain', change: 'start' })).toBe(
       'Rain looked: nothing new.',
     )
@@ -517,7 +628,9 @@ describe('the window, and what it watches', () => {
     const listed = await watches.watches('')
     expect(listed).toContain('weather.rain')
     expect(listed).toContain('app: off')
-    expect(listed).toContain('starts an agent on each thing it finds')
+    expect(listed).toContain(
+      'proposes an agent on each thing it finds, and the orchestrator decides whether it starts',
+    )
     expect(await watches.watches('nothing like this')).toContain('Nothing matches')
 
     // Nobody asked: refused, and the refusal says what to ask for.

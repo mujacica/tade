@@ -197,9 +197,9 @@ attached to the decision it governs. Load the matching one rather than working f
 - **A watch may only add work** — never resolve a thread, never force-push, and past `attempts` it
   only tells you. **Merging is a person's: `merge` is `never` by default.** **One red commit is one
   finding**, so one push never becomes one agent per column.
-- **A watch is a schedule that looks before it acts**: a cheap `check`, no model. Tade keeps every key
-  found, so one finding never starts work twice — a failed start included. Turning one off pauses its
-  schedule, never removing it.
+- **A watch is a schedule that looks before it acts**: a cheap `check`, no model. Work any schedule
+  makes is **parked for the orchestrator** (`decidesOf`). Keys are kept, so nothing is offered twice;
+  off pauses it, never removes it.
 - **Schedules are told, like notes**, and run only while a window is open — no daemon; missed
   runs are caught up once or skipped, never once per run missed. **They are their own section**
   (`schedulesSection`), never listed among the queued work.

@@ -82,7 +82,7 @@ import { checksGate, checksTold, sharesCheckout } from './checks.ts'
 import { documentsFolder, removedDocument, settleDocuments, waitedDetail } from './documents.ts'
 import { chooseDriver, troubleSaid } from './driver-choice.ts'
 import { EventLog, readJournal } from './events.ts'
-import { type FoundWork, makeFoundWork } from './found.ts'
+import { type FoundWork, fireAgentSchedule, makeFoundWork } from './found.ts'
 import { accountKey, adapterKey, HARNESS_ADAPTERS, type HarnessOptions } from './harnesses.ts'
 import { takeBackOwnIgnore } from './ignore.ts'
 import { type Taken, takeIntake } from './intake.ts'
@@ -1126,60 +1126,33 @@ export class Workbench {
   /**
    * A schedule came due: written down first — so a window that stops half way
    * never runs it twice — and then, for one that starts agents, its agent's task
-   * made as queued work, which the queue starts as soon as there is room. What
-   * it runs in is the project's own way of working, as any agent's is.
+   * made as queued work (`fireAgentSchedule`): started by the queue, or made
+   * parked for the orchestrator to decide where `proposed` says so.
    */
   async fireSchedule(
     id: string,
     due: { run: boolean; due: number; missed: number },
     now = Date.now(),
+    proposed = false,
   ): Promise<{ task: string | null }> {
     const schedule = this.kept.get(id)
     if (!schedule) throw new Error(`there is no schedule called ${id}`)
-    const at = new Date(due.due).toISOString()
-    if (!due.run || schedule.does.kind !== 'agent') {
+    const does = schedule.does
+    if (!due.run || does.kind !== 'agent') {
       await this.log.append({
         type: 'schedule_fired',
         // A watch looks on a clock: what it finds is news, the looking is not.
-        ...(schedule.does.kind === 'watch' ? { urgency: 'routine' as const } : {}),
-        detail: { schedule: id, due: at, missed: due.missed, ran: due.run },
+        ...(does.kind === 'watch' ? { urgency: 'routine' as const } : {}),
+        detail: {
+          schedule: id,
+          due: new Date(due.due).toISOString(),
+          missed: due.missed,
+          ran: due.run,
+        },
       })
       return { task: null }
     }
-    const day = new Date(now)
-    const month = String(day.getMonth() + 1).padStart(2, '0')
-    const stem = `${id}-${month}${String(day.getDate()).padStart(2, '0')}`
-    const does = schedule.does
-    for (let n = 1; n <= 50; n++) {
-      const slug = n === 1 ? stem : `${stem}-${n}`
-      let task: TaskWorktree
-      try {
-        task = await this.createTask({
-          project: schedule.project,
-          slug,
-          intent: schedule.said || schedule.name,
-          by: `schedule:${id}`,
-          ...(does.done ? { done: does.done } : {}),
-          start: {
-            after: [],
-            prompt: does.prompt,
-            touches: [],
-            ...(does.model ? { model: does.model } : {}),
-            ...(does.thinking ? { thinking: does.thinking } : {}),
-          },
-        })
-      } catch (err) {
-        if (/already exists|used before/.test(err instanceof Error ? err.message : '')) continue
-        throw err
-      }
-      await this.log.append({
-        type: 'schedule_fired',
-        task: task.id,
-        detail: { schedule: id, due: at, missed: due.missed, ran: true },
-      })
-      return { task: task.id }
-    }
-    throw new Error(`every name like ${stem} is taken in ${schedule.project}`)
+    return fireAgentSchedule(this, { ...schedule, does }, due, now, proposed)
   }
 
   /**
@@ -1225,6 +1198,8 @@ export class Workbench {
           agent: FoundWork
           /** A person asked for this delivery again: `takeIntake` says what that skips. */
           again?: boolean
+          /** Made parked for the orchestrator to decide: never intake, whose grant decides. */
+          proposed?: boolean
         }
       | { told: string }
       | { problem: string },
@@ -1257,8 +1232,9 @@ export class Workbench {
       await this.log.append({ type: 'watch_found', detail: { ...found, ...outcome } })
       return { task: null }
     }
-    // Queued work named for what it is about, or parked for a person: `found.ts`.
-    return makeFoundWork(this, { id, project: schedule.project }, found, outcome.agent)
+    // Queued work named for what it is about, or parked to be decided: `found.ts`.
+    const proposed = outcome.proposed === true
+    return makeFoundWork(this, { id, project: schedule.project }, found, outcome.agent, proposed)
   }
 
   /** A person's choice about queued work, written down for the queue to read: `queue-changes.ts`. */

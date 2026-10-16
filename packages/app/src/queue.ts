@@ -1,5 +1,6 @@
 import {
   type Conflict,
+  decidesOf,
   describeLook,
   describeQueueState,
   describeWhen,
@@ -186,12 +187,22 @@ export function scheduleView(
     project: schedule.project,
     said: schedule.said,
     kind: does.kind,
+    // Whose call starting its work is, in the sentence, because that is the
+    // difference between an agent at 3am and a question at 3am (`decidesOf`).
     does:
       does.kind === 'agent'
-        ? 'starts an agent'
+        ? decidesOf(does) === 'itself'
+          ? 'starts an agent'
+          : 'proposes an agent to the orchestrator'
         : does.kind === 'ask'
           ? 'asks the orchestrator'
-          : `looks with ${does.watch}, and ${does.found === 'ask' ? 'tells the orchestrator what it finds' : 'starts work on what it finds'}`,
+          : `looks with ${does.watch}, and ${
+              does.found === 'ask'
+                ? 'tells the orchestrator what it finds'
+                : decidesOf(does) === 'itself'
+                  ? 'starts work on what it finds'
+                  : 'proposes work on what it finds to the orchestrator'
+            }`,
     prompt: does.kind === 'watch' ? '' : does.prompt,
     when: describeWhen(schedule.when),
     once: schedule.when.at !== undefined,

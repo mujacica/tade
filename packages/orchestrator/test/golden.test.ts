@@ -79,6 +79,7 @@ describe('the tools the orchestrator has', () => {
       'tade_project_open',
       'tade_project_rename',
       'tade_project_reorder',
+      'tade_proposal_decide',
       'tade_propose_check',
       'tade_propose_skill',
       'tade_queue',

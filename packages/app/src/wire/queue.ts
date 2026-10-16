@@ -47,6 +47,7 @@ import {
   why,
 } from './context.ts'
 import { Forecast } from './forecast.ts'
+import { decideProposal, type ProposalRequest } from './proposals.ts'
 import { type RaceTools, raceTools } from './races.ts'
 import { type ReplayTools, replaysLook, replayTools } from './replays.ts'
 // Type-only, so it is erased and no module edge exists between the two
@@ -114,6 +115,8 @@ export interface QueueTools {
   }): Promise<string>
   plan(plan: Plan): Promise<string>
   schedule(req: ScheduleRequest): Promise<string>
+  /** What was decided about work a schedule or a watch made parked for it: `proposals.ts`. */
+  decide(req: ProposalRequest): Promise<string>
   /** Races, which are plans the queue starts: `races.ts`. */
   race: RaceTools
   /** Replays, which are plans the queue starts and paces: `replays.ts`. */
@@ -411,6 +414,8 @@ export class Queue implements Subject {
         ].join('\n')
       },
       schedule: (req) => this.deps.schedules.set(req),
+      // Through the queue's own doors: a wait, a removal, a pass that starts it.
+      decide: (req) => decideProposal(this.wire, this.tools(), req),
       change: async (req) => {
         if (req.schedule) return this.changeSchedule(req)
         const change = QUEUE_CHANGES.find((one) => one === req.change)

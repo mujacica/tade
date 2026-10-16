@@ -78,6 +78,10 @@ export interface WatchFinding {
   /** Who was told about it instead of work starting. */
   told: string | null
   problem: string | null
+  /** That the work was made parked and put to the orchestrator to decide (`proposals.ts`). */
+  proposed?: boolean
+  /** The finding's links, where they were written down: what related work is matched on. */
+  links?: readonly string[]
 }
 
 /** What a watch has done: where its next look starts, what it has found, and its looks. */
@@ -131,6 +135,8 @@ export function watchedFrom(events: readonly TadeEvent[], schedule: string): Wat
         task: event.task,
         told: text(event.detail.told),
         problem: text(event.detail.problem),
+        proposed: event.detail.proposed === true,
+        links: Array.isArray(event.detail.links) ? event.detail.links.map(String) : [],
       })
     }
   }
