@@ -563,6 +563,14 @@ export async function unitFor(
     if (!base) throw new Error(`nothing to diff ${branch || head.slice(0, 8)} against in ${root}`)
   }
   const when = await git(ctx, root, ['log', '-1', '--format=%ct', head])
+  // In a directory several tasks share, the tasks a change is about are the
+  // ones whose commits are in it, read out of the trailer as `perAgent` reads
+  // them — never everybody working there. Recorded as everybody, one agent's
+  // `HEAD~1..HEAD` put a finding about one commit in front of thirty-six
+  // agents as their own change, and asked about thirty-six intents joined.
+  const shared = tasks.length > 1 || tasks.some((one) => one.shared)
+  const signed = shared ? (await commitsByTask(ctx, root, `${base}..${head}`)).byTask : null
+  const about = signed ? tasks.filter((task) => signed.has(task.id)) : tasks
   return {
     // A finding's key is one change for ever, so a key may never be made out
     // of a moving reference: `HEAD~1..HEAD` is a different change every time
@@ -574,8 +582,8 @@ export async function unitFor(
         ? tasks[0].id
         : `${project.name}:${where.ref ? `${base.slice(0, 8)}..${head.slice(0, 8)}` : branch || head.slice(0, 8)}`,
     project: project.name,
-    tasks: tasks.map((task) => task.id),
-    intent: tasks
+    tasks: about.map((task) => task.id),
+    intent: about
       .map((task) => task.intent)
       .filter(Boolean)
       .join('\n'),

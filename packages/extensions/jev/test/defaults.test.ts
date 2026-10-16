@@ -282,6 +282,40 @@ describe('a shared checkout is read one agent at a time', () => {
     expect(read.text).toContain('test_missing')
   })
 
+  it('files what a named range turned up under whose commits are in it, never under the asker', async () => {
+    const { repo, commit } = sharedCheckout()
+    commit('tidy-receipts', { 'src/receipt.ts': 'export const receipt = () => {}\n' })
+    const seen: unknown[] = []
+    const loaded = await host({
+      home: repo.home,
+      projects: { shop: { root: repo.root } },
+      env: { TYPESAFE_API_KEY: 'k' },
+      fetch: typesafe({ test_missing: 0.9 }, seen),
+      now: Date.now,
+    })
+    await loaded.call(
+      'jev_review',
+      { ref: 'HEAD~1..HEAD' },
+      agentAsking('shop/add-refunds', repo.root),
+    )
+    // Filed under everybody in the checkout, the asker was handed a finding
+    // about a commit it never made as its own change to account for.
+    expect(readReviews(repo.home)[0]?.tasks).toEqual(['shop/tidy-receipts'])
+    const asker = await loaded.call('jev_findings', {}, agentAsking('shop/add-refunds', repo.root))
+    expect(asker.text).toContain('Nothing has been flagged about shop/add-refunds')
+    const whose = await loaded.call(
+      'jev_findings',
+      {},
+      agentAsking('shop/tidy-receipts', repo.root),
+    )
+    expect(whose.text).toContain(':test_missing')
+    // And whether it did what was asked is asked against the words that
+    // commit was asked for in, not everybody's joined.
+    const state = JSON.stringify(seen)
+    expect(state).toContain('tidy the receipt printer')
+    expect(state).not.toContain('add refunds to the till')
+  })
+
   it('says nothing about whose a range is when all of it is the asker’s own', async () => {
     const { repo, commit } = sharedCheckout()
     commit('add-refunds', { 'src/refund.ts': 'export const refund = () => {}\n' })
