@@ -6,6 +6,7 @@ import {
   type ClipboardCopy,
   type ClipboardWatch,
   clipboardImage,
+  clipboardText,
   handOffFiles,
   isImagePath,
   readImage,
@@ -22,6 +23,7 @@ import {
   shownName,
 } from '../model.ts'
 import { imageMenuItems, type MenuItem, menuPanel } from '../panels/menu/state.ts'
+import { typingAt } from '../pasting.ts'
 import {
   type Actions,
   type Menus,
@@ -201,17 +203,48 @@ export class Images implements Subject {
     this.wire.draw()
   }
 
-  /** ctrl+v at the orchestrator: the screenshot on the clipboard, attached. */
+  /** The offer taken: the screenshot on the clipboard, attached. */
   async attachFromClipboard(): Promise<void> {
+    if (await this.takePicture()) return
+    notify(this.wire, 'no picture on the clipboard')
+    this.wire.draw()
+  }
+
+  /** The picture on the clipboard, attached; false where there is none. */
+  private async takePicture(): Promise<boolean> {
     const path = await (this.wire.opts.clipboard?.image ?? clipboardImage)()
-    if (path) {
-      // That copy is taken: it is not offered again.
-      if (this.clipboard.offered) this.clipboard.seen = this.clipboard.offered
-      this.clipboard.offered = null
-      this.attach([path])
+    if (!path) return false
+    // That copy is taken: it is not offered again.
+    if (this.clipboard.offered) this.clipboard.seen = this.clipboard.offered
+    this.clipboard.offered = null
+    this.attach([path])
+    return true
+  }
+
+  /**
+   * ctrl+v on one of Tade's own lines (`pasteGoes`): a picture first where one
+   * can be attached, then the clipboard's text, handed to `type` as the
+   * terminal's own paste — so every field takes it as it takes Cmd+V — and
+   * only if the keyboard is still where it was when the clipboard was asked.
+   */
+  async paste(picture: boolean, type: (data: string) => void): Promise<void> {
+    const at = typingAt(this.wire.state)
+    if (picture && (await this.takePicture())) return
+    const text = await (this.wire.opts.clipboard?.text ?? clipboardText)()
+    if (text && typingAt(this.wire.state) === at) {
+      type(asPaste(text))
       return
     }
-    notify(this.wire, 'no picture on the clipboard — ⌘V pastes text')
+    notify(
+      this.wire,
+      text
+        ? 'not pasted: the keyboard moved before the clipboard answered'
+        : text === null
+          ? 'could not read the clipboard'
+          : picture
+            ? 'nothing on the clipboard to paste'
+            : 'no text on the clipboard',
+    )
     this.wire.draw()
   }
 

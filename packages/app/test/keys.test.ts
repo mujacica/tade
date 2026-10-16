@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appKey, forLane, normalKey } from '../src/keys.ts'
+import { appKey, forLane, normalKey, pasteKey } from '../src/keys.ts'
 
 // The shell claims as little as possible. Anything it names here is a key the
 // focused agent will never see, so each one has to earn its place.
@@ -167,5 +167,65 @@ describe('a key on its way into a lane', () => {
     for (const sent of ['\x1b[A', '\x1b[1;5C', '\x03', '\x1b', '\x1b[200~git\x1b[201~', 'héllo']) {
       expect(forLane(sent), JSON.stringify(sent)).toBe(sent)
     }
+  })
+})
+
+describe('ctrl+v and Cmd+V, as two terminals send them', () => {
+  // Read off Ghostty 1.3.1 and Terminal 2.15 on macOS 27, with the modes the
+  // window asks for (alternate screen, the mouse, bracketed paste, kitty's
+  // flags 7 and modifyOtherKeys where kitty is not spoken), by a person
+  // pressing the keys: synthetic key events are dropped on this machine.
+  const GHOSTTY = {
+    ctrlV: '\x1b[118;5u',
+    ctrlVReleased: '\x1b[118;5:3u',
+    // The clipboard holding text: Ghostty pastes it, in two reads.
+    cmdV: ['\x1b[200~', 'tade-paste-text\x1b[201~'],
+    // Holding only a picture: no paste, the key itself.
+    cmdVPicture: '\x1b[118;9u',
+    cmdVPictureReleased: '\x1b[118;9:3u',
+  }
+  const TERMINAL = {
+    // Terminal answers neither kitty nor modifyOtherKeys: ctrl+v is the byte.
+    ctrlV: '\x16',
+    cmdV: '\x1b[200~tade-paste-text\x1b[201~',
+    // Two lines, broken by a bare CR where Ghostty pastes `\n`.
+    cmdVLines: '\x1b[200~line one\rline two',
+    // Holding only a picture, Terminal sends nothing at all.
+  }
+
+  it('reads ctrl+v as asking for the clipboard however it is spelt, and its release as nothing', () => {
+    expect(pasteKey(GHOSTTY.ctrlV)).toBe('ctrl+v')
+    expect(pasteKey(TERMINAL.ctrlV)).toBe('ctrl+v')
+    // xterm's modifyOtherKeys, and kitty with caps lock on.
+    expect(pasteKey('\x1b[27;5;118~')).toBe('ctrl+v')
+    expect(pasteKey('\x1b[118;69u')).toBe('ctrl+v')
+    expect(pasteKey(GHOSTTY.ctrlVReleased)).toBeNull()
+  })
+
+  it('reads Cmd+V that arrived as a key as asking too, and never a paste or another key', () => {
+    expect(pasteKey(GHOSTTY.cmdVPicture)).toBe('cmd+v')
+    expect(pasteKey(GHOSTTY.cmdVPictureReleased)).toBeNull()
+    for (const other of [
+      ...GHOSTTY.cmdV,
+      TERMINAL.cmdV,
+      TERMINAL.cmdVLines,
+      'v',
+      '\x1b[118;3u',
+      '\x1b[99;5u',
+      '\x1b[<35;50;34M',
+    ]) {
+      expect(pasteKey(other), JSON.stringify(other)).toBeNull()
+    }
+  })
+
+  it('goes into a lane as the byte Terminal sends, from either terminal', () => {
+    expect(forLane(GHOSTTY.ctrlV)).toBe('\x16')
+    expect(forLane(GHOSTTY.ctrlVReleased)).toBe('')
+    expect(forLane(TERMINAL.ctrlV)).toBe('\x16')
+    // A terminal speaking modifyOtherKeys spells every modified key this way.
+    expect(forLane('\x1b[27;5;118~')).toBe('\x16')
+    expect(forLane('\x1b[27;5;99~')).toBe('\x03')
+    expect(forLane('\x1b[27;3;98~')).toBe('\x1bb')
+    expect(forLane('\x1b[27;2;65~')).toBe('A')
   })
 })

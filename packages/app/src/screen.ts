@@ -11,6 +11,7 @@ import {
 import type { LaneId } from '@tade/core'
 import { PtyDriver } from '@tade/drivers-pty'
 import { type Hit, hitAt } from './hits.ts'
+import { typed as typedText } from './panels/outcome.ts'
 import {
   COLOUR as COLOUR_SKIN,
   PLAIN as PLAIN_SKIN,
@@ -589,6 +590,15 @@ export async function runScreen(
       return { consume: true }
     }
     if (!answer) return { consume: true }
+    // A paste is its text and never keys (`typedText`): the markers round it
+    // are not typed and a break in it answers nothing. Any other escape is a
+    // key a prompt has no use for — an arrow, a release, which Ghostty sends
+    // after every letter — and typing its tail put `[200~` round a pasted key.
+    if (data.startsWith('\x1b')) {
+      state = { ...state, typed: state.typed + typedText(data, undefined) }
+      draw()
+      return { consume: true }
+    }
     for (const char of data) {
       if (char === '\r' || char === '\n') {
         const text = state.typed

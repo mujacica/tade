@@ -431,3 +431,40 @@ export async function clipboardImage(
   rmSync(path, { force: true })
   return null
 }
+
+/** How long the clipboard's text is waited for: somebody pressed ctrl+v and is watching for it. */
+const TEXT_MS = 2_000
+
+/**
+ * pbpaste in UTF-8 whatever the locale: it writes the clipboard in the
+ * locale's encoding, and a window started with none — as a launchd app is —
+ * got `é` in MacRoman and `✓` as `?`.
+ */
+const inUtf8: Run = async (command, args) => {
+  const ran = await runProgram(command, args, {
+    timeoutMs: TEXT_MS,
+    env: { ...process.env, LC_ALL: 'en_US.UTF-8' },
+  })
+  return { ok: ran.code === 0, stdout: ran.stdout }
+}
+
+/**
+ * The text on the clipboard, for ctrl+v on one of Tade's own lines: '' where
+ * it holds none — a screenshot — and null where it could not be read. macOS
+ * asks pbpaste; Linux asks wl-paste, then xclip, both of which also fail on a
+ * clipboard with nothing on it, so there an empty one is said as unreadable.
+ */
+export async function clipboardText(
+  platform: NodeJS.Platform = process.platform,
+  exec: Run = platform === 'darwin' ? inUtf8 : run,
+): Promise<string | null> {
+  if (platform === 'darwin') {
+    const read = await exec('pbpaste', [])
+    return read.ok ? read.stdout : null
+  }
+  if (platform !== 'linux') return null
+  const wayland = await exec('wl-paste', ['--no-newline', '--type', 'text'])
+  if (wayland.ok) return wayland.stdout
+  const x = await exec('xclip', ['-selection', 'clipboard', '-o'])
+  return x.ok ? x.stdout : null
+}

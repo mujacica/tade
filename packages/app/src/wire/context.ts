@@ -13,7 +13,7 @@ import type { UpdateLook } from '@tade/workbench/programs'
 import type { Open } from '../editor.ts'
 import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
-import type { clipboardImage, WatchClipboard } from '../images.ts'
+import type { clipboardImage, clipboardText, WatchClipboard } from '../images.ts'
 import type { LayoutPrefs } from '../layout.ts'
 import type { Live } from '../live.ts'
 import { type AppState, notice } from '../model.ts'
@@ -153,12 +153,13 @@ export interface AppOptions {
   client: Workbench
   config: Config
   /**
-   * The system clipboard's pictures: watching what is there, and saving it.
-   * The machine's own unless given.
+   * The system clipboard: watching it for a picture, saving one, and reading
+   * its text for ctrl+v. The machine's own unless given.
    */
   clipboard?: {
     watch: WatchClipboard
     image: typeof clipboardImage
+    text: typeof clipboardText
   }
   /**
    * How a file, a link or a folder is handed to the desktop — your editor,

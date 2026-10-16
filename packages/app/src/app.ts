@@ -321,7 +321,7 @@ export class App {
       stop: () => void this.stop(),
       panelInputs: () => this.router.panelInputs(),
       applyPanel: (outcome) => this.router.applyPanel(outcome),
-      attachFromClipboard: () => void this.images.attachFromClipboard(),
+      fromClipboard: (picture, type) => void this.images.paste(picture, type),
       askWhereImagesGo: (paths) => this.images.askWhere(paths),
       talkStart: () => void this.voice.talkStart(),
       talkStop: () => void this.voice.talkStop(),

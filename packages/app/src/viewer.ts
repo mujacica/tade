@@ -412,8 +412,9 @@ export function typeIn(edit: Edited, text: string): Edited {
   let out = edit
   // A paste is lines, and each newline in it breaks the line — but brings no
   // indentation of its own: text that arrives already indented and is indented
-  // again is the oldest paste bug there is.
-  const parts = text.replace(/\r\n/g, '\n').split('\n')
+  // again is the oldest paste bug there is. Terminal pastes a break as a bare
+  // `\r`, which went into the file as one.
+  const parts = text.replace(/\r\n?/g, '\n').split('\n')
   parts.forEach((part, at) => {
     if (at > 0) out = splitLine(out, false)
     if (part !== '') out = insert(out, part)

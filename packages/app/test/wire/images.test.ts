@@ -36,6 +36,7 @@ describe('the window, taking a picture', () => {
           return { stop: () => {} }
         },
         image: async () => shot,
+        text: async () => '',
       },
     })
     await until('the first frame', () => terminal.written.includes('refunds'))
@@ -69,6 +70,31 @@ describe('the window, taking a picture', () => {
     )
   })
 
+  it('attaches a screenshot on ctrl+v and on Cmd+V as Ghostty sends them, before any text', async () => {
+    const dir = tmp('tade-shot-')
+    const shots = ['one.png', 'two.png'].map((name) => join(dir, name))
+    for (const shot of shots) writeFileSync(shot, Buffer.from('89504e470d0a1a0a', 'hex'))
+    let taken = 0
+    await start({
+      clipboard: {
+        watch: () => ({ stop: () => {} }),
+        image: async () => shots[taken++] ?? null,
+        text: async () => 'never typed',
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\x00')
+    const attached = (name: string) =>
+      screenOf(terminal.written).some((row) => row.includes(`▣ ${name}`))
+    // ctrl+v under kitty: the picture, as pi takes one at an agent's prompt.
+    terminal.press('\x1b[118;5u')
+    await until('the first attached', () => attached('one.png'))
+    // Cmd+V with a picture and no text: Ghostty passes the key on.
+    terminal.press('\x1b[118;9u')
+    await until('the second attached', () => attached('two.png'))
+    expect(screenOf(terminal.written).some((row) => row.includes('never typed'))).toBe(false)
+  })
+
   it('watches the clipboard only while the line is open, and never after the window', async () => {
     let started = 0
     let watching = 0
@@ -84,6 +110,7 @@ describe('the window, taking a picture', () => {
           }
         },
         image: async () => null,
+        text: async () => '',
       },
     })
     await until('the first frame', () => terminal.written.includes('refunds'))

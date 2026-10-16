@@ -149,6 +149,12 @@ describe('typing into a file', () => {
     ])
   })
 
+  it('breaks the line where Terminal’s paste does, with a bare CR', () => {
+    // Cmd+V of two lines in Terminal 2.15: `\r` between them, where Ghostty sends `\n`.
+    const edit = typeIn(editFrom(['ab'], 0, 1), 'line one\rline two\r\nthree')
+    expect(edit.lines).toEqual(['aline one', 'line two', 'threeb'])
+  })
+
   it('joins lines back with backspace at the front and delete at the end', () => {
     const joined = editKey(editFrom(lines, 1, 0), 'backspace')
     expect(joined?.lines).toEqual(['function one() {\treturn 1', '}'])

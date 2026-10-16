@@ -193,6 +193,27 @@ describe('answering it', () => {
     expect(answered).toBe(key)
   })
 
+  it('takes a key pasted as a terminal pastes one, and types no key it has no use for', async () => {
+    const terminal = new FakeTerminal()
+    const key = 'tsk_secret_0123456789'
+    let answered = ''
+    await runScreen({ title: 'Setting up', terminal }, async (ui: Ui) => {
+      const typed = ui.ask('paste your key', '')
+      await until(() => terminal.written.includes('paste your key'))
+      // Cmd+V in Ghostty, its two reads joined by pi-tui's stdin buffer, with
+      // the break at the end of a copied line; then ctrl+v and a letter's
+      // release, as kitty spells them — none of which is text.
+      terminal.press(`\x1b[200~${key}\n\x1b[201~`)
+      terminal.press('\x1b[118;5u')
+      terminal.press('\x1b[118;5:3u')
+      terminal.press('\x1b[97;1:3u')
+      await until(() => terminal.written.includes(key))
+      terminal.press('\r')
+      answered = await typed
+    })
+    expect(answered).toBe(key)
+  })
+
   it('treats enter on a yes/no question as the suggestion', async () => {
     const terminal = new FakeTerminal()
     const said: boolean[] = []

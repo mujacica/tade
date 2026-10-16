@@ -27,7 +27,7 @@ import {
   spanOf,
   withSelection,
 } from '../input.ts'
-import { appKey, forLane, normalKey } from '../keys.ts'
+import { appKey, forLane, normalKey, pasteKey } from '../keys.ts'
 import {
   activeTerminal,
   focusBy,
@@ -44,8 +44,9 @@ import {
 } from '../model.ts'
 import type { PanelOutcome } from '../panels/outcome.ts'
 import { type PanelInputs, panelKey } from '../panels.ts'
+import { pasteGoes } from '../pasting.ts'
 import type { Skin } from '../skin.ts'
-import { terminalSplitShown, typingLane } from '../split.ts'
+import { terminalSplitShown } from '../split.ts'
 import { notify, type Subject, type Wiring } from './context.ts'
 
 // Where a keystroke goes, and what it does when it gets there.
@@ -95,8 +96,9 @@ export interface KeyboardDeps {
   panelInputs(): PanelInputs
   /** What that answer changes. */
   applyPanel(outcome: PanelOutcome): void
-  /** A picture taken off the clipboard, and paths dropped on the window. */
-  attachFromClipboard(): void
+  /** ctrl+v on Tade's own lines: a picture taken, or the text handed to `type` as a paste. */
+  fromClipboard(picture: boolean, type: (data: string) => void): void
+  /** Paths dropped on the window. */
   askWhereImagesGo(paths: string[]): void
   /** Push-to-talk, held or toggled. */
   talkStart(): void
@@ -173,6 +175,14 @@ export class Keyboard implements Subject {
   onInput(data: string): TuiInputListenerResult {
     if (this.deps.stopped()) return undefined
     this.deps.settle()
+    // ctrl+v, and Cmd+V with no text to paste: on Tade's own lines the window
+    // reads the clipboard, and a lane is sent what a terminal sends (`pasteGoes`).
+    const paste = pasted(data)
+    const asked = paste === '' ? 'nothing' : paste === null ? pasteKey(data) : null
+    const goes = pasteGoes(this.wire.state, asked)
+    if (goes?.to === 'tade') this.deps.fromClipboard(goes.picture, (text) => this.onInput(text))
+    else if (goes?.to === 'lane') this.wire.outbox.write(goes.lane as LaneId, '\x16')
+    if (goes) return { consume: true }
     // A panel has the keyboard while it is open: nothing typed into a form
     // should reach an agent. ctrl+c still closes Tade, as it does everywhere.
     if (this.wire.state.panel) {
@@ -190,21 +200,7 @@ export class Keyboard implements Subject {
     }
     // A picture dropped on the window arrives as its path, pasted. Where it
     // landed is not something a terminal says, so ask who it is for.
-    const paste = pasted(data)
     if (paste !== null) {
-      // A paste with nothing in it is a terminal pasting a clipboard that holds
-      // only a picture: at the orchestrator, attach it; at pi, ctrl+v is how it
-      // takes a picture off the clipboard itself.
-      if (
-        paste === '' &&
-        !(this.wire.state.keyboard === 'terminal' && activeTerminal(this.wire.state))
-      ) {
-        const pane = this.wire.state.panes.find((one) => one.task === this.wire.state.focused)
-        const lane = pane ? typingLane(this.wire.state, pane) : null
-        if (this.wire.state.dictation !== null || !lane) this.deps.attachFromClipboard()
-        else this.wire.outbox.write(lane as LaneId, '\x16')
-        return { consume: true }
-      }
       const paths = imagePaths(paste)
       const files = filePaths(paste)
       if (paths.length > 0 || files.length > 0) {
@@ -226,15 +222,6 @@ export class Keyboard implements Subject {
         this.wire.draw()
         return { consume: true }
       }
-    }
-    // ctrl+v at the orchestrator's line takes a screenshot off the clipboard;
-    // an agent or a shell reads its own clipboard, so there it passes through.
-    if (
-      data === '\x16' &&
-      (this.wire.state.dictation !== null || this.wire.state.focused === null)
-    ) {
-      this.deps.attachFromClipboard()
-      return { consume: true }
     }
     const kitty = this.deps.kitty()
     const talk = this.wire.opts.config.surfaces.voice.talk

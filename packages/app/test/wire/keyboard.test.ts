@@ -1,6 +1,9 @@
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { THINKING_LEVELS } from '@tade/core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
+import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import type { ThinkerEvent } from '../../src/transcript.ts'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
 
@@ -103,6 +106,68 @@ describe('the window, taking a keystroke', () => {
     const rows = screenOf(terminal.written)
     expect(rows.join('\n')).not.toContain(';1:3u')
     expect(rows.join('\n')).not.toContain('99;5u')
+  })
+
+  it('pastes the clipboard’s text on ctrl+v where only Tade reads it, however it is spelt', async () => {
+    let clipboard = 'from the clipboard'
+    await start({
+      clipboard: {
+        watch: () => ({ stop: () => {} }),
+        image: async () => null,
+        text: async () => clipboard,
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    // At the orchestrator's line, ctrl+v as Ghostty sends it under kitty, and
+    // its release. pi's editor has no ctrl+v of its own: it did nothing.
+    terminal.press('\x00')
+    await until('the line', () => terminal.written.includes('◉'))
+    terminal.press('\x1b[118;5u')
+    terminal.press('\x1b[118;5:3u')
+    await until('the text on the line', () =>
+      screenOf(terminal.written).some((row) => row.includes('from the clipboard')),
+    )
+    // In the search box, as Terminal sends it: the byte, which used to take a
+    // picture or say there was none.
+    clipboard = 'readme'
+    terminal.press('\x0b')
+    await until('search', () => terminal.written.includes('Search'))
+    terminal.press('\x16')
+    await until('what the pasted words find', () => terminal.written.includes('□ README.md'))
+  })
+
+  it('hands ctrl+v to a program in a lane as the byte Terminal sends', async () => {
+    // A program that says what it reads, so what arrives is seen whatever the
+    // shell would have made of it.
+    const script = join(tmp('tade-ctrl-v-'), 'read.mjs')
+    writeFileSync(
+      script,
+      `process.stdin.setRawMode(true)
+console.log('reading')
+process.stdin.on('data', (bytes) => {
+  console.log('read ' + JSON.stringify(bytes.toString()))
+  if (bytes.includes(4)) process.exit(0)
+})
+`,
+    )
+    const opened = await client.openTerminal({ project: 'app' })
+    await client.write(opened.id, `'${process.execPath}' '${script}'\r`)
+    terminal.rows = 40
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const tab = find('terminal 1')
+    click(tab.col + 1, tab.row)
+    const shown = (text: string) => screenOf(terminal.written).some((row) => row.includes(text))
+    await until('the program reading', () => shown('reading'), 20_000)
+    terminal.press('\x1b[118;5u')
+    terminal.press('\x1b[118;5:3u')
+    await until('ctrl+v read as 0x16', () => shown('read "\\u0016"'), 20_000)
+    // Its release is nothing, and Cmd+V with nothing to paste is nothing too.
+    terminal.press('\x1b[118;9u')
+    terminal.press('\x04')
+    await until('the end of what it read', () => shown('read "\\u0004"'), 20_000)
+    const read = screenOf(terminal.written).flatMap((row) => row.match(/read "[^"]*"/g) ?? [])
+    expect(read).toEqual(['read "\\u0016"', 'read "\\u0004"'])
   })
 
   it('takes a keystroke and opens the dictation line', async () => {

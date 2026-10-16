@@ -113,7 +113,9 @@ regions in a cycle now.
   `terminal.kittyProtocolActive` and degrade to a toggle; never assume releases arrive.
 - **A key goes into a lane as a terminal with no kitty protocol sends it** (`forLane`). The window
   asks its terminal for releases; a lane's emulator offers the program in it nothing of the kind,
-  so a release is dropped and ctrl, alt and escape go back to their legacy bytes.
+  so a release is dropped and ctrl, alt and escape go back to their legacy bytes — from kitty's
+  `CSI u` and from xterm's modifyOtherKeys (`CSI 27;5;118~`), which pi-tui asks for where kitty
+  is not spoken.
 - **`addInputListener` runs before the focused component**, and returning `{ consume: true }` stops
   the keystroke there. Returning `undefined` lets it through to the agent — that is the default.
 - **Nothing steals the screen while you are typing.** A pane may raise itself only for a `blocking`
@@ -876,14 +878,24 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   `splitFocus` says which half typing goes to.
 - **Anything you click is a button, not a glyph**: menus (`≡`, `▾`), close (`×`), a model or harness
   chip. A bare character is too small a target.
-- **Cmd+V never reaches the window with a picture**: macOS terminals paste text, and a screenshot
-  has none. So the orchestrator's line offers a picture it finds on the clipboard
-  (`watchClipboard`, only while the line is open), ctrl+v attaches it, and an empty paste — what
-  some terminals send for a picture — is taken as ctrl+v. It is **watched, never asked**: one
-  `osascript` that lives while the line is open, in its own group, prints a line only when the
-  pasteboard's count moves and ends itself once Tade is not its parent, where an ask every three
-  seconds was twenty processes a minute; Linux has no count, so it is still asked. Tests pass a
-  stub `clipboard`: a developer's clipboard is not a test's to read.
+- **ctrl+v is read where only Tade can read the clipboard, and passed on where a program can**
+  (`pasteGoes`, `pasting.ts`). A terminal pastes text on Cmd+V and nothing reads the clipboard
+  but a program asked to, so a lane gets `0x16` and its program reads its own — pi pastes files,
+  a picture or text, Claude Code a picture, a shell keeps quoted-insert. On Tade's own lines the
+  window reads it (`Images.paste`): the orchestrator's line takes a picture first, as pi does
+  beside it, then every line takes the text, handed in as a bracketed paste so each field takes
+  ctrl+v exactly as it takes Cmd+V — dropped, and said, if the keyboard moved before the
+  clipboard answered. Settings choosing a key keeps ctrl+v as the key. How each terminal spells
+  it is `pasteKey`, captured by hand (`keys.test.ts`): Ghostty sends `ESC[118;5u` under kitty
+  and, for Cmd+V with no text on the clipboard, the key itself (`ESC[118;9u`); Terminal sends
+  `0x16`, nothing at all for that Cmd+V, and breaks a pasted line with a bare `\r`. `pbpaste`
+  writes in the locale's encoding, so it is run in UTF-8.
+- **Cmd+V never reaches the window with a picture** in Terminal, so the orchestrator's line also
+  offers a picture it finds on the clipboard (`watchClipboard`, only while the line is open). It
+  is **watched, never asked**: one `osascript` that lives while the line is open, in its own
+  group, prints a line only when the pasteboard's count moves and ends itself once Tade is not its
+  parent, where an ask every three seconds was twenty processes a minute; Linux has no count, so
+  it is still asked. Tests pass a stub `clipboard`: a developer's clipboard is not a test's to read.
 - **The mouse selects.** Dragging over anything that is not a control selects text and copies it on
   release; the terminal cannot, because the window reports the mouse. The rules are in **Selecting
   text** — a selection is bounded to its region's columns and anchored in its lines, never in the rows

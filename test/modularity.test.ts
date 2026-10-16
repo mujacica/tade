@@ -386,6 +386,9 @@ const PURE = [
   'packages/app/src/happening.ts',
   'packages/app/src/pace.ts',
   'packages/app/src/pending.ts',
+  // What ctrl+v means by where the keyboard is: read off the state, so every
+  // place a person types is a line of `test/pasting.test.ts`.
+  'packages/app/src/pasting.ts',
   'packages/app/src/hits.ts',
   'packages/app/src/layout.ts',
   'packages/app/src/model.ts',

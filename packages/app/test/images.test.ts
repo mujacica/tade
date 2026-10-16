@@ -8,6 +8,7 @@ import {
   asPaste,
   type ClipboardCopy,
   clipboardImage,
+  clipboardText,
   filePaths,
   handOffFiles,
   imagePaths,
@@ -138,6 +139,32 @@ describe('the clipboard', () => {
         : { ok: false, stdout: '' },
     )
     expect(found).toBe(shot)
+  })
+
+  it('reads its text for ctrl+v, says none where it holds none, and null where it cannot tell', async () => {
+    const asked: string[] = []
+    const answering =
+      (answers: Record<string, { ok: boolean; stdout: string }>) =>
+      async (command: string, args: string[]) => {
+        asked.push([command, ...args].join(' '))
+        return answers[command] ?? { ok: false, stdout: '' }
+      }
+    const text = 'héllo – tade ✓\nsecond line'
+    expect(await clipboardText('darwin', answering({ pbpaste: { ok: true, stdout: text } }))).toBe(
+      text,
+    )
+    // A screenshot has no text, which is not the same as not being able to look.
+    expect(await clipboardText('darwin', answering({ pbpaste: { ok: true, stdout: '' } }))).toBe('')
+    expect(await clipboardText('darwin', answering({}))).toBeNull()
+    asked.length = 0
+    // Linux asks Wayland, then X.
+    expect(await clipboardText('linux', answering({ xclip: { ok: true, stdout: 'x11' } }))).toBe(
+      'x11',
+    )
+    expect(asked).toEqual(['wl-paste --no-newline --type text', 'xclip -selection clipboard -o'])
+    expect(await clipboardText('win32', answering({ pbpaste: { ok: true, stdout: 'no' } }))).toBe(
+      null,
+    )
   })
 })
 

@@ -256,6 +256,30 @@ const LOCKS = 64 | 128
 const CSI_U = /^(\d+)(?::(\d*))?(?::\d+)?(?:;(\d*)(?::([123]))?)?(?:;[\d:]*)?u$/
 /** What follows `ESC [` in a key kitty sends in its legacy form with an event on it: `1;1:3A`, `3;5:2~`. */
 const LEGACY_EVENT = /^(\d+);(\d+):([123])([~A-DHFPQS])$/
+/**
+ * What follows `ESC [` under xterm's modifyOtherKeys, which pi-tui asks for
+ * where a terminal speaks no kitty: `27 ; modifiers ; key ~`, so ctrl+v is
+ * `27;5;118~`. The same key kitty would spell `118;5u`, with the two swapped.
+ */
+const OTHER_KEYS = /^27;(\d+);(\d+)~$/
+/** What follows `ESC [` in a key as `CSI u` or modifyOtherKeys spells one, which is all `pasteKey` need read. */
+const SPELT = /^[\d;:]+[u~]$/
+
+/**
+ * Whether a key asks for the clipboard, captured from Ghostty 1.3.1 and
+ * Terminal 2.15 on 2026-10-16 (`test/keys.test.ts` holds the bytes):
+ * ctrl+v however it is spelt — `0x16` from Terminal, `ESC [ 118 ; 5 u` from
+ * Ghostty under kitty — and Cmd+V reaching the window as a key, which is what
+ * Ghostty sends (`ESC [ 118 ; 9 u`) when the clipboard holds no text, where
+ * Terminal sends nothing at all. A release asks for nothing.
+ */
+export function pasteKey(data: string): 'ctrl+v' | 'cmd+v' | null {
+  if (data === '\x16') return 'ctrl+v'
+  if (!data.startsWith('\x1b[') || !SPELT.test(data.slice(2)) || isKeyRelease(data)) return null
+  const key = parseKey(data)
+  const named = key === undefined ? null : normalKey(key)
+  return named === 'ctrl+v' ? 'ctrl+v' : named === 'super+v' ? 'cmd+v' : null
+}
 
 /**
  * The keys xterm sends a control byte for with ctrl held, past the letters:
@@ -302,6 +326,8 @@ const CONTROLS: Readonly<Record<string, number>> = {
 export function forLane(data: string): string {
   if (!data.startsWith('\x1b[')) return data
   const rest = data.slice(2)
+  const other = OTHER_KEYS.exec(rest)
+  if (other) return forLane(`\x1b[${other[2]};${other[1]}u`)
   const legacy = LEGACY_EVENT.exec(rest)
   if (legacy) {
     const [, number, mods, event, final] = legacy

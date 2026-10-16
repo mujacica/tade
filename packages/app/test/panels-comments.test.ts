@@ -75,6 +75,12 @@ describe('the box a comment is written in', () => {
     expect(composeKey(now, 'escape', '\x1b', CHOICES)).toEqual({ done: 'cancel' })
   })
 
+  it('takes a paste — Cmd+V, or ctrl+v read off the clipboard — as words on one line', () => {
+    // Two lines out of Terminal, broken by its bare CR: kept, not sent.
+    const answer = composeKey(box, undefined, '\x1b[200~too slow\rsee #418\r\x1b[201~', CHOICES)
+    expect(answer).toEqual({ composing: { ...box, words: 'too slow see #418' } })
+  })
+
   it('goes round who could be told and back to Tade', () => {
     expect(nextTo('tade', CHOICES, 1)).toEqual({ agent: 'shop/pay' })
     expect(nextTo({ agent: 'shop/cart' }, CHOICES, 1)).toBe('tade')
