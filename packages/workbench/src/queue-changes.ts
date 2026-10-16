@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import {
   type Asker,
   checkWaits,
@@ -8,10 +8,10 @@ import {
   TaskFile,
   type Wait,
 } from '@tade/core'
-import { parse as parseYaml, stringify } from 'yaml'
+import { parse as parseYaml } from 'yaml'
 import type { EventLog } from './events.ts'
 import { pickUpToStart } from './parked.ts'
-import { aloneOn, readTaskFile, taskFilePath } from './tasks.ts'
+import { aloneOn, readTaskFile, rewriteTaskFile, taskFilePath } from './tasks.ts'
 
 // A choice about queued work — a person's, or the orchestrator's on their
 // behalf — written down, so that what the queue does next is read from it.
@@ -329,7 +329,7 @@ function writeStart(
     if (!parsed.success || !parsed.data.start) {
       throw new Error(`${task}'s task file would not read after that, so it was left as it was`)
     }
-    await writeFile(path, stringify(file))
+    await rewriteTaskFile(path, file)
     return parsed.data.start
   })
 }

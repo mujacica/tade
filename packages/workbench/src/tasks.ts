@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import {
   type DoneRule,
@@ -619,6 +619,18 @@ export function aloneOn<T>(path: string, work: () => Promise<T>): Promise<T> {
   return mine
 }
 
+/**
+ * Write a task file whole: aside, then moved over it. Only writes are under
+ * `aloneOn`, so a read can land in the middle of one — and a file read while
+ * it was being rewritten in place read as empty, which is no task at all.
+ */
+export async function rewriteTaskFile(path: string, file: unknown): Promise<void> {
+  const aside = `${path}.${process.pid}-${++rewrites}.tmp`
+  await writeFile(aside, stringify(file))
+  await rename(aside, path)
+}
+let rewrites = 0
+
 async function updateTaskFile(
   path: string,
   change: (file: Record<string, unknown>) => void,
@@ -626,7 +638,7 @@ async function updateTaskFile(
   await aloneOn(path, async () => {
     const file = (parseYaml(await readFile(path, 'utf8')) ?? {}) as Record<string, unknown>
     change(file)
-    await writeFile(path, stringify(file))
+    await rewriteTaskFile(path, file)
   })
 }
 
@@ -724,7 +736,7 @@ export async function setParked(
     const before = file.parked === true
     if (was !== undefined && was !== before) throw new ParkMovedOn(id, before)
     file.parked = parked
-    await writeFile(path, stringify(file))
+    await rewriteTaskFile(path, file)
     return { task: String(file.id ?? ''), parked, was: before }
   })
 }

@@ -1,11 +1,12 @@
-import { chmodSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { open } from 'node:fs/promises'
 import { join } from 'node:path'
 import { type PlannedAgent, taskDir } from '@tade/core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { handOnWaits } from '../src/queue-changes.ts'
-import { readTaskFile } from '../src/tasks.ts'
+import { readTaskFile, setTaskHarness } from '../src/tasks.ts'
 import { Workbench } from '../src/workbench.ts'
 
 // Changing queued work once it is made, against real git and real task files:
@@ -265,8 +266,10 @@ describe('changing queued work', () => {
         after: [{ task: 'two', why: '' }],
         by: 'you',
       })
-      const file = join(taskDir(home, 'app/three'), 'task.yaml')
-      chmodSync(file, 0o444)
+      // Its folder, not the file: a task file is written aside and moved over
+      // the old one (`rewriteTaskFile`), which the file's own mode never refuses.
+      const dir = taskDir(home, 'app/three')
+      chmodSync(dir, 0o555)
       try {
         const handed = await handOnWaits(
           client,
@@ -284,7 +287,7 @@ describe('changing queued work', () => {
         )
         expect(handed).toEqual([{ task: 'app/three', problem: expect.stringMatching(/EACCES/) }])
       } finally {
-        chmodSync(file, 0o644)
+        chmodSync(dir, 0o755)
       }
       // Nothing is said that did not happen: the queue holds it on the removal.
       expect((await readTaskFile(home, 'app/three'))?.start?.after).toEqual([
@@ -326,6 +329,36 @@ describe('changing queued work', () => {
     const file = await readTaskFile(home, 'app/three')
     expect(file?.parked).toBe(true)
     expect(file?.start?.after.map((dep) => dep.task)).toEqual(['app/one'])
+  })
+
+  it('writes a task file whole, so a wait read in the middle of a park never finds it empty', async () => {
+    // A wait is checked outside the file's lock, so it can read while a park
+    // writes. Rewritten in place, that read found the file empty — "there is no
+    // queued work called app/three" — and the test above went red on ubuntu. So
+    // a reader that opened the file first must still read all of what was there.
+    const dir = taskDir(home, 'app/three')
+    const path = join(dir, 'task.yaml')
+    const writes = [
+      () => client.parkTask('app/three', true),
+      () =>
+        client.changeQueued({
+          task: 'app/three',
+          change: 'after',
+          after: [{ task: 'one', why: '' }],
+          by: 'you',
+        }),
+      () => setTaskHarness(home, 'app/three', 'pi'),
+    ]
+    for (const write of writes) {
+      const was = readFileSync(path, 'utf8')
+      const reading = await open(path)
+      await write()
+      const read = await reading.readFile('utf8')
+      await reading.close()
+      expect(read).toBe(was)
+      expect(readFileSync(path, 'utf8')).not.toBe(was)
+    }
+    expect(readdirSync(dir).filter((name) => name.endsWith('.tmp'))).toEqual([])
   })
 
   it('retells what it is told or what it says it will touch, and never copies the prompt into the journal', async () => {
