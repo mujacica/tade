@@ -1,5 +1,6 @@
+import { randomBytes } from 'node:crypto'
 import { closeSync, mkdtempSync, openSync, readSync, rmSync, statSync } from 'node:fs'
-import { constants, tmpdir } from 'node:os'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   type LaneId,
@@ -27,7 +28,9 @@ import {
   type WorkspaceDriver,
   wheelBytes,
 } from '@tade/drivers-core'
+import { exitStatus, lookAgain, serverPid, signalNumber } from './ended.ts'
 import { drawn, PANE_FORMAT, type Pane, pointingOf, readPane, scrollingOf } from './pane.ts'
+import { piping, quote, written } from './pipe.ts'
 import { startServer } from './scope.ts'
 
 // tmux is invoked with an argument array and no shell. The one place a shell
@@ -206,6 +209,15 @@ export class TmuxDriver implements WorkspaceDriver {
     await this.ensureSession(cols, rows)
 
     const pipe = join(this.dir, `lane-${++this.n}.out`)
+    // The pipe is attached in the same invocation as the window, because tmux
+    // runs one invocation's commands back to back before it next reads any
+    // pane: attached by a call of its own, it came after a quick command had
+    // printed — every `printf` lane, and a node one in six under load, handed
+    // over no bytes at all. It is also what makes tmux 3.4 read a dead pane to
+    // the end, which it checks only for a pane with a pipe. The window is found
+    // by a name nobody else's has, since its id is not known until this returns.
+    const name = `tade-opening-${randomBytes(6).toString('hex')}`
+    const opening = `=${this.opts.session}:=${name}`
     const window = (
       await this.tmux([
         'new-window',
@@ -218,10 +230,22 @@ export class TmuxDriver implements WorkspaceDriver {
         '-c',
         spec.cwd,
         '-n',
-        windowName(spec.id),
+        name,
         ...Object.entries(spec.env ?? {}).flatMap(([k, v]) => ['-e', `${k}=${v}`]),
         quote([command, ...spec.args]),
-      ])
+        ';',
+        ...piping(opening, pipe),
+        ';',
+        'rename-window',
+        '-t',
+        opening,
+        windowName(spec.id),
+      ]).catch(async (err: unknown) => {
+        // The window may be open with what follows it refused, and a lane
+        // nothing pipes is one whose output never arrives.
+        await this.tmux(['kill-window', '-t', opening]).catch(() => {})
+        throw err
+      })
     ).trim()
 
     const handle: LaneHandle = {
@@ -273,7 +297,6 @@ export class TmuxDriver implements WorkspaceDriver {
     await this.tmux(['resize-window', '-t', window, '-x', String(cols), '-y', String(rows)]).catch(
       () => {},
     )
-    await this.tmux(['pipe-pane', '-O', '-t', window, `cat >> ${shellArg(pipe)}`]).catch(() => {})
     handle.pid = await this.panePid(window)
     return { ...handle }
   }
@@ -470,7 +493,7 @@ export class TmuxDriver implements WorkspaceDriver {
         signal: null,
         deadAt: null,
       })
-      await this.tmux(['pipe-pane', '-O', '-t', window, `cat >> ${shellArg(pipe)}`]).catch(() => {})
+      await this.tmux(piping(window, pipe)).catch(() => {})
       found.push({ ...handle })
     }
     return found
@@ -664,15 +687,23 @@ export class TmuxDriver implements WorkspaceDriver {
       // The server's own pid rides along on every row, so telling it to look
       // again costs nothing: asking for it separately would be a process per
       // poll, forty times a second, to learn a number that never changes.
-      ['#{window_id}', '#{pane_dead}', '#{pane_dead_status}', '#{pane_dead_signal}', '#{pid}'].join(
-        FIELD,
-      ),
+      [
+        '#{window_id}',
+        '#{pane_dead}',
+        '#{pane_dead_status}',
+        '#{pane_dead_signal}',
+        '#{pane_pipe}',
+        '#{pid}',
+      ].join(FIELD),
     ]).catch(() => '')
 
-    const dead = new Map<string, { told: boolean; code: number | null; signal: number | null }>()
+    const dead = new Map<
+      string,
+      { told: boolean; code: number | null; signal: number | null; piped: boolean }
+    >()
     let server: number | null = null
     for (const row of rows.split('\n')) {
-      const [window, isDead, status = '', signal = '', pid = ''] = row.split(FIELD)
+      const [window, isDead, status = '', signal = '', piped = '', pid = ''] = row.split(FIELD)
       if (!window) continue
       server ??= serverPid(pid)
       if (isDead !== '1') continue
@@ -683,6 +714,7 @@ export class TmuxDriver implements WorkspaceDriver {
         told: status !== '' || signal !== '',
         code: exitStatus(status),
         signal: signalNumber(signal),
+        piped: piped === '1',
       })
     }
 
@@ -702,7 +734,15 @@ export class TmuxDriver implements WorkspaceDriver {
         unsaid = true
         continue
       }
-      // Whatever it printed on the way out still counts.
+      // Whatever it printed on the way out still counts, and is all there only
+      // once `cat` has written it down — which tmux calling the pane dead is
+      // not: that is the last of it handed to the pipe. With `cat` held back a
+      // fifth of a second, every lane said it exited before a byte it printed
+      // came. A tmux that closes the pipe as the pane dies (3.8) lets `cat` say
+      // when it has (`written`); an older one keeps a dead pane's pipe open and
+      // refuses to close it, so there is no word to wait for, and what `cat` is
+      // late with comes after the exit. Bounded like the status.
+      if (!end.piped && !written(lane.pipe) && now - lane.deadAt < STATUS_GRACE_MS) continue
       this.drain(lane)
       lane.exited = true
       lane.handle.alive = false
@@ -761,14 +801,6 @@ function windowName(id: string): string {
   return id.replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'lane'
 }
 
-function quote(argv: string[]): string {
-  return argv.map(shellArg).join(' ')
-}
-
-function shellArg(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`
-}
-
 function parseSpec(json: string): LaneSpec | null {
   try {
     const spec = JSON.parse(json) as LaneSpec
@@ -783,56 +815,6 @@ function parseSpec(json: string): LaneSpec | null {
     // Someone else's window, or a spec from a version that wrote it differently.
     return null
   }
-}
-
-/** Which process the tmux server is, as every row of a format says it. */
-function serverPid(pid: string): number | null {
-  const n = Number(pid)
-  return Number.isInteger(n) && n > 0 ? n : null
-}
-
-/**
- * Tell a tmux server there is a child to wait on.
- *
- * Not a kill, and not a way of ending anything: SIGCHLD is the signal the
- * kernel sends when a child has changed state, and what tmux does with one
- * is wait on whatever is waitable and write down how each of them ended. So
- * this can only ever make tmux *look*; what it finds, and what it then says
- * about it, stays tmux's own answer, which is the whole point of sending it
- * rather than assuming what it would have said.
- *
- * One syscall, and ours to make: the server is the one Tade started, or the
- * one it adopted, and either is this user's. Gone or not ours to signal is
- * no answer either way, and the grace is what answers then.
- */
-function lookAgain(server: number): void {
-  try {
-    process.kill(server, 'SIGCHLD')
-  } catch {
-    // Nothing to tell, or nobody we may tell. Either way, not an error here.
-  }
-}
-
-/** What a command exited with. Nothing at all is not a zero. */
-function exitStatus(status: string): number | null {
-  if (status === '') return null
-  const code = Number(status)
-  return Number.isInteger(code) ? code : null
-}
-
-/**
- * What a command was killed by, as a number.
- *
- * tmux names a signal the way the platform it was built on does — `HUP`
- * where that has a name for it, `1` where it does not — and a lane's exit is
- * reported as the number, whichever of the two we were handed.
- */
-function signalNumber(signal: string): number | null {
-  if (signal === '') return null
-  const n = Number(signal)
-  if (Number.isInteger(n)) return n > 0 ? n : null
-  const known: Record<string, number | undefined> = constants.signals
-  return known[signal.startsWith('SIG') ? signal : `SIG${signal}`] ?? null
 }
 
 function under(path: string, root: string): boolean {

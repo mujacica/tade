@@ -22,7 +22,8 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
    testWorkspaceDriver('tmux', (workspace) => new TmuxDriver({ session: workspace }))
    ```
 3. Implement until the suite passes. It covers the round-trip, output ordering, concurrent writes,
-   resize, titles, replay, exit reporting, idempotent close, and typed errors.
+   resize, titles, replay, exit reporting, a quick command's first bytes, idempotent close, and
+   typed errors.
 4. Register it in `drivers` in `packages/workbench/src/registry.ts`. That map is the only place a
    driver name turns into an implementation.
 5. Add the driver to the `workspace.driver` enum in `packages/core/src/config.ts`.
@@ -154,6 +155,18 @@ backend that is a separate program rather than a library:
   recovers lanes exactly rather than reverse-engineering window names.
 - **Replay only what has already been delivered live.** If replay reads to the end of the buffer,
   the poller delivers the tail again and the subscriber sees it twice.
+- **Start listening in the same breath as the process.** tmux runs one invocation's commands back
+  to back before it next reads a pane, so `new-window … ; pipe-pane …` catches everything, and a
+  `pipe-pane` of its own afterwards caught nothing from a `printf` and missed a `node -e` one time
+  in six under load. That one invocation addresses the window by a unique name, the only exception
+  to the rule above, because its id is not known until it returns. A pipe also makes tmux before
+  3.8 read a dead pane to the end: it checks for unread bytes only on a pane with one.
+- **A dead pane is not a written-down pipe.** tmux calls a pane dead once the last bytes are in
+  the pipe, and `cat` may not have written them yet, so an exit reported then can arrive ahead of
+  the bytes. From 3.8 tmux closes the pipe as the pane dies and `cat` says when it is done
+  (`pipe.ts`). Before 3.8 the pipe stays open, and `pipe-pane` refuses a dead pane in every
+  version, so there is nothing to wait for. Read which case you are in off `#{pane_pipe}`, never
+  off a version number.
 - **Anything the backend runs through a shell must be shell-quoted**, even though the backend itself
   is invoked with an argument array and no shell.
 

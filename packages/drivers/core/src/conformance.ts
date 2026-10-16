@@ -3,6 +3,9 @@ import { declarationProblems, type LaneId } from '@tade/core'
 import { spawn as openPty } from 'node-pty'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { LaneClosedError, LaneNotFoundError, type LaneSpec, type WorkspaceDriver } from './port.ts'
+import { isRunning, kill, until } from './waiting.ts'
+
+export { isRunning, until }
 
 // The shared suite every WorkspaceDriver must pass. It exists before the
 // second driver does: writing a new driver means importing this, running it,
@@ -17,45 +20,6 @@ export interface ConformanceOptions {
 
 const utf8 = new TextEncoder()
 const line = (s: string) => utf8.encode(`${s}\n`)
-
-/** Is this process still there? EPERM means yes, and not ours to signal. */
-export function isRunning(pid: number): boolean {
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch (err) {
-    return (err as NodeJS.ErrnoException).code === 'EPERM'
-  }
-}
-
-function kill(pid: number): void {
-  try {
-    process.kill(pid, 'SIGKILL')
-  } catch {
-    // Already gone, which is the outcome we wanted.
-  }
-}
-
-/** Wait until `check` passes, polling. Beats fixed sleeps in PTY tests. */
-export async function until<T>(
-  check: () => T | Promise<T>,
-  { timeout = 5_000, interval = 20 } = {},
-): Promise<T> {
-  const deadline = Date.now() + timeout
-  let last: unknown
-  for (;;) {
-    try {
-      const v = await check()
-      if (v) return v
-    } catch (err) {
-      last = err
-    }
-    if (Date.now() > deadline) {
-      throw new Error(`timed out waiting${last ? `: ${String(last)}` : ''}`)
-    }
-    await new Promise((r) => setTimeout(r, interval))
-  }
-}
 
 /**
  * Make a driver attached to a named workspace.
@@ -299,6 +263,36 @@ export function testWorkspaceDriver(
       const seen: string[] = []
       driver.onOutput(s.id, (c) => seen.push(Buffer.from(c).toString()), { replay: true })
       await until(() => seen.join('').includes('got:earlier'))
+    })
+
+    // A command that prints and is gone at once is the one whose output is
+    // easiest to lose: a driver that starts listening only once the lane is
+    // open has nothing to replay, because nothing was caught. tmux attached
+    // its pipe that way, and every lane like this one handed over no bytes.
+    // Eight at once, because it was load that lost them from slower programs,
+    // and in before the exit, because whoever is listening stops there.
+    it('hands over what a command printed at once, before saying it exited', async () => {
+      // Into a workspace something is already running in, as Tade's is.
+      await driver.open(spec())
+      const quick = Array.from({ length: 8 }, (_, i) =>
+        spec({ command: '/bin/sh', args: ['-c', `printf said-${i}-at-once`] }),
+      )
+      const heard = new Map<LaneId, string>()
+      const atExit = new Map<LaneId, string>()
+      await Promise.all(
+        quick.map(async (s) => {
+          await driver.open(s)
+          heard.set(s.id, '')
+          // Replayed, since it may have printed and gone before this line runs.
+          const hear = (c: Uint8Array) =>
+            heard.set(s.id, heard.get(s.id) + Buffer.from(c).toString())
+          driver.onOutput(s.id, hear, { replay: true })
+          driver.onExit(s.id, () => atExit.set(s.id, heard.get(s.id) ?? ''))
+        }),
+      )
+      await until(() => atExit.size === quick.length, { timeout: 15_000 })
+      const said = quick.map((s) => atExit.get(s.id))
+      expect(said).toEqual(quick.map((_, i) => expect.stringContaining(`said-${i}-at-once`)))
     })
 
     it('onExit fires with the exit code', async () => {
