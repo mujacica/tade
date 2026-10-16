@@ -112,7 +112,8 @@ journal, it is already reported — check `fromEvent` sends it as the right thin
 Tade's own trouble, a line for what happened, a number for what was spent). If it does not, either
 write it to the journal (`add-event-type`) or take a `Reporter` where it happens and call
 `trouble({error, where, fingerprint})`. Give trouble without a stack a `fingerprint` whose parts are
-stable — no numbers, paths or names, which `shapeOf` is for.
+stable — no numbers, paths or names, which `shapeOf` is for. `test/swallowed.test.ts` counts, per
+file, the handlers that never name what they caught; fixing one lowers that file's number there.
 
 **A new kind of attribute.** Add the key to `KEPT` and say in the test what it is and why it is not
 somebody's text. If it should also split a metric, that is a second decision: add it to `DIMENSIONS`
