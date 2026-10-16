@@ -16,7 +16,7 @@ import { pathOf, taskPath } from '../routes.js'
 /**
  * How many verdicts a question needs before its precision is drawn as a rate.
  *
- * Jev's own `ENOUGH` (`extensions/jev/src/precision.ts`), copied because a
+ * Jev's own `ENOUGH` (`core/src/calibration.ts`, which Jev reads), copied because a
  * browser cannot import a `.ts` file and held equal by
  * `test/findings-client.test.ts`. Under it the counts are said and the rate is
  * not: two verdicts out of two is not `100%` of anything.

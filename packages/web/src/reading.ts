@@ -2,6 +2,7 @@ import type { SettingGroup } from '@tade/core'
 import { AGENT, type AgentIn, agentOf } from './agent.ts'
 import { type SettingsOut, settingsFor } from './configuring.ts'
 import { revise, tick } from './delta.ts'
+import { type EvaluationsFor, type EvaluationsOut, evaluationsFor } from './evaluations.ts'
 import type { SnapshotInput } from './input.ts'
 import { BUDGET, type Budget, type Page, pageOf, withheld } from './page.ts'
 import type { AgentOut, Delta, NoteRow, Snapshot } from './protocol.ts'
@@ -93,6 +94,16 @@ export interface WebReading {
    * (`settingsFor`).
    */
   settings(): SettingsOut
+  /**
+   * The scorecards and the judge's calibration, as this device may read them.
+   *
+   * Its own call for the reason `settings` is — it moves when work finishes,
+   * and nobody needs four tables of it twice a second — and one more: a
+   * scorecard is a sum, so it is folded over the projects this device reads
+   * rather than filtered afterwards (`evaluations.ts`). Money is behind
+   * `spend` and what the judge said behind `findings`.
+   */
+  evaluations(): EvaluationsOut
 }
 
 /**
@@ -137,6 +148,8 @@ export interface ProjectorOptions {
    * out of what the window already holds.
    */
   settings?: () => { groups: readonly SettingGroup[]; known: readonly string[] }
+  /** The scorecards over the projects named, out of what the window already holds. */
+  evaluations?: EvaluationsFor
 }
 
 /**
@@ -174,6 +187,9 @@ export function projector(
     settings(): SettingsOut {
       const held = opts.settings?.() ?? { groups: [], known: [] }
       return settingsFor(held.groups, input.reach, held.known)
+    },
+    evaluations(): EvaluationsOut {
+      return evaluationsFor(input.reach, opts.evaluations)
     },
     beat(next: SnapshotInput, at: number): Delta | null {
       input = next

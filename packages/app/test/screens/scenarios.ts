@@ -1,5 +1,6 @@
 import { AGENT_SCREENS } from './scenarios/agents.ts'
 import { AWAY_SCREENS } from './scenarios/away.ts'
+import { EVALUATION_SCREENS } from './scenarios/evaluations.ts'
 import { EXTENSION_SCREENS } from './scenarios/extensions.ts'
 import { FILE_SCREENS } from './scenarios/files.ts'
 import type { Scenario } from './scenarios/fixtures.ts'
@@ -39,6 +40,7 @@ export const SCENARIOS: Scenario[] = [
   ...SETTINGS_SCREENS,
   ...SPEND_SCREENS,
   ...LANDING_SCREENS,
+  ...EVALUATION_SCREENS,
   ...FILE_SCREENS,
   ...SEARCH_SCREENS,
   ...INTAKE_SCREENS,

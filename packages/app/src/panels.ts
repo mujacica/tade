@@ -11,6 +11,11 @@ import { type AwayPanel, awayClick, awayKey } from './panels/away/state.ts'
 import type { CommentChoice } from './panels/comment.ts'
 import { type DiffPanel, diffClick, diffKey } from './panels/diff/state.ts'
 import {
+  type EvaluationsPanel,
+  evaluationsClick,
+  evaluationsKey,
+} from './panels/evaluations/state.ts'
+import {
   type ExtensionSetupPanel,
   type ExtensionViewPanel,
   extensionViewClick,
@@ -95,6 +100,7 @@ import type { SearchEntry } from './search.ts'
 export type Panel =
   | AwayPanel
   | SpendPanel
+  | EvaluationsPanel
   | MenuPanel
   | ConfirmRemovePanel
   | CloseDonePanel
@@ -243,6 +249,7 @@ export function panelKey(
   if (panel.kind === 'quit') return quitKey(panel, key)
   if (panel.kind === 'reload') return reloadKey(panel, key)
   if (panel.kind === 'spend') return spendKey(panel, key)
+  if (panel.kind === 'evaluations') return evaluationsKey(panel, key)
   if (panel.kind === 'menu') return menuKey(panel, key, inputs.items ?? [])
   if (panel.kind === 'prompt') return promptKey(panel, key, data)
   if (panel.kind === 'find') return findKey(panel, key, data, inputs.found ?? 0)
@@ -300,6 +307,7 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
   if (panel.kind === 'quit') return quitClick(panel, control)
   if (panel.kind === 'reload') return reloadClick(panel, control)
   if (panel.kind === 'spend') return spendClick(panel, control)
+  if (panel.kind === 'evaluations') return evaluationsClick(panel, control)
   if (panel.kind === 'menu') return menuClick(panel, control)
   if (panel.kind === 'find') return findClick(panel, control, inputs.found ?? 0)
   if (panel.kind === 'prompt') return promptClick(panel, control)

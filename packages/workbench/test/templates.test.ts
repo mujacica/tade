@@ -176,6 +176,9 @@ describe('using a template', () => {
       built_in: false,
       parked: true,
       tasks: ['app/fix-318', 'app/read-318'],
+      // Which persona each task was told from, for the scorecards: the
+      // snapshot names steps, and only this line names the tasks they became.
+      personas: { 'app/fix-318': 'implementer', 'app/read-318': 'reviewer' },
     })
     expect(readFileSync(join(taskDir(home, 'app/fix-318'), 'context.md'), 'utf8')).toContain(
       `mine@1 (${used.hash})`,

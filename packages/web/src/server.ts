@@ -315,6 +315,8 @@ export function webServer(opts: ServerOptions): WebServer {
       }
       case 'settings':
         return json(res, opts.readingFor(reachOf(device)).settings())
+      case 'evaluations':
+        return json(res, opts.readingFor(reachOf(device)).evaluations())
       case 'devices':
         return json(
           res,

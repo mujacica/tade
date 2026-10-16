@@ -178,6 +178,7 @@ export const ROUTES: readonly Route[] = [
   shellAt('/w/:name', 'workflow page'),
   shellAt('/checks', 'checks page'),
   shellAt('/land', 'landing desk page'),
+  shellAt('/evals', 'evaluations page'),
   shellAt('/reviews', 'reviews page'),
   shellAt('/spend', 'spend page'),
   shellAt('/findings', 'findings page'),
@@ -261,6 +262,10 @@ export const ROUTES: readonly Route[] = [
   // under any grant. It changes nothing — the one route that does is in
   // `SETTINGS`, a table of its own behind a setting of its own.
   { method: 'GET', path: '/api/settings', name: 'settings', needs: 'read', mutates: false },
+  // **The scorecards, read while somebody has the page open**, folded over the
+  // projects this device reads, with money and the judge behind their grants
+  // (`evaluationsFor`). A `GET` that changes nothing, like the settings.
+  { method: 'GET', path: '/api/evaluations', name: 'evaluations', needs: 'read', mutates: false },
 
   // Signing out. A mutation, because it destroys a credential — and **its own
   // only**: revoking another device is the window's, which is the rule that

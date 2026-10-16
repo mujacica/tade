@@ -38,6 +38,7 @@ import {
   wiringFor,
 } from './wire/context.ts'
 import { Earlier } from './wire/earlier.ts'
+import { Evaluations } from './wire/evaluations.ts'
 import { Extensions } from './wire/extensions.ts'
 import { Files } from './wire/files.ts'
 import { frameOf } from './wire/frame.ts'
@@ -459,6 +460,7 @@ export class App {
       this.checks,
       new Spend(this.wire),
       new Landing(this.wire),
+      new Evaluations(this.wire),
       this.notes,
       this.schedules,
       this.queue,

@@ -35,6 +35,7 @@ import { countsOf, forgetView, lastSeenScreen, readView, saveView } from './offl
 import { taskScreen } from './pages/agent.js'
 import { checksScreen } from './pages/checks.js'
 import { devicesScreen } from './pages/devices.js'
+import { evaluationsScreen } from './pages/evaluations.js'
 import { findingsScreen } from './pages/findings.js'
 import { inboxScreen, requestScreen } from './pages/inbox.js'
 import { landingScreen } from './pages/landing.js'
@@ -245,6 +246,7 @@ const SCREENS = {
   workflows: () => workflowsScreen(),
   workflow: (at) => workflowScreen(at, ctx),
   checks: () => checksScreen(),
+  evals: () => evaluationsScreen(ctx),
   land: () => landingScreen(),
   reviews: () => reviewsScreen(ctx),
   spend: () => spendScreen(),

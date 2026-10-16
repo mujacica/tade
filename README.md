@@ -208,6 +208,22 @@ page of its own on the away view too. Landing is yours, on the forge: Tade never
 
 ![The landing desk: finished work across three projects, green and small first, then what waits on you, then what waits on its agent, each with the one sentence why and its figures beside it](https://raw.githubusercontent.com/mujacica/tade/main/images/landing.svg)
 
+## Evaluations: which way of working lands work
+
+Every vendor publishes the flattering version of this number, graded by themselves. Tade already
+writes down the facts the honest version needs, so `/evals` (or `tade stats --by
+harness|model|persona|template`) folds them: per harness, model, persona and template, how many
+agents finished and landed — merged, or committed straight onto a shared checkout under their own
+trailer — how often the first push was green, the reds caught on this machine before CI saw them,
+what the judge raised about each change and how its verdicts came out, what a landed agent cost in
+money and tokens, and how long work took to finish. Counts come first and a rate only from five,
+because `2 of 2` is a fact and `100%` is not; billed money and a plan's list price are divided by
+their own agents and never added; and anything nobody could say is a dash with its word, never a
+nought. The judge's own record sits on a tab beside them — precision per question and per band of
+probability, out of verdicts people wrote — and the same page is on the away view.
+
+![Evaluations by harness: agents, done and landed, first push green, reds caught here, the judge's findings, cost per landed agent and time to done — counts first, a rate only from five](https://raw.githubusercontent.com/mujacica/tade/main/images/evaluations.svg)
+
 ## Reviews, and the loop around them
 
 What you have offered other people, and what they and their robots say about it: your open pull

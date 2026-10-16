@@ -59,6 +59,11 @@ export function actions(state: AppState): Action[] {
       about: 'write a stored workflow: its steps, what each waits on, and publish it',
       ready: true,
     },
+    {
+      name: '/evals',
+      about: 'which harness, model, persona and template lands work, and the judge',
+      ready: true,
+    },
     { name: '/help', about: 'what the keys do', ready: true },
     { name: '/quit', about: 'close the window; agents carry on if they can', ready: true },
   ]

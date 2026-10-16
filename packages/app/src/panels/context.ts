@@ -1,6 +1,7 @@
 import type { SettingGroup } from '@tade/core'
 import type { LineComment } from '../comments.ts'
 import type { ParsedDiff } from '../diff.ts'
+import type { EvalsView } from '../evaluations.ts'
 import type { Change, DeskRow, IntakeOpenView, RowSummaryView, WorkflowView } from '../frame.ts'
 import type { ScrollArea } from '../hits.ts'
 import type { AgentPane } from '../model.ts'
@@ -14,6 +15,7 @@ import type { AwayView } from './away/view.ts'
 import { away } from './away/view.ts'
 import type { CommentChoice } from './comment.ts'
 import { diff } from './diff/view.ts'
+import { evaluations } from './evaluations/view.ts'
 import type { SetupFieldView } from './extensions/setup.ts'
 import type { ExtensionView, McpServerOffer, WrittenToolView } from './extensions/state.ts'
 import { extensionSetup, extensions, extensionView } from './extensions/view.ts'
@@ -83,6 +85,8 @@ export interface PanelContext {
   changes: readonly Change[]
   /** The landing desk, in the order it is cheapest to trust (`Frame.landing`). */
   landing: readonly DeskRow[]
+  /** The scorecards and the judge's calibration, once the journal has been read. */
+  evaluations: EvalsView | null
   /** Line comments kept and not sent, by the task whose change they are on. */
   kept?: Readonly<Record<string, number>>
   /** The frame's moment, which every age on a panel is counted to. */
@@ -302,5 +306,7 @@ export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
       return { panel: models(panel, ctx), popups: [] }
     case 'landing':
       return { panel: landing(panel, ctx), popups: [] }
+    case 'evaluations':
+      return { panel: evaluations(panel, ctx), popups: [] }
   }
 }

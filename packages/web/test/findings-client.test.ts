@@ -218,10 +218,7 @@ describe('what has its verdict', () => {
 
 describe('each question’s precision', () => {
   it('holds the threshold equal to jev’s own', () => {
-    const jev = readFileSync(
-      new URL('../../extensions/jev/src/precision.ts', import.meta.url),
-      'utf8',
-    )
+    const jev = readFileSync(new URL('../../core/src/calibration.ts', import.meta.url), 'utf8')
     expect(jev).toMatch(new RegExp(`export const ENOUGH = ${ENOUGH}\\b`))
   })
 

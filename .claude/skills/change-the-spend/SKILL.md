@@ -23,6 +23,7 @@ arithmetic over the same tokens, in no total of money and no budget, and nobody'
 | `packages/core/src/runtime.ts` | how long: `runtimeFrom`, `RUNTIME_EVENTS`, `Runtime`, `workedOf`, `runtimeSays`, `workedSays`, `duration` |
 | `packages/core/src/limits.ts` | a plan: `LimitsSupport`, `PlanPays`, `PlanWindow`, `PlanStanding`, `planStandings`, `tightestPlan`, `planShown`, `nextPlan`, `PLAN_WARM`/`PLAN_TIGHT`/`planPressure`, `planReport`, `resetsIn`, `planLabel`, `cannotTell` |
 | `packages/core/src/stats.ts` | what it bought: `statsFrom`, `Produced`, `STATS_EVENTS` |
+| `packages/core/src/evaluations.ts` | what landed, per harness, model, persona and template: `evaluationsFrom`, `outcomesFrom`, `Scorecard`, `perLandedCost` (billed money and a plan's list price, each over its own agents), `countSaid`, `MONEY_MARK`, `EVALUATION_EVENTS` — read by `/evals` (`app/src/evaluations.ts`, `panels/evaluations/`, `wire/evaluations.ts`), `tade stats` and the away view's `/api/evaluations` (`web/src/evaluations.ts`) |
 | `packages/harnesses/core/src/port.ts` | what a harness declares: `capabilities.spend` (`usd`, `tokens`, `limits`), `why.limits`, `WorkerAdapter.provider`, `limits()` |
 | `packages/workbench/src/accounts.ts` | which sign-ins there are and what each says about its plan: `signIns`, `planSources`, `planWindows` |
 | `packages/orchestrator/src/tools-extension.ts`, `tool-host.ts` | `tade_limits`, over `plan/limits` |

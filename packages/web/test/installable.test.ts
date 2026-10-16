@@ -270,8 +270,12 @@ describe('the real folder', () => {
     // control, rather than a hundred and fifty rows with a tag under each)
     // took it to 386. 388 until the landing desk (a page of its own beside
     // the reviews: how the desk divides, then a card per piece of work in the
-    // order it is cheapest to trust, with its figures) took it to 394.
-    expect(wire).toBeLessThan(396 * 1024)
+    // order it is cheapest to trust, with its figures) took it to 394. 396
+    // until the evaluations (a page of its own under Insight: the whole of the
+    // work as tiles, then the scorecards by harness, model, persona or
+    // template as ranked bars, and the judge's precision beside them) took it
+    // to 399.
+    expect(wire).toBeLessThan(402 * 1024)
     // And the files as they sit, which is what a browser holds once it has
     // them: about a megabyte, with the comments every module carries. 768
     // until the pages were redrawn one at a time, each 40–90 KB as it sits.
@@ -283,8 +287,10 @@ describe('the real folder', () => {
     // as they sit, where it was two and 8) took it to 1203. 1208 until the
     // settings (four files and 50 KB as they sit, where it was two and 10) took
     // it to 1243. 1248 until the landing desk (three files and 23 KB as they
-    // sit, where there were none) took it to 1267: the pages still to come
-    // spend the rest, and the next one is this conversation again.
-    expect(raw).toBeLessThan(1272 * 1024)
+    // sit, where there were none) took it to 1267. 1272 until the evaluations
+    // (three files and 13 KB as they sit, where there were none) took it to
+    // 1281: the pages still to come spend the rest, and the next one is this
+    // conversation again.
+    expect(raw).toBeLessThan(1288 * 1024)
   })
 })

@@ -243,6 +243,7 @@ function context(width: number, height: number, over: Partial<Frame['panel']> = 
     workflow: null,
     away: null,
     landing: [],
+    evaluations: null,
     now: 0,
     ...over,
   }

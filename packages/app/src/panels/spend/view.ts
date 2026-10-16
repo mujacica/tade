@@ -1,6 +1,7 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
 import {
   duration,
+  MONEY_MARK,
   type OnPlan,
   type Priced,
   planPressure,
@@ -529,13 +530,7 @@ function costTone(
   return skin.hint
 }
 
-const MARK: Readonly<Record<Priced, string>> = {
-  exact: '',
-  estimate: '~',
-  listed: '≈',
-  mixed: '~',
-  none: '',
-}
+const MARK = MONEY_MARK
 
 function toneOf(pane: AgentPane, skin: Skin): (text: string) => string {
   return skin[MARK_TONES[markOf(pane)]]

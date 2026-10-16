@@ -277,6 +277,8 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     },
     seenActions: (task: string) => looked.get(task) ?? null,
     spendToday: () => ({ byTask: {} }),
+    // The usage lines, folded, as the scorecards read each task's cost from them.
+    spending: { size: 0, events: [] },
     get queued() {
       return queued
     },

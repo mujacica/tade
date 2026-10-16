@@ -40,6 +40,7 @@ import { AWAY_CONTROLS, awayPanel } from '../panels/away/state.ts'
 import type { AwayView } from '../panels/away/view.ts'
 import type { PanelInputs } from '../panels.ts'
 import type { Actions, Subject, Submits, Wiring } from './context.ts'
+import { evaluationsAnswer } from './evaluations.ts'
 import { heldFindings } from './findings.ts'
 import type { Settings } from './settings.ts'
 import { armingFor, seenFrom, type Talking } from './web-asking.ts'
@@ -58,7 +59,7 @@ import { CheckRecords } from './web-checks.ts'
 import { builtFrom, turnTo } from './web-follow.ts'
 import { EVERYTHING, widen } from './web-grants.ts'
 import { halvesFor } from './web-halves.ts'
-import { knownKeys, Lanes } from './web-lanes.ts'
+import { knownHere, Lanes } from './web-lanes.ts'
 import type { Lifecycle } from './web-lifecycle.ts'
 import { carryLink, isLink } from './web-link.ts'
 import { awayView, codeShownOn, keepCode, mintPairing } from './web-panel.ts'
@@ -269,7 +270,7 @@ export class Away implements Subject {
         saved: () => this.deps.saved(),
         settings: {
           rows: () => this.deps.settings.rows(),
-          known: () => this.known(),
+          known: () => knownHere(this.wire, this.config()),
           write: (path, value, by) => this.deps.settings.write(path, value, by),
         },
         now: () => this.wire.now(),
@@ -661,8 +662,10 @@ export class Away implements Subject {
         }
         return answer
       },
-      // **This request's reach**, like an agent's, and the rows the window already lists.
-      settings: () => settingsFor(this.deps.settings.rows(), reach, this.known()),
+      // **This request's reach**, like an agent's, and what the window already holds.
+      settings: () =>
+        settingsFor(this.deps.settings.rows(), reach, knownHere(this.wire, this.config())),
+      evaluations: () => evaluationsAnswer(this.wire, reach),
     }
   }
 
@@ -671,7 +674,7 @@ export class Away implements Subject {
    * already has, and the lane as last read on a beat. Never a read now.
    */
   private agentIn(reach: Reach, task: string): AgentIn {
-    const keys = () => this.known()
+    const keys = () => knownHere(this.wire, this.config())
     return {
       activity: activityIn(this.wire.live?.events ?? [], task, AGENT.activity),
       lane: this.lanes.heldFor(task) ?? { kind: 'none', why: 'not read yet' },
@@ -679,12 +682,6 @@ export class Away implements Subject {
       // for its keys is not free, and an ungranted answer has no screen.
       known: has(reach, 'lanes') ? this.lanes.keys(keys) : [],
     }
-  }
-
-  /** Every key Tade knows of: the config's, their variables, the environment's credentials. */
-  private known(): string[] {
-    const web = this.config().surfaces.web as unknown as Record<string, unknown>
-    return knownKeys(this.wire.opts.extensions?.secrets() ?? [], web, process.env)
   }
 
   private catchUp(reach: Reach, held: Projector): void {

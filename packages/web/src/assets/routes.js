@@ -88,6 +88,7 @@ const PLAIN = [
   'workflows',
   'talk',
   'checks',
+  'evals',
   'land',
   'reviews',
   'spend',
@@ -158,6 +159,7 @@ export const TITLES = {
   workflows: 'Workflows',
   workflow: 'Workflow',
   checks: 'Checks',
+  evals: 'Evaluations',
   land: 'Landing desk',
   reviews: 'Reviews',
   spend: 'Spend',
@@ -196,6 +198,7 @@ export const PAGE_OF = {
   workflows: 'workflows',
   workflow: 'workflows',
   checks: 'checks',
+  evals: 'evaluations',
   land: 'landing',
   reviews: 'reviews',
   findings: 'findings',
@@ -245,6 +248,9 @@ export const MORE = [
   { view: 'runs', icon: 'runs', mark: '⑁', label: 'Plans', counts: 'runs' },
   { view: 'spend', icon: 'spend', mark: '$', label: 'Spend', counts: null },
   { view: 'checks', icon: 'checks', mark: '✓', label: 'Checks', counts: null },
+  // Which harness, model, persona and template lands work, and the judge's own
+  // record beside them: one surface for everything measured about the work.
+  { view: 'evals', icon: 'evals', mark: '▥', label: 'Evaluations', counts: null },
   // Beside Reviews: the same work, in the order it is cheapest to trust, with
   // how much of it is ready on its badge.
   { view: 'land', icon: 'land', mark: '⇣', label: 'Land', counts: 'land' },
@@ -282,7 +288,7 @@ export const MORE = [
 export const GROUPS = [
   { key: 'main', title: '', views: ['now', 'inbox'] },
   { key: 'work', title: 'Work', views: ['runs', 'land', 'reviews', 'findings', 'workflows'] },
-  { key: 'insight', title: 'Insight', views: ['spend', 'checks'] },
+  { key: 'insight', title: 'Insight', views: ['spend', 'checks', 'evals'] },
   { key: 'tade', title: 'Tade', views: ['notes'] },
   { key: 'system', title: 'System', views: ['devices', 'settings'] },
 ]

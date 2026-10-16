@@ -299,6 +299,13 @@ export interface TemplateFilled {
   warnings: readonly string[]
   /** What `stampTemplate` would make, by id, which is what an idempotent caller checks first. */
   names: readonly string[]
+  /**
+   * The persona each task's step was told from, by task id, for the ones that
+   * had one — written on `template_used` so the scorecards can ask which
+   * persona's work landed. The snapshot is the only other place that says,
+   * and a snapshot names steps, not the tasks they became.
+   */
+  personas: Readonly<Record<string, string>>
 }
 
 /**
@@ -337,7 +344,22 @@ export async function fillFor(tade: Workbench, req: TemplateRequest): Promise<Te
     plan: fill.plan,
     warnings: fill.warnings,
     names: [...fill.from.keys()],
+    personas: personasOf(published.template, fill.from),
   }
+}
+
+/** Which persona each task's step names, once folded in or still by name. */
+function personasOf(
+  template: { agents: readonly { name: string; persona?: string; from_persona?: string }[] },
+  from: ReadonlyMap<string, string>,
+): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [task, step] of from) {
+    const agent = template.agents.find((one) => one.name === step)
+    const persona = agent?.from_persona ?? agent?.persona
+    if (persona) out[task] = persona
+  }
+  return out
 }
 
 /** Make what a filled template says, through the plan path, with every task parked. */
@@ -371,6 +393,12 @@ export async function stampTemplate(
       hash: published.hash,
       built_in: published.builtIn,
       tasks: made.made.map((task) => task.id),
+      personas: Object.fromEntries(
+        made.made.flatMap((task) => {
+          const persona = filled.personas[task.id]
+          return persona ? [[task.id, persona]] : []
+        }),
+      ),
       parked: true,
       by,
     },

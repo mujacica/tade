@@ -1,6 +1,7 @@
-import { findSecret } from '@tade/core'
+import { type Config, findSecret } from '@tade/core'
 import { LaneClosedError, LaneNotFoundError } from '@tade/drivers-core'
 import { inTime, KNOWN_FLOOR, type LaneIn, SCREEN } from '@tade/web'
+import type { Wiring } from './context.ts'
 
 // What the away view holds of agents' screens, and the one rule that decides
 // when it reads one: **somebody granted `lanes` is looking at that agent now.**
@@ -246,4 +247,10 @@ export function knownKeys(
     if (NAMED_LIKE_A_KEY.test(name)) add(value)
   }
   return [...out]
+}
+
+/** Every key Tade knows of here: the config's, their variables, the environment's credentials. */
+export function knownHere(wire: Wiring, config: Config): string[] {
+  const web = config.surfaces.web as unknown as Record<string, unknown>
+  return knownKeys(wire.opts.extensions?.secrets() ?? [], web, process.env)
 }

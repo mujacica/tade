@@ -163,6 +163,17 @@ export const PICTURES: readonly Picture[] = [
       'findings, collisions, size, cost and how long it has waited.',
   },
   {
+    file: 'evaluations.svg',
+    scenario: 'evaluations-by-harness',
+    crop: 'panel',
+    about:
+      'Evaluations by harness: for each one, how many agents it ran, how many finished and landed, ' +
+      'how often the first push was green, the reds caught on this machine before CI, what the ' +
+      'judge raised and how its verdicts came out, what a landed agent cost — billed money and a ' +
+      'plan’s list price each over its own agents — and how long work took to finish. Counts ' +
+      'first, and a rate only from five.',
+  },
+  {
     file: 'reviews.svg',
     scenario: 'what-an-agent-has-done',
     crop: { top: 2, width: 29, height: 21 },

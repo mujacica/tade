@@ -51,8 +51,8 @@ function withheldWithout(grant: Grant): string[] {
   return [...out].sort()
 }
 
-/** The two answers that are not part of the snapshot. */
-const ANSWERS = ['agent.screen', 'settings']
+/** The answers that are not part of the snapshot: their gates are held in their own tests. */
+const ANSWERS = ['agent.screen', 'settings', 'evaluations.cost', 'evaluations.findings']
 
 describe('what each grant withholds', () => {
   it('is exactly where the projection gates it, for every grant', () => {
@@ -81,6 +81,10 @@ describe('what each grant withholds', () => {
     expect(grantOf('settings')).toBe('settings')
     expect(settingsFor([], reach(EVERY.filter((one) => one !== 'settings'))).granted).toBe(false)
     expect(settingsFor([], reach(['settings'])).granted).toBe(true)
+    // The scorecards: money under `spend`, and the judge under `findings`
+    // (`test/evaluations.test.ts` holds each cell of it).
+    expect(grantOf('evaluations.cost')).toBe('spend')
+    expect(grantOf('evaluations.findings')).toBe('findings')
   })
 
   it('quotas are what a sign-in used of its plan, sent with the money and nothing less', () => {

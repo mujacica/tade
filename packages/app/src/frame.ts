@@ -13,6 +13,7 @@ import type {
 } from '@tade/core'
 import type { LanePointing, LaneScrolling } from '@tade/drivers-core'
 import type { IntakeWouldRun } from '@tade/workbench'
+import type { EvalsView } from './evaluations.ts'
 import type { FileEntry } from './files.ts'
 import type { LayoutPrefs } from './layout.ts'
 import type { Linker } from './links.ts'
@@ -492,6 +493,8 @@ export interface Frame {
   landing?: readonly DeskRow[]
   /** The Spend panel's view, when it is open. */
   spendView?: SpendView | null
+  /** The Evaluations panel's view, while it is open and once the journal is read. */
+  evaluations?: EvalsView | null
   /** What the open panel needs that the window does not: a menu, a diff, models. */
   panel?: Partial<
     Pick<
