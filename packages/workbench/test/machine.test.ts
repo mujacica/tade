@@ -150,7 +150,7 @@ describe('the native modules Tade is built on', () => {
 describe('where each harness stands', () => {
   it('answers for every harness there is, and never invents one', async () => {
     const harnesses = await lookAtHarnesses(config, HOME)
-    expect(harnesses.map((one) => one.id).sort()).toEqual(['claude-code', 'codex', 'pi'])
+    expect(harnesses.map((one) => one.id).sort()).toEqual(['acp', 'claude-code', 'codex', 'pi'])
     // pi is the default, and the only one anything is set to use.
     expect(harnesses.find((one) => one.id === 'pi')?.inUse).toBe(true)
     expect(harnesses.find((one) => one.id === 'codex')?.inUse).toBe(false)

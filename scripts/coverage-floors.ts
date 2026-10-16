@@ -67,6 +67,9 @@ export const FLOOR: Record<string, number> = {
   // reaches lanes, files and the machine.
   'packages/app': 88,
   'packages/harnesses/codex': 83,
+  // 93.9 when it came in, every line of it driven against the scripted ACP
+  // agent: 90 leaves room for a slower runner, the same slack the others keep.
+  'packages/harnesses/acp': 90,
   'packages/extensions/sentry': 84,
   // Went up when `checks_propose` went: what a project checks is read from its
   // own CI and its own hook, so the tool that wrote it down had nothing left to
@@ -235,6 +238,11 @@ export const UNSEEN: Record<string, string> = {
   'packages/harnesses/codex/src/hook.ts': 'run by Codex, once per hook',
   'packages/harnesses/codex/src/mcp.ts': 'run by Codex for the life of a session',
   'packages/harnesses/core/src/reaper.ts': 'runs between Tade and a headless harness',
+  // Both driven for real by `acp/test/lane.test.ts`, which starts the lane the
+  // way a driver would and the tools server the way an agent would; what the
+  // lane does is `client.ts` and `draw.ts`, which are measured in place.
+  'packages/harnesses/acp/src/lane.ts': 'the program in an ACP agent’s lane',
+  'packages/harnesses/acp/src/tools.ts': 'run by an ACP agent for the life of a session',
   // Driven for real by `forked.test.ts`, which forks it and kills it; what it
   // does with its channel is `serve.ts`, which is measured.
   'packages/status/src/child.ts': 'the process a window looks at status in',

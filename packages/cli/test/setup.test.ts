@@ -71,7 +71,12 @@ it('proves a lane really opens, and says what is still missing', async () => {
   expect(commands).toContain('tmux')
 
   // And every harness answers for itself, sign-in and all.
-  expect(checked.harnesses.map((one) => one.id).sort()).toEqual(['claude-code', 'codex', 'pi'])
+  expect(checked.harnesses.map((one) => one.id).sort()).toEqual([
+    'acp',
+    'claude-code',
+    'codex',
+    'pi',
+  ])
   for (const harness of checked.harnesses) {
     if (!harness.installed) expect(harness.signIn).toBeNull()
   }

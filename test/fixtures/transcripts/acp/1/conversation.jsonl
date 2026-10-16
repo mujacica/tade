@@ -1,0 +1,10 @@
+{"v":1,"type":"session","at":1760000000000,"agent":"gemini","sessionId":"sess-1","resumed":false}
+{"v":1,"type":"sent","at":1760000001000,"text":"fix the flaky login test"}
+{"v":1,"type":"tool","at":1760000002000,"id":"call-1","tool":"read","title":"Read test/login.test.ts","input":{"title":"Read test/login.test.ts","path":"test/login.test.ts"}}
+{"v":1,"type":"tool_result","at":1760000002500,"id":"call-1","ok":true,"result":"read 40 lines"}
+{"v":1,"type":"tool","at":1760000003000,"id":"call-2","tool":"execute","title":"Run pnpm test","input":{"title":"Run pnpm test","command":"pnpm test","input":{"command":"pnpm test"}}}
+{"v":1,"type":"tool_result","at":1760000009000,"id":"call-2","ok":false,"result":"1 failed"}
+{"v":1,"type":"usage","at":1760000009500,"sessionId":"sess-1","used":4200,"size":1000000,"cost":{"amount":0.02,"currency":"USD"}}
+{"v":1,"type":"reply","at":1760000010000,"text":"The test waits on a timer it never advances."}
+{"v":1,"type":"usage","at":1760000010500,"sessionId":"sess-1","used":5100,"size":1000000,"cost":{"amount":0.05,"currency":"USD"}}
+{"v":1,"type":"turn","at":1760000010600,"stop":"end_turn"}

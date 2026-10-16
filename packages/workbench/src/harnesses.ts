@@ -1,3 +1,4 @@
+import { AcpAdapter } from '@tade/harnesses-acp'
 import { ClaudeAdapter } from '@tade/harnesses-claude'
 import { CodexAdapter } from '@tade/harnesses-codex'
 import type { HarnessAccount, RunId, WorkerAdapter } from '@tade/harnesses-core'
@@ -61,4 +62,5 @@ export const HARNESS_ADAPTERS: Readonly<Record<string, (opts: HarnessOptions) =>
   pi: (opts) => new PiAdapter({ ...opts, supervise: opts.supervised ?? true }),
   'claude-code': (opts) => new ClaudeAdapter(opts),
   codex: (opts) => new CodexAdapter(opts),
+  acp: (opts) => new AcpAdapter(opts),
 }

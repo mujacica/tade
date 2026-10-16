@@ -429,8 +429,9 @@ in to, priced per million tokens — and how hard it should think.
 
 ![Choosing a model: every model the harness is signed in to, with what it costs in and out, filtered as you type](https://raw.githubusercontent.com/mujacica/tade/main/images/models.svg)
 
-Agents run in **pi** or in **Claude Code**, side by side, one harness per agent, moved from one to
-the other from its menu. Claude Code signs in as itself — Tade never sees it — and can run as more
+Agents run in **pi**, **Claude Code** or **Codex**, side by side, one harness per agent, moved from
+one to another from its menu — or in any agent that speaks the **Agent Client Protocol** (Gemini
+CLI, opencode, goose, Copilot CLI, Kiro CLI), whose conversation Tade draws in its lane. Claude Code signs in as itself — Tade never sees it — and can run as more
 than one account at once; an agent that runs out moves to another, its conversation with it.
 
 ![Accounts: each harness's own sign-in, a second Claude Code account beside it, how much of the plan is used, and what can be done to each](https://raw.githubusercontent.com/mujacica/tade/main/images/accounts.svg)

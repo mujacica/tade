@@ -1,0 +1,6 @@
+{"v":2,"type":"session","at":1760000000000,"agent":"gemini","sessionId":"sess-9","resumed":false}
+{"type":"sent","at":1760000001000,"text":"no version"}
+{"v":1,"type":"telepathy","at":1760000002000}
+{"v":1,"type":"sent","text":"no moment"}
+not json at all
+{"v":1,"type":"tool","at":1760000003000,"id":"call-1"}

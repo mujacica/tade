@@ -1,16 +1,14 @@
 import { mkdir, rm } from 'node:fs/promises'
 import { createServer, type Server, type Socket } from 'node:net'
 import { dirname } from 'node:path'
-import {
-  type RunId,
-  type WorkerCommand,
-  WorkerSignal,
-  type WorkerSignalListener,
-} from '@tade/harnesses-core'
+import { type RunId, type WorkerCommand, WorkerSignal, type WorkerSignalListener } from './port.ts'
 
 // The Tade side of the supervision channel: one Unix socket per run, strict
-// LF-delimited JSONL. The agent's extension connects to it, streams signals
-// up, and waits on commands coming down.
+// LF-delimited JSONL. What runs beside the agent — pi's extension, the lane an
+// ACP agent is driven from — connects to it, streams signals up, and waits on
+// commands coming down. Every command goes to everything connected, so a
+// second client (the MCP server lending an ACP agent Tade's tools) takes the
+// answers meant for it and leaves the rest.
 
 export interface SignalChannelOptions {
   path: string

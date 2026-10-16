@@ -280,6 +280,38 @@ differently enough to be worth writing down:
 - **Its own counts are not Tade's.** Codex's `input_tokens` includes what was read from the cache;
   every other harness reports them apart. Convert once, where the record is read.
 
+## What ACP taught (`packages/harnesses/acp`)
+
+The third shape of harness: a protocol rather than a program with a terminal. One adapter reaches
+every agent that speaks the Agent Client Protocol (pinned in `protocol.ts`: version 1, as
+`schema-v1.25.0` has it), and what it could not do is in its `why`s rather than worked around.
+
+- **No terminal is still a lane.** An ACP agent speaks JSON-RPC on its stdio and draws nothing, so
+  what runs in the lane is Tade's own program (`lane.ts`): the editor the agent talks to, drawing
+  the conversation the way the orchestrator strip does (`draw.ts`, the same marks), with a line to
+  type on. The agent is its child, so it lives and dies with the lane, and the window draws nothing
+  new — under tmux it outlives the window like any agent.
+- **Which agent is the model's provider.** `gemini/default`, `opencode/anthropic/claude-sonnet-5`:
+  the harness routes (`provider: null`), the agent is part of the model chosen for it, and a
+  conversation stays with the agent it started in — `setModel` to another agent is refused.
+- **Every agent is optional, so each is declared.** `programs` has one entry per configured agent
+  (`agents.ts`, from the ACP registry's `agent.json`s), each `optional`, with `npm` only where the
+  registry names a package. `probe()` is fine if any one answers its version.
+- **There is no record to read, so the lane writes one.** ACP carries a conversation and keeps
+  none a client can read; each agent's own is private. The lane writes what it heard under
+  `<home>/runs/acp/` (`record.ts`, versioned, a fold that skips what it does not know), and
+  `history`, `spent` and `hasConversation` read that — never the agent's own files.
+- **Come back the cheapest way the agent offers.** `session/resume` when it has it, `session/load`
+  (whose replay is ignored — the lane has its record) when it has that, otherwise a new session,
+  said in the lane. That is why `resume` is `false` with a `why`: it is the agent's to offer.
+- **ACP only asks about what the agent chooses to ask about.** `session/request_permission` is
+  forwarded to Tade's gate under `policy` (fail-closed when Tade is gone), answered `allow_once`
+  rather than `allow_always`, and `permissionGate` is still `false`: what the agent does without
+  asking, Tade sees only after.
+- **A tool is named by its ACP kind** (`read`, `edit`, `execute`, …) and its input carries `command`
+  and `path` for the policy beside the agent's own; `effectOf` maps the kinds, so the policy never
+  learns any one agent's tool names.
+
 ## Being the thing you talk to
 
 A harness can run the orchestrator when three things are true, and it says so rather than being

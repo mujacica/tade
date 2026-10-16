@@ -25,6 +25,7 @@ import {
   type PlanLimits,
   type RunId,
   reaped,
+  SignalChannel,
   type SignIn,
   WORKER_ENV,
   type WorkerAdapter,
@@ -37,7 +38,6 @@ import {
   type WorkerSignalListener,
   type WorkerSpec,
 } from '@tade/harnesses-core'
-import { SignalChannel } from './channel.ts'
 import { findModel, loggedInProviders, usableModels } from './models.ts'
 import { historyOfTask, sessionFileFor, sessionsRoot, usageOfTask } from './sessions.ts'
 import { type Spent, spentBy, spentByMessage } from './usage.ts'

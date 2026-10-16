@@ -16,6 +16,7 @@
     "@tade/drivers-core": "workspace:*",
     "@tade/drivers-pty": "workspace:*",
     "@tade/drivers-tmux": "workspace:*",
+    "@tade/harnesses-acp": "workspace:*",
     "@tade/harnesses-claude": "workspace:*",
     "@tade/harnesses-codex": "workspace:*",
     "@tade/harnesses-core": "workspace:*",

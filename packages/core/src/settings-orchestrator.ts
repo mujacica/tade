@@ -1,4 +1,5 @@
-import { type Config, HARNESS_IDS, type ThinkingLevel } from './config.ts'
+import type { Config, ThinkingLevel } from './config.ts'
+import { HARNESS_CHOICES } from './model.ts'
 import type { SettingGroup } from './settings.ts'
 
 // The one you talk to: what it runs in, on and at, and when Tade makes its
@@ -18,7 +19,11 @@ export function orchestratorGroup(config: Config, levels: readonly ThinkingLevel
         means: 'the program you talk through; each harness keeps its own conversation',
         value: config.orchestrator.harness,
         fallback: 'pi',
-        type: { kind: 'choice', options: [...HARNESS_IDS] },
+        // Only the harnesses that can be the thing you talk to.
+        type: {
+          kind: 'choice',
+          options: HARNESS_CHOICES.filter((one) => one.orchestrates).map((one) => one.id),
+        },
         keywords: ['claude', 'code', 'pi', 'agent'],
         live: false,
       },

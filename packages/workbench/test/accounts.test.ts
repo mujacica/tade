@@ -140,11 +140,19 @@ describe('accounts', () => {
       'claude-code@reviews',
       'codex',
       'codex@paid',
+      'acp',
     ])
     // What pays for each: the harness's own declaration, never the name. A
     // subscription is charged nothing per turn, which is the only kind of thing
     // a rolling window can be used up of; an API-key account is money instead.
-    expect(usage.map((one) => one.pays)).toEqual(['per-token', 'plan', 'plan', 'plan', 'per-token'])
+    expect(usage.map((one) => one.pays)).toEqual([
+      'per-token',
+      'plan',
+      'plan',
+      'plan',
+      'per-token',
+      'per-token',
+    ])
   })
 
   it('writes an API-key account’s key beside the account, and hands out a command', async () => {

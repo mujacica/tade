@@ -111,20 +111,30 @@ describe('the window, and its settings', () => {
     await until('the agent model', () =>
       screenOf(terminal.written).some((row) => row.includes('Agent harness')),
     )
+    // There are more harnesses than radios, so it is a list: opened on its
+    // value, and chosen from by typing. Found while the whole screen is still
+    // in the buffer: what is written after it is cleared is only what changed.
+    const rows = screenOf(terminal.written)
+    const row = rows.findIndex((line) => line.includes('Agent harness'))
+    const label = rows[row]?.indexOf('Agent harness') ?? -1
+    const control = { row, col: rows[row]?.indexOf('pi', label + 'Agent harness'.length) ?? -1 }
+    const choose = async (typed: string) => {
+      terminal.written = ''
+      click(control.col + 1, control.row)
+      await until('the list', () =>
+        screenOf(terminal.written).some((line) => line.includes('codex')),
+      )
+      terminal.written = ''
+      terminal.press(typed)
+      terminal.press('\r')
+      await until('saved', () => terminal.written.includes('Saved'))
+    }
     // Choosing the harness it is already on is not a new choice, and may not
     // quietly take the model away.
-    const same = find('◉ pi')
-    // Found while the whole screen is still in the buffer: what is written
-    // after it is cleared is only what changed.
-    const harness = find('claude-code')
-    terminal.written = ''
-    click(same.col + 2, same.row)
-    await until('saved', () => terminal.written.includes('Saved'))
+    await choose('pi')
     expect(client.config.workers.routes.default?.model).toBe('anthropic/claude-opus-5')
 
-    terminal.written = ''
-    click(harness.col + 1, harness.row)
-    await until('saved', () => terminal.written.includes('Saved'))
+    await choose('claude')
     // A model chosen for pi is not Claude Code's to start on, and `routeIn`
     // reads a route's own model as its own harness's — so it goes, and the
     // harness decides until somebody chooses again.

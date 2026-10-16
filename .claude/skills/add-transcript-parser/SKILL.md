@@ -9,6 +9,13 @@ Adoption lives in `packages/status/src/adoption.ts`. Each provider is one `Trans
 object in the `parsers` array: `{ provider, version, dir, depth, begin, read, end }` — a fold over
 the file's lines.
 
+**ACP agents have no parser here, on purpose.** The protocol keeps no transcript a client can read,
+and each agent's own (Gemini CLI's chats, opencode's database) is private and unpromised, so a
+session started in another ACP client cannot be adopted. What Tade reads of its own ACP lanes is
+the record the lane writes (`harnesses/acp/src/record.ts`), held to the same rules below — a fold,
+`null`/skipped on an unknown shape, a `v` that bumps, fixtures in
+`test/fixtures/transcripts/acp/<v>/` and "answers what reading from the start answers".
+
 ## Invariants (don't break these)
 
 - `end` **returns `null` on anything it doesn't recognise, and nothing throws.** `scanTranscripts`

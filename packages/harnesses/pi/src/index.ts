@@ -1,3 +1,4 @@
+export { SignalChannel, type SignalChannelOptions } from '@tade/harnesses-core'
 export {
   EXTENSION_PATH,
   exitReason,
@@ -7,7 +8,6 @@ export {
   runSocket,
   sessionIdFor,
 } from './adapter.ts'
-export { SignalChannel, type SignalChannelOptions } from './channel.ts'
 export {
   type AvailableModel,
   availableModels,

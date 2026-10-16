@@ -1,0 +1,15 @@
+{"v":1,"type":"session","at":1760000000000,"agent":"opencode","sessionId":"ses_a","resumed":false}
+{"v":1,"type":"model","at":1760000000100,"model":"anthropic/claude-sonnet-5"}
+{"v":1,"type":"sent","at":1760000001000,"text":"rename the config key"}
+{"v":1,"type":"usage","at":1760000004000,"sessionId":"ses_a","used":900,"size":200000,"cost":{"amount":0.1,"currency":"USD"}}
+{"v":1,"type":"reply","at":1760000004100,"text":"Renamed."}
+{"v":1,"type":"turn","at":1760000004200,"stop":"end_turn"}
+{"v":1,"type":"session","at":1760000100000,"agent":"opencode","sessionId":"ses_a","resumed":true}
+{"v":1,"type":"sent","at":1760000101000,"text":"and the docs"}
+{"v":1,"type":"usage","at":1760000104000,"sessionId":"ses_a","used":1300,"size":200000,"cost":{"amount":0.25,"currency":"USD"}}
+{"v":1,"type":"usage","at":1760000104000,"sessionId":"ses_a","used":1300,"size":200000,"cost":{"amount":3,"currency":"EUR"}}
+{"v":1,"type":"turn","at":1760000104200,"stop":"cancelled"}
+{"v":1,"type":"session","at":1760000200000,"agent":"opencode","sessionId":"ses_b","resumed":false}
+{"v":1,"type":"sent","at":1760000201000,"text":"carry on"}
+{"v":1,"type":"usage","at":1760000204000,"sessionId":"ses_b","used":300,"size":200000,"cost":{"amount":0.05,"currency":"USD"}}
+{"v":1,"type":"turn","at":1760000204200,"stop":"refusal","reason":"the agent refused to go on"}

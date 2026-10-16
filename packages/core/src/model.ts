@@ -208,19 +208,42 @@ export const HARNESS_CHOICES: readonly {
   about: string
   /** Offered to choose: false for one that is coming but cannot run yet. */
   ready: boolean
+  /**
+   * Offered for the orchestrator: it can run as Tade's own child, headless
+   * (`capabilities.headless`, which the workbench's harness test holds this
+   * to). One that cannot is never offered there, rather than chosen and then
+   * refused at the next start.
+   */
+  orchestrates: boolean
 }[] = [
-  { id: 'pi', title: 'pi', about: 'the pi coding agent, supervised by Tade', ready: true },
+  {
+    id: 'pi',
+    title: 'pi',
+    about: 'the pi coding agent, supervised by Tade',
+    ready: true,
+    orchestrates: true,
+  },
   {
     id: 'claude-code',
     title: 'Claude Code',
     about: 'the official claude, signed in with your own account, supervised by Tade',
     ready: true,
+    orchestrates: true,
   },
   {
     id: 'codex',
     title: 'Codex',
     about: 'the official codex, signed in with your own account, supervised by Tade',
     ready: true,
+    orchestrates: true,
+  },
+  {
+    id: 'acp',
+    title: 'ACP',
+    about:
+      'any agent that speaks the Agent Client Protocol — Gemini CLI, opencode, goose, Copilot CLI, Kiro CLI — signed in its own way, supervised by Tade',
+    ready: true,
+    orchestrates: false,
   },
 ]
 

@@ -319,6 +319,9 @@ export const HARNESS_FACTS: Readonly<Record<string, HarnessFacts>> = {
   pi: { provider: null, usd: 'exact' },
   'claude-code': { provider: 'anthropic', usd: 'none' },
   codex: { provider: 'openai', usd: 'none' },
+  // Whichever agent it drives, on that agent's own sign-in; dollars only where
+  // the agent priced its session itself.
+  acp: { provider: null, usd: 'estimate' },
 }
 
 /**
