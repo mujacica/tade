@@ -156,6 +156,8 @@ export function talkingThrough(held: () => Talking): Talking {
 export interface Paired {
   projects: readonly string[] | null
   scopes: readonly string[]
+  /** Whether it is an owner device (`@tade/web`'s `owner.ts`). Absent is not. */
+  owner?: boolean
 }
 
 /**
@@ -175,20 +177,31 @@ export interface Paired {
  * because `armFor` is a fold of the record and the record is the authority.
  */
 export function narrowed(arm: Arm, paired: (device: string) => Paired | null): Arm {
-  if (arm.how !== 'remote') return arm
+  if (arm.how === 'local') return arm
   const held = paired(arm.device)
   if (held === null) return { how: 'remote', device: arm.device, projects: [], may: [] }
-  const now = armFor({ id: arm.device, projects: held.projects, scopes: held.scopes })
-  if (now.how !== 'remote') return arm
+  // An owner turn keeps the keyboard's reach only while the record still says
+  // owner. Revoked is above; a record that stopped saying it is taken back to
+  // what the device was granted, which is still only ever narrower.
+  if (arm.how === 'owner') return held.owner === true ? arm : remoteNow(arm.device, held, null)
+  return remoteNow(arm.device, held, arm)
+}
+
+/** The remote arm a record grants now, never wider than the lease it narrows. */
+function remoteNow(device: string, held: Paired, was: Remote | null): Arm {
+  const now = armFor({ id: device, projects: held.projects, scopes: held.scopes })
+  if (now.how !== 'remote' || was === null) return now
   return {
     how: 'remote',
-    device: arm.device,
+    device,
     // The narrower of the two lists, so nothing here can widen a lease either:
     // a grant made *during* a turn is not a grant that turn was given.
-    projects: narrower(arm.projects, now.projects),
-    may: now.may.filter((grant) => arm.may.includes(grant)),
+    projects: narrower(was.projects, now.projects),
+    may: now.may.filter((grant) => was.may.includes(grant)),
   }
 }
+
+type Remote = Extract<Arm, { how: 'remote' }>
 
 /** The narrower of two project lists, where `null` is every one. */
 function narrower(
@@ -245,8 +258,8 @@ export function webAsking(deps: AskingDeps): WebAsking {
   return {
     unlocked: () => deps.talking(),
 
-    async ask(call: AskCall, from: From): Promise<Outcome> {
-      const arm = armOf(deps, from)
+    async ask(call: AskCall, from: From, here: boolean): Promise<Outcome> {
+      const arm = armOf(deps, from, here)
       const seen = deps.seen()
       // **The state the act named, re-checked against the world now.** A
       // mismatch is the conversation having moved — somebody said something,
@@ -276,7 +289,7 @@ export function webAsking(deps: AskingDeps): WebAsking {
       // been revoked stops anything, which would be a small thing to allow and
       // is still the thing that grants authority being reachable from inside
       // what it granted.
-      armOf(deps, from)
+      armOf(deps, from, false)
       const seen = deps.seen()
       const was = chatRev({ busy: seen.busy })
       if (call.was !== was) throw new Moved('the conversation moved on', was)
@@ -309,7 +322,7 @@ export function webAsking(deps: AskingDeps): WebAsking {
  * into `LOCAL`, because the one thing that must never happen is a remote
  * request running unnarrowed.
  */
-function armOf(deps: AskingDeps, from: From): Arm {
+function armOf(deps: AskingDeps, from: From, here: boolean): Arm {
   if (from.how !== 'remote') {
     throw new OutOfScope('a message from away is never the person at the machine')
   }
@@ -318,5 +331,10 @@ function armOf(deps: AskingDeps, from: From): Arm {
   if (!device.scopes.includes('ask')) {
     throw new OutOfScope(`${byOf(from)} was not granted talking to Tade`)
   }
+  // **Both halves, and neither is the request's word.** The record says owner
+  // (minted only by `tade web pair --owner`, bound to a loopback host), and the
+  // door says this message came in on this machine. Either alone is a device's
+  // ordinary, narrowed turn.
+  if (device.owner && here) return { how: 'owner', device: device.id }
   return armFor(device)
 }

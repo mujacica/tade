@@ -556,10 +556,19 @@ it — and each is still nothing to a device until you grant that device here:
 
 ![The away view in Settings, turned on: the code, its link and the devices under the switch, then what a paired device may do as short names under one heading](https://raw.githubusercontent.com/mujacica/tade/main/images/away-settings.svg)
 
+On a box with no screen — a server of yours — the shell is the machine: `tade web pair` over SSH
+prints the code in your terminal instead, and running it was the yes, so nobody is asked again. The
+code works once, within five minutes, on the name its link carries, and a new one takes the last
+back. `tade web pair --owner` mints an **owner device** for the Tade on the machine you came from: a
+session bound to the server's own address, so it works only through SSH and never over its public
+name, whose messages to Tade reach what you would reach at that server's keyboard and are still
+never your own words.
+
 ```sh
 tade web               # what is on, and where
-tade web devices       # who is paired, and what each may do
-tade web revoke --all  # disconnect every one of them
+tade web pair          # a code to scan, from a shell: over SSH, on a box with no screen
+tade web devices       # who is paired, owners marked, and what each may do
+tade web revoke --all  # disconnect every one of them, and every code nobody used
 ```
 
 ## Models and harnesses

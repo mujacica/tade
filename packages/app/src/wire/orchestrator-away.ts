@@ -1,4 +1,4 @@
-import { type Arm, byOf, LOCAL } from '@tade/core'
+import { type Arm, byOf, LOCAL, whoOf } from '@tade/core'
 import type { Thinker } from './context.ts'
 
 // The three questions the away view asks of the conversation, and nothing else.
@@ -39,8 +39,7 @@ export function armOfThinker(thinker: Thinker | null): Arm {
  */
 export function whoseTurn(thinker: Thinker | null): string {
   if (!(thinker?.busy?.() ?? false)) return ''
-  const arm = armOfThinker(thinker)
-  return arm.how === 'remote' ? byOf({ how: 'remote', device: arm.device }) : 'you'
+  return byOf(whoOf(armOfThinker(thinker)))
 }
 
 /**

@@ -20,6 +20,7 @@ const DEVICE: Device = {
   granted: [...GRANTS],
   from: '127.0.0.1',
   revoked: null,
+  owner: false,
 }
 
 export const TEST_WORLD: World = {

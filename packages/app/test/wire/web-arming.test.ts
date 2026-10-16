@@ -1,6 +1,7 @@
 import { type Arm, LOCAL } from '@tade/core'
+import { chatRev, type Device } from '@tade/web'
 import { describe, expect, it } from 'vitest'
-import { armingFor, narrowed, type Paired } from '../../src/wire/web-asking.ts'
+import { armingFor, narrowed, type Paired, webAsking } from '../../src/wire/web-asking.ts'
 
 // What the `ToolHost` is asked at every call, over the cases the lease cannot
 // answer on its own.
@@ -55,6 +56,28 @@ describe('the arm, re-checked against the record', () => {
       scopes: ['read', 'ask', 'answer', 'steer'],
     })
     expect(narrowed(away({ projects: ['sentry'], may: ['answer'] }), wide)).toEqual({
+      how: 'remote',
+      device: DEVICE,
+      projects: ['sentry'],
+      may: ['answer'],
+    })
+  })
+
+  it('keeps an owner’s reach only while the record still says owner', () => {
+    // REMOTE-TADE.md §11 item 4. The lease can only ever take away: revoked is
+    // a remote arm that reaches nothing, and a record that stopped saying owner
+    // is the device's own grants — never wider than the keyboard it had.
+    const owner: Arm = { how: 'owner', device: DEVICE }
+    const still = (): Paired => ({ projects: null, scopes: ['read', 'ask'], owner: true })
+    expect(narrowed(owner, still)).toBe(owner)
+    expect(narrowed(owner, () => null)).toEqual({
+      how: 'remote',
+      device: DEVICE,
+      projects: [],
+      may: [],
+    })
+    const ordinary = (): Paired => ({ projects: ['sentry'], scopes: ['read', 'ask', 'answer'] })
+    expect(narrowed(owner, ordinary)).toEqual({
       how: 'remote',
       device: DEVICE,
       projects: ['sentry'],
@@ -136,5 +159,57 @@ describe('what is handed over, and what it writes down', () => {
     await Promise.resolve()
     await Promise.resolve()
     expect(said).toEqual([`a refusal from ${DEVICE} could not be written down`])
+  })
+})
+
+describe('an owner device’s arm, built at the turn', () => {
+  // Both halves, and neither is the request's word: the record says owner, and
+  // the door says the message came in on this machine. Either alone is an
+  // ordinary device's narrowed turn.
+  const record = (owner: boolean): Device => ({
+    id: DEVICE,
+    label: 'mac',
+    digest: 'a'.repeat(64),
+    host: 'localhost:7654',
+    csrf: 'x'.repeat(43),
+    until: Date.now() + 86_400_000,
+    pairedAt: Date.now(),
+    scopes: ['read', 'ask', 'steer'],
+    projects: null,
+    granted: [],
+    from: '',
+    revoked: null,
+    owner,
+  })
+
+  async function armedFor(owner: boolean, here: boolean): Promise<Arm[]> {
+    const armed: Arm[] = []
+    const asking = webAsking({
+      talking: () => true,
+      devices: () => [record(owner)],
+      seen: () => ({ busy: false, whose: '' }),
+      ask: async (_said, arm) => {
+        armed.push(arm)
+      },
+      stop: async () => false,
+      said: () => {},
+      now: () => Date.now(),
+    })
+    await asking.ask(
+      { was: chatRev({ busy: false }), said: 'hello' },
+      { how: 'remote', device: DEVICE },
+      here,
+    )
+    return armed
+  }
+
+  it('is the owner arm where the record says owner and the door says here', async () => {
+    expect(await armedFor(true, true)).toEqual([{ how: 'owner', device: DEVICE }])
+  })
+
+  it('is a device’s ordinary arm anywhere else', async () => {
+    const remote = { how: 'remote', device: DEVICE, projects: null, may: ['steer'] }
+    expect(await armedFor(true, false)).toEqual([remote])
+    expect(await armedFor(false, true)).toEqual([remote])
   })
 })

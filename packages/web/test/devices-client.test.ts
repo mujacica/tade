@@ -63,6 +63,7 @@ function device(over: Partial<Device> = {}): Device {
     granted: [],
     from: '192.168.1.20',
     revoked: null,
+    owner: false,
     ...over,
   }
 }

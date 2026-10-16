@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { type Arm, LOCAL } from '@tade/core'
+import { type Arm, armMay, armSees, cameFromAway, LOCAL } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import {
   allowMethod,
@@ -105,6 +105,24 @@ describe('what a remote turn may reach', () => {
       expect(allowTool(tool, LOCAL)).toEqual({ ok: true })
     }
     expect(allowMethod('config/change', { path: 'checks.before' }, LOCAL)).toEqual({ ok: true })
+  })
+
+  it('asks nothing of an owner device’s turn either, and still names the device', () => {
+    // REMOTE-TADE.md §11 item 4: minted over SSH, bound to this machine, and
+    // answered with the local arm — every gate, both tables, every project.
+    // Who asked stays the device's: a note it causes is the device's note.
+    const owner: Arm = { how: 'owner', device: 'a1b2c3d4e5f60718' }
+    for (const tool of ['bash', 'tade_run_start', 'tade_task_create', 'tade_plan']) {
+      expect(allowTool(tool, owner)).toEqual({ ok: true })
+    }
+    for (const method of ['task/create', 'queue/plan', 'queue/schedule']) {
+      expect(allowMethod(method, { task: 'sentry/flake' }, owner)).toEqual({ ok: true })
+    }
+    expect(writtenBy(owner, 'orchestrator')).toBe('device a1b2c3d4e5f60718')
+    expect(armSees(owner, '')).toBe(true)
+    expect(armMay(owner, 'steer')).toBe(true)
+    expect(cameFromAway(owner)).toContain('owner device')
+    expect(cameFromAway(owner)).toContain('still not their own words')
   })
 
   it('refuses a setting change however the request is worded', () => {

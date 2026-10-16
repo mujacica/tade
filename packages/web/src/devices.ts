@@ -1,9 +1,10 @@
 import { appendFile, chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { z } from 'zod'
+import { hostOf } from './guard.ts'
 import type { Keeping } from './installable.ts'
 import { GRANTS, readsOf } from './reach.ts'
-import { reachOf, SCOPES } from './surface.ts'
+import { loopbackHost, reachOf, SCOPES } from './surface.ts'
 
 // The paired devices, in `<home>/web-devices.jsonl`: append-only, `0600`, a bad
 // line skipped rather than thrown over.
@@ -64,6 +65,51 @@ const PairedLine = z.strictObject({
   /** What content it was granted beyond names and counts. */
   granted: Granted,
   /** The address it paired from, for the device list. Metadata, bounded. */
+  from: z.string().max(64),
+  /**
+   * An owner device: minted by `tade web pair --owner` and nothing else, and an
+   * owner only while its `host` is this machine's (`ownerOf`). `owner.ts` has
+   * the argument.
+   */
+  owner: z.literal(true).optional(),
+})
+
+/**
+ * A pairing code `tade web pair` wrote down: the digest of a one-time secret,
+ * what the person at the terminal let it have, and the host its link names.
+ *
+ * Its `device` is the id the device will have once it is claimed, so the line
+ * that ends it — `claimed`, or `revoked` before anybody claimed it — and the
+ * device it became are one id in the list. `pending.ts` has the argument for a
+ * ticket on a disk at all.
+ */
+const PendingLine = z.strictObject({
+  kind: z.literal('pending'),
+  device: z.string().regex(/^[0-9a-f]{16}$/),
+  at: z.string(),
+  /** When the code stops being claimable, as a moment. */
+  until: z.string(),
+  /** `sha256` of the one-time secret. The secret is only ever in the link. */
+  digest: z.string().regex(/^[0-9a-f]{64}$/),
+  /** The exact `Host` the link names. A claim made on any other is refused. */
+  host: z.string().max(260),
+  /** What it is called, where the person at the terminal said. Empty is the phone's word. */
+  label: z.string().max(120),
+  scopes: z.array(z.enum(SCOPES)),
+  projects: z.array(z.string()).nullable(),
+  granted: Granted,
+})
+
+/**
+ * A written code, claimed: **the burn, on the disk**. Appended before the
+ * device it becomes is, so a code that was presented is spent whatever
+ * happens after — the in-memory ticket's ordering, kept across a restart.
+ */
+const ClaimedLine = z.strictObject({
+  kind: z.literal('claimed'),
+  device: z.string().regex(/^[0-9a-f]{16}$/),
+  at: z.string(),
+  /** The address that presented it, for the list. Metadata, bounded. */
   from: z.string().max(64),
 })
 
@@ -141,9 +187,25 @@ const Line = z.discriminatedUnion('kind', [
   RenewedLine,
   AllowedLine,
   GrantedLine,
+  PendingLine,
+  ClaimedLine,
 ])
 export type DeviceLine = z.infer<typeof Line>
 export type Paired = z.infer<typeof PairedLine>
+
+/** A code written by the terminal and not yet claimed or revoked, as the fold has it. */
+export interface PendingCode {
+  id: string
+  at: number
+  /** When it stops being claimable. The fold has no clock: a reader compares. */
+  until: number
+  digest: string
+  host: string
+  label: string
+  scopes: readonly string[]
+  projects: readonly string[] | null
+  granted: readonly string[]
+}
 
 /** A device as the rest of the program asks about one. */
 export interface Device {
@@ -161,6 +223,8 @@ export interface Device {
   from: string
   /** Null while it is live; Tade's own word for why once it is not. */
   revoked: string | null
+  /** An owner device, bound to this machine (`ownerOf`). */
+  owner: boolean
 }
 
 /**
@@ -176,8 +240,14 @@ export interface Device {
  * and the alternative is a window that will not open because of a half-written
  * line about a phone somebody sold.
  */
-export function devicesIn(text: string): { devices: Device[]; skipped: number } {
+export function devicesIn(text: string): {
+  devices: Device[]
+  skipped: number
+  /** The codes the terminal wrote that nobody has claimed or revoked, expired ones too. */
+  pending: PendingCode[]
+} {
   const devices = new Map<string, Device>()
+  const pending = new Map<string, PendingCode>()
   let skipped = 0
   for (const line of text.split('\n')) {
     if (line.trim() === '') continue
@@ -202,9 +272,28 @@ export function devicesIn(text: string): { devices: Device[]; skipped: number } 
         granted: parsed.granted,
         from: parsed.from,
         revoked: null,
+        owner: ownerOf(parsed),
       })
       continue
     }
+    if (parsed.kind === 'pending') {
+      pending.set(parsed.device, {
+        id: parsed.device,
+        at: Date.parse(parsed.at),
+        until: Date.parse(parsed.until),
+        digest: parsed.digest,
+        host: parsed.host,
+        label: parsed.label,
+        scopes: parsed.scopes,
+        projects: parsed.projects,
+        granted: parsed.granted,
+      })
+      continue
+    }
+    // A code is ended by its claim or by a revoke, and either is the last word
+    // on it: a `pending` line written again for the same id is a new code.
+    if (parsed.kind === 'claimed' || parsed.kind === 'revoked') pending.delete(parsed.device)
+    if (parsed.kind === 'claimed') continue
     const held = devices.get(parsed.device)
     if (held === undefined) {
       // A `revoked` or `renewed` for a device no `paired` line introduced. Not
@@ -224,16 +313,33 @@ export function devicesIn(text: string): { devices: Device[]; skipped: number } 
       devices.set(parsed.device, { ...held, granted: parsed.granted })
     } else devices.set(parsed.device, { ...held, until: Date.parse(parsed.until) })
   }
-  return { devices: [...devices.values()], skipped }
+  return { devices: [...devices.values()], skipped, pending: [...pending.values()] }
+}
+
+/**
+ * Whether a `paired` line is an owner device: it says so, **and** the host it
+ * is bound to is this machine's.
+ *
+ * The second half is the fold refusing a line that could only have been made
+ * by hand: `tade web pair --owner` binds every owner to `localhost`, and an
+ * owner bound to a public name would be the local arm reachable from the
+ * internet. A line like that is still a device — the record says somebody let
+ * it in — and an ordinary one.
+ */
+export function ownerOf(line: { owner?: true | undefined; host: string }): boolean {
+  const name = hostOf(line.host)
+  return line.owner === true && name !== null && loopbackHost(name)
 }
 
 /** The devices in the file, or none at all where there is no file yet. */
-export async function readDevices(home: string): Promise<{ devices: Device[]; skipped: number }> {
+export async function readDevices(
+  home: string,
+): Promise<{ devices: Device[]; skipped: number; pending: PendingCode[] }> {
   let text: string
   try {
     text = await readFile(devicesPath(home), 'utf8')
   } catch {
-    return { devices: [], skipped: 0 }
+    return { devices: [], skipped: 0, pending: [] }
   }
   return devicesIn(text)
 }
@@ -308,12 +414,16 @@ export async function grantDevice(
  * every request.
  */
 export async function revokeAll(home: string, at: Date): Promise<string[]> {
-  const { devices } = await readDevices(home)
+  const { devices, pending } = await readDevices(home)
   const live = devices.filter((device) => device.revoked === null)
-  for (const device of live) {
+  // **And every code the terminal wrote that nobody claimed**, expired or not:
+  // one is a credential nobody has used yet, and "everything" that left it
+  // claimable would be one phone short of what it says. Not counted among the
+  // devices, because none of them is one.
+  for (const one of [...live.map((device) => device.id), ...pending.map((code) => code.id)]) {
     await appendDevice(home, {
       kind: 'revoked',
-      device: device.id,
+      device: one,
       at: at.toISOString(),
       why: 'everything disconnected',
     })

@@ -616,6 +616,7 @@ function device(id: string, label: string, pairedDaysAgo: number): Device {
     granted: [...GRANTS],
     from: '127.0.0.1',
     revoked: null,
+    owner: false,
   }
 }
 

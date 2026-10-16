@@ -1,11 +1,13 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { appendDevice } from './devices.ts'
+import { appendDevice, readDevices } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { type Asking, PAIR_TRIES, type Window } from './guard.ts'
+import { claimWritten } from './pending.ts'
+import type { Grant } from './reach.ts'
 import { inTime, labelOf, readBody } from './request.ts'
 import type { Confirmed, PairingAsk, Told } from './serving.ts'
 import { mint, SESSION_MS, setCookie } from './sessions.ts'
-import { type Origin, type Surface, scopesOn } from './surface.ts'
+import { type Origin, type Scope, type Surface, scopesOn } from './surface.ts'
 import { couldBeTicket, type Tickets } from './tickets.ts'
 
 // The pairing exchange: the one route that mints a credential, and the one
@@ -23,6 +25,10 @@ import { couldBeTicket, type Tickets } from './tickets.ts'
 //    is asked;
 // 4. the person asked, with a deadline, where *nobody answered* is an answer;
 // 5. the device written down, once, only after a yes.
+//
+// A code `tade web pair` wrote is the same five with the fourth already done:
+// running the command was the yes (`pending.ts`), so step 3 burns it on the
+// disk too, and step 5 writes what the terminal let it have.
 //
 // Nothing here decides who may read what: pairing mints what the person at
 // the machine let it have (`Confirmed`) — `read` alone when that is unsaid —
@@ -65,7 +71,7 @@ export async function carryPairing(
   res: ServerResponse,
   ctx: Pairing,
 ): Promise<void> {
-  const { asking, origin, request, now, tell } = ctx
+  const { asking, request, now, tell } = ctx
   if (ctx.pairing.over(asking.from, now())) {
     ctx.said(`pairing refused: ${PAIR_TRIES} tries already`)
     return ctx.answer(refuse('slow_down', { after: ctx.pairing.after(asking.from, now()) }))
@@ -82,6 +88,10 @@ export async function carryPairing(
   const label = typeof asked.label === 'string' ? asked.label : ''
 
   const claim = ctx.tickets.claim(asked.ticket, now())
+  // A value this window never minted may be a code the terminal wrote
+  // (`pending.ts`): the person who ran `tade web pair` has already said yes,
+  // so it goes its own way, and is burned on its claim just the same.
+  if (!claim.ok && claim.why === 'unknown') return carryWritten(res, asked.ticket, label, ctx)
   if (!claim.ok) {
     tell({ type: 'web_denied', detail: { why: claim.why, from: asking.from } })
     // The same answer to the phone whichever it was. Which it was is in the
@@ -123,37 +133,130 @@ export async function carryPairing(
     return ctx.answer(refuse('no_session'))
   }
 
-  const minted = mint()
-  const scopes = scopesOn(origin, ctx.surface, confirmed.scopes ?? ['read'])
+  return letIn(res, ctx, { ...confirmed, label: labelOf(label) }, null)
+}
+
+/**
+ * A code the terminal wrote: claimed, burned on the disk, and the device it
+ * becomes written down — with nobody asked, because running `tade web pair`
+ * was the asking (`pending.ts`).
+ *
+ * The burn is the `claimed` line, appended **before** anything is decided
+ * about the claim and before the device is: a refusal, a crash and a restart
+ * all find a spent code. The memory half (`Tickets.spend`) happened inside
+ * `claimWritten`, before this function's first `await`.
+ */
+async function carryWritten(
+  res: ServerResponse,
+  presented: string,
+  label: string,
+  ctx: Pairing,
+): Promise<void> {
+  const { asking, now, tell } = ctx
+  const claim = claimWritten(
+    presented,
+    (await readDevices(ctx.home)).pending,
+    ctx.tickets,
+    asking.host ?? '',
+    now(),
+  )
+  const burn = claim.ok ? claim.code : claim.burn
+  if (burn !== null) {
+    try {
+      await appendDevice(ctx.home, {
+        kind: 'claimed',
+        device: burn.id,
+        at: new Date(now()).toISOString(),
+        from: asking.from.slice(0, 64),
+      })
+    } catch (error) {
+      // Nothing is minted on a code whose burn could not be written down: a
+      // restart would find it claimable again, and fail-closed is the order.
+      tell({
+        type: 'warning',
+        detail: {
+          message: `the away view could not burn a written pairing code: ${String(error).slice(0, 200)}`,
+          request: ctx.request,
+        },
+      })
+      return ctx.answer(refuse('broke', { request: ctx.request }))
+    }
+  }
+  if (!claim.ok) {
+    // `unknown` is a value that matched nothing anywhere — somebody guessing —
+    // so it is the window's own line; anything else was a written code.
+    const detail: Record<string, string> = { why: claim.why, from: asking.from }
+    if (claim.why !== 'unknown') detail.code = 'terminal'
+    tell({ type: 'web_denied', detail })
+    return ctx.answer(refuse('no_session'))
+  }
+  const code = claim.code
+  return letIn(
+    res,
+    ctx,
+    {
+      projects: code.projects,
+      granted: code.granted as readonly Grant[],
+      scopes: code.scopes as readonly Scope[],
+      // The terminal's name for it where it gave one, the phone's otherwise.
+      label: code.label === '' ? labelOf(label) : code.label,
+    },
+    code.id,
+  )
+}
+
+/**
+ * The device written down and the cookie set: the last step, once somebody
+ * has let it in.
+ *
+ * `id` is a written code's own, so the code and the device it became are one
+ * id in the list; null mints one. **Never an owner**: nothing a request can do
+ * writes `owner` (`owner.ts`).
+ */
+async function letIn(
+  res: ServerResponse,
+  ctx: Pairing,
+  given: {
+    projects: readonly string[] | null
+    granted: readonly Grant[]
+    scopes?: readonly Scope[]
+    label: string
+  },
+  id: string | null,
+): Promise<void> {
+  const { asking, origin, now, tell } = ctx
+  const minted = mint(id ?? undefined)
+  const device = minted.device
+  const scopes = scopesOn(origin, ctx.surface, given.scopes ?? ['read'])
   const until = new Date(now() + SESSION_MS)
   await appendDevice(ctx.home, {
     kind: 'paired',
-    device: minted.device,
+    device,
     at: new Date(now()).toISOString(),
-    label: labelOf(label),
+    label: given.label,
     digest: minted.digest,
     host: asking.host ?? '',
     csrf: minted.csrf,
     until: until.toISOString(),
     scopes: [...scopes],
-    projects: confirmed.projects === null ? null : [...confirmed.projects],
-    granted: [...confirmed.granted],
+    projects: given.projects === null ? null : [...given.projects],
+    granted: [...given.granted],
     from: asking.from,
   })
   tell({
     type: 'web_paired',
     detail: {
-      device: minted.device,
+      device,
       from: asking.from,
       // Never the label: a label is a person's own words about their own
       // phone, and the telemetry allow-list keeps `device` and not this.
       scopes: scopes.join(' '),
-      granted: [...confirmed.granted].join(' '),
+      granted: [...given.granted].join(' '),
+      // Which door let it in, as a word: the window's question, or a code the
+      // terminal wrote — the strip says the second, since nobody here was asked.
+      code: id === null ? 'window' : 'terminal',
     },
   })
   res.setHeader('set-cookie', setCookie(minted.cookie, origin.scheme === 'https'))
-  return ctx.json(
-    { device: minted.device, scopes, csrf: minted.csrf, reads: [...confirmed.granted] },
-    201,
-  )
+  return ctx.json({ device, scopes, csrf: minted.csrf, reads: [...given.granted] }, 201)
 }

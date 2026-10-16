@@ -26,8 +26,10 @@ a device still has none of the scopes that change anything until somebody at thi
 | the two files a listener serves | `src/files.ts` — the asset map and the worker, each read once |
 | which halves the window hands over | `packages/app/src/wire/web-halves.ts` |
 | the pairing exchange's own five steps | `src/paired.ts` (the order), `src/tickets.ts` (the burn) |
+| a code the terminal writes (`tade web pair`), and its claim | `src/pending.ts` — the one ticket on a disk, with the argument; the `pending` and `claimed` lines in `src/devices.ts` |
+| an owner device (`tade web pair --owner`) | `src/owner.ts` (the mint, and the five facts that keep it on this machine), `ownerOf` in `src/devices.ts`, the `here` an ask carries (`asked.ts`), and `armOf` in `packages/app/src/wire/web-asking.ts` |
 | what a device may **say to Tade** | `src/asking.ts` (the interface and the revision), `src/asked.ts` (the gate and the sequence), `ASKS` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-asking.ts`, and the screen in `src/assets/talk.js` |
-| what a turn from away may **reach** | `packages/core/src/origin.ts` (the arm, the provenance, the sentences) and `packages/orchestrator/src/origin.ts` (the two tables) |
+| what a turn from away may **reach** | `packages/core/src/origin.ts` (the arm, the provenance, the sentences) and `packages/orchestrator/src/origin.ts` (the two tables); an owner device's turn is `Arm`'s third variant, answered as local by every gate (`narrowedArm`) |
 | the conversation, as a device reads it | `ChatIn`/`TalkIn` in `src/input.ts`, `chatRows` in `src/snapshot.ts`, `talkIn`/`chatLines` in `packages/app/src/away.ts` |
 | what a task's revision is made of | `taskRev`/`TaskFacts` in `src/acting.ts`, `factsOf` in `src/input.ts` |
 | the factory floor's four collections | `src/protocol-factory.ts` (the schemas), `src/factory.ts` (the input types and the projection), `packages/app/src/away-factory.ts` (the window's own mapping), `packages/app/src/wire/web-factory.ts` (the fold it keeps) |
@@ -260,7 +262,16 @@ a device still has none of the scopes that change anything until somebody at thi
   real way in. Everything else — every `fetch` the page makes — is checked.
 - **The pairing ticket is burned on the *claim*, before anybody at the machine is asked.** That one
   ordering is what makes a replay, a concurrent attempt, a refusal, a deadline and a throw all find
-  nothing. The tempting shape — check, ask, then delete on success — is wrong in all five ways.
+  nothing. The tempting shape — check, ask, then delete on success — is wrong in all five ways. A
+  code the terminal wrote is burned twice: in memory before the first `await` (`Tickets.spend`), so
+  two racing claims never both mint, then by a `claimed` line written **before** the device is, so a
+  restart cannot make it claimable again. Expired, on the wrong host or used, it is spent all the same.
+- **An owner device is minted by a shell and nothing else, and is used only on this machine.** No
+  route writes `owner`; the fold makes an owner only of a line bound to a loopback host (`ownerOf`);
+  a session is bound to its host; a public listener refuses this machine's names; and the window
+  gives the owner arm only where the record says owner **and** the door says `thisMachine`. Its
+  words are never `said` and its acts are `device <id>` — the reach is the keyboard's, the record
+  is still the device's.
 - **A body of `null` is a body.** `readBody` returns a discriminated answer, because `unknown | null`
   made a four-byte `null` indistinguishable from "already refused" and held the request open for ever.
 - **`(epoch, rev)` is the cursor, and nothing reads `seq` or a byte offset.** The epoch is minted by
@@ -392,7 +403,7 @@ a device still has none of the scopes that change anything until somebody at thi
   two say nothing (`talkOf` is `undefined`, `noAgentsSaid`); the harness's `unpaired` holds it.
 - **Wherever the code is drawn, one is outstanding** (`keepCode`, from `Away.panel`): opening
   the Away page of Settings shows one, and one that ran out or was claimed is replaced on the
-  next frame. Minted in memory like every ticket — never journaled.
+  next frame. Minted in memory — never journaled; the terminal's code is the one ticket on a disk.
 - **`[hidden]` is an author rule with `!important`, in `tokens.css`.** The page turns a region off
   with `el.hidden = true`, which is `display: none` in the *user agent's* stylesheet — and any author
   rule beats a UA one. The moment a region gained `display: flex`, `hidden` stopped hiding it and
@@ -727,10 +738,21 @@ it, which is what makes that true rather than lucky.
 credentials behind lets every phone that was ever paired straight back in when somebody turns it on
 again next week.
 
-`pair` **cannot mint a code**. A ticket lives in the memory of the process whose server has to claim
-it, and there is no channel from a shell into the window — the `ToolHost` is a Unix socket for the
-window's own child agents and must never become this. So it says which window is open and points at
-the panel that mints one.
+`pair` **writes a code, and needs no window to** (REMOTE-TADE.md §11 item 3, argued in
+`src/pending.ts`). It used to only point at the panel: a ticket lived in the window's memory and the
+person at its screen was the yes. A box with no screen has nobody to ask that way, and a shell on the
+machine *is* the machine — over SSH, the SSH key. So the command is the yes: it writes the digest of a
+one-time secret as a `pending` line, with what the device may have (everything, `--read-only` for
+reading alone) and the host its link names, and prints the link — as a QR only where a phone could
+follow it. The listener claims it through the same route, with nobody asked; the window says it in
+the strip. Still **no channel from a shell into the window**: the file is the whole of what the two
+share, as it is for `revoke`. Every new code revokes the unclaimed ones, as the panel's do, and
+"Disconnect everything" and `tade web revoke <id>` end one.
+
+`pair --owner` mints an **owner device** (§11 item 4, `src/owner.ts`): a session for `localhost`,
+printed once — `--json` is the credential alone, `OWNER_IS_YOUR_SSH_KEY` goes to standard error every
+time — for the Tade on the machine the person reached this one from. Refused on a `lan` bind, where
+there is no loopback listener for it to be answered on.
 
 ## The page, and what holds it
 
@@ -770,7 +792,9 @@ found nothing and went green is worse than none.
 
 ## What a test here cannot prove
 
-A real phone's camera reading the QR at the module size a terminal draws; a Let's Encrypt
+A real phone's camera reading the QR at the module size a terminal draws — the window's, and the
+one `tade web pair` prints into an SSH session; an installed iPhone page pairing from a written code
+(it keeps its own cookies, so it has to claim one itself); a Let's Encrypt
 certificate on a real name, and a phone's carrier address through Caddy (the public listener was
 proved in a container, against Caddy's own CA and the container's own address); iOS Safari's local-network
 prompt; whether `.local` resolves on the owner's devices; whether a real reverse proxy passes a

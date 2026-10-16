@@ -26,6 +26,10 @@ program and exposes `run(argv, io)` which returns an exit code instead of callin
 - **A command that asks the world says what it asked and asks only when run.** `tade host domain`
   asks DNS servers and dials 443; its look takes every server and probe as an option, so a test
   hands a server on loopback and the binary is spawned only where it refuses before asking.
+- **A command that mints a credential prints it once, and what it is every time.** `tade web pair
+  --owner` puts the session on standard output — with `--json` that is the credential alone, for
+  another program to keep — and `OWNER_IS_YOUR_SSH_KEY` on standard error, because whoever runs it
+  is the one deciding. Only its digest is written down.
 - **Interactive commands must end at end of input.** `readline`'s `question()` never settles on EOF,
   so a loop built on it hangs on Ctrl-D or piped input, and whatever it started keeps running.
   Iterate the interface (`for await (const line of rl)`), which ends on both EOF and close, and stop

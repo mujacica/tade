@@ -558,6 +558,30 @@ describe('Orchestrator', () => {
     expect(events.some((event) => event.type === 'tool' && event.tool === 'bash')).toBe(true)
   }, 90_000)
 
+  it('runs an owner device’s turn with the keyboard’s reach, told as the device’s', async () => {
+    // REMOTE-TADE.md §11 item 4, through a real pi: the harness's own `bash`
+    // is held as every call is with talking on, and the host lets it through,
+    // because an owner's turn is answered as a local one. What the model is
+    // told still says whose words they are, and nothing writes a `said` line.
+    arm = { how: 'owner', device: 'a1b2c3d4e5f60718' }
+    const chat = await start(
+      { tool: { name: 'bash', arguments: { command: 'echo hi' } }, finalText: 'Done.' },
+      { talking: true },
+    )
+    const events: OrchestratorEvent[] = []
+    chat.onEvent((event) => events.push(event))
+    await chat.askFrom('run echo', arm)
+    expect(chat.arm).toEqual(arm)
+    await until(() => events.some((event) => event.type === 'idle'))
+    arm = chat.arm
+    expect(refusals).toEqual([])
+    expect(events.some((event) => event.type === 'tool' && event.tool === 'bash')).toBe(true)
+    const asked = told(0)
+    expect(asked).toContain('came from an owner device')
+    expect(asked).toContain('What a paired device asked:')
+    expect(await tade.events({ types: ['said'] })).toEqual([])
+  }, 90_000)
+
   it('refuses a local arm handed to the away door, rather than running it unnarrowed', async () => {
     const chat = await start({ finalText: 'Nothing.' }, { talking: true })
     await expect(chat.askFrom('hello', { how: 'local' })).rejects.toThrow(/never a local arm/)

@@ -593,9 +593,9 @@ export class Orchestrator {
    * 1. **not running** — nothing to say it to;
    * 2. **this harness cannot be narrowed** (`canBeArmed`), which is the one
    *    that must never become a silent unrestricted run;
-   * 3. **a local arm asked for** — there is no path here for a turn that
-   *    claims to be the person's, because the one caller of this is the away
-   *    view's own door and the local path is `ask`;
+   * 3. **a local arm asked for** — nothing here claims to be the person's (an
+   *    owner device's arm reaches as far, and is still its device's turn): the
+   *    one caller is the away view's own door, and the local path is `ask`;
    * 4. **something is already in flight.** A prompt sent mid-turn is *steered
    *    into that turn* by every harness here, so a remote message arriving
    *    while the person's question is being answered would put a stranger's
@@ -613,7 +613,7 @@ export class Orchestrator {
         `Tade cannot answer a paired device here: ${this.adapter.id} ${this.unarmable}`,
       )
     }
-    if (arm.how !== 'remote') throw new Error('a turn asked for from away is never a local arm')
+    if (arm.how === 'local') throw new Error('a turn asked for from away is never a local arm')
     if (this.leased !== null || this.working) {
       throw new Error('Tade is still answering the last thing it was asked')
     }

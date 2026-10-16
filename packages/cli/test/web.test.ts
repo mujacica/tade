@@ -185,11 +185,106 @@ describe('tade web', () => {
     expect(said.stderr).toContain('--all')
   })
 
-  it('will not pair without a window, because the window is what lets a device in', async () => {
-    await tade('web', 'on')
-    const said = await tade('web', 'pair')
-    expect(said.code).toBe(1)
-    expect(said.stderr).toContain('no window is open')
+  describe('pair, from a shell on this machine', () => {
+    // REMOTE-TADE.md §11 items 3 and 4: on a box with no screen the shell is
+    // the machine, so `pair` writes a code (and `--owner` a session) itself.
+    // Neither needs a window to write; both say nothing answers until one is.
+
+    const lines = async (): Promise<Record<string, unknown>[]> =>
+      readFileSync(join(home, 'web-devices.jsonl'), 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as Record<string, unknown>)
+
+    it('refuses while the away view is off, because nothing would ever claim it', async () => {
+      const said = await tade('web', 'pair')
+      expect(said.code).toBe(1)
+      expect(said.stderr).toContain('tade web on')
+    })
+
+    it('writes a code with no window, and says nothing answers until one is open', async () => {
+      await tade('web', 'on')
+      const said = await tade('web', 'pair')
+      expect(said.code).toBe(0)
+      const link = /http:\/\/localhost:7654\/pair#t=([A-Za-z0-9_-]{27})/.exec(said.stdout)
+      expect(link).not.toBeNull()
+      // A link to `localhost` is for this machine or an SSH forward: no QR a
+      // phone would follow to its own nothing.
+      expect(said.stdout).not.toContain('█')
+      expect(said.stdout).toContain('ssh -L 7654:localhost:7654')
+      expect(said.stderr).toContain('no window is open')
+      const written = await lines()
+      expect(written).toHaveLength(1)
+      expect(written[0]).toMatchObject({ kind: 'pending', host: 'localhost:7654' })
+      // The digest, never the secret.
+      expect(JSON.stringify(written)).not.toContain(link?.[1] ?? '?')
+    })
+
+    it('draws the code where a phone could follow it, and answers --json', async () => {
+      writeFileSync(
+        join(home, 'config.yaml'),
+        'surfaces:\n  web:\n    enabled: true\n    public: tade.example.com\n',
+      )
+      const drawn = await tade('web', 'pair', '--label', 'my phone')
+      expect(drawn.code).toBe(0)
+      expect(drawn.stdout).toContain('█')
+      expect(drawn.stdout).toContain('https://tade.example.com/pair#t=')
+      const json = await tade('web', 'pair', '--json', '--read-only')
+      const got = JSON.parse(json.stdout) as Record<string, unknown>
+      expect(got.host).toBe('tade.example.com')
+      expect(String(got.url)).toMatch(/^https:\/\/tade\.example\.com\/pair#t=/)
+      expect(got.answering).toBe(false)
+      // A second code takes the first back: only the one just printed is
+      // claimable, as the window's panel has it.
+      const written = await lines()
+      expect(written.map((line) => line.kind)).toEqual(['pending', 'revoked', 'pending'])
+      expect(written[0]).toMatchObject({ label: 'my phone' })
+      expect(written[2]).toMatchObject({ scopes: ['read'] })
+      const devices = await tade('web', 'devices')
+      expect(devices.stdout).toContain(`a code from the terminal  ${String(got.device)}  unclaimed`)
+      const status = JSON.parse((await tade('web', 'status', '--json')).stdout) as {
+        codes: unknown[]
+      }
+      expect(status.codes).toHaveLength(1)
+      // And `revoke` takes it back by the id it printed, with no window.
+      const revoked = await tade('web', 'revoke', String(got.device))
+      expect(revoked.code).toBe(0)
+      expect(revoked.stdout).toContain('can no longer be used')
+      expect((await tade('web', 'devices')).stdout).toBe('no device is paired')
+    })
+
+    it('mints an owner bound to this machine, prints it once, and says what it is', async () => {
+      await tade('web', 'on')
+      env.SSH_CONNECTION = '203.0.113.9 51234 198.51.100.4 22'
+      const said = await tade('web', 'pair', '--owner', '--json', '--label', 'mac')
+      expect(said.code).toBe(0)
+      const got = JSON.parse(said.stdout) as Record<string, string>
+      expect(got.host).toBe('localhost:7654')
+      expect(got.cookie).toMatch(new RegExp(`^tade_away=${got.device}\\.[A-Za-z0-9_-]{43}$`))
+      expect(said.stderr).toContain('never over a public name')
+      const written = await lines()
+      expect(written[0]).toMatchObject({
+        kind: 'paired',
+        owner: true,
+        host: 'localhost:7654',
+        label: 'mac',
+        from: '203.0.113.9',
+      })
+      expect(JSON.stringify(written)).not.toContain(got.cookie?.split('.')[1] ?? '?')
+      const devices = await tade('web', 'devices')
+      expect(devices.stdout).toContain('owner, over SSH')
+      const listed = JSON.parse((await tade('web', 'devices', '--json')).stdout) as {
+        owner: boolean
+      }[]
+      expect(listed[0]?.owner).toBe(true)
+    })
+
+    it('will not mint an owner where nothing is this machine', async () => {
+      await tade('web', 'on', '--lan')
+      const said = await tade('web', 'pair', '--owner')
+      expect(said.code).toBe(1)
+      expect(said.stderr).toContain('bind: lan')
+    })
   })
 
   it('says it could not read the config rather than printing the defaults as answers', async () => {

@@ -117,6 +117,12 @@ export interface AwayDevice {
    * name, a place and a date.
    */
   from: string
+  /**
+   * An owner device: minted by `tade web pair --owner` over SSH, bound to this
+   * machine, its turns reaching what the keyboard does. Said on its row,
+   * first. Absent is not one.
+   */
+  owner?: boolean
   pairedAt: number
   /** What it was granted beyond names and counts, already in grant order. */
   reads: readonly string[]

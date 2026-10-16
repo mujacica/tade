@@ -90,7 +90,14 @@ export interface WebAsking {
    * now.
    */
   unlocked(): boolean
-  ask(call: AskCall, from: From): Promise<Outcome>
+  /**
+   * `here` is whether the message came in on this machine — the loopback
+   * listener and a loopback `Host` (`thisMachine`) — as the door found it, and
+   * never anything the body said. An owner device's turn reaches what the
+   * keyboard does only where it is true; anywhere else it is narrowed like any
+   * other device's (`owner.ts` has why it cannot be false for one in practice).
+   */
+  ask(call: AskCall, from: From, here: boolean): Promise<Outcome>
   stop(call: StopCall, from: From): Promise<Outcome>
 }
 

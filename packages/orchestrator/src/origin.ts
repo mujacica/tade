@@ -3,6 +3,7 @@ import {
   type Arming,
   armMay,
   armSees,
+  narrowedArm,
   needsYouHere,
   type RemoteGrant,
   type Who,
@@ -298,7 +299,9 @@ export function reachOfTool(tool: string): Reaching {
  * unchanged rather than a comment promising it.
  */
 export function allowTool(tool: string, arm: Arm): Allowed {
-  if (arm.how === 'local') return { ok: true }
+  // An owner device's turn is answered exactly as a local one (`Arm`'s owner
+  // variant has the argument): no table is asked, so none can be got wrong.
+  if (!narrowedArm(arm)) return { ok: true }
   const reaching = reachOfTool(tool)
   if (reaching.kind === 'local')
     return { ok: false, said: needsYouHere(`\`${tool}\`: ${reaching.because},`) }
@@ -487,7 +490,7 @@ export function allowMethod(
   arm: Arm,
   project: string | null = null,
 ): Allowed {
-  if (arm.how === 'local') return { ok: true }
+  if (!narrowedArm(arm)) return { ok: true }
   const found = REMOTE_METHODS[method]
   if (found === undefined) {
     return {
@@ -562,7 +565,7 @@ export function waiting(
   approvals: readonly { run: string; task: string; requestId: string; tool: string; at: number }[],
   arm: Arm,
 ): WaitingOut[] {
-  if (arm.how === 'local') {
+  if (!narrowedArm(arm)) {
     return approvals.map((one) => ({
       run: one.run,
       task: one.task,

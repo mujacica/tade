@@ -72,7 +72,7 @@ describe('the file', () => {
   })
 
   it('is no devices at all where there is no file', async () => {
-    expect(await readDevices(await home())).toEqual({ devices: [], skipped: 0 })
+    expect(await readDevices(await home())).toEqual({ devices: [], skipped: 0, pending: [] })
   })
 
   it('appends rather than rewriting, so the file is the record', async () => {
@@ -174,7 +174,7 @@ describe('the fold', () => {
       at: new Date(NOW).toISOString(),
       why: 'signed out',
     })
-    expect(devicesIn(text)).toEqual({ devices: [], skipped: 0 })
+    expect(devicesIn(text)).toEqual({ devices: [], skipped: 0, pending: [] })
   })
 
   it('lets pairing the same phone again replace the old credential', () => {

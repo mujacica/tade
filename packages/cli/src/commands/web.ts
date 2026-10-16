@@ -6,6 +6,7 @@ import {
   LAN_IS_PLAINTEXT,
   loadConfig,
   OFFLINE_NEEDS_HTTPS,
+  OWNER_IS_YOUR_SSH_KEY,
   PUSH_IS_WHILE_OPEN,
   PUSH_NEEDS_A_GESTURE,
   publicSocket,
@@ -14,13 +15,23 @@ import {
 } from '@tade/core'
 import {
   appendDevice,
+  blocksFor,
+  COOKIE,
+  codeFor,
   type Device,
   devicesPath,
+  GRANTS,
+  mintOwner,
+  PENDING_MS,
+  pairingUrl,
   reachOf,
   readDevices,
   readsOf,
   revokeAll,
+  SCOPES,
+  type Surface,
   surfaceOf,
+  writeCode,
 } from '@tade/web'
 import { heldBy } from '@tade/workbench/lock'
 import type { Command } from 'commander'
@@ -43,9 +54,14 @@ import { Exit, type Io } from '../io.ts'
 // honestly reported as *next time Tade starts* rather than silently doing
 // nothing.
 //
-// **`pair` needs the window**, because it is the window that mints the ticket
-// and the person at the machine who answers it. With no window open it says
-// so, which is the whole of what it can honestly do.
+// **`pair` writes a code, and needs no window to.** It used to only point at
+// the panel, because a ticket lived in the window's memory and the person at
+// its screen was the yes. On a box with no screen the shell is the machine:
+// the code is written into the device list as a digest, the link printed (as a
+// QR where a phone could follow it), and the listener claims it — running the
+// command was the yes (`@tade/web`'s `pending.ts` has the argument). `--owner`
+// mints an owner device the same way (`owner.ts`). With no window open both
+// say that nothing answers until one is.
 
 export function registerWeb(program: Command, io: Io, setExit: (code: number) => void): void {
   const web = program
@@ -104,40 +120,49 @@ export function registerWeb(program: Command, io: Io, setExit: (code: number) =>
 
   web
     .command('pair')
-    .description('Print a code for a device to scan. Needs an open window')
-    .action(async () => {
-      const home = tadeHome()
-      const open = await heldBy(home)
-      if (open === null) {
-        // It is the window that asks you whether to let a device in, and that
-        // keypress is the whole authorisation. Without one there is nobody to
-        // ask, so there is nothing a ticket could be worth.
-        io.err('no window is open on this home, and it is the window that lets a device in')
-        io.err('open Tade, then press the away view’s own key, or run `tade web pair` again')
-        setExit(Exit.error)
-        return
-      }
-      const said = await look()
-      if (!said.enabled) {
-        io.err('the away view is off: `tade web on` first')
-        setExit(Exit.error)
-        return
-      }
-      // **The code is the window's to mint, and this cannot mint one.** A
-      // ticket lives in the memory of the process whose server has to claim
-      // it; one made here would be claimed by nothing. There is no channel
-      // from here into the window either — the `ToolHost` is a Unix socket for
-      // the window's own child agents and must never become this — so what
-      // `tade web pair` can honestly do is point at the panel that mints one.
-      io.out(`Tade is open (pid ${open}). Open its AWAY VIEW panel for a code to scan.`)
-      io.out('It will ask you at the machine before letting the device in.')
-      const url = said.urls[0]
-      if (url !== undefined) io.out(`The page is at ${url}`)
-    })
+    .description(
+      'Let a device in from this shell: a one-time code to scan, or with --owner a session for the machine you reached this one from over SSH',
+    )
+    .option('--owner', 'an owner device: a session bound to this machine, printed once')
+    .option('--read-only', 'it may read everything and change nothing')
+    .option('--label <name>', 'what to call it in the device list')
+    .option('--json', 'machine-readable output')
+    .action(
+      async (opts: { owner?: boolean; readOnly?: boolean; label?: string; json?: boolean }) => {
+        const label = opts.label ?? ''
+        if (label.length > 120) {
+          io.err('a label is at most 120 characters')
+          setExit(Exit.invalidInput)
+          return
+        }
+        const path = defaultConfigPath()
+        const loaded = await loadConfig(path)
+        if (!loaded.ok) {
+          // Never a code minted against defaults: the port and the name a link
+          // carries are the config's, and a guessed one goes nowhere.
+          io.err(`${path} could not be read, so this cannot say where a device would go`)
+          io.err('`tade config --check` says what is wrong with it')
+          setExit(Exit.error)
+          return
+        }
+        const surface = surfaceOf(loaded.config.surfaces.web)
+        if (!surface.enabled) {
+          io.err('the away view is off: `tade web on` first')
+          setExit(Exit.error)
+          return
+        }
+        const window = (await heldBy(tadeHome())) !== null
+        const pairing = { label, json: opts.json === true, window }
+        if (opts.owner === true) await pairOwner(io, setExit, surface, pairing)
+        else await pairCode(io, setExit, surface, { ...pairing, readOnly: opts.readOnly === true })
+      },
+    )
 
   web
     .command('devices')
-    .description('Every paired device: what it may read, and when it was paired')
+    .description(
+      'Every paired device, owners marked, and every code nobody has used yet: what each may read, and when',
+    )
     .option('--json', 'machine-readable output')
     .action(async (opts: { json?: boolean }) => {
       const read = await readDevices(tadeHome())
@@ -149,25 +174,34 @@ export function registerWeb(program: Command, io: Io, setExit: (code: number) =>
       if (read.skipped > 0) {
         io.err(`${read.skipped} line(s) of ${devicesPath(tadeHome())} could not be read`)
       }
-      if (live.length === 0) {
-        io.out('no device is paired')
-        return
-      }
-      const width = Math.max(...live.map((one) => (one.label || 'a device').length))
+      const codes = read.pending.filter((code) => code.until > Date.now())
+      if (live.length === 0) io.out('no device is paired')
+      const width = Math.max(0, ...live.map((one) => (one.label || 'a device').length))
       for (const one of live) {
         const reads = readsOf(reachOf(one))
         io.out(
           `${(one.label || 'a device').padEnd(width)}  ${one.id}  paired ${when(one.pairedAt)}  ${
-            reads.length === 0 ? 'names and counts' : reads.join(', ')
+            // An owner reads everything and its reach is the keyboard's, so
+            // the word that matters is that one, said first.
+            one.owner
+              ? 'owner, over SSH'
+              : reads.length === 0
+                ? 'names and counts'
+                : reads.join(', ')
           }`,
         )
       }
-      io.out(AGENTS)
+      // **Every way in there is, not only the ones used**: a code nobody has
+      // claimed yet is a credential too, and `revoke` takes it by this id.
+      for (const code of codes) {
+        io.out(`a code from the terminal  ${code.id}  unclaimed, ${left(code.until)}`)
+      }
+      if (live.length > 0 || codes.length > 0) io.out(AGENTS)
     })
 
   web
     .command('revoke [device]')
-    .description('Disconnect one device, or every one. Needs no network')
+    .description('Disconnect one device or an unused code, or every one. Needs no network')
     .option('--all', 'every device')
     .action(async (device: string | undefined, opts: { all?: boolean }) => {
       const home = tadeHome()
@@ -183,6 +217,19 @@ export function registerWeb(program: Command, io: Io, setExit: (code: number) =>
       }
       const read = await readDevices(home)
       const found = read.devices.find((one) => one.id === device && one.revoked === null)
+      const code = read.pending.find((one) => one.id === device)
+      if (found === undefined && code !== undefined) {
+        // A code nobody claimed: one `revoked` line, and the listener's claim
+        // finds nothing — the window need not be open to hear it.
+        await appendDevice(home, {
+          kind: 'revoked',
+          device: code.id,
+          at: new Date().toISOString(),
+          why: 'revoked at the machine',
+        })
+        io.out('that code can no longer be used')
+        return
+      }
       if (found === undefined) {
         io.err(`no paired device called ${device}`)
         setExit(Exit.invalidInput)
@@ -231,6 +278,8 @@ export interface Looked {
   /** Where a phone would go. Empty where nothing could reach it. */
   urls: readonly string[]
   devices: ReturnType<typeof asJson>[]
+  /** Codes `tade web pair` wrote that nobody has used, and are still good. */
+  codes: { device: string; host: string; until: string }[]
   /** Lines of the device list that could not be read. */
   skipped: number
 }
@@ -271,6 +320,13 @@ async function look(): Promise<Looked> {
       ? [...trusted, ...(surface.bind === 'loopback' ? [`http://localhost:${surface.port}/`] : [])]
       : [],
     devices: read.devices.filter((one) => one.revoked === null).map(asJson),
+    codes: read.pending
+      .filter((code) => code.until > Date.now())
+      .map((code) => ({
+        device: code.id,
+        host: code.host,
+        until: new Date(code.until).toISOString(),
+      })),
     skipped: read.skipped,
   }
 }
@@ -334,6 +390,8 @@ function lines(said: Looked): string[] {
       ? 'no device is paired'
       : `${said.devices.length} device(s) paired — \`tade web devices\``,
   )
+  if (said.codes.length > 0)
+    out.push(`${said.codes.length} code(s) from \`tade web pair\` not used yet`)
   if (said.skipped > 0) out.push(`${said.skipped} line(s) of the device list could not be read`)
   return out
 }
@@ -349,8 +407,157 @@ function asJson(device: Device) {
     scopes: device.scopes,
     reads: readsOf(reachOf(device)),
     projects: device.projects,
+    owner: device.owner,
   }
 }
+
+/** How long a code has left, in the plain words a terminal gets. */
+function left(until: number): string {
+  const minutes = Math.ceil((until - Date.now()) / 60_000)
+  return minutes <= 1 ? 'under a minute left' : `${minutes} minutes left`
+}
+
+/** What both kinds of pairing were asked for. */
+interface Pairing {
+  label: string
+  json: boolean
+  /** Whether a window is open on this home, which is what answers a link. */
+  window: boolean
+}
+
+/**
+ * A one-time code, written down for the listener to claim (`@tade/web`'s
+ * `pending.ts`, which has the argument): running this is the yes the window's
+ * panel would have asked for, so nobody is asked again when it is used.
+ *
+ * The QR only where a phone could follow it — an `https` name or a LAN
+ * address — because a code for `localhost` scans perfectly and opens the
+ * phone's own nothing; that link is for this machine, or a browser at the far
+ * end of an SSH forward.
+ */
+async function pairCode(
+  io: Io,
+  setExit: (code: number) => void,
+  surface: Surface,
+  pairing: Pairing & { readOnly: boolean },
+): Promise<void> {
+  const base = pairingUrl(surface)
+  if (base === null) {
+    io.err('no network: nothing could reach this machine, so a code would go nowhere')
+    setExit(Exit.error)
+    return
+  }
+  const host = new URL(base).host
+  const written = await writeCode(
+    tadeHome(),
+    {
+      host,
+      label: pairing.label,
+      // Everything, opt-out, as the window's own yes is (`EVERYTHING`); the
+      // origin's ceiling still holds at the claim (`scopesOn`).
+      scopes: pairing.readOnly ? ['read'] : [...SCOPES],
+      projects: null,
+      granted: [...GRANTS],
+    },
+    Date.now(),
+  )
+  const url = `${base}#t=${written.secret}`
+  const until = new Date(written.until).toISOString()
+  if (pairing.json) {
+    io.out(
+      JSON.stringify(
+        { device: written.device, url, host, until, answering: pairing.window },
+        null,
+        2,
+      ),
+    )
+    if (!pairing.window) io.err(NOTHING_ANSWERS)
+    return
+  }
+  const phone = base.startsWith('https://') || surface.bind === 'lan'
+  const code = phone ? codeFor(url) : null
+  if (code !== null) for (const line of blocksFor(code)) io.out(line)
+  io.out(url)
+  const minutes = Math.round(PENDING_MS / 60_000)
+  io.out(
+    phone
+      ? `scan it with a phone’s camera, or open the link — once, within ${minutes} minutes`
+      : `open it on this machine, or in a browser through \`ssh -L ${surface.port}:localhost:${surface.port}\` — once, within ${minutes} minutes`,
+  )
+  io.out(
+    pairing.readOnly
+      ? 'it may read everything and change nothing'
+      : 'full access: it may read and do whatever is turned on here, and the AWAY VIEW panel takes any of it back',
+  )
+  if (surface.bind === 'lan') io.out(LAN)
+  io.out(`\`tade web revoke ${written.device}\` takes the code back before anybody uses it`)
+  if (!pairing.window) io.err(NOTHING_ANSWERS)
+}
+
+/**
+ * An owner device: a session minted here and printed once, for the Tade on
+ * the machine you reached this one from (`@tade/web`'s `owner.ts`).
+ *
+ * Refused on a `lan` bind, where there is no loopback listener and so no door
+ * an owner could ever be answered at — a credential that can never work is a
+ * line in the device list for nothing.
+ */
+async function pairOwner(
+  io: Io,
+  setExit: (code: number) => void,
+  surface: Surface,
+  pairing: Pairing,
+): Promise<void> {
+  if (surface.bind === 'lan') {
+    io.err('the away view listens on the network (`bind: lan`), where nothing is this machine,')
+    io.err('so an owner session could never be used: `tade web on` without --lan first')
+    setExit(Exit.error)
+    return
+  }
+  const owner = await mintOwner(
+    tadeHome(),
+    {
+      port: surface.port,
+      label: pairing.label || 'owner',
+      from: sshClient(process.env.SSH_CONNECTION),
+    },
+    Date.now(),
+  )
+  const said = {
+    device: owner.device,
+    // The whole pair, ready for a `Cookie:` header: over the loopback listener
+    // it is plain HTTP, so the name is the one without `__Host-`.
+    cookie: `${COOKIE}=${owner.cookie}`,
+    csrf: owner.csrf,
+    host: owner.host,
+    until: new Date(owner.until).toISOString(),
+  }
+  if (pairing.json) io.out(JSON.stringify(said, null, 2))
+  else {
+    io.out(`owner device ${said.device}, for ${said.host}, until ${said.until.slice(0, 10)}`)
+    io.out(`cookie: ${said.cookie}`)
+    io.out(`csrf: ${said.csrf}`)
+  }
+  // On standard error, so `--json` is the credential alone: said every time,
+  // because whoever runs this is the one deciding.
+  io.err(OWNER_IS_YOUR_SSH_KEY)
+  if (!surface.talking) {
+    io.err(
+      'talking to Tade from a device is off here, so its messages are refused until `surfaces.web.orchestrator` is on',
+    )
+  }
+  if (!pairing.window) io.err(NOTHING_ANSWERS)
+}
+
+/** The address an SSH connection came from, or empty for a shell on this machine. */
+function sshClient(connection: string | undefined): string {
+  const first = connection?.trim().split(/\s+/)[0] ?? ''
+  return /^[0-9a-fA-F.:]{2,64}$/.test(first) ? first : ''
+}
+
+/** Said wherever something was minted with no window to answer it. */
+const NOTHING_ANSWERS =
+  'no window is open on this home, so nothing answers until one is: the away view lives in the window'
 
 /** Whether a setting written now is a listener now. It is not. */
 async function takesEffect(): Promise<string> {

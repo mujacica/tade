@@ -54,7 +54,7 @@ import { awayView, codeShownOn, keepCode, mintPairing } from './web-panel.ts'
 import { PublicHealth } from './web-public.ts'
 import { pushFor, type WebPush } from './web-push.ts'
 import { letGoOfRevoked, revokeEvery, revokeOne, type Sessions } from './web-sessions.ts'
-import { toldTo } from './web-told.ts'
+import { heard, toldTo } from './web-told.ts'
 
 // The window's end of the away view: the server's lifetime, the pairing panel,
 // and the beat that moves the projection on.
@@ -275,7 +275,11 @@ export class Away implements Subject {
       }),
       tickets: this.tickets,
       streams: this.streams,
-      tell: (told) => void this.log(told),
+      tell: heard(
+        this.log,
+        (said) => this.deps.news(said),
+        () => this.reread(),
+      ),
       now: () => this.wire.now(),
     })
     this.server = server

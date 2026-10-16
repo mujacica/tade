@@ -111,7 +111,11 @@ an unnamed one is refused.
   where no window answers `updates/read`), so the tool table is the only gate for it — which is
   why reads whose answer is wider than a read grant are `local` even though they change nothing.
 - Only where a turn runs under a remote arm does any of this apply. A local turn is checked against
-  nothing, which is the type saying it rather than a comment promising it (`Arm`).
+  nothing, which is the type saying it rather than a comment promising it (`Arm`) — and so is an
+  **owner device's** turn (`{ how: 'owner' }`, minted only by `tade web pair --owner` over SSH and
+  usable only on this machine), whose reach is the keyboard's while `whoOf` still names the device.
+  So a gate asks `narrowedArm(arm)`, never `arm.how === 'local'`: the second answers an owner as a
+  phone, which is the narrowing the owner channel exists to lift.
 
 ## Steps
 

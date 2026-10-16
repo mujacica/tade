@@ -1,5 +1,5 @@
 import type { Arm } from '@tade/core'
-import { chatRev } from '@tade/web'
+import { chatRev, digestOf, GRANTS, SCOPES, writeDevices } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import { AWAY_CONTROLS, awayPanel } from '../../src/panels/away/state.ts'
 import { PLAIN } from '../../src/skin.ts'
@@ -13,6 +13,7 @@ import {
   type Machine,
   machine,
   paired,
+  SECRET,
   waitFor,
 } from './away-harness.ts'
 
@@ -89,7 +90,49 @@ describe('one message, all the way through', () => {
     await ask(one.port, 'ask', { was: revOf(), key: KEY, rev: 0, said: 'park the flaky one' })
     expect(one.armed).toEqual([{ how: 'remote', device: DEVICE, projects: null, may: ['steer'] }])
   })
+
+  it('gives an owner device the keyboard’s reach on this machine, and still writes it down as the device’s', async () => {
+    // REMOTE-TADE.md §11 item 4: a session `tade web pair --owner` minted,
+    // bound to this machine, presented on the loopback listener. Every gate
+    // answers its turn as a local one; nothing records it as the person.
+    const one = await machine({ talking: true })
+    await owned(one.home, one.port)
+    await one.away.open()
+    const answer = await ask(one.port, 'ask', {
+      was: revOf(),
+      key: KEY,
+      rev: 0,
+      said: 'start the flaky-test task',
+    })
+    expect(answer.status).toBe(200)
+    expect(one.armed).toEqual([{ how: 'owner', device: DEVICE }])
+    expect(one.said).toEqual([{ text: 'start the flaky-test task', device: DEVICE }])
+    const lines = await waitFor(one.client, 'web_asked')
+    expect(lines[0]?.detail).toMatchObject({ device: DEVICE, tool: 'ask', why: 'done' })
+    expect(await one.client.events({ types: ['said'] })).toEqual([])
+  })
 })
+
+/** An owner device in the file, as `mintOwner` writes one, for the harness's cookie. */
+async function owned(home: string, port: number): Promise<void> {
+  await writeDevices(home, [
+    {
+      kind: 'paired',
+      device: DEVICE,
+      at: new Date().toISOString(),
+      label: 'mac',
+      digest: digestOf(SECRET),
+      host: `127.0.0.1:${port}`,
+      csrf: 'x'.repeat(43),
+      until: new Date(Date.now() + 86_400_000).toISOString(),
+      scopes: [...SCOPES],
+      projects: null,
+      granted: [...GRANTS],
+      from: '',
+      owner: true,
+    },
+  ])
+}
 
 describe('a message that is refused', () => {
   it('is a `404` with talking turned off, which is the path nobody built', async () => {

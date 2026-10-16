@@ -5,7 +5,7 @@ import { type Admitted, REVISIONS_BEHIND, type Standing } from './acts.ts'
 import { ASK_BOUND, type WebAsking } from './asking.ts'
 import { type Refusal, refuse } from './errors.ts'
 import type { Claimed, Receipts } from './receipts.ts'
-import { type Scope, trusted } from './surface.ts'
+import { type Scope, thisMachine, trusted } from './surface.ts'
 import { KEY } from './verbs.ts'
 
 // One message to Tade, from a parsed body to what the device is told and what
@@ -81,7 +81,8 @@ export interface Saying {
   payload: string
   /** Tade's own words for what this asks for. Never the message itself. */
   said: string
-  run(asking: WebAsking, from: From): Promise<Outcome>
+  /** `here` is `thisMachine` of the request's origin, as the door found it. */
+  run(asking: WebAsking, from: From, here: boolean): Promise<Outcome>
 }
 
 /** Reading a body came to a `Saying`, or it did not. */
@@ -108,7 +109,7 @@ export function readAsk(body: unknown): ReadingAsk {
       // and what somebody typed on a phone is not a record Tade writes about
       // them. The length is a count, which is a thing Tade may say.
       said: `said ${call.said.length} characters to Tade`,
-      run: (asking, from) => asking.ask({ was: call.was, said: call.said }, from),
+      run: (asking, from, here) => asking.ask({ was: call.was, said: call.said }, from, here),
     },
   }
 }
@@ -282,7 +283,10 @@ export async function carryAsk(verb: string, body: unknown, ctx: Telling): Promi
   let outcome: Outcome
   try {
     outcome = await ctx.receipts.while(saying.key, () =>
-      saying.run(ctx.asking, { how: 'remote', device: ctx.device }),
+      // Whether it came in on this machine is the door's answer and never the
+      // body's: the window gives an owner device's turn the local reach only
+      // where it did (`Arm`'s owner variant).
+      saying.run(ctx.asking, { how: 'remote', device: ctx.device }, thisMachine(ctx.origin)),
     )
   } catch (error) {
     // The conversation moved under the caller, there is nothing to stop, this

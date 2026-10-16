@@ -1,4 +1,7 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
+import { networkInterfaces } from 'node:os'
+import { routesOf } from '@tade/core'
+import type { Surface } from './surface.ts'
 
 // Pairing tickets: 160 random bits, one use, ninety seconds, in memory only.
 //
@@ -25,7 +28,10 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 // ask, then delete it on success — is wrong in every one of those five ways.
 //
 // In memory and never on disk: a ticket outliving the window that printed it
-// would be a ninety-second secret with no ninety seconds in it.
+// would be a ninety-second secret with no ninety seconds in it. **The one
+// exception is a code the terminal wrote** (`pending.ts`, which has the
+// argument), and what this store keeps of one is the synchronous half of its
+// burn (`spend`).
 
 /** How long a ticket is good for. Long enough to walk to the phone. */
 export const TICKET_MS = 90_000
@@ -45,6 +51,11 @@ export interface Ticket {
 
 /** Why a claim found nothing, in Tade's own words for the journal. */
 export type NotClaimed = 'unknown' | 'expired' | 'used'
+
+/** A ticket's value: 160 random bits, base64url, the one shape `couldBeTicket` admits. */
+export function ticketValue(): string {
+  return randomBytes(TICKET_BYTES).toString('base64url')
+}
 
 export type Claim = { ok: true; ticket: Ticket } | { ok: false; why: NotClaimed }
 
@@ -67,6 +78,8 @@ export class Tickets {
    * still refused — being able to name it is not being able to use it.
    */
   private readonly burnt: string[] = []
+  /** The ids of written codes this process has claimed (`spend`). */
+  private readonly spent: string[] = []
 
   private readonly ms: number
   private readonly most: number
@@ -87,7 +100,7 @@ export class Tickets {
    */
   mint(base: string, now: number): Ticket {
     this.forget(now)
-    const value = randomBytes(TICKET_BYTES).toString('base64url')
+    const value = ticketValue()
     const ticket: Ticket = { value, at: now, url: `${base}#t=${value}` }
     this.held.set(value, ticket)
     // Oldest first, so the ceiling drops a ticket that was about to expire
@@ -136,6 +149,23 @@ export class Tickets {
     return [...this.held.values()].sort((a, b) => b.at - a.at)
   }
 
+  /**
+   * Burn a code the terminal wrote, by its id: `true` the first time, `false`
+   * after.
+   *
+   * **Synchronous, and that is the whole of it** — the reason `claim` is. The
+   * disk's own burn is a `claimed` line, and an append has an `await` in it:
+   * two requests with one code that both read the file before either line
+   * landed would otherwise both be told they were first. Kept for as long as
+   * the burnt values are; past that the `claimed` line has long since landed.
+   */
+  spend(id: string): boolean {
+    if (this.spent.includes(id)) return false
+    this.spent.push(id)
+    while (this.spent.length > this.most * 4) this.spent.shift()
+    return true
+  }
+
   /** Drop every outstanding ticket: the panel closed, or Tade is stopping. */
   clear(): void {
     for (const value of this.held.keys()) this.burn(value)
@@ -173,6 +203,30 @@ export class Tickets {
       }
     }
   }
+}
+
+/**
+ * Where a phone should go, as a URL with no ticket on it yet.
+ *
+ * On a `lan` bind it is a reachable address — `routesOf`'s rule, so never a
+ * link-local and never loopback, because a code for one of those scans
+ * perfectly and goes nowhere. On a loopback bind it is `localhost`, which is
+ * also what `tailscale serve` connects to.
+ *
+ * Here, beside the tickets, because two things put a ticket on it: the
+ * window's pairing panel, and `tade web pair` writing a code (`pending.ts`).
+ */
+export function pairingUrl(surface: Surface): string | null {
+  // A trusted host first, when somebody named one: that is the `https` origin
+  // a proxy terminates for, and it is the only one worth printing when it
+  // exists, because it is the one that keeps working off this wifi.
+  const trusted = surface.trustedHosts[0]
+  if (trusted !== undefined) return `https://${trusted}/pair`
+  if (surface.bind === 'loopback') return `http://localhost:${surface.port}/pair`
+  const address = routesOf(networkInterfaces())[0]
+  if (address === undefined) return null
+  const host = address.includes(':') ? `[${address}]` : address
+  return `http://${host}:${surface.port}/pair`
 }
 
 /**

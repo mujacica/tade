@@ -488,6 +488,37 @@ describe('what the panel never carries', () => {
     expect(text).toMatch(/reads\s+\(names\)\s+\(states\)\s+\(counts\)/)
     expect(text).not.toContain('192.168')
   })
+
+  it('says an owner is one before anything else about it, and how it came in', () => {
+    // REMOTE-TADE.md §11 item 4: its turns reach what the keyboard does, which
+    // the boxes cannot say on their own — so the row's first word says it.
+    const text = said(
+      {
+        devices: [
+          {
+            id: '00112233445566aa',
+            label: 'mac',
+            from: 'over SSH',
+            owner: true,
+            pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
+            reads: [],
+            mayAct: true,
+            mayTalk: true,
+            maySee: true,
+            mayStop: true,
+            mayClose: true,
+            mayReadSettings: true,
+            mayConfigure: true,
+            full: true,
+            live: true,
+          },
+        ],
+      },
+      { height: 64 },
+    )
+    expect(text).toMatch(/owner · over SSH · paired/)
+    expect(text).not.toContain('from over SSH')
+  })
 })
 
 describe('letting one device act', () => {

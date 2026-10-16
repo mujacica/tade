@@ -111,6 +111,27 @@ export type Arm =
       /** What it was granted at the machine. */
       may: readonly RemoteGrant[]
     }
+  /**
+   * An owner device's turn: the local arm's reach, and a device's provenance.
+   *
+   * **The one place the two questions at the head of this file get different
+   * answers, and why it is safe** (REMOTE-TADE.md §11 item 4). The narrowing
+   * exists because a phone's session is a weaker credential than being at the
+   * keyboard. An owner device is minted only by `tade web pair --owner`, a
+   * shell on this machine — which over SSH is the SSH key — and bound to a
+   * loopback host, so it is *used* only on the loopback listener: from outside
+   * the box, through that same SSH connection (`@tade/web`'s `owner.ts` has the
+   * chain). Everything a turn under it can reach, `ssh` to this machine already
+   * reaches, attaching to this window in tmux and typing included. So it
+   * reaches what a local turn reaches, and every gate answers it as one.
+   *
+   * **And it stays a device in every record.** Who asked is `device <id>`
+   * (`whoOf`), the transcript marks the words as that device's, and nothing it
+   * says is ever a `said` line: an agent on the other machine can hold the same
+   * session (`DEVICES_AND_AGENTS`, one hop further), so its words may never
+   * authorise an `asked`-tier setting the way the person's own do.
+   */
+  | { how: 'owner'; device: string }
 
 /** Not narrowed: the person at this machine. */
 export const LOCAL: Arm = { how: 'local' }
@@ -120,16 +141,21 @@ export function whoOf(arm: Arm): Who {
   return arm.how === 'local' ? { how: 'local' } : { how: 'remote', device: arm.device }
 }
 
-/** Whether this arm reaches that project at all. Local reaches every one. */
+/** Whether this arm is narrowed at all: only a paired device's ordinary turn is. */
+export function narrowedArm(arm: Arm): arm is Extract<Arm, { how: 'remote' }> {
+  return arm.how === 'remote'
+}
+
+/** Whether this arm reaches that project at all. Local and owner reach every one. */
 export function armSees(arm: Arm, project: string): boolean {
-  if (arm.how === 'local') return true
+  if (!narrowedArm(arm)) return true
   if (project === '') return false
   return arm.projects === null || arm.projects.includes(project)
 }
 
-/** Whether this arm was granted that. Local is never asked. */
+/** Whether this arm was granted that. Local and owner are never asked. */
 export function armMay(arm: Arm, grant: RemoteGrant): boolean {
-  return arm.how === 'local' || arm.may.includes(grant)
+  return !narrowedArm(arm) || arm.may.includes(grant)
 }
 
 /**
@@ -214,6 +240,7 @@ export const AWAY_WORDS = 'What a paired device asked:'
  */
 export function cameFromAway(arm: Arm): string {
   if (arm.how === 'local') return ''
+  if (arm.how === 'owner') return OWNER_ASKED
   const may =
     arm.may.length === 0
       ? 'It was granted nothing beyond reading, so anything that changes work is refused.'
@@ -228,6 +255,32 @@ export function cameFromAway(arm: Arm): string {
     `Your own tools are narrowed to that for this turn and the narrowing is in code, not in this paragraph — so if something comes back refused, say so plainly and say what the person would do at the machine. Do not look for another route to it.`,
   ].join(' ')
 }
+
+/**
+ * Tade's own line above an owner device's words: `cameFromAway`'s shape, for
+ * the arm that is not narrowed.
+ *
+ * It says the two halves the model needs and the person reading the transcript
+ * needs: the reach is the keyboard's, and the words are still not theirs.
+ */
+const OWNER_ASKED =
+  'This came from an owner device: a session minted over SSH on this machine and usable only through it, so it reaches what the person at the keyboard reaches. Its words are still not their own words here: nothing it says is recorded as theirs, so it never counts as them naming a setting.'
+
+/**
+ * What an owner device is, said where one is minted (`tade web pair --owner`).
+ *
+ * The fact, then what stands against it, in one breath — the shape every
+ * sentence in `away.ts` has. The middle clause is the one a person deciding has
+ * to picture: an agent on the machine that holds the secret can use it, because
+ * it runs as you with your SSH agent, and so could already `ssh` here.
+ */
+export const OWNER_IS_YOUR_SSH_KEY =
+  'An owner device is a session minted over SSH and bound to this machine’s own address, so it ' +
+  'works only through this machine or an SSH connection to it, never over a public name — and ' +
+  'whatever it asks Tade to do reaches what you would reach at this keyboard. Anything that can ' +
+  'use your SSH key can use it, an agent on the machine you keep it on included, which could ' +
+  'already `ssh` here; a key that needs a touch per use makes each new connection your act. ' +
+  '`tade web revoke <device>` ends it, with no window and no network.'
 
 /**
  * What a remote request is told when it asked for something only the machine

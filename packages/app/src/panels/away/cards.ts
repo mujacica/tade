@@ -139,8 +139,14 @@ export function deviceLines(
     lines.push(head.build(), row().right(out).build())
   }
 
-  const kind = kindOf(device.label)
-  const about = [kind, `from ${device.from}`, `paired ${ctx.date(device.pairedAt)}`]
+  // An owner says so before anything else about it: its reach is not a
+  // phone's, and the boxes below cannot say that on their own.
+  const kind = device.owner ? 'owner' : kindOf(device.label)
+  const about = [
+    kind,
+    device.owner ? device.from : `from ${device.from}`,
+    `paired ${ctx.date(device.pairedAt)}`,
+  ]
   for (const part of wrap(about.filter(Boolean).join(' · '), inner - 5)) {
     lines.push(row().space(4).text(part, skin.hint).build())
   }

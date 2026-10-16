@@ -15,6 +15,7 @@ import {
   type Device,
   GRANTS,
   type PairingAsk,
+  pairingUrl,
   reachOf,
   readsOf,
   SCOPES,
@@ -259,7 +260,10 @@ function deviceViews(facts: PanelFacts): AwayDevice[] {
     .map((one) => ({
       id: one.id,
       label: one.label,
-      from: whereFrom(one.from, one.host, MACHINE),
+      // An owner came in over SSH by definition (`@tade/web`'s `owner.ts`);
+      // the address it was minted from is a shell's, not a place to name.
+      from: one.owner ? 'over SSH' : whereFrom(one.from, one.host, MACHINE),
+      owner: one.owner,
       pairedAt: one.pairedAt,
       reads: readsOf(reachOf(one)),
       // Each box ticked by the table that says what pressing it writes (`BOXES`).
@@ -275,27 +279,6 @@ function deviceViews(facts: PanelFacts): AwayDevice[] {
         SCOPES.every((scope) => one.scopes.includes(scope)),
       live: facts.live.has(one.id),
     }))
-}
-
-/**
- * Where a phone should go, as a URL with no ticket on it yet.
- *
- * On a `lan` bind it is a reachable address — `routesOf`'s rule, so never a
- * link-local and never loopback, because a code for one of those scans
- * perfectly and goes nowhere. On a loopback bind it is `localhost`, which is
- * also what `tailscale serve` connects to.
- */
-export function pairingUrl(surface: Surface): string | null {
-  // A trusted host first, when somebody named one: that is the `https` origin
-  // a proxy terminates for, and it is the only one worth printing when it
-  // exists, because it is the one that keeps working off this wifi.
-  const trusted = surface.trustedHosts[0]
-  if (trusted !== undefined) return `https://${trusted}/pair`
-  if (surface.bind === 'loopback') return `http://localhost:${surface.port}/pair`
-  const address = routesOf(networkInterfaces())[0]
-  if (address === undefined) return null
-  const host = address.includes(':') ? `[${address}]` : address
-  return `http://${host}:${surface.port}/pair`
 }
 
 /**

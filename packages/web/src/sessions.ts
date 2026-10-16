@@ -64,13 +64,14 @@ export interface Minted {
 
 /**
  * A device id and a secret, from the one source of randomness worth using.
+ * The id is given only where it was minted already — a code the terminal
+ * wrote names the device it will become (`pending.ts`).
  *
  * `randomBytes` and not `Math.random`, and said here because this is the line
  * where getting it wrong would be invisible: a predictable secret fails no
  * test, serves every page correctly, and is a session anybody can mint.
  */
-export function mint(): Minted {
-  const device = randomBytes(DEVICE_BYTES).toString('hex')
+export function mint(device: string = randomBytes(DEVICE_BYTES).toString('hex')): Minted {
   const secret = randomBytes(SECRET_BYTES).toString('base64url')
   return {
     device,
