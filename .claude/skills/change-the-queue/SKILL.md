@@ -17,7 +17,8 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 | `packages/core/src/plan.ts` | a plan before it is made: `checkPlan`, `overlaps`, `wholePackage` |
 | `packages/workbench/src/packages.ts` | which folders a plan names are packages, looked up in the tree: `packagesOf` |
 | `packages/core/src/produces.ts` | what a task produces instead of code: `producesProblem`, `producesPath`, `documentsIn`, `documentsToCompact`, `producedClause` |
-| `packages/workbench/src/documents.ts` | triage, `deleteDocument`, `cleanupDocuments`, `settleDocuments` on open, `removedDocument` |
+| `packages/workbench/src/documents.ts` | triage (an approval needs the person's line), `deleteDocument`, `cleanupDocuments`, `settleDocuments` on open, `removedDocument` |
+| `packages/workbench/src/agent-tools.ts` | `tade_document_ready`: an agent handing its document over before it finishes |
 | `packages/core/src/effort.ts` | one change across repositories: `effortsIn`, `effortSays` |
 | `packages/core/src/schedule.ts` | `When`, `ScheduleDoes`, `runsOf`, `dueNow`, `watchedFrom`, `newFindings`, `standingSchedules`, `scheduleIdOf`, the words for each |
 | `packages/core/src/events.ts` | `task_done`, `effort_named`, `queue_*`, `schedule_*`, `watch_*` |
@@ -87,6 +88,33 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   research mode and no lifecycle of its own: a task is a task, and this is one optional field on it.
   And Tade **tells, it never starts**: what to do about an analysis is a judgement, and a rule that
   queued work off a document would fill the queue with guesses.
+- **A document is handed over when it is ready, not only when its task ends.** The commonest reason
+  a plan goes back to somebody is a question — which of these, is this right — and an agent that
+  asked one is not finished, so `task_done` could not carry it without starting what waits on it.
+  So its agent calls `tade_document_ready` with the one thing it needs decided (`asked`) and, by
+  default, stops (`waits`). It is one of Tade's own agent tools, registered by every harness that
+  registers `tade_done` and answered in the window like an extension's (`answerAgentTool`,
+  `workbench/src/agent-tools.ts`), so a refusal — nothing produced, nothing written yet — reaches
+  the agent as a failed call. The line is `document_ready`, `blocking` while it waits; `documentsIn`
+  puts the document on the waiting list at once, and a finish in the run that was answered keeps the
+  answer (`handed`) rather than asking the person again. **The window tells the orchestrator now**
+  (`eventTell`, `app/src/inbox.ts`), not as news: news waits for somebody to speak, and a planner
+  waiting on "A or B?" is waiting for exactly that, so the two would wait on each other. A finish
+  with a document written is told now too. What it is told is the rule at the moment — read it, say
+  where things stand, put what is next to the person, queue nothing first — and `RULES` says the
+  same, because what follows a document is the person's, put to them, never the orchestrator's.
+- **Work may wait on the person approving a document** (`after` with `approved`): plan, they
+  approve, build. Finished *and* approved, in either order (`approvedFrom`, read off `documentsIn`'s
+  newest document of that task, so the queue and the waiting list never disagree), and a document
+  handed over again is a new question that takes the approval back. It only ever holds — `waiting`
+  with `approval` — and it is refused where nobody could ever approve, on work that produces
+  nothing (`checkPlan`, `checkWaits`, `templateProblems`). **An approval is the person's**:
+  `triageDocument` takes `approved` from anybody but the person only with `said`, a line of theirs
+  the journal has them saying lately (`LINES_LOOKED_BACK`) — the `namedBy` barrier, because text an
+  agent read can never reach a `said` line, and a document asking to be approved is the case it is
+  for. Work made to wait for an approval is not anybody having acted on the document
+  (`task_created`'s `approval`), so it stays on the list until they decide. The built-in
+  `plan-approve-build` template is the shape.
 - **A plan may span repositories, so nothing in it may assume one.** An agent's project is its own
   (`PlannedAgent.project`, the plan's when unsaid, through `projectOf` — so every plan written
   before the widening means what it meant), a wait is a qualified id and resolves anywhere, and what

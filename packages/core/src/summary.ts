@@ -112,6 +112,19 @@ export function summariseWork(
         // Whatever it was holding is moot once it has gone.
         open.clear()
         break
+      // Stopped to ask the person about its document, until it is answered:
+      // decided about, told something and working again, or finished.
+      case 'document_ready':
+        if (event.detail.waits !== false) {
+          const asked = typeof event.detail.asked === 'string' ? event.detail.asked.trim() : ''
+          open.set(DOCUMENT, asked ? `a decision about its document: ${asked}` : 'a decision')
+        }
+        break
+      case 'document_triaged':
+      case 'turn_started':
+      case 'task_done':
+        open.delete(DOCUMENT)
+        break
       case 'state_change':
         if (typeof event.detail.state === 'string') summary.state = event.detail.state as TaskState
         break
@@ -126,6 +139,9 @@ export function summariseWork(
   summary.waiting = [...open.values()].at(-1) ?? null
   return summary
 }
+
+/** Where a document handed over waits among what it is waiting on: never a request's id. */
+const DOCUMENT = '\u0000document'
 
 /**
  * The same thing, as something you would say out loud. Short on purpose: down

@@ -46,6 +46,32 @@ export const TOUCHES =
   'the files it will change, by path, as you read the code: not whole folders, and not files nearly every change in this project ends up touching (its README pictures, a file-size budget) unless the work is about them. Where agents share one checkout, any listed file somebody has left uncommitted, or any file in a listed folder, holds its start'
 
 /**
+ * A wait for the person's approval as well as for a task to finish: plan, they
+ * approve, build. Here beside `TOUCHES` so `tade_plan` and `tade_queue_change`
+ * offer it in the same words, and because `tools-extension.ts` is at its budget.
+ */
+const APPROVED = {
+  type: 'boolean',
+  description:
+    'also wait for the person to approve the document that task produces, not only for it to finish: plan, they approve, build. Only for a task that produces one',
+}
+
+/** What one agent in `tade_plan` waits on, with why — the plan's spelling of `after`. */
+export const PLAN_AFTER = {
+  type: 'array',
+  description:
+    'what it waits on: other agents in this plan by name, or tasks Tade already has — in another project, as project/task',
+  items: object(
+    {
+      agent: string('an agent in this plan, or an existing task as project/task'),
+      why: string('why it has to wait, in a few words'),
+      approved: APPROVED,
+    },
+    ['agent', 'why'],
+  ),
+}
+
+/**
  * What every agent in a plan is told, said once: `tade_plan`'s own `context`,
  * written beside each task file before the agent's own. With nowhere to put a
  * brief thirteen agents shared, on 2026-10-13 their prompts each ended in
@@ -117,6 +143,7 @@ export function queueTools(
             {
               task: string('a bare name in its project, or project/task'),
               why: string('why it has to wait, in a few words'),
+              approved: APPROVED,
             },
             ['task', 'why'],
           ),

@@ -465,6 +465,47 @@ describe('a template', () => {
     expect(problems.join('\n')).toMatch(/reads a, which produces no document/)
   })
 
+  it('builds only on a plan the person approved, handed over by path', () => {
+    const read = parseTemplate('plan-approve-build', BUILT_IN_TEMPLATES['plan-approve-build'] ?? '')
+    expect(read.ok).toBe(true)
+    if (!read.ok) return
+    const fill = fillTemplate(
+      read.template,
+      args({ inputs: { project: 'shop', subject: 'refunds', request: 'charge once' } }),
+    )
+    expect(fill.ok).toBe(true)
+    if (!fill.ok) return
+    const build = fill.plan.agents.find((one) => one.name === 'build-refunds')
+    expect(build?.after).toEqual([
+      {
+        agent: 'shop/plan-refunds',
+        why: 'nothing is built until the person has approved the plan',
+        approved: true,
+      },
+    ])
+    expect(build?.context).toContain('/home/.tade/projects/shop/documents/plan-refunds/plan.md')
+  })
+
+  it('refuses waiting for the approval of an agent that produces no document', () => {
+    const problems = templateProblems(
+      template({
+        agents: [
+          {
+            name: 'b',
+            persona: 'planner',
+            prompt: 'b',
+            after: [{ agent: 'a', why: 'so', approved: true }],
+          },
+          { name: 'a', persona: 'implementer', prompt: 'a' },
+        ],
+      }),
+      { personas: personas() },
+    ).problems
+    expect(problems.join('\n')).toMatch(
+      /waits for a's document to be approved, but a produces none/,
+    )
+  })
+
   it('every one Tade ships reads, holds together, and makes a plan the engine keeps', () => {
     for (const [name, text] of Object.entries(BUILT_IN_TEMPLATES)) {
       const read = parseTemplate(name, text)

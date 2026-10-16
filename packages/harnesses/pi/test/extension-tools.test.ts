@@ -121,6 +121,46 @@ describe('extension tools in an agent', () => {
     })
   }, 90_000)
 
+  it('hands its document over through Tade, and is told why when Tade refuses', async () => {
+    // Tade's own tool, registered whether or not any extension lent one, and
+    // answered the way an extension's is: a refusal is a failed call it reads.
+    const runDir = tmp('tade-ready-')
+    model = await startFakeModel({
+      tool: { name: 'tade_document_ready', arguments: { ask: 'A or B?' } },
+      finalText: 'Waiting.',
+    })
+    adapter = new PiAdapter({
+      runDir,
+      socketDir: tmp('wr-'),
+      args: ['-e', writeProviderExtension(runDir)],
+      env: { ...process.env, TADE_TEST_BASE_URL: model.url },
+    })
+    const signals: WorkerSignal[] = []
+    adapter.onSignal('ready', (signal) => {
+      signals.push(signal)
+      if (signal.type === 'extension_call') {
+        void adapter?.answer('ready', signal.callId, {
+          ok: false,
+          text: 'nothing readable is at /h/plan.md yet',
+        })
+      }
+    })
+    await adapter.start({
+      run: 'ready',
+      task: 'shop/plan',
+      cwd: tmp('tade-ready-work-'),
+      prompt: 'plan the refunds work',
+      model: { provider: 'tade-test', id: 'fake' },
+    })
+    await until(() => signals.some((signal) => signal.type === 'extension_call'))
+    expect(signals.find((signal) => signal.type === 'extension_call')).toMatchObject({
+      tool: 'tade_document_ready',
+      input: { ask: 'A or B?' },
+    })
+    await until(() => (model?.requests.length ?? 0) >= 2)
+    expect(JSON.stringify(model.requests[1])).toContain('nothing readable is at /h/plan.md yet')
+  }, 90_000)
+
   it('lists no tools from a list that is missing or not a list', () => {
     expect(readTools(undefined)).toEqual([])
     expect(readTools('/nonexistent/tools.json')).toEqual([])

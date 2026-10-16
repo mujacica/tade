@@ -7,7 +7,7 @@ import { configTools } from './tools-config.ts'
 import { documentTools } from './tools-documents.ts'
 import { type Gateable, gateTools } from './tools-gate.ts'
 import { machineTools } from './tools-machine.ts'
-import { PLAN_CONTEXT, queueTools, stringList, TOUCHES } from './tools-queue.ts'
+import { PLAN_AFTER, PLAN_CONTEXT, queueTools, stringList, TOUCHES } from './tools-queue.ts'
 import { intakeTools, templateTools } from './tools-templates.ts'
 
 /** Where extensions live. Set by the orchestrator that launched us. */
@@ -294,18 +294,7 @@ export function orchestratorTools(
               prompt: string('what to tell the agent first'),
               done,
               produces,
-              after: {
-                type: 'array',
-                description:
-                  'what it waits on: other agents in this plan by name, or tasks Tade already has — in another project, as project/task',
-                items: object(
-                  {
-                    agent: string('an agent in this plan, or an existing task as project/task'),
-                    why: string('why it has to wait, in a few words'),
-                  },
-                  ['agent', 'why'],
-                ),
-              },
+              after: PLAN_AFTER,
               touches: stringList(TOUCHES),
               at: string(
                 'not before this time, ISO 8601 with a time zone, when it should wait for one',

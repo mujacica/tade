@@ -73,6 +73,18 @@ export const EventType = z.enum([
    */
   'task_done',
   /**
+   * An agent handed over the document its task produces before finishing:
+   * `produces` (the path), `bytes`, `missing`, `asked` — the one thing it needs
+   * the person to decide, in its words — and `waits`, whether it has stopped
+   * until they do.
+   *
+   * Its own line rather than a `task_done`, because the commonest reason a plan
+   * or an analysis goes back to somebody is a question, and an agent that asked
+   * one is not finished: work waiting on it must not start. `asked` and never
+   * `because` or `why`, which are on telemetry's allow-list.
+   */
+  'document_ready',
+  /**
    * Somebody read the document a task produced and said what they decided.
    *
    * The one thing about a document that **cannot be asked again**, which is
@@ -86,6 +98,9 @@ export const EventType = z.enum([
    * is the whole value of the record — a bare flag is a flag that goes unset.
    * The sentence is `decided` and never `because`: `because` is on telemetry's
    * allow-list, and a sentence about somebody's work never leaves the machine.
+   *
+   * `approved: true` is the person approving it, with `said`, the line of
+   * theirs that did — what queued work waiting on that approval waits for.
    */
   'document_triaged',
   /**
@@ -432,6 +447,9 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   template_used: 'notable',
   state_change: 'notable',
   task_done: 'notable',
+  // Blocking: an agent has stopped until the person decides. One that hands a
+  // draft over and carries on is written `notable` at the call.
+  document_ready: 'blocking',
   // Notable: a record nobody can reconstruct, so it is worth the fsync that
   // `notable` is the threshold for. Never `blocking` — nothing waits on it.
   document_triaged: 'notable',

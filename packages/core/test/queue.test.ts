@@ -274,6 +274,9 @@ describe('where queued work stands', () => {
   it('says where it stands in a few words', () => {
     const clock = (at: number) => new Date(at).toISOString().slice(11, 16)
     expect(describeQueueState({ kind: 'waiting', on: ['a', 'b'] }, clock)).toBe('after a and b')
+    expect(describeQueueState({ kind: 'waiting', on: ['a', 'b'], approval: ['b'] }, clock)).toBe(
+      'after a and b, once the person approves what b produced',
+    )
     expect(describeQueueState({ kind: 'scheduled', at: NOW }, clock)).toBe('at 13:00')
     expect(describeQueueState({ kind: 'ready' }, clock)).toBe('next')
     expect(describeQueueState({ kind: 'paused', all: false }, clock)).toBe('paused')

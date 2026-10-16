@@ -355,7 +355,7 @@ describe('CodexAdapter', () => {
   })
 
   describe('the tools Tade lends it', () => {
-    it('offers tade_done and whatever an extension gave it, and answers a call', async () => {
+    it('offers tade_done, tade_document_ready and whatever an extension gave it, and answers a call', async () => {
       const { adapter: one, env, spec, signals } = await setUp()
       const tools = join(tmp('tade-codex-tools-'), 'tools.json')
       writeFileSync(
@@ -385,7 +385,11 @@ describe('CodexAdapter', () => {
       const listed = JSON.parse(lines[0] ?? '{}') as {
         result: { tools: { name: string }[] }
       }
-      expect(listed.result.tools.map((tool) => tool.name)).toEqual(['deps_check', 'tade_done'])
+      expect(listed.result.tools.map((tool) => tool.name)).toEqual([
+        'deps_check',
+        'tade_document_ready',
+        'tade_done',
+      ])
 
       server.stdin.write(
         `${JSON.stringify({

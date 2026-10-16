@@ -103,7 +103,10 @@ const BUDGET: Record<string, number> = {
   // 934 -> 929 when `tade_plan` gained a `context` of its own, whose words went
   // to `tools-queue.ts` beside `TOUCHES`, and `stringList` stopped being two
   // copies of one helper.
-  'packages/orchestrator/src/tools-extension.ts': 929,
+  //
+  // 929 -> 918 when `tade_plan`'s `after` went to `tools-queue.ts` as
+  // `PLAN_AFTER`, beside the `approved` it shares with `tade_queue_change`.
+  'packages/orchestrator/src/tools-extension.ts': 918,
   // The facade is the point and stays: ~1,700 lines of it are the one object
   // the CLI, the window and the orchestrator all call, average method 19 lines,
   // already delegating to eight split collaborators — splitting a facade
@@ -113,8 +116,9 @@ const BUDGET: Record<string, number> = {
   // they can be tested as folds over a journal instead of through an open
   // workbench. 2,459 -> 2,426 when `changeQueued` went to `queue-changes.ts`,
   // as it learned to write what queued work waits on and is told; 2,421 when
-  // `guardName`'s harness keys became one method a plan asks too.
-  'packages/workbench/src/workbench.ts': 2_387,
+  // `guardName`'s harness keys became one method a plan asks too; 2,386 when
+  // an agent's tool calls went to `agent-tools.ts`, Tade's own first.
+  'packages/workbench/src/workbench.ts': 2_386,
   // 1,100 -> 1,045 when what each agent has been doing went to `doing.ts`, as
   // it learned which files each one wrote for the conflict forecast.
   'packages/workbench/src/workers.ts': 1_045,

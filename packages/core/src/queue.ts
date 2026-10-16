@@ -1,7 +1,7 @@
 import type { Finished } from './done.ts'
 import { type EventType, type TadeEvent, typeNow } from './events.ts'
 import type { DoneRule, StartCondition, TaskState } from './model.ts'
-import { producesProblem } from './produces.ts'
+import { approvedFrom, type Triage } from './produces.ts'
 import { RuntimeFold } from './runtime.ts'
 
 // Work asked for now and started later.
@@ -137,8 +137,11 @@ export interface Collision {
 }
 
 export type QueueState =
-  /** What it waits on has not finished. */
-  | { kind: 'waiting'; on: string[] }
+  /**
+   * What it waits on has not finished — or, for those in `approval`, the
+   * person has not yet approved the document it produced.
+   */
+  | { kind: 'waiting'; on: string[]; approval?: string[] }
   /** Someone has to decide: what it waits on failed, stopped or went, or it could not start. */
   | {
       kind: 'held'
@@ -412,13 +415,24 @@ function stateOf(item: Queued, facts: QueueFacts, tree: boolean): QueueState {
   // is not asked twice — not for what it waits on, and not for the tree.
   if (choices.anyway) return { kind: 'ready' }
   const on: string[] = []
+  const approval: string[] = []
+  // An approval wait waits on the person as well as on the work: finished and
+  // approved, in either order, and neither stands in for the other.
+  const approved: ReadonlyMap<string, Triage> | null = item.start.after.some((dep) => dep.approved)
+    ? approvedFrom(facts.events)
+    : null
   for (const dep of item.start.after) {
-    if (facts.finished.has(dep.task)) continue
-    const trouble = troubleWith(dep.task, facts, choices.answeredAt)
-    if (trouble) return { kind: 'held', on: dep.task, because: trouble }
+    const finished = facts.finished.has(dep.task)
+    const unapproved = dep.approved === true && !approved?.has(dep.task)
+    if (finished && !unapproved) continue
+    if (!finished) {
+      const trouble = troubleWith(dep.task, facts, choices.answeredAt)
+      if (trouble) return { kind: 'held', on: dep.task, because: trouble }
+    }
     on.push(dep.task)
+    if (unapproved) approval.push(dep.task)
   }
-  if (on.length > 0) return { kind: 'waiting', on }
+  if (on.length > 0) return { kind: 'waiting', on, ...(approval.length > 0 ? { approval } : {}) }
   const at = item.start.at ? Date.parse(item.start.at) : Number.NaN
   if (Number.isFinite(at) && at > facts.now) return { kind: 'scheduled', at }
   if (!tree) return { kind: 'ready' }
@@ -546,9 +560,17 @@ export function readyToStart(
 }
 
 /** What queued work will wait on after a change, or every reason it cannot. */
-export type WaitsCheck =
-  | { ok: true; after: { task: string; why: string }[] }
-  | { ok: false; problems: string[] }
+/**
+ * One thing queued work waits on, as its task file keeps it: a task, why, and
+ * whether it waits for the person to approve what that task produced as well.
+ */
+export interface Wait {
+  task: string
+  why: string
+  approved?: boolean
+}
+
+export type WaitsCheck = { ok: true; after: Wait[] } | { ok: false; problems: string[] }
 
 /**
  * A change to what existing queued work waits on, checked by the rules a plan
@@ -556,25 +578,29 @@ export type WaitsCheck =
  * each task named is one Tade has, nothing waits on itself, and no queued work
  * ends up waiting on itself through others — which would leave all of it
  * waiting for ever. A bare name is read in the waiting task's own project, and
- * `project/name` names a task anywhere, as a plan's waits do.
+ * `project/name` names a task anywhere, as a plan's waits do. A wait for an
+ * approval is refused on a task that produces no document, which nobody could
+ * ever approve.
  */
 export function checkWaits(req: {
   /** The queued task whose waits change, as its qualified id. */
   task: string
   /** What its task file says it waits on now. */
-  current: readonly { task: string; why: string }[]
+  current: readonly Wait[]
   /** What was asked for. */
-  after: readonly { task: string; why: string }[]
+  after: readonly Wait[]
   /** The list replaces what it waits on, rather than being added to it. */
   replace: boolean
   /** Every task Tade has, by qualified id. */
   tasks: ReadonlySet<string>
   /** What other queued work waits on; work that has started waits on nothing. */
   waits: (task: string) => readonly string[]
+  /** Whether a task says it produces a document; unsaid, nothing is refused for it. */
+  produces?: (task: string) => boolean
 }): WaitsCheck {
   const problems: string[] = []
   const here = req.task.split('/')[0] ?? req.task
-  const added: { task: string; why: string }[] = []
+  const added: Wait[] = []
   for (const dep of req.after) {
     const said = dep.task.trim()
     const task = said.includes('/') ? said : `${here}/${said}`
@@ -584,8 +610,12 @@ export function checkWaits(req: {
       problems.push(
         `${req.task} cannot wait on ${said || 'nothing'}, which is not a task Tade has: wait only on one tade_queue or tade_status lists`,
       )
+    } else if (dep.approved && req.produces && !req.produces(task)) {
+      problems.push(
+        `${req.task} cannot wait for ${task}'s document to be approved: ${task} produces none, so wait for it to finish instead`,
+      )
     } else if (!added.some((one) => one.task === task)) {
-      added.push({ task, why: dep.why.trim() })
+      added.push({ task, why: dep.why.trim(), ...(dep.approved ? { approved: true } : {}) })
     }
   }
   if (!req.replace && req.after.length === 0) {
@@ -628,14 +658,14 @@ export function inheritWaits(req: {
   /** The queued task that waited on the removed one. */
   task: string
   /** What its task file says it waits on now. */
-  current: readonly { task: string; why: string }[]
+  current: readonly Wait[]
   removed: string
   /** What the removed task waited on. */
-  waits: readonly { task: string; why: string }[]
-}): { task: string; why: string }[] {
+  waits: readonly Wait[]
+}): Wait[] {
   // A wait it already has keeps its place and its own reason.
   const own = new Set(req.current.map((dep) => dep.task))
-  const after: { task: string; why: string }[] = []
+  const after: Wait[] = []
   for (const dep of req.current) {
     if (after.some((one) => one.task === dep.task)) continue
     if (dep.task !== req.removed) {
@@ -646,7 +676,9 @@ export function inheritWaits(req: {
     for (const its of req.waits) {
       if (its.task === req.task || its.task === req.removed || own.has(its.task)) continue
       if (after.some((one) => one.task === its.task)) continue
-      after.push({ task: its.task, why: dep.why ? `${dep.why}; ${instead}` : instead })
+      // An approval the removed task waited for is one this waited for through it.
+      const why = dep.why ? `${dep.why}; ${instead}` : instead
+      after.push({ task: its.task, why, ...(its.approved ? { approved: true } : {}) })
     }
   }
   return after
@@ -739,11 +771,20 @@ export function joined(items: readonly string[]): string {
   return `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`
 }
 
+/**
+ * What queued work waits on the person for, as a clause after what it waits
+ * on: ", once the person approves what plan produced". Nothing when nothing.
+ */
+export function approvalSays(approval: readonly string[] | undefined): string {
+  if (!approval || approval.length === 0) return ''
+  return `, once the person approves what ${joined(approval)} produced`
+}
+
 /** Where queued work stands, in a few words. */
 export function describeQueueState(state: QueueState, clock: (at: number) => string): string {
   switch (state.kind) {
     case 'waiting':
-      return `after ${joined(state.on)}`
+      return `after ${joined(state.on)}${approvalSays(state.approval)}`
     case 'held':
       return `held: ${state.because}`
     case 'scheduled':

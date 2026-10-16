@@ -1,6 +1,6 @@
 import type { DoneRule } from './model.ts'
 import { producesProblem } from './produces.ts'
-import { joined } from './queue.ts'
+import { joined, type Wait } from './queue.ts'
 
 // A plan: several agents, each one repository's share of one change, and
 // whether the shape of it holds together before any of it is made.
@@ -53,8 +53,12 @@ export interface PlannedAgent {
    * joined into the instruction.
    */
   context?: string
-  /** Other agents in the plan, or tasks already there, it waits on — with why. */
-  after: { agent: string; why: string }[]
+  /**
+   * Other agents in the plan, or tasks already there, it waits on — with why,
+   * and `approved` where it waits for the person to approve the document that
+   * one produces as well as for it to finish: plan, you approve, build.
+   */
+  after: { agent: string; why: string; approved?: boolean }[]
   touches: string[]
   at?: string
   model?: string
@@ -104,7 +108,7 @@ export type PlanCheck =
       /** Every agent after everything it waits on. */
       order: PlannedAgent[]
       /** Each `after` as the task id it names, by the waiting agent's own task id. */
-      waitsOn: ReadonlyMap<string, { task: string; why: string }[]>
+      waitsOn: ReadonlyMap<string, Wait[]>
       warnings: string[]
     }
   | { ok: false; problems: string[] }
@@ -151,6 +155,12 @@ export interface PlanContext {
    * them. Unsaid, the repository's root is the only package there is.
    */
   packages?: (project: string) => readonly string[]
+  /**
+   * Whether a task Tade already has says it produces a document, so a wait for
+   * its approval can be refused where there will never be one. Unsaid, only
+   * the plan's own agents are checked.
+   */
+  produces?: (task: string) => boolean
 }
 
 /**
@@ -212,11 +222,12 @@ export function checkPlan(plan: Plan, context: PlanContext): PlanCheck {
     byName.set(agent.name, [...(byName.get(agent.name) ?? []), agent])
   }
   const inPlan = new Set(plan.agents.map(idOf))
-  const waitsOn = new Map<string, { task: string; why: string }[]>()
+  const waitsOn = new Map<string, Wait[]>()
+  const ids = new Map(plan.agents.map((agent) => [idOf(agent), agent]))
   for (const agent of plan.agents) {
     const here = projectOf(plan, agent)
     const mine = idOf(agent)
-    const deps: { task: string; why: string }[] = []
+    const deps: Wait[] = []
     for (const dep of agent.after) {
       const task = named(dep.agent)
       if (task === undefined) continue
@@ -230,7 +241,15 @@ export function checkPlan(plan: Plan, context: PlanContext): PlanCheck {
         problems.push(`${agent.name} cannot wait on itself`)
         continue
       }
-      deps.push({ task, why: dep.why })
+      // An approval nobody could ever give is a wait for ever.
+      const planned = ids.get(task)
+      if (dep.approved && (planned ? !planned.produces : context.produces?.(task) === false)) {
+        problems.push(
+          `${agent.name} waits for ${dep.agent}'s document to be approved, but ${dep.agent} produces none: say what it produces, or wait for it to finish`,
+        )
+        continue
+      }
+      deps.push({ task, why: dep.why, ...(dep.approved ? { approved: true } : {}) })
     }
     waitsOn.set(mine, deps)
 

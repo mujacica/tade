@@ -76,9 +76,10 @@ import { git, readCommits } from '@tade/status'
 import type { Reporter } from '@tade/telemetry'
 import { parse as parseYaml } from 'yaml'
 import { type AccountView, harnessAccount, listAccounts, planSources } from './accounts.ts'
+import { answerAgentTool } from './agent-tools.ts'
 import { recordAuthored } from './authored.ts'
 import { checksGate, checksTold, sharesCheckout } from './checks.ts'
-import { documentsFolder, removedDocument, settleDocuments } from './documents.ts'
+import { documentsFolder, removedDocument, settleDocuments, waitedDetail } from './documents.ts'
 import { chooseDriver, troubleSaid } from './driver-choice.ts'
 import { EventLog, readJournal } from './events.ts'
 import { accountKey, adapterKey, HARNESS_ADAPTERS, type HarnessOptions } from './harnesses.ts'
@@ -396,11 +397,9 @@ export class Workbench {
         onTitle: (task, title, named) => {
           void setTitle(opts.home, task, title, named).catch(() => {})
         },
-        // A tool an agent calls runs in this process, where the extensions are.
-        onExtensionCall: async (call) => {
-          if (!opts.extensions) throw new Error('Tade has no extensions loaded')
-          return opts.extensions.call({ ...call, project: call.task.split('/')[0] ?? '' })
-        },
+        // A tool an agent calls runs in this process: Tade's own, or an extension's.
+        onExtensionCall: (call) =>
+          answerAgentTool({ home: opts.home, log, extensions: opts.extensions }, call),
         // And so does a second reading of what it is about to run. Left out
         // where there are no extensions, which is the gate Tade has on its own.
         ...(opts.extensions
@@ -990,7 +989,7 @@ export class Workbench {
         ...(req.by ? { by: req.by } : {}),
         ...(req.done ? { done: req.done } : {}),
         ...(req.produces ? { produces: req.produces } : {}),
-        ...(req.start ? { after: req.start.after.map((dep) => dep.task) } : {}),
+        ...(req.start ? waitedDetail(req.start.after) : {}),
         ...(req.start?.at ? { at: req.start.at } : {}),
         ...preparedDetail(task.prepared),
       },

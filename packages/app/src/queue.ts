@@ -267,8 +267,11 @@ export function whyStarting(item: Queued, facts: QueueFacts): string {
   )
   if (anyway) return 'it was started anyway'
   const waited = item.start.after.map((dep) => dep.task)
+  const approved = item.start.after.filter((dep) => dep.approved).map((dep) => dep.task)
   if (waited.length > 0) {
-    return `${joined(waited)} ${waited.length === 1 ? 'has' : 'have'} finished`
+    return `${joined(waited)} ${waited.length === 1 ? 'has' : 'have'} finished${
+      approved.length > 0 ? ` and the person approved what ${joined(approved)} produced` : ''
+    }`
   }
   if (item.start.at) return 'its time came'
   return 'there was room for it'
@@ -462,7 +465,11 @@ export function nowSays(
   if (!state) return `${task} is not queued any more`
   switch (state.kind) {
     case 'waiting':
-      return `${task} waits on ${joined(state.on)}, and starts by itself once ${state.on.length === 1 ? 'that has' : 'they have'} finished`
+      return `${task} waits on ${joined(state.on)}, and starts by itself once ${state.on.length === 1 ? 'that has' : 'they have'} finished${
+        state.approval
+          ? ` and the person has approved what ${joined(state.approval)} produced — tade_document_triage with approved, in their words, once they have`
+          : ''
+      }`
     case 'held':
       // What the tree holds heals: the look that finds the files settled
       // starts it (`collides`). Nothing else does — trouble with what it waits

@@ -117,6 +117,26 @@ describe('summariseWork', () => {
     expect(answered.waiting).toBeNull()
   })
 
+  it('waits on the person while a document it handed over is unanswered', () => {
+    const ready = event({
+      type: 'document_ready',
+      urgency: 'blocking',
+      detail: { produces: '/h/plan.md', asked: 'A or B?', waits: true },
+    })
+    const waiting = summariseWork([ready], 'checkout/refunds', NOW)
+    expect(waiting.waiting).toBe('a decision about its document: A or B?')
+    expect(describeWork(waiting, NOW)).toContain(
+      'It is waiting on a decision about its document: A or B?.',
+    )
+    // Answered by a decision, by being told something, or by finishing — and
+    // a draft handed over by an agent that carries on was never a wait.
+    for (const type of ['document_triaged', 'turn_started', 'task_done'] as const) {
+      expect(summariseWork([ready, event({ type })], 'checkout/refunds', NOW).waiting).toBe(null)
+    }
+    const draft = event({ type: 'document_ready', detail: { produces: '/h/p.md', waits: false } })
+    expect(summariseWork([draft], 'checkout/refunds', NOW).waiting).toBe(null)
+  })
+
   it('stops waiting when the agent is gone', () => {
     const summary = summariseWork(
       [

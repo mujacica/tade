@@ -395,6 +395,56 @@ describe('a plan', () => {
   })
 })
 
+describe('a plan that waits on the person approving a document', () => {
+  const agent = (name: string, over: Partial<PlannedAgent> = {}): PlannedAgent => ({
+    name,
+    said: name,
+    prompt: name,
+    after: [],
+    touches: [],
+    ...over,
+  })
+  const context = {
+    workspace: () => 'checkout' as const,
+    tasks: new Set(['shop/research', 'shop/fix']),
+    produces: (task: string) => task === 'shop/research',
+  }
+  const plan = (agents: PlannedAgent[]): Plan => ({ project: 'shop', said: 'plan it', agents })
+
+  it('carries the approval onto the wait it makes', () => {
+    const check = checkPlan(
+      plan([
+        agent('plan', { produces: 'plan.md' }),
+        agent('build', { after: [{ agent: 'plan', why: 'builds it', approved: true }] }),
+      ]),
+      context,
+    )
+    expect(check.ok && check.waitsOn.get('shop/build')).toEqual([
+      { task: 'shop/plan', why: 'builds it', approved: true },
+    ])
+  })
+
+  it('refuses one on work that produces nothing, in the plan or already there', () => {
+    const check = checkPlan(
+      plan([
+        agent('plan'),
+        agent('build', {
+          after: [
+            { agent: 'plan', why: 'builds it', approved: true },
+            { agent: 'fix', why: 'after the fix', approved: true },
+            { agent: 'research', why: 'reads it', approved: true },
+          ],
+        }),
+      ]),
+      context,
+    )
+    expect(check.ok ? [] : check.problems).toEqual([
+      "build waits for plan's document to be approved, but plan produces none: say what it produces, or wait for it to finish",
+      "build waits for fix's document to be approved, but fix produces none: say what it produces, or wait for it to finish",
+    ])
+  })
+})
+
 describe('a placeholder left in the prompts', () => {
   // The plan the orchestrator sent at 06:53 PDT on 2026-10-13, as it sent it
   // but for a home directory written as ~. Thirteen of its prompts end in

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { EventType, TadeEvent } from '../src/events.ts'
 import {
   actedOnSays,
+  approvedFrom,
   compactedSays,
   documentMovedTo,
   documentsIn,
@@ -339,6 +340,7 @@ describe('a document somebody has decided about', () => {
       by: 'person',
       decided: 'nothing follows: it argues for what we already do',
       at: at(2),
+      approved: false,
     })
     expect(producedClause(one!)).toContain(
       'person read it and decided: nothing follows: it argues for what we already do',
@@ -450,5 +452,97 @@ describe('what has been done about a document', () => {
     expect(actedOnSays({ followed: ['app/one'], reused: true })).toBe(
       'app/one was queued off it, and its own agent was started again',
     )
+  })
+})
+
+describe('a document handed over before its task finished', () => {
+  const ready = (minute: number, detail: Record<string, unknown> = {}) =>
+    event(
+      'document_ready',
+      'app/plan',
+      { produces: 'p/plan.md', asked: 'A or B?', waits: true, bytes: 2048, ...detail },
+      minute,
+    )
+  const done = (minute: number) =>
+    event(
+      'task_done',
+      'app/plan',
+      { by: 'agent', produces: 'p/plan.md', summary: 'planned' },
+      minute,
+    )
+  const triaged = (minute: number, detail: Record<string, unknown> = {}) =>
+    event(
+      'document_triaged',
+      'app/plan',
+      { path: 'p/plan.md', by: 'orchestrator', decided: 'they chose B', ...detail },
+      minute,
+    )
+
+  it('is waiting at once, with what its agent asked and that it has not finished', () => {
+    const [one] = documentsIn([ready(1)])
+    expect(one).toMatchObject({
+      task: 'app/plan',
+      path: 'p/plan.md',
+      state: 'written',
+      asked: 'A or B?',
+      finished: false,
+      bytes: 2048,
+      triaged: null,
+    })
+    expect(waitingDocuments([one!], Date.UTC(2026, 8, 15, 10))).toHaveLength(1)
+    // What it asked is said until somebody answers it, in its agent's words.
+    expect(producedClause(one!)).toBe(
+      'produced p/plan.md (2048 bytes), and nothing has been done about it yet; its agent asks: A or B?',
+    )
+  })
+
+  it('is asked again when it is handed over again, and the earlier answer is not this one', () => {
+    const [one] = documentsIn([ready(1), triaged(2), ready(3, { asked: 'Is B right now?' })])
+    expect(one?.triaged).toBe(null)
+    expect(one?.asked).toBe('Is B right now?')
+  })
+
+  it('keeps the answer when its agent finishes the run that was answered', () => {
+    // Handed over, answered, finished: the finish is not a new question, so
+    // the document is not put back on the list as unread.
+    const [one] = documentsIn([ready(1), triaged(2, { approved: true }), done(3)])
+    expect(one).toMatchObject({ finished: true, summary: 'planned', asked: 'A or B?' })
+    expect(one?.triaged).toMatchObject({ decided: 'they chose B', approved: true })
+    expect(waitingDocuments([one!], Date.UTC(2026, 8, 15, 10))).toEqual([])
+  })
+
+  it('is a new document when its task was opened again before it finished', () => {
+    const reopened = event('run_started', 'app/plan', {}, 3)
+    const [one] = documentsIn([ready(1), triaged(2), reopened, done(4)])
+    expect(one?.triaged).toBe(null)
+    expect(one?.asked).toBe('')
+  })
+
+  it('is not acted on by work made to wait for its approval', () => {
+    const build = event(
+      'task_created',
+      'app/build',
+      { after: ['app/plan'], approval: ['app/plan'] },
+      2,
+    )
+    const other = event('task_created', 'app/docs', { after: ['app/plan'] }, 3)
+    const [one] = documentsIn([ready(1), build, other])
+    expect(one?.followed).toEqual(['app/docs'])
+  })
+
+  it('is approved only by a triage that says so, and until it is asked again', () => {
+    expect(approvedFrom([ready(1), triaged(2)]).has('app/plan')).toBe(false)
+    const yes = approvedFrom([ready(1), triaged(2, { approved: true, said: 'yes, B' })])
+    expect(yes.get('app/plan')).toMatchObject({ by: 'orchestrator', approved: true })
+    // Finishing keeps it; handing it over again is a new question.
+    expect(approvedFrom([ready(1), triaged(2, { approved: true }), done(3)]).has('app/plan')).toBe(
+      true,
+    )
+    expect(approvedFrom([ready(1), triaged(2, { approved: true }), ready(3)]).has('app/plan')).toBe(
+      false,
+    )
+    expect(
+      actedOnSays({ triaged: { by: 'orchestrator', decided: 'B', at: at(2), approved: true } }),
+    ).toBe('orchestrator read it and approved it: B')
   })
 })

@@ -9,7 +9,8 @@ import { ask, SOCKET } from './ask.ts'
 // window's own process — where the extension's settings and credentials are —
 // and the answer comes back as the tool's result. `tade_done` is always here:
 // it is how an agent says its task is finished, which is what starts the work
-// that waits on it.
+// that waits on it — and so is `tade_document_ready`, answered by Tade like an
+// extension's tool.
 
 interface ToolSpec {
   name: string
@@ -37,6 +38,34 @@ const DONE: ToolSpec = {
   },
 }
 
+/**
+ * How an agent hands the person its document before it has finished: the one
+ * moment a plan or an analysis most often goes back to somebody is a question.
+ * Run in Tade like any of its tools, so a refusal comes back as one.
+ */
+const DOCUMENT_READY: ToolSpec = {
+  name: 'tade_document_ready',
+  description:
+    'Hand the person the document your task produces, when it is written or updated and something needs their decision before the work goes on — which option, whether the plan is right, what to do next. Tade tells the orchestrator at once: it reads your document, sums up where things stand for the person and puts your question to them. Then stop and wait: their answer comes to you as a message. Pass wait: false only to say a draft is there to read while you carry on. When the work is finished and nothing needs deciding, call tade_done instead — that hands the document over too.',
+  parameters: {
+    type: 'object',
+    properties: {
+      ask: {
+        type: 'string',
+        description:
+          'The one thing the person needs to decide, in a line: the question, with the options if there are some.',
+      },
+      wait: {
+        type: 'boolean',
+        description:
+          'Whether you have stopped until they answer: leave it out when you need their decision, false only when you carry on regardless.',
+      },
+    },
+    required: ['ask'],
+    additionalProperties: false,
+  },
+}
+
 function listed(path: string | undefined): ToolSpec[] {
   if (!path) return []
   try {
@@ -53,7 +82,7 @@ function listed(path: string | undefined): ToolSpec[] {
   }
 }
 
-const tools = [...listed(process.env.TADE_EXTENSION_TOOLS), DONE]
+const tools = [...listed(process.env.TADE_EXTENSION_TOOLS), DOCUMENT_READY, DONE]
 
 const send = (message: unknown): void => {
   process.stdout.write(`${JSON.stringify(message)}\n`)

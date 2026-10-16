@@ -280,3 +280,91 @@ describe('waits handed on by a removal', () => {
     expect(queueStateOf(item, facts(true))).toEqual({ kind: 'ready' })
   })
 })
+
+describe('a wait for the person’s approval of a document', () => {
+  // Plan, you approve, build: the builder waits on the planner finishing and
+  // on the person approving what it wrote, in either order.
+  const build: Queued = {
+    task: 'tade/a',
+    project: 'tade',
+    parked: false,
+    start: {
+      after: [{ task: 'tade/b', why: 'builds the plan', approved: true }],
+      prompt: 'build it',
+      touches: [],
+    },
+  }
+  const plan = { produces: '/h/documents/b/plan.md' }
+  const ready = () => event('document_ready', 'tade/b', { ...plan, asked: 'Is this right?' })
+  const finished = () => event('task_done', 'tade/b', { by: 'agent', ...plan })
+  const triaged = (approved: boolean) =>
+    event('document_triaged', 'tade/b', {
+      path: plan.produces,
+      by: 'orchestrator',
+      decided: approved ? 'they approved it' : 'asked them about the second step',
+      ...(approved ? { approved: true, said: 'yes, go' } : {}),
+    })
+  const facts = (events: TadeEvent[], done: boolean) => ({
+    tasks: new Map([
+      ['tade/b', { state: done ? ('review' as const) : ('working' as const), reason: '' }],
+    ]),
+    finished: new Map(done ? [['tade/b', { at: '', by: 'agent', summary: '' }]] : []),
+    events,
+    now: 0,
+  })
+
+  it('waits for the approval after the task it names has finished', () => {
+    expect(queueStateOf(build, facts([finished()], true))).toEqual({
+      kind: 'waiting',
+      on: ['tade/b'],
+      approval: ['tade/b'],
+    })
+    // A decision that is not an approval is not one.
+    expect(queueStateOf(build, facts([finished(), triaged(false)], true)).kind).toBe('waiting')
+    expect(queueStateOf(build, facts([finished(), triaged(true)], true))).toEqual({ kind: 'ready' })
+  })
+
+  it('waits for the task to finish after the approval, so an answer never starts work alone', () => {
+    const answered = [ready(), triaged(true)]
+    expect(queueStateOf(build, facts(answered, false))).toEqual({
+      kind: 'waiting',
+      on: ['tade/b'],
+    })
+    expect(queueStateOf(build, facts([...answered, finished()], true))).toEqual({ kind: 'ready' })
+  })
+
+  it('waits again when the document is handed over again, which is a new question', () => {
+    const asked = [ready(), triaged(true), ready(), finished()]
+    expect(queueStateOf(build, facts(asked, true))).toMatchObject({ approval: ['tade/b'] })
+  })
+
+  it('is refused on a task that produces no document, which nobody could ever approve', () => {
+    const refused = check({
+      after: [{ task: 'b', why: 'builds it', approved: true }],
+      produces: (task) => task !== 'tade/b',
+    })
+    expect(refused).toEqual({
+      ok: false,
+      problems: [
+        "tade/a cannot wait for tade/b's document to be approved: tade/b produces none, so wait for it to finish instead",
+      ],
+    })
+    expect(
+      check({
+        after: [{ task: 'c', why: 'builds it', approved: true }],
+        produces: () => true,
+      }),
+    ).toEqual({ ok: true, after: [{ task: 'tade/c', why: 'builds it', approved: true }] })
+  })
+
+  it('is handed on by a removal, because the work waited for it through the task removed', () => {
+    expect(
+      inheritWaits({
+        task: 'tade/a',
+        current: [{ task: 'tade/b', why: '' }],
+        removed: 'tade/b',
+        waits: [{ task: 'tade/c', why: 'the plan', approved: true }],
+      }),
+    ).toEqual([{ task: 'tade/c', why: 'in place of tade/b, which was removed', approved: true }])
+  })
+})

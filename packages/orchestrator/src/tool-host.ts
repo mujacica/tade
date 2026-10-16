@@ -693,7 +693,8 @@ function planOf(p: Record<string, unknown>): Plan {
         ...(agent.produces ? { produces: text(agent.produces) } : {}),
         after: (Array.isArray(agent.after) ? agent.after : []).map((dep) => {
           const one = (dep ?? {}) as Record<string, unknown>
-          return { agent: text(one.agent), why: text(one.why) }
+          const approved = one.approved === true ? { approved: true } : {}
+          return { agent: text(one.agent), why: text(one.why), ...approved }
         }),
         touches: (Array.isArray(agent.touches) ? agent.touches : []).map(text).filter(Boolean),
         ...(agent.at ? { at: text(agent.at) } : {}),
@@ -755,14 +756,20 @@ function dependentsOf(value: unknown): 'hold' | 'inherit' {
  * `task`, is the plan's spelling of the same thing, so it is read rather than
  * refused; one naming nothing reaches the rule as nothing, and is refused there.
  */
-function waitsOf(value: unknown[]): { task: string; why: string }[] {
+function waitsOf(value: unknown[]): { task: string; why: string; approved?: boolean }[] {
   return value.map((one) => {
     if (typeof one === 'string') return { task: one, why: '' }
-    const dep = (one ?? {}) as { task?: unknown; agent?: unknown; why?: unknown }
+    const dep = (one ?? {}) as {
+      task?: unknown
+      agent?: unknown
+      why?: unknown
+      approved?: unknown
+    }
     const task = typeof dep.task === 'string' ? dep.task : dep.agent
     return {
       task: typeof task === 'string' ? task : '',
       why: typeof dep.why === 'string' ? dep.why : '',
+      ...(dep.approved === true ? { approved: true } : {}),
     }
   })
 }

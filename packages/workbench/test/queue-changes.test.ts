@@ -106,6 +106,42 @@ describe('changing queued work', () => {
     })
   })
 
+  it('keeps a wait for the person’s approval in the task file, and refuses one nobody could give', async () => {
+    // Plan, you approve, build — made as one plan, then one more wait written on.
+    await client.planTasks({
+      project: 'app',
+      said: 'plan the refunds work, and build it once I have approved the plan',
+      agents: [
+        agent('plan', { produces: 'plan.md' }),
+        agent('build', { after: [{ agent: 'plan', why: 'builds the plan', approved: true }] }),
+      ],
+    })
+    expect((await readTaskFile(home, 'app/build'))?.start?.after).toEqual([
+      { task: 'app/plan', why: 'builds the plan', approved: true },
+    ])
+    // Work made to wait for an approval is not anybody having acted on it.
+    const [made] = await client.events({ types: ['task_created'], task: 'app/build' })
+    expect(made?.detail).toMatchObject({ after: ['app/plan'], approval: ['app/plan'] })
+
+    const start = await client.changeQueued({
+      task: 'app/three',
+      change: 'after',
+      after: [{ task: 'plan', why: 'reads it', approved: true }],
+      by: 'orchestrator',
+    })
+    expect(start?.after).toEqual([{ task: 'app/plan', why: 'reads it', approved: true }])
+    await expect(
+      client.changeQueued({
+        task: 'app/three',
+        change: 'after',
+        after: [{ task: 'one', why: 'after it', approved: true }],
+        by: 'orchestrator',
+      }),
+    ).rejects.toThrow(
+      "app/three cannot wait for app/one's document to be approved: app/one produces none, so wait for it to finish instead",
+    )
+  })
+
   it('refuses a wait on a task it does not have, on a removed one, or round a loop', async () => {
     await expect(
       client.changeQueued({

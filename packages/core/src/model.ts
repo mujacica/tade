@@ -58,8 +58,16 @@ export const DONE_RULE_MEANS: Readonly<Record<DoneRule, string>> = {
  * waiting — until Tade starts its agent.
  */
 export const StartCondition = z.object({
-  /** The tasks it waits on, each with why: it starts once every one has finished. */
-  after: z.array(z.object({ task: TaskId, why: z.string().default('') })).default([]),
+  /**
+   * The tasks it waits on, each with why: it starts once every one has
+   * finished — and, for one marked `approved`, once the person has approved
+   * the document it produced too (`approvedFrom`): plan, you approve, build.
+   */
+  after: z
+    .array(
+      z.object({ task: TaskId, why: z.string().default(''), approved: z.boolean().optional() }),
+    )
+    .default([]),
   /** Not before this moment, as an ISO time. */
   at: z.string().optional(),
   /** What its agent is told when it starts. */

@@ -64,6 +64,37 @@ describe('the document methods the orchestrator reaches', () => {
     expect(existsSync(path)).toBe(true)
   })
 
+  it('writes an approval down only on a line the person said, and says what it starts', async () => {
+    const approve = (said: string) =>
+      methods['documents/triage']?.({
+        task: 'app/audit',
+        path,
+        decided: 'they approved the audit',
+        approved: true,
+        said,
+      })
+    // Nothing of theirs says it: the orchestrator's own reading is not theirs.
+    await expect(approve('approved')).rejects.toThrow('nothing the person has said')
+    lines.push({
+      seq: lines.length + 1,
+      ts: new Date().toISOString(),
+      type: 'said',
+      urgency: 'notable',
+      task: null,
+      lane: null,
+      run: null,
+      detail: { text: 'Approved — go ahead and build it' },
+    })
+    expect(await approve('approved — go ahead')).toContain(
+      'the person approved what app/audit produced',
+    )
+    expect(lines.at(-1)?.detail).toMatchObject({
+      by: 'orchestrator',
+      approved: true,
+      said: 'Approved — go ahead and build it',
+    })
+  })
+
   it('deletes one as the orchestrator, with the reason it was given', async () => {
     expect(
       await methods['documents/delete']?.({ task: 'app/audit', path, why: 'they asked' }),

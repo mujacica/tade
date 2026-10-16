@@ -260,6 +260,12 @@ export function describeEvent(event: TadeEvent): string {
       return 'started'
     case 'agent_continued':
       return 'was told to carry on after the machine slept'
+    // Said like any wait on you, in a line: what the document says is the
+    // orchestrator's to tell, having read it.
+    case 'document_ready':
+      return event.detail.waits === false
+        ? 'handed over a draft of its document'
+        : 'has a document waiting on your decision'
     default:
       return event.type.replace(/_/g, ' ')
   }

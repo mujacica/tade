@@ -78,6 +78,7 @@ agents:
     expect(code).toBe(0)
     expect(stdout).toContain('bug-repro-fix-review — built in, published @1')
     expect(stdout).toContain('research-then-plan — built in, published @1')
+    expect(stdout).toContain('plan-approve-build — built in, published @1')
   })
 
   it('lists Tade’s own personas, and says the rule where somebody is reading', async () => {
@@ -98,7 +99,7 @@ agents:
   // A fresh home has no `templates/drafts` at all, and every one Tade ships
   // never has a draft: `check` used to refuse each of them over a file under
   // it, which is what every installation saw.
-  it.each(['bug-repro-fix-review', 'research-then-plan'])(
+  it.each(['bug-repro-fix-review', 'research-then-plan', 'plan-approve-build'])(
     'checks %s, which Tade ships, in a fresh home with no draft of it',
     async (name) => {
       const { code, stdout, stderr } = await tade('templates', 'check', name)

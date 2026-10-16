@@ -460,7 +460,12 @@ describe('ClaudeAdapter', () => {
       )
       adapter.onSignal(spec.run, (signal) => {
         if (signal.type === 'extension_call') {
-          void adapter.answer(spec.run, signal.callId, { ok: true, text: 'all green' })
+          // Tade's own tool comes back the way an extension's does, refused here.
+          const own = signal.tool === 'tade_document_ready'
+          void adapter.answer(spec.run, signal.callId, {
+            ok: !own,
+            text: own ? 'write the document there first' : 'all green',
+          })
         }
       })
       const lines = [
@@ -478,6 +483,12 @@ describe('ClaudeAdapter', () => {
           method: 'tools/call',
           params: { name: 'tade_done', arguments: { summary: 'fixed it' } },
         },
+        {
+          jsonrpc: '2.0',
+          id: 5,
+          method: 'tools/call',
+          params: { name: 'tade_document_ready', arguments: { ask: 'A or B?' } },
+        },
       ]
       const server = spawn(process.execPath, [MCP_PATH], {
         env: { ...process.env, ...env, TADE_EXTENSION_TOOLS: tools },
@@ -492,14 +503,22 @@ describe('ClaudeAdapter', () => {
         }
       })
       for (const line of lines) server.stdin.write(`${JSON.stringify(line)}\n`)
-      await until(() => answers.length === 4)
+      await until(() => answers.length === 5)
       server.kill()
       const by = (id: number) => answers.find((answer) => answer.id === id)?.result
       expect(((by(2)?.tools ?? []) as Array<{ name: string }>).map((tool) => tool.name)).toEqual([
         'checks_run',
+        'tade_document_ready',
         'tade_done',
       ])
       expect(by(3)).toEqual({ content: [{ type: 'text', text: 'all green' }], isError: false })
+      expect(
+        signals.find((s) => s.type === 'extension_call' && s.tool === 'tade_document_ready'),
+      ).toMatchObject({ input: { ask: 'A or B?' } })
+      expect(by(5)).toEqual({
+        content: [{ type: 'text', text: 'write the document there first' }],
+        isError: true,
+      })
       expect(signals.find((s) => s.type === 'done')).toMatchObject({ summary: 'fixed it' })
     })
   })

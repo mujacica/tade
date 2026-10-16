@@ -34,6 +34,10 @@ export function documentMethods(tade: Workbench): Record<string, Handler> {
           path: String(p.path ?? ''),
           decided: String(p.decided ?? ''),
           by: 'orchestrator',
+          // Checked against the person's own lines in the window, never here
+          // in the tool: an approval is theirs (`triageDocument`).
+          ...(p.approved === true ? { approved: true } : {}),
+          ...(typeof p.said === 'string' ? { said: p.said } : {}),
         }),
       ),
     'documents/delete': async (p) => {

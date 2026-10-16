@@ -92,6 +92,9 @@ export async function makePlan(
   // the mark of work removed so that it could be planned again.
   const started = new Set<string>()
   const unstarted = new Set<string>()
+  // Which say they produce a document, so a wait for an approval of one that
+  // never will is refused rather than left waiting for ever.
+  const producing = new Set<string>()
   const since = (deps.now ?? Date.now)() - RECENTLY
   let named: unknown
   for (const event of journal) {
@@ -102,6 +105,7 @@ export async function makePlan(
     if (event.type === 'task_created') {
       tasks.add(event.task)
       used.push(event.task)
+      if (typeof event.detail.produces === 'string') producing.add(event.task)
     } else if (event.type === 'run_started') started.add(event.task)
     else if (event.type === 'task_removed') {
       tasks.delete(event.task)
@@ -113,6 +117,7 @@ export async function makePlan(
     tasks,
     busy,
     packages: await packagesOf(deps.config, plan),
+    produces: (task) => producing.has(task),
   })
   // Every reason in one answer, names included: asked one task at a time as
   // each was made, a plan made its first task and then threw on its second,

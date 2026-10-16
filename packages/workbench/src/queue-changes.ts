@@ -6,6 +6,7 @@ import {
   type QueueChange,
   type StartCondition,
   TaskFile,
+  type Wait,
 } from '@tade/core'
 import { parse as parseYaml, stringify } from 'yaml'
 import type { EventLog } from './events.ts'
@@ -34,8 +35,12 @@ export interface QueueChangeRequest {
   change: QueueChange
   /** For `order`: the tasks, first to last. What is not named keeps its place behind. */
   order?: readonly string[]
-  /** For `after`: what it waits on, each with why; a bare name is in the task's own project. */
-  after?: readonly { task: string; why: string }[]
+  /**
+   * For `after`: what it waits on, each with why — and `approved` where it
+   * waits for the person to approve that one's document too. A bare name is in
+   * the task's own project.
+   */
+  after?: readonly Wait[]
   /** For `after`: these replace what it waited on, rather than being added to it. */
   replace?: boolean
   /** For `retell`: what its agent is told when it starts, instead of what it was. */
@@ -122,6 +127,18 @@ function waitOn(
             )
         }),
     )
+    // Whether each one an approval is asked of produces a document at all.
+    const producing = new Map<string, boolean>()
+    const here = req.task.split('/')[0] ?? ''
+    await Promise.all(
+      (req.after ?? [])
+        .filter((dep) => dep.approved)
+        .map(async (dep) => {
+          const task = dep.task.includes('/') ? dep.task.trim() : `${here}/${dep.task.trim()}`
+          const its = await readTaskFile(tade.home, task).catch(() => null)
+          producing.set(task, Boolean(its?.produces?.trim()))
+        }),
+    )
     const checked = checkWaits({
       task: req.task,
       current: file.after,
@@ -129,6 +146,7 @@ function waitOn(
       replace: req.replace === true,
       tasks,
       waits: (task) => waits.get(task) ?? [],
+      produces: (task) => producing.get(task) ?? true,
     })
     if (!checked.ok) throw new Error(checked.problems.join('; '))
     const start = await writeStart(tade.home, req.task, (kept) => {

@@ -15,8 +15,8 @@
 // then the queue starts nothing until somebody picks them up. There is no
 // schedule, no watch and no default here.
 //
-// The two examples are the two shapes the research found, and each one is
-// written the way it is to avoid a specific trap:
+// The three are the shapes the research found, and each one is written the
+// way it is to avoid a specific trap:
 //
 // - **bug-repro-fix-review** does *not* split reproducing from fixing. A
 //   tester that has to commit a failing test cannot finish in a project whose
@@ -31,6 +31,11 @@
 //   that file — handed over by path, through `reads` — and writes the plan
 //   somebody then decides on. Neither writes code, and neither queues work:
 //   a plan goes through `tade_plan`, which refuses what cannot be kept.
+// - **plan-approve-build** is the checkpoint without the ceremony: the
+//   builder waits on the planner finishing *and* on the person approving
+//   what it wrote (`after` with `approved`), so nothing is built on a plan
+//   nobody agreed to — and nothing about the approval is the orchestrator's
+//   own reading, because an approval is refused without a line of theirs.
 
 /**
  * `<name>.md` as the file would be written, by persona name.
@@ -271,5 +276,49 @@ agents:
     prompt: >-
       Read the document handed to you, then write the plan it argues for. Say
       what you would not do, and why.
+`,
+  'plan-approve-build': `template: plan-approve-build
+version: 1
+title: Plan a change, have the person approve the plan, then build it
+about: >-
+  Two agents and one decision between them. The first reads the code and
+  writes the plan, hands it to the person and waits for their answer; the
+  second starts only once the plan is finished and the person has approved
+  it, and is handed the plan by path. Nothing is built on a plan nobody
+  approved, and the approval is theirs: it is refused without a line of theirs.
+project_input: project
+said_input: request
+name_suffix: subject
+inputs:
+  project:
+    kind: project
+    about: the repository to change
+  subject:
+    kind: slug
+    about: what this one goes by — a couple of words
+  request:
+    kind: text
+    about: one line saying what you want built
+agents:
+  - name: plan
+    persona: planner
+    prompt: >-
+      Plan the change in your context file as one piece of work for one agent
+      to build: what it changes, in which files, how it is tested, and what
+      you would not do. When the plan is written, hand it to the person with
+      tade_document_ready, asking them to approve it, and wait for their
+      answer. Change the plan where they ask, and hand it over again; say you
+      are finished once they have approved it.
+  - name: build
+    persona: implementer
+    after:
+      - agent: plan
+        why: nothing is built until the person has approved the plan
+        approved: true
+    reads:
+      - plan
+    prompt: >-
+      Build the change the plan handed to you describes, as it was approved.
+      Where the code disagrees with the plan, follow the code and say where.
 `,
 }

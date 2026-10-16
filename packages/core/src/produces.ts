@@ -45,12 +45,22 @@ import { taskDir, taskDocumentsDir } from './home.ts'
 // a line in the journal (`document_deleted`), so "what happened to it" always
 // has an answer.
 //
+// **A document is handed over when it is ready, not only when its task ends**
+// (`document_ready`). The commonest reason a plan goes back to somebody is a
+// question — which of these, is this right — and an agent that asked one is
+// not finished, so `task_done` could not carry it: work waiting on the task
+// would have started on an answer nobody gave. Handed over, it is on the list
+// at once, with what its agent asked (`asked`), and the window tells the
+// orchestrator then rather than with the next thing somebody says.
+//
 // There is no research mode and no lifecycle of its own: a task is a task, and
 // this is one optional field on it.
 //
 // Pure: the journal in, what is waiting out. Nothing here starts anything —
 // what to do about an analysis is a judgement, and a rule that queued work off
-// a document would fill the queue with somebody's guesses.
+// a document would fill the queue with somebody's guesses. What may wait on
+// one is work somebody already planned, for the person's approval of it
+// (`approvedFrom`), which only ever makes a start later.
 
 /**
  * Why a name cannot be what a task produces, or null when it can.
@@ -146,8 +156,12 @@ export interface Document {
   state: DocumentState
   /** What its agent said when it finished. */
   summary: string
-  /** When it finished, as the journal wrote it. */
+  /** When it finished, or was handed over, as the journal wrote it. */
   at: string
+  /** What its agent asked the person to decide when it handed it over; empty when nothing. */
+  asked: string
+  /** Its task has finished since it was last handed over, rather than waiting on somebody. */
+  finished: boolean
   /**
    * When the file went — deleted, or with its task — or null while it is there.
    *
@@ -184,6 +198,8 @@ export interface Triage {
   /** Their sentence. Never reworded, and never sent anywhere. */
   decided: string
   at: string
+  /** The person approved it, in a line of theirs: what an approval wait waits for. */
+  approved: boolean
 }
 
 /**
@@ -194,6 +210,7 @@ export interface Triage {
 export const DOCUMENT_EVENTS = [
   'task_created',
   'task_done',
+  'document_ready',
   'task_removed',
   'run_started',
   'document_triaged',
@@ -228,6 +245,8 @@ export function documentsIn(events: readonly TadeEvent[]): Document[] {
     out.set(keyOf(one.task, one.path), one)
     byTask.set(one.task, [...(byTask.get(one.task) ?? []).filter((o) => o.path !== one.path), one])
   }
+  /** Documents last handed over by their agent in a run that has not been started again since. */
+  const handed = new Set<string>()
   for (const event of events) {
     const task = event.task
     if (!task) continue
@@ -287,15 +306,44 @@ export function documentsIn(events: readonly TadeEvent[]): Document[] {
       continue
     }
     if (event.type === 'run_started') {
-      for (const one of mine) one.reused = true
+      for (const one of mine) {
+        one.reused = true
+        handed.delete(keyOf(task, one.path))
+      }
+      continue
+    }
+    if (event.type === 'document_ready') {
+      const path = said(event.detail.produces)
+      if (!path) continue
+      const was = mine.find((one) => one.path === path)
+      const missing = event.detail.missing === true
+      // Handed over again is asked again: whatever was decided about what it
+      // said before is not a decision about this, so the triage starts empty.
+      // What was queued off it, and its agent having been started again, are
+      // still true of the task.
+      keep({
+        ...fresh(task, path, event.ts),
+        state: missing ? 'missing' : 'written',
+        summary: was?.summary ?? '',
+        asked: said(event.detail.asked),
+        finished: false,
+        missing,
+        bytes: typeof event.detail.bytes === 'number' ? event.detail.bytes : null,
+        followed: was?.followed ?? [],
+        reused: was?.reused ?? false,
+      })
+      handed.add(keyOf(task, path))
       continue
     }
     if (event.type === 'task_created') {
       const after = Array.isArray(event.detail.after) ? event.detail.after.map(String) : []
+      // Work made to wait on the person approving it is not anybody acting on
+      // it: it is the plan waiting for exactly the decision this list is for.
+      const approval = Array.isArray(event.detail.approval) ? event.detail.approval.map(String) : []
       // Only work made *after* it finished: a plan written before the research
       // ran always names it, and that is the plan waiting, not somebody
       // deciding what the document turned out to say.
-      for (const waited of after) {
+      for (const waited of after.filter((one) => !approval.includes(one))) {
         for (const one of byTask.get(waited) ?? []) {
           if (!one.followed.includes(task)) one.followed.push(task)
         }
@@ -315,7 +363,12 @@ export function documentsIn(events: readonly TadeEvent[]): Document[] {
         // against.** A task reopened and finished again has written something
         // else, and a verdict on what it used to say is not a verdict on that.
         if (when(event.ts) < when(one.at)) continue
-        one.triaged = { by: said(event.detail.by) || 'unknown', decided, at: event.ts }
+        one.triaged = {
+          by: said(event.detail.by) || 'unknown',
+          decided,
+          at: event.ts,
+          approved: event.detail.approved === true,
+        }
       }
       continue
     }
@@ -323,15 +376,50 @@ export function documentsIn(events: readonly TadeEvent[]): Document[] {
     const path = said(event.detail.produces)
     if (!path) continue
     const missing = event.detail.missing === true
+    // **Finishing the run somebody decided about is not asking again.** An
+    // agent that handed its document over, was answered and then finished
+    // keeps that answer, so a plan approved before its agent said it was done
+    // is not put back on the list as unread — but a task opened again since
+    // (`run_started` clears `handed`) has written something else.
+    const was = mine.find((one) => one.path === path)
+    const carried = was && handed.has(keyOf(task, path)) ? was : null
+    handed.delete(keyOf(task, path))
     keep({
       ...fresh(task, path, event.ts),
       state: missing ? 'missing' : 'written',
       summary: said(event.detail.summary),
+      asked: carried?.asked ?? '',
       missing,
       bytes: typeof event.detail.bytes === 'number' ? event.detail.bytes : null,
+      followed: carried?.followed ?? [],
+      reused: carried?.reused ?? false,
+      triaged: carried?.triaged ?? null,
     })
   }
   return [...out.values()]
+}
+
+/**
+ * The tasks whose document the person has approved, and how: what queued work
+ * that waits on an approval (`after` with `approved`) waits for.
+ *
+ * Read off `documentsIn`, its task's newest document, so the queue and the
+ * list of what is waiting can never disagree about whether one was approved:
+ * handed over again is asked again, and finishing the run that was answered
+ * keeps the answer — so work that waits on the task finishing *and* on the
+ * approval starts on whichever comes second. Only a triage that says
+ * `approved` approves: a decision written as anything else — "asked them
+ * which", "they want X changed" — is a decision that it is not, yet.
+ */
+export function approvedFrom(events: readonly TadeEvent[]): Map<string, Triage> {
+  const newest = new Map<string, Document>()
+  for (const one of documentsIn(events)) {
+    const was = newest.get(one.task)
+    if (!was || when(one.at) >= when(was.at)) newest.set(one.task, one)
+  }
+  const out = new Map<string, Triage>()
+  for (const [task, one] of newest) if (one.triaged?.approved) out.set(task, one.triaged)
+  return out
 }
 
 /** A document with nothing come of it yet, as a line about it first says. */
@@ -342,6 +430,8 @@ function fresh(task: string, path: string, at: string): Document {
     state: 'written',
     summary: '',
     at,
+    asked: '',
+    finished: true,
     removedAt: null,
     missing: false,
     bytes: null,
@@ -474,6 +564,8 @@ export function producedClause(one: {
   reused?: boolean
   triaged?: Triage | null
   deleted?: Deletion | null
+  /** What its agent asked the person when it handed it over. */
+  asked?: string
 }): string {
   if (one.state === 'deleted') {
     const by = one.deleted?.by ?? 'somebody'
@@ -486,7 +578,10 @@ export function producedClause(one: {
       : `produced ${one.path}, and it was removed with its task — ${actedOnSays(one)}`
   }
   if (one.missing) return `said it would produce ${one.path} and did not write it`
-  return `produced ${one.path}${documentSize(one.bytes)}, and ${actedOnSays(one)}`
+  // What it asked is said until somebody has answered it, in its agent's own
+  // words: the question is the thing the person is being asked to decide.
+  const asked = one.asked?.trim() && !one.triaged ? `; its agent asks: ${one.asked.trim()}` : ''
+  return `produced ${one.path}${documentSize(one.bytes)}, and ${actedOnSays(one)}${asked}`
 }
 
 /**
@@ -552,6 +647,9 @@ export function compactedSays(taken: readonly Compactable[], done: boolean): str
 
 /** What was written down about one, as the answer to having written it. */
 export function triagedSays(one: Document): string {
+  if (one.triaged?.approved) {
+    return `Written down: the person approved what ${one.task} produced — ${one.triaged.decided}. It is no longer listed as waiting, and queued work waiting on that approval starts by itself once ${one.task} has finished.`
+  }
   return `Written down: ${one.task} — ${one.triaged?.decided ?? ''}. It is no longer listed as waiting.`
 }
 
@@ -569,7 +667,10 @@ export function actedOnSays(one: {
   if (one.reused) parts.push('its own agent was started again')
   // Last, and in their own words: whatever else happened, what somebody
   // decided is the thing worth reading, and it is never reworded.
-  if (one.triaged) parts.push(`${one.triaged.by} read it and decided: ${one.triaged.decided}`)
+  if (one.triaged) {
+    const how = one.triaged.approved ? 'approved it' : 'decided'
+    parts.push(`${one.triaged.by} read it and ${how}: ${one.triaged.decided}`)
+  }
   return parts.length === 0 ? 'nothing has been done about it yet' : parts.join(', and ')
 }
 

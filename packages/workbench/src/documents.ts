@@ -11,11 +11,13 @@ import {
   documentsToCompact,
   type EventFilter,
   type EventInput,
+  LINES_LOOKED_BACK,
   producesPath,
   producesProblem,
   type TadeEvent,
   taskDir,
   taskDocumentsDir,
+  type Wait,
 } from '@tade/core'
 import { producedDetail, readTaskFile } from './tasks.ts'
 
@@ -76,6 +78,13 @@ export interface TriageRequest {
   /** Their sentence. Never reworded, and never sent anywhere. */
   decided: string
   by?: string
+  /** The person approves it: what queued work waiting on its approval waits for. */
+  approved?: boolean
+  /**
+   * The line of the person's that approves it, word for word, when the one
+   * writing it down is not the person themselves.
+   */
+  said?: string
 }
 
 /**
@@ -88,6 +97,14 @@ export interface TriageRequest {
  * be a second answer, and the first one is somebody's. Refused with no
  * sentence, because the sentence is the whole of the record and a bare flag is
  * the flag that goes unset.
+ *
+ * **An approval is the person's**, because it is what starts work planned to
+ * wait for it, and a document or an agent asking to be approved is precisely
+ * what it is there to stop. So one written by anybody but the person carries
+ * a line of theirs (`said`) that the journal has them saying lately — the
+ * barrier `namedBy` is for settings: text an agent read can never get into a
+ * `said` line. It can follow a decision that was not one — "asked them which"
+ * is usually what comes before it — but never another approval.
  */
 export async function triageDocument(deps: DocumentDeps, req: TriageRequest): Promise<Document> {
   const decided = req.decided.trim()
@@ -99,22 +116,65 @@ export async function triageDocument(deps: DocumentDeps, req: TriageRequest): Pr
       `${path || '(no path)'} is not a document ${req.task} produced: tade_documents says which there are`,
     )
   }
-  if (found.triaged) {
+  if (found.triaged && (found.triaged.approved || !req.approved)) {
     throw new Error(
       `${req.task} was already decided about by ${found.triaged.by}: ${found.triaged.decided}`,
     )
   }
-  const triaged = {
-    by: req.by ?? 'unknown',
-    decided,
-    at: (deps.now?.() ?? new Date()).toISOString(),
-  }
+  const by = req.by ?? 'unknown'
+  const approved = req.approved === true
+  const said = approved && by !== 'person' ? await theirLine(deps, req.said ?? '') : null
+  const triaged = { by, decided, at: (deps.now?.() ?? new Date()).toISOString(), approved }
   await deps.log.append({
     type: 'document_triaged',
     task: req.task,
-    detail: { path, by: triaged.by, decided },
+    detail: {
+      path,
+      by,
+      decided,
+      ...(approved ? { approved: true } : {}),
+      ...(said ? { said } : {}),
+    },
   })
   return { ...found, triaged }
+}
+
+/**
+ * The line of the person's an approval quotes, as they said it, or a refusal
+ * saying what to do instead. Matched with case and spacing set aside, inside
+ * one of the last lines they said (`LINES_LOOKED_BACK`): "yes, go with B" is
+ * theirs when they said "Yes, go with B — and keep it small".
+ */
+async function theirLine(deps: DocumentDeps, quoted: string): Promise<string> {
+  const plain = (text: string) => text.toLowerCase().replace(/\s+/g, ' ').trim()
+  const want = plain(quoted)
+  if (!want) {
+    throw new Error(
+      'an approval is the person’s: pass the line of theirs that approves it, word for word, as said — and where they have not said one, ask them',
+    )
+  }
+  const lines = await deps.log.read({ types: ['said'], limit: LINES_LOOKED_BACK }).catch(() => [])
+  const theirs = lines.flatMap((event) =>
+    typeof event.detail.text === 'string' ? [event.detail.text] : [],
+  )
+  const line = theirs.find((one) => plain(one).includes(want))
+  if (!line) {
+    throw new Error(
+      `nothing the person has said lately is "${quoted.trim()}", so this is not their approval: ask them, and pass their own words`,
+    )
+  }
+  return line
+}
+
+/**
+ * What work made to wait says it waits on, for its `task_created` line: every
+ * task, and which of them it waits for the person to approve the document of
+ * — work queued to wait for that approval is the plan waiting for the decision,
+ * never somebody having acted on the document (`documentsIn`).
+ */
+export function waitedDetail(after: readonly Wait[]): { after: string[]; approval?: string[] } {
+  const approval = after.filter((dep) => dep.approved).map((dep) => dep.task)
+  return { after: after.map((dep) => dep.task), ...(approval.length > 0 ? { approval } : {}) }
 }
 
 /** What reading, moving and deleting documents needs: the journal, and the home they are in. */

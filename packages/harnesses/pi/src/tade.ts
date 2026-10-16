@@ -298,8 +298,9 @@ export default function tadeExtension(pi: PiApi): void {
 
   dial()
 
-  // Tade's extension tools: listed at launch, run in Tade, answered here.
-  for (const spec of readTools(TOOLS)) {
+  // Tade's extension tools: listed at launch, run in Tade, answered here — and
+  // its own `tade_document_ready`, which runs there the same way.
+  for (const spec of [...readTools(TOOLS), DOCUMENT_READY]) {
     pi.registerTool?.({
       name: spec.name,
       label: spec.label,
@@ -657,6 +658,35 @@ export function readTools(path: string | undefined): ToolSpec[] {
   } catch {
     return []
   }
+}
+
+/**
+ * How an agent hands the person its document before it has finished: the one
+ * moment a plan or an analysis most often goes back to somebody is a question.
+ * Run in Tade like an extension's tool, so a refusal comes back as a failed call.
+ */
+export const DOCUMENT_READY: ToolSpec = {
+  name: 'tade_document_ready',
+  label: 'Document ready',
+  description:
+    'Hand the person the document your task produces, when it is written or updated and something needs their decision before the work goes on — which option, whether the plan is right, what to do next. Tade tells the orchestrator at once: it reads your document, sums up where things stand for the person and puts your question to them. Then stop and wait: their answer comes to you as a message. Pass wait: false only to say a draft is there to read while you carry on. When the work is finished and nothing needs deciding, call tade_done instead — that hands the document over too.',
+  parameters: {
+    type: 'object',
+    properties: {
+      ask: {
+        type: 'string',
+        description:
+          'The one thing the person needs to decide, in a line: the question, with the options if there are some.',
+      },
+      wait: {
+        type: 'boolean',
+        description:
+          'Whether you have stopped until they answer: leave it out when you need their decision, false only when you carry on regardless.',
+      },
+    },
+    required: ['ask'],
+    additionalProperties: false,
+  },
 }
 
 /** Tools that change something: the first of these is when there is work to name. */

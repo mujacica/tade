@@ -5,6 +5,7 @@ import {
   addNews,
   agentEnded,
   eventNews,
+  eventTell,
   NEWS_MAX,
   TADE_WORDS,
   THEIR_WORDS,
@@ -313,5 +314,59 @@ describe('a message taken apart again', () => {
     })
     // A heading's words in the middle of a sentence are not a heading.
     expect(unwrapped(`I typed ${THEIR_WORDS} in a sentence`).heading).toBeNull()
+  })
+})
+
+describe('a document handed over, told to the orchestrator at once', () => {
+  const ready = (detail: Record<string, unknown>) =>
+    event({
+      type: 'document_ready',
+      urgency: 'blocking',
+      task: 'app/plan',
+      detail: { produces: '/h/documents/plan/plan.md', bytes: 2048, ...detail },
+    })
+  const done = (detail: Record<string, unknown>, seq = 2) =>
+    event({
+      seq,
+      type: 'task_done',
+      task: 'app/plan',
+      detail: {
+        by: 'agent',
+        summary: 'Planned it.',
+        produces: '/h/documents/plan/plan.md',
+        ...detail,
+      },
+    })
+
+  it('says where it is, what its agent asked, that it waits, and what to do now', () => {
+    const told = eventTell(ready({ asked: 'A or B?', waits: true }), [])
+    expect(told).toBe(
+      'app/plan handed over the document it produces, /h/documents/plan/plan.md (2048 bytes), and is not finished. Its agent asks: A or B? It has stopped until the person answers: when they do, give it their answer with tade_steer. Read the file now, then tell the person in a few sentences where things stand and put what is next to them — the options, and which you would choose. Queue nothing and start nothing until they answer, and record what they decide with tade_document_triage.',
+    )
+    expect(eventTell(ready({ waits: false }), [])).toContain('It is carrying on while you read it.')
+  })
+
+  it('is told when a task finishes with a document written, and only then', () => {
+    expect(eventTell(done({ bytes: 2048 }), [])).toBe(
+      'app/plan finished (its agent said so): Planned it. It produced /h/documents/plan/plan.md (2048 bytes), and nothing has been done about it yet. Read the file now, then tell the person in a few sentences where things stand and put what is next to them — the options, and which you would choose. Queue nothing and start nothing until they answer, and record what they decide with tade_document_triage.',
+    )
+    // Nothing written, nothing named, or not about a document: news, as ever.
+    expect(eventTell(done({ missing: true }), [])).toBeNull()
+    expect(eventTell(done({ produces: undefined }), [])).toBeNull()
+    expect(eventTell(event({ type: 'turn_done', detail: { produces: '/h/x.md' } }), [])).toBeNull()
+  })
+
+  it('says a finish on what was already decided, rather than asking the person again', () => {
+    const asked = { ...ready({ asked: 'A or B?', waits: true }), seq: 1 }
+    const decided = event({
+      seq: 2,
+      type: 'document_triaged',
+      task: 'app/plan',
+      detail: { path: '/h/documents/plan/plan.md', by: 'orchestrator', decided: 'they chose B' },
+    })
+    const finished = done({}, 3)
+    expect(eventTell(finished, [asked, decided, finished])).toBe(
+      'app/plan finished, on what was decided about the document it produced, /h/documents/plan/plan.md: they chose B. Tell the person in a sentence where that leaves things.',
+    )
   })
 })

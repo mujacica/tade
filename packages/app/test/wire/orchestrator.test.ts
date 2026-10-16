@@ -134,6 +134,50 @@ describe('the window, talking to the orchestrator', () => {
     expect(asked[0]?.endsWith('What they said:\nhow is it going')).toBe(true)
   })
 
+  it('tells the orchestrator a document was handed over at once, without waiting for anybody to speak', async () => {
+    // What the person asked for: a document written goes back to the
+    // orchestrator, which says where things stand and asks what is next — so
+    // it is told now, never kept as news for the next thing somebody says.
+    const asked: string[] = []
+    const told: string[] = []
+    await start({
+      thinker: {
+        ask: async (text: string) => {
+          asked.push(text)
+          return 'ok'
+        },
+        tell: async (text: string) => {
+          told.push(text)
+        },
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    await client.log.append({
+      type: 'document_ready',
+      task: 'app/refunds',
+      urgency: 'blocking',
+      detail: {
+        produces: '/h/documents/refunds/plan.md',
+        bytes: 40,
+        asked: 'A or B?',
+        waits: true,
+      },
+    })
+    await until('the orchestrator told', () =>
+      told.some((text) => text.includes('app/refunds handed over the document it produces')),
+    )
+    const message = told.find((text) => text.includes('handed over')) ?? ''
+    expect(message).toContain('/h/documents/refunds/plan.md (40 bytes)')
+    expect(message).toContain('Its agent asks: A or B?')
+    expect(message).toContain('Queue nothing and start nothing until they answer')
+    // And it is not said a second time with the next thing they say.
+    terminal.press('\x00')
+    for (const char of 'and now') terminal.press(char)
+    terminal.press('\r')
+    await until('the orchestrator asked', () => asked.length === 1)
+    expect(asked[0]).not.toContain('handed over')
+  })
+
   it('tells the orchestrator that agents are gone, rather than letting a call find out', async () => {
     const asked: string[] = []
     await start({

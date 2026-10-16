@@ -1,4 +1,4 @@
-import { AWAY_WORDS, producedClause, type TadeEvent } from '@tade/core'
+import { AWAY_WORDS, documentSize, documentsIn, producedClause, type TadeEvent } from '@tade/core'
 import type { TaskSnapshot } from './model.ts'
 
 // What Tade tells the orchestrator without being asked.
@@ -201,6 +201,55 @@ export function eventNews(event: TadeEvent): string | null {
   // two full stops in the middle of one line read as a bug.
   return `${head}${/[.!?]$/.test(head) ? '' : '.'} It ${clause}`
 }
+
+/**
+ * What a journal event needs the orchestrator for **now**, rather than with the
+ * next thing somebody says: a document handed over, whether its agent asked
+ * something (`document_ready`) or finished (`task_done` with one written).
+ *
+ * The person asked for exactly this — a document written goes back to the
+ * orchestrator, which says where things stand and puts what is next to them —
+ * and news cannot do it: news waits for somebody to speak, and a planner that
+ * stopped to ask "A or B?" waits for that answer, so somebody coming back an
+ * hour later found two things waiting on each other. Told, it is said after
+ * whatever turn the orchestrator is on, never across it.
+ *
+ * Paths and never contents, for `documentsWaitingSays`'s reason: what the
+ * document says is read from the file, as material. And the instruction is
+ * the same short one each time — read it, say where things stand, ask, queue
+ * nothing first — because the rule is in its prompt and this is the moment.
+ *
+ * `journal` is every line about documents, this one included, so a task that
+ * finishes the run somebody already answered is said to have finished on that
+ * answer rather than put to the person a second time.
+ */
+export function eventTell(event: TadeEvent, journal: readonly TadeEvent[]): string | null {
+  if (!event.task) return null
+  const path = typeof event.detail.produces === 'string' ? event.detail.produces.trim() : ''
+  if (!path || event.detail.missing === true) return null
+  if (event.type === 'task_done') {
+    const decided = documentsIn(journal).find((one) => one.task === event.task && one.path === path)
+    if (decided?.triaged) {
+      return `${event.task} finished, on what was decided about the document it produced, ${path}: ${decided.triaged.decided}. Tell the person in a sentence where that leaves things.`
+    }
+    const news = eventNews(event) ?? ''
+    return `${news}${/[.!?]$/.test(news) ? '' : '.'} ${READ_IT_AND_ASK}`
+  }
+  if (event.type !== 'document_ready') return null
+  const asked = typeof event.detail.asked === 'string' ? event.detail.asked.trim() : ''
+  const size = documentSize(typeof event.detail.bytes === 'number' ? event.detail.bytes : null)
+  const head = `${event.task} handed over the document it produces, ${path}${size}`
+  const question = asked ? ` Its agent asks: ${asked}${/[.!?]$/.test(asked) ? '' : '.'}` : ''
+  const waits =
+    event.detail.waits === false
+      ? ' It is carrying on while you read it.'
+      : ' It has stopped until the person answers: when they do, give it their answer with tade_steer.'
+  return `${head}, and is not finished.${question}${waits} ${READ_IT_AND_ASK}`
+}
+
+/** What the orchestrator does with a document it was just handed: the rule, at the moment. */
+const READ_IT_AND_ASK =
+  'Read the file now, then tell the person in a few sentences where things stand and put what is next to them — the options, and which you would choose. Queue nothing and start nothing until they answer, and record what they decide with tade_document_triage.'
 
 /** The heading the person's own words go under, which the orchestrator is told to look for. */
 export const THEIR_WORDS = 'What they said:'

@@ -4,7 +4,7 @@ import { type Arming, attentionFor, closeBy, titlesOf, type Unclosed } from '@ta
 import type { ExtensionWorkbench } from '@tade/extensions-core'
 import { VoiceSurface } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
-import { agentEnded, eventNews } from './inbox.ts'
+import { agentEnded, eventNews, eventTell } from './inbox.ts'
 import { freeViewportKeys } from './keys.ts'
 import { knownTasks, Live } from './live.ts'
 import {
@@ -638,7 +638,11 @@ export class App {
       },
       onEvent: (event) => {
         this.state = onEvent(this.state, event, this.now())
-        const heard = eventNews(event)
+        // A document handed over is told now, and kept as news only while there
+        // is no orchestrator yet to tell; everything else waits as news.
+        const told = eventTell(event, this.live?.queueFacts().events ?? [])
+        if (told && this.orchestrator.started) void this.orchestrator.tell(told).catch(() => {})
+        const heard = told && this.orchestrator.started ? null : (told ?? eventNews(event))
         if (heard) this.orchestrator.note(heard)
         // An agent that is gone, however it went: told rather than discovered
         // by the orchestrator steering something that is not there any more.

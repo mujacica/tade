@@ -50,7 +50,7 @@ export interface DryTask {
   done: DoneRule
   produces: string | null
   touches: readonly string[]
-  after: readonly { task: string; why: string }[]
+  after: readonly { task: string; why: string; approved?: boolean }[]
   /** It is expected to leave the project's own checks failing. */
   leavesChecksRed: boolean
 }
@@ -231,8 +231,10 @@ export function dryRunSays(dry: DryRun): string[] {
       ...(task.leavesChecksRed ? ['expected to leave the checks red'] : []),
     ]
     lines.push(`  ${task.task.padEnd(width)}  ${bits.join('  ')}`)
-    for (const dep of task.after)
-      lines.push(`  ${' '.repeat(width)}  after ${dep.task} — ${dep.why}`)
+    for (const dep of task.after) {
+      const approved = dep.approved ? ', once the person approves what it produced' : ''
+      lines.push(`  ${' '.repeat(width)}  after ${dep.task}${approved} — ${dep.why}`)
+    }
   }
   for (const warning of dry.warnings) lines.push('', `  warning  ${warning}`)
   lines.push('', 'What this grants:')

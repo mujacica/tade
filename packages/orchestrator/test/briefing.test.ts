@@ -245,6 +245,25 @@ describe('what it opens knowing with several repositories', () => {
     )
   })
 
+  it('says one an agent handed over before finishing, with what it asked', () => {
+    // A window shut while a planner waits on the person's answer still opens
+    // knowing there is a question waiting — and does not call it finished.
+    const said =
+      composeBriefing({
+        now: NOW,
+        events: [
+          event('document_ready', 'app/plan', {
+            produces: '/h/d/plan.md',
+            asked: 'A or B?',
+            waits: true,
+          }),
+        ],
+      }) ?? ''
+    expect(said).toContain(
+      '- app/plan produced /h/d/plan.md, and nothing has been done about it yet; its agent asks: A or B? (handed over, not finished, 1h ago)',
+    )
+  })
+
   it('stops mentioning one once work has been queued off it', () => {
     // Resolved, so it leaves the list: what bounds this section is decisions.
     const said =

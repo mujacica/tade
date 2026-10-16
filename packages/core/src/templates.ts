@@ -86,7 +86,10 @@ export const TemplateAgent = z.strictObject({
   thinking: z.enum(THINKING_LEVELS).optional(),
   model: z.string().optional(),
   touches: z.array(z.string()).default([]),
-  after: z.array(z.strictObject({ agent: z.string(), why: z.string() })).default([]),
+  /** `approved` waits for the person to approve what that one produced, as well as for it to finish. */
+  after: z
+    .array(z.strictObject({ agent: z.string(), why: z.string(), approved: z.boolean().optional() }))
+    .default([]),
   /**
    * Agents whose produced document this one has to read. The path goes in this
    * one's context file, so an artifact is handed over rather than described.
@@ -256,6 +259,13 @@ export function templateProblems(
       }
       if (dep.agent === agent.name) say(`${agent.name} cannot wait on itself`)
       if (!dep.why.trim()) say(`${agent.name} waits on ${dep.agent} for no reason anybody wrote`)
+      // An approval nobody could ever give is every plan this makes waiting for ever.
+      const other = template.agents.find((one) => one.name === dep.agent)
+      if (dep.approved && other && resolveAgent(other, context.personas).produces === undefined) {
+        say(
+          `${agent.name} waits for ${dep.agent}'s document to be approved, but ${dep.agent} produces none`,
+        )
+      }
     }
   }
 
@@ -538,6 +548,7 @@ export function fillTemplate(template: Template, args: FillArgs): TemplateFill {
         return {
           agent: other ? `${projectOf(other)}/${nameOf(other)}` : dep.agent,
           why: dep.why,
+          ...(dep.approved ? { approved: true } : {}),
         }
       }),
       touches: resolved.touches,

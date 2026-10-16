@@ -270,6 +270,16 @@ describe('composeAgentPrompt', () => {
     expect(composeAgentPrompt(base)).not.toContain('What this task produces')
   })
 
+  it('tells an agent writing a document how to hand it to the person and wait, where it can', () => {
+    const produces = '/h/.tade/projects/shop/documents/refunds/plan.md'
+    const told = composeAgentPrompt({ ...base, produces, canSayDone: true })
+    expect(told).toContain('call tade_document_ready with that question')
+    expect(told).toContain('Then stop and wait: their answer comes to you as a message.')
+    // Never to an agent with nothing to hand over, or no way to hand it.
+    expect(composeAgentPrompt({ ...base, canSayDone: true })).not.toContain('tade_document_ready')
+    expect(composeAgentPrompt({ ...base, produces })).not.toContain('tade_document_ready')
+  })
+
   it('does not ask for a trailer from an agent told never to commit', () => {
     const told = composeAgentPrompt({ ...base, workspace: 'worktree', commit: 'never' })
     expect(told).not.toContain('Tade-Task:')

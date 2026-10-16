@@ -174,10 +174,10 @@ export function composeBriefing(input: BriefingInput): string | null {
   if (waiting.length > 0) {
     sections.push(
       [
-        'Documents that finished tasks produced and nobody has decided about yet. Read each one before you say anything about it, then say what follows — and record what you decided with tade_document_triage, or this list says it is unread forever:',
+        'Documents tasks produced, or their agents handed over before finishing, that nobody has decided about yet. Read each one before you say anything about it, then put what follows to the person — and record what was decided with tade_document_triage, or this list says it is unread forever:',
         ...waiting.map(
           (one) =>
-            `- ${one.task} ${producedClause(one)} (finished ${since(one.at)}${
+            `- ${one.task} ${producedClause(one)} (${one.finished ? 'finished' : 'handed over, not finished,'} ${since(one.at)}${
               one.removedAt ? `, removed ${since(one.removedAt)}` : ''
             })`,
         ),

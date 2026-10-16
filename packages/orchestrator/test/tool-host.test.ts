@@ -333,7 +333,13 @@ describe('a plan that spans repositories, as it reaches the window', () => {
           project: 'cli',
           said: 'bump',
           prompt: 'bump it',
-          after: [{ agent: 'api/oauth-scopes', why: 'scopes first' }],
+          after: [
+            { agent: 'api/oauth-scopes', why: 'scopes first' },
+            // A wait for the person's approval keeps its flag; anything but
+            // `true` is no approval at all.
+            { agent: 'api/plan', why: 'the plan, approved', approved: true },
+            { agent: 'api/notes', why: 'notes', approved: 'yes' },
+          ],
         },
       ],
     })
@@ -345,7 +351,11 @@ describe('a plan that spans repositories, as it reaches the window', () => {
     // `checkPlan`, which is downstream of here and not what this is about.
     expect(made[0]?.agents[0]).not.toHaveProperty('project')
     expect(made[0]?.agents[1]?.project).toBe('cli')
-    expect(made[0]?.agents[1]?.after).toEqual([{ agent: 'api/oauth-scopes', why: 'scopes first' }])
+    expect(made[0]?.agents[1]?.after).toEqual([
+      { agent: 'api/oauth-scopes', why: 'scopes first' },
+      { agent: 'api/plan', why: 'the plan, approved', approved: true },
+      { agent: 'api/notes', why: 'notes' },
+    ])
 
     await call(path, 'queue/plan', {
       project: 'api',
@@ -406,7 +416,12 @@ describe('changing queued work, from the tool to the window', () => {
       {
         change: 'after',
         task: 'tade/lane-echo',
-        after: [{ task: 'open-paints-first', why: 'app.ts' }, { agent: 'tade/docs', why: '' }, 'x'],
+        after: [
+          { task: 'open-paints-first', why: 'app.ts' },
+          { agent: 'tade/docs', why: '' },
+          'x',
+          { task: 'tade/plan', why: 'approved first', approved: true },
+        ],
         replace: true,
       },
       'c2',
@@ -425,6 +440,7 @@ describe('changing queued work, from the tool to the window', () => {
           { task: 'open-paints-first', why: 'app.ts' },
           { task: 'tade/docs', why: '' },
           { task: 'x', why: '' },
+          { task: 'tade/plan', why: 'approved first', approved: true },
         ],
         replace: true,
       },

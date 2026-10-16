@@ -1,4 +1,4 @@
-import { AT_WORK_READS, RUNTIME_EVENTS, type TadeEvent } from '@tade/core'
+import { AT_WORK_READS, DOCUMENT_EVENTS, RUNTIME_EVENTS, type TadeEvent } from '@tade/core'
 import type { Workbench } from '@tade/workbench'
 import { aboutRoot } from './away-lifecycle.ts'
 
@@ -35,6 +35,9 @@ export const QUEUE_READS = [
   // What a watch has found, which is never forgotten: one finding, one piece of work.
   'watch_checked',
   'watch_found',
+  // Whether the person approved a document queued work waits on (`approvedFrom`),
+  // which is a fold over every line about documents and not only the triage.
+  ...DOCUMENT_EVENTS,
 ] as const
 
 /**
