@@ -136,6 +136,16 @@ describe('the origin, re-asked at the act', () => {
     }
   })
 
+  it('refuses this machine’s name that came in on a public listener', () => {
+    // The guard already refuses it at the door; this is the gate asking again
+    // at the act, with the listener the origin carries, so neither half of
+    // `thisMachine` is something a later door could lose on the way.
+    const no = admit(park(), 'steer', standing({ origin: { ...HERE, listener: 'public' } }))
+    expect(no.ok).toBe(false)
+    if (!no.ok) expect(no.refusal.error).toBe('locked')
+    expect(admit(park(), 'steer', standing({ origin: HERE })).ok).toBe(true)
+  })
+
   it('refuses an https origin Tade was never told about', () => {
     // Somebody else's name resolving here. `trusted_hosts` is the only way an
     // origin off this machine is trusted, because no forwarded header is read.
