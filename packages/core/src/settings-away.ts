@@ -11,6 +11,8 @@ import {
   LAST_VIEW_IS_A_COPY_SHORT,
   OFFLINE_NEEDS_HTTPS,
   OFFLINE_NEEDS_HTTPS_SHORT,
+  PUBLIC_IS_THE_INTERNET,
+  PUBLIC_IS_THE_INTERNET_SHORT,
   PUSH_GOES_THROUGH_A_STRANGER,
   PUSH_GOES_THROUGH_A_STRANGER_SHORT,
   PUSH_IS_WHILE_OPEN,
@@ -146,6 +148,20 @@ export function awayGroup(config: Config): SettingGroup {
         type: { kind: 'text', placeholder: 'studio.yak-bebop.ts.net' },
         live: true,
         keywords: ['tailscale', 'tailnet', 'tunnel', 'cloudflare', 'reverse proxy', 'origin'],
+      },
+      {
+        path: 'surfaces.web.public',
+        // A third decision about who can reach it, and the widest: a second
+        // socket for Caddy, which is the internet. Its own row rather than a
+        // third `bind`, because the loopback listener stays as it was.
+        title: 'Public name',
+        means: `the name this machine answers the internet by, through Caddy on this box: a second listener on a socket only Caddy can open, and the name a pairing code carries. \`tade host caddy\` prints the site block and the line that makes its directory. ${PUBLIC_IS_THE_INTERNET}`,
+        short: `${PUBLIC_IS_THE_INTERNET_SHORT}; \`tade host caddy\` sets Caddy up`,
+        value: web.public,
+        fallback: 'none',
+        type: { kind: 'text', placeholder: 'tade.example.com' },
+        live: true,
+        keywords: ['caddy', 'domain', 'internet', 'vps', 'certificate', 'reverse proxy', 'dns'],
       },
       {
         path: 'surfaces.web.push_key',

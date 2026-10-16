@@ -100,6 +100,25 @@ describe('tade web', () => {
     expect(said.stdout).not.toContain('same wifi')
   })
 
+  it('says a public name is the internet through Caddy, first among where a phone goes', async () => {
+    writeFileSync(
+      join(home, 'config.yaml'),
+      'surfaces:\n  web:\n    enabled: true\n    public: tade.example.com\n',
+    )
+    const said = await tade('web', 'status')
+    const lines = said.stdout.split('\n')
+    expect(lines.indexOf('https://tade.example.com/')).toBeLessThan(
+      lines.indexOf('http://localhost:7654/'),
+    )
+    expect(said.stdout).toContain(
+      'and on the internet as tade.example.com, through Caddy at /run/tade/away.sock',
+    )
+    const json = JSON.parse((await tade('web', 'status', '--json')).stdout) as {
+      publicName: string
+    }
+    expect(json.publicName).toBe('tade.example.com')
+  })
+
   it('says what a LAN bind means on the act that turns one on', async () => {
     const said = await tade('web', 'on', '--lan')
     expect(said.stdout).toContain('listening on the network')

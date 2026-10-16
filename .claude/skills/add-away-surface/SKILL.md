@@ -74,6 +74,9 @@ a device still has none of the scopes that change anything until somebody at thi
 | who is listening, and what they are sent | `src/peers.ts` — pure, over a `Sink`; the caps, the fan-out, the backpressure, the stall |
 | what a request *is* | `src/request.ts` — reading an `IncomingMessage`, and every bound on one |
 | what a request must satisfy | `src/guard.ts` — pure, and `test/guard.test.ts` runs the cross-product |
+| a route only this machine may reach (the pages that connect a source) | `Route.here` — `allowed` answers it the `404` of a path nobody built anywhere but `thisMachine` |
+| the public listener: Caddy's socket, its directory, the PROXY header | `src/listeners.ts` (every socket one server listens on, `dirSeen`, `answering`), `src/proxied.ts` (the header read before HTTP, `peerOf`), `src/proxy-protocol.ts` (pure: what the bytes are), and `public-listener.ts` in `@tade/core` (the directory, the socket, `caddySite`, what a health look says); `test/public.test.ts` is all of it over a real socket |
+| the public listener's health: the certificate, Tade behind | `packages/app/src/wire/web-public.ts` (`PublicHealth`, on clocks of its own), `@tade/workbench/certificate` (one handshake), `tade host caddy --check` (`packages/cli/src/commands/host-caddy.ts`) |
 | what a device may read | `src/reach.ts` (the grants), `src/surface.ts`'s `reachOf` (the seam) |
 | **where** a grant withholds, and what a page says *not granted* about | `WITHHOLDS` in `src/reach.ts` — one line per place on the wire; `test/withholds.test.ts` takes each grant away and asserts the snapshot changes there and nowhere else. The page asks by path (`mayFor(store, 'plans')`, `src/assets/access.js`, a copy held equal), never by a grant's name, so a new gate is a line here or the test fails |
 | what a box in the panel grants | `BOXES` in `packages/app/src/wire/web-boxes.ts`: each box's scopes, the reading grants that go with them and the places its page draws — ticked only when it has all of them (`ticked`), so `talk to Tade` carries the conversation and `change settings` the settings |
@@ -237,6 +240,21 @@ a device still has none of the scopes that change anything until somebody at thi
   address the network knows. **A new listener says which it is**: a proxy's socket is `public`,
   whatever is on the other end. `test/guard.test.ts` holds every cell of {listener} × {`Host`} ×
   {session}, and `server.test.ts` the same over sockets.
+- **A public name is a second socket, and everything on it is public** (`surfaces.web.public`,
+  `listeners.ts`). The loopback listener stays as it was; Caddy connects to `/run/tade/away.sock`,
+  in a directory that must be this user's, `2750`, setgid, Caddy's group — **refused, never
+  repaired** (`publicDirProblem`), because loosening it would be deciding who may connect. A socket
+  a dead Tade left is taken over; one something answers on, or a file, never. The name is the first
+  trusted host, so it is `https` and the name a code carries.
+- **The PROXY header is the one address that is not the socket's**, read only on that socket
+  (`proxied.ts`, v1 and v2) and **optional**: Caddy writes the request itself, so no client's bytes
+  start the upstream connection, and a missing header is one shared address said once, never a
+  refusal. Caddy 2.11.7 sends it over a `unix//` upstream and keeps one upstream connection per
+  client address — so it is right for every request on one — which was checked against the real
+  binary, not its docs (the V3 commit says how). It moves the pairing limit and the journal's
+  address, never a permission. The server's own `connection` listener is wrapped rather than a
+  second server put in front, so Node's timeouts and `closeAllConnections` stay the ones every
+  listener has.
 - **`Sec-Fetch-Site` is not checked on a document navigation.** A scanned code is a typed URL
   (`none`) and a followed link is `cross-site`, so requiring `same-origin` on the shell refuses every
   real way in. Everything else — every `fetch` the page makes — is checked.
@@ -464,7 +482,7 @@ agent printed. Everything about it is in the direction of reading less.
 - **The page stops asking when it is left** (`screen.leave()` from the router), and the harness
   counts the asks after leaving off the browser's own resource timeline.
 
-## Seven sentences that may never get more comfortable
+## Eight sentences that may never get more comfortable
 
 In `src/surface.ts` (re-exported from `@tade/core`'s `away.ts`), said once so no control, README
 line or commit message can say the easy half. `test/separation.test.ts` holds each of them.
@@ -490,12 +508,15 @@ line or commit message can say the easy half. `test/separation.test.ts` holds ea
   *wiped*, never a guarantee.
 - `LAST_VIEW_IS_A_COPY` — the **list** of what is kept, because *minimal* and *redacted* are the
   words a comfortable version would keep while dropping what is actually on the disk.
+- `PUBLIC_IS_THE_INTERNET` — anybody can load the page and ask to pair, said **before** what
+  still stands (the code on this machine's screen; nothing that arrives that way is this machine),
+  and clearing the name is the way out. Held in `public.test.ts`, and among the never-private ones.
 
 ## The config, and the five controls over it
 
 `surfaces.web` is read in exactly one place — `surfaceOf` — and it is a `never` subtree in
 `reach.ts`: each key either widens who can reach the control room (`enabled`, `bind`,
-`trusted_hosts`), decides where the pairing code sends a phone (`port`), lets a device change
+`trusted_hosts`, and `public`, which is the internet), decides where the pairing code sends a phone (`port`), lets a device change
 something (`acting`), lets one talk to the model that holds the tools (`orchestrator`), lets one
 save a draft every future run of a workflow would be stamped from (`drafts`), lets one change a
 setting a request is enough for (`settings`) — and an agent here can pair itself, so those four
@@ -749,7 +770,9 @@ found nothing and went green is worse than none.
 
 ## What a test here cannot prove
 
-A real phone's camera reading the QR at the module size a terminal draws; iOS Safari's local-network
+A real phone's camera reading the QR at the module size a terminal draws; a Let's Encrypt
+certificate on a real name, and a phone's carrier address through Caddy (the public listener was
+proved in a container, against Caddy's own CA and the container's own address); iOS Safari's local-network
 prompt; whether `.local` resolves on the owner's devices; whether a real reverse proxy passes a
 stream through unbuffered; **whether the page is beautiful or useful**, which is the owner's after a
 week; and how it behaves in Safari and Firefox — the harness drives Chromium, and the other two are

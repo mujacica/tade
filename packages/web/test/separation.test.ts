@@ -12,6 +12,8 @@ import {
   LOCAL_ONLY_SHORT,
   OFFLINE_NEEDS_HTTPS,
   OFFLINE_NEEDS_HTTPS_SHORT,
+  PUBLIC_IS_THE_INTERNET,
+  PUBLIC_IS_THE_INTERNET_SHORT,
   TALKING_IS_NOT_YOU,
   TALKING_IS_NOT_YOU_SHORT,
 } from '@tade/core'
@@ -68,12 +70,14 @@ function code(text: string): string {
 }
 
 describe('the away server is not the ToolHost', () => {
-  it('reaches neither the orchestrator nor a Unix socket', () => {
+  it('reaches neither the orchestrator nor its socket', () => {
     // The `ToolHost` is a Unix socket in `@tade/orchestrator`, hosted by the
     // window for its own child agents: undiscoverable, nothing outside the
-    // process tree may connect, dead when the window closes. This is a TCP
+    // process tree may connect, dead when the window closes. This is a
     // listener a person turns on, for a browser they paired, serving a
-    // projection built to leave the machine. Different transport, different
+    // projection built to leave the machine — on TCP, and on the one Unix
+    // socket that is Caddy's way in where a public name is set, which is the
+    // internet and is held to less than any TCP listener. Different
     // authority, different threat model — and the only thing they share is
     // the process. A route that could reach the one from the other would hand
     // a phone every tool the orchestrator has.
@@ -330,6 +334,7 @@ describe('what the surface is turned on as', () => {
       bind: 'lan',
       port: 7654,
       trusted_hosts: ['x'],
+      public: '',
       acting: false,
       orchestrator: false,
       push: false,
@@ -359,6 +364,7 @@ describe('what the surface is turned on as', () => {
       bind: 'loopback' as const,
       port: 7654,
       trusted_hosts: [],
+      public: '',
       acting: false,
       orchestrator: false,
       push: false,
@@ -394,6 +400,7 @@ describe('what the surface is turned on as', () => {
           bind: 'loopback',
           port: 1,
           trusted_hosts: [],
+          public: '',
           acting: false,
           orchestrator: false,
           push: false,
@@ -412,6 +419,7 @@ describe('what the surface is turned on as', () => {
           bind: 'lan',
           port: 1,
           trusted_hosts: [],
+          public: '',
           acting: false,
           orchestrator: false,
           push: false,
@@ -459,6 +467,7 @@ describe('what a session minted on an origin may ever do', () => {
     bind: 'lan',
     port: 7654,
     trusted_hosts: ['studio.yak-bebop.ts.net'],
+    public: '',
     acting: true,
     orchestrator: false,
     push: false,
@@ -536,6 +545,8 @@ describe('the sentences', () => {
     for (const sentence of [
       LAN_IS_PLAINTEXT,
       LAN_IS_PLAINTEXT_SHORT,
+      PUBLIC_IS_THE_INTERNET,
+      PUBLIC_IS_THE_INTERNET_SHORT,
       COOKIES_IGNORE_PORTS,
       DEVICES_AND_AGENTS,
       ACTING_IS_NOT_YOU,

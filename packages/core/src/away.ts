@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { publicName } from './public-listener.ts'
 
 // The sentences about the away view that have to be said where somebody is
 // deciding, and that may never get more comfortable.
@@ -393,6 +394,23 @@ export const PUSH_KEY_IS_GENERATED =
   'notifications again.'
 
 /**
+ * What is true of a public name, said on the control that sets one.
+ *
+ * It says who can reach the page — anybody — before it says what still stands,
+ * because the person deciding has to picture the internet and not a phone. What
+ * stands is the code on this machine's screen, and that nothing arriving that
+ * way is ever this machine. The way out is in the same breath.
+ */
+export const PUBLIC_IS_THE_INTERNET =
+  'A public name puts this page on the internet, through Caddy: anybody can load it and ask to ' +
+  'pair, and pairing still needs the code this machine shows. Whatever arrives that way is ' +
+  'public — never this machine, never a session paired on it — and may do only what you grant ' +
+  'each device here. Clearing the name takes it off the internet.'
+
+/** The short clause, for the line the away panel gives what it is listening as. */
+export const PUBLIC_IS_THE_INTERNET_SHORT = 'anybody on the internet can load it and ask to pair'
+
+/**
  * The away view's own config block: `surfaces.web`.
  *
  * Here rather than in `config.ts` for the reason the sentences above are here:
@@ -449,6 +467,27 @@ export const WebSurface = z
      * what makes a trusted path a prerequisite rather than a nicety.
      */
     trusted_hosts: z.array(z.string().min(1)).default([]),
+    /**
+     * The name this machine answers the internet by, through Caddy — empty,
+     * the default, for none.
+     *
+     * **A second socket, not a wider first one.** Set, the away view also
+     * listens on a Unix socket in `PUBLIC_DIR` that only Caddy's group can
+     * open, and everything on it is public whatever it says about itself:
+     * never this machine, so never a session paired on it. The loopback
+     * listener stays as it was. The name is trusted like a `trusted_hosts`
+     * one, because Caddy ends TLS for it. `PUBLIC_IS_THE_INTERNET` is what is
+     * said where it is set, and `tade host caddy` prints the rest.
+     *
+     * A name and never an address: it is what the certificate is for, and a
+     * passkey's relying party has to be one.
+     */
+    public: z
+      .string()
+      .refine((name) => name === '' || publicName(name), {
+        message: 'a host name such as tade.example.com: no scheme, port, path or address',
+      })
+      .default(''),
     /**
      * Whether a paired device may change anything at all.
      *

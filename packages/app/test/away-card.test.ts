@@ -199,6 +199,9 @@ describe('where a device came from', () => {
       live: new Set<string>(),
       streams: 0,
       problem: null,
+      publicAt: null,
+      publicTrouble: null,
+      health: [],
       now: 1_000,
     }
     const at = (from: string, host: string) =>

@@ -227,10 +227,12 @@ export function readiness(facts: ReadinessFacts): Step[] {
  * shell reads (`EXAMPLE\you`), so anything but a plain one is quoted.
  */
 export function lingerCommand(box: Unattended): string {
-  const user = /^[A-Za-z0-9_.@-]+$/.test(box.user)
-    ? box.user
-    : `'${box.user.replaceAll("'", `'\\''`)}'`
-  return `${box.root ? '' : 'sudo '}loginctl enable-linger ${user}`
+  return `${box.root ? '' : 'sudo '}loginctl enable-linger ${shellWord(box.user)}`
+}
+
+/** A word as a shell gives it back: as it is when plain, single-quoted otherwise. */
+export function shellWord(word: string): string {
+  return /^[A-Za-z0-9_.@-]+$/.test(word) ? word : `'${word.replaceAll("'", `'\\''`)}'`
 }
 
 /**

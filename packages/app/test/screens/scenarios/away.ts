@@ -1,4 +1,8 @@
-import { DEVICES_SEEN_BY_AGENTS, LAN_IS_PLAINTEXT_SHORT } from '@tade/core'
+import {
+  DEVICES_SEEN_BY_AGENTS,
+  LAN_IS_PLAINTEXT_SHORT,
+  PUBLIC_IS_THE_INTERNET_SHORT,
+} from '@tade/core'
 import { blocksFor, codeFor } from '@tade/web'
 import { AWAY_CONTROLS, awayPanel } from '../../../src/panels/away/state.ts'
 import type { AwayView } from '../../../src/panels/away/view.ts'
@@ -74,6 +78,8 @@ function view(over: Partial<AwayView> = {}): AwayView {
     configuring: false,
     help: {},
     lan: LAN_IS_PLAINTEXT_SHORT,
+    internet: PUBLIC_IS_THE_INTERNET_SHORT,
+    public: null,
     agents: DEVICES_SEEN_BY_AGENTS,
     problem: null,
     ...over,

@@ -267,9 +267,9 @@ attached to the decision it governs. Load the matching one rather than working f
   was working**: an agent running when Tade closed is marked `lost` and reopened where it left off.
 - **A tool fails by throwing.** Anything else reaches the model as an empty answer that looks like
   success.
-- **There is no server.** The one socket is the `ToolHost`: window to its own child agents,
-  undiscoverable, dead when the window closes. Anything else wanting to call it means a daemon again.
-  **Everything Tade starts runs detached**, in its own process group, so whoever started one ends it.
+- **There is no server on a machine you did not make one**: a public name is the away view behind
+  Caddy and nothing else (`listeners.ts`). The `ToolHost` is the window's to its children,
+  undiscoverable, dead with it. **Everything Tade starts runs detached**, so whoever started one ends it.
 - **One window per home, and questions never need it.** Opening the workbench locks `TADE_HOME`, so
   anything that only reads — `status`, `logs`, `notes`, `summary`, `spend` — reads the files directly
   (`readJournal`, `Memory.open`) and never opens the workbench. `attach` puts the terminal in raw

@@ -103,8 +103,8 @@ export function headersFor(kind: Kind, type: string, etag?: string): Record<stri
   }
   if (kind === 'stream') {
     // Two hints for a proxy somebody deliberately put in front of this — the
-    // only kind there is, since `trusted_hosts` is how a host gets to be one
-    // (`NEVER_TRUSTED` is the other half of that rule). A proxy that buffers a
+    // only kind there is, since `trusted_hosts` or the public name is how a
+    // host gets to be one (`NEVER_TRUSTED` is the other half). A proxy that buffers a
     // response until it has a few hundred bytes turns a live stream into a
     // page that says nothing for a minute, which is indistinguishable from a
     // machine that went to sleep — and §5.10's whole job is telling those
@@ -125,10 +125,12 @@ export function headersFor(kind: Kind, type: string, etag?: string): Record<stri
  * HTTPS — and it is *still* not read, because a forwarded header is only worth
  * anything if everything that can reach the port is the proxy, and nothing
  * here can know that. What a deliberate proxy gets instead is a deliberate
- * configuration: its name in `surfaces.web.trusted_hosts`, which is what makes
- * its host pass the allow-list and its `https` origin a trusted one
- * (`schemesFor`, `trusted`) — a person's act in the `never` subtree, not a
- * header anybody on the network can write.
+ * configuration: its name in `surfaces.web.trusted_hosts` or `public`, which
+ * is what makes its host pass the allow-list and its `https` origin a trusted
+ * one (`schemesFor`, `trusted`) — a person's act in the `never` subtree, not a
+ * header anybody on the network can write. The client's address behind Caddy
+ * is the PROXY header on a socket only Caddy can open (`proxied.ts`), which
+ * comes before the request and so is nothing a client sends.
  *
  * Read one and four defences become whatever the attacker typed:
  * `X-Forwarded-For` is the rate limit and the journalled address;

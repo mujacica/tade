@@ -1,3 +1,4 @@
+import type { Health } from '@tade/core'
 import { sameTarget, type Target } from '../../hits.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
 import type { PanelContext } from '../context.ts'
@@ -92,6 +93,14 @@ export interface AwayView {
   help: Readonly<Record<string, string>>
   /** Said under the status line when a LAN bind is on. `LAN_IS_PLAINTEXT_SHORT`. */
   lan: string
+  /** Said under the status line when the public listener is up. `PUBLIC_IS_THE_INTERNET_SHORT`. */
+  internet: string
+  /**
+   * The public name, where one is set and the away view is on: whether Caddy's
+   * socket is up, and the lines under the status line — its certificate and
+   * whether Tade is behind, or why nothing listens for Caddy. Loud ones first.
+   */
+  public: { name: string; up: boolean; lines: readonly Health[] } | null
   /** Said always, beside Disconnect everything. `DEVICES_SEEN_BY_AGENTS`. */
   agents: string
   /** What could not be done, in Tade's own words. */
@@ -221,6 +230,21 @@ function headOf(view: AwayView, ctx: PanelContext, inner: number, panel: boolean
     // a phone up to the screen. One clause: the whole of it, with the way out,
     // is the bind setting's own `means`.
     lines.push(...said(row, inner, { said: `▲ ${view.lan}`, tone: skin.waiting }))
+  }
+  if (view.public !== null) {
+    // The internet, said the way a LAN is and for the same reason; then what
+    // the health look found, a loud line red and first, because a certificate
+    // running out on a box nobody is looking at is the one nobody may miss.
+    const where = view.public.up
+      ? `● ${view.public.name}: ${view.internet}`
+      : `○ ${view.public.name}`
+    lines.push(
+      ...said(row, inner, { said: where, tone: view.public.up ? skin.waiting : skin.hint }),
+    )
+    for (const one of view.public.lines) {
+      const tone = one.loud ? skin.bad : skin.hint
+      lines.push(...said(row, inner, { said: `${one.loud ? '▲' : ' '} ${one.said}`, tone }))
+    }
   }
   lines.push(blank(inner))
   return lines

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, Server, ServerResponse } from 'node:http'
+import { publicSocket } from '@tade/core'
 import { carryOut, type Did } from './acted.ts'
 import { carryAsk } from './asked.ts'
 import { assetsDir, readAssets } from './assets.ts'
@@ -21,12 +22,13 @@ import {
 } from './guard.ts'
 import { headersFor } from './headers.ts'
 import { keepingOf } from './installable.ts'
+import { listenAll } from './listeners.ts'
 import { carryPairing } from './paired.ts'
 import { type Sink, Streams } from './peers.ts'
 import { carryPush } from './pushed.ts'
 import { Receipts } from './receipts.ts'
 import { fromSource, watchFolder } from './reloading.ts'
-import { askingOf, codeOf, header, pathOf, queryOf, readBody, serverFor } from './request.ts'
+import { askingOf, header, pathOf, queryOf, readBody } from './request.ts'
 import { type Route, routeFor, routesFor } from './routes.ts'
 import {
   CONFIRM_MS,
@@ -38,7 +40,7 @@ import {
 } from './serving.ts'
 import { clearCookie, renamed, renewal, sessionOf } from './sessions.ts'
 import { cursorOf } from './stream.ts'
-import { type Listener, listenerAt, listenOn, type Origin, reachOf, type Scope } from './surface.ts'
+import { type Listener, type Origin, reachOf, type Scope } from './surface.ts'
 
 // The away view's own HTTP server: `node:http`, one handler, the table in
 // `routes.ts`, and nothing else listening.
@@ -46,12 +48,12 @@ import { type Listener, listenerAt, listenOn, type Origin, reachOf, type Scope }
 // **This is not the `ToolHost`, and the two must never become one.** The
 // `ToolHost` is a Unix socket in `@tade/orchestrator`, hosted by the window for
 // its own child agents, undiscoverable, dead when the window closes. This is a
-// TCP listener a person turns on, for a browser they paired, serving a
-// projection that was built to be read from off the machine. They have
-// different transports, different authority, different vocabularies and
+// listener a person turns on — TCP, and Caddy's socket where a public name is
+// set (`listeners.ts`) — serving a projection built to be read from off the
+// machine. They have different authority, different vocabularies and
 // different threat models, and the one thing they share is the process they run
-// in. `test/separation.test.ts` asserts this package names neither the
-// orchestrator nor a Unix socket.
+// in. `test/separation.test.ts` asserts this package reaches neither the
+// orchestrator nor its socket.
 //
 // **Nothing here starts anything.** `listen` is called by whoever holds the
 // home lock — the window, in a later slice — and only when the config says so.
@@ -95,6 +97,9 @@ export function webServer(opts: ServerOptions): WebServer {
     }
   }
 
+  const warn = (message: string, where: string) =>
+    tell({ type: 'warning', detail: { message, where } })
+
   const epoch = randomUUID()
   const streams = opts.streams ?? new Streams()
   streams.use(epoch)
@@ -129,6 +134,8 @@ export function webServer(opts: ServerOptions): WebServer {
   const servers: Server[] = []
   const bound: string[] = []
   const boundHosts: string[] = []
+  let publicAt: string | null = null
+  let publicTrouble: string | null = null
   let stopping = false
   let lastSkipped = 0
 
@@ -678,6 +685,12 @@ export function webServer(opts: ServerOptions): WebServer {
     get bound() {
       return bound
     },
+    get public() {
+      return publicAt
+    },
+    get publicTrouble() {
+      return publicTrouble
+    },
     handle,
     async listen(): Promise<readonly string[]> {
       if (!opts.surface.enabled) return []
@@ -698,39 +711,12 @@ export function webServer(opts: ServerOptions): WebServer {
           },
         })
       }
-      for (const host of listenOn(opts.surface)) {
-        // Which listener this is, by the address it is bound to (`listenerAt`).
-        const server = serverFor(listenerAt(host), handle)
-        try {
-          await new Promise<void>((done, failed) => {
-            server.once('error', failed)
-            server.listen({ host, port: opts.surface.port, ipv6Only: host === '::' }, () => done())
-          })
-        } catch (error) {
-          // Already in use is a **named** warning and nothing listens on that
-          // address. Never a quiet bind somewhere else: a URL in somebody's
-          // hand that goes nowhere is worse than a surface that said it could
-          // not come up.
-          server.close()
-          tell({
-            type: 'warning',
-            detail: {
-              message: `the away view could not listen on ${host}:${opts.surface.port} — ${codeOf(error)}`,
-              where: host,
-            },
-          })
-          continue
-        }
-        servers.push(server)
-        // Typed here rather than imported from `node:net`, so that the rule
-        // "this package names no Unix socket" holds without an exception
-        // somebody has to remember is harmless (`test/separation.test.ts`).
-        const at = server.address() as { address: string; port: number } | string | null
-        if (at !== null && typeof at !== 'string') {
-          bound.push(`${at.address}:${at.port}`)
-          boundHosts.push(at.address)
-        }
-      }
+      const up = await listenAll(opts.surface, handle, opts.publicSocket ?? publicSocket(), warn)
+      servers.push(...up.servers)
+      bound.push(...up.bound)
+      boundHosts.push(...up.hosts)
+      publicAt = up.public
+      publicTrouble = up.trouble
       // **Live reload, from the repository only** (`reloading.ts`): the
       // folder changed on disk, so what was read is dropped and every open
       // page is told. An installed Tade is never this.
@@ -769,6 +755,8 @@ export function webServer(opts: ServerOptions): WebServer {
       servers.length = 0
       bound.length = 0
       boundHosts.length = 0
+      publicAt = null
+      publicTrouble = null
     },
   }
 }

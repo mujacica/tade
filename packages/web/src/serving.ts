@@ -203,6 +203,12 @@ export interface ServerOptions {
   now?: () => number
   /** How long to wait for a keypress. Shorter in tests, and only there. */
   confirmMs?: number
+  /**
+   * Where the public listener's socket goes, where a public name is set:
+   * `publicSocket()` unless a test says otherwise, because `/run/tade` is
+   * root's to make and no test may need root.
+   */
+  publicSocket?: string
 }
 
 /** The away view, as the window holds it. */
@@ -218,6 +224,10 @@ export interface WebServer {
   handle(req: IncomingMessage, res: ServerResponse, listener: Listener): Promise<void>
   /** What is bound, as `host:port`. Empty before `listen`. */
   readonly bound: readonly string[]
+  /** The socket Caddy connects to, while the public listener is up; null otherwise. */
+  readonly public: string | null
+  /** Why there is no public listener where a public name is set: the warning's own words. */
+  readonly publicTrouble: string | null
   /** The live streams, for the window's beat and for closing them. */
   readonly streams: Streams
   /**

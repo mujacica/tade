@@ -29,6 +29,7 @@ const SURFACE: Surface = {
   bind: 'loopback',
   port: 7654,
   trustedHosts: [],
+  publicName: null,
   acting: false,
   talking: false,
   drafting: false,

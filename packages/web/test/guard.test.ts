@@ -29,6 +29,7 @@ const LAN: Surface = {
   bind: 'lan',
   port: 7654,
   trustedHosts: ['studio.yak-bebop.ts.net'],
+  publicName: null,
   acting: true,
   talking: false,
   drafting: false,
@@ -627,6 +628,32 @@ describe('this machine is the loopback listener and a loopback Host, both', () =
       expect(verdict.why).toContain('"localhost:7654" on the public listener')
       expect(verdict.refusal.said).not.toContain('listener')
     }
+  })
+})
+
+describe('a route for this machine alone', () => {
+  // No route is one yet: the pages that connect a source will be, which must
+  // answer only through SSH (REMOTE-TADE §6.4). So this is the shell, marked.
+  const SETUP: Route = { ...SHELL, name: 'setup', path: '/setup', here: true }
+  const MINE = guarding({ bound: ['127.0.0.1', '::1'] })
+
+  it('is answered on the loopback listener to a loopback Host', () => {
+    for (const host of ['localhost:7654', '127.0.0.1:7654', '[::1]:7654'])
+      expect(allowed(asking({ host, listener: 'loopback' }), SETUP, MINE).ok, host).toBe(true)
+  })
+
+  it('is the 404 of a path nobody built from anywhere else, and the proxy’s socket above all', () => {
+    for (const [host, listener] of [
+      ['studio.yak-bebop.ts.net', 'loopback'],
+      ['studio.yak-bebop.ts.net', 'public'],
+      ['192.168.1.10:7654', 'public'],
+    ] as const) {
+      const verdict = allowed(asking({ host, listener }), SETUP, guarding())
+      expect(verdict.ok, `${host} on ${listener}`).toBe(false)
+      if (!verdict.ok) expect(verdict.refusal.error, `${host} on ${listener}`).toBe('no_such')
+    }
+    // This machine's own names on a public listener never get as far as asking.
+    expect(allowed(asking({ host: 'localhost', listener: 'public' }), SETUP, MINE).ok).toBe(false)
   })
 })
 

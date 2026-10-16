@@ -8,7 +8,16 @@ import type {
   TadeEvent,
   Workspace,
 } from '@tade/core'
-import { conflictsFor, documentsIn, overridesFrom, writtenOrder } from '@tade/core'
+import {
+  conflictsFor,
+  documentsIn,
+  markOf,
+  overridesFrom,
+  planStandings,
+  startOfToday,
+  titlesOf,
+  writtenOrder,
+} from '@tade/core'
 import type { JudgeFinding } from '@tade/extensions-core'
 import { offer, type WorkerCapabilities } from '@tade/harnesses-core'
 import type { CheckTreeIn, IntakeIn, SnapshotInput, SourceIn, TalkIn, WorkflowIn } from '@tade/web'
@@ -26,6 +35,9 @@ import { type RunTask, runsIn } from '../away-factory.ts'
 import { projectLines } from '../away-lifecycle.ts'
 import type { ActionsView, NoteShown } from '../frame.ts'
 import type { Transcript } from '../transcript.ts'
+import type { Wiring } from './context.ts'
+import { heldFindings } from './findings.ts'
+import type { CheckRecords } from './web-checks.ts'
 
 // What the window hands the away view on a beat, and what it reads to build it.
 //
@@ -144,6 +156,50 @@ export function nothingYet(): AwayHeld {
     // of the world, so it is not this function's to answer.
     talk: null,
   }
+}
+
+/**
+ * The beat's own parts, out of the window's held values only.
+ *
+ * `seenActions` is the last look and never a look; `spendToday` is a kept
+ * fold; `overridesFrom`, `writtenOrder`, `documentsIn` and `ranOn` are folds
+ * over the journal the window already has; `planUsage` is what each harness
+ * already said. **No `git`, no `ps`, no `collectStatus`** — a page refresh
+ * starts no work at all, which is the promise a test asserts as a count of
+ * calls (`test/away.test.ts`). A free function over `Wiring`, so the away
+ * subject's file is the listener and not this list.
+ */
+export function partsFrom(
+  wire: Wiring,
+  live: Held,
+  world: Workspace,
+  kept: { upSince: number | null; records: CheckRecords; factory: FactoryHeld },
+): AwayBeat {
+  return beatParts(
+    {
+      events: live.events,
+      rootLines: live.rootLines,
+      pending: live.pending,
+      seenActions: (task) => live.seenActions(task),
+      spendToday: () => live.spendToday(),
+      queued: live.queued,
+      queueFacts: () => live.queueFacts(),
+      notes: (project) => live.notes(project),
+      tasks: live.tasks,
+      marks: new Map(wire.state.panes.map((pane) => [pane.task, markOf(pane)])),
+      titles: titlesOf(wire.opts.config),
+      plans: planStandings(wire.opts.client.planUsage(), wire.now()),
+      machineUpSince: kept.upSince,
+      // The period `spendToday` covers, by `startOfToday` — the rule `Live` folds
+      // by — so the page's label and its figures can never be of two different days.
+      spendSince: startOfToday(wire.now()),
+      checks: kept.records.heldNow(wire.opts.home, world),
+      findings: heldFindings(wire),
+    },
+    world,
+    (task) => steeringFor(wire.opts.client, task),
+    kept.factory,
+  )
 }
 
 /**

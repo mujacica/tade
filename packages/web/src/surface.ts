@@ -7,6 +7,7 @@ import {
   DEVICES_SEEN_BY_AGENTS,
   HTTPONLY_IS_NOT_XSS,
   LAN_IS_PLAINTEXT,
+  PUBLIC_IS_THE_INTERNET,
   PUSH_GOES_THROUGH_A_STRANGER,
   PUSH_IS_WHILE_OPEN,
   PUSH_NEEDS_A_GESTURE,
@@ -36,6 +37,7 @@ export {
   DEVICES_SEEN_BY_AGENTS,
   HTTPONLY_IS_NOT_XSS,
   LAN_IS_PLAINTEXT,
+  PUBLIC_IS_THE_INTERNET,
   PUSH_GOES_THROUGH_A_STRANGER,
   PUSH_IS_WHILE_OPEN,
   PUSH_NEEDS_A_GESTURE,
@@ -65,8 +67,21 @@ export interface Surface {
   enabled: boolean
   bind: Bind
   port: number
-  /** Hosts beyond this machine's own that may reach it, from the config. */
+  /**
+   * Hosts beyond this machine's own that may reach it: the public name first,
+   * then `trusted_hosts`.
+   */
   trustedHosts: readonly string[]
+  /**
+   * The name this machine answers the internet by, through Caddy, or null.
+   *
+   * Set, there is a second listener — the Unix socket Caddy connects to — and
+   * it is `public` whatever a request on it says about itself. The name is
+   * also the first of `trustedHosts`, because Caddy ends TLS for it: that is
+   * what makes its `https` origin one a device may act from, and the address
+   * a pairing code carries.
+   */
+  publicName: string | null
   /**
    * Whether a paired device may change anything at all.
    *
@@ -174,6 +189,7 @@ export interface WebConfig {
   bind: Bind
   port: number
   trusted_hosts: readonly string[]
+  public: string
   acting: boolean
   orchestrator: boolean
   drafts: boolean
@@ -190,6 +206,7 @@ export const OFF: Surface = {
   bind: 'loopback',
   port: 7654,
   trustedHosts: [],
+  publicName: null,
   acting: false,
   talking: false,
   drafting: false,
@@ -211,11 +228,13 @@ export const OFF: Surface = {
  * that the file did not.
  */
 export function surfaceOf(web: WebConfig): Surface {
+  const named = web.public === '' ? [] : [web.public.toLowerCase()]
   return {
     enabled: web.enabled,
     bind: web.enabled ? web.bind : 'loopback',
     port: web.port,
-    trustedHosts: web.enabled ? [...web.trusted_hosts] : [],
+    trustedHosts: web.enabled ? [...new Set([...named, ...web.trusted_hosts])] : [],
+    publicName: web.enabled ? (named[0] ?? null) : null,
     acting: web.enabled && web.acting,
     talking: web.enabled && web.orchestrator,
     drafting: web.enabled && web.drafts,

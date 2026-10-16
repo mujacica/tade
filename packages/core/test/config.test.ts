@@ -682,6 +682,27 @@ describe('what a project pushes', () => {
     expect(read.ok && read.warnings).toEqual([])
   })
 
+  it('takes a public name, none by default, and refuses what is not a name', () => {
+    expect(ConfigSchema.parse({}).surfaces.web.public).toBe('')
+    const named = parseConfig('surfaces:\n  web:\n    public: tade.example.com\n')
+    expect(named.ok && named.config.surfaces.web.public).toBe('tade.example.com')
+    // Each of these would put something other than a name into a site block,
+    // a certificate request or a passkey's relying party.
+    for (const value of [
+      'https://tade.example.com',
+      'tade.example.com:443',
+      'tade.example.com/away',
+      '203.0.113.7',
+      'localhost',
+      '-tade.example.com',
+      'tade example.com',
+    ]) {
+      const read = parseConfig(`surfaces:\n  web:\n    public: '${value}'\n`)
+      expect(read.ok, value).toBe(false)
+      if (!read.ok) expect(read.issues[0]?.path, value).toBe('surfaces.web.public')
+    }
+  })
+
   it('says each of the three pairings that cannot hold, and nothing otherwise', () => {
     const on = (over: Record<string, unknown>) =>
       awayProblems({

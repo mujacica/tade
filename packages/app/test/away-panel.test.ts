@@ -5,6 +5,7 @@ import {
   ConfigSchema,
   DEVICES_SEEN_BY_AGENTS,
   LAN_IS_PLAINTEXT_SHORT,
+  PUBLIC_IS_THE_INTERNET_SHORT,
   TALKING_IS_NOT_YOU,
   TALKING_IS_NOT_YOU_SHORT,
 } from '@tade/core'
@@ -66,6 +67,8 @@ function view(over: Partial<AwayView> = {}): AwayView {
     streams: 1,
     acting: false,
     lan: LAN_IS_PLAINTEXT_SHORT,
+    internet: PUBLIC_IS_THE_INTERNET_SHORT,
+    public: null,
     agents: DEVICES_SEEN_BY_AGENTS,
     problem: null,
     ...over,
@@ -130,6 +133,40 @@ describe('the two clauses', () => {
 
   it('does not say it on a loopback bind, where it is not true', () => {
     expect(said()).not.toContain('same wifi')
+  })
+
+  it('says a public name is the internet, and what its health look found, above the code', () => {
+    const text = said({
+      public: {
+        name: 'tade.example.com',
+        up: true,
+        lines: [
+          { said: 'this Tade is out of date (0.2.4 is out)', loud: true },
+          { said: 'certificate: 60 days left', loud: false },
+        ],
+      },
+    })
+    const all = words(text)
+    expect(all).toContain(`● tade.example.com: ${PUBLIC_IS_THE_INTERNET_SHORT}`)
+    expect(all).toContain('▲ this Tade is out of date (0.2.4 is out)')
+    expect(all).toContain('certificate: 60 days left')
+    for (const line of ['tade.example.com', 'out of date', 'certificate'])
+      expect(text.indexOf(line), line).toBeLessThan(text.indexOf('█'))
+  })
+
+  it('says why nothing listens for Caddy where a name is set and the socket is not up', () => {
+    const all = words(
+      said({
+        public: {
+          name: 'tade.example.com',
+          up: false,
+          lines: [{ said: '/run/tade is not there, so nothing listens for Caddy', loud: true }],
+        },
+      }),
+    )
+    expect(all).toContain('○ tade.example.com')
+    expect(all).not.toContain(PUBLIC_IS_THE_INTERNET_SHORT)
+    expect(all).toContain('▲ /run/tade is not there')
   })
 
   it('draws the one about this machine’s agents however short the window is', () => {
@@ -666,6 +703,9 @@ describe('on the Away page of Settings', () => {
       live: new Set<string>(),
       streams: 0,
       problem: null,
+      publicAt: null,
+      publicTrouble: null,
+      health: [],
       now: 0,
     }
     const view = awayView(facts)
@@ -674,5 +714,39 @@ describe('on the Away page of Settings', () => {
     expect(view.help[AWAY_CONTROLS.talk]).toBe(`talk to Tade: ${TALKING_IS_NOT_YOU_SHORT}`)
     expect(view.lan).toBe(LAN_IS_PLAINTEXT_SHORT)
     expect(view.agents).toBe(DEVICES_SEEN_BY_AGENTS)
+    expect(view.internet).toBe(PUBLIC_IS_THE_INTERNET_SHORT)
+    // No public name, nothing said about one.
+    expect(view.public).toBeNull()
+  })
+
+  it('never leaves a public name somebody set silent: up with its health, or why not', () => {
+    const web = { surfaces: { web: { enabled: true, public: 'tade.example.com' } } }
+    const facts = {
+      surface: surfaceOf(ConfigSchema.parse(web).surfaces.web),
+      bound: ['127.0.0.1:7654'],
+      listening: true,
+      ticket: null,
+      asking: null,
+      devices: [],
+      live: new Set<string>(),
+      streams: 0,
+      problem: null,
+      publicAt: null,
+      publicTrouble: '/run/tade is not there, so nothing listens for Caddy',
+      health: [{ said: 'certificate: looking', loud: false }],
+      now: 0,
+    }
+    expect(awayView(facts).public).toEqual({
+      name: 'tade.example.com',
+      up: false,
+      lines: [{ said: '/run/tade is not there, so nothing listens for Caddy', loud: true }],
+    })
+    expect(awayView({ ...facts, publicAt: '/run/tade/away.sock' }).public).toEqual({
+      name: 'tade.example.com',
+      up: true,
+      lines: [{ said: 'certificate: looking', loud: false }],
+    })
+    // Off, there is no listener of either kind to say anything about.
+    expect(awayView({ ...facts, listening: false }).public).toBeNull()
   })
 })

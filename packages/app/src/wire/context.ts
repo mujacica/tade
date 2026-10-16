@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import type { Terminal } from '@earendil-works/pi-tui'
-import type { Arm, Config, Holding, ToldPrint } from '@tade/core'
+import type { Arm, CertificateLook, Config, Holding, ToldPrint } from '@tade/core'
 import type { ExtensionHost, ExtensionWorkbench } from '@tade/extensions-core'
 import type { HarnessModels, HistoryAsk, HistoryPage } from '@tade/harnesses-core'
 import type { StatusCollector } from '@tade/status'
@@ -241,6 +241,12 @@ export interface AppOptions {
    * where this is not given.
    */
   updates?: (config: Config, home: string, ask: boolean) => Promise<UpdateLook>
+  /**
+   * A look at the certificate a public name answers with (`lookAtCertificate`).
+   * Given, the away view looks on a clock of its own while a public listener
+   * is up (`web-public.ts`); without it nothing dials — a test's window.
+   */
+  certificate?: (name: string) => Promise<CertificateLook>
   /**
    * Restart the window with the same arguments so changes can be tried live.
    * The callback should stop the app, release the home lock, and re-exec.

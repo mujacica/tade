@@ -8,6 +8,7 @@ import {
   OFFLINE_NEEDS_HTTPS,
   PUSH_IS_WHILE_OPEN,
   PUSH_NEEDS_A_GESTURE,
+  publicSocket,
   tadeHome,
   writeSetting,
 } from '@tade/core'
@@ -208,6 +209,8 @@ export interface Looked {
   bind: 'loopback' | 'lan'
   port: number
   trustedHosts: readonly string[]
+  /** The name the internet reaches it by through Caddy, or null. */
+  publicName: string | null
   /** Whether a device may install the shell, which is a fact about this file. */
   installs: boolean
   /** Whether an installed device may keep a few counts on its own disk. */
@@ -246,6 +249,7 @@ async function look(): Promise<Looked> {
         bind: 'loopback' as const,
         port: 7654,
         trustedHosts: [],
+        publicName: null,
         installing: false,
         keepsView: false,
         pushing: false,
@@ -257,6 +261,7 @@ async function look(): Promise<Looked> {
     bind: surface.bind,
     port: surface.port,
     trustedHosts: surface.trustedHosts,
+    publicName: surface.publicName,
     installs: surface.installing,
     keepsView: surface.keepsView,
     notifies: surface.pushing,
@@ -286,6 +291,11 @@ function lines(said: Looked): string[] {
   out.push(said.bind === 'lan' ? 'on, listening on the network' : 'on, on this machine alone')
   out.push(`port ${said.port}`)
   for (const url of said.urls) out.push(url)
+  if (said.publicName !== null) {
+    out.push(
+      `and on the internet as ${said.publicName}, through Caddy at ${publicSocket()} — \`tade host caddy --check\` looks at it`,
+    )
+  }
   // **Said, not papered over.** With no window open nothing is listening,
   // whatever the setting says, and a phone that taps its bookmark gets the
   // browser's own connection error — which it cannot tell from a sleeping

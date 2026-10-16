@@ -27,6 +27,7 @@ const SURFACE: Surface = {
   bind: 'loopback',
   port: 7654,
   trustedHosts: ['studio.yak-bebop.ts.net'],
+  publicName: null,
   acting: false,
   talking: false,
   drafting: false,

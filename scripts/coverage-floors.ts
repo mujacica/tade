@@ -54,8 +54,9 @@ export const FLOOR: Record<string, number> = {
   // What is left of the CLI once the program itself is taken out (see UNSEEN):
   // `commands/voice.ts` and `telemetry.ts` are the two with real gaps. 70 -> 77
   // when the mark shown while the window opens came with its tests
-  // (`splash.ts`, pure, and `opening.ts` under fake timers).
-  'packages/cli': 77,
+  // (`splash.ts`, pure, and `opening.ts` under fake timers). 77 -> 80 with
+  // `tade host caddy`, whose steps and look (`host-caddy.ts`) are tested whole.
+  'packages/cli': 80,
   // 77 -> 85 with reviewing a pull request, whose policy half (`reviewing.ts`)
   // is pure and fully covered. What is left uncovered is what it always was:
   // the fixing, which starts an agent.

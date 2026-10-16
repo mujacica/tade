@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { type Refusal, refuse } from './errors.ts'
 import type { Asking } from './guard.ts'
+import { peerOf } from './proxied.ts'
 import type { Listener } from './surface.ts'
 
 // A request as it comes off a socket, and every bound on reading one.
@@ -15,7 +16,9 @@ import type { Listener } from './surface.ts'
 //
 // **No forwarded header is read here or anywhere in this package**
 // (`NEVER_TRUSTED`, `headers.ts`). The address is the socket's and the host is
-// `Host`, whatever is in front of the listener.
+// `Host`, whatever is in front of the listener — except that on the public
+// listener the socket is Caddy's, and the address is the PROXY header Caddy
+// wrote before the request, which nothing a client sends can reach.
 
 /**
  * A server for one listener: every request it accepts is that listener's, and
@@ -67,7 +70,9 @@ export function askingOf(req: IncomingMessage, listener: Listener): Asking {
     token: header(req, CSRF_HEADER),
     cookie: header(req, 'cookie'),
     tls: socket.encrypted === true,
-    from: req.socket.remoteAddress ?? 'unknown',
+    // The PROXY header's address where the public listener read one off the
+    // connection (`proxied.ts`): Caddy's own socket has no peer address at all.
+    from: peerOf(req.socket) ?? req.socket.remoteAddress ?? 'unknown',
     listener,
   }
 }

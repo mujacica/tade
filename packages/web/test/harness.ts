@@ -73,6 +73,7 @@ export const BASE: Surface = {
   bind: 'loopback',
   port: 0,
   trustedHosts: ['studio.yak-bebop.ts.net'],
+  publicName: null,
   // Off, like the config's default: the read-only tests are about a listener
   // that has no route to change anything, and `acting.test.ts` turns it on
   // deliberately. A fixture that was kinder than the default would be the one
@@ -192,6 +193,8 @@ export async function start(
     configuring?: WebConfiguring
     settings?: readonly SettingGroup[]
     home?: string
+    /** Where the public listener's socket goes, for a test that sets a public name. */
+    publicSocket?: string
   } = {},
 ): Promise<Running> {
   settingRows = opts.settings ?? []
@@ -230,6 +233,7 @@ export async function start(
     ...(opts.acting === undefined ? {} : { acting: opts.acting }),
     ...(opts.configuring === undefined ? {} : { configuring: opts.configuring }),
     ...(opts.confirmMs === undefined ? {} : { confirmMs: opts.confirmMs }),
+    ...(opts.publicSocket === undefined ? {} : { publicSocket: opts.publicSocket }),
   })
   epoch = one.server.epoch
   one.epoch = epoch

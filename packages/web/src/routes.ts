@@ -121,6 +121,17 @@ export interface Route {
   /** Whether it may be answered with no session: the bootstrap, and nothing else. */
   public?: true
   /**
+   * Whether only this machine may reach it: the loopback listener and a
+   * loopback `Host` (`thisMachine`), which from anywhere else is a person over
+   * SSH. Everywhere else it is the `404` of a path nobody built — the public
+   * listener above all, which is the internet through Caddy.
+   *
+   * No route is this yet. It is here for the pages that connect a source
+   * (REMOTE-TADE §6.4), which must answer only through SSH, so that a page
+   * like that is one word in its route rather than a rule somebody remembers.
+   */
+  here?: true
+  /**
    * Whether this path is answered with the shell.
    *
    * `assets.ts` asks the table rather than keeping its own list of the document

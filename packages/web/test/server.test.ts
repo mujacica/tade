@@ -30,6 +30,7 @@ describe('nothing listens unless it is turned on', () => {
         bind: 'loopback',
         port: 0,
         trustedHosts: [],
+        publicName: null,
         acting: false,
         talking: false,
         drafting: false,

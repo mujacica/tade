@@ -24,6 +24,9 @@ and setting up ends by actually opening a lane — because every other check is 
 | `packages/cli/src/commands/host.ts` | `tade host service`: the command, and asking in a terminal |
 | `packages/cli/src/commands/host-service.ts` | what it and setup's server step share: `unitHere`, `offerUnit`, `offerLinger`, `setUpUnattended`, `lanesWouldStop`, `START` |
 | `packages/core/src/service.ts` | pure: `serviceUnit`, `SERVICE`, `WINDOW_SOCKET`, `ATTACH` — the user unit, as text |
+| `packages/cli/src/commands/host-caddy.ts` | `tade host caddy`: `caddySaid` (the steps beside the block), `lookAtPublic` (`--check`) |
+| `packages/core/src/public-listener.ts` | pure: `PUBLIC_DIR`, `publicSocket`, `publicName`, `publicDirProblem`, `publicDirCommand`, `caddySite`, `certificateSays`, `outdatedSays` |
+| `packages/workbench/src/certificate.ts` | `lookAtCertificate` — one TLS handshake to a name, what a phone would get |
 | `packages/workbench/src/machine.ts` (`unattendedHere`, `systemdHere`, `serviceUnitPath`) | whether this is a server, linger, and where the unit goes: three files, no process |
 | `packages/harnesses/core/src/sign-in.ts` | `signInHere` (is a browser here?), `signInLasts` (how long a sign-in has left) |
 | `packages/drivers/tmux/src/scope.ts` | the lanes' tmux server in a systemd scope of its own, under a user service |
@@ -281,6 +284,40 @@ reopens the agent it lost). The trap itself is one line: `systemd-run --user sh 
 Not proved: whether systemd before 252 notices an alien main process exiting at all (Ubuntu 22.04
 has 249); a distribution with `KillUserProcesses=yes`, where a tmux server started from an SSH login
 — by `tade setup`'s own proof lane, say — dies at logout; and a sign-in carried through to the end.
+
+### A public name, behind Caddy (`tade host caddy`)
+
+The away view on a name of the person's own is a second listener, on `/run/tade/away.sock`
+(`add-away-surface` has why everything on it is public). What the machine must have for it is three
+things only a person with root can do, so **Tade says each exactly and does none of them**:
+
+- **The directory** — this user's, Caddy's group's, `2750` and setgid, made by one `tmpfiles.d`
+  line (`publicDirCommand`) because `/run` empties at every boot. `/run` and not `/tmp` or the home:
+  Caddy's own unit has `PrivateTmp`, and Debian and Ubuntu homes are closed to it. The listener
+  refuses a directory that is anything else rather than loosening it.
+- **The site block** — on standard output alone, so `tade host caddy | sudo tee -a
+  /etc/caddy/Caddyfile` is the whole of adding it: name-bound, `unix//` upstream, `proxy_protocol
+  v2`, `Host` untouched. Everything else goes to standard error.
+- **The records** — an `A` (an `AAAA` only if IPv6 answers on 443, which Let's Encrypt tries
+  first) and, once there is a certificate, a `CAA`. Nothing at the registrar is Tade's.
+
+**`--check` and the window look the same way and say the same words**: the directory, whether
+anything answers on the socket, the certificate the name answers with (one handshake, read whether
+or not it verifies, loud past a sixth of its life — Caddy renews at a third), and whether this Tade
+is behind, out of the Updates check's kept answer (`lastUpdates`) — `cannot tell` where nothing
+has asked, never *not behind*. The window looks only where it was handed `AppOptions.certificate`
+(the CLI's is, a test's never), twice a day, and says what is loud in the strip once
+(`web-public.ts`).
+
+Proved in a `node:22` container (Debian 12, Node 22.23) with Caddy 2.11.7's own release binary
+running as a `caddy` user: the directory made `2750 you:caddy`, the block exactly as printed under
+a `local_certs` global, this tree's away view as `you`. Through Caddy a pairing answered `201` with
+the `__Host-` cookie and was recorded from the container's own address — the header's, not the
+socket's; the snapshot and the live stream came through; `Host: localhost` never reached Tade; one
+address ran out of pairing tries while another still paired; `--check` said the internal CA's
+certificate does not verify and exited 1. Not proved: a Let's Encrypt certificate, a real phone,
+and `systemd-tmpfiles` itself — the container has no systemd, so the directory was made with
+`install -d`.
 
 ## Setting up ends with a lane
 

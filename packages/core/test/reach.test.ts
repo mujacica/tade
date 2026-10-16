@@ -417,6 +417,9 @@ describe('the shape of the rule', () => {
       // written, by somebody who never read `reach.ts`.
       'surfaces.web.orchestrator',
       'surfaces.web.port',
+      // The name the internet reaches this machine by: who can reach the
+      // control room, as widely as it goes, and never a model's to set.
+      'surfaces.web.public',
       'surfaces.web.push',
       'surfaces.web.push_details',
       'surfaces.web.push_key',
@@ -472,6 +475,7 @@ describe('what the person’s own words reach under intake and the away view', (
       'bind',
       'port',
       'trusted_hosts',
+      'public',
       'acting',
       'orchestrator',
       'drafts',
@@ -518,6 +522,7 @@ describe('what the person’s own words reach under intake and the away view', (
       'surfaces.web.bind': 'never',
       'surfaces.web.port': 'never',
       'surfaces.web.trusted_hosts': 'never',
+      'surfaces.web.public': 'never',
       'surfaces.web.push_key': 'never',
       'surfaces.web.acting': 'never',
       'surfaces.web.orchestrator': 'never',

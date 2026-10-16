@@ -1,13 +1,4 @@
-import {
-  type Arming,
-  type Config,
-  type InboxRow,
-  markOf,
-  planStandings,
-  startOfToday,
-  titlesOf,
-  type Workspace,
-} from '@tade/core'
+import type { Arming, Config, InboxRow } from '@tade/core'
 import {
   AGENT,
   type AgentIn,
@@ -33,6 +24,7 @@ import {
   type WebServer,
   webServer,
 } from '@tade/web'
+import { lastUpdates } from '@tade/workbench/programs'
 import { awayCollections } from '../away.ts'
 import { activityIn } from '../away-activity.ts'
 import type { Frame } from '../frame.ts'
@@ -41,17 +33,13 @@ import type { AwayView } from '../panels/away/view.ts'
 import type { PanelInputs } from '../panels.ts'
 import type { Actions, Subject, Submits, Wiring } from './context.ts'
 import { evaluationsAnswer } from './evaluations.ts'
-import { heldFindings } from './findings.ts'
 import type { Settings } from './settings.ts'
 import { armingFor, seenFrom, type Talking } from './web-asking.ts'
 import {
-  type AwayBeat,
   type AwayHeld,
-  beatParts,
   type FactoryHeld,
-  type Held,
   nothingYet,
-  steeringFor,
+  partsFrom,
   talkFor,
   upSinceOf,
 } from './web-beat.ts'
@@ -63,6 +51,7 @@ import { knownHere, Lanes } from './web-lanes.ts'
 import type { Lifecycle } from './web-lifecycle.ts'
 import { carryLink, isLink } from './web-link.ts'
 import { awayView, codeShownOn, keepCode, mintPairing } from './web-panel.ts'
+import { PublicHealth } from './web-public.ts'
 import { pushFor, type WebPush } from './web-push.ts'
 import { letGoOfRevoked, revokeEvery, revokeOne, type Sessions } from './web-sessions.ts'
 import { toldTo } from './web-told.ts'
@@ -192,11 +181,20 @@ export class Away implements Subject {
   private turning: Promise<void> = Promise.resolve()
   /** The devices the strip's chip last drew: one more or fewer since is a frame owed. */
   private readers = 0
+  /** The certificate and the version, while a public listener is up (`web-public.ts`). */
+  private readonly health: PublicHealth
 
   constructor(wire: Wiring, deps: AwayDeps) {
     this.wire = wire
     this.deps = deps
     this.log = toldTo(wire, (said) => deps.news(said))
+    this.health = new PublicHealth({
+      look: () => wire.opts.certificate ?? null,
+      newer: async () => (await lastUpdates(wire.opts.home))?.tade.newer ?? null,
+      news: (said) => deps.news(said),
+      draw: () => wire.draw(),
+      now: () => wire.now(),
+    })
     this.lanes = new Lanes({
       capture: (lane, lines) => wire.opts.client.capture(lane as never, lines, false),
       now: () => wire.now(),
@@ -282,9 +280,16 @@ export class Away implements Subject {
     })
     this.server = server
     const bound = await server.listen()
+    this.health.up(server.public === null ? null : surface.publicName)
     await this.log({
       type: 'web_enabled',
-      detail: { enabled: true, bind: surface.bind, port: surface.port, bound: bound.join(' ') },
+      detail: {
+        enabled: true,
+        bind: surface.bind,
+        port: surface.port,
+        bound: bound.join(' '),
+        public: server.public === null ? '' : (surface.publicName ?? ''),
+      },
     })
     if (bound.length === 0) {
       // Every address refused the bind. Named, never a quiet success: a URL in
@@ -301,6 +306,7 @@ export class Away implements Subject {
   async stop(): Promise<void> {
     const server = this.server
     this.server = null
+    this.health.up(null)
     this.projectors.clear()
     this.caughtUp.clear()
     this.tickets.clear()
@@ -356,6 +362,8 @@ export class Away implements Subject {
     void letGoOfRevoked(this.sessions())
     // And the notifications: nothing awaited — somebody else's latency.
     this.push.beat()
+    // And the public listener's certificate and version, on clocks of their own.
+    this.health.beat()
     if (this.asking !== null || this.streams.listening().length !== this.readers) this.wire.draw()
   }
 
@@ -373,50 +381,20 @@ export class Away implements Subject {
     const live = this.wire.live
     const world = live?.world ?? null
     const made =
-      live === null || world === null ? nothingYet() : awayCollections(this.partsOf(live, world))
+      live === null || world === null
+        ? nothingYet()
+        : awayCollections(
+            partsFrom(this.wire, live, world, {
+              upSince: this.upSince,
+              records: this.records,
+              factory: this.deps.factory(),
+            }),
+          )
     // **The conversation goes over the top**, because it is the window's and
     // not the world's: `null` from `nothingYet` would say *talking is not
     // turned on* until `Live` has looked once — the first second of a window.
     this.held = { ...made, talk: this.talkNow() }
     return this.held
-  }
-
-  /**
-   * The beat's own parts, out of held values only.
-   *
-   * `seenActions` is the last look and never a look; `spendToday` is a kept
-   * fold; `overridesFrom`, `writtenOrder`, `documentsIn` and `ranOn` are folds
-   * over the journal the window already has; `planUsage` is what each harness
-   * already said. **No `git`, no `ps`, no `collectStatus`** — a page refresh
-   * starts no work at all, which is the promise a test asserts as a count of
-   * calls (`test/away.test.ts`).
-   */
-  private partsOf(live: Held, world: Workspace): AwayBeat {
-    return beatParts(
-      {
-        events: live.events,
-        rootLines: live.rootLines,
-        pending: live.pending,
-        seenActions: (task) => live.seenActions(task),
-        spendToday: () => live.spendToday(),
-        queued: live.queued,
-        queueFacts: () => live.queueFacts(),
-        notes: (project) => live.notes(project),
-        tasks: live.tasks,
-        marks: new Map(this.wire.state.panes.map((pane) => [pane.task, markOf(pane)])),
-        titles: titlesOf(this.config()),
-        plans: planStandings(this.wire.opts.client.planUsage(), this.wire.now()),
-        machineUpSince: this.upSince,
-        // The period `spendToday` covers, by `startOfToday` — the rule `Live` folds
-        // by — so the page's label and its figures can never be of two different days.
-        spendSince: startOfToday(this.wire.now()),
-        checks: this.records.heldNow(this.wire.opts.home, world),
-        findings: heldFindings(this.wire),
-      },
-      world,
-      (task) => steeringFor(this.wire.opts.client, task),
-      this.deps.factory(),
-    )
   }
 
   /**
@@ -597,6 +575,9 @@ export class Away implements Subject {
       surface: surfaceOf(this.config().surfaces.web),
       bound: this.server?.bound ?? [],
       listening: this.server !== null && this.server.bound.length > 0,
+      publicAt: this.server?.public ?? null,
+      publicTrouble: this.server?.publicTrouble ?? null,
+      health: this.health.lines(),
       ticket,
       asking: this.asking,
       devices: this.devices,

@@ -36,6 +36,10 @@ orchestrator's arm reaches into it, and whether a person can read back what they
 - Every key has a default (`.default(...)`) or is `.optional()`. An empty or missing config
   file must always parse. Nested sections use `.prefault({})` so their inner defaults apply.
 - Closed sets are `z.enum([...])`, not free strings.
+- A value that ends up inside another program's config or a request — a host name in a Caddy site
+  block, a certificate, a passkey's relying party — is refused at the schema for anything that is
+  not its shape, rather than escaped where it is used: `surfaces.web.public` is a name and only a
+  name (`publicName`), so no scheme, port, path or address can arrive by it.
 - A key that refers to something else in the file (a worker route name, a project) is checked in
   the schema's `superRefine`, with `path` pointing at the offending key. Catching it at
   `tade config --check` time is the whole point; don't leave it to fail at spawn time.

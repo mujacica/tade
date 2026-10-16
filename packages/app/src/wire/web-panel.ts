@@ -2,7 +2,9 @@ import { networkInterfaces } from 'node:os'
 import {
   ACTING_IS_NOT_YOU_SHORT,
   DEVICES_SEEN_BY_AGENTS,
+  type Health,
   LAN_IS_PLAINTEXT_SHORT,
+  PUBLIC_IS_THE_INTERNET_SHORT,
   routesOf,
   SETTINGS_FROM_AWAY_SHORT,
   TALKING_IS_NOT_YOU_SHORT,
@@ -46,6 +48,11 @@ export interface PanelFacts {
   bound: readonly string[]
   /** Whether anything is listening at all. */
   listening: boolean
+  /** The socket Caddy connects to while the public listener is up, and why not where it is not. */
+  publicAt: string | null
+  publicTrouble: string | null
+  /** The public listener's certificate and version (`web-public.ts`). */
+  health: readonly Health[]
   /** The ticket outstanding, if one is, and when it was minted. */
   ticket: { url: string; at: number } | null
   /** The device at the door, and when it started asking. */
@@ -103,9 +110,29 @@ export function awayView(facts: PanelFacts): AwayView {
     configuring: facts.surface.configuring,
     help: grantsHelp(facts.surface),
     lan: LAN_IS_PLAINTEXT_SHORT,
+    internet: PUBLIC_IS_THE_INTERNET_SHORT,
     agents: DEVICES_SEEN_BY_AGENTS,
     problem: facts.problem,
+    public: publicOf(facts),
   }
+}
+
+/**
+ * The public listener as the panel says it: up, with what its health look
+ * found, or set and not up, with why — never silent about a name the person
+ * set and nothing answering on it.
+ */
+function publicOf(facts: PanelFacts): AwayView['public'] {
+  const name = facts.surface.publicName
+  if (name === null || !facts.listening) return null
+  if (facts.publicAt === null) {
+    return {
+      name,
+      up: false,
+      lines: [{ said: facts.publicTrouble ?? 'nothing listens for Caddy', loud: true }],
+    }
+  }
+  return { name, up: true, lines: facts.health }
 }
 
 /**

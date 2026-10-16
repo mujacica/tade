@@ -1,9 +1,23 @@
 import { spawn } from 'node:child_process'
+import { userInfo } from 'node:os'
 import { createInterface } from 'node:readline'
-import { lingerCommand } from '@tade/core'
+import {
+  caddySite,
+  defaultConfigPath,
+  lingerCommand,
+  loadConfig,
+  PUBLIC_DIR,
+  publicName,
+  publicSocket,
+  tadeHome,
+} from '@tade/core'
+import { answering, dirSeen } from '@tade/web'
+import { lookAtCertificate } from '@tade/workbench/certificate'
 import { systemdHere, unattendedHere } from '@tade/workbench/machine'
+import { lastUpdates } from '@tade/workbench/programs'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
+import { caddySaid, lookAtPublic } from './host-caddy.ts'
 import { type Asker, lanesWouldStop, offerUnit, unitHere } from './host-service.ts'
 
 // `tade host`: Tade on a server of its own. The command and the terminal it
@@ -42,6 +56,56 @@ export function registerHost(program: Command, io: Io, setExit: (code: number) =
   const host = program
     .command('host')
     .description('Tade on a server of its own: what keeps it running there')
+  host
+    .command('caddy [name]')
+    .description(
+      'Print the Caddy site block that puts the away view on a public name, and what else it needs',
+    )
+    .option('--check', 'look from here: the directory, the socket, the certificate, the version')
+    .action(async (given: string | undefined, opts: { check?: boolean }) => {
+      const loaded = await loadConfig(defaultConfigPath())
+      const configured = loaded.ok ? loaded.config.surfaces.web.public : ''
+      const name = (given ?? configured).toLowerCase()
+      if (name === '' || !publicName(name)) {
+        io.err(
+          name === ''
+            ? 'No public name: `tade host caddy tade.example.com`, or set surfaces.web.public (Settings › Away view › Public name).'
+            : `${name} is not a host name: no scheme, port, path or address — tade.example.com`,
+        )
+        setExit(Exit.invalidInput)
+        return
+      }
+      const socket = publicSocket()
+      const dir = await dirSeen(PUBLIC_DIR)
+      const uid = process.getuid?.() ?? -1
+      io.out(caddySite(name, socket).trimEnd())
+      for (const line of caddySaid({
+        name,
+        configured,
+        user: userInfo().username,
+        socket,
+        dir,
+        uid,
+      }))
+        io.err(line)
+      if (!opts.check) return
+      const looked = await lookAtPublic({
+        name,
+        socket,
+        uid,
+        dir,
+        answering,
+        look: (one) => lookAtCertificate(one),
+        newer: async () => {
+          const kept = await lastUpdates(tadeHome())
+          return kept === null ? null : { newer: kept.tade.newer }
+        },
+        now: Date.now(),
+      })
+      io.err('')
+      for (const one of looked) io.err(`${one.loud ? '▲' : '·'} ${one.said}`)
+      if (looked.some((one) => one.loud)) setExit(Exit.error)
+    })
   host
     .command('service')
     .description(

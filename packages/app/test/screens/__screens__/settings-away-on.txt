@@ -42,7 +42,7 @@
     │                            ▕│    reads     names   states   counts   titles   intent                        █│    
     │                            ▕│    may      □ full access  □ answer & steer  □ stop agents  □ close projects  █│    
     │                            ▕│             □ talk to Tade  □ change settings  □ see screens  □ read settings █│    
-    │                            ▕│                                                                               █│    
+    │                            ▕│                                                                               ▕│    
     │                            ▕│                                                                               ▕│    
     │                            ▕│ an agent on this machine could pair itself            Disconnect everything   ▕│    
     │                            ▕│                                                                               ▕│    
@@ -52,9 +52,9 @@
     │                            ▕│                                                                               ▕│    
     │                            ▕│ Trusted hostnames          none                                               ▕│    
 ━   │                            ▕│                                                                               ▕│   ━
-    │                            ▕│ Notification signing key   generated when it is first needed                  ▕│    
+    │                            ▕│ Public name                none                                               ▕│    
     │                            ▕│                                                                               ▕│   ▕
-    │                            ▕│ A PAIRED DEVICE MAY                                                           ▕│   ▕
+    │                            ▕│ Notification signing key   generated when it is first needed                  ▕│   ▕
     │                            ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕

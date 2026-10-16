@@ -13,18 +13,18 @@
  ▸ I│                            █│                                                                               █│    
  ▾ C│  Checks                    █│ Trusted hostnames          none                                               █│    
   M │                            █│                                                                               █│    
-  A │  Voice                     █│ Notification signing key   generated when it is first needed                  █│    
+  A │  Voice                     █│ Public name                none                                               █│    
   M │                            █│                                                                               █│    
-    │  Window                    █│ A PAIRED DEVICE MAY                                                           █│    
- ▾ F│                            █│ Act                       ────████ on                                         █│    
-   ▾│▌ Away view                 █│                                                                               █│    
-    │▌                           █│ Talk to Tade              ────████ on                                         █│    
-    │  Intake                    █│                                                                               █│    
-   ▸│                            █│ Save draft workflows      ────████ on                                         ▕│    
+    │  Window                    █│ Notification signing key   generated when it is first needed                  █│    
+ ▾ F│                            █│                                                                               █│    
+   ▾│▌ Away view                 █│ A PAIRED DEVICE MAY                                                           █│    
+    │▌                           █│ Act                       ────████ on                                         █│    
+    │  Intake                    █│                                                                               ▕│    
+   ▸│                            █│ Talk to Tade              ────████ on                                         ▕│    
 ━   │  Projects              ● 1 █│                                                                               ▕│   ━
-    │                            ▕│ Change settings           ────████ on                                         ▕│    
+    │                            ▕│ Save draft workflows      ────████ on                                         ▕│    
     │  Journal                   ▕│                                                                               ▕│   ▕
-    │                            ▕│ Install the page          ────████ on                                         ▕│   ▕
+    │                            ▕│ Change settings           ────████ on                                         ▕│   ▕
     │  Telemetry                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕

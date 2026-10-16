@@ -48,6 +48,7 @@ import { makeCollector } from '@tade/status'
 import { watchProcess } from '@tade/telemetry'
 import { makeRecorder, makeTranscriber } from '@tade/voice-stt'
 import { HomeBusyError, Workbench } from '@tade/workbench'
+import { lookAtCertificate } from '@tade/workbench/certificate'
 import { livenessTableFrom } from '@tade/workbench/lane-liveness'
 import { lookAtUpdates } from '@tade/workbench/programs'
 import type { Command } from 'commander'
@@ -461,6 +462,8 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           // Asked on a clock too, which only a real window is handed: a test's
           // never reaches the network it runs on.
           updates: (config, at, ask) => lookAtUpdates(config, at, { ask }),
+          // The public name's certificate, the same way: only a real window dials.
+          certificate: (name) => lookAtCertificate(name),
           written: () => writtenTools(extensionsRoot),
           extensions,
           // What each harness loads by itself, listed and nothing more: pi's

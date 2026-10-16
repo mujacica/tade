@@ -547,6 +547,7 @@ it — and each is still nothing to a device until you grant that device here:
 |---|---|---|
 | **Serve the away view** | off | a listener while this window is open, and the code to pair with drawn under the switch |
 | **Who can reach it: lan** | this machine | plain HTTP on your wifi, and read-only whatever else is on — `tailscale serve localhost:7654` gives a phone HTTPS and leaves Tade listening here |
+| **Public name** | none | the internet, through Caddy on a server of yours: a second listener on a socket only Caddy can open, where nothing is ever this machine, and each phone's own pairing limit — `tade host caddy` prints the rest |
 | **Act** | on | eight bounded things on work you already set up — plus stopping or reopening an agent and closing or reopening a project, each only on a device you granted it — and only from this machine or an `https` name you trusted |
 | **Talk to Tade** | on | free text into the same conversation, answered with its tools narrowed to that device's own view |
 | **Save draft workflows** | on | one field at a time, into a file no run reads until you publish it here |
@@ -716,6 +717,13 @@ the systemd user unit that keeps Tade running there, writes it when you say so a
 it; the window runs in tmux, so `tmux -L tade-window attach -t tade` over SSH shows it. Set
 `workspace.driver: tmux` there: its agents then run in a systemd scope of their own, so stopping,
 restarting or upgrading Tade never ends one.
+
+For a phone, give the server a name of your own — **Public name** in Settings › Away view — and put
+Caddy in front: `tade host caddy` prints the site block, the one root line that makes the socket's
+directory and the records the name needs, and writes nothing. `tade host caddy --check` looks from
+the box at the directory, the socket, the certificate the name answers with — loudly when renewing
+has stopped — and whether this Tade is behind, which the away view also says loudly while it is
+public.
 
 macOS Terminal puts its own parts around the title Tade sets — the folder, the program and its
 arguments (`node …/pnpm.cjs run tade` under `pnpm tade`), the size — and for a title that is only

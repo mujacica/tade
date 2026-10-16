@@ -7,6 +7,7 @@ import {
   type Scope,
   type Surface,
   sameHost,
+  thisMachine,
   trusted,
 } from './surface.ts'
 
@@ -270,6 +271,13 @@ export function allowed(asking: Asking, route: Route, guarding: Guarding): Verdi
   const host = hostOf(asking.host ?? '')
   if (host === null) return no('bad_origin', `host offered: ${quoted(asking.host)}`)
   const origin = originOf(asking, host)
+  // **A route for this machine alone is a path nobody built anywhere else**,
+  // so it is the `404` an absent path is and never a `403` that says it exists.
+  // Asked of the listener and the `Host` both (`thisMachine`): the proxy's
+  // socket never gets as far as one, whatever it is told.
+  if (route.here === true && !thisMachine(origin)) {
+    return no('no_such', `${route.name} is answered on this machine alone`)
+  }
 
   // **Not on a document navigation**, and this is the correction somebody will
   // otherwise make twice. A person who scans the pairing code is a *typed URL*,
