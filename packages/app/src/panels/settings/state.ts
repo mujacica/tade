@@ -5,6 +5,7 @@ import { normalKey } from '../../keys.ts'
 import type { PanelInputs } from '../../panels.ts'
 import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
 import { accountChoice } from './accounts.ts'
+import { LOOK_AGAIN } from './domain.ts'
 import { scopedGroup, scopedRows, scopeHere, scopesOf } from './scopes.ts'
 
 export type { UpdatesShown }
@@ -639,6 +640,8 @@ function clicked(
       }
       return { panel: moved, submit: true, choice: control }
     }
+    case LOOK_AGAIN:
+      return { panel: { ...panel, saved: null, error: null }, submit: true, choice: LOOK_AGAIN }
     case 'mic-test':
       return panel.testing
         ? stay(panel)

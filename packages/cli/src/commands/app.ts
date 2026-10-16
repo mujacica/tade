@@ -49,6 +49,7 @@ import { watchProcess } from '@tade/telemetry'
 import { makeRecorder, makeTranscriber } from '@tade/voice-stt'
 import { HomeBusyError, Workbench } from '@tade/workbench'
 import { lookAtCertificate } from '@tade/workbench/certificate'
+import { lookAtDomain } from '@tade/workbench/domain'
 import { livenessTableFrom } from '@tade/workbench/lane-liveness'
 import { lookAtUpdates } from '@tade/workbench/programs'
 import type { Command } from 'commander'
@@ -464,6 +465,8 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           updates: (config, at, ask) => lookAtUpdates(config, at, { ask }),
           // The public name's certificate, the same way: only a real window dials.
           certificate: (name) => lookAtCertificate(name),
+          // And the records it needs, looked at when Settings shows its row.
+          domain: (name) => lookAtDomain(name),
           written: () => writtenTools(extensionsRoot),
           extensions,
           // What each harness loads by itself, listed and nothing more: pi's

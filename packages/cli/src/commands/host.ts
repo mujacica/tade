@@ -4,20 +4,24 @@ import { createInterface } from 'node:readline'
 import {
   caddySite,
   defaultConfigPath,
+  domainSays,
   lingerCommand,
   loadConfig,
   PUBLIC_DIR,
-  publicName,
   publicSocket,
   tadeHome,
+  trustedWrite,
 } from '@tade/core'
 import { answering, dirSeen } from '@tade/web'
 import { lookAtCertificate } from '@tade/workbench/certificate'
+import { accountUri, lookAtDomain } from '@tade/workbench/domain'
+import { heldBy } from '@tade/workbench/lock'
 import { systemdHere, unattendedHere } from '@tade/workbench/machine'
 import { lastUpdates } from '@tade/workbench/programs'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 import { caddySaid, lookAtPublic } from './host-caddy.ts'
+import { domainJson, domainPrinted, domainRefused, writeTrusted } from './host-domain.ts'
 import { type Asker, lanesWouldStop, offerUnit, unitHere } from './host-service.ts'
 
 // `tade host`: Tade on a server of its own. The command and the terminal it
@@ -66,11 +70,11 @@ export function registerHost(program: Command, io: Io, setExit: (code: number) =
       const loaded = await loadConfig(defaultConfigPath())
       const configured = loaded.ok ? loaded.config.surfaces.web.public : ''
       const name = (given ?? configured).toLowerCase()
-      if (name === '' || !publicName(name)) {
+      const refused = name === '' ? null : domainRefused(name)
+      if (name === '' || refused !== null) {
         io.err(
-          name === ''
-            ? 'No public name: `tade host caddy tade.example.com`, or set surfaces.web.public (Settings › Away view › Public name).'
-            : `${name} is not a host name: no scheme, port, path or address — tade.example.com`,
+          refused ??
+            'No public name: `tade host caddy tade.example.com`, or set surfaces.web.public (Settings › Away view › Public name).',
         )
         setExit(Exit.invalidInput)
         return
@@ -105,6 +109,73 @@ export function registerHost(program: Command, io: Io, setExit: (code: number) =
       io.err('')
       for (const one of looked) io.err(`${one.loud ? '▲' : '·'} ${one.said}`)
       if (looked.some((one) => one.loud)) setExit(Exit.error)
+    })
+  host
+    .command('domain <name>')
+    .description(
+      'Look at the records a public name needs, from here — A, AAAA, DNSSEC, CAA — say what to add for each, and set the name on a press',
+    )
+    .option(
+      '--account <uri>',
+      "Caddy's account at Let's Encrypt, for the CAA record, where it cannot be read here",
+    )
+    .option('--write', 'write it as the public name and a trusted hostname without asking')
+    .option('--json', 'machine-readable output')
+    .action(async (given: string, opts: { account?: string; write?: boolean; json?: boolean }) => {
+      const name = given.toLowerCase().replace(/\.$/, '')
+      const refused = domainRefused(name)
+      if (refused !== null) {
+        io.err(refused)
+        setExit(Exit.invalidInput)
+        return
+      }
+      const account = opts.account
+      if (account !== undefined && !accountUri(account)) {
+        io.err(
+          `${account} is not an account: an https URL, the way Caddy keeps it — https://acme-v02.api.letsencrypt.org/acme/acct/…`,
+        )
+        setExit(Exit.invalidInput)
+        return
+      }
+      const seen = await lookAtDomain(
+        name,
+        account === undefined ? {} : { account: async () => ({ uri: account }) },
+      )
+      const loud = domainSays(seen).some((one) => one.loud)
+      if (opts.json) io.out(JSON.stringify(domainJson(seen), null, 2))
+      else for (const line of domainPrinted(seen)) io.out(line)
+      if (loud) setExit(Exit.error)
+      if (opts.json && !opts.write) return
+      // The name goes into the config on a press and never otherwise: it
+      // decides who reaches this machine, so it is the person's to write.
+      const ask = terminal(io)
+      const path = defaultConfigPath()
+      const loaded = await loadConfig(path)
+      const web = loaded.ok ? loaded.config.surfaces.web : null
+      ask.say('')
+      if (web !== null && trustedWrite(web, name) === null) {
+        ask.say(`surfaces.web.public is ${name}, and it is a trusted hostname.`)
+        return
+      }
+      if (!opts.write && !(process.stdin.isTTY && process.stderr.isTTY)) {
+        ask.say(
+          `\`tade host domain ${name} --write\` writes it as the public name and a trusted hostname.`,
+        )
+        return
+      }
+      const question = `Write ${name} as surfaces.web.public and add it to surfaces.web.trusted_hosts?`
+      if (!opts.write && !(await ask.confirm(question, !loud))) return
+      try {
+        await writeTrusted(path, name)
+      } catch (err) {
+        ask.say(err instanceof Error ? err.message : String(err))
+        setExit(Exit.error)
+        return
+      }
+      const open = (await heldBy(tadeHome())) !== null
+      ask.say(
+        `surfaces.web.public is ${name}, and it is a trusted hostname. ${open ? 'A window has this home open, so it applies when that window next starts.' : 'It applies the next time Tade starts.'} \`tade host caddy\` prints the site block for it.`,
+      )
     })
   host
     .command('service')

@@ -14,17 +14,20 @@ import {
   settingReach,
   settingsOf,
   type ThinkingLevel,
+  trustedWrite,
   wantedInstead,
 } from '@tade/core'
 import { isCredential } from '@tade/web'
 import type { Frame } from '../frame.ts'
 import { checkTalkKey } from '../keys.ts'
+import { LOOK_AGAIN } from '../panels/settings/domain.ts'
 import {
   actsOf,
   DONE,
   type SettingsPanel,
   settingsPanel,
   UPDATES,
+  visibleSettings,
 } from '../panels/settings/state.ts'
 import { keysPanel } from '../panels/small/state.ts'
 import { writeSetting } from '../settings.ts'
@@ -38,6 +41,7 @@ import {
   type Wiring,
   why,
 } from './context.ts'
+import { DomainLook } from './web-domain.ts'
 
 // The Settings page, and the one path a setting is written by.
 //
@@ -103,10 +107,13 @@ export interface SettingsDeps {
 export class Settings implements Subject {
   private readonly wire: Wiring
   private readonly deps: SettingsDeps
+  /** The records the public name needs, under its row (`web-domain.ts`). */
+  private readonly domain: DomainLook
 
   constructor(wire: Wiring, deps: SettingsDeps) {
     this.wire = wire
     this.deps = deps
+    this.domain = new DomainLook({ look: () => wire.opts.domain ?? null, draw: () => wire.draw() })
   }
 
   /**
@@ -122,13 +129,27 @@ export class Settings implements Subject {
       return { talkKey: talk.key, talkMode: talk.mode, releases: this.deps.releases() }
     }
     if (panel?.kind !== 'settings') return {}
+    const settings = this.rows()
     return {
-      settings: this.rows(),
+      settings,
       lanesSurvive: this.wire.opts.client.driver.capabilities.detach,
       configPath: tilde(this.path),
       releases: this.deps.releases(),
       budgetWarnings: 0,
+      domain: this.domainShown(panel, settings),
     }
+  }
+
+  /**
+   * The look under the Public name row, while the page shows that row with a
+   * name in it: asked once for each opening of the page (`DomainLook.want`).
+   */
+  private domainShown(panel: SettingsPanel, groups: readonly SettingGroup[]) {
+    const name = this.wire.opts.config.surfaces.web.public
+    if (name === '') return null
+    if (!visibleSettings(panel, groups).some((one) => one.path === PUBLIC)) return null
+    this.domain.want(name.toLowerCase())
+    return this.domain.view(name.toLowerCase())
   }
 
   inputs() {
@@ -199,6 +220,7 @@ export class Settings implements Subject {
     if (choice.startsWith('account:')) await this.deps.accountAction(choice)
     if (choice.startsWith('updates:')) await this.deps.updateAction(choice)
     if (choice === 'mic-test') await this.deps.testMicrophone()
+    if (choice === LOOK_AGAIN) this.domain.again()
     if (choice.startsWith('away-')) await this.deps.away().carry(choice)
   }
 
@@ -353,6 +375,7 @@ export class Settings implements Subject {
    */
   async open(category = 'agents', search = '', scope = ''): Promise<string> {
     this.wire.put({ ...this.wire.state, panel: settingsPanel(category, search, scope) })
+    this.domain.forget()
     this.wire.draw()
     // Asked each time the page opens: a sign-in made in another terminal counts.
     this.deps.loadAccounts()
@@ -487,6 +510,9 @@ export class Settings implements Subject {
       .flatMap((also) => rows.filter((one) => one.path === also))
       .filter((one) => one.value !== '')
       .map((one) => one.title.toLowerCase())
+    // A public name written here is a trusted hostname on the same press
+    // (`trustedWrite`): the name is the one typed, and nothing types one in.
+    const trusting = path === PUBLIC ? trustedAlso(this.wire.opts.config, value.trim()) : null
     let before: string | null = null
     try {
       before = readFileSync(this.path, 'utf8')
@@ -510,6 +536,7 @@ export class Settings implements Subject {
         // model belongs to the harness it was chosen in, and unset is the
         // harness deciding, which is where this sat before anybody chose.
         for (const also of clearable) writeSetting(this.path, also, undefined)
+        if (trusting !== null) writeSetting(this.path, TRUSTED, trusting.now)
       }
       const loaded = await loadConfig(this.path)
       if (!loaded.ok) {
@@ -550,7 +577,7 @@ export class Settings implements Subject {
           ? `Saved. ${setting.title} applies when Tade next starts.${reset}`
           : trouble
             ? `Saved. It applies when the orchestrator next starts: ${trouble}`
-            : `Saved. It applies now.${reset}${this.aboutKey(path, value)}`
+            : `Saved. It applies now.${reset}${this.aboutKey(path, value)}${trusting === null ? '' : ` ${value.trim().toLowerCase()} is a trusted hostname too.`}`
       // Written down once it is true, with what it was: the config is one file
       // rewritten in place and nothing else remembers, so this line is what
       // makes a change somebody was not at the keyboard for undoable rather
@@ -561,18 +588,17 @@ export class Settings implements Subject {
       // closes when the person presses Done, and a journal write between the
       // press and the page going is a page that hangs about for as long as
       // the disk takes.
-      void this.wire.opts.client.log
-        .append({
-          type: 'config_changed',
-          detail: {
-            path,
-            was: held(setting?.value ?? ''),
-            now: held(value),
-            by,
-            ...(said ? { said } : {}),
-          },
-        })
-        .catch(() => {})
+      const changed = [
+        { path, was: held(setting?.value ?? ''), now: held(value) },
+        ...(trusting === null
+          ? []
+          : [{ path: TRUSTED, was: trusting.was.join(' '), now: trusting.now.join(' ') }]),
+      ]
+      for (const one of changed) {
+        void this.wire.opts.client.log
+          .append({ type: 'config_changed', detail: { ...one, by, ...(said ? { said } : {}) } })
+          .catch(() => {})
+      }
       return told
     } catch (err) {
       // Put back as it was, and said as a throw: the page shows it on the
@@ -638,6 +664,21 @@ export class Settings implements Subject {
     })()
     return beaten ? ` ${beaten} is set, though, and that is what is used.` : ''
   }
+}
+
+/** The public name's row, and the trusted hostnames a name written in it joins. */
+const PUBLIC = 'surfaces.web.public'
+const TRUSTED = 'surfaces.web.trusted_hosts'
+
+/**
+ * The trusted hostnames as they were and as they are with `name` among them,
+ * or null where it already is or no name was written.
+ */
+function trustedAlso(config: Config, name: string): { was: string[]; now: string[] } | null {
+  if (name === '') return null
+  const web = config.surfaces.web
+  const now = trustedWrite(web, name)?.trusted_hosts ?? [...web.trusted_hosts]
+  return now.length === web.trusted_hosts.length ? null : { was: [...web.trusted_hosts], now }
 }
 
 /**

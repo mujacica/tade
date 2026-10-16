@@ -560,6 +560,7 @@ export interface Frame {
       | 'intake'
       | 'workflow'
       | 'away'
+      | 'domain'
     >
   >
   /** The key you hold to talk, and whether there is anything to hear you. */

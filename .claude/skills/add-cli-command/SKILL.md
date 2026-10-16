@@ -23,6 +23,9 @@ program and exposes `run(argv, io)` which returns an exit code instead of callin
   the unit on standard output and everything else on standard error, so redirecting it is the
   file; it writes only on a press, or with `--write` for a script, and never asks where there is
   no terminal to answer.
+- **A command that asks the world says what it asked and asks only when run.** `tade host domain`
+  asks DNS servers and dials 443; its look takes every server and probe as an option, so a test
+  hands a server on loopback and the binary is spawned only where it refuses before asking.
 - **Interactive commands must end at end of input.** `readline`'s `question()` never settles on EOF,
   so a loop built on it hangs on Ctrl-D or piped input, and whatever it started keeps running.
   Iterate the interface (`for await (const line of rl)`), which ends on both EOF and close, and stop

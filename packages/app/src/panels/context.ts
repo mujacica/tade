@@ -32,6 +32,7 @@ import { openProject } from './project/view.ts'
 import { race } from './race/view.ts'
 import { search } from './search/view.ts'
 import type { AccountShown } from './settings/accounts.ts'
+import type { DomainView } from './settings/domain.ts'
 import type { Choice, UpdatesShown } from './settings/state.ts'
 import { settings } from './settings/view.ts'
 import type { BranchRow } from './small/state.ts'
@@ -250,6 +251,8 @@ export interface PanelContext {
    * is what `--safe` and a test with no away wiring look like.
    */
   away: AwayView | null
+  /** The records the public name needs, drawn under its row in Settings; null where nothing looks. */
+  domain: DomainView | null
 }
 
 /** A panel, and anything that opens out of it and may reach past its edge. */

@@ -29,6 +29,7 @@ import {
   spellsOut,
   valueTooWide,
 } from './control.ts'
+import { domainLines } from './domain.ts'
 import { scopedGroup, scopeHere } from './scopes.ts'
 import { ACCOUNTS, type SettingsPanel, UPDATES, visibleSettings } from './state.ts'
 import { drawUpdates } from './updates.ts'
@@ -532,6 +533,11 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
     const away = ctx.away
     if (setting.path === 'surfaces.web.enabled' && away && (away.listening || away.problem)) {
       body.push(...awayLines(away, ctx, form), blank(form))
+    }
+    // And under the public name, the records it needs — the look `tade host
+    // domain` prints, on the same ground, for the same reason.
+    if (setting.path === 'surfaces.web.public' && ctx.domain) {
+      body.push(...domainLines(ctx.domain, ctx, form), blank(form))
     }
   })
 

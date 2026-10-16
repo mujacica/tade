@@ -1,7 +1,12 @@
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { type CertificateLook, caddySite, PUBLIC_IS_THE_INTERNET } from '@tade/core'
+import {
+  type CertificateLook,
+  caddySite,
+  PUBLIC_IS_THE_INTERNET,
+  TADE_SH_IS_THE_INSTALLER,
+} from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { caddySaid, type Looking, lookAtPublic } from '../src/commands/host-caddy.ts'
@@ -31,7 +36,7 @@ describe('what is said beside the block', () => {
     expect(said).toContain('now: /run/tade is not there, so nothing listens for Caddy')
     expect(said).toContain('sudo systemctl reload caddy')
     expect(said).toContain(`An A record for ${NAME}`)
-    expect(said).toContain(`${NAME}. CAA 0 issue "letsencrypt.org"`)
+    expect(said).toContain(`domain ${NAME}\` looks at each and says exactly what to add`)
     expect(said).toContain(`Set surfaces.web.public to ${NAME}`)
     const order = ['1. ', '2. ', '3. ', '4. '].map((step) => said.indexOf(step))
     expect([...order].sort((a, b) => a - b)).toEqual(order)
@@ -142,5 +147,9 @@ describe('tade host caddy', () => {
     const url = await run(['host', 'caddy', 'https://tade.example.com'])
     expect(url.code).toBe(2)
     expect(url.stderr).toContain('is not a host name')
+    const installer = await run(['host', 'caddy', 'vps.tade.sh'])
+    expect(installer.code).toBe(2)
+    expect(installer.stdout).toBe('')
+    expect(installer.stderr).toContain(TADE_SH_IS_THE_INSTALLER)
   })
 })

@@ -547,7 +547,7 @@ it — and each is still nothing to a device until you grant that device here:
 |---|---|---|
 | **Serve the away view** | off | a listener while this window is open, and the code to pair with drawn under the switch |
 | **Who can reach it: lan** | this machine | plain HTTP on your wifi, and read-only whatever else is on — `tailscale serve localhost:7654` gives a phone HTTPS and leaves Tade listening here |
-| **Public name** | none | the internet, through Caddy on a server of yours: a second listener on a socket only Caddy can open, where nothing is ever this machine, and each phone's own pairing limit — `tade host caddy` prints the rest |
+| **Public name** | none | the internet, through Caddy on a server of yours: a second listener on a socket only Caddy can open, where nothing is ever this machine, and each phone's own pairing limit — `tade host domain` and `tade host caddy` say the rest |
 | **Act** | on | eight bounded things on work you already set up — plus stopping or reopening an agent and closing or reopening a project, each only on a device you granted it — and only from this machine or an `https` name you trusted |
 | **Talk to Tade** | on | free text into the same conversation, answered with its tools narrowed to that device's own view |
 | **Save draft workflows** | on | one field at a time, into a file no run reads until you publish it here |
@@ -718,9 +718,13 @@ it; the window runs in tmux, so `tmux -L tade-window attach -t tade` over SSH sh
 `workspace.driver: tmux` there: its agents then run in a systemd scope of their own, so stopping,
 restarting or upgrading Tade never ends one.
 
-For a phone, give the server a name of your own — **Public name** in Settings › Away view — and put
-Caddy in front: `tade host caddy` prints the site block, the one root line that makes the socket's
-directory and the records the name needs, and writes nothing. `tade host caddy --check` looks from
+For a phone, give the server a name of your own and put Caddy in front. `tade host domain
+tade.example.com` looks at the records the name needs from the box — A, AAAA only where IPv6 answers
+on 443, DNSSEC before Caddy orders a certificate, CAA after it — says of each whether it is missing,
+wrong or not yet visible with the exact record to add, and writes the name as the public name and a
+trusted hostname when you say so; Settings › Away view shows the same look under **Public name**.
+`tade.sh` and the names under it are refused: it serves the installer. `tade host caddy` prints the
+site block and the one root line that makes the socket's directory, and writes nothing. `tade host caddy --check` looks from
 the box at the directory, the socket, the certificate the name answers with — loudly when renewing
 has stopped — and whether this Tade is behind, which the away view also says loudly while it is
 public.

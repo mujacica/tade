@@ -43,8 +43,8 @@ export function caddySaid(opts: {
       : `   now: ${problem.replace(/: `tade host caddy`.*$/, '')}`,
     `2. The block above in /etc/caddy/Caddyfile, then \`sudo systemctl reload caddy\`.`,
     `3. An A record for ${opts.name} pointing at this machine — and AAAA only if IPv6 answers on 443,`,
-    `   because Let's Encrypt tries it first. Once there is a certificate, a CAA record keeps every`,
-    `   other issuer out: ${opts.name}. CAA 0 issue "letsencrypt.org"`,
+    `   because Let's Encrypt tries it first; once there is a certificate, a CAA record. \`tade host`,
+    `   domain ${opts.name}\` looks at each and says exactly what to add.`,
     opts.configured === opts.name
       ? `4. surfaces.web.public is ${opts.name}: with the away view on, Tade listens for Caddy at ${opts.socket}.`
       : `4. Set surfaces.web.public to ${opts.name} (Settings › Away view › Public name), and turn the away view on.`,

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { refusedName, TADE_SH_IS_THE_INSTALLER } from './domain.ts'
 import { publicName } from './public-listener.ts'
 
 // The sentences about the away view that have to be said where somebody is
@@ -480,13 +481,16 @@ export const WebSurface = z
      * said where it is set, and `tade host caddy` prints the rest.
      *
      * A name and never an address: it is what the certificate is for, and a
-     * passkey's relying party has to be one.
+     * passkey's relying party has to be one. Never `tade.sh` or a name under
+     * it (`TADE_SH_IS_THE_INSTALLER`), refused here so every way of setting it
+     * gives the same reason.
      */
     public: z
       .string()
       .refine((name) => name === '' || publicName(name), {
         message: 'a host name such as tade.example.com: no scheme, port, path or address',
       })
+      .refine((name) => refusedName(name) === null, { message: TADE_SH_IS_THE_INSTALLER })
       .default(''),
     /**
      * Whether a paired device may change anything at all.

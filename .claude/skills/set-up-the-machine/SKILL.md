@@ -27,6 +27,11 @@ and setting up ends by actually opening a lane — because every other check is 
 | `packages/cli/src/commands/host-caddy.ts` | `tade host caddy`: `caddySaid` (the steps beside the block), `lookAtPublic` (`--check`) |
 | `packages/core/src/public-listener.ts` | pure: `PUBLIC_DIR`, `publicSocket`, `publicName`, `publicDirProblem`, `publicDirCommand`, `caddySite`, `certificateSays`, `outdatedSays` |
 | `packages/workbench/src/certificate.ts` | `lookAtCertificate` — one TLS handshake to a name, what a phone would get |
+| `packages/core/src/domain.ts` | pure: `domainSays`, `domainHead`, `DomainSeen`, `caaRecord`, `refusedName` (`TADE_SH_IS_THE_INSTALLER`), `publicAddresses`, `trustedWrite` |
+| `packages/workbench/src/domain.ts` | `lookAtDomain` — the zone's servers and a public resolver asked for each record, 443 here, the certificate, `caddyAccount` |
+| `packages/workbench/src/dns.ts` | `ask` — one question over UDP with a deadline, the bits `node:dns` cannot set; `keyTag`, `dsOf` |
+| `packages/cli/src/commands/host-domain.ts` | `tade host domain`: `domainPrinted`, `domainRefused`, `writeTrusted` |
+| `packages/app/src/wire/web-domain.ts`, `panels/settings/domain.ts` | the same look under the Public name row in Settings › Away view |
 | `packages/workbench/src/machine.ts` (`unattendedHere`, `systemdHere`, `serviceUnitPath`) | whether this is a server, linger, and where the unit goes: three files, no process |
 | `packages/harnesses/core/src/sign-in.ts` | `signInHere` (is a browser here?), `signInLasts` (how long a sign-in has left) |
 | `packages/drivers/tmux/src/scope.ts` | the lanes' tmux server in a systemd scope of its own, under a user service |
@@ -299,7 +304,8 @@ things only a person with root can do, so **Tade says each exactly and does none
   /etc/caddy/Caddyfile` is the whole of adding it: name-bound, `unix//` upstream, `proxy_protocol
   v2`, `Host` untouched. Everything else goes to standard error.
 - **The records** — an `A` (an `AAAA` only if IPv6 answers on 443, which Let's Encrypt tries
-  first) and, once there is a certificate, a `CAA`. Nothing at the registrar is Tade's.
+  first) and, once there is a certificate, a `CAA`. Nothing at the registrar is Tade's:
+  `tade host domain` (below) says exactly what to add.
 
 **`--check` and the window look the same way and say the same words**: the directory, whether
 anything answers on the socket, the certificate the name answers with (one handshake, read whether
@@ -318,6 +324,50 @@ address ran out of pairing tries while another still paired; `--check` said the 
 certificate does not verify and exited 1. Not proved: a Let's Encrypt certificate, a real phone,
 and `systemd-tmpfiles` itself — the container has no systemd, so the directory was made with
 `install -d`.
+
+### The records (`tade host domain`)
+
+The look a person runs on the box before Caddy, and again until every line is right. **Each record
+is asked twice** — of the zone's own servers, recursion off, which is what is true now, and of a
+public resolver that validates DNSSEC (Cloudflare's, then Google's), which is what everybody else
+sees — because *missing* and *not yet visible* are different things to do, and the wait is the
+resolver's own countdown (the record's TTL, or the SOA's for a "none"). The machine's own resolver is
+never asked: it may be a cache on the box that calls a record visible only here. Then, a line each,
+in the order they are done (`domainSays`):
+
+- **A**, against this machine's own public addresses (`publicAddresses`). A box behind NAT has none
+  on an interface, and then where the record points is read and said `cannot`, never `wrong`.
+- **AAAA** only where 443 answers on IPv6 here (`servesHttps`, a connection from the box itself, so
+  it cannot see a cloud firewall); an AAAA where nothing answers is loud, since Let's Encrypt tries
+  IPv6 first, unless nothing answers on 443 at all yet — that is Caddy not being up, said as `later`.
+- **DNSSEC** before ordering: a validating resolver's SERVFAIL where the same question with checking
+  disabled is answered is a broken chain, and the line carries the registrar's DS records and the
+  one the zone's own key needs (`dsOf`, SHA-256) — checked against Comcast's `dnssec-failed.org`,
+  whose key tag and digest the tests hold. SERVFAIL both ways is unreachable servers, `cannot`.
+- **CAA** after the first certificate, because the record names Caddy's account at Let's Encrypt
+  (RFC 8657), which exists once it has ordered one. The closest set governs (RFC 8659), so the look
+  climbs from the name. A set that keeps Let's Encrypt out is loud before ordering too. Caddy keeps
+  its account under `/var/lib/caddy`, which only it can read, so the line says the `sudo` command
+  that prints it and `--account <uri>` takes it; without one the record names Let's Encrypt alone.
+
+**`node:dns` cannot do this**: it sets neither recursion off nor checking disabled, and returns
+neither the AD bit, nor the response code, nor the SOA of a negative answer. `dns.ts` is the wire
+format the look needs, over `node:dgram`, with a deadline on every try, and a server that did not
+answer is not asked again in the same look, so a box with no network waits once.
+
+**The name is written on a press and never otherwise** — `trustedWrite`, as `surfaces.web.public`
+and added to `surfaces.web.trusted_hosts` — by the command's question, `--write`, or typing it in the
+Public name row, whose write adds it to the trusted hostnames on the same press and journals both.
+The look in the window runs once each time Settings is opened on the row and on **Look again**,
+never on a clock, and only where the CLI handed it `AppOptions.domain`. **`tade.sh` and every name
+under it are refused at the schema** (`refusedName`), so the field, the CLI and `tade config --check`
+give the same reason: it serves the installer.
+
+Proved from this laptop against the real internet: `tade.sh` (Cloudflare, unsigned, a Google Trust
+Services certificate), `example.com` (signed, validating, compact denial answering NODATA for a
+name that does not exist), `dnssec-failed.org` (the broken chain, its DS worked out exactly). Not
+proved: a VPS's own addresses, a real AAAA on 443, Caddy's account file as Caddy writes it, and a
+record going from not yet visible to right.
 
 ## Setting up ends with a lane
 

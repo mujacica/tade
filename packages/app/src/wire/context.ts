@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import type { Terminal } from '@earendil-works/pi-tui'
-import type { Arm, CertificateLook, Config, Holding, ToldPrint } from '@tade/core'
+import type { Arm, CertificateLook, Config, DomainSeen, Holding, ToldPrint } from '@tade/core'
 import type { ExtensionHost, ExtensionWorkbench } from '@tade/extensions-core'
 import type { HarnessModels, HistoryAsk, HistoryPage } from '@tade/harnesses-core'
 import type { StatusCollector } from '@tade/status'
@@ -247,6 +247,12 @@ export interface AppOptions {
    * is up (`web-public.ts`); without it nothing dials — a test's window.
    */
   certificate?: (name: string) => Promise<CertificateLook>
+  /**
+   * A look at the records a public name needs (`lookAtDomain`). Given, the
+   * Public name row in Settings looks when it is shown (`web-domain.ts`);
+   * without it nothing dials — a test's window.
+   */
+  domain?: (name: string) => Promise<DomainSeen>
   /**
    * Restart the window with the same arguments so changes can be tried live.
    * The callback should stop the app, release the home lock, and re-exec.
