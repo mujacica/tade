@@ -22,6 +22,8 @@ interface Held {
   findings: readonly JudgeFinding[] | null
   at: number
   asking: boolean
+  /** What could not answer the last time anything could not, said once until it changes. */
+  said: string
 }
 
 const held = new WeakMap<object, Held>()
@@ -35,7 +37,7 @@ export function heldFindings(wire: Wiring): readonly JudgeFinding[] | null {
   if (!host) return null
   let one = held.get(host)
   if (!one) {
-    one = { findings: null, at: Number.NEGATIVE_INFINITY, asking: false }
+    one = { findings: null, at: Number.NEGATIVE_INFINITY, asking: false, said: '' }
     held.set(host, one)
   }
   const kept = one
@@ -50,12 +52,25 @@ export function heldFindings(wire: Wiring): readonly JudgeFinding[] | null {
         // answered, or some did and said something: what they said stands.
         // Nothing answered and something failed: keep what was said before.
         const now = asked === 0 ? null : findings
+        // A judge that could not answer is said, once for as long as it fails the same way:
+        // the desk drawing what it said before must not look like the judge going quiet.
+        const trouble = problems.join('; ')
+        if (trouble !== kept.said) {
+          kept.said = trouble
+          if (trouble !== '')
+            wire.note(new Error(`the judges' findings could not all be read: ${trouble}`))
+          wire.draw()
+        }
         if (problems.length > 0 && findings.length === 0 && kept.findings !== null) return
         if (JSON.stringify(now) === JSON.stringify(kept.findings)) return
         kept.findings = now
         wire.draw()
       })
-      .catch(() => {})
+      // `findings()` answers its problems rather than throwing; anything else is the window's to say.
+      .catch((err: unknown) => {
+        wire.note(err)
+        wire.draw()
+      })
       .finally(() => {
         kept.asking = false
       })
