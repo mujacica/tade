@@ -29,6 +29,10 @@ const DEADLINE_MS = 15_000
 const SPELL = "process.stdout.write(['tade', 'lane', 'ok'].join('-'))"
 const MARKER = 'tade-lane-ok'
 
+/** The size the lane is opened at, which is what reading its screen back is measured against. */
+const COLS = 80
+const ROWS = 24
+
 export interface ProveOptions {
   /** The driver to prove, as `workspace.driver` names it. */
   driver: string
@@ -77,8 +81,8 @@ export async function proveALane(opts: ProveOptions): Promise<LaneProof> {
       cwd: opts.cwd,
       command: process.execPath,
       args: ['-e', SPELL],
-      cols: 80,
-      rows: 24,
+      cols: COLS,
+      rows: ROWS,
     })
     // Subscribed after the open and replayed, because a program this small can
     // be finished before anybody is listening.
@@ -103,8 +107,15 @@ export async function proveALane(opts: ProveOptions): Promise<LaneProof> {
       }
     }
     // The screen as well as the bytes: a driver that renders into a terminal of
-    // its own is read the way the window reads it.
-    const screen = await driver.capture(id, { lines: 4 }).catch(() => '')
+    // its own is read the way the window reads it. Under tmux the bytes are a
+    // `pipe-pane` attached after the command has started, so a command this
+    // short can print before it is listening, or `cat` can write the file after
+    // tmux has said the pane is dead — 20 proofs in 48 here under load, and
+    // both CI rows. The screen is complete by then, but the *whole* of it has
+    // to be read: tmux writes "Pane is dead" on a dead pane's bottom row after
+    // a linefeed that scrolls the top row, where this one line of output is,
+    // into history. Four rows read three blanks and that message every time.
+    const screen = await driver.capture(id, { lines: ROWS * 2 }).catch(() => '')
     if (!`${said}${screen}`.includes(MARKER)) {
       return {
         ok: false,

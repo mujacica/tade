@@ -28,6 +28,8 @@ function fakeDriver(
     open?: (spec: LaneSpec) => Promise<LaneHandle>
     output?: string
     exit?: { code: number | null } | null
+    /** What the lane's screen holds, oldest row first; capture answers its last rows. */
+    screen?: readonly string[]
   } = {},
 ): Fake {
   const calls: string[] = []
@@ -54,9 +56,9 @@ function fakeDriver(
       if (over.exit !== null) listener(over.exit ?? { code: 0 })
       return () => {}
     },
-    async capture() {
+    async capture(_lane: string, opts: { lines: number }) {
       calls.push('capture')
-      return ''
+      return (over.screen ?? []).slice(-opts.lines).join('\n')
     },
     async close() {
       calls.push('close')
@@ -174,6 +176,23 @@ describe('proving that a lane opens', () => {
     })
     expect(quietly.ok).toBe(false)
     expect(quietly.says).toContain('nothing it printed came back')
+  })
+
+  it('finds what the lane printed on its screen when the bytes never came', async () => {
+    // A dead tmux pane, as capture-pane reads it: the one line printed, pushed
+    // into history by the linefeed before "Pane is dead" on the bottom row of
+    // an 80×24 pane. No bytes, because the `pipe-pane` was attached after the
+    // command had printed: 13 proofs in 48 under load here.
+    const tmux = fakeDriver({
+      screen: ['tade-lane-ok', ...Array<string>(23).fill(''), 'Pane is dead (status 0, now)'],
+    })
+    const proof = await proveALane({
+      driver: 'fake',
+      home: HOME,
+      cwd: '/tmp',
+      make: () => tmux.driver,
+    })
+    expect(proof).toMatchObject({ ok: true, driver: 'fake' })
   })
 
   it('names the drivers there are when asked for one that does not exist', async () => {
