@@ -75,6 +75,10 @@ export interface CreateTaskOptions {
   workspace?: 'checkout' | 'worktree'
   /** The change this is one repository's share of, by its slug. */
   effort?: string
+  /** The race this is one entrant in, by its slug: always in a worktree of its own. */
+  race?: string
+  /** The harness its agent runs in, when it is not the route's. */
+  harness?: string
   /** Who asked for it: kept in the task file, as `TaskOrigin` says it. */
   by?: string
   /** How it counts as finished, kept in the task file. */
@@ -195,7 +199,20 @@ export async function createTask(opts: CreateTaskOptions): Promise<TaskWorktree>
     workspace: 'worktree',
     prepared,
   }
-  const dir = taskDir(opts.home, id)
+  await writeOwnFiles(opts, task, prepared.setup)
+  return task
+}
+
+/**
+ * A task's own files in Tade's home: its task file, what its agent reads first,
+ * and the folder its document goes in — the same for a worktree and a checkout.
+ */
+async function writeOwnFiles(
+  opts: CreateTaskOptions,
+  task: TaskWorktree,
+  setup?: Setup | null,
+): Promise<void> {
+  const dir = taskDir(opts.home, task.id)
   await writeTaskFile(
     join(dir, 'task.yaml'),
     task,
@@ -208,13 +225,14 @@ export async function createTask(opts: CreateTaskOptions): Promise<TaskWorktree>
       produces: opts.produces?.trim(),
       start: opts.start,
       effort: opts.effort,
-      setup: prepared.setup,
+      race: opts.race,
+      harness: opts.harness,
+      setup,
     },
   )
   const context = contextDocument(opts.context ?? '', opts.links ?? [])
   if (context) await writeFile(join(dir, 'context.md'), context)
   await documentsFolderFor(opts)
-  return task
 }
 
 /**
@@ -249,23 +267,7 @@ async function createSharedTask(opts: CreateTaskOptions, id: string): Promise<Ta
     workspace: 'checkout',
   }
   await mkdir(dir, { recursive: true })
-  await writeTaskFile(
-    join(dir, 'task.yaml'),
-    task,
-    opts.intent,
-    opts.now ?? new Date(),
-    opts.links ?? [],
-    {
-      by: opts.by,
-      done: opts.done,
-      produces: opts.produces?.trim(),
-      start: opts.start,
-      effort: opts.effort,
-    },
-  )
-  const context = contextDocument(opts.context ?? '', opts.links ?? [])
-  if (context) await writeFile(join(dir, 'context.md'), context)
-  await documentsFolderFor(opts)
+  await writeOwnFiles(opts, task)
   return task
 }
 
@@ -293,12 +295,10 @@ async function writeTaskFile(
   intent: string,
   now: Date,
   links: readonly { title: string; url: string }[],
-  kept: {
-    by?: string | undefined
-    done?: DoneRule | undefined
-    produces?: string | undefined
-    start?: StartCondition | undefined
-    effort?: string | undefined
+  kept: Pick<
+    CreateTaskOptions,
+    'by' | 'done' | 'produces' | 'start' | 'effort' | 'race' | 'harness'
+  > & {
     setup?: Setup | null | undefined
   },
 ): Promise<void> {
@@ -315,6 +315,8 @@ async function writeTaskFile(
       parked: false,
       ...(task.workspace === 'checkout' ? { workspace: 'checkout' } : {}),
       ...(kept.effort ? { effort: kept.effort } : {}),
+      ...(kept.race ? { race: kept.race } : {}),
+      ...(kept.harness ? { harness: kept.harness } : {}),
       ...(links.length > 0 ? { links: links.map(({ title, url }) => ({ title, url })) } : {}),
       ...(kept.by ? { by: kept.by } : {}),
       ...(kept.done ? { done: kept.done } : {}),

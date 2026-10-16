@@ -93,6 +93,10 @@ not in the suite, because nothing mechanical can check it against a tree nobody 
 - **An input's kind decides where its value may go.** `project` routes, `slug` builds a name, `text`
   becomes `said` and is refused if it has a newline in it, `document` goes **only** into every task's
   context file. What came from outside is always a `document`.
+- **`race: true` makes its agents a race** (`core/src/race.ts`): the same prompt to each, none
+  waiting on another, 2 to 4 of them, a `name_suffix` to call the race by, and every entrant in a
+  worktree of its own whatever the project says. A template names no harness, so a stamped-out race
+  is one route against itself; `tade_race` is where entrants are named. The built-in `race` is it.
 - **A done rule may be given per workspace** — `done: { worktree: committed, checkout: said }` —
   which is what lets one published template be used in both kinds of project. `checkPlan` refuses
   `committed` and `merged` in a shared checkout; this is how a template covers both answers rather

@@ -97,7 +97,7 @@ describe('writing a stored workflow', () => {
     const w = wiring({ draft: DRAFT })
     await w.open()
     const view = w.view()
-    // The three Tade ships are listed too, because they exist: the list is
+    // The four Tade ships are listed too, because they exist: the list is
     // every template there is, and the chosen one's steps under it.
     expect(view?.rows.map((row) => row.label)).toEqual([
       'bug-repro-fix-review',
@@ -105,6 +105,7 @@ describe('writing a stored workflow', () => {
       'reproduce',
       'fix',
       'plan-approve-build',
+      'race',
       'research-then-plan',
     ])
     expect(view?.title).toContain('the template')
@@ -240,6 +241,7 @@ describe('writing a stored workflow', () => {
       'fix',
       'step',
       'plan-approve-build',
+      'race',
       'research-then-plan',
     ])
     // The form moves to what was added, which is what somebody pressed + for.

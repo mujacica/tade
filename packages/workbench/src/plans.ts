@@ -39,7 +39,10 @@ export interface PlanDeps {
   /** Write a line down: the effort's name and sentence. */
   note(event: { type: 'effort_named'; detail: Record<string, unknown> }): Promise<void>
   createTask(req: CreateTaskRequest): Promise<TaskWorktree>
-  resolveModel(said: string): Promise<{ provider: string; id: string }>
+  /** A model named for the work, resolved by the harness it is for: the route's when unsaid. */
+  resolveModel(said: string, harness?: string): Promise<{ provider: string; id: string }>
+  /** The harnesses there are, so an agent named for one that is not is refused before anything is made. */
+  harnesses?: readonly string[]
   /**
    * Each harness's own answer for what conversation a task name makes — what
    * `guardName` asks of one name — so a plan whose `a.b` would carry on the
@@ -123,15 +126,22 @@ export async function makePlan(
   // each was made, a plan made its first task and then threw on its second,
   // and the next attempt was refused over the task that one had left behind.
   const taken = namesTaken(deps.keyOf, plan, used, tasks, unstarted)
-  if (!check.ok || taken) {
-    const problems = [...(check.ok ? [] : check.problems), ...(taken ? [taken] : [])]
+  const strange = harnessesUnknown(plan, deps.harnesses)
+  if (!check.ok || taken || strange) {
+    const problems = [
+      ...(check.ok ? [] : check.problems),
+      ...(taken ? [taken] : []),
+      ...(strange ? [strange] : []),
+    ]
     throw new Error(`the plan was not made: ${problems.join('; ')}`)
   }
   // Every model named for the work settled first: a plan that starts half its
   // agents and then cannot tell which model the rest meant is a mess to undo.
   const models = new Map<string, { provider: string; id: string }>()
   for (const agent of check.order) {
-    if (agent.model) models.set(agentId(plan, agent), await deps.resolveModel(agent.model))
+    if (agent.model) {
+      models.set(agentId(plan, agent), await deps.resolveModel(agent.model, agent.harness))
+    }
   }
   // Written once nothing is left that could refuse the plan, before the tasks,
   // and only when the sentence is new: it is the only thing an effort has that
@@ -161,6 +171,10 @@ export async function makePlan(
           intent: agent.said,
           by,
           ...(plan.effort ? { effort: plan.effort } : {}),
+          // An entrant in a race gets a worktree of its own wherever the
+          // project has its agents work — never wider (`raceProblems`).
+          ...(plan.race ? { race: plan.race, workspace: 'worktree' as const } : {}),
+          ...(agent.harness ? { harness: agent.harness } : {}),
           ...(agent.done ? { done: agent.done } : {}),
           ...(agent.produces ? { produces: agent.produces } : {}),
           // Written beside the task file for its agent to read first, exactly
@@ -184,6 +198,14 @@ export async function makePlan(
     }
   }
   return { made, warnings: check.warnings }
+}
+
+/** The agents named for a harness Tade does not run, in a sentence, or undefined. */
+function harnessesUnknown(plan: Plan, known: readonly string[] | undefined): string | undefined {
+  if (!known) return undefined
+  const strange = plan.agents.filter((agent) => agent.harness && !known.includes(agent.harness))
+  if (strange.length === 0) return undefined
+  return `${joined(strange.map((agent) => `${agent.name} names the harness ${agent.harness}`))}, and Tade runs ${joined([...known])}`
 }
 
 /**

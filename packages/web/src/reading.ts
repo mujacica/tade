@@ -2,7 +2,12 @@ import type { SettingGroup } from '@tade/core'
 import { AGENT, type AgentIn, agentOf } from './agent.ts'
 import { type SettingsOut, settingsFor } from './configuring.ts'
 import { revise, tick } from './delta.ts'
-import { type EvaluationsFor, type EvaluationsOut, evaluationsFor } from './evaluations.ts'
+import {
+  type EvaluationsFor,
+  type EvaluationsOut,
+  evaluationsFor,
+  type RacesFor,
+} from './evaluations.ts'
 import type { SnapshotInput } from './input.ts'
 import { BUDGET, type Budget, type Page, pageOf, withheld } from './page.ts'
 import type { AgentOut, Delta, NoteRow, Snapshot } from './protocol.ts'
@@ -150,6 +155,8 @@ export interface ProjectorOptions {
   settings?: () => { groups: readonly SettingGroup[]; known: readonly string[] }
   /** The scorecards over the projects named, out of what the window already holds. */
   evaluations?: EvaluationsFor
+  /** Every race over the projects named, out of what the window already holds. */
+  races?: RacesFor
 }
 
 /**
@@ -189,7 +196,7 @@ export function projector(
       return settingsFor(held.groups, input.reach, held.known)
     },
     evaluations(): EvaluationsOut {
-      return evaluationsFor(input.reach, opts.evaluations)
+      return evaluationsFor(input.reach, opts.evaluations, opts.races)
     },
     beat(next: SnapshotInput, at: number): Delta | null {
       input = next

@@ -174,6 +174,16 @@ export const PICTURES: readonly Picture[] = [
       'first, and a rate only from five.',
   },
   {
+    file: 'race.svg',
+    scenario: 'a-race-compared',
+    crop: 'panel',
+    about:
+      'A race: one request given to three agents side by side, on Claude Code, Codex and pi, each ' +
+      'in a worktree of its own, in the order the facts put them — checks at its head, whether the ' +
+      'judge said it strayed from what was asked, findings open, then size — with what each cost ' +
+      'and the race so far. Nobody has picked, and it says so.',
+  },
+  {
     file: 'reviews.svg',
     scenario: 'what-an-agent-has-done',
     crop: { top: 2, width: 29, height: 21 },

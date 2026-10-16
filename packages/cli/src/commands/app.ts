@@ -321,6 +321,22 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
             return watches.change(req)
           },
         },
+        // A race is a plan the window's queue starts, and its pick is checked
+        // there against the person's own lines.
+        race: {
+          start: async (req) => {
+            if (!queue) throw opening()
+            return queue.race.start(req)
+          },
+          standing: async (req) => {
+            if (!queue) throw opening()
+            return queue.race.standing(req)
+          },
+          pick: async (req) => {
+            if (!queue) throw opening()
+            return queue.race.pick(req)
+          },
+        },
         updates: {
           read: async (check) => {
             if (!updates) throw opening()

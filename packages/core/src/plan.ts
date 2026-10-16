@@ -1,6 +1,7 @@
 import type { DoneRule } from './model.ts'
 import { producesProblem } from './produces.ts'
 import { joined, type Wait } from './queue.ts'
+import { raceProblems } from './race.ts'
 
 // A plan: several agents, each one repository's share of one change, and
 // whether the shape of it holds together before any of it is made.
@@ -62,6 +63,12 @@ export interface PlannedAgent {
   touches: string[]
   at?: string
   model?: string
+  /**
+   * The harness its agent runs in, when it is not the route's: what a race
+   * gives each entrant, so the same request is tried on different ones. A
+   * model named beside it is resolved by this harness, never the default's.
+   */
+  harness?: string
   thinking?: string
 }
 
@@ -77,6 +84,13 @@ export interface Plan {
    * Without one the plan behaves exactly as it always has and makes none.
    */
   effort?: string
+  /**
+   * The race its agents are: the same request given to each, side by side, and
+   * none waiting on another (`race.ts`). Every task it makes carries it and
+   * works in a worktree of its own whatever the project says — never wider,
+   * because entrants sharing one checkout would be editing each other's work.
+   */
+  race?: string
   /**
    * What every agent in it should know before it starts, said once: written
    * beside each agent's task file, before that agent's own `context`. A brief
@@ -172,6 +186,7 @@ export function checkPlan(plan: Plan, context: PlanContext): PlanCheck {
   const problems: string[] = []
   const names = new Set<string>()
   if (plan.agents.length === 0) problems.push('a plan needs at least one agent')
+  if (plan.race !== undefined) problems.push(...raceProblems(plan))
   if (plan.effort !== undefined && !NAME.test(plan.effort)) {
     problems.push(`"${plan.effort}" is not a name for the change: lowercase letters, digits, - . _`)
   }
@@ -203,6 +218,7 @@ export function checkPlan(plan: Plan, context: PlanContext): PlanCheck {
     const project = projectOf(plan, agent)
     if (
       (agent.done === 'committed' || agent.done === 'merged') &&
+      plan.race === undefined &&
       context.workspace(project) !== 'worktree'
     ) {
       problems.push(

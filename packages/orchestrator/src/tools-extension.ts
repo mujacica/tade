@@ -8,6 +8,7 @@ import { documentTools } from './tools-documents.ts'
 import { type Gateable, gateTools } from './tools-gate.ts'
 import { machineTools } from './tools-machine.ts'
 import { PLAN_AFTER, PLAN_CONTEXT, queueTools, stringList, TOUCHES } from './tools-queue.ts'
+import { raceTools } from './tools-race.ts'
 import { intakeTools, templateTools } from './tools-templates.ts'
 
 /** Where extensions live. Set by the orchestrator that launched us. */
@@ -788,11 +789,10 @@ export function orchestratorTools(
   // Tade configuring itself: its settings, and the projects it works in. In a
   // file of its own because what those may and may not touch is a boundary,
   // and a boundary is worth reading in one place.
-  for (const spec of configTools(rpc)) tools.push(spec)
-  for (const spec of documentTools(rpc)) tools.push(spec)
-  for (const spec of templateTools(rpc)) tools.push(spec)
-  for (const spec of intakeTools(rpc)) tools.push(spec)
-  for (const spec of machineTools(rpc, runTade)) tools.push(spec)
+  for (const group of [configTools, documentTools, templateTools, raceTools, intakeTools]) {
+    tools.push(...group(rpc))
+  }
+  tools.push(...machineTools(rpc, runTade))
 
   tool(
     'tade_deny',

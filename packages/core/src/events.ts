@@ -66,6 +66,15 @@ export const EventType = z.enum([
    * made in March reads as having come from whatever the file says today.
    */
   'template_used',
+  /**
+   * A race was decided: which of the agents given the same request is the
+   * one kept, who chose it, the sentence they gave, and the others, which
+   * were stopped and marked finished with their branches kept. Told, like a
+   * note — a person's choice, or the orchestrator's on a line of theirs — so
+   * nothing can derive it again; the race itself is the fold of the task
+   * files that name it (`race.ts`).
+   */
+  'race_won',
   'state_change',
   /**
    * A task finished: its agent said so, a person marked it, or Tade saw its
@@ -445,6 +454,7 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   task_removed: 'notable',
   effort_named: 'notable',
   template_used: 'notable',
+  race_won: 'notable',
   state_change: 'notable',
   task_done: 'notable',
   // Blocking: an agent has stopped until the person decides. One that hands a

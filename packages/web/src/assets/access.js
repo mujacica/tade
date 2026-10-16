@@ -12,9 +12,9 @@
 
 export const WITHHOLDS = {
   titles: ['projects.title', 'tasks.title'],
-  intent: ['tasks.intent', 'queue.waitsOn.why', 'runs.steps.waits.why'],
+  intent: ['tasks.intent', 'queue.waitsOn.why', 'runs.steps.waits.why', 'evaluations.races.said'],
   notes: ['notes'],
-  findings: ['findings', 'tasks.landing', 'evaluations.findings'],
+  findings: ['findings', 'tasks.landing', 'evaluations.findings', 'evaluations.races.order'],
   spend: [
     'tasks.spend',
     'plans',
@@ -22,6 +22,7 @@ export const WITHHOLDS = {
     'runs.steps.usd',
     'runs.usd',
     'evaluations.cost',
+    'evaluations.races.usd',
   ],
   reviews: ['tasks.review.url'],
   accounts: ['tasks.account', 'plans.account'],

@@ -29,6 +29,14 @@ declare module '*/assets/pages/evaluations-shape.js' {
     questions?: Bar[]
     bands?: Bar[]
   }
+  export function racesOf(answer: unknown): {
+    key: string
+    head: string
+    said: string
+    spent: string
+    decided: string
+    entrants: { key: string; mark: string; name: string; under: string; tone: string }[]
+  }[]
   export function boxOf(kind: string, title: string, line: string): Box
   export function emptyOf(answer: unknown, by: string): Box | null
 }

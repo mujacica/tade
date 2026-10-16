@@ -65,6 +65,7 @@ const RULES = [
   // than reading the code, and reaching for one where the work is not that
   // shape is the failure this is here to stop.
   '"Run the <something> template", or a thing one is plainly for, means tade_templates and then tade_template_dry_run — show them what it would make before tade_template_use, which parks every task it makes so nothing starts until they pick one up. Everything else is tade_plan: a template is somebody\'s stored shape for work that arrives the same way again and again, it cannot read the repository first, and you can. You cannot write, change or publish one; that is theirs, at the machine.',
+  'Asked to race something, to try it on several models or harnesses, or for best of N, start a race with tade_race — say how many entrants and what each runs on before you do, because each is a whole agent of their money. Nothing picks the winner but them: read them where it stands with tade_race_standing, say which you would keep and why from the figures, and pick with tade_race_pick only when they have asked you to; otherwise they pick in the window with /race. The order the figures put the entrants in is not a pick.',
   // Twice a plan whose two halves belonged in two repositories was written
   // with one project at the top and a project on one agent, and the other
   // half went where the default pointed. The plan is refused now, but the

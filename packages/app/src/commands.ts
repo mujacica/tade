@@ -64,6 +64,11 @@ export function actions(state: AppState): Action[] {
       about: 'which harness, model, persona and template lands work, and the judge',
       ready: true,
     },
+    {
+      name: '/race',
+      about: 'compare the agents given one request side by side, and pick one',
+      ready: true,
+    },
     { name: '/help', about: 'what the keys do', ready: true },
     { name: '/quit', about: 'close the window; agents carry on if they can', ready: true },
   ]

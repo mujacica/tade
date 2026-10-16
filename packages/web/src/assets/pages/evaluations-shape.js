@@ -16,6 +16,9 @@ export const EVAL_TABS = [
   { id: 'model', word: 'Model' },
   { id: 'persona', word: 'Persona' },
   { id: 'template', word: 'Template' },
+  // The head-to-head version of the same question: one request, several
+  // harnesses or models, read here and picked in the window.
+  { id: 'races', word: 'Races' },
   { id: 'judge', word: 'Judge' },
 ]
 
@@ -143,6 +146,38 @@ export function judgeOf(answer) {
   }
 }
 
+/**
+ * The races: each with what was asked, what it has cost and who picked, and
+ * its entrants in the order the facts put them — an order, never a verdict, so
+ * nothing here is drawn as a winner until somebody picked one. What this
+ * device was not granted is said as that.
+ */
+export function racesOf(answer) {
+  return (answer?.races ?? []).map((race) => ({
+    key: `${race.project}/${race.name}`,
+    head: `${race.name} in ${race.project}`,
+    said: race.said === null ? 'what was asked is not granted' : `asked: ${race.said}`,
+    spent: race.spent === null ? 'cost not granted' : race.spent,
+    decided: race.won
+      ? `${short(race.won.task)} picked ${race.won.by === 'orchestrator' ? 'by the orchestrator, on your word' : 'by you'}`
+      : 'nobody has picked — pick in the window, or ask the orchestrator',
+    entrants: race.racers.map((one) => ({
+      key: one.task,
+      mark: one.won ? '✓' : one.closed ? '·' : String(one.place),
+      name: short(one.task),
+      under: [one.runsOn, ...one.says, one.usd, one.closed ? 'closed, branch kept' : null]
+        .filter((part) => part !== null && part !== undefined)
+        .join(' · '),
+      tone: one.won ? 'done' : one.closed ? 'quiet' : '',
+    })),
+  }))
+}
+
+/** A task as a row names it: the half after its project. */
+function short(task) {
+  return task.split('/')[1] ?? task
+}
+
 /** A region's state, as `stateBoxIn` takes it. */
 export function boxOf(kind, title, line) {
   return { kind, title, line }
@@ -151,6 +186,16 @@ export function boxOf(kind, title, line) {
 /** What the page says where there is nothing to draw, by which nothing it is. */
 export function emptyOf(answer, by) {
   if (answer === null) return null
+  // Races are what the window holds now, not a fold over the journal: drawn
+  // while the scorecards are still being read.
+  if (by === 'races') {
+    if ((answer.races ?? []).length > 0) return null
+    return boxOf(
+      'empty',
+      'No race yet',
+      'Ask the orchestrator to race one request on several harnesses or models.',
+    )
+  }
   if (!answer.read) {
     return boxOf('loading', 'Reading the journal', 'The scorecards come from every task it holds.')
   }

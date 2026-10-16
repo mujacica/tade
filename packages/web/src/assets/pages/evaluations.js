@@ -29,6 +29,7 @@ import {
   judgeOf,
   leadOf,
   mergedSaid,
+  racesOf,
 } from './evaluations-shape.js'
 
 /** Where the answer is asked. */
@@ -39,6 +40,30 @@ const AGAIN_MS = 60_000
 
 /** Which tab the page was last on, for as long as the page is open. */
 let chosen = 'harness'
+
+/** One race, drawn: its head, then a line per entrant with its figures under it. */
+function raceCard(race) {
+  const card = panel('div', 'ev-panel ev-race')
+  const list = el('ol', { class: 'ev-race-list' })
+  for (const one of race.entrants) {
+    const item = el('li', { class: `ev-racer${one.tone ? ` ev-racer-${one.tone}` : ''}` })
+    into(
+      item,
+      el('span', { class: 'ev-racer-mark', text: one.mark }),
+      el('span', { class: 'ev-racer-name', text: one.name }),
+      el('span', { class: 'ev-racer-under', text: one.under }),
+    )
+    into(list, item)
+  }
+  into(
+    card,
+    el('h3', { class: 'ev-sub', text: `${race.head} · ${race.spent}` }),
+    el('p', { class: 'ev-judge-said', text: race.said }),
+    el('p', { class: 'ev-race-decided', text: race.decided }),
+    list,
+  )
+  return card
+}
 
 export function evaluationsScreen(ctx) {
   const node = el('div')
@@ -93,9 +118,14 @@ export function evaluationsScreen(ctx) {
   into(bandPanel, bands)
   into(judge.body, judgeSaid, questionPanel, bandHead, bandPanel)
 
+  // One panel per race, each its entrants in the order the facts put them.
+  const races = section('RACES')
+  const raceList = el('div', { class: 'ev-races' })
+  into(races.body, raceList)
+
   const state = stateBox()
   const body = el('div', { class: 'ev-body' })
-  into(body, lead, merged, tabs, state, cards.node, judge.node)
+  into(body, lead, merged, tabs, state, cards.node, races.node, judge.node)
   into(top.body, coming, failed, body)
   into(node, top.node)
 
@@ -130,8 +160,14 @@ export function evaluationsScreen(ctx) {
     const nothing = emptyOf(answer, chosen)
     stateBoxIn(state, nothing === null ? null : { ...nothing, icon: 'checks' })
     const judging = chosen === 'judge'
-    cards.node.hidden = judging || nothing !== null
+    const racing = chosen === 'races'
+    cards.node.hidden = judging || racing || nothing !== null
     judge.node.hidden = !judging || nothing !== null
+    races.node.hidden = !racing || nothing !== null
+    if (racing) {
+      raceList.replaceChildren(...racesOf(answer).map(raceCard))
+      return
+    }
     if (!judging) {
       textIn(cards.heading, `BY ${chosen.toUpperCase()}`)
       barsIn(cardBars, cardsOf(answer, chosen))

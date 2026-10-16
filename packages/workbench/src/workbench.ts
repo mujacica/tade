@@ -90,7 +90,7 @@ import { Memory } from './memory.ts'
 import { notStartable, type ParkedBy, park } from './parked.ts'
 import { makePlan, type PlanMade } from './plans.ts'
 import { preparedDetail, setupBefore, setupTold } from './prepare.ts'
-import { changeQueued, type QueueChangeRequest } from './queue-changes.ts'
+import { changeQueued, type HeldHow, holdQueued, type QueueChangeRequest } from './queue-changes.ts'
 import { type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
 import { type KeptSchedule, Schedules } from './schedules.ts'
 import { continueRun as continueAgent } from './sleep.ts'
@@ -221,6 +221,9 @@ export interface CreateTaskRequest {
   workspace?: 'checkout' | 'worktree'
   /** The change this task is one repository's share of, by its slug. */
   effort?: string
+  /** The race it is one entrant in (`race.ts`), and its harness when that is not the route's. */
+  race?: string
+  harness?: string
   /** Who asked for it, as `TaskOrigin` says it: kept with the task and in the journal. */
   by?: string
   /** How it counts as finished; `said` unless chosen. */
@@ -972,6 +975,8 @@ export class Workbench {
       ...(req.produces ? { produces: req.produces } : {}),
       ...(req.start ? { start: req.start } : {}),
       ...(req.effort ? { effort: req.effort } : {}),
+      race: req.race,
+      harness: req.harness,
       prepare: configured?.prepare,
       workspace,
     })
@@ -986,6 +991,7 @@ export class Workbench {
         // The journal is where "what was that about" gets answered.
         intent_spoken: req.intent,
         ...(req.effort ? { effort: req.effort } : {}),
+        ...(req.race ? { race: req.race } : {}),
         ...(req.by ? { by: req.by } : {}),
         ...(req.done ? { done: req.done } : {}),
         ...(req.produces ? { produces: req.produces } : {}),
@@ -1016,7 +1022,8 @@ export class Workbench {
           await this.log.append(event)
         },
         createTask: (req) => this.createTask(req),
-        resolveModel: (said) => this.resolveModel(said),
+        resolveModel: (said, harness) => this.resolveModel(said, harness),
+        harnesses: Object.keys(HARNESS_ADAPTERS),
         keyOf: this.keyOf(),
       },
       plan,
@@ -1293,30 +1300,9 @@ export class Workbench {
     return changeQueued({ home: this.home, log: this.log }, req)
   }
 
-  /** Queued work that could not start, held with why until someone chooses. */
-  async holdQueued(
-    task: string,
-    because: string,
-    how: {
-      on?: string
-      start?: 'failed'
-      /** The files work going on now had changed under it, when that is what held it. */
-      changed?: readonly string[]
-      /** Whose changes they were, where git said whose. */
-      by?: readonly string[]
-    },
-  ): Promise<void> {
-    await this.log.append({
-      type: 'queue_held',
-      task,
-      detail: {
-        because,
-        ...(how.on ? { on: how.on } : {}),
-        ...(how.start ? { start: how.start } : {}),
-        ...(how.changed ? { changed: [...how.changed] } : {}),
-        ...(how.by && how.by.length > 0 ? { by: [...how.by] } : {}),
-      },
-    })
+  /** Queued work that could not start, held with why until someone chooses: `queue-changes.ts`. */
+  holdQueued(task: string, because: string, how: HeldHow): Promise<void> {
+    return holdQueued(this.log, task, because, how)
   }
 
   /**
@@ -2167,8 +2153,8 @@ export class Workbench {
    * The model someone named, among the ones they are signed in to. Throws what
    * to ask them when it is not one model: before anything is started on it.
    */
-  async resolveModel(said: string): Promise<{ provider: string; id: string }> {
-    const found = await this.adapterFor().resolveModel(said)
+  async resolveModel(said: string, harness?: string): Promise<{ provider: string; id: string }> {
+    const found = await this.adapterFor(harness).resolveModel(said)
     if (!found.ok) throw new Error(found.reason)
     return { provider: found.provider, id: found.id }
   }

@@ -795,6 +795,120 @@
     }
   },
   {
+    "name": "tade_race",
+    "description": "Start a race (best-of-N): the same request given to 2 to 4 agents at once, each on its own harness or model and each in a worktree of its own whatever the project says, so their attempts can be compared. Reach for it when they ask to race, to try something on several models or harnesses, or for best of N — never for ordinary work, because every entrant is a whole agent of their money: say how many and what they run on before you start one. Entrants are named as {harness, model}, either optional; fewer than n go round again, and none at all races the project’s own route against itself. Every entrant is told the same prompt and asked the same words. It is a plan underneath, refused for the same reasons, and the queue starts the entrants. Nothing is picked: tell them to compare with /race in the window, or read the standing to them with tade_race_standing.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "the project, by the name Tade has for it"
+        },
+        "name": {
+          "type": "string",
+          "description": "a short name for the race, lowercase with dashes; the entrants are <name>-1, <name>-2, …"
+        },
+        "said": {
+          "type": "string",
+          "description": "the request, in their words, verbatim"
+        },
+        "prompt": {
+          "type": "string",
+          "description": "what every entrant is told: the same words to each"
+        },
+        "entrants": {
+          "type": "array",
+          "description": "what each entrant runs on, in order",
+          "items": {
+            "type": "object",
+            "properties": {
+              "harness": {
+                "type": "string",
+                "description": "a harness Tade runs: pi, claude-code or codex"
+              },
+              "model": {
+                "type": "string",
+                "description": "a model, as that harness names one; resolved by that harness"
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        "n": {
+          "type": "number",
+          "description": "how many entrants, 2 to 4; the entrants named, or 2"
+        },
+        "context": {
+          "type": "string",
+          "description": "what every entrant should know first, written beside each task file"
+        }
+      },
+      "required": [
+        "project",
+        "name",
+        "said",
+        "prompt"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "tade_race_pick",
+    "description": "Keep one entrant of a race: it is written down with who picked and why, and every other entrant is stopped and marked finished, its worktree and branch kept. **Only when they asked you to pick** — \"pick the best one\", \"you choose\", \"go with the codex one\" — in a line said since the race began; otherwise it is refused, and the person picks in the window with /race. Never because the order put one first: say which you would keep and why, from the figures. The one kept goes on like any finished work — its review and its merge are theirs. A race is decided once.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "race": {
+          "type": "string",
+          "description": "the race, by its name"
+        },
+        "project": {
+          "type": "string",
+          "description": "its project, when the name is a race in more than one"
+        },
+        "task": {
+          "type": "string",
+          "description": "the entrant to keep: its task, like <name>-2"
+        },
+        "why": {
+          "type": "string",
+          "description": "why this one, in a sentence from the figures: it is what the journal keeps"
+        },
+        "said": {
+          "type": "string",
+          "description": "what they said asking you to pick, word for word"
+        }
+      },
+      "required": [
+        "race",
+        "task",
+        "why",
+        "said"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "tade_race_standing",
+    "description": "Where a race stands, about now: every entrant in the order the facts put them — checks at its head, whether the judge said it did something other than what was asked, findings open, finished, then the smaller change — with what each runs on, what each cost and what the race has cost so far, and who picked, if anybody has. The order is not a pick and the judge decides nothing: read the figures to them and let them choose. It changes nothing. Every race when neither is said.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "only this project’s races"
+        },
+        "race": {
+          "type": "string",
+          "description": "only the race of this name"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "tade_reload",
     "description": "Start the window again, on the Tade that is on disk now — after Tade itself was updated, when they ask for it (\"reload\", \"restart Tade\"). Agents keep working where the driver’s lanes outlive the window; where they would stop, the reload panel asks them instead and the press is theirs. Your conversation carries on in the new window: it is the same conversation, and you are not introduced again, but the turn this is called in ends with the window. Refused unless they asked for a reload in their own words — pass their sentence in `said`. Say what you are doing before you call it.",
     "parameters": {

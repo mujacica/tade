@@ -1,12 +1,14 @@
-import { pricesFrom, spendFrom } from '@tade/core'
+import type { Race } from '@tade/core'
 import type { DeskRow, Frame } from '../frame.ts'
 import { deskOf } from '../landing.ts'
 import { focusTask } from '../model.ts'
 import { landingPanel } from '../panels/landing/state.ts'
+import { racePanel } from '../panels/race/state.ts'
 import type { PanelInputs } from '../panels.ts'
-import type { Actions, Subject, Submits, Wiring } from './context.ts'
+import { type Actions, flash, notify, type Subject, type Submits, type Wiring } from './context.ts'
 import { heldFindings } from './findings.ts'
 import { Kept } from './kept.ts'
+import { pickPressed, racesHeld, usdByTask } from './races.ts'
 
 // The landing desk: every finished piece of work and every open review, every
 // project's, in the order it is cheapest to trust — and the panel it is read in.
@@ -21,6 +23,11 @@ import { Kept } from './kept.ts'
 // while the panel is open, on the beat (`keepAsking`), and never otherwise: a
 // closed desk is drawn from whatever the window had already looked at, and a
 // task nobody has looked at says so.
+//
+// **And the races**, which are the same facts about a different set of tasks:
+// the entrants given one request, compared side by side (`/race`), each looked
+// at the same way only while that panel is open. Picking one is a press, said
+// yes to, and carried out by `pickPressed`.
 
 export class Landing implements Subject {
   private readonly wire: Wiring
@@ -28,6 +35,8 @@ export class Landing implements Subject {
   /** What every task has cost over every run, refolded only when a usage line arrives. */
   private readonly spent = new Kept<Readonly<Record<string, number | null>>>()
   private readonly files = new Kept<Readonly<Record<string, readonly string[]>>>()
+  private readonly races = new Kept<readonly Race[]>()
+  private readonly raceFiles = new Kept<Readonly<Record<string, readonly string[]>>>()
 
   constructor(wire: Wiring) {
     this.wire = wire
@@ -54,23 +63,31 @@ export class Landing implements Subject {
         usd: (task) => usd[task] ?? null,
       })
     })
-    if (this.wire.state.panel?.kind === 'landing') this.lookAt(landing)
-    return { landing }
+    const races = this.races.of([world, live.revision, findings, usd], () =>
+      racesHeld(this.wire, usd),
+    )
+    const open = this.wire.state.panel?.kind
+    if (open === 'landing') this.lookAt(landing.map((row) => row.task))
+    if (open === 'race') this.lookAt(races.flatMap((one) => one.racers.map((r) => r.facts.task)))
+    return { landing, races }
   }
 
   inputs(): PanelInputs {
     const live = this.wire.live
-    if (this.wire.state.panel?.kind !== 'landing' || !live) return {}
-    const desk = this.facts().landing ?? []
-    const deskFiles = this.files.of([desk, live.revision], () => {
-      const out: Record<string, readonly string[]> = {}
-      for (const row of desk) {
-        const root = live.worktreeOf(row.task)
-        const changes = root ? live.changesAt(root, live.baseOf(row.task)) : null
-        if (changes) out[row.task] = changes.map((one) => one.path)
+    const open = this.wire.state.panel?.kind
+    if (!live || (open !== 'landing' && open !== 'race')) return {}
+    if (open === 'race') {
+      const races = this.facts().races ?? []
+      const tasks = races.flatMap((one) => one.racers.map((r) => r.facts.task))
+      return {
+        races,
+        raceFiles: this.raceFiles.of([races, live.revision], () => this.filesOf(tasks)),
       }
-      return out
-    })
+    }
+    const desk = this.facts().landing ?? []
+    const deskFiles = this.files.of([desk, live.revision], () =>
+      this.filesOf(desk.map((row) => row.task)),
+    )
     return { desk, deskFiles }
   }
 
@@ -79,34 +96,62 @@ export class Landing implements Subject {
       this.wire.put({ ...this.wire.state, panel: landingPanel() })
       this.wire.draw()
     }
-    return { landing: open, '/land': open }
+    const race = () => {
+      this.wire.put({ ...this.wire.state, panel: racePanel() })
+      this.wire.draw()
+    }
+    return { landing: open, '/land': open, race, '/race': race }
   }
 
   submits(): Submits {
+    const toAgent = (choice: string | undefined) => {
+      const task = choice?.startsWith('agent:') ? choice.slice('agent:'.length) : null
+      if (task) this.wire.put({ ...focusTask(this.wire.state, task), panel: null })
+    }
     return {
-      landing: (_panel, choice) => {
-        const task = choice?.startsWith('agent:') ? choice.slice('agent:'.length) : null
-        if (!task) return
-        this.wire.put({ ...focusTask(this.wire.state, task), panel: null })
+      landing: (_panel, choice) => toAgent(choice),
+      race: async (_panel, choice) => {
+        if (!choice?.startsWith('pick:')) return toAgent(choice)
+        // A pick is answered where it was pressed: done, or why not, in words.
+        try {
+          await pickPressed(this.wire, choice.slice('pick:'.length))
+          flash(this.wire, `picked ${choice.split('/').at(-1) ?? choice}`)
+        } catch (err) {
+          notify(this.wire, err instanceof Error ? err.message : String(err))
+        }
+        this.wire.draw()
       },
     }
   }
 
+  /** What each task changed, by file, from the last look; a task missing has not been looked at. */
+  private filesOf(tasks: readonly string[]): Readonly<Record<string, readonly string[]>> {
+    const live = this.wire.live
+    const out: Record<string, readonly string[]> = {}
+    for (const task of tasks) {
+      const root = live?.worktreeOf(task)
+      const changes = root ? live?.changesAt(root, live.baseOf(task)) : null
+      if (changes) out[task] = changes.map((one) => one.path)
+    }
+    return out
+  }
+
   /**
-   * Every row's checks and changes, looked at on the beat while the desk is
-   * open: the ACTIONS page's own look (`Live.actions`) and the changes git
-   * counts from its base, each answered from the last look and asked again
+   * Every row's checks and changes, looked at on the beat while the desk or a
+   * race is open: the ACTIONS page's own look (`Live.actions`) and the changes
+   * git counts from its base, each answered from the last look and asked again
    * only when that is stale.
    */
-  private lookAt(desk: readonly DeskRow[]): void {
+  private lookAt(tasks: readonly string[]): void {
     const live = this.wire.live
     if (!live) return
+    const open = this.wire.state.panel?.kind
     live.keepAsking('landing', () => {
-      if (this.wire.state.panel?.kind !== 'landing') return
-      for (const row of desk) {
-        live.actions(row.task)
-        const root = live.worktreeOf(row.task)
-        if (root) live.changesAt(root, live.baseOf(row.task))
+      if (this.wire.state.panel?.kind !== open) return
+      for (const task of tasks) {
+        live.actions(task)
+        const root = live.worktreeOf(task)
+        if (root) live.changesAt(root, live.baseOf(task))
       }
     })
   }
@@ -119,17 +164,6 @@ export class Landing implements Subject {
   private usd(): Readonly<Record<string, number | null>> {
     const live = this.wire.live
     if (!live) return {}
-    return this.spent.of([live.spending.size], () => {
-      const report = spendFrom(live.spending.events, {
-        since: 0,
-        prices: pricesFrom(this.wire.opts.config.prices),
-      })
-      return Object.fromEntries(
-        Object.entries(report.byTask).map(([task, spend]) => [
-          task,
-          spend.hasCost ? spend.usd : null,
-        ]),
-      )
-    })
+    return this.spent.of([live.spending.size], () => usdByTask(this.wire))
   }
 }

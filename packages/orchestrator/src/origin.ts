@@ -187,6 +187,7 @@ export const REMOTE_TOOLS: Readonly<Record<string, Reaching>> = {
   tade_plan: { kind: 'local', because: EXECUTES },
   tade_task_create: { kind: 'local', because: EXECUTES },
   tade_template_use: { kind: 'local', because: EXECUTES },
+  tade_race: { kind: 'local', because: EXECUTES },
   tade_schedule: { kind: 'local', because: EXECUTES },
   // Installs software on this machine, and ends the window: both are acts the
   // person at it asks for in their own words (`UPDATE_REACH`, `RELOAD_REACH`).
@@ -241,10 +242,16 @@ export const REMOTE_TOOLS: Readonly<Record<string, Reaching>> = {
   tade_queue: { kind: 'local', because: READS_WIDE },
   tade_templates: { kind: 'local', because: READS_WIDE },
   tade_template_dry_run: { kind: 'local', because: READS_WIDE },
+  // What every entrant was asked, verbatim, and what each cost: the request and
+  // the money are each a grant of their own on the away view.
+  tade_race_standing: { kind: 'local', because: READS_WIDE },
 
   // Its own clause, because it is the only one here that is not about what a
   // call can reach.
   tade_document_triage: { kind: 'local', because: DECIDES_FOR_SOMEBODY },
+  // Which entrant a race keeps is the person's, and the window holds even the
+  // orchestrator to a line of theirs (`RACE_PICK`).
+  tade_race_pick: { kind: 'local', because: DECIDES_FOR_SOMEBODY },
   // Deleting a document cannot be asked back, and the one who decides it is
   // the person at this machine — the second press is theirs, like `tade_done`.
   tade_document_delete: { kind: 'local', because: CONFIRMS },
@@ -403,6 +410,9 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
   'template/list': never(READS_WIDE),
   'template/dry-run': never(READS_WIDE),
   'template/use': never(EXECUTES),
+  'race/start': never(EXECUTES),
+  'race/standing': never(READS_WIDE),
+  'race/pick': never(DECIDES_FOR_SOMEBODY),
   'intake/list': never(GRANTS),
   'intake/show': never(GRANTS),
   'config/settings': never(GRANTS),

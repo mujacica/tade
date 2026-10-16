@@ -142,9 +142,9 @@ export const GRANT_MEANS: Readonly<Record<Grant, string>> = {
  */
 export const WITHHOLDS: Readonly<Record<Grant, readonly string[]>> = {
   titles: ['projects.title', 'tasks.title'],
-  intent: ['tasks.intent', 'queue.waitsOn.why', 'runs.steps.waits.why'],
+  intent: ['tasks.intent', 'queue.waitsOn.why', 'runs.steps.waits.why', 'evaluations.races.said'],
   notes: ['notes'],
-  findings: ['findings', 'tasks.landing', 'evaluations.findings'],
+  findings: ['findings', 'tasks.landing', 'evaluations.findings', 'evaluations.races.order'],
   // Quotas are `plans`: what a sign-in has used of its plan is a figure about
   // money, and goes with the rest of it.
   spend: [
@@ -154,6 +154,7 @@ export const WITHHOLDS: Readonly<Record<Grant, readonly string[]>> = {
     'runs.steps.usd',
     'runs.usd',
     'evaluations.cost',
+    'evaluations.races.usd',
   ],
   reviews: ['tasks.review.url'],
   accounts: ['tasks.account', 'plans.account'],

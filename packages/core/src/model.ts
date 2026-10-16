@@ -125,6 +125,12 @@ export const TaskFile = z.object({
    * there is never anything to keep in sync.
    */
   effort: z.string().optional(),
+  /**
+   * The race this task is one entrant in, by its slug: the same request given
+   * to several agents, each in a worktree of its own. Like an effort, a race is
+   * nothing but the fold of the task files that name it (`race.ts`).
+   */
+  race: z.string().optional(),
   /** The harness its agent runs in, when it is not the route's. */
   harness: z.string().optional(),
   /** The account its agent runs as, when it is not its harness's usual one. */
@@ -317,6 +323,10 @@ export const Task = z.object({
   workspace: z.enum(['checkout', 'worktree']).optional(),
   /** The change it is one repository's share of, as its task file says. */
   effort: z.string().optional(),
+  /** The race it is one entrant in, as its task file says. */
+  race: z.string().optional(),
+  /** The harness its agent runs in, where its task file names one rather than the route's. */
+  harness: z.string().optional(),
   /** The directory its work is in: the project's checkout, or its worktree. */
   worktree: z.string(),
   /** Who asked for it, as its task file says. */

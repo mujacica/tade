@@ -224,6 +224,20 @@ probability, out of verdicts people wrote — and the same page is on the away v
 
 ![Evaluations by harness: agents, done and landed, first push green, reds caught here, the judge's findings, cost per landed agent and time to done — counts first, a rate only from five](https://raw.githubusercontent.com/mujacica/tade/main/images/evaluations.svg)
 
+## Races: one request, several agents, and you keep one
+
+Ask the orchestrator to race something and it gives the same request to two to four agents at
+once — each on its own harness or model, each in a worktree of its own — and the queue starts them
+like any other work. `/race` puts them side by side in the order the facts put them: the checks at
+each one's head, whether the judge said a change did something other than what was asked, the
+findings nobody has settled, then the smaller change, with what each cost and what the race has
+cost so far. That order is not a pick, and nothing picks but you: press **Pick this one**, say yes,
+and the others are stopped and marked finished with every branch kept. The orchestrator can do it
+too, but only when a line of yours since the race began asks it to. There is a `race` template for
+three attempts on one route, and the races are a tab on the away view's Evaluations page.
+
+![A race: one request given to three agents on Claude Code, Codex and pi, in the order the facts put them — checks, whether the judge said one strayed from what was asked, findings, size and cost — and nobody has picked](https://raw.githubusercontent.com/mujacica/tade/main/images/race.svg)
+
 ## Reviews, and the loop around them
 
 What you have offered other people, and what they and their robots say about it: your open pull

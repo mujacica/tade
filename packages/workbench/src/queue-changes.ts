@@ -330,3 +330,33 @@ function writeStart(
     return parsed.data.start
   })
 }
+
+/** What held queued work was waiting on, as the window found it. */
+export interface HeldHow {
+  on?: string
+  start?: 'failed'
+  /** The files work going on now had changed under it, when that is what held it. */
+  changed?: readonly string[]
+  /** Whose changes they were, where git said whose. */
+  by?: readonly string[]
+}
+
+/** Queued work that could not start, held with why until someone chooses. */
+export async function holdQueued(
+  log: EventLog,
+  task: string,
+  because: string,
+  how: HeldHow,
+): Promise<void> {
+  await log.append({
+    type: 'queue_held',
+    task,
+    detail: {
+      because,
+      ...(how.on ? { on: how.on } : {}),
+      ...(how.start ? { start: how.start } : {}),
+      ...(how.changed ? { changed: [...how.changed] } : {}),
+      ...(how.by && how.by.length > 0 ? { by: [...how.by] } : {}),
+    },
+  })
+}

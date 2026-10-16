@@ -6,6 +6,7 @@ import { doneFor, type Persona, PersonaDone } from './personas.ts'
 import type { Plan, PlannedAgent } from './plan.ts'
 import { producesPath, producesProblem } from './produces.ts'
 import { joined } from './queue.ts'
+import { RACE_LEAST, RACE_MOST } from './race.ts'
 
 // A reusable workflow: a stored `Plan` with holes in it, and the engine is the
 // one that is already there.
@@ -121,6 +122,12 @@ export const Template = z.strictObject({
    * so the second use is refused by `guardName` with nothing to say about why.
    */
   name_suffix: z.string().optional(),
+  /**
+   * Its agents are a race: the same request to each, side by side, each in a
+   * worktree of its own, and somebody choosing which one to keep (`race.ts`).
+   * The race is called `<template>-<suffix>`, so it needs a `name_suffix`.
+   */
+  race: z.boolean().optional(),
   inputs: z.record(z.string(), TemplateInput),
   agents: z.array(TemplateAgent).min(1),
 })
@@ -269,6 +276,9 @@ export function templateProblems(
     }
   }
 
+  // --- a race: the same words to each, side by side, and a name to call it by
+  if (template.race) problems.push(...raceShapeProblems(template, context.personas))
+
   // --- waits: a cycle here is a cycle in every plan this will ever make
   const stuck = unorderable(template)
   if (stuck.length > 0) say(`${joined(stuck)} wait on each other, so none could start`)
@@ -341,6 +351,34 @@ export function templateProblems(
     )
   }
   return { problems, warnings }
+}
+
+/**
+ * What refuses a template as a race, before anybody fills it in: the same rule
+ * `raceProblems` holds a plan to, said about the template's own steps.
+ */
+function raceShapeProblems(template: Template, personas: ReadonlyMap<string, Persona>): string[] {
+  const out: string[] = []
+  const n = template.agents.length
+  if (template.name_suffix === undefined) {
+    out.push('a race is called <template>-<name_suffix>, so it needs a name_suffix')
+  }
+  if (n < RACE_LEAST || n > RACE_MOST) {
+    out.push(`a race has ${RACE_LEAST} to ${RACE_MOST} entrants, and this template has ${n}`)
+  }
+  const waiting = template.agents.filter((one) => one.after.length > 0 || one.reads.length > 0)
+  if (waiting.length > 0) {
+    out.push(
+      `a race's entrants run side by side, and ${joined(waiting.map((one) => one.name))} would wait on or read another`,
+    )
+  }
+  if (template.agents.some((one) => one.project_input !== undefined)) {
+    out.push('a race is run in one repository: no step names a project_input of its own')
+  }
+  if (new Set(template.agents.map((one) => resolveAgent(one, personas).prompt)).size > 1) {
+    out.push('every entrant in a race is told the same thing: give every step the same prompt')
+  }
+  return out
 }
 
 /**
@@ -528,7 +566,8 @@ export function fillTemplate(template: Template, args: FillArgs): TemplateFill {
   const agents: PlannedAgent[] = template.agents.map((agent) => {
     const resolved = resolveAgent(agent, args.personas)
     const project = projectOf(agent)
-    const done = doneFor(resolved.done, args.workspace(project))
+    // An entrant in a race works in a worktree of its own whatever the project says.
+    const done = doneFor(resolved.done, template.race ? 'worktree' : args.workspace(project))
     const handed = agent.reads.flatMap((read) => {
       const other = template.agents.find((one) => one.name === read)
       const produces = other ? resolveAgent(other, args.personas).produces : undefined
@@ -569,6 +608,7 @@ export function fillTemplate(template: Template, args: FillArgs): TemplateFill {
       // "how far did that ticket get" is one question. An effort is nothing
       // but the fold of the task files that name it, so this costs nothing.
       ...(suffix ? { effort: `${template.template}-${suffix}` } : {}),
+      ...(template.race && suffix ? { race: `${template.template}-${suffix}` } : {}),
       agents,
     },
     warnings: structure.warnings,

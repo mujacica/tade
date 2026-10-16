@@ -161,6 +161,7 @@ export function draw(state: AppState, given: Frame, last: LastFrame | null = nul
     project: state.project,
     items: extra.items ?? [],
     landing: frame.landing ?? [],
+    races: frame.races ?? [],
     evaluations: frame.evaluations ?? null,
     kept: extra.kept ?? {},
     now: frame.now ?? 0,

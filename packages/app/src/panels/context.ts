@@ -1,4 +1,4 @@
-import type { SettingGroup } from '@tade/core'
+import type { Race, SettingGroup } from '@tade/core'
 import type { LineComment } from '../comments.ts'
 import type { ParsedDiff } from '../diff.ts'
 import type { EvalsView } from '../evaluations.ts'
@@ -29,6 +29,7 @@ import type { ModelChoice } from './models/state.ts'
 import { models } from './models/view.ts'
 import type { OpenRowView } from './project/state.ts'
 import { openProject } from './project/view.ts'
+import { race } from './race/view.ts'
 import { search } from './search/view.ts'
 import type { AccountShown } from './settings/accounts.ts'
 import type { Choice, UpdatesShown } from './settings/state.ts'
@@ -85,6 +86,8 @@ export interface PanelContext {
   changes: readonly Change[]
   /** The landing desk, in the order it is cheapest to trust (`Frame.landing`). */
   landing: readonly DeskRow[]
+  /** Every race, undecided first (`Frame.races`). */
+  races: readonly Race[]
   /** The scorecards and the judge's calibration, once the journal has been read. */
   evaluations: EvalsView | null
   /** Line comments kept and not sent, by the task whose change they are on. */
@@ -308,5 +311,7 @@ export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
       return { panel: landing(panel, ctx), popups: [] }
     case 'evaluations':
       return { panel: evaluations(panel, ctx), popups: [] }
+    case 'race':
+      return { panel: race(panel, ctx), popups: [] }
   }
 }

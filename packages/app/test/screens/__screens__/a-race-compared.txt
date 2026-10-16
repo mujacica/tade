@@ -1,0 +1,34 @@
+ ▄▀   T A D E      checkout !⠋    search ✓    infra      +          ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ A╭─ Race ───────────────────────────────────────────────────────────────────────────────────────────────── esc ─╮×   
+    │ dark-mode in checkout · 3 entrants · 3 finished · ≥ $1.92 so far                                             │────
+ ▌ !│ asked: add a dark mode to the receipt page                                                                   │    
+ ▌  │                                                                                                              │    
+    │                                                                                                              │    
+   ⠋│ ENTRANTS  as the facts order them — nobody has picked                                                       ▕│    
+    │▌ 1 dark-mode-1                                            ✓ checks    ✓ asked  no findings  +140 −31  $1.18 ▕│    
+    │▌    claude-code · claude-sonnet-5 · finished                                                                ▕│    
+ ▸ S│  2 dark-mode-3                                            ✓ checks  ✕ strayed  no findings    +61 −4     $— ▕│    
+ ▸ S│     pi · finished                                                                                           ▕│    
+ ▸ I│  3 dark-mode-2                                            ✕ checks    ✓ asked     ◆ 1 open   +84 −12  $0.74 ▕│    
+ ▾ C│     codex · gpt-5-codex · finished                                                                          ▕│    
+  M │                                                                                                             ▕│    
+  A │                                                                                                             ▕│    
+  M │                                                                                                             ▕│    
+    │                                                                                                             ▕│    
+ ▾ F│                                                                                                             ▕│    
+   ▾│                                                                                                             ▕│    
+    │                                                                                                             ▕│    
+    │                                                                                                             ▕│    
+   ▸│                                                                                                             ▕│    
+━   │                                                                                                             ▕│   ━
+    │                                                                                                             ▕│    
+    │                                                                                                             ▕│   ▕
+    │                                                                                                             ▕│   ▕
+    │                                                                                                              │   ▕
+    │ ↑↓ choose · enter reads · a agent · p picks   Read the change     Go to agent     Pick this one     Close    │   ▕
+ ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

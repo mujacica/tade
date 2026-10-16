@@ -68,12 +68,13 @@ const answer = (granted = EVERY, findings = true) =>
   )
 
 describe('the Evaluations page', () => {
-  it('offers a tab per grouping, and the judge', () => {
+  it('offers a tab per grouping, the races, and the judge', () => {
     expect(EVAL_TABS.map((one) => one.id)).toEqual([
       'harness',
       'model',
       'persona',
       'template',
+      'races',
       'judge',
     ])
   })

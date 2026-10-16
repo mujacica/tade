@@ -8,6 +8,7 @@ import { INTAKE_SCREENS } from './scenarios/intake.ts'
 import { LANDING_SCREENS } from './scenarios/landing.ts'
 import { PANEL_SCREENS } from './scenarios/panels.ts'
 import { QUEUE_SCREENS } from './scenarios/queue.ts'
+import { RACE_SCREENS } from './scenarios/races.ts'
 import { SCHEDULE_SCREENS } from './scenarios/schedules.ts'
 import { SEARCH_SCREENS } from './scenarios/search.ts'
 import { SETTINGS_SCREENS } from './scenarios/settings.ts'
@@ -41,6 +42,7 @@ export const SCENARIOS: Scenario[] = [
   ...SPEND_SCREENS,
   ...LANDING_SCREENS,
   ...EVALUATION_SCREENS,
+  ...RACE_SCREENS,
   ...FILE_SCREENS,
   ...SEARCH_SCREENS,
   ...INTAKE_SCREENS,

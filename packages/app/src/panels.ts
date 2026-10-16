@@ -1,4 +1,4 @@
-import type { SettingGroup, WorkflowField } from '@tade/core'
+import type { Race, SettingGroup, WorkflowField } from '@tade/core'
 // Type-only, so the pure panel model never loads the driver stack behind it.
 import type { UpdateLook as UpdatesShown } from '@tade/workbench/programs'
 
@@ -40,6 +40,7 @@ import { type MenuItem, type MenuPanel, menuClick, menuKey } from './panels/menu
 import { type ModelChoice, type ModelPanel, modelClick, modelKey } from './panels/models/state.ts'
 import { close, type PanelOutcome, stay } from './panels/outcome.ts'
 import { type OpenProjectPanel, type OpenRow, openClick, openKey } from './panels/project/state.ts'
+import { type RacePanel, raceClick, raceKey } from './panels/race/state.ts'
 import { type SearchPanel, searchClick, searchKey } from './panels/search/state.ts'
 import type { AccountAction } from './panels/settings/accounts.ts'
 import {
@@ -101,6 +102,7 @@ export type Panel =
   | AwayPanel
   | SpendPanel
   | EvaluationsPanel
+  | RacePanel
   | MenuPanel
   | ConfirmRemovePanel
   | CloseDonePanel
@@ -208,6 +210,10 @@ export interface PanelInputs {
    * it opens on; a task missing from it has not been looked at yet.
    */
   deskFiles?: Readonly<Record<string, readonly string[]>>
+  /** Every race, in the order the panel walks them. */
+  races?: readonly Race[]
+  /** What each entrant changed, by file, for the patch reader; one missing has not been looked at. */
+  raceFiles?: Readonly<Record<string, readonly string[]>>
 }
 
 /**
@@ -246,6 +252,7 @@ export function panelKey(
   }
   if (panel.kind === 'away') return awayKey(panel, key, inputs)
   if (panel.kind === 'landing') return landingKey(panel, key, data, inputs)
+  if (panel.kind === 'race') return raceKey(panel, key, data, inputs)
   if (panel.kind === 'quit') return quitKey(panel, key)
   if (panel.kind === 'reload') return reloadKey(panel, key)
   if (panel.kind === 'spend') return spendKey(panel, key)
@@ -304,6 +311,7 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
   }
   if (panel.kind === 'away') return awayClick(panel, control)
   if (panel.kind === 'landing') return landingClick(panel, control, inputs)
+  if (panel.kind === 'race') return raceClick(panel, control, inputs)
   if (panel.kind === 'quit') return quitClick(panel, control)
   if (panel.kind === 'reload') return reloadClick(panel, control)
   if (panel.kind === 'spend') return spendClick(panel, control)

@@ -15,7 +15,7 @@
 // then the queue starts nothing until somebody picks them up. There is no
 // schedule, no watch and no default here.
 //
-// The three are the shapes the research found, and each one is written the
+// The first three are the shapes the research found, and each one is written the
 // way it is to avoid a specific trap:
 //
 // - **bug-repro-fix-review** does *not* split reproducing from fixing. A
@@ -36,6 +36,12 @@
 //   what it wrote (`after` with `approved`), so nothing is built on a plan
 //   nobody agreed to — and nothing about the approval is the orchestrator's
 //   own reading, because an approval is refused without a line of theirs.
+// - **race** is best-of-N: three entrants told the same words, side by side,
+//   none waiting on another, each in a worktree of its own whatever the
+//   project says (`raceProblems`). It names no harness and no model — a
+//   template says what an agent is told, and which harness runs it is not
+//   that — so stamped out it races one route against itself; `tade_race` is
+//   where entrants are named. And nothing in it picks: that is `race_won`.
 
 /**
  * `<name>.md` as the file would be written, by persona name.
@@ -320,5 +326,60 @@ agents:
     prompt: >-
       Build the change the plan handed to you describes, as it was approved.
       Where the code disagrees with the plan, follow the code and say where.
+`,
+  race: `template: race
+version: 1
+title: Give one request to several agents at once, each in a worktree of its own, and keep one
+about: >-
+  Best-of-N. Three agents are asked the same thing in the same words, side by
+  side, each on a branch of its own; each runs the project's checks, and the
+  judge reads each change like any other. Nothing picks but you: compare them
+  with /race in the window or ask the orchestrator, and the others are
+  stopped with their branches kept. Stamped out of this template every
+  entrant runs on the project's own route; to race harnesses or models
+  against each other, ask the orchestrator for a race, which names each.
+project_input: project
+said_input: request
+name_suffix: subject
+race: true
+inputs:
+  project:
+    kind: project
+    about: the repository to change
+  subject:
+    kind: slug
+    about: what this race goes by — a couple of words
+  request:
+    kind: text
+    about: one line saying what you want done
+  brief:
+    kind: document
+    required: false
+    about: anything from outside worth reading before starting
+agents:
+  - name: one
+    persona: implementer
+    prompt: >-
+      You are one of several agents given this same request at the same time,
+      each on a branch of its own in a worktree of its own. Do it as well as
+      you can on your own: do not look for the others' branches or wait on
+      them. Commit your work on your branch. Somebody compares the entrants
+      and keeps one, so say plainly what you did not do.
+  - name: two
+    persona: implementer
+    prompt: >-
+      You are one of several agents given this same request at the same time,
+      each on a branch of its own in a worktree of its own. Do it as well as
+      you can on your own: do not look for the others' branches or wait on
+      them. Commit your work on your branch. Somebody compares the entrants
+      and keeps one, so say plainly what you did not do.
+  - name: three
+    persona: implementer
+    prompt: >-
+      You are one of several agents given this same request at the same time,
+      each on a branch of its own in a worktree of its own. Do it as well as
+      you can on your own: do not look for the others' branches or wait on
+      them. Commit your work on your branch. Somebody compares the entrants
+      and keeps one, so say plainly what you did not do.
 `,
 }

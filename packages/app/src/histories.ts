@@ -38,6 +38,8 @@ export const QUEUE_READS = [
   // Whether the person approved a document queued work waits on (`approvedFrom`),
   // which is a fold over every line about documents and not only the triage.
   ...DOCUMENT_EVENTS,
+  // Which entrant a race kept, which closes the rest: told once, and never in a tail.
+  'race_won',
 ] as const
 
 /**

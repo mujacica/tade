@@ -221,6 +221,15 @@ whether its own questions earn their place is the judge marking its own homework
   read as one. A question is called `costs` — firing and wrong — only once the verdicts say so,
   which is what makes that answer worth anything when it comes.
 
+## A race reads the judge, and the judge never picks
+
+A race (`core/src/race.ts`) orders its entrants by facts: checks at the head, then whether
+`did_what_was_asked` still stands about the change (`strayedIn`), then findings nobody settled, then
+finished, then size. The judge's answers can only move an entrant **down**; nothing is drawn as a
+winner until somebody picks, and picking is `race_won` — the person's press, or the orchestrator's
+on a line of theirs (`RACE_PICK`, checked in the window). On the away view, a device without the
+`findings` grant gets the races ordered with the judge's part taken out before the order.
+
 ## Where a judgement already sits
 
 Two advisory paths and no others. Both are asked without anybody asking for them, so both are

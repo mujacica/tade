@@ -27,6 +27,7 @@ import {
 } from '@tade/workbench'
 import { documentMethods } from './host-documents.ts'
 import { machineMethods, type UpdateHost } from './host-machine.ts'
+import { type RaceHost, raceMethods } from './host-race.ts'
 import { templateMethods } from './host-templates.ts'
 import { type Arming, allowMethod, allowTool, waiting, writtenBy } from './origin.ts'
 
@@ -155,6 +156,8 @@ export interface ToolHostOptions {
   remote?: Arming
   /** Updating what Tade runs, and reloading the window: the window's (`host-machine.ts`). */
   updates?: UpdateHost
+  /** Starting, reading and picking a race: the window's (`host-race.ts`). */
+  race?: RaceHost
   /** Runs the orchestrator's extension tools. Without it, it has none. */
   extensions?: (call: {
     tool: string
@@ -220,6 +223,8 @@ export class ToolHost {
       'queue/list': async () => queueOf(opts).describe(),
       // Stored workflows: `host-templates.ts`, where the boundary is.
       ...templateMethods(tade),
+      // Races, which the window's queue starts and the person picks: `host-race.ts`.
+      ...raceMethods(() => opts.race),
       // Work that arrived from outside, read and never acted on. Two methods
       // and deliberately not a third: there is no way from here to approve,
       // refuse or retry one, and no way to change a grant — `settingReach`

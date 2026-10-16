@@ -7,6 +7,7 @@ import type { SpendWindow } from '../spend.ts'
 import type { Actions, Subject, Wiring } from './context.ts'
 import { heldFindings } from './findings.ts'
 import { Kept } from './kept.ts'
+import { racesHeld, usdByTask } from './races.ts'
 
 // The Evaluations panel, and the scorecards the away view reads too.
 //
@@ -117,6 +118,10 @@ export function evaluationsAnswer(wire: Wiring, reach: Reach): EvaluationsOut {
   return evaluationsFor(
     reach,
     (projects) => evaluationsNow(wire, 'all', projects)?.evaluations ?? null,
+    // The races, over the projects this device reads and never filtered after:
+    // a race is one project's, so leaving the others out is the whole fold.
+    (projects) =>
+      racesHeld(wire, usdByTask(wire)).filter((one) => !projects || projects.has(one.project)),
   )
 }
 

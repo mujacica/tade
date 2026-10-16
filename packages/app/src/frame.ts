@@ -7,6 +7,7 @@ import type {
   LandingTier,
   OnPlan,
   PlanStanding,
+  Race,
   Runtime,
   WorkflowField,
   WorkflowPlace,
@@ -491,6 +492,11 @@ export interface Frame {
    * every project, in the order it is cheapest to trust (`landingDesk`).
    */
   landing?: readonly DeskRow[]
+  /**
+   * Every race the window can see: the entrants given one request, in the
+   * order the facts put them, undecided races first (`racesIn`).
+   */
+  races?: readonly Race[]
   /** The Spend panel's view, when it is open. */
   spendView?: SpendView | null
   /** The Evaluations panel's view, while it is open and once the journal is read. */

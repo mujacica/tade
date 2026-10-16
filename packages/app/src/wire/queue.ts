@@ -47,6 +47,7 @@ import {
   why,
 } from './context.ts'
 import { Forecast } from './forecast.ts'
+import { type RaceTools, raceTools } from './races.ts'
 // Type-only, so it is erased and no module edge exists between the two
 // subjects: the queue's tools answer for schedules as well, and this is the
 // shape of what `queue_schedule` takes. What it *does* is the schedules'.
@@ -112,6 +113,8 @@ export interface QueueTools {
   }): Promise<string>
   plan(plan: Plan): Promise<string>
   schedule(req: ScheduleRequest): Promise<string>
+  /** Races, which are plans the queue starts: `races.ts`. */
+  race: RaceTools
 }
 
 export class Queue implements Subject {
@@ -381,6 +384,7 @@ export class Queue implements Subject {
   /** What the orchestrator's queue tools do, answered from this window. */
   tools(): QueueTools {
     return {
+      race: raceTools(this.wire, (plan) => this.tools().plan(plan)),
       advance: () => this.advance(),
       describe: async () => {
         await this.wire.live?.refresh()

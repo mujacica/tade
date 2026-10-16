@@ -54,3 +54,57 @@
   font-size: var(--step--1);
   font-weight: var(--w-label);
 }
+
+/* A race: its entrants in the order the facts put them, a line each. */
+.page-evaluations .ev-races {
+  display: grid;
+  gap: var(--stack);
+}
+
+.page-evaluations .ev-race-decided {
+  margin: 0 0 var(--s3);
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.page-evaluations .ev-race-list {
+  display: grid;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.page-evaluations .ev-racer {
+  display: grid;
+  grid-template-columns: 1.5em minmax(0, 1fr);
+  column-gap: var(--s2);
+  min-width: 0;
+}
+
+.page-evaluations .ev-racer-mark {
+  grid-row: span 2;
+  color: var(--heading);
+}
+
+.page-evaluations .ev-racer-name {
+  color: var(--body);
+  font-weight: var(--w-label);
+  overflow-wrap: anywhere;
+}
+
+.page-evaluations .ev-racer-under {
+  color: var(--heading);
+  font-size: var(--step--1);
+  overflow-wrap: anywhere;
+}
+
+.page-evaluations .ev-racer-quiet .ev-racer-name {
+  color: var(--heading);
+}
+
+/* The one picked: brighter on the same ladder, never a colour of its own. */
+.page-evaluations .ev-racer-done .ev-racer-mark,
+.page-evaluations .ev-racer-done .ev-racer-name {
+  color: var(--bright);
+}

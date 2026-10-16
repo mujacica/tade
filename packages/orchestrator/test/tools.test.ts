@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { WorkerSignal } from '@tade/harnesses-core'
 import { PiAdapter } from '@tade/harnesses-pi'
-import { Workbench } from '@tade/workbench'
+import { readTaskFile, startRace, Workbench } from '@tade/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   type FakeModel,
@@ -128,6 +128,42 @@ describe('orchestrator tools', () => {
     const created = await taskEvents()
     expect(created?.detail.intent_spoken).toBe(intent)
     expect(created?.task).toBe('app/refunds')
+  }, 90_000)
+
+  it('starts a race through the tool: entrants in worktrees of their own, each on its harness', async () => {
+    await tools.close()
+    tools = await ToolHost.listen({
+      tade,
+      path: join(home, 'tools.sock'),
+      // What the window does with it: a plan, made through the plan path.
+      race: {
+        start: async (req) => {
+          const made = await startRace(tade, req)
+          return `Made ${made.made.map((one) => one.id).join(', ')}.`
+        },
+        standing: async () => '',
+        pick: async () => '',
+      },
+    })
+    await runWithTool({
+      name: 'tade_race',
+      arguments: {
+        project: 'app',
+        name: 'dark',
+        said: 'add a dark mode',
+        prompt: 'Add a dark mode, run the checks and commit.',
+        entrants: [{ harness: 'claude-code' }, { harness: 'codex' }],
+      },
+    })
+    await until(() => (model?.requests.length ?? 0) >= 2)
+    expect(JSON.stringify(model?.requests[1] ?? {})).toContain('Made app/dark-1, app/dark-2.')
+    const files = await Promise.all(
+      ['app/dark-1', 'app/dark-2'].map((id) => readTaskFile(home, id)),
+    )
+    expect(files.map((one) => [one?.race, one?.harness, one?.intent_spoken])).toEqual([
+      ['dark', 'claude-code', 'add a dark mode'],
+      ['dark', 'codex', 'add a dark mode'],
+    ])
   }, 90_000)
 
   it('surfaces what the agent said as a message signal', async () => {

@@ -486,6 +486,7 @@ function bodyOf(template: Template): Record<string, unknown> {
     project_input: template.project_input,
     said_input: template.said_input,
     ...(template.name_suffix !== undefined ? { name_suffix: template.name_suffix } : {}),
+    ...(template.race ? { race: true } : {}),
     inputs: Object.fromEntries(
       Object.entries(template.inputs)
         .sort(([a], [b]) => a.localeCompare(b))
