@@ -10,7 +10,7 @@ import {
 } from '@tade/core'
 import { parse as parseYaml, stringify } from 'yaml'
 import type { EventLog } from './events.ts'
-import { refuseParked } from './parked.ts'
+import { pickUpToStart } from './parked.ts'
 import { aloneOn, readTaskFile, taskFilePath } from './tasks.ts'
 
 // A choice about queued work — a person's, or the orchestrator's on their
@@ -75,7 +75,10 @@ export async function changeQueued(
   }
   if (req.task && req.change === 'after') return waitOn(tade, { ...req, task: req.task })
   if (req.task && req.change === 'retell') return retell(tade, { ...req, task: req.task })
-  if (req.change === 'start' && req.task) await refuseParked(tade.home, req.task)
+  // Starting parked work picks it up first, as whoever asked, so one press is
+  // the whole act (`pickUpToStart`); what refuses that refuses the start, and
+  // nothing is written.
+  if (req.change === 'start' && req.task) await pickUpToStart(tade, req.task, req.by)
   const order = (req.order ?? []).map((task) => task.trim()).filter((task) => task !== '')
   if (req.change === 'order' && order.length === 0) {
     throw new Error('an order is a list of queued work, first to last: say which comes first')

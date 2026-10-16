@@ -572,17 +572,15 @@ export function accountMenuItems(
  * Queued work's menu: start it, pause or resume it, wait past what held it,
  * change what it waits on or is told, rename or remove it.
  */
-export function queueMenuItems(queued: { state: { kind: string; parked?: boolean } }): MenuItem[] {
+export function queueMenuItems(queued: { state: { kind: string } }): MenuItem[] {
   const paused = queued.state.kind === 'paused'
   const held = queued.state.kind === 'held'
-  // A park is answered by picking the task up again, never by Start: the
-  // control says so rather than being offered and then refused. The refusal
-  // in the workbench is still what guarantees it — the drawing follows the
-  // rule and is never what enforces it.
-  const parked = queued.state.parked === true
+  // Starting parked work picks it up, in the one press (`pickUpToStart`), and
+  // its answer says so: offered and then refused, a park read as a Start now
+  // that did nothing.
   return [
     { id: 'open', label: 'Open', note: 'enter' },
-    { id: 'queue-start', label: 'Start now', ...(parked ? { off: 'parked' } : {}) },
+    { id: 'queue-start', label: 'Start now' },
     // A preference among what is ready, not a start: it waits for what it
     // waits on exactly as it did, and goes first when it can go at all.
     { id: 'queue-first', label: 'Do this one first' },

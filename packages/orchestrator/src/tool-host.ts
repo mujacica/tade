@@ -387,7 +387,10 @@ export class ToolHost {
         })
         return opts.extensions({ tool, input, callId: String(p.callId ?? '') })
       },
-      'task/park': (p) => tade.parkTask(String(p.task), p.parked === true),
+      // The orchestrator's own act, written down as its own: `resumed` by
+      // anybody else reads as the person having picked it up (`proposalsIn`),
+      // and lifting a park on work from outside is refused it (`NotYours`).
+      'task/park': (p) => tade.parkTask(String(p.task), p.parked === true, { by: 'orchestrator' }),
       'task/rename': (p) =>
         tade.renameAgent({
           task: String(p.task),

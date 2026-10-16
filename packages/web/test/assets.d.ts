@@ -368,7 +368,7 @@ declare module '*/assets/acts.js' {
   export const PROJECT_SHOWN: readonly string[]
   export const PAIRS: Readonly<Record<string, string>>
   export const NEEDS: Readonly<Record<string, string>>
-  export const QUEUE_ASKS: readonly { change: string; said: string; starts?: boolean }[]
+  export const QUEUE_ASKS: readonly { change: string; said: string; ready?: boolean }[]
   export function asksFor(row: unknown): readonly { change: string; said: string }[]
   export function actsOf(session: unknown): {
     answer: boolean

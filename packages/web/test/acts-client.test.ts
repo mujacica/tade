@@ -4,6 +4,7 @@ import { QUEUE_ASKS as ASKS, BOUNDS, HOWS } from '../src/acting.ts'
 import {
   actsOf,
   afterAnswer,
+  asksFor,
   bodyFor,
   CHANGE_PATH,
   changeBody,
@@ -95,6 +96,22 @@ describe('the scope each verb needs, written twice', () => {
     expect(QUEUE_ASKS.map((one) => one.change).sort()).toEqual([...ASKS].sort())
     expect(QUEUE_ASKS.map((one) => one.change)).not.toContain('order')
     for (const one of QUEUE_ASKS) expect(one.said.length).toBeGreaterThan(3)
+  })
+
+  it('offers a start on parked work, which picks it up, but never on work from outside', () => {
+    const changes = (row: unknown) => asksFor(row).map((one) => one.change)
+    const all = QUEUE_ASKS.map((one) => one.change)
+    expect(changes({ parked: false, origin: { kind: 'schedule', name: 'jev' } })).toEqual(all)
+    // A watch's parked work: a start is the person saying go, and an order
+    // among what is ready is not something parked work can take.
+    const watched = changes({ parked: true, origin: { kind: 'schedule', name: 'jev' } })
+    expect(watched).toContain('start')
+    expect(watched).not.toContain('first')
+    // Picking up a request from outside is approving it: the intake verb's.
+    const outside = changes({ parked: true, origin: { kind: 'intake', name: 'github' } })
+    expect(outside).not.toContain('start')
+    expect(outside).not.toContain('first')
+    expect(outside).toContain('pause')
   })
 
   it('says what a wait means in words, for every way the wire can say one', () => {

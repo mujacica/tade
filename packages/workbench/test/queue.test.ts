@@ -3,7 +3,9 @@ import { join } from 'node:path'
 import { type PlannedAgent, taskDir } from '@tade/core'
 import { sessionIdFor } from '@tade/harnesses-pi'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { parse } from 'yaml'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
+import { NotYours } from '../src/parked.ts'
 import { Workbench } from '../src/workbench.ts'
 
 // Work asked for now and started later, against real git: a plan made in
@@ -113,36 +115,115 @@ describe('queued work', () => {
   }, 60_000)
 
   // Parking a task that has a start condition is the shape anything "proposed,
-  // waiting for a person" would take, and until this it held nothing: the
-  // queue's rules read the journal and the tree and no task file, so a parked
-  // task sat in the queue reading `ready`. The rule is `queueStateOf`'s, and
-  // these are the two doors that do not go through it.
-  it('refuses to start work its person has parked, and says how to undo it', async () => {
+  // waiting for a person" would take, and until it was read it held nothing:
+  // the queue's rules read the journal and the tree and no task file, so a
+  // parked task sat in the queue reading `ready`. The rule is `queueStateOf`'s,
+  // and `startQueued` is the door it reaches — which never opens on a park.
+  it('never starts parked work by the door the rule reaches', async () => {
     const {
       made: [proposed],
     } = await client.planTasks({ project: 'app', said: '', agents: [agent('proposed')] })
     if (!proposed) throw new Error('the plan made nothing')
-    await client.parkTask(proposed.id, true)
+    await client.parkTask(proposed.id, true, { by: 'schedule:jev-mistakes-app' })
 
     await expect(
       client.startQueued({ task: proposed.id, worktree: proposed.worktree, why: 'there was room' }),
     ).rejects.toThrow(/parked: pick it up again before it can start/)
     // Nothing started, so nothing is written down as having started.
     expect(await client.events({ types: ['queue_started'] })).toEqual([])
+    expect(parse(readFileSync(join(taskDir(home, proposed.id), 'task.yaml'), 'utf8')).parked).toBe(
+      true,
+    )
+  }, 60_000)
 
-    // And "start it anyway" is refused rather than written down and quietly
-    // doing nothing: it is the answer to a hold, and a park is not a hold it
-    // may answer.
+  // A watch's parked work (`WatchAgent.parked`, the jev.mistakes watch's) waits
+  // for somebody to say go, and Start now is saying it. It used to be refused
+  // with "pick it up again before it can start", so the press did nothing and
+  // the orchestrator asked to start one met the same wall.
+  it('picks parked work up when somebody starts it, and writes down who', async () => {
+    const {
+      made: [check, other],
+    } = await client.planTasks({
+      project: 'app',
+      said: '',
+      agents: [agent('check-for-error-swallowed'), agent('check-for-kind-fixture')],
+    })
+    if (!check || !other) throw new Error('the plan made nothing')
+    await client.parkTask(check.id, true, { by: 'schedule:jev-mistakes-app' })
+    await client.parkTask(other.id, true, { by: 'schedule:jev-mistakes-app' })
+
+    // The person, at the machine.
+    await client.changeQueued({ task: check.id, change: 'start', by: 'you' })
+    // The orchestrator, asked to.
+    await client.changeQueued({ task: other.id, change: 'start', by: 'orchestrator' })
+
+    for (const task of [check, other]) {
+      const file = parse(readFileSync(join(taskDir(home, task.id), 'task.yaml'), 'utf8'))
+      expect(file.parked, task.id).toBe(false)
+    }
+    // The park lifted first, then the start, each saying who asked.
+    const lines = await client.events({ types: ['state_change', 'queue_changed'] })
+    expect(
+      lines.map((one) => [
+        one.task,
+        one.type,
+        one.detail.state ?? one.detail.change,
+        one.detail.by,
+      ]),
+    ).toEqual([
+      [check.id, 'state_change', 'parked', 'schedule:jev-mistakes-app'],
+      [other.id, 'state_change', 'parked', 'schedule:jev-mistakes-app'],
+      [check.id, 'state_change', 'resumed', 'you'],
+      [check.id, 'queue_changed', 'start', 'you'],
+      [other.id, 'state_change', 'resumed', 'orchestrator'],
+      [other.id, 'queue_changed', 'start', 'orchestrator'],
+    ])
+    // And the door the rule reaches opens, now that nothing is parked.
+    await client.startQueued({ task: check.id, worktree: check.worktree, why: 'started anyway' })
+    expect((await client.events({ types: ['queue_started'] })).map((one) => one.task)).toEqual([
+      check.id,
+    ])
+  }, 60_000)
+
+  it('leaves work from outside the machine to the person, and starts nothing it was refused', async () => {
+    const ticket = await client.createTask({
+      project: 'app',
+      slug: 'from-a-ticket',
+      intent: 'a ticket somebody else filed',
+      by: 'intake:github',
+      start: { after: [], prompt: 'do what the ticket says', touches: [] },
+    })
+    await client.parkTask(ticket.id, true)
+    const file = () => parse(readFileSync(join(taskDir(home, ticket.id), 'task.yaml'), 'utf8'))
+
+    // Picking it up is approving somebody else's request: never the
+    // orchestrator's, never a paired device's, and refused before anything is
+    // written.
     await expect(
-      client.changeQueued({ task: proposed.id, change: 'start', by: 'you' }),
-    ).rejects.toThrow(/parked: pick it up again before it can start/)
+      client.changeQueued({ task: ticket.id, change: 'start', by: 'orchestrator' }),
+    ).rejects.toThrow(NotYours)
+    await expect(
+      client.changeQueued({ task: ticket.id, change: 'start', by: 'device 00112233445566aa' }),
+    ).rejects.toThrow(/approving it is a keypress here/)
+    expect(file().parked).toBe(true)
     expect(await client.events({ types: ['queue_changed'] })).toEqual([])
+    expect(
+      (await client.events({ types: ['state_change'] })).map((one) => one.detail.state),
+    ).toEqual(['parked'])
 
-    // Picked up again, both doors open, and the one act that opens them is the
-    // one a person already had.
-    await client.parkTask(proposed.id, false)
-    await client.changeQueued({ task: proposed.id, change: 'start', by: 'you' })
-    expect((await client.events({ types: ['queue_changed'] })).length).toBe(1)
+    // The person at the machine may: that press is their approval.
+    await client.changeQueued({ task: ticket.id, change: 'start', by: 'you' })
+    expect(file().parked).toBe(false)
+  }, 60_000)
+
+  it('lifts no park to start work that is not queued work', async () => {
+    const task = await client.createTask({ project: 'app', slug: 'set-aside', intent: 'later' })
+    await client.parkTask(task.id, true)
+    await expect(
+      client.changeQueued({ task: task.id, change: 'start', by: 'you' }),
+    ).rejects.toThrow(/is not queued work/)
+    expect(parse(readFileSync(join(taskDir(home, task.id), 'task.yaml'), 'utf8')).parked).toBe(true)
+    expect(await client.events({ types: ['queue_changed'] })).toEqual([])
   }, 60_000)
 
   it('tells queued work what it is for once, and brings back what has already been told', async () => {

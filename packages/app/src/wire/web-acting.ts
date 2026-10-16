@@ -404,9 +404,10 @@ export function steer(deps: ActingDeps, call: SteerCall, _from: From): Promise<O
  * The whole act is a `queue_changed` line, which is what every other door
  * writes too — so what starts is `readyToStart`'s decision on the window's own
  * next pass, with the park, the pause, the waits and `max_parallel` all still
- * in front of it. A `start` asked for here about work that is parked is
- * refused by `changeQueued` itself (`refuseParked`), which is the rule rather
- * than a second copy of it.
+ * in front of it. A `start` asked for here about work that is parked picks it
+ * up first, as this device, in `changeQueued` itself (`pickUpToStart`) — the
+ * rule rather than a second copy of it — and work from outside this machine is
+ * the one park it may not lift (`NotYours`), as with the `park` verb.
  *
  * **`first` is an order computed here**, out of the queue the window already
  * holds, and a device never sends a list: a list of task ids in a body is the
@@ -421,13 +422,13 @@ export function queued(deps: ActingDeps, call: QueueCall, from: From): Promise<O
     // a `queue_changed` line about a task the queue has never heard of, which
     // `choicesFor` would read back the day somebody made it queued work.
     if (facts.queue === '') throw new NotOffered(`${call.task} is not queued work`)
-    // **Parked work is not startable queued work**, and `refuseParked` is the
-    // rule — asked here first only so the answer is a refusal the page has a
-    // word for rather than the window appearing to break. The page offers
-    // neither of these on a parked row; this is what a crafted call, or a tap
-    // on a screen drawn before somebody parked it, meets.
-    if (facts.parked && (call.change === 'start' || call.change === 'first')) {
-      throw new NotOffered(`${call.task} is parked: pick it up again before it can start`)
+    // **An order is among what is ready, and parked work is not ready**: a
+    // `first` on it would be written and do nothing, so it is refused in words
+    // the page has. A `start` is not — it picks the work up (`pickUpToStart`).
+    if (facts.parked && call.change === 'first') {
+      throw new NotOffered(
+        `${call.task} is parked: start it, which picks it up, rather than order it`,
+      )
     }
     if (call.change === 'first') {
       const now = deps.queue()
@@ -441,15 +442,24 @@ export function queued(deps: ActingDeps, call: QueueCall, from: From): Promise<O
       })
       return { did: true, rev: after(facts), said: 'goes first among the ready' }
     }
-    await deps.tade.changeQueued({ task: call.task, change: call.change, by })
+    await deps.tade.changeQueued({ task: call.task, change: call.change, by }).catch((err) => {
+      // Picking up work that came from outside this machine is approving
+      // somebody else's request: the `intake` verb's, as with `park`.
+      if (err instanceof NotYours) throw new OutOfScope(err.message)
+      throw err
+    })
+    const pickedUp = facts.parked && call.change === 'start'
     return {
       did: true,
-      // A pause is the one choice whose answer is knowable without another
-      // fold; for the rest the window answers with what it checked, and the
-      // next beat carries what the queue actually decided. Guessing would be
-      // a revision nothing confirmed.
-      rev: after(facts, call.change === 'pause' ? { queue: 'paused' } : {}),
-      said: saidQueued(call.change),
+      // A pause, and a park lifted by a start, are the choices whose answer is
+      // knowable without another fold; for the rest the window answers with
+      // what it checked, and the next beat carries what the queue actually
+      // decided. Guessing would be a revision nothing confirmed.
+      rev: after(
+        facts,
+        call.change === 'pause' ? { queue: 'paused' } : pickedUp ? { parked: false } : {},
+      ),
+      said: pickedUp ? `picked up, and ${saidQueued(call.change)}` : saidQueued(call.change),
     }
   })
 }

@@ -494,7 +494,8 @@ export function nowSays(
     case 'scheduled':
       return `${task} starts at ${clock(state.at)}`
     case 'paused':
-      if (state.parked) return `${task} is parked, and starts only once it is picked up again`
+      if (state.parked)
+        return `${task} is parked: nothing starts it until somebody starts it or picks it up again`
       return state.all ? `${task} is paused with its project's queue` : `${task} is paused`
     case 'ready':
       return `${task} is next, and starts as soon as its project has room`

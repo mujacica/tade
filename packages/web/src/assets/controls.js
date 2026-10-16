@@ -176,8 +176,8 @@ function blockFor(verb, ctx) {
         return
       }
       settle()
-      // Built once and hidden per row: parked work has no startable choice,
-      // and offering one is a tap that can only be refused.
+      // Built once and hidden per row: what parked work cannot take is a tap
+      // that can only be refused (`asksFor`).
       const offered = asksFor(task)
       for (const choice of choices) choice.node.hidden = !offered.includes(choice.ask)
       if (deny !== null) textIn(deny, 'Deny')

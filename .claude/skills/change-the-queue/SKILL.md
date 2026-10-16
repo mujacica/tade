@@ -198,6 +198,14 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   failing the same way every ten minutes is said once rather than every ten minutes — and hushing
   takes the sentence, never the `!` or the heading's count, because a broken watch a person cannot see
   is what a section exists to prevent.
+- **Starting parked work picks it up, in one act** (`pickUpToStart`, `workbench/src/parked.ts`).
+  Work a watch or a template makes parked waits for somebody to say go, and *Start now* — the card,
+  the menu, the away view's `start`, `tade_queue_change` — is saying it: the park is lifted as
+  whoever asked (`state_change` with `by`), then the start is written, and the queue's own pass
+  starts it with every other hold still in front of it and said. It used to be refused ("pick it up
+  again before it can start"), so the press did nothing. Nothing parked starts by rule
+  (`queueStateOf` reads the park first, `startQueued` refuses one), and work from outside this
+  machine is the one park a start lifts only for the person at it (`NotYours`).
 - **Write it down, then do it.** `schedule_fired` before a schedule's task is made, so a window that
   stops half way never runs it twice; `watch_found` for every finding, a failed start included, so
   one finding never makes work twice; `watch_checked` for every look — how much it found, which was
@@ -339,7 +347,8 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   before anybody decided opens knowing. With the window closed nothing looks, so nothing is found.
   **Two kinds of finding are never proposals**: intake, whose owner's grant is already the person's
   rule about whether that source's work starts (`takeIntake`), and work a watch says is a proposal
-  *for a person* (`WatchAgent.parked`), which is theirs and never the orchestrator's to unpark. And
+  *for a person* (`WatchAgent.parked`), which is theirs: the orchestrator starts one only when they
+  ask it to (`tade_queue_change` with `start`), never on its own decision. And
   it is a setting on the schedule, `decides: orchestrator | itself`, absent meaning the orchestrator
   so every schedule written before it is routed: `itself` is the old way, for a schedule somebody
   wants run unwatched, and `Schedules.set` refuses `decides` where nothing starts (an ask, a watch

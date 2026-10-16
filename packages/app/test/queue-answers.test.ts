@@ -23,7 +23,7 @@ describe('where queued work stands after a change', () => {
       "app/a is paused with its project's queue",
     )
     expect(nowSays('app/a', { kind: 'paused', all: false, parked: true }, clock)).toBe(
-      'app/a is parked, and starts only once it is picked up again',
+      'app/a is parked: nothing starts it until somebody starts it or picks it up again',
     )
     expect(nowSays('app/a', { kind: 'ready' }, clock)).toBe(
       'app/a is next, and starts as soon as its project has room',

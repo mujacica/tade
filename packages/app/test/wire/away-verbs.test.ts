@@ -1,3 +1,6 @@
+import { readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { taskDir } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   act,
@@ -45,6 +48,15 @@ async function ready(
 /** The four fields every body carries, for the task in view. */
 function every(one: Machine, task = one.task) {
   return { task, was: revOf(one, task), key: KEY, rev: 0 }
+}
+
+/** Give a task the start condition queued work has in its own file. */
+function asQueuedWork(home: string, task: string): void {
+  const file = join(taskDir(home, task), 'task.yaml')
+  writeFileSync(
+    file,
+    `${readFileSync(file, 'utf8')}start:\n  after: []\n  prompt: do the thing\n  touches: []\n`,
+  )
 }
 
 describe('answering what an agent is held on', () => {
@@ -236,20 +248,44 @@ describe('a choice about queued work', () => {
     expect(await one.client.events({ types: ['queue_started'] })).toEqual([])
   })
 
-  it('refuses a start for work somebody parked, which is the queue’s own rule', async () => {
-    // `refuseParked` is the rule and this goes through it rather than keeping
-    // a second copy: pressing start on parked work and watching nothing
-    // happen reads as broken, so it is refused and said.
+  it('picks parked work up when a device starts it, and writes down that the device did', async () => {
+    // `pickUpToStart` is the rule and this goes through it rather than keeping
+    // a second copy. It used to refuse, so the start a phone offered on a
+    // watch's parked work could only ever say no.
     const one = await ready()
+    asQueuedWork(one.home, one.task)
     one.queued(one.task)
-    await one.client.parkTask(one.task, true)
+    await one.client.parkTask(one.task, true, { by: 'schedule:jev-mistakes-app' })
     await one.refresh()
 
     const answer = await act(one.port, 'queue', { ...every(one), change: 'start' })
-    expect(answer.status).toBe(404)
-    expect(answer.body.error).toBe('not_offered')
-    const lines = await one.client.events({ types: ['queue_changed'] })
-    expect(lines).toEqual([])
+    expect(answer.status).toBe(200)
+    expect(answer.body).toMatchObject({
+      did: true,
+      said: 'picked up, and starts as soon as there is room',
+    })
+    expect(parkedIn(one.home, one.task)).toBe(false)
+    const lines = await one.client.events({ types: ['state_change', 'queue_changed'] })
+    expect(lines.map((line) => [line.detail.state ?? line.detail.change, line.detail.by])).toEqual([
+      ['parked', 'schedule:jev-mistakes-app'],
+      ['resumed', 'device 00112233445566aa'],
+      ['start', 'device 00112233445566aa'],
+    ])
+    // Still no agent from here: what starts is the window's next pass.
+    expect(await one.client.events({ types: ['run_started'] })).toEqual([])
+  })
+
+  it('leaves work from outside the machine parked, which is the intake verb’s to approve', async () => {
+    const one = await ready(['read', 'answer', 'steer'], { intake: true })
+    const task = await delivered(one)
+    one.queued(task)
+    await one.refresh()
+
+    const answer = await act(one.port, 'queue', { ...every(one, task), change: 'start' })
+    expect(answer.status).toBe(403)
+    expect(answer.body.error).toBe('out_of_scope')
+    expect(parkedIn(one.home, task)).toBe(true)
+    expect(await one.client.events({ types: ['queue_changed'], task })).toEqual([])
   })
 
   it('puts one piece of work first without a device ever sending a list', async () => {

@@ -453,6 +453,12 @@ export class Queue implements Subject {
             `nothing in that order is queued work${req.order?.length ? ` (${joined([...req.order])})` : ''}: say which queued tasks come first`,
           )
         }
+        // Starting parked work picks it up (`pickUpToStart`), and the answer
+        // says so, since nothing else would: the park is gone by the time the
+        // queue has looked again.
+        const pickedUp =
+          change === 'start' &&
+          (this.wire.live?.queued ?? []).some((one) => one.task === req.task && one.parked)
         await this.wire.opts.client.changeQueued({
           ...(req.task ? { task: req.task } : {}),
           ...(req.project ? { project: req.project } : {}),
@@ -481,7 +487,9 @@ export class Queue implements Subject {
           change === 'order'
             ? `Done: ${joined(order)}, in that order, as each becomes ready.`
             : req.task
-              ? 'Done.'
+              ? pickedUp
+                ? `Done: ${req.task} is picked up.`
+                : 'Done.'
               : `Done: ${req.project ? `${req.project}'s queue` : 'the queue'} is ${change === 'pause' ? 'paused' : 'back on'}.`
         return changedSays(lead, started, this.nowOf(about.filter((one) => !started.includes(one))))
       },

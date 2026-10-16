@@ -86,22 +86,26 @@ export const NEEDS = {
 /**
  * What the queue control offers, and the word on each.
  *
- * `starts` marks the two that only make sense for work that could actually
- * start: parked work is not startable queued work, so offering them on a
- * parked row is a tap that can only be refused. The machine refuses it too
- * (`refuseParked` is the rule) — this is the page not asking.
+ * On a parked row, a start picks the work up as well (`pickUpToStart` is the
+ * rule), so it is offered — except on work from outside the machine, where
+ * picking it up is approving somebody else's request, which is the `intake`
+ * verb's. `ready` marks the one that is an order among what is ready, which
+ * parked work is not, so a tap on it could only be refused. The machine
+ * refuses both too — this is the page not asking.
  */
 export const QUEUE_ASKS = [
   { change: 'pause', said: 'Pause' },
   { change: 'resume', said: 'Resume' },
-  { change: 'start', said: 'Start when there is room', starts: true },
+  { change: 'start', said: 'Start when there is room' },
   { change: 'wait', said: 'Wait again' },
-  { change: 'first', said: 'Do this first', starts: true },
+  { change: 'first', said: 'Do this first', ready: true },
 ]
 
 /** The queue choices worth offering on this row. */
 export function asksFor(row) {
-  return row?.parked === true ? QUEUE_ASKS.filter((one) => one.starts !== true) : QUEUE_ASKS
+  if (row?.parked !== true) return QUEUE_ASKS
+  const outside = row.origin?.kind === 'intake'
+  return QUEUE_ASKS.filter((one) => one.ready !== true && !(outside && one.change === 'start'))
 }
 
 /**
