@@ -90,7 +90,7 @@ async function context(
     rev: 4,
     reach: granted(),
     scopes: ['read', 'configure'] as readonly Scope[],
-    origin: { scheme: 'http', host: '127.0.0.1' },
+    origin: { scheme: 'http', host: '127.0.0.1', listener: 'loopback' },
     device: DEVICE,
     now: Date.parse('2026-10-11T14:30:00.000Z'),
     request: 'req_1',
@@ -283,7 +283,10 @@ describe('the gate, re-asked at every change', () => {
   it('needs a trusted origin, re-asked here because the network changes', async () => {
     const ctx = await context(window_().configuring)
     expect(
-      admitSetting(changing(), { ...ctx, origin: { scheme: 'http', host: '192.168.1.20' } }),
+      admitSetting(changing(), {
+        ...ctx,
+        origin: { scheme: 'http', host: '192.168.1.20', listener: 'public' },
+      }),
     ).toMatchObject({ ok: false, refusal: { error: 'locked' } })
   })
 

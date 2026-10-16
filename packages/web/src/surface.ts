@@ -249,21 +249,65 @@ export function listenOn(surface: Surface): readonly string[] {
 }
 
 /**
+ * Which of Tade's listeners accepted a connection: the one only this machine
+ * can open, or one anybody who can reach it can.
+ *
+ * **Decided by which server accepted the socket, and never by an address in the
+ * request** — not the `Host`, and not the peer either. A peer of `127.0.0.1` is
+ * what *every* request through a proxy on the same box looks like, which is how
+ * the OpenClaw gateways of January 2026 (openclaw issue #2245) handed the
+ * internet a loopback session. A wildcard bind is `public` although this
+ * machine can connect to it too: a server that anybody can reach cannot tell
+ * this machine from anybody by anything it was told.
+ */
+export type Listener = 'loopback' | 'public'
+
+/** The listener a server bound to this address is. */
+export function listenerAt(address: string): Listener {
+  return loopbackHost(address) ? 'loopback' : 'public'
+}
+
+/** Where a request came from, as every gate that re-asks about it is told. */
+export interface Origin {
+  scheme: string
+  host: string
+  /** Which listener accepted the socket. The server's own answer, never the request's. */
+  listener: Listener
+}
+
+/**
+ * Whether a request is from this machine: **both** that the loopback listener
+ * accepted it **and** that it names a loopback host.
+ *
+ * Either alone is not enough, and each half stops something the other cannot.
+ * The listener without the host is a proxy on this box: Caddy or `tailscale
+ * serve` connect to loopback for whoever is outside, and they say whose name
+ * they were reached by. The host without the listener is the request that
+ * *says* `Host: localhost` from across the internet, which costs one header.
+ * A request on a public listener is public whatever it says about itself
+ * (`hostAllowed` refuses this machine's names there), so a session minted for
+ * this machine can only ever be used from this machine.
+ */
+export function thisMachine(origin: Origin): boolean {
+  return origin.listener === 'loopback' && loopbackHost(origin.host)
+}
+
+/**
  * Whether an origin is one a device may ever *act* from, as against read.
  *
- * `https` anywhere, or this machine itself. That is the W3C secure-contexts
- * line and it is used here for a different purpose: not what the browser will
- * let the page do, but whether the credential travelling on the request was
- * readable by anybody between the phone and here. Plain HTTP across a network
- * is readable, so a session on one may read and may never act.
+ * `https` anywhere, or this machine itself (`thisMachine`). That is the W3C
+ * secure-contexts line and it is used here for a different purpose: not what
+ * the browser will let the page do, but whether the credential travelling on
+ * the request was readable by anybody between the phone and here. Plain HTTP
+ * across a network is readable, so a session on one may read and may never act.
  *
  * **Re-asked at the act, never only at pairing**, because the network a device
  * is on changes and a phone that paired on the sofa is on cellular an hour
  * later. The host must also be one the config trusts: an `https` origin Tade
  * was never told about is somebody else's name resolving here.
  */
-export function trusted(origin: { scheme: string; host: string }, surface: Surface = OFF): boolean {
-  if (loopbackHost(origin.host)) return true
+export function trusted(origin: Origin, surface: Surface = OFF): boolean {
+  if (thisMachine(origin)) return true
   if (origin.scheme !== 'https') return false
   return surface.trustedHosts.some((one) => sameHost(one, origin.host))
 }
@@ -277,11 +321,7 @@ export function trusted(origin: { scheme: string; host: string }, surface: Surfa
  * `steer` at the machine and then carried onto somebody's wifi reads and does
  * nothing else until it is back.
  */
-export function scopesOn(
-  origin: { scheme: string; host: string },
-  surface: Surface,
-  granted: readonly Scope[],
-): Scope[] {
+export function scopesOn(origin: Origin, surface: Surface, granted: readonly Scope[]): Scope[] {
   if (trusted(origin, surface)) return SCOPES.filter((one) => granted.includes(one))
   return granted.includes('read') ? ['read'] : []
 }

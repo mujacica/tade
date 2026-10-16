@@ -4,6 +4,7 @@ import type { From, Outcome, ParkCall, WebActing } from '../src/acting.ts'
 import { allowDevice, appendDevice, readDevices } from '../src/devices.ts'
 import { receiptsPath } from '../src/receipts.ts'
 import { CSRF_HEADER } from '../src/request.ts'
+import { COOKIE, HOST_COOKIE } from '../src/sessions.ts'
 import {
   type Answer,
   actingStub,
@@ -284,6 +285,27 @@ describe('off this machine', () => {
     })
     expect(answer.status).toBe(200)
     expect(made.calls).toHaveLength(1)
+  })
+
+  it('moves a phone paired before __Host- under it the first time it acts, and acts', async () => {
+    // The same credential under the old name is what a phone that paired over
+    // the tunnel before the prefix holds. It is not signed out by the upgrade:
+    // the act goes through, and the answer moves the value under `__Host-`
+    // and clears the old name. The request that says it is `https` is the
+    // one that may set a `Secure` cookie, which is why it is the act and not
+    // a read — a browser sends no `Origin` on a read of its own origin.
+    const made = window_()
+    const { one, host, cookie, csrf } = await throughTheTunnel(made.acting)
+    const value = cookie.slice(cookie.indexOf('=') + 1)
+    const answer = await act(one, { cookie: `${COOKIE}=${value}`, csrf }, BODY, {
+      headers: { host, origin: `https://${host}` },
+    })
+    expect(answer.status).toBe(200)
+    expect(made.calls).toHaveLength(1)
+    const set = answer.headers['set-cookie'] ?? ''
+    expect(set).toContain(`${HOST_COOKIE}=${value};`)
+    expect(set).toContain(`${COOKIE}=; HttpOnly`)
+    expect(set).toContain('Max-Age=0')
   })
 
   it('is refused over the same name in plain http, which is the downgrade', async () => {

@@ -5,7 +5,7 @@ import { readDevices, writeDevices } from '../src/devices.ts'
 import type { Reach } from '../src/reach.ts'
 import { CSRF_HEADER, labelOf } from '../src/request.ts'
 import { type Confirmed, webServer } from '../src/server.ts'
-import { SESSION_MS } from '../src/sessions.ts'
+import { COOKIE, HOST_COOKIE, SESSION_MS } from '../src/sessions.ts'
 import { Tickets } from '../src/tickets.ts'
 import {
   ask,
@@ -42,11 +42,46 @@ describe('pairing', () => {
     // Over plain HTTP, so no `Secure` — a browser would discard one, which
     // would be a pairing that appeared to work and then had no session.
     expect(set).not.toContain('Secure')
+    // And so under the plain name: `__Host-` is only ever `Secure`.
+    expect(set.startsWith(`${COOKIE}=`)).toBe(true)
     const line = one.told.find((told) => told.type === 'web_paired')
     expect(line?.detail.device).toBe(paired.device)
     // The label is a person's own words about their own phone, and is
     // deliberately not in the line that telemetry may read.
     expect(JSON.stringify(line?.detail)).not.toContain('iPhone')
+  })
+
+  it('sets the session under __Host- over https, and signing out clears both names', async () => {
+    // Through a proxy that ended TLS for a name the config trusts, as
+    // `tailscale serve` and Caddy do: the loopback listener, a plaintext
+    // socket and an `https` origin. The prefix is the browser's promise that
+    // no other name can plant this cookie, so it is set wherever it can be.
+    const one = await start()
+    const host = 'studio.yak-bebop.ts.net'
+    const through = { host, origin: `https://${host}` }
+    const paired = await pair(one, { headers: through })
+    expect(paired.answer.status).toBe(201)
+    const set = paired.answer.headers['set-cookie'] ?? ''
+    expect(set.startsWith(`${HOST_COOKIE}=`)).toBe(true)
+    for (const flag of ['Secure', 'Path=/', 'HttpOnly', 'SameSite=Strict'])
+      expect(set, flag).toContain(flag)
+    expect(set).not.toContain('Domain')
+    const read = await ask(one, '/api/snapshot', { headers: { host, cookie: paired.cookie } })
+    expect(read.status).toBe(200)
+
+    const gone = await ask(one, `/api/devices/${paired.device}`, {
+      method: 'DELETE',
+      headers: {
+        ...through,
+        cookie: paired.cookie,
+        'content-type': 'application/json',
+        [CSRF_HEADER]: paired.csrf,
+      },
+    })
+    expect(gone.status).toBe(200)
+    // Both, because a phone paired before the prefix holds the old name.
+    expect(gone.headers['set-cookie']).toContain(`${HOST_COOKIE}=; HttpOnly`)
+    expect(gone.headers['set-cookie']).toContain(`${COOKIE}=; HttpOnly`)
   })
 
   it('writes down only the digest, never the secret', async () => {

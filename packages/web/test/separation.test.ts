@@ -29,9 +29,11 @@ import {
   listenOn,
   loopbackHost,
   OFF,
+  type Origin,
   sameHost,
   scopesOn,
   surfaceOf,
+  thisMachine,
   trusted,
 } from '../src/surface.ts'
 import { VERBS } from '../src/verbs.ts'
@@ -467,19 +469,33 @@ describe('what a session minted on an origin may ever do', () => {
     offline: false,
   })
 
+  // Where each came in: this machine, and a tunnel that connects to it, on the
+  // loopback listener; the wifi and a stranger's name on a public one.
+  const HERE: Origin = { scheme: 'http', host: '127.0.0.1', listener: 'loopback' }
+  const TUNNEL: Origin = { scheme: 'https', host: 'studio.yak-bebop.ts.net', listener: 'loopback' }
+  const WIFI: Origin = { scheme: 'http', host: '192.168.1.10', listener: 'public' }
+  const STRANGER: Origin = { scheme: 'https', host: 'evil.example', listener: 'public' }
+
   it('is everything it was granted, from this machine', () => {
-    expect(trusted({ scheme: 'http', host: '127.0.0.1' }, lan)).toBe(true)
-    expect(scopesOn({ scheme: 'http', host: 'localhost' }, lan, ['read', 'steer'])).toEqual([
-      'read',
-      'steer',
-    ])
+    expect(trusted(HERE, lan)).toBe(true)
+    expect(scopesOn(HERE, lan, ['read', 'steer'])).toEqual(['read', 'steer'])
+  })
+
+  it('is read and nothing else for this machine’s name on a public listener', () => {
+    // The request that *says* it is this machine, on a listener anybody can
+    // reach: one header from across the internet, or a proxy on this box.
+    // `thisMachine` needs both halves, so neither half alone is ever trusted.
+    const claimed: Origin = { ...HERE, host: 'localhost', listener: 'public' }
+    expect(thisMachine(claimed)).toBe(false)
+    expect(thisMachine({ ...WIFI, listener: 'loopback' })).toBe(false)
+    expect(thisMachine({ ...HERE, host: '[::1]' })).toBe(true)
+    expect(trusted(claimed, lan)).toBe(false)
+    expect(scopesOn(claimed, lan, ['read', 'steer'])).toEqual(['read'])
   })
 
   it('is everything it was granted, over https to a host the config trusts', () => {
-    expect(trusted({ scheme: 'https', host: 'studio.yak-bebop.ts.net' }, lan)).toBe(true)
-    expect(
-      scopesOn({ scheme: 'https', host: 'studio.yak-bebop.ts.net' }, lan, ['read', 'answer']),
-    ).toEqual(['read', 'answer'])
+    expect(trusted(TUNNEL, lan)).toBe(true)
+    expect(scopesOn(TUNNEL, lan, ['read', 'answer'])).toEqual(['read', 'answer'])
   })
 
   it('is read and nothing else over plain HTTP off this machine', () => {
@@ -487,24 +503,20 @@ describe('what a session minted on an origin may ever do', () => {
     // travelled in the clear across a network never buys an act, whatever is
     // turned on later — not a flag that could be raised, not a scope a grant
     // could widen.
-    expect(trusted({ scheme: 'http', host: '192.168.1.10' }, lan)).toBe(false)
-    expect(
-      scopesOn({ scheme: 'http', host: '192.168.1.10' }, lan, ['read', 'steer', 'ask']),
-    ).toEqual(['read'])
+    expect(trusted(WIFI, lan)).toBe(false)
+    expect(scopesOn(WIFI, lan, ['read', 'steer', 'ask'])).toEqual(['read'])
   })
 
   it('is nothing at all for an https host nobody wrote down', () => {
     // An `https` origin Tade was never told about is somebody else's name
     // resolving here.
-    expect(trusted({ scheme: 'https', host: 'evil.example' }, lan)).toBe(false)
-    expect(scopesOn({ scheme: 'https', host: 'evil.example' }, lan, ['read', 'steer'])).toEqual([
-      'read',
-    ])
+    expect(trusted(STRANGER, lan)).toBe(false)
+    expect(scopesOn(STRANGER, lan, ['read', 'steer'])).toEqual(['read'])
   })
 
   it('grants nothing to a device that was granted nothing', () => {
-    expect(scopesOn({ scheme: 'http', host: '127.0.0.1' }, lan, [])).toEqual([])
-    expect(scopesOn({ scheme: 'http', host: '192.168.1.10' }, lan, [])).toEqual([])
+    expect(scopesOn(HERE, lan, [])).toEqual([])
+    expect(scopesOn(WIFI, lan, [])).toEqual([])
   })
 })
 

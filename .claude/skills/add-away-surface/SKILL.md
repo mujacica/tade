@@ -228,6 +228,15 @@ a device still has none of the scopes that change anything until somebody at thi
   makes a plaintext session look trusted enough to act, and `X-Forwarded-For` makes the rate limit and
   the journalled address whatever the attacker typed. The address is the socket's and the host is
   `Host`.
+- **"This machine" is the loopback listener *and* a loopback `Host`, both** (`thisMachine`), and
+  which listener is decided where each server is created (`listenerAt`), never from the request — not
+  the `Host`, and never the peer, which is `127.0.0.1` for everything through a proxy on this box (the
+  OpenClaw hole). It rides on the `Origin` every gate re-asks at the act. A public listener refuses
+  this machine's names at the door (`hostAllowed`), so a session minted for this machine is never
+  usable from one; a wildcard (`lan`) bind is public too, and a browser here reaches it by the
+  address the network knows. **A new listener says which it is**: a proxy's socket is `public`,
+  whatever is on the other end. `test/guard.test.ts` holds every cell of {listener} × {`Host`} ×
+  {session}, and `server.test.ts` the same over sockets.
 - **`Sec-Fetch-Site` is not checked on a document navigation.** A scanned code is a typed URL
   (`none`) and a followed link is `cross-site`, so requiring `same-origin` on the shell refuses every
   real way in. Everything else — every `fetch` the page makes — is checked.
@@ -465,7 +474,9 @@ line or commit message can say the easy half. `test/separation.test.ts` holds ea
   `LAN_IS_PLAINTEXT_SHORT` is the clause the panel says under its status line.
 - `COOKIES_IGNORE_PORTS` — RFC 6265 §8.5, and **no cookie prefix changes it**. `__Host-` gives real
   `Domain`/`Path` guarantees and nothing about ports; the honest mitigations are the session being
-  bound to the exact host it was minted for, and TLS.
+  bound to the exact host it was minted for, and TLS. The cookie *is* `__Host-tade_away` on https
+  (a sibling on a shared domain cannot plant one), plain `tade_away` where it cannot be `Secure`; the
+  old name is still read where no prefixed one came, and `renamed` moves it on its first https act.
 - `HTTPONLY_IS_NOT_XSS` — it stops a script reading the cookie, not injected script using it.
 - `DEVICES_AND_AGENTS` — `0600` keeps the file from other people, and **an agent is not another
   person**: one on this machine can append a line and pair itself. Said with the way out in the same

@@ -5,7 +5,7 @@ import { type Asking, PAIR_TRIES, type Window } from './guard.ts'
 import { inTime, labelOf, readBody } from './request.ts'
 import type { Confirmed, PairingAsk, Told } from './serving.ts'
 import { mint, SESSION_MS, setCookie } from './sessions.ts'
-import { type Surface, scopesOn } from './surface.ts'
+import { type Origin, type Surface, scopesOn } from './surface.ts'
 import { couldBeTicket, type Tickets } from './tickets.ts'
 
 // The pairing exchange: the one route that mints a credential, and the one
@@ -33,7 +33,7 @@ import { couldBeTicket, type Tickets } from './tickets.ts'
 /** What the pairing exchange needs, and nothing else reachable from it. */
 export interface Pairing {
   asking: Asking
-  origin: { scheme: string; host: string }
+  origin: Origin
   /** The id of the one journal line that would hold a `broke`'s detail. */
   request: string
   tickets: Tickets

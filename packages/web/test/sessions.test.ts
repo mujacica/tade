@@ -6,8 +6,11 @@ import {
   cookieIn,
   digestMatches,
   digestOf,
+  HOST_COOKIE,
   mint,
+  presentedIn,
   RENEW_AFTER_MS,
+  renamed,
   renewal,
   SESSION_MS,
   sessionOf,
@@ -143,6 +146,24 @@ describe('verifying one', () => {
     expect(cookieIn(`${COOKIE}=theirs; ${COOKIE}=ours`, COOKIE)).toBe('ours')
     expect(cookieIn('novalue; a=1', 'novalue')).toBeNull()
   })
+
+  it('reads a session under __Host- first, and under the old name only where there is none', () => {
+    // A page on a shared tunnel domain can plant a `tade_away` of its own, and
+    // can never plant a `__Host-` one: the browser refuses it. So with both
+    // present the prefixed one is the session, and a planted value cannot
+    // displace it — the old name is read for a phone paired before the prefix.
+    const ours = paired()
+    const theirs = paired()
+    const both = `${COOKIE}=${theirs.cookie.split('=')[1]}; ${HOST_COOKIE}=${ours.cookie.split('=')[1]}`
+    const devices = [ours.device, theirs.device]
+    expect(sessionOf(both, devices, ours.device.host, NOW)?.device).toBe(ours.device.id)
+    expect(sessionOf(theirs.cookie, devices, theirs.device.host, NOW)?.device).toBe(
+      theirs.device.id,
+    )
+    expect(presentedIn(both)?.named).toBe(HOST_COOKIE)
+    expect(presentedIn(theirs.cookie)?.named).toBe(COOKIE)
+    expect(presentedIn('a=1')).toBeNull()
+  })
 })
 
 describe('the cookie’s flags', () => {
@@ -159,20 +180,56 @@ describe('the cookie’s flags', () => {
     expect(setCookie('abc', false)).not.toContain('Secure')
   })
 
-  it('carries no __Host- prefix, which does not isolate ports', () => {
-    // DECISIONS §4.4(1): the prefix requires `Secure`, `Path=/` and no
-    // `Domain` and gives real guarantees about those three. It gives nothing
-    // about ports — RFC 6265 §8.5 is unchanged by it — and changing the
-    // cookie's *name* between transports would silently sign out a device
-    // that paired over the other one.
-    expect(setCookie('abc', true)).not.toContain('__Host-')
-    expect(COOKIE).not.toContain('__Host')
+  it('is __Host- over https, and the plain name where it cannot be Secure', () => {
+    // The prefix requires `Secure`, `Path=/` and no `Domain`, which is every
+    // flag this cookie already had, and gives real guarantees about those
+    // three: a sibling name on a shared domain cannot plant one. It gives
+    // nothing about ports — RFC 6265 §8.5 is unchanged by it — and the two
+    // names never meet, because a session is bound to one host and another
+    // transport is another host.
+    expect(setCookie('abc', true).startsWith(`${HOST_COOKIE}=abc; `)).toBe(true)
+    expect(setCookie('abc', false).startsWith(`${COOKIE}=abc; `)).toBe(true)
+    expect(HOST_COOKIE).toBe(`__Host-${COOKIE}`)
+    expect(setCookie('abc', true)).not.toContain('Domain')
   })
 
   it('clears with the same flags, so a Secure one is actually cleared', () => {
-    expect(clearCookie(true)).toContain('Max-Age=0')
-    expect(clearCookie(true)).toContain('Secure')
-    expect(clearCookie(false)).not.toContain('Secure')
+    for (const one of clearCookie(true)) {
+      expect(one).toContain('Max-Age=0')
+      expect(one).toContain('Secure')
+    }
+    expect(clearCookie(false)).toEqual([expect.not.stringContaining('Secure')])
+  })
+
+  it('clears both names on https, so a session from before the prefix goes too', () => {
+    expect(clearCookie(true).map((one) => one.split('=')[0])).toEqual([HOST_COOKIE, COOKIE])
+    expect(clearCookie(false).map((one) => one.split('=')[0])).toEqual([COOKIE])
+  })
+})
+
+describe('moving a session from before __Host- under it', () => {
+  const HTTPS = { scheme: 'https' }
+  const value = `${'0'.repeat(16)}.${'A'.repeat(43)}`
+
+  it('moves the old name over https: the same value under the prefix, the old one cleared', () => {
+    // Nobody is signed out by the upgrade. The value is the one the request
+    // presented — the credential in the phone does not change — and it lasts
+    // what the session has left, never a fresh thirty days.
+    const moved = renamed(`${COOKIE}=${value}`, HTTPS, 3_600_000)
+    expect(moved).toHaveLength(2)
+    expect(moved?.[0]?.startsWith(`${HOST_COOKIE}=${value}; `)).toBe(true)
+    expect(moved?.[0]).toContain('Max-Age=3600')
+    expect(moved?.[0]).toContain('Secure')
+    expect(moved?.[1]?.startsWith(`${COOKIE}=; `)).toBe(true)
+    expect(moved?.[1]).toContain('Max-Age=0')
+  })
+
+  it('moves nothing over http, which cannot hold the prefix, or what is already moved', () => {
+    expect(renamed(`${COOKIE}=${value}`, { scheme: 'http' }, 3_600_000)).toBeNull()
+    expect(renamed(`${HOST_COOKIE}=${value}`, HTTPS, 3_600_000)).toBeNull()
+    expect(renamed(`${COOKIE}=x; ${HOST_COOKIE}=${value}`, HTTPS, 3_600_000)).toBeNull()
+    expect(renamed(null, HTTPS, 3_600_000)).toBeNull()
+    expect(renamed('a=1', HTTPS, 3_600_000)).toBeNull()
   })
 })
 

@@ -1,6 +1,7 @@
-import type { IncomingMessage } from 'node:http'
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { type Refusal, refuse } from './errors.ts'
 import type { Asking } from './guard.ts'
+import type { Listener } from './surface.ts'
 
 // A request as it comes off a socket, and every bound on reading one.
 //
@@ -16,6 +17,26 @@ import type { Asking } from './guard.ts'
 // (`NEVER_TRUSTED`, `headers.ts`). The address is the socket's and the host is
 // `Host`, whatever is in front of the listener.
 
+/**
+ * A server for one listener: every request it accepts is that listener's, and
+ * bounded by Node's own defaults for headers and by `BODY_MAX` for a body — a
+ * request that stops mid-header is closed rather than held.
+ *
+ * **The listener is fixed here, before any request exists**, which is what
+ * makes it the server's answer rather than the request's (`thisMachine`).
+ */
+export function serverFor(
+  listener: Listener,
+  handle: (req: IncomingMessage, res: ServerResponse, listener: Listener) => Promise<void>,
+): Server {
+  const server = createServer((req, res) => {
+    void handle(req, res, listener)
+  })
+  server.headersTimeout = 10_000
+  server.requestTimeout = 30_000
+  return server
+}
+
 /** The largest body any route will read. A steer message, later; nothing now. */
 export const BODY_MAX = 64 * 1024
 
@@ -29,8 +50,12 @@ export const CSRF_HEADER = 'x-tade-csrf'
  * header instead would make the rate limit, the journalled address, the `Host`
  * allow-list and the trusted-origin rule all be whatever the attacker typed,
  * which is four defences for the price of one header.
+ *
+ * **The listener is the server's**, handed in by the one that accepted the
+ * socket, because nothing in `req` can say it: every field of a request is
+ * either the client's to write or, for the peer, a proxy's.
  */
-export function askingOf(req: IncomingMessage): Asking {
+export function askingOf(req: IncomingMessage, listener: Listener): Asking {
   const socket = req.socket as typeof req.socket & { encrypted?: boolean }
   return {
     method: req.method ?? 'GET',
@@ -43,6 +68,7 @@ export function askingOf(req: IncomingMessage): Asking {
     cookie: header(req, 'cookie'),
     tls: socket.encrypted === true,
     from: req.socket.remoteAddress ?? 'unknown',
+    listener,
   }
 }
 

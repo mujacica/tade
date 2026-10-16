@@ -92,7 +92,7 @@ async function context(
     rev: 4,
     reach: namesOnly(DEVICE),
     scopes: ['read', 'draft'] as readonly Scope[],
-    origin: { scheme: 'http', host: '127.0.0.1' },
+    origin: { scheme: 'http', host: '127.0.0.1', listener: 'loopback' },
     device: DEVICE,
     now: Date.parse('2026-10-09T14:30:00.000Z'),
     request: 'req_1',
@@ -258,7 +258,7 @@ describe('whether a save may go through', () => {
 
   it('is refused off a trusted origin, however much was granted', async () => {
     const now = await context(window_().drafting, {
-      origin: { scheme: 'http', host: '192.168.1.5:7654' },
+      origin: { scheme: 'http', host: '192.168.1.5:7654', listener: 'public' },
     })
     expect(admitDraft(saving(), now).ok).toBe(false)
   })

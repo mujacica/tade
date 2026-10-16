@@ -7,7 +7,7 @@ import type { Streams } from './peers.ts'
 import type { WebPushing } from './pushing.ts'
 import type { Grant, Reach } from './reach.ts'
 import type { WebReading } from './reading.ts'
-import type { Scope, Surface } from './surface.ts'
+import type { Listener, Scope, Surface } from './surface.ts'
 import type { Tickets } from './tickets.ts'
 
 // What the window hands the away view, and what it hands back.
@@ -211,8 +211,11 @@ export interface WebServer {
   listen(): Promise<readonly string[]>
   /** Stop listening. Safe twice, and safe before `listen`. */
   close(): Promise<void>
-  /** The handler itself, for a test that would rather not bind anything. */
-  handle(req: IncomingMessage, res: ServerResponse): Promise<void>
+  /**
+   * The handler itself, for a test that would rather not bind anything — told
+   * which listener it is answering for, because a request cannot say.
+   */
+  handle(req: IncomingMessage, res: ServerResponse, listener: Listener): Promise<void>
   /** What is bound, as `host:port`. Empty before `listen`. */
   readonly bound: readonly string[]
   /** The live streams, for the window's beat and for closing them. */

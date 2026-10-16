@@ -1,6 +1,6 @@
 import { type Refusal, refuse } from './errors.ts'
 import { type Reach, sees } from './reach.ts'
-import { type Scope, type Surface, trusted } from './surface.ts'
+import { type Origin, type Scope, type Surface, trusted } from './surface.ts'
 import type { Asked } from './verbs.ts'
 
 // Everything that has to be true of an *act*, after everything that has to be
@@ -53,7 +53,7 @@ export interface Standing {
   /** The scopes its session carries. */
   scopes: readonly Scope[]
   /** The origin this request came from, as the guard worked it out. */
-  origin: { scheme: string; host: string }
+  origin: Origin
 }
 
 /**

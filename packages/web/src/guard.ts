@@ -1,6 +1,14 @@
 import { type ErrorKind, type Refusal, refuse } from './errors.ts'
 import type { Route } from './routes.ts'
-import { loopbackHost, type Scope, type Surface, sameHost, trusted } from './surface.ts'
+import {
+  type Listener,
+  loopbackHost,
+  type Origin,
+  type Scope,
+  type Surface,
+  sameHost,
+  trusted,
+} from './surface.ts'
 
 // Everything that has to be true before a route runs, in one pure function.
 //
@@ -19,7 +27,8 @@ import { loopbackHost, type Scope, type Surface, sameHost, trusted } from './sur
 //    machine's address sends `Host: evil.example`; refused here, so rebinding
 //    never reaches a route. This is the one that has to be first: it is also
 //    the check that decides what "the expected origin" even is for the two
-//    below.
+//    below. And it is asked **of the listener too**: this machine's own names
+//    are only ever an answer on the loopback listener (`thisMachine`).
 // 2. **`Origin`** — scheme, host and port, all three, on every mutation. A
 //    *missing* `Origin` on a mutation is a refusal, not a pass, because "the
 //    header was absent" is what every non-browser client sends and a verb is
@@ -70,11 +79,19 @@ export interface Asking {
   tls: boolean
   /** The peer's address, as the socket gives it. Never a header's claim. */
   from: string
+  /**
+   * Which listener accepted the socket, as the server that accepted it says.
+   *
+   * Set where each server is created (`serverFor`), never read off the request:
+   * not the peer's address, which is `127.0.0.1` for everything that came
+   * through a proxy on this box, and not the `Host`, which is a header.
+   */
+  listener: Listener
 }
 
 /** What the guard concluded: the session's device and scopes, or a refusal. */
 export type Verdict =
-  | { ok: true; device: string; scopes: readonly Scope[]; origin: { scheme: string; host: string } }
+  | { ok: true; device: string; scopes: readonly Scope[]; origin: Origin }
   | { ok: false; refusal: Refusal; why: string }
 
 /** What a guard needs to know beyond the request itself. */
@@ -111,12 +128,20 @@ export interface Session {
  * allow-list is a fact about this listener rather than a list somebody has to
  * keep in step with it. An IPv6 literal arrives in brackets and is compared
  * without them.
+ *
+ * **This machine's names are ours only on the loopback listener.** Nobody
+ * anywhere else reaches this machine by `localhost` — a browser elsewhere that
+ * types it reaches *its own* machine — so on a public listener one is a claim,
+ * and the request is refused before it can be anything, a session minted for
+ * this machine above all. The price is a browser on this very machine using a
+ * `lan` bind by `localhost`: it is a device on the network like the phone, at
+ * the address the network knows it by.
  */
-export function hostAllowed(host: string | null, guarding: Guarding): boolean {
+export function hostAllowed(host: string | null, listener: Listener, guarding: Guarding): boolean {
   if (host === null || host === '') return false
   const bare = hostOf(host)
   if (bare === null) return false
-  if (loopbackHost(bare)) return true
+  if (loopbackHost(bare)) return listener === 'loopback'
   const allowed = [...guarding.bound, ...guarding.surface.trustedHosts]
   // `0.0.0.0` and `::` are what was *bound*, never what a browser asks for: a
   // request that named either is a request nobody's browser made.
@@ -155,10 +180,13 @@ export function hostOf(header: string): string | null {
  * origin is not — and it is the origin that decides whether the credential
  * travelled in the clear.
  */
-export function originOf(asking: Asking, host: string): { scheme: string; host: string } {
+export function originOf(asking: Asking, host: string): Origin {
   const stated = asking.origin === null ? null : parseOrigin(asking.origin)
-  if (stated !== null && sameHost(stated.host, host)) return stated
-  return { scheme: asking.tls ? 'https' : 'http', host }
+  const listener = asking.listener
+  if (stated !== null && sameHost(stated.host, host)) {
+    return { scheme: stated.scheme, host: stated.host, listener }
+  }
+  return { scheme: asking.tls ? 'https' : 'http', host, listener }
 }
 
 /** An `Origin` header, or null for anything that is not one absolute origin. */
@@ -233,8 +261,11 @@ function defaultPort(scheme: string): string {
  * place the host that was offered or the check that failed is ever written.
  */
 export function allowed(asking: Asking, route: Route, guarding: Guarding): Verdict {
-  if (!hostAllowed(asking.host, guarding)) {
-    return no('bad_origin', `host offered: ${quoted(asking.host)}`)
+  if (!hostAllowed(asking.host, asking.listener, guarding)) {
+    return no(
+      'bad_origin',
+      `host offered: ${quoted(asking.host)} on the ${asking.listener} listener`,
+    )
   }
   const host = hostOf(asking.host ?? '')
   if (host === null) return no('bad_origin', `host offered: ${quoted(asking.host)}`)

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { admit, REVISIONS_BEHIND, type Standing } from '../src/acts.ts'
 import { namesOnly, type Reach } from '../src/reach.ts'
-import type { Scope, Surface } from '../src/surface.ts'
+import type { Origin, Scope, Surface } from '../src/surface.ts'
 import { type Asked, CLOSE, OPEN, PARK, REOPEN, STOP, type Verb } from '../src/verbs.ts'
 
 // What has to be true of an *act*, asked as the cross-product.
@@ -27,9 +27,9 @@ const ON: Surface = {
   pushDetails: false,
 }
 
-const HERE = { scheme: 'http', host: '127.0.0.1' }
-const TUNNEL = { scheme: 'https', host: 'studio.yak-bebop.ts.net' }
-const WIFI = { scheme: 'http', host: '192.168.1.10' }
+const HERE: Origin = { scheme: 'http', host: '127.0.0.1', listener: 'loopback' }
+const TUNNEL: Origin = { scheme: 'https', host: 'studio.yak-bebop.ts.net', listener: 'loopback' }
+const WIFI: Origin = { scheme: 'http', host: '192.168.1.10', listener: 'public' }
 
 function reaching(projects: Reach['projects'] = { kind: 'every' }): Reach {
   return { ...namesOnly('00112233445566aa'), projects }
@@ -140,7 +140,11 @@ describe('the origin, re-asked at the act', () => {
     // Somebody else's name resolving here. `trusted_hosts` is the only way an
     // origin off this machine is trusted, because no forwarded header is read.
     expect(
-      admit(park(), 'steer', standing({ origin: { scheme: 'https', host: 'evil.example' } })).ok,
+      admit(
+        park(),
+        'steer',
+        standing({ origin: { scheme: 'https', host: 'evil.example', listener: 'public' } }),
+      ).ok,
     ).toBe(false)
   })
 
@@ -149,7 +153,9 @@ describe('the origin, re-asked at the act', () => {
       admit(
         park(),
         'steer',
-        standing({ origin: { scheme: 'http', host: 'studio.yak-bebop.ts.net' } }),
+        standing({
+          origin: { scheme: 'http', host: 'studio.yak-bebop.ts.net', listener: 'loopback' },
+        }),
       ).ok,
     ).toBe(false)
   })

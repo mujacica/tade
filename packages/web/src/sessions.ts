@@ -33,8 +33,19 @@ import type { Scope } from './surface.ts'
 export const SESSION_MS = 30 * 24 * 60 * 60_000
 export const RENEW_AFTER_MS = 24 * 60 * 60_000
 
-/** The cookie's name. */
+/** The cookie's name over plain HTTP, and every session's name before `__Host-`. */
 export const COOKIE = 'tade_away'
+
+/**
+ * The cookie's name on `https`, where it can be `Secure`.
+ *
+ * `__Host-` is a promise the **browser** keeps: it accepts a cookie of this name
+ * only `Secure`, `Path=/` and with no `Domain`, so a page on another name —
+ * a sibling on a tunnel's shared domain that is not on the Public Suffix List
+ * — cannot plant one of its own, and the session the phone holds is the one it
+ * was given here. It says nothing about ports (`COOKIES_IGNORE_PORTS`).
+ */
+export const HOST_COOKIE = '__Host-tade_away'
 
 /** 32 bytes of secret, 8 of device id. */
 const SECRET_BYTES = 32
@@ -102,7 +113,7 @@ export function sessionOf(
   now: number,
 ): Session | null {
   if (cookie === null) return null
-  const value = cookieIn(cookie, COOKIE)
+  const value = presentedIn(cookie)?.value ?? null
   if (value === null) return null
   const split = splitCookie(value)
   if (split === null) return null
@@ -173,6 +184,25 @@ export function cookieIn(header: string, name: string): string | null {
 }
 
 /**
+ * The session cookie a request presented, and under which name.
+ *
+ * `__Host-` first, and the old name only where there is none: a page on a
+ * shared domain can still plant a `tade_away` of its own, and with this order
+ * it can never displace the session a phone was given under the prefix. **The
+ * old name is still read** so that nobody is signed out by the upgrade
+ * (`renamed` moves it), and what that leaves is narrow: a planted value is
+ * read only by a browser holding no `__Host-` session, and it is a session
+ * only if it is one somebody at this machine let in, for this exact host.
+ */
+export function presentedIn(header: string): { value: string; named: string } | null {
+  for (const named of [HOST_COOKIE, COOKIE]) {
+    const value = cookieIn(header, named)
+    if (value !== null) return { value, named }
+  }
+  return null
+}
+
+/**
  * The `Set-Cookie` for a freshly minted session.
  *
  * `Secure` **only** over `https`, because a `Secure` cookie set over plain
@@ -182,17 +212,16 @@ export function cookieIn(header: string, name: string): string | null {
  * use), `SameSite=Strict` (the browser never attaching it cross-site at all),
  * `Path=/`.
  *
- * **No `__Host-` prefix, and not because it is unavailable.** It requires
- * `Secure`, so it could be used on the `https` path — and it would buy the
- * `Domain` and `Path` guarantees while buying **nothing** about ports, which is
- * the problem it gets named as the fix for (`COOKIES_IGNORE_PORTS`). A prefix
- * that changes the cookie's *name* between the two transports would also mean a
- * device that paired over one and returns over the other silently has no
- * session. So: one name, and the honest mitigations.
+ * **`__Host-` wherever it can be `Secure`**, and the plain name where it
+ * cannot, because the prefix requires `Secure`. It buys the `Domain` and
+ * `Path` guarantees and **nothing** about ports (`COOKIES_IGNORE_PORTS`). Two
+ * names cost nothing either: a session is bound to the one host it was minted
+ * for (`sameCookieHost`), so a device never returns over the other transport
+ * with it — another transport is another host, and another pairing.
  */
 export function setCookie(value: string, secure: boolean, maxAgeMs = SESSION_MS): string {
   const parts = [
-    `${COOKIE}=${value}`,
+    `${secure ? HOST_COOKIE : COOKIE}=${value}`,
     'HttpOnly',
     'SameSite=Strict',
     'Path=/',
@@ -202,11 +231,46 @@ export function setCookie(value: string, secure: boolean, maxAgeMs = SESSION_MS)
   return parts.join('; ')
 }
 
-/** The `Set-Cookie` that removes one: signing out, in the browser's own terms. */
-export function clearCookie(secure: boolean): string {
-  const parts = [`${COOKIE}=`, 'HttpOnly', 'SameSite=Strict', 'Path=/', 'Max-Age=0']
+/**
+ * The `Set-Cookie`s that remove one: signing out, in the browser's own terms.
+ *
+ * On `https` both names, because a session from before the prefix is still
+ * read under the old one, and a sign-out that left it would leave the session
+ * the page had just been told was gone.
+ */
+export function clearCookie(secure: boolean): string[] {
+  return (secure ? [HOST_COOKIE, COOKIE] : [COOKIE]).map((named) => cleared(named, secure))
+}
+
+function cleared(named: string, secure: boolean): string {
+  const parts = [`${named}=`, 'HttpOnly', 'SameSite=Strict', 'Path=/', 'Max-Age=0']
   if (secure) parts.push('Secure')
   return parts.join('; ')
+}
+
+/**
+ * The `Set-Cookie`s that move a session from before `__Host-` under it, or null
+ * where there is nothing to move.
+ *
+ * Only on `https`, the one place the prefix can be set, and only where the
+ * request presented its session under the old name alone: the same value
+ * under the new name, for what is left of the session, and the old one
+ * cleared — so a phone paired before the prefix is moved the first time it is
+ * used over `https`, and is never signed out by it. Nothing re-issues the old
+ * name with a new `Max-Age` on `https`, so once a session lifetime has passed
+ * no phone that paired there holds it; it is still read wherever no prefixed
+ * one came (`presentedIn` says what that leaves), because over plain HTTP it
+ * is the only name there is.
+ */
+export function renamed(
+  header: string | null,
+  origin: { scheme: string },
+  maxAgeMs: number,
+): string[] | null {
+  if (origin.scheme !== 'https' || header === null) return null
+  const presented = presentedIn(header)
+  if (presented === null || presented.named !== COOKIE) return null
+  return [setCookie(presented.value, true, maxAgeMs), cleared(COOKIE, true)]
 }
 
 /**

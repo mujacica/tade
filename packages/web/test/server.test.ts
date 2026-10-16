@@ -1,10 +1,12 @@
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
 import { join, relative } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { COMPANIONS, CSP } from '../src/headers.ts'
 import { BODY_MAX, CSRF_HEADER, pathOf, queryOf } from '../src/request.ts'
 import type { Told } from '../src/server.ts'
 import { webServer } from '../src/server.ts'
+import { listenerAt, listenOn } from '../src/surface.ts'
 import { Tickets } from '../src/tickets.ts'
 import { ask, BASE, closeAll, homeFor, pair, reading, said, start } from './harness.ts'
 
@@ -581,5 +583,62 @@ describe('nothing a crafted request can do moves a task', () => {
           body: '{}',
         })
     expect(await filesUnder(one.home)).toEqual(before)
+  })
+})
+
+describe('which listener a request came in on', () => {
+  it('is the address its server is bound to, and never anything a request says', () => {
+    for (const bind of ['loopback', 'lan'] as const) {
+      const want = bind === 'loopback' ? 'loopback' : 'public'
+      for (const at of listenOn({ ...BASE, bind })) expect(listenerAt(at), at).toBe(want)
+    }
+  })
+
+  it('refuses this machine’s own name on a public listener, a session minted for it above all', async () => {
+    // REMOTE-TADE.md §4.6, over real sockets. The public listener is stood in
+    // for by a second `node:http` server on loopback handing every request to
+    // the same handler as `public`, which is what a socket for a proxy in
+    // front will be: binding a wildcard here would put a port on this
+    // machine's network for the length of a test.
+    const one = await start()
+    const paired = await pair(one)
+    expect(paired.answer.status).toBe(201)
+    const outside = createServer((req, res) => {
+      void one.server.handle(req, res, 'public')
+    })
+    await new Promise<void>((done) => outside.listen({ host: '127.0.0.1', port: 0 }, done))
+    try {
+      const at = outside.address() as { port: number }
+      const there = { ...one, host: `127.0.0.1:${at.port}` }
+      // Exactly the host the session was minted for, so the listener is the
+      // only thing between it and the request.
+      const says = { host: one.host, cookie: paired.cookie }
+      expect((await ask(one, '/api/snapshot', { headers: says })).status).toBe(200)
+
+      const read = await ask(there, '/api/snapshot', { headers: says })
+      expect(read.status).toBe(403)
+      expect(said(read).error).toBe('bad_origin')
+      const shell = await ask(there, '/', { headers: { host: one.host, 'sec-fetch-site': 'none' } })
+      expect(shell.status).toBe(403)
+
+      // Nor can a session be minted *for* this machine from there: refused at
+      // the door, so nobody at the machine is even asked.
+      const ticket = one.tickets.mint(`${one.origin}/pair`, Date.now())
+      const pairing = await ask(there, '/api/pair', {
+        method: 'POST',
+        headers: { host: one.host, origin: one.origin, 'content-type': 'application/json' },
+        body: JSON.stringify({ ticket: ticket.value, label: 'iPhone' }),
+      })
+      expect(pairing.status).toBe(403)
+      expect(one.asked).toHaveLength(1)
+
+      // A name the config trusts is served there as it is anywhere.
+      const named = await ask(there, '/', {
+        headers: { host: 'studio.yak-bebop.ts.net', 'sec-fetch-site': 'none' },
+      })
+      expect(named.status).toBe(200)
+    } finally {
+      await new Promise<void>((done) => outside.close(() => done()))
+    }
   })
 })

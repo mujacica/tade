@@ -18,8 +18,8 @@ import {
 } from '../src/guard.ts'
 import { NEVER_TRUSTED } from '../src/headers.ts'
 import type { Route } from '../src/routes.ts'
-import { ROUTES } from '../src/routes.ts'
-import type { Surface } from '../src/surface.ts'
+import { ACTS, ROUTES } from '../src/routes.ts'
+import { type Surface, thisMachine } from '../src/surface.ts'
 
 // What has to be true before a route runs, asked as the cross-product rather
 // than once per route somebody remembered.
@@ -62,6 +62,9 @@ function asking(over: Partial<Asking> = {}): Asking {
     cookie: 'tade_away=00112233445566aa.whatever',
     tls: false,
     from: '192.168.1.42',
+    // A phone on the wifi, which is a public listener: anybody who can reach
+    // the address can open one.
+    listener: 'public',
     ...over,
   }
 }
@@ -99,25 +102,39 @@ describe('the Host allow-list, which is the DNS-rebinding defence', () => {
     expect(allowed(asking({ host: 'evil.example' }), SHELL, guarding()).ok).toBe(false)
   })
 
-  it('allows this machine in all three spellings, and the address it bound', () => {
-    for (const host of ['localhost:7654', '127.0.0.1:7654', '[::1]:7654', '192.168.1.10:7654'])
-      expect(hostAllowed(host, guarding()), host).toBe(true)
+  it('allows this machine in all three spellings on the loopback listener, and the address it bound', () => {
+    for (const host of ['localhost:7654', '127.0.0.1:7654', '[::1]:7654'])
+      expect(hostAllowed(host, 'loopback', guarding()), host).toBe(true)
+    expect(hostAllowed('192.168.1.10:7654', 'public', guarding())).toBe(true)
+  })
+
+  it('refuses this machine in every spelling on a public listener, bound or not', () => {
+    // Nobody elsewhere reaches this machine by `localhost`, so a public
+    // listener being told it is a claim — one header from across the internet.
+    // `::1` is in the fixture's bound list, and still refused: a name is this
+    // machine's on the loopback listener only.
+    for (const host of ['localhost:7654', '127.0.0.1:7654', '[::1]:7654', 'app.localhost'])
+      expect(hostAllowed(host, 'public', guarding()), host).toBe(false)
   })
 
   it('allows a trusted host out of the config, and nothing else', () => {
-    expect(hostAllowed('studio.yak-bebop.ts.net', guarding())).toBe(true)
-    expect(hostAllowed('studio.yak-bebop.ts.net.evil.example', guarding())).toBe(false)
+    expect(hostAllowed('studio.yak-bebop.ts.net', 'public', guarding())).toBe(true)
+    expect(hostAllowed('studio.yak-bebop.ts.net.evil.example', 'public', guarding())).toBe(false)
     // The same name with the config empty: a trusted host is a thing somebody
     // wrote down, never one a request can claim.
     expect(
-      hostAllowed('studio.yak-bebop.ts.net', guarding({ surface: { ...LAN, trustedHosts: [] } })),
+      hostAllowed(
+        'studio.yak-bebop.ts.net',
+        'loopback',
+        guarding({ surface: { ...LAN, trustedHosts: [] } }),
+      ),
     ).toBe(false)
   })
 
   it('never allows the wildcard it bound, because no browser asks for one', () => {
     const wide = guarding({ bound: ['0.0.0.0', '::'] })
-    expect(hostAllowed('0.0.0.0:7654', wide)).toBe(false)
-    expect(hostAllowed('[::]:7654', wide)).toBe(false)
+    expect(hostAllowed('0.0.0.0:7654', 'public', wide)).toBe(false)
+    expect(hostAllowed('[::]:7654', 'public', wide)).toBe(false)
   })
 
   it('refuses a Host that is two claims, or no claim at all', () => {
@@ -126,7 +143,7 @@ describe('the Host allow-list, which is the DNS-rebinding defence', () => {
     expect(hostOf('')).toBeNull()
     expect(hostOf('[::1')).toBeNull()
     expect(hostOf('a.example:notaport')).toBeNull()
-    expect(hostAllowed(null, guarding())).toBe(false)
+    expect(hostAllowed(null, 'loopback', guarding())).toBe(false)
   })
 
   it('ignores the port when deciding the host, and keeps it everywhere else', () => {
@@ -296,7 +313,7 @@ describe('the session', () => {
 
   it('refuses one minted for another host, which is the port answer', () => {
     const verdict = allowed(
-      asking({ host: 'localhost:7654' }),
+      asking({ host: 'localhost:7654', listener: 'loopback' }),
       READ,
       guarding({ session: { ...SESSION, host: '192.168.1.10:7654' } }),
     )
@@ -400,16 +417,19 @@ describe('the scope, and the trusted origin an act needs', () => {
     const session = { ...SESSION, scopes: ['read', 'steer'] as const }
     expect(
       allowed(
-        asking({ host: 'localhost:7654' }),
+        asking({ host: 'localhost:7654', listener: 'loopback' }),
         steering,
         guarding({ session: { ...session, host: 'localhost:7654' } }),
       ).ok,
     ).toBe(true)
+    // `tailscale serve` connects to the loopback listener, and says whose name
+    // it was reached by.
     expect(
       allowed(
         asking({
           host: 'studio.yak-bebop.ts.net',
           origin: 'https://studio.yak-bebop.ts.net',
+          listener: 'loopback',
         }),
         steering,
         guarding({ session: { ...session, host: 'studio.yak-bebop.ts.net' } }),
@@ -426,16 +446,187 @@ describe('the scope, and the trusted origin an act needs', () => {
         asking({ origin: 'https://studio.yak-bebop.ts.net', tls: false }),
         'studio.yak-bebop.ts.net',
       ),
-    ).toEqual({ scheme: 'https', host: 'studio.yak-bebop.ts.net', port: '' })
+    ).toEqual({ scheme: 'https', host: 'studio.yak-bebop.ts.net', listener: 'public' })
     // And an `Origin` for some other host is not this request's origin.
     expect(originOf(asking({ origin: 'https://evil.example' }), '192.168.1.10')).toEqual({
       scheme: 'http',
       host: '192.168.1.10',
+      listener: 'public',
     })
   })
 
   it('needs no trusted origin to read, which is the whole of what a LAN is for', () => {
     expect(allowed(asking(), READ, guarding()).ok).toBe(true)
+  })
+})
+
+describe('this machine is the loopback listener and a loopback Host, both', () => {
+  // REMOTE-TADE.md §4.6, and the OpenClaw gateways of January 2026 (openclaw
+  // issue #2245): a proxy on the same box made the internet arrive from
+  // `127.0.0.1`, and loopback was trusted. Here the listener is the server's
+  // own answer and the `Host` is the request's, and a request is this machine
+  // only where both say so. Every cell of {listener} × {Host} × {session} is
+  // written out below, and a cell nobody wrote down fails rather than passing.
+  //
+  // "Minted for this machine" is what the owner session of §4.4 will be: a
+  // session bound to a loopback host, the first one worth stealing from
+  // another machine. It may only ever be used on the loopback listener.
+
+  const NAME = 'tade.example.com'
+  const MACHINE = ['127.0.0.1:7654', 'localhost:7654', '[::1]:7654']
+  const HOSTS = {
+    'this machine': MACHINE,
+    'a trusted name': [NAME],
+    'an unknown name': ['evil.example'],
+  }
+  type Host = keyof typeof HOSTS
+  const SESSIONS = ['minted for this machine', 'minted for the trusted name', 'none'] as const
+  type Minted = (typeof SESSIONS)[number]
+  type Answer = 'ok' | 401 | 403
+
+  const STEER = ACTS.find((one) => one.needs === 'steer')
+  if (STEER === undefined) throw new Error('no act needs steer')
+  // A loopback bind, as a public listener (V3's socket) would sit beside it,
+  // and the name a proxy in front of it answers for.
+  const BESIDE = guarding({
+    surface: { ...LAN, trustedHosts: [NAME] },
+    bound: ['127.0.0.1', '::1'],
+  })
+
+  // What a reading and an act get, cell by cell. Written out rather than
+  // worked out, so that the rule is read here and not re-derived from the code.
+  const CELLS: Record<string, { read: Answer; act: Answer }> = {
+    'loopback × this machine × minted for this machine': { read: 'ok', act: 'ok' },
+    'loopback × this machine × minted for the trusted name': { read: 401, act: 401 },
+    'loopback × this machine × none': { read: 401, act: 401 },
+    'loopback × a trusted name × minted for this machine': { read: 401, act: 401 },
+    'loopback × a trusted name × minted for the trusted name': { read: 'ok', act: 'ok' },
+    'loopback × a trusted name × none': { read: 401, act: 401 },
+    'loopback × an unknown name × minted for this machine': { read: 403, act: 403 },
+    'loopback × an unknown name × minted for the trusted name': { read: 403, act: 403 },
+    'loopback × an unknown name × none': { read: 403, act: 403 },
+    // Public, whatever it says about itself: this machine's names are refused
+    // at the door, so a session minted for this machine is never reached.
+    'public × this machine × minted for this machine': { read: 403, act: 403 },
+    'public × this machine × minted for the trusted name': { read: 403, act: 403 },
+    'public × this machine × none': { read: 403, act: 403 },
+    'public × a trusted name × minted for this machine': { read: 401, act: 401 },
+    'public × a trusted name × minted for the trusted name': { read: 'ok', act: 'ok' },
+    'public × a trusted name × none': { read: 401, act: 401 },
+    'public × an unknown name × minted for this machine': { read: 403, act: 403 },
+    'public × an unknown name × minted for the trusted name': { read: 403, act: 403 },
+    'public × an unknown name × none': { read: 403, act: 403 },
+  }
+
+  // The browser's own `Origin` for each: this machine over plain HTTP, the
+  // trusted name over `https` that a proxy ended, a stranger's name as it says.
+  function originFor(kind: Host, host: string): string {
+    return kind === 'this machine' ? `http://${host}` : `https://${host}`
+  }
+
+  // A session for this machine is minted for the spelling being tried, so
+  // that the only thing between it and the request is the listener.
+  function sessionFor(minted: Minted, kind: Host, host: string): Guarding['session'] {
+    if (minted === 'none') return null
+    const mine = kind === 'this machine' ? host : '127.0.0.1:7654'
+    return {
+      ...SESSION,
+      scopes: ['read', 'steer'],
+      host: minted === 'minted for this machine' ? mine : NAME,
+    }
+  }
+
+  function answerOf(verdict: ReturnType<typeof allowed>): Answer {
+    if (verdict.ok) return 'ok'
+    return verdict.refusal.status === 401 ? 401 : 403
+  }
+
+  for (const listener of ['loopback', 'public'] as const) {
+    for (const [kind, spellings] of Object.entries(HOSTS) as [Host, string[]][]) {
+      for (const minted of SESSIONS) {
+        const cell = `${listener} × ${kind} × ${minted}`
+        it(cell, () => {
+          const want = CELLS[cell]
+          expect(want, `no answer was written down for ${cell}`).toBeDefined()
+          for (const host of spellings) {
+            const over = { listener, host, cookie: 'tade_away=whatever' }
+            const at = { ...BESIDE, session: sessionFor(minted, kind, host) }
+            const read = allowed(asking({ ...over, origin: null }), READ, at)
+            const act = allowed(
+              asking({
+                ...over,
+                method: 'POST',
+                path: STEER.path,
+                origin: originFor(kind, host),
+                contentType: 'application/json',
+                token: SESSION.csrf,
+              }),
+              STEER,
+              at,
+            )
+            expect({ read: answerOf(read), act: answerOf(act) }, host).toEqual(want)
+            // Where an act goes through, the origin it carries on to the gate
+            // that asks again at the act says which it was.
+            if (act.ok) expect(thisMachine(act.origin), host).toBe(kind === 'this machine')
+          }
+        })
+      }
+    }
+  }
+
+  it('has written down every cell and no cell that does not exist', () => {
+    expect(Object.keys(CELLS)).toHaveLength(2 * Object.keys(HOSTS).length * SESSIONS.length)
+  })
+
+  it('pairs as this machine on the loopback listener and never on a public one', () => {
+    // The two routes that need no session: the shell, and the pairing that
+    // mints one. On a public listener this machine's name refuses both, so no
+    // session can ever be minted *for* this machine from outside it — and the
+    // origin a pairing carries into `scopesOn` is this machine's only where
+    // both halves are.
+    for (const [listener, kind, want] of [
+      ['loopback', 'this machine', 'ok'],
+      ['loopback', 'a trusted name', 'ok'],
+      ['loopback', 'an unknown name', 403],
+      ['public', 'this machine', 403],
+      ['public', 'a trusted name', 'ok'],
+      ['public', 'an unknown name', 403],
+    ] as const) {
+      for (const host of HOSTS[kind]) {
+        const pairing = allowed(
+          asking({
+            listener,
+            host,
+            method: 'POST',
+            path: '/api/pair',
+            origin: originFor(kind, host),
+            contentType: 'application/json',
+            cookie: null,
+          }),
+          PAIR,
+          { ...BESIDE, session: null },
+        )
+        const shell = allowed(asking({ listener, host, path: '/', site: 'none' }), SHELL, {
+          ...BESIDE,
+          session: null,
+        })
+        expect([answerOf(pairing), answerOf(shell)], `${listener} × ${host}`).toEqual([want, want])
+        if (pairing.ok) {
+          expect(thisMachine(pairing.origin)).toBe(
+            listener === 'loopback' && kind === 'this machine',
+          )
+        }
+      }
+    }
+  })
+
+  it('says which listener in the journal’s sentence, and not the page’s', () => {
+    const verdict = allowed(asking({ host: 'localhost:7654' }), READ, BESIDE)
+    expect(verdict.ok).toBe(false)
+    if (!verdict.ok) {
+      expect(verdict.why).toContain('"localhost:7654" on the public listener')
+      expect(verdict.refusal.said).not.toContain('listener')
+    }
   })
 })
 

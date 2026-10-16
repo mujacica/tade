@@ -85,7 +85,7 @@ function ctx(over: Partial<Subscribed> = {}): Subscribed {
     rev: 4,
     reach: namesOnly(DEVICE) as Reach,
     scopes: ['read'] as Scope[],
-    origin: { scheme: 'http', host: 'localhost' },
+    origin: { scheme: 'http', host: 'localhost', listener: 'loopback' },
     device: DEVICE,
     now: 1_000,
     request: 'req-1',
@@ -220,19 +220,24 @@ describe('the gate', () => {
     // choosing, which is the one thing `endpoint.ts` exists about.
     const refused = admitPush(
       subscribing,
-      ctx({ origin: { scheme: 'http', host: '192.168.1.10' } }),
+      ctx({ origin: { scheme: 'http', host: '192.168.1.10', listener: 'public' } }),
     )
     expect(refused.ok).toBe(false)
     if (!refused.ok) expect(refused.why).toContain('not a trusted origin')
     // And an https host the config names is fine, which is how a phone behind
     // `tailscale serve` subscribes.
     expect(
-      admitPush(subscribing, ctx({ origin: { scheme: 'https', host: 'studio.yak-bebop.ts.net' } }))
-        .ok,
+      admitPush(
+        subscribing,
+        ctx({ origin: { scheme: 'https', host: 'studio.yak-bebop.ts.net', listener: 'loopback' } }),
+      ).ok,
     ).toBe(true)
     // An https host it does not name is somebody else's name resolving here.
     expect(
-      admitPush(subscribing, ctx({ origin: { scheme: 'https', host: 'evil.example' } })).ok,
+      admitPush(
+        subscribing,
+        ctx({ origin: { scheme: 'https', host: 'evil.example', listener: 'public' } }),
+      ).ok,
     ).toBe(false)
   })
 })

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import { carryOut, type Did } from './acted.ts'
 import { carryAsk } from './asked.ts'
 import { assetsDir, readAssets } from './assets.ts'
@@ -26,7 +26,7 @@ import { type Sink, Streams } from './peers.ts'
 import { carryPush } from './pushed.ts'
 import { Receipts } from './receipts.ts'
 import { fromSource, watchFolder } from './reloading.ts'
-import { askingOf, codeOf, header, inTime, labelOf, pathOf, queryOf, readBody } from './request.ts'
+import { askingOf, codeOf, header, pathOf, queryOf, readBody, serverFor } from './request.ts'
 import { type Route, routeFor, routesFor } from './routes.ts'
 import {
   CONFIRM_MS,
@@ -36,10 +36,9 @@ import {
   type Told,
   type WebServer,
 } from './serving.ts'
-import { clearCookie, mint, renewal, SESSION_MS, sessionOf, setCookie } from './sessions.ts'
+import { clearCookie, renamed, renewal, sessionOf } from './sessions.ts'
 import { cursorOf } from './stream.ts'
-import { listenOn, reachOf, type Scope, scopesOn } from './surface.ts'
-import { couldBeTicket } from './tickets.ts'
+import { type Listener, listenerAt, listenOn, type Origin, reachOf, type Scope } from './surface.ts'
 
 // The away view's own HTTP server: `node:http`, one handler, the table in
 // `routes.ts`, and nothing else listening.
@@ -139,10 +138,10 @@ export function webServer(opts: ServerOptions): WebServer {
   const pairing = new Window(PAIR_TRIES, PAIR_WINDOW_MS)
   const refusals = new Window(REFUSALS_BEFORE_SAYING, REFUSAL_WINDOW_MS)
 
-  async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  async function handle(req: IncomingMessage, res: Res, listener: Listener): Promise<void> {
     const request = randomUUID()
     try {
-      await route(req, res, request)
+      await route(req, res, request, listener)
     } catch (error) {
       // The detail goes in a `warning` where a person at the machine can read
       // it. The browser gets a sentence and an id, and no stack trace ever.
@@ -158,10 +157,15 @@ export function webServer(opts: ServerOptions): WebServer {
     }
   }
 
-  async function route(req: IncomingMessage, res: ServerResponse, request: string): Promise<void> {
+  async function route(
+    req: IncomingMessage,
+    res: Res,
+    request: string,
+    listener: Listener,
+  ): Promise<void> {
     if (stopping) return answer(res, refuse('closing'))
 
-    const asking = askingOf(req)
+    const asking = askingOf(req, listener)
     // A path with a query on it is routed by its path: no route reads a query
     // parameter at all, which is the rule that keeps a ticket out of one.
     const path = pathOf(req.url ?? '/')
@@ -291,6 +295,9 @@ export function webServer(opts: ServerOptions): WebServer {
       // stream gets closed as expired.
       streams.renewed(device.id, until)
     }
+    // A session from before `__Host-`, used over `https`, moves under it here.
+    const moved = renamed(asking.cookie, verdict.origin, (until ?? device.until) - now())
+    if (moved !== null) res.setHeader('set-cookie', moved)
 
     const at: At = { req, origin: verdict.origin, request }
     switch (found.route.name) {
@@ -596,7 +603,7 @@ export function webServer(opts: ServerOptions): WebServer {
   /** Signing out: this device's own credential, and only its own. */
   async function signOut(
     res: ServerResponse,
-    origin: { scheme: string; host: string },
+    origin: Origin,
     device: Device,
     id: string,
   ): Promise<void> {
@@ -692,13 +699,8 @@ export function webServer(opts: ServerOptions): WebServer {
         })
       }
       for (const host of listenOn(opts.surface)) {
-        const server = createServer((req, res) => {
-          void handle(req, res)
-        })
-        // Bounded by Node's own defaults for headers, and by `BODY_MAX` for a
-        // body. A request that stops mid-header is closed rather than held.
-        server.headersTimeout = 10_000
-        server.requestTimeout = 30_000
+        // Which listener this is, by the address it is bound to (`listenerAt`).
+        const server = serverFor(listenerAt(host), handle)
         try {
           await new Promise<void>((done, failed) => {
             server.once('error', failed)
@@ -774,7 +776,7 @@ export function webServer(opts: ServerOptions): WebServer {
 /** Where one door's request came from: the request itself, its origin, and its id. */
 interface At {
   req: IncomingMessage
-  origin: { scheme: string; host: string }
+  origin: Origin
   request: string
 }
 

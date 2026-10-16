@@ -89,7 +89,7 @@ async function context(
     rev: 4,
     reach: namesOnly('00112233445566aa'),
     scopes: ['read', 'steer'] as readonly Scope[],
-    origin: { scheme: 'http', host: '127.0.0.1' },
+    origin: { scheme: 'http', host: '127.0.0.1', listener: 'loopback' },
     device: '00112233445566aa',
     now: Date.parse('2026-10-09T09:00:00.000Z'),
     request: 'req-1',

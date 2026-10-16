@@ -91,7 +91,7 @@ async function context(
     rev: 4,
     reach: namesOnly('00112233445566aa'),
     scopes: ['read', 'ask'] as readonly Scope[],
-    origin: { scheme: 'http', host: '127.0.0.1' },
+    origin: { scheme: 'http', host: '127.0.0.1', listener: 'loopback' },
     device: '00112233445566aa',
     now: Date.parse('2026-10-09T09:00:00.000Z'),
     request: 'req-1',
@@ -225,7 +225,7 @@ describe('a message that is refused', () => {
       BODY,
       await context(
         made.asking,
-        { origin: { scheme: 'http', host: '192.168.1.20:7654' } },
+        { origin: { scheme: 'http', host: '192.168.1.20:7654', listener: 'public' } },
         'ask-origin',
       ),
     )
@@ -361,7 +361,7 @@ describe('the gate, over the cross-product', () => {
       rev: 4,
       reach: namesOnly('00112233445566aa'),
       scopes: ['read', 'ask'] as readonly Scope[],
-      origin: { scheme: 'http', host: '127.0.0.1' },
+      origin: { scheme: 'http', host: '127.0.0.1', listener: 'loopback' } as const,
     }
     expect(admitAsk(saying, standing).ok).toBe(true)
     expect(admitAsk(saying, { ...standing, unlocked: false }).ok).toBe(false)
@@ -369,9 +369,12 @@ describe('the gate, over the cross-product', () => {
       false,
     )
     expect(admitAsk(saying, { ...standing, scopes: ['read'] }).ok).toBe(false)
-    expect(admitAsk(saying, { ...standing, origin: { scheme: 'http', host: '10.0.0.4' } }).ok).toBe(
-      false,
-    )
+    expect(
+      admitAsk(saying, {
+        ...standing,
+        origin: { scheme: 'http', host: '10.0.0.4', listener: 'public' },
+      }).ok,
+    ).toBe(false)
     expect(admitAsk(saying, { ...standing, rev: 4_000 }).ok).toBe(false)
   })
 })
