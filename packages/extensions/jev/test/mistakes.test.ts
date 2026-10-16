@@ -5,7 +5,7 @@ import { CHECKABLE } from '../src/questions.ts'
 import { host, NOW, typesafe } from './harness.ts'
 
 // Mistakes become checks, from the verdicts: the same question confirmed real
-// about two changes in one project is proposed as a check, parked.
+// about two changes in one project is proposed as a check, parked for the orchestrator.
 //
 // Through the real tools, end to end — two changes read, two verdicts written,
 // one look — because what counts as "confirmed twice" is the precision table's
@@ -70,7 +70,7 @@ describe('a mistake made twice', () => {
       'test_missing was confirmed real about shop/add-payouts, shop/add-refunds: a check is proposed',
     )
     const agent = await looked.agent(looked.found[0]!)
-    // Parked: a judge only ever adds caution, and this is work for a person to agree to.
+    // Parked, and always put to the orchestrator: a judge only ever adds caution, and no rule starts a check.
     expect(agent.parked).toBe(true)
     expect(agent.title).toBe('check for test_missing')
     expect(agent.prompt).toContain('shop/add-payouts and shop/add-refunds')

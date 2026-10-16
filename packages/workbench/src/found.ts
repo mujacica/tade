@@ -28,15 +28,17 @@ export interface FoundWork {
   alone?: boolean
   /** Where that tree begins, a ref in its own project (`WatchAgent.from`). */
   from?: string
-  /** Made parked, for a person to pick up (`WatchAgent.parked`): it may only ever hold. */
+  /** Always put to the orchestrator, whoever the schedule says decides (`WatchAgent.parked`). */
   parked?: boolean
 }
 
 /**
  * Make the work for one finding: queued work, named for what it is about, in
  * the project's own workspace or a tree of its own where the work says it
- * cannot share one — and parked where the work is a proposal, for a person
- * (`FoundWork.parked`) or for the orchestrator to decide (`proposed`).
+ * cannot share one — and parked where the work is a proposal for the
+ * orchestrator to decide (`proposed`). `FoundWork.parked` parks it even where
+ * `proposed` was not asked for, so nothing can start it by rule; the window
+ * always offers such work as a proposal (`actOnFound`).
  *
  * Written down as found either way, with why where it could not be made,
  * because tried again at every look it would fail at every look. The line
@@ -83,13 +85,10 @@ export async function makeFoundWork(
       if (agent.parked || proposed) {
         await tade.parkTask(task.id, true, { by: `schedule:${schedule.id}` })
       }
-      // A proposal for a person is theirs, and is never put to the
-      // orchestrator as one of its own to decide.
-      const offered = proposed && !agent.parked ? { proposed: true } : {}
       await tade.log.append({
         type: 'watch_found',
         task: task.id,
-        detail: { ...found, ...offered },
+        detail: { ...found, ...(proposed ? { proposed: true } : {}) },
       })
       return { task: task.id }
     }

@@ -22,6 +22,13 @@ import { duration } from './runtime.ts'
 // proposal nobody decided about is still parked, still listed, and still in
 // the next briefing (`proposalsIn`), so a finding is never dropped.
 //
+// A check the orchestrator proposes itself (`tade_propose_check`) is the
+// third way in, and decided the same way: what it proposed is made parked,
+// marked as a proposal on its own `task_created` line, and it says what
+// becomes of it with the same tool — so whether a check starts now, after
+// what is changing the same files, or not at all is written down with a
+// reason, and one left undecided is in the next briefing like any other.
+//
 // What is "related" is facts, never a guess about meaning: made by the same
 // schedule, sharing a link, or a name that starts the same way. Each is
 // said as which it is, so the orchestrator weighs it rather than trusting it.
@@ -45,7 +52,8 @@ export const PROPOSAL_DECISION_MEANS: Readonly<Record<ProposalDecision, string>>
 /** A piece of proposed work, as it was made. */
 export interface Proposal {
   task: string
-  schedule: string
+  /** The schedule or watch that made it; null for a check the orchestrator proposed itself. */
+  schedule: string | null
   /** The finding's key, for a watch's; null for a run of a schedule that starts an agent. */
   key: string | null
   title: string
@@ -106,7 +114,7 @@ export function relatedWork(proposal: Proposal, work: readonly WorkNow[]): Relat
     if (one.task === proposal.task || one.finished || one.state === 'merged') continue
     if (projectOf(one.task) !== project) continue
     const because: string[] = []
-    if (one.by === `schedule:${proposal.schedule}`) {
+    if (proposal.schedule !== null && one.by === `schedule:${proposal.schedule}`) {
       because.push(proposal.key === null ? 'made by the same schedule' : 'found by the same watch')
     }
     const shared = one.links.filter((link) => links.has(link))
@@ -239,10 +247,15 @@ export interface ProposalStanding {
   settled: string | null
 }
 
-/** Whether a line made a proposal, of a watch's finding or a schedule's run. */
+/**
+ * Whether a line made a proposal: of a watch's finding, a schedule's run, or
+ * a check the orchestrator proposed (its `task_created`).
+ */
 export function isProposal(event: TadeEvent): boolean {
   return (
-    (event.type === 'watch_found' || event.type === 'schedule_fired') &&
+    (event.type === 'watch_found' ||
+      event.type === 'schedule_fired' ||
+      event.type === 'task_created') &&
     event.detail.proposed === true &&
     event.task !== null
   )
@@ -272,7 +285,7 @@ export function proposalsIn(events: readonly TadeEvent[]): ProposalStanding[] {
       all.set(task, {
         proposal: {
           task,
-          schedule: text(event.detail.schedule),
+          schedule: text(event.detail.schedule) || null,
           key: event.type === 'watch_found' ? text(event.detail.key) || null : null,
           title: text(event.detail.title) || task,
           links: Array.isArray(event.detail.links) ? event.detail.links.map(String) : [],

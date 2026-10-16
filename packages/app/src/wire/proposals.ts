@@ -33,7 +33,8 @@ import type { Tellable } from './handed.ts'
 // a person's.** A proposal is parked, and what lifts the park is a decision
 // through `decideProposal` — or a person in the queue, which is the person
 // deciding. Only a schedule that says `decides: itself` has its work queued
-// here by rule, the way every watch's was before.
+// here by rule, the way every watch's was before — and not even then where
+// the watch says its work is always decided (`WatchAgent.parked`).
 // When the orchestrator cannot be told, the work stays parked and that is
 // said on screen and kept as news, never dropped and never started instead.
 
@@ -43,7 +44,7 @@ type Looked = Awaited<ReturnType<ExtensionHost['look']>>
 export interface FoundCame {
   /** Queued, by the watch's own rule (`decides: itself`). */
   started: string[]
-  /** Not started, deliberately: a person's proposal, a rule that said no, a retry waiting. */
+  /** Not started, deliberately: a rule that said no, a retry waiting. */
   decided: string[]
   /** What could not be started on, with why. */
   failed: string[]
@@ -58,10 +59,11 @@ export interface FoundCame {
  * schedule leaves it to the orchestrator — parked as a proposal, and every
  * proposal of the look told in one message (`offerProposals`).
  *
- * Two kinds of finding are never proposals. Work from outside this machine
- * goes through the owner's grant (`takeIntake`), which already decides
- * whether it starts and is the person's own rule about that source; and work
- * a watch says is a proposal *for a person* (`WatchAgent.parked`) is theirs.
+ * Work from outside this machine is never a proposal: it goes through the
+ * owner's grant (`takeIntake`), which already decides whether it starts and
+ * is the person's own rule about that source. Work a watch says is always
+ * decided (`WatchAgent.parked`, a check `jev.mistakes` proposes) is a proposal
+ * even where the schedule decides itself, so no rule ever starts it.
  */
 export async function actOnFound(
   wire: Wiring,
@@ -69,14 +71,15 @@ export async function actOnFound(
   looked: Pick<Looked, 'agent'>,
   acting: readonly Finding[],
   how: {
-    /** Who decides, where the orchestrator does; null where the schedule decides itself. */
-    orchestrator: Tellable | null
+    /** Who decides what is proposed. */
+    orchestrator: Tellable
+    /** That the schedule decides itself (`decides: itself`): queued by rule, unless the watch says not. */
+    itself: boolean
     /** Found and waiting for the next look. */
     left: number
   },
 ): Promise<FoundCame> {
   const client = wire.opts.client
-  const proposing = how.orchestrator !== null
   const came: FoundCame = { started: [], decided: [], failed: [], proposed: [], offered: '' }
   for (const finding of acting) {
     try {
@@ -85,7 +88,7 @@ export async function actOnFound(
         await client.watchFound(one.id, finding, { problem: why(err) }).catch(() => {})
         throw err
       })
-      const proposed = proposing && !finding.intake && !agent.parked
+      const proposed = !finding.intake && (!how.itself || agent.parked === true)
       const links = agent.links ?? finding.links ?? []
       const { task, said } = await client.watchFound(one.id, finding, {
         agent: { ...agent, links },
@@ -99,9 +102,6 @@ export async function actOnFound(
           title: finding.title,
           links: links.map((link) => link.url),
         })
-      } else if (task && agent.parked) {
-        // A proposal is made parked (`WatchAgent.parked`): it waits for a person.
-        came.decided.push(`${task} is parked for somebody to pick up`)
       } else if (task) came.started.push(task)
       else if (said) came.decided.push(said)
       // Nothing is said back from here. A status is due when it becomes
@@ -113,7 +113,7 @@ export async function actOnFound(
       came.failed.push(`${finding.title} (${why(err)})`)
     }
   }
-  if (how.orchestrator && came.proposed.length > 0) {
+  if (came.proposed.length > 0) {
     const watch = one.does.kind === 'watch' ? one.does.watch : null
     came.offered = offerProposals(wire, how.orchestrator, {
       from: { name: one.name, project: one.project, who: madeByWords(one.by), watch },
@@ -196,7 +196,7 @@ export function workNow(wire: Wiring, making: readonly Proposal[]): WorkNow[] {
       task: proposal.task,
       state: 'parked',
       title: proposal.title,
-      by: `schedule:${proposal.schedule}`,
+      by: proposal.schedule === null ? 'orchestrator' : `schedule:${proposal.schedule}`,
       since: null,
       finished: false,
       links: proposal.links,
@@ -355,7 +355,10 @@ export async function decideProposal(
           {
             task: on,
             add: `${standing.proposal.title}\n\n${context.trim()}`,
-            by: `schedule:${standing.proposal.schedule}`,
+            by:
+              standing.proposal.schedule === null
+                ? 'orchestrator'
+                : `schedule:${standing.proposal.schedule}`,
             at: wire.now(),
           },
         )
@@ -376,7 +379,7 @@ export async function decideProposal(
     type: 'proposal_decided',
     task: req.task,
     detail: {
-      schedule: standing.proposal.schedule,
+      ...(standing.proposal.schedule ? { schedule: standing.proposal.schedule } : {}),
       ...(standing.proposal.key ? { key: standing.proposal.key } : {}),
       decision,
       because,

@@ -17,8 +17,8 @@ import type { ReviewRecord } from './report.ts'
 // The precision table decides which questions qualify, and nothing else does:
 // the verdicts somebody wrote, counted per finding, never an agent's account of
 // its own work and never a probability. And the judge only ever adds caution
-// here as everywhere — what this watch makes is work **parked** for a person,
-// which nothing starts until somebody picks it up.
+// here as everywhere — what this watch makes is work **parked** and put to the
+// orchestrator (`WatchAgent.parked`), which nothing starts until it decides.
 
 /** The mistakes Jev's verdicts say were made twice in one project. */
 export function mistakesIn(record: ReviewRecord, project: string): Mistake[] {
@@ -56,14 +56,14 @@ function findingOf(mistake: Mistake): Finding {
  *
  * Standing, because being on costs nothing anybody has to agree to — it reads
  * the review log, asks the judge nothing and spends nothing, and what it makes
- * is work that waits for a person. With no key there is no reading and so no
- * verdict, and no schedule is written at all.
+ * is work that waits for the orchestrator to decide it. With no key there is
+ * no reading and so no verdict, and no schedule is written at all.
  */
 export const mistakesWatch: ExtensionWatch = {
   id: 'mistakes',
   title: 'Mistakes made twice',
   means:
-    'looks for a question the verdicts confirmed real about two changes in this project, and proposes a check a machine runs so it is not made a third time — parked until somebody picks it up',
+    'looks for a question the verdicts confirmed real about two changes in this project, and proposes a check a machine runs so it is not made a third time — parked and put to the orchestrator, which decides whether and when it starts',
   every: '1h',
   standing: true,
   check: async (ctx) => {

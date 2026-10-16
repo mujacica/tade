@@ -12,7 +12,7 @@
  ▸ S│ ◐ Sentry                 ! ▕│ jev_review       Read a change against the review pack and say what it flags  ▕│    
  ▸ I│                            ▕│ jev_findings     What the review watch has looked at, what it flagged, what c…▕│    
  ▾ C│ ✗ standup                ! ▕│ jev_account      Say what you found when you read something Jev flagged about…▕│    
-  M │                            ▕│ jev_verdict      Write down what a finding turned out to b… orchestrator only █│    
+  M │                            ▕│ jev_verdict      Write down what a finding turned out to b… orchestrator only ▕│    
   A │ ● GitHub                   ▕│ jev_replay       Ask a candidate judge the questions Jev a… orchestrator only █│    
   M │                            ▕│ jev_read_request A second, independent reading of what som… orchestrator only █│    
     │ ○ release-notes            ▕│ jev_plan_check   Read a plan before you keep it, and say w… orchestrator only █│    

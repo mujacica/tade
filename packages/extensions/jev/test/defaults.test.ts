@@ -98,7 +98,7 @@ describe('the watches that are on without anybody turning one on', () => {
     expect(made[0]?.does).toMatchObject({ most: DEFAULT_MOST })
     expect(made[1]?.does.kind === 'watch' && made[1].does.most).toBeGreaterThan(DEFAULT_MOST)
     // The one that makes work makes it parked (`mistakes.test.ts`): a check a
-    // judge proposed is a person's to agree to, so it starts nothing either.
+    // judge proposed is put to the orchestrator, so it starts nothing by rule either.
     expect(made[2]?.does).toMatchObject({ watch: 'jev.mistakes', found: 'agent' })
   })
 

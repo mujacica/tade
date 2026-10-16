@@ -10,10 +10,11 @@ import { type Calibrated, calibrationOf, precisionSaid, type Tally } from './cal
 // commit hook, a lint rule or a test, and never a prose skill.
 //
 // And only ever proposes. A judge may add caution and nothing else, and a
-// check changes how a project checks itself, which is a person's to agree to:
-// the proposal is work made **parked**, as intake under `propose` is, and
-// approving it is somebody picking it up. Nothing here starts it, and nothing
-// here can.
+// check changes how a project checks itself, so it is never started by rule:
+// the proposal is work made **parked** and put to the orchestrator, which
+// decides it like anything a watch makes (`proposals.ts`) — started now, after
+// what is changing the same files, or left — and writes down why. Nothing here
+// starts it, and nothing here can.
 //
 // Pure: findings or tasks in; which mistakes were made twice, and the work a
 // proposal is, out.
@@ -153,7 +154,7 @@ function contextOf(mistake: Mistake): string {
  * Counted here, in code, because a model cannot count: at least `TWICE`
  * different tasks, every one in the project the check would be added to, and
  * every one a task Tade made. Whether they were the *same* correction is the
- * orchestrator's reading and the person's to agree with when they pick it up.
+ * orchestrator's reading, and so is whether the check it proposes starts.
  */
 export function seenTwiceProblem(
   project: string,

@@ -195,16 +195,18 @@ describe('schedules', () => {
       links: ['https://ci.example/runs/7'],
     })
 
-    // A proposal for a person stays theirs: parked, and never marked as the orchestrator's to decide.
-    const theirs = await client.watchFound(
+    // Work a watch says is always decided is a proposal like any other: the
+    // orchestrator's to decide, never left parked for a person.
+    const check = await client.watchFound(
       'branch-checks',
       { key: 'github.com/acme/app@bbb', title: 'a check to add' },
       { agent: { ...ci, title: 'propose a check', parked: true }, proposed: true },
     )
-    expect(await readTaskFile(home, theirs.task ?? '')).toMatchObject({ parked: true })
-    expect((await client.events({ types: ['watch_found'] })).at(-1)?.detail).not.toHaveProperty(
-      'proposed',
-    )
+    expect(await readTaskFile(home, check.task ?? '')).toMatchObject({ parked: true })
+    expect((await client.events({ types: ['watch_found'] })).at(-1)).toMatchObject({
+      task: check.task,
+      detail: { key: 'github.com/acme/app@bbb', proposed: true },
+    })
   })
 
   it('writes down what a watch finds, once each, and makes queued work named for what it is about', async () => {
@@ -381,7 +383,7 @@ describe('schedules', () => {
     expect((await readTaskFile(home, task))?.base).toBe(head)
   })
 
-  it('makes a proposal parked, so nothing starts it until a person picks it up', async () => {
+  it('parks work a watch says is always decided, even unasked, so no rule starts it', async () => {
     await client.setSchedule(
       deps({
         id: 'mistakes-app',
@@ -419,7 +421,7 @@ describe('schedules', () => {
     await expect(client.startQueued({ task, worktree: repo.root, why: 'ready' })).rejects.toThrow(
       /parked/,
     )
-    // Approving it is picking it up: one act, and the same one as any park.
+    // What lifts it is a decision (`decideProposal`), through the one door any park goes through.
     await client.parkTask(task, false)
     expect((await readTaskFile(home, task))?.parked).toBe(false)
   })

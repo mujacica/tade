@@ -6,9 +6,10 @@ import type { Workbench } from '@tade/workbench'
 //
 // Its own file because `tool-host.ts` is near its budget, and because what it
 // may do is a boundary worth reading in one place: it counts what the model
-// named, in code (`seenTwiceProblem`), makes one task and parks it. Nothing
-// here starts anything, and approving it is the person picking it up — the
-// same act, in the same places, as approving an intake under `propose`.
+// named, in code (`seenTwiceProblem`), makes one task and parks it as a
+// proposal — the same kind a watch makes (`core/src/proposals.ts`), so the
+// orchestrator decides it with `tade_proposal_decide` and writes down why, and
+// one it leaves undecided is in the next briefing. Nothing here starts anything.
 
 type Handler = (params: Record<string, unknown>) => Promise<string>
 
@@ -49,12 +50,13 @@ export function lessonMethods(tade: Workbench): Record<string, Handler> {
         by: 'orchestrator',
         context: proposal.context,
         start: { after: [], prompt: proposal.prompt, touches: [] },
+        proposed: { title: proposal.title },
       })
       // Through the one door that writes a park, straight after it is made:
       // starting reads the task file again (`startQueued`), so a queue that
       // saw it in between still finds it parked.
       await tade.parkTask(task.id, true, { by: 'orchestrator' })
-      return `Proposed ${task.id}, parked: nothing starts until the person picks it up, which is approving it. Tell them it is there and what it would catch.`
+      return `Proposed ${task.id}, parked and put to you: nothing starts it until you decide it with tade_proposal_decide, with a sentence why. Look at what is working in ${project} first (tade_status): start it if nothing else is changing its commit hook, lint config or tests, after the task that is if one is, or leave it. Then tell the person what it would catch and what you decided.`
     },
   }
 }

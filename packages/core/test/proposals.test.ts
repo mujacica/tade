@@ -341,4 +341,54 @@ describe('what is still waiting for a decision', () => {
       ['tade/nightly-1016', null, 'Nightly', []],
     ])
   })
+
+  it('folds a check the orchestrator proposed itself, which no schedule made', () => {
+    seq = 0
+    const journal = [
+      // Made by `tade_propose_check` (`host-lessons.ts`): marked on its own creation.
+      event('task_created', 'tade/check-floating-promises', {
+        by: 'orchestrator',
+        proposed: true,
+        title: 'check for floating-promises',
+      }),
+      event('state_change', 'tade/check-floating-promises', {
+        state: 'parked',
+        by: 'orchestrator',
+      }),
+      // An ordinary task the orchestrator made is not one.
+      event('task_created', 'tade/refunds', { by: 'orchestrator' }),
+    ]
+    expect(undecidedProposals(journal)).toMatchObject([
+      {
+        task: 'tade/check-floating-promises',
+        schedule: null,
+        key: null,
+        title: 'check for floating-promises',
+      },
+    ])
+    const decided = [
+      ...journal,
+      event('state_change', 'tade/check-floating-promises', {
+        state: 'resumed',
+        by: 'orchestrator',
+      }),
+      event('proposal_decided', 'tade/check-floating-promises', {
+        decision: 'after',
+        because: 'tade/refunds is changing the commit hook',
+        on: 'tade/refunds',
+        by: 'orchestrator',
+      }),
+    ]
+    expect(proposalsIn(decided).map((one) => one.settled)).toEqual(['you decided: after'])
+  })
+
+  it('never calls work related for being made by no schedule, as a proposal with none is', () => {
+    const mine = proposal({
+      task: 'tade/check-floating-promises',
+      schedule: null,
+      key: null,
+      links: [],
+    })
+    expect(relatedWork(mine, [work({ task: 'tade/refunds', by: 'schedule:null' })])).toEqual([])
+  })
 })

@@ -11,7 +11,7 @@
  ▸ S│▌                           ▕│                                                                               █│    
  ▸ S│ ◐ Sentry                 ! ▕│ HOW IT IS USED                                                                █│    
  ▸ I│                            ▕│ · Reads branches that go quiet against the review pack, once its watch is     █│    
- ▾ C│ ✗ standup                ! ▕│   on.                                                                         █│    
+ ▾ C│ ✗ standup                ! ▕│   on.                                                                         ▕│    
   M │                            ▕│ · Hands what it flagged to the agent that wrote it, which answers with        ▕│    
   A │ ● GitHub                   ▕│   jev_account.                                                                ▕│    
   M │                            ▕│ · Sweeps what nobody answered to the orchestrator, which writes the verdict   ▕│    

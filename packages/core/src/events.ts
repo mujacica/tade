@@ -189,7 +189,8 @@ export const EventType = z.enum([
   /**
    * What was decided about work a schedule or a watch made and put to the
    * orchestrator first (`proposed: true` on its `watch_found` or
-   * `schedule_fired`): `decision`, one of `PROPOSAL_DECISIONS`, `because` in
+   * `schedule_fired`, or on the `task_created` of a check the orchestrator
+   * proposed): `decision`, one of `PROPOSAL_DECISIONS`, `because` in
    * the decider's own words, `on` for the task it waits on or was handed to,
    * and `by`. Written after it was done, and the only record of a `leave` —
    * a proposal dropped is otherwise just a task that went.

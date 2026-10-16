@@ -589,10 +589,11 @@ export class Schedules implements Subject {
       this.wire.draw()
       return said
     }
-    // What it found becomes work — parked for the orchestrator to decide
-    // unless the schedule says it decides itself (`proposals.ts`).
+    // What it found becomes work — parked for the orchestrator to decide, unless
+    // the schedule decides itself and the watch lets it (`proposals.ts`).
     const { started, decided, failed, offered } = await actOnFound(this.wire, one, looked, acting, {
-      orchestrator: decidesOf(does) === 'orchestrator' ? this.deps.orchestrator() : null,
+      orchestrator: this.deps.orchestrator(),
+      itself: decidesOf(does) === 'itself',
       left,
     })
     if (started.length > 0) {

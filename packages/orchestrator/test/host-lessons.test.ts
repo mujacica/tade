@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { taskDir } from '@tade/core'
+import { taskDir, undecidedProposals } from '@tade/core'
 import { readTaskFile, Workbench } from '@tade/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -8,7 +8,8 @@ import { lessonMethods } from '../src/host-lessons.ts'
 
 // The `ToolHost` method behind `tade_propose_check`, against a real workbench
 // on a real repository: what the orchestrator is answered, and that what it
-// makes is one task, parked, that nothing starts until the person picks it up.
+// makes is one task, parked as a proposal it decides itself with
+// `tade_proposal_decide`, which nothing else starts.
 
 describe('a check the orchestrator proposes', () => {
   let home: string
@@ -32,7 +33,7 @@ describe('a check the orchestrator proposes', () => {
     await tade.close().catch(() => {})
   })
 
-  it('is made parked, with what was seen in its context file', async () => {
+  it('is made parked as a proposal for the orchestrator, with what was seen in its context file', async () => {
     const said = await propose({
       project: 'shop',
       name: 'floating-promises',
@@ -40,7 +41,19 @@ describe('a check the orchestrator proposes', () => {
       tasks: ['shop/refunds', 'shop/payouts'],
       seen: 'Both times the person asked for the missing await in review.',
     })
-    expect(said).toContain('Proposed shop/check-floating-promises, parked')
+    expect(said).toContain('Proposed shop/check-floating-promises, parked and put to you')
+    expect(said).toContain('tade_proposal_decide')
+    expect(said).not.toContain('picks it up')
+    // A proposal like any a watch makes, so deciding it is the same tool and
+    // one left undecided is in the next briefing.
+    expect(undecidedProposals(await tade.log.read({}))).toMatchObject([
+      {
+        task: 'shop/check-floating-promises',
+        schedule: null,
+        key: null,
+        title: 'check for floating-promises',
+      },
+    ])
     const file = await readTaskFile(home, 'shop/check-floating-promises')
     expect(file?.parked).toBe(true)
     expect(file?.by).toBe('orchestrator')

@@ -542,60 +542,6 @@ describe('the window, and what it watches', () => {
       'Rain looked: nothing new.',
     )
   })
-  it('makes what a watch proposes parked work, and starts none of it', async () => {
-    const extensions = await ExtensionHost.load({
-      builtin: [
-        {
-          name: 'weather',
-          title: 'Weather',
-          description: 'Whether it is raining.',
-          watches: [
-            {
-              id: 'rain',
-              title: 'Rain',
-              means: 'Proposes a gutter once the shed has been rained on twice.',
-              every: '1h',
-              check: async () => ({
-                found: [{ key: 'gutter', title: 'rain twice over the shed' }],
-              }),
-              // A proposal: made, and waiting for a person (`WatchAgent.parked`).
-              agent: () => ({ title: 'fit a gutter', prompt: 'Fit a gutter.', parked: true }),
-            },
-          ],
-        },
-      ],
-      config: { extensions: {}, projects: { app: { root: repo.root } } },
-      home,
-    })
-    const window = await start({ extensions, thinker: { ask: async () => 'ok' } })
-    await until('the first frame', () => terminal.written.includes('refunds'))
-    await client.setSchedule(
-      watchSchedule(
-        {
-          id: 'weather.rain',
-          title: 'Rain',
-          every: '1h',
-          offers: 'agent',
-          standing: false,
-          problem: null,
-        },
-        { id: 'rain', name: 'Rain', project: 'app', by: 'you' },
-        Date.now(),
-      ),
-      'you',
-    )
-    const tools = window.queueTools()
-    // Said as what it is: not queued, and not trouble either.
-    expect(await tools.change({ schedule: 'rain', change: 'start' })).toBe(
-      'Rain found 1 new: app/fit-a-gutter is parked for somebody to pick up.',
-    )
-    expect((await readTaskFile(home, 'app/fit-a-gutter'))?.parked).toBe(true)
-    // The queue reads it and leaves it, however often it is asked.
-    await until('the queue has it', async () => (await tools.describe()).includes('fit-a-gutter'))
-    expect(await tools.advance()).not.toContain('app/fit-a-gutter')
-    expect(client.runs().some((run) => run.task === 'app/fit-a-gutter')).toBe(false)
-  })
-
   it('lets the orchestrator read the watches, and turn one only where they asked', async () => {
     const extensions = await ExtensionHost.load({
       builtin: [

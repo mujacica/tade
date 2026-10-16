@@ -204,7 +204,7 @@ export function composeBriefing(input: BriefingInput): string | null {
   if (proposed.length > 0) {
     sections.push(
       [
-        'Work a schedule or a watch made and put to you instead of starting it, parked and started by nobody until you decide each with tade_proposal_decide — look at what is working on the same thing first:',
+        'Work a schedule or a watch made, or a check you proposed, put to you instead of being started: parked and started by nobody until you decide each with tade_proposal_decide — look at what is working on the same thing first:',
         ...proposed.map(
           (one) => `- ${one.task}: ${one.title} (${ago(Math.max(0, input.now - one.at))})`,
         ),

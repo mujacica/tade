@@ -239,6 +239,8 @@ export interface CreateTaskRequest {
   produces?: string
   /** When it starts: after other tasks, not before a time. Made now, started by the queue. */
   start?: StartCondition
+  /** Made as a proposal for the orchestrator to decide (`proposals.ts`), called this. */
+  proposed?: { title: string }
 }
 
 /**
@@ -994,6 +996,7 @@ export class Workbench {
         ...(req.by ? { by: req.by } : {}),
         ...(req.done ? { done: req.done } : {}),
         ...(req.produces ? { produces: req.produces } : {}),
+        ...(req.proposed ? { proposed: true, title: req.proposed.title } : {}),
         ...(req.start ? waitedDetail(req.start.after) : {}),
         ...(req.start?.at ? { at: req.start.at } : {}),
         ...preparedDetail(task.prepared),
@@ -1185,13 +1188,10 @@ export class Workbench {
   }
 
   /**
-   * Something a watch found for the first time, written down so it never starts
-   * work twice. Given what to tell an agent, its work is made as queued work named
-   * for what it is about, which the queue starts as soon as there is room — in the
-   * project's own workspace, or a tree of its own where the work says it cannot
-   * share one — or parked, where the work is a proposal a person picks up.
-   * Otherwise it was told to someone, or could not be, and why: written down too,
-   * because tried again at every look it would fail at every look.
+   * Something a watch found for the first time, written down so it never starts work
+   * twice. Given what to tell an agent, it is made as queued work named for what it is
+   * about, or parked as a proposal for the orchestrator (`found.ts`). Otherwise it was
+   * told to someone, or could not be: written down with why, or every look would retry it.
    */
   async watchFound(
     id: string,
