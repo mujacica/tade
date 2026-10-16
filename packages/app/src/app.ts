@@ -48,7 +48,7 @@ import { Intake } from './wire/intake.ts'
 import { Keyboard } from './wire/keyboard.ts'
 import { Landing } from './wire/landing.ts'
 import { Lanes } from './wire/lanes.ts'
-import { Looks } from './wire/looks.ts'
+import { Looks, slowLook } from './wire/looks.ts'
 import { Machine } from './wire/machine.ts'
 import { Mouse } from './wire/mouse.ts'
 import { Notes } from './wire/notes.ts'
@@ -56,6 +56,7 @@ import { Orchestrator } from './wire/orchestrator.ts'
 import { kittyActive, Repaint, repaintScreen, type Screen, screenFor } from './wire/paint.ts'
 import { Projects, type ProjectTools } from './wire/projects.ts'
 import { Queue, type QueueTools } from './wire/queue.ts'
+import { type Remotes, remotesFor } from './wire/remotes.ts'
 import { Routes } from './wire/routes.ts'
 import { Schedules, type WatchTools } from './wire/schedules.ts'
 import { Search } from './wire/search.ts'
@@ -113,6 +114,8 @@ export class App {
   private readonly voice: Voice
   /** The away view: who may read Tade from off this machine, while this window is open. */
   private readonly away: Away
+  /** Other machines' Tades this one is an owner of, linked while this window is open. */
+  private readonly remotes: Remotes
   /** The anti-sleep hold, while Tade is open and no longer. */
   private readonly awake: Awake
   /** Pictures, and the clipboard they usually arrive on. */
@@ -182,19 +185,7 @@ export class App {
       look: () => this.look(),
       stopped: () => this.stopped,
       owe: () => this.tui.oweEcho(),
-      slow: (startedAt) =>
-        this.opts.report
-          ?.doing({
-            name: 'a look at the tasks',
-            op: 'tade.look',
-            startedAt,
-            attributes: {
-              'tade.tasks': this.state.panes.length,
-              'tade.agents': this.opts.client.runs().length,
-              'tade.projects': Object.keys(this.opts.config.projects).length,
-            },
-          })
-          .end(),
+      slow: (startedAt) => slowLook(this.opts, this.state.panes.length, startedAt),
     })
     this.notes = new Notes(this.wire, {
       copy: (text) => copySaying(this.wire, text, (data) => this.terminal.write(data)),
@@ -292,6 +283,7 @@ export class App {
       lifecycle: { agents: () => this.agents, projects: () => this.projects },
       copy: (text) => copyText(text, (data) => this.terminal.write(data)),
     })
+    this.remotes = remotesFor(this.wire)
     this.voice = new Voice(this.wire, {
       submit: () => this.keyboard.submit(),
       say: (said) => this.orchestrator.say(said),
@@ -597,6 +589,7 @@ export class App {
       [
         { name: 'the voice', close: () => this.voice.stop() },
         { name: 'the away view', close: () => this.away.stop() },
+        { name: 'the remote links', close: () => this.remotes.stop() },
         { name: 'the status look', close: () => this.live?.stop() },
       ],
       Date.now() + STOP_MS,
@@ -635,6 +628,7 @@ export class App {
         void this.schedules.runDue().then(() => this.advanceQueue())
         void this.orchestrator.reflect(tasks)
         this.away.beat()
+        this.remotes.beat()
         this.updates.beat()
         if (moved) this.draw() // a beat that found what the last did is not news
       },

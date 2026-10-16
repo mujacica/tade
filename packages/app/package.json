@@ -22,6 +22,7 @@
     "@tade/extensions-core": "workspace:*",
     "@tade/telemetry": "workspace:*",
     "@tade/harnesses-core": "workspace:*",
+    "@tade/remotes-core": "workspace:*",
     "@tade/web": "workspace:*"
   },
   "devDependencies": {
@@ -32,6 +33,7 @@
     "@tade/extension-resources": "workspace:*",
     "@tade/extension-sentry": "workspace:*",
     "@tade/mcp-core": "workspace:*",
+    "@tade/remotes-scripted": "workspace:*",
     "@tade/voice-stt": "workspace:*"
   }
 }

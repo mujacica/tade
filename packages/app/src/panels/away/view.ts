@@ -130,6 +130,12 @@ export interface AwayDevice {
    * is none.
    */
   passkey?: number
+  /**
+   * Paired on the public name, asked for a passkey there, and with none: from
+   * there it reads and acts on nothing (`proven`), whatever its boxes say. Said
+   * on its row, because a device that was never asked looks the same otherwise.
+   */
+  readsOnly?: true
   /** What it was granted beyond names and counts, already in grant order. */
   reads: readonly string[]
   /** Whether a person at the machine has let it answer and steer. */

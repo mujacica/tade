@@ -183,6 +183,15 @@ const NEVER: readonly (readonly [string, string])[] = [
     'surfaces.intake',
     'intake is whose words can make work on this machine, and the words I read all day do not get to put themselves on that list',
   ],
+  // Another machine's Tade this one is an owner of (`remotes.ts`): where it is,
+  // the command run there, and the session whose reach is that keyboard's.
+  // Every clause at once — where Tade sends something, a credential, and what
+  // this machine may do on another — so the whole section, and anything added
+  // under it, is the person's.
+  [
+    'remotes',
+    'a remote is another machine I would reach and drive as you, with a session that is yours there — only a person points me at one',
+  ],
 ]
 
 /**

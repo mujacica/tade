@@ -30,6 +30,13 @@ program and exposes `run(argv, io)` which returns an exit code instead of callin
   --owner` puts the session on standard output — with `--json` that is the credential alone, for
   another program to keep — and `OWNER_IS_YOUR_SSH_KEY` on standard error, because whoever runs it
   is the one deciding. Only its digest is written down.
+- **A command that keeps a credential another machine printed never prints it back.** `tade remote
+  add` runs `tade web pair --owner --json` over SSH, writes the session into `remotes.<name>` and says
+  `REMOTE_KEPT_HERE` and `OWNER_IS_YOUR_SSH_KEY` on standard error; `list`, `status` and `--json` name
+  the device and never the session. Its status reads files only — the config and a fold of the
+  journal's `remote_linked`/`remote_unlinked` (`linksSeen`) — because the links live in the window.
+  Its test puts an `ssh` on PATH that runs the command in a shell, as ssh does on the far side; the
+  real connection is `@tade/remotes-ssh`'s conformance suite.
 - **Interactive commands must end at end of input.** `readline`'s `question()` never settles on EOF,
   so a loop built on it hangs on Ctrl-D or piped input, and whatever it started keeps running.
   Iterate the interface (`for await (const line of rl)`), which ends on both EOF and close, and stop

@@ -183,6 +183,8 @@ export class Away implements Subject {
   private readers = 0
   /** The certificate and the version, while a public listener is up (`web-public.ts`). */
   private readonly health: PublicHealth
+  /** When an owner's link last said somebody pressed a key at another of their screens. */
+  private presentAt: number | null = null
 
   constructor(wire: Wiring, deps: AwayDeps) {
     this.wire = wire
@@ -207,6 +209,7 @@ export class Away implements Subject {
         tasks: () => this.collections().tasks,
         devices: () => this.devices,
         tell: (told) => void this.log(told),
+        presentAt: () => this.presentAt,
       },
     )
   }
@@ -273,6 +276,9 @@ export class Away implements Subject {
         },
         now: () => this.wire.now(),
       }),
+      present: (_device, at) => {
+        this.presentAt = Math.max(this.presentAt ?? at, at)
+      },
       tickets: this.tickets,
       streams: this.streams,
       tell: heard(

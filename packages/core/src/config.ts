@@ -6,6 +6,7 @@ import { PrepareConfigSchema } from './prepare.ts'
 import { ModelPriceSchema } from './prices.ts'
 import { GIVE_WAY_MAX } from './priority.ts'
 import { PUSH_MODES } from './project.ts'
+import { RemotesSchema } from './remotes.ts'
 
 // Schema for ~/.tade/config.yaml. Objects are strict so a typo'd key is an
 // error rather than a silently ignored setting.
@@ -695,11 +696,7 @@ export const ConfigSchema = z
      * the journal (`documentsToCompact`). One nobody decided about is kept
      * however old it gets: only a person deletes that.
      */
-    documents: z
-      .strictObject({
-        keep_days: z.int().positive().default(30),
-      })
-      .prefault({}),
+    documents: z.strictObject({ keep_days: z.int().positive().default(30) }).prefault({}),
     /** How long a note about work that is gone is still told to anybody (`notesToRetire`). */
     notes: NotesConfigSchema,
     /**
@@ -725,6 +722,8 @@ export const ConfigSchema = z
      */
     prices: z.record(z.string().min(1), ModelPriceSchema).default({}),
     projects: z.record(z.string().regex(/^[a-z0-9][a-z0-9-]*$/), ProjectConfigSchema).default({}),
+    /** Other machines' Tades this one is an owner of, by name (`remotes.ts`). */
+    remotes: RemotesSchema,
     /**
      * The MCP servers this machine is set up to reach, by name. One that
      * somebody turns on becomes an extension whose tools are that server's

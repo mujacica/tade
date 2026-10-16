@@ -105,7 +105,9 @@ Three answers and no fourth:
 - **`never`** is everything that widens what an agent may do, hands a third party tools or a
   credential, changes who is asked, or changes where Tade sends something — `approvals`, `accounts`
   and `workers.accounts`, a route's `provider`, the whole of `extensions` and `mcp`,
-  `orchestrator.extensions`, `telemetry.dsn`, and a project's `root`. Each is a **subtree** and not
+  `orchestrator.extensions`, `telemetry.dsn`, a project's `root`, and the whole of `remotes` (another
+  machine this one drives, with a session that is your keyboard there: `core/src/remotes.ts`, written
+  only by `tade remote add`). Each is a **subtree** and not
   a key, which is the whole point: a key added under one of them is refused on the day it is added,
   by somebody who never read this file. Never add a lone `never` entry where a subtree is what you
   mean.

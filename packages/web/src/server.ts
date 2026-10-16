@@ -27,6 +27,7 @@ import { carryPairing } from './paired.ts'
 import { Passkeys } from './passkeyed.ts'
 import { passkeyStanding } from './passkeys.ts'
 import { type Sink, Streams } from './peers.ts'
+import { carryPresence } from './presence.ts'
 import { carryPush } from './pushed.ts'
 import { Receipts } from './receipts.ts'
 import { fromSource, watchFolder } from './reloading.ts'
@@ -355,6 +356,10 @@ export function webServer(opts: ServerOptions): WebServer {
       case 'passkey challenge':
       case 'passkey answer': {
         const said = await passkeys.carry(found.route.name, at, device, asking.origin ?? '')
+        return 'refusal' in said ? answer(res, said.refusal) : json(res, said.body)
+      }
+      case 'presence': {
+        const said = await carryPresence(req, device, now(), opts.present)
         return 'refusal' in said ? answer(res, said.refusal) : json(res, said.body)
       }
       default:

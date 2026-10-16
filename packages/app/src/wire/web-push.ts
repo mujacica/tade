@@ -643,6 +643,8 @@ export interface Pushed {
   devices: () => readonly Device[]
   /** One line for the journal, through the window's own writer. */
   tell: (told: Parameters<Pushes['tell']>[0]) => void
+  /** When an owner's link last said a key was pressed at another of the person's screens. */
+  presentAt: () => number | null
 }
 
 /**
@@ -689,9 +691,16 @@ export function pushFor(
       const held = away.devices().find((one) => one.id === device && one.revoked === null)
       return held === undefined ? null : rootOf(held.host)
     },
-    lastInputAt: () => wire.state.lastInputAt,
+    // A key here, or one at another of the person's screens (`@tade/web`'s
+    // `presence.ts`): either is somebody at a keyboard of theirs.
+    lastInputAt: () => newest(wire.state.lastInputAt, away.presentAt()),
     writeKey: deps.writeKey,
     tell: away.tell,
     now: () => wire.now(),
   })
+}
+
+/** The later of two moments, where either may be unknown. */
+function newest(a: number | null, b: number | null): number | null {
+  return a === null ? b : b === null ? a : Math.max(a, b)
 }

@@ -1,0 +1,346 @@
+import { createHash } from 'node:crypto'
+import { existsSync } from 'node:fs'
+import { mkdir } from 'node:fs/promises'
+import { join } from 'node:path'
+import { type RequiredProgram, runProgram, runtimeDir } from '@tade/core'
+import {
+  DIAL_MS,
+  type Door,
+  LinkError,
+  type LinkOptions,
+  linkOver,
+  type OwnerSession,
+  type PairAt,
+  type Reaching,
+  type Remote,
+  type RemoteLink,
+} from '@tade/remotes-core'
+
+// A RemoteLink over SSH: the one way there is to reach another machine's Tade
+// today (REMOTE-TADE.md §2.5, §4.1).
+//
+// **One connection per remote, and everything rides it.** A ControlMaster is
+// started once (`ssh -M -f -N`) with a forward from a Unix socket here to the
+// remote's loopback listener, and the away stream, every presence and every
+// later session — an attached terminal, a `git fetch` — go through that one
+// connection: a fresh SSH session is seven to nine round trips to a shell, and
+// one over a live master is one or two.
+//
+// **The forward ends in a Unix socket, not a port.** A TCP port on loopback is
+// open to every user of this machine; a socket made `0600` in a `0700` folder
+// (`StreamLocalBindMask`, `runtimeDir`) is open to you. What reaches the
+// remote through it is an owner session, which is your keyboard there, so the
+// door to it should be no wider than your own files.
+//
+// **It never asks anybody anything.** `BatchMode` is on for every connection,
+// because the window draws on the thread that would wait for an answer and
+// there is nobody at a terminal to give one: a key that needs a passphrase not
+// in the agent, a host key never seen, a password — each fails at once with
+// ssh's own words and what to run once by hand. A key that needs a touch still
+// works: a touch is not a prompt.
+//
+// **What it runs is shaped before it gets here** (`@tade/core`'s `remotes.ts`):
+// a destination never starts with `-`, and the remote command is one word. Both
+// are checked again here, because this is where they become arguments, and the
+// label a remote shell reads is quoted.
+
+export interface SshOptions extends LinkOptions {
+  /** The ssh to run. `ssh` on PATH unless a test names another. */
+  ssh?: string
+  /** Put before everything else: a test's `-F <config>`, which is where its keys are. */
+  args?: readonly string[]
+  /** The environment ssh runs with. Tade's own when not given. */
+  env?: Readonly<Record<string, string | undefined>>
+}
+
+export const SSH_PROGRAM: RequiredProgram = {
+  command: 'ssh',
+  title: 'OpenSSH',
+  why: 'reaching another machine’s Tade, and pairing with one',
+  versionArgs: ['-V'],
+  // Every Mac has one, and so does nearly every Linux with a shell on it.
+  install: { apt: 'openssh-client', dnf: 'openssh-clients', instead: 'macOS ships with it' },
+}
+
+/** What every connection is held to: never asks, notices a dead link in ten seconds. */
+const QUIET = [
+  '-o',
+  'BatchMode=yes',
+  '-o',
+  'ConnectTimeout=10',
+  '-o',
+  'ServerAliveInterval=5',
+  '-o',
+  'ServerAliveCountMax=2',
+]
+
+/** How long pairing or signing out may take: a connection, a sign-in, and a short command there. */
+const ASK_MS = 30_000
+
+export function makeSshLink(options: SshOptions): RemoteLink {
+  const ssh = new Ssh(options)
+  return linkOver(
+    {
+      id: 'ssh',
+      capabilities: { pairs: true },
+      programs: [SSH_PROGRAM],
+      pair: (at) => ssh.pair(at),
+      unpair: (remote) => ssh.unpair(remote),
+      reaching: (remote) => ssh.reaching(remote),
+    },
+    options,
+  )
+}
+
+/** A destination ssh reads as a destination, never as an option. */
+export function destinationOk(address: string): boolean {
+  return /^(?:ssh:\/\/)?[A-Za-z0-9_][A-Za-z0-9._@:-]*$/.test(address)
+}
+
+/** One word a remote shell reads as a command: no space, no quote, nothing it would expand but `~`. */
+export function commandOk(command: string): boolean {
+  return /^[A-Za-z0-9_~./+][A-Za-z0-9_~./+-]*$/.test(command)
+}
+
+/** A value as one argument to a remote shell. */
+export function quoted(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
+}
+
+/** The arguments that start a master with its forward, for one remote. */
+export function masterArgs(paths: Paths, port: number, address: string): string[] {
+  return [
+    '-M',
+    '-S',
+    paths.control,
+    '-f',
+    '-N',
+    '-T',
+    ...QUIET,
+    '-o',
+    'ExitOnForwardFailure=yes',
+    '-o',
+    'StreamLocalBindUnlink=yes',
+    '-o',
+    'StreamLocalBindMask=0177',
+    '-L',
+    `${paths.forward}:127.0.0.1:${port}`,
+    '--',
+    address,
+  ]
+}
+
+/** Where one remote's master listens for this home's ssh, and where its forward ends. */
+export interface Paths {
+  control: string
+  forward: string
+}
+
+/**
+ * Short and per home, because a Unix socket's path is capped near 104 bytes
+ * and a runtime folder under macOS's temp is half of that already: the name is
+ * a hash, the port is in the forward's so a remote that moved its listener is a
+ * new forward rather than an old one pointing at nothing.
+ */
+export function pathsFor(home: string, remote: string, port: number): Paths {
+  const control = controlOf(home, remote)
+  return { control, forward: control.replace(/\.ctl$/, `-${port}.sock`) }
+}
+
+/** Where one remote's master listens, whatever port its forward reaches. */
+function controlOf(home: string, remote: string): string {
+  const short = createHash('sha1').update(remote).digest('hex').slice(0, 8)
+  return join(runtimeDir(home), `r-${short}.ctl`)
+}
+
+class Ssh {
+  private readonly options: SshOptions
+
+  constructor(options: SshOptions) {
+    this.options = options
+  }
+
+  private run(args: readonly string[], timeoutMs: number) {
+    return runProgram(this.options.ssh ?? 'ssh', [...(this.options.args ?? []), ...args], {
+      timeoutMs,
+      ...(this.options.env === undefined ? {} : { env: this.options.env }),
+    })
+  }
+
+  /** Run `tade web pair --owner` there, and read back what it printed once. */
+  async pair(at: PairAt): Promise<OwnerSession> {
+    checked(at.address, at.tade)
+    const ran = await this.run(
+      [
+        ...QUIET,
+        '--',
+        at.address,
+        `${at.tade} web pair --owner --json --label ${quoted(at.label.slice(0, 120))}`,
+      ],
+      ASK_MS,
+    )
+    trouble(ran, at.address, at.tade)
+    return sessionIn(ran.stdout, at.address)
+  }
+
+  /** Run `tade web revoke <device>` there. */
+  async unpair(remote: Remote): Promise<void> {
+    checked(remote.address, remote.tade)
+    if (!/^[0-9a-f]{8,64}$/.test(remote.session.device)) {
+      throw new LinkError('failed', 'that is not a device id this link would pass to a shell')
+    }
+    const ran = await this.run(
+      [...QUIET, '--', remote.address, `${remote.tade} web revoke ${remote.session.device}`],
+      ASK_MS,
+    )
+    trouble(ran, remote.address, remote.tade)
+  }
+
+  reaching(remote: Remote): Reaching {
+    // Worked out at each dial and never here, so a session that cannot be
+    // linked is a link that is down with the reason, not an `open` that threw.
+    const paths = () => pathsFor(this.options.home, remote.name, portOf(remote.session.host))
+    // One turn at a time, per remote: a wake that drops the master while a dial
+    // is still signing in would otherwise start a second master over the first.
+    // Each caller gets its own answer, failure included; the turn only orders.
+    let turn: Promise<void> = Promise.resolve()
+    const inTurn = async <T>(work: () => Promise<T>): Promise<T> => {
+      const before = turn
+      let done = () => {}
+      turn = new Promise((resolve) => {
+        done = resolve
+      })
+      await before
+      try {
+        return await work()
+      } finally {
+        done()
+      }
+    }
+    return {
+      reach: () => inTurn(() => this.up(remote, paths(), portOf(remote.session.host))),
+      drop: () => inTurn(() => this.down(remote, controlOf(this.options.home, remote.name))),
+    }
+  }
+
+  /** The master, up with its forward: the one already running, or a new one. */
+  private async up(remote: Remote, paths: Paths, port: number): Promise<Door> {
+    checked(remote.address, remote.tade)
+    const door = { socketPath: paths.forward }
+    const check = await this.run(['-S', paths.control, '-O', 'check', '--', remote.address], 5_000)
+    if (check.code === 0 && existsSync(paths.forward)) return door
+    // Alive without its forward is a master somebody else started on this
+    // path, or one whose forward was taken away: neither is ours to trust.
+    if (check.code === 0) await this.down(remote, paths.control)
+    await mkdir(join(paths.control, '..'), { recursive: true, mode: 0o700 })
+    const ran = await this.run(masterArgs(paths, port, remote.address), DIAL_MS - 5_000)
+    trouble(ran, remote.address, remote.tade)
+    return door
+  }
+
+  /** Let the master go, if there is one. Nothing is said: there may be none. */
+  private async down(remote: Remote, control: string): Promise<void> {
+    if (!destinationOk(remote.address)) return
+    await this.run(['-S', control, '-O', 'exit', '--', remote.address], 5_000)
+  }
+}
+
+function checked(address: string, tade: string): void {
+  if (!destinationOk(address)) {
+    throw new LinkError(
+      'failed',
+      `${JSON.stringify(address)} is not an SSH destination this link would run`,
+    )
+  }
+  if (!commandOk(tade)) {
+    throw new LinkError(
+      'failed',
+      `${JSON.stringify(tade)} is not one word a remote shell would read as a command`,
+    )
+  }
+}
+
+function portOf(host: string): number {
+  const port = Number(/^localhost:(\d{1,5})$/.exec(host)?.[1] ?? Number.NaN)
+  if (!Number.isInteger(port) || port <= 0 || port > 65_535) {
+    throw new LinkError(
+      'failed',
+      `a session bound to ${host} is not one for a remote’s own listener`,
+    )
+  }
+  return port
+}
+
+/**
+ * What a run came to, thrown as the sentence to act on — or nothing, for a run
+ * that worked.
+ *
+ * ssh's own exit is 255; anything else is the remote command's. The last line
+ * of ssh's own complaint is the one that says why, so it is the one kept, and
+ * the three that somebody can fix with one command by hand say that command.
+ */
+function trouble(
+  ran: { code: number; stderr: string; timedOut: boolean; missing: boolean },
+  address: string,
+  tade: string,
+): void {
+  if (ran.missing) throw new LinkError('missing', 'there is no ssh on this machine')
+  if (ran.timedOut) throw new LinkError('timed out', `${address} did not answer in time`)
+  if (ran.code === 0) return
+  const said = lastLine(ran.stderr)
+  if (ran.code === 255) {
+    if (/host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED/i.test(ran.stderr)) {
+      throw new LinkError(
+        'failed',
+        `${said} — run \`ssh ${address}\` once in a terminal to see and accept its host key`,
+      )
+    }
+    if (/permission denied|passphrase|password/i.test(ran.stderr)) {
+      throw new LinkError(
+        'failed',
+        `${said} — a key this link may use without asking (in the agent, or one needing a touch) is what it needs`,
+      )
+    }
+    throw new LinkError('failed', said === '' ? `ssh could not reach ${address}` : said)
+  }
+  if (ran.code === 127) {
+    throw new LinkError(
+      'missing',
+      `there, \`${tade}\` or the node it runs on is not on the PATH a command over SSH gets — name its whole path with --tade, or put both on the PATH in that machine’s ~/.zshenv or ~/.bashrc`,
+    )
+  }
+  throw new LinkError('failed', said === '' ? `${tade} there exited ${ran.code}` : `there: ${said}`)
+}
+
+function lastLine(text: string): string {
+  const lines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '' && !/^Warning: Permanently added/.test(line))
+  return (lines.at(-1) ?? '').slice(0, 300)
+}
+
+/** The session `tade web pair --owner --json` printed: the credential alone, on standard output. */
+export function sessionIn(stdout: string, address: string): OwnerSession {
+  let value: Record<string, unknown>
+  try {
+    value = JSON.parse(stdout) as Record<string, unknown>
+  } catch {
+    throw new LinkError(
+      'missing',
+      `what answered on ${address} did not print an owner session: it needs a Tade with \`tade web pair --owner\`, which 0.2.3 does not have`,
+    )
+  }
+  const cookie = typeof value.cookie === 'string' ? value.cookie.replace(/^[^=]*=/, '') : ''
+  const { device, csrf, host } = value
+  if (
+    typeof device !== 'string' ||
+    typeof csrf !== 'string' ||
+    typeof host !== 'string' ||
+    !/^localhost:\d{1,5}$/.test(host) ||
+    !cookie.startsWith(`${device}.`)
+  ) {
+    throw new LinkError('failed', `${address} printed something that is not an owner session`)
+  }
+  return { device, cookie, csrf, host }
+}

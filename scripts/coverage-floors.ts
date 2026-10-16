@@ -107,6 +107,13 @@ export const FLOOR: Record<string, number> = {
   'packages/extensions/deps': 91,
   'packages/mcp/stdio': 91,
   'packages/drivers/tmux': 92,
+  // 94.9 when it came in, driven over both links by the conformance suite: what
+  // is uncovered is the follower's rarer failures (a presence refused, a frame
+  // past every bound), which a far end that behaves never sends.
+  'packages/remotes/core': 92,
+  // 86 with no `sshd` here and 100 with one (`MOVES`), so the floor is the
+  // lower: a floor has to be true on every machine that runs it.
+  'packages/remotes/ssh': 84,
   'packages/voice/tts': 96,
   // 93 -> 94 when the emulators moved to a thread of their own and read
   // 96.4: what a frame promises is held in place by `emulator.test.ts`, and the
@@ -135,6 +142,7 @@ export const FLOOR: Record<string, number> = {
   'packages/checks/local': 99,
   'packages/judges/scripted': 99,
   'packages/mcp/scripted': 99,
+  'packages/remotes/scripted': 98,
 }
 
 /**
@@ -160,6 +168,10 @@ export const FLOOR: Record<string, number> = {
 export const MOVES: Record<string, string> = {
   'packages/harnesses/claude': 'its live-lane tests run only where Claude Code is installed',
   'packages/orchestrator': 'claude.test.ts runs only where Claude Code is installed',
+  // 86% with no `sshd` to link through, 100% on a machine that can run one as
+  // an ordinary user: the master and its forward are only ever driven for real.
+  'packages/remotes/ssh':
+    'its conformance suite runs only where an sshd will start as the person running it',
 }
 
 /**
@@ -213,6 +225,7 @@ export const UNSEEN: Record<string, string> = {
   'packages/cli/src/commands/notes.ts': 'a command of the binary',
   'packages/cli/src/commands/proposals.ts': 'a command of the binary',
   'packages/cli/src/commands/queue.ts': 'a command of the binary',
+  'packages/cli/src/commands/remote.ts': 'a command of the binary',
   'packages/cli/src/commands/schedules.ts': 'a command of the binary',
   'packages/cli/src/commands/setup.ts': 'a command of the binary',
   'packages/cli/src/commands/setup-facts.ts': 'a command of the binary',
@@ -294,6 +307,7 @@ export const LOADED: Record<string, number> = {
   'packages/cli/src/commands/notes.ts': 1,
   'packages/cli/src/commands/proposals.ts': 2,
   'packages/cli/src/commands/queue.ts': 3,
+  'packages/cli/src/commands/remote.ts': 1,
   'packages/cli/src/commands/schedules.ts': 1,
   'packages/cli/src/commands/setup.ts': 1,
   'packages/cli/src/commands/spend.ts': 1,

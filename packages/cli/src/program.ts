@@ -61,6 +61,7 @@ export const COMMANDS: readonly { names: readonly string[]; load: () => Promise<
   { names: ['summary'], load: async () => (await import('./commands/summary.ts')).registerSummary },
   { names: ['voice'], load: async () => (await import('./commands/voice.ts')).registerVoice },
   { names: ['web'], load: async () => (await import('./commands/web.ts')).registerWeb },
+  { names: ['remote'], load: async () => (await import('./commands/remote.ts')).registerRemote },
   { names: ['update'], load: async () => (await import('./commands/update.ts')).registerUpdate },
   { names: ['host'], load: async () => (await import('./commands/host.ts')).registerHost },
   {

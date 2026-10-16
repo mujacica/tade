@@ -23,6 +23,7 @@
     "@tade/mcp-broker": "workspace:*",
     "@tade/mcp-core": "workspace:*",
     "@tade/orchestrator": "workspace:*",
+    "@tade/remotes-core": "workspace:*",
     "@tade/status": "workspace:*",
     "@tade/telemetry": "workspace:*",
     "@tade/voice-core": "workspace:*",

@@ -76,7 +76,8 @@ a device still has none of the scopes that change anything until somebody at thi
 | who is listening, and what they are sent | `src/peers.ts` — pure, over a `Sink`; the caps, the fan-out, the backpressure, the stall |
 | what a request *is* | `src/request.ts` — reading an `IncomingMessage`, and every bound on one |
 | what a request must satisfy | `src/guard.ts` — pure, and `test/guard.test.ts` runs the cross-product |
-| a route only this machine may reach (the pages that connect a source) | `Route.here` — `allowed` answers it the `404` of a path nobody built anywhere but `thisMachine` |
+| a route only this machine may reach (`presence`, and the pages that connect a source) | `Route.here` — `allowed` answers it the `404` of a path nobody built anywhere but `thisMachine` |
+| another machine's Tade linked to this one as an owner (`tade remote`) | `@tade/remotes-core` (the `RemoteLink` port, the stream follower, the far end its suite links to) — the client half of everything in this table, over SSH; `add-workspace-driver` has its shape. What it posts here is `presence` (`src/presence.ts`): an owner's age of a keypress at another screen, held by the window (`presentAt` in `wire/web.ts`) and read as one by push, never written down |
 | the public listener: Caddy's socket, its directory, the PROXY header | `src/listeners.ts` (every socket one server listens on, `dirSeen`, `answering`), `src/proxied.ts` (the header read before HTTP, `peerOf`), `src/proxy-protocol.ts` (pure: what the bytes are), and `public-listener.ts` in `@tade/core` (the directory, the socket, `caddySite`, what a health look says); `test/public.test.ts` is all of it over a real socket |
 | the public listener's health: the certificate, Tade behind | `packages/app/src/wire/web-public.ts` (`PublicHealth`, on clocks of its own), `@tade/workbench/certificate` (one handshake), `tade host caddy --check` (`packages/cli/src/commands/host-caddy.ts`) |
 | what a device may read | `src/reach.ts` (the grants), `src/surface.ts`'s `reachOf` (the seam) |
@@ -124,7 +125,8 @@ a device still has none of the scopes that change anything until somebody at thi
   is laid out in quirks mode and `document.scrollingElement` is the body. Where each part lands is
   `scripts/browser-frame.ts`'s.
 - **No route in `ROUTES` mutates a project or a task.** The non-`GET` routes there are session
-  lifecycle — this browser's own credential, created, destroyed and proved with its passkey — and
+  lifecycle — this browser's own credential, created, destroyed and proved with its passkey, and an
+  owner saying the person is at another of their screens (`presence`, `here`, never written) — and
   `test/routes.test.ts` asserts that set is exactly `LIFECYCLE` **by name**. Another fails the test
   until somebody puts it there deliberately, which is the conversation the rule is for.
 - **From the public listener, anything above `read` needs a passkey proved within

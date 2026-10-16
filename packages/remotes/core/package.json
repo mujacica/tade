@@ -1,0 +1,17 @@
+{
+  "name": "@tade/remotes-core",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./conformance": "./src/conformance.ts",
+    "./far": "./src/far.ts"
+  },
+  "dependencies": {
+    "@tade/core": "workspace:*",
+    "@tade/web": "workspace:*",
+    "vitest": "^5.0.4"
+  }
+}

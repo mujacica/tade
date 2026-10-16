@@ -198,6 +198,8 @@ export async function start(
     publicSocket?: string
     /** The server's clock, for a test that has to move it: a passkey's hours, a pairing's minutes. */
     now?: () => number
+    /** Where an owner's presence goes, for a test that reads it. */
+    present?: (device: string, at: number) => void
   } = {},
 ): Promise<Running> {
   settingRows = opts.settings ?? []
@@ -238,6 +240,7 @@ export async function start(
     ...(opts.confirmMs === undefined ? {} : { confirmMs: opts.confirmMs }),
     ...(opts.publicSocket === undefined ? {} : { publicSocket: opts.publicSocket }),
     ...(opts.now === undefined ? {} : { now: opts.now }),
+    ...(opts.present === undefined ? {} : { present: opts.present }),
   })
   epoch = one.server.epoch
   one.epoch = epoch

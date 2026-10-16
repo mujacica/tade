@@ -637,8 +637,9 @@ describe('this machine is the loopback listener and a loopback Host, both', () =
 })
 
 describe('a route for this machine alone', () => {
-  // No route is one yet: the pages that connect a source will be, which must
-  // answer only through SSH (REMOTE-TADE §6.4). So this is the shell, marked.
+  // `presence` is one (`presence.test.ts` sends it), and the pages that
+  // connect a source will be, which must answer only through SSH (REMOTE-TADE
+  // §6.4). So this is the shell, marked, as the shape every one of them has.
   const SETUP: Route = { ...SHELL, name: 'setup', path: '/setup', here: true }
   const MINE = guarding({ bound: ['127.0.0.1', '::1'] })
 

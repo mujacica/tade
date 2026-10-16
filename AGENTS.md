@@ -19,7 +19,7 @@ in its `.claude/skills/` recipe, or in a test. **Finishing work does not mean ap
   package). This is what the `tests` check runs.
 - `pnpm exec biome check --write .` formats and fixes; `pnpm tade <args>` runs the CLI from source.
 - `pnpm test:smoke` — the domain, and the tests that hold this repository to its own word. A second or
-  two, and what the pre-commit hook runs.
+  two.
 - `TADE_LIVE=1 pnpm vitest run packages/orchestrator/test/live.test.ts` — the only test that uses a
   real model, and the only evidence a model can pick the right tool from the descriptions we wrote.
   Costs money, skipped by default; `pnpm release` refuses without a green receipt for HEAD.
@@ -390,11 +390,12 @@ Recipes: `set-up-the-machine` and `cut-a-release`.
 
 ## Where things go
 
-Every subsystem is a folder under `packages/` whose `core` holds the port and the conformance suite,
-with the siblings implementing it: `drivers/*` (`WorkspaceDriver` — `pty`, `tmux`), `harnesses/*`
+Every subsystem is a folder under `packages/`, its `core` the port and conformance suite and its
+siblings the implementations: `drivers/*` (`WorkspaceDriver` — `pty`, `tmux`), `harnesses/*`
 (`WorkerAdapter` — pi, Claude Code, Codex), `voice/*`, `judges/*` (`jev` answers), `forges/*`
-(`github`), `checks/*` (`Runner`), `mcp/*` (`McpTransport`, naming, the broker), `extensions/core`
-(`TadeExtension` and its host) and `telemetry` (`Reporter`). Most have a `scripted` sibling for tests.
+(`github`), `checks/*` (`Runner`), `mcp/*` (`McpTransport`, naming, the broker), `remotes/*`
+(`RemoteLink` — `ssh`), `extensions/core` (`TadeExtension`, its host), `telemetry` (`Reporter`). Most
+have a `scripted` sibling for tests.
 
 The rest: `core` is the domain (object model, state machine, config, policy, memory, prompts);
 `status` observes reality; `workbench` is what Tade holds while open (lanes, journal, notes, agents);

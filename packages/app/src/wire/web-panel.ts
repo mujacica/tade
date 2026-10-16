@@ -265,6 +265,7 @@ function deviceViews(facts: PanelFacts): AwayDevice[] {
       from: one.owner ? 'over SSH' : whereFrom(one.from, one.host, MACHINE),
       owner: one.owner,
       ...(one.passkey === null ? {} : { passkey: one.passkey.proved }),
+      ...(readsOnly(one, facts.surface) ? { readsOnly: true as const } : {}),
       pairedAt: one.pairedAt,
       reads: readsOf(reachOf(one)),
       // Each box ticked by the table that says what pressing it writes (`BOXES`).
@@ -280,6 +281,19 @@ function deviceViews(facts: PanelFacts): AwayDevice[] {
         SCOPES.every((scope) => one.scopes.includes(scope)),
       live: facts.live.has(one.id),
     }))
+}
+
+/**
+ * A device that may act and cannot, from where it paired: bound to the public
+ * name, which asks for a passkey before anything above `read` (`proven`), and
+ * with none — it missed the minutes after pairing in which one is made. The
+ * host it is bound to is the listener it paired on: the public listener refuses
+ * this machine's own names, and the loopback one is never asked.
+ */
+function readsOnly(one: Device, surface: Surface): boolean {
+  if (one.passkey !== null || surface.passkeyMs <= 0 || surface.publicName === null) return false
+  const host = one.host.toLowerCase().replace(/:443$/, '')
+  return host === surface.publicName && one.scopes.some((scope) => scope !== 'read')
 }
 
 /**

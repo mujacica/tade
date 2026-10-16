@@ -487,6 +487,27 @@ export const EventType = z.enum([
    * sentence in it.
    */
   'web_pushed',
+  // other machines' Tades this one is an owner of (`remotes.ts`)
+  /**
+   * The link to a remote came up: which remote, the server lifetime it
+   * reached (its `epoch`), and whether what was held could be caught up
+   * (`resumed`) or a whole projection came instead.
+   *
+   * **Transitions and never samples.** A link that is down redials on every
+   * beat until it is back, and none of those tries is a line: the journal says
+   * when it came up and when it went, which is what "was the VPS reachable last
+   * night?" is asking. Nothing the remote sent is in it — its projection is
+   * that machine's journal, folded there, and copying any of it here would be
+   * two truths about one machine.
+   */
+  'remote_linked',
+  /**
+   * The link to a remote went down, or was ended: which remote, `state`
+   * (`down`, and it is being redialled; `ended`, and it is not, because the
+   * remote said this machine's session is over), and why in Tade's words or
+   * the remote's own.
+   */
+  'remote_unlinked',
   // you
   /** A line you said or typed to Tade, verbatim: what up and ctrl+r bring back. */
   'said',
@@ -645,6 +666,11 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // person has already been interrupted by the notification itself, so an
   // earcon here is the same news twice.
   web_pushed: 'routine',
+  // Routine: a laptop's lid closing is a link going down, every evening, and
+  // nobody needs an earcon for it. What somebody has to act on — the remote
+  // signed this machine out — is said in the strip as it happens.
+  remote_linked: 'routine',
+  remote_unlinked: 'routine',
   said: 'routine',
   tade_opened: 'notable',
   tade_closing: 'notable',

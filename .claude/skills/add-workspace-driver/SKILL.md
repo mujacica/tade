@@ -1,6 +1,6 @@
 ---
 name: add-workspace-driver
-description: Add a new WorkspaceDriver (tmux, ghostty, kitty, wezterm, zellij, container) or change the driver port. Use when lanes should live somewhere other than Tade's own PTYs.
+description: Add a new WorkspaceDriver (tmux, ghostty, kitty, wezterm, zellij, container) or change the driver port, or add or change a RemoteLink (how this machine's Tade reaches another machine's — ssh, scripted), which is shaped the same way. Use when lanes should live somewhere other than Tade's own PTYs, or when another machine's Tade should be reached some other way or is linked wrongly.
 ---
 
 # Adding a WorkspaceDriver
@@ -175,3 +175,61 @@ backend that is a separate program rather than a library:
 If the backend needs a native module, check it works under pnpm's layout before building on it.
 node-pty's `spawn-helper` loses its executable bit during extraction, which is why
 `scripts/fix-pty-permissions.mjs` runs on postinstall.
+
+## A RemoteLink is the same shape
+
+`packages/remotes/core` is the other port this recipe covers: how this machine's Tade reaches
+another machine's, as an owner device of its away view (REMOTE-TADE.md §2.5). One object holds any
+number of remotes the way a driver holds any number of lanes; the registry is `REMOTE_LINKS` in
+`@tade/workbench/remotes` (the lowest package both the window and the CLI depend on); capabilities
+are declared (`pairs`); and `@tade/remotes-core/conformance` is the suite, run against **far ends
+that are real away views** (`@tade/remotes-core/far`: `@tade/web`'s own listener in a home of its
+own, owners minted into its device list), so a link is held to the protocol a VPS speaks and not to
+a stand-in kinder than it. The two implementations are `scripted` (far ends by name out of a table,
+over loopback) and `ssh`.
+
+- **What an implementation brings is small**: how to pair and sign out, and how to reach one
+  remote's loopback listener (`Reaching`). `linkOver` builds the rest — the stream follower, the
+  cursor, the deadlines, the backoff, the presence — once (`follow.ts`), over rules that are pure
+  (`held.ts`). An implementation may build its own; the suite holds it to the same things.
+- **Nothing a frame draws waits on it.** `open`, `beat`, `wake` and `present` return at once and
+  **never throw** — a remote that cannot be reached at all is a link that is down with the reason,
+  and `linkOver` turns a `reaching` that throws into exactly that. A dial overtaken by another (a
+  wake, a redial) is told so by its number, so a late answer never overwrites the one that replaced
+  it.
+- **The cursor is `(epoch, rev)`** and nothing reads `seq` or a byte offset; another epoch, a
+  revision past ours, a gap or a delta that will not apply is a snapshot. **A held projection is
+  never emptied by trouble** — down keeps it and its age (`heardAt`, this machine's clock).
+- **Read a frame for its shape, not field by field** (`readSnapshot`): the away protocol adds a
+  field without moving its version, and two machines are two installs, so a strict parse is a link
+  that breaks the morning one of them updated. Only another `v` is refused, with "update the older".
+- **Ended is not down.** A `204` or `401` on the stream, or a `revoked` frame, is the remote saying
+  this machine's session is over, and nothing redials it; only pairing again changes that.
+- **Presence goes as an age, never a moment**, because the two clocks are two clocks, and only
+  when it is new, no oftener than `PRESENCE_EVERY_MS` (`@tade/web`'s `presence.ts` is the far half).
+- **The window writes transitions, not tries** (`wire/remotes.ts`): `remote_linked` once it holds a
+  cursor, `remote_unlinked` down or ended, nothing for a redial — and `tade remote status` folds those
+  lines (`linksSeen`) rather than asking the window.
+
+What the ssh link turned out to need, each held by its tests:
+
+- **One ControlMaster per remote, started with `-f`**, which exits 0 only once it has signed in and
+  bound its forward (`ExitOnForwardFailure`) and lets go of its pipes, so `runProgram` can wait on it
+  with a deadline. `-O check` finds one a crashed window left; `-O exit` lets one go.
+- **The forward ends in a Unix socket made `0600`** (`StreamLocalBindMask=0177`, in the home's
+  `runtimeDir`), not a loopback port every user of the machine can open — what goes through it is
+  your keyboard on the other machine. `StreamLocalBindUnlink` clears the one a dead master left. The
+  paths are hashes, because a socket path is capped near 104 bytes.
+- **`BatchMode` always**: there is nobody at a terminal to answer, so a host key never seen or a key
+  with a passphrase fails at once with ssh's own words and the one command to run by hand.
+- **One turn at a time per remote**: a wake that drops the master while a dial is signing in would
+  start a second master over the first.
+- **A command over SSH gets the system's PATH**, without the profile that put a version manager's
+  `bin` on it — `tade` and the `node` it runs on are `command not found` there unless named whole
+  (`--tade`, `remotes.<name>.tade`), and the destination and the command are refused at the schema
+  for anything but their shape, because one becomes an argument to `ssh` and the other a word a
+  remote shell reads.
+- **Tested against a real `sshd`** run as the person running the suite (`test/sshd.ts`: keys made
+  for the run, a client config, one real login before anything counts), and skipped with the reason
+  where none will start — so its coverage moves with the machine (`MOVES`).
+

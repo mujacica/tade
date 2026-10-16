@@ -187,6 +187,12 @@ export interface ServerOptions {
    * of the config where every other key lives.
    */
   vapid?: () => string
+  /**
+   * Somebody is at another of their screens: an owner's link said when a key
+   * was last pressed there, as a moment in this machine's clock
+   * (`presence.ts`). Absent, the route is the `404` of a path nobody wired.
+   */
+  present?: (device: string, at: number) => void
   /** The tickets the pairing panel minted. */
   tickets: Tickets
   /**

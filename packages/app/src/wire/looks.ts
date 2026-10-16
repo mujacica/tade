@@ -1,4 +1,5 @@
 import { ECHO_OWED_MS, lookWait, printedWait, SLOW_LOOK_MS } from '../pace.ts'
+import type { AppOptions } from './context.ts'
 
 // When the window looks at the lanes in front of it, one look at a time.
 //
@@ -147,4 +148,28 @@ export class Looks {
       this.soon = () => clearTimeout(at)
     }
   }
+}
+
+/**
+ * What a slow look is reported as (`add-reporter`): how much the window had in
+ * front of it, which is what tells a busy machine from a window with too much
+ * to look at.
+ */
+export function slowLook(
+  opts: Pick<AppOptions, 'report' | 'client' | 'config'>,
+  tasks: number,
+  startedAt: number,
+): void {
+  opts.report
+    ?.doing({
+      name: 'a look at the tasks',
+      op: 'tade.look',
+      startedAt,
+      attributes: {
+        'tade.tasks': tasks,
+        'tade.agents': opts.client.runs().length,
+        'tade.projects': Object.keys(opts.config.projects).length,
+      },
+    })
+    .end()
 }

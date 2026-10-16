@@ -63,6 +63,19 @@ describe('what no words reach', () => {
     expect(settingReach('telemetry.driver').reach).toBe('asked')
   })
 
+  it('refuses every key of a remote, the ones there are and the next one', () => {
+    // Where it is, what runs there and the session that is your keyboard on
+    // it: a page I read pointing this machine at another, or handing it a
+    // session, is the whole of what the subtree is for.
+    for (const path of [
+      'remotes.vps.ssh',
+      'remotes.vps.tade',
+      'remotes.vps.session',
+      'remotes.vps.next',
+    ])
+      expect(settingReach(path).reach, path).toBe('never')
+  })
+
   it('refuses moving a project, and allows the rest of its block', () => {
     expect(settingReach('projects.checkout.root').reach).toBe('never')
     expect(settingReach('projects.checkout.brief').reach).toBe('asked')
@@ -291,6 +304,7 @@ describe('the shape of the rule', () => {
       'prices',
       'projects',
       'queue',
+      'remotes',
       'surfaces',
       'telemetry',
       'workers',

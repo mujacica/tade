@@ -126,9 +126,11 @@ export interface Route {
    * SSH. Everywhere else it is the `404` of a path nobody built — the public
    * listener above all, which is the internet through Caddy.
    *
-   * No route is this yet. It is here for the pages that connect a source
-   * (REMOTE-TADE §6.4), which must answer only through SSH, so that a page
-   * like that is one word in its route rather than a rule somebody remembers.
+   * `presence` is the first: an owner's link saying the person is at another
+   * of their screens, which an owner session could only ever say through here.
+   * The pages that connect a source (REMOTE-TADE §6.4) will be the next, so
+   * that a page like that is one word in its route rather than a rule
+   * somebody remembers.
    */
   here?: true
   /**
@@ -308,6 +310,21 @@ export const ROUTES: readonly Route[] = [
     needs: 'read',
     mutates: true,
   },
+
+  // **Somebody is at another of their screens** (`presence.ts`): an owner's
+  // link saying how long ago a key was pressed there, so nothing buzzes a
+  // phone while the person sits at the Mac. Lifecycle like the passkey — this
+  // device's own word about the person holding it, written to no file and
+  // touching no project — and only on this machine's own door (`here`), which
+  // is the one door an owner session can be used at.
+  {
+    method: 'POST',
+    path: '/api/presence',
+    name: 'presence',
+    needs: 'read',
+    mutates: true,
+    here: true,
+  },
 ]
 
 /**
@@ -315,10 +332,16 @@ export const ROUTES: readonly Route[] = [
  *
  * Written out here rather than computed in the test, so that adding one is a
  * line in this file next to the argument for it. All four are session
- * lifecycle — minting one, ending one, and its passkey — and none touches a
- * project or a task.
+ * lifecycle — minting one, ending one, its passkey, and an owner saying the
+ * person is at another of their screens — and none touches a project or a task.
  */
-export const LIFECYCLE = ['pair', 'sign out', 'passkey challenge', 'passkey answer'] as const
+export const LIFECYCLE = [
+  'pair',
+  'sign out',
+  'passkey challenge',
+  'passkey answer',
+  'presence',
+] as const
 
 /**
  * The acting routes: **one path per verb**, and the table is `VERBS`.

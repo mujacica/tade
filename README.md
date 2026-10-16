@@ -675,6 +675,10 @@ Tade", then "reload" — and it is the same run, checked against what you actual
 
 Not built yet, and named here rather than anywhere above, at the part of Tade it would be built on.
 
+- **A remote's projects in the window**, under the machine they are on, with their age while its
+  link is down (`Remotes.held`, `packages/app/src/wire/remotes.ts`). The links hold every remote's
+  projection already; nothing draws one yet.
+
 - **Time from done to landed**, beside the cost per landed task on Evaluations
   (`evaluationsFrom`, `core/src/evaluations.ts`). The desk already says how long each piece of work
   has waited since it last moved, and Evaluations how long work took to finish; nothing yet folds
@@ -740,6 +744,20 @@ has stopped — and whether this Tade is behind, which the away view also says l
 public. A phone paired through the name makes a passkey right after it pairs — inside the app it
 lives in, if you added the page to the home screen — and uses it before acting from there, every
 twelve hours by default; one that missed the moment reads until it pairs again.
+
+**From your Mac**, `tade remote add vps --ssh vps` makes this machine an owner of the server's Tade:
+it runs `tade web pair --owner` there over SSH and keeps the session in `config.yaml`. Add as many
+as you have. While the window is open it holds one SSH connection to each — a forward to a socket
+only you can open — and keeps what each server says about itself current, dialling again on its
+own after a dropped network and at once when the lid opens, and tells each server when you are at
+the keyboard so its phone notifications wait. `tade remote status` says how each link last stood,
+window open or not; `tade remote remove vps` signs this machine out there. A server whose `tade`
+is not on the PATH a command over SSH gets takes `--tade <its path>`.
+
+```sh
+tade remote add vps --ssh vps   # pair as an owner over SSH; vps is a Host in ~/.ssh/config
+tade remote status              # up, down or signed out, and since when
+```
 
 macOS Terminal puts its own parts around the title Tade sets — the folder, the program and its
 arguments (`node …/pnpm.cjs run tade` under `pnpm tade`), the size — and for a title that is only
