@@ -23,6 +23,8 @@ export type StepId =
   | 'judge'
   | 'extensions'
   | 'keys'
+  /** A server: Tade kept running by the user's own service manager. See `unattended`. */
+  | 'unattended'
   /** The closing check, which is an act rather than a fact: see `worksStep`. */
   | 'works'
 
@@ -155,6 +157,29 @@ export interface ReadinessFacts {
   driverReason?: string | null
   /** Keys the extensions that are on say they still need. Absent where nobody looked. */
   keysWanted?: readonly WantedKey[]
+  /**
+   * A box with no screen whose own service manager can keep Tade running with
+   * nobody logged in — a Linux server under systemd — and whether it will.
+   * Absent anywhere else, and where nobody looked: a Mac, or a Linux desktop,
+   * is never asked about lingering.
+   */
+  unattended?: Unattended
+}
+
+/** What keeps Tade working on a server once everybody has logged out. */
+export interface Unattended {
+  /** Whose services they are. */
+  user: string
+  /**
+   * Whether the user's service manager runs from boot with nobody logged in
+   * (`loginctl enable-linger`). Without it, every user service stops at the
+   * last logout and nothing starts again until somebody logs in.
+   */
+  linger: boolean
+  /** Where the user unit that runs Tade is, when it has been written. */
+  unit: string | null
+  /** Whether this runs as root, which needs no `sudo` to turn linger on. */
+  root?: boolean
 }
 
 export interface Step {
@@ -189,7 +214,35 @@ export function readiness(facts: ReadinessFacts): Step[] {
     // After the extensions, because which keys are wanted is decided by which
     // of them are on, and that is the question just above.
     keys(facts),
+    // Last, and only on a server: what the service runs is everything above.
+    ...(facts.unattended ? [unattended(facts.unattended)] : []),
   ]
+}
+
+/** The command that keeps a user's services running with nobody logged in. */
+export function lingerCommand(box: Unattended): string {
+  return `${box.root ? '' : 'sudo '}loginctl enable-linger ${box.user}`
+}
+
+/**
+ * Tade working on a server with nobody logged in: linger on, and a user unit
+ * that runs it. Two facts and one step, because either alone keeps nothing
+ * running — a unit stops at the last logout without linger, and linger with
+ * no unit has nothing to keep. Never required: the box works without it for
+ * as long as somebody stays logged in.
+ */
+function unattended(box: Unattended): Step {
+  const missing = [
+    box.linger ? '' : `\`${lingerCommand(box)}\`, or your services stop when you log out`,
+    box.unit ? '' : '`tade host service` writes the unit that keeps Tade running',
+  ].filter(Boolean)
+  return {
+    id: 'unattended',
+    title: 'Working with nobody logged in',
+    done: missing.length === 0,
+    detail: missing.join('; '),
+    required: false,
+  }
 }
 
 /**

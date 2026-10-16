@@ -6,6 +6,7 @@ import {
   type NativeTrouble,
   writeSetting,
 } from '@tade/core'
+import { signInLasts } from '@tade/harnesses-core'
 import type { HarnessHere } from '@tade/workbench/machine'
 import type { Look } from './setup-facts.ts'
 
@@ -43,11 +44,11 @@ export async function offerInstall(
     ui.say(`  skipped — \`${command}\` when you want it`)
     return false
   }
-  const [bin, ...args] = command.split(' ')
   // In the window, like everything else: an installer handed the terminal is
   // an installer whose output you cannot see and whose questions you cannot
-  // answer, because Tade is still holding the keyboard.
-  const code = await ui.run(command, bin ?? command, args)
+  // answer, because Tade is still holding the keyboard. Through a shell, so
+  // the line that runs is the line that was shown, `&&` and all.
+  const code = await ui.run(command, '/bin/sh', ['-c', command])
   if (code !== 0) {
     ui.say(`  that did not work — run \`${command}\` yourself and try again`)
     return false
@@ -125,7 +126,8 @@ export async function signInSomewhere(
 ): Promise<void> {
   ui.say('Agents are run by a harness, and each keeps its own sign-in.')
   ui.say('Tade ships with pi and runs it unless you say otherwise:')
-  ui.say('  · one pi sign-in covers subscriptions (Claude, ChatGPT, Copilot, xAI, …)')
+  ui.say('  · one pi sign-in covers subscriptions (ChatGPT, Copilot, xAI, …) — a Claude')
+  ui.say('    subscription belongs in Claude Code: through pi, Anthropic bills it as extra usage')
   ui.say('  · or an API key for any of 30-odd providers, read from your environment')
   ui.say('  · or a local model — Ollama, llama.cpp, LM Studio, anything OpenAI-shaped')
   ui.say('Credentials stay with the harness. Tade never sees, stores or sends them.')
@@ -158,11 +160,18 @@ function couldOffer(harness: HarnessHere): boolean {
   return harness.signIn !== null || 'command' in harness.install
 }
 
-/** One line per harness: whether it runs here, and who it is signed in as. */
-export function harnessLines(harnesses: readonly HarnessHere[]): string[] {
+/**
+ * One line per harness: whether it runs here, who it is signed in as, and for
+ * how long — because on a server nobody watches, an agent that outlives its
+ * harness's sign-in stops making progress and says so only in its own lane.
+ */
+export function harnessLines(harnesses: readonly HarnessHere[], now = Date.now()): string[] {
   return harnesses.map((one) => {
     const name = `${one.id}${one.inUse ? '' : ' (nothing is set to use it)'}`
-    if (one.signedIn) return `  ✓ ${name} — signed in${one.who ? ` as ${one.who}` : ''}`
+    if (one.signedIn) {
+      const who = one.who ? ` as ${one.who}` : ''
+      return `  ✓ ${name} — signed in${who} · ${signInLasts(one.until, now)}`
+    }
     if (!one.installed) {
       const how = 'command' in one.install ? one.install.command : one.install.cannot
       return `  ○ ${name} — not installed (${how})`

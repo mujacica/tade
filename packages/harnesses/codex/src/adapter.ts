@@ -29,6 +29,8 @@ import {
   type RunId,
   reaped,
   type SignIn,
+  type SignInHere,
+  signInHere,
   WORKER_ENV,
   type WorkerAdapter,
   type WorkerCapabilities,
@@ -476,18 +478,22 @@ export class CodexAdapter implements WorkerAdapter {
 
   /**
    * Its own sign-in, in a terminal you can see: it opens your browser, and
-   * whatever it is given goes where Codex keeps it — Tade never sees it. An
-   * API-key account has nothing to sign in to: its key is kept by Tade.
+   * whatever it is given goes where Codex keeps it — Tade never sees it. With
+   * no browser here, its device-code sign-in, which is what Codex itself says
+   * to use "on a remote or headless machine". An API-key account has nothing
+   * to sign in to: its key is kept by Tade.
    */
-  signIn(): SignIn | null {
+  signIn(here: SignInHere = signInHere(this.opts.env)): SignIn | null {
     if (this.opts.account?.kind === 'api-key') return null
     return {
       launch: {
         command: this.opts.bin,
-        args: ['login'],
+        args: here.browser ? ['login'] : ['login', '--device-auth'],
         env: this.ownFolder() ? { CODEX_HOME: this.opts.codexHome } : {},
       },
-      how: 'Codex opens your browser to sign in to your ChatGPT account. If it asks, confirm the code it shows you here.',
+      how: here.browser
+        ? 'Codex opens your browser to sign in to your ChatGPT account. If it asks, confirm the code it shows you here.'
+        : 'Codex shows a link and a code: open the link on any device, sign in to your ChatGPT account and enter the code. Device-code sign-in has to be turned on first, in ChatGPT’s security settings.',
     }
   }
 

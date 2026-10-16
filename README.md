@@ -708,6 +708,15 @@ prebuilt on macOS and are compiled on Linux, which needs python3 and a C++ toolc
 whisper.cpp and ffmpeg (speech), `gh` (pull request state); setup offers to install each where you
 want it.
 
+**On a Linux server**, run the same `tade setup` over SSH. It knows the box has no screen: each
+missing program comes with its exact `apt` line, each harness signs in the way a server can —
+Claude Code's link and pasted code, Codex's device code, pi's pasted code — with how many days a
+Claude Code login has left, and it checks `loginctl enable-linger`. Then `tade host service` prints
+the systemd user unit that keeps Tade running there, writes it when you say so and offers to start
+it; the window runs in tmux, so `tmux -L tade-window attach -t tade` over SSH shows it. Set
+`workspace.driver: tmux` there: its agents then run in a systemd scope of their own, so stopping,
+restarting or upgrading Tade never ends one.
+
 macOS Terminal puts its own parts around the title Tade sets — the folder, the program and its
 arguments (`node …/pnpm.cjs run tade` under `pnpm tade`), the size — and for a title that is only
 Tade's, `⠏ tade · 2 working`, untick *Working directory or document*, *Active process name*,

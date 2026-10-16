@@ -486,6 +486,14 @@ describe('CodexAdapter', () => {
       expect(await out.account()).toMatchObject({ signedIn: false, problem: 'not signed in yet' })
     })
 
+    it('signs in by device code on a machine with no screen, as Codex itself says to', () => {
+      const one = withBin('/nonexistent/codex')
+      expect(one.signIn({ browser: true })?.launch.args).toEqual(['login'])
+      const server = one.signIn({ browser: false })
+      expect(server?.launch.args).toEqual(['login', '--device-auth'])
+      expect(server?.how).toContain('security settings')
+    })
+
     it('says Codex is not here rather than pretending it is', async () => {
       const one = withBin('/nonexistent/codex')
       const probe = await one.probe()

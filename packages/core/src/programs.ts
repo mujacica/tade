@@ -375,6 +375,11 @@ export interface InstallersHere {
    * `apt-get`, `dnf`, `npm`. Looking for them is I/O and the caller's.
    */
   managers: readonly string[]
+  /**
+   * Whether this runs as root, where the system's own manager needs no `sudo`
+   * — and where, in a container most often, there is no `sudo` to ask.
+   */
+  root?: boolean
 }
 
 /**
@@ -396,8 +401,14 @@ export function installWith(
   if (how.brew && has('brew')) {
     return { command: `brew install ${how.cask ? '--cask ' : ''}${how.brew}` }
   }
-  if (how.apt && has('apt-get')) return { command: `sudo apt-get install -y ${how.apt}` }
-  if (how.dnf && has('dnf')) return { command: `sudo dnf install -y ${how.dnf}` }
+  const sudo = machine.root ? '' : 'sudo '
+  // The package lists first: a fresh server's are stale or, in a container,
+  // absent, and `apt-get install` then fails to find a package that is there.
+  // dnf refreshes its own.
+  if (how.apt && has('apt-get')) {
+    return { command: `${sudo}apt-get update && ${sudo}apt-get install -y ${how.apt}` }
+  }
+  if (how.dnf && has('dnf')) return { command: `${sudo}dnf install -y ${how.dnf}` }
   if (how.npm && has('npm')) return { command: `npm install --global ${how.npm}` }
   if (how.instead) return { cannot: how.instead }
   const offered = [

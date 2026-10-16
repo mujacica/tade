@@ -41,7 +41,7 @@ import type { EventLog } from './events.ts'
  */
 export const drivers: Record<string, MakeDriver> = {
   pty: (_home, trouble, made) => new PtyDriver({ trouble, scrollback: made?.pty.scrollback }),
-  tmux: (home) => new TmuxDriver({ session: tmuxSession(home) }),
+  tmux: (home, trouble) => new TmuxDriver({ session: tmuxSession(home), trouble }),
 }
 
 /**

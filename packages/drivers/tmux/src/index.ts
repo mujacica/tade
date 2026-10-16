@@ -28,6 +28,7 @@ import {
   wheelBytes,
 } from '@tade/drivers-core'
 import { drawn, PANE_FORMAT, type Pane, pointingOf, readPane, scrollingOf } from './pane.ts'
+import { startServer } from './scope.ts'
 
 // tmux is invoked with an argument array and no shell. The one place a shell
 // is involved is inside tmux, which runs a lane's command and the pipe-pane
@@ -57,6 +58,10 @@ export interface TmuxDriverOptions {
   pollMs?: number
   attachCommand?: (lane: LaneId) => string
   env?: NodeJS.ProcessEnv
+  /** Where this process's cgroup is read from (`scope.ts`): for tests. */
+  cgroup?: string
+  /** Where to say what went wrong and was carried on through. */
+  trouble?: (problem: Error) => void
 }
 
 interface Lane {
@@ -165,6 +170,8 @@ export class TmuxDriver implements WorkspaceDriver {
         ((lane) =>
           `tmux -L ${opts.socket ?? DEFAULTS.socket} attach -t ${opts.session ?? DEFAULTS.session}:${windowName(lane)}`),
       env: opts.env ?? process.env,
+      cgroup: opts.cgroup ?? '/proc/self/cgroup',
+      trouble: opts.trouble ?? (() => {}),
     }
     this.dir = mkdtempSync(join(tmpdir(), 'tade-tmux-'))
   }
@@ -550,7 +557,7 @@ export class TmuxDriver implements WorkspaceDriver {
   private async ensureSession(cols: number, rows: number): Promise<void> {
     if (this.started) return
     if (!(await this.sessionExists())) {
-      await this.tmux([
+      await startServer(this.opts, (args) => this.tmux(args), [
         'new-session',
         '-d',
         '-s',

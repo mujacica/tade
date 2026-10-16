@@ -71,6 +71,14 @@ describe('PiAdapter', () => {
     }
   }, 60_000)
 
+  it('says how its sign-in goes with no browser here, and keeps a Claude subscription out of it', () => {
+    const one = new PiAdapter({ runDir: tmp('tade-pi-') })
+    const server = one.signIn({ browser: false })
+    expect(server.launch).toEqual(one.signIn({ browser: true }).launch)
+    expect(server.how).toContain('open on any device')
+    expect(server.how).toContain('A Claude subscription belongs in Claude Code')
+  })
+
   it('ships a pi binary', () => {
     expect(existsSync(piBinary())).toBe(true)
   })

@@ -135,7 +135,16 @@ export async function proveALane(opts: ProveOptions): Promise<LaneProof> {
   }
 }
 
-/** The answer, or null when it did not come in time. */
+/**
+ * The answer, or null when it did not come in time.
+ *
+ * The deadline holds the process open while it is waited on, and is cleared
+ * the moment the answer comes. Under tmux the lane is tmux's child and the
+ * driver's poll does not hold the process, so a deadline that did not either
+ * left nothing at all keeping it alive: `tade setup --check` ended halfway,
+ * on exit code 13, having printed nothing, on the driver a server is told to
+ * use.
+ */
 async function within<T>(work: Promise<T>, limit: number): Promise<T | null> {
   let timer: NodeJS.Timeout | undefined
   try {
@@ -143,7 +152,6 @@ async function within<T>(work: Promise<T>, limit: number): Promise<T | null> {
       work,
       new Promise<null>((resolve) => {
         timer = setTimeout(() => resolve(null), limit)
-        timer.unref?.()
       }),
     ])
   } finally {

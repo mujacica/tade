@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { isReady, nextStep, type ReadinessFacts, readiness, worksStep } from '../src/readiness.ts'
+import {
+  isReady,
+  nextStep,
+  type ReadinessFacts,
+  readiness,
+  type Unattended,
+  worksStep,
+} from '../src/readiness.ts'
 
 // The first minute on a fresh machine. What matters is that every unfinished
 // step says what to do about it, and that nothing optional blocks the way.
@@ -304,5 +311,42 @@ describe('readiness', () => {
       expect(step.done).toBe(false)
       expect(step.detail.length).toBeGreaterThan(0)
     }
+  })
+})
+
+describe('a server, with nobody logged in', () => {
+  const box: Unattended = { user: 'you', linger: false, unit: null }
+
+  it('is never asked about where there is no such server — a Mac, a Linux desktop', () => {
+    expect(readiness(facts()).map((step) => step.id)).not.toContain('unattended')
+  })
+
+  it('comes last, says both commands, and never stops anything', () => {
+    const steps = readiness(facts({ unattended: box }))
+    const step = steps.at(-1)
+    expect(step).toMatchObject({ id: 'unattended', done: false, required: false })
+    expect(step?.detail).toContain('`sudo loginctl enable-linger you`')
+    expect(step?.detail).toContain('`tade host service`')
+    expect(isReady(steps)).toBe(true)
+  })
+
+  it('is done only with both: a unit stops at the last logout without linger, and linger alone keeps nothing', () => {
+    const only = (over: Partial<Unattended>) =>
+      readiness(facts({ unattended: { ...box, ...over } })).find((s) => s.id === 'unattended')
+    expect(only({ linger: true })).toMatchObject({ done: false })
+    expect(only({ linger: true })?.detail).not.toContain('loginctl')
+    expect(only({ unit: '/home/you/.config/systemd/user/tade.service' })?.detail).not.toContain(
+      'tade host service',
+    )
+    expect(only({ linger: true, unit: '/u/tade.service' })).toMatchObject({
+      done: true,
+      detail: '',
+    })
+  })
+
+  it('asks root for no sudo', () => {
+    const step = readiness(facts({ unattended: { ...box, user: 'root', root: true } })).at(-1)
+    expect(step?.detail).toContain('`loginctl enable-linger root`')
+    expect(step?.detail).not.toContain('sudo')
   })
 })

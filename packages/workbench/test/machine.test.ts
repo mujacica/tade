@@ -1,9 +1,16 @@
-import { mkdtempSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ConfigSchema } from '@tade/core'
 import { describe, expect, it } from 'vitest'
-import { installersHere, lookAtHarnesses, missingFrom, nativeProblems } from '../src/machine.ts'
+import {
+  installersHere,
+  lookAtHarnesses,
+  missingFrom,
+  nativeProblems,
+  serviceUnitPath,
+  unattendedHere,
+} from '../src/machine.ts'
 import type { ProgramLook } from '../src/programs.ts'
 
 // What this machine can run, for whoever is setting it up.
@@ -173,4 +180,49 @@ describe('where each harness stands', () => {
       }
     }
   }, 60_000)
+})
+
+describe('a server, read off three files', () => {
+  /** A machine's root: systemd as its init or not, linger for `you` or not. */
+  function machine(opts: { systemd: boolean; linger: boolean }) {
+    const root = mkdtempSync(join(tmpdir(), 'tade-host-'))
+    if (opts.systemd) mkdirSync(join(root, 'run', 'systemd', 'system'), { recursive: true })
+    mkdirSync(join(root, 'var', 'lib', 'systemd', 'linger'), { recursive: true })
+    if (opts.linger) writeFileSync(join(root, 'var', 'lib', 'systemd', 'linger', 'you'), '')
+    const home = join(root, 'home', 'you')
+    return { root, home, user: 'you' }
+  }
+  const ssh = { SSH_CONNECTION: '10.0.0.2 51022 10.0.0.1 22' }
+
+  it('reads linger and the unit on a Linux box under systemd that nobody sits at', () => {
+    const box = machine({ systemd: true, linger: false })
+    const look = { ...box, env: ssh, platform: 'linux' as const }
+    expect(unattendedHere(look)).toMatchObject({ user: 'you', linger: false, unit: null })
+
+    writeFileSync(join(box.root, 'var', 'lib', 'systemd', 'linger', 'you'), '')
+    const unit = serviceUnitPath(ssh, box.home)
+    mkdirSync(join(unit, '..'), { recursive: true })
+    writeFileSync(unit, '[Service]\n')
+    expect(unattendedHere(look)).toMatchObject({ linger: true, unit })
+    expect(unit).toBe(join(box.home, '.config', 'systemd', 'user', 'tade.service'))
+  })
+
+  it('puts the unit where XDG_CONFIG_HOME says, when it says', () => {
+    expect(serviceUnitPath({ XDG_CONFIG_HOME: '/cfg' }, '/home/you')).toBe(
+      '/cfg/systemd/user/tade.service',
+    )
+  })
+
+  it('asks nothing of a Mac, a Linux desktop, or a box systemd does not run', () => {
+    const box = machine({ systemd: true, linger: true })
+    expect(unattendedHere({ ...box, env: ssh, platform: 'darwin' })).toBeNull()
+    expect(unattendedHere({ ...box, env: { DISPLAY: ':0' }, platform: 'linux' })).toBeNull()
+    const bare = machine({ systemd: false, linger: true })
+    expect(unattendedHere({ ...bare, env: {}, platform: 'linux' })).toBeNull()
+  })
+
+  it('counts a service on a server, with nobody logged in, as a server', () => {
+    const box = machine({ systemd: true, linger: true })
+    expect(unattendedHere({ ...box, env: {}, platform: 'linux' })).toMatchObject({ linger: true })
+  })
 })

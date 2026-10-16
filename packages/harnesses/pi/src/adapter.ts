@@ -27,6 +27,8 @@ import {
   reaped,
   SignalChannel,
   type SignIn,
+  type SignInHere,
+  signInHere,
   WORKER_ENV,
   type WorkerAdapter,
   type WorkerCapabilities,
@@ -388,11 +390,22 @@ export class PiAdapter implements WorkerAdapter {
     }
   }
 
-  /** pi's own sign-in: pi itself, where you type /login and choose a provider. */
-  signIn(): SignIn {
+  /**
+   * pi's own sign-in: pi itself, where you type /login and choose a provider.
+   * With no browser here, every provider's sign-in in pi prints a link and
+   * takes back what the page gives you, so it is the same command said
+   * differently. A Claude subscription is the one thing said against, because
+   * since 2026-04-04 Anthropic bills one used from pi as extra usage — pi warns
+   * about it too (`warnings.anthropicExtraUsage`) — and Claude Code is the
+   * harness that uses it as a subscription.
+   */
+  signIn(here: SignInHere = signInHere(this.opts.env)): SignIn {
+    const choose = here.browser
+      ? 'Type /login, choose a provider, and follow pi.'
+      : 'Type /login and choose a provider: pi prints a link to open on any device, and asks for what that page gives you back.'
     return {
       launch: { command: process.execPath, args: [this.opts.bin], env: {} },
-      how: 'Type /login, choose a provider, and follow pi. ctrl+] comes back here.',
+      how: `${choose} A Claude subscription belongs in Claude Code: through pi, Anthropic bills it as extra usage. ctrl+] comes back here.`,
     }
   }
 

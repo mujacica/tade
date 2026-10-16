@@ -170,11 +170,21 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
         expect(typeof status.signedIn).toBe('boolean')
         if (!status.signedIn && status.problem !== null)
           expect(status.problem.length).toBeGreaterThan(0)
+        // When the sign-in runs out is a date the harness wrote down, or nothing.
+        if (status.until !== undefined && status.until !== null)
+          expect(Number.isFinite(status.until)).toBe(true)
       })
 
       it('offers a sign-in to run where a person can see it, never one that carries a secret', async () => {
-        const sign = (await adapter()).signIn()
-        if (sign) {
+        const one = await adapter()
+        // Here, and on a machine with no screen — a server reached over SSH —
+        // where what it offers is said for that.
+        for (const sign of [
+          one.signIn(),
+          one.signIn({ browser: true }),
+          one.signIn({ browser: false }),
+        ]) {
+          if (!sign) continue
           expect(sign.launch.command.length).toBeGreaterThan(0)
           expect(sign.launch.opening ?? []).toEqual([])
           expect(sign.how.length).toBeGreaterThan(10)

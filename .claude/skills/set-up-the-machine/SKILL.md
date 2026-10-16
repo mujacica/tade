@@ -21,6 +21,12 @@ and setting up ends by actually opening a lane — because every other check is 
 | `packages/cli/src/commands/setup.ts` | the wizard: `ORDER`, `CHANGES_MACHINE`, `doStep`, `--check`, the closing proof |
 | `packages/cli/src/commands/setup-facts.ts` | `lookHere`, `gather`, `nativeTroubles`, `Look` — the two depths |
 | `packages/cli/src/commands/setup-machine.ts` | `setUpPrograms`, `offerInstall`, `sayNativeTrouble`, `signInSomewhere`, `harnessLines`, `setUpKeys` |
+| `packages/cli/src/commands/host.ts` | `tade host service`: the command, and asking in a terminal |
+| `packages/cli/src/commands/host-service.ts` | what it and setup's server step share: `unitHere`, `offerUnit`, `offerLinger`, `setUpUnattended`, `lanesWouldStop`, `START` |
+| `packages/core/src/service.ts` | pure: `serviceUnit`, `SERVICE`, `WINDOW_SOCKET`, `ATTACH` — the user unit, as text |
+| `packages/workbench/src/machine.ts` (`unattendedHere`, `systemdHere`, `serviceUnitPath`) | whether this is a server, linger, and where the unit goes: three files, no process |
+| `packages/harnesses/core/src/sign-in.ts` | `signInHere` (is a browser here?), `signInLasts` (how long a sign-in has left) |
+| `packages/drivers/tmux/src/scope.ts` | the lanes' tmux server in a systemd scope of its own, under a user service |
 | `packages/cli/src/commands/update.ts` | `tade update`, and `--check` as the only thing that dials |
 | `packages/cli/src/bin.ts` | the door: `nodeTooOld` before any other import, then `nativeTrouble` |
 | `packages/cli/src/node.ts` | `nodeTooOld`, and the two private halves `numbers` and `below` |
@@ -201,6 +207,81 @@ against real repositories and real processes.
   (`StatusOptions.ports`, `StatusAsk.ports`) — `tade status` does, once; the window's beat does not
   until something draws them. A look that could not be made leaves `Lane.ports` absent, never `[]`.
 
+## A server with no screen
+
+A Linux box reached over SSH — a VPS — is a first-class home for Tade, and setting one up is the
+same `tade setup`. What changes is decided by facts about *this process*, never by a setting:
+
+- **No browser here** is `signInHere(env)`: a session over SSH (`SSH_CONNECTION`/`SSH_TTY`), or
+  Linux with neither `DISPLAY` nor `WAYLAND_DISPLAY` — which is also what a service sees. It is
+  what every harness's `signIn(here)` is handed (its default, so `tade accounts sign-in` and
+  Settings get it too): Claude Code runs the same `claude auth login` and says the link opens
+  anywhere and the code comes back; Codex runs `codex login --device-auth`, which is what it says
+  to use "on a remote or headless machine"; pi is the same pi, said for pasting back. The
+  conformance suite holds all three spellings of `signIn`.
+- **How long a sign-in lasts** is `AccountStatus.until`, the harness's own written-down end, drawn
+  by `signInLasts`: days, a warning inside Claude Code's own three, and `cannot tell for how long`
+  where it wrote none — never nothing, which would read as "for ever". Claude Code is the only one
+  that writes one: `claudeAiOauth.refreshTokenExpiresAt` in `.credentials.json` (`login.ts` reads
+  the later of it and `expiresAt`, and only the two dates), and only off macOS, where the sign-in
+  is in the Keychain and that is not Tade's to open. Codex and pi renew by themselves and keep no
+  end date.
+- **The exact apt line** is `installWith`'s: `apt-get update &&` first, because a fresh box's lists
+  are stale and a container's are empty, and `sudo` only where this is not root
+  (`InstallersHere.root`). So `offerInstall` runs every line through `/bin/sh -c` — the line that
+  runs is the line that was shown, `&&` and all.
+- **The server step** (`unattended`) exists only where `unattendedHere()` answers: Linux, systemd as
+  init (`/run/systemd/system`, how `sd_booted` asks), no browser. Linger is a file per user under
+  `/var/lib/systemd/linger`, and the unit is `~/.config/systemd/user/tade.service` (or under
+  `XDG_CONFIG_HOME`). One step, two facts, because either alone keeps nothing running. It is last,
+  never required, and **setup writes the unit but never starts it**: `tade app` runs setup before it
+  opens its home, so a service started from setup would take the home from the window waiting on
+  it. `tade host service` offers the start, and not while `heldBy` says a window has the home.
+
+### The unit (`tade host service`)
+
+Printed to standard output whole, with everything else on standard error, so `tade host service >
+tade.service` is the file; written on a press or with `--write`. What it says, and why each line:
+
+- **The window in tmux on a server of its own** (`-L tade-window`), so `ATTACH` over SSH shows
+  exactly what the keyboard would. tmux prints the pane's pid (`-P -F '#{pane_pid}'`) into the
+  `PIDFile` through `StandardOutput=truncate:` — systemd 248, Debian 12 and Ubuntu 22.04 on — so
+  **Tade is the main process**, and `Restart=on-failure` restarts a crash and not a quit.
+- **`ExecStop` sends Tade SIGTERM and waits for it.** Tade is tmux's child, not systemd's, and
+  systemd does not wait for a main process it did not start: without it a stop signalled Tade and
+  SIGKILLed the whole unit 11 ms later, and the unit read `failed`. With it Tade closes as q does,
+  exits 0 and the unit is `inactive`. `KillMode=mixed` then kills what is left.
+- **The PATH of the shell it was made in**, because a service's own has none of Node, the
+  harnesses or an npm prefix — and no key: a key exported in a shell does not reach a service, and
+  the unit says so.
+- **`StartLimitBurst=5` in 300 s**: a window refused its home fails at once, and five of those is a
+  reason to stop.
+- **The agents are not in it.** The tmux driver starts its server in a scope of its own when this
+  process is a service of the user's manager (`scope.ts`, `add-workspace-driver`), so stopping,
+  restarting or crashing the unit never ends one; `lanesWouldStop` says so, in the driver's own
+  `capabilities.detach`, where the configured driver's lanes would die with it.
+
+### Proving it
+
+No CI runner has a user manager, so this was proved in a Debian 12 container with systemd as its
+first process — repeat it after changing any of the above. `FROM node:22-slim`, `apt-get install
+systemd systemd-sysv dbus dbus-user-session libpam-systemd sudo build-essential python3`, a user,
+`CMD ["/sbin/init"]`, run `--privileged --cgroupns=private --tmpfs /run --tmpfs /run/lock`. Copy
+the tree in (a macOS tar leaves `._*` files: `COPYFILE_DISABLE=1`), `pnpm install
+--registry=https://registry.npmjs.org`, and run as the user with `SSH_CONNECTION` set and
+`XDG_RUNTIME_DIR=/run/user/<uid>`. Then: `tade setup --check` names git and tmux with their apt
+lines and linger off; run those lines; `sudo loginctl enable-linger`; a project and
+`workspace.driver: tmux`; `tade host service --write` (`systemd-analyze --user verify` it); a task
+file with `start:` so the window starts an agent; `START`. The agent's tmux server is in
+`tade-lanes-*.scope`, and its pid survives `systemctl --user restart`, `stop` + `start`, a `kill
+-9` of the window (systemd restarts it) and a `docker restart` (linger starts the unit, the window
+reopens the agent it lost). The trap itself is one line: `systemd-run --user sh -c "setsid sleep N
+& exec sleep M"` and a stop — the setsid'd one dies with it.
+
+Not proved: whether systemd before 252 notices an alien main process exiting at all (Ubuntu 22.04
+has 249); a distribution with `KillUserProcesses=yes`, where a tmux server started from an SSH login
+— by `tade setup`'s own proof lane, say — dies at logout; and a sign-in carried through to the end.
+
 ## Setting up ends with a lane
 
 Everything else `tade setup` does is a reading of a file, so it can find git, find a model, write a
@@ -227,6 +308,11 @@ machine rather than reading it.
   nothing behind; letting go is what leaves everybody else's work running. Both are in the `finally`.
 - **The lane id is unique per run** (`setup/proof-<random>`), because an id that is taken is a lane
   already running, and setting up must never stand on one of the window's.
+- **Its deadline holds the process open while it waits** (`within`). Under tmux the lane is tmux's
+  child and the driver's poll is `unref`'d, so a deadline that was `unref`'d too left nothing
+  keeping Node alive: `tade setup --check` ended halfway, on exit code 13, having printed nothing,
+  on exactly the driver a server is told to use. `setup.test.ts` runs it under tmux on a server of
+  its own (`TMUX_TMPDIR`).
 - **It is deliberately not a readiness step.** `readiness()` is a pure fold over facts and the window
   runs it on every open (`app.ts`) to decide whether to lead somebody through setup — that has to
   cost nothing. This is an *act*. So it is `worksStep(proof)`, appended to the list by whoever ran

@@ -1,4 +1,6 @@
+import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import { homedir, userInfo } from 'node:os'
 import { join } from 'node:path'
 import {
   type Config,
@@ -7,9 +9,11 @@ import {
   installWith,
   type MissingProgram,
   resolveCommand,
+  SERVICE,
   stringEnv,
+  type Unattended,
 } from '@tade/core'
-import type { LaunchSpec } from '@tade/harnesses-core'
+import { type AccountStatus, type LaunchSpec, signInHere } from '@tade/harnesses-core'
 import { HARNESS_ADAPTERS } from './harnesses.ts'
 import type { ProgramLook } from './programs.ts'
 import { drivers } from './registry.ts'
@@ -40,6 +44,56 @@ export function installersHere(env: NodeJS.ProcessEnv = process.env): Installers
   return {
     platform: process.platform,
     managers: MANAGERS.filter((command) => resolveCommand(command, strings) !== null),
+    root: process.getuid?.() === 0,
+  }
+}
+
+/** Where the user unit that runs Tade goes: the user's own systemd folder. */
+export function serviceUnitPath(
+  env: NodeJS.ProcessEnv = process.env,
+  home = env.HOME || homedir(),
+): string {
+  return join(env.XDG_CONFIG_HOME || join(home, '.config'), 'systemd', 'user', SERVICE)
+}
+
+/** Whether systemd is this machine's init: the directory it makes, which is how `sd_booted` asks. */
+export function systemdHere(root = '/'): boolean {
+  return existsSync(join(root, 'run', 'systemd', 'system'))
+}
+
+/** What `unattendedHere` reads, and where: the real machine unless a test says otherwise. */
+export interface HostLook {
+  env?: NodeJS.ProcessEnv
+  platform?: NodeJS.Platform
+  /** The filesystem's root, for a test to build a machine in. */
+  root?: string
+  user?: string
+  home?: string
+}
+
+/**
+ * Whether this is a server whose own service manager could keep Tade running
+ * with nobody logged in — Linux, under systemd, with no screen — and whether
+ * it will: linger on, and the unit written. Null anywhere else, so a Mac or a
+ * Linux desktop is never asked about either.
+ *
+ * Three files, and no process: `/run/systemd/system` is how systemd says it
+ * is the init (`sd_booted`), and linger is a file per user under
+ * `/var/lib/systemd/linger`, which is all `loginctl enable-linger` writes.
+ */
+export function unattendedHere(look: HostLook = {}): Unattended | null {
+  const env = look.env ?? process.env
+  const platform = look.platform ?? process.platform
+  const root = look.root ?? '/'
+  if (platform !== 'linux' || signInHere(env, platform).browser) return null
+  if (!systemdHere(root)) return null
+  const user = look.user ?? userInfo().username
+  const unit = serviceUnitPath(env, look.home)
+  return {
+    user,
+    linger: existsSync(join(root, 'var', 'lib', 'systemd', 'linger', user)),
+    unit: existsSync(unit) ? unit : null,
+    root: process.getuid?.() === 0,
   }
 }
 
@@ -155,6 +209,8 @@ export interface HarnessHere {
   who: string | null
   /** What it says is missing, where it is not signed in. */
   problem: string | null
+  /** When the sign-in runs out, where the harness wrote it down: null is "cannot tell". */
+  until: number | null
   /**
    * Its own sign-in, when it has one: what to run in a terminal a person can
    * see, and what they are about to be asked, in the harness's words. No
@@ -181,6 +237,7 @@ export async function lookAtHarnesses(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<HarnessHere[]> {
   const machine = installersHere(env)
+  const here = signInHere(env)
   const inUse = new Set<string>([config.orchestrator.harness])
   for (const route of Object.values(config.workers.routes)) {
     inUse.add(route.harness)
@@ -198,13 +255,15 @@ export async function lookAtHarnesses(
       })
       const [probe, account] = await Promise.all([
         adapter.probe().catch(() => ({ ok: false, version: null, problems: ['it would not say'] })),
-        adapter.account().catch((err: unknown) => ({
-          signedIn: false,
-          who: null,
-          plan: null,
-          method: null,
-          problem: err instanceof Error ? err.message : String(err),
-        })),
+        adapter.account().catch(
+          (err: unknown): AccountStatus => ({
+            signedIn: false,
+            who: null,
+            plan: null,
+            method: null,
+            problem: err instanceof Error ? err.message : String(err),
+          }),
+        ),
       ])
       // Its own declaration, so the install offered is the one whoever wrote
       // the harness vouches for. An id is Tade's name for a harness
@@ -226,11 +285,13 @@ export async function lookAtHarnesses(
         signedIn: account.signedIn,
         who: account.who,
         problem: account.problem,
+        until: account.until ?? null,
         // Offered wherever the program is here, which is exactly where it is
         // not signed in: a sign-in for something that is not installed is a
         // lane that fails, and one for something installed and signed out is
         // the whole point.
-        signIn: installed ? adapter.signIn() : null,
+        // The one this machine can use: a server has no browser to open.
+        signIn: installed ? adapter.signIn(here) : null,
         install: installWith(declared?.install, machine),
       }
     }),

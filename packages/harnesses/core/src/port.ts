@@ -521,12 +521,29 @@ export interface AccountStatus {
   /** How: `claude.ai`, `api-key`, a provider's name. */
   method: string | null
   problem: string | null
+  /**
+   * When the sign-in itself runs out, in milliseconds, as the harness wrote it
+   * down — not a token it renews by itself every few hours. Absent or null
+   * where the harness keeps no such date, which is "cannot tell", never "never".
+   */
+  until?: number | null
 }
 
 /** A harness's own sign-in: what to run, and what the person is about to be asked, in its words. */
 export interface SignIn {
   launch: LaunchSpec
   how: string
+}
+
+/**
+ * Where a sign-in happens. A machine with no screen of its own — a server
+ * reached over SSH — cannot open a browser for the person, so each harness
+ * offers the sign-in it has for that: a code to paste back, or a code to enter
+ * on another device.
+ */
+export interface SignInHere {
+  /** Whether a browser opened here is one the person can see. */
+  browser: boolean
 }
 
 /**
@@ -644,9 +661,12 @@ export interface WorkerAdapter {
   /**
    * What to run, in a terminal a person can see, to sign in: the harness's
    * own sign-in, so credentials go where the harness keeps them and never
-   * pass through Tade. Null when it has none to offer.
+   * pass through Tade. Null when it has none to offer. Where no browser can be
+   * opened for the person (`here.browser`), the sign-in the harness has for a
+   * machine with no screen, said in words that fit it. `here` is this
+   * process's own answer (`signInHere`) when nobody passes one.
    */
-  signIn(): SignIn | null
+  signIn(here?: SignInHere): SignIn | null
   /** Sign this account out, as the harness does it. */
   signOut(): Promise<void>
   /**

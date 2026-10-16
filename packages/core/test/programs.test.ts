@@ -257,11 +257,30 @@ describe('what would install a program that is not here', () => {
     const how = { brew: 'tmux', apt: 'tmux', npm: 'tmux-but-not-really' }
     expect(installWith(how, machine(['brew', 'npm']))).toEqual({ command: 'brew install tmux' })
     expect(installWith(how, machine(['apt-get', 'npm'], 'linux'))).toEqual({
-      command: 'sudo apt-get install -y tmux',
+      command: 'sudo apt-get update && sudo apt-get install -y tmux',
     })
     // npm is the fallback and the only one that is the same everywhere.
     expect(installWith(how, machine(['npm'], 'linux'))).toEqual({
       command: 'npm install --global tmux-but-not-really',
+    })
+  })
+
+  it('gives a server the exact line it can run: the package lists first, and sudo only where it is needed', () => {
+    // A fresh box's lists are stale, and a container's are empty, so an install
+    // on its own fails to find a package that is there.
+    expect(installWith({ apt: 'tmux' }, machine(['apt-get'], 'linux'))).toEqual({
+      command: 'sudo apt-get update && sudo apt-get install -y tmux',
+    })
+    // Root has no use for sudo, and a container's root usually has none.
+    expect(
+      installWith({ apt: 'git' }, { platform: 'linux', managers: ['apt-get'], root: true }),
+    ).toEqual({
+      command: 'apt-get update && apt-get install -y git',
+    })
+    expect(
+      installWith({ dnf: 'tmux' }, { platform: 'linux', managers: ['dnf'], root: true }),
+    ).toEqual({
+      command: 'dnf install -y tmux',
     })
   })
 

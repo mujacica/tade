@@ -67,7 +67,11 @@ function recorder(answers: {
       paused.push(text)
     },
     async run(_title: string, command: string, args: string[]) {
-      ran.push([command, ...args].join(' '))
+      // A line run through a shell is written down as the line, which is what
+      // was shown before it ran.
+      ran.push(
+        command === '/bin/sh' && args[0] === '-c' ? (args[1] ?? '') : [command, ...args].join(' '),
+      )
       return answers.code ?? 0
     },
   }
@@ -82,6 +86,7 @@ const emptyLook: Look = {
   secrets: [],
   extensions: [],
   installers: { platform: 'darwin', managers: ['brew'] },
+  unattended: null,
 }
 
 const harness = (over: Partial<HarnessHere> & { id: string }): HarnessHere => ({
@@ -93,6 +98,7 @@ const harness = (over: Partial<HarnessHere> & { id: string }): HarnessHere => ({
   signedIn: false,
   who: null,
   problem: 'not signed in yet',
+  until: null,
   signIn: { launch: { command: '/bin/echo', args: ['login'], env: {} }, how: 'Type /login.' },
   install: { cannot: 'nothing here says how to install it' },
   ...over,
@@ -106,6 +112,20 @@ describe('offering to install something', () => {
     expect(ui.said[0]).toContain('brew install tmux')
     expect(ui.asked[0]).toContain('install tmux?')
     expect(ui.ran).toEqual(['brew install tmux'])
+  })
+
+  it('runs the line whole, through a shell, so a server’s update-then-install is one command', async () => {
+    const raw: string[][] = []
+    const ui: Ui = {
+      ...recorder({ confirm: [true] }),
+      run: async (_title: string, command: string, args: string[]) => {
+        raw.push([command, ...args])
+        return 0
+      },
+    }
+    const line = 'sudo apt-get update && sudo apt-get install -y tmux'
+    expect(await offerInstall(ui, 'tmux', { command: line })).toBe(true)
+    expect(raw).toEqual([['/bin/sh', '-c', line]])
   })
 
   it('runs nothing when the answer is no, and says how to do it later', async () => {
@@ -254,6 +274,34 @@ describe('signing in', () => {
     // Which of them anything is set to use is said, because a harness nothing
     // uses being signed out is not a problem.
     expect(lines[1]).toContain('nothing is set to use it')
+  })
+})
+
+describe('how long each sign-in lasts', () => {
+  const now = Date.UTC(2026, 9, 16)
+  const day = 86_400_000
+  const signed = (over: Partial<HarnessHere> & { id: string }) =>
+    harness({ signedIn: true, who: 'you@example.com', problem: null, ...over })
+
+  it('says the days a harness wrote down, warns inside three, and cannot tell where it wrote none', () => {
+    const [claude, soon, codex] = harnessLines(
+      [
+        signed({ id: 'claude-code', until: now + 12 * day }),
+        signed({ id: 'claude-code', until: now + 2 * day }),
+        signed({ id: 'codex', until: null }),
+      ],
+      now,
+    )
+    expect(claude).toBe(
+      '  ✓ claude-code (nothing is set to use it) — signed in as you@example.com · 12 days left',
+    )
+    expect(soon).toContain('only 2 days left: sign in again before it runs out')
+    expect(codex).toContain('cannot tell for how long')
+  })
+
+  it('says nothing about how long for a harness that is not signed in', () => {
+    const [line] = harnessLines([harness({ id: 'pi', until: now + day })], now)
+    expect(line).not.toContain('left')
   })
 })
 

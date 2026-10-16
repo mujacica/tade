@@ -28,6 +28,7 @@ import { proveALane } from '@tade/workbench/prove'
 import type { Command } from 'commander'
 import { type Document, parseDocument } from 'yaml'
 import { Exit, type Io } from '../io.ts'
+import { setUpUnattended } from './host-service.ts'
 import { gather, type Look, lookHere } from './setup-facts.ts'
 import {
   harnessLines,
@@ -68,6 +69,7 @@ const ORDER: StepId[] = [
   'judge',
   'extensions',
   'keys',
+  'unattended',
 ]
 
 /**
@@ -83,6 +85,7 @@ const CHANGES_MACHINE = new Set<StepId>([
   'voice',
   'judge',
   'extensions',
+  'unattended',
 ])
 
 function render(steps: readonly Step[]): string[] {
@@ -266,6 +269,7 @@ async function doStep(
   // Both of these read the look they were handed: the step before either of
   // them changes the machine, so the loop has already looked again.
   if (id === 'keys') return setUpKeys(ui, look)
+  if (id === 'unattended' && look.unattended) return setUpUnattended(ui, look.unattended)
 }
 
 /** Whether what Tade is built on still stops it, after being told about it. */

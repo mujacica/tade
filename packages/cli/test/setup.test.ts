@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, it } from 'vitest'
@@ -15,10 +15,10 @@ const bin = fileURLToPath(new URL('../src/bin.ts', import.meta.url))
 // a file, and a wizard that says "all set" without ever starting a process is
 // how `posix_spawnp failed.` reaches a user.
 
-const run = (args: string[], home: string, tty = false) =>
+const run = (args: string[], home: string, tty = false, env: NodeJS.ProcessEnv = {}) =>
   new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve) => {
     const child = spawn(process.execPath, [bin, ...args], {
-      env: { ...process.env, TADE_HOME: home, HOME: home },
+      env: { ...process.env, TADE_HOME: home, HOME: home, ...env },
       // Never a terminal: the wizard asks for one rather than hanging on a
       // question nobody can answer, and `--check` never needed one.
       stdio: tty ? 'inherit' : ['pipe', 'pipe', 'pipe'],
@@ -105,3 +105,32 @@ it('says the exact command for a program it has not got, and installs nothing', 
   expect(result.stdout).toContain('Agents:')
   expect(result.stdout).not.toContain('installing')
 }, 120_000)
+
+it('proves a lane under tmux too, which is what a server runs, rather than ending halfway', async () => {
+  if (!which('tmux')) return
+  const home = tmp('tade-cli-setup-tmux-')
+  writeFileSync(join(home, 'config.yaml'), 'workspace:\n  driver: tmux\n')
+  // A tmux server of the test's own: `-L tade` under a directory nobody else uses.
+  const sockets = tmp('tade-tt-')
+  try {
+    const result = await run(['setup', '--check', '--json'], home, false, { TMUX_TMPDIR: sockets })
+    // The lane is tmux's child, not Tade's, so nothing of Tade's own held the
+    // process open while it waited for the lane to finish: it ended on 13,
+    // having printed nothing at all.
+    expect(result.code).toBe(1)
+    const checked = JSON.parse(result.stdout) as Checked
+    expect(checked.proof).toMatchObject({ ok: true, driver: 'tmux' })
+  } finally {
+    await new Promise((resolve) =>
+      spawn('tmux', ['-L', 'tade', 'kill-server'], {
+        env: { ...process.env, TMUX_TMPDIR: sockets },
+        stdio: 'ignore',
+      }).on('exit', resolve),
+    )
+  }
+}, 120_000)
+
+/** On the PATH, the way a lane would find it. */
+function which(command: string): boolean {
+  return (process.env.PATH ?? '').split(':').some((dir) => dir && existsSync(join(dir, command)))
+}

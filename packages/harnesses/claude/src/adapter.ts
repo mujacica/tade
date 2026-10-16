@@ -29,6 +29,8 @@ import {
   type RunId,
   reaped,
   type SignIn,
+  type SignInHere,
+  signInHere,
   WORKER_ENV,
   type WorkerAdapter,
   type WorkerCapabilities,
@@ -46,6 +48,7 @@ import { type ChannelRequest, ClaudeChannel } from './channel.ts'
 import { COMPACT_LINE, compactionIn, percentOf, tokensIn, windowIn } from './compact.ts'
 import { headlessArgs, headlessEnv, SNAPSHOT_OPTION } from './headless.ts'
 import { optionsOf } from './installed.ts'
+import { signedInUntil } from './login.ts'
 import {
   defaultConfigDir,
   historyOn,
@@ -437,6 +440,7 @@ export class ClaudeAdapter implements WorkerAdapter {
         plan: text('subscriptionType'),
         method: text('authMethod'),
         problem: signedIn ? null : 'not signed in yet',
+        until: signedIn ? await this.signedInUntil() : null,
       }
     } catch (err) {
       return {
@@ -449,9 +453,11 @@ export class ClaudeAdapter implements WorkerAdapter {
   /**
    * Its own sign-in, in a terminal you can see: it opens your browser, and
    * whatever it is given goes where Claude Code keeps it — Tade never sees it.
-   * An API-key account has nothing to sign in to: its key is kept by Tade.
+   * With no browser here it prints the link instead and asks for the code
+   * back, the same command either way. An API-key account has nothing to sign
+   * in to: its key is kept by Tade.
    */
-  signIn(): SignIn | null {
+  signIn(here: SignInHere = signInHere(this.opts.env)): SignIn | null {
     if (this.opts.account?.kind === 'api-key') return null
     return {
       launch: {
@@ -459,7 +465,9 @@ export class ClaudeAdapter implements WorkerAdapter {
         args: ['auth', 'login', '--claudeai'],
         env: this.ownFolder() ? { CLAUDE_CONFIG_DIR: this.opts.configDir } : {},
       },
-      how: 'Claude Code opens your browser to sign in to your Claude account. If it asks, paste the code it shows you here.',
+      how: here.browser
+        ? 'Claude Code opens your browser to sign in to your Claude account. If it asks, paste the code it shows you here.'
+        : 'Claude Code prints a link: open it on any device, sign in to your Claude account, and paste the code it gives you back here.',
     }
   }
 
@@ -520,6 +528,14 @@ export class ClaudeAdapter implements WorkerAdapter {
       await cp(beside, target.replace(/\.jsonl$/, ''), { recursive: true, force: true })
     }
     return true
+  }
+
+  /** When the sign-in runs out, or null — said, where its record is there and unreadable. */
+  private signedInUntil(): Promise<number | null> {
+    return signedInUntil(this.opts.configDir).catch((err: unknown) => {
+      this.opts.onWarning(`could not read when Claude Code's sign-in runs out: ${String(err)}`)
+      return null
+    })
   }
 
   /** Whether this account has a folder of its own, rather than Claude Code's default. */

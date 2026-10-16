@@ -9,6 +9,7 @@ import {
   type NativeTrouble,
   type ReadinessFacts,
   tadeHome,
+  type Unattended,
   type WantedKey,
 } from '@tade/core'
 import type { DeclaredSecret } from '@tade/extensions-core'
@@ -22,6 +23,7 @@ import {
   lookAtHarnesses,
   missingFrom,
   nativeProblems,
+  unattendedHere,
 } from '@tade/workbench/machine'
 import { lookAtPrograms, type ProgramLook, programsNeeded } from '@tade/workbench/programs'
 import { nativeTrouble } from '../native.ts'
@@ -69,6 +71,8 @@ export interface Look {
   extensions: readonly { name: string; title: string; chosen: boolean }[]
   /** What this machine installs with. */
   installers: InstallersHere
+  /** A server with no screen, and what keeps Tade running on it: null anywhere else. */
+  unattended: Unattended | null
 }
 
 /**
@@ -102,6 +106,7 @@ export async function lookHere(home = tadeHome()): Promise<Look> {
     secrets: extensions.secrets,
     extensions: extensions.listed,
     installers,
+    unattended: unattendedHere(),
   }
 }
 
@@ -189,6 +194,7 @@ export async function gather(
           native: look.native,
           missing: look.missing,
           keysWanted: look.keysWanted,
+          ...(look.unattended ? { unattended: look.unattended } : {}),
         }
       : {}),
   }

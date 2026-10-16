@@ -115,6 +115,15 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
   claiming `detach: true` that must leave every lane running. If lanes cannot outlive us and cannot
   be found again, `detach` ends them — leaving processes nobody can see, drive or stop is worse
   than either.
+- **Lanes that outlive Tade must outlive Tade's service too.** A unit's default
+  `KillMode=control-group` ends everything in its cgroup when it stops — whatever process group,
+  session or `setsid` a child used — so a server a driver starts from inside `tade.service` dies
+  with every restart of it. The tmux driver starts its server through `systemd-run --user --scope`
+  when this process is a service of the user's manager (`scope.ts`: `userServiceOf` reads
+  `/proc/self/cgroup`), names the scope after its socket and makes it unique, and where no scope
+  can be made says so through `trouble` and starts plainly — agents a restart would end beat no
+  agents. A driver of a separate server program does the same at the one command that can start
+  it; `test/scope.test.ts` holds it with a `systemd-run` on PATH that records and then runs.
 - **`adopt()` is what makes `detach: true` mean anything.** A fresh instance must be able to find
   the lanes a previous one left and return handles that can actually be written to, with the spec
   intact. Store whatever that needs on the backend's own objects, as the tmux driver stores the
