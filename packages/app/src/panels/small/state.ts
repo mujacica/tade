@@ -165,8 +165,12 @@ export interface NoteKnown {
   summary: string | null
   /** A task id, a project name, or null when it is about everything. */
   scope: string | null
+  /** More tasks or projects the same words are about. */
+  also?: readonly string[]
   /** Where it came from: `voice`, `window`, `cli`, `orchestrator`. */
   by: string
+  /** Told to nobody any more: who said so, when, and why. */
+  retired?: { by: string; at: string; because: string }
 }
 
 /** Writing the headline a note is read by, for a note that has none or a worse one. */
@@ -196,7 +200,10 @@ export function notePanel(note: NoteKnown, said: string): PromptPanel {
  * about, and who said it when. `when` is the moment as the window says
  * moments, since only the window knows which clock a person is reading.
  */
-export function noteFacts(note: NoteKnown, when: string): { about: string; said: string } {
+export function noteFacts(
+  note: NoteKnown,
+  when: string,
+): { about: string; said: string; retired?: string } {
   const who =
     note.by === 'orchestrator'
       ? 'the orchestrator'
@@ -205,9 +212,19 @@ export function noteFacts(note: NoteKnown, when: string): { about: string; said:
         : note.by && note.by !== 'unknown'
           ? note.by
           : 'somebody'
+  const retiredBy = note.retired?.by === 'cleanup' ? 'Tade' : (note.retired?.by ?? '')
   return {
-    about: note.scope === null ? 'About everything' : `About ${note.scope}`,
+    about:
+      note.scope === null
+        ? 'About everything'
+        : `About ${[note.scope, ...(note.also ?? [])].join(', ')}`,
     said: `Said by ${who} · ${when}`,
+    // Why nobody is told it any more, in the sentence it was retired with.
+    ...(note.retired
+      ? {
+          retired: `Retired by ${retiredBy} on ${note.retired.at.slice(0, 10)}: ${note.retired.because}`,
+        }
+      : {}),
   }
 }
 

@@ -112,4 +112,38 @@ describe('the window, and what it was told', () => {
     click((screenOf(terminal.written)[note.row] ?? '').indexOf('×'), note.row)
     await until('the note forgotten', () => client.recallAll().length === 0)
   })
+
+  it('keeps a retired note folded under RETIRED NOTES, and its page says who and why', async () => {
+    terminal.rows = 60
+    client.remember('the staging key rotates on the 1st', 'app', 'test')
+    const old = client.remember('pause the queue until I say', 'app', 'test')
+    await client.retireNote({
+      at: old.at,
+      text: old.text,
+      because: 'they want the queue to run',
+      by: 'test',
+    })
+    await start()
+    await until('the retired heading', () =>
+      screenOf(terminal.written).some((row) => row.includes('RETIRED NOTES')),
+    )
+    // Told to nobody, and read only on asking: the heading is there, the words are not.
+    expect(screenOf(terminal.written).some((row) => row.includes('pause the'))).toBe(false)
+    // FILES fills in on a look, after the frame, and pushes what is under it
+    // down: aimed before it arrives, the click lands on the row above.
+    await until('the files listed', () =>
+      screenOf(terminal.written).some((row) => row.includes('README.md')),
+    )
+    const heading = find('RETIRED NOTES')
+    click(heading.col, heading.row)
+    // Found by its first words: a narrow side breaks it onto a second row.
+    await until('the retired note', () =>
+      screenOf(terminal.written).some((row) => row.includes('pause the')),
+    )
+    const note = find('pause the')
+    click(note.col, note.row)
+    await until('its page', () => terminal.written.includes('Said by'))
+    expect(screenOf(terminal.written).join('\n')).toContain('Retired by test on')
+    expect(screenOf(terminal.written).join('\n')).toContain('they want the queue to run')
+  })
 })

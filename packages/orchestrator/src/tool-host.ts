@@ -27,11 +27,12 @@ import {
 import { documentMethods } from './host-documents.ts'
 import { lessonMethods } from './host-lessons.ts'
 import { machineMethods, type UpdateHost } from './host-machine.ts'
+import { noteMethods } from './host-notes.ts'
 import { doneRuleOf, scheduleMethods } from './host-queue.ts'
 import { type RaceHost, raceMethods } from './host-race.ts'
 import { type ReplayHost, replayMethods } from './host-replay.ts'
 import { templateMethods } from './host-templates.ts'
-import { type Arming, allowMethod, allowTool, waiting, writtenBy } from './origin.ts'
+import { type Arming, allowMethod, allowTool, waiting } from './origin.ts'
 
 // How the orchestrator's tools reach the workbench.
 //
@@ -453,17 +454,8 @@ export class ToolHost {
         )
         return { ok: true }
       },
-      // `by` is **rewritten** for a remote arm and never taken from the call:
-      // a note the orchestrator wrote because a phone asked for it is the
-      // phone's, and one filed as the orchestrator's own is the same
-      // provenance hole as a remote act recorded as `you`.
-      'memory/remember': (p, arm) =>
-        tade.remember(
-          String(p.text),
-          p.scope === null || p.scope === undefined ? null : String(p.scope),
-          writtenBy(arm, p.by),
-          p.summary ? String(p.summary) : null,
-        ),
+      // Notes: `host-notes.ts`, where the boundary is.
+      ...noteMethods(tade),
       'events/read': (p) => tade.events(p as never),
       // Chats: agents in the lower pane with no task. Listed and opened here;
       // steered and stopped through `worker/steer` and `worker/stop` by the

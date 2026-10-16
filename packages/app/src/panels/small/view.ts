@@ -247,6 +247,9 @@ export function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
     }
     rows.push(row().space().text(facts.about, skin.hint).build())
     rows.push(row().space().text(facts.said, skin.hint).build())
+    for (const line of wrapTextWithAnsi(facts.retired ?? '', inner - 2).slice(0, 3)) {
+      if (line.trim()) rows.push(row().space().text(line, skin.hint).build())
+    }
     rows.push(blank(inner))
   }
   // Which note a headline is being written for: its own words, quietly, since

@@ -17,6 +17,7 @@ in step.
 | `packages/workbench/src/events.ts` | the journal |
 | `packages/workbench/src/tasks.ts` | the task file: what a task is, what it is called, what it produces |
 | `packages/workbench/src/memory.ts` | notes — the one thing Tade is told rather than derives |
+| `packages/workbench/src/notes.ts` | retiring a note, and the cleanup that retires what needs no judgement |
 | `packages/orchestrator/src/tool-host.ts` | only if an orchestrator tool needs to call it |
 | `packages/workbench/src/ignore.ts` | only if the operation writes a new kind of file into a project |
 
@@ -65,6 +66,30 @@ in step.
   times a second, and the whole reason notes are verbatim is that nothing can recover that. Every
   note taken before `summary` existed has none, so it stays optional and those are drawn in their own
   words.
+- **The same words are one note, however often they arrive.** `Memory.remember` reads the file
+  first (the CLI writes it from another process), and where a live note already has those exact
+  words it writes nothing and hands that note back marked `already: 'noted'` — or, about something
+  it does not reach yet, appends one `also` line rather than a second copy (`'widened'`). Every
+  caller says which: the tool's answer, the window's flash, voice, the CLI. The causes this closed,
+  measured on a real `memory.jsonl` of 36 notes: one sentence about three tasks written once per
+  task, in parallel tool calls of one turn (4 sentences, 9 lines), and a note left about everything
+  by mistake and written again about its task eight seconds later — which went on being told to
+  every agent in every project. A note about several things is one note: `scope`, then `also`.
+  So anything that writes a note's words *again* — the window's headline edit — forgets the old
+  line **first**, or it finds the old note and writes nothing.
+- **A note is retired, never deleted, and never reworded.** `Memory.retire` appends a `retire`
+  line with the sentence, and `retireNote` (`notes.ts`) writes `note_retired` after it — the note's
+  moment, scopes and headline, never its words, for `context_added`'s reason. A retired note is in
+  nothing anybody is told — `recall`, `all()`, the briefing, an agent's prompt — and read on
+  asking: `all({ retired: true })`, `tade notes --all`, `tade_notes` with all, the window's RETIRED
+  NOTES. `forget` is still the person taking a note back altogether.
+- **The cleanup retires only what needs no judgement** (`notesToRetire`, core, pure; run on every
+  open by `settleNotes`, like `settleDocuments`): the same words again about the same, and a note
+  every scope of which is a task finished or gone for longer than `notes.keep_days`. Never a note
+  about a project or everything, never one whose task is still there and not finished, and a task
+  file it cannot look at is a task. Superseded, contradicted, no longer true are judgements: the
+  orchestrator proposes them and retires one only on a line the person said lately (`theirLine`,
+  the check a document approval uses), so it is never silent and never on something it read.
 - **`reflected` is the only record that a finished task was looked back over**, which is why
   `needsReflection` (`core/src/reflect.ts`) reads it out of the journal instead of remembering it, and
   why it may not be dropped: without it Tade looks again and spends a turn per finished task every

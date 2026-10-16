@@ -450,7 +450,9 @@ export class VoiceSurface {
         // because filing it under the wrong task silently would be worse than
         // asking you to correct it.
         const scope = this.lastAddressed
-        await this.opts.tade.remember(intent.text, scope, 'voice')
+        const kept = await this.opts.tade.remember(intent.text, scope, 'voice')
+        // The same words twice are one note, and said so out loud.
+        if ((kept as { already?: string } | null)?.already === 'noted') return 'Already noted.'
         return scope ? `Noted, about ${short(scope)}.` : 'Noted.'
       }
 

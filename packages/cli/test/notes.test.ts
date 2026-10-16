@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { Memory } from '@tade/workbench/memory'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 
@@ -122,5 +123,25 @@ describe('tade remember and notes', () => {
     expect(json).toHaveLength(1)
     expect(json[0]).toMatchObject({ text: 'the staging key rotates', scope: 'checkout' })
     expect(typeof json[0].at).toBe('string')
+  })
+
+  it('writes the same words once, and says so the second time', async () => {
+    await tade('remember', '--about', 'checkout', 'freeze', 'on', 'Fridays')
+    const again = await tade('remember', '--about', 'checkout', 'freeze', 'on', 'Fridays')
+    expect(again.stdout).toMatch(/^already noted, on \d{4}-\d{2}-\d{2}, about checkout$/)
+    expect(JSON.parse((await tade('notes', '--json')).stdout)).toHaveLength(1)
+  })
+
+  it('reads a retired note only when asked for all of them, with who retired it and why', async () => {
+    await tade('remember', '--about', 'checkout', 'pause', 'the', 'queue')
+    const [taken] = JSON.parse((await tade('notes', '--json')).stdout)
+    Memory.open(home).retire({ at: taken.at }, 'they let the queue run', 'you')
+
+    expect((await tade('notes')).stdout).toBe('nothing yet')
+    const all = await tade('notes', '--all', 'checkout/refunds')
+    expect(all.stdout).toContain('pause the queue')
+    expect(all.stdout).toContain('by you: they let the queue run]')
+    const json = JSON.parse((await tade('notes', '--json', '--all')).stdout)
+    expect(json[0].retired).toMatchObject({ by: 'you', because: 'they let the queue run' })
   })
 })

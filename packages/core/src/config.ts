@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { WebSurface } from './away.ts'
 import { IntakeSurface } from './intake.ts'
+import { NotesConfigSchema } from './memory.ts'
 import { PrepareConfigSchema } from './prepare.ts'
 import { ModelPriceSchema } from './prices.ts'
 import { GIVE_WAY_MAX } from './priority.ts'
@@ -699,6 +700,8 @@ export const ConfigSchema = z
         keep_days: z.int().positive().default(30),
       })
       .prefault({}),
+    /** How long a note about work that is gone is still told to anybody (`notesToRetire`). */
+    notes: NotesConfigSchema,
     /**
      * Who decides about held queued work. Words in what the orchestrator is
      * told — its prompt and each hold (`heldMessage`) — and never a gate: what

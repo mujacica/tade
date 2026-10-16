@@ -9,7 +9,6 @@ import {
   type Finished,
   finishedFrom,
   historyFrom,
-  type Note,
   pricesFrom,
   type Queued,
   type QueueFacts,
@@ -57,6 +56,7 @@ import { type FileEntry, type Listed, treeOf } from './files.ts'
 import type { ActionsView, Change, NoteShown } from './frame.ts'
 import { type Histories, JOURNAL, QUEUE_READS, RUNTIME_READS, readHistories } from './histories.ts'
 import type { QueuedView, TaskSnapshot } from './model.ts'
+import { notesShown } from './notes-shown.ts'
 import { branchOf } from './projects.ts'
 import { snapshotsFrom, tabsFrom } from './reality.ts'
 import { SCHEDULE_LINES, ScheduleFold, type ScheduleRuns } from './schedule-fold.ts'
@@ -791,23 +791,18 @@ export class Live {
     return task ? (this.bases.get(task) ?? null) : null
   }
 
-  /** What you have told Tade that applies to a project, newest first. */
+  /** What you have told Tade that applies to a project, and is still told to anybody. */
   notes(project: string | null): NoteShown[] {
-    const all: readonly Note[] = this.opts.client.recallAll()
-    return all
-      .filter(
-        (note) =>
-          note.scope === null || note.scope === project || note.scope?.startsWith(`${project}/`),
-      )
-      .slice()
-      .reverse()
-      .map((note) => ({
-        text: note.text,
-        at: note.at,
-        scope: note.scope,
-        by: note.by,
-        ...(note.summary ? { summary: note.summary } : {}),
-      }))
+    return notesShown(this.opts.client.recallAll(), project)
+  }
+
+  /** What was retired from that, read on asking: the side's RETIRED NOTES. */
+  retiredNotes(project: string | null): NoteShown[] {
+    const all = this.opts.client.recallAll({ retired: true })
+    return notesShown(
+      all.filter((note) => note.retired),
+      project,
+    )
   }
 
   /** Every `usage` line the journal holds, merged, for the Spend page's own ranges. */

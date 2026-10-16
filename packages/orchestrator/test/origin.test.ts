@@ -35,8 +35,8 @@ function methodNames(): string[] {
   // at a known depth. Read rather than exported, because the record is built
   // inside `listen` out of closures over its options — and a second exported
   // list of the same names is the thing this test exists to prevent. The
-  // document, lesson, template, update, race, replay and schedule methods are
-  // spread into it from their own files, one level up.
+  // document, lesson, template, update, race, replay, schedule and note
+  // methods are spread into it from their own files, one level up.
   const keys = (source: string, depth: number): string[] =>
     [...source.matchAll(new RegExp(`^ {${depth}}'([a-z]+\\/[a-z-]+)':`, 'gm'))].map(
       (found) => found[1] ?? '',
@@ -51,6 +51,7 @@ function methodNames(): string[] {
       'host-race.ts',
       'host-replay.ts',
       'host-queue.ts',
+      'host-notes.ts',
     ].flatMap((file) => keys(read(file), 4)),
   ]
 }
@@ -177,6 +178,13 @@ describe('what a remote turn may reach', () => {
     expect(allowMethod('memory/remember', { scope: null }, narrow).ok).toBe(true)
     expect(allowMethod('memory/remember', { scope: 'sentry/flake' }, narrow).ok).toBe(true)
     expect(allowMethod('memory/remember', { scope: 'payments' }, narrow).ok).toBe(false)
+    // One note about several tasks is the device's only where all of them are
+    // in one project it was granted: two projects have no one project half.
+    const several = (scope: string[]) => allowMethod('memory/remember', { scope }, narrow).ok
+    expect(several(['sentry/flake', 'sentry/retry'])).toBe(true)
+    expect(several(['sentry/flake', 'payments/refunds'])).toBe(false)
+    // And retiring one is never a phone's: it is a decision about their words.
+    expect(allowMethod('memory/retire', { at: 'x' }, narrow).ok).toBe(false)
   })
 
   it('refuses a task that names no project at all', () => {

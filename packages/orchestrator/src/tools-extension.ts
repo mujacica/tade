@@ -8,6 +8,7 @@ import { documentTools } from './tools-documents.ts'
 import { type Gateable, gateTools } from './tools-gate.ts'
 import { lessonTools } from './tools-lessons.ts'
 import { machineTools } from './tools-machine.ts'
+import { noteTools } from './tools-notes.ts'
 import { done, PLAN_AFTER, PLAN_CONTEXT, queueTools, stringList, TOUCHES } from './tools-queue.ts'
 import { raceTools, replayTools } from './tools-race.ts'
 import { intakeTools, templateTools } from './tools-templates.ts'
@@ -521,35 +522,6 @@ export function orchestratorTools(
     )
   }
 
-  tool(
-    'tade_remember',
-    'Write down something the human told you, in their words. Scope it to a task or project when it is about one; leave it off when it is about everything. A note scoped to a task is in what that task\'s agent is told when it starts, so it carries a remark of theirs about queued work. More for that work to do — "add this to X", "it has to cover Y too" — changes what it was asked, and that is tade_queue_change retell, never a note.',
-    object(
-      {
-        text: string('exactly what they said, never a tidier version of it'),
-        summary: string(
-          'a headline for it in your own words, a few words long: what it is about and what it does, like "Refunds go through the ledger". It is shown above the note in the window, so it is the line somebody reads first. It never replaces the note — write it as well as, not instead of, their words.',
-        ),
-        about: string('task or project it is about, if any'),
-      },
-      ['text', 'summary'],
-    ),
-    (p) =>
-      rpc('memory/remember', {
-        text: String(p.text),
-        summary: p.summary ? String(p.summary) : null,
-        scope: p.about ? String(p.about) : null,
-        by: 'orchestrator',
-      }),
-  )
-
-  tool(
-    'tade_notes',
-    'What the human has told you, in the words they said it, newest first — the notes tade_remember writes. Use it whenever they ask what they told you, what you know about something, or what was said about a project or a task, and before saying there is nothing: notes are the one thing Tade is told rather than works out, so no other tool holds them and neither tade_status nor tade_logs can see one. Naming a task or project asks for what applies to it, which is what was said about it, about its project and about everything.',
-    object({ about: string('task or project to ask about; leave it off for everything') }),
-    async (p) => runTade(['notes', '--json', ...(p.about ? [String(p.about)] : [])]),
-  )
-
   // Chats: an agent in the lower pane with no task and no project, for a
   // question about this machine or something that is nobody's repository.
   // There is no `tade_chat_steer` or `tade_chat_stop`: a chat is an agent, so
@@ -688,7 +660,7 @@ export function orchestratorTools(
   // because what it may touch is a boundary, worth reading in one place.
   const groups = [configTools, documentTools, lessonTools, templateTools, raceTools, replayTools]
   for (const group of [...groups, intakeTools]) tools.push(...group(rpc))
-  tools.push(...machineTools(rpc, runTade))
+  tools.push(...machineTools(rpc, runTade), ...noteTools(rpc, runTade))
 
   tool(
     'tade_deny',

@@ -316,8 +316,12 @@ export interface NoteShown {
   summary?: string
   /** A task id, a project name, or null when it is about everything. */
   scope?: string | null
+  /** More tasks or projects the same words are about. */
+  also?: readonly string[]
   /** Where it came from: `voice`, `window`, `cli`, `orchestrator`. */
   by?: string
+  /** Told to nobody any more: who said so, when, and why. Drawn only under RETIRED NOTES. */
+  retired?: { by: string; at: string; because: string }
 }
 
 /**
@@ -445,6 +449,8 @@ export interface Frame {
   base?: string | null
   /** Notes about this project and everything, oldest first: named by when they were said. */
   notes?: readonly NoteShown[]
+  /** The ones of those retired: told to nobody, drawn folded under RETIRED NOTES until opened. */
+  retiredNotes?: readonly NoteShown[]
   /**
    * Today's spend, in total and by task. Absent until the journal has been
    * read, which is unknown and drawn as nothing rather than as a nought.

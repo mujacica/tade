@@ -1,3 +1,4 @@
+import { scopesOf } from '@tade/core'
 import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
 import { noteMenuItems } from '../panels/menu/state.ts'
@@ -40,7 +41,11 @@ export class Notes implements Subject {
 
   /** The notes about this project and about everything, as the side draws them. */
   facts(): Partial<Frame> {
-    return { notes: this.wire.live?.notes(this.wire.state.project) ?? [] }
+    const project = this.wire.state.project
+    return {
+      notes: this.wire.live?.notes(project) ?? [],
+      retiredNotes: this.wire.live?.retiredNotes(project) ?? [],
+    }
   }
 
   actions(): Actions {
@@ -82,16 +87,20 @@ export class Notes implements Subject {
     return {
       note: (panel, text) => {
         const scope = panel.everywhere ? null : this.wire.state.project
-        this.wire.opts.client.remember(text, scope, 'window')
-        this.wire.put(acknowledge({ ...this.wire.state, panel: null }, 'noted', this.wire.now()))
+        const kept = this.wire.opts.client.remember(text, scope, 'window')
+        // The same words twice are one note, and that is said rather than
+        // looking as though a second one was taken.
+        const said = kept.already === 'noted' ? 'already noted' : 'noted'
+        this.wire.put(acknowledge({ ...this.wire.state, panel: null }, said, this.wire.now()))
       },
       'note-headline': (panel, text) => {
         const was = this.noteBehind(panel.target)
         if (!was) return promptFailed(this.wire, panel, 'That note is not there any more.')
         // Said again with the headline it is read by, and the old line taken
-        // back: the words are handed over exactly as they were kept.
-        this.wire.opts.client.remember(was.text, was.scope, 'window', text)
+        // back: the words are handed over exactly as they were kept. Taken
+        // back first, because the same words still there are already noted.
         this.wire.opts.client.forget({ at: was.at, text: was.text }, 'window')
+        this.wire.opts.client.remember(was.text, scopesOf(was), 'window', text)
         this.wire.put(acknowledge({ ...this.wire.state, panel: null }, 'noted', this.wire.now()))
       },
       'edit-note': async (panel, text, choice) => {
@@ -118,7 +127,7 @@ export class Notes implements Subject {
           // Said again in its new words, about what it was about, and the old
           // words taken back. The headline it was given goes with it: it says
           // what the note is for, which changing its wording does not.
-          this.wire.opts.client.remember(text, was.scope, 'window', was.summary ?? null)
+          this.wire.opts.client.remember(text, scopesOf(was), 'window', was.summary ?? null)
           this.wire.opts.client.forget({ at: was.at, text: was.text }, 'window')
         }
         this.wire.put(acknowledge({ ...this.wire.state, panel: null }, 'noted', this.wire.now()))
@@ -130,7 +139,9 @@ export class Notes implements Subject {
   private noteBehind(target: string | undefined) {
     const [at = '', ...said] = (target ?? '').split('\u0000')
     const text = said.join('\u0000')
-    return this.wire.opts.client.recallAll().find((one) => one.at === at && one.text === text)
+    return this.wire.opts.client
+      .recallAll({ retired: true })
+      .find((one) => one.at === at && one.text === text)
   }
 
   /**
@@ -142,7 +153,7 @@ export class Notes implements Subject {
    */
   open(note: Note): void {
     const kept = this.wire.opts.client
-      .recallAll()
+      .recallAll({ retired: true })
       .find((one) => one.at === note.at && one.text === note.text)
     this.wire.put({
       ...this.wire.state,
@@ -151,7 +162,9 @@ export class Notes implements Subject {
           at: note.at,
           summary: kept?.summary ?? null,
           scope: kept?.scope ?? null,
+          ...(kept?.also ? { also: kept.also } : {}),
           by: kept?.by ?? 'unknown',
+          ...(kept?.retired ? { retired: kept.retired } : {}),
         },
         note.text,
       ),

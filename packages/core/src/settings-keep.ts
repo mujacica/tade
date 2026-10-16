@@ -54,6 +54,17 @@ export function keepGroup(config: Config): SettingGroup {
         keywords: ['documents', 'research', 'analysis', 'cleanup', 'clean up', 'keep'],
       },
       {
+        path: 'notes.keep_days',
+        title: 'Keep notes about gone work',
+        means:
+          'days; a note about a task that finished or was removed this long ago is retired on the next open and the journal says so — no longer told to agents or the orchestrator, still read on asking; a note about a project or about everything is never retired unasked',
+        value: String(config.notes.keep_days),
+        fallback: '3 days',
+        type: { kind: 'number', unit: 'days' } as const,
+        live: false,
+        keywords: ['notes', 'remember', 'retire', 'duplicate', 'cleanup', 'clean up', 'keep'],
+      },
+      {
         path: 'drivers.pty.scrollback',
         title: 'Lane scrollback',
         means:

@@ -84,35 +84,6 @@ const BUDGET: Record<string, number> = {
   'packages/harnesses/claude/src/adapter.ts': 1_590,
   'packages/harnesses/codex/src/adapter.ts': 1_700,
   'packages/harnesses/pi/src/adapter.ts': 1_100,
-  // 1,000 -> 975 when the template tools moved out to `tools-templates.ts`,
-  // which is `tools-config.ts`'s split for the same two reasons: this file was
-  // at its budget, and three tools that share one boundary — what the
-  // orchestrator may do with a stored workflow — read better in one place than
-  // inferred from three descriptions among forty.
-  //
-  // 975 -> 970 when the `tool_call` gate moved out to `tools-gate.ts`. Same
-  // two reasons again: the file was at its budget, and the gate is not a tool
-  // — it is the thing asked *before* every one of them, its own and the
-  // harness's alike, so it reads as one subject rather than as a fortieth
-  // description.
-  //
-  // 970 -> 934 when `tade_queue` and `tade_queue_change` moved out to
-  // `tools-queue.ts`, as `after` and `retell` came in: at its budget again, and
-  // how a plan is changed once it is made reads better as one subject.
-  //
-  // 934 -> 929 when `tade_plan` gained a `context` of its own, whose words went
-  // to `tools-queue.ts` beside `TOUCHES`, and `stringList` stopped being two
-  // copies of one helper.
-  //
-  // 929 -> 918 when `tade_plan`'s `after` went to `tools-queue.ts` as
-  // `PLAN_AFTER`, beside the `approved` it shares with `tade_queue_change`.
-  //
-  // 916 -> 881 when `tade_propose_skill` went to `tools-lessons.ts`, beside the
-  // `tade_propose_check` that is the second time of the same lesson.
-  //
-  // 881 -> 814 when `tade_schedule` went to `tools-queue.ts`, beside the
-  // `tade_proposal_decide` that answers what a schedule makes.
-  'packages/orchestrator/src/tools-extension.ts': 814,
   // The facade is the point and stays: ~1,700 lines of it are the one object
   // the CLI, the window and the orchestrator all call, average method 19 lines,
   // already delegating to eight split collaborators — splitting a facade
@@ -418,6 +389,7 @@ const PURE = [
   'packages/app/src/hits.ts',
   'packages/app/src/layout.ts',
   'packages/app/src/model.ts',
+  'packages/app/src/notes-shown.ts',
   // The away view's own two: what the window hands the projection, and the
   // panel's state. Both a function of what they are handed.
   'packages/app/src/away.ts',

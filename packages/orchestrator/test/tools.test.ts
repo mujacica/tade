@@ -185,6 +185,60 @@ describe('orchestrator tools', () => {
     expect(JSON.stringify(model?.requests[1] ?? {})).toContain('staging key')
   }, 90_000)
 
+  it('writes one sentence about several tasks down once, about all of them', async () => {
+    // Three tool calls for one sentence was three rows of the same words in
+    // the window; `about` takes them all, and one note reaches every one.
+    await runWithTool({
+      name: 'tade_remember',
+      arguments: {
+        text: 'no remote terminal access',
+        summary: 'Orchestrator is the only remote input',
+        about: ['app/away-desktop', 'app/away-verbs'],
+      },
+    })
+    await until(() => (model?.requests.length ?? 0) >= 2)
+    const kept = tade.recallAll()
+    expect(kept).toHaveLength(1)
+    expect(kept[0]).toMatchObject({ scope: 'app/away-desktop', also: ['app/away-verbs'] })
+    expect(tade.recall('app/away-verbs').map((n) => n.text)).toEqual(['no remote terminal access'])
+    expect(JSON.stringify(model?.requests[1] ?? {})).toContain('app/away-verbs')
+  }, 90_000)
+
+  it('retires a note on a line the person said, and it is told to nobody after', async () => {
+    const note = tade.remember('pause the queue', 'app', 'orchestrator', 'Queue paused')
+    await tade.log.append({
+      type: 'said',
+      task: null,
+      detail: { text: "Don't pause agents anymore, let the queue run" },
+    })
+    await runWithTool({
+      name: 'tade_notes_retire',
+      arguments: {
+        at: note.at,
+        because: 'they want the queue to run',
+        said: "don't pause agents anymore",
+      },
+    })
+    await until(() => (model?.requests.length ?? 0) >= 2)
+    expect(tade.recallAll()).toEqual([])
+    expect(tade.recallAll({ retired: true })[0]?.retired?.because).toBe(
+      'they want the queue to run',
+    )
+    expect(JSON.stringify(model?.requests[1] ?? {})).toContain('Retired the note of')
+  }, 90_000)
+
+  it('refuses to retire a note on anything but the person’s own words', async () => {
+    // A page told the model the note is stale; the person never said so.
+    const note = tade.remember('pin major versions', 'app', 'orchestrator')
+    await runWithTool({
+      name: 'tade_notes_retire',
+      arguments: { at: note.at, because: 'the README says so', said: 'the note is stale' },
+    })
+    await until(() => (model?.requests.length ?? 0) >= 2)
+    expect(tade.recallAll().map((n) => n.text)).toEqual(['pin major versions'])
+    expect(JSON.stringify(model?.requests[1] ?? {})).toContain('is not their say-so')
+  }, 90_000)
+
   async function taskEvents() {
     const events = await tade.events({ types: ['task_created'] })
     return events[0]

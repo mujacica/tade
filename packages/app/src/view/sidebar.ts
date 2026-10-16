@@ -84,6 +84,7 @@ export function renderSidebar(
   // `null` is not looked yet, and drawn as `…` in the room it last took.
   const changes = frame.changes ?? null
   const notes = frame.notes ?? []
+  const retired = frame.retiredNotes ?? []
   const files = frame.files ?? null
   const room = frame.roomHeld ?? { changes: 1, files: 1 }
   const spend = frame.spend?.byTask ?? {}
@@ -267,6 +268,24 @@ export function renderSidebar(
               width,
             ),
     },
+    // Retired notes are told to nobody, and read here on asking: folded until
+    // somebody opens it, and no heading at all where none were.
+    ...(retired.length > 0
+      ? [
+          {
+            id: 'retired-notes',
+            label: 'RETIRED NOTES',
+            count: retired.length,
+            quiet: true,
+            banded: true,
+            rows: () =>
+              tabList(
+                retired.map((note) => noteRow(width, skin, pointer, note, state.project)),
+                width,
+              ),
+          },
+        ]
+      : []),
     {
       id: 'where',
       label: 'GIT',

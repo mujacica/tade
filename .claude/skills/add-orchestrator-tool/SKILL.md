@@ -71,6 +71,15 @@ these: it is an extension (see `add-extension`), which agents can use too and th
   time — and write the change down (`config_changed`) with what it was before, so somebody who was
   not watching can find it and undo it.
 
+- **A tool that takes the person's own words out of what is told takes a line of theirs.**
+  `tade_notes_retire` is refused in the window unless `said` is something the journal has them
+  saying lately (`theirLine`, `host-notes.ts`) — the check `tade_document_triage` makes of an
+  approval. So the description tells the model to propose first and retire once they agree, and
+  leaves what needs no judgement (a note about gone work, the same words twice) to the cleanup
+  that runs on open, so no turn is spent on it. A tool that writes something the person said
+  answers when nothing was written: `tade_remember` with the same words says "already noted",
+  because a model shown a fresh note goes on to write the next one.
+
 - **A tool that spends money for the person takes their words and their ceiling.** `tade_replay`
   is refused in the window unless a `said` line asks for an eval (`REPLAY_START`, `replayNamedBy`),
   and the host refuses it with no `ceiling_usd` before the window is even asked — a ceiling the

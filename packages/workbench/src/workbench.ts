@@ -36,6 +36,7 @@ import {
   routeIn,
   runtimeDir,
   type Schedule,
+  type Scopes,
   type StartCondition,
   sinceLastLook,
   spendFrom,
@@ -87,7 +88,8 @@ import { accountKey, adapterKey, HARNESS_ADAPTERS, type HarnessOptions } from '.
 import { takeBackOwnIgnore } from './ignore.ts'
 import { type Taken, takeIntake } from './intake.ts'
 import { type HomeLock, lockHome } from './lock.ts'
-import { Memory } from './memory.ts'
+import { Memory, type Noted } from './memory.ts'
+import { type RetireRequest, retireNote, settleNotes } from './notes.ts'
 import { notStartable, type ParkedBy, park } from './parked.ts'
 import { makePlan, type PlanMade } from './plans.ts'
 import { preparedDetail, setupBefore, setupTold } from './prepare.ts'
@@ -438,6 +440,7 @@ export class Workbench {
       await workbench.lookAtCommits().catch(() => {})
       await workbench.lookAtChecks().catch(() => {})
       await settleDocuments(workbench, config.documents.keep_days)
+      await settleNotes({ home: opts.home, memory: workbench.memory, log }, config.notes.keep_days)
       return workbench
     } catch (err) {
       await journal?.close().catch(() => {})
@@ -1317,34 +1320,31 @@ export class Workbench {
 
   /**
    * Write something down, exactly as it was said, with the headline whoever
-   * took it wrote for it — what it is about and what it does, never a tidier
-   * version of the words themselves.
+   * took it wrote for it — never a tidier version of the words. The same
+   * words again are one note (`Memory.remember`), and the answer says so.
    */
-  remember(
-    text: string,
-    scope: string | null = null,
-    by = 'unknown',
-    summary: string | null = null,
-  ): Note {
-    return this.memory.remember(text, scope, by, Date.now(), summary)
+  remember(text: string, scope: Scopes = null, by = 'unknown', summary?: string | null): Noted {
+    return this.memory.remember(text, scope, by, Date.now(), summary ?? null)
   }
 
-  /**
-   * What has been said about something, newest first: notes about the task,
-   * about its project, and about everything. `null` asks for only the last.
-   */
+  /** Notes about a task, its project and everything, newest first; `null` asks for the last. */
   recall(scope: string | null): Note[] {
     return this.memory.recall(scope)
   }
 
-  /** Everything that has ever been remembered, whatever it was about. */
-  recallAll(): Note[] {
-    return this.memory.all()
+  /** Everything remembered and not retired — or, with `retired`, what was retired too. */
+  recallAll(opts: { retired?: boolean } = {}): Note[] {
+    return this.memory.all(opts)
   }
 
   /** Take a note back, named by when it was said and what it said. False when there was no such note. */
   forget(note: { at: string; text: string }, by = 'unknown'): boolean {
     return this.memory.forget(note, by)
+  }
+
+  /** Stop telling anybody a note, with why, and the journal says so (`notes.ts`). */
+  retireNote(req: RetireRequest): Promise<Note> {
+    return retireNote({ home: this.home, memory: this.memory, log: this.log }, req)
   }
 
   // --- agents

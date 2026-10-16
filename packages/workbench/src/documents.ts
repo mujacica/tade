@@ -144,15 +144,19 @@ export async function triageDocument(deps: DocumentDeps, req: TriageRequest): Pr
  * saying what to do instead. Matched with case and spacing set aside, inside
  * one of the last lines they said (`LINES_LOOKED_BACK`): "yes, go with B" is
  * theirs when they said "Yes, go with B — and keep it small".
+ *
+ * `what` is the act it is quoted for — retiring a note asks the same question
+ * (`notes.ts`) — and `missing` the refusal when nothing was quoted at all.
  */
-async function theirLine(deps: DocumentDeps, quoted: string): Promise<string> {
+export async function theirLine(
+  deps: Pick<DocumentDeps, 'log'>,
+  quoted: string,
+  what = 'approval',
+  missing = 'an approval is the person’s: pass the line of theirs that approves it, word for word, as said — and where they have not said one, ask them',
+): Promise<string> {
   const plain = (text: string) => text.toLowerCase().replace(/\s+/g, ' ').trim()
   const want = plain(quoted)
-  if (!want) {
-    throw new Error(
-      'an approval is the person’s: pass the line of theirs that approves it, word for word, as said — and where they have not said one, ask them',
-    )
-  }
+  if (!want) throw new Error(missing)
   const lines = await deps.log.read({ types: ['said'], limit: LINES_LOOKED_BACK }).catch(() => [])
   const theirs = lines.flatMap((event) =>
     typeof event.detail.text === 'string' ? [event.detail.text] : [],
@@ -160,7 +164,7 @@ async function theirLine(deps: DocumentDeps, quoted: string): Promise<string> {
   const line = theirs.find((one) => plain(one).includes(want))
   if (!line) {
     throw new Error(
-      `nothing the person has said lately is "${quoted.trim()}", so this is not their approval: ask them, and pass their own words`,
+      `nothing the person has said lately is "${quoted.trim()}", so this is not their ${what}: ask them, and pass their own words`,
     )
   }
   return line

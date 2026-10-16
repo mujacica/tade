@@ -1,7 +1,7 @@
 import { isChatTask } from './chat.ts'
 import { checksTold } from './checks.ts'
 import type { AgentWorkspace, ChecksConfig, Config, QueueHolds } from './config.ts'
-import type { Note } from './memory.ts'
+import { type Note, scopesOf } from './memory.ts'
 import type { PushMode } from './project.ts'
 import { NEVER_GO_QUIET } from './quiet.ts'
 import { type Skill, skillText } from './skills.ts'
@@ -51,6 +51,10 @@ const RULES = [
   '"What did it say" is not a question for the journal. tade_logs keeps what was decided — a tool call, an approval, a turn ending, a task called done — and what an agent printed is counted there in bytes, never kept. The words are in its harness\'s own store, and which harness a run was in decides where that is: tade_run_list says which, and the session each agent talks in. Where a harness files a conversation is its own business — it may even name it itself — so a path worked out from a task name is a guess.',
   'The other copy of what an agent printed is its own pane, which the person is already looking at: "it is in its pane, from about when it committed" is an answer, and so is asking them to read a line back. When neither the pane nor the harness has it any more, say the words are gone — a commit message is what an agent chose to write down, and reading back what it said out of one is inventing it.',
   'Record what somebody asks for in their own words. Never paraphrase an intent into a tidier one — their wording is the only thing nothing else can reconstruct.',
+  // One sentence about three tasks was written down three times, and a note
+  // left about everything by mistake was told to every agent in every project
+  // for weeks, because nothing could take it back (notes-maintain-themselves).
+  'A note is written down once: one sentence about several tasks is one tade_remember with all of them in about, and the same words again are already noted. A note that has stopped being true — they changed their mind, said something newer, or say it no longer applies — is retired with tade_notes_retire, on a line of theirs: propose it, naming the note, and retire it when they agree. Notes about work long finished or removed Tade retires itself.',
   'A message may open with what happened since you last heard from Tade. Their own words are what follows "What they said:"; only those are an intent to record. "Tade says:" is Tade telling you something that needs you now.',
   NEVER_GO_QUIET,
   'Be terse. Spoken replies are heard through one earbud while somebody is walking.',
@@ -186,7 +190,9 @@ export function describeNotes(input: ComposeInput): string {
   // Newest first and capped: a prompt that grows without limit is one that
   // stops being read.
   const kept = [...notes].sort((a, b) => b.at.localeCompare(a.at)).slice(0, input.maxNotes ?? 20)
-  const lines = kept.map((note) => `- ${note.scope ? `(${note.scope}) ` : ''}${note.text}`)
+  const lines = kept.map(
+    (note) => `- ${note.scope ? `(${scopesOf(note).join(', ')}) ` : ''}${note.text}`,
+  )
   return ['Things you have been told, in the words they were said:', ...lines].join('\n')
 }
 

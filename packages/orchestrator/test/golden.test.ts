@@ -71,6 +71,7 @@ describe('the tools the orchestrator has', () => {
       'tade_limits',
       'tade_logs',
       'tade_notes',
+      'tade_notes_retire',
       'tade_orchestrator_model',
       'tade_park',
       'tade_plan',

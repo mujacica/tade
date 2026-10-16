@@ -171,6 +171,14 @@ describe('what an ordinary request reaches', () => {
     expect(settingReach('documents.keep_days').reach).toBe('asked')
   })
 
+  it('does not include how long a note about gone work is told, though it can retire one', () => {
+    // `asked`, decided: retiring takes words out of what agents are told and
+    // deletes none — every one is still read on asking — and no value reaches
+    // a note about a project, about everything, or about work still there.
+    // It is how long somebody's own words go on being said, so theirs to name.
+    expect(settingReach('notes.keep_days').reach).toBe('asked')
+  })
+
   it('does not include holding the machine awake, which is the one that reaches outside Tade', () => {
     // `asked`, decided rather than defaulted into, and the only setting whose
     // effect is on the machine rather than on Tade. Not `never`: it widens
@@ -278,6 +286,7 @@ describe('the shape of the rule', () => {
       'extensions',
       'journal',
       'mcp',
+      'notes',
       'orchestrator',
       'prices',
       'projects',

@@ -257,6 +257,10 @@ export const REMOTE_TOOLS: Readonly<Record<string, Reaching>> = {
   // Its own clause, because it is the only one here that is not about what a
   // call can reach.
   tade_document_triage: { kind: 'local', because: DECIDES_FOR_SOMEBODY },
+  // Takes the person's own words out of what every agent is told, on a line of
+  // theirs the window checks — a decision about their notes they never saw
+  // proposed, if a phone could make it.
+  tade_notes_retire: { kind: 'local', because: DECIDES_FOR_SOMEBODY },
   // Which entrant a race keeps is the person's, and the window holds even the
   // orchestrator to a line of theirs (`RACE_PICK`).
   tade_race_pick: { kind: 'local', because: DECIDES_FOR_SOMEBODY },
@@ -396,13 +400,21 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
   'memory/remember': {
     reaching: { kind: 'needs', grant: 'steer' },
     project: (p) => {
-      const scope = typeof p.scope === 'string' ? p.scope.trim() : ''
+      const scopes = (Array.isArray(p.scope) ? p.scope : [p.scope])
+        .map((one) => (typeof one === 'string' ? one.trim() : ''))
+        .filter((one) => one !== '')
       // `null` is *about everything*, which is the one place that answer is a
       // real one rather than a failure to parse.
-      if (scope === '') return null
-      return scope.includes('/') ? projectOfTask(scope) : scope
+      if (scopes.length === 0) return null
+      const projects = new Set(
+        scopes.map((scope) => (scope.includes('/') ? projectOfTask(scope) : scope)),
+      )
+      // One note about two projects has no one project half: the empty
+      // string, never `null`, which would read as about everything.
+      return projects.size === 1 ? ([...projects][0] ?? '') : ''
     },
   },
+  'memory/retire': never(DECIDES_FOR_SOMEBODY),
 
   'task/create': never(EXECUTES),
   'check/propose': never(EXECUTES),

@@ -316,6 +316,21 @@ describe('how long decided documents are kept', () => {
   })
 })
 
+describe('how long a note about gone work is still told', () => {
+  it('keeps telling it three days unless told otherwise', () => {
+    const r = parseConfig('')
+    expect(r.ok && r.config.notes).toEqual({ keep_days: 3 })
+  })
+
+  it('takes a number of days, and refuses none at all', () => {
+    const r = parseConfig('notes:\n  keep_days: 14\n')
+    expect(r.ok && r.config.notes).toEqual({ keep_days: 14 })
+    const bad = parseConfig('notes:\n  keep_days: 0\n')
+    expect(bad.ok).toBe(false)
+    expect(!bad.ok && bad.issues[0]?.path).toBe('notes.keep_days')
+  })
+})
+
 describe('who decides about held queued work', () => {
   it('leaves it to the orchestrator unless the person said to ask them', () => {
     const r = parseConfig('')

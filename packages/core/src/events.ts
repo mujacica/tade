@@ -156,6 +156,15 @@ export const EventType = z.enum([
    * state and everything about what the next turn does.
    */
   'context_added',
+  /**
+   * A note stopped being told to anybody: `noted` (when it was taken, which
+   * with its words names it), `scope`, its `summary` where it has one, `by` —
+   * `cleanup`, the orchestrator on the person's line (`said`), or the person —
+   * and `explained`, the sentence. `rule` is which of the cleanup's two it
+   * was. Never the note's words, for `context_added`'s reason: they are in
+   * `memory.jsonl`, where it is still read on asking.
+   */
+  'note_retired',
   // the queue
   /** Queued work started: what it waited on finished, its time came, or someone started it. */
   'queue_started',
@@ -499,6 +508,8 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // back wants to see that it was changed and by whom. Never `blocking` —
   // nothing is waiting on it.
   context_added: 'notable',
+  // Notable for the same reason, the other way: what agents are told shrank.
+  note_retired: 'notable',
   queue_started: 'notable',
   // Not blocking: nothing is running into a wall, and the orchestrator is told
   // in words. Blocking would raise a pane for work that has none.

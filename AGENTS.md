@@ -112,8 +112,8 @@ attached to the decision it governs. Load the matching one rather than working f
 - **Compaction drops samples, and only samples** (`SAMPLED_TYPES`) — by type, never by urgency, which
   is about subscribers, and nothing droppable left is a `warning`, not a deleted record.
 - **Notes are the one thing Tade is told rather than derives**: verbatim in `<home>/memory.jsonl`,
-  append-only, a bad line skipped rather than thrown over. Never lowercase or reword one; a `summary`
-  may be written *beside* a note, never made out of its text. `intent_spoken` likewise.
+  append-only, a bad line skipped. Never lowercase or reword one; a `summary` goes *beside* a note,
+  never out of it. One is retired, never deleted (`notesToRetire`). `intent_spoken` too.
 - **The registry keeps a dead lane's spec so the work can be put back**, so it forgets only one whose
   task is gone (`forgettable`) — never a live one, never one marked `lost`.
 
