@@ -1,4 +1,5 @@
 import type { TadeEvent } from './events.ts'
+import { CHECK_SHAPES } from './mistakes.ts'
 import type { TaskState } from './model.ts'
 
 // Looking back at a task that finished.
@@ -59,5 +60,10 @@ export function reflectionPrompt(task: string): string {
     'Most finished tasks teach nothing. Saying "nothing to note" is the usual answer and a good one:',
     'a lesson nobody needed costs context in every prompt from then on.',
     'Do not propose anything that is already obvious from the code or from a note.',
+    // The second time is when prose has already failed once (`mistakes.ts`).
+    'If what you would write down is a correction you have seen made before — the same mistake put',
+    'right in an earlier task, or a lesson already written about it — do not write it down again:',
+    `propose a check with tade_propose_check instead (${CHECK_SHAPES}), naming the tasks it was`,
+    'made in, so that a machine catches it the next time rather than a paragraph somebody may skip.',
   ].join(' ')
 }

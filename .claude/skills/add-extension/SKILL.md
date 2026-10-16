@@ -51,6 +51,11 @@ tools registered by Tade's own pi extensions, which call back to Tade. What only
   because `workspaceFor` answers *where agents work* and this is about *what this work does*; and it
   may only ever **narrow** — there is no value here that puts work into a shared checkout a project
   did not already name. Everything else leaves it alone and goes where the project says.
+- **Work a person has to agree to first says `parked: true`** on what a watch's `agent()` returns
+  (`WatchAgent.parked`): the task is made and parked through the one park door (`found.ts`), and
+  picking it up is approving it, as for intake under `propose`. `jev.mistakes` is the one that does,
+  because a check proposed by a judge changes how a project checks itself. It may only ever **hold**
+  — there is no value that hurries work a watch would otherwise have made.
 - **`ready()` never touches the network** — it runs before the window opens. Return what to do
   ("set $SENTRY_AUTH_TOKEN…"), not that something failed.
 - **Say how it is used, in `workflow`.** A few lines for a person, each one way it is actually

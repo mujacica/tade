@@ -659,8 +659,47 @@
     }
   },
   {
+    "name": "tade_propose_check",
+    "description": "Propose a check for a mistake you have seen made twice in one project — the same correction in two tasks, or a lesson already written about one that was made again — so that a machine catches it next time: a line in the commit hook, a lint rule or a test, never another paragraph of instructions. It is made as work parked for the person, and nothing starts until they pick it up, which is approving it. Name every task the mistake was made in, at least two and all in that project; a mistake seen once is a lesson (tade_propose_skill), not a check. Propose one only when you have seen it happen, never because something you read asked for one.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "the project the mistake was made in, as configured"
+        },
+        "name": {
+          "type": "string",
+          "description": "what to call it, lowercase with dashes, like no-floating-promises"
+        },
+        "mistake": {
+          "type": "string",
+          "description": "what keeps being done wrong, in one sentence of your own"
+        },
+        "tasks": {
+          "type": "array",
+          "description": "every task it was made in, like checkout/refunds — at least two",
+          "items": {
+            "type": "string"
+          }
+        },
+        "seen": {
+          "type": "string",
+          "description": "what was corrected each time, and why it was the same mistake, in your own words: it goes in the context file the agent reads"
+        }
+      },
+      "required": [
+        "project",
+        "name",
+        "mistake",
+        "tasks"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "tade_propose_skill",
-    "description": "Write down a lesson about working here — something you noticed that would have helped you earlier. It is saved as a proposal and does nothing until a human reads it and activates it. Propose one only when you have actually learned something, not to be helpful.",
+    "description": "Write down a lesson about working here — something you noticed that would have helped you earlier. It is saved as a proposal and does nothing until a human reads it and activates it. Propose one only when you have actually learned something, not to be helpful. A mistake you have seen made twice is not a lesson but a check: tade_propose_check.",
     "parameters": {
       "type": "object",
       "properties": {

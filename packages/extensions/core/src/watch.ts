@@ -230,6 +230,19 @@ export interface WatchAgent {
    * start does.
    */
   from?: string
+  /**
+   * That this work is a proposal: made **parked**, so nothing starts until a
+   * person picks it up — which is what approving it is, exactly as for intake
+   * under `propose`.
+   *
+   * For work a person has to agree to before it is anybody's: a judge may only
+   * ever add caution, and a check proposed because the same mistake was made
+   * twice (`jev.mistakes`) changes how a project checks itself. Like `alone`,
+   * it may only ever **hold**: there is no value here that starts work a watch
+   * would otherwise have made, so a watch can make work wait and never hurry
+   * it. Honoured where a finding becomes work (`watchFound`).
+   */
+  parked?: boolean
 }
 
 /**

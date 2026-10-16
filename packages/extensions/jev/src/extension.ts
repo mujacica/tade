@@ -31,6 +31,7 @@ import {
 import { CHARS_PER_TOKEN, changesFor, unitFor, unitsIn, whoseIn } from './changes.ts'
 import { circlingIn } from './circles.ts'
 import { findingsOf, shorten } from './loop.ts'
+import { mistakesWatch } from './mistakes.ts'
 import { JEV_TABS, jevPage, whoseFrom } from './page.ts'
 import {
   agentQuestions,
@@ -228,6 +229,7 @@ export const jevExtension: TadeExtension = {
     'Hands what it flagged to the agent that wrote it, which answers with jev_account.',
     'Sweeps what nobody answered to the orchestrator, which writes the verdict (jev_verdict).',
     'Says which questions earn their place, and why each open finding is still open.',
+    'Proposes a check, parked for you, once a question is confirmed real twice in a project.',
     'Judges anything in front of you (jev_ask): a diff, a log, something pasted.',
     'Reads things back before somebody guesses: a request, a plan, a queue order.',
     'Answers a sentence typed into search that matched no letters.',
@@ -918,6 +920,8 @@ export const jevExtension: TadeExtension = {
     },
     // The sweep, beside the tools it puts work in front of.
     verdictsWatch,
+    // What the verdicts say was made twice, proposed as a check and parked.
+    mistakesWatch,
   ],
   /**
    * A command an agent is held at, read a second time.
@@ -1070,6 +1074,7 @@ export const jevExtension: TadeExtension = {
       'jev.verdicts is the sweep: it tells you about each finding an agent has accounted for and nobody has judged, each one whose agent is gone, and each one raised about a change that is nobody’s in particular — a whole branch several agents committed to, which no one agent can account for. It says the same one again as its wait passes a day, three days and a week, four times ever, because a finding mentioned once and then forgotten is how nine of them came to sit open for three days. It starts nothing — what to do about a finding is a decision, so tell the person what is waiting and answer the ones you have read.',
       'Only then make work of it, and when the fix should wait for the agent whose code it is, queue it with tade_plan after that task, with the reason in your own words.',
       'Both of those are on already, in every project, from the first time Tade opened with a key set up: they are ordinary schedules and somebody can pause, change or remove one, and removed it stays removed. jev.circles is the third and is off until somebody turns it on — it watches for an agent going round on the same failing command and tells you which, it starts nothing, and what to do about a stuck agent is theirs to decide.',
+      'jev.mistakes is on beside them: when the verdicts say the same question was confirmed real about two changes in one project, it proposes a check a machine runs — a line in the commit hook, a lint rule or a test, never a lesson in prose — as work parked for the person. It starts nothing; picking it up is approving it, and that is theirs.',
       'It also answers a sentence somebody types into search that matched nothing, with which of the things already in front of them it might mean.',
     ].join(' ')
   },

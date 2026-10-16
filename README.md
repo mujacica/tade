@@ -408,6 +408,12 @@ then silence — and nothing becomes a false positive by getting old. Every find
 says *why* it has none, because "waiting on a verdict" is the symptom and each of its causes wants
 something different done.
 
+And a mistake made twice becomes a check. When the verdicts say the same question was real about two
+changes in one project — or the orchestrator, looking back at finished work, sees the same correction
+twice — Tade proposes something a machine runs, a line in the commit hook, a lint rule or a test,
+rather than another paragraph an agent can read past. It arrives as parked work, and picking it up is
+approving it.
+
 ![What Jev read today, where every finding stands and why, and whether the questions earn their place](https://raw.githubusercontent.com/mujacica/tade/main/images/jev.svg)
 
 Paste a key and it is on. With none, none of it runs and nothing else changes.

@@ -186,6 +186,8 @@ export const REMOTE_TOOLS: Readonly<Record<string, Reaching>> = {
   tade_write_extension: { kind: 'local', because: EXECUTES },
   tade_plan: { kind: 'local', because: EXECUTES },
   tade_task_create: { kind: 'local', because: EXECUTES },
+  // Makes work, parked for the person: it is still work, and work is theirs to ask for.
+  tade_propose_check: { kind: 'local', because: EXECUTES },
   tade_template_use: { kind: 'local', because: EXECUTES },
   tade_race: { kind: 'local', because: EXECUTES },
   // Spends real money on work that already landed, on a line of theirs (`REPLAY_START`).
@@ -401,6 +403,7 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
   },
 
   'task/create': never(EXECUTES),
+  'check/propose': never(EXECUTES),
   'task/done': never(CONFIRMS),
   'task/rename': never(PUBLISHES),
   'queue/plan': never(EXECUTES),

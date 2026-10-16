@@ -309,4 +309,47 @@ describe('schedules', () => {
     expect(repo.git('-C', worktree, 'rev-parse', 'HEAD').trim()).toBe(head)
     expect((await readTaskFile(home, task))?.base).toBe(head)
   })
+
+  it('makes a proposal parked, so nothing starts it until a person picks it up', async () => {
+    await client.setSchedule(
+      deps({
+        id: 'mistakes-app',
+        name: 'Mistakes made twice',
+        when: { every: '1h' },
+        does: { kind: 'watch', watch: 'jev.mistakes', input: {}, found: 'agent', most: 2 },
+      }),
+      'you',
+    )
+    const made = await client.watchFound(
+      'mistakes-app',
+      { key: 'test_missing', title: 'test_missing was confirmed real twice' },
+      {
+        agent: {
+          title: 'check for test_missing',
+          prompt: 'Add a check that fails on a change with no test.',
+          context: '# Made twice in app: test_missing\n',
+          parked: true,
+        },
+      },
+    )
+    const task = made.task ?? ''
+    expect(task).toBe('app/check-for-test-missing')
+    const file = await readTaskFile(home, task)
+    expect(file?.parked).toBe(true)
+    expect(file?.start?.prompt).toBe('Add a check that fails on a change with no test.')
+    // Parked by the schedule rather than by you, and found once with its task.
+    const parked = await client.events({ types: ['state_change'] })
+    expect(parked.map((event) => [event.task, event.detail])).toEqual([
+      [task, { state: 'parked', by: 'schedule:mistakes-app' }],
+    ])
+    const found = watchedFrom(await client.events({ types: ['watch_found'] }), 'mistakes-app')
+    expect(found.findings.map((one) => [one.key, one.task])).toEqual([['test_missing', task]])
+    // However the queue came to try it, starting reads the file and refuses.
+    await expect(client.startQueued({ task, worktree: repo.root, why: 'ready' })).rejects.toThrow(
+      /parked/,
+    )
+    // Approving it is picking it up: one act, and the same one as any park.
+    await client.parkTask(task, false)
+    expect((await readTaskFile(home, task))?.parked).toBe(false)
+  })
 })

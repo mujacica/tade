@@ -596,7 +596,9 @@ export class Schedules implements Subject {
         const { task, said } = await client.watchFound(one.id, finding, {
           agent: { ...agent, links: agent.links ?? finding.links ?? [] },
         })
-        if (task) started.push(task)
+        // A proposal is made parked (`WatchAgent.parked`): it waits for a person.
+        if (task && agent.parked) decided.push(`${task} is parked for somebody to pick up`)
+        else if (task) started.push(task)
         else if (said) decided.push(said)
         // Nothing is said back from here. A status is due when it becomes
         // true, not when a look happened, so the one place that posts is the

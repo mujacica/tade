@@ -2,7 +2,7 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ A╭─ Extensions ─────────────────────────────────────────────────────────────────────────────────────────── esc ─╮×   
     │  search extensions          │ Jev  built-in                                                           ready  │────
- ▌ !│                             │ 10 tools · 3 watches · 5 settings                                              │    
+ ▌ !│                             │ 10 tools · 4 watches · 5 settings                                              │    
  ▌  │ ● Checks                   ▕│                                                                                │    
     │                            ▕│ Asks a judge bounded questions about diffs, logs, requests, plans and queues: █│    
    ⠋│ ● Dependencies             ▕│ probabilities to act on, never verdicts and never prose.                      █│    
@@ -18,13 +18,13 @@
     │ ○ release-notes            ▕│   (jev_verdict).                                                              ▕│    
  ▾ F│                            ▕│ · Says which questions earn their place, and why each open finding is still   ▕│    
    ▾│ · Written by Tade        1 ▕│   open.                                                                       ▕│    
-    │                            ▕│ · Judges anything in front of you (jev_ask): a diff, a log, something         ▕│    
-    │ · MCP servers            4 ▕│   pasted.                                                                     ▕│    
-   ▸│                            ▕│ · Reads things back before somebody guesses: a request, a plan, a queue       ▕│    
-━   │ · Harnesses' own         2 ▕│   order.                                                                      ▕│   ━
-    │                            ▕│ · Answers a sentence typed into search that matched no letters.               ▕│    
-    │                            ▕│ · Reads a command the approval rules do not name — only ever asking for       ▕│   ▕
-    │                            ▕│   more.                                                                       ▕│   ▕
+    │                            ▕│ · Proposes a check, parked for you, once a question is confirmed real twice   ▕│    
+    │ · MCP servers            4 ▕│   in a project.                                                               ▕│    
+   ▸│                            ▕│ · Judges anything in front of you (jev_ask): a diff, a log, something         ▕│    
+━   │ · Harnesses' own         2 ▕│   pasted.                                                                     ▕│   ━
+    │                            ▕│ · Reads things back before somebody guesses: a request, a plan, a queue       ▕│    
+    │                            ▕│   order.                                                                      ▕│   ▕
+    │                            ▕│ · Answers a sentence typed into search that matched no letters.               ▕│   ▕
     │                            ▕│                                                                                │   ▕
     │                            ▕│ tab moves · ↑↓ reads · enter presses                                   Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕

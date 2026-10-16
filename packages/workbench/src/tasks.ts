@@ -96,26 +96,6 @@ export interface CreateTaskOptions {
   now?: Date
 }
 
-/**
- * What something that found work says to tell an agent about it.
- *
- * The same shape as `WatchAgent` in the extensions port, written again here
- * because nothing in the workbench may import an extension: extensions depend
- * on this package and not the other way about. One definition in this package,
- * so `watchFound` and whoever else makes a task out of a finding cannot come to
- * disagree about what one says.
- */
-export interface FoundWork {
-  title: string
-  prompt: string
-  context?: string
-  links?: readonly { title: string; url: string }[]
-  /** A tree nobody else is in, whatever the project says (`WatchAgent.alone`): never wider. */
-  alone?: boolean
-  /** Where that tree begins, a ref in its own project (`WatchAgent.from`). */
-  from?: string
-}
-
 /** A created task's git facts. The task *model* lives in @tade/core. */
 export interface TaskWorktree {
   id: string

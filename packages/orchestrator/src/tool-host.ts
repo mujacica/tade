@@ -26,6 +26,7 @@ import {
   wouldRunSays,
 } from '@tade/workbench'
 import { documentMethods } from './host-documents.ts'
+import { lessonMethods } from './host-lessons.ts'
 import { machineMethods, type UpdateHost } from './host-machine.ts'
 import { type RaceHost, raceMethods } from './host-race.ts'
 import { type ReplayHost, replayMethods } from './host-replay.ts'
@@ -220,6 +221,8 @@ export class ToolHost {
       },
       // Documents tasks produced: `host-documents.ts`, where the boundary is.
       ...documentMethods(tade),
+      // A mistake seen twice, proposed as a check and parked: `host-lessons.ts`.
+      ...lessonMethods(tade),
       // Updating what Tade runs and reloading the window: `host-machine.ts`.
       ...machineMethods(() => opts.updates),
       'queue/plan': async (p) => queueOf(opts).plan(planOf(p)),

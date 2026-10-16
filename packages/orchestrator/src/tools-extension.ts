@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { configTools } from './tools-config.ts'
 import { documentTools } from './tools-documents.ts'
 import { type Gateable, gateTools } from './tools-gate.ts'
+import { lessonTools } from './tools-lessons.ts'
 import { machineTools } from './tools-machine.ts'
 import { PLAN_AFTER, PLAN_CONTEXT, queueTools, stringList, TOUCHES } from './tools-queue.ts'
 import { raceTools, replayTools } from './tools-race.ts'
@@ -35,11 +36,6 @@ function extensionTools(): Array<{
   } catch {
     return []
   }
-}
-
-/** Where lessons are written. Set by the orchestrator that launched us. */
-function skillsRoot(): string {
-  return process.env.TADE_SKILLS ?? join(process.env.TADE_HOME ?? process.cwd(), 'skills')
 }
 
 // Tade's tools, as seen by the orchestrator.
@@ -621,37 +617,6 @@ export function orchestratorTools(
     async (p) => runTade(['notes', '--json', ...(p.about ? [String(p.about)] : [])]),
   )
 
-  tool(
-    'tade_propose_skill',
-    'Write down a lesson about working here — something you noticed that would have helped you earlier. It is saved as a proposal and does nothing until a human reads it and activates it. Propose one only when you have actually learned something, not to be helpful.',
-    object(
-      {
-        name: string('short name, lowercase with dashes'),
-        text: string('the lesson, in markdown, in your own words'),
-        about: string(
-          'the project or task it is about, like checkout or checkout/refunds. Leave it off only when the lesson is about working here in general: a lesson scoped to something stops being mentioned once that thing goes quiet, and an unscoped one is repeated forever.',
-        ),
-      },
-      ['name', 'text'],
-    ),
-    async (p) => {
-      const name = String(p.name)
-      if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(name)) {
-        throw new Error(`${name} is not a usable name: lowercase letters, digits and dashes`)
-      }
-      const about = p.about ? String(p.about).trim().toLowerCase() : ''
-      const dir = join(skillsRoot(), 'proposed')
-      await mkdir(dir, { recursive: true })
-      const path = join(dir, `${name}.md`)
-      // The subject goes on its own line at the top, which is where it is read
-      // back from: a lesson is written by a model and reviewed by a human, so
-      // the file has to stay something a person can read.
-      const header = about ? `about: ${about}\n\n` : ''
-      await writeFile(path, `${header}${String(p.text).trim()}\n`)
-      return `Proposed ${name}. It is not in use: a human activates it with \`tade skills activate ${name}\` after reading ${path}.`
-    },
-  )
-
   // Chats: an agent in the lower pane with no task and no project, for a
   // question about this machine or something that is nobody's repository.
   // There is no `tade_chat_steer` or `tade_chat_stop`: a chat is an agent, so
@@ -788,7 +753,7 @@ export function orchestratorTools(
 
   // Tade configuring itself, and the work it runs. Each in a file of its own
   // because what it may touch is a boundary, worth reading in one place.
-  const groups = [configTools, documentTools, templateTools, raceTools, replayTools]
+  const groups = [configTools, documentTools, lessonTools, templateTools, raceTools, replayTools]
   for (const group of [...groups, intakeTools]) tools.push(...group(rpc))
   tools.push(...machineTools(rpc, runTade))
 

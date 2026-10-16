@@ -68,4 +68,12 @@ describe('what it is asked', () => {
     expect(prompt).toContain('Most finished tasks teach nothing')
     expect(prompt).toContain('would have changed what you did')
   })
+
+  it('makes a correction seen before a check rather than a second lesson', () => {
+    // The second time, prose has already been read past once.
+    const prompt = reflectionPrompt('checkout/refunds')
+    expect(prompt).toContain('a correction you have seen made before')
+    expect(prompt).toContain('tade_propose_check')
+    expect(prompt).toContain('a line in the commit hook, a lint rule or a test')
+  })
 })

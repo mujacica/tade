@@ -28,6 +28,7 @@ Everything below is one rule read at different distances: **a judge answers, it 
 | `packages/extensions/jev/src/stuck.ts` | why a finding has not closed: `stuckOf`, and the six answers |
 | `packages/core/src/calibration.ts` | the rule itself, in core so the window's Evaluations surface reads it without importing an extension: `ENOUGH`, `Tally`, `worthOf`, `bandOf`, `calibrationOf`, `precisionSaid`, `worthSaid` |
 | `packages/extensions/jev/src/precision.ts` | whether a question earns its place over Jev's own record: `precisionOf` (the per-day table), re-exporting core's rule |
+| `packages/core/src/mistakes.ts` · `extensions/jev/src/mistakes.ts` | a mistake made twice becomes a proposed check, parked: `madeTwice` (out of the precision table), `checkProposal`, `seenTwiceProblem`, `CHECKABLE`, the standing `jev.mistakes` watch |
 | `packages/extensions/core/src/findings.ts` | `askFindings`: the `findings` hook on the extension port, which is how the landing desk and the away view read what any judge found, out of its own record and never by asking a model. Counted by what became of each — never ordered by a probability — and `asked: 0` is no judge here, not none found |
 | `packages/extensions/jev/src/reviews.ts` | `reviews.jsonl` — readings, accounts and verdicts, the one thing that cannot be asked again |
 | `packages/core/src/policy.ts` | `withCaution`: the only thing a reading may do to a command |
@@ -220,6 +221,27 @@ whether its own questions earn their place is the judge marking its own homework
   is a fact nobody has, and a bar is a picture of a rate, so it is drawn only where the rate may be
   read as one. A question is called `costs` — firing and wrong — only once the verdicts say so,
   which is what makes that answer worth anything when it comes.
+
+## A mistake made twice becomes a check
+
+Prose is what an agent can read past; a check is what it cannot. So when the verdicts say the same
+question was real about two changes in one project, what Tade proposes is a line in the commit hook,
+a lint rule or a test — never a lesson (`core/src/mistakes.ts`, the reasons beside the rule).
+
+- **The precision table decides which questions qualify, and nothing else does.** `madeTwice` reads
+  `calibrationOf` over one project's findings: confirmed by a verdict somebody wrote, per finding,
+  `TWICE` of them. Never an account, never a probability, never two projects added together.
+- **Only what a machine could catch** (`CHECKABLE` in `questions.ts`): not `did_what_was_asked`,
+  the question no linter can ask, and not severity, which is a level rather than a mistake.
+- **It proposes and never applies.** `jev.mistakes` is standing because it reads a file and spends
+  nothing, and what it makes is work **parked** (`WatchAgent.parked`): approving it is a person
+  picking it up. One key per question per project, so a third confirmation is not a second
+  proposal, and one somebody removed stays removed.
+- **Reflection is the other way in.** The orchestrator looking back at merged work is told that a
+  correction it has seen before is a check, not a second lesson (`reflectionPrompt`), and
+  `tade_propose_check` counts the tasks it names in code (`seenTwiceProblem`) before it makes the
+  same parked work. What was said about each time goes in the context file as material, never in
+  the prompt.
 
 ## A race reads the judge, and the judge never picks
 

@@ -150,6 +150,15 @@ export const SEVERITY_QUESTION: Question = {
   levels: [...SEVERITY],
 }
 
+/**
+ * The questions whose mistake a machine could be made to catch — a line in the
+ * commit hook, a lint rule or a test — so that one confirmed real twice in a
+ * project becomes a proposed check (`mistakes.ts`). Not `did_what_was_asked`,
+ * which is the question no linter can ask, and not severity, which is a level
+ * and not a mistake.
+ */
+export const CHECKABLE: readonly string[] = [...HAZARDS, ...HOUSE].map((one) => one.id)
+
 /** The whole review pack, or the part of it somebody named. */
 export function reviewQuestions(only?: readonly string[] | null): Question[] {
   const all = [...HAZARDS, ...HOUSE, DID_WHAT_WAS_ASKED]

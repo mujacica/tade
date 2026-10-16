@@ -518,7 +518,7 @@ export const EXTENSION_SCREENS: Scenario[] = [
       'count of them said nothing.',
     state: {
       ...base(),
-      panel: { ...extensionsPanel('jev'), focus: 'body', following: false, scroll: 22 },
+      panel: { ...extensionsPanel('jev'), focus: 'body', following: false, scroll: 24 },
     },
     frame: frame({ panel: extensionFacts() }),
   },

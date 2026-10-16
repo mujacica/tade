@@ -57,7 +57,7 @@ function sharedCheckout() {
 }
 
 describe('the watches that are on without anybody turning one on', () => {
-  it('is both halves of the loop: the reading, and the sweep that closes it', async () => {
+  it('is both halves of the loop, the reading and the sweep, and what a mistake made twice becomes', async () => {
     const repo = mkrepo()
     const loaded = await host({
       home: repo.home,
@@ -69,13 +69,17 @@ describe('the watches that are on without anybody turning one on', () => {
       .watches()
       .filter((watch) => watch.standing)
       .map((watch) => watch.id)
-    expect(standing.sort()).toEqual(['jev.review', 'jev.verdicts'])
+    expect(standing.sort()).toEqual(['jev.mistakes', 'jev.review', 'jev.verdicts'])
     // A watch that stands has to be turnable on with nothing said to it: a
     // rule writes it, and a rule has nothing of its own to say.
     for (const id of standing) expect(loaded.watchProblem(id, {})).toBeNull()
 
     const made = standingSchedules(loaded.watches(), ['shop'], () => false, NOW)
-    expect(made.map((one) => one.id)).toEqual(['jev-review-shop', 'jev-verdicts-shop'])
+    expect(made.map((one) => one.id)).toEqual([
+      'jev-review-shop',
+      'jev-verdicts-shop',
+      'jev-mistakes-shop',
+    ])
     expect(made[0]).toMatchObject({
       project: 'shop',
       by: 'extension:jev',
@@ -93,6 +97,9 @@ describe('the watches that are on without anybody turning one on', () => {
     // came to sit open for three days with nobody having decided against them.
     expect(made[0]?.does).toMatchObject({ most: DEFAULT_MOST })
     expect(made[1]?.does.kind === 'watch' && made[1].does.most).toBeGreaterThan(DEFAULT_MOST)
+    // The one that makes work makes it parked (`mistakes.test.ts`): a check a
+    // judge proposed is a person's to agree to, so it starts nothing either.
+    expect(made[2]?.does).toMatchObject({ watch: 'jev.mistakes', found: 'agent' })
   })
 
   it('is on for nobody with no key: no schedule, no look, no file, no noise', async () => {

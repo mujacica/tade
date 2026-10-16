@@ -82,6 +82,7 @@ import { checksGate, checksTold, sharesCheckout } from './checks.ts'
 import { documentsFolder, removedDocument, settleDocuments, waitedDetail } from './documents.ts'
 import { chooseDriver, troubleSaid } from './driver-choice.ts'
 import { EventLog, readJournal } from './events.ts'
+import { type FoundWork, makeFoundWork } from './found.ts'
 import { accountKey, adapterKey, HARNESS_ADAPTERS, type HarnessOptions } from './harnesses.ts'
 import { takeBackOwnIgnore } from './ignore.ts'
 import { type Taken, takeIntake } from './intake.ts'
@@ -97,9 +98,7 @@ import { continueRun as continueAgent } from './sleep.ts'
 import { taskSaid } from './task-said.ts'
 import {
   beginFrom,
-  branchSlug,
   createTask,
-  type FoundWork,
   guardName,
   nameTask,
   type ParkResult,
@@ -1214,8 +1213,9 @@ export class Workbench {
    * work twice. Given what to tell an agent, its work is made as queued work named
    * for what it is about, which the queue starts as soon as there is room — in the
    * project's own workspace, or a tree of its own where the work says it cannot
-   * share one. Otherwise it was told to someone, or could not be, and why: written
-   * down too, because tried again at every look it would fail at every look.
+   * share one — or parked, where the work is a proposal a person picks up.
+   * Otherwise it was told to someone, or could not be, and why: written down too,
+   * because tried again at every look it would fail at every look.
    */
   async watchFound(
     id: string,
@@ -1257,39 +1257,8 @@ export class Workbench {
       await this.log.append({ type: 'watch_found', detail: { ...found, ...outcome } })
       return { task: null }
     }
-    const { agent } = outcome
-    const stem = branchSlug(agent.title)
-    try {
-      for (let n = 1; n <= 50; n++) {
-        const slug = n === 1 ? stem : `${stem}-${n}`
-        let task: TaskWorktree
-        try {
-          task = await this.createTask({
-            project: schedule.project,
-            slug,
-            intent: agent.prompt,
-            by: `schedule:${id}`,
-            ...(agent.context ? { context: agent.context } : {}),
-            ...(agent.links && agent.links.length > 0 ? { links: agent.links } : {}),
-            // Work that cannot share a tree (`FoundWork.alone`) gets one of its
-            // own wherever the project has its agents work, never wider, begun
-            // where it says (`from`) or on the base like any queued work.
-            ...(agent.alone ? { workspace: 'worktree' as const } : {}),
-            start: { after: [], prompt: agent.prompt, touches: [], from: agent.from },
-          })
-        } catch (err) {
-          if (/already exists|used before/.test(err instanceof Error ? err.message : '')) continue
-          throw err
-        }
-        await this.log.append({ type: 'watch_found', task: task.id, detail: found })
-        return { task: task.id }
-      }
-      throw new Error(`every name like ${stem} is taken in ${schedule.project}`)
-    } catch (err) {
-      const problem = err instanceof Error ? err.message : String(err)
-      await this.log.append({ type: 'watch_found', detail: { ...found, problem } })
-      throw err
-    }
+    // Queued work named for what it is about, or parked for a person: `found.ts`.
+    return makeFoundWork(this, { id, project: schedule.project }, found, outcome.agent)
   }
 
   /** A person's choice about queued work, written down for the queue to read: `queue-changes.ts`. */
