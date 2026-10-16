@@ -5,6 +5,45 @@ Every change to Tade, newest first, in the words whoever made it wrote. Generate
 explains the reasoning in the body, and a tool that reshaped them into `feat:` and `fix:` would
 say less than the history already does.
 
+## [0.2.2](https://github.com/mujacica/tade/compare/v0.2.1...v0.2.2) — 2026-10-16
+
+- The README stops saying the landing story is not in tade-sh: 0.2.2 is the release after 0.2.1 ([`462c36c`](https://github.com/mujacica/tade/commit/462c36c608ff2e7326e2f12c5e780c8b699c9c5b))
+- Notes look after themselves: the same words are one note, and what has stopped mattering is retired — kept and read on asking, told to nobody ([`268dc06`](https://github.com/mujacica/tade/commit/268dc06c148d57639c3fc6d3dd97d5604efff362))
+- What a schedule or a watch would start goes to the orchestrator first: made parked, told with what is already on the same thing, and started, queued after, handed on or left on its decision ([`faebbab`](https://github.com/mujacica/tade/commit/faebbab28784a521d2efded54673866a9e9a23a3))
+- The README leads with landing work, not running it: the hero is the five things that make agent work merged work, and the sections follow that story ([`c2c66eb`](https://github.com/mujacica/tade/commit/c2c66eb2231ab396bc0419ea2a9ec15e8af48e28))
+- Mistakes become checks: a question confirmed real twice in a project, or a correction reflection saw twice, is proposed as a check and parked ([`7367cec`](https://github.com/mujacica/tade/commit/7367cecc9f973ab9cc1c70537fd7f18180209c48))
+- ACP: one harness for every agent that speaks the Agent Client Protocol ([`78a89b5`](https://github.com/mujacica/tade/commit/78a89b5e162dae5acfb12b33bf9230591a8e74c6))
+- A replay entrant that finishes between two looks is still graded, held through the window ([`b1419e3`](https://github.com/mujacica/tade/commit/b1419e359c7391b59b3c534e76be409ab52da81b))
+- Your own eval: replay what landed on a candidate model or harness, and ask a candidate judge Jev's questions again ([`c274ccd`](https://github.com/mujacica/tade/commit/c274ccd2b29af8443062131a8d0e31a96fa5c1d1))
+- A race's entrant is read as a patch from /race, held through the whole window ([`b2d9eda`](https://github.com/mujacica/tade/commit/b2d9eda171af3dc9db06a02f26dce298d3f0cd52))
+- Races: one request to several agents on different harnesses or models, compared by the facts, and kept by a person ([`9f54158`](https://github.com/mujacica/tade/commit/9f5415822d7d51177902e686499e485e352cfdd5))
+- Evaluations: which harness, model, persona and template lands work, and the judge's own record beside them ([`01a2217`](https://github.com/mujacica/tade/commit/01a22176d359dd30bfbea770fd4159c871f2164f))
+- A judge whose findings could not be read is said once in the conversation, rather than the desk quietly drawing what it said before ([`c105c7b`](https://github.com/mujacica/tade/commit/c105c7baff474cefaca335ecb8c2189276ad84c5))
+- The landing desk on a phone: a page beside Reviews, ordered by the machine, and the judge's findings finally reach the away view ([`db523ef`](https://github.com/mujacica/tade/commit/db523ef03ed5d5192934f0329a0ce3ddf4aa4694))
+- The landing desk: every finished piece of work and open review, in every project, in the order it is cheapest to trust ([`5ff4753`](https://github.com/mujacica/tade/commit/5ff475340cebe7f7700cb747997fb28f1b904894))
+- A document that could not be told to the orchestrator is kept as news and said on screen, rather than dropped ([`cd1a831`](https://github.com/mujacica/tade/commit/cd1a83110bfc27470668c0093c104147049fa1f3))
+- A document comes back to the orchestrator when it is ready, and work may wait on the person approving it ([`0079fb3`](https://github.com/mujacica/tade/commit/0079fb3fd76943a2a1074003bc752b24e7a59901))
+- Comments for Tade wait, kept, until there is an orchestrator to ask, rather than going nowhere ([`8ef29da`](https://github.com/mujacica/tade/commit/8ef29dab8db1e83e3ae6556e6e93b4dc76703410))
+- A comment on a line of a diff reaches Tade: to the orchestrator as the person's own words by default, or straight to the agent whose change it is ([`c2c02c5`](https://github.com/mujacica/tade/commit/c2c02c58c931b12a76cf556ef136154221375ce8))
+- The window begins a watch's work on the ref it named: the queue's start is what reads `start.from` ([`a0221e4`](https://github.com/mujacica/tade/commit/a0221e47ae0a8401d52a69e86b8669f3da48dc60))
+- review.conflicts: a review Tade opened that conflicts with its base gets one agent to merge the base in ([`c1f0d9a`](https://github.com/mujacica/tade/commit/c1f0d9a8130626f20a6e01c13d3a24f18f0afd1f))
+- The conflict forecast says once when it cannot tell, rather than nothing ([`4d8786f`](https://github.com/mujacica/tade/commit/4d8786f1e759b9e35e7876059d985aca85b2013f))
+- The conflict forecast: live work that would collide is marked on both agents and in the plan, and the orchestrator is told once, to resolve it without asking ([`b568d0e`](https://github.com/mujacica/tade/commit/b568d0ebe680903e8ea7f142a0583e6252832452))
+- An agent's dev server is a link: under GIT in the window, and in the away view's agent and project bars ([`bd228b2`](https://github.com/mujacica/tade/commit/bd228b2caf18a3879742b32f2c16e41e1a05bb4c))
+- The kitty-protocol shell test reads the typed line and the caret from one look, and says what was on screen ([`dd8ae07`](https://github.com/mujacica/tade/commit/dd8ae0736f1cac3d5e96e8ae4c82ffb63b70af67))
+- The kitty-protocol shell test waits for the prompt ctrl+c gives back ([`d3b8efd`](https://github.com/mujacica/tade/commit/d3b8efdaef5a1f91ff4bff923d32ec7e957ff697))
+- The lower pane's search button says find ([`73c334c`](https://github.com/mujacica/tade/commit/73c334ca168fd7720c682bc2e06ceb7936916b18))
+- A second press on words takes the word, a third the line, and copies it ([`63e0797`](https://github.com/mujacica/tade/commit/63e0797ef2c9f4ea0f214836d5c16fd22be2b953))
+- The lower pane folds with ↓ and comes back with ↑, beside the arrow that grows it ([`d73f6b3`](https://github.com/mujacica/tade/commit/d73f6b350d559d2a759ed9f81ddf2626eac3d277))
+- Typing into a lane sends what Terminal would, whatever the window's terminal speaks ([`a747a52`](https://github.com/mujacica/tade/commit/a747a52e083c6308c980d7cb4c2292a2866d598a))
+- A swipe up or down never slides anything sideways ([`131e66b`](https://github.com/mujacica/tade/commit/131e66b26b00722bd4064fa175cc362da47dd8b7))
+- A caret over words and fields, as Terminal shows, where the terminal takes a pointer shape ([`1859679`](https://github.com/mujacica/tade/commit/1859679add956340e7ad0891f34aaacbe5ed1697))
+- The spinner turns about the middle of its cell, and the grow button is an arrow every font has ([`12c2f94`](https://github.com/mujacica/tade/commit/12c2f9451c93d2737501ee9c3eb43f0252c3e75e))
+- A notch sideways scrolls sideways, and never opens a menu ([`dc64491`](https://github.com/mujacica/tade/commit/dc644914e1ffc1292e61bb232c4a5088013e3986))
+- Hints read on Ghostty's lighter ground: the quiet grey is 246, not 244 ([`c04403a`](https://github.com/mujacica/tade/commit/c04403a996e84979a4653fbd09768bb789c3244c))
+- A worktree's prepare step never writes through a link the worktree has into somewhere else ([`d5d6af7`](https://github.com/mujacica/tade/commit/d5d6af7e13c2ac7749c3535e954ac3716eeeb845))
+- A new worktree gets what its project says it needs, and each lane's listening ports are derived ([`f66b5a6`](https://github.com/mujacica/tade/commit/f66b5a67d610c27906f6b66af4535061fbbbc2c9))
+
 ## [0.2.1](https://github.com/mujacica/tade/compare/v0.2.0...v0.2.1) — 2026-10-14
 
 - A fresh Tade starts muted: no speech and no sounds until somebody unmutes it ([`090ef91`](https://github.com/mujacica/tade/commit/090ef91c26ff16f0a3447d8464f6fb7616b2acbd))
