@@ -1,6 +1,7 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { WorkerSignal } from '@tade/harnesses-core'
+import { LEFTOVER_ITEMS, LEFTOVERS_TOOL } from '@tade/harnesses-core/agent-tools'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   type FakeModel,
@@ -9,6 +10,7 @@ import {
 } from '../../../../test/fixtures/fake-model.ts'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { PiAdapter } from '../src/adapter.ts'
+import * as leftovers from '../src/leftovers.ts'
 import { readTools } from '../src/tade.ts'
 
 // An agent calling one of Tade's extension tools, proven against a real pi
@@ -160,6 +162,86 @@ describe('extension tools in an agent', () => {
     await until(() => (model?.requests.length ?? 0) >= 2)
     expect(JSON.stringify(model.requests[1])).toContain('nothing readable is at /h/plan.md yet')
   }, 90_000)
+
+  /** An agent whose model finishes with two things it left, answered by `answer`. */
+  const finishing = async (answer: { ok: boolean; text: string }) => {
+    const runDir = tmp('tade-left-')
+    const left = [
+      {
+        title: 'bind: lan refuses the phone’s own address',
+        where: 'packages/web/src/listeners.ts:88',
+        why: 'outside this task',
+        sure: 'certain',
+      },
+      {
+        title: 'the away cookie is never renewed',
+        where: 'packages/web/src/session.ts',
+        why: 'needs a decision about sessions',
+        sure: 'likely',
+      },
+    ]
+    model = await startFakeModel({
+      tool: { name: 'tade_done', arguments: { summary: 'The socket decides.', leftovers: left } },
+      finalText: 'Finished.',
+    })
+    adapter = new PiAdapter({
+      runDir,
+      socketDir: tmp('wl-'),
+      args: ['-e', writeProviderExtension(runDir)],
+      env: { ...process.env, TADE_TEST_BASE_URL: model.url },
+    })
+    const signals: WorkerSignal[] = []
+    adapter.onSignal('left', (signal) => {
+      signals.push(signal)
+      if (signal.type === 'extension_call') void adapter?.answer('left', signal.callId, answer)
+    })
+    await adapter.start({
+      run: 'left',
+      task: 'tade/remote',
+      cwd: tmp('tade-left-work-'),
+      prompt: 'make the socket decide',
+      model: { provider: 'tade-test', id: 'fake' },
+    })
+    await until(() => (model?.requests.length ?? 0) >= 2)
+    return { signals, left, told: JSON.stringify(model.requests[1]) }
+  }
+
+  it('reports the two things it left before it says it is done', async () => {
+    const { signals, left, told } = await finishing({
+      ok: true,
+      text: 'What you left is put to the orchestrator as tade/a and tade/b.',
+    })
+    // Through Tade's door, as `tade_leftovers`, and only then finished.
+    const call = signals.findIndex((signal) => signal.type === 'extension_call')
+    expect(signals[call]).toMatchObject({
+      tool: 'tade_leftovers',
+      input: { items: left, finishing: true },
+    })
+    await until(() => signals.some((signal) => signal.type === 'done'))
+    expect(signals.findIndex((signal) => signal.type === 'done')).toBeGreaterThan(call)
+    expect(signals.find((signal) => signal.type === 'done')).toMatchObject({
+      summary: 'The socket decides.',
+    })
+    expect(told).toContain(
+      'Tade has it: this task is finished. What you left is put to the orchestrator as tade/a and tade/b.',
+    )
+  }, 90_000)
+
+  it('is not finished when Tade refuses what it left, and is told why', async () => {
+    const { signals, told } = await finishing({ ok: false, text: 'item 2 has no where' })
+    expect(told).toContain(
+      'Nothing is finished yet: what you left was not taken. item 2 has no where',
+    )
+    expect(signals.some((signal) => signal.type === 'done')).toBe(false)
+  }, 90_000)
+
+  it('keeps its copy of what an agent may report word for word with every other harness’s', () => {
+    // pi may import nothing of Tade's, so it has a copy; this is what holds it.
+    expect(leftovers.LEFTOVER_ITEMS).toEqual(LEFTOVER_ITEMS)
+    const { label, ...tool } = leftovers.LEFTOVERS_TOOL
+    expect(label).toBe('Leftovers')
+    expect(tool).toEqual(LEFTOVERS_TOOL)
+  })
 
   it('lists no tools from a list that is missing or not a list', () => {
     expect(readTools(undefined)).toEqual([])

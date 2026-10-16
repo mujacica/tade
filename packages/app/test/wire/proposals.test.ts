@@ -472,7 +472,7 @@ describe('the window, and what a schedule or a watch puts to the orchestrator', 
     expect(told.some((text) => text.includes(task))).toBe(false)
     await expect(
       tools.decide({ task, decision: 'start', because: 'it looks fine' }),
-    ).rejects.toThrow(/is not work a schedule or a watch put to you/)
+    ).rejects.toThrow(/is not work put to you to decide/)
     expect(await tools.advance()).not.toContain(task)
     expect(client.runs()).toEqual([])
   })

@@ -185,7 +185,14 @@ describe('whose a task is', () => {
     // `saidBy` is the domain's sentence about the same fact. The wordings are
     // not identical — this is a page and that is a prompt — so what is held is
     // that neither invents an origin the other does not have.
-    for (const kind of ['you', 'orchestrator', 'extension', 'schedule', 'intake'] as const) {
+    for (const kind of [
+      'you',
+      'orchestrator',
+      'extension',
+      'schedule',
+      'intake',
+      'agent',
+    ] as const) {
       expect(originSaid({ kind, name: 'dependencies' })).not.toBe('')
       expect(saidBy({ kind, name: 'dependencies' })).not.toBe('')
     }
@@ -194,12 +201,15 @@ describe('whose a task is', () => {
     // somebody else filed reading as "you" is the page saying the owner asked
     // for it, which is the whole of what the origin field is for.
     expect(originSaid({ kind: 'intake', name: 'github' })).not.toBe('you')
+    // Nor what another agent found and left: nobody here asked for it.
+    expect(originSaid({ kind: 'agent', name: 'tade/remote' })).toBe('the agent on tade/remote')
   })
 
   it('falls back to a name for an origin with none', () => {
     expect(originSaid({ kind: 'extension', name: '' })).toBe('an extension')
     expect(originSaid({ kind: 'schedule', name: '' })).toBe('a schedule')
     expect(originSaid({ kind: 'intake', name: '' })).toBe('a request from outside')
+    expect(originSaid({ kind: 'agent', name: '' })).toBe('another agent')
   })
 })
 

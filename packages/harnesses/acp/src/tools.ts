@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { createInterface } from 'node:readline'
 import { WORKER_ENV } from '@tade/harnesses-core'
+import { LEFTOVER_ITEMS, LEFTOVERS_TOOL } from '@tade/harnesses-core/agent-tools'
 import { Link } from './link.ts'
 
 // Tade's tools, lent to an ACP agent as an MCP server over stdio.
@@ -26,7 +27,7 @@ const CONNECT_MS = 3_000
 const DONE: ToolSpec = {
   name: 'tade_done',
   description:
-    'Say that your task is finished: the work is done, and committed if you commit. Tade then starts whatever was waiting on it. Call it once, at the end. If you need the person — a question, a decision, something you could not do — ask them instead, and do not call this.',
+    'Say that your task is finished: the work is done, and committed if you commit. Tade then starts whatever was waiting on it. Call it once, at the end, with leftovers for anything you found wrong and did not fix. If you need the person — a question, a decision, something you could not do — ask them instead, and do not call this.',
   parameters: {
     type: 'object',
     properties: {
@@ -34,6 +35,7 @@ const DONE: ToolSpec = {
         type: 'string',
         description: 'One line saying what you did, for whoever looks at the task next.',
       },
+      leftovers: LEFTOVER_ITEMS,
     },
     required: ['summary'],
     additionalProperties: false,
@@ -81,7 +83,7 @@ function listed(path: string | undefined): ToolSpec[] {
 
 const SOCKET = process.env[WORKER_ENV.socket]
 const RUN = process.env[WORKER_ENV.run] ?? ''
-const tools = [...listed(process.env[WORKER_ENV.tools]), DOCUMENT_READY, DONE]
+const tools = [...listed(process.env[WORKER_ENV.tools]), DOCUMENT_READY, LEFTOVERS_TOOL, DONE]
 
 /** Calls waiting on Tade's answer, by id. */
 const waiting = new Map<string, (answer: { ok: boolean; text: string }) => void>()
@@ -164,16 +166,41 @@ async function call(id: unknown, params: Record<string, unknown>): Promise<void>
   }
   if (!link.connected) return text(id, `Tade is not open, so ${name} cannot run right now`, true)
   if (name === DONE.name) {
+    // What it left goes first, to the door `tade_leftovers` goes to: a report
+    // that is refused is said while nothing is finished yet.
+    let left = ''
+    if (Array.isArray(input.leftovers) && input.leftovers.length > 0) {
+      const items = { items: input.leftovers, finishing: true }
+      const answer = await tade(link, LEFTOVERS_TOOL.name, items)
+      if (!answer.ok) {
+        return text(
+          id,
+          `Nothing is finished yet: what you left was not taken. ${answer.text}`,
+          true,
+        )
+      }
+      left = ` ${answer.text}`
+    }
     link.send({
       type: 'done',
       run: RUN,
       at: Date.now(),
       summary: String(input.summary ?? '').trim(),
     })
-    return text(id, 'Tade has it: this task is finished.')
+    return text(id, `Tade has it: this task is finished.${left}`)
   }
+  const answer = await tade(link, name, input)
+  text(id, answer.text, !answer.ok)
+}
+
+/** A tool Tade runs, asked over the run's socket, and its answer — a refusal, if it never came. */
+function tade(
+  link: Link,
+  name: string,
+  input: Record<string, unknown>,
+): Promise<{ ok: boolean; text: string }> {
   const callId = `${process.pid}-${++calls}-${name}`
-  const answer = await new Promise<{ ok: boolean; text: string }>((resolve) => {
+  return new Promise((resolve) => {
     waiting.set(callId, resolve)
     const timer = setTimeout(() => {
       waiting.delete(callId)
@@ -182,5 +209,4 @@ async function call(id: unknown, params: Record<string, unknown>): Promise<void>
     timer.unref?.()
     link.send({ type: 'extension_call', run: RUN, at: Date.now(), callId, tool: name, input })
   })
-  text(id, answer.text, !answer.ok)
 }

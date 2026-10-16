@@ -120,7 +120,7 @@ describe('parked work in the window', () => {
     // tade_proposal_decide to decide, and that door says which one to use.
     await expect(
       tools.decide({ task, decision: 'start', because: 'the person asked for it' }),
-    ).rejects.toThrow(/is not work a schedule or a watch put to you: tade_queue_change/)
+    ).rejects.toThrow(/is not work put to you to decide — .*: tade_queue_change/)
 
     const answer = await tools.change({ task, change: 'start' })
     expect(answer).toContain(`Done: ${task} is picked up.`)

@@ -222,20 +222,41 @@ describe('an ACP agent in a lane', () => {
     }
     await call(1, 'initialize', { protocolVersion: '2025-06-18' })
     const listed = await call(2, 'tools/list', {})
-    expect(listed.tools?.map((tool) => tool.name)).toEqual(['tade_document_ready', 'tade_done'])
-    const done = await call(3, 'tools/call', {
-      name: 'tade_done',
-      arguments: { summary: 'fixed it' },
-    })
-    expect(done.isError).toBe(false)
-    await until(s.signals, (all) => all.some((one) => one.type === 'done'))
-    expect(s.signals.find((one) => one.type === 'done')).toMatchObject({ summary: 'fixed it' })
-    // One of Tade's own tools: asked of Tade, answered by it.
+    expect(listed.tools?.map((tool) => tool.name)).toEqual([
+      'tade_document_ready',
+      'tade_leftovers',
+      'tade_done',
+    ])
+    // Tade's own tools: asked of Tade, answered by it.
     s.adapter.onSignal(s.spec.run, (signal) => {
       if (signal.type === 'extension_call') {
-        void s.adapter.answer(s.spec.run, signal.callId, { ok: true, text: 'the document is read' })
+        const text =
+          signal.tool === 'tade_leftovers'
+            ? 'What you left is put to the orchestrator.'
+            : 'the document is read'
+        void s.adapter.answer(s.spec.run, signal.callId, { ok: true, text })
       }
     })
+    const left = [
+      { title: 'a', where: 'src/a.ts:1', why: 'not mine', sure: 'certain' },
+      { title: 'b', where: 'pnpm test', why: 'not mine', sure: 'likely' },
+    ]
+    const done = await call(3, 'tools/call', {
+      name: 'tade_done',
+      arguments: { summary: 'fixed it', leftovers: left },
+    })
+    expect(done.isError).toBe(false)
+    expect(done.content?.[0]?.text).toBe(
+      'Tade has it: this task is finished. What you left is put to the orchestrator.',
+    )
+    await until(s.signals, (all) => all.some((one) => one.type === 'done'))
+    expect(s.signals.find((one) => one.type === 'done')).toMatchObject({ summary: 'fixed it' })
+    // What it left went first, through the same door as `tade_leftovers`.
+    const leftAt = s.signals.findIndex(
+      (one) => one.type === 'extension_call' && one.tool === 'tade_leftovers',
+    )
+    expect(s.signals[leftAt]).toMatchObject({ input: { items: left, finishing: true } })
+    expect(s.signals.findIndex((one) => one.type === 'done')).toBeGreaterThan(leftAt)
     const ready = await call(4, 'tools/call', {
       name: 'tade_document_ready',
       arguments: { ask: 'which?' },

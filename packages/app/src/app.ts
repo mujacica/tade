@@ -4,7 +4,7 @@ import { type Arming, attentionFor, closeBy, titlesOf, type Unclosed } from '@ta
 import type { ExtensionWorkbench } from '@tade/extensions-core'
 import { VoiceSurface } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
-import { agentEnded, eventNews, eventTell } from './inbox.ts'
+import { agentEnded, eventNews } from './inbox.ts'
 import { freeViewportKeys } from './keys.ts'
 import { knownTasks, Live } from './live.ts'
 import {
@@ -42,7 +42,7 @@ import { Evaluations } from './wire/evaluations.ts'
 import { Extensions } from './wire/extensions.ts'
 import { Files } from './wire/files.ts'
 import { frameOf } from './wire/frame.ts'
-import { tellOrKeep } from './wire/handed.ts'
+import { tellNow } from './wire/handed.ts'
 import { Images } from './wire/images.ts'
 import { Intake } from './wire/intake.ts'
 import { Keyboard } from './wire/keyboard.ts'
@@ -640,10 +640,9 @@ export class App {
       },
       onEvent: (event) => {
         this.state = onEvent(this.state, event, this.now())
-        // A document handed over is told now (or kept as news where it cannot
-        // be: `tellOrKeep`); everything else waits as news.
-        const told = eventTell(event, this.live?.queueFacts().events ?? [])
-        if (told) tellOrKeep(this.wire, this.orchestrator, told)
+        // A document handed over, or what an agent left, is told now (or kept
+        // as news where it cannot be: `tellNow`); everything else waits as news.
+        const told = tellNow(this.wire, this.orchestrator, event)
         const heard = told ? null : eventNews(event)
         if (heard) this.orchestrator.note(heard)
         // An agent that is gone, however it went: told rather than discovered

@@ -196,6 +196,14 @@ export const EventType = z.enum([
    * a proposal dropped is otherwise just a task that went.
    */
   'proposal_decided',
+  /**
+   * What an agent found and did not fix, reported as it finished or before
+   * (`tade_done`'s `leftovers`, `tade_leftovers`): on the reporting task, with
+   * `items` — each `title`, `where`, `why`, `sure` and the parked `task` it was
+   * made into — and `finishing` where it came with `tade_done`. Each item is a
+   * proposal (`proposalsIn`), decided with `proposal_decided` like a watch's.
+   */
+  'leftovers_reported',
   // intake: work that came from outside this machine
   /**
    * An external request was handed to this machine — a ticket, a message, a
@@ -528,6 +536,9 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // Notable: what became of something a watch found, and why, is exactly what
   // somebody coming back asks. Never blocking — the decision is made.
   proposal_decided: 'notable',
+  // Notable: something is waiting on a decision, and the orchestrator is told
+  // at once. Never blocking — the agent that left it is not waiting on anybody.
+  leftovers_reported: 'notable',
   // Notable, all four of them, and none is `routine`: an outside request is
   // the one kind of news nobody at this machine asked for, so somebody coming
   // back wants to see that it arrived, what was decided and what is waiting.

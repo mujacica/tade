@@ -1,13 +1,16 @@
 import type { EventInput } from '@tade/core'
+import { LEFTOVERS, reportLeftovers } from './leftovers.ts'
 import { producedDetail } from './tasks.ts'
+import type { Workbench } from './workbench.ts'
 import type { ExtensionCall } from './workers.ts'
 
 // The tools an agent calls that run in this process: Tade's own first, then
 // whichever extension's the name is. Tade's own are answered here and never
 // handed on, so no extension can be the one that answers `tade_document_ready`.
 //
-// The one so far is an agent handing over the document its task produces
-// before it has finished.
+// Two so far: an agent handing over the document its task produces before it
+// has finished, and an agent reporting what it found and did not fix
+// (`tade_leftovers`, `leftovers.ts`), which `tade_done` sends here too.
 //
 // What the person asked for, in their words: an agent that writes a plan or an
 // analysis "informs the orchestrator and requests the user's intervention on
@@ -38,10 +41,16 @@ export interface ReadyDeps {
 export async function answerAgentTool(
   deps: ReadyDeps & {
     extensions?: { call(call: ExtensionCall & { project: string }): Promise<string> } | undefined
+    /** The workbench, once it is made: what makes a leftover into parked work. */
+    tasks?: () => Pick<Workbench, 'createTask' | 'parkTask' | 'log'>
   },
   call: ExtensionCall,
 ): Promise<string> {
   if (call.tool === DOCUMENT_READY) return documentReady(deps, call)
+  if (call.tool === LEFTOVERS) {
+    if (!deps.tasks) throw new Error('Tade cannot make work here, so it cannot take a report')
+    return reportLeftovers(deps.tasks(), call)
+  }
   if (!deps.extensions) throw new Error('Tade has no extensions loaded')
   return deps.extensions.call({ ...call, project: call.task.split('/')[0] ?? '' })
 }

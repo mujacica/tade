@@ -355,8 +355,10 @@ describe('CodexAdapter', () => {
   })
 
   describe('the tools Tade lends it', () => {
-    it('offers tade_done, tade_document_ready and whatever an extension gave it, and answers a call', async () => {
+    it('offers tade_done, tade_document_ready, tade_leftovers and whatever an extension gave it, and answers a call', async () => {
       const { adapter: one, env, spec, signals } = await setUp()
+      const a = { title: 'a', where: 'src/a.ts:1', why: 'not mine', sure: 'certain' }
+      const left = [a, { ...a, title: 'b', where: 'pnpm test' }]
       const tools = join(tmp('tade-codex-tools-'), 'tools.json')
       writeFileSync(
         tools,
@@ -388,6 +390,7 @@ describe('CodexAdapter', () => {
       expect(listed.result.tools.map((tool) => tool.name)).toEqual([
         'deps_check',
         'tade_document_ready',
+        'tade_leftovers',
         'tade_done',
       ])
 
@@ -414,13 +417,25 @@ describe('CodexAdapter', () => {
           jsonrpc: '2.0',
           id: 3,
           method: 'tools/call',
-          params: { name: 'tade_done', arguments: { summary: 'removed the old tests' } },
+          params: { name: 'tade_done', arguments: { summary: 'removed tests', leftovers: left } },
         })}\n`,
       )
+      // What it left goes to Tade first, as `tade_leftovers`, and only then is it done.
+      const called = () => signals.filter((signal) => signal.type === 'extension_call')[1]
+      await until(() => called() !== undefined)
+      expect(called()).toMatchObject({
+        tool: 'tade_leftovers',
+        input: { items: left, finishing: true },
+      })
+      expect(signals.some((signal) => signal.type === 'done')).toBe(false)
+      const said = 'What you left is put to the orchestrator.'
+      await one.answer(spec.run, (called() as { callId: string }).callId, { ok: true, text: said })
       await until(() => signals.some((signal) => signal.type === 'done'))
       expect(signals.find((signal) => signal.type === 'done')).toMatchObject({
-        summary: 'removed the old tests',
+        summary: 'removed tests',
       })
+      await until(() => lines.length > 2)
+      expect(lines[2]).toContain(`Tade has it: this task is finished. ${said}`)
       server.kill()
     })
   })

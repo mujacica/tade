@@ -215,6 +215,10 @@ export function originSaid(origin) {
       // a page that said the owner asked for it would be the one sentence this
       // whole surface must not say.
       return origin.name === '' ? 'a request from outside' : `a ${origin.name} request`
+    case 'agent':
+      // What another task's agent found and left, put to the orchestrator:
+      // never "you" either, for intake's reason.
+      return origin.name === '' ? 'another agent' : `the agent on ${origin.name}`
     default:
       return 'you'
   }

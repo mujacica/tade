@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { createInterface } from 'node:readline'
+import { LEFTOVER_ITEMS, LEFTOVERS_TOOL } from '@tade/harnesses-core/agent-tools'
 import { ask, SOCKET } from './ask.ts'
 
 // Tade's tools, lent to a Codex agent as an MCP server over stdio.
@@ -9,8 +10,8 @@ import { ask, SOCKET } from './ask.ts'
 // window's own process — where the extension's settings and credentials are —
 // and the answer comes back as the tool's result. `tade_done` is always here:
 // it is how an agent says its task is finished, which is what starts the work
-// that waits on it — and so is `tade_document_ready`, answered by Tade like an
-// extension's tool.
+// that waits on it — and so are `tade_document_ready` and `tade_leftovers`,
+// answered by Tade like an extension's tool.
 
 interface ToolSpec {
   name: string
@@ -24,7 +25,7 @@ const CALL_MS = 10 * 60_000
 const DONE: ToolSpec = {
   name: 'tade_done',
   description:
-    'Say that your task is finished: the work is done, and committed if you commit. Tade then starts whatever was waiting on it. Call it once, at the end. If you need the person — a question, a decision, something you could not do — ask them instead, and do not call this.',
+    'Say that your task is finished: the work is done, and committed if you commit. Tade then starts whatever was waiting on it. Call it once, at the end, with leftovers for anything you found wrong and did not fix. If you need the person — a question, a decision, something you could not do — ask them instead, and do not call this.',
   parameters: {
     type: 'object',
     properties: {
@@ -32,6 +33,7 @@ const DONE: ToolSpec = {
         type: 'string',
         description: 'One line saying what you did, for whoever looks at the task next.',
       },
+      leftovers: LEFTOVER_ITEMS,
     },
     required: ['summary'],
     additionalProperties: false,
@@ -82,7 +84,7 @@ function listed(path: string | undefined): ToolSpec[] {
   }
 }
 
-const tools = [...listed(process.env.TADE_EXTENSION_TOOLS), DOCUMENT_READY, DONE]
+const tools = [...listed(process.env.TADE_EXTENSION_TOOLS), DOCUMENT_READY, LEFTOVERS_TOOL, DONE]
 
 const send = (message: unknown): void => {
   process.stdout.write(`${JSON.stringify(message)}\n`)
@@ -131,17 +133,40 @@ async function call(id: unknown, params: Record<string, unknown>): Promise<void>
   const name = String(params.name ?? '')
   const input = (params.arguments ?? {}) as Record<string, unknown>
   if (!SOCKET) return text(id, `Tade is not supervising this agent, so ${name} cannot run`, true)
+  const callId = `${Date.now()}-${name}`
   if (name === DONE.name) {
+    // What it left goes first, to the door `tade_leftovers` goes to: a report
+    // that is refused is said while nothing is finished yet.
+    let left = ''
+    if (Array.isArray(input.leftovers) && input.leftovers.length > 0) {
+      const items = { items: input.leftovers, finishing: true }
+      const reply = await tade(`${callId}-leftovers`, LEFTOVERS_TOOL.name, items)
+      if (!reply)
+        return text(id, 'Tade is not open, so it cannot be told yet: say so instead', true)
+      if (reply.ok !== true) {
+        const why = String(reply.text ?? '')
+        return text(id, `Nothing is finished yet: what you left was not taken. ${why}`, true)
+      }
+      left = ` ${String(reply.text ?? '')}`
+    }
     const reply = await ask({ kind: 'done', summary: String(input.summary ?? '').trim() })
     return reply
-      ? text(id, 'Tade has it: this task is finished.')
+      ? text(id, `Tade has it: this task is finished.${left}`)
       : text(id, 'Tade is not open, so it cannot be told yet: say so instead', true)
   }
-  const callId = `${Date.now()}-${name}`
-  const reply = (await ask({ kind: 'call', callId, tool: name, input }, CALL_MS)) as {
+  const reply = await tade(callId, name, input)
+  if (!reply) return text(id, `Tade is not open, so ${name} cannot run right now`, true)
+  text(id, String(reply.text ?? ''), reply.ok !== true)
+}
+
+/** A tool Tade runs, asked over the run's socket: its answer, or null where it could not be asked. */
+async function tade(
+  callId: string,
+  tool: string,
+  input: Record<string, unknown>,
+): Promise<{ ok?: unknown; text?: unknown } | null> {
+  return (await ask({ kind: 'call', callId, tool, input }, CALL_MS)) as {
     ok?: unknown
     text?: unknown
   } | null
-  if (!reply) return text(id, `Tade is not open, so ${name} cannot run right now`, true)
-  text(id, String(reply.text ?? ''), reply.ok !== true)
 }

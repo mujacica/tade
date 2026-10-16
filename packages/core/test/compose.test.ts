@@ -280,6 +280,16 @@ describe('composeAgentPrompt', () => {
     expect(composeAgentPrompt({ ...base, produces })).not.toContain('tade_document_ready')
   })
 
+  it('tells every agent that can say it is done to report what it left, in one line, and never only mention it', () => {
+    const told = composeAgentPrompt({ ...base, canSayDone: true })
+    const line = told.split('\n').filter((one) => one.includes('leftovers'))
+    expect(line).toEqual([
+      '- Report what you found wrong and did not fix as leftovers — with tade_done, or tade_leftovers before then — and never just mention it: the orchestrator decides whether each gets fixed.',
+    ])
+    // Nothing to report with, nothing said about it.
+    expect(composeAgentPrompt(base)).not.toContain('leftovers')
+  })
+
   it('does not ask for a trailer from an agent told never to commit', () => {
     const told = composeAgentPrompt({ ...base, workspace: 'worktree', commit: 'never' })
     expect(told).not.toContain('Tade-Task:')

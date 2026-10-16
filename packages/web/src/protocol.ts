@@ -296,8 +296,9 @@ export const TaskRowSchema = z.strictObject({
   origin: z.strictObject({
     // `intake` is here and is not folded into `schedule`, which is the one
     // thing this row must not do: a ticket somebody else filed arriving as
-    // "you" would read on the page as the owner having asked for it.
-    kind: z.enum(['you', 'orchestrator', 'extension', 'schedule', 'intake']),
+    // "you" would read on the page as the owner having asked for it — and
+    // `agent`, what another task's agent found and left, for the same reason.
+    kind: z.enum(['you', 'orchestrator', 'extension', 'schedule', 'intake', 'agent']),
     name: z.string(),
   }),
   /** A COUNT. Never a pid, never a session id. */

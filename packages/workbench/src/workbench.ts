@@ -399,8 +399,7 @@ export class Workbench {
           void setTitle(opts.home, task, title, named).catch(() => {})
         },
         // A tool an agent calls runs in this process: Tade's own, or an extension's.
-        onExtensionCall: (call) =>
-          answerAgentTool({ home: opts.home, log, extensions: opts.extensions }, call),
+        onExtensionCall: (call) => answerAgentTool({ ...opts, log, tasks: () => workbench }, call),
         // And so does a second reading of what it is about to run. Left out
         // where there are no extensions, which is the gate Tade has on its own.
         ...(opts.extensions

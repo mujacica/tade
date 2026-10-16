@@ -262,6 +262,10 @@ export function describeEvent(event: TadeEvent): string {
       return 'was told to carry on after the machine slept'
     case 'proposal_decided':
       return `was proposed, and the decision was ${String(event.detail.decision ?? 'made')}`
+    case 'leftovers_reported': {
+      const n = Array.isArray(event.detail.items) ? event.detail.items.length : 0
+      return `left ${n === 1 ? 'something' : `${n} things`} it found and did not fix, for the orchestrator to decide`
+    }
     // Said like any wait on you, in a line: what the document says is the
     // orchestrator's to tell, having read it.
     case 'document_ready':

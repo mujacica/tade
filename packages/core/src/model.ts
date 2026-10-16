@@ -167,7 +167,8 @@ export type TaskFile = z.infer<typeof TaskFile>
 
 /**
  * Who asked for a task, as the task file and the journal say it: `you`,
- * `orchestrator`, `extension:<name>`, `schedule:<name>` or `intake:<source>`.
+ * `orchestrator`, `extension:<name>`, `schedule:<name>`, `intake:<source>` or
+ * `agent:<task>` — what another task's agent found and left (`leftovers.ts`).
  * A string rather than an object so it reads the same in the journal as it does
  * in a file.
  *
@@ -179,7 +180,7 @@ export type TaskFile = z.infer<typeof TaskFile>
  * grant, recorded on `intake_accepted`.
  */
 export type TaskOrigin = {
-  kind: 'you' | 'orchestrator' | 'extension' | 'schedule' | 'intake'
+  kind: 'you' | 'orchestrator' | 'extension' | 'schedule' | 'intake' | 'agent'
   name: string
 }
 
@@ -188,7 +189,10 @@ export function taskOrigin(by: string | null | undefined): TaskOrigin {
   if (by === 'orchestrator') return { kind: 'orchestrator', name: 'orchestrator' }
   const [kind, ...rest] = (by ?? '').split(':')
   const name = rest.join(':')
-  if ((kind === 'extension' || kind === 'schedule' || kind === 'intake') && name) {
+  if (
+    (kind === 'extension' || kind === 'schedule' || kind === 'intake' || kind === 'agent') &&
+    name
+  ) {
     return { kind, name }
   }
   return { kind: 'you', name: 'you' }

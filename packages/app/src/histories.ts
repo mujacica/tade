@@ -41,6 +41,8 @@ export const QUEUE_READS = [
   // What a watch has found, which is never forgotten: one finding, one piece of work.
   'watch_checked',
   'watch_found',
+  // What agents left unfixed, each made parked work: what later work is related on.
+  'leftovers_reported',
   // Whether the person approved a document queued work waits on (`approvedFrom`),
   // which is a fold over every line about documents and not only the triage.
   ...DOCUMENT_EVENTS,

@@ -80,6 +80,13 @@ these: it is an extension (see `add-extension`), which agents can use too and th
   answers when nothing was written: `tade_remember` with the same words says "already noted",
   because a model shown a fresh note goes on to write the next one.
 
+- **Everything put to the orchestrator to decide is decided with one tool.** A schedule's run, a
+  watch's finding, a check it proposed and what an agent found and did not fix (`leftovers.ts`) are
+  all `tade_proposal_decide` — start, after, steer or leave, with a sentence why — never a tool per
+  source. A new kind of proposal teaches `proposalsIn` to read it and says itself in that tool's
+  description and in `RULES`; it adds nothing to the tool list or to `origin.ts`'s tables, and the
+  golden diff is two sentences.
+
 - **A tool that spends money for the person takes their words and their ceiling.** `tade_replay`
   is refused in the window unless a `said` line asks for an eval (`REPLAY_START`, `replayNamedBy`),
   and the host refuses it with no `ceiling_usd` before the window is even asked — a ceiling the

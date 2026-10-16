@@ -219,7 +219,7 @@ describe('the window, and what it watches', () => {
     ).rejects.toThrow(/say why in a sentence/)
     await expect(
       tools.decide({ task: 'app/refunds', decision: 'start', because: 'why not' }),
-    ).rejects.toThrow(/is not work a schedule or a watch put to you/)
+    ).rejects.toThrow(/is not work put to you to decide/)
     await tools.decide({
       task: 'app/bring-in-shed',
       decision: 'start',

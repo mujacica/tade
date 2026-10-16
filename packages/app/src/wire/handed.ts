@@ -1,6 +1,9 @@
+import type { TadeEvent } from '@tade/core'
+import { eventTell } from '../inbox.ts'
 import { withTranscript } from '../model.ts'
 import { tadeDid } from '../transcript.ts'
 import { type Wiring, why } from './context.ts'
+import { offerLeftovers } from './leftovers.ts'
 
 // A document handed over, told to the orchestrator now (`eventTell`).
 //
@@ -11,6 +14,19 @@ import { type Wiring, why } from './context.ts'
 // says rather than nowhere. A tell that failed is said on screen too:
 // nothing goes wrong silently, and a document waiting on the person is the
 // last thing that may.
+
+/**
+ * What a journal line needs the orchestrator for now rather than as news, told:
+ * a document handed over (`eventTell`), or what an agent left unfixed
+ * (`offerLeftovers`). Whether it was, so the rest can wait as news.
+ */
+export function tellNow(wire: Wiring, orchestrator: Tellable, event: TadeEvent): boolean {
+  const told = eventTell(event, wire.live?.queueFacts().events ?? [])
+  if (told) tellOrKeep(wire, orchestrator, told)
+  else if (event.type === 'leftovers_reported') offerLeftovers(wire, orchestrator, event)
+  else return false
+  return true
+}
 
 /** What telling needs of the orchestrator: whether it is there, and its two channels. */
 export interface Tellable {

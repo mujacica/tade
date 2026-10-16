@@ -22,17 +22,20 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 | `packages/workbench/src/agent-tools.ts` | `tade_document_ready`: an agent handing its document over before it finishes |
 | `packages/core/src/effort.ts` | one change across repositories: `effortsIn`, `effortSays` |
 | `packages/core/src/schedule.ts` | `When`, `ScheduleDoes`, `runsOf`, `dueNow`, `watchedFrom`, `newFindings`, `standingSchedules`, `scheduleIdOf`, `DECIDES` and `decidesOf`, the words for each |
-| `packages/core/src/proposals.ts` | what a schedule or a watch puts to the orchestrator instead of starting: `relatedWork`, `describeProposals`, `proposalsIn`, `PROPOSAL_DECISIONS` |
-| `packages/core/src/events.ts` | `task_done`, `effort_named`, `queue_*`, `schedule_*`, `watch_*`, `proposal_decided` |
+| `packages/core/src/proposals.ts` | what a schedule, a watch or an agent's leftovers put to the orchestrator instead of starting: `relatedWork`, `describeProposals`, `describeLeftovers`, `proposalsIn`, `PROPOSAL_DECISIONS` |
+| `packages/core/src/leftovers.ts` | what an agent found and did not fix: `readLeftovers`, `leftoverWork`, `AGENT_TEXT_IS_MATERIAL`, `leftoversIn`, `whereFile` |
+| `packages/core/src/events.ts` | `task_done`, `effort_named`, `queue_*`, `schedule_*`, `watch_*`, `proposal_decided`, `leftovers_reported` |
 | `packages/workbench/src/workbench.ts` | writing it down: `markDone`, `planTasks`, `startQueued`, `holdQueued`, `setSchedule`, `fireSchedule`, `watchChecked`, `watchFound` |
 | `packages/workbench/src/found.ts` | a finding or a schedule's run made into work — queued, or parked as a proposal: `makeFoundWork`, `fireAgentSchedule` |
+| `packages/workbench/src/leftovers.ts` | `tade_leftovers`, and `tade_done`'s `leftovers`, each item made parked work: `reportLeftovers` |
 | `packages/workbench/src/queue-changes.ts` | `changeQueued`: a choice about queued work, and `after` and `retell` written into its task file; `handOnWaits` for a removal |
 | `packages/workbench/src/schedules.ts` | `schedules.jsonl`: every change a line, with who made it; `readEverMade` |
 | `packages/workbench/src/tasks.ts` | `by`, `done`, `start` and `produces` in a task file; `producedDetail`; `beginFrom` for stacked worktrees |
 | `packages/app/src/live.ts` | `QUEUE_READS`: what the rules read, from the whole journal; `lookAtTrees` at the moment of starting |
 | `packages/app/src/app.ts` | the passes: `advanceQueue`, `runSchedules`, `fire`, `lookWith`, and `queueTools` for the orchestrator |
 | `packages/app/src/wire/schedules.ts` | the one door: `Schedules.set`, `mayWatch`, `turnWatch`, `writeStanding` |
-| `packages/app/src/wire/proposals.ts` | what a look's findings become, and a decision carried out: `actOnFound`, `offerProposals`, `workNow`, `decideProposal` |
+| `packages/app/src/wire/proposals.ts` | what a look's findings become, and a decision carried out: `actOnFound`, `offerProposals`, `putToOrchestrator`, `workNow`, `decideProposal` |
+| `packages/app/src/wire/leftovers.ts` | what an agent left, told to the orchestrator the moment it is written down: `offerLeftovers` (from `tellNow`, `wire/handed.ts`) |
 | `packages/app/src/queue.ts` | what is said: the schedule card's facts, what the orchestrator is told, why an empty list is empty (`queueEmptySays`) |
 | `packages/app/src/queue-view.ts` | what the SMART QUEUE shows: the scope, `shownBy` |
 | `packages/app/src/schedules-view.ts` | a watch's trouble and when it may stop being drawn: `hush`, `unhush`, `wasHushed` |
@@ -360,6 +363,23 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   so every schedule written before it is routed: `itself` is the old way, for a schedule somebody
   wants run unwatched, and `Schedules.set` refuses `decides` where nothing starts (an ask, a watch
   that only tells) rather than keep a word nothing reads.
+- **What an agent found and did not fix is a proposal too** (`core/src/leftovers.ts`). Agents leave
+  what is outside their task — rightly — and used to say so only in their last message, where nobody
+  acted on it: `bind: lan` refusing the phone's own address, the away cookie never renewed, Debian
+  told to `brew install whisper-cpp` (2026-10-16). Every agent that can say it is done is told, in one
+  line, to report it instead: `tade_done`'s `leftovers`, or `tade_leftovers` before then, each item a
+  `title`, `where`, `why` and `sure`. Each becomes a task in the reporter's project, `by:
+  agent:<task>` — an origin of its own, never "you" — made **parked**, its prompt Tade's sentence
+  and the agent's words in its context file under `AGENT_TEXT_IS_MATERIAL`, because a report is
+  material and never instruction. The report is **one** `leftovers_reported` line on the reporting
+  task naming the task each item became; `proposalsIn` reads a proposal per item, and anything that
+  looks a proposal up by its own task's lines reads the reports too (`linesAbout`). The window tells
+  the orchestrator at once (`tellNow` → `offerLeftovers`), with what may be on each: `relatedWork`'s
+  facts plus two for a leftover — another left at the same file (`whereFile`), a task whose
+  `touches` cover it — and never the reporter itself, which said it is not on it. It is decided with
+  `tade_proposal_decide` like any other, and an undecided one is in the briefing, uncapped and never
+  aged. Sending the same report again — the tool, then `tade_done` with the same list — makes
+  nothing twice: titles are compared per reporting task.
 - **Only while a window is open.** What came due while none was is caught up once or skipped, as
   the schedule says (`dueNow`), never once per run missed.
 - **A standing watch is written once, and removed it stays removed.** A watch may declare that it

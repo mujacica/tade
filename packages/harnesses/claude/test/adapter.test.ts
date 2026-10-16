@@ -509,6 +509,7 @@ describe('ClaudeAdapter', () => {
       expect(((by(2)?.tools ?? []) as Array<{ name: string }>).map((tool) => tool.name)).toEqual([
         'checks_run',
         'tade_document_ready',
+        'tade_leftovers',
         'tade_done',
       ])
       expect(by(3)).toEqual({ content: [{ type: 'text', text: 'all green' }], isError: false })
@@ -520,6 +521,76 @@ describe('ClaudeAdapter', () => {
         isError: true,
       })
       expect(signals.find((s) => s.type === 'done')).toMatchObject({ summary: 'fixed it' })
+    })
+
+    it('reports what it left before it says it is done, and is not done when Tade refuses it', async () => {
+      const { adapter, env, signals, spec } = await setUp()
+      let refuse = false
+      adapter.onSignal(spec.run, (signal) => {
+        if (signal.type === 'extension_call') {
+          void adapter.answer(spec.run, signal.callId, {
+            ok: !refuse,
+            text: refuse ? 'item 1 has no where' : 'What you left is put to the orchestrator.',
+          })
+        }
+      })
+      const left = [
+        { title: 'a', where: 'src/a.ts:1', why: 'not mine', sure: 'certain' },
+        { title: 'b', where: 'pnpm test', why: 'not mine', sure: 'unsure' },
+      ]
+      const server = spawn(process.execPath, [MCP_PATH], { env: { ...process.env, ...env } })
+      const answers: Array<{ id: number; result: Record<string, unknown> }> = []
+      let buffer = ''
+      server.stdout.on('data', (chunk: Buffer) => {
+        buffer += chunk.toString('utf8')
+        for (let end = buffer.indexOf('\n'); end >= 0; end = buffer.indexOf('\n')) {
+          answers.push(JSON.parse(buffer.slice(0, end)))
+          buffer = buffer.slice(end + 1)
+        }
+      })
+      const done = (id: number) =>
+        server.stdin.write(
+          `${JSON.stringify({
+            jsonrpc: '2.0',
+            id,
+            method: 'tools/call',
+            params: {
+              name: 'tade_done',
+              arguments: { summary: 'socket decides', leftovers: left },
+            },
+          })}\n`,
+        )
+      done(1)
+      await until(() => answers.length === 1)
+      expect(answers[0]?.result).toEqual({
+        content: [
+          {
+            type: 'text',
+            text: 'Tade has it: this task is finished. What you left is put to the orchestrator.',
+          },
+        ],
+        isError: false,
+      })
+      const call = signals.findIndex((s) => s.type === 'extension_call')
+      expect(signals[call]).toMatchObject({
+        tool: 'tade_leftovers',
+        input: { items: left, finishing: true },
+      })
+      expect(signals.findIndex((s) => s.type === 'done')).toBeGreaterThan(call)
+      refuse = true
+      done(2)
+      await until(() => answers.length === 2)
+      server.kill()
+      expect(answers[1]?.result).toEqual({
+        content: [
+          {
+            type: 'text',
+            text: 'Nothing is finished yet: what you left was not taken. item 1 has no where',
+          },
+        ],
+        isError: true,
+      })
+      expect(signals.filter((s) => s.type === 'done')).toHaveLength(1)
     })
   })
 

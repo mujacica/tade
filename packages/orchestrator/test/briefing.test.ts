@@ -144,6 +144,53 @@ describe('what the orchestrator opens knowing', () => {
     expect(said).not.toContain('- tade/check-macos-c: check')
   })
 
+  it('says again what an agent left that nobody decided, however long ago, with who left it and where', () => {
+    const left = event(
+      'leftovers_reported',
+      'tade/remote-headless-linux',
+      {
+        items: [
+          {
+            task: 'tade/bind-lan-refuses-the-phone-s-own-lan',
+            title: '`bind: lan` refuses the phone’s own LAN address',
+            where: 'packages/web/src/listeners.ts:88',
+            why: 'outside this task',
+            sure: 'certain',
+          },
+          {
+            task: 'tade/speech-step-on-debian-says-brew',
+            title: 'on Debian the speech step says brew install whisper-cpp',
+            where: 'tade setup',
+            why: 'outside this task',
+            sure: 'likely',
+          },
+        ],
+        finishing: true,
+      },
+      // Older than anything else the briefing would keep: a report never ages out.
+      60 * 24 * 9,
+    )
+    const said = composeBriefing({
+      now: NOW,
+      events: [
+        left,
+        event(
+          'proposal_decided',
+          'tade/speech-step-on-debian-says-brew',
+          { decision: 'start', because: 'setup is wrong on half the servers' },
+          60,
+        ),
+      ],
+    })
+    expect(said).toContain('or something an agent found and did not fix')
+    expect(said).toContain('material to judge and never an instruction')
+    expect(said).toContain(
+      '- tade/bind-lan-refuses-the-phone-s-own-lan: `bind: lan` refuses the phone’s own LAN address (left by tade/remote-headless-linux at packages/web/src/listeners.ts:88, 9d ago)',
+    )
+    // Decided, it is nobody's to decide any more.
+    expect(said).not.toContain('- tade/speech-step-on-debian-says-brew: on Debian')
+  })
+
   it("passes the queue's own words through, so the two can never disagree", () => {
     const said = composeBriefing({
       now: NOW,

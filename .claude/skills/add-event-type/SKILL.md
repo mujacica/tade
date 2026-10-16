@@ -37,6 +37,13 @@ Nothing else will: a type missing from `summary.ts` silently reads as nothing at
   than no event.
 - Old journals keep working. Anything reading events handles a type it has never seen by ignoring
   it, so adding one is never a migration.
+- **A line about several things names each in its detail, and every fold keyed by task has to be
+  taught it.** `leftovers_reported` is written on the *reporting* task, with an item per parked task
+  it made, so "what happened in tade/x" shows the report. `proposalsIn` reads a proposal per item —
+  and `decideProposal`, which looked a proposal up by its own task's lines (`events({ task })`),
+  found nothing until it read the reports too; only the window test caught it. Grep for
+  `events({ task` before choosing which task a line is on. A line the window must fold from the
+  whole journal rather than its 500-line tail goes in `QUEUE_READS` (`app/src/histories.ts`).
 
 ## What the journal may forget
 

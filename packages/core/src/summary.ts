@@ -1,5 +1,6 @@
 import type { TadeEvent } from './events.ts'
 import { ago } from './history.ts'
+import { leftoversIn } from './leftovers.ts'
 import type { TaskState } from './model.ts'
 
 // What an agent has actually been doing.
@@ -45,6 +46,8 @@ export interface WorkSummary {
   interrupted: string | null
   /** Why it failed, if it did. */
   failed: string | null
+  /** What it found and did not fix, as the parked tasks each was made into. */
+  left: string[]
   state: TaskState | null
   lastAt: number | null
 }
@@ -64,6 +67,7 @@ export function summariseWork(
     waiting: null,
     interrupted: null,
     failed: null,
+    left: [],
     state: null,
     lastAt: null,
   }
@@ -128,6 +132,9 @@ export function summariseWork(
       case 'state_change':
         if (typeof event.detail.state === 'string') summary.state = event.detail.state as TaskState
         break
+      case 'leftovers_reported':
+        summary.left.push(...leftoversIn(event).map((one) => one.task))
+        break
       default:
         break
     }
@@ -162,6 +169,12 @@ export function describeWork(summary: WorkSummary, now: number): string {
     )
   if (summary.failed) sentences.push(`It failed: ${summary.failed}.`)
   if (summary.waiting) sentences.push(`It is waiting on ${summary.waiting}.`)
+  if (summary.left.length > 0) {
+    const things = summary.left.length === 1 ? 'something' : `${summary.left.length} things`
+    sentences.push(
+      `It left ${things} it found and did not fix, put to the orchestrator as ${joinWords(summary.left)}.`,
+    )
+  }
   if (summary.notable.length > 0) {
     // Said afterwards precisely because nothing interrupted you at the time.
     const [first] = summary.notable

@@ -1,14 +1,16 @@
 import { readFileSync } from 'node:fs'
 import { connect, type Socket } from 'node:net'
+import { LEFTOVER_ITEMS, LEFTOVERS_TOOL } from './leftovers.ts'
 import { addSpent, nothingSpent, type Spent, spentBy } from './usage.ts'
 
 // The Tade supervision extension for pi.
 //
 // pi loads this file directly, so it is deliberately SELF-CONTAINED: no
 // imports from the Tade workspace, because the extension runs inside pi's
-// module resolution, not ours. The one import is `usage.ts` beside it, which
-// imports nothing: what a session spent has to be counted the same way here
-// and from pi's files afterwards. It speaks the same JSONL shapes as
+// module resolution, not ours. Its imports are files beside it that import
+// nothing: `usage.ts`, because what a session spent has to be counted the same
+// way here and from pi's files afterwards, and `leftovers.ts`, its copy of what
+// an agent may report it left unfixed. It speaks the same JSONL shapes as
 // `WorkerSignal` / `WorkerCommand` in @tade/core; the Tade side validates.
 //
 // Without TADE_RUN_SOCKET in the environment this is inert, so a human
@@ -298,9 +300,21 @@ export default function tadeExtension(pi: PiApi): void {
 
   dial()
 
+  /** A tool Tade runs, asked over the socket, and its answer — a refusal, if it never came. */
+  const askTade = (callId: string, tool: string, input: Record<string, unknown>) =>
+    new Promise<{ ok: boolean; text: string }>((resolve) => {
+      calls.set(callId, resolve)
+      const timer = setTimeout(() => {
+        calls.delete(callId)
+        resolve({ ok: false, text: `${tool} did not answer in time` })
+      }, EXTENSION_CALL_MS)
+      timer.unref?.()
+      send({ type: 'extension_call', callId, tool, input })
+    })
+
   // Tade's extension tools: listed at launch, run in Tade, answered here — and
-  // its own `tade_document_ready`, which runs there the same way.
-  for (const spec of [...readTools(TOOLS), DOCUMENT_READY]) {
+  // its own `tade_document_ready` and `tade_leftovers`, which run there the same way.
+  for (const spec of [...readTools(TOOLS), DOCUMENT_READY, LEFTOVERS]) {
     pi.registerTool?.({
       name: spec.name,
       label: spec.label,
@@ -310,15 +324,7 @@ export default function tadeExtension(pi: PiApi): void {
         if (!connected) {
           throw new Error(`Tade is not open, so ${spec.name} cannot run right now`)
         }
-        const answer = await new Promise<{ ok: boolean; text: string }>((resolve) => {
-          calls.set(toolCallId, resolve)
-          const timer = setTimeout(() => {
-            calls.delete(toolCallId)
-            resolve({ ok: false, text: `${spec.name} did not answer in time` })
-          }, EXTENSION_CALL_MS)
-          timer.unref?.()
-          send({ type: 'extension_call', callId: toolCallId, tool: spec.name, input: params ?? {} })
-        })
+        const answer = await askTade(toolCallId, spec.name, params ?? {})
         // Thrown, so pi marks the call failed and the model reads why.
         if (!answer.ok) throw new Error(answer.text)
         return { content: [{ type: 'text', text: answer.text }], details: {} }
@@ -333,7 +339,7 @@ export default function tadeExtension(pi: PiApi): void {
     name: 'tade_done',
     label: 'Done',
     description:
-      'Say that your task is finished: the work is done, and committed if you commit. Tade then starts whatever was waiting on it. Call it once, at the end. If you need the person — a question, a decision, something you could not do — ask them instead, and do not call this.',
+      'Say that your task is finished: the work is done, and committed if you commit. Tade then starts whatever was waiting on it. Call it once, at the end, with leftovers for anything you found wrong and did not fix. If you need the person — a question, a decision, something you could not do — ask them instead, and do not call this.',
     parameters: {
       type: 'object',
       properties: {
@@ -341,16 +347,28 @@ export default function tadeExtension(pi: PiApi): void {
           type: 'string',
           description: 'One line saying what you did, for whoever looks at the task next.',
         },
+        leftovers: LEFTOVER_ITEMS,
       },
       required: ['summary'],
       additionalProperties: false,
     },
-    async execute(_toolCallId, params) {
+    async execute(toolCallId, params) {
       if (!connected) throw new Error('Tade is not open, so it cannot be told yet: say so instead')
-      const summary = String((params as { summary?: unknown } | undefined)?.summary ?? '').trim()
-      send({ type: 'done', summary })
+      const given = (params ?? {}) as { summary?: unknown; leftovers?: unknown }
+      // What it left goes first, to the door `tade_leftovers` goes to: a report
+      // that is refused is said while nothing is finished yet.
+      let left = ''
+      if (Array.isArray(given.leftovers) && given.leftovers.length > 0) {
+        const items = { items: given.leftovers, finishing: true }
+        const answer = await askTade(`${toolCallId}-leftovers`, LEFTOVERS.name, items)
+        if (!answer.ok) {
+          throw new Error(`Nothing is finished yet: what you left was not taken. ${answer.text}`)
+        }
+        left = ` ${answer.text}`
+      }
+      send({ type: 'done', summary: String(given.summary ?? '').trim() })
       return {
-        content: [{ type: 'text', text: 'Tade has it: this task is finished.' }],
+        content: [{ type: 'text', text: `Tade has it: this task is finished.${left}` }],
         details: {},
       }
     },
@@ -688,6 +706,9 @@ export const DOCUMENT_READY: ToolSpec = {
     additionalProperties: false,
   },
 }
+
+/** How an agent reports what it found and did not fix, before it finishes (`leftovers.ts`). */
+export const LEFTOVERS: ToolSpec = LEFTOVERS_TOOL
 
 /** Tools that change something: the first of these is when there is work to name. */
 const CHANGES = new Set(['edit', 'write', 'multi_edit', 'bash'])

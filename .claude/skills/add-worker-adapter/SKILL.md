@@ -377,6 +377,16 @@ through Tade, so a `/compact` is not theirs to send. Two declarations and one me
 - **Keep in-agent code self-contained.** Code loaded *into* the agent (a pi extension, a hook
   script) runs under that tool's module resolution, not ours: no workspace imports. The Tade side
   validates what arrives.
+- **Tade's own agent tools are on every harness, and go through one door.** `tade_done`,
+  `tade_document_ready` and `tade_leftovers` are offered by pi's extension, by the MCP server Claude
+  Code and Codex start, and by the one an ACP agent is handed. All but `done` are lent like an
+  extension's tool and answered in the window by `answerAgentTool`, so a refusal is a failed call the
+  agent reads. What an agent may report it left is one spec, `@tade/harnesses-core/agent-tools`,
+  which imports nothing so a tool server can load it as its session starts; pi's extension may import
+  nothing of ours, so it keeps a copy held to that one by its test. **`tade_done`'s `leftovers` go
+  first, as a `tade_leftovers` call**: refused, no `done` is sent and the agent is told nothing is
+  finished, so a report can never be lost to a task that already said it was done. A new harness
+  does the same, and its test shows the call landing before the `done` signal.
 - **The adapter never owns credentials.** Model, provider and auth belong to the harness, which is
   what keeps subscriptions, API keys and local models all working.
 

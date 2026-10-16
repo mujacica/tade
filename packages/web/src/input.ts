@@ -232,7 +232,10 @@ export interface TaskIn {
    * outside is somebody else's request, and the one answer this field must
    * never give for one is `you`.
    */
-  origin: { kind: 'you' | 'orchestrator' | 'extension' | 'schedule' | 'intake'; name: string }
+  origin: {
+    kind: 'you' | 'orchestrator' | 'extension' | 'schedule' | 'intake' | 'agent'
+    name: string
+  }
   /** A COUNT of the agents attached. Never a pid, never a session id. */
   agents: number
   /** A COUNT of the lanes. Never a lane id, never an attach line. */

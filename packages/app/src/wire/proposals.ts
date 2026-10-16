@@ -3,6 +3,7 @@ import {
   describeProposals,
   describeWhen,
   joined,
+  leftoversIn,
   madeByWords,
   PROPOSAL_DECISIONS,
   type Proposal,
@@ -176,17 +177,26 @@ export function workNow(wire: Wiring, making: readonly Proposal[]): WorkNow[] {
         made.set(run.task, { title: schedule.name, links: [], proposed: run.proposed === true })
     }
   }
+  // And what each was made from when an agent left it: where, and its title.
+  const left = new Map<string, { title: string; where: string }>()
+  for (const event of live?.queueFacts().events ?? []) {
+    for (const item of leftoversIn(event)) left.set(item.task, item)
+  }
   const now: WorkNow[] = (live?.tasks ?? []).map((task) => {
     const from = made.get(task.task)
+    const leftover = left.get(task.task)
     return {
       task: task.task,
       state: task.state,
-      title: from?.title ?? task.title ?? firstLine(task.intent ?? '') ?? task.task,
+      title:
+        from?.title ?? leftover?.title ?? task.title ?? firstLine(task.intent ?? '') ?? task.task,
       by: task.by ?? null,
       since: since.get(task.task) ?? null,
       finished: Boolean(task.finished),
       links: from?.links ?? [],
-      proposed: task.state === 'parked' && from?.proposed === true,
+      proposed: task.state === 'parked' && (from?.proposed === true || leftover !== undefined),
+      ...(task.touches && task.touches.length > 0 ? { touches: task.touches } : {}),
+      ...(leftover ? { where: leftover.where } : {}),
     }
   })
   const seen = new Set(now.map((one) => one.task))
@@ -196,11 +206,16 @@ export function workNow(wire: Wiring, making: readonly Proposal[]): WorkNow[] {
       task: proposal.task,
       state: 'parked',
       title: proposal.title,
-      by: proposal.schedule === null ? 'orchestrator' : `schedule:${proposal.schedule}`,
+      by: proposal.from
+        ? `agent:${proposal.from}`
+        : proposal.schedule === null
+          ? 'orchestrator'
+          : `schedule:${proposal.schedule}`,
       since: null,
       finished: false,
       links: proposal.links,
       proposed: true,
+      ...(proposal.where ? { where: proposal.where } : {}),
     })
   }
   return now
@@ -229,12 +244,31 @@ export function offerProposals(
     left: req.left,
     now: wire.now(),
   })
-  const names = joined(req.proposals.map((one) => one.task))
-  const waits = req.proposals.length === 1 ? 'waits' : 'wait'
+  return putToOrchestrator(
+    wire,
+    orchestrator,
+    text,
+    req.proposals.map((one) => one.task),
+  )
+}
+
+/**
+ * Tell the orchestrator about parked work it decides, now — or, where it
+ * cannot be told, keep it as news and say so on screen as trouble. Either way
+ * the work stays parked. Answers with a clause saying where the work is, so
+ * what is drawn and what the orchestrator hears agree.
+ */
+export function putToOrchestrator(
+  wire: Wiring,
+  orchestrator: Tellable,
+  text: string,
+  tasks: readonly string[],
+): string {
+  const names = joined(tasks)
+  const waits = tasks.length === 1 ? 'waits' : 'wait'
   const kept = (because: string) => {
     orchestrator.note(text)
-    const it =
-      req.proposals.length === 1 ? { goes: 'it goes', it: 'it' } : { goes: 'they go', it: 'one' }
+    const it = tasks.length === 1 ? { goes: 'it goes', it: 'it' } : { goes: 'they go', it: 'one' }
     const said = `${names} ${waits} parked: ${because}, so ${it.goes} to the orchestrator with the next thing you say. Nothing has started — pick ${it.it} up in the queue to start ${it.it} yourself.`
     wire.put(withTranscript(wire.state, problem(wire.state.transcript, said, wire.now())))
     wire.draw()
@@ -303,10 +337,12 @@ export async function decideProposal(
   // The queue's doors read the last look, which may be a moment behind the
   // work this was made as.
   await wire.live?.refresh()
-  const standing = proposalsIn(await client.events({ task: req.task })).at(-1)
+  const standing = proposalsIn(await linesAbout(client, req.task)).find(
+    (one) => one.proposal.task === req.task,
+  )
   if (!standing) {
     throw new Error(
-      `${req.task} is not work a schedule or a watch put to you: tade_queue_change changes queued work`,
+      `${req.task} is not work put to you to decide — a schedule's, a watch's, a check you proposed, or something an agent left: tade_queue_change changes queued work`,
     )
   }
   if (standing.settled) throw new Error(`${req.task} is already settled: ${standing.settled}`)
@@ -391,6 +427,23 @@ export async function decideProposal(
   wire.put(withTranscript(wire.state, tadeDid(wire.state.transcript, said, wire.now())))
   wire.draw()
   return `${answer}. What you decided, and why, is written down.`
+}
+
+/**
+ * Every line that says what became of one piece of proposed work: its own, and
+ * the report it was made from where an agent left it — which is written on
+ * the reporting task, so the task's own lines alone never find it.
+ */
+async function linesAbout(
+  client: Wiring['opts']['client'],
+  task: string,
+): Promise<Awaited<ReturnType<Wiring['opts']['client']['events']>>> {
+  const [own, reports] = await Promise.all([
+    client.events({ task }),
+    client.events({ types: ['leftovers_reported'] }),
+  ])
+  const made = reports.filter((event) => leftoversIn(event).some((one) => one.task === task))
+  return [...made, ...own].sort((one, other) => one.seq - other.seq)
 }
 
 /** Where queued work stands after a decision, as the queue says it. */
