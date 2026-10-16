@@ -41,9 +41,7 @@ npm install -g tade-sh   # the package is `tade-sh`; the command it installs is 
 tade                     # the window; the first time, a short setup that sets you up
 ```
 
-Needs Node ≥ 22.19 and git; [Installing](#installing) has the rest. Most of the landing story — the
-forecast, the desk, Evaluations, races, replays and mistakes turned into checks — was built after
-0.2.1: it is on `main` now, and in `tade-sh` from the release after it.
+Needs Node ≥ 22.19 and git; [Installing](#installing) has the rest.
 
 ![Tade: a project with nothing running, a request typed to the orchestrator, the orchestrator calling its tools, an agent at work asking for approval, and then the landing desk — every finished piece of work in the order it is cheapest to trust](https://raw.githubusercontent.com/mujacica/tade/main/images/tade.svg)
 
