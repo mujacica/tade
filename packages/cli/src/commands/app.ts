@@ -337,6 +337,18 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
             return queue.race.pick(req)
           },
         },
+        // A replay is a plan the window's queue starts and paces, and starting
+        // one is checked there against the person's own lines.
+        replay: {
+          start: async (req) => {
+            if (!queue) throw opening()
+            return queue.replay.start(req)
+          },
+          standing: async (req) => {
+            if (!queue) throw opening()
+            return queue.replay.standing(req)
+          },
+        },
         updates: {
           read: async (check) => {
             if (!updates) throw opening()

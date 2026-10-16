@@ -1,4 +1,14 @@
-import { type EvalFinding, noSpend, type Spend, type TadeEvent } from '@tade/core'
+import {
+  caseDetail,
+  type EvalFinding,
+  noSpend,
+  type ReplayCase,
+  type ReplayEntrantFacts,
+  replayRecords,
+  replaysIn,
+  type Spend,
+  type TadeEvent,
+} from '@tade/core'
 import { type EvalsView, evalsView } from '../../../src/evaluations.ts'
 import { evaluationsPanel } from '../../../src/panels/evaluations/state.ts'
 import { base, frame, NOW, type Scenario } from './fixtures.ts'
@@ -219,6 +229,112 @@ export const evals: EvalsView = evalsView(journal, {
   merged: new Set(),
 })
 
+/** One case that landed, as a replay took it: its words, what it ran on, cost and changed. */
+const original = (task: string, over: Partial<ReplayCase> = {}): ReplayCase => ({
+  task,
+  project: 'checkout',
+  said: `make ${task.split('/')[1]} retry on a timeout`,
+  base: 'a1b2c3d',
+  baseThere: true,
+  harness: 'claude-code',
+  model: 'claude-opus-5',
+  done: NOW - 30 * HOUR,
+  context: null,
+  usd: 2.1,
+  workedMs: 34 * 60_000,
+  size: { added: 120, removed: 18 },
+  tests: ['test/retry.test.ts'],
+  head: 'b2c3d4e',
+  ...over,
+})
+
+/** What the window knows of each entrant, as its last look said. */
+const ran = (task: string, over: Partial<ReplayEntrantFacts> = {}): ReplayEntrantFacts => ({
+  task,
+  removed: false,
+  started: true,
+  finished: true,
+  state: 'review',
+  checks: 'pass',
+  failed: [],
+  strayed: false,
+  size: { commits: 2, added: 96, removed: 11 },
+  usd: 0.74,
+  workedMs: 21 * 60_000,
+  ...over,
+})
+
+const replayed = replaysIn(
+  replayRecords([
+    line({
+      type: 'replay_started',
+      ts: at(6),
+      detail: {
+        replay: 'sonnet-night',
+        project: 'checkout',
+        said: 'eval sonnet on the last five checkout tasks, five dollars at most',
+        by: 'orchestrator',
+        candidate: { model: 'claude-sonnet-5' },
+        ceiling_usd: 5,
+        cases: [
+          caseDetail({
+            of: 'checkout/refunds',
+            task: 'checkout/sonnet-night-1',
+            couldNot: null,
+            original: original('checkout/refunds'),
+          }),
+          caseDetail({
+            of: 'checkout/webhooks',
+            task: 'checkout/sonnet-night-2',
+            couldNot: null,
+            original: original('checkout/webhooks', {
+              usd: 4.4,
+              size: { added: 210, removed: 40 },
+            }),
+          }),
+          caseDetail({
+            of: 'checkout/stripe',
+            task: null,
+            couldNot:
+              'its words — “yes, that one” — are too few to stand on their own: they answered a conversation the replay does not have',
+            original: original('checkout/stripe', { said: 'yes, that one' }),
+          }),
+          caseDetail({
+            of: 'checkout/ledger',
+            task: 'checkout/sonnet-night-3',
+            couldNot: null,
+            original: original('checkout/ledger', { usd: 0.8 }),
+          }),
+          caseDetail({
+            of: 'checkout/tax',
+            task: 'checkout/sonnet-night-4',
+            couldNot: null,
+            original: original('checkout/tax', { usd: 1.9 }),
+          }),
+        ],
+      },
+    }),
+    line({
+      type: 'replay_graded',
+      task: 'checkout/sonnet-night-2',
+      ts: at(4),
+      detail: { state: 'failed', failed: ['tests'], laid: ['test/webhooks.test.ts'] },
+    }),
+  ]),
+  (task) =>
+    task === 'checkout/sonnet-night-3'
+      ? ran(task, { size: { commits: 0, added: 0, removed: 0 }, usd: 0.31, workedMs: 6 * 60_000 })
+      : task === 'checkout/sonnet-night-4'
+        ? ran(task, { finished: false, state: 'working', checks: null, size: null, usd: 0.4 })
+        : task === 'checkout/sonnet-night-2'
+          ? ran(task, {
+              usd: 1.12,
+              workedMs: 40 * 60_000,
+              size: { commits: 3, added: 160, removed: 22 },
+            })
+          : ran(task),
+)
+
 export const EVALUATION_SCREENS: Scenario[] = [
   {
     name: 'evaluations-by-harness',
@@ -244,6 +360,45 @@ export const EVALUATION_SCREENS: Scenario[] = [
       'probability, out of verdicts alone, with the counts said and a rate only from five.',
     state: { ...base(), panel: evaluationsPanel('judge') },
     frame: frame({ evaluations: evals }),
+  },
+  {
+    name: 'evaluations-replays',
+    about:
+      'A replay: the last landed tasks asked again on a candidate model at their own base, each ' +
+      'beside its original — passed, failed with why, could not replay said apart from failing, ' +
+      'still running — with what it cost and took against what the original did, and the ceiling; ' +
+      'and above them, a candidate judge asked Jev’s questions again, counted against the verdicts.',
+    state: { ...base(), panel: evaluationsPanel('replays') },
+    frame: frame({
+      evaluations: evals,
+      replays: {
+        replays: replayed,
+        judges: [
+          {
+            at: at(2),
+            judge: 'jev',
+            version: 'jev-1.14.0',
+            against: ['jev-1.13.0'],
+            score: {
+              read: 12,
+              couldNot: 1,
+              agreed: 171,
+              asked: 192,
+              raised: { recorded: 14, candidate: 11 },
+              confirmed: { of: 6, caught: 5 },
+              dismissed: { of: 5, raisedAgain: 1 },
+            },
+            costUsd: 0.38,
+          },
+        ],
+      },
+    }),
+  },
+  {
+    name: 'evaluations-no-replays',
+    about: 'With no replay yet the tab says how one is started, rather than an empty table.',
+    state: { ...base(), panel: evaluationsPanel('replays') },
+    frame: frame({ evaluations: evals, replays: { replays: [], judges: null } }),
   },
   {
     name: 'evaluations-before-the-journal-is-read',

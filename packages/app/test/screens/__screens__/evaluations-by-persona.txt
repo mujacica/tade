@@ -3,7 +3,7 @@
  ▾ ╭─ Evaluations ──────────────────────────────────────────────────────────────────────────────────────────── esc ─╮   
    │ 11 agents · 8 landed · merges from the journal and forge                                                       │───
  ▌ │ for   Today    This window    7 days    30 days    All time                                                    │   
- ▌ │ by    Harness    Model    Persona    Template    Judge                                                         │   
+ ▌ │ by    Harness    Model    Persona    Template    Judge    Replays                                              │   
    │                                                                                                                │   
    │ PERSONA          AGENTS         DONE       LANDED    1ST PUSH   REDS        FINDINGS       PER LANDED  TO DONE │   
    │ no persona            9      6/9 67%      6/9 67%     5/6 83%      5        9·3✓5✗1?     $0.48 ≈$1.63   2h 30m▕│   

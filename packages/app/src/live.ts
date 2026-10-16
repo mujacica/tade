@@ -440,13 +440,13 @@ export class Live {
     return this.schedules.watchedOf(schedule)
   }
 
-  /**
-   * Tasks whose own rule — an idle turn, committed work, a merge — was met at
-   * the last look and has not been written down. Writing it is the window's.
-   */
+  /** Tasks whose own rule was met at the last look and not yet written down: the window's to write. */
   get rulesMet(): readonly { task: string; rule: DoneRule }[] {
     return this.met
   }
+
+  /** Whether a task's agent has ended a turn since it last started (`workedFrom`). */
+  hasWorked = (task: string): boolean => this.worked.has(task)
 
   get history(): WorkHistory {
     return historyFrom(this.journal, this.now())

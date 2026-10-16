@@ -188,6 +188,8 @@ export const REMOTE_TOOLS: Readonly<Record<string, Reaching>> = {
   tade_task_create: { kind: 'local', because: EXECUTES },
   tade_template_use: { kind: 'local', because: EXECUTES },
   tade_race: { kind: 'local', because: EXECUTES },
+  // Spends real money on work that already landed, on a line of theirs (`REPLAY_START`).
+  tade_replay: { kind: 'local', because: EXECUTES },
   tade_schedule: { kind: 'local', because: EXECUTES },
   // Installs software on this machine, and ends the window: both are acts the
   // person at it asks for in their own words (`UPDATE_REACH`, `RELOAD_REACH`).
@@ -245,6 +247,8 @@ export const REMOTE_TOOLS: Readonly<Record<string, Reaching>> = {
   // What every entrant was asked, verbatim, and what each cost: the request and
   // the money are each a grant of their own on the away view.
   tade_race_standing: { kind: 'local', because: READS_WIDE },
+  // Every replayed task's words, verbatim, and what each cost: the same two grants.
+  tade_replay_standing: { kind: 'local', because: READS_WIDE },
 
   // Its own clause, because it is the only one here that is not about what a
   // call can reach.
@@ -413,6 +417,8 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
   'race/start': never(EXECUTES),
   'race/standing': never(READS_WIDE),
   'race/pick': never(DECIDES_FOR_SOMEBODY),
+  'replay/start': never(EXECUTES),
+  'replay/standing': never(READS_WIDE),
   'intake/list': never(GRANTS),
   'intake/show': never(GRANTS),
   'config/settings': never(GRANTS),

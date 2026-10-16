@@ -71,6 +71,11 @@ these: it is an extension (see `add-extension`), which agents can use too and th
   time — and write the change down (`config_changed`) with what it was before, so somebody who was
   not watching can find it and undo it.
 
+- **A tool that spends money for the person takes their words and their ceiling.** `tade_replay`
+  is refused in the window unless a `said` line asks for an eval (`REPLAY_START`, `replayNamedBy`),
+  and the host refuses it with no `ceiling_usd` before the window is even asked — a ceiling the
+  model made up is a ceiling nobody set, so the description tells it to ask for one.
+
 ## A tool is reachable from away only if somebody decided it is
 
 `packages/orchestrator/src/origin.ts` holds **two closed tables**: which of Tade's own tools a turn

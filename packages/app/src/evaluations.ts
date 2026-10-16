@@ -4,9 +4,11 @@ import {
   type EvalFinding,
   type Evaluations,
   evaluationsFrom,
+  type Replay,
   type Spend,
   type TadeEvent,
 } from '@tade/core'
+import type { JudgeReplayFact } from '@tade/extensions-core'
 import { type SpendWindow, sinceOf } from './spend.ts'
 
 // What the Evaluations panel shows, as data: the scorecards and the judge's
@@ -19,19 +21,27 @@ import { type SpendWindow, sinceOf } from './spend.ts'
 // which is the Spend page's answer (`sinceOf`) so the two pages agree.
 //
 // **Room for what comes next is a tab, not a page.** Replaying landed work on a
-// candidate model (the replay-evals task) lands its results here as one more
-// entry in `EVAL_TABS`, beside the judge, so a person comparing models reads
-// the scorecards and the replays in one place. A tab for it is added when it
-// has something to draw — never before, because a tab that says *not built* is
-// advertising.
+// candidate model or harness (`replay.ts`) lands here as one more tab beside
+// the judge, so a person comparing models reads the scorecards and the replays
+// in one place.
 
-/** A tab of the page: one way of grouping the scorecards, or the judge itself. */
-export type EvalTab = EvalBy | 'judge'
+/** A tab of the page: one way of grouping the scorecards, the judge itself, or the replays. */
+export type EvalTab = EvalBy | 'judge' | 'replays'
 
 export const EVAL_TABS: readonly { id: EvalTab; label: string }[] = [
   ...EVAL_BY,
   { id: 'judge', label: 'Judge' },
+  { id: 'replays', label: 'Replays' },
 ]
+
+/**
+ * The Replays tab as folded: every replay (`replaysIn`), and what candidate
+ * judges answered when asked again — null where no judge here keeps any.
+ */
+export interface ReplaysView {
+  replays: readonly Replay[]
+  judges: readonly JudgeReplayFact[] | null
+}
 
 /** The page as folded: the scorecards over one range. */
 export interface EvalsView {

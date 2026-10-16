@@ -106,7 +106,7 @@ const BUDGET: Record<string, number> = {
   //
   // 929 -> 918 when `tade_plan`'s `after` went to `tools-queue.ts` as
   // `PLAN_AFTER`, beside the `approved` it shares with `tade_queue_change`.
-  'packages/orchestrator/src/tools-extension.ts': 918,
+  'packages/orchestrator/src/tools-extension.ts': 916,
   // The facade is the point and stays: ~1,700 lines of it are the one object
   // the CLI, the window and the orchestrator all call, average method 19 lines,
   // already delegating to eight split collaborators — splitting a facade
@@ -119,7 +119,7 @@ const BUDGET: Record<string, number> = {
   // `guardName`'s harness keys became one method a plan asks too; 2,386 when
   // an agent's tool calls went to `agent-tools.ts`, Tade's own first; 2,372
   // when `holdQueued` joined `changeQueued` and a plan learned races.
-  'packages/workbench/src/workbench.ts': 2_372,
+  'packages/workbench/src/workbench.ts': 2_346,
   // 1,100 -> 1,045 when what each agent has been doing went to `doing.ts`, as
   // it learned which files each one wrote for the conflict forecast.
   'packages/workbench/src/workers.ts': 1_045,

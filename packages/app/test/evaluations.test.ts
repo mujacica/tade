@@ -20,12 +20,12 @@ const screen = (panel = evaluationsPanel(), width = 120, height = 34, view = eva
   )
 
 describe('the Evaluations panel', () => {
-  it('tabs through the groupings and the judge, and ← → through the ranges', () => {
+  it('tabs through the groupings, the judge and the replays, and ← → through the ranges', () => {
     const panel = evaluationsPanel()
     expect(panel).toMatchObject({ tab: 'harness', window: 'all' })
     const next = evaluationsKey(panel, 'tab').panel
     expect(next).toMatchObject({ tab: 'model', scroll: 0 })
-    expect(evaluationsKey(panel, 'shift+tab').panel).toMatchObject({ tab: 'judge' })
+    expect(evaluationsKey(panel, 'shift+tab').panel).toMatchObject({ tab: 'replays' })
     expect(evaluationsKey(panel, 'left').panel).toMatchObject({ window: 'month' })
     expect(evaluationsKey(panel, 'right').panel).toMatchObject({ window: 'today' })
     expect(evaluationsKey({ ...panel, scroll: 3 }, 'up').panel).toMatchObject({ scroll: 2 })
@@ -92,7 +92,7 @@ describe('the Evaluations panel', () => {
     const narrow = screen(evaluationsPanel(), 60, 24)
     expect(narrow.some((row) => row.includes('claude-code'))).toBe(true)
     expect(narrow.some((row) => row.includes('TOKENS'))).toBe(false)
-    for (const tab of ['harness', 'model', 'persona', 'template', 'judge'] as const) {
+    for (const tab of ['harness', 'model', 'persona', 'template', 'judge', 'replays'] as const) {
       for (const width of [40, 60, 80, 120, 200]) {
         for (const height of [10, 24, 50]) {
           const drawn = draw(

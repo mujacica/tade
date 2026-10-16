@@ -94,6 +94,7 @@ import { changeQueued, type HeldHow, holdQueued, type QueueChangeRequest } from 
 import { type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
 import { type KeptSchedule, Schedules } from './schedules.ts'
 import { continueRun as continueAgent } from './sleep.ts'
+import { taskSaid } from './task-said.ts'
 import {
   beginFrom,
   branchSlug,
@@ -224,6 +225,8 @@ export interface CreateTaskRequest {
   /** The race it is one entrant in (`race.ts`), and its harness when that is not the route's. */
   race?: string
   harness?: string
+  /** The replay it is one entrant in (`replay.ts`): never pushed, never put up for review. */
+  replay?: string
   /** Who asked for it, as `TaskOrigin` says it: kept with the task and in the journal. */
   by?: string
   /** How it counts as finished; `said` unless chosen. */
@@ -253,14 +256,6 @@ export interface RemoveTaskRequest {
   /** The task's id: whose folder to take away, and what says it shares the checkout. */
   task?: string
   force?: boolean
-}
-
-/** What a task's file says, as the window and the agent's prompt need it. */
-interface TaskSaid {
-  intent: string
-  chosen: string | null
-  produces: string
-  workspace: 'checkout' | 'worktree'
 }
 
 export class Workbench {
@@ -976,6 +971,7 @@ export class Workbench {
       ...(req.start ? { start: req.start } : {}),
       ...(req.effort ? { effort: req.effort } : {}),
       race: req.race,
+      replay: req.replay,
       harness: req.harness,
       prepare: configured?.prepare,
       workspace,
@@ -992,6 +988,7 @@ export class Workbench {
         intent_spoken: req.intent,
         ...(req.effort ? { effort: req.effort } : {}),
         ...(req.race ? { race: req.race } : {}),
+        ...(req.replay ? { replay: req.replay } : {}),
         ...(req.by ? { by: req.by } : {}),
         ...(req.done ? { done: req.done } : {}),
         ...(req.produces ? { produces: req.produces } : {}),
@@ -1453,7 +1450,7 @@ export class Workbench {
         }),
       await this.agentPrompt(req.task, req.cwd, adapter.capabilities.done),
     )
-    const { chosen } = await this.taskFile(req.task)
+    const { chosen } = await taskSaid(this.home, req.task)
     // The model new agents start on is for new agents. One coming back to its
     // conversation keeps the model that conversation was on, which its session
     // remembers — told the default instead, it would quietly change models.
@@ -1532,35 +1529,11 @@ export class Workbench {
       .catch(() => false)
   }
 
-  /** What a task's file says: what was asked, and the name a person chose, if any. */
-  private async taskFile(task?: string): Promise<TaskSaid> {
-    const none: TaskSaid = { intent: '', chosen: null, produces: '', workspace: 'worktree' }
-    if (!task) return none
-    try {
-      const file = parseYaml(await readFile(taskFilePath(this.home, task), 'utf8')) as {
-        intent_spoken?: unknown
-        title?: unknown
-        title_named?: unknown
-        produces?: unknown
-        workspace?: unknown
-      } | null
-      return {
-        intent: typeof file?.intent_spoken === 'string' ? file.intent_spoken : '',
-        chosen: file?.title_named === true && typeof file.title === 'string' ? file.title : null,
-        produces: typeof file?.produces === 'string' ? file.produces : '',
-        workspace: file?.workspace === 'checkout' ? 'checkout' : 'worktree',
-      }
-    } catch {
-      // No task file: an agent opened on a worktree Tade did not make.
-      return none
-    }
-  }
-
   /** What an agent starting on a task is told about where it is. */
   private async agentPrompt(task: string, cwd: string, canSayDone: boolean): Promise<string> {
     const project = task.split('/')[0] ?? ''
     const configured = this.config.projects[project]
-    const { intent, produces, workspace } = await this.taskFile(task)
+    const { intent, produces, workspace, replay } = await taskSaid(this.home, task)
     const head = await git(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
     const context = taskContextPath(this.home, task)
     return composeAgentPrompt({
@@ -1576,7 +1549,8 @@ export class Workbench {
       workspace,
       commit: this.config.agents.commit,
       instructions: this.config.agents.instructions,
-      push: pushFor(this.config, project, workspace).mode,
+      // A replay's entrant is a measurement of a candidate: it is never pushed.
+      push: replay ? 'never' : pushFor(this.config, project, workspace).mode,
       ...(configured?.test_command ? { testCommand: configured.test_command } : {}),
       ...(await checksTold({ config: this.config, home: this.home }, project, cwd, task)),
       ...(await setupTold(this.home, task)),

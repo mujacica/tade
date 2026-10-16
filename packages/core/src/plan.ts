@@ -2,6 +2,7 @@ import type { DoneRule } from './model.ts'
 import { producesProblem } from './produces.ts'
 import { joined, type Wait } from './queue.ts'
 import { raceProblems } from './race.ts'
+import { replayProblems } from './replay.ts'
 
 // A plan: several agents, each one repository's share of one change, and
 // whether the shape of it holds together before any of it is made.
@@ -70,6 +71,11 @@ export interface PlannedAgent {
    */
   harness?: string
   thinking?: string
+  /**
+   * Where its worktree begins, as its repository names a commit: what a replay
+   * gives each case, so it is asked again on the tree it was first asked on.
+   */
+  from?: string
 }
 
 export interface Plan {
@@ -91,6 +97,11 @@ export interface Plan {
    * because entrants sharing one checkout would be editing each other's work.
    */
   race?: string
+  /**
+   * The replay its agents are (`replay.ts`): landed work asked for again on a
+   * candidate, each at its own base. Like a race, a worktree each, always.
+   */
+  replay?: string
   /**
    * What every agent in it should know before it starts, said once: written
    * beside each agent's task file, before that agent's own `context`. A brief
@@ -187,6 +198,7 @@ export function checkPlan(plan: Plan, context: PlanContext): PlanCheck {
   const names = new Set<string>()
   if (plan.agents.length === 0) problems.push('a plan needs at least one agent')
   if (plan.race !== undefined) problems.push(...raceProblems(plan))
+  if (plan.replay !== undefined) problems.push(...replayProblems(plan))
   if (plan.effort !== undefined && !NAME.test(plan.effort)) {
     problems.push(`"${plan.effort}" is not a name for the change: lowercase letters, digits, - . _`)
   }
@@ -219,6 +231,7 @@ export function checkPlan(plan: Plan, context: PlanContext): PlanCheck {
     if (
       (agent.done === 'committed' || agent.done === 'merged') &&
       plan.race === undefined &&
+      plan.replay === undefined &&
       context.workspace(project) !== 'worktree'
     ) {
       problems.push(

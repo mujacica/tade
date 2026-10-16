@@ -163,6 +163,7 @@ export function draw(state: AppState, given: Frame, last: LastFrame | null = nul
     landing: frame.landing ?? [],
     races: frame.races ?? [],
     evaluations: frame.evaluations ?? null,
+    replays: frame.replays ?? null,
     kept: extra.kept ?? {},
     now: frame.now ?? 0,
     changes: extra.changes ?? frame.changes ?? [],

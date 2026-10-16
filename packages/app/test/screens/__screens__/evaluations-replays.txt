@@ -1,0 +1,34 @@
+ ▄▀   T A D E      checkout !⠋    search ✓    infra      +          ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ ╭─ Evaluations ──────────────────────────────────────────────────────────────────────────────────────────── esc ─╮   
+   │ 11 agents · 8 landed · merges from the journal and forge                                                       │───
+ ▌ │ for   Today    This window    7 days    30 days    All time                                                    │   
+ ▌ │ by    Harness    Model    Persona    Template    Judge    Replays                                              │   
+   │                                                                                                                │   
+   │ Judges asked again                                                                                            ▕│   
+   │ JUDGE                       AGREED          CONFIRMED CAUGHT    DISMISSED RAISED    COST                      ▕│   
+   │ jev · jev-1.14.0            171/192 89%     5/6 83%             1/5 20%             $0.38                     ▕│   
+ ▸ │   beside jev-1.13.0 · 12 read, 1 could not be                                                                 ▕│   
+ ▸ │                                                                                                               ▕│   
+ ▸ │ sonnet-night in checkout · claude-sonnet-5 on each task’s own harness                                         ▕│   
+ ▾ │ 1 passed, 1 failed, 2 could not replay, 1 running.                                                            ▕│   
+  M│ $2.57 of its $5.00 ceiling; the originals of what ran cost $9.20                                              ▕│   
+  A│ CASE                    OUTCOME             COST · WAS       TIME · WAS   SIZE · WAS                          ▕│   
+  M│ refunds                 passed              $0.74 · $2.10    21m · 34m    +96 −11 · +120 −18                  ▕│   
+   │ webhooks                failed              $1.12 · $4.40    40m · 34m    +160 −22 · +210 −40                 ▕│   
+ ▾ │   with the original’s tests laid over it, tests failed                                                        ▕│   
+   │ stripe                  could not replay                                                                      ▕│   
+   │   its words — “yes, that one” — are too few to stand on their own: they answered a conversation the replay d… ▕│   
+   │ ledger                  could not replay    $0.31 · $0.80    6m · 34m     +0 −0 · +120 −18                    ▕│   
+   │   it stopped without changing anything, which is what words leaning on something the replay does not have lo… ▕│   
+━  │ tax                     running             $0.40 · $1.90    21m · 34m    size not counted · +120 −18         ▕│  ━
+   │                                                                                                               ▕│   
+   │                                                                                                               ▕│  ▕
+   │                                                                                                               ▕│  ▕
+   │                                                                                                                │  ▕
+   │ ↑↓ reads · ←→ ranges · tab groups                                                                      Done    │  ▕
+ ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯  ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

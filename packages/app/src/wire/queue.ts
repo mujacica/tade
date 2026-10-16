@@ -48,6 +48,7 @@ import {
 } from './context.ts'
 import { Forecast } from './forecast.ts'
 import { type RaceTools, raceTools } from './races.ts'
+import { type ReplayTools, replaysLook, replayTools } from './replays.ts'
 // Type-only, so it is erased and no module edge exists between the two
 // subjects: the queue's tools answer for schedules as well, and this is the
 // shape of what `queue_schedule` takes. What it *does* is the schedules'.
@@ -115,6 +116,8 @@ export interface QueueTools {
   schedule(req: ScheduleRequest): Promise<string>
   /** Races, which are plans the queue starts: `races.ts`. */
   race: RaceTools
+  /** Replays, which are plans the queue starts and paces: `replays.ts`. */
+  replay: ReplayTools
 }
 
 export class Queue implements Subject {
@@ -191,6 +194,9 @@ export class Queue implements Subject {
   private async doAdvance(): Promise<string[]> {
     const live = this.wire.live
     if (!live) return []
+    // A replay over its ceiling, or with an agent that has stopped, is finished
+    // before anything is started, so nothing it would have stopped starts.
+    if (await replaysLook(this.wire).catch(() => false)) await live.refresh()
     const transcript = this.wire.state.transcript
     const items = live.queued.filter(
       (item) => !this.starting.has(item.task) && !this.handing.has(item.task),
@@ -385,6 +391,7 @@ export class Queue implements Subject {
   tools(): QueueTools {
     return {
       race: raceTools(this.wire, (plan) => this.tools().plan(plan)),
+      replay: replayTools(this.wire, () => this.advance()),
       advance: () => this.advance(),
       describe: async () => {
         await this.wire.live?.refresh()

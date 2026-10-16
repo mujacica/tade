@@ -181,7 +181,7 @@ async function git(
 }
 
 /** A task file, as far as anything here needs it. Never throws: a file nobody can read is no task. */
-async function taskFile(path: string): Promise<TaskSaid | null> {
+export async function taskFile(path: string): Promise<TaskSaid | null> {
   try {
     const parsed = parseYaml(await readFile(path, 'utf8')) as Record<string, unknown> | null
     if (!parsed || typeof parsed !== 'object') return null

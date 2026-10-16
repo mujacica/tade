@@ -1,4 +1,4 @@
-import type { ExtensionContext, JudgeFinding, TadeExtension } from './port.ts'
+import type { ExtensionContext, JudgeFinding, JudgeReplayFact, TadeExtension } from './port.ts'
 
 // What every judge an extension runs has raised, gathered for the window.
 //
@@ -21,23 +21,48 @@ export async function askFindings(
   ready: readonly { extension: TadeExtension; ctx: ExtensionContext }[],
   timeoutMs = FINDINGS_TIMEOUT_MS,
 ): Promise<{ findings: JudgeFinding[]; problems: string[]; asked: number }> {
-  const findings: JudgeFinding[] = []
+  const { found, problems, asked } = await askEach(ready, (one) => one.findings, timeoutMs)
+  return { findings: found, problems, asked }
+}
+
+/**
+ * What every candidate judge answered when asked again about recorded changes,
+ * out of each extension's own record, asked the way findings are: a moment
+ * each, and one that is late or fails left out and said.
+ */
+export async function askJudgeReplays(
+  ready: readonly { extension: TadeExtension; ctx: ExtensionContext }[],
+  timeoutMs = FINDINGS_TIMEOUT_MS,
+): Promise<{ replays: JudgeReplayFact[]; problems: string[]; asked: number }> {
+  const { found, problems, asked } = await askEach(ready, (one) => one.judgeReplays, timeoutMs)
+  return { replays: found, problems, asked }
+}
+
+async function askEach<T>(
+  ready: readonly { extension: TadeExtension; ctx: ExtensionContext }[],
+  hook: (
+    extension: TadeExtension,
+  ) => ((ctx: ExtensionContext) => Promise<readonly T[]>) | undefined,
+  timeoutMs: number,
+): Promise<{ found: T[]; problems: string[]; asked: number }> {
+  const found: T[] = []
   const problems: string[] = []
-  const asked = ready.filter(({ extension }) => extension.findings !== undefined).length
+  const asked = ready.filter(({ extension }) => hook(extension) !== undefined).length
   await Promise.all(
     ready.map(async ({ extension, ctx }) => {
-      if (!extension.findings) return
+      const ask = hook(extension)
+      if (!ask) return
       let timer: NodeJS.Timeout | undefined
       try {
-        const found = await Promise.race([
-          extension.findings(ctx),
+        const answered = await Promise.race([
+          ask.call(extension, ctx),
           new Promise<never>((_, reject) => {
             timer = setTimeout(() => reject(new Error('it did not answer in time')), timeoutMs)
             timer.unref?.()
           }),
         ])
-        if (!Array.isArray(found)) throw new Error('it answered something that is not a list')
-        findings.push(...found)
+        if (!Array.isArray(answered)) throw new Error('it answered something that is not a list')
+        found.push(...answered)
       } catch (err) {
         problems.push(`${extension.title}: ${err instanceof Error ? err.message : String(err)}`)
       } finally {
@@ -45,5 +70,5 @@ export async function askFindings(
       }
     }),
   )
-  return { findings, problems, asked }
+  return { found, problems, asked }
 }

@@ -8,7 +8,7 @@ import { documentTools } from './tools-documents.ts'
 import { type Gateable, gateTools } from './tools-gate.ts'
 import { machineTools } from './tools-machine.ts'
 import { PLAN_AFTER, PLAN_CONTEXT, queueTools, stringList, TOUCHES } from './tools-queue.ts'
-import { raceTools } from './tools-race.ts'
+import { raceTools, replayTools } from './tools-race.ts'
 import { intakeTools, templateTools } from './tools-templates.ts'
 
 /** Where extensions live. Set by the orchestrator that launched us. */
@@ -786,12 +786,10 @@ export function orchestratorTools(
       }),
   )
 
-  // Tade configuring itself: its settings, and the projects it works in. In a
-  // file of its own because what those may and may not touch is a boundary,
-  // and a boundary is worth reading in one place.
-  for (const group of [configTools, documentTools, templateTools, raceTools, intakeTools]) {
-    tools.push(...group(rpc))
-  }
+  // Tade configuring itself, and the work it runs. Each in a file of its own
+  // because what it may touch is a boundary, worth reading in one place.
+  const groups = [configTools, documentTools, templateTools, raceTools, replayTools]
+  for (const group of [...groups, intakeTools]) tools.push(...group(rpc))
   tools.push(...machineTools(rpc, runTade))
 
   tool(

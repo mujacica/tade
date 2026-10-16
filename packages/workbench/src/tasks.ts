@@ -75,8 +75,9 @@ export interface CreateTaskOptions {
   workspace?: 'checkout' | 'worktree'
   /** The change this is one repository's share of, by its slug. */
   effort?: string
-  /** The race this is one entrant in, by its slug: always in a worktree of its own. */
+  /** The race or the replay this is one entrant in, by its slug: always in a worktree of its own. */
   race?: string
+  replay?: string
   /** The harness its agent runs in, when it is not the route's. */
   harness?: string
   /** Who asked for it: kept in the task file, as `TaskOrigin` says it. */
@@ -226,6 +227,7 @@ async function writeOwnFiles(
       start: opts.start,
       effort: opts.effort,
       race: opts.race,
+      replay: opts.replay,
       harness: opts.harness,
       setup,
     },
@@ -297,7 +299,7 @@ async function writeTaskFile(
   links: readonly { title: string; url: string }[],
   kept: Pick<
     CreateTaskOptions,
-    'by' | 'done' | 'produces' | 'start' | 'effort' | 'race' | 'harness'
+    'by' | 'done' | 'produces' | 'start' | 'effort' | 'race' | 'replay' | 'harness'
   > & {
     setup?: Setup | null | undefined
   },
@@ -316,6 +318,7 @@ async function writeTaskFile(
       ...(task.workspace === 'checkout' ? { workspace: 'checkout' } : {}),
       ...(kept.effort ? { effort: kept.effort } : {}),
       ...(kept.race ? { race: kept.race } : {}),
+      ...(kept.replay ? { replay: kept.replay } : {}),
       ...(kept.harness ? { harness: kept.harness } : {}),
       ...(links.length > 0 ? { links: links.map(({ title, url }) => ({ title, url })) } : {}),
       ...(kept.by ? { by: kept.by } : {}),
@@ -366,8 +369,7 @@ export async function removeTask(opts: RemoveTaskOptions): Promise<RemoveResult>
     }
   }
 
-  // `--force` unconditionally: the refusals above are Tade's, and they have
-  // already passed.
+  // `--force` unconditionally: the refusals above are Tade's, and passed.
   const removed = await git(opts.root, ['worktree', 'remove', '--force', opts.worktree], 30_000)
   if (!removed.ok) throw new Error(`git worktree remove failed: ${firstLine(removed.stderr)}`)
   if (own) await rm(own, { recursive: true, force: true })
@@ -499,9 +501,8 @@ export async function producedDetail(
 ): Promise<{ produces?: string; missing?: true; outside?: true; bytes?: number }> {
   if (!task) return {}
   const named = (await readTaskFile(home, task))?.produces?.trim()
-  // Checked again on the way into the journal: the file on disk is somebody's
-  // to hand-edit, and a name Tade would not have written is not one it joins
-  // onto a path.
+  // Checked again on the way into the journal: the file is somebody's to
+  // hand-edit, and a name Tade would not write is not joined onto a path.
   if (!named || producesProblem(named)) return {}
   const produces = producesPath(home, task, named)
   const before = join(taskDir(home, task), named.trim())
@@ -518,9 +519,8 @@ async function lookAt(
 ): Promise<{ produces: string; missing?: true; outside?: true; bytes?: number }> {
   try {
     const found = await stat(produces)
-    // A directory where a document should be is not a document, and neither
-    // is a socket: `stat` follows the link, so this is also what a symlink to
-    // a folder comes back as.
+    // A directory or a socket is not a document: `stat` follows the link, so
+    // this is also what a symlink to a folder comes back as.
     if (!found.isFile()) return { produces, missing: true }
     const real = await realpath(produces)
     const dir = await realpath(folder).catch(() => folder)

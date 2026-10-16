@@ -371,6 +371,22 @@ unreadable row, which is how this was reported.
 Nothing on this page cuts its own rows to fit and nothing caps a list with `+7 more`: the panel body
 is a scroll region like any other, through `scrollBy` and `atOffset`.
 
+## A replay's ceiling
+
+A replay (`core/src/replay.ts`) spends real money on work that already landed, so it has a ceiling
+in dollars that the person sets, enforced **in the window, on the queue's beat, before anything
+starts** (`replaysLook`, `wire/replays.ts`): once its entrants' billed spend reaches it, every one
+not finished is stopped and marked finished and `replay_stopped` says so — once.
+
+- **Billed money only**, like `checkBudget`: a plan's turns bill nothing, and a replay on a plan says
+  "no money recorded — the ceiling counts billed dollars" rather than reading as $0 under its
+  ceiling. `usdOnPlan` is in no ceiling.
+- **The originals' cost is written into `replay_started`**, so the figure a replay is read beside is
+  what the original cost when it was taken, and never drifts or vanishes with its task.
+- **A replay's entrants are left out of the scorecards** (`outcomesFrom` skips a `task_created` with
+  `replay`): they never land by design, and counted they would file every replay under its
+  candidate as work that did not.
+
 ## Steps
 
 **A new figure on the Spend page.** Fold it in core, beside the fold that already reads those events

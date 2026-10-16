@@ -8,6 +8,7 @@ import type { Actions, Subject, Wiring } from './context.ts'
 import { heldFindings } from './findings.ts'
 import { Kept } from './kept.ts'
 import { racesHeld, usdByTask } from './races.ts'
+import { heldJudgeReplays, replaysHeld } from './replays.ts'
 
 // The Evaluations panel, and the scorecards the away view reads too.
 //
@@ -136,7 +137,13 @@ export class Evaluations implements Subject {
   facts(): Partial<Frame> {
     const panel = this.wire.state.panel
     if (panel?.kind !== 'evaluations') return {}
-    return { evaluations: evaluationsNow(this.wire, panel.window) }
+    return {
+      evaluations: evaluationsNow(this.wire, panel.window),
+      // Only on their own tab: a fold nobody is reading is a fold for nobody.
+      ...(panel.tab === 'replays'
+        ? { replays: { replays: replaysHeld(this.wire), judges: heldJudgeReplays(this.wire) } }
+        : {}),
+    }
   }
 
   actions(): Actions {

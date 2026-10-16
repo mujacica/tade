@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { extensionEnabled, findSecret, runProgram, secretPath } from '@tade/core'
-import { askFindings } from './findings.ts'
+import { askFindings, askJudgeReplays } from './findings.ts'
 import type {
   Audience,
   BriefItem,
@@ -1108,6 +1108,11 @@ export class ExtensionHost {
     timeoutMs?: number,
   ): Promise<{ findings: JudgeFinding[]; problems: string[]; asked: number }> {
     return askFindings(this.ready(), timeoutMs)
+  }
+
+  /** What candidate judges answered when asked again (`askJudgeReplays`). */
+  judgeReplays(): ReturnType<typeof askJudgeReplays> {
+    return askJudgeReplays(this.ready())
   }
 
   /**

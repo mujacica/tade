@@ -20,6 +20,7 @@ import { widthOf } from '../../width.ts'
 import { cap, padTo } from '../cells.ts'
 import type { PanelContext } from '../context.ts'
 import { BAR, column, type Line, panelSize, tabRow } from '../frame.ts'
+import { replaysTab } from './replays.ts'
 import type { EvaluationsPanel } from './state.ts'
 
 // What the Evaluations panel looks like: one table of scorecards per way of
@@ -123,6 +124,8 @@ export function evaluations(panel: EvaluationsPanel, ctx: PanelContext): Drawn {
     rows.push(row().space(3).text('…', skin.hint).build())
   } else if (panel.tab === 'judge') {
     judge(evals.calibration, { row, skin, head, rows })
+  } else if (panel.tab === 'replays') {
+    replaysTab(ctx.replays, { row, skin, rows, inner })
   } else {
     const cards = scorecardsBy(evals, panel.tab)
     const shown = figuresFor(inner)

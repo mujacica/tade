@@ -230,6 +230,25 @@ winner until somebody picks, and picking is `race_won` — the person's press, o
 on a line of theirs (`RACE_PICK`, checked in the window). On the away view, a device without the
 `findings` grant gets the races ordered with the judge's part taken out before the order.
 
+## A judge asked again, and the judge leg of a replay
+
+`jev_replay` (`extensions/jev/src/replay.ts`, orchestrator-only, and `tade eval judge`) puts the
+questions Jev already asked about recorded changes to a **candidate** judge — another registry
+name, or another version — and `judgeReplayScore` (`core/src/judge-replay.ts`) counts what came
+out: agreement at the reporting threshold, what each side raised, confirmed findings it caught and
+dismissed ones it raised again. **Counting, never grading** — a judge does not mark a judge.
+
+- **Only readings of today's `RUBRIC`.** A reading under other questions is another exam.
+- **It costs money, so it has a ceiling** in dollars beside the request budget, and a change it
+  could not read — ceiling, git, a refusal — is named as unread and never counted as a disagreement.
+- **It raises nothing and records no reading**: the result goes to `jev/replays.jsonl` and comes back
+  to the window through the `judgeReplays` hook on the extension port (`askJudgeReplays`, the way
+  `findings` does), drawn on `/evals` under Replays with no rate under `ENOUGH`.
+
+In an agent replay (`core/src/replay.ts`) the judge only ever adds a red: `did_what_was_asked`
+still raised about an entrant (`strayedIn`, the race's own reading) fails it, and no answer of a
+judge's can pass one.
+
 ## Where a judgement already sits
 
 Two advisory paths and no others. Both are asked without anybody asking for them, so both are

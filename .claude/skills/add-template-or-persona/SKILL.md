@@ -97,6 +97,12 @@ not in the suite, because nothing mechanical can check it against a tree nobody 
   waiting on another, 2 to 4 of them, a `name_suffix` to call the race by, and every entrant in a
   worktree of its own whatever the project says. A template names no harness, so a stamped-out race
   is one route against itself; `tade_race` is where entrants are named. The built-in `race` is it.
+- **A replay is a plan too, and never a template's** (`core/src/replay.ts`, `Plan.replay`): one
+  agent per landed task, told that task's own words verbatim as both `said` and `prompt`, each with
+  `from` — the commit its original began on, which `startFrom` honours over anything it waits on —
+  `done: committed`, a worktree each whatever the project says, and `after` chaining them a few at a
+  time. `replayProblems` refuses one that begins nowhere or is a race too. Its entrants are never
+  pushed (`TaskFile.replay`, read by the agent's prompt as `push: never`).
 - **A done rule may be given per workspace** — `done: { worktree: committed, checkout: said }` —
   which is what lets one published template be used in both kinds of project. `checkPlan` refuses
   `committed` and `merged` in a shared checkout; this is how a template covers both answers rather

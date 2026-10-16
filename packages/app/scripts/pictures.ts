@@ -174,6 +174,17 @@ export const PICTURES: readonly Picture[] = [
       'first, and a rate only from five.',
   },
   {
+    file: 'replays.svg',
+    scenario: 'evaluations-replays',
+    crop: 'panel',
+    about:
+      'Your own eval: a candidate judge asked Jev’s questions again, counted against the verdicts ' +
+      'people wrote; then the last five tasks that landed in checkout asked again on Sonnet at ' +
+      'their own base with their own words, each beside its original — passed, failed with why, ' +
+      'could not replay said apart from failing, still running — with what it cost and took ' +
+      'against the original and what the replay has spent of its ceiling.',
+  },
+  {
     file: 'race.svg',
     scenario: 'a-race-compared',
     crop: 'panel',

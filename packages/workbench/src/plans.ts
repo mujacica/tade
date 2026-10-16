@@ -174,6 +174,8 @@ export async function makePlan(
           // An entrant in a race gets a worktree of its own wherever the
           // project has its agents work — never wider (`raceProblems`).
           ...(plan.race ? { race: plan.race, workspace: 'worktree' as const } : {}),
+          // And so does a replayed task, at the commit its original began on.
+          ...(plan.replay ? { replay: plan.replay, workspace: 'worktree' as const } : {}),
           ...(agent.harness ? { harness: agent.harness } : {}),
           ...(agent.done ? { done: agent.done } : {}),
           ...(agent.produces ? { produces: agent.produces } : {}),
@@ -190,6 +192,7 @@ export async function makePlan(
             ...(agent.at ? { at: new Date(Date.parse(agent.at)).toISOString() } : {}),
             ...(model ? { model } : {}),
             ...(agent.thinking ? { thinking: agent.thinking } : {}),
+            ...(agent.from ? { from: agent.from } : {}),
           },
         }),
       )

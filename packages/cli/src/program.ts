@@ -52,6 +52,7 @@ export const COMMANDS: readonly { names: readonly string[]; load: () => Promise<
   },
   { names: ['spend'], load: async () => (await import('./commands/spend.ts')).registerSpend },
   { names: ['stats'], load: async () => (await import('./commands/stats.ts')).registerStats },
+  { names: ['eval'], load: async () => (await import('./commands/eval.ts')).registerEval },
   { names: ['queue'], load: async () => (await import('./commands/queue.ts')).registerQueue },
   {
     names: ['schedules'],

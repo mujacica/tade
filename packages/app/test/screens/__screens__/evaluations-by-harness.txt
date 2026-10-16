@@ -3,7 +3,7 @@
  ▾ ╭─ Evaluations ──────────────────────────────────────────────────────────────────────────────────────────── esc ─╮   
    │ 11 agents · 8 landed · merges from the journal and forge                                                       │───
  ▌ │ for   Today    This window    7 days    30 days    All time                                                    │   
- ▌ │ by    Harness    Model    Persona    Template    Judge                                                         │   
+ ▌ │ by    Harness    Model    Persona    Template    Judge    Replays                                              │   
    │                                                                                                                │   
    │ HARNESS          AGENTS         DONE       LANDED    1ST PUSH   REDS        FINDINGS       PER LANDED  TO DONE │   
    │ claude-code           6     6/6 100%     6/6 100%     4/6 67%      6        7·4✓3✗0?           ≈$2.00   2h 30m▕│   

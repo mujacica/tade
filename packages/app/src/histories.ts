@@ -1,4 +1,10 @@
-import { AT_WORK_READS, DOCUMENT_EVENTS, RUNTIME_EVENTS, type TadeEvent } from '@tade/core'
+import {
+  AT_WORK_READS,
+  DOCUMENT_EVENTS,
+  REPLAY_EVENTS,
+  RUNTIME_EVENTS,
+  type TadeEvent,
+} from '@tade/core'
 import type { Workbench } from '@tade/workbench'
 import { aboutRoot } from './away-lifecycle.ts'
 
@@ -40,6 +46,8 @@ export const QUEUE_READS = [
   ...DOCUMENT_EVENTS,
   // Which entrant a race kept, which closes the rest: told once, and never in a tail.
   'race_won',
+  // What a replay took, graded and stopped at: its whole record, never a tail of it.
+  ...REPLAY_EVENTS,
 ] as const
 
 /**

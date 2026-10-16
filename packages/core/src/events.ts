@@ -75,6 +75,22 @@ export const EventType = z.enum([
    * files that name it (`race.ts`).
    */
   'race_won',
+  /**
+   * A replay was started (`replay.ts`): landed work asked for again on a
+   * candidate model or harness, with the ceiling the person set, and every
+   * case it took — its entrant, or why it could not be replayed. Told, because
+   * which cases were taken and what was refused before anything ran is not in
+   * any task file.
+   */
+  'replay_started',
+  /**
+   * One replay entrant's grading run: the project's checks at its head with the
+   * original change's tests laid over it. Written once, because the run it
+   * describes is undone as soon as it ends.
+   */
+  'replay_graded',
+  /** A replay reached its ceiling, and the entrants that were stopped for it. */
+  'replay_stopped',
   'state_change',
   /**
    * A task finished: its agent said so, a person marked it, or Tade saw its
@@ -455,6 +471,10 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   effort_named: 'notable',
   template_used: 'notable',
   race_won: 'notable',
+  replay_started: 'notable',
+  replay_graded: 'routine',
+  // Notable: money stopped something somebody asked for.
+  replay_stopped: 'notable',
   state_change: 'notable',
   task_done: 'notable',
   // Blocking: an agent has stopped until the person decides. One that hands a

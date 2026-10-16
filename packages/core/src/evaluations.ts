@@ -269,6 +269,10 @@ export function outcomesFrom(
     if (!task) continue
     switch (event.type) {
       case 'task_created': {
+        // A replay's entrant is a measurement of a candidate, never work that
+        // was asked for: it never lands by design, and counted here it would
+        // file every replay under its candidate as work that did not land.
+        if (event.detail.replay) break
         const one = of(task, event)
         one.created = at(event)
         const workspace = event.detail.workspace

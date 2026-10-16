@@ -52,6 +52,7 @@ import {
   titleOf,
 } from './questions.ts'
 import { forgetRead, recordOf } from './record.ts'
+import { judgeReplayFacts, replayTools } from './replay.ts'
 import { answersTable, describe, statusLine } from './report.ts'
 import { raisedIn, readChange, reviewLine, reviewWatch } from './review.ts'
 import { recordReview } from './reviews.ts'
@@ -557,6 +558,7 @@ export const jevExtension: TadeExtension = {
     // jev_findings, jev_account and jev_verdict: one subject read three ways,
     // and they live in `verdicts.ts` beside the rule they enforce.
     ...loopTools,
+    ...replayTools,
     {
       name: 'jev_read_request',
       description:
@@ -1164,6 +1166,8 @@ export const jevExtension: TadeExtension = {
       account: one.account && { did: one.account.did, said: one.account.said, at: one.account.at },
       verdict: one.verdict && { was: one.verdict.was, at: one.verdict.at },
     })),
+  // What candidate judges answered when asked again (`jev_replay`), for the Evaluations page.
+  judgeReplays: async (ctx) => judgeReplayFacts(ctx.home),
   status: async (ctx) => {
     const record = await recordOf(ctx, 10_000)
     if (record.reviews.length === 0 && record.looks.length === 0) return null

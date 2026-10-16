@@ -2,7 +2,7 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ A╭─ Extensions ─────────────────────────────────────────────────────────────────────────────────────────── esc ─╮×   
     │  search extensions          │ Jev  built-in                                                           ready  │────
- ▌ !│                             │ 9 tools · 3 watches · 5 settings                                               │    
+ ▌ !│                             │ 10 tools · 3 watches · 5 settings                                              │    
  ▌  │ ● Checks                   ▕│                                                                                │    
     │                            ▕│ Asks a judge bounded questions about diffs, logs, requests, plans and queues: █│    
    ⠋│ ● Dependencies             ▕│ probabilities to act on, never verdicts and never prose.                      █│    
@@ -12,7 +12,7 @@
  ▸ S│ ◐ Sentry                 ! ▕│ HOW IT IS USED                                                                █│    
  ▸ I│                            ▕│ · Reads branches that go quiet against the review pack, once its watch is     █│    
  ▾ C│ ✗ standup                ! ▕│   on.                                                                         █│    
-  M │                            ▕│ · Hands what it flagged to the agent that wrote it, which answers with        █│    
+  M │                            ▕│ · Hands what it flagged to the agent that wrote it, which answers with        ▕│    
   A │ ● GitHub                   ▕│   jev_account.                                                                ▕│    
   M │                            ▕│ · Sweeps what nobody answered to the orchestrator, which writes the verdict   ▕│    
     │ ○ release-notes            ▕│   (jev_verdict).                                                              ▕│    

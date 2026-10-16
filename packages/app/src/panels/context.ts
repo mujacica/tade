@@ -1,7 +1,7 @@
 import type { Race, SettingGroup } from '@tade/core'
 import type { LineComment } from '../comments.ts'
 import type { ParsedDiff } from '../diff.ts'
-import type { EvalsView } from '../evaluations.ts'
+import type { EvalsView, ReplaysView } from '../evaluations.ts'
 import type { Change, DeskRow, IntakeOpenView, RowSummaryView, WorkflowView } from '../frame.ts'
 import type { ScrollArea } from '../hits.ts'
 import type { AgentPane } from '../model.ts'
@@ -90,6 +90,8 @@ export interface PanelContext {
   races: readonly Race[]
   /** The scorecards and the judge's calibration, once the journal has been read. */
   evaluations: EvalsView | null
+  /** Every replay, newest first, and the judges asked again (`Frame.replays`). */
+  replays: ReplaysView | null
   /** Line comments kept and not sent, by the task whose change they are on. */
   kept?: Readonly<Record<string, number>>
   /** The frame's moment, which every age on a panel is counted to. */

@@ -3,7 +3,7 @@
  ▾ ╭─ Evaluations ──────────────────────────────────────────────────────────────────────────────────────────── esc ─╮   
    │ …                                                                                                              │───
  ▌ │ for   Today    This window    7 days    30 days    All time                                                    │   
- ▌ │ by    Harness    Model    Persona    Template    Judge                                                         │   
+ ▌ │ by    Harness    Model    Persona    Template    Judge    Replays                                              │   
    │                                                                                                                │   
    │   …                                                                                                           ▕│   
    │                                                                                                               ▕│   

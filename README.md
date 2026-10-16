@@ -238,6 +238,24 @@ three attempts on one route, and the races are a tab on the away view's Evaluati
 
 ![A race: one request given to three agents on Claude Code, Codex and pi, in the order the facts put them — checks, whether the judge said one strayed from what was asked, findings, size and cost — and nobody has picked](https://raw.githubusercontent.com/mujacica/tade/main/images/race.svg)
 
+## Your own eval: replay what landed, on a candidate
+
+Public benchmarks do not transfer to your repository; your own landed work does. Ask the
+orchestrator to eval a model (or run `tade eval run <project> --model <m> --ceiling <usd>`) and
+Tade takes the last few tasks that landed there and asks each again — in a worktree at the commit
+it began from, with your original words verbatim — on the candidate. It varies one thing: a model
+on the harness each task first ran on, or a harness alone, because changing both at once confounds
+the comparison. Each replay is scored by the facts the original was read with: the project's
+checks at its head, the tests the original change added laid over it, whether the judge says it
+did what was asked, how big it is beside the original, and what it cost and took. Words that were
+an answer to a conversation nobody kept, and agents that stopped without changing anything, are
+*could not replay* — never a fail. It costs money, so it runs only when you ask, under a ceiling
+you set, a few at a time through the queue (`--at` puts it off until tonight), and is never pushed.
+`tade eval judge` does the same for the judge: Jev's questions asked again of a candidate judge,
+counted against the verdicts people wrote. Both land on `/evals` under Replays.
+
+![Your own eval: a candidate judge counted against the verdicts, then five landed tasks asked again on Sonnet, each beside its original — passed, failed with why, could not replay, running — with cost, time and the ceiling](https://raw.githubusercontent.com/mujacica/tade/main/images/replays.svg)
+
 ## Reviews, and the loop around them
 
 What you have offered other people, and what they and their robots say about it: your open pull

@@ -1,3 +1,4 @@
+import type { JudgeReplayScore } from '@tade/core'
 import type { ExtensionWatch } from './watch.ts'
 
 // The TadeExtension port: something Tade can do that it was not built
@@ -144,6 +145,22 @@ export interface JudgeFinding {
   account: { did: 'fixed' | 'not real'; said: string; at: string } | null
   /** That somebody judged it, and which way. */
   verdict: { was: 'confirmed' | 'false positive'; at: string } | null
+}
+
+/**
+ * A candidate judge asked again about changes already read, as the judge that
+ * ran it wrote it down: counts beside the recorded answers and the verdicts
+ * people wrote (`judgeReplayScore`) — never a judge's verdict about a judge.
+ */
+export interface JudgeReplayFact {
+  at: string
+  /** The judge asked, by its name in Tade, and the version that answered. */
+  judge: string
+  version: string
+  /** The versions whose readings it was set beside. */
+  against: readonly string[]
+  score: JudgeReplayScore
+  costUsd: number
 }
 
 /** Something on screen an extension knows how to open: a Sentry short id, say. */
@@ -574,6 +591,8 @@ export interface TadeExtension {
    * desk and a paired phone read findings without knowing whose they are.
    */
   findings?(ctx: ExtensionContext): Promise<readonly JudgeFinding[]>
+  /** What candidate judges answered when asked again, out of its own record — never by asking. */
+  judgeReplays?(ctx: ExtensionContext): Promise<readonly JudgeReplayFact[]>
   /** What belongs in the brief, when anything does. */
   brief?(ctx: ExtensionContext): Promise<readonly BriefItem[]>
   /** Told to the orchestrator: when to reach for this, and how. */

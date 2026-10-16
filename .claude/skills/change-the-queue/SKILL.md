@@ -390,6 +390,12 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   offers **one bump per look** so two agents never install in one tree. A config nobody could read
   counts as the checkout, because that is the machine's own default and guessing the safe-looking
   answer here would be guessing the one that lets a clock rewrite a shared tree.
+- **A replay is paced by the queue, never beside it** (`core/src/replay.ts`, `wire/replays.ts`): its
+  entrants wait on the one `atOnce` places before them (`after`), `at` puts it off, and the queue's
+  own pass first runs `replaysLook` — the ceiling, entrants whose agent stopped (finished so the
+  chain moves, scored on what they left), and one grading run at a time through the checks' own
+  door — then refreshes before `readyToStart`, so nothing a ceiling stopped is started in the same
+  pass. Its record (`REPLAY_EVENTS`) is in `QUEUE_READS`, the whole journal, never a tail.
 - **Every word for the orchestrator is in one place**: `app/src/queue.ts` and core's `describe*`.
   The view draws `QueuedView` and `ScheduleView` and nothing else.
 

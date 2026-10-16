@@ -131,6 +131,11 @@ export const TaskFile = z.object({
    * nothing but the fold of the task files that name it (`race.ts`).
    */
   race: z.string().optional(),
+  /**
+   * The replay this task is one entrant in (`replay.ts`): landed work asked for
+   * again. Never pushed or put up for review — it is a measurement.
+   */
+  replay: z.string().optional(),
   /** The harness its agent runs in, when it is not the route's. */
   harness: z.string().optional(),
   /** The account its agent runs as, when it is not its harness's usual one. */

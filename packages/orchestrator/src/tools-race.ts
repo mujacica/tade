@@ -1,5 +1,8 @@
 import type { OrchestratorTool } from './tools-extension.ts'
 
+// Replays compare agents too, and are read beside races: `tools-replay.ts`.
+export { replayTools } from './tools-replay.ts'
+
 // Races, as far as the orchestrator's arm reaches into them: start one, read
 // where it stands, and pick one when the person asks for that.
 //
