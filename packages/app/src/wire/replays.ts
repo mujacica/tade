@@ -229,15 +229,21 @@ async function lookAt(wire: Wiring, tasks: readonly string[], every = 0): Promis
 export async function replaysLook(wire: Wiring): Promise<boolean> {
   const live = wire.live
   if (!live) return false
-  const going = replaysHeld(wire).filter((one) => !one.over || ungraded(one).length > 0)
+  // Finished and not graded, and either never looked at or with work to grade:
+  // one whose commits nobody has counted yet is still owed a look, or a replay
+  // that finished between two looks would never be graded at all.
+  const owed = (e: Replay['entrants'][number]) =>
+    e.task !== null &&
+    e.facts?.finished === true &&
+    e.graded === null &&
+    (e.facts.size === null || e.facts.size.commits > 0)
+  const going = replaysHeld(wire).filter((one) => !one.over || one.entrants.some(owed))
   if (going.length === 0) return false
-  // Only what can have moved: entrants with an agent, and those finished and waiting to be graded.
+  // Only what can have moved: entrants with an agent, and those owed a grading.
   await lookAt(
     wire,
     going.flatMap((one) =>
-      one.entrants.flatMap((e) =>
-        e.task && (e.outcome === 'running' || (e.facts?.finished && !e.graded)) ? [e.task] : [],
-      ),
+      one.entrants.flatMap((e) => (e.task && (e.outcome === 'running' || owed(e)) ? [e.task] : [])),
     ),
     LOOK_MS,
   )

@@ -97,6 +97,43 @@ describe('the window, and a replay', () => {
     expect(await client.events({ types: ['replay_stopped'] })).toHaveLength(1)
   })
 
+  it('grades an entrant that finished with work, once, on the queue’s own beat', async () => {
+    await landed()
+    const app = await start()
+    await client.log.append({ type: 'said', detail: { text: 'benchmark pi on my last task' } })
+    await app.queueTools().replay.start({
+      project: 'app',
+      name: 'graded',
+      said: 'benchmark pi on my last task',
+      candidate: { harness: 'pi' },
+      ceilingUsd: 5,
+      at: new Date(Date.now() + 86_400_000).toISOString(),
+    })
+    // What its agent would have left: a commit in its own worktree, and the
+    // journal saying it is finished.
+    const file = await readTaskFile(client.home, 'app/graded-1')
+    const worktree = (await client.events({ types: ['task_created'], task: 'app/graded-1' }))[0]
+      ?.detail.worktree
+    if (typeof worktree !== 'string' || !file) throw new Error('no entrant')
+    repo.commit('Greet\n\nTade-Task: app/graded-1', { 'src/greet.txt': 'hello there\n' }, worktree)
+    await client.markDone('app/graded-1', { by: 'rule', summary: 'committed' })
+    await until('graded, once', async () => {
+      await app.advanceQueue()
+      return (await client.events({ types: ['replay_graded'] })).length > 0
+    })
+    const [graded] = await client.events({ types: ['replay_graded'] })
+    // The fixture says nothing to check, which is said as that and never as a pass.
+    expect(graded?.task).toBe('app/graded-1')
+    expect(graded?.detail).toMatchObject({ state: 'could not run', laid: ['test/greet.test.sh'] })
+    await app.advanceQueue()
+    expect(await client.events({ types: ['replay_graded'] })).toHaveLength(1)
+    await until('read as unscored, with why', async () =>
+      (await app.queueTools().replay.standing({ replay: 'graded' })).includes(
+        'unscored (its grading run could not run: the project says nothing to check)',
+      ),
+    )
+  })
+
   it('says there is none, and which there are', async () => {
     const app = await start()
     expect(await app.queueTools().replay.standing({ replay: 'nope' })).toBe(
