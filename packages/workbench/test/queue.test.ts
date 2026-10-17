@@ -56,7 +56,6 @@ describe('queued work', () => {
       ],
     })
     expect(plan.made.map((task) => task.id)).toEqual(['app/fix-charge', 'app/add-refunds'])
-    const [, refunds] = plan.made
     const file = readFileSync(join(taskDir(home, 'app/add-refunds'), 'task.yaml'), 'utf8')
     expect(file).toContain('task: app/fix-charge')
     expect(file).toContain('why: same file')
