@@ -503,6 +503,10 @@ export const slackMessages: ExtensionWatch = {
    * already there means the thread has to be read to find out whether the words
    * made it: one extra request, on the retry path only.
    *
+   * **Which thread is asked of Slack where the key cannot say** (`threadAt`): a
+   * message history returns may be a parent or a reply also sent to the channel,
+   * and its key is the same either way.
+   *
    * **What goes out is the sentence Tade generated and nothing else** — one of
    * seven, capped per request, never a word an agent wrote, never a diff, a log
    * line, a file name or a link. The marker rides in Slack's `metadata`, which
@@ -531,8 +535,9 @@ export const slackMessages: ExtensionWatch = {
     const name = SLACK_REACTIONS[saying]
     // The reaction on the request itself, and the words in its thread: its own
     // where it is a parent, the one it was asked inside where it is a reply —
-    // Slack threads a reply under a parent, never under another reply.
-    const thread = ref.thread ?? ref.ts
+    // Slack threads a reply under a parent, never under another reply. Asked
+    // before anything is written, so a read that failed leaves nothing behind.
+    const thread = ref.thread ?? (await threadAt(api, channel, ref))
     const claimed = await api.react({ channel, ts: ref.ts, name })
     if (claimed.already) {
       const mine = await saidAlready(api, channel, thread, request.mark, await api.me())
@@ -701,6 +706,38 @@ function isMine(message: SlackMessage, me: SlackSelf): boolean {
 function mineById(message: SlackMessage, me: SlackSelf): boolean {
   if (me.botId && message.bot_id === me.botId) return true
   return me.userId !== '' && message.user === me.userId
+}
+
+/**
+ * The thread a message history returns is in: its own where it is a parent or
+ * stands alone, its parent's where it is a reply also sent to the channel —
+ * whose own `ts` Slack says never to thread under ("avoid using a reply's ts
+ * value; use its parent instead").
+ *
+ * **Read back rather than carried in the key**, because a reply also sent to
+ * the channel keeps the id history gives it (`externalIdOf`), and an id that
+ * changed would make every one already taken in read as a new request. One
+ * `conversations.history`, the same one-message window the re-check reads.
+ */
+async function threadAt(
+  api: SlackApi,
+  channel: string,
+  ref: { ts: string; externalId: string },
+): Promise<string> {
+  const page = await api.history({
+    channel,
+    oldest: ref.ts,
+    latest: ref.ts,
+    inclusive: true,
+    limit: 1,
+  })
+  const message = page.messages.find((found) => found.ts === ref.ts)
+  if (!message) {
+    throw new Error(
+      `${ref.externalId} is not there to read any more, so there is no thread to say a status in: nothing was posted`,
+    )
+  }
+  return threadOf(message)
 }
 
 /**

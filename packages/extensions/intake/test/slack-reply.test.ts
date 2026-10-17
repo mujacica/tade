@@ -306,6 +306,15 @@ describe('saying a status back', () => {
     expect(script.methods()).not.toContain('chat.postMessage')
   })
 
+  it('writes nothing for a request that is not there to read any more', async () => {
+    // Which thread it is in is asked first, so a request that is gone leaves
+    // neither a reaction nor a status under a `ts` nobody can find.
+    const script = slack({ messages: [] })
+    await expect(say(script, 'accepted')).rejects.toThrow(/nothing was posted/)
+    expect(script.reactions.size).toBe(0)
+    expect(script.methods()).not.toContain('chat.postMessage')
+  })
+
   it('is an ordinary error when Slack will not take the write, and stops no look', async () => {
     const script = slack({
       messages: [msg(300)],

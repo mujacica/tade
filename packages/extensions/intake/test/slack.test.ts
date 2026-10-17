@@ -643,6 +643,35 @@ describe('a mention inside a thread, which only a delivery can name', () => {
     const post = script.calls.find((call) => call.method === 'chat.postMessage')
     expect(post?.form.thread_ts).toBe(ts(PARENT))
   })
+
+  it('says a status about a reply also sent to the channel in its parent’s thread', async () => {
+    // Its key is the one history gives it, with no thread in it, so which
+    // thread it is in is read back: Slack says never to thread under a reply.
+    const broadcast = msg(1180, { thread_ts: ts(PARENT), subtype: 'thread_broadcast' })
+    const script = slack({
+      messages: [parent, broadcast],
+      threads: { [ts(PARENT)]: [parent, broadcast] },
+    })
+    const one = await host(script)
+    const key = (await one.look('intake.slack', { ...looking(), rang: [item(1180)] })).found[0]?.key
+    expect(key).toBe(`slack:${CHANNEL}/${ts(1180)}:${ts(1180)}`)
+    const say = () =>
+      one.reply('intake.slack', {
+        project: 'app',
+        input: { channel: CHANNEL },
+        key: key ?? '',
+        say: 'Tade has noticed this.',
+        mark: `tade:slack:${key}:noticed`,
+      })
+    await say()
+    const react = script.calls.find((call) => call.method === 'reactions.add')
+    expect(react?.form.timestamp).toBe(ts(1180))
+    const posts = () => script.calls.filter((call) => call.method === 'chat.postMessage')
+    expect(posts().map((call) => call.form.thread_ts)).toEqual([ts(PARENT)])
+    // And asked again, it is found in the thread it went into: said once.
+    expect((await say()).already).toBe(true)
+    expect(posts()).toHaveLength(1)
+  })
 })
 
 describe('the grant, the setup and the shape', () => {
