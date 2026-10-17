@@ -25,6 +25,7 @@ Everything below is one rule read at different distances: **a judge answers, it 
 | `packages/extensions/jev/src/review.ts` | the reading: `roomFor`, `findingsIn`, `reviewWatch` |
 | `packages/extensions/jev/src/loop.ts` | who may say what about a finding: `sweepOf`, `RUNGS`, `sweepKey`, `citedIn`, `verdictProblem` |
 | `packages/extensions/jev/src/verdicts.ts` | `jev_findings`, `jev_account`, `jev_verdict`, and the standing sweep (`verdictsWatch`) |
+| `packages/extensions/jev/src/whose.ts` | whose a reading is, out of the trailers in its range: `whoseReadings`, and `whoseInTime` for the window's beat |
 | `packages/extensions/jev/src/stuck.ts` | why a finding has not closed: `stuckOf`, and the six answers |
 | `packages/core/src/calibration.ts` | the rule itself, in core so the window's Evaluations surface reads it without importing an extension: `ENOUGH`, `Tally`, `worthOf`, `bandOf`, `calibrationOf`, `precisionSaid`, `worthSaid` |
 | `packages/extensions/jev/src/precision.ts` | whether a question earns its place over Jev's own record: `precisionOf` (the per-day table), re-exporting core's rule |
@@ -146,8 +147,11 @@ way, and no agent could account for the answer because none of it was only their
 - **What nobody signed stays nobody's.** A range where no commit carries a trailer is read as one
   branch, exactly as before, filed under no task, and uncommitted work is in no unit at all.
 - **A reading's `tasks` is read back, never trusted.** Older lines filed a shared branch under every
-  task in the checkout, and the record is never rewritten, so `jev_findings` and the sweep take a
-  reading that is not one task's own as whose trailers are in its range (`whoseReadings`).
+  task in the checkout, and the record is never rewritten, so everything that says whose a finding is
+  — `jev_findings`, the sweep, `jev_replay`, and the Jev page, the brief and the `findings` hook the
+  landing desk and away view read — takes a reading that is not one task's own as whose trailers are
+  in its range (`whose.ts`). Those last three are on the window's beat, so they read through
+  `whoseInTime`: late is the filed list, on time, and the read goes on for the next beat.
 - It is also what unsticks the reading: the cursor and the settling are each agent's own, so one
   agent still typing no longer holds up the reading of work that has stopped.
 - **An agent asking `jev_review` or `jev_findings` about nothing is asking about its own change.**

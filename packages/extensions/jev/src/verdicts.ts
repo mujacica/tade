@@ -1,7 +1,6 @@
-import type { ExtensionContext, ExtensionTool, ExtensionWatch } from '@tade/extensions-core'
+import type { ExtensionTool, ExtensionWatch } from '@tade/extensions-core'
 import { object, oneOf, string } from '@tade/extensions-core'
 import { allowed, periodMs, project } from './ask.ts'
-import { commitsByTask } from './changes.ts'
 import {
   citedIn,
   findingKey,
@@ -19,8 +18,9 @@ import { findingsReport, whoseFrom } from './page.ts'
 import { RUBRIC } from './questions.ts'
 import { forgetRead, recordOf } from './record.ts'
 import { statusLine } from './report.ts'
-import { type Review, readReviews, recordAccount, recordVerdict } from './reviews.ts'
+import { readReviews, recordAccount, recordVerdict } from './reviews.ts'
 import { oneAgents } from './stuck.ts'
+import { whoseReadings } from './whose.ts'
 
 // Closing the loop, as three tools and a sweep.
 //
@@ -31,67 +31,6 @@ import { oneAgents } from './stuck.ts'
 // else decided. The split from the rest of the extension is the one the
 // modularity budget asked for; what they all share with the tools left behind
 // is the project parameter and the project gate, which live in `ask.ts`.
-
-/** Nothing read out of the record goes to git as anything but a commit id. */
-const SHA = /^[0-9a-f]{7,64}$/
-
-/** How many ranges are read at once, the first time a record is read. */
-const READERS = 8
-
-/**
- * Whose commits a range holds, by their trailers. A range of commit ids is the
- * same commits for ever, and so is what they say, so one read once is never
- * read again: the first read of a record is a few hundred `git log`s, and every
- * one after it is none.
- */
-const signedBy = new Map<string, string[]>()
-
-/**
- * The readings, each with the tasks whose `Tade-Task:` trailer is on a commit
- * in its range, where the list it was filed under could be wrong.
- *
- * A reading of a branch a checkout shares was filed under every task working
- * there, so `jev_findings task=<x>` handed x four findings about ranges holding
- * nothing of x's, and the sweep counted thirty-three tasks as sharing a change
- * one of them made. Those lines are evidence and are never rewritten; whose a
- * commit is, is in the commit, and that is what is read here instead — nobody,
- * where no commit in the range carries one. A reading that is one task's own
- * stays as it was filed, because on a shared branch its range starts where the
- * oldest of them branched and holds everybody's commits. Where git cannot
- * answer — a range gone, a project not set up here — the filed list is all
- * there is, and stands.
- */
-export async function whoseReadings(
-  ctx: ExtensionContext,
-  reviews: readonly Review[],
-): Promise<Review[]> {
-  const roots = new Map(ctx.projects.map((one) => [one.name, one.root]))
-  const rangeOf = (review: Review) => {
-    const root = roots.get(review.project)
-    if (oneAgents(review) || !root || !SHA.test(review.base) || !SHA.test(review.head)) return null
-    const range = `${review.base}..${review.head}`
-    return { key: `${root}\0${range}`, root, range }
-  }
-  const unread = new Map<string, { root: string; range: string }>()
-  for (const review of reviews) {
-    const at = rangeOf(review)
-    if (at && !signedBy.has(at.key)) unread.set(at.key, at)
-  }
-  const queue = [...unread]
-  const reader = async () => {
-    for (let next = queue.shift(); next; next = queue.shift()) {
-      const [key, at] = next
-      const read = await commitsByTask(ctx, at.root, at.range)
-      if (read.read) signedBy.set(key, [...read.byTask.keys()])
-    }
-  }
-  await Promise.all(Array.from({ length: READERS }, reader))
-  return reviews.map((review) => {
-    const at = rangeOf(review)
-    const signed = at ? signedBy.get(at.key) : undefined
-    return signed ? { ...review, tasks: [...signed] } : review
-  })
-}
 
 /** What was flagged, what the agent said about it, and what somebody else decided. */
 export const loopTools: ExtensionTool[] = [

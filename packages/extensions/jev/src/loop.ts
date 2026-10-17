@@ -318,7 +318,7 @@ export function sweepFindings(sweep: Sweep, now: number): Finding[] {
   const unowned = sweep.unowned.map((one) => ({
     key: sweepKey(one.key, 'unowned', since(one.at)),
     title: shorten(
-      `${one.key}: flagged at ${one.probability.toFixed(2)} ${waited(one.at)} ago about a change that is nobody's in particular — ${one.tasks.length} task(s) share it — so no agent will account for it.`,
+      `${one.key}: flagged at ${one.probability.toFixed(2)} ${waited(one.at)} ago about a change that is nobody's in particular — ${one.tasks.length === 0 ? 'no commit in its range names a task' : `${one.tasks.length} task(s) share it`} — so no agent will account for it.`,
       220,
     ),
     detail: accountDetail(one, now),

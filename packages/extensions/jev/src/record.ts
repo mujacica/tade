@@ -4,6 +4,7 @@ import { readJournalSince } from '@tade/workbench/events'
 import { readSchedules } from '@tade/workbench/schedules'
 import type { Found, Look, ReviewRecord } from './report.ts'
 import { readReviews } from './reviews.ts'
+import { whoseInTime } from './whose.ts'
 
 // What Jev knows about itself, folded out of the journal and the review log.
 //
@@ -101,4 +102,14 @@ export async function recordOf(ctx: ExtensionContext, keepMs = 0): Promise<Revie
     events,
   }
   return record
+}
+
+/**
+ * The record as the window reads it on its beat — the Jev page, the brief and
+ * the `findings` hook — with whose each reading is read back out of its
+ * commits as far as the deadline allows (`whoseInTime`).
+ */
+export async function whoseRecordOf(ctx: ExtensionContext, keepMs = 0): Promise<ReviewRecord> {
+  const record = await recordOf(ctx, keepMs)
+  return { ...record, reviews: await whoseInTime(ctx, record.reviews) }
 }

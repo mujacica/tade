@@ -1,4 +1,4 @@
-import { ExtensionHost } from '@tade/extensions-core'
+import { ExtensionHost, type HostOptions } from '@tade/extensions-core'
 import { jevExtension } from '../src/extension.ts'
 
 // Jev, answered the way TypeSafe answers or by a table, and never over the
@@ -67,6 +67,8 @@ export function host(options: {
   fetch?: typeof fetch
   /** A fixed instant, or `Date.now` where the fixture's own commits are the clock. */
   now?: number | (() => number)
+  /** How it runs a program, where a test has to hold one: the host's own otherwise. */
+  exec?: HostOptions['exec']
 }) {
   return ExtensionHost.load({
     builtin: [jevExtension],
@@ -78,6 +80,7 @@ export function host(options: {
     env: options.env ?? {},
     fetch: options.fetch ?? offline,
     now: clock(options.now),
+    ...(options.exec ? { exec: options.exec } : {}),
   })
 }
 

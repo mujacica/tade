@@ -17,6 +17,8 @@ import { changesFor, commitsByTask, taskFile } from './changes.ts'
 import { BUDGET, RUBRIC, reviewQuestions } from './questions.ts'
 import { readChange } from './review.ts'
 import { type Review, readReviews } from './reviews.ts'
+import { oneAgents } from './stuck.ts'
+import { whoseReadings } from './whose.ts'
 
 // A judge asked again: the questions Jev already asked about recorded changes,
 // put to a candidate judge — another implementation, or another version of
@@ -149,13 +151,13 @@ async function intentOf(home: string, review: Review): Promise<string> {
 async function readAgain(ctx: ToolContext, asking: Asking, review: Review) {
   const root = allowed(ctx, ctx.project(review.project)).root
   // One agent's own commits where the reading was of one agent's work, read
-  // back out of the trailer exactly as the reading was; the range otherwise.
-  const own =
-    review.tasks.length === 1
-      ? ((await commitsByTask(ctx, root, `${review.base}..${review.head}`)).byTask
-          .get(review.tasks[0] ?? '')
-          ?.map((one) => one.sha) ?? [])
-      : []
+  // back out of the trailer exactly as the reading was; the range otherwise,
+  // whoever's trailers are in it.
+  const own = oneAgents(review)
+    ? ((await commitsByTask(ctx, root, `${review.base}..${review.head}`)).byTask
+        .get(review.tasks[0] ?? '')
+        ?.map((one) => one.sha) ?? [])
+    : []
   const change = await changesFor(ctx, { root, base: review.base, head: review.head, commits: own })
   if (change.files.length === 0) throw new Error('git no longer has anything in that change')
   const unit = { intent: await intentOf(ctx.home, review), branch: '', tasks: review.tasks }
@@ -206,10 +208,14 @@ export const replayTools: ExtensionTool[] = [
       })
       const unready = candidate.ready()
       if (unready) throw new Error(`${name} cannot answer here: ${unready}`)
-      const readings = readingsToReplay(readReviews(ctx.home), {
-        ...(named ? { project: named } : {}),
-        last,
-      })
+      // Whose each was is read back out of its commits, as `jev_findings` reads
+      // it: an older reading of a shared branch was filed under every task in
+      // the checkout, and asked again under all of their intents joined.
+      const readings = await whoseReadings(
+        ctx,
+        readingsToReplay(readReviews(ctx.home), { ...(named ? { project: named } : {}), last }),
+        ctx.signal,
+      )
       if (readings.length === 0) {
         throw new Error(
           `nothing has been read under today’s questions${named ? ` in ${named}` : ''}, so there is nothing to ask again`,

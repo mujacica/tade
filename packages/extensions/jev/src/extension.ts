@@ -52,7 +52,7 @@ import {
   reviewQuestions,
   titleOf,
 } from './questions.ts'
-import { forgetRead, recordOf } from './record.ts'
+import { forgetRead, recordOf, whoseRecordOf } from './record.ts'
 import { judgeReplayFacts, replayTools } from './replay.ts'
 import { answersTable, describe, statusLine } from './report.ts'
 import { raisedIn, readChange, reviewLine, reviewWatch } from './review.ts'
@@ -1017,7 +1017,7 @@ export const jevExtension: TadeExtension = {
   },
   brief: async (ctx) => {
     if (ctx.settings.brief === false) return []
-    const record = await recordOf(ctx)
+    const record = await whoseRecordOf(ctx)
     const since = ctx.now() - 24 * 3_600_000
     const read = record.reviews.filter((review) => Date.parse(review.at) >= since)
     const flagged = read.reduce((sum, review) => sum + review.raised.length, 0)
@@ -1159,7 +1159,7 @@ export const jevExtension: TadeExtension = {
   }),
   // What the record holds, for the landing desk and a paired phone: read, never asked.
   findings: async (ctx) =>
-    findingsOf((await recordOf(ctx, 10_000)).reviews).map((one) => ({
+    findingsOf((await whoseRecordOf(ctx, 10_000)).reviews).map((one) => ({
       key: one.key,
       question: one.question,
       project: one.project,
@@ -1194,7 +1194,7 @@ export const jevExtension: TadeExtension = {
   // and the same `sinceOf` deciding what a day is.
   viewWindowed: true,
   view: async (ctx, at) => {
-    const record = await recordOf(ctx, 5_000)
+    const record = await whoseRecordOf(ctx, 5_000)
     return jevPage(record, at, whoseFrom(record, ctx.tade.agents()))
   },
   harness: {

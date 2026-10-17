@@ -483,6 +483,20 @@ describe('the sweep asks again rather than going quiet', () => {
     const found = sweepFindings(swept, NOW)
     expect(found[0]?.key).toBe('shop/one:test_missing#unowned@1d')
     expect(found[0]?.title).toContain("nobody's in particular")
+    expect(found[0]?.title).toContain('2 task(s) share it')
+  })
+
+  it('says a branch nobody signed is one no commit names a task in, not one nought tasks share', () => {
+    const unsigned = one(NOW - 2 * DAY, { unit: 'shop:main', tasks: [] })
+    const swept = sweepOf([unsigned], {
+      now: NOW,
+      after: 3_600_000,
+      gone: () => false,
+      owned: (finding) => finding.tasks.length === 1 && finding.tasks[0] === finding.unit,
+    })
+    const [found] = sweepFindings(swept, NOW)
+    expect(found?.title).toContain('no commit in its range names a task')
+    expect(found?.title).not.toContain('task(s) share it')
   })
 
   it('never sweeps a finding out from under the agent it was raised about', () => {
