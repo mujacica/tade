@@ -280,6 +280,27 @@ describe('the gate at the moment of the call', () => {
     ).rejects.toThrow(/no extension has a tool called mcp_linear_searchissues/)
   })
 
+  it('refuses the call at once for a server turned off while the window runs', async () => {
+    // The same window, told: an agent launched while it was on still has the
+    // name, and the page says its tools stop being offered when it is pressed.
+    const host = await gate({ linear: { enabled: true }, plain: { enabled: true } })
+    const ask = () => host.call('mcp_linear_searchissues', {}, { caller: { kind: 'orchestrator' } })
+    expect((await ask()).text).toBe('two issues')
+    host.useServers({ linear: { enabled: false }, plain: { enabled: true } })
+    expect(host.specs('agent').map((spec) => spec.name)).toEqual(['mcp_plain_ping'])
+    await expect(ask()).rejects.toThrow('Linear is off: turned off')
+    // Nothing else being set up turns it back on behind the switch.
+    await host.reconfigure({})
+    expect(host.list().find((one) => one.name === 'mcp-linear')?.state).toBe('off')
+    // And turning it on again waits, as turning any server on does.
+    host.useServers({ linear: { enabled: true }, plain: { enabled: true } })
+    await host.reconfigure({})
+    await expect(ask()).rejects.toThrow('it connects the next time Tade starts')
+    expect((await host.call('mcp_plain_ping', {}, { caller: { kind: 'orchestrator' } })).text).toBe(
+      'pong',
+    )
+  })
+
   it('caps and cleans what a server answers with, before anybody draws or reads it', async () => {
     // Somebody else's text, on a terminal Tade draws and in a model's
     // context: control characters out, and never longer than it says it is.

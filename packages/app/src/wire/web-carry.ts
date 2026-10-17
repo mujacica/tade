@@ -103,7 +103,7 @@ async function turnTalkOn(
  * Of these paths, the ones a change to waits for Tade to start again here: a
  * row Settings says is not live — what it says where somebody changes one here
  * — an extension that is on and not running, one of yours, which is never
- * imported mid-session, and an MCP server that is on or was when Tade started.
+ * imported mid-session, and an MCP server that is on.
  */
 export function waitingHere(
   paths: readonly string[],
@@ -128,12 +128,11 @@ export function waitingHere(
       continue
     }
     // The broker reads `mcp.servers` once, as Tade starts (`brokerFor`): a
-    // server turned on connects then, and one changed or turned off goes on as
-    // it was until then. One off then and now has nothing to wait for.
+    // server turned on connects then, and one changed goes on as it was until
+    // then. One turned off is off at once (`useServers`), so nothing waits.
     const server = /^mcp\.servers\.([^.]+)$/.exec(path)?.[1]
     if (server !== undefined) {
-      const running = loaded.some((each) => each.source === 'mcp' && each.name === `mcp-${server}`)
-      if (running || config.mcp.servers[server]?.enabled === true) waiting.add(path)
+      if (config.mcp.servers[server]?.enabled === true) waiting.add(path)
       continue
     }
     const name = /^extensions\.([^.]+)\.enabled$/.exec(path)?.[1]

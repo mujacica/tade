@@ -228,6 +228,53 @@ describe('the window, and its extensions', () => {
     ])
   })
 
+  // The page says its tools stop being offered, and an agent launched while it
+  // was on still has the name: the window has to refuse it, not a restart.
+  it('turns a running server off from its page, and its tools stop at once', async () => {
+    terminal.columns = 120
+    terminal.rows = 50
+    const settings = {
+      projects: { app: { root: repo.root } },
+      mcp: { servers: { sentry: { enabled: true } } },
+    }
+    writeFileSync(join(home, 'config.yaml'), stringify(settings))
+    const config = ConfigSchema.parse(settings)
+    const search = {
+      name: 'mcp_sentry_search_issues',
+      description: 'Search issues.',
+      parameters: { type: 'object' as const, properties: {} },
+      for: ['agent' as const, 'orchestrator' as const],
+      run: async () => ({ text: 'two issues' }),
+    }
+    const extensions = await ExtensionHost.load({
+      brokered: [
+        { name: 'mcp-sentry', title: 'Sentry (MCP)', description: 'Sentry.', tools: [search] },
+      ],
+      config: { extensions: config.extensions, projects: config.projects },
+      home,
+      env: {},
+    })
+    await start({ config, extensions, mcpServers: (now) => [sentryServer(now)] })
+    await until('the footer', () =>
+      screenOf(terminal.written).some((row) => row.includes('Extensions ]')),
+    )
+    const button = find('Extensions ]')
+    click(button.col + 2, button.row)
+    await until('the server, running', () =>
+      screenOf(terminal.written).some((row) => row.includes('Sentry (MCP)  mcp')),
+    )
+    const off = find('Turn off ]')
+    click(off.col + 2, off.row)
+    await until('it says its tools stop', () =>
+      screenOf(terminal.written).some((row) => row.includes('sentry is off — its tools stop')),
+    )
+    expect(written(home).mcp?.servers?.sentry?.enabled).toBe(false)
+    expect(extensions.specs('agent')).toEqual([])
+    await expect(
+      extensions.call(search.name, {}, { caller: { kind: 'orchestrator' } }),
+    ).rejects.toThrow('Sentry (MCP) is off: turned off')
+  })
+
   it('runs an extension from its panel, and shows it working and what it said', async () => {
     terminal.columns = 120
     terminal.rows = 40

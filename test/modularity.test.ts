@@ -70,7 +70,8 @@ const BUDGET: Record<string, number> = {
   // pane ended is `ended.ts`, how its output gets out of tmux `pipe.ts`, and
   // the session it opens into, made once, `session.ts`.
   'packages/drivers/tmux/src/index.ts': 809,
-  'packages/extensions/core/src/host.ts': 1_450,
+  // Reading your extension folders without running them is `folders.ts`.
+  'packages/extensions/core/src/host.ts': 1_434,
   'packages/extensions/core/test/host.test.ts': 1_000,
   // The three tools that close a finding have left, to `verdicts.ts` beside
   // the rule they enforce, and what let them go was moving the one thing every

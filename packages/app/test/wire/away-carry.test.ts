@@ -234,8 +234,8 @@ describe('what waits for Tade to start again here', () => {
 
   // The broker is made once, as the window opens (`brokerFor`), so a server
   // turned on there connects at the next start, and one it already has goes on
-  // as it was until then — changed, or turned off, alike.
-  it('is an MCP server that is on, or that was running when this Tade started', () => {
+  // as it was until then when changed — but one turned off is off at once.
+  it('is an MCP server that is on, and never one turned off, running or not', () => {
     const waiting = waitingHere(
       ['mcp.servers.new', 'mcp.servers.docs', 'mcp.servers.linear', 'mcp.servers.idle'],
       [],
@@ -255,7 +255,7 @@ describe('what waits for Tade to start again here', () => {
         { name: 'mcp-linear', source: 'mcp', state: 'ready' },
       ],
     )
-    expect([...waiting]).toEqual(['mcp.servers.new', 'mcp.servers.docs', 'mcp.servers.linear'])
+    expect([...waiting]).toEqual(['mcp.servers.new', 'mcp.servers.docs'])
   })
 
   it('is a provider changed alone, by the model row that writes it', () => {

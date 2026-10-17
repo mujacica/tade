@@ -81,7 +81,9 @@ not duplicate something Tade already does better through a port of its own.
 
 - **Off means never opened.** Only `mcp.servers.<name>.enabled: true` is handed to the extension
   host. An off server has no extension, no tools and no process. `extensions.mcp-<server>` is not a
-  second switch, and the page never offers one.
+  second switch, and the page never offers one. Turned off while the window runs, its extension is
+  off at once (`useServers`, called from `Settings.use`, which every window door goes through), and
+  turned on again it waits for the next start like any server turned on.
 - **A catalogue name may be an extension's name as well, so which switch a row is comes from the
   row and never from the name.** `sentry` is Tade's Sentry extension and this catalogue's Sentry
   server both. A server's row is the extension the broker made of it or the stand-in drawn for one

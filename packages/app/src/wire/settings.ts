@@ -413,6 +413,8 @@ export class Settings implements Subject {
     // extension may be asked about and every watch may look at — on the next
     // call and the next look, not after Tade is started again.
     this.wire.opts.extensions?.useProjects(config.projects)
+    // And an MCP server turned off, by whichever door: off is at once.
+    this.wire.opts.extensions?.useServers(config.mcp.servers)
     // Muted is quiet now, not at the end of the sentence: the moment you press
     // it is the moment you needed it. What was queued behind goes with it, and
     // the rest of the answer still arriving is not spoken either. Here rather

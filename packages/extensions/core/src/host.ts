@@ -1,8 +1,9 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { extensionEnabled, findSecret, runProgram, secretPath } from '@tade/core'
 import { askFindings, askJudgeReplays } from './findings.ts'
+import { firstComment, yourFolders } from './folders.ts'
 import type {
   Audience,
   BriefItem,
@@ -315,6 +316,8 @@ export class ExtensionHost {
   private readonly listeners = new Set<(run: ExtensionRun) => void>()
   /** The last answer from each sidebar section, so drawing costs nothing. */
   private readonly listed = new Map<string, ListSection>()
+  /** Brokered ones whose server was turned off since the window opened, and what each is now. */
+  private readonly serversOff = new Map<string, string>()
   private counter = 0
 
   private constructor(entries: Entry[], opts: HostOptions) {
@@ -487,11 +490,18 @@ export class ExtensionHost {
       problem: null,
     }
     // A brokered one was only ever handed over because a person turned its
-    // server on: one switch, and it is `mcp.servers.<name>.enabled`. Asking a
-    // second question under `extensions.mcp-<server>` would be a place to put
-    // something that turns nothing on.
-    if (entry.loaded.source !== 'mcp' && !extensionEnabled(settings, entry.loaded.source)) {
-      entry.loaded = { ...base, state: 'off', problem: 'turned off' }
+    // server on: one switch, and it is `mcp.servers.<name>.enabled`, which is
+    // `useServers`'s to read. Asking a second question under
+    // `extensions.mcp-<server>` would be a place to put something that turns
+    // nothing on.
+    const off =
+      entry.loaded.source === 'mcp'
+        ? this.serversOff.get(extension.name)
+        : extensionEnabled(settings, entry.loaded.source)
+          ? undefined
+          : 'turned off'
+    if (off) {
+      entry.loaded = { ...base, state: 'off', problem: off }
       return
     }
     // With a deadline, like everything else Tade waits on. `ready()` is
@@ -544,6 +554,27 @@ export class ExtensionHost {
    */
   useProjects(projects: HostOptions['config']['projects']): void {
     this.opts.config = { ...this.opts.config, projects }
+  }
+
+  /**
+   * Take the MCP servers' switches as the config now has them, from whoever
+   * holds it. Turning one off is at once: its tools stop being offered, and a
+   * call is refused at the gate whatever a harness was handed at launch.
+   * Turning it on again waits for the next start, as turning any server on
+   * does — the broker made its extensions once, as the window opened.
+   */
+  useServers(
+    servers: Readonly<Record<string, { enabled?: boolean | undefined } | undefined>>,
+  ): void {
+    for (const entry of this.entries) {
+      const name = entry.extension.name
+      if (entry.loaded.source !== 'mcp' || entry.loaded.state === 'broken') continue
+      const on = servers[name.slice('mcp-'.length)]?.enabled === true
+      if (on && !this.serversOff.has(name)) continue
+      const problem = on ? 'turned on — it connects the next time Tade starts' : 'turned off'
+      this.serversOff.set(name, problem)
+      entry.loaded = { ...entry.loaded, state: 'off', problem }
+    }
   }
 
   /** How to set an extension up in the window, when it says. */
@@ -1369,47 +1400,6 @@ function asExtension(tade: ExtensionWorkbench, name: string): ExtensionWorkbench
     lanes: () => tade.lanes(),
     agents: () => tade.agents(),
     startAgent: (request) => tade.startAgent({ ...request, by: `extension:${name}` }),
-  }
-}
-
-/**
- * Your extension folders: each directory in the extensions directory with an
- * `extension.ts`, in name order. There is one place they live; whether each
- * runs is what the settings say.
- */
-function yourFolders(root: string | null | undefined): string[] {
-  if (!root) return []
-  try {
-    return readdirSync(root, { withFileTypes: true })
-      .filter(
-        (entry) =>
-          entry.isDirectory() && !entry.name.startsWith('.') && !entry.name.startsWith('_'),
-      )
-      .map((entry) => join(root, entry.name))
-      .filter((folder) => existsSync(join(folder, 'extension.ts')))
-      .sort((a, b) => a.localeCompare(b))
-  } catch {
-    return []
-  }
-}
-
-/**
- * What a file says it is, from the comment it starts with: the one thing that
- * can be known about an extension nobody has turned on, because reading a file
- * is not running it. Empty when there is nothing to read.
- */
-function firstComment(file: string): string {
-  try {
-    const first =
-      readFileSync(file, 'utf8')
-        .split('\n')
-        .find((line) => line.trim() !== '') ?? ''
-    return first
-      .replace(/^\s*(\/\/+|\/\*+|\*)\s?/, '')
-      .replace(/\*\/\s*$/, '')
-      .trim()
-  } catch {
-    return ''
   }
 }
 
