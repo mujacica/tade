@@ -56,7 +56,10 @@ export const FLOOR: Record<string, number> = {
   // when the mark shown while the window opens came with its tests
   // (`splash.ts`, pure, and `opening.ts` under fake timers). 77 -> 80 with
   // `tade host caddy`, whose steps and look (`host-caddy.ts`) are tested whole.
-  'packages/cli': 80,
+  // 80 -> 83 with `tade remote add`'s guided half (`remote-guide.ts`), driven
+  // in-process against a scripted link and a real far end; what is left of it
+  // is the prompt at a real terminal.
+  'packages/cli': 83,
   // 77 -> 85 with reviewing a pull request, whose policy half (`reviewing.ts`)
   // is pure and fully covered. What is left uncovered is what it always was:
   // the fixing, which starts an agent.

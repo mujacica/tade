@@ -78,6 +78,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | what a request must satisfy | `src/guard.ts` — pure, and `test/guard.test.ts` runs the cross-product |
 | a route only this machine may reach (`presence`, and the pages that connect a source) | `Route.here` — `allowed` answers it the `404` of a path nobody built anywhere but `thisMachine` |
 | another machine's Tade linked to this one as an owner (`tade remote`) | `@tade/remotes-core` (the `RemoteLink` port, the stream follower, the far end its suite links to) — the client half of everything in this table, over SSH; `add-workspace-driver` has its shape. What it posts here is `presence` (`src/presence.ts`): an owner's age of a keypress at another screen, held by the window (`presentAt` in `wire/web.ts`) and read as one by push, never written down |
+| another machine's **setup carried here** (`tade remote add`, Settings › Remotes) | `OWNED` in `src/routes.ts` (one route, `POST /api/carry`, `here`), `src/carried.ts` (the body, `applyCarry`, `carryingAt`, the folds of `config_changed` and `carried_in`), `src/owned.ts` (the one door in `server.ts` for both owner routes), the window's half in `packages/app/src/wire/web-carry.ts` (through `Settings.writeKey`, and `signInsOf`); every decision is `@tade/core`'s `carry.ts`, and `add-config-key` has the table |
 | the public listener: Caddy's socket, its directory, the PROXY header | `src/listeners.ts` (every socket one server listens on, `dirSeen`, `answering`), `src/proxied.ts` (the header read before HTTP, `peerOf`), `src/proxy-protocol.ts` (pure: what the bytes are), and `public-listener.ts` in `@tade/core` (the directory, the socket, `caddySite`, what a health look says); `test/public.test.ts` is all of it over a real socket |
 | the public listener's health: the certificate, Tade behind | `packages/app/src/wire/web-public.ts` (`PublicHealth`, on clocks of its own), `@tade/workbench/certificate` (one handshake), `tade host caddy --check` (`packages/cli/src/commands/host-caddy.ts`) |
 | what a device may read | `src/reach.ts` (the grants), `src/surface.ts`'s `reachOf` (the seam) |
@@ -129,6 +130,15 @@ a device still has none of the scopes that change anything until somebody at thi
   owner saying the person is at another of their screens (`presence`, `here`, never written) — and
   `test/routes.test.ts` asserts that set is exactly `LIFECYCLE` **by name**. Another fails the test
   until somebody puts it there deliberately, which is the conversation the rule is for.
+- **The one route that writes a key is the owner's carry, and it is in no setting's table**
+  (`OWNED`): only an owner device — the SSH key's session — only on this machine's own door
+  (`here`), refused `out_of_scope` to a phone however much it was granted. That is what keeps it no
+  wider than what already was: whoever holds the key can edit `config.yaml` over the same SSH. **This
+  machine decides** — every path is asked of `carryOf` again, so its own are refused whatever
+  arrives; a value somebody here changed is said back and left unless the person there pressed;
+  a key arrives as a digest until a press sends it — and **what goes back is never a key and never a
+  sign-in**: a harness's is whether and until when (`signInsOf`). `test/routes.test.ts` names it as
+  the exception to "no route reaches a credential".
 - **From the public listener, anything above `read` needs a passkey proved within
   `passkey_hours`** (`proven`, after the scope and the origin, so it never says more than they
   would). The **listener and never the host**, like `thisMachine`: this machine, an SSH forward and a

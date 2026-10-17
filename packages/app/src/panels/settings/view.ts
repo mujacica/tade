@@ -30,6 +30,7 @@ import {
   valueTooWide,
 } from './control.ts'
 import { domainLines } from './domain.ts'
+import { drawRemotes, REMOTES } from './remotes.ts'
 import { scopedGroup, scopeHere } from './scopes.ts'
 import { ACCOUNTS, type SettingsPanel, UPDATES, visibleSettings } from './state.ts'
 import { drawUpdates } from './updates.ts'
@@ -185,6 +186,7 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
   const categories = [
     ...ctx.settings.map((group) => ({ id: group.id, title: group.title })),
     { id: ACCOUNTS, title: 'Accounts' },
+    ...((ctx.remotes ?? []).length > 0 ? [{ id: REMOTES, title: 'Remotes' }] : []),
     { id: UPDATES, title: 'Updates' },
   ]
   for (const category of categories) {
@@ -212,9 +214,11 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
     ? `Matching “${panel.search}”`
     : panel.category === ACCOUNTS
       ? 'Accounts'
-      : panel.category === UPDATES
-        ? 'Updates'
-        : (group?.title ?? '')
+      : panel.category === REMOTES
+        ? 'Remotes'
+        : panel.category === UPDATES
+          ? 'Updates'
+          : (group?.title ?? '')
   const formHead: Line[] = [
     new Row(form, skin)
       .space()
@@ -358,6 +362,11 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
       )
   } else if (panel.category === UPDATES && !panel.search) {
     drawUpdates(panel, ctx, form, body, (from, to) => {
+      focusFrom = from
+      focusTo = to
+    })
+  } else if (panel.category === REMOTES && !panel.search) {
+    drawRemotes(panel, ctx, form, body, (from, to) => {
       focusFrom = from
       focusTo = to
     })

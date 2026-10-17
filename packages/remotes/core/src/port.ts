@@ -67,6 +67,52 @@ export interface LinkCapabilities {
    * and `pair`/`unpair` throw `LinkError` with `unsupported`.
    */
   pairs: boolean
+  /**
+   * It can say whether this machine has met a remote before and what that
+   * remote proves itself with, and write down on the person's word that it
+   * trusts it (`identify`, `trust`). Without it there is nothing to show
+   * before the first connection, and both throw `unsupported`.
+   */
+  identifies: boolean
+  /**
+   * It can open a terminal there that a person types into here (`terminal`):
+   * what a harness's own sign-in runs in. Without it, `terminal` is null.
+   */
+  terminals: boolean
+}
+
+/**
+ * How a remote is known to this machine, before anything is sent to it: what
+ * the person compares with what the machine itself says it is.
+ */
+export interface Identity {
+  /**
+   * `known`: met before, and what answers now is what was met. `new`: never
+   * met — shown, and trusted only on the person's word. `changed`: met, and
+   * what answers now is not what was met, which is a machine in between or a
+   * machine rebuilt, and is never trusted here: only a person can say which.
+   */
+  state: 'known' | 'new' | 'changed'
+  /** One line per proof it offered, as the person compares it: `ED25519 SHA256:…`. */
+  fingerprints: readonly string[]
+  /** What it is known by, and where that is written down, for saying so. */
+  name: string
+  where: string
+  /** What to tell the person where it is `changed`, in this link's own words; empty otherwise. */
+  said: string
+}
+
+/** What a remote's away view answered an owner's call: its status, and its body as read. */
+export interface Answer {
+  status: number
+  /** The JSON it sent, or null where it sent none. */
+  body: unknown
+}
+
+/** A command to run here, in a terminal a person can see, that is a terminal there. */
+export interface TerminalThere {
+  command: string
+  args: string[]
 }
 
 /**
@@ -169,6 +215,32 @@ export interface RemoteLink {
   pair(at: PairAt): Promise<OwnerSession>
   /** Sign this machine out there: the remote forgets the device. Throws `LinkError`. */
   unpair(remote: Remote): Promise<void>
+  /**
+   * How the remote at `address` is known here, and what it offers to prove
+   * itself with. Asks nobody anything and changes nothing. Throws `LinkError`
+   * (`unsupported` without `identifies`).
+   */
+  identify(address: string): Promise<Identity>
+  /**
+   * Write down that this machine trusts the remote at `address` — on the
+   * person's word, and only for exactly the proofs they were shown: a remote
+   * that offers anything else by now is refused, and so is one already
+   * `changed`. Answers how it is known afterwards. Throws `LinkError`.
+   */
+  trust(address: string, fingerprints: readonly string[]): Promise<Identity>
+  /**
+   * One owner's request to the remote's away view, sent as this machine's
+   * session, with a deadline: the status and the JSON it answered. Reaches it
+   * by itself — no link need be open, and one that is open is not disturbed.
+   * Throws `LinkError` where it could not be reached; any answer is returned.
+   */
+  call(remote: Remote, path: string, body: unknown): Promise<Answer>
+  /**
+   * What to run here for a terminal there running Tade with these words —
+   * `tade accounts sign-in claude-code` — or null without `terminals`. The
+   * words are Tade's own, each one a word a remote shell reads as itself.
+   */
+  terminal(remote: Remote, words: readonly string[]): TerminalThere | null
   /**
    * Hold a link to this remote from now on, dialling it on the next beat.
    * Opening one already held with another spec closes the old one first.

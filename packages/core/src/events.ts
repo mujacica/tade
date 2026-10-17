@@ -508,6 +508,23 @@ export const EventType = z.enum([
    * the remote's own.
    */
   'remote_unlinked',
+  /**
+   * This machine's setup was carried to a remote (`carry.ts`): which remote,
+   * who (`by`: `window`, `cli`), and what came of it there — how many settings
+   * and files were written, already so, left because that machine changed
+   * them itself, refused, or still waiting on a press — and, where keys were
+   * sent on a press, which paths they were. **Never a value**: a key is never
+   * in the journal, on either machine.
+   */
+  'remote_carried',
+  /**
+   * Another machine's Tade carried a persona or a published template here as
+   * an owner (`carried.ts`): which, its content hash, the device and what that
+   * machine calls itself. A carried *setting* is a `config_changed` line like
+   * any other, with `carried` on it; this is the files' half, and the hash is
+   * what tells a file somebody here edited since from the one carried.
+   */
+  'carried_in',
   // you
   /** A line you said or typed to Tade, verbatim: what up and ctrl+r bring back. */
   'said',
@@ -671,6 +688,10 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // signed this machine out — is said in the strip as it happens.
   remote_linked: 'routine',
   remote_unlinked: 'routine',
+  // Notable, as `config_changed` is: somebody changed how a machine is set up,
+  // and the person who did not make the change is the one who needs to see it.
+  remote_carried: 'notable',
+  carried_in: 'notable',
   said: 'routine',
   tade_opened: 'notable',
   tade_closing: 'notable',

@@ -1,3 +1,4 @@
+import { hostname } from 'node:os'
 import { z } from 'zod'
 import { IN_CONFIG, SEEN_BY_AGENTS } from './secrets.ts'
 
@@ -100,6 +101,16 @@ export const RemotesSchema = z.record(RemoteName, RemoteConfigSchema).default({}
  */
 export function remotePort(remote: Pick<RemoteConfig, 'host'>): number {
   return Number(remote.host.slice(remote.host.indexOf(':') + 1))
+}
+
+/**
+ * This machine, as another machine's Tade calls it — in its device list, and
+ * on the lines a carry writes there: its host name, cut to what a label may be
+ * and to characters a remote shell has no opinion about.
+ */
+export function machineLabel(name: string = hostname()): string {
+  const plain = name.replace(/\.local$/, '').replace(/[^A-Za-z0-9._-]+/g, '-')
+  return (plain === '' ? 'this machine' : plain).slice(0, 60)
 }
 
 /**

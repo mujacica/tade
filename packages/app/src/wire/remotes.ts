@@ -1,5 +1,13 @@
 import { stat } from 'node:fs/promises'
-import { AWAKE, beat, loadConfig, type RemoteConfig, type Waking } from '@tade/core'
+import {
+  AWAKE,
+  beat,
+  type Config,
+  loadConfig,
+  machineLabel,
+  type RemoteConfig,
+  type Waking,
+} from '@tade/core'
 import type { Held, MakeRemoteLink, RemoteLink } from '@tade/remotes-core'
 import {
   type LinkWord,
@@ -9,8 +17,12 @@ import {
   remoteOf,
   wordOf,
 } from '@tade/workbench/remotes'
+import type { Frame } from '../frame.ts'
 import { notice } from '../model.ts'
-import { configPathOf, type Wiring } from './context.ts'
+import { type RemoteShown, remoteActions } from '../panels/settings/remotes.ts'
+import type { Ui } from '../screen.ts'
+import { Carries, type CarriesDeps } from './carry.ts'
+import { configPathOf, type Subject, type Wiring } from './context.ts'
 
 // The window's links to other machines' Tades it is an owner of: one link per
 // `remotes.<name>`, held while the window is open (REMOTE-TADE.md §2.5, §5.4).
@@ -32,6 +44,10 @@ import { configPathOf, type Wiring } from './context.ts'
 // time — one `stat` — and reads it again only when it moved. Nothing else in
 // the config is taken from that read: every other key is still the window's
 // own to apply (`Settings.use`), and this is the one reader of this one.
+//
+// **And it keeps this machine's setup in step there** (`carry.ts`): a carry
+// when a link comes up, when the config moves, and hourly, and the presses on
+// Settings › Remotes — which is the page this subject draws.
 
 /** What the links need of the window, named once so a test can hand it over. */
 export interface RemotesDeps {
@@ -45,16 +61,20 @@ export interface RemotesDeps {
   now: () => number
   /** One line for the journal. */
   log: (told: {
-    type: 'remote_linked' | 'remote_unlinked'
-    detail: Record<string, string>
+    type: 'remote_linked' | 'remote_unlinked' | 'remote_carried'
+    detail: Record<string, string | number>
   }) => Promise<void>
   /** Said in the strip, where somebody has to act. */
   say: (said: string) => void
   /** The registry, or a test's. */
   links?: Readonly<Record<string, MakeRemoteLink>>
+  /** What carrying this machine's setup there needs beyond the links. */
+  carrying: Pick<CarriesDeps, 'config' | 'secrets' | 'from' | 'onScreenWith' | 'said' | 'draw'>
+  /** Whether Settings is open, so its Remotes page is drawn. */
+  settingsOpen: () => boolean
 }
 
-export class Remotes {
+export class Remotes implements Subject {
   private readonly deps: RemotesDeps
   /** One link per kind in use, made the first time a remote needs it. */
   private readonly links = new Map<string, RemoteLink>()
@@ -72,9 +92,66 @@ export class Remotes {
   /** What reading the file last said went wrong, so it is said once and not every beat. */
   private trouble: string | null = null
   private stopped = false
+  /** This machine's setup, kept in step on each remote (`carry.ts`). */
+  private readonly carries: Carries
 
   constructor(deps: RemotesDeps) {
     this.deps = deps
+    this.carries = new Carries({
+      ...deps.carrying,
+      home: deps.home,
+      configPath: deps.configPath,
+      reach: (name) => this.reach(name),
+      log: (line) => deps.log(line),
+      say: (said) => deps.say(said),
+      now: deps.now,
+    })
+  }
+
+  /** What the Remotes page draws, while Settings is open. */
+  panel(): Frame['panel'] {
+    return this.deps.settingsOpen() ? { remotes: this.shown() } : {}
+  }
+
+  inputs() {
+    return this.deps.settingsOpen() ? { remoteActions: remoteActions(this.shown()) } : {}
+  }
+
+  /** A press on the Remotes page. */
+  action(choice: string): Promise<void> {
+    return this.carries.action(choice)
+  }
+
+  private shown(): RemoteShown[] {
+    const remotes = this.fromFile ?? this.deps.remotes()
+    return this.carries.shown(
+      Object.entries(remotes).map(([name, one]) => {
+        const held = this.reach(name)
+        return {
+          name,
+          address: one.ssh,
+          link: linkSaid(
+            held === null
+              ? null
+              : (this.links.get(this.holder.get(name) ?? '')?.held(name) ?? null),
+          ),
+          live: held?.live === true,
+        }
+      }),
+    )
+  }
+
+  /** The link holding one remote, the remote as opened, and whether it is up. */
+  private reach(name: string) {
+    const kind = this.holder.get(name)
+    const link = kind === undefined ? undefined : this.links.get(kind)
+    const config = (this.fromFile ?? this.deps.remotes())[name]
+    if (link === undefined || config === undefined) return null
+    return {
+      link,
+      remote: remoteOf(name, config),
+      live: link.held(name)?.link.kind === 'live',
+    }
   }
 
   /** The window's beat. Returns at once. */
@@ -89,6 +166,7 @@ export class Remotes {
       if (woke) link.wake(now)
       link.beat(now)
     }
+    this.carries.beat([...this.holder.keys()])
     void this.reread()
   }
 
@@ -117,6 +195,7 @@ export class Remotes {
       if (still !== undefined && linkOf(still) === kind) continue
       this.holder.delete(name)
       this.words.delete(name)
+      this.carries.forget(name)
       void this.links.get(kind)?.close(name)
     }
     for (const [name, config] of Object.entries(remotes)) {
@@ -159,6 +238,7 @@ export class Remotes {
         if (word === 'ended' && held.link.kind === 'ended') {
           this.deps.say(`${name} signed this machine out: ${held.link.said}`)
         }
+        if (word === 'up') this.carries.up(name)
       }
     }
   }
@@ -175,6 +255,8 @@ export class Remotes {
       const loaded = await loadConfig(this.deps.configPath)
       // A file that does not load keeps the remotes as they were, and says so.
       if (loaded.ok) this.fromFile = loaded.config.remotes
+      // Edited by hand is changed all the same: carried on the next beat.
+      if (loaded.ok) this.carries.moved()
       this.troubled(
         loaded.ok
           ? null
@@ -200,9 +282,37 @@ export class Remotes {
   }
 }
 
+/** How a link stands, in the few words the Remotes page has for it. */
+function linkSaid(held: Held | null): string {
+  if (held === null) return 'not linked'
+  const link = held.link
+  if (link.kind === 'live') return '● linked'
+  if (link.kind === 'down') return `○ down · ${link.said}`
+  if (link.kind === 'ended') return `○ signed out there · ${link.said}`
+  return '· linking…'
+}
+
 /** The window's remotes, read off its wiring. */
-export function remotesFor(wire: Wiring): Remotes {
+export function remotesFor(
+  wire: Wiring,
+  onScreenWith: (flow: (ui: Ui) => Promise<void>) => Promise<void>,
+): Remotes {
   return new Remotes({
+    carrying: {
+      config: (): Config => wire.opts.config,
+      secrets: () => new Set((wire.opts.extensions?.secrets() ?? []).map((one) => one.path)),
+      from: () => machineLabel(),
+      onScreenWith,
+      said: (saved, error) => {
+        const panel = wire.state.panel
+        if (panel?.kind === 'settings')
+          wire.put({ ...wire.state, panel: { ...panel, saved, error } })
+        else if (error !== null) wire.put(notice(wire.state, error, wire.now()))
+        wire.draw()
+      },
+      draw: () => wire.draw(),
+    },
+    settingsOpen: () => wire.state.panel?.kind === 'settings',
     home: wire.opts.home,
     remotes: () => wire.opts.config.remotes,
     configPath: configPathOf(wire.opts),

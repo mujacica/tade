@@ -25,6 +25,7 @@ import {
   writeDevices,
 } from '@tade/web'
 import { Workbench } from '@tade/workbench'
+import type { AccountView } from '@tade/workbench/accounts'
 import { parse } from 'yaml'
 import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import type { ActionsView } from '../../src/frame.ts'
@@ -38,7 +39,7 @@ import { type FactoryHeld, nothingHandedOver } from '../../src/wire/web-beat.ts'
 import { capabilities } from './away-capabilities.ts'
 import { homeConfig, INTAKE } from './away-intake.ts'
 import { type AgentLanes, laneDoor, lifecycleFor } from './away-lifecycle.ts'
-import { settingsDoor, settingsOn } from './away-settings.ts'
+import { realWriteKey, settingsDoor, settingsOn } from './away-settings.ts'
 import { worldOf } from './away-world.ts'
 
 // A window with a real workbench behind it, a real listener on loopback, and a
@@ -199,6 +200,10 @@ export interface MachineOptions {
   writeKey?: (key: string, value: string, was: string) => Promise<void>
   /** Changing a setting from away on, in both configs (`settingsOn`). */
   settings?: boolean
+  /** Keys written through the window's own `Settings.writeKey`, as a carry writes them. */
+  realKeys?: boolean
+  /** What the harnesses say of their sign-ins, where a test needs an answer. */
+  accounts?: () => Promise<AccountView[]>
 }
 
 /** Off here unless a test turns one on, though each is on by default: nothing rides along. */
@@ -327,6 +332,7 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
           if (name === 'runs') {
             return () => [...agents].map(([task, harness]) => ({ task, harness, run: task }))
           }
+          if (name === 'accounts' && over.accounts !== undefined) return over.accounts
           if (name === 'capabilitiesOf') {
             return () => capabilities(over.cannotSteer === true ? 'none' : 'live')
           }
@@ -400,10 +406,12 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     settings: settingsDoor(
       wire,
       over.writeKey ??
-        ((key, value) => {
-          writeSetting(join(home, 'config.yaml'), key, value)
-          return Promise.resolve()
-        }),
+        (over.realKeys === true
+          ? realWriteKey(wire)
+          : (key, value) => {
+              writeSetting(join(home, 'config.yaml'), key, value)
+              return Promise.resolve()
+            }),
     ),
     lifecycle: lifecycleFor(wire, {
       get: () => held,
@@ -693,6 +701,14 @@ export function change(
   body: Record<string, unknown>,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   return send(port, '/api/settings/change', body)
+}
+
+/** One owner's carry of another machine's setup, as its link sends it. */
+export function carried(
+  port: number,
+  body: Record<string, unknown>,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  return send(port, '/api/carry', body)
 }
 
 /** One save of a draft field, as a browser would send it. */

@@ -1,8 +1,10 @@
+import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { type RequiredProgram, runProgram, runtimeDir } from '@tade/core'
+import { Duplex } from 'node:stream'
+import { located, type RequiredProgram, runProgram, runtimeDir } from '@tade/core'
 import {
   DIAL_MS,
   type Door,
@@ -14,7 +16,9 @@ import {
   type Reaching,
   type Remote,
   type RemoteLink,
+  type TerminalThere,
 } from '@tade/remotes-core'
+import { changedSays, identify, trust } from './known.ts'
 
 // A RemoteLink over SSH: the one way there is to reach another machine's Tade
 // today (REMOTE-TADE.md §2.5, §4.1).
@@ -35,9 +39,13 @@ import {
 // **It never asks anybody anything.** `BatchMode` is on for every connection,
 // because the window draws on the thread that would wait for an answer and
 // there is nobody at a terminal to give one: a key that needs a passphrase not
-// in the agent, a host key never seen, a password — each fails at once with
-// ssh's own words and what to run once by hand. A key that needs a touch still
-// works: a touch is not a prompt.
+// in the agent, a password — each fails at once with ssh's own words and what
+// to do. A key that needs a touch still works: a touch is not a prompt. **A
+// host never met is the one question that is asked**, and not here: `tade
+// remote add` shows its key and writes it down on the person's press
+// (`known.ts`), before anything is sent to it. The one place a person types
+// into ssh is the terminal a harness's sign-in runs in (`terminal`), which is
+// theirs to see.
 //
 // **What it runs is shaped before it gets here** (`@tade/core`'s `remotes.ts`):
 // a destination never starts with `-`, and the remote command is one word. Both
@@ -82,11 +90,21 @@ export function makeSshLink(options: SshOptions): RemoteLink {
   return linkOver(
     {
       id: 'ssh',
-      capabilities: { pairs: true },
+      capabilities: { pairs: true, identifies: true, terminals: true },
       programs: [SSH_PROGRAM],
       pair: (at) => ssh.pair(at),
       unpair: (remote) => ssh.unpair(remote),
       reaching: (remote) => ssh.reaching(remote),
+      connect: (remote) => ssh.connect(remote),
+      identify: (address) => {
+        checked(address, 'tade')
+        return identify((args, ms) => ssh.runArgs(args, ms), address)
+      },
+      trust: (address, fingerprints) => {
+        checked(address, 'tade')
+        return trust((args, ms) => ssh.runArgs(args, ms), address, fingerprints)
+      },
+      terminal: (remote, words) => ssh.terminal(remote, words),
     },
     options,
   )
@@ -165,6 +183,106 @@ class Ssh {
       timeoutMs,
       ...(this.options.env === undefined ? {} : { env: this.options.env }),
     })
+  }
+
+  /** ssh with these arguments after the link's own, for the host-key looks. */
+  runArgs(args: readonly string[], timeoutMs: number) {
+    return this.run(args, timeoutMs)
+  }
+
+  /**
+   * A stream to the remote's loopback listener for one call: `ssh -W`, over
+   * the master the window holds where there is one (`-S`; ssh connects by
+   * itself where nothing answers on it), and gone when the call is. Never the
+   * master: a call from a shell must not start one nobody ends, nor end the
+   * one a window is reading.
+   */
+  async connect(remote: Remote): Promise<Duplex> {
+    checked(remote.address, remote.tade)
+    const port = portOf(remote.session.host)
+    const env = { ...(this.options.env ?? process.env) }
+    const child = spawn(
+      located(this.options.ssh ?? 'ssh', env),
+      [
+        ...(this.options.args ?? []),
+        ...QUIET,
+        '-S',
+        controlOf(this.options.home, remote.name),
+        '-W',
+        `127.0.0.1:${port}`,
+        '--',
+        remote.address,
+      ],
+      { stdio: ['pipe', 'pipe', 'pipe'], detached: true, env },
+    )
+    let said = ''
+    child.stderr.setEncoding('utf8')
+    child.stderr.on('data', (chunk: string) => {
+      said = `${said}${chunk}`.slice(-4_096)
+    })
+    // Node takes a pair of its own streams here; the types know only the web's.
+    const stream = Duplex.from({ readable: child.stdout, writable: child.stdin } as never)
+    child.on('error', () => {
+      stream.destroy(new LinkError('missing', 'there is no ssh on this machine'))
+    })
+    child.on('exit', (code) => {
+      if (code === 0 || code === null) return
+      if (/open failed|stdio forwarding failed/i.test(said)) {
+        stream.destroy(
+          new LinkError(
+            'failed',
+            `nothing answers on ${remote.session.host} there: its Tade is not open, or its away view is off`,
+          ),
+        )
+        return
+      }
+      try {
+        trouble(
+          { code, stderr: said, timedOut: false, missing: false },
+          remote.address,
+          remote.tade,
+        )
+      } catch (err) {
+        stream.destroy(err as Error)
+      }
+    })
+    // `kill` answers false for one already gone, and ssh -W starts nothing of its own.
+    stream.on('close', () => {
+      if (child.exitCode === null) child.kill('SIGTERM')
+    })
+    return stream
+  }
+
+  /**
+   * A terminal there running Tade with these words, typed into here: `ssh -t`,
+   * over the window's master where there is one. Not `BatchMode`: this is the
+   * one connection a person is at, so a passphrase it asks for is theirs to
+   * type.
+   */
+  terminal(remote: Remote, words: readonly string[]): TerminalThere {
+    checked(remote.address, remote.tade)
+    for (const word of words) {
+      if (!/^[A-Za-z0-9_.@:-]+$/.test(word)) {
+        throw new LinkError(
+          'failed',
+          `${JSON.stringify(word)} is not a word this link passes to a shell`,
+        )
+      }
+    }
+    return {
+      command: this.options.ssh ?? 'ssh',
+      args: [
+        ...(this.options.args ?? []),
+        '-t',
+        '-o',
+        'ConnectTimeout=10',
+        '-S',
+        controlOf(this.options.home, remote.name),
+        '--',
+        remote.address,
+        [remote.tade, ...words].join(' '),
+      ],
+    }
   }
 
   /** Run `tade web pair --owner` there, and read back what it printed once. */
@@ -289,10 +407,13 @@ function trouble(
   if (ran.code === 0) return
   const said = lastLine(ran.stderr)
   if (ran.code === 255) {
-    if (/host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED/i.test(ran.stderr)) {
+    if (/REMOTE HOST IDENTIFICATION HAS CHANGED|host key for .* has changed/i.test(ran.stderr)) {
+      throw new LinkError('failed', changedSays(address))
+    }
+    if (/host key verification failed/i.test(ran.stderr)) {
       throw new LinkError(
         'failed',
-        `${said} — run \`ssh ${address}\` once in a terminal to see and accept its host key`,
+        `${said} — this machine has never met ${address}: \`tade remote add\` shows its key and asks before anything is sent`,
       )
     }
     if (/permission denied|passphrase|password/i.test(ran.stderr)) {

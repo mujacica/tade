@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { WebActing } from './acting.ts'
 import type { WebAsking } from './asking.ts'
+import type { WebCarrying } from './carried.ts'
 import type { WebConfiguring } from './configuring.ts'
 import type { WebDrafting } from './drafting.ts'
 import type { Streams } from './peers.ts'
@@ -193,6 +194,12 @@ export interface ServerOptions {
    * (`presence.ts`). Absent, the route is the `404` of a path nobody wired.
    */
   present?: (device: string, at: number) => void
+  /**
+   * Another machine's Tade carrying its setup here, as an owner (`carried.ts`):
+   * the config as written, the one write path, the files and the sign-ins.
+   * Absent, the route is the `404` of a path nobody wired.
+   */
+  carrying?: WebCarrying
   /** The tickets the pairing panel minted. */
   tickets: Tickets
   /**

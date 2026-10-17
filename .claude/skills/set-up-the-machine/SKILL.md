@@ -235,6 +235,13 @@ same `tade setup`. What changes is decided by facts about *this process*, never 
   the later of it and `expiresAt`, and only the two dates), and only off macOS, where the sign-in
   is in the Keychain and that is not Tade's to open. Codex and pi renew by themselves and keep no
   end date.
+- **From the Mac, it is the same sign-in, over the link.** `tade remote add` and Settings › Remotes
+  run `ssh -t <host> tade accounts sign-in <harness>` (`RemoteLink.terminal`) in a terminal the
+  person types into, for each harness the Mac uses that the server says is not signed in — so it is
+  that server's `signInHere` that picks the headless sign-in, and the token lands where that harness
+  keeps it there. The server answers a carry with whether each is signed in and `until`, and nothing
+  else of what it keeps (`signInsOf`); a harness's login is **never copied** between machines, which
+  is the line `add-config-key`'s *What a remote is given* draws.
 - **The exact apt line** is `installWith`'s: `apt-get update &&` first, because a fresh box's lists
   are stale and a container's are empty, and `sudo` only where this is not root
   (`InstallersHere.root`). So `offerInstall` runs every line through `/bin/sh -c` — the line that

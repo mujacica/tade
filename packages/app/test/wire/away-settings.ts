@@ -29,6 +29,7 @@ const NOTHING_ELSE: SettingsDeps = {
   setupChanged: () => {},
   silence: () => {},
   accountAction: () => Promise.resolve(),
+  remoteAction: () => Promise.resolve(),
   updateAction: () => Promise.resolve(),
   testMicrophone: () => Promise.resolve(),
   openFile: () => Promise.resolve(),
@@ -55,6 +56,15 @@ export function settingsDoor(wire: Wiring, writeKey: AwayDeps['settings']['write
     write: (path: string, value: string, by?: string) => door.write(path, value, by),
     writeKey,
   }
+}
+
+/**
+ * The window's own `Settings.writeKey`, as a carry from another machine is
+ * written through it: read back, handed to the window and written down.
+ */
+export function realWriteKey(wire: Wiring): AwayDeps['settings']['writeKey'] {
+  const door = new Settings(wire, NOTHING_ELSE)
+  return (key, value, was, how) => door.writeKey(key, value, was, how)
 }
 
 /**

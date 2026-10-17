@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { RemoteConfig } from '@tade/core'
+import { type Config, ConfigSchema, loadConfig, type RemoteConfig } from '@tade/core'
 import { type FarEnd, startFarEnd } from '@tade/remotes-core/far'
 import { makeScriptedLink, type ScriptedRemote } from '@tade/remotes-scripted'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -16,11 +16,13 @@ import { Remotes, type RemotesDeps } from '../../src/wire/remotes.ts'
 
 interface Rig {
   remotes: Remotes
-  lines: { type: string; detail: Record<string, string> }[]
+  lines: { type: string; detail: Record<string, string | number> }[]
   said: string[]
   configPath: string
   clock: { at: number; lastInputAt: number | null }
   config: Record<string, RemoteConfig>
+  /** Read the config file again, as `Settings.use` hands the window a new one. */
+  read: () => Promise<void>
 }
 
 const made: { fars: FarEnd[]; homes: string[]; remotes: Remotes[] } = {
@@ -44,6 +46,30 @@ afterEach(async () => {
 
 const table = new Map<string, ScriptedRemote>()
 
+/**
+ * What carrying needs of the window, as a window with nothing set up has it:
+ * a config read from the rig's file, no declared keys, and nobody at a screen.
+ */
+function carrying(
+  config: () => Config,
+  said: string[] = [],
+  open = { settings: false },
+): Pick<RemotesDeps, 'carrying' | 'settingsOpen'> {
+  return {
+    carrying: {
+      config,
+      secrets: () => new Set(),
+      from: () => 'mac',
+      onScreenWith: async () => {},
+      said: (saved, error) => {
+        said.push(error ?? saved ?? '')
+      },
+      draw: () => {},
+    },
+    settingsOpen: () => open.settings,
+  }
+}
+
 async function far(projects: string[]): Promise<FarEnd> {
   const one = await startFarEnd({ projects })
   made.fars.push(one)
@@ -64,14 +90,37 @@ async function block(address: string, one: FarEnd): Promise<RemoteConfig> {
   }
 }
 
-async function rig(config: Record<string, RemoteConfig>): Promise<Rig> {
+/** A config file naming these remotes, after whatever else this machine was set up with. */
+function yamlOf(config: Record<string, RemoteConfig>, mine = ''): string {
+  return [
+    mine,
+    'remotes:',
+    ...Object.entries(config).flatMap(([name, block]) => [
+      `  ${name}:`,
+      ...Object.entries(block).map(([key, value]) => `    ${key}: ${value}`),
+    ]),
+    '',
+  ].join('\n')
+}
+
+async function rig(
+  config: Record<string, RemoteConfig>,
+  opts: { mine?: string; open?: { settings: boolean } } = {},
+): Promise<Rig> {
   const home = await mkdtemp(join(tmpdir(), 'tade-remotes-'))
   made.homes.push(home)
   const configPath = join(home, 'config.yaml')
-  await writeFile(configPath, '')
+  await writeFile(configPath, opts.mine === undefined ? '' : yamlOf(config, opts.mine))
   const clock = { at: Date.now(), lastInputAt: null as number | null }
   const lines: Rig['lines'] = []
   const said: string[] = []
+  // The window's config: what the file says, read again whenever a test writes it.
+  const mac = { config: ConfigSchema.parse({ remotes: config }) }
+  const read = async () => {
+    const loaded = await loadConfig(configPath)
+    if (loaded.ok) mac.config = loaded.config
+  }
+  await read()
   const deps: RemotesDeps = {
     home,
     remotes: () => config,
@@ -86,10 +135,11 @@ async function rig(config: Record<string, RemoteConfig>): Promise<Rig> {
     // scripted link stands in under that name and reaches the far ends by
     // the address in each block.
     links: { ssh: (options) => makeScriptedLink({ ...options, remotes: table }) },
+    ...carrying(() => mac.config, said, opts.open),
   }
   const remotes = new Remotes(deps)
   made.remotes.push(remotes)
-  return { remotes, lines, said, configPath, clock, config }
+  return { remotes, lines, said, configPath, clock, config, read }
 }
 
 /** Beat until it holds, on the rig's clock moved forward with real time. */
@@ -203,6 +253,7 @@ describe('the window’s remotes', () => {
       log: async () => {},
       say: (line) => one.said.push(line),
       links: {},
+      ...carrying(() => ConfigSchema.parse({})),
     })
     made.remotes.push(quiet)
     quiet.beat()
@@ -230,5 +281,67 @@ describe('the window’s remotes', () => {
     // The file is the remotes now, so the one it does not name was closed.
     await until(one, 'the first closed', () => one.remotes.held().every((h) => h.remote !== 'vps'))
     await until(one, 'nothing streaming at the first', () => north.streams === 0)
+  })
+})
+
+describe('this machine’s setup, kept in step there', () => {
+  const KEY = 'jev-0123456789abcdef'
+  const there = async (one: FarEnd): Promise<Config> => {
+    const loaded = await loadConfig(join(one.home, 'config.yaml'))
+    if (!loaded.ok) throw new Error(JSON.stringify(loaded.issues))
+    return loaded.config
+  }
+  /** Beat until the far end's config says so, with a ceiling. */
+  const thereWhen = async (one: Rig, far: FarEnd, holds: (config: Config) => boolean) => {
+    const deadline = Date.now() + 15_000
+    while (!holds(await there(far))) {
+      if (Date.now() > deadline)
+        throw new Error(`waited for ${far.home}: ${JSON.stringify((await there(far)).agents)}`)
+      one.clock.at = Math.max(one.clock.at, Date.now())
+      one.remotes.beat()
+      await new Promise((done) => setTimeout(done, 25))
+    }
+  }
+
+  it('carries the preferences when the link comes up, again when one changes here, and keys only on the press', async () => {
+    const north = await far(['api'])
+    const config = { vps: await block('north', north) }
+    const mine = `agents:\n  commit: as-you-go\nextensions:\n  jev:\n    enabled: true\n    key: ${KEY}\n`
+    const open = { settings: false }
+    const one = await rig(config, { mine, open })
+    await until(one, 'the link up', live(one, 'vps'))
+    await thereWhen(one, north, (c) => c.agents.commit === 'as-you-go')
+    const first = await there(north)
+    expect(first.extensions.jev?.enabled).toBe(true)
+    expect(first.extensions.jev?.key).toBeUndefined()
+
+    // Changed here: the window hands on a new config, and the beat carries it.
+    await writeFile(one.configPath, yamlOf(config, mine.replace('as-you-go', 'never')))
+    await one.read()
+    await thereWhen(one, north, (c) => c.agents.commit === 'never')
+
+    // The Remotes page: the key waits on a press, and the press is offered.
+    open.settings = true
+    const shown = one.remotes.panel()?.remotes ?? []
+    expect(shown[0]).toMatchObject({ name: 'vps', address: 'north', live: true })
+    expect(shown[0]?.list?.waiting).toEqual(['extensions.jev.key'])
+    expect((one.remotes.inputs().remoteActions ?? []).map((one) => one.id)).toContain(
+      'remote:keys:vps',
+    )
+
+    await one.remotes.action('remote:keys:vps')
+    expect((await there(north)).extensions.jev?.key).toBe(KEY)
+    expect(one.said.at(-1)).toBe('Sent to vps: extensions.jev.key.')
+    const line = one.lines.filter((l) => l.type === 'remote_carried').at(-1)
+    expect(line?.detail).toMatchObject({ remote: 'vps', by: 'window', sent: 'extensions.jev.key' })
+    expect(JSON.stringify(one.lines)).not.toContain(KEY)
+    expect(JSON.stringify(north.lines)).not.toContain(KEY)
+  })
+
+  it('draws nothing of it while Settings is closed', async () => {
+    const north = await far(['api'])
+    const one = await rig({ vps: await block('north', north) })
+    expect(one.remotes.panel()).toEqual({})
+    expect(one.remotes.inputs()).toEqual({})
   })
 })

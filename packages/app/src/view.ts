@@ -178,6 +178,7 @@ export function draw(state: AppState, given: Frame, last: LastFrame | null = nul
     accounts: extra.accounts ?? [],
     updates: extra.updates ?? null,
     updatesBusy: extra.updatesBusy ?? false,
+    remotes: extra.remotes ?? [],
     lanesSurvive: extra.lanesSurvive ?? false,
     configPath: extra.configPath ?? '~/.tade/config.yaml',
     releases: extra.releases ?? false,

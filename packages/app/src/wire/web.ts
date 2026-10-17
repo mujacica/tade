@@ -43,6 +43,7 @@ import {
   talkFor,
   upSinceOf,
 } from './web-beat.ts'
+import { carryingFor } from './web-carry.ts'
 import { CheckRecords } from './web-checks.ts'
 import { builtFrom, turnTo } from './web-follow.ts'
 import { EVERYTHING, widen } from './web-grants.ts'
@@ -279,6 +280,7 @@ export class Away implements Subject {
       present: (_device, at) => {
         this.presentAt = Math.max(this.presentAt ?? at, at)
       },
+      carrying: carryingFor(this.wire, this.deps.settings),
       tickets: this.tickets,
       streams: this.streams,
       tell: heard(

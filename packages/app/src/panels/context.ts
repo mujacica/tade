@@ -33,6 +33,7 @@ import { race } from './race/view.ts'
 import { search } from './search/view.ts'
 import type { AccountShown } from './settings/accounts.ts'
 import type { DomainView } from './settings/domain.ts'
+import type { RemoteShown } from './settings/remotes.ts'
 import type { Choice, UpdatesShown } from './settings/state.ts'
 import { settings } from './settings/view.ts'
 import type { BranchRow } from './small/state.ts'
@@ -126,6 +127,8 @@ export interface PanelContext {
   updates: UpdatesShown | null
   /** A check is going: the network half, which only ever runs because it was pressed. */
   updatesBusy: boolean
+  /** The other machines' Tades this one is an owner of, for the Remotes page; empty for none. */
+  remotes?: readonly RemoteShown[]
   /**
    * Whether agents outlive this window — `capabilities.detach`, never the
    * driver's name. It is what decides whether reloading to pick up a new Tade

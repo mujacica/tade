@@ -77,11 +77,12 @@ function linkTo(port: number): RemoteLink {
   const link = linkOver(
     {
       id: 'test',
-      capabilities: { pairs: false },
+      capabilities: { pairs: false, identifies: false, terminals: false },
       programs: [],
       pair: () => Promise.reject(new Error('not here')),
       unpair: () => Promise.reject(new Error('not here')),
       reaching: () => ({ reach: async () => ({ host: '127.0.0.1', port }), drop: async () => {} }),
+      connect: () => Promise.reject(new Error('not here')),
     },
     { home: '/nonexistent/home' },
   )

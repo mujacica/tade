@@ -136,7 +136,13 @@ describe('reading what pairing printed', () => {
 
 describe('what ssh said, as something to do', () => {
   it.each([
-    ['Host key verification failed.', 255, 'failed', 'accept its host key'],
+    ['Host key verification failed.', 255, 'failed', 'shows its key and asks'],
+    [
+      '@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @@@\nHost key verification failed.',
+      255,
+      'failed',
+      'a different host key from the one this machine met',
+    ],
     ['me@vps: Permission denied (publickey).', 255, 'failed', 'without asking'],
     [
       'ssh: Could not resolve hostname vps: nodename nor servname provided',

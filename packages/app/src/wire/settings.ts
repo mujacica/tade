@@ -84,6 +84,8 @@ export interface SettingsDeps {
   silence(): void
   /** Add, sign into or forget an account, from the Accounts page. */
   accountAction(choice: string): Promise<void>
+  /** Send keys, send this machine's value, sign in or carry again, from the Remotes page. */
+  remoteAction(choice: string): Promise<void>
   /** Install or reload, from the Updates page. */
   updateAction(choice: string): Promise<void>
   /** Three seconds that say whether this terminal may use the microphone. */
@@ -222,6 +224,7 @@ export class Settings implements Subject {
       return
     }
     if (choice.startsWith('account:')) await this.deps.accountAction(choice)
+    if (choice.startsWith('remote:')) await this.deps.remoteAction(choice)
     if (choice.startsWith('updates:')) await this.deps.updateAction(choice)
     if (choice === 'mic-test') await this.deps.testMicrophone()
     if (choice === LOOK_AGAIN) this.domain.again()
@@ -451,8 +454,19 @@ export class Settings implements Subject {
    * to everywhere a config is held and recorded as `config_changed` exactly as
    * a typed one is — and a key whose write left the file unloadable puts it
    * back.
+   *
+   * And the door another machine's carry comes in by (`web-carry.ts`): any
+   * value the file can hold, said on its line the way `how` says it — `by` the
+   * device it came from, `now` as the carry may say it (never a key), and
+   * `carried` naming the machine it came from, which is what tells it apart
+   * from a change somebody here made (`changedThere`).
    */
-  async writeKey(key: string, value: boolean | string | undefined, was: string): Promise<void> {
+  async writeKey(
+    key: string,
+    value: Parameters<typeof writeSetting>[2],
+    was: string,
+    how: { by?: string; now?: string; carried?: string } = {},
+  ): Promise<void> {
     let before: string | null = null
     try {
       before = readFileSync(this.path, 'utf8')
@@ -466,7 +480,7 @@ export class Settings implements Subject {
       throw new Error(loaded.issues[0]?.message ?? 'the config would not load with that')
     }
     this.use(loaded.config)
-    void this.wire.opts.client.log
+    const written = this.wire.opts.client.log
       .append({
         type: 'config_changed',
         detail: {
@@ -477,11 +491,15 @@ export class Settings implements Subject {
           // (`KEYS_AND_AGENTS`). A count of characters is a thing Tade may
           // say, and is enough to tell a write that landed from one that did
           // not.
-          now: said(key, value),
-          by: 'window',
+          now: how.now ?? said(key, value as boolean | string | undefined),
+          by: how.by ?? 'window',
+          ...(how.carried === undefined ? {} : { carried: how.carried }),
         },
       })
       .catch(() => {})
+    // A carried write is told apart from one made here by this line
+    // (`changedThere`), so the next carry must find it: it waits for it.
+    if (how.carried !== undefined) await written
   }
 
   /**

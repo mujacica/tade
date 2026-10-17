@@ -247,6 +247,7 @@ export class App {
         void this.voice.silence()
       },
       accountAction: (choice) => this.machine.accountAction(choice),
+      remoteAction: (choice) => this.remotes.action(choice),
       updateAction: (choice) => this.updates.action(choice),
       testMicrophone: () => this.voice.testMicrophone(),
       openFile: (path) => this.files.openPlace({ path }),
@@ -283,7 +284,7 @@ export class App {
       lifecycle: { agents: () => this.agents, projects: () => this.projects },
       copy: (text) => copyText(text, (data) => this.terminal.write(data)),
     })
-    this.remotes = remotesFor(this.wire)
+    this.remotes = remotesFor(this.wire, (flow) => this.orchestrator.onScreenWith(flow))
     this.voice = new Voice(this.wire, {
       submit: () => this.keyboard.submit(),
       say: (said) => this.orchestrator.say(said),
@@ -465,6 +466,7 @@ export class App {
       this.settings,
       this.machine,
       this.updates,
+      this.remotes,
       this.projects,
       this.voice,
       this.awake,

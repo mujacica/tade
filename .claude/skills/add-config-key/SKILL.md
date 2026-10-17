@@ -20,6 +20,7 @@ orchestrator's arm reaches into it, and whether a person can read back what they
 | `packages/core/src/settings-keep.ts` | the Journal group — what Tade keeps and lets go: `journal.max_mb`, `documents.keep_days`, `notes.keep_days` |
 | `packages/core/src/settings-queue.ts` | the Queue group — who decides what was held: `queue.holds` |
 | `packages/core/src/reach.ts` | `settingReach`, `Reach`, the `NEVER` table, `OPEN`, `OPEN_UNDER`, `ALLOWED_UNDER`, `namedBy`, `wordsFor`, `WATCH_REACH`, `watchNamedBy`, `LINES_LOOKED_BACK` |
+| `packages/core/src/carry.ts` | `carryOf` — what another machine's Tade is given of each key — `leavesOf`, `carryDecision`, `changedThere`, `HOME_HOLDS`, `KEYS_TO_REMOTE`; `carry-files.ts` for the personas and templates |
 | `packages/core/src/project.ts` | what one project answers for itself: `workspaceFor`, `pushFor`, `PUSH_MODES`, `pushProblems` |
 | `packages/core/src/secrets.ts` | a credential: `findSecret`, `secretPath`, `secretCommand`, `IN_CONFIG`, `KEYS_AND_AGENTS`, `SEEN_BY_AGENTS` |
 | `packages/core/src/gone.ts` | keys that are gone: the `GONE` table, `dropGone`, `SERVER_RUNS_AS_YOU`, `SERVER_HELD_BY_NOTHING`, `CHECKS_ARE_READ` |
@@ -84,9 +85,13 @@ orchestrator's arm reaches into it, and whether a person can read back what they
 5. Decide how far the orchestrator's arm reaches into it — `settingReach` in
    `packages/core/src/reach.ts`. See the section below; a whole new *section* of the schema fails
    `packages/core/test/reach.test.ts` until somebody has decided which side of the line it is on.
-6. Its `means` sentence is its documentation. The README shows config only for setting up something
+6. Decide whether it goes to a remote this machine is an owner of — `carryOf` in
+   `packages/core/src/carry.ts`, beside `settingReach` and for the same reason. See *What a remote is
+   given* below; a whole new section is this machine's own until it is named there, and
+   `packages/core/test/carry.test.ts` fails until somebody has.
+7. Its `means` sentence is its documentation. The README shows config only for setting up something
    people cannot start without (an extension's organization, say).
-7. `pnpm check`.
+8. `pnpm check`.
 
 ## How far the orchestrator's arm reaches
 
@@ -152,6 +157,38 @@ answering it somewhere else is how two answers to it come to exist. `extensions.
 a watch inside an extension already on widens nothing an agent may do, so it is `asked`. What
 `WATCH_REACH` does *not* hold is the queue's own pause and remove, and that is said in
 `WATCH_REACH` rather than papered over.
+
+## What a remote is given of this machine
+
+Somebody who set this Tade up should not have to set up the one on their server again, so
+`tade remote add` carries it there and the window keeps it in step (`@tade/workbench/carry`, over
+the owner's `POST /api/carry`, `@tade/web`'s `carried.ts`). What travels is decided per key, in one
+place — `carryOf`, beside `settingReach` — and per kind of thing a home holds (`HOME_HOLDS`), which
+is what the checklist at the end of `tade remote add` and Settings › Remotes read:
+
+| What the home holds | Becomes | How |
+|---|---|---|
+| ordinary preferences — commit and push rules, instructions, the orchestrator and routes, accounts and which one agents use, approvals, the checks' rules, queue, notes, documents, prices, the window's sizes, editor and keys, search, the talk key, telemetry's switches, which extensions are on and their other settings — and the **attention** settings | **(a) carried, and kept in step** | `kept`: written there through that machine's `Settings.writeKey`, read back and applied, one `config_changed` each with `carried` and the device; again when a link comes up, when the config moves here, and hourly |
+| the **personas** you wrote, the **templates** you published | **(a) carried** | `carry-files.ts`: a persona is a preference; a published version is the same file there or none, never rewritten |
+| **keys** — any leaf named `key`, `token`, `secret` or `password`, and any an extension declared — **MCP servers**, the **telemetry DSN**, **intake**'s sources and grants | **(b) on one press** | `pressed`: sent as digests until the press, so that machine can say which it already has; `KEYS_TO_REMOTE` said where the press is; written `0600` there; `remote_carried` here and `config_changed` there, neither ever the value |
+| each harness's **sign-in** — Claude Code, Codex, pi | **(c) never copied: guided** | `ssh -t <host> tade accounts sign-in <harness>`, the harness's own headless sign-in, in a terminal the person types into, from `tade remote add` or Settings › Remotes; that machine answers whether each is signed in and until when, and never more |
+| **projects**, `workspace` and `drivers`, `agents.workspace`, `keep_awake` and `give_way`, `remotes`, the whole away view (`surfaces.web`), voice hardware (`stt`, `mic`, `speak`, `muted`), `telemetry.environment`, `journal`, `checks.run_here`/`parallel`/`suites`, `orchestrator.extensions` | **(d) each machine's own** | `here`: refused there whatever arrives, because that machine asks `carryOf` again |
+
+The rules the table stands on:
+
+- **That machine decides, not the one sending.** It asks `carryOf` again for every path, so a path
+  that is its own is refused there whatever a Mac sends.
+- **Never over a value somebody there changed** (`changedThere`): its last `config_changed` line is
+  somebody there, or a carry's line with the file saying otherwise (edited by hand), or no line and
+  something written. That is `theirs` — left, said back with its value, and written over only on a
+  press of *Send this machine's* (`--ours <path>`). A carried value this machine no longer has is
+  taken away there only while it is still exactly the one carried.
+- **`never` to the orchestrator is not "never carried".** Approvals, which extensions are on, a
+  route's provider and the accounts are the person's own preferences, written by the person's own
+  config, and they go with them; what `never` carries on a press is a credential or a grant.
+- **A key is never carried by itself, wherever it is** — the leaf rule catches every credential
+  Tade declares today, and a caller that knows of one with another name passes it in (`secret`).
+- **Unnamed is `here`**, the safe direction for a key nobody has looked at.
 
 ## A key one project answers for itself
 

@@ -1,22 +1,23 @@
-import { hostname } from 'node:os'
 import {
   defaultConfigPath,
   loadConfig,
-  OWNER_IS_YOUR_SSH_KEY,
-  REMOTE_KEPT_HERE,
-  RemoteCommand,
   type RemoteConfig,
-  RemoteName,
-  SshDestination,
   tadeHome,
   writeSetting,
 } from '@tade/core'
-import { LinkError } from '@tade/remotes-core'
 import { readJournal } from '@tade/workbench/events'
 import { heldBy } from '@tade/workbench/lock'
 import { type LinkSeen, linkOf, linksSeen, REMOTE_LINKS, remoteOf } from '@tade/workbench/remotes'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
+import {
+  type AddOpts,
+  addRemote,
+  carryRemote,
+  listed,
+  type Place,
+  ttyAsking,
+} from './remote-guide.ts'
 
 // `tade remote` — the other machines' Tades this one is an owner of
 // (REMOTE-TADE.md §4.4, §13 V6).
@@ -28,6 +29,14 @@ import { Exit, type Io } from '../io.ts'
 // An agent can still run this command, as it can run `ssh`; that is the
 // sentence the remote prints (`OWNER_IS_YOUR_SSH_KEY`) and the one beside it
 // here (`REMOTE_KEPT_HERE`).
+//
+// **And it is the guided way a remote is set up** (`remote-guide.ts`): a
+// machine never met is shown and trusted on a press before anything is sent,
+// this machine's preferences, personas and published templates are carried
+// there, its keys are offered on a press with what that means said first, each
+// harness this machine uses is signed in there through its own sign-in in this
+// terminal, and it ends with a checklist of what was done and what is left.
+// `carry` does the same again later, for a remote added with nobody to ask.
 //
 // **`list` and `status` read files only** — the config, and the journal's
 // `remote_linked`/`remote_unlinked` lines — so they answer with the window open
@@ -62,12 +71,15 @@ export function registerRemote(program: Command, io: Io, setExit: (code: number)
       'tade',
     )
     .option('--label <name>', 'what this machine is called in that one’s device list')
-    .option('--json', 'machine-readable output (never the session)')
-    .action(
-      async (name: string, opts: { ssh: string; tade: string; label?: string; json?: boolean }) => {
-        await add(io, setExit, name, opts)
-      },
+    .option(
+      '--accept-key <fingerprint>',
+      'trust a machine never met, for exactly this host key fingerprint (repeat for each)',
+      (one: string, all: string[] = []) => [...all, one],
     )
+    .option('--json', 'machine-readable output (never the session)')
+    .action(async (name: string, opts: AddOpts) => {
+      await addRemote(shellPlace(io, setExit, opts.json === true), name, opts)
+    })
 
   remote
     .command('list')
@@ -124,16 +136,33 @@ export function registerRemote(program: Command, io: Io, setExit: (code: number)
     })
 
   remote
+    .command('carry <name>')
+    .description(
+      'Carry this machine’s preferences, personas and templates to a remote again, and say what is left',
+    )
+    .option('--keys', 'send the keys too, which waits on your press unless --yes')
+    .option('--yes', 'the press, given ahead: send the keys without asking')
+    .option(
+      '--ours <path>',
+      'send this machine’s value over one that machine changed itself (repeat for each)',
+      (one: string, all: string[] = []) => [...all, one],
+    )
+    .option('--json', 'machine-readable output')
+    .action(
+      async (
+        name: string,
+        opts: { keys?: boolean; yes?: boolean; ours?: string[]; json?: boolean },
+      ) => {
+        await carryRemote(shellPlace(io, setExit, opts.json === true), name, opts)
+      },
+    )
+
+  remote
     .command('remove <name>')
     .description('Sign this machine out of a remote, and forget it here')
     .action(async (name: string) => {
       await removeOne(io, setExit, name)
     })
-}
-
-/** What a remote is, said without its session. */
-function listed(name: string, one: RemoteConfig) {
-  return { name, ssh: one.ssh, tade: one.tade, device: one.device, host: one.host }
 }
 
 /** How a link last stood, in the words a terminal gets. */
@@ -160,108 +189,18 @@ async function configured(
   return loaded.config.remotes
 }
 
-/**
- * This machine, as the other one's device list calls it: its host name, cut to
- * what a label may be and to characters a remote shell has no opinion about.
- */
-function labelHere(name: string = hostname()): string {
-  const plain = name.replace(/\.local$/, '').replace(/[^A-Za-z0-9._-]+/g, '-')
-  return (plain === '' ? 'this machine' : plain).slice(0, 60)
-}
-
-async function add(
-  io: Io,
-  setExit: (code: number) => void,
-  name: string,
-  opts: { ssh: string; tade: string; label?: string; json?: boolean },
-): Promise<void> {
-  // Each refused for its shape before anything runs: the destination becomes
-  // an argument to ssh and the command a word a remote shell reads.
-  for (const [what, schema, value] of [
-    ['a remote’s name', RemoteName, name],
-    ['--ssh', SshDestination, opts.ssh],
-    ['--tade', RemoteCommand, opts.tade],
-  ] as const) {
-    const checked = schema.safeParse(value)
-    if (!checked.success) {
-      io.err(`${what}: ${checked.error.issues[0]?.message ?? 'not one'}`)
-      setExit(Exit.invalidInput)
-      return
-    }
-  }
-  const remotes = await configured(io, setExit)
-  if (remotes === null) return
-  if (remotes[name] !== undefined) {
-    io.err(`there is already a remote called ${name}: \`tade remote remove ${name}\` first`)
-    setExit(Exit.invalidInput)
-    return
-  }
+/** The terminal's own place: this home, the registered links, and asking at this terminal. */
+function shellPlace(io: Io, setExit: (code: number) => void, json: boolean): Place {
   const home = tadeHome()
-  const link = REMOTE_LINKS[linkOf({ ssh: opts.ssh } as RemoteConfig)]?.({ home })
-  if (link === undefined) {
-    io.err('there is no link here that reaches a remote over SSH')
-    setExit(Exit.error)
-    return
+  return {
+    io,
+    setExit,
+    home,
+    configPath: defaultConfigPath(),
+    linkFor: (kind) => REMOTE_LINKS[kind]?.({ home }),
+    asking: ttyAsking(json),
+    now: Date.now,
   }
-  let session: Awaited<ReturnType<typeof link.pair>>
-  try {
-    session = await link.pair({
-      address: opts.ssh,
-      tade: opts.tade,
-      label: opts.label ?? labelHere(),
-    })
-  } catch (err) {
-    io.err(
-      `could not pair with ${opts.ssh}: ${err instanceof LinkError ? err.message : String(err)}`,
-    )
-    setExit(Exit.error)
-    return
-  }
-  const written: RemoteConfig = {
-    ssh: opts.ssh,
-    tade: opts.tade,
-    device: session.device,
-    session: session.cookie,
-    csrf: session.csrf,
-    host: session.host,
-  }
-  const path = defaultConfigPath()
-  writeSetting(path, `remotes.${name}`, {
-    ...written,
-    ...(opts.tade === 'tade' ? { tade: undefined } : {}),
-  })
-  const loaded = await loadConfig(path)
-  if (!loaded.ok || loaded.config.remotes[name] === undefined) {
-    // What the remote printed would not load as a remote here: it is taken
-    // back out, and the session there signed out, rather than left half-made.
-    writeSetting(path, `remotes.${name}`, undefined)
-    await link.unpair(remoteOf(name, written)).catch((err: unknown) => {
-      io.err(
-        `and it could not be signed out there (${err instanceof Error ? err.message : String(err)}):`,
-      )
-      io.err(`run \`ssh ${opts.ssh} ${opts.tade} web revoke ${session.device}\` once it answers`)
-    })
-    io.err(
-      `${opts.ssh} printed a session this Tade cannot keep: ${loaded.ok ? 'it was not written' : (loaded.issues[0]?.message ?? '')}`,
-    )
-    setExit(Exit.error)
-    return
-  }
-  const window = (await heldBy(home)) !== null
-  if (opts.json) {
-    io.out(JSON.stringify({ ...listed(name, written), window }, null, 2))
-  } else {
-    io.out(
-      `${name}: this machine is an owner of the Tade at ${opts.ssh}, as device ${session.device}`,
-    )
-    io.out(
-      window
-        ? 'the window open on this home links it within a few seconds: `tade remote status` says how it stands'
-        : 'it is linked while a window is open on this home: `tade app`, then `tade remote status`',
-    )
-  }
-  io.err(REMOTE_KEPT_HERE)
-  io.err(OWNER_IS_YOUR_SSH_KEY)
 }
 
 async function removeOne(io: Io, setExit: (code: number) => void, name: string): Promise<void> {

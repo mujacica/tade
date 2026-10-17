@@ -168,7 +168,14 @@ backend that is a separate program rather than a library:
   version, so there is nothing to wait for. Read which case you are in off `#{pane_pipe}`, never
   off a version number.
 - **Anything the backend runs through a shell must be shell-quoted**, even though the backend itself
-  is invoked with an argument array and no shell.
+  is invoked with an argument array and no shell. **And whatever it reads itself must be read as
+  given**: tmux ends a command at any argument that *ends* in `;`, so a lane's cwd or env value
+  ending in one split `new-window` into `unknown command`. Everything a lane was given goes through
+  `literal` (`pipe.ts`), which ends it in `\;`, tmux's own literal `;`, the same from 3.3a to 3.8.
+- **Lanes open together, so what opening needs is made once.** A machine starts its agents at once,
+  and every open that found no session made one: four opens on a fresh driver were one lane and
+  three `duplicate session`. The first open makes it and the rest wait on that promise
+  (`session.ts`); the conformance suite opens its eight quick lanes from cold to hold it.
 
 ## Native dependencies
 
@@ -182,7 +189,7 @@ node-pty's `spawn-helper` loses its executable bit during extraction, which is w
 another machine's, as an owner device of its away view (REMOTE-TADE.md §2.5). One object holds any
 number of remotes the way a driver holds any number of lanes; the registry is `REMOTE_LINKS` in
 `@tade/workbench/remotes` (the lowest package both the window and the CLI depend on); capabilities
-are declared (`pairs`); and `@tade/remotes-core/conformance` is the suite, run against **far ends
+are declared (`pairs`, `identifies`, `terminals`); and `@tade/remotes-core/conformance` is the suite, run against **far ends
 that are real away views** (`@tade/remotes-core/far`: `@tade/web`'s own listener in a home of its
 own, owners minted into its device list), so a link is held to the protocol a VPS speaks and not to
 a stand-in kinder than it. The two implementations are `scripted` (far ends by name out of a table,
@@ -210,6 +217,14 @@ over loopback) and `ssh`.
 - **The window writes transitions, not tries** (`wire/remotes.ts`): `remote_linked` once it holds a
   cursor, `remote_unlinked` down or ended, nothing for a redial — and `tade remote status` folds those
   lines (`linksSeen`) rather than asking the window.
+- **A call is not the stream** (`call`, `call.ts`): one owner's request, with a deadline on all of it
+  and a bound on what is read, over a stream the implementation opens for that call alone
+  (`Transport.connect`) — so the CLI with no window open can make one, and one made beside a held
+  link never disturbs it. It is what the carry rides on (`add-config-key`'s *What a remote is
+  given*); the far end answers it as the real away view does.
+- **A terminal there is the one connection a person is at** (`terminal`, with `terminals`): what to
+  run here for `tade <words>` there, each word checked — a harness's own sign-in, typed into by the
+  person, so the token goes where that harness keeps it and never through Tade.
 
 What the ssh link turned out to need, each held by its tests:
 
@@ -220,8 +235,21 @@ What the ssh link turned out to need, each held by its tests:
   `runtimeDir`), not a loopback port every user of the machine can open — what goes through it is
   your keyboard on the other machine. `StreamLocalBindUnlink` clears the one a dead master left. The
   paths are hashes, because a socket path is capped near 104 bytes.
-- **`BatchMode` always**: there is nobody at a terminal to answer, so a host key never seen or a key
-  with a passphrase fails at once with ssh's own words and the one command to run by hand.
+- **`BatchMode` always**: there is nobody at a terminal to answer, so a key with a passphrase fails at
+  once with ssh's own words. The one connection that is not is `terminal`'s, which a person is at.
+- **A machine never met is met on a press, by ssh's own verdict and ssh's own line** (`known.ts`).
+  `identify` asks ssh under `StrictHostKeyChecking=yes` whether the host is known, new or changed,
+  and for one that is not simply known lets ssh write what the host offers into a throwaway
+  `known_hosts` (`accept-new`, nowhere real) — so a jump host, a `HostKeyAlias`, a hashed file and a
+  second file are answered as for every other connection. `trust` looks again and appends exactly
+  those lines to the first `UserKnownHostsFile` `ssh -G` names, only where the host offers exactly the
+  fingerprints the person was shown, and **never past `changed`**: that is a machine in between or a
+  machine rebuilt, so it is said with `ssh-keygen -R` and never done. `tade remote add` shows the
+  fingerprints and asks, or takes `--accept-key` for each; a fresh `sshd` never met
+  (`startSshd({ met: false })`) is what holds it.
+- **The call goes over `ssh -S <control> -W 127.0.0.1:<port>`**: over the window's master where one is
+  up, on its own where not, and never starts or ends one — a call from a shell must not leave a
+  master nobody ends, nor end the one a window is reading.
 - **One turn at a time per remote**: a wake that drops the master while a dial is signing in would
   start a second master over the first.
 - **A command over SSH gets the system's PATH**, without the profile that put a version manager's

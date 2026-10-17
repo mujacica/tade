@@ -1,13 +1,19 @@
+import type { Duplex } from 'node:stream'
 import type { RequiredProgram, Unsubscribe } from '@tade/core'
+import { callOver } from './call.ts'
 import { Follower, type Reaching } from './follow.ts'
-import type {
-  Held,
-  LinkCapabilities,
-  LinkOptions,
-  OwnerSession,
-  PairAt,
-  Remote,
-  RemoteLink,
+import {
+  type Answer,
+  type Held,
+  type Identity,
+  type LinkCapabilities,
+  LinkError,
+  type LinkOptions,
+  type OwnerSession,
+  type PairAt,
+  type Remote,
+  type RemoteLink,
+  type TerminalThere,
 } from './port.ts'
 
 // A `RemoteLink` made out of how one kind of link reaches a remote.
@@ -29,6 +35,17 @@ export interface Transport {
   unpair(remote: Remote): Promise<void>
   /** How to reach one remote's listener: made once per `open`, dropped with it. */
   reaching(remote: Remote): Reaching
+  /**
+   * A stream to one remote's loopback listener for one call, opened by itself
+   * and gone when the call is: never the one a held link reads. Throws
+   * `LinkError`.
+   */
+  connect(remote: Remote): Promise<Duplex>
+  /** With `identifies`: how the remote is known here, and trusting it. */
+  identify?(address: string): Promise<Identity>
+  trust?(address: string, fingerprints: readonly string[]): Promise<Identity>
+  /** With `terminals`: what to run here for a terminal there. */
+  terminal?(remote: Remote, words: readonly string[]): TerminalThere
 }
 
 /** A whole link out of a transport. */
@@ -60,6 +77,29 @@ class Links implements RemoteLink {
 
   unpair(remote: Remote): Promise<void> {
     return this.transport.unpair(remote)
+  }
+
+  async identify(address: string): Promise<Identity> {
+    if (!this.capabilities.identifies || this.transport.identify === undefined) {
+      throw new LinkError('unsupported', `a ${this.id} link has nothing to show before connecting`)
+    }
+    return this.transport.identify(address)
+  }
+
+  async trust(address: string, fingerprints: readonly string[]): Promise<Identity> {
+    if (!this.capabilities.identifies || this.transport.trust === undefined) {
+      throw new LinkError('unsupported', `a ${this.id} link has nothing to trust`)
+    }
+    return this.transport.trust(address, fingerprints)
+  }
+
+  call(remote: Remote, path: string, body: unknown): Promise<Answer> {
+    return callOver(() => this.transport.connect(remote), remote, path, body)
+  }
+
+  terminal(remote: Remote, words: readonly string[]): TerminalThere | null {
+    if (!this.capabilities.terminals) return null
+    return this.transport.terminal?.(remote, words) ?? null
   }
 
   open(remote: Remote): void {

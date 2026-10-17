@@ -49,8 +49,15 @@ function answers(port: number): Promise<boolean> {
   })
 }
 
-/** An sshd up and taking this user's key, or why there cannot be one here. */
-export async function startSshd(): Promise<Sshd | string> {
+/**
+ * An sshd up and taking this user's key, or why there cannot be one here.
+ *
+ * `met: false` is a machine this one has never connected to: its client
+ * config asks ssh to accept nothing new by itself, and its `known_hosts` is
+ * left empty — the first connection `tade remote add` walks through.
+ */
+export async function startSshd(opts: { met?: boolean } = {}): Promise<Sshd | string> {
+  const met = opts.met ?? true
   const sshd = SSHD.find((path) => existsSync(path))
   if (sshd === undefined) return 'no sshd on this machine'
   const keygen = await runProgram('ssh-keygen', ['-?'], { timeoutMs: 5_000 })
@@ -99,7 +106,7 @@ export async function startSshd(): Promise<Sshd | string> {
       `  IdentityFile ${join(dir, 'client')}`,
       '  IdentitiesOnly yes',
       `  UserKnownHostsFile ${join(dir, 'known_hosts')}`,
-      '  StrictHostKeyChecking accept-new',
+      ...(met ? ['  StrictHostKeyChecking accept-new'] : []),
       '  LogLevel ERROR',
       '',
     ].join('\n'),
@@ -129,9 +136,13 @@ export async function startSshd(): Promise<Sshd | string> {
     await new Promise((done) => setTimeout(done, 50))
   }
   // Up is not the same as taking this key: one real login, or the reason it was refused.
-  const login = await runProgram('ssh', ['-F', config, '-o', 'BatchMode=yes', 'far', 'true'], {
-    timeoutMs: 15_000,
-  })
+  // A machine never met is logged into without writing down what it is.
+  const unmet = met ? [] : ['-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null']
+  const login = await runProgram(
+    'ssh',
+    ['-F', config, '-o', 'BatchMode=yes', ...unmet, 'far', 'true'],
+    { timeoutMs: 15_000 },
+  )
   if (login.code !== 0) {
     await stop()
     return `sshd would not take a key as ${userInfo().username}: ${login.stderr.trim().split('\n').at(-1) ?? ''}`

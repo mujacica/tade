@@ -1,8 +1,11 @@
-import { mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { writeCarried, writeSetting } from '@tade/core'
 import {
   appendDevice,
+  type CarryLine,
+  carryingAt,
   mintOwner,
   type ProjectIn,
   type Projector,
@@ -10,6 +13,7 @@ import {
   type Reach,
   reachOf,
   readDevices,
+  type SignInHere,
   type SnapshotInput,
   Streams,
   type Surface,
@@ -51,6 +55,15 @@ export interface FarEnd {
   readonly presentAt: number | null
   /** How many streams are open to it. */
   readonly streams: number
+  /**
+   * What its journal would hold of carries: every `config_changed` and
+   * `carried_in` line one wrote, oldest first — kept for its whole life, as a
+   * journal is, so a carry after a restart reads what came before it. A test
+   * adds a line here as somebody at that machine would have written one.
+   */
+  readonly lines: CarryLine[]
+  /** What its harnesses say of their sign-ins, as a carry answers them. A test sets it. */
+  signIns: SignInHere[]
   /** Its window closed and opened again: the same home and port, another epoch. */
   restart(): Promise<void>
   /** Nothing answers on its port any more. Safe twice. */
@@ -91,6 +104,8 @@ const SURFACE: Surface = {
 class Far implements FarEnd {
   port = 0
   presentAt: number | null = null
+  readonly lines: CarryLine[] = []
+  signIns: SignInHere[] = []
   private server: WebServer | null = null
   private projects: readonly string[]
   private readonly projectors = new Map<string, Projector>()
@@ -124,6 +139,22 @@ class Far implements FarEnd {
       present: (_device, at) => {
         this.presentAt = Math.max(this.presentAt ?? at, at)
       },
+      // A carry lands the way it does on a machine with a window: the one
+      // write path into its config, read back, and a line for each.
+      carrying: carryingAt({
+        home: this.home,
+        configPath: join(this.home, 'config.yaml'),
+        lines: async () => this.lines,
+        write: (path, value, carry, by) =>
+          writeCarried(join(this.home, 'config.yaml'), { path, value, carry, by }, async (line) => {
+            this.lines.push(line)
+          }),
+        log: async (line) => {
+          this.lines.push(line)
+        },
+        signIns: async () => this.signIns,
+        machine: 'far',
+      }),
     })
     this.server = server
     const bound = await server.listen()
@@ -131,11 +162,11 @@ class Far implements FarEnd {
     if (at === undefined)
       throw new Error(`the far end bound nothing on loopback: ${bound.join(' ')}`)
     this.port = Number(at.slice(at.lastIndexOf(':') + 1))
-    // As a machine with the away view on has it, so the real CLI pairs here.
-    await writeFile(
-      join(this.home, 'config.yaml'),
-      `surfaces:\n  web:\n    enabled: true\n    port: ${this.port}\n`,
-    )
+    // As a machine with the away view on has it, so the real CLI pairs here —
+    // written into what is there, so what a carry wrote survives a restart.
+    const config = join(this.home, 'config.yaml')
+    writeSetting(config, 'surfaces.web.enabled', true)
+    writeSetting(config, 'surfaces.web.port', this.port)
     this.timer = setInterval(() => void this.beat(), BEAT_MS)
     this.timer.unref()
   }

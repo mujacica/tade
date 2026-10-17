@@ -465,6 +465,26 @@ export const SETTINGS: readonly Route[] = Object.keys(CHANGES).map((name) => ({
 }))
 
 /**
+ * What only an owner may do, and only at this machine's own door: **one
+ * route**, another machine's Tade carrying its setup here (`carried.ts`).
+ *
+ * A table of its own because it is the one route that writes the config
+ * beyond `settingReach`'s `open` tier — preferences, files and, on a press,
+ * keys — and so the one exception to "no route reaches a credential", which
+ * `test/routes.test.ts` names rather than lets slip. What makes it no wider
+ * than what already was is who may use it: an owner session, which is the SSH
+ * key's (`owner.ts`), on the loopback listener for a loopback `Host` (`here`),
+ * which from anywhere else is that same SSH connection — and whoever holds the
+ * key can already edit `config.yaml` over it. No setting turns it on, because
+ * none would add anything: it is answered where the window wired it, refused
+ * (`out_of_scope`) to every session that is not an owner, and the `404` of a
+ * path nobody built on every other door.
+ */
+export const OWNED: readonly Route[] = [
+  { method: 'POST', path: '/api/carry', name: 'carry', needs: 'read', mutates: true, here: true },
+]
+
+/**
  * The table this listener answers from, which is a fact about the config.
  *
  * Built once, when the server is made, which is why turning any of the
@@ -483,6 +503,7 @@ export function routesFor(surface: Surface): readonly Route[] {
     ...(surface.drafting ? DRAFTS : []),
     ...(surface.pushing ? PUSHES : []),
     ...(surface.configuring ? SETTINGS : []),
+    ...OWNED,
   ]
 }
 

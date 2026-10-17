@@ -37,6 +37,15 @@ program and exposes `run(argv, io)` which returns an exit code instead of callin
   journal's `remote_linked`/`remote_unlinked` (`linksSeen`) — because the links live in the window.
   Its test puts an `ssh` on PATH that runs the command in a shell, as ssh does on the far side; the
   real connection is `@tade/remotes-ssh`'s conformance suite.
+- **A command that needs a person's press asks only where somebody can answer** (`ttyAsking` in
+  `commands/remote-guide.ts`: standard input and error both terminals, and no `--json`). With nobody
+  there it does nothing that needed the press and says what is left with the command that does it —
+  `tade remote add` meets no host never met, sends no key and starts no sign-in from an agent's shell
+  or a pipe. A press given ahead is a flag named for the act (`tade remote carry --keys --yes`, like
+  `--write`), with the sentence still said on standard error, or one that names exactly what it
+  accepts (`--accept-key <fingerprint>`, checked against what is offered and refused otherwise). Its
+  guided steps take their `Asking` and `Place` as arguments, so a test drives them in-process
+  against a scripted link and a real far end (`test/remote-carry.test.ts`).
 - **Interactive commands must end at end of input.** `readline`'s `question()` never settles on EOF,
   so a loop built on it hangs on Ctrl-D or piped input, and whatever it started keeps running.
   Iterate the interface (`for await (const line of rl)`), which ends on both EOF and close, and stop

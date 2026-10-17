@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { From, Outcome, ParkCall, WebActing } from '../src/acting.ts'
 import { BOUNDS, projectRev, taskRev } from '../src/acting.ts'
-import { ACTS, ROUTES, routeFor, routesFor } from '../src/routes.ts'
+import { ACTS, OWNED, ROUTES, routeFor, routesFor } from '../src/routes.ts'
 import {
   ANSWER,
   boundTo,
@@ -483,7 +483,8 @@ describe('the route table', () => {
     // **Read-only enforced by absence, and this is the assertion of it.** Not
     // "the route refuses", which a bug can get past — there is no route, so a
     // crafted call is the `404` of a path nobody built.
-    expect(routesFor({ ...BASE, acting: false })).toEqual(ROUTES)
+    // The owner's carry is in every table and is no acting route (`OWNED`).
+    expect(routesFor({ ...BASE, acting: false })).toEqual([...ROUTES, ...OWNED])
     expect(routeFor('POST', '/api/act/park', routesFor({ ...BASE, acting: false }))).toBeNull()
     expect(routeFor('POST', '/api/act/park', routesFor({ ...BASE, acting: true }))).not.toBeNull()
   })

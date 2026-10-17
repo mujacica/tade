@@ -1,4 +1,6 @@
+import { connect } from 'node:net'
 import {
+  type Identity,
   LinkError,
   type LinkOptions,
   linkOver,
@@ -22,6 +24,11 @@ import {
 export interface ScriptedRemote {
   /** The loopback port its away view listens on. */
   readonly port: number
+  /**
+   * How it proves what it is, where a test says: the fingerprints it offers,
+   * and whether this machine has met it. Absent, it is a machine met before.
+   */
+  identity?: { fingerprints: readonly string[]; known: 'known' | 'new' | 'changed' }
   /** What `tade web pair --owner` would print there. */
   pair(label: string): Promise<OwnerSession>
   /** What `tade web revoke <device>` would do there. */
@@ -44,7 +51,8 @@ export function makeScriptedLink(options: ScriptedOptions): RemoteLink {
   return linkOver(
     {
       id: 'scripted',
-      capabilities: { pairs: true },
+      // Nothing to open a terminal in: a far end here is a listener, not a shell.
+      capabilities: { pairs: true, identifies: true, terminals: false },
       // Nothing to run: the far end is a listener in this process.
       programs: [],
       pair: async (at) => find(at.address).pair(at.label),
@@ -53,7 +61,36 @@ export function makeScriptedLink(options: ScriptedOptions): RemoteLink {
         reach: async () => ({ host: '127.0.0.1', port: find(remote.address).port }),
         drop: async () => {},
       }),
+      connect: (remote) =>
+        new Promise((done, failed) => {
+          const socket = connect({ host: '127.0.0.1', port: find(remote.address).port })
+          socket.once('connect', () => done(socket))
+          socket.once('error', (err) => failed(new LinkError('failed', err.message)))
+        }),
+      identify: async (address) => identityOf(address, find(address)),
+      trust: async (address, fingerprints) => {
+        const far = find(address)
+        const was = identityOf(address, far)
+        if (was.state === 'changed') {
+          throw new LinkError('failed', `${address} is not what this machine met before`)
+        }
+        if (was.fingerprints.join('\n') !== fingerprints.join('\n')) {
+          throw new LinkError('failed', `${address} offers something other than what was shown`)
+        }
+        if (far.identity !== undefined) far.identity.known = 'known'
+        return identityOf(address, far)
+      },
     },
     options,
   )
+}
+
+function identityOf(address: string, far: ScriptedRemote): Identity {
+  return {
+    state: far.identity?.known ?? 'known',
+    fingerprints: far.identity?.fingerprints ?? [],
+    name: address,
+    where: 'the scripted table',
+    said: far.identity?.known === 'changed' ? `${address} is not what this machine met before` : '',
+  }
 }

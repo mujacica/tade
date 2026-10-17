@@ -527,6 +527,7 @@ export interface Frame {
       | 'accounts'
       | 'updates'
       | 'updatesBusy'
+      | 'remotes'
       | 'lanesSurvive'
       | 'configPath'
       | 'releases'

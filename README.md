@@ -745,17 +745,28 @@ public. A phone paired through the name makes a passkey right after it pairs —
 lives in, if you added the page to the home screen — and uses it before acting from there, every
 twelve hours by default; one that missed the moment reads until it pairs again.
 
-**From your Mac**, `tade remote add vps --ssh vps` makes this machine an owner of the server's Tade:
-it runs `tade web pair --owner` there over SSH and keeps the session in `config.yaml`. Add as many
-as you have. While the window is open it holds one SSH connection to each — a forward to a socket
-only you can open — and keeps what each server says about itself current, dialling again on its
-own after a dropped network and at once when the lid opens, and tells each server when you are at
-the keyboard so its phone notifications wait. `tade remote status` says how each link last stood,
-window open or not; `tade remote remove vps` signs this machine out there. A server whose `tade`
-is not on the PATH a command over SSH gets takes `--tade <its path>`.
+**From your Mac**, `tade remote add vps --ssh vps` makes this machine an owner of the server's Tade
+and sets it up the way this one is. A server it has never connected to is shown by its host key's
+fingerprint first and trusted only when you say so; one whose key changed is said plainly and never
+trusted. It runs `tade web pair --owner` there over SSH and keeps the session in `config.yaml`, then
+carries your preferences, the personas you wrote and the templates you published through that
+server's own settings — a value changed on the server is left as it is and said, never written over.
+Keys, MCP servers, the telemetry DSN and intake's grants wait on a press, with what sending a key
+means said first; each harness this Mac uses is signed in there through its own sign-in, in your
+terminal over the link, so a subscription token never passes through Tade. It ends with a checklist
+of what was carried, what waits on a press and what still needs you, and Settings › Remotes shows
+the same. Projects, drivers, where agents work and the away view stay each machine's own.
+
+Add as many as you have. While the window is open it holds one SSH connection to each — a forward
+to a socket only you can open — keeps what each server says about itself current and your setup in
+step there, dials again on its own after a dropped network and at once when the lid opens, and
+tells each server when you are at the keyboard so its phone notifications wait. `tade remote status`
+says how each link last stood, window open or not; `tade remote remove vps` signs this machine out
+there. A server whose `tade` is not on the PATH a command over SSH gets takes `--tade <its path>`.
 
 ```sh
-tade remote add vps --ssh vps   # pair as an owner over SSH; vps is a Host in ~/.ssh/config
+tade remote add vps --ssh vps   # meet it, pair as an owner, carry your setup; vps is a Host in ~/.ssh/config
+tade remote carry vps --keys    # send the keys too, after saying what that means
 tade remote status              # up, down or signed out, and since when
 ```
 

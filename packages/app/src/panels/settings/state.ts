@@ -6,6 +6,7 @@ import type { PanelInputs } from '../../panels.ts'
 import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
 import { accountChoice } from './accounts.ts'
 import { LOOK_AGAIN } from './domain.ts'
+import { REMOTES, remoteChoice } from './remotes.ts'
 import { scopedGroup, scopedRows, scopeHere, scopesOf } from './scopes.ts'
 
 export type { UpdatesShown }
@@ -496,7 +497,9 @@ function settingsPress(
   }
 
   if (panel.focus === 'categories') {
-    const ids = [...groups.map((group) => group.id), ACCOUNTS, UPDATES]
+    // Remotes is a page only while there is one: every remote has a press.
+    const remotes = (inputs.remoteActions ?? []).length > 0 ? [REMOTES] : []
+    const ids = [...groups.map((group) => group.id), ACCOUNTS, ...remotes, UPDATES]
     const at = Math.max(0, ids.indexOf(panel.category))
     if (key === 'down' || key === 'up') {
       const next = ids[(at + (key === 'down' ? 1 : -1) + ids.length) % ids.length] ?? panel.category
@@ -512,9 +515,11 @@ function settingsPress(
     ? rows.length
     : panel.category === ACCOUNTS
       ? (inputs.accountActions ?? []).length
-      : panel.category === UPDATES
-        ? (inputs.updateActions ?? []).length
-        : rows.length
+      : panel.category === REMOTES
+        ? (inputs.remoteActions ?? []).length
+        : panel.category === UPDATES
+          ? (inputs.updateActions ?? []).length
+          : rows.length
   if (key === 'tab' || key === 'shift+tab') return stay({ ...panel, focus: 'categories' })
   // A page key reads on rather than walking: the form goes by a screenful and
   // the keyboard stays where it was, which is the wheel's half of the move
@@ -534,6 +539,10 @@ function settingsPress(
   if (panel.category === ACCOUNTS && !panel.search) {
     const action = (inputs.accountActions ?? [])[panel.row]
     return key === 'enter' && action ? accountChoice(panel, action.id) : stay(panel)
+  }
+  if (panel.category === REMOTES && !panel.search) {
+    const action = (inputs.remoteActions ?? [])[panel.row]
+    return key === 'enter' && action ? remoteChoice(panel, action.id) : stay(panel)
   }
   if (panel.category === UPDATES && !panel.search) {
     const action = (inputs.updateActions ?? [])[panel.row]
@@ -627,6 +636,8 @@ function clicked(
       return { panel, submit: true, choice: 'open-file' }
     case 'account':
       return accountChoice(panel, control)
+    case 'remote':
+      return remoteChoice(panel, control)
     case 'updates': {
       // Both the row and the button: clicking a button on a page of them
       // should put the keyboard where the click was, so the next Enter

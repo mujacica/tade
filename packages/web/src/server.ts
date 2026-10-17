@@ -23,11 +23,11 @@ import {
 import { headersFor } from './headers.ts'
 import { keepingOf } from './installable.ts'
 import { listenAll } from './listeners.ts'
+import { carryOwned } from './owned.ts'
 import { carryPairing } from './paired.ts'
 import { Passkeys } from './passkeyed.ts'
 import { passkeyStanding } from './passkeys.ts'
 import { type Sink, Streams } from './peers.ts'
-import { carryPresence } from './presence.ts'
 import { carryPush } from './pushed.ts'
 import { Receipts } from './receipts.ts'
 import { fromSource, watchFolder } from './reloading.ts'
@@ -358,8 +358,9 @@ export function webServer(opts: ServerOptions): WebServer {
         const said = await passkeys.carry(found.route.name, at, device, asking.origin ?? '')
         return 'refusal' in said ? answer(res, said.refusal) : json(res, said.body)
       }
-      case 'presence': {
-        const said = await carryPresence(req, device, now(), opts.present)
+      case 'presence':
+      case 'carry': {
+        const said = await carryOwned(found.route.name, req, device, now(), opts)
         return 'refusal' in said ? answer(res, said.refusal) : json(res, said.body)
       }
       default:

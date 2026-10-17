@@ -4,6 +4,7 @@ import {
   ASKS,
   DRAFTS,
   LIFECYCLE,
+  OWNED,
   PUSHES,
   ROUTES,
   routeFor,
@@ -156,7 +157,9 @@ describe('the five tables a setting turns on', () => {
   })
 
   it('serves none of them with every setting off', () => {
-    expect(routesFor(OFF)).toEqual(ROUTES)
+    // The owner's table is not one of them: no setting turns it on, because
+    // the SSH key it stands for already reaches everything it does.
+    expect(routesFor(OFF)).toEqual([...ROUTES, ...OWNED])
   })
 
   it('serves each of them only where its own setting is on', () => {
@@ -185,6 +188,7 @@ describe('the five tables a setting turns on', () => {
     expect(on({ configuring: true })).toEqual([
       ...ROUTES.map((route) => route.path),
       '/api/settings/change',
+      ...OWNED.map((route) => route.path),
     ])
     expect(
       on({ acting: true, talking: true, drafting: true, pushing: true, installing: true }),
@@ -259,9 +263,10 @@ describe('the five tables a setting turns on', () => {
     }
   })
 
-  it('still has no route that publishes, grants or reaches a credential', () => {
+  it('still has no route that publishes, grants or reaches a credential, but the owner’s', () => {
     // The list `LOCAL_ONLY_ACTS` names, asserted against the whole of what
-    // this listener can ever serve rather than trusted as a sentence.
+    // this listener can ever serve rather than trusted as a sentence. The one
+    // exception is `OWNED`'s carry, which is the SSH key's and is held below.
     const every = routesFor({
       ...OFF,
       enabled: true,
@@ -298,6 +303,28 @@ describe('the five tables a setting turns on', () => {
         .map((route) => `${route.method} ${route.path}`)
         .sort(),
     ).toEqual(['GET /api/settings', 'POST /api/settings/change'])
+  })
+})
+
+describe('the owner’s table', () => {
+  it('is one route, at this machine’s own door only, and none of the five jobs', () => {
+    // The one route that can write a key (`carried.ts`), and the exception to
+    // "no route reaches a credential" above — named here, by path, so another
+    // cannot join it without this line changing. What keeps it no wider than
+    // what already was is who may use it: an owner, which is the SSH key, on
+    // the one door that key reaches; the handler refuses every other session
+    // (`test/carried.test.ts`).
+    expect(OWNED.map((route) => `${route.method} ${route.path}`)).toEqual(['POST /api/carry'])
+    for (const route of OWNED) {
+      expect(route.here, route.path).toBe(true)
+      expect(route.mutates, route.path).toBe(true)
+      expect(route.public, route.path).toBeUndefined()
+      const jobs = [route.verb, route.says, route.saves, route.notifies, route.configures]
+      expect(
+        jobs.filter((one) => one !== undefined),
+        route.path,
+      ).toEqual([])
+    }
   })
 })
 

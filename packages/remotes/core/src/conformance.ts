@@ -315,6 +315,70 @@ export function testRemoteLink(name: string, make: MakeRig, opts: { skip?: strin
       )
       expect(there?.revoked).not.toBeNull()
     })
+
+    it('carries a setup there as an owner, with no link held, through its one write path', async () => {
+      await setUp()
+      const one = await far()
+      one.signIns = [
+        { harness: 'claude-code', account: null, signedIn: true, until: null, problem: null },
+      ]
+      const remote = await paired(one)
+      const answer = await link.call(remote, '/api/carry', {
+        from: 'conformance',
+        complete: false,
+        settings: [{ path: 'agents.commit', value: 'as-you-go' }],
+      })
+      expect(answer.status).toBe(200)
+      expect(answer.body).toMatchObject({
+        machine: 'far',
+        settings: [{ path: 'agents.commit', outcome: 'written' }],
+        signIns: one.signIns,
+      })
+      expect(link.names()).toEqual([])
+      const { loadConfig } = await import('@tade/core')
+      const there = await loadConfig(`${one.home}/config.yaml`)
+      expect(there.ok && there.config.agents.commit).toBe('as-you-go')
+      expect(one.lines.at(-1)?.detail).toMatchObject({
+        path: 'agents.commit',
+        carried: 'conformance',
+      })
+    })
+
+    it('calls as the session it was given, so one the far end signed out is refused there', async () => {
+      await setUp()
+      const one = await far()
+      const remote = await paired(one)
+      await one.revoke(remote.session.device)
+      const answer = await link.call(remote, '/api/carry', {
+        from: 'conformance',
+        complete: false,
+        settings: [],
+      })
+      expect(answer.status).toBe(401)
+    })
+
+    it('says a far end that is not answering is not, rather than answering for it', async () => {
+      await setUp()
+      const one = await far()
+      const remote = await paired(one)
+      await one.close()
+      await expect(link.call(remote, '/api/carry', {})).rejects.toMatchObject({
+        name: 'LinkError',
+      })
+    })
+
+    it('offers a terminal there only where it says it can', async () => {
+      await setUp()
+      const one = await far()
+      const remote = await paired(one)
+      const opened = link.terminal(remote, ['accounts', 'sign-in', 'claude-code'])
+      if (!link.capabilities.terminals) {
+        expect(opened).toBeNull()
+        return
+      }
+      expect(opened?.command).not.toBe('')
+      expect(opened?.args.join(' ')).toContain('accounts sign-in claude-code')
+    })
   })
 }
 
