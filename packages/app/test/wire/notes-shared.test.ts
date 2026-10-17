@@ -1,3 +1,4 @@
+import { LinkError } from '@tade/remotes-core'
 import { GRANTS, SCOPES, digestOf as secretDigest, writeDevices } from '@tade/web'
 import { Memory } from '@tade/workbench/memory'
 import { answerNotes, type NotesAsk } from '@tade/workbench/notes-shared'
@@ -97,7 +98,7 @@ describe('sharing notes with a real far window', () => {
 })
 
 /** A window sharing with `vps`, answered in-process by a far home of its own. */
-function sharing(over: { status?: number } = {}) {
+function sharing(over: { status?: number; fail?: () => never } = {}) {
   const near = Memory.open(tmp('tade-near-'))
   const far = Memory.open(tmp('tade-far-'))
   const state = { now: NOW, live: true, notes: [] as string[] }
@@ -110,6 +111,7 @@ function sharing(over: { status?: number } = {}) {
         request: async (_name: string, _path: string, body: unknown) => {
           const ask = JSON.parse(JSON.stringify(body)) as NotesAsk
           asked.push(ask)
+          if (over.fail) over.fail()
           if (over.status !== undefined) return { status: over.status, body: { error: 'no_such' } }
           const answer = answerNotes(far, ask, ask.from, 'vps', state.now)
           return { status: 200, body: JSON.parse(JSON.stringify(answer)) }
@@ -180,6 +182,71 @@ describe('when a window shares by itself', () => {
     await notes.beat(['vps'])
     expect(looks()).toBe(2)
     expect(far.all().map((n) => n.text)).toEqual(['taken here, from a shell'])
+  })
+
+  it('says once what it could not give: a note too long to share stays where it was taken', async () => {
+    const { near, far, notes, state, said } = sharing()
+    near.remember('x'.repeat(33_000), null, 'cli', NOW)
+    near.remember('short enough', null, 'cli', NOW + 1)
+    await notes.beat(['vps'])
+    state.now += 10 * 60_000
+    await notes.beat(['vps'])
+    expect(far.all().map((n) => n.text)).toEqual(['short enough'])
+    expect(said).toEqual([
+      '1 line of notes could not be shared with vps yet: one longer than 32,000 characters never is, and the rest go next time',
+    ])
+  })
+
+  it('says a request that failed while the link stayed up, and leaves one whose link went down to the link', async () => {
+    const late = () => {
+      throw new LinkError('timed out', 'vps did not answer within 20s')
+    }
+    const up = sharing({ fail: late })
+    await up.notes.beat(['vps'])
+    expect(up.said).toEqual(['Notes are not shared with vps: vps did not answer within 20s'])
+    const down = sharing({
+      fail: () => {
+        down.state.live = false
+        return late()
+      },
+    })
+    await down.notes.beat(['vps'])
+    expect(down.said).toEqual([])
+  })
+
+  it('says lines this Tade would not take, which only a newer Tade or a hand edit writes', async () => {
+    // A newer Tade's note carries a field this one does not read.
+    const newer = { text: 'pinned', scope: null, by: 'cli', at: '2026-10-17T08:00:00.000Z', pin: 1 }
+    const answers = [
+      { machine: 'vps', sum: 'b'.repeat(64), have: ['0123456789abcdef'], lines: [], took: 0 },
+      {
+        machine: 'vps',
+        sum: 'b'.repeat(64),
+        lines: [{ line: JSON.stringify(newer), digest: '0123456789abcdef' }],
+        took: 0,
+      },
+    ]
+    const near = Memory.open(tmp('tade-near-'))
+    const said: string[] = []
+    const notes = new SharedNotes({
+      memory: () => near,
+      reach: () => ({
+        link: {
+          request: async () => ({ status: 200, body: { refused: 0, ...answers.shift() } }),
+        } as never,
+        remote: {} as never,
+        live: true,
+      }),
+      from: () => 'mac',
+      log: async () => {},
+      say: (one) => said.push(one),
+      now: () => NOW,
+    })
+    expect(await notes.share('vps')).toMatchObject({ took: 0, refused: 1 })
+    expect(near.all()).toEqual([])
+    expect(said).toEqual([
+      "1 line of notes between this machine and vps was not taken: not one of the kinds this Tade reads, as a newer Tade's or one edited by hand may be",
+    ])
   })
 
   it('says once that a remote would not share, for as long as it is the same trouble', async () => {

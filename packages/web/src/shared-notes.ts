@@ -54,7 +54,7 @@ export interface NotesShareAnswer {
   machine: string
   sum: string
   have?: string[]
-  lines: { line: string; from?: string }[]
+  lines: { line: string; digest?: string; from?: string }[]
   took: number
   refused: number
 }

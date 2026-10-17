@@ -56,6 +56,9 @@ export interface NotesAsk {
   want: string[]
 }
 
+/** A line the far side answered with: as `Given`, and the digest it holds it by. */
+export type Answered = Given & { digest?: string }
+
 /** What the far side answers each request. */
 export interface NotesAnswer {
   /** What the far side calls itself. */
@@ -64,8 +67,12 @@ export interface NotesAnswer {
   sum: string
   /** Every digest the far side holds — only where it was asked with a sum that is not its own. */
   have?: string[]
-  /** The lines asked for, as many as fit one answer. */
-  lines: Given[]
+  /**
+   * The lines asked for, as many as fit one answer, each with its digest — so
+   * a line the asking side cannot read is still one it was answered, and is
+   * not asked for again round after round.
+   */
+  lines: Answered[]
   /** How many lines it took from what it was given. */
   took: number
   /** How many it would not take, as not one of the file's kinds. */
@@ -97,14 +104,14 @@ export function answerNotes(
   const here = memory.shared()
   const sum = sumOf(here.map((one) => one.digest))
   const byDigest = new Map(here.map((one) => [one.digest, one]))
-  const lines: Given[] = []
+  const lines: Answered[] = []
   let bytes = 0
   for (const digest of ask.want) {
     const one = byDigest.get(digest)
     if (one === undefined) continue
     bytes += one.line.length
     if (bytes > ANSWER_BYTES && lines.length > 0) break
-    lines.push({ line: one.line, ...(one.from ? { from: one.from } : {}) })
+    lines.push({ line: one.line, digest, ...(one.from ? { from: one.from } : {}) })
   }
   return {
     machine,
@@ -187,7 +194,7 @@ export async function shareNotes(
     out.took += took.lines
     out.notes += took.notes
     out.refused += took.refused
-    const came = new Set(took.here)
+    const came = new Set([...took.here, ...answer.lines.flatMap((one) => one.digest ?? [])])
     // Asked for and not answered — the answer was full — is asked again; asked
     // for and not there any more is not, or the rounds would never end.
     const unanswered = asking.filter((digest) => !came.has(digest))
@@ -235,10 +242,13 @@ function answerOf(answer: Answer, name: string): NotesAnswer {
     sum: body.sum,
     ...(have !== undefined ? { have } : {}),
     lines: lines.flatMap((one: unknown) => {
-      const given = one as Partial<Given> | null
+      const given = one as Partial<Answered> | null
       if (typeof given?.line !== 'string') return []
       const from = typeof given.from === 'string' && MACHINE_NAMED.test(given.from)
-      return [{ line: given.line, ...(from ? { from: given.from } : {}) }]
+      const digest = isDigest(given.digest) ? given.digest : undefined
+      return [
+        { line: given.line, ...(digest ? { digest } : {}), ...(from ? { from: given.from } : {}) },
+      ]
     }),
     took: typeof body.took === 'number' ? body.took : 0,
     refused: typeof body.refused === 'number' ? body.refused : 0,

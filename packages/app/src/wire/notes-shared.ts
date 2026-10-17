@@ -123,7 +123,7 @@ export class SharedNotes {
         (body) => held.link.request(name, DOOR, body),
         { from: this.deps.from(), name, now: this.deps.now },
       )
-      this.troubles(name, leftSays(name, done.left))
+      this.troubles(name, leftSays(name, done) ?? refusedSays(name, done))
       if (done.took > 0 || done.gave > 0 || done.refused > 0) {
         const detail = { with: name, took: done.took, notes: done.notes, gave: done.gave }
         await this.deps
@@ -135,10 +135,12 @@ export class SharedNotes {
       }
       return done
     } catch (err) {
-      // Not reaching it is the link's news, said as the link goes down; a
-      // remote that answered and would not, or notes that would not be read
-      // here, are this exchange's.
-      if (err instanceof NotesRefused || !(err instanceof LinkError)) {
+      // A link that went down is the link's news, said as it goes; anything
+      // else — a remote that answered and would not, a request that failed
+      // while the link stayed up, notes that would not be read here — is this
+      // exchange's, and said.
+      const down = err instanceof LinkError && !(err instanceof NotesRefused)
+      if (!down || this.deps.reach(name)?.live === true) {
         const said = err instanceof Error ? err.message : String(err)
         this.troubles(name, `Notes are not shared with ${name}: ${said}`)
       }
@@ -188,9 +190,17 @@ export class SharedNotes {
 }
 
 /** What lines left unshared come to, in words: null for none. */
-function leftSays(name: string, left: number): string | null {
+function leftSays(name: string, done: Exchanged): string | null {
+  const left = done.left
   if (left === 0) return null
   return `${left} ${left === 1 ? 'line' : 'lines'} of notes could not be shared with ${name} yet: one longer than ${LINE_MOST.toLocaleString('en')} characters never is, and the rest go next time`
+}
+
+/** What lines neither side would take come to, in words: null for none. */
+function refusedSays(name: string, done: Exchanged): string | null {
+  const refused = done.refused
+  if (refused === 0) return null
+  return `${refused} ${refused === 1 ? 'line' : 'lines'} of notes between this machine and ${name} ${refused === 1 ? 'was' : 'were'} not taken: not one of the kinds this Tade reads, as a newer Tade's or one edited by hand may be`
 }
 
 /** The window's half of it, for remotes: each linked remote's notes shared from the beat. */

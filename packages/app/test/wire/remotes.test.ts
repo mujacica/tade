@@ -1,10 +1,12 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { type Config, ConfigSchema, loadConfig, type RemoteConfig } from '@tade/core'
 import { type FarEnd, startFarEnd } from '@tade/remotes-core/far'
 import { makeScriptedLink, type ScriptedRemote } from '@tade/remotes-scripted'
+import { Memory } from '@tade/workbench/memory'
 import { afterEach, describe, expect, it } from 'vitest'
+import { SharedNotes } from '../../src/wire/notes-shared.ts'
 import { Remotes, type RemotesDeps } from '../../src/wire/remotes.ts'
 
 // The Mac's window linked to two other machines' Tades at once — the proof V6
@@ -270,6 +272,31 @@ describe('the window’s remotes', () => {
     quiet.beat()
     expect(one.said).toEqual(['vps is reached by a link this Tade does not have (ssh)'])
     expect(quiet.held()).toEqual([])
+  })
+
+  it('shares the person’s notes once a link is up, and says it where a machine does not take them', async () => {
+    // The far end is an older Tade as far as notes go: it never wired the door.
+    const north = await far(['api'])
+    const one = await rig({ vps: await block('north', north) })
+    const memory = Memory.open(dirname(one.configPath))
+    memory.remember('deploys freeze on Fridays', null, 'voice')
+    one.remotes.withNotes(
+      (remotes) =>
+        new SharedNotes({
+          memory: () => memory,
+          reach: (name) => remotes.reachFor(name),
+          from: () => 'mac',
+          log: async () => {},
+          say: (line) => one.said.push(line),
+          now: () => one.clock.at,
+        }),
+    )
+    const refused = (line: string) => line.startsWith('Notes are not shared with vps:')
+    await until(one, 'notes asked of it', () => one.said.some(refused))
+    expect(one.said.filter(refused)).toEqual([
+      "Notes are not shared with vps: vps's Tade does not share notes: it is older than this one, or its window is not open there — update it, or open it",
+    ])
+    // That it is said once for as long as it is the same trouble is `notes-shared.test.ts`'s.
   })
 
   it('follows the config: a remote removed is closed, and one added from a shell is linked', async () => {
