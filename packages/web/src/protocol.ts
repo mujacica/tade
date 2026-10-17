@@ -440,7 +440,11 @@ export const ChatRowSchema = z.strictObject({
 export type ChatRow = z.infer<typeof ChatRowSchema>
 
 export const PlanRowSchema = z.strictObject({
-  /** `<harness>/<account>`. */
+  /**
+   * `<harness>/<n>`: its place among that harness's sign-ins, by name, its own
+   * first. Never the account's name, which is `accounts`' to send, and every
+   * device that reads plans is sent this.
+   */
   id: z.string(),
   harness: z.string(),
   account: SaidSchema.nullable(),

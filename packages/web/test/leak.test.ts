@@ -3,6 +3,7 @@ import { deriveState } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { agentOf } from '../src/agent.ts'
 import { AUTHORED, authored, forbidden, keysIn, NEVER_A_FIELD, stringsIn } from '../src/fields.ts'
+import { BUDGET } from '../src/page.ts'
 import type { Grant } from '../src/reach.ts'
 import { snapshotOf } from '../src/snapshot.ts'
 import {
@@ -12,6 +13,7 @@ import {
   input,
   NOW,
   PRIVATE,
+  plan,
   project,
   reach,
   screenText,
@@ -288,6 +290,46 @@ describe('each grant lets through exactly its own content', () => {
   it('gives a sign-in’s name only with the grant', () => {
     expect(only().tasks[0]?.account).toBeNull()
     expect(only('accounts').tasks[0]?.account?.words).toBe('work@example.invalid')
+  })
+
+  it('names a plan’s sign-in only with the grant, and not in its id or its cursor', () => {
+    // A plan row is keyed, and its page walked, by an id every `spend` device
+    // is sent, and one spelt out of the account handed the name over beside
+    // an `account` of null.
+    const plans = [
+      plan({ account: null }),
+      plan({ account: `${PRIVATE.opaque}@example.invalid` }),
+      plan({ harness: 'pi', account: null }),
+      plan(),
+    ]
+    const read = (granted: Grant[], after: string | null = null) =>
+      snapshotOf(
+        input({ reach: reach(granted), plans }),
+        NOW,
+        { plans: after },
+        { ...BUDGET, plans: 2 },
+      )
+    const first = read(['spend'])
+    const rest = read(['spend'], first.pages.plans.next)
+    expect(first.pages.plans.next).not.toBeNull()
+    for (const seen of [first, rest])
+      expect(JSON.stringify(seen), 'no `accounts`, yet it names a sign-in').not.toContain(
+        '@example.invalid',
+      )
+    expect([...first.plans, ...rest.plans].map((one) => one.id)).toEqual([
+      'claude-code/0',
+      'claude-code/1',
+      'claude-code/2',
+      'pi/0',
+    ])
+    // With the grant the names are in `account`, and the ids and the cursor
+    // are the same ones, so a device's page does not move for being granted it.
+    const granted = read(['spend', 'accounts'])
+    expect(granted.pages.plans.next).toBe(first.pages.plans.next)
+    expect(granted.plans.map((one) => [one.id, one.account?.words ?? null])).toEqual([
+      ['claude-code/0', null],
+      ['claude-code/1', `${PRIVATE.opaque}@example.invalid`],
+    ])
   })
 
   it('tells you how many notes and findings there are, and not one word of them', () => {

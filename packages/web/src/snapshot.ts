@@ -315,9 +315,46 @@ export function chatRows(lines: readonly ChatIn[], budget: Budget): ChatRow[] {
   }))
 }
 
-function planRow(plan: PlanStanding, reach: Reach, budget: Budget): PlanRow {
+/** A sign-in's plan beside the id its row is keyed by (`plansKeyed`). */
+interface KeyedPlan {
+  plan: PlanStanding
+  id: string
+}
+
+/**
+ * Every sign-in's plan with its row's id, in the order the page walks them.
+ *
+ * **Its harness and its place among that harness's sign-ins, never the
+ * account's name.** The id rides on the row every `spend` device is sent, and
+ * the page's cursor is made of it, so one spelt `<harness>/<account>` handed
+ * the name over to a phone that was refused `accounts`, beside an `account` of
+ * null. The place is in name order, the harness's own sign-in first, and says
+ * nothing the rows do not: how many there are, and the order they arrive in.
+ *
+ * Positional, which `KEYED` warns against, and the price is paid only when a
+ * harness gains or loses a sign-in: every row after it is a changed row on
+ * the next delta. Padded, and then sorted by it, so that the order the ids
+ * sort in — which is what a client's merge sorts by — is the order chosen here.
+ */
+function plansKeyed(plans: readonly PlanStanding[]): KeyedPlan[] {
+  const named = (plan: PlanStanding) => `${plan.harness}/${plan.account ?? ''}`
+  const sorted = [...plans].sort((a, b) => byText(named(a), named(b)))
+  const many = new Map<string, number>()
+  for (const plan of sorted) many.set(plan.harness, (many.get(plan.harness) ?? 0) + 1)
+  const placed = new Map<string, number>()
+  return sorted
+    .map((plan) => {
+      const at = placed.get(plan.harness) ?? 0
+      placed.set(plan.harness, at + 1)
+      const width = String((many.get(plan.harness) ?? 1) - 1).length
+      return { plan, id: `${plan.harness}/${String(at).padStart(width, '0')}` }
+    })
+    .sort((a, b) => byText(a.id, b.id))
+}
+
+function planRow({ plan, id }: KeyedPlan, reach: Reach, budget: Budget): PlanRow {
   return {
-    id: `${plan.harness}/${plan.account ?? ''}`,
+    id,
     harness: plan.harness,
     account: has(reach, 'accounts') ? textOf(plan.account, budget.text) : null,
     pays: plan.pays,
@@ -503,15 +540,8 @@ export function snapshotOf(
       )
     : withheld<WorkflowIn>(input.workflows.length)
   const planPage = has(reach, 'spend')
-    ? pageOf(
-        [...input.plans].sort((a, b) =>
-          byText(`${a.harness}/${a.account ?? ''}`, `${b.harness}/${b.account ?? ''}`),
-        ),
-        budget.plans,
-        (row) => `${row.harness}/${row.account ?? ''}`,
-        cursors.plans ?? null,
-      )
-    : withheld<PlanStanding>(input.plans.length)
+    ? pageOf(plansKeyed(input.plans), budget.plans, (row) => row.id, cursors.plans ?? null)
+    : withheld<KeyedPlan>(input.plans.length)
 
   // **The last lines rather than the first**, because a conversation is read
   // from the bottom: what a phone opening the screen needs is the exchange
@@ -577,7 +607,7 @@ export function snapshotOf(
     queue: queuePage.rows.map((item) => queueRow(item, reach, budget)),
     findings: findingPage.rows.map((found) => findingRow(found, budget)),
     notes: [...notePage.rows].sort((a, b) => byText(a.id, b.id)),
-    plans: planPage.rows.map((plan) => planRow(plan, reach, budget)),
+    plans: planPage.rows.map((one) => planRow(one, reach, budget)),
     // Back into the order they were said in: the budget chose from the end,
     // and a page that drew them backwards would be a second ordering of the
     // one thing whose order is its meaning.

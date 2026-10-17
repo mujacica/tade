@@ -176,7 +176,7 @@ describe('the projection', () => {
       'sentry/a:path_traversal',
       'sentry/b:swallowed_error',
     ])
-    expect(snapshot.plans.map((one) => one.id)).toEqual(['claude-code/work@example.invalid', 'pi/'])
+    expect(snapshot.plans.map((one) => one.id)).toEqual(['claude-code/0', 'pi/0'])
   })
 
   it('chooses the newest notes when it cannot carry them all', () => {
@@ -255,7 +255,7 @@ describe('the projection', () => {
     )
     expect(snapshot.plans[0]?.windows[0]?.resetsAt).toBeNull()
     expect(snapshot.plans[0]?.at).toBeNull()
-    expect(snapshot.plans[0]?.id).toBe('pi/')
+    expect(snapshot.plans[0]?.id).toBe('pi/0')
   })
 
   it('says who runs as a sign-in to a device granted the accounts, as the window says it', () => {
