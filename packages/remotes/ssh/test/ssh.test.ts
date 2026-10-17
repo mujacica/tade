@@ -159,6 +159,12 @@ describe('what ssh said, as something to do', () => {
     expect((err as LinkError).message).toContain(says)
   })
 
+  it('says what the remote printed as text, whatever it printed', async () => {
+    // A shell there writes this line, and the window and the CLI both say it.
+    const err = await pairWith(await fakeSsh('\x1b]0;pwned\x07no\x1b[2J \u009b6naway view', 1))
+    expect((err as LinkError).message).toBe('there: no away view')
+  })
+
   it('says there is no ssh where there is none', async () => {
     const err = await pairWith('/nonexistent/ssh')
     expect((err as LinkError).problem).toBe('missing')
