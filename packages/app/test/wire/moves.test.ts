@@ -45,7 +45,7 @@ describe('queued work, started on another machine instead', () => {
   const shown = (text: string) => rows().some((row) => row.includes(text))
 
   /** The window linked to `vps`, whose project `tade` is a clone of this checkout. */
-  async function linked(): Promise<{ far: FarEnd; window: App }> {
+  async function linked(over: { client?: Workbench } = {}): Promise<{ far: FarEnd; window: App }> {
     repo.git('remote', 'add', 'origin', REPOSITORY)
     const there = join(tmp('tade-there-'), 'repo')
     runGit(repo.root, 'clone', '-q', repo.root, there)
@@ -74,6 +74,7 @@ describe('queued work, started on another machine instead', () => {
     terminal.columns = 160
     const table = new Map<string, ScriptedRemote>([['vps', far]])
     const window = await wired.start({
+      ...over,
       config: ConfigSchema.parse({ projects: { app: { root: repo.root } }, remotes: { vps } }),
       remoteLinks: { ssh: (options) => makeScriptedLink({ ...options, remotes: table }) },
       thinker: { ask: async () => 'ok', tell: async () => {} },
@@ -186,6 +187,58 @@ describe('queued work, started on another machine instead', () => {
     expect(existsSync(join(home, 'projects', 'app', 'tasks', 'landing', 'task.yaml'))).toBe(false)
     const [moved] = await client.events({ types: ['task_moved'] })
     expect(moved?.detail).toMatchObject({ to: 'vps', by: 'orchestrator' })
+  }, 90_000)
+
+  it("offers Hand to vps on a running agent's own menu, and a press tells it to commit and push", async () => {
+    await client.createTask({
+      project: 'app',
+      slug: 'billing',
+      intent: 'charge once per order',
+      workspace: 'worktree',
+    })
+    // The agent, as far as this needs one: running, and told things.
+    const told: string[] = []
+    const running = new Proxy(client, {
+      get: (target, key, receiver) => {
+        if (key === 'runs') {
+          return () => [{ run: 'run-1', task: 'app/billing', harness: 'pi' }, ...target.runs()]
+        }
+        if (key === 'steerAgent') {
+          return async (_task: string, message: string) => {
+            told.push(message)
+          }
+        }
+        return Reflect.get(target, key, receiver)
+      },
+    })
+    const { far } = await linked({ client: running })
+    await until('the agent in the side', () => shown('billing'), 20_000)
+    // Its own menu, opened again until vps has said which of its projects is this repository.
+    await until('Hand to vps on its own menu', async () => {
+      if (shown('Hand to vps')) return true
+      terminal.press('\x1b')
+      const row = wired.find(' billing')
+      terminal.press(`\x1b[<2;${row.col + 2};${row.row + 1}M`)
+      terminal.press(`\x1b[<2;${row.col + 2};${row.row + 1}m`)
+      await new Promise((done) => setTimeout(done, 250))
+      return shown('Hand to vps')
+    })
+    expect(shown('Remove agent')).toBe(true)
+    const item = wired.find('Hand to vps')
+    wired.click(item.col + 1, item.row)
+    await until('its agent told to push', () => told.length === 1)
+    expect(told[0]).toContain('git push origin HEAD:refs/heads/tade/billing')
+    // Asked there first, making nothing; and written down here.
+    expect(far.taken.map((one) => [one.take.name, one.take.check])).toEqual([['billing', true]])
+    await until(
+      'the hand-over written down',
+      async () => (await client.events({ types: ['task_handing'] })).length === 1,
+    )
+    const [asked] = await client.events({ types: ['task_handing'] })
+    expect(asked).toMatchObject({
+      task: 'app/billing',
+      detail: { to: 'vps', there: 'tade', branch: 'tade/billing', by: 'you' },
+    })
   }, 90_000)
 
   it('picks it up here again as it was when the other machine will not take it', async () => {

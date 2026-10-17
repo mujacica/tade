@@ -1,13 +1,10 @@
-import { readFile } from 'node:fs/promises'
 import {
-  expandHome,
   LINES_LOOKED_BACK,
   machineLabel,
   printable,
   REMOTE_MOVE_REACH,
   remoteNamedBy,
   runProgram,
-  type TaskFile,
 } from '@tade/core'
 import type { Answer, Remote, RemoteLink } from '@tade/remotes-core'
 import {
@@ -17,12 +14,7 @@ import {
   type TakeAnswer,
   TakeAnswerSchema,
 } from '@tade/web'
-import {
-  contextDocument,
-  readTaskFile,
-  TASK_BRANCH_PREFIX,
-  taskContextPath,
-} from '@tade/workbench/tasks'
+import { readTaskFile, TASK_BRANCH_PREFIX } from '@tade/workbench/tasks'
 import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
 import type { Machines } from '../machines.ts'
@@ -32,12 +24,15 @@ import {
   branchAt,
   carryOnSays,
   type HandedFrom,
+  type HandOverAsked,
   handedNote,
+  handOversOpen,
   handSays,
   projectOf,
   pushedTo,
 } from './hand-over.ts'
 import { ProjectMoves } from './project-moves.ts'
+import { beginsOf, contextOf, removeHere } from './take-parts.ts'
 
 // Work moved to another machine of the person's (REMOTE-TADE.md §9.2): queued
 // work started there instead of here — "Start on vps" on its card, or the
@@ -74,6 +69,23 @@ import { ProjectMoves } from './project-moves.ts'
 // sentence about it says so. Not done within `HAND_MS`, nothing changes and
 // that is said.
 //
+// **A hand-over in flight is written down**, because it is asked just before
+// a lid closes: `task_handing` when its agent is told — who to, its project
+// there, which branch, who asked — and again with `ended` when it is let go
+// of without moving, where `task_moved` ends the rest. The next window picks
+// up what is still open (`handOversOpen`, once, on its first beat), says so,
+// and looks on from there; the time it has is counted from that moment, and a
+// sleep with the window open is not counted either (`beat`'s `slept`),
+// because nothing could look and the agent could not work.
+//
+// **The Mac finishes it; the machine there never takes it unasked.** Whether
+// the work is all on origin is only answerable here — its worktree's
+// uncommitted changes, its commits in a shared checkout, whether its turn is
+// over — and only this machine can stop the agent here. A remote that began on
+// a branch it saw pushed could not know the push was the last, and the agent
+// here would wake and go on beside it on the same branch. With the lid closed
+// that agent is asleep too, so nothing waits that the remote could have done.
+//
 // **One door for both ways of asking.** The card's button is the person's
 // press; the orchestrator's tool is held to a line of theirs naming that
 // machine (`REMOTE_MOVE_REACH`), checked here against the journal and never in
@@ -105,8 +117,10 @@ interface Handing extends HandedFrom {
   project: string
   there: string
   by: By
-  /** When its agent was told, in this clock. */
+  /** When its agent was told: what a turn it has finished since is compared with. */
   since: number
+  /** When this window began counting `HAND_MS`, moved on by any sleep since. */
+  from: number
   lookedAt: number
   looking: boolean
   /** What is not done yet, as the last look said. */
@@ -127,6 +141,8 @@ export class Moves {
   private readonly moving = new Set<string>()
   /** Running tasks being handed over, by task. */
   private readonly handing = new Map<string, Handing>()
+  /** The hand-overs an earlier window left open, picked up from the journal once. */
+  private resuming: Promise<void> | null = null
   /** A whole project moved there, a press at a time (`project-moves.ts`). */
   readonly projects: ProjectMoves
 
@@ -222,7 +238,32 @@ export class Moves {
   /** A machine's menu, chosen: `hand:<task>`. False for anything that is not this one's. */
   chose(machine: string, id: string): boolean {
     if (!id.startsWith('hand:')) return false
-    const task = id.slice('hand:'.length)
+    this.hand(id.slice('hand:'.length), machine)
+    return true
+  }
+
+  /**
+   * What an agent's own menu offers, where a person looks before closing the
+   * lid: handed to each machine that holds its project's repository, off
+   * with why where it cannot go now (`hand`).
+   */
+  handItems(task: string): MenuItem[] {
+    const running = this.wire.opts.client.runs().some((run) => run.task === task)
+    const there = [...new Set(this.deps.sameAs(projectOf(task)).map((one) => one.machine))]
+    return there.map((machine) => {
+      const off = this.handing.has(task)
+        ? 'being handed over'
+        : !running
+          ? 'not running'
+          : this.deps.reach(machine)?.live !== true
+            ? 'not linked now'
+            : null
+      return { id: `hand:${machine}`, label: `Hand to ${machine}`, ...(off ? { off } : {}) }
+    })
+  }
+
+  /** A running task handed to a machine, as a press: what was set going flashed, or why not said. */
+  hand(task: string, machine: string): void {
     void this.handOver(task, machine, 'you').then(
       (said) => {
         this.wire.put(acknowledge(this.wire.state, said, this.wire.now()))
@@ -233,16 +274,96 @@ export class Moves {
         this.wire.draw()
       },
     )
-    return true
   }
 
-  /** The window's beat: every hand-over due a look, looked at; nothing waits on it. */
-  beat(): void {
+  /**
+   * The window's beat: every hand-over due a look, looked at; nothing waits on
+   * it. `slept` is how long the machine was away, on the beat that noticed.
+   */
+  beat(slept: number | null = null): void {
+    void this.resume()
     const now = this.wire.now()
     for (const handing of this.handing.values()) {
+      // Away is not waiting: nothing looked, and its agent did no work.
+      if (slept !== null) handing.from += slept
       if (handing.looking || now - handing.lookedAt < HAND_LOOK_MS) continue
       void this.look(handing, now)
     }
+  }
+
+  /** The hand-overs an earlier window asked and did not finish, picked up once. Never rejects. */
+  private resume(): Promise<void> {
+    if (this.resuming === null) this.resuming = this.pickUpAsked()
+    return this.resuming
+  }
+
+  private async pickUpAsked(): Promise<void> {
+    let asked: HandOverAsked[]
+    try {
+      const types = ['task_handing', 'task_moved', 'task_removed'] as const
+      asked = handOversOpen(await this.wire.opts.client.log.read({ types }))
+    } catch (err) {
+      this.deps.say(
+        `What was being handed to another machine could not be read from the journal (${why(err)}), so nothing an earlier window began is finished here.`,
+      )
+      return
+    }
+    for (const one of asked) {
+      const { task, machine } = one
+      // Asked again in this window since: that one stands.
+      if (this.handing.has(task)) continue
+      try {
+        this.machineNamed(machine)
+        const now = this.wire.now()
+        this.handing.set(task, {
+          task,
+          machine,
+          branch: one.branch,
+          ...(await this.whereItWorks(task)),
+          project: projectOf(task),
+          there: one.there,
+          by: one.by,
+          since: one.at,
+          from: now,
+          lookedAt: now - HAND_LOOK_MS,
+          looking: false,
+          waiting: 'it has not pushed yet',
+        })
+        this.deps.say(
+          `${task} was being handed to ${machine} when Tade last closed, so I am looking again: once its work is on origin, ${machine} begins on it and the agent here stops. If that has not happened within ${HAND_MS / 60_000} minutes, nothing changes and I say so.`,
+        )
+      } catch (err) {
+        await this.letGo(
+          task,
+          machine,
+          `${task} was being handed to ${machine} when Tade last closed, and it cannot go on: ${why(err)} Its agent goes on here.`,
+        )
+      }
+    }
+  }
+
+  /** A hand-over let go of without moving: forgotten, written down so no window picks it up, and said. */
+  private async letGo(task: string, machine: string, said: string): Promise<void> {
+    this.handing.delete(task)
+    let unwritten = ''
+    try {
+      await this.wire.opts.client.log.append({
+        type: 'task_handing',
+        task,
+        detail: { to: machine, ended: said },
+      })
+    } catch (err) {
+      unwritten = ` That could not be written down (${why(err)}), so the next window looks at it again.`
+    }
+    this.deps.say(`${said}${unwritten}`)
+  }
+
+  /** Where a task's agent works, as the journal said when it was made. Throws where it does not say. */
+  private async whereItWorks(task: string): Promise<Pick<HandedFrom, 'cwd' | 'workspace'>> {
+    const [made] = await this.wire.opts.client.log.read({ task, types: ['task_created'] })
+    const cwd = typeof made?.detail.worktree === 'string' ? made.detail.worktree : null
+    if (cwd === null) throw new Error(`The journal does not say where ${task} works.`)
+    return { cwd, workspace: made?.detail.workspace === 'checkout' ? 'checkout' : 'worktree' }
   }
 
   /**
@@ -252,6 +373,8 @@ export class Moves {
    */
   async handOver(task: string, machine: string, by: By): Promise<string> {
     this.machineNamed(machine)
+    // What an earlier window left open first, so one is never asked twice.
+    await this.resume()
     if (this.handing.has(task) || this.moving.has(task)) {
       throw new Error(`${task} is already being moved`)
     }
@@ -291,10 +414,7 @@ export class Moves {
     if (reach === null || !reach.live) {
       throw new Error(`${machine} is not linked now, so nothing was moved.`)
     }
-    const [made] = await client.log.read({ task, types: ['task_created'] })
-    const cwd = typeof made?.detail.worktree === 'string' ? made.detail.worktree : null
-    if (cwd === null) throw new Error(`The journal does not say where ${task} works.`)
-    const workspace = made?.detail.workspace === 'checkout' ? 'checkout' : 'worktree'
+    const { cwd, workspace } = await this.whereItWorks(task)
     const slug = task.slice(task.indexOf('/') + 1)
     const own = `${TASK_BRANCH_PREFIX}${slug}`
     const branch = workspace === 'worktree' ? ((await branchAt(cwd)) ?? own) : own
@@ -317,17 +437,31 @@ export class Moves {
     const from: HandedFrom = { task, machine, branch, cwd, workspace }
     await client.steerAgent(task, handSays(from))
     const now = this.wire.now()
+    // Written down, so Tade closing before the push lands is not the end of
+    // it — and before anything can look, so its end is always written after it.
+    let kept =
+      ' Closing the lid or Tade before then is fine: it is written down, and finished once Tade is open and awake here again.'
+    try {
+      await client.log.append({
+        type: 'task_handing',
+        task,
+        detail: { to: machine, there, branch, by },
+      })
+    } catch (err) {
+      kept = ` It could not be written down (${why(err)}), so if Tade closes before then, nothing finishes it.`
+    }
     this.handing.set(task, {
       ...from,
       project,
       there,
       by,
       since: now,
+      from: now,
       lookedAt: now,
       looking: false,
       waiting: 'it has not pushed yet',
     })
-    return `Told ${task} to commit and push to ${branch} for ${machine}. Once its work is on origin and its turn is over, ${machine} begins on it as ${there}/${slug} and the agent here stops — its conversation does not move. If that has not happened within ${HAND_MS / 60_000} minutes, nothing changes and I say so.`
+    return `Told ${task} to commit and push to ${branch} for ${machine}. Once its work is on origin and its turn is over, ${machine} begins on it as ${there}/${slug} and the agent here stops — its conversation does not move. If that has not happened within ${HAND_MS / 60_000} minutes, nothing changes and I say so.${kept}`
   }
 
   /** One look at a hand-over: given up, still waiting, or handed. */
@@ -336,9 +470,10 @@ export class Moves {
     handing.lookedAt = now
     const { task, machine } = handing
     try {
-      if (now - handing.since > HAND_MS) {
-        this.handing.delete(task)
-        this.deps.say(
+      if (now - handing.from > HAND_MS) {
+        await this.letGo(
+          task,
+          machine,
           `${task} was told to commit and push for ${machine} ${HAND_MS / 60_000} minutes ago, and ${handing.waiting}: nothing was started on ${machine}, and it goes on here.`,
         )
         return
@@ -371,26 +506,31 @@ export class Moves {
         return
       }
       this.handing.delete(task)
-      this.deps.say(await this.handed(handing, reach, pushed.head))
+      const handed = await this.handed(handing, reach, pushed.head)
+      if (handed.went) this.deps.say(handed.said)
+      else await this.letGo(task, machine, handed.said)
     } catch (err) {
-      this.handing.delete(task)
-      this.deps.say(`${task} was not handed to ${machine}: ${why(err)}. Its agent goes on here.`)
+      await this.letGo(
+        task,
+        machine,
+        `${task} was not handed to ${machine}: ${why(err)}. Its agent goes on here.`,
+      )
     } finally {
       handing.looking = false
     }
   }
 
-  /** Its work is on origin: made there, and the agent here stopped. What happened, in a sentence. */
+  /** Its work is on origin: made there, and the agent here stopped. Whether it went, and what happened in a sentence. */
   private async handed(
     handing: Handing,
     reach: { link: RemoteLink; remote: Remote },
     head: string,
-  ): Promise<string> {
+  ): Promise<{ went: boolean; said: string }> {
     const { task, machine, branch } = handing
     const client = this.wire.opts.client
     const file = await readTaskFile(this.wire.opts.home, task)
     if (file === null) throw new Error('its task file is gone')
-    const context = await this.contextOf(task, file)
+    const context = await contextOf(this.wire, task, file)
     const here = machineLabel()
     const note = handedNote({ machine: here, task, branch, head, told: file.start?.prompt ?? '' })
     const take: Take = {
@@ -411,7 +551,10 @@ export class Moves {
     }
     const answer = await this.ask(reach, machine, take)
     if (!answer.took) {
-      return `${machine} did not take ${task}: ${printable(answer.said)}. Its work is on origin at ${branch}, and its agent goes on here.`
+      return {
+        went: false,
+        said: `${machine} did not take ${task}: ${printable(answer.said)}. Its work is on origin at ${branch}, and its agent goes on here.`,
+      }
     }
     const as = printable(answer.task)
     const after: string[] = []
@@ -436,7 +579,10 @@ export class Moves {
         ? ` ${machine} cannot push to ${branch} with its own credentials yet, so its agent's work stays there until it can.`
         : ''
     const went = `${task} went to ${machine} as ${as}, on ${branch} at ${head.slice(0, 12)}: its agent here is stopped and parked, and its conversation stays here.`
-    return `${went}${pushes}${after.length > 0 ? ` But ${after.join(', and ')}.` : ''}`
+    return {
+      went: true,
+      said: `${went}${pushes}${after.length > 0 ? ` But ${after.join(', and ')}.` : ''}`,
+    }
   }
 
   /**
@@ -502,10 +648,12 @@ export class Moves {
       name: task.slice(task.indexOf('/') + 1),
       intent: file.intent_spoken,
       prompt: file.start.prompt,
-      ...(await this.contextOf(task, file)),
+      ...(await contextOf(this.wire, task, file)),
       ...(file.done ? { done: file.done } : {}),
       ...(file.start.at ? { at: file.start.at } : {}),
-      ...(file.start.from ? { begins: await this.beginsOf(task, project, file.start.from) } : {}),
+      ...(file.start.from
+        ? { begins: await beginsOf(this.wire, task, project, file.start.from) }
+        : {}),
       check: false,
     }
     if (take.intent.length > TAKE_WORDS_MOST || take.prompt.length > TAKE_WORDS_MOST) {
@@ -535,7 +683,7 @@ export class Moves {
       task,
       detail: { to: machine, as, how: 'queued', by },
     })
-    const removed = await this.removeHere(task, project)
+    const removed = await removeHere(this.wire, task, project)
     void this.wire.live?.refresh()
     const went = `${task} went to ${machine} as ${as}: ${printable(answer.said)}`
     return removed === null
@@ -591,59 +739,6 @@ export class Moves {
     )
   }
 
-  /** Its context file's text, with the links it ends in handed over as links. */
-  private async contextOf(
-    task: string,
-    file: TaskFile,
-  ): Promise<{ context: string; links: { title: string; url: string }[] }> {
-    const links = file.links.map(({ title, url }) => ({ title, url }))
-    let text = ''
-    try {
-      text = await readFile(taskContextPath(this.wire.opts.home, task), 'utf8')
-    } catch (err) {
-      // No context file is a task made with nothing to say beyond its words;
-      // one that is there and will not read is not that.
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-        throw new Error(`${task}'s context file could not be read: ${why(err)}`)
-      }
-    }
-    // What `contextDocument` wrote is the context and then its links: handed
-    // over as two, so the other machine writes the same file rather than the
-    // links twice. A file somebody edited since is handed over whole.
-    const block = contextDocument('', links)
-    const own = block !== '' && text.endsWith(block) ? text.slice(0, -block.length).trim() : text
-    if (own.length > TAKE_CONTEXT_MOST) {
-      throw new Error(
-        `${task}'s context file is ${Math.round(own.length / 1000)} kB, more than one request to another machine carries (${TAKE_CONTEXT_MOST / 1000} kB): shorten it first.`,
-      )
-    }
-    return { context: own, links: block !== '' && own !== text ? links : [] }
-  }
-
-  /** Work that begins on a review's branch begins there on the same branch, as origin has it. */
-  private async beginsOf(
-    task: string,
-    project: string,
-    from: string,
-  ): Promise<NonNullable<Take['begins']>> {
-    const branch = from.startsWith('origin/') ? from.slice('origin/'.length) : null
-    const root = this.rootOf(project)
-    if (branch === null || root === null) {
-      throw new Error(
-        `${task} begins on ${from}, which is not a branch on origin, so another machine could not begin there.`,
-      )
-    }
-    const head = await runProgram(
-      'git',
-      ['-C', root, 'rev-parse', '--verify', `${from}^{commit}`],
-      {
-        timeoutMs: 10_000,
-      },
-    )
-    if (head.code !== 0) throw new Error(`${task} begins on ${from}, which is not here to read.`)
-    return { branch, head: head.stdout.trim() }
-  }
-
   /** Picked up again here, as it was before it was set aside to move: what to add where it could not be. */
   private async pickUp(task: string, by: By): Promise<string> {
     try {
@@ -652,32 +747,6 @@ export class Moves {
     } catch (err) {
       return `. It is still parked here (${why(err)}): pick it up to start it here`
     }
-  }
-
-  /**
-   * Removed here once the other machine has it: null, or why it could not be.
-   * Where it is, as the journal said when it was made — it has not started, so
-   * nothing has moved it since.
-   */
-  private async removeHere(task: string, project: string): Promise<string | null> {
-    const client = this.wire.opts.client
-    const [made] = await client.log.read({ task, types: ['task_created'] })
-    const worktree = typeof made?.detail.worktree === 'string' ? made.detail.worktree : null
-    const branch = typeof made?.detail.branch === 'string' ? made.detail.branch : ''
-    const root = this.rootOf(project)
-    if (worktree === null || root === null) return 'the journal does not say where it is'
-    try {
-      const result = await client.removeTask({ root, worktree, branch, task, force: true })
-      return result.removed ? null : result.reason
-    } catch (err) {
-      return why(err)
-    }
-  }
-
-  private rootOf(project: string): string | null {
-    const projects = this.wire.opts.config.projects
-    const configured = Object.hasOwn(projects, project) ? projects[project] : undefined
-    return configured === undefined ? null : expandHome(configured.root)
   }
 
   /** A machine linked here, by its name, or why that name is not one. */

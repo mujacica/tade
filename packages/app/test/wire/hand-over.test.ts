@@ -71,66 +71,91 @@ async function handing(over: { workspace?: 'checkout' | 'worktree' } = {}) {
       running = false
     },
   }
-  const wrapped = new Proxy(client, {
-    get: (target, key, receiver) =>
-      key in agent ? agent[key as keyof typeof agent] : Reflect.get(target, key, receiver),
-  })
-  const wire = {
-    now: () => now,
-    live: { queued: [], refresh: async () => {} },
-    opts: {
-      home,
-      config: ConfigSchema.parse({ projects: { app: { root: repo.root } } }),
-      client: wrapped,
-    },
-    put: () => {},
-    draw: () => {},
-    note: () => {},
-  } as unknown as Wiring
-  const moves = new Moves(wire, {
-    reach: (name) => (name === 'vps' ? { link, remote, live: true } : null),
-    machines: () => ({ remotes: [{ name: 'vps' }] }) as unknown as Machines,
-    sameAs: (project) => (project === 'app' ? [{ machine: 'vps', project: 'tade' }] : []),
-    say: (one) => said.push(one),
-    told: (saved, error) => said.push(error ?? saved ?? ''),
-  })
-  /**
-   * The window's beat, waited on until its look has finished: still there and
-   * not looking, or let go of — which every way out says something on.
-   */
-  const beat = async () => {
-    const before = said.length
-    now += 6_000
-    moves.beat()
-    const held = (moves as unknown as { handing: Map<string, { looking: boolean }> }).handing
-    for (let i = 0; i < 1_000; i++) {
-      const one = held.get('app/refunds')
-      if (one ? !one.looking : said.length > before) break
-      await new Promise((done) => setTimeout(done, 10))
-    }
+  let live = true
+  /** A window's moves over a workbench: the first, or one opened again on the same home. */
+  const windowOver = (over: Workbench): Moves => {
+    const wrapped = new Proxy(over, {
+      get: (target, key, receiver) =>
+        key in agent ? agent[key as keyof typeof agent] : Reflect.get(target, key, receiver),
+    })
+    const wire = {
+      now: () => now,
+      live: { queued: [], refresh: async () => {} },
+      opts: {
+        home,
+        config: ConfigSchema.parse({ projects: { app: { root: repo.root } } }),
+        client: wrapped,
+      },
+      put: () => {},
+      draw: () => {},
+      note: () => {},
+    } as unknown as Wiring
+    return new Moves(wire, {
+      reach: (name) => (name === 'vps' ? { link, remote, live } : null),
+      machines: () => ({ remotes: [{ name: 'vps' }] }) as unknown as Machines,
+      sameAs: (project) => (project === 'app' ? [{ machine: 'vps', project: 'tade' }] : []),
+      say: (one) => said.push(one),
+      told: (saved, error) => said.push(error ?? saved ?? ''),
+    })
   }
-  const finishTurn = async () => {
-    await client.log.append({ type: 'turn_done', task: 'app/refunds', detail: {} })
-  }
-  return {
+  const one = {
     repo,
     home,
     client,
     far,
-    moves,
+    moves: windowOver(client),
     made,
     told,
     stopped,
     said,
-    beat,
-    finishTurn,
+    /**
+     * The window's beat, waited on until its look has finished: still there
+     * and not looking, or let go of — which every way out says something on.
+     * `slept` is the machine having been away that long before it.
+     */
+    beat: async (slept: number | null = null) => {
+      const before = said.length
+      const moves = one.moves as unknown as {
+        handing: Map<string, { looking: boolean }>
+        resume(): Promise<void>
+      }
+      const had = moves.handing.has('app/refunds')
+      now += 6_000 + (slept ?? 0)
+      one.moves.beat(slept)
+      // What an earlier window left open is picked up first, on this beat.
+      await moves.resume()
+      for (let i = 0; i < 1_000; i++) {
+        const handing = moves.handing.get('app/refunds')
+        if (handing ? !handing.looking : !had || said.length > before) break
+        await new Promise((done) => setTimeout(done, 10))
+      }
+    },
+    finishTurn: async () => {
+      await one.client.log.append({ type: 'turn_done', task: 'app/refunds', detail: {} })
+    },
     setTurn: (to: 'running' | 'idle') => {
       turn = to
     },
     later: (ms: number) => {
       now += ms
     },
+    setLive: (to: boolean) => {
+      live = to
+    },
+    /**
+     * Tade closed and opened again on the same home: the journal is all that
+     * is kept, and the agent goes on as it was.
+     */
+    reopen: async () => {
+      await one.client.close()
+      const again = await Workbench.open({ home })
+      const kept = opened.find((held) => held.client === one.client)
+      if (kept) kept.client = again
+      one.client = again
+      one.moves = windowOver(again)
+    },
   }
+  return one
 }
 
 function commitIn(dir: string, name: string): string {
@@ -158,9 +183,19 @@ describe('a running task, handed to another machine', () => {
       { id: 'hand:app/refunds', label: 'Hand app/refunds to vps', divider: true },
     ])
     expect(one.moves.menuItems('other')).toEqual([])
+    // And on its own menu, where a person looks before closing the lid.
+    expect(one.moves.handItems('app/refunds')).toEqual([{ id: 'hand:vps', label: 'Hand to vps' }])
     const said = await one.moves.handOver('app/refunds', 'vps', 'you')
     expect(said).toContain('its conversation does not move')
+    expect(said).toContain('Closing the lid or Tade before then is fine')
     expect(one.moves.menuItems('vps')[0]?.off).toBe('being handed over')
+    expect(one.moves.handItems('app/refunds')[0]?.off).toBe('being handed over')
+    // Written down, so a window opened after this one closes can finish it.
+    const [asked] = await one.client.log.read({ types: ['task_handing'] })
+    expect(asked).toMatchObject({
+      task: 'app/refunds',
+      detail: { to: 'vps', there: 'tade', branch: 'tade/refunds', by: 'you' },
+    })
     // Asked there first, making nothing.
     expect(one.far.taken.map((take) => take.take.check)).toEqual([true])
     expect(one.told).toHaveLength(1)
@@ -213,6 +248,55 @@ describe('a running task, handed to another machine', () => {
       by: 'you',
     })
     expect(one.said.at(-1)).toContain('its conversation stays here')
+    expect(one.moves.handItems('app/refunds')[0]?.off).toBe('not running')
+  }, 60_000)
+
+  it('is finished by the next window when Tade closed before the push landed', async () => {
+    const one = await handing()
+    await one.moves.handOver('app/refunds', 'vps', 'you')
+    await one.reopen()
+    // While nothing looked, the agent did as it was told.
+    const head = commitIn(one.made.worktree, 'fix.txt')
+    runGit(one.made.worktree, 'push', '-q', 'origin', 'HEAD:refs/heads/tade/refunds')
+    await one.finishTurn()
+    // The first beat picks it up from the journal and says so.
+    await one.beat()
+    expect(one.said.at(-1)).toContain(
+      'app/refunds was being handed to vps when Tade last closed, so I am looking again',
+    )
+    expect(one.moves.menuItems('vps')[0]?.off).toBe('being handed over')
+    await one.beat()
+    for (let i = 0; i < 400 && one.stopped.length === 0; i++) {
+      await new Promise((done) => setTimeout(done, 10))
+    }
+    expect(one.far.taken.map((take) => take.take.check)).toEqual([true, false])
+    expect(one.far.taken[1]?.take.begins).toEqual({ branch: 'tade/refunds', head })
+    expect(one.stopped).toEqual(['app/refunds'])
+    const [moved] = await one.client.log.read({ types: ['task_moved'] })
+    expect(moved?.detail).toMatchObject({ to: 'vps', how: 'running', head, by: 'you' })
+    // Finished, it is not picked up again by the window after.
+    await one.reopen()
+    await one.beat()
+    expect(one.said.at(-1)).toContain('its conversation stays here')
+    expect(one.moves.handItems('app/refunds')[0]?.off).toBe('not running')
+  }, 60_000)
+
+  it('does not count a sleep with the window open against its time', async () => {
+    const one = await handing()
+    await one.moves.handOver('app/refunds', 'vps', 'you')
+    // The lid closed for longer than it has, and opened again.
+    await one.beat(HAND_MS * 4)
+    expect(one.said).toEqual([])
+    expect(one.moves.menuItems('vps')[0]?.off).toBe('being handed over')
+    commitIn(one.made.worktree, 'fix.txt')
+    runGit(one.made.worktree, 'push', '-q', 'origin', 'HEAD:refs/heads/tade/refunds')
+    await one.finishTurn()
+    await one.beat()
+    for (let i = 0; i < 400 && one.said.length === 0; i++) {
+      await new Promise((done) => setTimeout(done, 10))
+    }
+    expect(one.stopped).toEqual(['app/refunds'])
+    expect(one.said.at(-1)).toContain('went to vps as tade/refunds')
   }, 60_000)
 
   it('waits while its worktree has work it has not committed, though origin has the branch', async () => {
@@ -256,6 +340,29 @@ describe('a running task, handed to another machine', () => {
     expect(one.far.taken).toHaveLength(1)
     expect(one.stopped).toEqual([])
     expect((await readTaskFile(one.home, 'app/refunds'))?.parked).toBe(false)
+    // Let go of is written down, so the next window does not take it up again.
+    const lines = await one.client.log.read({ types: ['task_handing'] })
+    expect(lines.at(-1)?.detail).toEqual({ to: 'vps', ended: one.said.at(-1) })
+    const before = one.said.length
+    await one.reopen()
+    await one.beat()
+    expect(one.said).toHaveLength(before)
+    expect(one.moves.handItems('app/refunds')[0]?.off).toBeUndefined()
+  }, 60_000)
+
+  it('is counted from when a window opened again picked it up, and let go of there with why', async () => {
+    const one = await handing()
+    await one.moves.handOver('app/refunds', 'vps', 'you')
+    // Closed for longer than it has: the window that opens has its own time.
+    one.later(HAND_MS * 3)
+    await one.reopen()
+    await one.beat()
+    expect(one.said.at(-1)).toContain('when Tade last closed, so I am looking again')
+    one.later(HAND_MS)
+    await one.beat()
+    expect(one.said.at(-1)).toContain('nothing was started on vps, and it goes on here')
+    expect(one.far.taken).toHaveLength(1)
+    expect(one.stopped).toEqual([])
   }, 60_000)
 
   it('tells the agent nothing where the machine there would not take it', async () => {

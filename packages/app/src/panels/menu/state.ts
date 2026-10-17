@@ -494,12 +494,14 @@ export function agentOffers(harness: string, capabilities: WorkerCapabilities): 
 /**
  * A task's menu, from what is true of it now. Nothing is hidden for being
  * unavailable — a menu that changes shape is one you re-read every time — so
- * what its harness cannot do is there, off, saying why.
+ * what its harness cannot do is there, off, saying why. `there` is what
+ * handing it to another machine offers, set apart above Park.
  */
 export function menuItems(
   task: { lane: string | null; state: string; finished?: { by: string } | null },
   changed: number,
   offers?: AgentOffers | null,
+  there: readonly MenuItem[] = [],
 ): MenuItem[] {
   const running = task.lane !== null
   const model = offers?.model ?? { shown: true, support: 'live', note: null }
@@ -545,6 +547,7 @@ export function menuItems(
     },
     { id: 'editor', label: 'Open in editor' },
     { id: 'copy-branch', label: 'Copy branch name' },
+    ...there.map((item, at) => (at === 0 ? { ...item, divider: true } : item)),
     {
       id: 'park',
       label: task.state === 'parked' ? 'Pick up again' : 'Park',

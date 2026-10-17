@@ -147,6 +147,13 @@ export function summariseWork(
       case 'task_taken':
         summary.moved = `It came from ${String(event.detail.from ?? 'another machine')}, where it was ${String(event.detail.was ?? 'a task of its own')}.`
         break
+      case 'task_handing':
+        // Let go of, it says why in a whole sentence of its own.
+        summary.moved =
+          typeof event.detail.ended === 'string'
+            ? event.detail.ended
+            : `It is being handed to ${String(event.detail.to ?? 'another machine')}: its agent was told to commit and push ${String(event.detail.branch ?? 'its branch')}.`
+        break
       default:
         break
     }

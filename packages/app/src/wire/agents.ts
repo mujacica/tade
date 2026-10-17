@@ -11,7 +11,7 @@ import { lostChats, reopenChat, type Workbench } from '@tade/workbench'
 import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
 import { doneTasks, focusTask, nextWaiting, notice, shownName, whichProject } from '../model.ts'
-import { type AgentOffers, menuItems, queueMenuItems } from '../panels/menu/state.ts'
+import { type AgentOffers, type MenuItem, menuItems, queueMenuItems } from '../panels/menu/state.ts'
 import {
   type CloseDonePanel,
   type ConfirmRemovePanel,
@@ -74,13 +74,27 @@ export interface AgentsDeps {
   changeQueue(task: string, change: string): Promise<void>
   /** Put text on the clipboard: true when it got there. */
   copyToClipboard(text: string): Promise<boolean>
-  /**
-   * What an agent runs on is its own subject, and its menu offers three of
-   * those: what its harness lets a person ask of it, and the two pickers.
-   */
+  /** What an agent runs on is its own subject (`wire/routes.ts`), and its menu offers three of those. */
+  routes(): AgentRoutes
+  /** Handing it to another machine, which the remotes do (`moves.ts`); null where the window moves nothing. */
+  handsOver(): HandsOver | null
+}
+
+/** What its harness lets a person ask of an agent, and the two pickers. */
+export interface AgentRoutes {
   offersFor(task: string): AgentOffers | null
   openModels(task: string): Promise<void>
   openAccount(task: string): Promise<void>
+}
+
+/**
+ * An agent handed to another machine from its own menu, which is where a
+ * person looks before closing the lid: an item per machine that holds its
+ * project's repository, and the press.
+ */
+export interface HandsOver {
+  handItems(task: string): MenuItem[]
+  hand(task: string, machine: string): void
 }
 
 export class Agents implements Subject {
@@ -234,7 +248,8 @@ export class Agents implements Subject {
             ? menuItems(
                 pane,
                 this.wire.live?.changes(subject.task).length ?? 0,
-                this.deps.offersFor(subject.task) ?? undefined,
+                this.deps.routes().offersFor(subject.task) ?? undefined,
+                this.deps.handsOver()?.handItems(subject.task),
               )
             : []
         },
@@ -280,6 +295,10 @@ export class Agents implements Subject {
       await this.deps.changeQueue(task, item.slice('queue-'.length))
       return
     }
+    if (item.startsWith('hand:')) {
+      this.deps.handsOver()?.hand(task, item.slice('hand:'.length))
+      return
+    }
     switch (item) {
       case 'open': {
         this.wire.put(focusTask(this.wire.state, task))
@@ -315,10 +334,10 @@ export class Agents implements Subject {
         break
       }
       case 'model':
-        await this.deps.openModels(task)
+        await this.deps.routes().openModels(task)
         return
       case 'account':
-        await this.deps.openAccount(task)
+        await this.deps.routes().openAccount(task)
         return
       case 'copy-branch':
         if (facts) {

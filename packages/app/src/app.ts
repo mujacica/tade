@@ -376,9 +376,8 @@ export class App {
       openPlace: (target) => this.files.openPlace(target),
       changeQueue: (task, change) => this.queue.change(task, change),
       copyToClipboard: (text) => copyText(text, (data) => this.terminal.write(data)),
-      offersFor: (task) => this.routes.offersFor(task),
-      openModels: (task) => this.routes.openModels(task),
-      openAccount: (task) => this.routes.openAccount(task),
+      routes: () => this.routes,
+      handsOver: () => this.remotes.moved(),
     })
     this.routes = new Routes(this.wire, {
       size: () => this.room(),

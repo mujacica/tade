@@ -305,6 +305,11 @@ export class Remotes implements Subject {
     return this.about
   }
 
+  /** What moves work to another machine, for an agent's own menu; or null. */
+  moved(): Moves | null {
+    return this.moves
+  }
+
   /** Each machine's branches as mirrored here, or null where the window keeps no mirrors. */
   mirrored(): Mirrors | null {
     return this.mirrors
@@ -531,7 +536,7 @@ export class Remotes implements Subject {
     void this.mirrors?.beat([...this.holder.keys()])
     this.about?.beat([...this.holder.keys()])
     this.agents?.beat()
-    this.moves?.beat()
+    this.moves?.beat(this.waking.slept)
     void this.reread()
   }
 

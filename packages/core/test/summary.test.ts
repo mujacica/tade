@@ -44,6 +44,17 @@ describe('summariseWork', () => {
       NOW,
     )
     expect(came.moved).toBe('It came from mac, where it was checkout/refunds.')
+    const asked = event({
+      type: 'task_handing',
+      detail: { to: 'vps', there: 'tade', branch: 'tade/refunds', by: 'you' },
+    })
+    expect(summariseWork([asked], 'checkout/refunds', NOW).moved).toBe(
+      'It is being handed to vps: its agent was told to commit and push tade/refunds.',
+    )
+    const gaveUp =
+      'checkout/refunds was told to commit and push for vps 15 minutes ago, and it has not pushed yet: nothing was started on vps, and it goes on here.'
+    const ended = event({ type: 'task_handing', detail: { to: 'vps', ended: gaveUp } })
+    expect(summariseWork([asked, ended], 'checkout/refunds', NOW).moved).toBe(gaveUp)
   })
 
   it('says plainly when it has never heard of it', () => {

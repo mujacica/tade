@@ -1,11 +1,12 @@
-import { runProgram } from '@tade/core'
+import { runProgram, type TadeEvent } from '@tade/core'
 import { CLONE_URL } from '@tade/web'
 
 // A running task handed to another machine of the person's (REMOTE-TADE.md
 // §9.2), the parts of it that are git and words: what its agent is told, how
-// this window tells that the work is on origin, and what the agent on the
-// other machine is told it is carrying on. The flow — asking first, waiting,
-// handing over, stopping — is `moves.ts`'s.
+// this window tells that the work is on origin, what the agent on the other
+// machine is told it is carrying on, and which hand-overs the journal says are
+// still in flight (`handOversOpen`). The flow — asking first, waiting, handing
+// over, stopping, picking one up again — is `moves.ts`'s.
 //
 // **The agent commits and pushes; Tade looks.** What is the agent's to commit
 // is the agent's to say — in a shared checkout most of all, where uncommitted
@@ -81,6 +82,40 @@ export function handedNote(from: {
           ...told.split('\n').map((line) => `> ${line}`),
         ]),
   ].join('\n')
+}
+
+/** A hand-over the journal says was asked and has not ended: what the next window picks up. */
+export interface HandOverAsked {
+  task: string
+  machine: string
+  /** Its project there. */
+  there: string
+  branch: string
+  by: 'you' | 'orchestrator'
+  /** When its agent was told, as the journal wrote it down. */
+  at: number
+}
+
+/**
+ * The hand-overs still in flight, as the journal tells it: each `task_handing`
+ * that asked and has not been ended since — by a let-go line of its own, by
+ * `task_moved`, or by the task being removed. Lines in the order written; one
+ * in a shape this does not read opens nothing.
+ */
+export function handOversOpen(lines: readonly TadeEvent[]): HandOverAsked[] {
+  const open = new Map<string, HandOverAsked>()
+  for (const line of lines) {
+    const task = line.task
+    if (task === null) continue
+    open.delete(task)
+    if (line.type !== 'task_handing' || 'ended' in line.detail) continue
+    const { to, there, branch, by } = line.detail
+    const at = Date.parse(line.ts)
+    if (typeof to !== 'string' || typeof there !== 'string' || typeof branch !== 'string') continue
+    if ((by !== 'you' && by !== 'orchestrator') || Number.isNaN(at)) continue
+    open.set(task, { task, machine: to, there, branch, by, at })
+  }
+  return [...open.values()]
 }
 
 async function git(cwd: string, args: readonly string[]) {

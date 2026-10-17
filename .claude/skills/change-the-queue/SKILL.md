@@ -490,7 +490,12 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   on its beat until origin has it and a turn has ended since — never on a guess that it is done —
   then made there with `start.from` on that branch (in a worktree there, whatever that project's
   workspace, because `start.from` means nothing in a shared checkout) and stopped and parked here,
-  with `task_moved` here and `task_taken` there. **No wait crosses machines**: work that waits on
+  with `task_moved` here and `task_taken` there. **A hand-over in flight is a journal line**
+  (`task_handing`, asked and then `ended` or `task_moved`), because it is asked just before a lid
+  closes: the next window picks up what is open (`handOversOpen`) and counts its time from then, a
+  sleep with the window open is not counted, and every let-go is written so none is taken up twice.
+  The Mac finishes it, never the remote unasked — only this machine can tell the push was the last
+  and stop the agent here. **No wait crosses machines**: work that waits on
   anything, or that anything waits on, stays, and the refusal says how to change that. The machine
   there fetches with **its own credentials** and a dry-run push says whether it could push back;
   the link never forwards an agent (`NO_AGENT`).

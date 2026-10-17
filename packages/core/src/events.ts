@@ -67,6 +67,15 @@ export const EventType = z.enum([
    */
   'task_taken',
   /**
+   * A running task is being handed to another machine (`app/src/wire/moves.ts`),
+   * written on the task here, because nothing else remembers a hand-over in
+   * flight once the window that asked is gone: asked — `to` (the machine),
+   * `there` (its project there), `branch` and `by` — once its agent is told to
+   * commit and push; or let go of without moving, with `ended` saying why.
+   * `task_moved` is the other way one ends.
+   */
+  'task_handing',
+  /**
    * A change that spans repositories was named: its slug and the sentence
    * that asked for it, verbatim, written once when the plan is made. The
    * effort itself is the fold of the task files that name it — this is here
@@ -575,6 +584,7 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   task_removed: 'notable',
   task_moved: 'notable',
   task_taken: 'notable',
+  task_handing: 'notable',
   effort_named: 'notable',
   template_used: 'notable',
   race_won: 'notable',
@@ -755,25 +765,7 @@ export const TadeEvent = z.object({
 })
 export type TadeEvent = z.infer<typeof TadeEvent>
 
-interface EventBase {
-  urgency?: Urgency
-  task?: string | null
-  lane?: string | null
-  run?: string | null
-}
-
-/**
- * What callers pass to `append`: the log fills in seq, ts and the default urgency.
- *
- * **A warning's words are its `message`**, and the type holds every writer to
- * it, because nothing else would: telemetry sends `message` as the issue's
- * title and `attention` reads it, and the away view once wrote its warnings
- * under `warning`, which both read past — every one reached Sentry as
- * `tade: something`, one issue for all of them, saying none of them.
- */
-export type EventInput =
-  | (EventBase & { type: 'warning'; detail: { message: string } & Record<string, unknown> })
-  | (EventBase & { type: Exclude<EventType, 'warning'>; detail?: Record<string, unknown> })
+export type { EventInput } from './event-input.ts'
 
 export interface EventFilter {
   /** Only events with `seq` greater than this. */
