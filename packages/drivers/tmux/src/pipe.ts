@@ -33,6 +33,20 @@ export function written(pipe: string): boolean {
   return file !== undefined && (file.mode & 0o222) === 0
 }
 
+// And how a value gets into tmux whole, through tmux and the shell it hands
+// some of them to.
+
+/**
+ * An argument tmux reads as itself. tmux ends a command at any argument that
+ * ends in `;`, not only at a `;` on its own, so a lane's directory or a value
+ * of its environment that ended in one split the call opening it, and what
+ * followed was read as a command: `unknown command`. An argument ending in
+ * `\;` is tmux's way of saying a `;` that ends nothing.
+ */
+export function literal(arg: string): string {
+  return arg.endsWith(';') ? `${arg.slice(0, -1)}\\;` : arg
+}
+
 export function quote(argv: string[]): string {
   return argv.map(shellArg).join(' ')
 }

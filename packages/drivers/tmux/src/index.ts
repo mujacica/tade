@@ -30,8 +30,8 @@ import {
 } from '@tade/drivers-core'
 import { exitStatus, lookAgain, serverPid, signalNumber } from './ended.ts'
 import { drawn, PANE_FORMAT, type Pane, pointingOf, readPane, scrollingOf } from './pane.ts'
-import { piping, quote, written } from './pipe.ts'
-import { startServer } from './scope.ts'
+import { literal, piping, quote, written } from './pipe.ts'
+import { makeSession, sessionExists } from './session.ts'
 
 // tmux is invoked with an argument array and no shell. The one place a shell
 // is involved is inside tmux, which runs a lane's command and the pipe-pane
@@ -158,6 +158,7 @@ export class TmuxDriver implements WorkspaceDriver {
   private readonly dir: string
   private timer: NodeJS.Timeout | null = null
   private started = false
+  private making: Promise<void> | null = null
   private polling = false
   private n = 0
 
@@ -227,11 +228,13 @@ export class TmuxDriver implements WorkspaceDriver {
         '#{window_id}',
         '-t',
         `${this.opts.session}:`,
+        // What the lane was given goes in `literal`, as a `;` ending it ends the
+        // command; every other word here is Tade's own, or shell-quoted.
         '-c',
-        spec.cwd,
+        literal(spec.cwd),
         '-n',
         name,
-        ...Object.entries(spec.env ?? {}).flatMap(([k, v]) => ['-e', `${k}=${v}`]),
+        ...Object.entries(spec.env ?? {}).flatMap(([k, v]) => ['-e', literal(`${k}=${v}`)]),
         quote([command, ...spec.args]),
         ';',
         ...piping(opening, pipe),
@@ -279,7 +282,9 @@ export class TmuxDriver implements WorkspaceDriver {
     // The name is for whoever is looking at the tmux server by hand — `adopt`
     // reads the spec below, which carries the same id and everything else a
     // relaunch needs.
-    await this.tmux(['set-option', '-w', '-t', window, LANE_OPTION, spec.id]).catch(() => {})
+    await this.tmux(['set-option', '-w', '-t', window, LANE_OPTION, literal(spec.id)]).catch(
+      () => {},
+    )
     await this.tmux([
       'set-option',
       '-w',
@@ -439,7 +444,7 @@ export class TmuxDriver implements WorkspaceDriver {
 
   /** Pick up lanes already running, after a restart or from another window. */
   async adopt(hint: AdoptHint): Promise<LaneHandle[]> {
-    if (!(await this.sessionExists())) return []
+    if (!(await sessionExists((args) => this.tmux(args), this.opts.session))) return []
     this.start()
     const rows = await this.tmux([
       'list-panes',
@@ -577,32 +582,15 @@ export class TmuxDriver implements WorkspaceDriver {
     await this.tmux(['send-keys', '-t', lane.window, '-H', ...hex])
   }
 
-  private async ensureSession(cols: number, rows: number): Promise<void> {
-    if (this.started) return
-    if (!(await this.sessionExists())) {
-      await startServer(this.opts, (args) => this.tmux(args), [
-        'new-session',
-        '-d',
-        '-s',
-        this.opts.session,
-        '-n',
-        'tade',
-        '-x',
-        String(cols),
-        '-y',
-        String(rows),
-        // A window that stays, so the session outlives any one lane.
-        'sh -c "while :; do sleep 3600; done"',
-      ])
-    }
-    // Our own server, so these are safe to set for everything on it.
-    await this.tmux(['set-option', '-g', 'history-limit', String(this.opts.scrollback)]).catch(
-      () => {},
-    )
-    // A finished command leaves a dead pane holding its exit status, which is
-    // the only way tmux will tell us what it was.
-    await this.tmux(['set-option', '-wg', 'remain-on-exit', 'on']).catch(() => {})
-    this.start()
+  /** Made once, and every lane opened while it is being made waits for it (`session.ts`). */
+  private ensureSession(cols: number, rows: number): Promise<void> {
+    if (this.started) return Promise.resolve()
+    this.making ??= makeSession(this.opts, (args) => this.tmux(args), cols, rows)
+      .then(() => this.start())
+      .finally(() => {
+        this.making = null
+      })
+    return this.making
   }
 
   private start(): void {
@@ -610,13 +598,6 @@ export class TmuxDriver implements WorkspaceDriver {
     if (this.timer) return
     this.timer = setInterval(() => void this.poll(), this.opts.pollMs)
     this.timer.unref?.()
-  }
-
-  private async sessionExists(): Promise<boolean> {
-    return this.tmux(['has-session', '-t', this.opts.session]).then(
-      () => true,
-      () => false,
-    )
   }
 
   private async panePid(window: string): Promise<number | null> {

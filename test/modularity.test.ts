@@ -66,8 +66,9 @@ const BUDGET: Record<string, number> = {
   // What tmux says about a pane — `readPane`, `scrollingOf`, `pointingOf`,
   // `drawn` — is now `pane.ts`: the part of driving tmux that asks nothing of
   // the world, and the part every question about a pane goes through. How a
-  // pane ended is `ended.ts`, and how its output gets out of tmux `pipe.ts`.
-  'packages/drivers/tmux/src/index.ts': 830,
+  // pane ended is `ended.ts`, how its output gets out of tmux `pipe.ts`, and
+  // the session it opens into, made once, `session.ts`.
+  'packages/drivers/tmux/src/index.ts': 811,
   'packages/extensions/core/src/host.ts': 1_450,
   'packages/extensions/core/test/host.test.ts': 1_000,
   // The three tools that close a finding have left, to `verdicts.ts` beside

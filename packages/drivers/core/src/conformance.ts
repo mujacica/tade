@@ -270,10 +270,10 @@ export function testWorkspaceDriver(
     // open has nothing to replay, because nothing was caught. tmux attached
     // its pipe that way, and every lane like this one handed over no bytes.
     // Eight at once, because it was load that lost them from slower programs,
-    // and in before the exit, because whoever is listening stops there.
+    // into a workspace nothing has opened a lane in yet, as a machine starting
+    // its agents does, and in before the exit, because whoever is listening
+    // stops there.
     it('hands over what a command printed at once, before saying it exited', async () => {
-      // Into a workspace something is already running in, as Tade's is.
-      await driver.open(spec())
       const quick = Array.from({ length: 8 }, (_, i) =>
         spec({ command: '/bin/sh', args: ['-c', `printf said-${i}-at-once`] }),
       )
