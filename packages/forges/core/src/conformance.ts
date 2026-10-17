@@ -81,6 +81,7 @@ export function testForge(
         'tickets',
         'patches',
         'notes',
+        'apps',
       ] as const) {
         expect(typeof can[key]).toBe('boolean')
       }

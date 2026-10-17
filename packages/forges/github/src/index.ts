@@ -1,6 +1,8 @@
 import type { CheckRun } from '@tade/checks-core'
 import {
   type Access,
+  type AppInstallation,
+  credentialCache,
   type Forge,
   type ForgeCapabilities,
   ForgeError,
@@ -16,6 +18,7 @@ import {
   type ReviewQuery,
   type ReviewRef,
 } from '@tade/forges-core'
+import { appFormAt, appToken, madeFrom } from './app.ts'
 import { asCheckRun, asDetail, asReview } from './map.ts'
 import { DRAFT, NODE_ID, OF_BRANCH, ONE, READY, REPLY, SEARCH } from './queries.ts'
 import { githubTickets } from './tickets.ts'
@@ -33,6 +36,14 @@ import { githubTickets } from './tickets.ts'
 //
 // Everything after the credential is a plain request, so a poll of the lists
 // is two GraphQL searches rather than two process spawns per review.
+//
+// **And a GitHub App, where the person made one** (`app.ts`,
+// `ForgeOptions.app`): a read about a repository the App is installed on is
+// asked with that installation's own token — an hour long, its own budget, and
+// only what the App was allowed — and everything else as before. Which reads
+// is said at each call (`about`), never worked out from a URL: whether this
+// sign-in can see a repository (`access`) is a question about the person and
+// is asked as the person.
 
 const DEFAULT_TOKEN_VARS = ['GITHUB_TOKEN', 'GH_TOKEN']
 
@@ -67,6 +78,9 @@ export function makeGithubForge(options: ForgeOptions): Forge {
     // An SSH host alias — `git@github.com-ammujacic:…` — is how somebody with
     // two GitHub accounts keeps them apart, and `gh` holds a sign-in for each.
     accounts: true,
+    // Made from a manifest, installed where the person picks, and asked as
+    // for reading those repositories (`app.ts`).
+    apps: true,
     // One search for what is ours, one for what waits on us.
     costPerPoll: 2,
   }
@@ -132,6 +146,97 @@ export function makeGithubForge(options: ForgeOptions): Forge {
     return token
   }
 
+  /** The app this forge may read as, where it was made on this host. */
+  const app = options.app && options.app.host.toLowerCase() === host ? options.app : null
+  /**
+   * Where what the App found is kept: the registry's cache where there is one,
+   * and otherwise one of this forge's own, which lives for its one look. The
+   * same cache and the same rules as a sign-in's (`credentials.ts`).
+   */
+  const kept = options.credentials ?? credentialCache({ now })
+
+  /**
+   * The installation's token for reading `repo`, or null where the App is not
+   * installed on it — an answer, kept like one, so a repository nobody gave
+   * the App costs one request per ten minutes rather than one per look. What
+   * is wrong with the App itself — a key that is not one, an App deleted — is
+   * a throw that names it, never a quiet fall back: somebody connected it and
+   * needs to hear that it stopped working.
+   */
+  async function installed(repo: string): Promise<{ token: string; signIn: string } | null> {
+    if (app === null) return null
+    const of = `app ${app.id}@${host}`
+    const installation = await kept.get(`${of} on ${repo.toLowerCase()}`, async () => {
+      const answer = await asTheApp(rest(`/repos/${repo}/installation`))
+      if (answer.status === 404) return ''
+      const id = (answer.body as { id?: unknown } | null)?.id
+      if (typeof id !== 'number' && typeof id !== 'string') {
+        throw new ForgeError(
+          'server',
+          `${host} did not say where GitHub App ${app.id} is installed`,
+        )
+      }
+      return String(id)
+    })
+    if (installation === '') return null
+    const signIn = `${of} installation ${installation}`
+    return { token: await kept.get(signIn, () => installationToken(installation)), signIn }
+  }
+
+  /** A fresh token for one installation, signed for by the App. An hour long. */
+  async function installationToken(installation: string): Promise<string> {
+    const answer = await asTheApp(rest(`/app/installations/${installation}/access_tokens`), 'POST')
+    const token = (answer.body as { token?: unknown } | null)?.token
+    if (answer.status >= 300 || typeof token !== 'string' || token === '') {
+      throw new ForgeError(
+        answer.status === 404 ? 'missing' : 'auth',
+        `${host} would not give GitHub App ${app?.id ?? ''} a token for installation ${installation}`,
+        { said: said(answer.body) || undefined },
+      )
+    }
+    return token
+  }
+
+  /**
+   * One request signed as the App itself: which installation is where, and an
+   * installation's token. Its own answer rather than `request`'s, because the
+   * App's word is the only credential these take and a 404 here is an answer.
+   */
+  async function asTheApp(url: string, method = 'GET'): Promise<{ status: number; body: unknown }> {
+    if (app === null) throw new ForgeError('auth', `no GitHub App is connected for ${host}`)
+    let answer: Response
+    try {
+      answer = await doFetch(url, {
+        method,
+        headers: {
+          authorization: `Bearer ${appToken(app, now())}`,
+          accept: 'application/vnd.github+json',
+          'user-agent': 'tade',
+        },
+      })
+    } catch (err) {
+      if (err instanceof ForgeError) throw err
+      throw new ForgeError('network', `could not reach ${host}`, {
+        said: err instanceof Error ? err.message : String(err),
+      })
+    }
+    const text = await answer.text()
+    const body = text ? safeJson(text) : null
+    if (answer.status === 401) {
+      throw new ForgeError(
+        'auth',
+        `${host} did not accept GitHub App ${app.id}: it may have been deleted, or its key replaced — connect GitHub again`,
+        { said: said(body) || undefined },
+      )
+    }
+    if (answer.status >= 500) {
+      throw new ForgeError('server', `${host} answered ${answer.status}`, {
+        said: said(body) || text.slice(0, 200),
+      })
+    }
+    return { status: answer.status, body }
+  }
+
   async function request(
     url: string,
     init: {
@@ -140,9 +245,15 @@ export function makeGithubForge(options: ForgeOptions): Forge {
       accept?: string
       /** Conditional-request headers: `if-none-match`, and nothing secret. */
       headers?: Record<string, string>
+      /**
+       * The repository this is a read about, where an App installed on it may
+       * answer it. Unsaid, it is asked as the person.
+       */
+      about?: string
     } = {},
   ): Promise<{ status: number; body: unknown; text: string; headers: Headers }> {
-    const auth = await credential()
+    const asApp = init.about === undefined ? null : await installed(init.about)
+    const auth = asApp?.token ?? (await credential())
     let answer: Response
     try {
       answer = await doFetch(url, {
@@ -173,6 +284,19 @@ export function makeGithubForge(options: ForgeOptions): Forge {
     }
     const text = await answer.text()
     const body = text ? safeJson(text) : null
+    // **What the App may not read is asked again as the person**, once: a
+    // permission it was not given, or an installation taken away since its
+    // token was handed out. The App answers what it may and the person the
+    // rest, which is exactly what they could read before it existed.
+    if (
+      asApp !== null &&
+      (answer.status === 401 || (answer.status === 403 && !/rate limit/i.test(text)))
+    ) {
+      // A 401 is the token gone; a 403 is only this endpoint, and the token
+      // is still good for the next read.
+      if (answer.status === 401) kept.refused(asApp.signIn, asApp.token)
+      return request(url, { ...init, about: undefined })
+    }
     if (answer.status === 403 || answer.status === 429) {
       if (remaining === 0 || /rate limit/i.test(text)) {
         throw new ForgeError('rate', `${host} is rate limiting us`, {
@@ -207,8 +331,16 @@ export function makeGithubForge(options: ForgeOptions): Forge {
     return { status: answer.status, body, text, headers: answer.headers }
   }
 
-  async function graphql(query: string, variables: Record<string, unknown>): Promise<unknown> {
-    const answer = await request(graphqlUrl, { method: 'POST', body: { query, variables } })
+  async function graphql(
+    query: string,
+    variables: Record<string, unknown>,
+    about?: string,
+  ): Promise<unknown> {
+    const answer = await request(graphqlUrl, {
+      method: 'POST',
+      body: { query, variables },
+      ...(about === undefined ? {} : { about }),
+    })
     const body = answer.body as { data?: unknown; errors?: { type?: string; message?: string }[] }
     const first = body?.errors?.[0]
     if (first) {
@@ -287,7 +419,9 @@ export function makeGithubForge(options: ForgeOptions): Forge {
 
   /** Both ends of a review as they are now, in the one request that answers both. */
   async function endsOf(ref: ReviewRef): Promise<{ head: string; base: string | null }> {
-    const detail = (await request(rest(`/repos/${ref.repo}/pulls/${ref.number}`))).body as {
+    const detail = (
+      await request(rest(`/repos/${ref.repo}/pulls/${ref.number}`), { about: ref.repo })
+    ).body as {
       head?: { sha?: string }
       base?: { sha?: string }
     } | null
@@ -405,7 +539,7 @@ export function makeGithubForge(options: ForgeOptions): Forge {
 
     async review(ref) {
       const who = await login()
-      const data = (await graphql(ONE, { ...parts(ref), number: ref.number })) as {
+      const data = (await graphql(ONE, { ...parts(ref), number: ref.number }, ref.repo)) as {
         repository?: { pullRequest?: unknown }
       }
       const detail = asDetail(data?.repository?.pullRequest, who, ref.host || host)
@@ -418,7 +552,7 @@ export function makeGithubForge(options: ForgeOptions): Forge {
       const who = await login()
       const [owner, name] = repo.split('/')
       if (!owner || !name) return null
-      const data = (await graphql(OF_BRANCH, { owner, name, branch })) as {
+      const data = (await graphql(OF_BRANCH, { owner, name, branch }, repo)) as {
         repository?: { pullRequests?: { nodes?: unknown[] } }
       }
       const node = data?.repository?.pullRequests?.nodes?.[0]
@@ -442,7 +576,10 @@ export function makeGithubForge(options: ForgeOptions): Forge {
     },
 
     async checksOn(repo, commit) {
-      const answer = await request(rest(`/repos/${repo}/commits/${commit}/check-runs?per_page=100`))
+      const answer = await request(
+        rest(`/repos/${repo}/commits/${commit}/check-runs?per_page=100`),
+        { about: repo },
+      )
       const runs = (answer.body as { check_runs?: unknown[] } | null)?.check_runs ?? []
       return runs.flatMap((one) => {
         const run = asCheckRun(one, { repo, commit, url: null })
@@ -463,17 +600,22 @@ export function makeGithubForge(options: ForgeOptions): Forge {
         )
       }
       const list = (
-        await request(rest(`/repos/${repo}/actions/runs?head_sha=${commit}&per_page=20`))
+        await request(rest(`/repos/${repo}/actions/runs?head_sha=${commit}&per_page=20`), {
+          about: repo,
+        })
       ).body as { workflow_runs?: { id?: number }[] } | null
       for (const run of list?.workflow_runs ?? []) {
         if (typeof run.id !== 'number') continue
         const jobs = (
-          await request(rest(`/repos/${repo}/actions/runs/${run.id}/jobs?per_page=100`))
+          await request(rest(`/repos/${repo}/actions/runs/${run.id}/jobs?per_page=100`), {
+            about: repo,
+          })
         ).body as { jobs?: { id?: number; name?: string }[] } | null
         const job = jobs?.jobs?.find((one) => one.name === check)
         if (!job?.id) continue
         const log = await request(rest(`/repos/${repo}/actions/jobs/${job.id}/logs`), {
           accept: 'text/plain',
+          about: repo,
         })
         return log.text.split('\n').slice(-lines).join('\n')
       }
@@ -543,6 +685,7 @@ export function makeGithubForge(options: ForgeOptions): Forge {
       for (let page = 1; page <= 10; page += 1) {
         const answer = await request(
           rest(`/repos/${ref.repo}/pulls/${ref.number}/files?per_page=${per}&page=${page}`),
+          { about: ref.repo },
         )
         const got = Array.isArray(answer.body) ? (answer.body as Record<string, unknown>[]) : []
         for (const one of got) {
@@ -631,6 +774,110 @@ export function makeGithubForge(options: ForgeOptions): Forge {
     // and who applied a label as against who wrote the words — are nothing to
     // do with anything above.
     ...githubTickets(request, rest, host),
+
+    appForm(want) {
+      return appFormAt(host, want)
+    },
+
+    async appMade(code) {
+      // GitHub's own words: this "does not require authentication", and the
+      // code is the whole of what identifies the app — one use, within an
+      // hour. So nothing of the person's goes with it.
+      let answer: Response
+      try {
+        answer = await doFetch(rest(`/app-manifests/${encodeURIComponent(code)}/conversions`), {
+          method: 'POST',
+          headers: { accept: 'application/vnd.github+json', 'user-agent': 'tade' },
+        })
+      } catch (err) {
+        throw new ForgeError('network', `could not reach ${host}`, {
+          said: err instanceof Error ? err.message : String(err),
+        })
+      }
+      const text = await answer.text()
+      const body = text ? safeJson(text) : null
+      if (answer.status === 404) {
+        throw new ForgeError(
+          'missing',
+          `${host} does not know that code: it is used once, within an hour — make the app again`,
+        )
+      }
+      if (answer.status === 422) {
+        throw new ForgeError('refused', `${host} refused: ${said(body) || 'not that code'}`)
+      }
+      if (answer.status >= 400) {
+        throw new ForgeError(
+          answer.status >= 500 ? 'server' : 'refused',
+          `${host} answered ${answer.status}`,
+          {
+            said: said(body) || text.slice(0, 200),
+          },
+        )
+      }
+      return madeFrom(body, host)
+    },
+
+    appInstallUrl(slug, state) {
+      return `https://${host}/apps/${encodeURIComponent(slug)}/installations/new?state=${encodeURIComponent(state)}`
+    },
+
+    async appInstallations(): Promise<readonly AppInstallation[]> {
+      if (app === null) throw new ForgeError('auth', `no GitHub App is connected for ${host}`)
+      const answer = await asTheApp(rest('/app/installations?per_page=100'))
+      if (answer.status >= 400) {
+        throw new ForgeError(
+          'auth',
+          `${host} would not say where GitHub App ${app.id} is installed`,
+          {
+            said: said(answer.body) || undefined,
+          },
+        )
+      }
+      const list = Array.isArray(answer.body) ? (answer.body as Record<string, unknown>[]) : []
+      const out: AppInstallation[] = []
+      for (const one of list) {
+        const id = String(one.id ?? '')
+        if (id === '') continue
+        const account = (one.account ?? {}) as { login?: unknown }
+        const login = typeof account.login === 'string' ? account.login : ''
+        if (one.repository_selection === 'all') {
+          out.push({ id, account: login, repositories: 'all' })
+          continue
+        }
+        // How many it was given is one more request, as the installation:
+        // `total_count` of a page of one.
+        const token = await kept.get(`app ${app.id}@${host} installation ${id}`, () =>
+          installationToken(id),
+        )
+        // A count that could not be read is a throw, never nought: "installed
+        // on no repositories" is the one answer that would send somebody to
+        // GitHub to fix what is not broken.
+        let counted: Response
+        try {
+          counted = await doFetch(rest('/installation/repositories?per_page=1'), {
+            headers: {
+              authorization: `Bearer ${token}`,
+              accept: 'application/vnd.github+json',
+              'user-agent': 'tade',
+            },
+          })
+        } catch (err) {
+          throw new ForgeError('network', `could not reach ${host}`, {
+            said: err instanceof Error ? err.message : String(err),
+          })
+        }
+        const total = (safeJson(await counted.text()) as { total_count?: unknown } | null)
+          ?.total_count
+        if (!counted.ok || typeof total !== 'number') {
+          throw new ForgeError(
+            counted.status >= 500 ? 'server' : 'auth',
+            `${host} would not say how many repositories GitHub App ${app.id} may read for ${login}`,
+          )
+        }
+        out.push({ id, account: login, repositories: total })
+      }
+      return out
+    },
 
     limits() {
       return limits

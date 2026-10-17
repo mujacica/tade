@@ -1,5 +1,6 @@
 import type { CheckRun } from '@tade/checks-core'
 import type { RequiredProgram } from '@tade/core'
+import type { AppForm, AppInstallation, AppWant, ForgeApp, MadeApp } from './apps.ts'
 import type { CredentialCache } from './credentials.ts'
 import type { TicketDetail, TicketPage, TicketQuery, TicketRef } from './tickets.ts'
 
@@ -301,6 +302,15 @@ export interface ForgeCapabilities {
    * account, and every project on this forge is asked as the default sign-in.
    */
   accounts: boolean
+  /**
+   * Can make an app the person owns from a description (`appForm`, `appMade`),
+   * say where it is installed (`appInstallations`), and — made with one
+   * (`ForgeOptions.app`) — read a repository it is installed on as the app
+   * rather than as the person (`apps.ts`). False is an ordinary answer: the
+   * four methods then throw `unsupported`, and a forge made with an app asks
+   * everything as the person, exactly as it would without one.
+   */
+  apps: boolean
   /** How many of its own units one poll of the lists costs, for the budget. */
   costPerPoll: number
 }
@@ -496,6 +506,31 @@ export interface Forge {
    * caller that only wants to know what moved must not pay for it.
    */
   ticket(ref: TicketRef): Promise<TicketDetail>
+  /**
+   * Where a browser posts to make the app described, and what it posts — with
+   * what the app will be allowed and why, and the deliveries it will be sent.
+   * Pure: a form, not a request. Needs `capabilities.apps`.
+   */
+  appForm(want: AppWant): AppForm
+  /**
+   * The app a person has just made, from the code the forge sent their browser
+   * back with: everything it is, its private key among it, handed over once.
+   * A code that is unknown, used or too old is `missing`. Needs
+   * `capabilities.apps`.
+   */
+  appMade(code: string): Promise<MadeApp>
+  /**
+   * Where a person installs an app on the repositories they choose, carrying
+   * `state` back. Pure. Needs `capabilities.apps`.
+   */
+  appInstallUrl(slug: string, state: string): string
+  /**
+   * Where the app this forge was made with is installed, read as the app.
+   * Needs `capabilities.apps` and `ForgeOptions.app`; without one it is `auth`,
+   * because "installed nowhere" and "I was not told which app" are opposite
+   * facts.
+   */
+  appInstallations(): Promise<readonly AppInstallation[]>
   /** What is left of the budget, as the last answer reported it; null when it does not say. */
   limits(): { remaining: number; of: number; resetsAt: number } | null
 }
@@ -536,6 +571,15 @@ export interface ForgeOptions {
    * keeps what it found for its own life, which is one look.
    */
   credentials?: CredentialCache
+  /**
+   * An app the person made and installed (`apps.ts`), for reading a repository
+   * it is installed on as the app: its own budget, a token that runs out within
+   * the hour, and only what it was allowed. Everything else — what is about the
+   * person, and every write — is still asked as the person's sign-in. Ignored
+   * by a forge that does not declare `capabilities.apps`, and for any host but
+   * the one it was made on.
+   */
+  app?: ForgeApp
 }
 
 /** A remote's host, however it is written: `git@github.com:o/r.git`, `https://github.com/o/r`. */

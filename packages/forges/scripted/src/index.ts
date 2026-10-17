@@ -132,6 +132,9 @@ export function makeScriptedForge(options: ScriptedForgeOptions = {}): ScriptedF
     tickets: true,
     patches: true,
     notes: true,
+    // A table makes no apps: the four methods say so, and a forge made with
+    // one asks everything as the table's one sign-in.
+    apps: false,
     costPerPoll: 1,
     ...options.capabilities,
   }
@@ -397,6 +400,22 @@ export function makeScriptedForge(options: ScriptedForgeOptions = {}): ScriptedF
       )
       if (!one) throw new ForgeError('missing', `there is no ticket ${ref.repo}#${ref.number}`)
       return one
+    },
+
+    appForm() {
+      throw new ForgeError('unsupported', 'the scripted forge makes no apps')
+    },
+
+    async appMade() {
+      throw new ForgeError('unsupported', 'the scripted forge makes no apps')
+    },
+
+    appInstallUrl() {
+      throw new ForgeError('unsupported', 'the scripted forge makes no apps')
+    },
+
+    async appInstallations() {
+      throw new ForgeError('unsupported', 'the scripted forge makes no apps')
     },
 
     limits() {

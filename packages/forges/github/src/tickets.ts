@@ -55,7 +55,14 @@ export const EVENT_PAGES = 3
 /** What this file needs of the forge: one request, already carrying the credential. */
 export type Asking = (
   url: string,
-  init?: { method?: string; body?: unknown; accept?: string; headers?: Record<string, string> },
+  init?: {
+    method?: string
+    body?: unknown
+    accept?: string
+    headers?: Record<string, string>
+    /** The repository this reads, so an App installed on it may answer (`index.ts`). */
+    about?: string
+  },
 ) => Promise<{ status: number; body: unknown; text: string; headers: Headers }>
 
 /**
@@ -153,6 +160,7 @@ export function githubTickets(
       if (query.since) search.set('since', query.since)
       const url = rest(`/repos/${query.repo}/issues?${search.toString()}`)
       const answer = await request(url, {
+        about: query.repo,
         ...(query.validator ? { headers: { 'if-none-match': query.validator } } : {}),
       })
       const validator = answer.headers.get('etag')
@@ -178,7 +186,9 @@ export function githubTickets(
     },
 
     async ticket(ref: TicketRef): Promise<TicketDetail> {
-      const answer = await request(rest(`/repos/${ref.repo}/issues/${ref.number}`))
+      const answer = await request(rest(`/repos/${ref.repo}/issues/${ref.number}`), {
+        about: ref.repo,
+      })
       const ticket = asTicket(answer.body, ref.repo, ref.host || host)
       if (!ticket) {
         // Either GitHub sent something unreadable or the number is a pull
@@ -217,14 +227,14 @@ async function labelled(
   if (on.length === 0) return []
   const path = (page: number) =>
     rest(`/repos/${ref.repo}/issues/${ref.number}/events?per_page=100&page=${page}`)
-  const first = await request(path(1))
+  const first = await request(path(1), { about: ref.repo })
   const last = pageOf(first.headers, 'last')
   // Where the window starts. With one page there is nothing to page and the
   // list is whole, which is every ordinary issue and costs one request.
   const from = last === null || last <= 1 ? 1 : Math.max(1, last - EVENT_PAGES + 1)
   const raw: unknown[] = from === 1 && Array.isArray(first.body) ? [...first.body] : []
   for (let page = Math.max(2, from); last !== null && page <= last; page += 1) {
-    const more = await request(path(page))
+    const more = await request(path(page), { about: ref.repo })
     if (Array.isArray(more.body)) raw.push(...more.body)
   }
   const newest = new Map<string, Labelling>()
