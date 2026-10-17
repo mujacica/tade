@@ -4,6 +4,7 @@ import {
   REMOTE_TELL_REACH,
   reloadNamedBy,
   remoteNamedBy,
+  settingFound,
   settingReach,
   settingsOf,
   spokenAs,
@@ -746,10 +747,12 @@ describe('whether the person themselves named it', () => {
     ])
   })
 
-  it('names the orchestrator’s own model and thinking only when whose is said with them', () => {
-    // Titled `Model` and `Thinking` because the page draws them under the
-    // Orchestrator heading, and the title always counted: any line saying
-    // "model" let the orchestrator change the model it runs on itself.
+  it('names the orchestrator’s own model, thinking and harness only when whose is said with them', () => {
+    // Titled `Model`, `Thinking` and `Harness` because the page draws them
+    // under the Orchestrator heading, and the title always counted: any line
+    // saying "model" let the orchestrator change the model it runs on itself.
+    // The harness's search words counted too, so any line saying "agent" or
+    // "code" let it change what it runs in.
     const own = (over: Record<string, unknown> = {}) =>
       settingsOf(ConfigSchema.parse(over)).find((group) => group.id === 'orchestrator')?.settings ??
       []
@@ -763,9 +766,17 @@ describe('whether the person themselves named it', () => {
       // Addressing it by name is not saying whose model the line is about.
       'orchestrator, use a cheaper model for refunds',
       'switch the model, and the thinking',
+      'start an agent on the refunds bug',
+      'review the code in refunds, and ask claude why it is slow',
+      'switch the agents to pi',
+      'think harder, and use another harness',
+      'orchestrator, put the fast route on another harness',
     ]) {
       expect(named(line), line).toEqual([])
     }
+    expect(named('switch your harness to claude-code')).toEqual(['orchestrator.harness'])
+    expect(named('set the orchestrator’s harness to pi')).toEqual(['orchestrator.harness'])
+    expect(named('set orchestrator.harness to codex')).toEqual(['orchestrator.harness'])
     expect(named('change your model to sonnet')).toEqual(['orchestrator.model'])
     expect(named('use your own model for this, a cheaper one')).toEqual(['orchestrator.model'])
     expect(named('make the orchestrator’s thinking high')).toEqual(['orchestrator.thinking'])
@@ -776,6 +787,13 @@ describe('whether the person themselves named it', () => {
     if (!model) throw new Error('no orchestrator model row')
     expect(spokenAs(model)).toBe('your model')
     expect(namedBy(model, [`yes, change ${spokenAs(model)} to opus`])).not.toBeNull()
+    const harness = own().find((one) => one.path === 'orchestrator.harness')
+    if (!harness) throw new Error('no orchestrator harness row')
+    expect(spokenAs(harness)).toBe('your harness')
+    // Its search words still find it on the panel; they only stopped naming it.
+    const group = settingsOf(ConfigSchema.parse({})).find((one) => one.id === 'orchestrator')
+    if (!group) throw new Error('no orchestrator group')
+    expect(settingFound(group, harness, ['claude', 'code'])).toBe(true)
   })
 
   it('still counts a title that is specific, however short', () => {

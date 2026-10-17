@@ -168,8 +168,9 @@ Two consequences when you add a key:
   project's name, a scope, and every word of a route's row, which a line names only by the route's
   or the harness's name *with* the setting's (`wordsTogether`) — "switch the model" names no
   route's model, "make the default thinking high" names one row. A title counts on its own unless
-  it is only the kind of setting it is: the orchestrator's own `Model` and `Thinking` need whose
-  said in front (`OWNED_ROWS`, "your model"), so a row whose title is that bare goes there too.
+  it is only the kind of setting it is: the orchestrator's own `Model`, `Thinking` and `Harness`
+  need whose said in front (`OWNED_ROWS`, "your model"), and their `keywords` only find them on
+  the panel, so a row whose title is that bare goes there too.
 - Every change writes `config_changed` — the path, what it was, what it is now, who asked, and their
   words — because a change nobody watched has to be one somebody can find and undo. A credential is
   said there as `set` or `not set` (`held` in `wire/settings.ts`) and is never read back by any tool,

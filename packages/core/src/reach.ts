@@ -549,13 +549,17 @@ export function watchNamedBy(
  * by name, and they answer naming it.
  *
  * **Except where the title is only what kind of setting it is** (`OWNED_ROWS`):
- * the orchestrator's own `Model` and `Thinking`, which are titled that way
- * because the page draws them under its heading. Any line with "model" in it
- * named the first, so "use a cheaper model for refunds" was the person letting
- * the orchestrator change its own model. Those take whose they are said with
- * the title, as one phrase — "your model", "the orchestrator's thinking" — and
- * neither word alone, nor the two apart: "orchestrator, use a cheaper model for
- * refunds" is about refunds. Every other title, being specific, still counts.
+ * the orchestrator's own `Model`, `Thinking` and `Harness`, which are titled
+ * that way because the page draws them under its heading. Any line with
+ * "model" in it named the first, so "use a cheaper model for refunds" was the
+ * person letting the orchestrator change its own model. Those take whose they
+ * are said with the title, as one phrase — "your model", "the orchestrator's
+ * thinking" — and neither word alone, nor the two apart: "orchestrator, use a
+ * cheaper model for refunds" is about refunds. Nor any of their `keywords`,
+ * which are what the panel's search finds them by: the harness's are `agent`,
+ * `code`, `claude` and `pi`, so "start an agent on refunds" was the person
+ * letting it change what it runs in. Every other title, being specific, still
+ * counts.
  *
  * Known looseness, said rather than hidden: a leaf that is an ordinary word of
  * this house — `checks.before`, `telemetry.agents` — is matched by a line that
@@ -578,11 +582,10 @@ export function wordsFor(
   // A route's row is named by its words together, never one of them, and a
   // row whose title is only its kind by whose it is with it (`wordsTogether`).
   const owned = Object.hasOwn(OWNED_ROWS, setting.path)
-  const segments =
-    owned || ROUTE_ROW.test(setting.path.toLowerCase())
-      ? []
-      : parts.slice(1).filter((part) => part.length >= 5)
-  const rest = [owned ? '' : setting.title, ...(setting.keywords ?? []), ...segments]
+  const segments = ROUTE_ROW.test(setting.path.toLowerCase())
+    ? []
+    : parts.slice(1).filter((part) => part.length >= 5)
+  const rest = (owned ? [] : [setting.title, ...(setting.keywords ?? []), ...segments])
     .map((word) => word.trim().toLowerCase())
     .filter((word) => word !== '' && !sections.has(word))
   return [setting.path.trim().toLowerCase(), ...rest]
@@ -598,6 +601,7 @@ const THE_ORCHESTRATOR = ['your', 'your own', 'orchestrator', "orchestrator's", 
 const OWNED_ROWS: Readonly<Record<string, readonly string[]>> = {
   'orchestrator.model': THE_ORCHESTRATOR,
   'orchestrator.thinking': THE_ORCHESTRATOR,
+  'orchestrator.harness': THE_ORCHESTRATOR,
 }
 
 /**
