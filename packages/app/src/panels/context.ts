@@ -2,8 +2,16 @@ import type { Race, SettingGroup } from '@tade/core'
 import type { LineComment } from '../comments.ts'
 import type { ParsedDiff } from '../diff.ts'
 import type { EvalsView, ReplaysView } from '../evaluations.ts'
-import type { Change, DeskRow, IntakeOpenView, RowSummaryView, WorkflowView } from '../frame.ts'
+import type {
+  Change,
+  DeskRow,
+  IntakeOpenView,
+  RowSummaryView,
+  Spend,
+  WorkflowView,
+} from '../frame.ts'
 import type { ScrollArea } from '../hits.ts'
+import type { Machines } from '../machines.ts'
 import type { AgentPane } from '../model.ts'
 import type { Panel } from '../panels.ts'
 import type { SearchEntry } from '../search.ts'
@@ -78,6 +86,10 @@ export interface PanelContext {
   route: { harness: string; model: string | null; provider: string | null } | null
   /** Where the money went, for the window and grouping the Spend panel is on. */
   spend: SpendView | null
+  /** Other machines, for the Spend page's row each (`Frame.machines`). Absent where there are none. */
+  machines?: Machines
+  /** What this machine spent today, by task: its own row among the machines. */
+  today?: Spend
   /** The tasks, for giving each spend row its state. */
   panes: readonly AgentPane[]
   /** The project you are in: its tasks are named short. */

@@ -394,6 +394,9 @@ const PURE = [
   'packages/app/src/pasting.ts',
   'packages/app/src/hits.ts',
   'packages/app/src/layout.ts',
+  // Other machines' projects out of what their links hold: the one reader of a
+  // remote's projection, and nothing it does waits or reads a clock.
+  'packages/app/src/machines.ts',
   'packages/app/src/model.ts',
   'packages/app/src/notes-shown.ts',
   // The away view's own two: what the window hands the projection, and the

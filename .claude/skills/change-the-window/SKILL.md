@@ -32,6 +32,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `evaluations.ts` | What the Evaluations panel shows (`/evals`): the tabs (`EVAL_TABS` — a grouping each, then the judge; the replay results are one more tab when they have something to draw) and the fold over a range, kept by `wire/evaluations.ts`, which reads the **whole** journal's lines with the journal's own reader on the beat while something looks | a terminal |
 | `races.ts` | The races, folded: core's `racesIn` over status's last look, the ACTIONS look, what the judges last said and the journal's `race_won` — drawn by `panels/race/` (`/race`), kept by `wire/landing.ts` beside the desk, and answered for the orchestrator by `wire/races.ts`, where a pick by it is held to a line of the person's | a terminal |
 | `spend.ts` | What the Spend panel shows, from `usage` events, and which window a day is (`sinceOf`) | a terminal |
+| `machines.ts` | Other machines' projects, read out of what each link holds — the one reader of a remote's projection (`machineOf`) — and standing in one (`goElsewhere`, `elsewhereOf`) | a terminal |
 | `queue-view.ts` | What the SMART QUEUE shows (`QueueView`, `shownBy`) and nothing about what is in it | a terminal |
 | `queue.ts` | What the queue says in words, including what an empty list says (`queueEmptySays`) | a terminal |
 | `plan-graph.ts` | A plan as boxes and lines: a column per step of the resolved tree (`drawPlan`, `treeStems`, `drawWhy`) | a terminal |
@@ -948,6 +949,31 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   missing — worse than a figure growing a digit moving what is beside it. The strip's rules are owed by
   the part before them and drawn only when another part follows (`seams`, `view/foot.ts`), so a part
   left out leaves no rule hanging and no two side by side.
+
+## Projects on other machines
+
+Another machine's Tade this one is an owner of (`remotes.<name>`, linked by `wire/remotes.ts`) is
+drawn from what its away view sends — the projection the link holds (REMOTE-TADE.md §9.4).
+
+- **`machines.ts` is the only reader of a projection**, and the drawing never sees one. A link
+  reads it for its shape, not field by field, so a title can be anything; the fold reads each field
+  as what it should be or not at all, bounds it, and reduces every string to text (`printable`,
+  core). Anything new drawn from a remote is a field of `Machine` added there, never a read of
+  `Held.projection` in a view. `machines.test.ts` draws a title full of escapes on every surface.
+- **Its tabs are grouped under its name**, this machine's first (`Frame.machines.here`, said only
+  where there are remotes): a chip per machine whose menu (`machine`, the Remotes subject's) is its
+  projects, then a tab per project carrying the marks that machine drew (`remoteStanding`). Short of
+  room a machine folds its tabs into its chip (`vps ⋯2 !`) before a tab of this machine's goes in
+  the `⋯`, and the place you stand in keeps its tab. The figures at the right stay this machine's.
+- **Standing in one is `state.elsewhere`, never `state.project`**, which stays the local project
+  every subject acts on. It is in front only while no agent here is (`elsewhereOf`); `goElsewhere`
+  keeps where you were, `whereYouWere` and `refocus` leave the spot and the focus alone while it
+  is, and a beat with an agent here in front lets go of it. The side is `elsewhereSections` and the
+  pane `renderElsewhere` (`view/elsewhere.ts`); nothing there is a control until a remote agent
+  can be opened.
+- **Down is drawn from what it last said**: the chip wears `○` (`machineMark`), the rows stay with
+  their ages as of `asOf` (`ageThere`, the remote's moments moved by `skewOf` into this clock), and
+  the heading says `as of 14:02` — never an empty list.
 
 ## Drawing the queue and a plan
 

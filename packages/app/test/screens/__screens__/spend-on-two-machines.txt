@@ -1,0 +1,34 @@
+ ▄▀   T A D E      checkout !    search ✓    infra      +      ○ vps ⋯2 !    lab ⋯1             ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2  ╭─ Spend ─────────────────────────────────────────────────────────────────────────── esc ─╮high ▾     ×   
+              │ ~$1.88 mixed  2.5M tokens  1h 32m working · 2h 5m open · over 3 runs                    │───────────────
+ ▌ ! stripe-v1│ for   Today    This window    7 days    30 days    All time                             │               
+ ▌   wants you│ by    Agent    Project    Model    Harness    Sign-in    Provider                       │               
+              │                                                                                         │               
+   ⠋ refunds  │   AGENT                    MODEL               TOKENS  SHARE    WORKING   OPEN     COST │               
+     working  │ ◆ orchestrator             claude-opus-5         412k  █░░░░░░░       —      —    $0.58█│               
+              │ ⠋ refunds                  claude-opus-5         460k  █░░░░░░░     33m    40m    $0.62█│               
+ ▸ SMART QUEUE│ · search/reindex           gpt-5.3-codex         620k  ██░░░░░░       —      —   ≈$0.48█│               
+ ▸ SCHEDULES  │ ✓ search/pagination        claude-sonnet-5       148k  ░░░░░░░░     18m    30m    $0.20█│               
+ ▸ INTAKE     │ ! stripe-v15               claude-opus-5         880k  ███░░░░░     41m    55m   ≈$3.74█│               
+ ▾ CHANGES  3 │                                                                                        █│               
+  M package.js│ MACHINES                                                           their agents, today █│               
+  A …/webhooks│ this Mac               $1.30  2.1M tokens                                              █│               
+  M src/webhoo│ vps                    $4.18  2.3M tokens as of Sun 13 Sep 13:52                       █│               
+              │ lab                        —                                                           █│               
+ ▾ FILES      │                                                                                        █│               
+   ▾ src/     │ PLAN                                                                                   █│               
+       webhook│ claude-code       5h  ████████░░  78%  resets in 1h 22m said 6m ago     ≈$3.74 at list █│               
+       webhook│                   7d  ███░░░░░░░  31%  resets in 3d 0h                                 █│               
+   ▸ test/    │ codex             5h  █░░░░░░░░░  12%  resets in 2h 0m  said 41m ago                   █│               
+━   orchestrat│ pi                cannot tell                                                          █│━   ↑     ↓   ━
+              │                                                                                        █│               
+              │ BUDGETS                                                                                █│              ▕
+              │ checkout        $0.62 of $5.00 a day        █░░░░░░░░░░░ 12%                           ▕│              ▕
+              │                                                                                         │              ▕
+              │ ↑↓ reads · ←→ ranges · tab groups                                               Done    │              ▕
+ ❯ what you sa╰─────────────────────────────────────────────────────────────────────────────────────────╯              ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake                  claude-code ⇄ 5h █████░ 78% │ 2h 5m │ $1.88 today ▾ 

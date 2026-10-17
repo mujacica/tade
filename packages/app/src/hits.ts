@@ -19,6 +19,8 @@ export type Target =
   /** A check on the ACTIONS tab: clicking it opens what it ran and what it printed, on the page. */
   | { kind: 'check'; task: string; check: string }
   | { kind: 'project'; project: string }
+  /** A project's tab on another machine: standing in it (`goElsewhere`). */
+  | { kind: 'remote-project'; machine: string; project: string }
   | { kind: 'orchestrator' }
   | { kind: 'file'; path: string }
   /** A folder in the FILES tree: clicking it opens or closes it. */

@@ -2,6 +2,7 @@ import { stripTerminalSequences } from '@earendil-works/pi-tui'
 import type { Frame, LaneView } from '../frame.ts'
 import { type Hit, pointingIn, rowHit, type ScrollArea, sameTarget, type Target } from '../hits.ts'
 import { linkedRow } from '../links.ts'
+import { elsewhereOf } from '../machines.ts'
 import {
   type AgentPane,
   type AppState,
@@ -18,6 +19,7 @@ import { splitShown } from '../split.ts'
 import { blank, box, type Drawn, fit, overlay, type Pointer, Row, stack } from '../ui.ts'
 import { widthOf } from '../width.ts'
 import { actionRows } from './actions.ts'
+import { renderElsewhere } from './elsewhere.ts'
 import { renderEmpty } from './empty.ts'
 import {
   blockAt,
@@ -50,6 +52,8 @@ export function renderMain(
   skin: Skin,
   pointer: Pointer,
 ): Drawn {
+  const away = elsewhereOf(state)
+  if (away !== null) return renderElsewhere(frame, away, width, height, skin)
   const pane = state.panes.find((p) => p.task === state.focused)
   if (!pane && state.showingPlan) return renderPlan(state, frame, width, height, skin, pointer)
   const schedule = frame.schedules?.find((one) => one.id === state.schedule)

@@ -1,4 +1,4 @@
-import type { RemoteConfig, TadeEvent } from '@tade/core'
+import { printable, type RemoteConfig, type TadeEvent } from '@tade/core'
 import type { Held, MakeRemoteLink, Remote } from '@tade/remotes-core'
 import { makeScriptedLink } from '@tade/remotes-scripted'
 import { makeSshLink } from '@tade/remotes-ssh'
@@ -71,10 +71,13 @@ export function lineFor(
   held: Held,
   word: LinkWord,
 ): { type: 'remote_linked' | 'remote_unlinked'; detail: Record<string, string> } {
+  // The epoch and why it went are the remote's words — a `notice` frame's, or a
+  // parser quoting what it was sent — and `tade remote status` and `tade logs`
+  // print them, so they are written down as text (`printable`).
   if (word === 'up') {
     return {
       type: 'remote_linked',
-      detail: { remote: held.remote, epoch: held.cursor?.epoch ?? '' },
+      detail: { remote: held.remote, epoch: printable(held.cursor?.epoch ?? '') },
     }
   }
   const link = held.link
@@ -83,8 +86,8 @@ export function lineFor(
     detail: {
       remote: held.remote,
       state: word,
-      ...(link.kind === 'down' ? { problem: link.problem, said: link.said } : {}),
-      ...(link.kind === 'ended' ? { said: link.said } : {}),
+      ...(link.kind === 'down' ? { problem: link.problem, said: printable(link.said) } : {}),
+      ...(link.kind === 'ended' ? { said: printable(link.said) } : {}),
     },
   }
 }

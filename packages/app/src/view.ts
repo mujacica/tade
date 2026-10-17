@@ -157,6 +157,8 @@ export function draw(state: AppState, given: Frame, last: LastFrame | null = nul
     date: frame.date ?? clockOf(frame),
     route: frame.route ?? null,
     spend: frame.spendView ?? null,
+    ...(frame.machines ? { machines: frame.machines } : {}),
+    ...(frame.spend ? { today: frame.spend } : {}),
     panes: state.panes,
     project: state.project,
     items: extra.items ?? [],

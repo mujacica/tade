@@ -2,9 +2,11 @@ import { visibleWidth } from '@earendil-works/pi-tui'
 import {
   duration,
   MONEY_MARK,
+  noSpend,
   type OnPlan,
   type Priced,
   planPressure,
+  pricedOf,
   type Runtime,
   workedOf,
 } from '@tade/core'
@@ -159,6 +161,8 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
       rows.push(row().space(LEAD).text(padTo(rest, name)).build())
     }
   }
+
+  rows.push(...machineRows(ctx, inner, row))
 
   // What a subscription has left, under what it cost: money and a plan are
   // different currencies with no rate between them, so this is its own list
@@ -531,6 +535,72 @@ function costTone(
 }
 
 const MARK = MONEY_MARK
+
+/**
+ * A row per machine, this one first: what each machine's agents spent today,
+ * by that machine's own clock — the window's midnight here, the remote's
+ * there, which is the only day a remote's projection counts (`spendSince`).
+ *
+ * Agents, on every row alike: a remote's orchestrator is on none of its tasks,
+ * so its figure leaves that out, and this machine's does too, so the rows are
+ * one kind of claim. **No total under them**: two machines' figures added in
+ * silence is the sum this page never draws (REMOTE-TADE.md §5.5). `≥` is a
+ * remote that held some of its tasks back, and a remote that is not up says as
+ * of when, or why there is nothing.
+ */
+function machineRows(ctx: PanelContext, inner: number, row: () => Row): Line[] {
+  const machines = ctx.machines
+  if (machines === undefined || machines.remotes.length === 0) return []
+  const { skin } = ctx
+  const lines: Line[] = [
+    blank(inner),
+    row()
+      .space()
+      .text('MACHINES', skin.label)
+      .right((r) => r.text('their agents, today', skin.hint).space())
+      .build(),
+  ]
+  const named = Math.min(17, Math.max(8, Math.floor(inner / 4)))
+  const line = (name: string, money: string, tokens: string, note: string) =>
+    row()
+      .space()
+      .text(padTo(name, named))
+      .space(SPEND_GAP)
+      .text(money.padStart(9), money === '—' ? skin.hint : undefined)
+      .space(SPEND_GAP)
+      .text(padTo(tokens, 12), skin.hint)
+      .text(note, skin.hint)
+      .build()
+  let usd = 0
+  let tokens = 0
+  for (const spent of Object.values(ctx.today?.byTask ?? {})) {
+    usd += spent.usd
+    tokens += spent.tokens
+  }
+  lines.push(
+    ctx.today === undefined
+      ? line(machines.here, '—', '', 'not read yet')
+      : line(machines.here, ctx.today.hasCost ? money(usd) : '—', tokenCount(tokens), ''),
+  )
+  for (const machine of machines.remotes) {
+    const spent = machine.spend
+    const note =
+      machine.link === 'ended'
+        ? 'signed out'
+        : machine.link === 'live' || machine.asOf === null
+          ? ''
+          : `as of ${ctx.date(machine.asOf)}`
+    if (spent === null) {
+      lines.push(line(machine.name, '—', '', machine.heard ? note : 'nothing heard yet'))
+      continue
+    }
+    // Core's own rule over the three kinds of dollar a remote's rows carried.
+    const priced = pricedOf({ ...noSpend(), ...spent })
+    const said = priced === 'none' ? '—' : `${spent.partial ? '≥' : ''}${cost(priced, spent.usd)}`
+    lines.push(line(machine.name, said, tokenCount(spent.tokens), note))
+  }
+  return lines
+}
 
 function toneOf(pane: AgentPane, skin: Skin): (text: string) => string {
   return skin[MARK_TONES[markOf(pane)]]

@@ -18,6 +18,7 @@ import type { EvalsView, ReplaysView } from './evaluations.ts'
 import type { FileEntry } from './files.ts'
 import type { LayoutPrefs } from './layout.ts'
 import type { Linker } from './links.ts'
+import type { Machines } from './machines.ts'
 import type { ScheduleView } from './model.ts'
 import type { PanelContext } from './panels/context.ts'
 import type { AgentOffers, ThinkerOffers } from './panels/menu/state.ts'
@@ -498,6 +499,12 @@ export interface Frame {
    * every project, in the order it is cheapest to trust (`landingDesk`).
    */
   landing?: readonly DeskRow[]
+  /**
+   * Other machines' Tades this one is an owner of, and what each last said
+   * about its projects — folded into text by `machines.ts`. Absent where none
+   * is configured, which draws the window as it always was.
+   */
+  machines?: Machines
   /**
    * Every race the window can see: the entrants given one request, in the
    * order the facts put them, undecided races first (`racesIn`).

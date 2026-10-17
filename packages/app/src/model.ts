@@ -15,6 +15,7 @@ import type { Turn } from '@tade/voice-core'
 import { parseCommand } from './commands.ts'
 import type { ScrollArea, Target } from './hits.ts'
 import { type Spot, standingIn, whereYouWere } from './layout.ts'
+import type { Place } from './machines.ts'
 import type { Panel } from './panels.ts'
 import { stillAnswered } from './pending.ts'
 import { type QueueView, shownBy, WHOLE_QUEUE } from './queue-view.ts'
@@ -154,6 +155,11 @@ export interface AppState {
   projectOrder: string[]
   /** The project whose tasks are down the side. */
   project: string | null
+  /**
+   * A project on another machine you are standing in, in front of `project`
+   * while no agent here is (`elsewhereOf`, `machines.ts`). Never written down.
+   */
+  elsewhere: Place | null
   /** Task id of the focused pane, or null when only the orchestrator is up. */
   focused: string | null
   /** The conversation with the orchestrator, step by step as it happens. */
@@ -353,6 +359,7 @@ export function initialState(): AppState {
     titles: {},
     projectOrder: [],
     project: null,
+    elsewhere: null,
     focused: null,
     transcript: emptyTranscript(),
     transcriptScroll: 0,
@@ -470,8 +477,10 @@ export function withTasks(state: AppState, tasks: TaskSnapshot[]): AppState {
     panes[0]?.project ??
     null
   // Tabbing and a search walk you into another project without its tab, so
-  // where you were is caught up with here, not at each place focus can move.
-  const next = { ...state, panes, focused, project, answered }
+  // where you were is caught up with here, not at each place focus can move —
+  // and an agent here put in front by any of them is leaving another machine.
+  const elsewhere = focused === null ? state.elsewhere : null
+  const next = { ...state, panes, focused, project, answered, elsewhere }
   return { ...next, spots: whereYouWere(next) }
 }
 
@@ -557,6 +566,7 @@ export function selectProject(state: AppState, project: string): AppState {
   return {
     ...arrived,
     project,
+    elsewhere: null,
     bottom: stand.bottom ?? ORCHESTRATOR_TAB,
     ...(stand.bottom ? {} : { keyboard: 'pane' as const }),
     chose: true,
@@ -894,8 +904,10 @@ function refocus(state: AppState, panes: AgentPane[]): string | null {
       // those ends. An agent arriving in the project you are standing in is
       // the thing you were waiting for, so it goes in front of you: asking
       // the orchestrator for work and being left looking at the empty
-      // project's own screen is the wrong end of the same bug.
-      return state.showingPlan || state.schedule !== null ? null : (here[0]?.task ?? null)
+      // project's own screen is the wrong end of the same bug. A project on
+      // another machine is somewhere you went, like a plan.
+      const went = state.showingPlan || state.schedule !== null || state.elsewhere !== null
+      return went ? null : (here[0]?.task ?? null)
     }
     return panes.some((pane) => pane.task === state.focused)
       ? state.focused
@@ -913,6 +925,7 @@ export function focusTask(state: AppState, task: string): AppState {
         ...state,
         focused: task,
         project: pane.project,
+        elsewhere: null,
         chose: true,
         paneScroll: 0,
         // A different chain is a different picture: it is read from its front.
@@ -928,6 +941,7 @@ export function showPlan(state: AppState): AppState {
   return {
     ...state,
     focused: null,
+    elsewhere: null,
     chose: true,
     showingPlan: true,
     schedule: null,
@@ -937,7 +951,7 @@ export function showPlan(state: AppState): AppState {
 
 /** A schedule in front of you, where an agent's screen was. */
 export function openSchedule(state: AppState, id: string): AppState {
-  return { ...state, focused: null, chose: true, showingPlan: false, schedule: id }
+  return { ...state, focused: null, elsewhere: null, chose: true, showingPlan: false, schedule: id }
 }
 
 /**

@@ -1,8 +1,8 @@
 import type { Frame, McpState } from '../frame.ts'
 import { pointingIn, sameTarget, type Target } from '../hits.ts'
 import { keyCaps } from '../keys.ts'
+import { elsewhereOf, type Machine, machineMark, type Place } from '../machines.ts'
 import {
-  type AgentMark,
   type AgentPane,
   type AppState,
   markGlyph,
@@ -14,6 +14,14 @@ import {
 } from '../model.ts'
 import { MARK, type Skin } from '../skin.ts'
 import { blank, box, type Drawn, type Pointer, Row, stack } from '../ui.ts'
+import {
+  MARKS,
+  noneYet,
+  type ProjectMark,
+  type ProjectStanding,
+  remoteStanding,
+  standingOf,
+} from './standing.ts'
 import { clock } from './text.ts'
 
 // Along the top: the projects you are in one of, the agent that needs you, and
@@ -90,56 +98,6 @@ export function toastFor(
 }
 
 /**
- * What a project tab counts: every mark an agent can have, and queued work,
- * which is not an agent yet and so has no mark of its own.
- */
-export type ProjectMark = AgentMark | 'queued'
-
-/**
- * The order a project's marks are read in, and the order a tab short of room
- * gives them up in: what a decision is waiting on, then what went wrong, then
- * what is going, then what has not started, then what is sitting there.
- *
- * `done` is not in it: a tab says what is *not* finished, and says `✓` when
- * nothing is left. A count of what is finished beside a count of what is not
- * is two numbers to subtract in your head, four times a second.
- */
-const MARKS: readonly ProjectMark[] = [
-  'needs-you',
-  'failed',
-  'working',
-  'queued',
-  'idle',
-  'stopped',
-  'parked',
-]
-
-/** What is happening in one project, as its tab says it. */
-export interface ProjectStanding {
-  /** How many of each. A mark with none of something is not drawn at all. */
-  counts: Readonly<Record<ProjectMark, number>>
-  /** Everything in it that is not finished, of every kind. */
-  outstanding: number
-  /**
-   * Something here finished and nothing is left: the answer to "is everything
-   * I asked for done in there?", which is the question a tab is here to save
-   * you switching to ask.
-   */
-  settled: boolean
-}
-
-const noneYet = (): Record<ProjectMark, number> => ({
-  working: 0,
-  idle: 0,
-  'needs-you': 0,
-  failed: 0,
-  done: 0,
-  stopped: 0,
-  parked: 0,
-  queued: 0,
-})
-
-/**
  * What is happening in every project, in one pass over the panes.
  *
  * Derived and never kept: the panes are what status last said, so a tally held
@@ -155,15 +113,7 @@ export function projectStandings(state: AppState): Map<string, ProjectStanding> 
     tally[projectMark(pane)] += 1
   }
   const standings = new Map<string, ProjectStanding>()
-  for (const [project, counts] of tallies) {
-    let outstanding = 0
-    for (const mark of MARKS) outstanding += counts[mark]
-    standings.set(project, {
-      counts,
-      outstanding,
-      settled: outstanding === 0 && counts.done > 0,
-    })
-  }
+  for (const [project, counts] of tallies) standings.set(project, standingOf(counts))
   return standings
 }
 
@@ -364,6 +314,8 @@ interface Strip {
   used: number
   /** Whether that is room the rung being tried actually has. */
   fits: boolean
+  /** Other machines' projects are folded into their names, for room (`remoteGroup`). */
+  folded: boolean
 }
 
 /**
@@ -440,6 +392,9 @@ export function renderTop(
   const now = frame.now ?? 0
   const standings = projectStandings(state)
   const open = projects(state)
+  // Another machine's project in front of you, where no tab here is lit.
+  const away = elsewhereOf(state)
+  const machines = frame.machines?.remotes ?? []
   // One project is never ambiguous, and is never told whose its own figures
   // are: the clause would be a caveat on something nobody could misread.
   const many = open.length > 1
@@ -472,8 +427,18 @@ export function renderTop(
     const menu: Target = { kind: 'menu', subject: { kind: 'project', project } }
     const close: Target = { kind: 'action', name: `close-project:${project}` }
     const within = manage && pointingIn(state.hover, [target, menu, close])
-    r.tab(label, target, project === state.project, within)
+    r.tab(label, target, away === null && project === state.project, within)
     if (manage) r.icon('×', close, 'danger').icon('≡', menu)
+  }
+  // Where there are other machines, this one's tabs are said to be this
+  // machine's, first: the same label the others carry, so no row of tabs
+  // goes unnamed. Given up with the rest of what a row short of room gives up.
+  const hereOf = (r: Row, fits: Fits): void => {
+    if (machines.length > 0 && !fits.hide) r.space().text(frame.machines?.here ?? '', skin.hint)
+  }
+  const groups = (r: Row, fits: Fits, folded: boolean): void => {
+    for (const machine of machines)
+      remoteGroup(r, machine, { tabs: fits.tabs, folded, away, now, hover: state.hover })
   }
   // The one control that is a project you cannot see. A chip rather than a tab,
   // because it is not one of them and must never read as the project you are
@@ -487,8 +452,10 @@ export function renderTop(
     draw(probe)
     return probe.used
   }
-  // The wordmark and the `+`, which no rung of the ladder changes.
-  const chrome = probed(wordmark) + probed(plus)
+  // The wordmark and the `+`, which no rung of the ladder changes, and this
+  // machine's name, which only the rungs that put tabs away give up.
+  const chromeOf = (fits: Fits): number =>
+    probed(wordmark) + probed(plus) + probed((r) => hereOf(r, fits))
   // Four labellings and five costings at most — one per detail, one per detail
   // and whether the buttons are there — and the ladder's sixteen rungs ask for
   // them over and over.
@@ -523,20 +490,32 @@ export function renderTop(
     const cost = costs(fits)
     const spent = (tabs: readonly string[]): number =>
       tabs.reduce((sum, project) => sum + (cost.get(project) ?? 0), 0)
-    const every = chrome + spent(open)
-    const all: Strip = { shown: open, hidden: [], used: every, fits: every <= room }
+    const chrome = chromeOf(fits)
+    const every = chrome + spent(open) + probed((r) => groups(r, fits, false))
+    const all: Strip = { shown: open, hidden: [], used: every, fits: every <= room, folded: false }
     if (all.fits || !fits.hide) return all
+    // Another machine's projects fold into its name before a tab here goes in
+    // the `⋯`: the name still says the machine is there and opens the list.
+    const others = probed((r) => groups(r, fits, true))
+    const local = chrome + spent(open) + others
+    if (local <= room || open.length <= 1)
+      return { shown: open, hidden: [], used: local, fits: local <= room, folded: true }
+    const here = away === null ? state.project : null
     for (let how = open.length - 1; how >= 1; how--) {
-      const shown = tabsShown(open, state.project, how)
+      const shown = tabsShown(open, here, how)
       const hidden = open.filter((project) => !shown.includes(project))
       // The `⋯` measured as it will be drawn, label and all, rather than at the
       // widest it could ever be: a column guessed high here is a whole tab put
       // away to make room for one that was never going to be used.
       const used =
-        chrome + probed((r) => moreOf(r, hidden, moreLabel(hidden, standings, now))) + spent(shown)
+        chrome +
+        probed((r) => moreOf(r, hidden, moreLabel(hidden, standings, now))) +
+        spent(shown) +
+        others
       // One tab and the `⋯`, in a terminal with room for neither, is where this
       // gives out — and what to do about that is the caller's.
-      if (used <= room || how === 1) return { shown, hidden, used, fits: used <= room }
+      if (used <= room || how === 1)
+        return { shown, hidden, used, fits: used <= room, folded: true }
     }
     return all
   }
@@ -594,12 +573,57 @@ export function renderTop(
   const strip = found ? stripOf(found) : stripFor(LAST, width)
   const row = new Row(width, skin, pointer)
   wordmark(row)
+  hereOf(row, fits)
   const label = labels(fits.tabs)
   for (const project of strip.shown) tabOf(row, project, label.get(project) ?? project, fits.manage)
   if (strip.hidden.length > 0) moreOf(row, strip.hidden, moreLabel(strip.hidden, standings, now))
   plus(row)
+  groups(row, fits, strip.folded)
   row.right(right(fits))
   return stack([row.build(), { text: skin.chrome('━'.repeat(width)), hits: [] }])
+}
+
+/**
+ * Another machine's projects along the top: its name, then a tab per project
+ * carrying the marks that machine drew (`remoteStanding`) — the tabs grouped
+ * under the machine they are on, so two projects called `tade` are never two
+ * tabs nobody can tell apart.
+ *
+ * The name is a chip, because it is a control: its menu is the machine's
+ * projects. It wears the link's mark while the link is not up (`machineMark`)
+ * and nothing while it is. Folded, for room, the tabs go into it — `vps ⋯3 !`
+ * says how many and the most urgent mark among them — except the one you are
+ * standing in, which always keeps its tab.
+ */
+function remoteGroup(
+  r: Row,
+  machine: Machine,
+  how: { tabs: TabDetail; folded: boolean; away: Place | null; now: number; hover: Target | null },
+): void {
+  const here = (project: string) =>
+    how.away !== null && how.away.machine === machine.name && how.away.project === project
+  const shown = machine.projects.filter((project) => !how.folded || here(project.name))
+  const tucked = machine.projects.filter((project) => !shown.includes(project))
+  const mark = MARKS.find((one) =>
+    tucked.some((project) => (remoteStanding(project)?.counts[one] ?? 0) > 0),
+  )
+  const name = [
+    machineMark(machine),
+    machine.name,
+    tucked.length > 0 ? `⋯${tucked.length}` : '',
+    mark === undefined ? '' : markGlyph(mark, how.now),
+  ]
+  r.space(2).chip(name.filter(Boolean).join(' '), {
+    kind: 'menu',
+    subject: { kind: 'machine', machine: machine.name },
+  })
+  if (shown.length > 0) r.space()
+  for (const project of shown) {
+    const standing = remoteStanding(project)
+    const label = tabLabel(project.title ?? project.name, standing, how.tabs, how.now)
+    const target: Target = { kind: 'remote-project', machine: machine.name, project: project.name }
+    r.tab(label, target, here(project.name), sameTarget(how.hover, target))
+  }
 }
 
 /**

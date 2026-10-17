@@ -217,6 +217,7 @@ export class App {
       showTerminal: (id) => this.lanes.showTerminal(id),
       quit: () => this.window.quit(),
       run: (action) => this.router.run(action),
+      machines: () => this.remotes.machines(),
     })
     this.window = new Window(this.wire, {
       setTitle: (title) => this.terminal.setTitle(title),

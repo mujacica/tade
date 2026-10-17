@@ -518,6 +518,24 @@ export const PICTURES: readonly Picture[] = [
       'says so. Its menu is the four of them, and going to one brings its tab back.',
   },
   {
+    file: 'machines.svg',
+    scenario: 'a-project-on-another-machine',
+    crop: { top: 0, height: 21 },
+    about:
+      'Projects on two machines along the top: this Mac’s checkout and search first, then the VPS ' +
+      'with tade and web, and the lab box with firmware, each tab carrying the marks its own machine ' +
+      'gave its agents. Standing in tade on the VPS, the side lists its agents with how long ago ' +
+      'each moved and its queued work under them, and the pane says where it is and how it stands.',
+  },
+  {
+    file: 'machines-down.svg',
+    scenario: 'a-machine-whose-link-is-down',
+    crop: { top: 2, width: 36, height: 19 },
+    about:
+      'The link to the VPS down: the rows stay as it last said them, their ages as of then, and ' +
+      'the heading says `○ vps · as of 13:52` — never an empty list.',
+  },
+  {
     file: 'project-menu.svg',
     scenario: 'a-projects-menu',
     crop: 'panel',

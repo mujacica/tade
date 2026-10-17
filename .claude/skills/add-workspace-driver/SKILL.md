@@ -210,6 +210,11 @@ over loopback) and `ssh`.
 - **Read a frame for its shape, not field by field** (`readSnapshot`): the away protocol adds a
   field without moving its version, and two machines are two installs, so a strict parse is a link
   that breaks the morning one of them updated. Only another `v` is refused, with "update the older".
+  **So a held projection is anything the remote wrote, escape sequences included**, and nothing
+  draws or prints it as it came: the window reads it through `machines.ts` alone, which reads each
+  field as what it should be or not at all and reduces every string to text (core's `printable`); a
+  link's `said` and a carry's answer go through `printable` too, because a parser's error quotes what
+  it was sent and a `notice` frame is the remote's own words.
 - **Ended is not down.** A `204` or `401` on the stream, or a `revoked` frame, is the remote saying
   this machine's session is over, and nothing redials it; only pairing again changes that.
 - **Presence goes as an age, never a moment**, because the two clocks are two clocks, and only

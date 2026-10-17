@@ -43,6 +43,8 @@ export type MenuSubject =
    * to say, so the drawing says it (`tabsShown`, `view/top.ts`).
    */
   | { kind: 'projects'; hidden: string[] }
+  /** Another machine's name along the top: its projects, each one a place to stand. */
+  | { kind: 'machine'; machine: string }
 
 /** A menu, opened from a ≡ or a right-click, where it was clicked. */
 export interface MenuPanel {

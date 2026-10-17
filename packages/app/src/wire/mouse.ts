@@ -11,6 +11,7 @@ import {
 } from '../hits.ts'
 import { textOf } from '../input.ts'
 import { resolveLayout } from '../layout.ts'
+import { goElsewhere } from '../machines.ts'
 import {
   type AppState,
   dragAgent,
@@ -76,6 +77,8 @@ function subjectOf(target: Target): MenuSubject | null {
       return { kind: 'branch' }
     case 'project':
       return { kind: 'project', project: target.project }
+    case 'remote-project':
+      return { kind: 'machine', machine: target.machine }
     case 'menu':
       return target.subject
     case 'bottom-tab':
@@ -596,6 +599,11 @@ export class Mouse {
       case 'change':
         this.deps.openChange(target.task, target.path)
         return
+      case 'remote-project':
+        this.wire.put(
+          goElsewhere(this.wire.state, { machine: target.machine, project: target.project }),
+        )
+        break
       case 'project': {
         this.wire.put(selectProject(this.wire.state, target.project))
         const root = this.wire.opts.config.projects[target.project]?.root

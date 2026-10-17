@@ -54,8 +54,11 @@ function carrying(
   config: () => Config,
   said: string[] = [],
   open = { settings: false },
-): Pick<RemotesDeps, 'carrying' | 'settingsOpen'> {
+): Pick<RemotesDeps, 'carrying' | 'settingsOpen' | 'here' | 'go' | 'draw'> {
   return {
+    here: 'this Mac',
+    go: () => {},
+    draw: () => {},
     carrying: {
       config,
       secrets: () => new Set(),
@@ -105,7 +108,12 @@ function yamlOf(config: Record<string, RemoteConfig>, mine = ''): string {
 
 async function rig(
   config: Record<string, RemoteConfig>,
-  opts: { mine?: string; open?: { settings: boolean } } = {},
+  opts: {
+    mine?: string
+    open?: { settings: boolean }
+    go?: RemotesDeps['go']
+    draw?: RemotesDeps['draw']
+  } = {},
 ): Promise<Rig> {
   const home = await mkdtemp(join(tmpdir(), 'tade-remotes-'))
   made.homes.push(home)
@@ -136,6 +144,8 @@ async function rig(
     // the address in each block.
     links: { ssh: (options) => makeScriptedLink({ ...options, remotes: table }) },
     ...carrying(() => mac.config, said, opts.open),
+    ...(opts.go ? { go: opts.go } : {}),
+    ...(opts.draw ? { draw: opts.draw } : {}),
   }
   const remotes = new Remotes(deps)
   made.remotes.push(remotes)
@@ -281,6 +291,72 @@ describe('the window’s remotes', () => {
     // The file is the remotes now, so the one it does not name was closed.
     await until(one, 'the first closed', () => one.remotes.held().every((h) => h.remote !== 'vps'))
     await until(one, 'nothing streaming at the first', () => north.streams === 0)
+  })
+})
+
+describe('what the window draws of them', () => {
+  /** A project title as somebody there might have written it, escapes and all. */
+  const TITLE = '\x1b]0;pwned\x07\x1b[2JThe API\x1b]8;;https://evil.example\x1b\\\u009b6n'
+
+  it('draws each remote’s projects under its name, what was written there as text', async () => {
+    const north = await far(['api', 'web'])
+    north.show(['api', 'web'], { api: TITLE })
+    const south = await far(['infra'])
+    let draws = 0
+    const one = await rig(
+      { vps: await block('north', north), box: await block('south', south) },
+      { draw: () => void draws++ },
+    )
+    await until(one, 'both links up', live(one, 'vps', 'box'))
+    const titled = () => one.remotes.machines().remotes[0]?.projects[0]?.title ?? null
+    await until(one, 'the title', () => titled() !== null)
+    const { machines } = one.remotes.facts()
+    expect(machines?.here).toBe('this Mac')
+    expect(machines?.remotes.map((m) => [m.name, m.link, m.projects.map((p) => p.name)])).toEqual([
+      ['vps', 'live', ['api', 'web']],
+      ['box', 'live', ['infra']],
+    ])
+    // What the far end sent carries the escapes; what the window draws does not.
+    expect(JSON.stringify(one.remotes.held()[0]?.projection)).toContain('pwned')
+    expect(titled()).toBe('The API')
+    expect(draws).toBeGreaterThan(0)
+    // Folded once and kept while nothing a link holds has moved: the frame asks four times a second.
+    expect(one.remotes.facts().machines).toBe(one.remotes.facts().machines)
+  })
+
+  it('keeps a remote’s projects while its link is down, with when it last answered', async () => {
+    const north = await far(['api'])
+    const one = await rig({ vps: await block('north', north) })
+    await until(one, 'the link up', live(one, 'vps'))
+    await north.close()
+    await until(one, 'the link down', () => one.remotes.machines().remotes[0]?.link === 'down')
+    const [vps] = one.remotes.machines().remotes
+    expect(vps?.projects.map((p) => p.name)).toEqual(['api'])
+    expect(vps?.asOf).not.toBeNull()
+    expect(vps?.said).not.toBeNull()
+  })
+
+  it('opens a machine’s projects from its name, and stands in the one chosen', async () => {
+    const north = await far(['api', 'web'])
+    const went: { machine: string; project: string }[] = []
+    const one = await rig({ vps: await block('north', north) }, { go: (place) => went.push(place) })
+    const menu = one.remotes.menus().machine
+    const subject = { kind: 'machine' as const, machine: 'vps' }
+    // Before it has said anything, the menu says so rather than being empty.
+    expect(menu?.items(subject)).toEqual([
+      { id: '', label: 'nothing heard from it yet', off: 'nothing heard from it yet' },
+    ])
+    await until(one, 'the link up', live(one, 'vps'))
+    await until(one, 'its projects', () => (menu?.items(subject).length ?? 0) === 2)
+    expect(menu?.items(subject).map((item) => item.id)).toEqual(['api', 'web'])
+    await menu?.choose(subject, 'web')
+    expect(went).toEqual([{ machine: 'vps', project: 'web' }])
+  })
+
+  it('adds nothing to the frame where no remote is configured', async () => {
+    const one = await rig({})
+    one.remotes.beat()
+    expect(one.remotes.facts()).toEqual({})
   })
 })
 

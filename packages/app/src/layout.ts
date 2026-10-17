@@ -163,14 +163,19 @@ export interface Spot {
  * what catches a jump out of a project that went through neither door, and
  * the write on the way out of the window, since closing Tade in a project is
  * leaving it too.
+ *
+ * Standing in a project on another machine (`elsewhere`) is not standing in
+ * this one: the spot here was kept as you left it, and nothing in front now is
+ * where you were in it.
  */
 export function whereYouWere(state: {
   project: string | null
   focused: string | null
   bottom: string
   spots: Readonly<Record<string, Spot>>
+  elsewhere?: object | null
 }): Record<string, Spot> {
-  if (!state.project) return { ...state.spots }
+  if (!state.project || (state.elsewhere && state.focused === null)) return { ...state.spots }
   return {
     ...state.spots,
     [state.project]: { focused: state.focused, bottom: state.bottom },

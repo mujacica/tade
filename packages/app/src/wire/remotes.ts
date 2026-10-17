@@ -5,6 +5,7 @@ import {
   type Config,
   loadConfig,
   machineLabel,
+  printable,
   type RemoteConfig,
   type Waking,
 } from '@tade/core'
@@ -18,11 +19,16 @@ import {
   wordOf,
 } from '@tade/workbench/remotes'
 import type { Frame } from '../frame.ts'
+import { goElsewhere, type Machines, machineOf, type Place, skewOf, unheard } from '../machines.ts'
 import { notice } from '../model.ts'
+import { projectsMenuItems } from '../panels/menu/state.ts'
 import { type RemoteShown, remoteActions } from '../panels/settings/remotes.ts'
 import type { Ui } from '../screen.ts'
+import { remoteStanding } from '../view/standing.ts'
+import { projectSays } from '../view/top.ts'
 import { Carries, type CarriesDeps } from './carry.ts'
-import { configPathOf, type Subject, type Wiring } from './context.ts'
+import { configPathOf, type Menus, type Subject, type Wiring } from './context.ts'
+import { MACHINE } from './web-panel.ts'
 
 // The window's links to other machines' Tades it is an owner of: one link per
 // `remotes.<name>`, held while the window is open (REMOTE-TADE.md §2.5, §5.4).
@@ -48,6 +54,12 @@ import { configPathOf, type Subject, type Wiring } from './context.ts'
 // **And it keeps this machine's setup in step there** (`carry.ts`): a carry
 // when a link comes up, when the config moves, and hourly, and the presses on
 // Settings › Remotes — which is the page this subject draws.
+//
+// **What each remote holds is drawn as its projects** (`facts`, folded by
+// `machines.ts`, which is where everything another machine wrote is reduced
+// to text): a tab per project under the machine's name, its agents down the
+// side, and a row on the Spend page. Folded again only when a link's held
+// value moved, because the frame asks four times a second.
 
 /** What the links need of the window, named once so a test can hand it over. */
 export interface RemotesDeps {
@@ -72,6 +84,12 @@ export interface RemotesDeps {
   carrying: Pick<CarriesDeps, 'config' | 'secrets' | 'from' | 'onScreenWith' | 'said' | 'draw'>
   /** Whether Settings is open, so its Remotes page is drawn. */
   settingsOpen: () => boolean
+  /** What this machine is called in a sentence: `this Mac`. */
+  here: string
+  /** Stand in a project on another machine. */
+  go: (place: Place) => void
+  /** Something a remote holds moved: a frame, to draw it. */
+  draw: () => void
 }
 
 export class Remotes implements Subject {
@@ -94,6 +112,14 @@ export class Remotes implements Subject {
   private stopped = false
   /** This machine's setup, kept in step on each remote (`carry.ts`). */
   private readonly carries: Carries
+  /** The machines as last folded, and the held values they were folded from. */
+  private folded: {
+    names: readonly string[]
+    helds: readonly (Held | null)[]
+    machines: Machines
+  } | null = null
+  /** How far this clock is ahead of each remote's, as of the projection it was told with. */
+  private readonly skews = new Map<string, { projection: object; skew: number }>()
 
   constructor(deps: RemotesDeps) {
     this.deps = deps
@@ -106,6 +132,75 @@ export class Remotes implements Subject {
       say: (said) => deps.say(said),
       now: deps.now,
     })
+  }
+
+  /** Every remote's projects, for the top row, the side and Spend — and nothing where there are none. */
+  facts(): Partial<Frame> {
+    const machines = this.machines()
+    return machines.remotes.length === 0 ? {} : { machines }
+  }
+
+  /** A machine's name along the top opens its projects; choosing one stands in it. */
+  menus(): Menus {
+    return {
+      machine: {
+        title: (subject) => subject.machine,
+        items: (subject) => {
+          const machine = this.machines().remotes.find((one) => one.name === subject.machine)
+          if (machine === undefined) return []
+          if (machine.projects.length === 0) {
+            const why = machine.heard ? 'no project is open there' : 'nothing heard from it yet'
+            return [{ id: '', label: machine.said ?? why, off: why }]
+          }
+          const now = this.deps.now()
+          return projectsMenuItems(
+            machine.projects.map((project) => ({
+              project: project.name,
+              label: project.title ?? project.name,
+              says: projectSays(remoteStanding(project), now),
+            })),
+          )
+        },
+        choose: (subject, project) => {
+          if (project !== '') this.deps.go({ machine: subject.machine, project })
+        },
+      },
+    }
+  }
+
+  /** What every remote holds, folded, in the order the config names them. */
+  machines(): Machines {
+    const names = Object.keys(this.fromFile ?? this.deps.remotes())
+    const helds = names.map(
+      (name) => this.links.get(this.holder.get(name) ?? '')?.held(name) ?? null,
+    )
+    const was = this.folded
+    if (
+      was !== null &&
+      was.names.length === names.length &&
+      was.names.every((name, at) => name === names[at]) &&
+      was.helds.every((held, at) => held === helds[at])
+    )
+      return was.machines
+    const machines: Machines = {
+      here: this.deps.here,
+      remotes: names.map((name, at) => {
+        const held = helds[at] ?? null
+        if (held !== null) return machineOf(held, this.skewFor(name, held))
+        return unheard(name, this.unreachable.has(name) ? 'no link here can reach it' : null)
+      }),
+    }
+    this.folded = { names, helds, machines }
+    return machines
+  }
+
+  /** How far apart the two clocks are, asked once per projection (`skewOf`). */
+  private skewFor(name: string, held: Held): number {
+    const kept = this.skews.get(name)
+    if (held.projection === null || kept?.projection === held.projection) return kept?.skew ?? 0
+    const skew = skewOf(held) ?? kept?.skew ?? 0
+    this.skews.set(name, { projection: held.projection, skew })
+    return skew
   }
 
   /** What the Remotes page draws, while Settings is open. */
@@ -195,6 +290,7 @@ export class Remotes implements Subject {
       if (still !== undefined && linkOf(still) === kind) continue
       this.holder.delete(name)
       this.words.delete(name)
+      this.skews.delete(name)
       this.carries.forget(name)
       void this.links.get(kind)?.close(name)
     }
@@ -227,6 +323,7 @@ export class Remotes implements Subject {
 
   private changed(link: RemoteLink, name: string): void {
     const held = link.held(name)
+    this.deps.draw()
     if (held !== null) {
       const word = wordOf(held)
       if (word !== null && word !== this.words.get(name)) {
@@ -236,7 +333,8 @@ export class Remotes implements Subject {
           this.deps.say(`the link to ${name} could not write ${line.type} down: ${String(err)}`)
         })
         if (word === 'ended' && held.link.kind === 'ended') {
-          this.deps.say(`${name} signed this machine out: ${held.link.said}`)
+          // The remote's own words, as text: nothing it wrote reaches the terminal as it came.
+          this.deps.say(`${name} signed this machine out: ${printable(held.link.said)}`)
         }
         if (word === 'up') this.carries.up(name)
       }
@@ -282,13 +380,17 @@ export class Remotes implements Subject {
   }
 }
 
-/** How a link stands, in the few words the Remotes page has for it. */
+/**
+ * How a link stands, in the few words the Remotes page has for it. Why it is
+ * down can be the remote's own words — a `notice` frame's, or a parser's quote
+ * of what it sent — so it is drawn as text and nothing else (`printable`).
+ */
 function linkSaid(held: Held | null): string {
   if (held === null) return 'not linked'
   const link = held.link
   if (link.kind === 'live') return '● linked'
-  if (link.kind === 'down') return `○ down · ${link.said}`
-  if (link.kind === 'ended') return `○ signed out there · ${link.said}`
+  if (link.kind === 'down') return `○ down · ${printable(link.said)}`
+  if (link.kind === 'ended') return `○ signed out there · ${printable(link.said)}`
   return '· linking…'
 }
 
@@ -313,6 +415,12 @@ export function remotesFor(
       draw: () => wire.draw(),
     },
     settingsOpen: () => wire.state.panel?.kind === 'settings',
+    here: MACHINE,
+    go: (place) => {
+      wire.put(goElsewhere(wire.state, place))
+      wire.draw()
+    },
+    draw: () => wire.draw(),
     home: wire.opts.home,
     remotes: () => wire.opts.config.remotes,
     configPath: configPathOf(wire.opts),

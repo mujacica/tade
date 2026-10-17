@@ -1,0 +1,28 @@
+ ▄▀   T A D E      checkout    search      +      vps ⋯1 !    web     lab ⋯1     ctrl   +   space   
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  1      on vps ▕│                                                                         
+                         ▕│                                                                         
+   ✓ og-images           ▕│                                                                         
+     3h 0m · done        ▕│                                                                         
+                         ▕│                                   web                                   
+ ▸ SMART QUEUE      none ▕│                                                                         
+                         ▕│                                 on vps                                  
+                         ▕│                                                                         
+                         ▕│                  everything asked of it there is done                   
+                         ▕│                                                                         
+                         ▕│                                                                         
+                         ▕│                                                                         
+                         ▕│                                                                         
+                         ▕│                                                                         
+                         ▕│                                                                         
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
+                                                                                                    
+                                                                                                   ▕
+                                                                                                   ▕
+                                                                                                   ▕
+                                                                                                   ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                              ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                              type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ 2h 5m │ $1.40 today ▾ 

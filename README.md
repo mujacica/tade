@@ -432,6 +432,23 @@ are.
 
 ![Projects along the top, and an agent in another project asking for approval](https://raw.githubusercontent.com/mujacica/tade/main/images/projects.svg)
 
+**Projects on other machines are tabs too, under the machine they are on**: this Mac's first, then
+each server linked with `tade remote add` ([below](#installing)) by its name, every tab carrying the
+marks that machine gave its agents — so the `tade` here and the `tade` on the VPS are never two tabs
+nobody can tell apart. A machine's name opens its projects. Standing in one, the side lists its
+agents with how long ago each moved and its queued work under them, and the pane says where it is
+and how it stands; search says which machine each project and agent is on, and the Spend page has a
+row for each machine's agents, each by its own clock and never added together. Everything another
+machine wrote is reduced to text before it is drawn, so a title full of escape sequences cannot
+write into this terminal.
+
+![Projects on this Mac and on two servers, and an agent list read from the VPS](https://raw.githubusercontent.com/mujacica/tade/main/images/machines.svg)
+
+When a link drops, nothing goes blank: the machine's name wears `○`, its rows stay as it last said
+them with their ages as of then, and the side says `as of 13:52`.
+
+![A remote whose link is down, its agents as it last said them](https://raw.githubusercontent.com/mujacica/tade/main/images/machines-down.svg)
+
 ## An IDE in the terminal
 
 The repository is right there while the agents work it: the file tree, the diffs, the branch, a
@@ -675,9 +692,9 @@ Tade", then "reload" — and it is the same run, checked against what you actual
 
 Not built yet, and named here rather than anywhere above, at the part of Tade it would be built on.
 
-- **A remote's projects in the window**, under the machine they are on, with their age while its
-  link is down (`Remotes.held`, `packages/app/src/wire/remotes.ts`). The links hold every remote's
-  projection already; nothing draws one yet.
+- **A remote agent's screen, and that machine's orchestrator, in this window.** Its projects and
+  agents are drawn here (`packages/app/src/machines.ts`, `view/elsewhere.ts`); a row of one opens
+  nothing yet, and only that machine's own orchestrator and window act on its work.
 
 - **Time from done to landed**, beside the cost per landed task on Evaluations
   (`evaluationsFrom`, `core/src/evaluations.ts`). The desk already says how long each piece of work

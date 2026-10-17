@@ -1,3 +1,4 @@
+import { isText } from '@tade/core'
 import { ELIDED, pathIn } from './fields.ts'
 
 // One agent's screen, as it may leave the machine.
@@ -80,25 +81,11 @@ export interface Cleaned {
 }
 
 /**
- * Characters that are never text: controls, and the marks that reorder or hide
- * what is drawn around them.
- *
- * The second half is the one that matters. A bidirectional override makes a
- * row read differently from the bytes it is made of — the trick that hides a
- * line of code inside a comment — and a zero-width joiner hides a word from
- * anything that looks for it, this file included. A tab is a space here: the
- * driver has already rendered the screen, so a tab that is left is a byte in a
- * row and not a column.
+ * One row with every character that is not text taken out, by core's one rule
+ * (`isText`, `printable.ts`): controls, and the marks that reorder or hide what
+ * is drawn around them. A tab is a space here: the driver has already rendered
+ * the screen, so a tab that is left is a byte in a row and not a column.
  */
-function isText(point: number): boolean {
-  if (point < 0x20 || (point >= 0x7f && point <= 0x9f)) return false
-  if (point === 0xad || point === 0x61c || point === 0x180e || point === 0xfeff) return false
-  if (point >= 0x200b && point <= 0x200f) return false
-  if (point >= 0x202a && point <= 0x202e) return false
-  return point < 0x2060 || point > 0x2069
-}
-
-/** One row with every character that is not text taken out. */
 function textOnly(row: string): string {
   let out = ''
   for (const one of row) if (isText(one.codePointAt(0) ?? 0)) out += one

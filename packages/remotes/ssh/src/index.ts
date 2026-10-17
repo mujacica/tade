@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Duplex } from 'node:stream'
-import { located, type RequiredProgram, runProgram, runtimeDir } from '@tade/core'
+import { located, printable, type RequiredProgram, runProgram, runtimeDir } from '@tade/core'
 import {
   DIAL_MS,
   type Door,
@@ -433,10 +433,14 @@ function trouble(
   throw new LinkError('failed', said === '' ? `${tade} there exited ${ran.code}` : `there: ${said}`)
 }
 
+/**
+ * The line of what ssh and the command there printed that says why, as text:
+ * a remote's shell writes it, and the window and the CLI both say it.
+ */
 function lastLine(text: string): string {
   const lines = text
     .split('\n')
-    .map((line) => line.trim())
+    .map((line) => printable(line).trim())
     .filter((line) => line !== '' && !/^Warning: Permanently added/.test(line))
   return (lines.at(-1) ?? '').slice(0, 300)
 }

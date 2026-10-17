@@ -49,8 +49,12 @@ export interface FarEnd {
   pair(label: string): Promise<OwnerSession>
   /** Sign a device out, as `tade web revoke` does there. */
   revoke(device: string): Promise<void>
-  /** The projects it has from now on; the next beat sends what moved. */
-  show(projects: readonly string[]): void
+  /**
+   * The projects it has from now on, and what any of them is called there —
+   * whatever somebody there wrote, as its away view sends it; the next beat
+   * sends what moved.
+   */
+  show(projects: readonly string[], titles?: Readonly<Record<string, string>>): void
   /** The newest presence any owner carried, in its clock, or null. */
   readonly presentAt: number | null
   /** How many streams are open to it. */
@@ -108,6 +112,7 @@ class Far implements FarEnd {
   signIns: SignInHere[] = []
   private server: WebServer | null = null
   private projects: readonly string[]
+  private titles: Readonly<Record<string, string>> = {}
   private readonly projectors = new Map<string, Projector>()
   private timer: NodeJS.Timeout | null = null
 
@@ -186,8 +191,9 @@ class Far implements FarEnd {
     this.server?.streams.revoke(device, 'signed out')
   }
 
-  show(projects: readonly string[]): void {
+  show(projects: readonly string[], titles: Readonly<Record<string, string>> = {}): void {
     this.projects = projects
+    this.titles = titles
   }
 
   async restart(): Promise<void> {
@@ -240,7 +246,7 @@ class Far implements FarEnd {
     return {
       lifetime: { epoch: this.epoch, rev: this.projectorRev(reach), openedAt: 0 },
       reach,
-      projects: this.projects.map(projectIn),
+      projects: this.projects.map((name) => projectIn(name, this.titles[name] ?? '')),
       tasks: [],
       queue: [],
       findings: null,
@@ -263,6 +269,6 @@ class Far implements FarEnd {
   }
 }
 
-function projectIn(name: string): ProjectIn {
-  return { name, title: '', open: true, changes: 0, can: [], cannot: [] }
+function projectIn(name: string, title: string): ProjectIn {
+  return { name, title, open: true, changes: 0, can: [], cannot: [] }
 }

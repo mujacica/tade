@@ -5,8 +5,9 @@ import { grep, listFiles, type Match, type SearchRoot } from '../finder.ts'
 import type { Frame } from '../frame.ts'
 import { happeningIn, happeningOn } from '../happening.ts'
 import type { Target } from '../hits.ts'
+import type { Machines } from '../machines.ts'
 import { askedAbout, shortlist, worthAsking } from '../meant.ts'
-import { focusTask, glyph, MARK_TONES, markOf, projects } from '../model.ts'
+import { focusTask, glyph, MARK_TONES, markGlyph, markOf, projects } from '../model.ts'
 import { searchPanel } from '../panels/search/state.ts'
 import { keysPanel } from '../panels/small/state.ts'
 import {
@@ -95,6 +96,8 @@ export interface SearchDeps {
   quit(): void
   /** Do a named action, exactly as its button would. */
   run(action: string): Promise<void>
+  /** Other machines and their projects, where there are any (`Remotes.machines`). */
+  machines(): Machines
 }
 
 export class Search implements Subject {
@@ -418,6 +421,13 @@ export class Search implements Subject {
       case 'project':
         this.deps.clicked({ kind: 'project', project: arg })
         return
+      case 'remote': {
+        // `remote:<machine>:<project>`, and `\0<agent>` after it for one of its
+        // agents, which goes to its project: a machine's name has no colon in it.
+        const [machine = '', ...project] = (arg.split('\0')[0] ?? '').split(':')
+        this.deps.clicked({ kind: 'remote-project', machine, project: project.join(':') })
+        return
+      }
       case 'setting': {
         // `setting:<category>` or `setting:<category>:<project>`: a project's
         // own row opens the page on that project, rather than on whichever it
@@ -506,14 +516,37 @@ export class Search implements Subject {
     for (const terminal of this.wire.state.terminals) {
       action(`show-terminal:${terminal.id}`, `Terminal: ${terminal.name}`, '›')
     }
+    // Where there are other machines, every project and agent says which it is
+    // on: two projects called `tade` are otherwise two rows nobody can choose
+    // between. What another machine said goes nowhere but the row, never into
+    // `about`, which is the half that may leave this one.
+    const { here, remotes } = this.deps.machines()
     for (const project of projects(this.wire.state)) {
       entries.push({
         id: `project:${project}`,
         kind: 'project',
         label: project,
+        ...(remotes.length > 0 ? { detail: here } : {}),
         mark: '▣',
         ...about(happening.projects.get(project)),
       })
+    }
+    for (const machine of remotes) {
+      for (const project of machine.projects) {
+        const id = `remote:${machine.name}:${project.name}`
+        const label = project.title ?? project.name
+        entries.push({ id, kind: 'project', label, detail: `on ${machine.name}`, mark: '▣' })
+        for (const agent of project.agents) {
+          entries.push({
+            id: `${id}\0${agent.id}`,
+            kind: 'agent',
+            label: agent.name,
+            detail: `in ${project.name} on ${machine.name}`,
+            mark: markGlyph(agent.mark),
+            tone: MARK_TONES[agent.mark],
+          })
+        }
+      }
     }
     for (const group of this.deps.settings()) {
       for (const setting of group.settings) {

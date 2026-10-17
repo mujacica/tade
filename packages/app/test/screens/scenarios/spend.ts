@@ -2,6 +2,7 @@ import { noRuntime, type PlanSource, planStandings } from '@tade/core'
 import { spendPanel } from '../../../src/panels/spend/state.ts'
 import { spendView } from '../../../src/spend.ts'
 import { base, frame, NOW, ran, type Scenario, usage } from './fixtures.ts'
+import { elsewhere } from './machines.ts'
 
 // What the agents cost: by task and by model, priced and estimated kept apart.
 
@@ -161,6 +162,29 @@ export const SPEND_SCREENS: Scenario[] = [
     frame: frame({
       spend: strip,
       plan: planStandings(plans, NOW),
+      spendView: spendView(spent, {
+        window: 'today',
+        by: 'agent',
+        now: NOW,
+        openedAt: NOW - 3_600_000,
+        projects: ['checkout', 'search', 'infra'],
+        budgets: { checkout: { usd_per_day: 5 } },
+        runs: ran,
+        plan: plans,
+      }),
+    }),
+  },
+  {
+    name: 'spend-on-two-machines',
+    about:
+      'With other machines linked, the Spend page has a row for each: what this Mac’s agents ' +
+      'spent today, and what each remote’s did by its own clock — the VPS as of when its link ' +
+      'went down, the lab box with nothing spent — and no total adding the machines together.',
+    state: { ...base(), panel: spendPanel() },
+    frame: frame({
+      spend: strip,
+      plan: planStandings(plans, NOW),
+      machines: elsewhere.down(),
       spendView: spendView(spent, {
         window: 'today',
         by: 'agent',

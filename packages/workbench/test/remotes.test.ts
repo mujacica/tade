@@ -87,6 +87,19 @@ describe('what the journal is told', () => {
     })
   })
 
+  it('writes what the remote said as text, since a shell prints it', () => {
+    const up = {
+      ...heldFor('vps'),
+      link: { kind: 'live' as const, since: 1 },
+      cursor: { epoch: 'e1\x1b]0;pwned\x07', rev: 4 },
+    }
+    expect(lineFor(up, 'up').detail.epoch).toBe('e1')
+    const said = 'refused\x1b[2J\u009b6n by the remote'
+    expect(lineFor(lost(up, 'failed', said, 2), 'down').detail.said).toBe('refused by the remote')
+    const over = { ...up, link: { kind: 'ended' as const, since: 3, said } }
+    expect(lineFor(over, 'ended').detail.said).toBe('refused by the remote')
+  })
+
   it('folds the newest word per remote back out of the journal', () => {
     const seen = linksSeen([
       line(1, 'remote_linked', { remote: 'vps', epoch: 'e1' }),

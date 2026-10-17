@@ -275,7 +275,17 @@ export function whereYouAre(here: {
   agent: string | null
   /** Every project open, so it knows the size of what it is choosing between. */
   projects: readonly string[]
+  /**
+   * A project on another machine they stand in, where no agent here is in
+   * front: said as that machine's, because a project here may have its name
+   * and nothing done here reaches it.
+   */
+  elsewhere?: { machine: string; project: string } | null
 }): string | null {
+  if (here.elsewhere && !here.agent) {
+    const { machine, project } = here.elsewhere
+    return `You are looking at ${project} on ${machine}, another machine's Tade — not a project here.`
+  }
   const many = here.projects.length > 1
   if (!here.project && !here.agent) return null
   if (!many && !here.agent) return null

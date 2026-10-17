@@ -10,6 +10,7 @@ import {
   HOME_HOLDS,
   keyDigest,
   leavesOf,
+  printable,
   textOf,
 } from '@tade/core'
 import { signInLasts } from '@tade/harnesses-core'
@@ -150,7 +151,9 @@ export async function carryTo(
   for (const body of carryBodies(setup, opts)) {
     const answer = await link.call(remote, '/api/carry', body)
     if (answer.status !== 200) throw new CarryRefused('failed', refusedSays(answer, remote.name))
-    const one = answer.body as Partial<CarryAnswer> | null
+    // Drawn on Settings › Remotes and printed by `tade remote carry`, so every
+    // word another machine wrote in it is text by the time anything reads it.
+    const one = asText(answer.body) as Partial<CarryAnswer> | null
     if (!Array.isArray(one?.settings) || !Array.isArray(one.files) || !Array.isArray(one.signIns)) {
       throw new CarryRefused(
         'failed',
@@ -180,7 +183,15 @@ function refusedSays(answer: { status: number; body: unknown }, name: string): s
   }
   if (answer.status === 401 || answer.status === 204) return SIGNED_OUT
   const said = (answer.body as { said?: unknown } | null)?.said
-  return `${name} would not take it (${answer.status})${typeof said === 'string' ? `: ${said}` : ''}`
+  return `${name} would not take it (${answer.status})${typeof said === 'string' ? `: ${printable(said)}` : ''}`
+}
+
+/** What another machine sent, with every string in it reduced to text (`printable`). */
+function asText(value: unknown): unknown {
+  if (typeof value === 'string') return printable(value)
+  if (Array.isArray(value)) return value.map(asText)
+  if (typeof value !== 'object' || value === null) return value
+  return Object.fromEntries(Object.entries(value).map(([key, one]) => [key, asText(one)]))
 }
 
 /** Which harnesses this machine's agents and orchestrator run in, and the accounts beside them. */

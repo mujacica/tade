@@ -504,14 +504,14 @@ export class Orchestrator implements Subject {
         ),
       )
     }
-    // Where they are, derived on this turn and never stored: with several
-    // projects open, "start an agent on the flaky test" is unanswerable
-    // without it, and a remembered location is stale the moment a tab moves.
+    // Where they are, derived on this turn and never stored: with several projects open, "start
+    // an agent on the flaky test" is unanswerable without it, and a remembered one is stale.
     const pane = this.wire.state.panes.find((one) => one.task === this.wire.state.focused)
     const here = whereYouAre({
       project: this.wire.state.project,
       agent: pane ? shownName(pane) : null,
       projects: this.wire.state.known,
+      elsewhere: this.wire.state.elsewhere,
     })
     const above = [here, about].filter(Boolean).join('\n\n') || null
     const message = withNews(text, this.newsWaiting, clockOf, THEIR_WORDS, above)

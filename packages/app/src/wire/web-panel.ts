@@ -67,7 +67,7 @@ export interface PanelFacts {
 }
 
 /** What this machine is called in a sentence: the one a person is sitting at. */
-const MACHINE = process.platform === 'darwin' ? 'this Mac' : 'this machine'
+export const MACHINE = process.platform === 'darwin' ? 'this Mac' : 'this machine'
 
 /** How long a ticket is good for, and how long somebody has to answer the door. */
 const TICKET_MS = 90_000
