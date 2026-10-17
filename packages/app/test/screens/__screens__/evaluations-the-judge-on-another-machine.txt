@@ -1,0 +1,34 @@
+ ▄▀   T A D E      checkout !    search ✓    infra      +      ○ vps ⋯2 !    lab ⋯1             ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ ╭─ Evaluations ──────────────────────────────────────────────────────────────────────────────────────────── esc ─╮   
+   │ 11 agents · 8 landed · merges from the journal and forge                                                       │───
+ ▌ │ for   Today    This window    7 days    30 days    All time                                                    │   
+ ▌ │ by    Harness    Model    Persona    Template    Judge    Replays                                              │   
+   │                                                                                                                │   
+   │ 12 findings · 1 with no verdict · 5 of 11 · 45%                                                               █│   
+   │                                                                                                               █│   
+   │ QUESTION                FIRED  OPEN  PRECISION                                                                █│   
+ ▸ │ test_missing                6     1  4 of 5 · 80%            earns its place                                  █│   
+ ▸ │ did_what_was_asked          5     0  0 of 5 · 0%             firing and wrong                                 █│   
+ ▸ │ secret_committed            1     0  1 of 1, too few to call under 5 verdicts                                 █│   
+ ▾ │                                                                                                               █│   
+  M│ AT                      FIRED  OPEN  PRECISION                                                                █│   
+  A│ 0.7–0.8                     4     1  1 of 3, too few to call                                                  █│   
+  M│ 0.8–0.9                     4     0  1 of 4, too few to call                                                  █│   
+   │ 0.9–1.0                     4     0  3 of 4, too few to call                                                  █│   
+ ▾ │                                                                                                               █│   
+   │ ON VPS                                                                                 as of Sun 13 Sep 13:52 █│   
+   │ 4 findings · 2 with no verdict · 1 confirmed · 1 false positive · 1 its agent answered                        █│   
+   │ QUESTION                FIRED  OPEN  DECIDED                                                                  █│   
+   │ missing_test                2     1  1 confirmed, 0 false                                                     █│   
+━  │ secret_in_diff              1     0  0 confirmed, 1 false                                                     █│  ━
+   │ swallowed_error             1     1  none yet                                                                 █│   
+   │                                                                                                               ▕│  ▕
+   │ WAITING ON A VERDICT                                                                                          ▕│  ▕
+   │                                                                                                                │  ▕
+   │ ↑↓ reads · ←→ ranges · tab groups                                                                      Done    │  ▕
+ ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯  ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

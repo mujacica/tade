@@ -993,7 +993,14 @@ drawn from what its away view sends — the projection the link holds (REMOTE-TA
   every subject acts on. It is in front only while no agent here is (`elsewhereOf`); `goElsewhere`
   keeps where you were, `whereYouWere` and `refocus` leave the spot and the focus alone while it
   is, and a beat with an agent here in front lets go of it. The side is `elsewhereSections` and the
-  pane `renderElsewhere` (`view/elsewhere.ts`).
+  pane `renderElsewhere` (`view/elsewhere.ts`). Under its agents and its queue the side goes on with
+  that project's INTAKE (and the machine's doors), CHECKS, SCHEDULES and DOCUMENTS there
+  (`thereSections`, `view/elsewhere-more.ts`), each out of `Machine.detail` and saying as of when
+  while the link is down; a document's row is a press (`remote-document:<machine> <task> <name>`)
+  that copies it here over the link and opens the copy in the viewer, offered only while linked.
+  What another machine's judge flagged is on /evals' Judge tab under `ON <MACHINE>` (counts out of
+  verdicts, open ones oldest first, the probability grey — `panels/evaluations/elsewhere.ts`); its
+  plan windows are under its row on Spend (`plansThere`), never in this machine's PLAN list.
 - **A remote agent is opened by its row** (`remote-look:<task>`, `Place.agent`), and the pane is
   `view/remote-agent.ts`: its screen there, read-only (`/api/agent`, asked every `LOOK_MS` while
   you look and only then, read through `screenOf`), and a control only for what that machine's row

@@ -119,7 +119,24 @@ const vps = (over: Partial<Machine> = {}): Machine => ({
     partial: false,
   },
   talk: null,
-  detail: NO_DETAIL,
+  detail: {
+    ...NO_DETAIL,
+    // Its own subscription there, by its own numbers: drawn under its row on Spend.
+    plans: [
+      {
+        id: 'claude-code/',
+        harness: 'claude-code',
+        account: null,
+        pays: 'plan',
+        windows: [
+          { label: '5h', used: 64, resetsAt: NOW + 2 * 3_600_000 + 10 * MINUTE },
+          { label: '7d', used: 21, resetsAt: NOW + 4 * 86_400_000 },
+        ],
+        at: NOW - 3 * MINUTE,
+        cannotTell: null,
+      },
+    ],
+  },
   ...over,
 })
 
@@ -233,7 +250,7 @@ const down = ((): Machine => {
 export const elsewhere = { up: () => machines(vps(), lab), down: () => machines(down, lab) }
 
 /** Two projects on this Mac, one agent waiting on you here. */
-const onThisMac = () =>
+export const onThisMac = () =>
   focusTask(
     withTasks(withProjects(initialState(), ['checkout', 'search']), [
       ...tasks.slice(0, 2),

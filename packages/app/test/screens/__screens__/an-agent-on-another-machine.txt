@@ -1,26 +1,26 @@
  ▄▀   T A D E     this Mac  checkout !⠋    search ●      +      vps    tade !⠋◌    web ✓     lab    firmware      ! 1  in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  4                on vps ▕│ ! Webhooks ring the doorbell                                                                                    vps · 12m 
-                                   ▕│   wants approval: gh api                                                                                                  
- ▌ ! Webhooks ring the doorbell    ▕│                                                                                                                           
- ▌   12m · wants approval: gh a…   ▕│   ⏎ type into it     steer…     park     stop                                                                             
-                                   ▕│ waits to use gh api    allow     deny                                                                                     
-   ⠋ remote-link                   ▕│                                                                                                                           
-     2m · running the suite        ▕│── its screen on vps · read-only · as of 14:00 ────────────────────────────────────────────────────────────────────────────
-                                   ▕│> wire the GitHub webhook to the doorbell, then prove a delivery wakes the watch                                           
-   ⠋ mirror-branches               ▕│                                                                                                                           
-     41m · working                 ▕│● I will register the hook on acme/checkout and send a test delivery.                                                      
+ ▾ AGENTS  4                on vps █│ ! Webhooks ring the doorbell                                                                                    vps · 12m 
+                                   █│   wants approval: gh api                                                                                                  
+ ▌ ! Webhooks ring the doorbell    █│                                                                                                                           
+ ▌   12m · wants approval: gh a…   █│   ⏎ type into it     steer…     park     stop                                                                             
+                                   █│ waits to use gh api    allow     deny                                                                                     
+   ⠋ remote-link                   █│                                                                                                                           
+     2m · running the suite        █│── its screen on vps · read-only · as of 14:00 ────────────────────────────────────────────────────────────────────────────
+                                   █│> wire the GitHub webhook to the doorbell, then prove a delivery wakes the watch                                           
+   ⠋ mirror-branches               █│                                                                                                                           
+     41m · working                 █│● I will register the hook on acme/checkout and send a test delivery.                                                      
+                                   █│                                                                                                                           
+   ✓ Notes are shared both ways    █│● Bash(gh api repos/acme/checkout/hooks --method POST -f name=web …)                                                       
+     1h 35m · finished: set uni…   █│                                                                                                                           
+                                   █│  Do you want to proceed?                                                                                                  
+ ▾ SMART QUEUE  1                  █│  ❯ 1. Yes                                                                                                                 
+                                   █│    2. Yes, and don’t ask again for gh api commands                                                                        
+   ◌ linear-door                   █│    3. No, and tell Claude what to do differently                                                                          
+     30m · waits on intake-webh…   █│                                                                                                                           
                                    ▕│                                                                                                                           
-   ✓ Notes are shared both ways    ▕│● Bash(gh api repos/acme/checkout/hooks --method POST -f name=web …)                                                       
-     1h 35m · finished: set uni…   ▕│                                                                                                                           
-                                   ▕│  Do you want to proceed?                                                                                                  
- ▾ SMART QUEUE  1                  ▕│  ❯ 1. Yes                                                                                                                 
-                                   ▕│    2. Yes, and don’t ask again for gh api commands                                                                        
-   ◌ linear-door                   ▕│    3. No, and tell Claude what to do differently                                                                          
-     30m · waits on intake-webh…   ▕│                                                                                                                           
-                                   ▕│                                                                                                                           
-                                   ▕│                                                                                                                           
-                                   ▕│                                                                                                                           
+ ▸ INTAKE                          ▕│                                                                                                                           
+ ▸ CHECKS                          ▕│                                                                                                                           
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
                                                                                                                                                                 
                                                                                                                                                                ▕

@@ -15,16 +15,16 @@
   M package.js│ MACHINES                                                           their agents, today █│               
   A …/webhooks│ this Mac               $1.30  2.1M tokens                                              █│               
   M src/webhoo│ vps                    $4.18  2.3M tokens as of Sun 13 Sep 13:52                       █│               
-              │ lab                        —                                                           █│               
- ▾ FILES      │                                                                                        █│               
-   ▾ src/     │ PLAN                                                                                   █│               
-       webhook│ claude-code       5h  ████████░░  78%  resets in 1h 22m said 6m ago     ≈$3.74 at list █│               
-       webhook│                   7d  ███░░░░░░░  31%  resets in 3d 0h                                 █│               
-   ▸ test/    │ codex             5h  █░░░░░░░░░  12%  resets in 2h 0m  said 41m ago                   █│               
-━   orchestrat│ pi                cannot tell                                                          █│━   ↑     ↓   ━
-              │                                                                                        █│               
-              │ BUDGETS                                                                                █│              ▕
-              │ checkout        $0.62 of $5.00 a day        █░░░░░░░░░░░ 12%                           ▕│              ▕
+              │   claude-code           5h   ██████░░░░  64%  resets in 2h 10m                         █│               
+ ▾ FILES      │                         7d   ██░░░░░░░░  21%  resets in 4d 0h                          █│               
+   ▾ src/     │ lab                        —                                                           █│               
+       webhook│                                                                                        █│               
+       webhook│ PLAN                                                                                   █│               
+   ▸ test/    │ claude-code       5h  ████████░░  78%  resets in 1h 22m said 6m ago     ≈$3.74 at list █│               
+━   orchestrat│                   7d  ███░░░░░░░  31%  resets in 3d 0h                                 █│━   ↑     ↓   ━
+              │ codex             5h  █░░░░░░░░░  12%  resets in 2h 0m  said 41m ago                   ▕│               
+              │ pi                cannot tell                                                          ▕│              ▕
+              │                                                                                        ▕│              ▕
               │                                                                                         │              ▕
               │ ↑↓ reads · ←→ ranges · tab groups                                               Done    │              ▕
  ❯ what you sa╰─────────────────────────────────────────────────────────────────────────────────────────╯              ▕

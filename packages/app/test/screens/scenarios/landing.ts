@@ -117,6 +117,35 @@ export const LANDING_SCREENS: Scenario[] = [
     frame: frame({ landing: desk }),
   },
   {
+    name: 'the-landing-desk-with-another-machine',
+    about:
+      'The desk with the VPS linked: its finished work placed among this machine’s by the VPS’s ' +
+      'own answer, each row of it named for the machine it is on, its checks and findings what ' +
+      'ran and was flagged there.',
+    state: { ...base(), panel: landingPanel() },
+    frame: frame({
+      landing: [
+        ...desk.slice(0, 2),
+        {
+          task: 'tade/remote-link',
+          project: 'tade',
+          machine: 'vps',
+          tier: desk[0]?.tier ?? 'ready',
+          why: 'its checks passed there and nothing is open on it',
+          also: 0,
+          checks: 'pass',
+          findings: { ...none },
+          conflicts: 0,
+          size: { commits: 3, added: 140, removed: 22 },
+          usd: 1.12,
+          waitingSince: NOW - 25 * MINUTE,
+          review: 'open',
+        },
+        ...desk.slice(2),
+      ],
+    }),
+  },
+  {
     name: 'an-empty-landing-desk',
     about:
       'Nothing finished and no review open: the desk says so rather than drawing an empty box.',

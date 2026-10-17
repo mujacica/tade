@@ -6,10 +6,10 @@
      3h 0m · done        ▕│                                                                         
                          ▕│                                   web                                   
  ▸ SMART QUEUE      none ▕│                                                                         
-                         ▕│                                 on vps                                  
-                         ▕│                                                                         
-                         ▕│                  everything asked of it there is done                   
-                         ▕│                                                                         
+ ▸ INTAKE                ▕│                                 on vps                                  
+ ▸ CHECKS                ▕│                                                                         
+ ▸ SCHEDULES             ▕│                  everything asked of it there is done                   
+ ▸ DOCUMENTS             ▕│                                                                         
                          ▕│                                                                         
                          ▕│                                                                         
                          ▕│                                                                         

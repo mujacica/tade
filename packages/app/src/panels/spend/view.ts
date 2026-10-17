@@ -10,6 +10,7 @@ import {
   type Runtime,
   workedOf,
 } from '@tade/core'
+import type { Machine } from '../../machines.ts'
 import { type AgentPane, glyph, MARK_TONES, markOf } from '../../model.ts'
 import type { Skin } from '../../skin.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendBy } from '../../spend.ts'
@@ -598,6 +599,57 @@ function machineRows(ctx: PanelContext, inner: number, row: () => Row): Line[] {
     const priced = pricedOf({ ...noSpend(), ...spent })
     const said = priced === 'none' ? '—' : `${spent.partial ? '≥' : ''}${cost(priced, spent.usd)}`
     lines.push(line(machine.name, said, tokenCount(spent.tokens), note))
+    lines.push(...plansThere(machine, ctx, row))
+  }
+  return lines
+}
+
+/**
+ * What each of a remote's sign-ins has used of its plan, under its row: its own
+ * windows by its own numbers, never added to this machine's PLAN list below —
+ * a plan there is that machine's subscription, and as fresh as its last word.
+ */
+function plansThere(machine: Machine, ctx: PanelContext, row: () => Row): Line[] {
+  const { skin } = ctx
+  const lines: Line[] = []
+  for (const plan of machine.detail.plans) {
+    const who = plan.account === null ? plan.harness : `${plan.harness} · ${plan.account}`
+    if (plan.windows.length === 0) {
+      const why = plan.cannotTell ?? 'cannot tell'
+      lines.push(
+        row()
+          .space(3)
+          .text(padTo(cap(who, 22), 22))
+          .text(cap(why, 40), skin.hint)
+          .build(),
+      )
+      continue
+    }
+    let top = true
+    for (const window of plan.windows) {
+      const used = Math.round(window.used)
+      const pressure = planPressure(used)
+      const tone = pressure === 'tight' ? skin.bad : pressure === 'warm' ? skin.waiting : skin.done
+      const resets =
+        window.resetsAt === null
+          ? 'no reset given'
+          : window.resetsAt <= ctx.now
+            ? 'started over since'
+            : `resets in ${duration(window.resetsAt - ctx.now)}`
+      lines.push(
+        row()
+          .space(3)
+          .text(padTo(top ? cap(who, 22) : '', 22))
+          .text(pad(window.label, 5), skin.hint)
+          .meter(Math.min(1, used / 100), 10, tone)
+          .space()
+          .text(`${used}%`.padStart(4), tone)
+          .space(2)
+          .text(resets, skin.hint)
+          .build(),
+      )
+      top = false
+    }
   }
   return lines
 }

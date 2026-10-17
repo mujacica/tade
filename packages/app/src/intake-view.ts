@@ -45,6 +45,11 @@ const MARKS: Readonly<Record<InboxState, AgentMark | 'queued'>> = {
   failure: 'failed',
 }
 
+/** The mark a request in this state wears, wherever it is drawn: here, or on another machine's side. */
+export function inboxStateMark(state: InboxState): AgentMark | 'queued' {
+  return MARKS[state]
+}
+
 export function inboxMark(row: InboxRow, now = 0): InboxMark {
   // Work that has an agent on it and has finished wears the finished mark: a
   // spinner over work nobody is doing is the one reading of `started` that is

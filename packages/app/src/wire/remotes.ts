@@ -112,6 +112,8 @@ export interface RemotesDeps {
   go: (place: Place) => void
   /** Something a remote holds moved: a frame, to draw it. */
   draw: () => void
+  /** Open a file here in the viewer: a copy of another machine's document, once it is read. */
+  open?: (path: string) => void
 }
 
 export class Remotes implements Subject {
@@ -197,9 +199,28 @@ export class Remotes implements Subject {
     }
   }
 
-  /** What an agent there may be asked from here: looked at, typed into, told, stopped, parked. */
+  /**
+   * What an agent there may be asked from here — looked at, typed into, told,
+   * stopped, parked — and one of a machine's documents read here.
+   */
   actions(): Actions {
-    return this.agents?.actions() ?? {}
+    return { ...this.agents?.actions(), 'remote-document': (rest) => this.readDocument(rest) }
+  }
+
+  /**
+   * `<machine> <task> <name>`: one of that machine's documents, read into a copy
+   * here (`RemoteMachines.document`) and opened in the viewer — or why not, said.
+   */
+  private async readDocument(rest: string): Promise<void> {
+    const [machine = '', task = '', ...name] = rest.split(' ')
+    try {
+      if (this.about === null || this.deps.open === undefined) {
+        throw new Error('this window reads no other machine’s documents')
+      }
+      this.deps.open(await this.about.document(machine, task, name.join(' ')))
+    } catch (err) {
+      this.deps.say(err instanceof Error ? err.message : String(err))
+    }
   }
 
   prompts(): Prompts {
@@ -596,7 +617,10 @@ function linkSaid(held: Held | null): string {
 /** The window's remotes, read off its wiring. */
 export function remotesFor(
   wire: Wiring,
-  onScreenWith: (flow: (ui: Ui) => Promise<void>) => Promise<void>,
+  subjects: {
+    orchestrator: () => { onScreenWith(flow: (ui: Ui) => Promise<void>): Promise<void> }
+    files: () => { openFile(path: string): void }
+  },
 ): Remotes {
   const say = (said: string) => {
     wire.put(notice(wire.state, said, wire.now()))
@@ -607,7 +631,7 @@ export function remotesFor(
       config: (): Config => wire.opts.config,
       secrets: () => new Set((wire.opts.extensions?.secrets() ?? []).map((one) => one.path)),
       from: () => machineLabel(),
-      onScreenWith,
+      onScreenWith: (flow) => subjects.orchestrator().onScreenWith(flow),
       said: (saved, error) => {
         const panel = wire.state.panel
         if (panel?.kind === 'settings')
@@ -624,6 +648,7 @@ export function remotesFor(
       wire.draw()
     },
     draw: () => wire.draw(),
+    open: (path) => subjects.files().openFile(path),
     home: wire.opts.home,
     ...(wire.opts.remoteLinks ? { links: wire.opts.remoteLinks } : {}),
     remotes: () => wire.opts.config.remotes,

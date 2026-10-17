@@ -1,0 +1,60 @@
+ ▄▀   T A D E     this Mac  checkout !⠋    search ●      +      ○ vps    tade !⠋◌    web ✓     lab    firmware    ! 1  in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  4   ○ vps · as of 13:52 ▕│                                                                                                                           
+                                   ▕│                                                                                                                           
+   ! Webhooks ring the doorbell    ▕│                                                                                                                           
+     11m · wants approval: gh a…   ▕│                                                                                                                           
+                                   ▕│                                                                                                                           
+   ⠋ remote-link                   ▕│                                                                                                                           
+     1m · running the suite        ▕│                                                                                                                           
+                                   ▕│                                                                                                                           
+   ⠋ mirror-branches               ▕│                                                                                                                           
+     40m · working                 ▕│                                                                                                                           
+                                   ▕│                                                                                                                           
+   ✓ Notes are shared both ways    ▕│                                                                                                                           
+     1h 34m · finished: set uni…   ▕│                                                                                                                           
+                                   ▕│                                                                                                                           
+ ▾ SMART QUEUE  1                  ▕│                                                                                                                           
+                                   ▕│                                                                                                                           
+   ◌ linear-door                   ▕│                                                           tade                                                            
+     29m · waits on intake-webh…   ▕│                                                                                                                           
+                                   ▕│                                                on vps · down · as of 13:52                                                
+ ▾ INTAKE  2           as of 13:52 ▕│                                                                                                                           
+ ! Webhook deliveries …   proposed ▕│                                            1 wants you · 2 working · 1 queued                                             
+   @kim · github · waiting for y…  ▕│                                                                                                                           
+ ⠋ Can the VPS watch Li…   started ▕│                                            timed out: nothing answered in 30s                                             
+   @amir · slack · an agent is o…  ▕│                                                                                                                           
+   github: found · found 1 new     ▕│                                                                                                                           
+   linear: trouble · Linear said…  ▕│                                                                                                                           
+                                   ▕│                                                                                                                           
+ ▾ CHECKS  2           as of 13:52 ▕│                                                                                                                           
+ ✗ tests                           ▕│                                                                                                                           
+   failing since 13:25 · 2 runs    ▕│                                                                                                                           
+ ✓ types                           ▕│                                                                                                                           
+   passing since 12:00 · 14 runs   ▕│                                                                                                                           
+   and runs in 1 worktree there    ▕│                                                                                                                           
+                                   ▕│                                                                                                                           
+ ▾ SCHEDULES  2        as of 13:52 ▕│                                                                                                                           
+ ◎ New Sentry errors · every hour  ▕│                                                                                                                           
+   2 new 13:20                     ▕│                                                                                                                           
+ ‖ Nightly dependency check · ev…  ▕│                                                                                                                           
+                                   ▕│                                                                                                                           
+ ▾ DOCUMENTS  2        as of 13:52 ▕│                                                                                                                           
+ ▤ REMOTE-TADE.md                  ▕│                                                                                                                           
+   tade/research · read once vps…  ▕│                                                                                                                           
+ ▤ AUDIT.md                        ▕│                                                                                                                           
+   tade/audit · gone               ▕│                                                                                                                           
+                                   ▕│                                                                                                                           
+                                   ▕│                                                                                                                           
+                                   ▕│                                                                                                                           
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
+                                                                                                                                                                
+                                                                                                                                                               ▕
+                                                                                                                                                               ▕
+                                                                                                                                                               ▕
+                                                                                                                                                               ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                                                          ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                                                          type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake                        remote off │ claude-opus-5 ▾ · openrouter │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

@@ -2,6 +2,7 @@ import { type InboxRow, inboxProvenance } from '@tade/core'
 import { heldFor } from '@tade/remotes-core'
 import { describe, expect, it } from 'vitest'
 import type { Frame, IntakeOpenView } from '../src/frame.ts'
+import { machineThere } from '../src/machine-there.ts'
 import { goElsewhere, machineOf, screenOf } from '../src/machines.ts'
 import {
   focusTask,
@@ -14,7 +15,9 @@ import {
 import { extensionViewPanel } from '../src/panels/extensions/setup.ts'
 import { extensionsPanel } from '../src/panels/extensions/state.ts'
 import { intakePanel } from '../src/panels/intake/state.ts'
+import { settingsPanel } from '../src/panels/settings/state.ts'
 import { notePanel } from '../src/panels/small/state.ts'
+import { spendPanel } from '../src/panels/spend/state.ts'
 import { rowSummaryPanel } from '../src/panels/summary/state.ts'
 import { windowTitle } from '../src/title.ts'
 import {
@@ -498,5 +501,153 @@ describe('an agent on another machine, opened here', () => {
       'ghapi',
       'screenrow',
     )
+  })
+})
+
+describe('everything else another machine says, drawn here', () => {
+  it('draws its requests, doors, checks, watches, documents, problems and plans as text', () => {
+    const at = new Date(NOW).toISOString()
+    const held = {
+      ...heldFor('vps'),
+      link: { kind: 'live' as const, since: NOW },
+      heardAt: NOW,
+      projection: {
+        v: 1,
+        fresh: { at, epoch: 'e1', rev: 3, warnings: [hostile('gitwarned')] },
+        projects: [
+          {
+            name: 'tade',
+            open: true,
+            checks: [
+              {
+                task: null,
+                checks: [
+                  {
+                    check: hostile('suitename'),
+                    required: true,
+                    runs: [{ at, state: 'fail', ms: 1 }],
+                    by: null,
+                    streak: { state: 'fail', since: at, runs: 1 },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        tasks: [
+          {
+            id: 'tade/plan',
+            project: 'tade',
+            name: 'plan',
+            mark: 'done',
+            produces: { name: hostile('docname'), written: true },
+          },
+        ],
+        intake: [
+          {
+            item: 'github:1',
+            source: 'github',
+            project: 'tade',
+            state: 'proposed',
+            because: hostile('waitingbecause'),
+            title: { words: hostile('requesttitle'), more: false },
+            who: { words: hostile('filer'), more: false },
+            at,
+          },
+        ],
+        sources: [
+          { source: 'linear', state: 'trouble', because: hostile('doorshut'), found: 0, fresh: 0 },
+        ],
+        plans: [
+          {
+            id: 'claude-code/',
+            harness: 'claude-code',
+            account: { words: hostile('me'), more: false },
+            pays: 'plan',
+            windows: [{ label: '5h', used: 40, resetsAt: null }],
+            at,
+            cannotTell: null,
+          },
+        ],
+        queue: [],
+      } as never,
+    }
+    const machine = machineThere(held, 0, {
+      answer: {
+        at,
+        version: hostile('version'),
+        newer: null,
+        public: {
+          name: 'tade.example.com',
+          up: true,
+          health: [{ said: hostile('certsaid'), loud: true }],
+        },
+        problems: [{ from: 'journal', at, said: hostile('problemsaid') }],
+        schedules: [
+          {
+            id: 'w',
+            name: hostile('watchname'),
+            project: 'tade',
+            kind: 'watch',
+            when: 'every hour',
+            paused: false,
+            next: null,
+            watch: {
+              id: 'sentry.new-errors',
+              looks: [
+                {
+                  at,
+                  found: 1,
+                  fresh: 0,
+                  left: 0,
+                  problem: hostile('lookfailed'),
+                  said: null,
+                  on: null,
+                },
+              ],
+              found: [],
+            },
+          },
+        ],
+        documents: [],
+      },
+      at: NOW,
+      roundTrip: 30,
+      said: null,
+    })
+    const machines = { here: 'this Mac', remotes: [machine] }
+    const standing = goElsewhere(withProjects(initialState(), ['checkout']), {
+      machine: 'vps',
+      project: 'tade',
+    })
+    expectOnlyText(
+      see(standing, { machines }),
+      'requesttitle',
+      'filer',
+      'doorshut',
+      'suitename',
+      'watchname',
+      'lookfailed',
+    )
+    const remotes = [
+      {
+        name: 'vps',
+        address: 'vps',
+        link: '● linked',
+        live: true,
+        list: null,
+        at: null,
+        busy: false,
+        machine,
+      },
+    ]
+    expectOnlyText(
+      see({ ...base(), panel: { ...settingsPanel('remotes'), row: 0 } }, { panel: { remotes } }),
+      'version',
+      'certsaid',
+      'problemsaid',
+      'gitwarned',
+    )
+    expectOnlyText(see({ ...base(), panel: spendPanel() }, { machines }), 'claude-code · ', 'me')
   })
 })

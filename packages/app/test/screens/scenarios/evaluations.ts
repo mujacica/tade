@@ -10,8 +10,62 @@ import {
   type TadeEvent,
 } from '@tade/core'
 import { type EvalsView, evalsView } from '../../../src/evaluations.ts'
+import type { FindingThere } from '../../../src/machine-there.ts'
 import { evaluationsPanel } from '../../../src/panels/evaluations/state.ts'
 import { base, frame, NOW, type Scenario } from './fixtures.ts'
+import { elsewhere } from './machines.ts'
+
+/** What the VPS's judge flagged about its own agents, and what came of each there. */
+const vpsFindings: FindingThere[] = [
+  {
+    key: 'tade/remote-link:missing_test',
+    question: 'missing_test',
+    project: 'tade',
+    tasks: ['tade/remote-link'],
+    at: NOW - 3 * 3_600_000,
+    probability: 0.88,
+    file: 'packages/remotes/core/src/follow.ts',
+    stillThere: true,
+    account: null,
+    verdict: null,
+  },
+  {
+    key: 'tade/intake-door:swallowed_error',
+    question: 'swallowed_error',
+    project: 'tade',
+    tasks: ['tade/intake-door'],
+    at: NOW - 40 * 60_000,
+    probability: 0.71,
+    file: 'packages/extensions/intake/src/slack.ts',
+    stillThere: true,
+    account: { did: 'not real', said: 'the catch rethrows after logging' },
+    verdict: null,
+  },
+  {
+    key: 'tade/linear:missing_test',
+    question: 'missing_test',
+    project: 'tade',
+    tasks: ['tade/linear'],
+    at: NOW - 26 * 3_600_000,
+    probability: 0.64,
+    file: 'packages/extensions/intake/src/linear.ts',
+    stillThere: false,
+    account: { did: 'fixed', said: null },
+    verdict: 'confirmed',
+  },
+  {
+    key: 'tade/linear:secret_in_diff',
+    question: 'secret_in_diff',
+    project: 'tade',
+    tasks: ['tade/linear'],
+    at: NOW - 26 * 3_600_000,
+    probability: 0.52,
+    file: 'test/fixtures/linear.json',
+    stillThere: true,
+    account: { did: 'not real', said: 'a fixture token, revoked' },
+    verdict: 'false positive',
+  },
+]
 
 // The Evaluations panel: which harness, model, persona and template lands work,
 // and the judge's own calibration beside them. Folded by core's own rule out of
@@ -360,6 +414,26 @@ export const EVALUATION_SCREENS: Scenario[] = [
       'probability, out of verdicts alone, with the counts said and a rate only from five.',
     state: { ...base(), panel: evaluationsPanel('judge') },
     frame: frame({ evaluations: evals }),
+  },
+  {
+    name: 'evaluations-the-judge-on-another-machine',
+    about:
+      'The Judge tab with the VPS linked: this machine’s own record, then what the VPS’s judge ' +
+      'flagged about its agents — every question with how often it fired and what was decided ' +
+      'there, and what still waits on a verdict, oldest first, the probability grey and the ' +
+      'judge’s — under its own name, as of when it last said.',
+    state: { ...base(), panel: evaluationsPanel('judge') },
+    frame: frame({
+      evaluations: evals,
+      machines: {
+        ...elsewhere.down(),
+        remotes: elsewhere
+          .down()
+          .remotes.map((one) =>
+            one.name !== 'vps' ? one : { ...one, detail: { ...one.detail, findings: vpsFindings } },
+          ),
+      },
+    }),
   },
   {
     name: 'evaluations-replays',

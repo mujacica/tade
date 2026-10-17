@@ -472,3 +472,15 @@ export function aboutOf(
     })),
   }
 }
+
+/** What a watch's newest look there came to, in a few words; empty for a schedule that is not one. */
+export function lookSaid(one: ScheduleThere, date: (at: number) => string): string {
+  if (one.watch === null) return ''
+  const look = one.watch.looks[0]
+  if (look === undefined) return 'has not looked'
+  if (look.problem !== null) return `! ${look.problem}`
+  if (look.on !== null) return `on ${look.on}`
+  const found =
+    look.fresh > 0 ? `${look.fresh} new` : look.found === 0 ? 'found nothing' : 'nothing new'
+  return look.at === null ? found : `${found} ${date(look.at)}`
+}

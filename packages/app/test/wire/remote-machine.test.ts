@@ -77,6 +77,8 @@ async function linked() {
   const table = new Map<string, ScriptedRemote>([['north', far]])
   const config = ConfigSchema.parse({ remotes: { vps } })
   const clock = { at: Date.now() }
+  const opened: string[] = []
+  const said: string[] = []
   const remotes = new Remotes({
     home,
     remotes: () => config.remotes,
@@ -84,7 +86,8 @@ async function linked() {
     lastInputAt: () => null,
     now: () => clock.at,
     log: async () => {},
-    say: () => {},
+    say: (line) => said.push(line),
+    open: (path) => opened.push(path),
     links: { ssh: (options) => makeScriptedLink({ ...options, remotes: table }) },
     here: 'this Mac',
     go: () => {},
@@ -118,7 +121,7 @@ async function linked() {
     }
   }
   const vpsNow = () => remotes.machines().remotes.find((one) => one.name === 'vps')
-  return { far, home, remotes, until, vpsNow }
+  return { far, home, remotes, until, vpsNow, opened, said }
 }
 
 describe('what another machine says it is', () => {
@@ -158,6 +161,17 @@ describe('what another machine says it is', () => {
     await expect(asked?.document('vps', 'far/plan', 'GONE.md')).rejects.toThrow(
       'vps has no document of far/plan called GONE.md',
     )
+  })
+
+  it('reads a document from its row and opens the copy, and says why where it cannot', async () => {
+    const { far, home, remotes, until, vpsNow, opened, said } = await linked()
+    far.documents.set('far/plan/PLAN.md', { at: AT, text: '# The plan\n' })
+    await until('vps said what it is', () => vpsNow()?.detail.about !== null)
+    await remotes.actions()['remote-document']?.('vps far/plan PLAN.md')
+    expect(opened).toEqual([remoteDocumentPath(home, 'vps', 'far/plan', 'PLAN.md')])
+    await remotes.actions()['remote-document']?.('vps far/plan GONE.md')
+    expect(said).toContain('vps has no document of far/plan called GONE.md to read')
+    expect(opened).toHaveLength(1)
   })
 
   it('runs one of its tools that only reads, there, and says what it said where it failed', async () => {

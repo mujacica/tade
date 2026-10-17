@@ -13,13 +13,15 @@ import {
 import { MARK_TONES, markGlyph } from '../model.ts'
 import type { Skin } from '../skin.ts'
 import { blank, type Drawn, fit, NO_POINTER, type Pointer, Row, stack } from '../ui.ts'
+import { thereSections } from './elsewhere-more.ts'
 import { renderRemoteAgent } from './remote-agent.ts'
 import { type ListItem, type Section, TAB_EDGES, tabList } from './rows.ts'
 import { type ProjectMark, remoteStanding } from './standing.ts'
 import { clockOf, shortened } from './text.ts'
 
 // Standing in a project on another machine: the side lists its agents and its
-// queued work, and the pane says what the project is, where, and how it stands
+// queued work — and under them its requests, checks, schedules and documents
+// (`elsewhere-more.ts`) — and the pane says what the project is, where, and how it stands
 // (REMOTE-TADE.md §9.4). Both draw from `machines.ts`, which is the only thing
 // that ever read what that machine wrote, so every word here is text.
 //
@@ -82,6 +84,7 @@ export function elsewhereSections(
       banded: queued.length > 0,
       rows: (row) => (queued.length === 0 ? line(row, 'nothing waiting there') : items(queued)),
     },
+    ...thereSections(frame, place, width, skin),
   ]
 }
 

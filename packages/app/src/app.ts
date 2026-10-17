@@ -153,11 +153,10 @@ export class App {
   /**
    * Every subject, in the order their answers are folded together.
    *
-   * The order decides nothing today — no two of them answer for the same field
-   * — and it is written down so that if two ever did, the answer would at
-   * least be the same one every time. `mouse` is not in it: it answers no
-   * question the frame or the router asks, it only turns what happened on the
-   * screen into one of them.
+   * The order decides nothing today — no two of them answer for the same field — and it is written
+   * down so that if two ever did, the answer would at least be the same one every time. `mouse` is
+   * not in it: it answers no question the frame or the router asks, it only turns what happened on
+   * the screen into one of them.
    */
   private readonly intake: Intake
   private readonly subjects: readonly Subject[]
@@ -280,7 +279,10 @@ export class App {
       lifecycle: { agents: () => this.agents, projects: () => this.projects },
       copy: (text) => copyText(text, (data) => this.terminal.write(data)),
     })
-    this.remotes = remotesFor(this.wire, (flow) => this.orchestrator.onScreenWith(flow))
+    this.remotes = remotesFor(this.wire, {
+      orchestrator: () => this.orchestrator,
+      files: () => this.files,
+    })
     this.voice = new Voice(this.wire, {
       submit: () => this.keyboard.submit(),
       say: (said) => this.orchestrator.say(said),
@@ -580,9 +582,8 @@ export class App {
     this.release?.()
     if (this.pointerShapes) this.terminal.write(pointerSequence('default'))
     this.tui.stop()
-    // Leave the terminal as it was found. The alternate screen is restored by
-    // the TUI, but whatever was painted before it goes back is a half-window
-    // stranded in your scrollback.
+    // Leave the terminal as it was found. The alternate screen is restored by the TUI, but whatever
+    // was painted before it goes back is a half-window stranded in your scrollback.
     this.terminal.clearScreen()
     // Side by side, by one moment: a listener or a look that never answers is
     // named on the way out, never what keeps the prompt from coming back.
@@ -675,10 +676,9 @@ export class App {
     this.voice.use(
       await VoiceSurface.start({
         tade: this.opts.client,
-        // Yours, where it is a matter of taste. Everything else about what is
-        // worth interrupting you for is the engine's, and not a setting — and
-        // the overlay is `attentionFor`'s, so the phone reads the same quiet
-        // hours and the same budget out of the same two keys.
+        // Yours, where it is a matter of taste. Everything else about what is worth interrupting
+        // you for is the engine's, and not a setting — and the overlay is `attentionFor`'s, so the
+        // phone reads the same quiet hours and the same budget out of the same two keys.
         settings: attentionFor('voice', attention),
         speaker: this.voice.muteable(
           this.opts.speaker ?? (await Speaker.create({ soundDir: join(this.opts.home, 'sounds') })),

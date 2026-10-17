@@ -193,6 +193,10 @@ Tade counted.
   before the controls beside it — when each window comes back, then the window that is not the
   tightest, and the bars themselves last — because both are said again one click away on the page it
   opens, and the model and how hard it thinks are said nowhere else.
+- **Another machine's plans are that machine's subscription**, drawn under its row in MACHINES on the
+  Spend page by its own numbers (`plansThere`, out of its projection's `plans`, `machine-there.ts`)
+  and never in this machine's PLAN list or the strip, as fresh as its last word — the row above says
+  as of when while its link is down.
 - **When a plan is worrying is one rule** (`planPressure`, `PLAN_WARM`, `PLAN_TIGHT`): the strip's
   colours, the page's colours and what the orchestrator is told all read it, and it was two copies of
   the same literal before the third reader arrived.

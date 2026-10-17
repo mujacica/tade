@@ -2,7 +2,7 @@ import { duration, KEYS_TO_REMOTE, TALK_TO_REMOTE } from '@tade/core'
 // Type-only, so the pure panel model never loads what makes a checklist.
 import type { Checklist } from '@tade/workbench/carry'
 import type { Hit } from '../../hits.ts'
-import type { MachineAbout } from '../../machine-there.ts'
+import { lookSaid, type MachineAbout } from '../../machine-there.ts'
 import type { Machine } from '../../machines.ts'
 import type { Look } from '../../skin.ts'
 import { blank, Row } from '../../ui.ts'
@@ -291,18 +291,6 @@ function connection(
     under(said.filter(Boolean).join(' · '), look?.problem ? skin.waiting : skin.hint)
   }
   if (schedules.length > LISTED) under(`and ${schedules.length - LISTED} more`, skin.hint)
-}
-
-/** What a watch's newest look there came to, in a few words; empty for a schedule that is not one. */
-function lookSaid(one: MachineAbout['schedules'][number], date: (at: number) => string): string {
-  if (one.watch === null) return ''
-  const look = one.watch.looks[0]
-  if (look === undefined) return 'has not looked'
-  if (look.problem !== null) return `! ${look.problem}`
-  if (look.on !== null) return `on ${look.on}`
-  const found =
-    look.fresh > 0 ? `${look.fresh} new` : look.found === 0 ? 'found nothing' : 'nothing new'
-  return look.at === null ? found : `${found} ${date(look.at)}`
 }
 
 /** Its public name, and what the certificate look and the version said of it, loudest first. */

@@ -1,26 +1,26 @@
  ▄▀   T A D E     this Mac  checkout !⠋    search ●      +      vps    tade !⠋◌    web ✓     lab    firmware      ! 1  in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  4                on vps ▕│                                                                                                                           
+ ▾ AGENTS  4                on vps █│                                                                                                                           
+                                   █│                                                                                                                           
+   ! Webhooks ring the doorbell    █│                                                                                                                           
+     12m · wants approval: gh a…   █│                                                                                                                           
+                                   █│                                                                                                                           
+   ⠋ remote-link                   █│                                                                                                                           
+     2m · running the suite        █│                                                           tade                                                            
+                                   █│                                                                                                                           
+   ⠋ mirror-branches               █│                                                          on vps                                                           
+     41m · working                 █│                                                                                                                           
+                                   █│                                            1 wants you · 2 working · 1 queued                                             
+   ✓ Notes are shared both ways    █│                                                                                                                           
+     1h 35m · finished: set uni…   █│                                                                                                                           
+                                   █│                                                                                                                           
+ ▾ SMART QUEUE  1                  █│                                                                                                                           
+                                   █│                                                                                                                           
+   ◌ linear-door                   █│                                                                                                                           
+     30m · waits on intake-webh…   █│                                                                                                                           
                                    ▕│                                                                                                                           
-   ! Webhooks ring the doorbell    ▕│                                                                                                                           
-     12m · wants approval: gh a…   ▕│                                                                                                                           
-                                   ▕│                                                                                                                           
-   ⠋ remote-link                   ▕│                                                                                                                           
-     2m · running the suite        ▕│                                                           tade                                                            
-                                   ▕│                                                                                                                           
-   ⠋ mirror-branches               ▕│                                                          on vps                                                           
-     41m · working                 ▕│                                                                                                                           
-                                   ▕│                                            1 wants you · 2 working · 1 queued                                             
-   ✓ Notes are shared both ways    ▕│                                                                                                                           
-     1h 35m · finished: set uni…   ▕│                                                                                                                           
-                                   ▕│                                                                                                                           
- ▾ SMART QUEUE  1                  ▕│                                                                                                                           
-                                   ▕│                                                                                                                           
-   ◌ linear-door                   ▕│                                                                                                                           
-     30m · waits on intake-webh…   ▕│                                                                                                                           
-                                   ▕│                                                                                                                           
-                                   ▕│                                                                                                                           
-                                   ▕│                                                                                                                           
+ ▸ INTAKE                          ▕│                                                                                                                           
+ ▸ CHECKS                          ▕│                                                                                                                           
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
                                                                                                                                                                 
                                                                                                                                                                ▕
