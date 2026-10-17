@@ -916,6 +916,12 @@ it, which is what makes that true rather than lucky.
 credentials behind lets every phone that was ever paired straight back in when somebody turns it on
 again next week.
 
+`connect` **prints where the guided pages that connect a source are** (`connectWhere`,
+`src/connect-where.ts`, which Settings › Intake draws too): this machine's own loopback door and the
+`ssh -L` that reaches it, because they are `here` routes — never the public name, and for an off
+surface or a `lan` bind a reason on standard error and exit 1 rather than a link to a refusal. It
+reads the config and the lock, opens nothing, and says nothing answers where no window is open.
+
 `pair` **writes a code, and needs no window to** (REMOTE-TADE.md §11 item 3, argued in
 `src/pending.ts`). It used to only point at the panel: a ticket lived in the window's memory and the
 person at its screen was the yes. A box with no screen has nobody to ask that way, and a shell on the

@@ -4,27 +4,27 @@
     │  search settings            │ Intake                                                                         │────
  ▌ !│                             │ from  Local door    GitHub    Slack    Linear                                  │    
  ▌  │  Agents             bypass █│                                                                                │    
-    │                            █│ Accept work from outside       ────████ on                                    ▕│    
-   ⠋│  Models                    █│                                                                               ▕│    
-    │                            █│▌Accept requests                ────████ on                                    ▕│    
-    │  Orchestrator              █│▌                               on: requests github hands over may become work ▕│    
- ▸ S│                            █│▌                               in the projects below; off: they are read and… ▕│    
- ▸ S│  Queue                     █│▌                                                                              ▕│    
- ▸ I│                            █│ Projects it may make work in    checkout                                      ▕│    
- ▾ C│  Checks                    █│                                                                               ▕│    
-  M │                            █│ Whose requests count            kim                                           ▕│    
-  A │  Voice                     █│                                                                               ▕│    
-  M │                            █│ What an accepted request does    ◉ propose     ○ queue                        ▕│    
-    │  Window                    █│                                                                               ▕│    
- ▾ F│                            █│ Template                        github-bug                                    ▕│    
-   ▾│  Away view                 █│                                                                               ▕│    
-    │                            █│ Which document it fills         the obvious one                               ▕│    
-    │▌ Intake                    █│                                                                               ▕│    
-   ▸│▌                           █│ Say a status back              ████──── off                                   ▕│    
-━   │  Projects              ● 1 █│                                                                               ▕│   ━
-    │                            ▕│ Let a status name the work     ████──── off                                   ▕│    
+    │                            █│ Accept work from outside       ────████ on                                    █│    
+   ⠋│  Models                    █│                                                                               █│    
+    │                            █│ Connect GitHub                                                Open     Copy   █│    
+    │  Orchestrator              █│   http://localhost:7654/connect                                               █│    
+ ▸ S│                            █│   here, or from another machine through `ssh -L 7654:localhost:7654`          █│    
+ ▸ S│  Queue                     █│                                                                               █│    
+ ▸ I│                            █│▌Accept requests                ────████ on                                    █│    
+ ▾ C│  Checks                    █│▌                               on: requests github hands over may become work █│    
+  M │                            █│▌                               in the projects below; off: they are read and… █│    
+  A │  Voice                     █│▌                                                                              █│    
+  M │                            █│ Projects it may make work in    checkout                                      █│    
+    │  Window                    █│                                                                               █│    
+ ▾ F│                            █│ Whose requests count            kim                                           █│    
+   ▾│  Away view                 █│                                                                               █│    
+    │                            █│ What an accepted request does    ◉ propose     ○ queue                        █│    
+    │▌ Intake                    █│                                                                               █│    
+   ▸│▌                           █│ Template                        github-bug                                    █│    
+━   │  Projects              ● 1 █│                                                                               █│   ━
+    │                            ▕│ Which document it fills         the obvious one                               ▕│    
     │  Journal                   ▕│                                                                               ▕│   ▕
-    │                            ▕│                                                                               ▕│   ▕
+    │                            ▕│ Say a status back              ████──── off                                   ▕│   ▕
     │  Telemetry                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕

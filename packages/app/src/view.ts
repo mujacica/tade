@@ -214,6 +214,7 @@ export function draw(state: AppState, given: Frame, last: LastFrame | null = nul
     workflow: extra.workflow ?? null,
     away: extra.away ?? null,
     domain: extra.domain ?? null,
+    connect: extra.connect ?? null,
   })
   const panelWidth = Math.max(0, ...drawing.panel.rows.map((row) => widthOf(row)))
   // The wheel scrolls whatever panel it is over, anywhere on it: under every

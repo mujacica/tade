@@ -361,7 +361,8 @@ now — the look still reads the source under the grant, so a delivery can only 
 sooner — and that watch's poll slows to hourly while deliveries keep arriving.
 
 **Connecting GitHub is a guided page**, `http://localhost:<port>/connect` on the machine itself (or
-through `ssh -L`; from your Mac, Settings › Remotes does it for the server). It makes a GitHub App
+through `ssh -L`; from your Mac, Settings › Remotes does it for the server) — `tade web connect`
+prints where it is, and Settings › Intake says so under its switch and opens it. It makes a GitHub App
 in your account from a manifest — read-only, the webhook built in where there is a public name —
 says what it will ask GitHub for and why before you press, and ticks off making it, installing it on
 the repositories you pick, and its deliveries arriving. From then on the intake and review watches
@@ -648,6 +649,7 @@ tade web               # what is on, and where
 tade web pair          # a code to scan, from a shell: over SSH, on a box with no screen
 tade web devices       # who is paired, owners marked, and what each may do
 tade web revoke --all  # disconnect every one of them, and every code nobody used
+tade web connect       # where the guided pages that connect GitHub, Slack and Linear are
 ```
 
 ## Models and harnesses

@@ -32,7 +32,7 @@ export const INTAKE_SETUP: Readonly<Record<IntakeSource, readonly string[]>> = {
     'Then `tade intake add <id> --project <p> --from <who>` and write the request.',
   ],
   github: [
-    'A credential: `gh auth login`, or $GITHUB_TOKEN with `repo` for a private repository — or, read-only and its own budget, a GitHub App made at http://localhost:<port>/connect on this machine (through `ssh -L` from another, or Settings › Remotes there), which also brings the webhook below.',
+    'A credential: `gh auth login`, or $GITHUB_TOKEN with `repo` for a private repository — or, read-only and its own budget, a GitHub App made at http://localhost:<port>/connect on this machine (`tade web connect` prints it, and Settings › Intake opens it; through `ssh -L` from another, or Settings › Remotes there), which also brings the webhook below.',
     'A label on the repository — `tade` is the one Tade suggests — and nothing defaults to it.',
     'surfaces.intake.enabled: true, and surfaces.intake.sources.github.accept: true.',
     'surfaces.intake.sources.github.projects: the Tade projects it may make work in.',
@@ -53,7 +53,7 @@ export const INTAKE_SETUP: Readonly<Record<IntakeSource, readonly string[]>> = {
   // for this is the internal one in your own workspace, and the step says so
   // rather than leaving somebody to find out from a 429.
   slack: [
-    'A Slack app in your own workspace — an internal one, not distributed: made at http://localhost:<port>/connect on this machine (through `ssh -L` from another), which writes its manifest, keeps its signing secret first and its token after, and installs it with OAuth where this machine has a public name. Or by hand, as below.',
+    'A Slack app in your own workspace — an internal one, not distributed: made at http://localhost:<port>/connect on this machine (`tade web connect` prints it, and Settings › Intake opens it; through `ssh -L` from another), which writes its manifest, keeps its signing secret first and its token after, and installs it with OAuth where this machine has a public name. Or by hand, as below.',
     'Bot scopes: channels:history for a public channel, or groups:history for a private one — and app_mentions:read where it delivers to a public name.',
     'chat:write and reactions:write too, and surfaces.intake.sources.slack.reply: true, only if Tade may say a status back.',
     'Install it, then INVITE the bot to the channel: without that every look answers not_in_channel.',
@@ -75,7 +75,7 @@ export const INTAKE_SETUP: Readonly<Record<IntakeSource, readonly string[]>> = {
   // the one query this sends carries an explicit `first`, and a connector that
   // left the default on would cost fifty times what it needed to.
   linear: [
-    'A private Linear app in your own workspace, made at http://localhost:<port>/connect on this machine (through `ssh -L` from another, or Settings › Remotes there): it may only read, keeps its client id and a refresh token this machine renews itself — never its client secret, which connecting with PKCE does not need — and brings the webhook below where there is a public name. It gets 5,000 requests an hour of its own.',
+    'A private Linear app in your own workspace, made at http://localhost:<port>/connect on this machine (`tade web connect` prints it, and Settings › Intake opens it; through `ssh -L` from another, or Settings › Remotes there): it may only read, keeps its client id and a refresh token this machine renews itself — never its client secret, which connecting with PKCE does not need — and brings the webhook below where there is a public name. It gets 5,000 requests an hour of its own.',
     'Or, by hand, a personal API key (Linear › Settings › Security & access › Personal API keys) as $LINEAR_API_KEY, or extensions.intake.linear_key in config.yaml — read only where no app is connected.',
     'A label on the team — `tade` is the one Tade suggests — and nothing defaults to it.',
     'surfaces.intake.enabled: true, and surfaces.intake.sources.linear.accept: true.',

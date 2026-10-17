@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PUSH_IS_WHILE_OPEN } from '@tade/core'
-import { appendDevice, writeDevices } from '@tade/web'
+import { appendDevice, CONNECT_OFF, CONNECT_ON_LAN, writeDevices } from '@tade/web'
 import { lockHome } from '@tade/workbench/lock'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -401,5 +401,90 @@ describe('tade web', () => {
     const said = await tade('web', 'devices')
     expect(said.stdout).toContain('iPhone')
     expect(said.stderr).toContain('could not be read')
+  })
+})
+
+describe('tade web connect', () => {
+  // Where the guided pages that connect a source answer, said from the box
+  // itself: the only door they answer on is this machine's own, so a surface
+  // that is off or listens on the network gets a reason rather than a link.
+  let home: string
+  const env = () => ({ ...process.env, TADE_HOME: home, TADE_NO_GH: '1', HOME: home })
+  const tade = (...args: string[]) =>
+    new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve) => {
+      const child = spawn(process.execPath, [bin, 'web', 'connect', ...args], { env: env() })
+      let stdout = ''
+      let stderr = ''
+      child.stdout.setEncoding('utf8')
+      child.stderr.setEncoding('utf8')
+      child.stdout.on('data', (d: string) => {
+        stdout += d
+      })
+      child.stderr.on('data', (d: string) => {
+        stderr += d
+      })
+      child.on('exit', (code) => resolve({ code, stdout: stdout.trim(), stderr: stderr.trim() }))
+    })
+  const web = (yaml: string) =>
+    writeFileSync(join(home, 'config.yaml'), `surfaces:\n  web:\n${yaml}`)
+
+  beforeEach(() => {
+    home = tmp('tade-cli-connect-')
+  })
+
+  it('prints this machine’s own address for them, and the forward from anywhere else', async () => {
+    web('    enabled: true\n    port: 7711\n    public: tade.example.com\n')
+    const said = await tade()
+    expect(said.code).toBe(0)
+    // Never the public name, where they are the 404 of a path nobody built.
+    expect(said.stdout.split('\n')).toEqual([
+      'http://localhost:7711/connect',
+      'open it here, or from another machine through `ssh -L 7711:localhost:7711`',
+    ])
+    expect(said.stdout).not.toContain('tade.example.com')
+    expect(said.stderr).toContain('no window is open on this home, so nothing answers')
+  })
+
+  it('says nothing answers only where no window is open', async () => {
+    web('    enabled: true\n')
+    const held = await lockHome(home)
+    try {
+      const said = await tade('--json')
+      expect(said.code).toBe(0)
+      expect(JSON.parse(said.stdout)).toEqual({
+        url: 'http://localhost:7654/connect',
+        how: 'here, or from another machine through `ssh -L 7654:localhost:7654`',
+        answering: true,
+      })
+      expect(said.stderr).toBe('')
+    } finally {
+      await held.release()
+    }
+  })
+
+  it('says why there is no address where the away view is off, and fails', async () => {
+    const said = await tade()
+    expect(said.code).toBe(1)
+    expect(said.stdout).toBe('')
+    expect(said.stderr).toBe(CONNECT_OFF)
+    const json = await tade('--json')
+    expect(json.code).toBe(1)
+    expect(JSON.parse(json.stdout)).toEqual({ url: null, why: CONNECT_OFF, answering: false })
+  })
+
+  it('gives no LAN address, where nothing listening is this machine', async () => {
+    web('    enabled: true\n    bind: lan\n')
+    const said = await tade()
+    expect(said.code).toBe(1)
+    expect(said.stdout).toBe('')
+    expect(said.stderr).toBe(CONNECT_ON_LAN)
+  })
+
+  it('says it could not read the config rather than guessing a port', async () => {
+    writeFileSync(join(home, 'config.yaml'), 'surfaces: [not, a, map\n')
+    const said = await tade()
+    expect(said.code).toBe(1)
+    expect(said.stdout).toBe('')
+    expect(said.stderr).toContain('could not be read, so this cannot say where they answer')
   })
 })

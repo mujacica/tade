@@ -243,6 +243,7 @@ function context(width: number, height: number, over: Partial<Frame['panel']> = 
     workflow: null,
     away: null,
     domain: null,
+    connect: null,
     races: [],
     replays: null,
     evaluations: null,

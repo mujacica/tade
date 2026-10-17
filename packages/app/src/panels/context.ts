@@ -33,6 +33,7 @@ import { openProject } from './project/view.ts'
 import { race } from './race/view.ts'
 import { search } from './search/view.ts'
 import type { AccountShown } from './settings/accounts.ts'
+import type { ConnectView } from './settings/connect.ts'
 import type { DomainView } from './settings/domain.ts'
 import type { RemoteShown } from './settings/remotes.ts'
 import type { Choice, UpdatesShown } from './settings/state.ts'
@@ -257,6 +258,11 @@ export interface PanelContext {
   away: AwayView | null
   /** The records the public name needs, drawn under its row in Settings; null where nothing looks. */
   domain: DomainView | null
+  /**
+   * Where the guided pages that connect a source answer, drawn on Settings ›
+   * Intake; null where nothing serves them to ask, which is `--safe`.
+   */
+  connect: ConnectView | null
 }
 
 /** A panel, and anything that opens out of it and may reach past its edge. */

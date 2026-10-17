@@ -24,6 +24,7 @@ import {
   tabRow,
 } from '../frame.ts'
 import { accountActions } from './accounts.ts'
+import { connectLines, connectsHere } from './connect.ts'
 import {
   badgeFor,
   capture,
@@ -236,10 +237,8 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
   // of the window have, and in the head rather than in the body so that it is
   // still on screen when you have scrolled down to that project's checks.
   const scoped = panel.search ? null : scopedGroup(panel.category, ctx.settings)
-  if (scoped) {
-    const chosen = scopeHere(panel.scope, panel.category, ctx.settings)
-    formHead.push(...scopeRow(panel, ctx, form, scoped, chosen))
-  }
+  const chosen = scoped ? scopeHere(panel.scope, panel.category, ctx.settings) : null
+  if (scoped) formHead.push(...scopeRow(panel, ctx, form, scoped, chosen))
   // A heading and then the settings. What a group is about is still written
   // down — `about` is half of what the search box matches on, and `tade
   // config` reads it — but three lines of prose over every page, saying what
@@ -553,6 +552,12 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
     // domain` prints, on the same ground, for the same reason.
     if (setting.path === 'surfaces.web.public' && ctx.domain) {
       body.push(...domainLines(ctx.domain, ctx, form), blank(form))
+    }
+    // And under the switch every source is behind, on the page of a source
+    // the guided pages connect, where they are — which nothing else on this
+    // machine said (`connect.ts`).
+    if (setting.path === 'surfaces.intake.enabled' && ctx.connect && connectsHere(chosen)) {
+      body.push(...connectLines(ctx.connect, chosen, ctx, form), blank(form))
     }
   })
 

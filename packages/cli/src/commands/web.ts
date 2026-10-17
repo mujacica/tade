@@ -1,5 +1,7 @@
 import {
   alwaysOpenHere,
+  CONNECT_SOURCES,
+  CONNECT_TITLES,
   DEVICES_AND_AGENTS,
   defaultConfigPath,
   INSTALLED_IS_NOT_REVOCABLE,
@@ -19,6 +21,7 @@ import {
   blocksFor,
   COOKIE,
   codeFor,
+  connectWhere,
   type Device,
   devicesPath,
   GRANTS,
@@ -65,6 +68,12 @@ import { Exit, type Io } from '../io.ts'
 // command was the yes (`@tade/web`'s `pending.ts` has the argument). `--owner`
 // mints an owner device the same way (`owner.ts`). With no window open both
 // say that nothing answers until one is.
+//
+// **`connect` is where the guided pages that connect a source are**, which on
+// a box with no screen nothing else on it said: this machine's own door, the
+// one place they answer, and the SSH forward from anywhere else. It prints and
+// opens nothing — a browser on a server is nobody's — and reads the config and
+// the lock, as `status` does.
 
 export function registerWeb(program: Command, io: Io, setExit: (code: number) => void): void {
   const web = program
@@ -267,6 +276,39 @@ export function registerWeb(program: Command, io: Io, setExit: (code: number) =>
       // closes it on its next beat, which is two seconds away — and with no
       // window open there is no stream to close, because there is no listener.
       io.out('its credential is no longer a session, and any open page stops within a beat')
+    })
+
+  web
+    .command('connect')
+    .description(
+      `Where the guided pages that connect ${CONNECT_SOURCES.map((one) => CONNECT_TITLES[one]).join(', ')} answer: printed, to open here or through ssh -L`,
+    )
+    .option('--json', 'machine-readable output')
+    .action(async (opts: { json?: boolean }) => {
+      const path = defaultConfigPath()
+      const loaded = await loadConfig(path)
+      if (!loaded.ok) {
+        // Never a port guessed from the defaults: a link to the wrong one is a
+        // page that does not open, with nothing to say why.
+        io.err(`${path} could not be read, so this cannot say where they answer`)
+        io.err('`tade config --check` says what is wrong with it')
+        setExit(Exit.error)
+        return
+      }
+      // Only this machine's own door (`connect-where.ts`): the pages are never
+      // on a public name, and an off or `lan` surface is a reason, not a link.
+      const where = connectWhere(surfaceOf(loaded.config.surfaces.web))
+      const window = (await heldBy(tadeHome())) !== null
+      if (opts.json) {
+        io.out(JSON.stringify({ ...where, answering: where.url !== null && window }, null, 2))
+      } else if (where.url === null) {
+        io.err(where.why)
+      } else {
+        io.out(where.url)
+        io.out(`open it ${where.how}`)
+      }
+      if (where.url === null) setExit(Exit.error)
+      else if (!window) io.err(NOTHING_ANSWERS)
     })
 }
 

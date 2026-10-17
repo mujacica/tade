@@ -555,6 +555,7 @@ export interface Frame {
       | 'workflow'
       | 'away'
       | 'domain'
+      | 'connect'
     >
   >
   /** The key you hold to talk, and whether there is anything to hear you. */

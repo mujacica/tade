@@ -412,6 +412,12 @@ anything**: it lets the forge read as the app and makes the doorbell ring, and `
   deleted on GitHub reads as not installed, and a hook that stopped arriving reads as quiet. One
   line a step and at most one press, and the making step says **what it will ask for and why**
   before the press — the forge's own words (`AppForm.asks`).
+- **Something on the machine says where the pages are**, and it is one answer: `connectWhere`
+  (`@tade/web`'s `connect-where.ts`), printed by `tade web connect` and drawn on Settings › Intake
+  under the switch, on the page of each source in `CONNECT_SOURCES`, with Open and Copy (the Away
+  subject owns them, because only it knows whether its door is up). Only ever the loopback door:
+  the pages are `here` routes, so an off surface, a `lan` bind or a port another program held is a
+  reason and never a link, and a public name is never the address.
 - **Everything about the source is asked of the forge** (`capabilities.apps`): the manifest, the
   code's exchange, where the App is installed. No second HTTP client.
 - **What comes back is written through the one write path** (`writeKey`, `by: connect github`),

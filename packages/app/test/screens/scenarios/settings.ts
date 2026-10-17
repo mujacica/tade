@@ -550,20 +550,28 @@ export const SETTINGS_SCREENS: Scenario[] = [
       'One source at a time, the way the Projects page is one project at a time: every source ' +
       'Tade can take work from along the top, the switch every one of them is behind, and then ' +
       'that source’s own answers — whether it accepts, where, from whom, whether a person ' +
-      'approves, what it is stamped from and what is said back.',
+      'approves, what it is stamped from and what is said back — with where the guided pages ' +
+      'that connect it are, under the switch.',
     state: { ...base(), panel: { ...settingsPanel('intake', '', 'github'), row: 1 } },
     frame: frame({
-      panel: settingsFacts({
-        enabled: true,
-        sources: {
-          github: {
-            accept: true,
-            projects: ['checkout'],
-            from: ['kim'],
-            template: 'github-bug',
+      panel: {
+        ...settingsFacts({
+          enabled: true,
+          sources: {
+            github: {
+              accept: true,
+              projects: ['checkout'],
+              from: ['kim'],
+              template: 'github-bug',
+            },
           },
+        }),
+        // Where the guided pages that connect it are, under the switch.
+        connect: {
+          url: 'http://localhost:7654/connect',
+          how: 'here, or from another machine through `ssh -L 7654:localhost:7654`',
         },
-      }),
+      },
     }),
   },
   {

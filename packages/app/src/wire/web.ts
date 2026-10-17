@@ -4,6 +4,8 @@ import {
   type AgentIn,
   agentOf,
   type Confirmed,
+  type ConnectWhere,
+  connectWhere,
   type Device,
   factsOf,
   has,
@@ -31,7 +33,7 @@ import type { Frame } from '../frame.ts'
 import { AWAY_CONTROLS, awayPanel } from '../panels/away/state.ts'
 import type { AwayView } from '../panels/away/view.ts'
 import type { PanelInputs } from '../panels.ts'
-import type { Actions, Subject, Submits, Wiring } from './context.ts'
+import { type Actions, notify, type Subject, type Submits, type Wiring } from './context.ts'
 import { hooksFor } from './doorbell.ts'
 import { evaluationsAnswer } from './evaluations.ts'
 import { armingFor, seenFrom } from './web-asking.ts'
@@ -44,7 +46,7 @@ import { builtFrom, turnTo } from './web-follow.ts'
 import { EVERYTHING, widen } from './web-grants.ts'
 import { halvesFor } from './web-halves.ts'
 import { knownHere, Lanes } from './web-lanes.ts'
-import { carryLink, isLink } from './web-link.ts'
+import { carryConnect, carryLink, isConnect, isLink } from './web-link.ts'
 import { ownedFor } from './web-owned.ts'
 import { awayView, codeShownOn, keepCode, mintPairing, type PanelFacts } from './web-panel.ts'
 import { Presences } from './web-presence.ts'
@@ -412,6 +414,12 @@ export class Away implements Subject {
   }
 
   panel(): Frame['panel'] {
+    // Settings › Intake says where the guided pages that connect a source
+    // are, and only this subject knows whether its door is up to serve them.
+    const shown = this.wire.state.panel
+    if (shown?.kind === 'settings' && shown.category === 'intake' && shown.search === '') {
+      return { connect: this.connectHere() }
+    }
     if (codeShownOn(this.wire.state.panel) === null) return {}
     const surface = surfaceOf(this.config().surfaces.web)
     keepCode(this.tickets, surface, (this.server?.bound.length ?? 0) > 0, this.wire.now())
@@ -463,6 +471,17 @@ export class Away implements Subject {
 
   /** What the panel's own controls do, there or on the Away page of Settings. It stays open. */
   async carry(control: string): Promise<void> {
+    if (isConnect(control)) {
+      // Pressed on Settings › Intake, which draws no `problem` of this
+      // panel's: what went wrong is said in the conversation instead.
+      try {
+        await carryConnect(this.wire, control, this.connectHere(), this.deps)
+      } catch (err) {
+        notify(this.wire, err instanceof Error ? err.message : String(err))
+      }
+      this.wire.draw()
+      return
+    }
     this.problem = null
     try {
       if (control === AWAY_CONTROLS.code) this.mint()
@@ -534,6 +553,16 @@ export class Away implements Subject {
   private mint(): void {
     if (this.server === null) return
     mintPairing(this.tickets, surfaceOf(this.config().surfaces.web), this.wire.now())
+  }
+
+  /**
+   * Where the guided pages that connect a source answer now: this machine's
+   * own door while it is up (`connectWhere`), and why not where it is not —
+   * off, a `lan` bind, or a port another program held.
+   */
+  private connectHere(): ConnectWhere {
+    const up = this.server !== null && this.server.bound.length > 0
+    return connectWhere(surfaceOf(this.config().surfaces.web), up)
   }
 
   /** What the panel draws, out of what this subject holds at this moment. */
