@@ -33,6 +33,19 @@ import type { TerminalThere } from '@tade/remotes-core'
 // theirs to type. `ServerAliveInterval` ends a terminal whose connection died
 // in ten seconds, rather than leaving a pane that looks alive.
 
+/**
+ * **This machine's SSH agent is never handed to the far end** (REMOTE-TADE.md
+ * §9.3), whatever the person's own ssh config says for that host — and
+ * `ForwardAgent yes` is a common line in one. An agent forwarded into a
+ * session on an unattended box is this machine's keys in every process that
+ * can find the socket there: an agent's lane started from an attached tmux
+ * picks it up through tmux's own `update-environment`. The far machine
+ * fetches and pushes with a key of its own. On the command line, so it wins
+ * over the config, and on every session the link runs — the calls, pairing,
+ * the terminals and git's.
+ */
+export const NO_AGENT: readonly string[] = ['-o', 'ForwardAgent=no']
+
 /** What mosh needs let through on the far machine, as a firewall names it. */
 export const MOSH_PORTS = 'UDP 60000–61000'
 
@@ -97,7 +110,7 @@ function word(value: string): string {
 export function attachThere(at: Attaching): TerminalThere {
   // mosh takes a host, never a URI: a destination with a port of its own goes over ssh.
   if (at.mosh !== null && !at.address.startsWith('ssh://')) {
-    const ssh = [at.ssh, ...at.before, '-S', at.control, '-o', 'ConnectTimeout=10']
+    const ssh = [at.ssh, ...at.before, ...NO_AGENT, '-S', at.control, '-o', 'ConnectTimeout=10']
     return {
       command: at.mosh.here,
       args: [
@@ -118,6 +131,7 @@ export function attachThere(at: Attaching): TerminalThere {
     args: [
       ...at.before,
       '-t',
+      ...NO_AGENT,
       '-o',
       'ConnectTimeout=10',
       '-o',

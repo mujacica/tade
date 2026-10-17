@@ -78,6 +78,8 @@ describe('the terminal it opens', () => {
     expect(opened.args.slice(0, 3)).toEqual(['-F', '/tmp/cfg', '-t'])
     expect(opened.args).toContain('ServerAliveInterval=5')
     expect(opened.args).not.toContain('BatchMode=yes')
+    // Never this machine's agent, whatever the config says (`agent.test.ts`).
+    expect(opened.args).toContain('ForwardAgent=no')
     expect(opened.args.slice(-5)).toEqual(['-S', '/run/r-1.ctl', '--', 'me@vps', LINE])
     // ssh's own exit, which no remote command is passed through as: the connection went.
     expect(opened.lost).toBe(255)
@@ -92,7 +94,7 @@ describe('the terminal it opens', () => {
     expect(opened.command).toBe('/opt/bin/mosh')
     expect(opened.by).toBe('mosh')
     expect(opened.args).toEqual([
-      "--ssh='ssh' '-F' '/tmp/cfg' '-S' '/run/r-1.ctl' '-o' 'ConnectTimeout=10'",
+      "--ssh='ssh' '-F' '/tmp/cfg' '-o' 'ForwardAgent=no' '-S' '/run/r-1.ctl' '-o' 'ConnectTimeout=10'",
       '--server=/usr/bin/mosh-server',
       '--',
       'me@vps',
