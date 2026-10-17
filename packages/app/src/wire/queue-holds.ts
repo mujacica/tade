@@ -160,9 +160,13 @@ export async function intakeSays(
  * refuses it — work that would wait its turn on an unknown plan, or be let
  * through to make one known, is the queue's to start as its rule says — and it
  * is asked as though nothing ran, so that the source is asked too.
+ *
+ * Folded from the lines the queue's own pass folds (`queueFacts().events`,
+ * the whole journal), never `Live.events`: that is the last 500 lines, and a
+ * request handed over before them was told it had no record here.
  */
 export async function standsFor(wire: Wiring, row: InboxRow): Promise<string | null> {
-  const events = wire.live?.events ?? (await wire.opts.client.events({}))
+  const events = wire.live?.queueFacts().events ?? (await wire.opts.client.events({}))
   const one = intakeFrom(events).get(row.item) ?? null
   if (!one) {
     return `has no record on this machine that Tade can check: approve it at the machine`
