@@ -93,35 +93,39 @@ const KEPT_AS: Readonly<
   token: { key: SLACK_TOKEN, env: SLACK_TOKEN_ENV, said: 'the bot token' },
 }
 
+/**
+ * One source's half: everything `WebConnecting` asks, for that source. A
+ * table of them, keyed by source, so a source added to `CONNECT_SOURCES` with
+ * no half here is a type error rather than another branch.
+ */
+type Half = {
+  [K in keyof WebConnecting]: WebConnecting[K] extends (
+    source: ConnectSource,
+    ...rest: infer Asked
+  ) => infer Answer
+    ? (...rest: Asked) => Answer
+    : never
+}
+
 /** The window's `WebConnecting`, over its config, its journal and its one write path. */
 export function connectingFor(deps: ConnectDeps): WebConnecting {
   const env = deps.env ?? process.env
-  const github = githubHalf(deps, env)
-  const slack = slackHalf(deps, env)
+  const halves: Readonly<Record<ConnectSource, Half>> = {
+    github: githubHalf(deps, env),
+    slack: slackHalf(deps, env),
+  }
   return {
-    page: (source) => (source === 'slack' ? slack.page() : github.page()),
-    form: (source, want) => (source === 'slack' ? slack.form(want) : github.form(want)),
-    installUrl: (source, state, home) =>
-      source === 'slack' ? slack.installUrl(state, home) : github.installUrl(state),
-    made: (source, code) =>
-      source === 'slack'
-        ? Promise.resolve({
-            problem: 'Slack makes its app on its own page: nothing comes back here',
-          })
-        : github.made(code),
-    installed: (source, back) =>
-      source === 'slack' ? slack.installed(back) : Promise.resolve(github.installed()),
-    keep: (source, fields) =>
-      source === 'slack'
-        ? slack.keep(fields)
-        : Promise.resolve({
-            problem: 'GitHub hands its App over itself: there is nothing to paste',
-          }),
+    page: (source) => halves[source].page(),
+    form: (source, want) => halves[source].form(want),
+    installUrl: (source, state, home) => halves[source].installUrl(state, home),
+    made: (source, code) => halves[source].made(code),
+    installed: (source, back) => halves[source].installed(back),
+    keep: (source, fields) => halves[source].keep(fields),
   }
 }
 
 /** GitHub's half: everything asked of the forge. */
-function githubHalf(deps: ConnectDeps, env: Readonly<Record<string, string | undefined>>) {
+function githubHalf(deps: ConnectDeps, env: Readonly<Record<string, string | undefined>>): Half {
   const forgeWith =
     deps.forge ??
     ((apps) => forgeOnHost('github.com', { exec: forgeExec, env, apps, now: deps.now }))
@@ -235,15 +239,19 @@ function githubHalf(deps: ConnectDeps, env: Readonly<Record<string, string | und
       return { name: made.name }
     },
 
-    installed(): { where: string | null } {
+    async installed() {
       held = null
       return { where: null }
+    },
+
+    async keep() {
+      return { problem: 'GitHub hands its App over itself: there is nothing to paste' }
     },
   }
 }
 
 /** Slack's half: everything asked of the Slack door, over its one client. */
-function slackHalf(deps: ConnectDeps, env: Readonly<Record<string, string | undefined>>) {
+function slackHalf(deps: ConnectDeps, env: Readonly<Record<string, string | undefined>>): Half {
   const doFetch = deps.fetch ?? globalThis.fetch.bind(globalThis)
   let held: { at: number; token: string; installed: SlackLook['installed'] } | null = null
 
@@ -336,6 +344,10 @@ function slackHalf(deps: ConnectDeps, env: Readonly<Record<string, string | unde
     installUrl(state: string, home: string): string | null {
       const id = clientId()
       return id === null ? null : slackInstallUrl({ clientId: id, home, state })
+    },
+
+    async made() {
+      return { problem: 'Slack makes its app on its own page: nothing comes back here' }
     },
 
     async installed(back: ConnectReturn): Promise<{ where: string | null } | { problem: string }> {
