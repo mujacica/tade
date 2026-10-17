@@ -733,7 +733,6 @@ function takingSays(taking: Taking): string {
   return 'cannot' in taking ? copiesUnreadSays(taking.cannot) : tookBackSays(taking.taken)
 }
 
-/** A name as two writes of it compare: case, spaces and a final dot aside. */
 /**
  * A line about what the extensions are or offer — an extension's switch or
  * setting, a server's switch or its block written again (`tade mcp add`) —
@@ -744,6 +743,7 @@ const SWITCH = /^(?:extensions|mcp)(?:\.|$)/
 /** Which account a harness's new agents run as: the machine's, or one project's. */
 const ACCOUNT_ROW = /^(?:workers|projects\.[^.]+)\.accounts\.[^.]+$/
 
+/** A name as two writes of it compare: case, spaces and a final dot aside. */
 function named(name: string): string {
   return name.trim().toLowerCase().replace(/\.$/, '')
 }
