@@ -65,8 +65,9 @@ export type SettingKind =
       decimals?: boolean
       /**
        * The lowest the arrows go, which is 1 unless said: for most counts
-       * nought is not a value. Where it is the default and means "off" —
-       * `agents.give_way` — the arrows have to be able to get back to it.
+       * nought is not a value. Where it means "off" — `agents.give_way`,
+       * `surfaces.web.passkey_hours` — the arrows have to be able to get
+       * back to it, and the row takes it typed (`numberFrom`).
        */
       from?: number
     }
@@ -287,8 +288,8 @@ export function settingsOf(
           // about one machine: 5 is where the measurements started and 19 is
           // "only when nothing else wants the machine", which is a real answer
           // for a long suite and the wrong one for an agent you are waiting on.
-          // From nought, which is off and the default: written, it takes the
-          // key away rather than writing a 0 (`parseSetting`).
+          // From nought, which is off and the default, and is written as a 0
+          // like any other answer: refused as a value, off was unreachable.
           type: { kind: 'number', unit: `steps below the window, up to ${GIVE_WAY_MAX}`, from: 0 },
           live: true,
           // `wordsFor` would only ever find this as `give_way`, which is not

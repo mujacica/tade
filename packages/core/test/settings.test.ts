@@ -121,9 +121,11 @@ describe('what there is to change', () => {
     // Off is nought, which is what a config that says nothing reads as.
     expect(setting.value).toBe('0')
     expect(parseSetting(setting, '5')).toBe(5)
-    // Nought is not written: it is the default, and a preference that stops
-    // being one stops being written down.
-    expect(parseSetting(setting, '0')).toBeUndefined()
+    // Nought is taken: undefined is what every caller refuses, so a row that
+    // read 0 as "not written" could never be put back to off.
+    expect(parseSetting(setting, '0')).toBe(0)
+    expect(parseSetting(setting, '-1')).toBeUndefined()
+    expect(wantedInstead(setting)).toBe('a whole number from 0 up')
     // And the arrows can get back to it, which a count that floors at one
     // could not: from 1, left is off, and that is what gets written.
     const one = find('agents.give_way', { agents: { give_way: 1 } })
@@ -503,6 +505,27 @@ describe('reading what was typed', () => {
         wrong.push(`${setting.path}: the schema ${schema ? 'takes' : 'refuses'} ${typed}`)
     }
     expect(wrong).toEqual([])
+  })
+
+  it('takes, typed, the lowest value its arrows reach', () => {
+    // Where nought is off the arrows reached 0 and the row refused it, and
+    // every caller refuses what `parseSetting` cannot read, so off could be
+    // neither stepped to nor typed.
+    const numbers = settingsOf(config({ projects: { app: { root: '/src/app' } } }))
+      .flatMap((group) => group.settings)
+      .filter((setting) => setting.type.kind === 'number')
+    const wrong = numbers.flatMap((setting) => {
+      const lowest = stepped({ ...setting, value: '0' }, -1)
+      return parseSetting(setting, lowest) === undefined
+        ? [`${setting.path} refuses ${lowest}`]
+        : []
+    })
+    expect(wrong).toEqual([])
+    // Twelve hours by default, so nought is never asking — not the key taken away.
+    const passkey = find('surfaces.web.passkey_hours')
+    expect(stepped({ ...passkey, value: '1' }, -1)).toBe('0')
+    expect(parseSetting(passkey, '0')).toBe(0)
+    expect(parseSetting(passkey, '-1')).toBeUndefined()
   })
 
   it('keeps the cents a budget was written with when the arrows move it', () => {

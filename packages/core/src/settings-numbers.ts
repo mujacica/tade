@@ -62,13 +62,17 @@ export function numberFrom(type: NumberKind, text: string): number | undefined {
   const value = Number(text)
   if (type.fraction) return Number.isFinite(value) && value >= 0 && value <= 1 ? value : undefined
   const takes = type.decimals ? Number.isFinite(value) : Number.isInteger(value)
-  return takes && value > 0 ? value : undefined
+  // Above zero, unless the row goes lower: where nought is off (`from: 0`) it
+  // is taken typed as the arrows reach it, or off could never be written.
+  const enough = type.from === undefined ? value > 0 : value >= type.from
+  return takes && enough ? value : undefined
 }
 
 /** What a number row wanted instead, when what was typed is not one it takes. */
 export function numberWanted(type: NumberKind): string {
   if (type.fraction) return 'a number from 0 to 1'
-  return type.decimals ? 'a number above zero' : 'a whole number above zero'
+  const what = type.decimals ? 'a number' : 'a whole number'
+  return type.from === undefined ? `${what} above zero` : `${what} from ${type.from} up`
 }
 
 /**
