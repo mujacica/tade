@@ -20,9 +20,15 @@ afterEach(async () => {
   for (const one of opened.splice(0)) await one.close().catch(() => {})
 })
 
-async function world() {
+async function world(how: { held?: boolean } = {}) {
   const repo = mkrepo()
-  repo.commit('the gate', { [CI_WORKFLOW]: ciWorkflow([{ id: 'tests', run: 'test ! -e broken' }]) })
+  // Held, the check waits for the test to let it finish: a batch that is going
+  // for exactly as long as the test needs it to be.
+  const gate = join(repo.home, 'let-it-finish')
+  const run = how.held
+    ? `while [ ! -e ${gate} ]; do sleep 0.05; done\ntest ! -e broken`
+    : 'test ! -e broken'
+  repo.commit('the gate', { [CI_WORKFLOW]: ciWorkflow([{ id: 'tests', run }]) })
   const config = ConfigSchema.parse({
     projects: { shop: { root: repo.root, checks: { full: 'batched' } } },
   })
@@ -78,6 +84,7 @@ async function world() {
     later: (ms: number) => {
       now += ms
     },
+    release: () => writeFileSync(gate, ''),
   }
 }
 
@@ -116,14 +123,49 @@ describe('a batched project, from the window', () => {
     expect(await w.runs()).toEqual([])
     w.later(SETTLE_MS)
     await w.batches.beat()
-    await until('the batch to be recorded', async () => (await w.runs()).length > 0)
+    // Over, and not only recorded: its record is written before it lets go
+    // of the machine, and a look while it still holds it starts nothing anyway.
+    await until(
+      'the batch over',
+      async () => w.batches.running('shop') === null && (await w.runs()).length > 0,
+    )
     expect((await w.runs()).map((run) => [run.check, run.state, run.by])).toEqual([
       ['tests', 'passed', 'batch'],
     ])
     w.later(BATCH_LOOK_MS + SETTLE_MS)
     await w.batches.beat()
-    await new Promise((resolve) => setTimeout(resolve, 200))
+    // A batch that starts is going by the time the look that started it returns.
+    expect(w.batches.running('shop')).toBeNull()
     expect(await w.runs()).toHaveLength(1)
+  })
+
+  it('sees HEAD settle while a batch runs, and starts the next one as soon as that is over', async () => {
+    const w = await world({ held: true })
+    w.later(SETTLE_MS)
+    await w.batches.beat()
+    await w.batches.beat()
+    w.later(BATCH_LOOK_MS + SETTLE_MS)
+    await w.batches.beat()
+    let head = ''
+    try {
+      expect(w.batches.running('shop')).not.toBeNull()
+      head = w.repo.commit('work of a\n\nTade-Task: shop/a', { 'a.txt': 'a' })
+      // The look while it runs sees HEAD move, and HEAD then sits still for a minute.
+      w.later(BATCH_LOOK_MS)
+      await w.batches.beat()
+      w.later(SETTLE_MS)
+    } finally {
+      w.release()
+    }
+    await until(
+      'the first batch over',
+      async () => w.batches.running('shop') === null && (await w.runs()).length === 1,
+    )
+    w.later(BATCH_LOOK_MS)
+    await w.batches.beat()
+    // Settled already, so this look starts it, rather than starting its minute.
+    expect(w.batches.running('shop')).toBe(head)
+    await until('the next batch over', () => w.batches.running('shop') === null)
   })
 
   it('narrows a red batch to whose commit broke it, and puts one parked proposal to the orchestrator', async () => {
@@ -133,7 +175,10 @@ describe('a batched project, from the window', () => {
     await w.batches.beat()
     w.later(BATCH_LOOK_MS + SETTLE_MS)
     await w.batches.beat()
-    await until('the green batch', async () => (await w.runs()).length === 1)
+    await until(
+      'the green batch over',
+      async () => w.batches.running('shop') === null && (await w.runs()).length === 1,
+    )
 
     w.repo.commit('work of a\n\nTade-Task: shop/a', { 'a.txt': 'a' })
     const broke = w.repo.commit('work of b\n\nTade-Task: shop/b', { broken: 'yes' })

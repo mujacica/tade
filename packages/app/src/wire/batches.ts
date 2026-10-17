@@ -94,10 +94,15 @@ export class Batches {
     this.wire.draw()
   }
 
+  /** The HEAD `project`'s batch is running at, while one is: what stops a second one starting. */
+  running(project: string): string | null {
+    return this.going.get(project) ?? null
+  }
+
   private async look(project: string): Promise<void> {
     const config = this.wire.opts.config
     const configured = config.projects[project]
-    if (!configured || this.going.has(project)) return
+    if (!configured) return
     if (workspaceFor(config, project) !== 'checkout') return
     const root = expandHome(configured.root)
     const now = this.wire.now()
@@ -105,6 +110,9 @@ export class Batches {
     const head = said.ok ? said.stdout.trim() : null
     const seen = this.still.get(project)
     if (!seen || seen.head !== head) this.still.set(project, { head, since: now })
+    // HEAD is seen while a batch runs too: one that sat still all through it
+    // has settled by the time it is over, rather than starting its minute then.
+    if (this.going.has(project)) return
     const stood = await checksAt({
       config,
       project,

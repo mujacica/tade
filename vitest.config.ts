@@ -15,6 +15,13 @@ export default defineConfig({
     // should take; it is the point at which a test is not slow but stuck, and
     // only a test that is going to fail anyway ever waits it out.
     testTimeout: 180_000,
+    // A hook the same, for the same reason and one more. The window's tests
+    // build a repository and open a workbench in `beforeEach`, which took up to
+    // 17 s on a loaded laptop against vitest's default of ten; and a hook that times
+    // out is abandoned, not stopped, so its open finishes later with nobody to
+    // close the journal it opened — Node then throws "A FileHandle object was
+    // closed during garbage collection" out of whichever test it lands in.
+    hookTimeout: 180_000,
     // A test runs in an empty home of its own, never the person's
     // (`test/own-home.ts`, first so nothing reads the real one before it), and
     // may never reach the desktop of the machine it runs on: refused at the

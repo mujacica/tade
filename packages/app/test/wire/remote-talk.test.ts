@@ -38,6 +38,15 @@ describe('another machine’s orchestrator, from this window', () => {
   const shown = (text: string) => rows().some((row) => row.includes(text))
   /** The lower pane's row of tabs: the one that starts the strip and names the orchestrator. */
   const tabs = () => rows().findLast((row) => row.startsWith('━') && row.includes('orchestrator'))
+  /**
+   * Its link up, as the row of tabs draws it: `vps` wearing none of a link's
+   * marks (`machineMark`). Its name alone is on the row from the first frame,
+   * as `◌ vps` while it is still dialling.
+   */
+  const live = () => {
+    const row = tabs() ?? ''
+    return /(^|\s)vps(\s|$)/.test(row) && !/[◌○✕] vps/.test(row)
+  }
 
   /** Press a tab on the lower pane's row of tabs. */
   function tab(label: string): void {
@@ -71,7 +80,7 @@ describe('another machine’s orchestrator, from this window', () => {
       remoteLinks: { ssh: (options) => makeScriptedLink({ ...options, remotes: table }) },
       ...over,
     })
-    await until('vps beside the orchestrator', () => tabs()?.includes(' vps') === true, 20_000)
+    await until('vps beside the orchestrator, linked', live, 20_000)
     return { far, app, device: session.device }
   }
 
@@ -147,7 +156,14 @@ describe('another machine’s orchestrator, from this window', () => {
 
   it('passes the orchestrator’s sentence on only where a line of the person’s names that machine', async () => {
     const { far, app } = await linkedTo()
-    await until('its conversation heard', () => app.remoteTools() !== null && shown(' vps'), 20_000)
+    // What a message there needs, in one frame: the link up and what that
+    // machine holds heard — its project folded into its name along the top,
+    // out of the same projection that carries its conversation.
+    await until(
+      'its conversation heard',
+      () => live() && (rows()[0] ?? '').includes('vps ⋯1'),
+      20_000,
+    )
     const tools = app.remoteTools()
     await expect(
       tools.tell({ machine: 'vps', said: 'start the release', asked: 'start the release' }),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Emulators } from '../src/emulator.ts'
+import { Emulators, FRAME_WAIT_MS } from '../src/emulator.ts'
 import type { Order, Report } from '../src/protocol.ts'
 
 // The emulators on their own, driven in place rather than on their thread: the
@@ -109,6 +109,30 @@ describe('the emulators', () => {
       pointing: 'nobody',
     })
   })
+
+  // A thread too loaded to answer before the frame's wait ran out — held past
+  // it here, after enough printed that xterm's parse runs over its twelve
+  // milliseconds and leaves the wait's own empty write behind a timer that
+  // comes after the deadline. What was printed is all on the screen even so,
+  // and on the normal screen nothing can tear it, so the frame is whole rather
+  // than thrown away for the same screen again.
+  it('call a screen nothing can tear whole, however late its parse answered', async () => {
+    const at = emulators()
+    at.open(1)
+    let printing = ''
+    for (let i = 0; printing.length < 4_000_000; i++) printing += `line ${i}\r\n`
+    const last = printing.slice(printing.lastIndexOf('line'), -2)
+    const printed = at.print(1, printing)
+    const coming = at.frame(1, () => true, 20_000)
+    at.watch(1, 5)
+    const held = Date.now()
+    while (Date.now() - held <= 2 * FRAME_WAIT_MS) {
+      // The thread held, as a starved one is, until the wait has run out.
+    }
+    const frame = await coming
+    expect(frame).toMatchObject({ seq: printed, whole: true })
+    expect(frame.rows.split('\n').at(-1)).toBe(last)
+  }, 30_000)
 
   it('keep pushing while more arrives, never going backwards, and end on all of it', async () => {
     const at = emulators()

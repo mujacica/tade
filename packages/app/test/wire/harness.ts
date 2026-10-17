@@ -391,9 +391,13 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
   })
 
   afterEach(async () => {
-    await app?.stop().catch(() => {})
+    // What this test opened, taken before anything is awaited: read after the
+    // window's stop, `client` may already be the next test's — and nothing at
+    // all where this file's first `beforeEach` never got as far as opening one.
+    const [window, workbench] = [app, client as Workbench | undefined]
     app = null
-    await client.close().catch(() => {})
+    await window?.stop().catch(() => {})
+    await workbench?.close().catch(() => {})
   })
 
   return wired

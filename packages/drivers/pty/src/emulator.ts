@@ -64,7 +64,7 @@ interface Emulated {
 const PUSH_MS = 16
 
 /** How long a frame being drawn is waited for before the screen is read anyway. */
-const FRAME_WAIT_MS = 50
+export const FRAME_WAIT_MS = 50
 
 /**
  * How long a lane has to have stopped writing before its screen is read as a
@@ -337,14 +337,24 @@ async function settled(lane: Emulated, ms = FRAME_WAIT_MS): Promise<boolean> {
   const deadline = Date.now() + ms
   const quietBy = Date.now() + QUIET_WAIT_MS
   for (;;) {
-    await parsed(lane, deadline)
+    // Parsed is asked of the parse, never of the clock. Either the wait's own
+    // empty write answered, or nothing that arrived is still waiting — xterm
+    // parses in slices of twelve milliseconds and puts the rest behind a
+    // timer, so on a thread that was preempted the empty write can come after
+    // the deadline with everything before it already on the screen.
+    const done = (await parsed(lane, deadline)) || lane.unparsed.length === 0
     const term = lane.term
-    if (!term || Date.now() >= deadline) return false
+    if (!term || !done) return false
+    // Everything that arrived is on a screen nothing can tear, and that is a
+    // whole frame however late the parse answered: asked of the clock, a
+    // machine too loaded to answer in time called it torn, and a capture threw
+    // it away to wait for the same screen again.
+    if (!term.modes.synchronizedOutputMode && term.buffer.active.type !== 'alternate') return true
+    if (Date.now() >= deadline) return false
     if (term.modes.synchronizedOutputMode) {
       await pause(2)
       continue
     }
-    if (term.buffer.active.type !== 'alternate') return true
     const since = Date.now() - lane.lastAt
     if (since >= QUIET_MS) return true
     if (Date.now() >= quietBy) return false
@@ -358,9 +368,10 @@ async function settled(lane: Emulated, ms = FRAME_WAIT_MS): Promise<boolean> {
  *
  * Bounded, so a parser that never drains cannot hold anything for ever. This is
  * the whole of what a reading needs to be *current*; waiting for it to be a
- * whole *frame* is `settled`, and only a frame needs that.
+ * whole *frame* is `settled`, and only a frame needs that. True where the parse
+ * answered, false where the deadline did.
  */
-async function parsed(lane: Emulated, until?: number): Promise<void> {
+async function parsed(lane: Emulated, until?: number): Promise<boolean> {
   const deadline = until ?? Date.now() + FRAME_WAIT_MS
   const left = Math.max(0, deadline - Date.now())
   // The deadline is taken back the moment the parse wins the race, which is
@@ -370,17 +381,17 @@ async function parsed(lane: Emulated, until?: number): Promise<void> {
   let late: NodeJS.Timeout | null = null
   try {
     // A lane released meanwhile never answers: the wait is bounded either way.
-    await Promise.race([
-      new Promise<void>((resolve) => {
+    return await Promise.race([
+      new Promise<boolean>((resolve) => {
         try {
-          if (lane.term) lane.term.write('', resolve)
-          else resolve()
+          if (lane.term) lane.term.write('', () => resolve(true))
+          else resolve(true)
         } catch {
-          resolve()
+          resolve(true)
         }
       }),
-      new Promise((resolve) => {
-        late = setTimeout(resolve, left)
+      new Promise<boolean>((resolve) => {
+        late = setTimeout(() => resolve(false), left)
       }),
     ])
   } finally {
