@@ -1,11 +1,12 @@
-import { mkdirSync, readdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { DEFAULT_MOST, standingSchedules } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { patchesIn } from '../src/changes.ts'
 import { findingsOf } from '../src/loop.ts'
-import { readReviews } from '../src/reviews.ts'
+import { RUBRIC } from '../src/questions.ts'
+import { type Review, readReviews, recordReview } from '../src/reviews.ts'
 import { host, NOW, offline, typesafe } from './harness.ts'
 
 // On by default, silent without a key, and about one agent's own change.
@@ -332,6 +333,127 @@ describe('a shared checkout is read one agent at a time', () => {
       agentAsking('shop/add-refunds', repo.root),
     )
     expect(read.text).not.toContain('Tade-Task:')
+  })
+})
+
+describe('whose a change is, is whose commits are in it', () => {
+  it('files a branch nobody signed under no task, rather than every task in the checkout', async () => {
+    const { repo } = sharedCheckout()
+    repo.write({ 'src/refund.ts': 'export const refund = () => {}\n' })
+    repo.git('add', '-A')
+    repo.git('commit', '-q', '-m', 'work nobody signed')
+    const seen: unknown[] = []
+    const loaded = await host({
+      home: repo.home,
+      projects: { shop: { root: repo.root } },
+      env: { TYPESAFE_API_KEY: 'k' },
+      fetch: typesafe({ test_missing: 0.9 }, seen),
+      now: Date.now,
+    })
+    const look = await loaded.look('jev.review', {
+      project: 'shop',
+      input: { settle: '0m' },
+      since: null,
+      turnedOn: new Date(NOW).toISOString(),
+    })
+    // Read as one branch, exactly as before — but nobody's, because nothing
+    // in it says whose it is.
+    expect(look.found.map((one) => one.key)).toEqual([
+      expect.stringMatching(/^shop:.+:test_missing$/),
+    ])
+    expect(readReviews(repo.home)[0]?.tasks).toEqual([])
+    const state = JSON.stringify(seen)
+    expect(state).not.toContain('add refunds to the till')
+    expect(state).not.toContain('tidy the receipt printer')
+    const asked = await loaded.call('jev_findings', {}, agentAsking('shop/add-refunds', repo.root))
+    expect(asked.text).toContain('Nothing has been flagged about shop/add-refunds')
+  })
+
+  it('reads a line filed under everybody back by its trailers, and leaves the line as it was', async () => {
+    const { repo, base, commit } = sharedCheckout()
+    commit('add-refunds', { 'src/refund.ts': 'export const refund = () => {}\n' })
+    const before = repo.head()
+    const receipts = commit('tidy-receipts', { 'src/receipt.ts': 'export const receipt = 1\n' })
+    const refunds = commit('add-refunds', { 'src/refund.ts': 'export const refund = 2\n' })
+    const reading = (unit: string, over: Partial<Review>): Review => ({
+      at: new Date(NOW).toISOString(),
+      project: 'shop',
+      unit,
+      tasks: [unit],
+      base,
+      head: refunds,
+      version: 'jev-1.13.0',
+      rubric: RUBRIC,
+      files: 1,
+      part: null,
+      requests: 1,
+      cost_usd: 0.001,
+      answers: { test_missing: 0.9 },
+      where: { test_missing: 'src/receipt.ts' },
+      raised: ['test_missing'],
+      account: {},
+      verdict: {},
+      ...over,
+    })
+    // A named range holding tidy-receipts' one commit, filed the way older
+    // code filed it: under every task in the checkout.
+    const range = `shop:${before.slice(0, 8)}..${receipts.slice(0, 8)}`
+    recordReview(
+      repo.home,
+      reading(range, {
+        base: before,
+        head: receipts,
+        tasks: ['shop/add-refunds', 'shop/tidy-receipts'],
+      }),
+    )
+    // And add-refunds' own reading, whose range on a shared branch starts
+    // where everybody branched and so holds tidy-receipts' commit too.
+    recordReview(
+      repo.home,
+      reading('shop/add-refunds', { where: { test_missing: 'src/refund.ts' } }),
+    )
+    const written = readFileSync(join(repo.home, 'jev', 'reviews.jsonl'), 'utf8')
+    const loaded = await host({
+      home: repo.home,
+      projects: { shop: { root: repo.root } },
+      env: { TYPESAFE_API_KEY: 'k' },
+      fetch: offline,
+      now: NOW + 2 * 3_600_000,
+    })
+
+    const refundsAsked = await loaded.call(
+      'jev_findings',
+      {},
+      agentAsking('shop/add-refunds', repo.root),
+    )
+    expect(refundsAsked.text).toContain('shop/add-refunds:test_missing')
+    expect(refundsAsked.text).not.toContain(`${range}:test_missing`)
+    const receiptsAsked = await loaded.call(
+      'jev_findings',
+      {},
+      agentAsking('shop/tidy-receipts', repo.root),
+    )
+    expect(receiptsAsked.text).toContain(`${range}:test_missing`)
+    expect(receiptsAsked.text).not.toContain('shop/add-refunds:test_missing')
+    // The orchestrator naming a task is told the same.
+    const orchestrator = { caller: { kind: 'orchestrator' as const } }
+    const named = await loaded.call('jev_findings', { task: 'shop/add-refunds' }, orchestrator)
+    expect(named.text).not.toContain(range)
+    expect(
+      (await loaded.call('jev_findings', { task: 'shop/tidy-receipts' }, orchestrator)).text,
+    ).toContain(range)
+
+    // And the sweep counts the one task whose commit it is, not the checkout.
+    const swept = await loaded.look('jev.verdicts', {
+      project: 'shop',
+      input: {},
+      since: null,
+      turnedOn: new Date(NOW).toISOString(),
+    })
+    const unowned = swept.found.find((one) => one.key.startsWith(`${range}:test_missing#unowned`))
+    expect(unowned?.title).toContain('1 task(s) share it')
+    // What was written is evidence, and is never rewritten.
+    expect(readFileSync(join(repo.home, 'jev', 'reviews.jsonl'), 'utf8')).toBe(written)
   })
 })
 

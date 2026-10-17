@@ -436,14 +436,22 @@ export async function unitsIn(ctx: ExtensionContext, project: ProjectRef): Promi
     const base = await baseOf(ctx, worktree.path, recorded, worktree.head, baseRef)
     if (!base || base === worktree.head) continue
     const when = await git(ctx, worktree.path, ['log', '-1', '--format=%ct', worktree.head])
+    // On a branch several tasks share that could not be read one agent at a
+    // time, the tasks it is about are the ones whose trailer is on a commit in
+    // it, as `unitFor` reads them — never everybody working there, which is
+    // nobody at all where no commit carries one.
+    const signed = shared
+      ? (await commitsByTask(ctx, worktree.path, `${base}..${worktree.head}`)).byTask
+      : null
+    const about = signed ? tasks.filter((task) => signed.has(task.id)) : tasks
     units.push({
       ...whole,
       base,
       key: shared
         ? `${project.name}:${worktree.branch || worktree.head.slice(0, 8)}`
         : (tasks[0]?.id ?? ''),
-      tasks: tasks.map((task) => task.id),
-      intent: tasks
+      tasks: about.map((task) => task.id),
+      intent: about
         .map((task) => task.intent)
         .filter(Boolean)
         .join('\n'),

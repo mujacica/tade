@@ -144,7 +144,10 @@ way, and no agent could account for the answer because none of it was only their
 - **Whose a commit is, is read back out of the `Tade-Task:` trailer and never guessed**
   (`commitsByTask`) — the same fact the ACTIONS tab and the queue's look at the trees read.
 - **What nobody signed stays nobody's.** A range where no commit carries a trailer is read as one
-  branch, exactly as before, and uncommitted work is in no unit at all.
+  branch, exactly as before, filed under no task, and uncommitted work is in no unit at all.
+- **A reading's `tasks` is read back, never trusted.** Older lines filed a shared branch under every
+  task in the checkout, and the record is never rewritten, so `jev_findings` and the sweep take a
+  reading that is not one task's own as whose trailers are in its range (`whoseReadings`).
 - It is also what unsticks the reading: the cursor and the settling are each agent's own, so one
   agent still typing no longer holds up the reading of work that has stopped.
 - **An agent asking `jev_review` or `jev_findings` about nothing is asking about its own change.**
