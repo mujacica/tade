@@ -23,5 +23,9 @@ import { join } from 'node:path'
 //
 // The vitest process itself keeps the real home: `test/one-suite.ts` runs
 // there, and the turn it takes is this machine's, in this machine's Tade home.
+//
+// pi's agent directory moves out of the home when `PI_CODING_AGENT_DIR` says
+// so, and Tade follows it there (`sessionsRoot`), so that goes too.
 
 process.env.HOME = realpathSync(mkdtempSync(join(tmpdir(), 'tade-test-home-')))
+delete process.env.PI_CODING_AGENT_DIR

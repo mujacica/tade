@@ -2,12 +2,13 @@ import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { sessionIdFor } from '../src/adapter.ts'
+import { PiAdapter, sessionIdFor } from '../src/adapter.ts'
 import {
   historyLine,
   historyOfTask,
   sessionDirFor,
   sessionFileFor,
+  sessionsRoot,
   usageOf,
   usageOfTask,
 } from '../src/sessions.ts'
@@ -95,6 +96,43 @@ describe('reading a task’s session', () => {
       if (was === undefined) delete process.env.PI_CODING_AGENT_DIR
       else process.env.PI_CODING_AGENT_DIR = was
     }
+  })
+
+  it('looks in pi’s agent directory wherever PI_CODING_AGENT_DIR puts it', async () => {
+    const { SessionManager } = await import('@earendil-works/pi-coding-agent')
+    const was = process.env.PI_CODING_AGENT_DIR
+    const from = process.cwd()
+    // A lane's pi runs in its working directory, which a relative one is read against.
+    const cwd = tmp('pi-cwd-')
+    process.chdir(cwd)
+    try {
+      for (const moved of [undefined, tmp('pi-agent-'), '~/elsewhere/agent', '~', 'own/agent']) {
+        // pi reads its own process's environment; Tade reads the one it hands pi.
+        if (moved === undefined) delete process.env.PI_CODING_AGENT_DIR
+        else process.env.PI_CODING_AGENT_DIR = moved
+        const launched = moved === undefined ? {} : { PI_CODING_AGENT_DIR: moved }
+        expect(sessionDirFor(cwd, sessionsRoot(launched))).toBe(
+          SessionManager.create(cwd).getSessionDir(),
+        )
+      }
+    } finally {
+      process.chdir(from)
+      if (was === undefined) delete process.env.PI_CODING_AGENT_DIR
+      else process.env.PI_CODING_AGENT_DIR = was
+    }
+  })
+
+  it('is found by an adapter whose pi is launched with its agent directory moved', async () => {
+    const agentDir = tmp('pi-agent-')
+    const cwd = tmp('pi-cwd-')
+    writeSession(join(agentDir, 'sessions'), cwd, 'app/moved', [priced(10, 5, 0.01)])
+    const moved = new PiAdapter({ runDir: tmp('tade-pi-'), env: { PI_CODING_AGENT_DIR: agentDir } })
+    expect(await moved.hasConversation('app/moved', cwd)).toBe(true)
+    expect(await moved.spent('app/moved', cwd)).toMatchObject({ tokens: 15, messages: 1 })
+    expect((await moved.history('app/moved', cwd, { limit: 50 })).items).toHaveLength(1)
+    // Launched without it, pi files them in the home, and so that is where it looks.
+    const home = new PiAdapter({ runDir: tmp('tade-pi-'), env: {} })
+    expect(await home.hasConversation('app/moved', cwd)).toBe(false)
   })
 
   it('has nothing to say about a task that has never run', async () => {

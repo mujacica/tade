@@ -1,6 +1,6 @@
 import { readdir, readFile, realpath } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import {
   type HistoryAsk,
   type HistoryLine,
@@ -25,9 +25,20 @@ import { modelOfMessage, spentBy } from './usage.ts'
 // else is skipped: a session we cannot read is a gap in the accounting, never
 // an error.
 
-/** Where pi keeps sessions, unless told otherwise. */
-export function sessionsRoot(home = homedir()): string {
-  return join(home, '.pi', 'agent', 'sessions')
+/**
+ * Where pi keeps sessions: under its agent directory, which is `~/.pi/agent`
+ * unless `PI_CODING_AGENT_DIR` moves it (pi's `getAgentDir`, a leading `~`
+ * expanded). `env` is the environment pi is launched with, since that is the
+ * one it reads; a test holds this to pi's own.
+ */
+export function sessionsRoot(env: NodeJS.ProcessEnv = process.env, home = homedir()): string {
+  const moved = env.PI_CODING_AGENT_DIR
+  const agent = !moved
+    ? join(home, '.pi', 'agent')
+    : moved === '~' || moved.startsWith('~/')
+      ? join(home, moved.slice(1))
+      : moved
+  return join(agent, 'sessions')
 }
 
 export interface SessionUsage {
@@ -64,10 +75,11 @@ export function noUsage(): SessionUsage {
  * than reading as no session at all.
  *
  * `cwd` is meant as pi's `process.cwd()` says it, already resolved: a path
- * through a symlink names a directory pi never writes to.
+ * through a symlink names a directory pi never writes to. A relative `root`
+ * is pi's from there too, as pi resolves its agent directory.
  */
 export function sessionDirFor(cwd: string, root = sessionsRoot()): string {
-  return join(root, `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`)
+  return join(resolve(cwd, root), `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`)
 }
 
 /**

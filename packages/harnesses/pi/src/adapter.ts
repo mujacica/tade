@@ -440,8 +440,9 @@ export class PiAdapter implements WorkerAdapter {
     return findModel(said, await this.models())
   }
 
+  /** Where this adapter's pi files sessions: read from the environment `runEnv` launches it with. */
   private recordsAt(): { root?: string } {
-    return this.opts.sessionsRoot ? { root: this.opts.sessionsRoot } : { root: sessionsRoot() }
+    return { root: this.opts.sessionsRoot || sessionsRoot(this.opts.env) }
   }
 
   /**
