@@ -308,7 +308,10 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   on work the tree still holds it is held again in the same second, and an answer of "waits again"
   is what sent the orchestrator off to re-plan. `remove` names what waited on it. What that look
   holds is written down as ever but told to the orchestrator in the answer it is reading
-  (`answering`), not again a turn later.
+  (`answering`), not again a turn later. **What started is every start since the change was
+  written, by any pass** (`settle`'s `since`): Live hears each journal line as it lands, so a pass
+  already under way reads the change too and may be the one that starts the work — counting only
+  the fresh pass answered a start that worked with "not queued any more".
 - **A removal says what becomes of what waited on it** (`dependents`). `hold`, the default, is what
   removing always did: each is held on the task that went until somebody answers. `inherit` hands
   the removed task's waits on to each, in the place of the wait on it (`inheritWaits`), written into

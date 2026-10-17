@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { taskDir } from '@tade/core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
+import type { Live } from '../../src/live.ts'
 import {
   type FakeTerminal,
   type Repo,
@@ -14,6 +15,9 @@ import {
 
 // What starts by itself and what holds it: a rule met, a dependency that
 // stopped, a plan that runs into the tree it was written against.
+
+/** The window's look at the trees, which one test holds a pass inside. */
+type Straddled = Pick<Live, 'lookAtTrees'>
 
 describe('the window, and the work waiting in it', () => {
   let terminal: FakeTerminal
@@ -248,9 +252,10 @@ describe('the window, and the work waiting in it', () => {
     await until('that one paused', async () =>
       /app\/second-one — paused/.test(await window.queueTools().describe()),
     )
-    // Its own work finishing starts nothing while it is paused.
+    // Its own work finishing starts nothing while it is paused, however many
+    // times the queue looks.
     await client.markDone('app/first-one', { by: 'you' })
-    await new Promise((resolve) => setTimeout(resolve, 2_500))
+    for (let look = 0; look < 3; look++) await window.queueTools().advance()
     expect(client.runs().some((run) => run.task === 'app/second-one')).toBe(false)
 
     const resume = find('▶ Resume')
@@ -282,9 +287,10 @@ describe('the window, and the work waiting in it', () => {
       ],
     })
     await window.queueTools().change({ project: 'app', change: 'pause' })
-    // Its own work finishing starts nothing while the queue is held.
+    // Its own work finishing starts nothing while the queue is held, however
+    // many times it looks.
     await client.markDone('app/first-one', { by: 'you' })
-    await new Promise((resolve) => setTimeout(resolve, 2_500))
+    for (let look = 0; look < 3; look++) await window.queueTools().advance()
     expect(client.runs().some((run) => run.task === 'app/second-one')).toBe(false)
     expect(await window.queueTools().describe()).toContain('paused with the queue')
 
@@ -376,14 +382,39 @@ describe('the window, and the work waiting in it', () => {
     expect(heldSaid).toContain('Deciding is yours (queue.holds)')
     expect(heldSaid).not.toContain('The person decides')
 
-    // Said once: the hold is not repeated at every look while it waits.
-    await new Promise((resolve) => setTimeout(resolve, 2_500))
+    // Said once: the hold is not repeated at every look while it waits —
+    // counted in looks, since the first may be the one that wrote it.
+    for (let look = 0; look < 3; look++) await tools.advance()
     expect((await client.events({ types: ['queue_held'], task: 'app/write-up' })).length).toBe(1)
 
-    // The person's answer is written down, read back, and it starts.
-    expect(await tools.change({ task: 'app/write-up', change: 'start', by: 'you' })).toBe(
-      'Done. Started app/write-up.',
+    // The person's answer is written down, read back, and it starts — and is
+    // said to have started when the look that starts it is one already under
+    // way, which reads the start as it lands. Beside another suite, git kept
+    // that look slow enough to straddle the change; here it is held there.
+    const live = (window as unknown as { wire: { live: Straddled } }).wire.live
+    const look = live.lookAtTrees.bind(live)
+    let inLook = () => {}
+    const looking = new Promise<void>((resolve) => {
+      inLook = resolve
+    })
+    let release = () => {}
+    const released = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    live.lookAtTrees = async (items) => {
+      inLook()
+      await released
+      return look(items)
+    }
+    await looking
+    const answer = tools.change({ task: 'app/write-up', change: 'start', by: 'you' })
+    await until('the start written', async () =>
+      (await client.events({ types: ['queue_changed'], task: 'app/write-up' })).some(
+        (event) => event.detail.change === 'start',
+      ),
     )
+    release()
+    expect(await answer).toBe('Done. Started app/write-up.')
     const [started] = await client.events({ types: ['queue_started'], task: 'app/write-up' })
     expect(started?.detail.why).toBe('it was started anyway')
   })

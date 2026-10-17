@@ -133,6 +133,9 @@ export class Queue implements Subject {
   private advancing: Promise<string[]> | null = null
   /** Queued work being started now, so a refresh in the middle does not start it twice. */
   private readonly starting = new Set<string>()
+  /** How many starts any pass has made, and which that each task's was: what `settle` answers from. */
+  private starts = 0
+  private readonly startNumber = new Map<string, number>()
   /**
    * Queued work taking over the waits of a task being removed, which passes
    * leave alone until it has: one in between would hold each on a task that
@@ -291,6 +294,7 @@ export class Queue implements Subject {
           ),
         })
         started.push(task)
+        this.startNumber.set(task, ++this.starts)
         this.deps.news(`started ${task}: ${because}`)
         this.said(`started ${task}: ${because}`)
       } catch (err) {
@@ -480,6 +484,7 @@ export class Queue implements Subject {
         const pickedUp =
           change === 'start' &&
           (this.wire.live?.queued ?? []).some((one) => one.task === req.task && one.parked)
+        const since = this.starts
         await this.wire.opts.client.changeQueued({
           ...(req.task ? { task: req.task } : {}),
           ...(req.project ? { project: req.project } : {}),
@@ -503,7 +508,7 @@ export class Queue implements Subject {
                   .filter((one) => !req.project || one.project === req.project)
                   .map((one) => one.task)
               : []
-        const started = await this.settle(about, req.by)
+        const started = await this.settle(about, since, req.by)
         const lead =
           change === 'order'
             ? `Done: ${joined(order)}, in that order, as each becomes ready.`
@@ -621,8 +626,9 @@ export class Queue implements Subject {
       by !== 'you' && (this.wire.live?.queued ?? []).some((one) => one.task === task)
     const said = (answer: string) => (unstarted ? inPlaceSays(answer, task) : answer)
     if (dependents === 'inherit') return said(await this.handOn(task, waited, by, removing))
+    const since = this.starts
     await removing()
-    const started = await this.settle(waited, by)
+    const started = await this.settle(waited, since, by)
     if (waited.length === 0)
       return said(changedSays(`${task} is removed. Nothing waited on it.`, started, []))
     return said(
@@ -647,9 +653,11 @@ export class Queue implements Subject {
   ): Promise<string> {
     for (const one of waited) this.handing.add(one)
     let handed: HandedOn[]
+    let since: number
     try {
       // A pass under way read them before they were left alone.
       await this.advancing?.catch(() => {})
+      since = this.starts
       handed = await handOnWaits(
         this.wire.opts.client,
         { task, by: by ?? 'orchestrator' },
@@ -659,29 +667,43 @@ export class Queue implements Subject {
       for (const one of waited) this.handing.delete(one)
     }
     const about = handed.map((one) => one.task)
-    const started = await this.settle(about, by)
+    const started = await this.settle(about, since, by)
     const now = this.nowOf(about.filter((one) => !started.includes(one)))
     return handedOnSays(task, handed, started, now)
   }
 
   /**
-   * Look again after a change, and start what it made ready. A pass already
-   * under way read the world before the change, so it finishes first and a
-   * fresh one reads it after. What that pass holds is told to the
-   * orchestrator in its answer rather than again a turn later (`answering`);
-   * a change made at the keyboard is told as ever.
+   * Look again after a change, and start what it made ready: a pass under way
+   * finishes first, and a fresh one reads the change after it. What that pass
+   * holds is told to the orchestrator in its answer rather than again a turn
+   * later (`answering`); a change made at the keyboard is told as ever.
+   *
+   * Answered with every start made `since` the change was written, by
+   * whichever pass made it. The pass under way may have read the change too —
+   * Live hears each journal line as it is appended, and a pass reads its
+   * facts after its look at the trees — and then it is that pass that starts
+   * the work. Counting only the fresh pass, the answer to a start that had
+   * worked was "not queued any more", beside another suite whose load kept
+   * the look slow enough to straddle the change.
    */
-  private async settle(about: readonly string[], by?: 'you' | 'orchestrator'): Promise<string[]> {
+  private async settle(
+    about: readonly string[],
+    since: number,
+    by?: 'you' | 'orchestrator',
+  ): Promise<string[]> {
     const quiet = by === 'you' ? [] : about
     for (const task of quiet) this.answering.add(task)
     try {
-      // Only waited for: how that pass went is its own caller's to say.
       await this.advancing?.catch(() => {})
       await this.wire.live?.refresh()
-      return await this.advance()
+      await this.advance()
     } finally {
       for (const task of quiet) this.answering.delete(task)
     }
+    return [...this.startNumber]
+      .filter(([, number]) => number > since)
+      .sort(([, one], [, other]) => one - other)
+      .map(([task]) => task)
   }
 
   /** Where each piece of queued work stands now, in a sentence each. */
