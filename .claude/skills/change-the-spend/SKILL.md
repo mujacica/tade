@@ -214,6 +214,9 @@ Tade counted.
   account row, with their words, and never an agent already working. Adding, removing or signing in
   one stays `never`. **No rule moves work to a less full plan** (`planTooTight` holds, never
   switches): that would be the person's decision taken by a rule nobody asked.
+- **The PLAN list says who runs as each, in the Accounts page's mark** (`PlanRow.uses`): `▸` in
+  the table's mark column beside the sign-in new agents run as, `▸ in search` under the name of one
+  a project names. Its bar is eight cells rather than ten to pay for the mark, not the name.
 
 ### What is true of a harness is true of its old lines too
 

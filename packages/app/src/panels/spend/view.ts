@@ -172,6 +172,10 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   rows.push(blank(inner))
   rows.push(row().space().text('PLAN', skin.label).build())
   const whose = 17
+  // Two cells short of the ten it was, which is what pays for the mark in front
+  // of a name: the bar says nothing the share beside it does not, and a name is
+  // the one thing here that cannot be cut without lying.
+  const planBar = 8
   // What can be said comes first. A reason is worth reading, and worth
   // reading after the figures somebody opened this to see.
   const standings = [...(view?.plan ?? [])].sort(
@@ -187,6 +191,13 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     // a plan pays a flat fee, so nobody is billed it. It sits in this list and
     // never in the COST column, because that column is money.
     const listed = atList(standing)
+    // `▸` where new agents run as it — the mark the Accounts page and
+    // `tade accounts` put beside the same sign-in — in the column the table's
+    // own marks stand in, so a name here starts where a name there does.
+    const lead = (top: boolean) =>
+      top && standing.uses?.newAgents
+        ? row().space().text('▸', skin.you).space()
+        : row().space(LEAD)
     if (standing.cannotTell === null) {
       let top = true
       for (const window of standing.windows) {
@@ -197,12 +208,11 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
         const tone =
           pressure === 'tight' ? skin.bad : pressure === 'warm' ? skin.waiting : skin.done
         const left = window.resetsIn
-        const line = row()
-          .space()
+        const line = lead(top)
           .text(padTo(top ? standing.label : '', whose))
           .space()
           .text(pad(window.label, 4), skin.hint)
-          .meter(Math.min(1, used / 100), 10, tone)
+          .meter(Math.min(1, used / 100), planBar, tone)
           .space()
           .text(`${used}%`.padStart(4), tone)
           .space(2)
@@ -229,16 +239,30 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
       // its plan is has still run the turns, and what they would have cost is
       // answerable when the share is not.
       drawn.push(
-        row()
-          .space()
+        lead(true)
           .text(padTo(standing.label, whose))
           .space()
           // Padded to where the bars' own `said … ago` ends, so a figure on this
           // row and a figure on one that could tell stand in one column.
-          .text(padTo('cannot tell', 54), skin.hint)
+          .text(padTo('cannot tell', 4 + planBar + 1 + 4 + 2 + 17 + 16), skin.hint)
           .text(listed, skin.hint)
           .build(),
       )
+    }
+    // The projects that name it as theirs, whatever the machine says: the same
+    // mark, and `in` for where — the Accounts page's `new agents in search` as
+    // a mark, a word and names, because this page is nothing else. Under the
+    // name, where the table puts the rest of one, so it reads as this
+    // sign-in's and never as a row of its own.
+    const projects = standing.uses?.projects ?? []
+    if (projects.length > 0) {
+      const room = inner - LEAD - 2
+      wrapTo(`in ${projects.join(', ')}`, room, Number.POSITIVE_INFINITY).forEach((said, at) => {
+        const line = row().space(LEAD)
+        if (at === 0) line.text('▸', skin.you).space()
+        else line.space(2)
+        drawn.push(line.text(said, skin.hint).build())
+      })
     }
     rows.push(...drawn)
   }

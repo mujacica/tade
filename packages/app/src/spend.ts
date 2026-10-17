@@ -21,6 +21,7 @@ import {
   type RuntimeReport,
   resetsIn,
   runsFoldedFrom,
+  type SignInUse,
   type Spend,
   type SpendReport,
   spendFrom,
@@ -167,6 +168,12 @@ export interface PlanRow {
   usdOnPlan: number
   /** Whether a rate covered all of its turns, or only some. */
   onPlan: OnPlan
+  /**
+   * Who runs as it: whether new agents do, and which projects name it as
+   * theirs (`signInUse`). Null where whoever gathered the sign-ins could not
+   * say — never read as nobody.
+   */
+  uses: SignInUse | null
 }
 
 export interface BudgetRow {
@@ -488,6 +495,7 @@ function planRows(sources: readonly PlanSource[], now: number, report: SpendRepo
       cannotTell: standing.cannotTell,
       usdOnPlan: spent.usdOnPlan,
       onPlan: onPlanOf(spent),
+      uses: standing.uses ?? null,
     }
   })
 }

@@ -67,6 +67,10 @@ const spent = [
  * has most of a five-hour window gone, Codex's own is barely touched — which is
  * what the strip has a name and a toggle for rather than one bar — and pi prices
  * every turn and never hears about a plan at all.
+ *
+ * And who runs as each: new agents run as every harness's own sign-in, and the
+ * `search` project runs its Codex agents on the work account the reindex was
+ * billed to, which has said nothing about a plan because it is paid per token.
  */
 const plans: PlanSource[] = [
   {
@@ -82,6 +86,7 @@ const plans: PlanSource[] = [
         { label: '7d', used: 31, resetsAt: NOW + 3 * 86_400_000 },
       ],
     },
+    uses: { newAgents: true, projects: [] },
   },
   {
     harness: 'codex',
@@ -93,6 +98,16 @@ const plans: PlanSource[] = [
       at: NOW - 41 * 60_000,
       windows: [{ label: '5h', used: 12, resetsAt: NOW + 7_200_000 }],
     },
+    uses: { newAgents: true, projects: [] },
+  },
+  {
+    harness: 'codex',
+    account: 'work',
+    can: 'while-working',
+    pays: 'per-token',
+    why: 'says it as each turn ends, so nothing shows until an agent has worked',
+    said: null,
+    uses: { newAgents: false, projects: ['search'] },
   },
   {
     harness: 'pi',
@@ -101,6 +116,7 @@ const plans: PlanSource[] = [
     pays: 'per-token',
     why: 'is never told what a plan has left; it prices each turn instead',
     said: null,
+    uses: { newAgents: true, projects: [] },
   },
 ]
 

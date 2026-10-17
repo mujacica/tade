@@ -533,6 +533,72 @@ describe('what a plan’s turns would have cost', () => {
   })
 })
 
+// Which sign-in new agents run as, and which projects name one as theirs: the
+// Accounts page says it, and the PLAN list is where somebody looks when a plan
+// is nearly gone — so it says it there too, in the Accounts page's own mark.
+describe('who runs as each sign-in', () => {
+  const own: PlanSource = {
+    harness: 'claude-code',
+    account: null,
+    can: 'while-working',
+    pays: 'plan',
+    why: null,
+    said: { at: NOW - 60_000, windows: [{ label: '5h', used: 78, resetsAt: NOW + 3_600_000 }] },
+  }
+  const two: PlanSource[] = [
+    { ...own, uses: { newAgents: true, projects: [] } },
+    {
+      harness: 'claude-code',
+      account: 'work',
+      can: 'while-working',
+      pays: 'per-token',
+      why: null,
+      said: null,
+      uses: { newAgents: false, projects: ['search', 'infra'] },
+    },
+  ]
+  const plan = () =>
+    drawPanel(
+      { ...spendPanel(), by: 'harness' },
+      context({ width: 120, spend: viewBy('harness', [onPlan()], [], two) }),
+    ).panel.rows.map((row) => stripTerminalSequences(row))
+
+  it('carries it from the sign-ins onto the rows, and says nothing it was not told', () => {
+    const rows = viewBy('harness', [], [], [...two, { ...own, account: 'old' }]).plan
+    expect(rows.map((row) => [row.label, row.uses])).toEqual([
+      ['claude-code', { newAgents: true, projects: [] }],
+      ['claude-code @work', { newAgents: false, projects: ['search', 'infra'] }],
+      // Whoever gathered this one could not say, which is not the same as nobody.
+      ['claude-code @old', null],
+    ])
+  })
+
+  it('marks the one new agents run as, and names the projects that run as another', () => {
+    const rows = plan().map(inside)
+    expect(rows.some((row) => /^▸ claude-code\s+5h .*≈\$2\.33 at list$/.test(row))).toBe(true)
+    expect(rows.some((row) => /^claude-code @work\s+cannot tell$/.test(row))).toBe(true)
+    // Under the sign-in they name, and nowhere else.
+    const work = rows.findIndex((row) => row.startsWith('claude-code @work'))
+    expect(rows[work + 1]).toBe('▸ in search, infra')
+    expect(rows.filter((row) => row.includes('in search'))).toHaveLength(1)
+  })
+
+  it('keeps every name and figure in the column it had, mark or no mark', () => {
+    // The mark stands in a column of its own, so a sign-in with it and one
+    // without start their names, and what follows the names, in one place —
+    // and the projects under a name start where that name does, so they read
+    // as that sign-in's rather than as a row of their own.
+    const rows = plan()
+    const marked = rows.find((row) => /▸ claude-code\s+5h/.test(row)) ?? ''
+    const plain = rows.find((row) => /claude-code @work\s+cannot tell/.test(row)) ?? ''
+    const projects = rows.find((row) => row.includes('in search')) ?? ''
+    expect(marked.indexOf('claude-code')).toBeGreaterThan(0)
+    expect(marked.indexOf('claude-code')).toBe(plain.indexOf('claude-code'))
+    expect(projects.indexOf('▸')).toBe(plain.indexOf('claude-code'))
+    expect(marked.indexOf('5h')).toBe(plain.indexOf('cannot tell'))
+  })
+})
+
 describe('how long a model was working, beside how long its agent was open', () => {
   // Two questions and two columns. A run counts until it stopped, idle time
   // included — an agent that answered at noon and sat in its lane until
