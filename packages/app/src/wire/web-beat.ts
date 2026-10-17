@@ -1,4 +1,4 @@
-import { uptime } from 'node:os'
+import { homedir, uptime } from 'node:os'
 import type {
   AgentMark,
   PlanStanding,
@@ -22,7 +22,15 @@ import {
 } from '@tade/core'
 import type { JudgeFinding } from '@tade/extensions-core'
 import { offer, type WorkerCapabilities } from '@tade/harnesses-core'
-import type { CheckTreeIn, IntakeIn, SnapshotInput, SourceIn, TalkIn, WorkflowIn } from '@tade/web'
+import {
+  type CheckTreeIn,
+  commandOut,
+  type IntakeIn,
+  type SnapshotInput,
+  type SourceIn,
+  type TalkIn,
+  type WorkflowIn,
+} from '@tade/web'
 import {
   type awayCollections,
   findingIn,
@@ -40,6 +48,7 @@ import type { Transcript } from '../transcript.ts'
 import type { Wiring } from './context.ts'
 import { heldFindings } from './findings.ts'
 import type { CheckRecords } from './web-checks.ts'
+import { knownHere } from './web-lanes.ts'
 
 // What the window hands the away view on a beat, and what it reads to build it.
 //
@@ -189,6 +198,7 @@ export function partsFrom(
       notes: (project) => live.notes(project),
       tasks: live.tasks,
       marks: new Map(wire.state.panes.map((pane) => [pane.task, markOf(pane)])),
+      commandOf: commandsFrom(wire),
       titles: titlesOf(wire.opts.config),
       plans: planStandings(wire.opts.client.planUsage(), wire.now()),
       machineUpSince: kept.upSince,
@@ -208,6 +218,19 @@ export function partsFrom(
     (task) => steeringFor(wire.opts.client, task),
     kept.factory,
   )
+}
+
+/**
+ * How the window lets an approval's command out (`commandOut`): with the three
+ * places only it knows — where the task works, Tade's home, the home directory
+ * — and every key it holds, read once a beat and only where an approval waits.
+ */
+export function commandsFrom(wire: Wiring): (summary: string, work: string) => string {
+  let known: string[] | null = null
+  return (summary, work) => {
+    if (known === null) known = knownHere(wire, wire.opts.config)
+    return commandOut(summary, { work, tade: wire.opts.home, home: homedir() }, known)
+  }
 }
 
 /**
@@ -287,11 +310,16 @@ export function beatParts(
         approval:
           approval === null
             ? null
-            : // The tool's **name** and nothing else. The harness's one-line
-              // summary of the call is the command with its paths in it, and
-              // answering an approval from away is a later slice's — which
-              // gets to decide what a person is shown before they say yes.
-              { id: approval.requestId, tool: approval.tool, sinceAt: approval.at },
+            : {
+                id: approval.requestId,
+                tool: approval.tool,
+                sinceAt: approval.at,
+                // **Never the summary itself**: it is the command with this
+                // machine's paths in it, so it leaves only through `commandOut`,
+                // with where this task works as `.` — and the projection sends
+                // even that only to a device that may answer it.
+                command: live.commandOf?.(approval.summary, task.worktree) ?? null,
+              },
         produced: written.has(task.id),
         finished: finished.has(task.id),
         mark: live.marks?.get(task.id) ?? null,
@@ -349,7 +377,8 @@ export interface Held {
   events: readonly TadeEvent[]
   /** Every line that wrote where a project lives, from the whole journal. */
   rootLines: readonly TadeEvent[]
-  pending: readonly { requestId: string; task: string; tool: string; at: number }[]
+  /** The approvals waiting. `summary` is the raw command, read only by `commandOut`. */
+  pending: readonly { requestId: string; task: string; tool: string; summary: string; at: number }[]
   world: Workspace | null
   seenActions(task: string): ActionsView | null
   spendToday(): { byTask: Record<string, Spend> } | null
@@ -365,7 +394,7 @@ export interface Held {
 export interface Beatable {
   events: readonly TadeEvent[]
   rootLines: readonly TadeEvent[]
-  pending: readonly { requestId: string; task: string; tool: string; at: number }[]
+  pending: readonly { requestId: string; task: string; tool: string; summary: string; at: number }[]
   seenActions(task: string): ActionsView | null
   spendToday(): { byTask: Record<string, Spend> } | null
   queued: readonly Queued[]
@@ -381,6 +410,11 @@ export interface Beatable {
    * an agent is done, idle, working or wanting you.
    */
   marks?: ReadonlyMap<string, AgentMark>
+  /**
+   * An approval's command as it may leave the machine, from the summary and
+   * where its task works (`commandsFrom`). Absent, no command crosses at all.
+   */
+  commandOf?: (summary: string, work: string) => string
   machineUpSince: number | null
   /** When `spendToday`'s fold starts, which is the period every figure covers. */
   spendSince: number | null

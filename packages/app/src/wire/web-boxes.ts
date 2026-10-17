@@ -23,6 +23,8 @@ export interface Box {
 }
 
 export const BOXES = {
+  // `answer` also draws the command an approval asks about: a scope's place
+  // (`ANSWERING`), not a reading grant's, so it is not among the `draws`.
   act: { scopes: ['answer', 'steer'], reads: [], draws: [] },
   agents: { scopes: ['agents'], reads: [], draws: [] },
   projects: { scopes: ['projects'], reads: [], draws: [] },

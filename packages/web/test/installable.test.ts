@@ -293,8 +293,10 @@ describe('the real folder', () => {
     // (three files and 13 KB as they sit, where there were none) took it to
     // 1281. 1288 until this device's passkey (one module of 11 KB as it sits,
     // most of it the reasons a press goes straight to the authenticator) took
-    // it to 1299: the pages still to come spend the rest, and the next one is
-    // this conversation again.
-    expect(raw).toBeLessThan(1304 * 1024)
+    // it to 1299. 1304 until the command an approval asks about (a component
+    // drawn above a card's presses and in an agent's lead, 2.5 KB with the
+    // reasons Allow is never blind) took it to 1306: the pages still to come
+    // spend the rest, and the next one is this conversation again.
+    expect(raw).toBeLessThan(1310 * 1024)
   })
 })

@@ -583,7 +583,9 @@ words, that a yes grants full access, a bar for the minute it has, and Approve o
 `a` and `d` as approving a tool call. What each device may read and do is granted here, per device,
 a box each, ticked where it was granted, and pointing at a box says in one line what it grants. The
 whole of it: a request from a paired device is never your own words. Granted acting, it can answer
-what an agent is waiting on, tell one something, hold or release queued work, add a note or a line
+what an agent is waiting on — shown the whole command it would allow, with this machine's paths
+shortened (where the task works as `./`, your home as `~`, anything else to its last name) and the
+keys Tade holds taken out — tell one something, hold or release queued work, add a note or a line
 to what a task is told, mark work finished and approve a request a grant here already allowed — and,
 granted each, stop or reopen an agent and close or reopen a project. It can never change a setting
 beyond its own switch, read a credential, run a command, start an agent that never ran, push, merge

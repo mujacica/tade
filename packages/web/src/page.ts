@@ -58,8 +58,8 @@ export interface Budget {
    */
   text: number
   /**
-   * Code points of one *long* piece of text: a request's own body, and a
-   * workflow step's prompt.
+   * Code points of one *long* piece of text: a request's own body, a
+   * workflow step's prompt, and the command an approval asks about.
    *
    * **A second bound and not a bigger `text`**, because the two are different
    * things to be wrong about. `text` bounds a line on a row — a title, a

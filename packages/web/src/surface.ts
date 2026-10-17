@@ -439,11 +439,15 @@ export function sameHost(a: string, b: string): boolean {
  * `has(reach, grant)` with a known word, so an unknown one that rode along
  * would be silently equivalent to nothing anyway. Dropping it makes that true
  * by construction instead of by luck.
+ *
+ * `answers` is the device's own `answer` scope, as granted — not narrowed by
+ * where the request came from, as no reading is (`scopesOn` narrows acts).
  */
 export function reachOf(device: {
   id: string
   projects: readonly string[] | null
   granted: readonly string[]
+  scopes?: readonly string[]
 }): Reach {
   return {
     device: device.id,
@@ -452,5 +456,6 @@ export function reachOf(device: {
         ? { kind: 'every' }
         : { kind: 'listed', names: [...device.projects] },
     granted: GRANTS.filter((grant) => device.granted.includes(grant)) as Grant[],
+    answers: device.scopes?.includes('answer') === true,
   }
 }

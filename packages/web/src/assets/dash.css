@@ -299,6 +299,10 @@ main a.card-link {
   padding-inline-start: calc(1rem + var(--s3));
 }
 
+.quick-command {
+  flex: 1 0 100%;
+}
+
 .quick-said {
   flex: 1 0 100%;
   color: var(--body);

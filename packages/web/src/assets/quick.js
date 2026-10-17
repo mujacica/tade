@@ -14,14 +14,15 @@
 // finished (two taps, as everywhere — finishing starts whatever waited on it),
 // set it aside or pick it back up, and *Tell* — which goes to the task's page,
 // because telling an agent something is a sentence and a card is no place to
-// write one.
+// write one. **Allow is never blind**: above it, whole, the command it allows,
+// which the machine sends only to a device that may answer (`ANSWERING`).
 
 import { afterAnswer, bodyFor, confirms, controlsFor } from './acts.js'
 import { keyOf } from './controls.js'
 import { classOn, el, felt, into, textIn } from './dom.js'
 import { icon } from './icons.js'
 import { taskPath } from './routes.js'
-import { answerIn } from './ui.js'
+import { answerIn, command, commandIn } from './ui.js'
 
 /** The verbs a card offers a press for, in the order they are drawn. */
 export const QUICK = ['answer', 'done', 'park']
@@ -43,11 +44,14 @@ export function quickWord(verb, row, asked = false) {
 
 /**
  * `tell: false` on the task's own page, where telling its agent is the box a
- * little further down rather than a link back to the page it is on.
+ * little further down rather than a link back to the page it is on, and
+ * `command: false` where the page draws the command itself.
  */
 export function quickActs(ctx, opts = {}) {
   const offersTell = opts.tell !== false
   const node = el('div', { class: 'quick' })
+  const toRun = opts.command === false ? null : command()
+  toRun?.classList.add('quick-command')
   // Nothing until a row says what may be asked of it.
   node.hidden = true
   const said = el('p', { class: 'quick-said', attrs: { role: 'status' } })
@@ -97,7 +101,7 @@ export function quickActs(ctx, opts = {}) {
   const park = pressOf('park', 'park', 'quietly', {}, 'pause')
   const tell = el('a', { class: 'press small ghost', attrs: { href: '/' } })
   into(tell, icon('talk'), el('span', { text: 'Tell' }))
-  into(node, allow, deny, done, park, tell, said)
+  into(node, toRun, allow, deny, done, park, tell, said)
 
   return {
     node,
@@ -114,6 +118,7 @@ export function quickActs(ctx, opts = {}) {
       park.hidden = !yes('park')
       tell.hidden = !offersTell || !yes('steer')
       tell.setAttribute('href', taskPath(task.id))
+      if (toRun !== null) commandIn(toRun, yes('answer') ? (task.approval?.command ?? null) : null)
       for (const one of presses.values()) {
         if (one.press.classList.contains('asked')) continue
         textIn(one.label, one === presses.get('deny') ? 'Deny' : quickWord(one.verb, task))

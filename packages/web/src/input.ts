@@ -126,10 +126,12 @@ export interface CheckTreeIn {
  * So DESIGN.md §10.2's rule 6 (*`reason` is verbatim*) and its rule 1 (*no
  * absolute path, ever*) contradict each other in the commonest case on the
  * page, and the contradiction is settled here rather than left to whoever
- * writes the app's side: the summary **never arrives**, so there is nothing to
- * leave out by accident. The projection writes the same clause from the tool's
- * name, which is not a second state machine — the state is still
- * `deriveState`'s, and the words are still its words.
+ * writes the app's side: the summary **never arrives as a reason**, so there is
+ * nothing to leave out by accident. The projection writes the same clause from
+ * the tool's name, which is not a second state machine — the state is still
+ * `deriveState`'s, and the words are still its words. The command itself
+ * crosses only as `TaskIn.approval.command`, with its paths shortened, and
+ * only to a device that may answer it.
  *
  * **What the caller owes, said out loud because the type cannot say it.** A
  * task with a pending approval must arrive as `approval`, never as a `clause`
@@ -251,14 +253,16 @@ export interface TaskIn {
   /**
    * The approval waiting, when one is.
    *
-   * `tool` is the tool's **name** and nothing else. The harness's one-line
-   * summary — which is the command, with its paths — is not here and must not
-   * be added, and that stands now that answering one from away is a verb: what
-   * a person on a phone is shown before they say yes is the tool's name and
-   * the count of what else waits, and the command stays at the machine where
-   * the lane is.
+   * `tool` is the tool's **name**. `command` is the harness's one-line summary
+   * of the call — the command itself — as `commandOut` lets it leave: every key
+   * Tade holds and anything shaped like a credential taken out, where the task
+   * works as `.`, Tade's home as `~/.tade`, the home directory as `~`, any other
+   * absolute path its last name behind `…/`, then read whole. **Never the raw
+   * summary**: the window builds this with the places only it knows, so no root
+   * crosses into this package. The projection sends it only to a device that
+   * may answer (`ANSWERING`); null where nothing said what it runs.
    */
-  approval: { id: string; tool: string; sinceAt: number } | null
+  approval: { id: string; tool: string; sinceAt: number; command: string | null } | null
   /**
    * Whether the journal already says this task is finished. Metadata.
    *

@@ -154,7 +154,7 @@ const TASKS: TaskIn[] = [
     title: 'Upgrade Stripe to v15',
     intent: 'Upgrade stripe to v15. The webhook signature API changed, so fix constructEvent too.',
     reason: { kind: 'approval', tool: 'Bash', also: 0 },
-    approval: { id: 'req_31', tool: 'Bash', sinceAt: ago(3) },
+    approval: { id: 'req_31', tool: 'Bash', sinceAt: ago(3), command: 'Bash: npm i stripe@15' },
     createdAt: ago(52),
     movedAt: ago(3),
     ahead: 3,

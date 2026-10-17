@@ -185,6 +185,23 @@ export function cleanScreen(
   return { lines, above: all.length - lines.length, cut, taken }
 }
 
+/**
+ * Something an agent wrote that is not a screen — the command an approval asks
+ * about (`command.ts`) — with what a screen loses taken out the same way: a
+ * private key's block, every key Tade knows of and anything shaped like a
+ * credential, each one `…`. Its paths are left where they are, for whoever
+ * shortens them, and nothing is cut to a budget.
+ */
+export function withoutCredentials(text: string, known: readonly string[]): string {
+  const rows = text.split('\n')
+  for (const at of keyBlocks(rows)) rows[at] = ELIDED
+  const flat = rows.join('\n')
+  const mask = new Uint8Array(flat.length)
+  markKnown(flat, keysOf(known), mask)
+  markShapes(flat, mask)
+  return masked(flat, mask, 0)
+}
+
 /** The keys worth looking for, longest first so a key inside a key goes whole. */
 function keysOf(known: readonly string[]): string[] {
   const kept = new Set<string>()

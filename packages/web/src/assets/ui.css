@@ -215,6 +215,34 @@ a.ui-card:hover,
   background: var(--red);
 }
 
+/* ── command: what an agent is waiting to run, whole, wrapped under itself ── */
+
+.ui-command {
+  display: grid;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.ui-command-text {
+  margin: 0;
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r2);
+  border: var(--border);
+  background: var(--ground);
+  color: var(--bright);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  line-height: var(--lead);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ui-command-cut {
+  margin: 0;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
 /* ── callout: the sentence that may never get comfortable ──────────────────── */
 
 .ui-callout {

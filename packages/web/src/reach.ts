@@ -192,7 +192,28 @@ export interface Reach {
   device: string
   projects: Projects
   granted: readonly Grant[]
+  /**
+   * Whether it may answer what an agent is waiting on (its `answer` scope),
+   * which is what lets it read the command it would be answering
+   * (`ANSWERING`). Absent is no: a reach made for reading alone answers nothing.
+   */
+  answers?: boolean
 }
+
+/**
+ * Where answering reaches on the wire: what a device granted the `answer`
+ * scope reads that no reading grant gives, and what one without it is never
+ * sent.
+ *
+ * **Not a grant, and not in `WITHHOLDS`**, because it is not a separate
+ * decision. The person decided this phone may say yes to what an agent is
+ * waiting on; saying yes to a command you are not shown is what an approval
+ * exists to prevent, so seeing it goes with answering it and is never offered
+ * on its own. `test/withholds.test.ts` takes the scope away and asserts the
+ * snapshot changes here and nowhere else. A device without it sees the tool's
+ * name, as every paired device does, and nothing new.
+ */
+export const ANSWERING: readonly string[] = ['tasks.approval.command']
 
 /** A device that may read names and counts, in every project, and nothing else. */
 export function namesOnly(device: string): Reach {

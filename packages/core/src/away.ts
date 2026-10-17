@@ -118,10 +118,14 @@ export const ACTING_IS_NOT_YOU =
   'A request from a paired device is never your own words. On work you already set up it can ' +
   'answer what an agent is waiting on, tell one something, hold or release queued work, add a ' +
   'note or a line to what a task is told, mark work finished, and approve a request a grant ' +
-  'here already allowed. Where you granted that device each of them, it can also stop an agent ' +
-  'or open a stopped one again where it left off, and close a project or open a closed one ' +
-  'again: closing deletes nothing and stops nothing, but the project’s own settings go with it ' +
-  'and opening it puts back only where it lives. Beyond that one line, acting can never change a ' +
+  'here already allowed. A device that may answer is shown the command it is answering, with ' +
+  'this machine’s paths shortened — where the task works as ./, your home as ~, any other ' +
+  'path cut to its last name — and every key Tade holds taken out; one that may not is ' +
+  'shown only the tool’s name. Where you granted that device each of them, it can also ' +
+  'stop an agent or open a stopped one again where it left off, and close a project or open ' +
+  'a closed one again: closing deletes nothing and stops nothing, but the project’s own ' +
+  'settings go with it and opening it puts back only where it lives. Beyond that one line, ' +
+  'acting can never change a ' +
   'setting — that is a switch of its own — read a credential, run a command, start an agent ' +
   'that has never run, push, merge or overrule a check. Acting needs this machine itself or an ' +
   'https origin you named in ' +

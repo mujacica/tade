@@ -40,6 +40,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | stopping or reopening an agent, closing or reopening a project | `STOP`/`REOPEN`/`CLOSE`/`OPEN` in `src/verbs.ts`, the window's door in `packages/app/src/wire/web-lifecycle.ts`, the pure reading (`agentLaneOf`, `projectLines`, `projectAble`) in `packages/app/src/away-lifecycle.ts`, the chips in `wire/web-grants.ts` (`letOneRun`) |
 | one agent looked into: the answer, its activity's words | `src/agent.ts` (`agentOf`, `activitySaid`), `AgentOutSchema` in `src/protocol.ts`, `GET /api/agent/:project/:task` in `src/routes.ts` |
 | what of an agent's screen may leave the machine | `src/screen.ts` — pure: the bounds, the wrap, the keys, the shapes, the paths |
+| what of an approval's **command** may leave the machine | `src/command.ts` — pure: `shortenPaths` is the one rule for paths (where the task works `.`, Tade's home `~/.tade`, the home `~`, any other absolute path its last name behind `…/`), `commandOut` takes credentials out first (`withoutCredentials`, the screen's own rule) and reads the rest `'whole'`, `commandShown` cuts it to `budget.material` with a count; the window builds it in `wire/web-beat.ts` (`commandsFrom`, the only reader of `PendingApproval.summary` here) and the page draws it with `command`/`commandIn` (`ui.js`) above a card's presses (`quick.js`) and in an agent's lead |
 | when the window reads an agent's screen, and which keys it knows | `packages/app/src/wire/web-lanes.ts` (`Lanes`, `knownKeys`) |
 | what a task has been doing, out of the journal | `packages/app/src/away-activity.ts` — pure, an allow-list over types and fields |
 | the controls that widen one device (act, talk, lanes) | `packages/app/src/wire/web-grants.ts`, and `grantDevice` in `src/devices.ts` for a reading grant |
@@ -85,7 +86,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | the public listener: Caddy's socket, its directory, the PROXY header | `src/listeners.ts` (every socket one server listens on, `dirSeen`, `answering`), `src/proxied.ts` (the header read before HTTP, `peerOf`), `src/proxy-protocol.ts` (pure: what the bytes are), and `public-listener.ts` in `@tade/core` (the directory, the socket, `caddySite`, what a health look says); `test/public.test.ts` is all of it over a real socket |
 | the public listener's health: the certificate, Tade behind | `packages/app/src/wire/web-public.ts` (`PublicHealth`, on clocks of its own), `@tade/workbench/certificate` (one handshake), `tade host caddy --check` (`packages/cli/src/commands/host-caddy.ts`) |
 | what a device may read | `src/reach.ts` (the grants), `src/surface.ts`'s `reachOf` (the seam) |
-| **where** a grant withholds, and what a page says *not granted* about | `WITHHOLDS` in `src/reach.ts` — one line per place on the wire; `test/withholds.test.ts` takes each grant away and asserts the snapshot changes there and nowhere else. The page asks by path (`mayFor(store, 'plans')`, `src/assets/access.js`, a copy held equal), never by a grant's name, so a new gate is a line here or the test fails |
+| **where** a grant withholds, and what a page says *not granted* about | `WITHHOLDS` in `src/reach.ts` — one line per place on the wire; `test/withholds.test.ts` takes each grant away and asserts the snapshot changes there and nowhere else. The page asks by path (`mayFor(store, 'plans')`, `src/assets/access.js`, a copy held equal), never by a grant's name, so a new gate is a line here or the test fails. **`ANSWERING` beside it** is the one place a scope decides instead (`Reach.answers`, the device's `answer`): the command an approval asks about, held by the same test |
 | what a box in the panel grants | `BOXES` in `packages/app/src/wire/web-boxes.ts`: each box's scopes, the reading grants that go with them and the places its page draws — ticked only when it has all of them (`ticked`), so `talk to Tade` carries the conversation and `change settings` the settings |
 | the credential | `src/sessions.ts` |
 | **a device's passkey**: the gate, the two routes, checking an answer, the page's bar | `proven` in `src/guard.ts` (the eighth layer); `src/passkeys.ts` (the challenges, `ENROL_MS`, what a device is offered and told — `passkeyStanding`); `src/passkeyed.ts` (the two routes, in order); `src/webauthn.ts` and `src/cbor.ts` (an answer, checked); the `passkey` and `proved` lines in `src/devices.ts`; `src/assets/passkey.js` (the bar and its press); `passkey_hours` in `@tade/core`'s `away.ts` |
@@ -502,6 +503,15 @@ a device still has none of the scopes that change anything until somebody at thi
   a hole and never explained in a paragraph: `locally` on a row is the act and
   a sentence, and the long form is said once where somebody is deciding
   (`LOCAL_ONLY_ACTS`, on the control in Settings).
+- **A device that may answer an approval sees what it is answering, and no other device does**
+  (`ANSWERING`). Saying yes to a command you cannot see is what an approval exists to prevent, and on
+  a box with no screen the phone is where the yes comes from; so the command goes with the `answer`
+  scope and is never a grant of its own. It crosses only as `commandOut` made it — **never the raw
+  summary**, which is the command with this machine's paths in it — and the reason beside it is still
+  the tool's name (`reasonOf`). The rule is lexical on purpose: a symlink is named and never followed,
+  a `..` that climbs out of a place is outside it, another spelling of a place (`/private/var`) is cut,
+  and erring that way is a shorter line where the other way is a leak. `test/command.test.ts` is the
+  paths that try to get past it.
 - **Two nulls, two sentences.** A figure that is null because nobody recorded it and one that is null
   because this device was not granted it are different facts, and a page that drew both as *not
   recorded* tells somebody their work cost nothing. `you.reads` is the only way to tell them apart

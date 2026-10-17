@@ -255,8 +255,21 @@ export const TaskRowSchema = z.strictObject({
   /** The window's *needs you*: `mark` is `needs-you`. */
   wantsYou: z.boolean(),
   question: z.boolean(),
-  /** The tool's **name** and when it started waiting. Never the command. */
-  approval: z.strictObject({ id: z.string(), tool: z.string(), since: z.string() }).nullable(),
+  /**
+   * The tool's **name**, when it started waiting, and — to a device that may
+   * answer it, and to no other — the command it asks to run, paths shortened
+   * (`TaskIn.approval`), with how many of its characters were not sent.
+   */
+  approval: z
+    .strictObject({
+      id: z.string(),
+      tool: z.string(),
+      since: z.string(),
+      command: z
+        .strictObject({ text: z.string(), notShown: z.number().int().nonnegative() })
+        .nullable(),
+    })
+    .nullable(),
   /** Whether the journal already says it is finished. Not a state: a record. */
   finished: z.boolean(),
   /**

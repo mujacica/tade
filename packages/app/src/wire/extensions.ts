@@ -56,8 +56,8 @@ import type { Schedules } from './schedules.ts'
 //
 // An MCP server is a source of tools like any other, so it is a row here
 // rather than a page of its own, and what its row says is only what is true:
-// an off server was never connected, so it has no tools, no version and no
-// "last asked".
+// an off server is not connected now, whatever it was, so it has no tools, no
+// version and no "last asked".
 //
 // A server's words are material, never instruction. What comes back from one
 // is handed over as a description, because a model must read it to choose,

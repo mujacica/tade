@@ -358,6 +358,10 @@ declare module '*/assets/palette.js' {
   }
 }
 
+declare module '*/assets/ui.js' {
+  export function notShownSaid(n: number): string
+}
+
 declare module '*/assets/quick.js' {
   export const QUICK: readonly string[]
   export function quickWord(verb: string, row: unknown, asked?: boolean): string

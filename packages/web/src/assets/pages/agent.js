@@ -55,7 +55,18 @@ import { pathOf, safeHref } from '../routes.js'
 import { createQueueRow, fillQueueRow, pageBar, section } from '../rows.js'
 import { servingIn } from '../serving.js'
 import { taskAt } from '../store.js'
-import { facts, factsIn, meter, meterIn, note, panel, stateBox, stateBoxIn } from '../ui.js'
+import {
+  command,
+  commandIn,
+  facts,
+  factsIn,
+  meter,
+  meterIn,
+  note,
+  panel,
+  stateBox,
+  stateBoxIn,
+} from '../ui.js'
 import { agentPane } from './agent-pane.js'
 import {
   aboutOf,
@@ -89,7 +100,8 @@ export function taskScreen(where, ctx) {
   bar.heading.after(pill)
   // The presses this device was granted, at the end of the bar: the answer to
   // an agent that is waiting is the reason somebody opened this page.
-  const quick = live ? quickActs(ctx, { tell: false }) : null
+  // The command it would allow is the lead's, not the bar's (`command: false`).
+  const quick = live ? quickActs(ctx, { tell: false, command: false }) : null
   // The pages its dev servers serve, a press out each, before them.
   const serving = servingIn(bar.tools)
   if (quick !== null) into(bar.tools, quick.node)
@@ -244,7 +256,9 @@ function leadView() {
   const stalled = el('span', { class: 'ui-pill t-here', text: 'gone quiet' })
   const runsOn = el('span', { class: 'ag-now-on' })
   into(under, word, waiting, stalled, runsOn)
-  into(words, said, under)
+  // What it is waiting to run, whole, under the line that says it is waiting.
+  const toRun = command()
+  into(words, said, under, toRun)
   const age = el('span', { class: 'ag-now-age' })
   into(now, mark, words, age)
 
@@ -284,6 +298,7 @@ function leadView() {
           ? ''
           : `${state.waiting.tool}${state.waiting.for === null ? '' : ` · ${state.waiting.for}`}`,
       )
+      commandIn(toRun, state.waiting?.command ?? null)
       stalled.hidden = !state.stalled
       textIn(runsOn, state.runsOn)
       runsOn.hidden = state.runsOn === ''

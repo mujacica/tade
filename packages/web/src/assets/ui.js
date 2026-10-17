@@ -62,6 +62,38 @@ export function note(word, sentence, drawn) {
 }
 
 /**
+ * A command an agent is waiting to run, whole: wrapped under itself with its
+ * own line breaks kept, never cut at the edge — and where the machine did not
+ * send all of it, how many characters it left out. Hidden until `commandIn`
+ * gives it one.
+ */
+export function command() {
+  const node = el('div', { class: 'ui-command' })
+  const text = el('pre', {
+    class: 'ui-command-text',
+    attrs: { 'aria-label': 'what it asks to run' },
+  })
+  into(node, text, el('p', { class: 'ui-command-cut' }))
+  node.hidden = true
+  return node
+}
+
+/** Show a command (`{ text, notShown }`, as a row's approval carries it), or hide it with null. */
+export function commandIn(node, said) {
+  node.hidden = said === null || said === undefined
+  if (node.hidden) return
+  const [text, cut] = node.children
+  textIn(text, said.text)
+  cut.hidden = said.notShown === 0
+  textIn(cut, said.notShown === 0 ? '' : `… ${notShownSaid(said.notShown)}`)
+}
+
+/** `1 character not shown`, `2,048 characters not shown`. */
+export function notShownSaid(n) {
+  return `${n.toLocaleString('en')} character${n === 1 ? '' : 's'} not shown`
+}
+
+/**
  * A problem: what went wrong, red, with its icon, in a few words, the one
  * thing to do, and a press where the page can do it (`trouble.js` has the
  * words). Hidden until `problemIn` gives it one; `role="alert"`, so a screen

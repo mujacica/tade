@@ -4,8 +4,10 @@ import { describe, expect, it } from 'vitest'
 import { agentOf } from '../src/agent.ts'
 import { mayFor, WITHHOLDS as PAGE, grantOf as pageGrantOf } from '../src/assets/access.js'
 import { settingsFor } from '../src/configuring.ts'
-import { GRANTS, type Grant, grantOf, WITHHOLDS } from '../src/reach.ts'
+import { BUDGET } from '../src/page.ts'
+import { ANSWERING, GRANTS, type Grant, grantOf, WITHHOLDS } from '../src/reach.ts'
 import { snapshotOf } from '../src/snapshot.ts'
+import { reachOf } from '../src/surface.ts'
 import { scripts } from './asset-files.ts'
 import { agentHeld, EVERY, input, NOW, reach } from './fixtures.ts'
 
@@ -110,6 +112,67 @@ describe('what each grant withholds', () => {
       snapshotOf(input({ reach: reach(['spend', 'accounts']) }), NOW).plans[0]?.account,
     ).not.toBeNull()
     expect(snapshotOf(input({ reach: reach([]) }), NOW).plans).toEqual([])
+  })
+})
+
+describe('what answering reaches', () => {
+  // The command an approval asks about goes with the grant that lets a device
+  // say yes to it — the `answer` scope — and with no reading grant at all.
+
+  /** Where a device with every reading grant differs for being able to answer. */
+  function withheldWithoutAnswering(): string[] {
+    const all = snapshotOf(input({ reach: { ...reach(EVERY), answers: true } }), NOW)
+    const less = snapshotOf(input({ reach: reach(EVERY) }), NOW)
+    const out = new Set<string>()
+    differ({ ...all, you: null, pages: null }, { ...less, you: null, pages: null }, '', out)
+    return [...out].sort()
+  }
+
+  it('is exactly the command, and no grant’s place', () => {
+    expect(withheldWithoutAnswering()).toEqual([...ANSWERING].sort())
+    for (const path of ANSWERING) expect(grantOf(path)).toBeNull()
+  })
+
+  it('sends the command to a device that may answer, granted nothing else', () => {
+    const row = (answers: boolean) =>
+      snapshotOf(input({ reach: { ...reach([]), answers } }), NOW).tasks.find(
+        (one) => one.id === 'sentry/blocked',
+      )
+    expect(row(true)?.approval?.command).toEqual({
+      text: 'Bash: pnpm vitest run ./packages/web --reporter=dot',
+      notShown: 0,
+    })
+    // Without it: the tool's name, as every paired device reads, and nothing new.
+    expect(row(false)?.approval).toEqual({
+      id: 'req_914',
+      tool: 'Bash',
+      since: '2026-10-08T14:20:00.000Z',
+      command: null,
+    })
+  })
+
+  it('is read off the device’s own `answer` scope, and nothing else it holds', () => {
+    const device = { id: 'dev_7f3a9c21', projects: null, granted: [...GRANTS] }
+    expect(reachOf({ ...device, scopes: ['read', 'answer'] }).answers).toBe(true)
+    expect(reachOf({ ...device, scopes: ['read', 'steer', 'ask', 'configure'] }).answers).toBe(
+      false,
+    )
+    expect(reachOf(device).answers).toBe(false)
+  })
+
+  it('cuts a long command at the budget and says how much it left out', () => {
+    const long = `Bash: ${'x'.repeat(50)}`
+    const tasks = input().tasks.map((one) =>
+      one.approval === null ? one : { ...one, approval: { ...one.approval, command: long } },
+    )
+    const snapshot = snapshotOf(
+      input({ reach: { ...reach([]), answers: true }, tasks }),
+      NOW,
+      {},
+      { ...BUDGET, material: 20 },
+    )
+    const row = snapshot.tasks.find((one) => one.id === 'sentry/blocked')
+    expect(row?.approval?.command).toEqual({ text: long.slice(0, 20), notShown: 36 })
   })
 })
 

@@ -39,7 +39,11 @@ declare module '*/assets/pages/agent-shape.js' {
     runsOn: string
     moved: string | null
     movedSaid: string
-    waiting: { tool: string; for: string | null } | null
+    waiting: {
+      tool: string
+      for: string | null
+      command: { text: string; notShown: number } | null
+    } | null
   }
   export function treeOf(task: unknown, store: unknown): { read: boolean; tree: Tree; own: boolean }
   export function stripSaid(name: string, runs: readonly { state: string }[]): string

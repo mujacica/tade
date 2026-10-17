@@ -58,7 +58,7 @@ const asking = (id: string, waited: number, over: Partial<TaskIn> = {}) =>
   offered(id, 1, {
     state: 'blocked',
     reason: { kind: 'approval', tool: 'Bash', also: 0 },
-    approval: { id: `req_${id}`, tool: 'Bash', sinceAt: minutes(waited) },
+    approval: { id: `req_${id}`, tool: 'Bash', sinceAt: minutes(waited), command: null },
     ...over,
   })
 

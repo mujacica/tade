@@ -188,13 +188,22 @@ describe('a raw tool payload never becomes a reason', () => {
     const snapshot = snapshotOf(input({ reach: reach(EVERY) }), NOW)
     const row = snapshot.tasks.find((one) => one.id === 'sentry/blocked')
     expect(row?.reason).toBe('wants approval: Bash (+1 more)')
+    // Every reading grant and no `answer`: the command is not this device's.
     expect(row?.approval).toEqual({
       id: 'req_914',
       tool: 'Bash',
       since: '2026-10-08T14:20:00.000Z',
+      command: null,
     })
     expect(JSON.stringify(snapshot)).not.toContain('id_rsa')
     expect(JSON.stringify(snapshot)).not.toContain('Authorization')
+  })
+
+  it('carries the command only beside the reason, to a device that may answer it', () => {
+    const snapshot = snapshotOf(input({ reach: { ...reach(EVERY), answers: true } }), NOW)
+    const row = snapshot.tasks.find((one) => one.id === 'sentry/blocked')
+    expect(row?.reason).toBe('wants approval: Bash (+1 more)')
+    expect(row?.approval?.command?.text).toBe('Bash: pnpm vitest run ./packages/web --reporter=dot')
   })
 })
 

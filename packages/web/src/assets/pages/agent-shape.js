@@ -50,9 +50,11 @@ export function nowOf(task, asOf, frozen = false) {
     runsOn: [task.harness, task.model].filter((one) => one !== null && one !== '').join(' · '),
     moved: moved === null ? null : `${moved} ago`,
     movedSaid: moved === null ? 'never moved' : `moved ${moved} ago`,
-    // The tool's **name**, never its arguments, which are the field that
-    // reliably holds a path and a credential.
-    waiting: task.approval ? { tool: task.approval.tool, for: waited } : null,
+    // The tool's **name**, and the command only where the machine sent it — to
+    // a device that may answer it, paths shortened and keys taken out there.
+    waiting: task.approval
+      ? { tool: task.approval.tool, for: waited, command: task.approval.command ?? null }
+      : null,
   }
 }
 

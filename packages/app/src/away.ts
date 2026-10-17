@@ -85,8 +85,8 @@ export interface TaskExtra {
   ran: RanOn
   /** Whether its agent asked something and is waiting. */
   question: boolean
-  /** The approval waiting, by the tool's **name** and nothing else. */
-  approval: { id: string; tool: string; sinceAt: number } | null
+  /** The approval waiting: the tool's **name**, and its command only as `commandOut` lets it out. */
+  approval: { id: string; tool: string; sinceAt: number; command: string | null } | null
   /** Whether the document it produces has been written. */
   produced: boolean
   /** Whether the journal already says the task is finished. */
@@ -296,7 +296,7 @@ export function projectIn(
  * and never as `deriveState`'s clause, because that clause holds the harness's
  * one-line summary of the call — `Bash: <the whole command>`, a raw tool
  * payload with a machine path in it, and the commonest reason a task is
- * blocked. Handing the string through is the leak with one more step in it.
+ * blocked. The command goes as `approval.command`, already through `commandOut`.
  *
  * **`movedAt` is a moment, never an age.** An elapsed figure changes on every
  * beat, so every row would differ from the last beat's and a tick of the clock

@@ -1,5 +1,6 @@
 import type { PlanStanding, Spend } from '@tade/core'
 import { projectRev, taskRev } from './acting.ts'
+import { commandShown } from './command.ts'
 import {
   type IntakeIn,
   intakeRow,
@@ -169,7 +170,17 @@ function taskRow(task: TaskIn, reach: Reach, budget: Budget, landing: LandingOut
     approval:
       task.approval === null
         ? null
-        : { id: task.approval.id, tool: task.approval.tool, since: ISO(task.approval.sinceAt) },
+        : {
+            id: task.approval.id,
+            tool: task.approval.tool,
+            since: ISO(task.approval.sinceAt),
+            // Only to a device that may answer it (`ANSWERING`): seeing what you
+            // say yes to goes with saying it, and with nothing else.
+            command:
+              reach.answers === true && task.approval.command !== null
+                ? commandShown(task.approval.command, budget.material)
+                : null,
+          },
     finished: task.finished,
     // Carried as the window worked them out: whether a thing is possible is a
     // question about a harness and a lane, which only the window can answer.

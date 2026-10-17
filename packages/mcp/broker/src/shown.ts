@@ -15,9 +15,9 @@ import {
 // what is wrong with it, what it offered when anybody last asked, and what of
 // that Tade will not hand on. The window draws it and decides nothing.
 //
-// It says only what is true. A server that is off was never connected, so
-// there is nothing to say about it beyond what it is and what turning it on
-// would need — no tools, no version, no "last asked". A credential is a place
+// It says only what is true. A server that is off is not connected, whether or
+// not it was earlier, so there is nothing to say beyond what it is and what
+// turning it on would need — no tools, no version, no "last asked". A credential is a place
 // and never a value, and it is not here at all: that is `host.secrets()`, the
 // same field every extension's key gets.
 

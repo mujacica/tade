@@ -178,7 +178,10 @@ describe('a task blocked on an approval', () => {
     // credential in it, and the commonest reason a task is blocked.
     const row = taskIn(
       task({ state: 'blocked', reason: `wants approval: ${PRIVATE.command}` }),
-      { ...nothingKnown(), approval: { id: 'req_914', tool: 'Bash', sinceAt: 1_000 } },
+      {
+        ...nothingKnown(),
+        approval: { id: 'req_914', tool: 'Bash', sinceAt: 1_000, command: null },
+      },
       3,
     )
     expect(row.reason).toEqual({ kind: 'approval', tool: 'Bash', also: 2 })

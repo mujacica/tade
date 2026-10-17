@@ -25,6 +25,7 @@ import {
   treeOf,
 } from '../src/assets/pages/agent-shape.js'
 import { applySnapshot, emptyStore, taskAt } from '../src/assets/store.js'
+import { notShownSaid } from '../src/assets/ui.js'
 import { GRANTS } from '../src/reach.ts'
 import { projector } from '../src/reading.ts'
 import {
@@ -83,13 +84,24 @@ describe('the lead: what it is doing now', () => {
     expect(now.moved).toBe('20m ago')
   })
 
-  it('is loud only where it waits on somebody or failed, and names the tool and never its arguments', () => {
+  it('is loud only where it waits on somebody or failed, and names the tool', () => {
     const store = held({ tasks: [blocked()] })
     const now = nowOf(rowOf(store, 'sentry/blocked'), NOW)
     expect(now.loud).toBe('wants')
-    expect(now.waiting).toEqual({ tool: 'Bash', for: '10m' })
+    // A device that may not answer was sent no command, and draws none.
+    expect(now.waiting).toEqual({ tool: 'Bash', for: '10m', command: null })
     const failed = nowOf(rowOf(held({ tasks: [task({ mark: 'failed' })] })), NOW)
     expect(failed.loud).toBe('failed')
+  })
+
+  it('carries the command it waits to run where the machine sent it, with its count', () => {
+    const row = rowOf(held({ tasks: [blocked()] }), 'sentry/blocked')
+    const command = { text: 'Bash: npm i stripe@15', notShown: 12 }
+    const now = nowOf({ ...row, approval: { ...row.approval, command } }, NOW)
+    expect(now.waiting?.command).toEqual(command)
+    expect(notShownSaid(12)).toBe('12 characters not shown')
+    expect(notShownSaid(1)).toBe('1 character not shown')
+    expect(notShownSaid(2048)).toBe('2,048 characters not shown')
   })
 
   it('says the mark’s word where deriveState said nothing, and never an age for what never moved', () => {

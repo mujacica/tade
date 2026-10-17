@@ -252,7 +252,15 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
   const watched: string[] = [first.id]
   const agents = new Map<string, string>()
   const lanes: AgentLanes = new Map()
-  const pending: { run: string; task: string; requestId: string; tool: string; at: number }[] = []
+  // As a harness hands one over: the summary is the call itself, as `describeToolCall` writes it.
+  const pending: {
+    run: string
+    task: string
+    requestId: string
+    tool: string
+    summary: string
+    at: number
+  }[] = []
   const queued: Queued[] = []
   const looked = new Map<string, ActionsView>()
   /**
@@ -476,7 +484,14 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
         start: { after: [], prompt: 'do the thing', touches: [] },
       } as unknown as Queued),
     waiting: (task, requestId, tool = 'Bash') =>
-      void pending.push({ run: task, task, requestId, tool, at: Date.now() }),
+      void pending.push({
+        run: task,
+        task,
+        requestId,
+        tool,
+        summary: `${tool}: pnpm test`,
+        at: Date.now(),
+      }),
     answered: (requestId) => {
       const at = pending.findIndex((one) => one.requestId === requestId)
       if (at >= 0) pending.splice(at, 1)

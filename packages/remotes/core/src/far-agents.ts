@@ -91,7 +91,7 @@ export function farTask(agent: FarAgent, now: number): TaskIn {
     agents: lane === 'running' ? 1 : 0,
     lanes: lane === 'none' ? 0 : 1,
     question: false,
-    approval: agent.approval ? { ...agent.approval, sinceAt: now - 30_000 } : null,
+    approval: agent.approval ? { ...agent.approval, sinceAt: now - 30_000, command: null } : null,
     finished: agent.finished === true,
     queue: agent.queued ? 'waiting' : '',
     lane,

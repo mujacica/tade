@@ -185,6 +185,8 @@ export function blocked(): TaskIn {
       id: 'req_914',
       tool: 'Bash',
       sinceAt: Date.parse('2026-10-08T14:20:00.000Z'),
+      // As the window hands it over: already through `commandOut`.
+      command: 'Bash: pnpm vitest run ./packages/web --reporter=dot',
     },
   })
 }

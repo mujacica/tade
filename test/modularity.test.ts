@@ -383,6 +383,9 @@ const PURE = [
   // a request somebody remembered to make.
   'packages/web/src/agent.ts',
   'packages/web/src/screen.ts',
+  // And the command an approval asks about, on its way to a device that may
+  // answer it: the one rule that shortens its paths, as a table over fixtures.
+  'packages/web/src/command.ts',
   'packages/web/src/verbs.ts',
   'packages/web/src/stream.ts',
   'packages/web/src/surface.ts',
