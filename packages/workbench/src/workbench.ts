@@ -83,6 +83,7 @@ import {
   type RouteChange,
   type RouteKept,
   recordKept,
+  recordKeptRoute,
 } from './config-kept.ts'
 import { documentsFolder, removedDocument, settleDocuments, waitedDetail } from './documents.ts'
 import { chooseDriver, troubleSaid } from './driver-choice.ts'
@@ -2001,8 +2002,7 @@ export class Workbench {
     const kept = keptOnRoute(this.home, this.config, { task, change, harness, by })
     if (!kept.kept) return kept
     this.config = kept.config
-    await recordKept(kept.changes, (line) => this.log.append(line))
-    return { kept: true }
+    return recordKeptRoute(kept.changes, (line) => this.log.append(line))
   }
 
   /**

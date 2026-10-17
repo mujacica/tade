@@ -719,12 +719,12 @@ export default function tadeTools(pi: PiApi): void {
 
 /**
  * What became of keeping an agent's change for new agents, as the window
- * answers it (`RouteKept`): `kept` where it was, or that agent alone and why —
- * out of reach, or not written. Nothing from a window that said neither.
+ * answers it (`RouteKept`): `kept` where it was, saying any line the journal
+ * would not take, or that agent alone and why. Nothing from a window that said neither.
  */
 function newAgents(route: unknown, kept: string): string {
-  const said = route as { kept?: boolean; why?: string } | null | undefined
-  if (said?.kept === true) return kept
+  const said = route as { kept?: boolean; why?: string; unrecorded?: string } | null | undefined
+  if (said?.kept === true) return said.unrecorded ? `${kept}; ${said.unrecorded}` : kept
   if (said?.kept !== false) return ''
   return `, and only it: new agents still start where they did, because ${said.why ?? 'the window did not say why'}`
 }

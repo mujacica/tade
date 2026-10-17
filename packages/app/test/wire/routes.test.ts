@@ -166,7 +166,7 @@ describe('the model picker, opened before its harness has answered', () => {
 
 describe('an agent moved to another model or thinking level, from the window', () => {
   /** A window whose workbench switched the agent, and kept it for new agents or not. */
-  function choosing(route: { kept: true } | { kept: false; why: string }) {
+  function choosing(route: { kept: true; unrecorded?: string } | { kept: false; why: string }) {
     let state = { panel: null, panes: [], transcript: emptyTranscript() } as unknown as AppState
     const wire = {
       opts: {
@@ -199,6 +199,16 @@ describe('an agent moved to another model or thinking level, from the window', (
     await routes.chooseThinking('app/refunds', 'high')
     expect(notice()).toBe(
       'app/refunds thinks at high from its next turn, and new agents start there',
+    )
+  })
+
+  it('says a kept route whose journal line was not written beside the switch', async () => {
+    const unrecorded =
+      'workers.routes.default.model is written, but the journal would not take the line that says so: ENOSPC'
+    const { routes, panel, notice } = choosing({ kept: true, unrecorded })
+    await routes.chooseModel(panel, 'openai/gpt-5')
+    expect(notice()).toBe(
+      `app/refunds is switching to gpt-5, and new agents start on it; ${unrecorded}`,
     )
   })
 

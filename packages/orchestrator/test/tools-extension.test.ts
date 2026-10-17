@@ -279,6 +279,18 @@ describe('moving an agent to another model or thinking level', () => {
       await by('tade_agent_thinking').run({ task: 'shop/refunds', level: 'high' }, 'c2', {}),
     ).toBe('shop/refunds thinks at high from its next turn, and new agents will too.')
   })
+
+  it('says a kept route whose journal line was not written, rather than nothing', async () => {
+    const unrecorded =
+      'workers.routes.default.thinking is written, but the journal would not take the line that says so: ENOSPC'
+    const host = await hostListening(() => ({ level: 'high', route: { kept: true, unrecorded } }))
+    const { by } = await tools({ TADE_SOCKET: host.path })
+    expect(
+      await by('tade_agent_thinking').run({ task: 'shop/refunds', level: 'high' }, 'c1', {}),
+    ).toBe(
+      `shop/refunds thinks at high from its next turn, and new agents will too; ${unrecorded}.`,
+    )
+  })
 })
 
 describe('writing something down for a person to read', () => {

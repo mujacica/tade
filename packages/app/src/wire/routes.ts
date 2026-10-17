@@ -621,10 +621,10 @@ export class Routes implements Subject {
 /**
  * What an agent's change did for new agents, after what it did for the agent:
  * kept for them, or not — the agent has switched either way, and a route that
- * could not be written is said with why rather than as if it had been.
+ * could not be written is said with why rather than as if it had been, as is
+ * one written that the journal would not take the line for.
  */
 function newAgents(route: RouteKept, kept: string): string {
-  return route.kept
-    ? `, and new agents ${kept}`
-    : `, but new agents still start where they did: ${route.why}`
+  if (!route.kept) return `, but new agents still start where they did: ${route.why}`
+  return `, and new agents ${kept}${route.unrecorded ? `; ${route.unrecorded}` : ''}`
 }

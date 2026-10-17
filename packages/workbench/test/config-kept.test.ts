@@ -1,14 +1,16 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { type Config, loadConfig, type ThinkingLevel } from '@tade/core'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { keptOnRoute } from '../src/config-kept.ts'
+import { Workbench } from '../src/workbench.ts'
 
 // What a change an agent was moved to does for new agents: kept on its
 // project's route, or not, and why — the orchestrator held to `settingReach`,
 // and a write that failed said rather than swallowed. The agent has switched
-// either way, so neither is thrown.
+// either way, so neither is thrown — nor a journal that would not take the
+// line saying it was kept.
 
 const ROUTE = 'workers:\n  routes:\n    default:\n      harness: pi\n      provider: anthropic\n'
 
@@ -90,5 +92,23 @@ describe('keeping what an agent was moved to for new agents', () => {
       ),
     })
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toBe(ROUTE)
+  })
+
+  it('says kept, and that the journal would not take its line, rather than throw', async () => {
+    const { home } = await homeWith(ROUTE)
+    const client = await Workbench.open({ home, version: '9.9.9' })
+    try {
+      vi.spyOn(client.log, 'append').mockRejectedValue(new Error('ENOSPC: no space left'))
+      const kept = await client.keepAgentRoute('app/refunds', { model: 'claude-opus-5' }, 'pi')
+      expect(kept).toEqual({
+        kept: true,
+        unrecorded:
+          'workers.routes.default.model is written, but the journal would not take the line that says so: ENOSPC: no space left',
+      })
+      expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('model: claude-opus-5')
+    } finally {
+      vi.restoreAllMocks()
+      await client.close()
+    }
   })
 })

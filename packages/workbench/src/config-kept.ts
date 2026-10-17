@@ -84,8 +84,28 @@ export interface RouteChange {
   thinking?: ThinkingLevel
 }
 
-/** What became of keeping a change on a route for new agents: kept, or why not, in words. */
-export type RouteKept = { kept: true } | { kept: false; why: string }
+/**
+ * What became of keeping a change on a route for new agents: kept — and, where
+ * the journal would not take the line that says so, that in words — or why not.
+ */
+export type RouteKept = { kept: true; unrecorded?: string } | { kept: false; why: string }
+
+/**
+ * Write a kept route's `changes` down (`recordKept`), and say a line the
+ * journal would not take beside `kept` rather than throw it: the agent has
+ * switched and the route is written, and a throw reads as a switch that failed.
+ */
+export async function recordKeptRoute(
+  changes: readonly ConfigChange[],
+  append: (line: EventInput) => Promise<unknown>,
+): Promise<RouteKept> {
+  try {
+    await recordKept(changes, append)
+    return { kept: true }
+  } catch (err) {
+    return { kept: true, unrecorded: err instanceof Error ? err.message : String(err) }
+  }
+}
 
 /**
  * Keep `change` on the route `task`'s project uses, as `by` asked — or say why
