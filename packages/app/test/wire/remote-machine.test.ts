@@ -324,6 +324,18 @@ describe('what is asked of another machine only while somebody here looks', () =
     expect(named.vpsNow()?.detail.records?.lines).toHaveLength(1)
   })
 
+  it('says why there are no records where what came back is in a shape this Tade does not read', async () => {
+    const { far, until, vpsNow } = await linked({ records: true, scorecards: false })
+    // A record kind no Tade here knows of: the whole answer is refused, and said.
+    far.records = { ...RECORDS, lines: [{ ...RECORDS.lines[0]!, record: 'MX' as 'A' }] }
+    await until('why there are none', () => vpsNow()?.detail.recordsSaid !== null)
+    expect(vpsNow()?.detail.recordsSaid).toBe(
+      'vps said what its records are in a shape this Tade does not read',
+    )
+    expect(vpsNow()?.detail.records).toBeNull()
+    expect(vpsNow()?.detail.recordsLooking).toBe(false)
+  })
+
   it('asks for its scorecards while /evals is open, and folds them as that machine’s own', async () => {
     const looking = { records: false, scorecards: false }
     const { far, until, beats, vpsNow } = await linked(looking)
