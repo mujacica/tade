@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
@@ -6,6 +6,7 @@ import { sessionIdFor } from '../src/adapter.ts'
 import {
   historyLine,
   historyOfTask,
+  sessionDirFor,
   sessionFileFor,
   usageOf,
   usageOfTask,
@@ -23,7 +24,7 @@ import {
 
 /** Write a session where the harness would put one for this cwd. */
 function writeSession(root: string, cwd: string, task: string, lines: unknown[]): string {
-  const dir = join(root, `-${cwd.replace(/\//g, '-')}-`)
+  const dir = sessionDirFor(cwd, root)
   mkdirSync(dir, { recursive: true })
   const path = join(dir, `2026-09-13T04-14-42-404Z_${sessionIdFor(task)}.jsonl`)
   writeFileSync(path, `${lines.map((l) => JSON.stringify(l)).join('\n')}\n`)
@@ -59,16 +60,50 @@ const priced = (input: number, output: number, usd: number, cacheRead = 0) => ({
 })
 
 describe('reading a task’s session', () => {
-  it('finds the file by the session id, whatever the directory is called', async () => {
+  it('finds the session pi carries on in that working directory, and no other', async () => {
     const root = tmp('pi-sessions-')
     const written = writeSession(root, '/src/app-refunds', 'app/refunds', [priced(10, 5, 0.01)])
-    expect(await sessionFileFor('app/refunds', { root })).toBe(written)
+    expect(await sessionFileFor('app/refunds', '/src/app-refunds', { root })).toBe(written)
+    // pi looks for a session id in its own directory alone, so one the task
+    // left under another is not the conversation it would continue.
+    writeSession(root, '/src/elsewhere', 'app/moved', [priced(10, 5, 0.01)])
+    expect(await sessionFileFor('app/moved', '/src/app-refunds', { root })).toBeNull()
+  })
+
+  it('finds a session through a symlink, where pi filed it under the real path', async () => {
+    const root = tmp('pi-sessions-')
+    const real = tmp('pi-cwd-')
+    const linked = join(tmp('pi-link-'), 'here')
+    symlinkSync(real, linked)
+    const written = writeSession(root, real, 'app/linked', [priced(10, 5, 0.01)])
+    expect(await sessionFileFor('app/linked', linked, { root })).toBe(written)
+  })
+
+  it('names the directory the way pi does', async () => {
+    const agentDir = tmp('pi-agent-')
+    const was = process.env.PI_CODING_AGENT_DIR
+    process.env.PI_CODING_AGENT_DIR = agentDir
+    try {
+      // pi's own, asked rather than copied: it makes the directory it names.
+      const { SessionManager } = await import('@earendil-works/pi-coding-agent')
+      for (const cwd of ['/Users/x/src/app', '/srv/a:b/c d/é']) {
+        expect(sessionDirFor(cwd, join(agentDir, 'sessions'))).toBe(
+          SessionManager.create(cwd).getSessionDir(),
+        )
+      }
+    } finally {
+      if (was === undefined) delete process.env.PI_CODING_AGENT_DIR
+      else process.env.PI_CODING_AGENT_DIR = was
+    }
   })
 
   it('has nothing to say about a task that has never run', async () => {
     const root = tmp('pi-sessions-')
-    expect(await sessionFileFor('app/ghost', { root })).toBeNull()
-    expect(await usageOfTask('app/ghost', { root })).toMatchObject({ messages: 0, tokens: 0 })
+    expect(await sessionFileFor('app/ghost', '/src/app-ghost', { root })).toBeNull()
+    expect(await usageOfTask('app/ghost', '/src/app-ghost', { root })).toMatchObject({
+      messages: 0,
+      tokens: 0,
+    })
   })
 
   it('sums every priced message', async () => {
@@ -79,7 +114,7 @@ describe('reading a task’s session', () => {
       { type: 'message', message: { role: 'user', content: 'go on', timestamp: 1 } },
       priced(50, 10, 0.02),
     ])
-    const usage = await usageOfTask('app/refunds', { root })
+    const usage = await usageOfTask('app/refunds', '/src/app-refunds', { root })
     expect(usage).toMatchObject({ input: 150, output: 30, tokens: 180, messages: 2 })
     expect(usage.usd).toBeCloseTo(0.05)
     expect(usage.model).toBe('openrouter/moonshotai/kimi-k2.6')
@@ -232,6 +267,7 @@ describe('a conversation read back', () => {
     )
     const page = await historyOfTask(
       'tade/orchestrator',
+      '/work/tade',
       { limit: 50 },
       { root: tmp('tade-pi-root-'), headless },
     )
@@ -263,9 +299,9 @@ describe('a conversation read back', () => {
   it('finds a session in a lane where pi files it, and nothing for a task with none', async () => {
     const root = tmp('tade-pi-root-')
     writeSession(root, '/work/shop', 'shop/purple', lines)
-    const page = await historyOfTask('shop/purple', { limit: 50 }, { root })
+    const page = await historyOfTask('shop/purple', '/work/shop', { limit: 50 }, { root })
     expect(page.items.map((item) => item.kind)).toEqual(['sent', 'reply', 'tool', 'tool', 'reply'])
-    expect(await historyOfTask('shop/other', { limit: 50 }, { root })).toEqual({
+    expect(await historyOfTask('shop/other', '/work/shop', { limit: 50 }, { root })).toEqual({
       items: [],
       earlier: null,
     })

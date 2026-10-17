@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { type LaneId, spendFrom } from '@tade/core'
 import { ECHO_CHILD } from '@tade/drivers-core/conformance'
-import { sessionIdFor } from '@tade/harnesses-pi'
+import { sessionDirFor, sessionIdFor } from '@tade/harnesses-pi'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { Workbench } from '../src/workbench.ts'
@@ -20,7 +20,7 @@ describe('accounting for a closed window', () => {
 
   /** A harness session for this task, with one priced reply in it, shaped the way pi writes one. */
   function session(task: string, usd: number, tokens: number): void {
-    const dir = join(sessionsRoot, `-src-${task.replace(/\//g, '-')}-`)
+    const dir = sessionDirFor(home, sessionsRoot)
     mkdirSync(dir, { recursive: true })
     writeFileSync(
       join(dir, `2026-09-13T04-14-42-404Z_${sessionIdFor(task)}.jsonl`),

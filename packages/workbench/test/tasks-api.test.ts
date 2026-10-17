@@ -9,7 +9,7 @@ import {
   waitingDocuments,
 } from '@tade/core'
 import { until } from '@tade/drivers-core/conformance'
-import { sessionIdFor } from '@tade/harnesses-pi'
+import { sessionDirFor, sessionIdFor } from '@tade/harnesses-pi'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { triageDocument } from '../src/documents.ts'
@@ -658,7 +658,7 @@ describe('task and run RPC', () => {
 
     // A conversation to come back to keeps the model it was on: pi remembers it.
     const back = await client.createTask({ project: 'app', slug: 'back', intent: INTENT })
-    const dir = join(sessionsRoot, '-src-app-')
+    const dir = sessionDirFor(back.worktree, sessionsRoot)
     mkdirSync(dir, { recursive: true })
     writeFileSync(
       join(dir, `2026-09-13T04-14-42-404Z_${sessionIdFor('app/back')}.jsonl`),

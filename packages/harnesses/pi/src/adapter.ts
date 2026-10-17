@@ -353,17 +353,17 @@ export class PiAdapter implements WorkerAdapter {
     return sessionIdFor(task)
   }
 
-  async hasConversation(task: string, _cwd: string): Promise<boolean> {
-    const file = await sessionFileFor(task, this.recordsAt()).catch(() => null)
+  async hasConversation(task: string, cwd: string): Promise<boolean> {
+    const file = await sessionFileFor(task, cwd, this.recordsAt()).catch(() => null)
     return file !== null
   }
 
-  async spent(task: string, _cwd: string): Promise<HarnessSpend> {
-    return usageOfTask(task, this.recordsAt())
+  async spent(task: string, cwd: string): Promise<HarnessSpend> {
+    return usageOfTask(task, cwd, this.recordsAt())
   }
 
-  history(task: string, _cwd: string, ask: HistoryAsk): Promise<HistoryPage> {
-    return historyOfTask(task, ask, {
+  history(task: string, cwd: string, ask: HistoryAsk): Promise<HistoryPage> {
+    return historyOfTask(task, cwd, ask, {
       ...this.recordsAt(),
       headless: join(this.opts.runDir, 'sessions'),
     })

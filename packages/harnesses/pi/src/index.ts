@@ -20,6 +20,7 @@ export {
 export {
   noUsage,
   type SessionUsage,
+  sessionDirFor,
   sessionFileFor,
   sessionsRoot,
   usageOf,

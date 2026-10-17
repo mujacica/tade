@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { type PlannedAgent, taskDir } from '@tade/core'
-import { sessionIdFor } from '@tade/harnesses-pi'
+import { sessionDirFor, sessionIdFor } from '@tade/harnesses-pi'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -238,7 +238,7 @@ describe('queued work', () => {
 
     // It ran before — pi kept the conversation — and whatever said so was
     // lost, so the queue is looking at it as though it had never started.
-    const dir = join(sessionsRoot, 'worktree')
+    const dir = sessionDirFor(again.worktree, sessionsRoot)
     mkdirSync(dir, { recursive: true })
     writeFileSync(
       join(dir, `2026-09-13T04-14-42-404Z_${sessionIdFor(again.id)}.jsonl`),

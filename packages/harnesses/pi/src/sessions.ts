@@ -1,4 +1,4 @@
-import { readdir, readFile } from 'node:fs/promises'
+import { readdir, readFile, realpath } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -57,30 +57,42 @@ export function noUsage(): SessionUsage {
 }
 
 /**
- * Find a task's session file.
+ * The directory pi keeps a working directory's sessions in: the path without
+ * its leading slash, every separator and colon a dash, between double dashes.
+ * It is pi's `getDefaultSessionDir`, which pi does not export, so a test holds
+ * this to pi's own and a pi that files them differently fails there rather
+ * than reading as no session at all.
  *
- * pi names the directory after the working directory, in an encoding that is
- * its own business and would be a liability to reimplement. The file, though,
- * ends in the session id — and that id is ours, and unique to the task — so
- * looking for the name is both simpler and harder to break.
+ * `cwd` is meant as pi's `process.cwd()` says it, already resolved: a path
+ * through a symlink names a directory pi never writes to.
+ */
+export function sessionDirFor(cwd: string, root = sessionsRoot()): string {
+  return join(root, `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`)
+}
+
+/**
+ * Find a task's session file: the one pi carries on when it is started in
+ * `cwd` with the task's session id.
+ *
+ * Only that directory is looked in, because it is the only one pi looks in
+ * (`SessionManager.findById(cwd, …)`): a session the task left under another
+ * working directory is not the one pi would continue. Reading every directory
+ * instead cost a tenth of a millisecond for each — every working directory pi
+ * was ever run in, one more per worktree — once per agent when Tade opens and
+ * again each time one starts.
  */
 export async function sessionFileFor(
   task: string,
+  cwd: string,
   opts: { root?: string } = {},
 ): Promise<string | null> {
-  const root = opts.root ?? sessionsRoot()
+  const dir = sessionDirFor(await realpath(cwd).catch(() => cwd), opts.root)
   const suffix = `_${sessionIdFor(task)}.jsonl`
-  const dirs = await readdir(root).catch(() => [] as string[])
-  const found: string[] = []
-  for (const dir of dirs) {
-    const entries = await readdir(join(root, dir)).catch(() => [] as string[])
-    for (const entry of entries) {
-      if (entry.endsWith(suffix)) found.push(join(root, dir, entry))
-    }
-  }
-  // The name starts with a timestamp, so the newest sorts last. More than one
-  // means the task's worktree moved; the current one is what we want.
-  return found.sort().at(-1) ?? null
+  const entries = await readdir(dir).catch(() => [] as string[])
+  // The name starts with a timestamp, so the newest sorts last.
+  const found = entries.filter((entry) => entry.endsWith(suffix)).sort()
+  const newest = found.at(-1)
+  return newest ? join(dir, newest) : null
 }
 
 /** What a session has cost so far: every entry pi priced, as its own totals count them. */
@@ -113,9 +125,10 @@ export async function usageOf(file: string): Promise<SessionUsage> {
 /** What a task's agent has cost, from pi's own record. Zero if it has none. */
 export async function usageOfTask(
   task: string,
+  cwd: string,
   opts: { root?: string } = {},
 ): Promise<SessionUsage> {
-  const file = await sessionFileFor(task, opts)
+  const file = await sessionFileFor(task, cwd, opts)
   return file ? usageOf(file) : noUsage()
 }
 
@@ -127,6 +140,7 @@ export async function usageOfTask(
  */
 export async function historyOfTask(
   task: string,
+  cwd: string,
   ask: HistoryAsk,
   opts: { root?: string; headless?: string } = {},
 ): Promise<HistoryPage> {
@@ -137,7 +151,7 @@ export async function historyOfTask(
         .sort()
         .map((name) => join(opts.headless ?? '', name))
     : []
-  const file = flat.at(-1) ?? (await sessionFileFor(task, opts).catch(() => null))
+  const file = flat.at(-1) ?? (await sessionFileFor(task, cwd, opts).catch(() => null))
   return historyIn(file, ask, historyLine)
 }
 
