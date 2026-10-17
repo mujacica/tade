@@ -7,6 +7,7 @@ import {
   makeTranscriber,
   OpenAiTranscriber,
   ScriptedTranscriber,
+  voiceDeclared,
   WhisperCppTranscriber,
 } from '../src/index.ts'
 
@@ -235,5 +236,37 @@ describe('the scripted pair', () => {
     } finally {
       rmSync(clip.path, { force: true })
     }
+  })
+})
+
+describe('what speech says it runs, for the Programs list', () => {
+  const programsOf = (declared: ReturnType<typeof voiceDeclared>, what: string) =>
+    declared.find((one) => one.what === what)
+
+  it('lists every engine and microphone, the configured ones in use', () => {
+    const declared = voiceDeclared()
+    // Local speech is the default, so whisper.cpp and ffmpeg are what is in use.
+    expect(programsOf(declared, 'the whisper-cpp engine')).toMatchObject({ inUse: true })
+    expect(programsOf(declared, 'the ffmpeg recorder')).toMatchObject({ inUse: true })
+    // An API needs a key, not a program, and says so by declaring none.
+    expect(programsOf(declared, 'the openai engine')).toMatchObject({ inUse: false, programs: [] })
+    const chosen = voiceDeclared({ stt: { driver: 'groq' }, mic: { driver: 'scripted' } })
+    expect(programsOf(chosen, 'the whisper-cpp engine')?.inUse).toBe(false)
+    expect(programsOf(chosen, 'the groq engine')?.inUse).toBe(true)
+    expect(programsOf(chosen, 'the ffmpeg recorder')?.inUse).toBe(false)
+  })
+
+  it('finds whisper.cpp where its own settings say it is, and only for the engine configured', () => {
+    const [mine] =
+      programsOf(voiceDeclared({ stt: { binary: process.execPath } }), 'the whisper-cpp engine')
+        ?.programs ?? []
+    expect(mine).toMatchObject({ command: 'whisper-cli', at: process.execPath })
+    // A binary named for another engine is nothing to whisper.cpp.
+    const [other] =
+      programsOf(
+        voiceDeclared({ stt: { driver: 'openai', binary: process.execPath } }),
+        'the whisper-cpp engine',
+      )?.programs ?? []
+    expect(other?.at).not.toBe(process.execPath)
   })
 })
