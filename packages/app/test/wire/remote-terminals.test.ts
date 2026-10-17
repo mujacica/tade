@@ -176,10 +176,19 @@ describe('a terminal to an agent on another machine, kept up', () => {
 
   it('runs a terminal that lost its connection again when the link comes back, in its own tab', async () => {
     const far = await linkedTo([DOOR])
+    // Which lanes the window watches as they print, so what one prints is
+    // drawn at once rather than at the next look.
+    const watched: string[] = []
+    const watch = client.watch.bind(client)
+    client.watch = (lane, ...rest) => {
+      watched.push(lane)
+      return watch(lane, ...rest)
+    }
     const door = await dropping('door')
     far.attachable.set(DOOR.task, door.line)
     await attach('Doorbell', 'remotes/vps/1', 'door-run-1')
     const before = client.lanes().find((lane) => lane.id === 'remotes/vps/1')
+    expect(watched.filter((lane) => lane === 'remotes/vps/1')).toHaveLength(1)
 
     // The lid closes: the link goes down, and the terminal's connection with it.
     await far.close()
@@ -202,6 +211,12 @@ describe('a terminal to an agent on another machine, kept up', () => {
     expect(after?.spec.rows).toBe(before?.spec.rows)
     expect(shown('vps · intake-door')).toBe(true)
     expect(await door.runs()).toBe(2)
+    // Another lane under the same name, watched afresh: the old one's watch
+    // hears nothing the new one prints.
+    await until(
+      'the new lane watched',
+      () => watched.filter((lane) => lane === 'remotes/vps/1').length === 2,
+    )
   })
 
   it('leaves one the person closed, one that ended there and one whose agent has gone as they are', async () => {
