@@ -67,7 +67,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `title.ts` | What the terminal window calls itself | — |
 | `inbox.ts` | What Tade tells the orchestrator without being asked, and where you are when you ask (`whereYouAre`), and a line for every other machine (`machinesSaid`) | — |
 | `settings.ts` | Reading and writing a setting from the window, through core's one writer | a real disk |
-| `heart.ts` | The part that runs with no screen: the beat (`Live`) and, on it, the queue, schedules and watches, and intake, over the state every subject reads and writes. `App` is a face over it (`Face`); `tade serve` runs it alone (`Heart.alone`) | a terminal |
+| `heart.ts` | The part that runs with no screen: the beat (`Live`) and, on it, the queue, schedules and watches, and intake; the orchestrator, the away view and its notifications; and the settings, projects and agents they act through — over the state every subject reads and writes. `App` is a face over it (`Face`); `tade serve` runs it alone (`Heart.alone`) | a terminal |
 | `app.ts` | Wiring only: pi-tui, the voice surface, the workbench, and the list of subjects | — |
 | `screen.ts` | The screen Tade asks you things on: setup, settings, any command that needs a form | a terminal (rendering is pure) |
 
@@ -81,18 +81,26 @@ Anything that goes wrong in there is shown *on that screen* and waited on (`ui.p
 redraws over the explanation is a window that ate it.
 
 **The work runs in the heart, and the window is a face over it** (`heart.ts`). What has to go on
-with nobody at a screen — the beat and what runs on it — is made by `Heart`, never by `App`, which
-hands it a `Face`: a frame to ask for, the orchestrator to tell, the links' answers, and its own
-halves of a beat (`sawTasks` before the queue and the schedules have the tasks, `beat` after). Every
-member of `Face` has an answer with no screen (`screenless`), so `tade serve` runs the same subjects
-over the same state, and what the window would have drawn in the conversation is written to standard
-error (`saidSince`, `saidLine`) — what was only ever for an orchestrator, which is not there, too.
-`test/heart.test.ts` holds that nothing the heart imports takes a terminal; a subject moved into it
-keeps its own file under `wire/` and is reached by the face through the heart's field.
+with nobody at a screen — the beat and what runs on it, the orchestrator told what happens, the away
+view and the notifications it sends, and the doors those act through (a setting written, a project
+opened, an agent stopped) — is made by `Heart`, never by `App`, which hands it a `Face`: a frame to
+ask for, the links' answers, its own halves of a beat (`sawTasks` before the queue and the schedules
+have the tasks, `beat` after), and the screen's half of each subject the heart makes — a page to
+refresh, a sound to stop, a clipboard, a line to put words back on (`SettingsFace`, `AgentsFace`…).
+Every member of `Face` has an answer with no screen (`screenless`), so `tade serve` runs the same
+subjects over the same state, and what the window would have drawn in the conversation is written to
+standard error (`saidSince`, `saidLine`): Tade's lines, the orchestrator's words once whole, a tool
+once it answered, a device's words with its id — and what was only ever for an orchestrator that is
+not running, which is told it once it is (`WHILE_STARTING`), because nobody there types the next
+words that would carry it. `test/heart.test.ts` holds that nothing the heart imports takes a
+terminal; a subject moved into it keeps its own file under `wire/` and is reached by the face through
+the heart's field, and what of it needs the terminal moves to the face — a form on a borrowed
+screen, and the conversation kept where you scrolled to, are `screens.ts`.
 
 **The window opens before anything slow does.** The orchestrator is a model in another process; it is
-started after `App.start` and handed over with `attachThinker`. Never make the first frame wait on
-something that talks to a network.
+started once `App.start` has drawn, by `packages/cli/src/orchestrating.ts` — `hold` hands its tools
+to the window, `start` starts it and hands it back with `attachThinker` — which `tade serve` runs over
+the heart the same way. Never make the first frame wait on something that talks to a network.
 
 Put behaviour in `model.ts` and drawing in `view/`. If `app.ts` grows a rule, it is in the wrong
 file and cannot be tested.

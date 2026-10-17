@@ -210,6 +210,7 @@ export const UNSEEN: Record<string, string> = {
   'packages/cli/src/attach.ts': 'puts a real terminal in raw mode',
   'packages/cli/src/format.ts': 'prints for `tade status`, which its test runs as a process',
   'packages/cli/src/with-workbench.ts': 'wraps a command in an open workbench',
+  'packages/cli/src/orchestrating.ts': 'starts the orchestrator for `tade app` and `tade serve`',
   'packages/cli/src/commands/accounts.ts': 'a command of the binary',
   'packages/cli/src/commands/app.ts': 'a command of the binary',
   'packages/cli/src/commands/brief.ts': 'a command of the binary',
@@ -292,6 +293,8 @@ export const UNSEEN: Record<string, string> = {
 export const LOADED: Record<string, number> = {
   // Imported by `commands/lanes.ts` and `commands/setup.ts`: their top level.
   'packages/cli/src/attach.ts': 0,
+  // Imported by `commands/app.ts` and `commands/serve.ts`: its top level.
+  'packages/cli/src/orchestrating.ts': 0,
   'packages/cli/src/commands/setup-facts.ts': 0,
   'packages/cli/src/commands/accounts.ts': 2,
   'packages/cli/src/commands/app.ts': 1,

@@ -678,7 +678,7 @@ function linkSaid(held: Held | null): string {
 export function remotesFor(
   wire: Wiring,
   subjects: {
-    orchestrator: () => { onScreenWith(flow: (ui: Ui) => Promise<void>): Promise<void> }
+    screens: () => { onScreenWith(flow: (ui: Ui) => Promise<void>): Promise<void> }
     files: () => { openFile(path: string): void; openLink(url: string): Promise<void> }
   },
 ): Remotes {
@@ -700,7 +700,7 @@ export function remotesFor(
       config: (): Config => wire.opts.config,
       secrets: () => new Set((wire.opts.extensions?.secrets() ?? []).map((one) => one.path)),
       from: () => machineLabel(),
-      onScreenWith: (flow) => subjects.orchestrator().onScreenWith(flow),
+      onScreenWith: (flow) => subjects.screens().onScreenWith(flow),
       said: (saved, error) => {
         const panel = wire.state.panel
         if (panel?.kind === 'settings')

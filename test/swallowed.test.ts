@@ -188,7 +188,7 @@ const ALLOWED: Record<string, number> = {
   'packages/checks/core/src/running.ts': 5,
   'packages/checks/local/src/index.ts': 3,
   'packages/cli/src/attach.ts': 4,
-  'packages/cli/src/commands/app.ts': 9,
+  'packages/cli/src/commands/app.ts': 2,
   'packages/cli/src/commands/chat.ts': 3,
   'packages/cli/src/commands/documents.ts': 1,
   'packages/cli/src/commands/lanes.ts': 1,
@@ -198,6 +198,8 @@ const ALLOWED: Record<string, number> = {
   'packages/cli/src/commands/setup-watches.ts': 1,
   'packages/cli/src/commands/setup.ts': 2,
   'packages/cli/src/commands/update.ts': 1,
+  // Moved out of `commands/app.ts` with the orchestrator's start, the same seven.
+  'packages/cli/src/orchestrating.ts': 7,
   'packages/cli/src/telemetry.ts': 2,
   'packages/cli/src/version.ts': 1,
   'packages/cli/src/with-workbench.ts': 1,

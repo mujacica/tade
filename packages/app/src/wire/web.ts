@@ -12,6 +12,7 @@ import {
   type PairingAsk,
   type Projector,
   projector,
+  pusher,
   type Reach,
   reachOf,
   readDevices,
@@ -144,7 +145,12 @@ export class Away implements Subject {
     // Out of the collections the beat already built: no look at the world.
     this.push = pushFor(
       wire,
-      { writeKey: (...key) => deps.settings.writeKey(...key) },
+      {
+        writeKey: (...key) => deps.settings.writeKey(...key),
+        // Asked for at the first send, never here: the push services', unless
+        // a test handed in what it would have sent instead.
+        pusher: (signing) => wire.opts.pusher?.(signing) ?? pusher({ signing }),
+      },
       {
         tasks: () => this.collections().tasks,
         devices: () => this.devices,

@@ -2,27 +2,16 @@ import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { App, thinkerOffers } from '@tade/app'
+import { App } from '@tade/app'
 import {
-  activityFrom,
-  type Config,
   defaultConfigPath,
-  effortsIn,
   expandHome,
-  finishedFrom,
-  historyFrom,
   isReady,
   keptByService,
-  LOCAL,
   loadConfig,
-  modelDetail,
   readiness,
-  type ThinkingLevel,
-  TOLD_EVENTS,
-  type ToldPrint,
   tadeHome,
   type Unclosed,
-  unheardNotes,
 } from '@tade/core'
 import type { ExtensionWorkbench } from '@tade/extensions-core'
 import { installedServers as claudeServers } from '@tade/harnesses-claude/installed'
@@ -35,13 +24,7 @@ import {
   brokerFor,
   extensionWorkbench,
   loadExtensions,
-  Orchestrator,
-  type OrchestratorOptions,
-  orchestratorExtensions,
   orchestratorHistory,
-  ToolHost,
-  type ToolHostOptions,
-  tellingOf,
   workbenchExtensions,
   writtenTools,
 } from '@tade/orchestrator'
@@ -51,11 +34,11 @@ import { makeRecorder, makeTranscriber, voiceDeclared } from '@tade/voice-stt'
 import { HomeBusyError, Workbench } from '@tade/workbench'
 import { lookAtCertificate } from '@tade/workbench/certificate'
 import { lookAtDomain } from '@tade/workbench/domain'
-import { livenessTableFrom } from '@tade/workbench/lane-liveness'
 import { lookAtUpdates } from '@tade/workbench/programs'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 import { handOverOpening, unsayOpening } from '../opening.ts'
+import { orchestrating } from '../orchestrating.ts'
 import { closeAll, endSoon, hangingUp, leftBehind, onSignals } from '../quitting.ts'
 import { reporterLater, reportJournal } from '../telemetry.ts'
 import { gather } from './setup-facts.ts'
@@ -221,239 +204,20 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       // Everything the journal says, for whoever is watching Tade itself.
       const stopReporting = reportJournal(report, client)
 
-      // The way back for the orchestrator's own tools: it runs as pi in its
-      // own process, so `tade_run_start` has to reach us somehow. One socket,
-      // named after this process, gone when the window is.
-      // A terminal the orchestrator opens or runs something in comes to the
-      // front of the window, which starts after the socket does.
-      let showTerminal: (terminal: string) => void = () => {}
-      let keepOrchestratorModel: (model: { provider: string; id: string }) => void = () => {}
-      let handOff: NonNullable<ToolHostOptions['handOff']> = async () => ({ note: '', images: [] })
-      // The queue is the window's to run, and the window comes up after this.
-      let queue: ReturnType<App['queueTools']> | null = null
-      // The config is the window's too: a setting written has to be read back
-      // and used everywhere that holds one, and the boundary saying what the
-      // orchestrator may touch is checked there rather than in its own process.
-      let settings: ReturnType<App['configTools']> | null = null
-      let watches: ReturnType<App['watchTools']> | null = null
-      // Updating and reloading are the window's: the run is in a terminal it
-      // puts in front, and the person's words are checked there.
-      let updates: ReturnType<App['updateTools']> | null = null
-      let remotes: ReturnType<App['remoteTools']> | null = null
-      // How far the turn in flight reaches, and what a narrowed one is
-      // answered with. Null until the window is up, and **a remote arm is
-      // impossible until then**: the host reads `LOCAL` for every call, which
-      // is the right answer because nothing from away can have arrived yet —
-      // the listener is the window's too.
-      let away: ReturnType<App['awayTools']> | null = null
-      const opening = () => new Error('Tade is still opening: ask again in a moment')
-      const status = async () => {
-        const answer = await looking.collect({
-          config: client.config,
-          now: Date.now(),
-          home: homedir(),
-          tadeHome: tadeHome(),
-          cwd: process.cwd(),
-          pr: false,
-          lanes: await livenessTableFrom(client),
-        })
-        // A tool fails by throwing: a look that could not be had is said,
-        // never answered with a workspace that has nothing in it.
-        if (!answer.known) throw new Error(answer.why)
-        return answer.workspace
-      }
-      const tools = await ToolHost.listen({
-        tade: client,
-        path: join(home, 'runs', `tools-${process.pid}.sock`),
-        onTerminal: (terminal) => showTerminal(terminal),
-        handOff: (task) => handOff(task),
-        queue: {
-          describe: async () => {
-            if (!queue) throw opening()
-            return queue.describe()
-          },
-          change: async (req) => {
-            if (!queue) throw opening()
-            return queue.change(req)
-          },
-          plan: async (plan) => {
-            if (!queue) throw opening()
-            return queue.plan(plan)
-          },
-          schedule: async (req) => {
-            if (!queue) throw opening()
-            return queue.schedule(req)
-          },
-          decide: async (req) => {
-            if (!queue) throw opening()
-            return queue.decide(req)
-          },
-        },
-        config: {
-          settings: async (find) => {
-            if (!settings) throw opening()
-            return settings.settings(find)
-          },
-          change: async (req) => {
-            if (!settings) throw opening()
-            return settings.change(req)
-          },
-          openProject: async (req) => {
-            if (!settings) throw opening()
-            return settings.openProject(req)
-          },
-          closeProject: async (req) => {
-            if (!settings) throw opening()
-            return settings.closeProject(req)
-          },
-          renameProject: async (req) => {
-            if (!settings) throw opening()
-            return settings.renameProject(req)
-          },
-          reorderProjects: async (req) => {
-            if (!settings) throw opening()
-            return settings.reorderProjects(req)
-          },
-          configureProject: async (req) => {
-            if (!settings) throw opening()
-            return settings.configureProject(req)
-          },
-        },
-        watches: {
-          list: async (find) => {
-            if (!watches) throw opening()
-            return watches.watches(find)
-          },
-          change: async (req) => {
-            if (!watches) throw opening()
-            return watches.change(req)
-          },
-        },
-        // A race is a plan the window's queue starts, and its pick is checked
-        // there against the person's own lines.
-        race: {
-          start: async (req) => {
-            if (!queue) throw opening()
-            return queue.race.start(req)
-          },
-          standing: async (req) => {
-            if (!queue) throw opening()
-            return queue.race.standing(req)
-          },
-          pick: async (req) => {
-            if (!queue) throw opening()
-            return queue.race.pick(req)
-          },
-        },
-        // A replay is a plan the window's queue starts and paces, and starting
-        // one is checked there against the person's own lines.
-        replay: {
-          start: async (req) => {
-            if (!queue) throw opening()
-            return queue.replay.start(req)
-          },
-          standing: async (req) => {
-            if (!queue) throw opening()
-            return queue.replay.standing(req)
-          },
-        },
-        // Another machine's orchestrator, over the window's link to it, and
-        // checked there against the person's own lines.
-        remotes: {
-          tell: async (req) => {
-            if (!remotes) throw opening()
-            return remotes.tell(req)
-          },
-          // Work moved there, held to the same line of theirs.
-          move: async (req) => {
-            if (!remotes) throw opening()
-            return remotes.move(req)
-          },
-          // What another machine says of itself and its work, read the same way.
-          status: async (machine) => {
-            if (!remotes) throw opening()
-            return remotes.status(machine)
-          },
-          documents: async (req) => {
-            if (!remotes) throw opening()
-            return remotes.documents(req)
-          },
-          intake: async (req) => {
-            if (!remotes) throw opening()
-            return remotes.intake(req)
-          },
-          tool: async (req) => {
-            if (!remotes) throw opening()
-            return remotes.tool(req)
-          },
-        },
-        updates: {
-          read: async (check) => {
-            if (!updates) throw opening()
-            return updates.read(check)
-          },
-          run: async (req) => {
-            if (!updates) throw opening()
-            return updates.run(req)
-          },
-          reload: async (req) => {
-            if (!updates) throw opening()
-            return updates.reload(req)
-          },
-        },
-        status,
-        remote: {
-          arm: () => away?.arm() ?? LOCAL,
-          seen: async (arm) => {
-            if (!away) throw opening()
-            return away.seen(arm)
-          },
-          refused: (arm, method, why) => away?.refused(arm, method, why),
-        },
-        orchestratorModel: async (said) => {
-          // Among what the orchestrator's own harness offers, and kept for
-          // the next start either way. Only its own: a model is resolved by
-          // the harness it is for, so with nobody there to ask, the honest
-          // answer is that there is nobody there to ask — pi's catalog is
-          // not Claude Code's or Codex's to answer out of.
-          if (!orchestrator || !settings) throw opening()
-          // It writes the orchestrator's own Model row, so it takes the
-          // person's words that row takes, before anything is resolved.
-          await settings.ownModelAsked()
-          const chosen = await orchestrator.resolveModel(said)
-          // And never off the provider it keeps: where its conversation is
-          // sent is the person's to move, so that is refused before it is kept.
-          settings.ownProviderHeld(chosen)
-          keepOrchestratorModel(chosen)
-          // A harness that takes a model only when it starts is started again
-          // on it, on the same conversation.
-          if (orchestrator.capabilities.model !== 'live') await restartThinker()
-          return chosen
-        },
-        extensions: async (call) =>
-          (
-            await extensions.call(call.tool, call.input, {
-              caller: { kind: 'orchestrator' },
-              id: call.callId,
-              tade: windowForExtensions,
-            })
-          ).text,
+      // The orchestrator and the way back for its tools, which `tade serve`
+      // starts the same way (`orchestrating.ts`): the socket now, so it exists
+      // for anything started on it; the orchestrator once the window is up.
+      const thinking = await orchestrating({
+        client,
+        home,
+        configPath: opts.config,
+        config: cfg.config,
+        safe,
+        looking,
+        extensions,
+        forExtensions: () => windowForExtensions,
+        without: 'is not something this window does',
       })
-      // Held so it can be stopped on the way out, whenever it finishes coming
-      // up. Typed explicitly: assigned only from inside a callback, which is
-      // not something inference can see.
-      let orchestrator: Orchestrator | null = null
-      let restartThinker: () => Promise<void> = async () => {}
-      let toldNow = async (_since: number): Promise<ToldPrint> => {
-        throw opening()
-      }
-      const stopOrchestrator = async () => {
-        await orchestrator?.stop().catch(() => {})
-      }
-      // The window closing, for a start still under way: it is stopped where it
-      // is (`Orchestrator.start`'s `signal`) rather than waited out and stopped.
-      const quitting = new AbortController()
-      let starting: Promise<void> = Promise.resolve()
       // What closing gave up waiting for or could not close, the window's own and the rest.
       const late: Unclosed[] = []
       try {
@@ -476,8 +240,8 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           // Signed in, or a key: which one is paying, said beside the model.
           credentials: () => credentials(),
           signIn: () => ({ command: process.execPath, args: [piBinary()] }),
-          restartThinker: () => restartThinker(),
-          toldNow: (since) => toldNow(since),
+          restartThinker: () => thinking.restart(),
+          toldNow: (since) => thinking.toldNow(since),
           // What was said to it before this window, out of its harness's own
           // record: shown before it has started, and if it never does.
           history: orchestratorHistory({
@@ -488,14 +252,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           // The orchestrator's own harness may offer other models than agents'.
           // Before it is up there is nobody to ask, which is said rather than
           // answered with somebody else's list.
-          orchestratorModels: async () =>
-            orchestrator
-              ? await orchestrator.models()
-              : {
-                  harness: cfg.config.orchestrator.harness,
-                  models: [],
-                  why: 'is still starting: ask again in a moment',
-                },
+          orchestratorModels: () => thinking.models(),
           reloadWindow: async () => {
             shouldReload = true
             await app.stop()
@@ -540,155 +297,18 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         // first agent after a restart have the tools at all.
         void mcp.warm()
         restoreTerminal = () => app.stop().catch(() => {})
-        showTerminal = (terminal) => void app.showTerminal(terminal)
-        keepOrchestratorModel = (model) => app.thinkerMovedTo(model)
         // An agent an extension starts is put in front of you, like one you started.
         windowForExtensions = extensionWorkbench(client, (task) => app.showTask(task))
         app.useExtensionWorkbench(windowForExtensions)
 
-        // Files you attached go to the agents the orchestrator starts in answer.
-        handOff = (task) => app.handOff(task)
-        queue = app.queueTools()
-        settings = app.configTools()
-        watches = app.watchTools()
-        updates = app.updateTools()
-        remotes = app.remoteTools()
-        away = app.awayTools()
-
-        // The orchestrator is a model in another process and takes a few
-        // seconds to come up. The window does not wait for it: an empty
-        // terminal while something else starts is the worst first second Tade
-        // could have, and it says so in the strip when it arrives. If it never
-        // does — no model configured yet — everything except free text still
-        // works, which is the honest outcome.
-        // Everything it is started with, read again at every start: also what
-        // `toldNow` composes, so the two can only differ by what really moved.
-        const thinkerOptions = async (): Promise<OrchestratorOptions & { config: Config }> => {
-          // Read again: a model chosen in the window is in the file, not in
-          // what was loaded when this started.
-          const now = await loadConfig(opts.config)
-          const config = now.ok ? now.config : cfg.config
-          // The journal it opens on: what its own lessons are measured
-          // against, and what it is told happened while it was not running.
-          const journal = await client.events({ limit: 2_000 }).catch(() => [])
-          return {
-            home,
-            socket: tools.path,
-            runDir: join(home, 'orchestrator'),
-            cwd: process.cwd(),
-            config,
-            // So it knows what you have told it, not just what it can do.
-            notes: client.recallAll(),
-            // And which of its own lessons still apply.
-            activity: activityFrom(historyFrom(journal, Date.now()), Object.keys(config.projects)),
-            journal,
-            // What it was tracking: the queue's own words, so the briefing
-            // and tade_queue can never say different things.
-            queue: await queue?.describe().catch(() => ''),
-            // And what spans repositories, which the journal alone cannot
-            // say: an effort is the fold of the task files that name it,
-            // read out of the same status answer everything else reads.
-            efforts: effortsIn(
-              (await status().catch(() => null))?.projects.flatMap((project) => project.tasks) ??
-                [],
-              new Set(finishedFrom(journal).keys()),
-            ),
-            safe,
-            // Whether the conversation needs a gate on its own tool calls,
-            // which is wired when it starts. Read from the config here
-            // rather than asked later, because a gate added mid-session
-            // would be a gate the turn already in flight never had — and
-            // the setting says *takes effect on restart* for that reason.
-            talking: config.surfaces.web.enabled && config.surfaces.web.orchestrator,
-            signal: quitting.signal,
-            extensions: orchestratorExtensions(extensions, home, config.orchestrator.harness),
-            // What its conversation was told before, read for that alone:
-            // it may be older than the briefing's two thousand lines.
-            toldBefore: await client.events({ types: TOLD_EVENTS, limit: 20 }).catch(() => []),
-            onUsage: ({ model, ...usage }) => {
-              void client.log
-                .append({
-                  type: 'usage',
-                  task: null,
-                  // The model written the one way everything writes it: what
-                  // the orchestrator costs is the same question as what an
-                  // agent costs, and a second spelling of one model here is
-                  // a second row of it on the Spend page.
-                  detail: { by: 'orchestrator', ...usage, ...modelDetail(model) },
-                })
-                .catch(() => {})
-            },
-          }
-        }
-        // What it would be told now, its own notes since `since` left out:
-        // they are in its conversation already.
-        toldNow = async (since) => {
-          const options = await thinkerOptions()
-          return tellingOf({ ...options, notes: unheardNotes(options.notes ?? [], since) }).told
-        }
-        const startThinker = async () => {
-          const options = await thinkerOptions()
-          const config = options.config
-          return (
-            Orchestrator.start(options)
-              .then(async (started) => {
-                orchestrator = started
-                app.attachThinker({
-                  ask: (text, images = []) =>
-                    started.askFor(
-                      text,
-                      120_000,
-                      images.map(({ data, mimeType }) => ({ data, mimeType })),
-                    ),
-                  tell: (text) => started.tell(text),
-                  // Its thinking level, moved without restarting it: the
-                  // conversation carries on at the new level.
-                  setThinking: (level) => started.setThinking(level as ThinkingLevel),
-                  // Stopping a turn without ending the conversation, and what
-                  // its harness says about being asked to.
-                  interrupt: () => started.interrupt(),
-                  offers: thinkerOffers(config.orchestrator.harness, started.capabilities),
-                  onEvent: (listener) => started.onEvent(listener),
-                  // The away half: a turn under an arm, and the three
-                  // questions anything outside the window asks about one. All
-                  // four are the orchestrator's own, so there is no second
-                  // answer to *whose turn is this* anywhere.
-                  askFrom: (text, arm) => started.askFrom(text, arm),
-                  arm: () => started.arm,
-                  busy: () => started.busy,
-                  unarmed: () => started.unarmed,
-                  // Its conversation, kept short and told what it is told now:
-                  // the window decides when (`Keeping`), never mid-turn.
-                  compact: () => started.compact(),
-                  context: () => started.context,
-                  told: () => started.told,
-                })
-                // Nothing chosen, so the harness picked: keep what it picked, so the
-                // next time an agent switches model the orchestrator does not follow.
-                if (!config.orchestrator.model) {
-                  const model = await started.model().catch(() => null)
-                  if (model) app.keepThinkerModel(model)
-                }
-              })
-              // Said in the conversation, where you would have waited for an
-              // answer — unless it was the window closing that stopped it.
-              .catch((err: unknown) => {
-                if (quitting.signal.aborted) return
-                app.thinkerFailed(err instanceof Error ? err.message : String(err))
-              })
-          )
-        }
-        starting = startThinker()
-        // A new model for the orchestrator: the old one stops, and the new one
-        // carries on the same conversation — its session id never changes, so
-        // there is nothing to ask for beyond starting it again.
-        restartThinker = async () => {
-          await starting
-          await stopOrchestrator()
-          orchestrator = null
-          starting = startThinker()
-          await starting
-        }
+        // The orchestrator's tools are the window's to answer from here on,
+        // and the orchestrator is started on them. It is a model in another
+        // process and takes a few seconds to come up: the window does not wait
+        // for it, because an empty terminal while something else starts is the
+        // worst first second Tade could have, and it says so in the strip when
+        // it arrives.
+        thinking.hold(app)
+        thinking.start()
         // Leaving the terminal in raw mode would outlive us, so the first
         // signal closes the window the same way as quitting. Any after it — or
         // after a quit already under way — ends Tade there and then: the
@@ -725,19 +345,15 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       } finally {
         // Everything that can close at once does, each by one deadline rather
         // than each waiting on the one before (`quitting.ts`). An orchestrator
-        // still starting is stopped under its start, which then settles at once
-        // — closing while it starts would otherwise leave a model process
-        // behind with nothing to talk to, or wait for one.
-        quitting.abort()
+        // still starting is stopped under its start (`orchestrating.ts`).
         stopReporting()
         late.push(
           ...(await closeAll({
             together: [
-              { name: 'the orchestrator', close: () => starting.then(stopOrchestrator) },
+              ...thinking.closes(),
               // Whoever started a server ends it: a window that closed is a
               // window with no MCP client in it.
               { name: 'the MCP servers', close: () => mcp.close() },
-              { name: "the orchestrator's tools", close: () => tools.close() },
               { name: 'the status child', close: () => looking.close() },
             ],
             between: stopWatching,

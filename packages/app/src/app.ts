@@ -5,14 +5,13 @@ import type { ExtensionWorkbench } from '@tade/extensions-core'
 import { VoiceSurface } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
 import { Heart } from './heart.ts'
-import { agentEnded, eventNews } from './inbox.ts'
 import { freeViewportKeys } from './keys.ts'
 import { knownTasks } from './live.ts'
 import { type AppState, addTurn, focusTask, setQuestion } from './model.ts'
 import { FRAME_MS } from './pace.ts'
 import { pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
 import { Router } from './wire/actions.ts'
-import { Agents } from './wire/agents.ts'
+import type { Agents } from './wire/agents.ts'
 import { Awake, caffeineHold } from './wire/awake.ts'
 import { Checks } from './wire/checks.ts'
 import { Comments } from './wire/comments.ts'
@@ -31,31 +30,29 @@ import { Evaluations } from './wire/evaluations.ts'
 import { Extensions } from './wire/extensions.ts'
 import { Files } from './wire/files.ts'
 import { frameOf } from './wire/frame.ts'
-import { tellNow } from './wire/handed.ts'
 import { Images } from './wire/images.ts'
 import type { Intake } from './wire/intake.ts'
 import { Keyboard } from './wire/keyboard.ts'
 import { Lanes } from './wire/lanes.ts'
-import { LinearTokens, lending } from './wire/linear-tokens.ts'
 import { Looks, slowLook } from './wire/looks.ts'
 import { Machine } from './wire/machine.ts'
 import { Mouse } from './wire/mouse.ts'
 import { Notes } from './wire/notes.ts'
-import { Orchestrator } from './wire/orchestrator.ts'
+import type { Orchestrator } from './wire/orchestrator.ts'
 import { kittyActive, Repaint, repaintScreen, type Screen, screenFor } from './wire/paint.ts'
-import { Projects, type ProjectTools } from './wire/projects.ts'
+import type { Projects, ProjectTools } from './wire/projects.ts'
 import type { Queue, QueueTools } from './wire/queue.ts'
 import { Races } from './wire/race-panel.ts'
 import { type Remotes, type RemoteTools, remotesFor } from './wire/remotes.ts'
 import { Routes } from './wire/routes.ts'
 import type { Schedules, WatchTools } from './wire/schedules.ts'
+import { Screens } from './wire/screens.ts'
 import { Search } from './wire/search.ts'
-import { Settings, type SettingTools } from './wire/settings.ts'
+import type { Settings, SettingTools } from './wire/settings.ts'
 import { Spend } from './wire/spend.ts'
 import { Updates, type UpdateTools } from './wire/updates.ts'
 import { spokenLine, Voice, vocabulary } from './wire/voice.ts'
-import { Away } from './wire/web.ts'
-import { talkingThrough } from './wire/web-asking.ts'
+import type { Away } from './wire/web.ts'
 import { Window } from './wire/window.ts'
 
 // The window: every project down the side, the agent you are watching in the
@@ -78,10 +75,14 @@ export class App {
   private readonly tui: Screen
   /**
    * The part that runs with no screen — the beat, the queue, schedules and
-   * watches, intake — which this window is a face over (`heart.ts`). It holds
-   * the state, and the window reads and writes it through `state` below.
+   * watches, intake, the orchestrator, the away view and its notifications,
+   * and the settings, projects and agents they act through — which this window
+   * is a face over (`heart.ts`). It holds the state, and the window reads and
+   * writes it through `state` below.
    */
   private readonly heart: Heart
+  /** The terminal lent to a form, and the conversation kept where you were reading it. */
+  private readonly screens: Screens
   private readonly skin: Skin = skinFor(process.env, process.stdout.isTTY === true)
   private readonly pointerShapes = pointerShapes(process.env)
   /** When the lanes are looked at, one look at a time. */
@@ -110,8 +111,6 @@ export class App {
   private readonly images: Images
   /** The Settings page, and the one path a setting is written by. */
   private readonly settings: Settings
-  /** The Linear app's tokens, refreshed when a look or the connect page asks. */
-  private readonly linear: LinearTokens
   /** Who the agents run as, and the terminal a command is watched in. */
   private readonly machine: Machine
   /** What Tade runs and whether it is current: the Updates page, the check, the chip, the run. */
@@ -166,39 +165,61 @@ export class App {
       typed: () => this.looks.typed(),
       layout: () => this.window.layout(),
       due: () => this.looks.soonTick(),
-      orchestrator: () => this.orchestrator,
       twins: (project) => this.remotes.watchTwins(project),
       asked: () => ({ elsewhere: this.remotes.mirrored()?.elsewhere() ?? {} }),
       sawTasks: (tasks) => {
         // Focus can only be restored once there are panes to restore it to,
         // and only the first time: after that it is wherever you moved to.
         this.window.restoreFocus()
-        this.orchestrator.noteTasks(tasks)
         void this.routes.learnHarnesses(tasks)
       },
-      beat: (tasks, moved) => {
+      beat: (_tasks, moved) => {
         void this.checks.beat()
-        void this.orchestrator.reflect(tasks)
-        this.away.beat()
         this.remotes.beat()
         this.updates.beat()
-        void this.settings.fold(() => this.extensions.reloadExtensions())
         if (moved) this.draw() // a beat that found what the last did is not news
       },
-      heard: (event) => {
-        // A document handed over, or what an agent left, is told now (or kept
-        // as news where it cannot be: `tellNow`); everything else waits as news.
-        const told = tellNow(this.wire, this.orchestrator, event)
-        const heard = told ? null : eventNews(event)
-        if (heard) this.orchestrator.note(heard)
-        // An agent that is gone, however it went: told rather than discovered
-        // by the orchestrator steering something that is not there any more.
-        const ended = agentEnded(event)
-        if (ended) this.orchestrator.noteEnded(ended)
-        if (event.type === 'run_started' && event.task) this.orchestrator.noteStarted(event.task)
-        this.tui.requestNews(event.urgency === 'blocking')
+      heard: (event) => this.tui.requestNews(event.urgency === 'blocking'),
+      serversMoved: () => this.extensions.reloadExtensions(),
+      settings: {
+        loadAccounts: () => void this.machine.loadAccountViews(),
+        refreshModels: () => this.routes.refreshModels(),
+        lookAtWhatIsInstalled: () => void this.updates.lookAtWhatIsInstalled(),
+        setupChanged: () => this.extensions.forgetSetup(),
+        silence: () => void this.voice.silence(),
+        accountAction: (choice) => this.machine.accountAction(choice),
+        remoteAction: (choice) => this.remotes.action(choice, this.projects),
+        updateAction: (choice) => this.updates.action(choice),
+        testMicrophone: () => this.voice.testMicrophone(),
+        openFile: (path) => this.files.openPlace({ path }),
+        copy: (text) => copyText(text, (data) => this.terminal.write(data)),
+        releases: () => kittyActive(this.terminal),
+        holdSleep: () => this.awake.apply(),
       },
-      work: (task) => void this.agents.nameAgent(task),
+      agents: {
+        prefill: (line) => this.keyboard.prefill(line),
+        openChange: (task, path) => this.files.openChange(task, path),
+        openPlace: (target) => this.files.openPlace(target),
+        copyToClipboard: (text) => copyText(text, (data) => this.terminal.write(data)),
+        routes: () => this.routes,
+        handsOver: () => this.remotes.moved(),
+      },
+      projects: { rememberWindow: () => this.window.remember() },
+      orchestrator: {
+        anchored: (next) => this.screens.anchored(next),
+        voice: {
+          ready: () => this.voice.ready,
+          awaiting: () => this.voice.awaiting,
+          handle: (said) => this.voice.handle(said),
+          speakChunk: (text) => this.voice.speakChunk(text),
+          speakMessage: (text) => this.voice.speakMessage(text),
+          flushSpeech: () => this.voice.flushSpeech(),
+        },
+        remember: (said) => this.keyboard.remember(said),
+        credentialProblem: (provider) => this.machine.credentialProblem(provider),
+        machines: () => this.remotes.machines(),
+      },
+      away: { copy: (text) => copyText(text, (data) => this.terminal.write(data)) },
     })
     this.wire = this.heart.wire
     this.looks = new Looks({
@@ -214,6 +235,11 @@ export class App {
     this.queue = this.heart.queue
     this.schedules = this.heart.schedules
     this.intake = this.heart.intake
+    this.settings = this.heart.settings
+    this.orchestrator = this.heart.orchestrator
+    this.away = this.heart.away
+    this.agents = this.heart.agents
+    this.projects = this.heart.projects
     this.search = new Search(this.wire, {
       settings: () => this.settings.rows(),
       openFile: (path, line) => this.files.openFile(path, line),
@@ -237,7 +263,7 @@ export class App {
       reload: () => this.window.reload(),
       terminalSize: () => this.lanes.terminalSize(),
       showTerminal: (id) => this.lanes.showTerminal(id),
-      onScreenWith: (flow) => this.orchestrator.onScreenWith(flow),
+      onScreenWith: (flow) => this.screens.onScreenWith(flow),
       refreshModels: () => this.routes.refreshModels(),
     })
     this.updates = new Updates(this.wire, {
@@ -246,35 +272,6 @@ export class App {
       terminal: (name) => this.machine.watched(name),
       news: (said) => this.orchestrator.note(said),
     })
-    this.settings = new Settings(this.wire, {
-      loadAccounts: () => void this.machine.loadAccountViews(),
-      refreshModels: () => this.routes.refreshModels(),
-      lookAtWhatIsInstalled: () => void this.updates.lookAtWhatIsInstalled(),
-      tellThinking: (level) => this.orchestrator.tellThinking(level),
-      setupChanged: () => this.extensions.forgetSetup(),
-      silence: () => {
-        this.orchestrator.stopSpeaking()
-        void this.voice.silence()
-      },
-      accountAction: (choice) => this.machine.accountAction(choice),
-      remoteAction: (choice) => this.remotes.action(choice, this.projects),
-      updateAction: (choice) => this.updates.action(choice),
-      testMicrophone: () => this.voice.testMicrophone(),
-      openFile: (path) => this.files.openPlace({ path }),
-      copy: (text) => copyText(text, (data) => this.terminal.write(data)),
-      releases: () => kittyActive(this.terminal),
-      holdSleep: () => this.awake.apply(),
-      away: () => this.away,
-    })
-    // Held here rather than by the away view, which may be off: the watches
-    // read with it whether or not anything serves /connect.
-    this.linear = new LinearTokens({
-      config: () => this.wire.opts.config,
-      settings: this.settings,
-      now: () => this.now(),
-      told: (said) => this.orchestrator.note(said),
-    })
-    this.wire.opts.extensions?.useConnected(lending(this.linear))
     this.awake = new Awake(
       this.wire,
       { keep: (on) => this.settings.writeKey('agents.keep_awake', on || undefined, String(!on)) },
@@ -284,29 +281,8 @@ export class App {
       soonTick: () => this.looks.soonTick(),
       answering: () => this.orchestrator.attached(),
     })
-    this.away = new Away(this.wire, {
-      decided: (allow) => this.agents.decide(allow),
-      news: (said) => this.orchestrator.note(said),
-      // The conversation, through the one subject that holds it: `Talking` is
-      // five methods, so what a route can reach is that list and not `say`.
-      talk: talkingThrough(() => this.orchestrator),
-      // The queue's own rule, so a device approving work that came from
-      // outside meets the same grant, plan and source checks a start does.
-      stands: (row) => this.queue.standsFor(row),
-      // The factory floor, as the inbox subject already folds it: no page starts work.
-      factory: () => this.intake.factory(),
-      // A file edit writes no journal line, so the fold is told.
-      saved: () => this.intake.markStale(),
-      // The one door a setting is written by: the key nothing types, and a change from away.
-      settings: this.settings,
-      // Stopping and closing from away, through the keyboard's own two doors.
-      lifecycle: { agents: () => this.agents, projects: () => this.projects },
-      copy: (text) => copyText(text, (data) => this.terminal.write(data)),
-      doorbell: { wake: (id, item) => this.schedules.wake(id, item) },
-      linear: this.linear,
-    })
     this.remotes = remotesFor(this.wire, {
-      orchestrator: () => this.orchestrator,
+      screens: () => this.screens,
       files: () => this.files,
     })
     this.voice = new Voice(this.wire, {
@@ -329,6 +305,11 @@ export class App {
     // It asks for focus reports too, which `watch` reads; a resize is a look at once.
     this.repaint.watch(this.terminal, () => void this.looks.tick())
     this.tui = screenFor(this.terminal)
+    this.screens = new Screens(this.wire, {
+      terminal: this.terminal,
+      suspend: () => this.tui.stop(),
+      resume: () => this.tui.start(),
+    })
     freeViewportKeys()
     this.keyboard = new Keyboard(this.wire, {
       tui: this.tui,
@@ -369,41 +350,13 @@ export class App {
       skin: this.skin,
       useConfig: (config) => this.settings.use(config),
       dateOf: (at) => this.window.dateOf(at),
-      anchored: (next) => this.orchestrator.anchored(next),
+      anchored: (next) => this.screens.anchored(next),
       openPlace: (target) => this.files.openPlace(target),
       openLink: (url) => this.files.openLink(url),
       reveal: (path, folder) => this.files.reveal(path, folder),
       watchCommand: (kind, line) => this.machine.watchCommand(kind, line),
       watches: this.schedules,
       spoken: (text) => spokenLine(text),
-    })
-    this.orchestrator = new Orchestrator(this.wire, {
-      terminal: this.terminal,
-      suspend: () => this.tui.stop(),
-      resume: () => this.tui.start(),
-      voice: {
-        ready: () => this.voice.ready,
-        awaiting: () => this.voice.awaiting,
-        handle: (said) => this.voice.handle(said),
-        speakChunk: (text) => this.voice.speakChunk(text),
-        speakMessage: (text) => this.voice.speakMessage(text),
-        flushSpeech: () => this.voice.flushSpeech(),
-      },
-      remember: (said) => this.keyboard.remember(said),
-      useConfig: (config) => this.settings.use(config),
-      credentialProblem: (provider) => this.machine.credentialProblem(provider),
-      machines: () => this.remotes.machines(),
-      nobodyHere: () => this.away.nobodyHere(),
-    })
-    this.agents = new Agents(this.wire, {
-      useConfig: (config) => this.settings.use(config),
-      prefill: (line) => this.keyboard.prefill(line),
-      openChange: (task, path) => this.files.openChange(task, path),
-      openPlace: (target) => this.files.openPlace(target),
-      changeQueue: (task, change) => this.queue.change(task, change),
-      copyToClipboard: (text) => copyText(text, (data) => this.terminal.write(data)),
-      routes: () => this.routes,
-      handsOver: () => this.remotes.moved(),
     })
     this.routes = new Routes(this.wire, {
       size: () => this.room(),
@@ -420,7 +373,7 @@ export class App {
       skin: this.skin,
       copy: (text) => copySaying(this.wire, text, (data) => this.terminal.write(data)),
       openSearch: (query) => this.search.open(query),
-      onScreenWith: (flow) => this.orchestrator.onScreenWith(flow),
+      onScreenWith: (flow) => this.screens.onScreenWith(flow),
       paneSize: () => this.lanes.paneSize(),
       applyPanel: (outcome) => this.router.applyPanel(outcome),
       selectedInFile: () => this.mouse.fileSelectionText(),
@@ -435,7 +388,7 @@ export class App {
     })
     this.mouse = new Mouse(this.wire, {
       stopped: () => this.stopped,
-      borrowed: () => this.orchestrator.borrowed(),
+      borrowed: () => this.screens.borrowed(),
       size: () => this.room(),
       write: (data) => this.terminal.write(data),
       pointerShapes: () => this.pointerShapes,
@@ -460,13 +413,6 @@ export class App {
       openChange: (task, path) => void this.files.openChange(task, path),
       openNote: (note) => this.notes.open(note),
       openAgent: () => void this.agents.openAgent(),
-    })
-    this.projects = new Projects(this.wire, {
-      useConfig: (loaded) => this.settings.use(loaded),
-      changeSetting: (req) => this.settings.change(req),
-      writeSetting: (path, value) => this.settings.write(path, value),
-      openSettings: (page, find, project) => this.settings.open(page, find, project),
-      rememberWindow: () => this.window.remember(),
     })
     this.earlier = new Earlier(this.wire)
     this.subjects = [
@@ -503,7 +449,7 @@ export class App {
       subjects: () => this.subjects,
       stop: () => this.stop(),
       openSettings: (category) => this.settings.open(category),
-      onScreen: (name) => this.orchestrator.onScreen(name),
+      onScreen: (name) => this.screens.onScreen(name),
       loadDiff: (task, path) => this.files.loadDiff(task, path),
       loadFileDiff: (path) => this.files.loadFileDiff(null, path),
       loadExtensionView: (panel) => this.extensions.refreshExtensionView(panel.extension, panel),
@@ -538,7 +484,7 @@ export class App {
    * difference between waiting and retyping.
    */
   attachThinker(thinker: Thinker): void {
-    this.orchestrator.attach(thinker)
+    this.heart.attachThinker(thinker)
   }
 
   /**
@@ -546,7 +492,7 @@ export class App {
    * Otherwise the harness's default decides every start: whatever an agent last switched to.
    */
   keepThinkerModel(model: { provider?: string; id: string }): void {
-    this.orchestrator.keepModel(model)
+    this.heart.keepThinkerModel(model)
   }
 
   /**
@@ -554,7 +500,7 @@ export class App {
    * the next start and shown on its tab, without restarting what it is doing.
    */
   thinkerMovedTo(model: { provider: string; id: string }): void {
-    this.orchestrator.movedTo(model)
+    this.heart.thinkerMovedTo(model)
   }
 
   /**
@@ -562,7 +508,7 @@ export class App {
    * swallowed, which left a window that never answered anything and gave no reason.
    */
   thinkerFailed(reason: string): void {
-    this.orchestrator.failed(reason)
+    this.heart.thinkerFailed(reason)
   }
 
   /** What extensions may ask of this window, once it exists to be asked. */
@@ -622,9 +568,9 @@ export class App {
     const late = await closeBy(
       [
         { name: 'the voice', close: () => this.voice.stop() },
-        { name: 'the away view', close: () => this.away.stop() },
         { name: 'the remote links', close: () => this.remotes.stop() },
-        { name: 'the status look', close: () => this.heart.stop() },
+        // The away view and the status look: the heart's, named as the window named them.
+        ...this.heart.closes(),
       ],
       Date.now() + STOP_MS,
     )
@@ -638,16 +584,14 @@ export class App {
     // What the last window found about updates, so the strip says it at once.
     void this.updates.recall()
     // The beat, and everything the heart runs on it: the projects, then the
-    // status look on its clock, each answer handed to this face as well.
+    // status look on its clock, each answer handed to this face as well; the
+    // agents that were working opened again, and the away view where it is on.
     // A local as well as the heart's: what the surface below closes over is never a maybe.
     const live = await this.heart.begin()
     this.extensions.readLinkers()
     this.extensions.watchExtensions()
-    void live.looked.then(() => this.agents.reopenLost())
     // Whatever the config says about sleep, made true of the machine.
     this.awake.apply()
-    // Only where a person turned it on: off, nothing is constructed and no socket exists.
-    await this.away.open()
 
     const attention = this.opts.config.surfaces.voice.attention
     this.voice.use(
@@ -714,7 +658,7 @@ export class App {
     this.extensions.askExtensions()
     this.images.look()
     this.heart.look()
-    if (!this.stopped && !this.orchestrator.borrowed() && this.repaint.dueAt(this.now()))
+    if (!this.stopped && !this.screens.borrowed() && this.repaint.dueAt(this.now()))
       repaintScreen(this.tui, this.terminal)
     const at = await this.lanes.fitPane()
     this.window.titleHere()
@@ -740,7 +684,7 @@ export class App {
 
   /** What the orchestrator's settings and project tools do, from this window. */
   configTools(): SettingTools & ProjectTools {
-    return { ...this.settings.tools(), ...this.projects.tools() }
+    return this.heart.configTools()
   }
 
   /** What the orchestrator's watch tools do, answered from this window. */
@@ -755,14 +699,14 @@ export class App {
 
   /** What the `ToolHost` asks at every call. `Away.arming` has the argument. */
   awayTools(): Arming {
-    return this.away.arming()
+    return this.heart.awayTools()
   }
 
   /** What the orchestrator's `tade_remote_tell` does, over this window's links. */
   readonly remoteTools = (): RemoteTools => this.remotes.tools()
 
   private draw(): void {
-    if (!this.stopped && !this.orchestrator.borrowed()) this.tui.requestRender()
+    if (!this.stopped && !this.screens.borrowed()) this.tui.requestRender()
   }
 
   /** How big the terminal is, which is how big everything drawn in it may be. */

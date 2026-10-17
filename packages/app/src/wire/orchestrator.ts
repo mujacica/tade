@@ -1,6 +1,3 @@
-import { existsSync } from 'node:fs'
-import { basename, join, resolve } from 'node:path'
-import type { Terminal } from '@earendil-works/pi-tui'
 import {
   type Arm,
   type Config,
@@ -38,8 +35,6 @@ import {
   type TaskSnapshot,
   withTranscript,
 } from '../model.ts'
-import { runScreen, ScreenCancelled, type Ui } from '../screen.ts'
-import { PLAIN } from '../skin.ts'
 import {
   deviceSaid,
   fromThinker,
@@ -51,8 +46,7 @@ import {
   thinking,
   youSaid,
 } from '../transcript.ts'
-import { transcriptLines } from '../transcript-view.ts'
-import { editRecorded, writeRecorded } from './config-written.ts'
+import { writeRecorded } from './config-written.ts'
 import {
   type Actions,
   clockOf,
@@ -82,17 +76,15 @@ import { describeLive } from './orchestrator-status.ts'
 // because it looks like thinking — so a refusal, a throw and a turn that
 // ended with nothing said all reach the transcript in words.
 //
-// The screen is borrowed rather than shared: two things drawing at once is the
-// bug the whole design avoids, so while a form has the terminal the window
-// stops drawing and starts again where it left off.
+// It is the heart's (`heart.ts`): told things and deciding with no screen at
+// all under `tade serve`. What it did with the screen — a form on a borrowed
+// terminal, the conversation kept where you were reading it — is the face's
+// (`screens.ts`), reached through `anchored`.
 
 /** What this subject needs from the rest of the window. */
 export interface OrchestratorDeps {
-  /** The terminal a borrowed screen is drawn on. */
-  terminal: Terminal
-  /** Stop drawing, and start again: the screen is somebody else's for a moment. */
-  suspend(): void
-  resume(): void
+  /** The conversation grown, kept where somebody scrolled back to (`Screens.anchored`). */
+  anchored(next: AppState): AppState
   /** What is said out loud, and what answers a sentence addressed to Tade. */
   voice: {
     ready(): boolean
@@ -141,8 +133,6 @@ export class Orchestrator implements Subject {
   private speakingTurn = false
   /** Tasks being looked back at right now, so two polls cannot double up. */
   private readonly reflecting = new Set<string>()
-  /** Another screen has the terminal, so this window must not draw over it. */
-  private borrowing = false
   /** What happened that the orchestrator has not heard yet: it goes with the next thing said to it. */
   private newsWaiting: News[] = []
   /** The tasks as last seen, so what changed between two looks is news. */
@@ -158,30 +148,6 @@ export class Orchestrator implements Subject {
     // said about it: it was there before you looked. `attach` is the other
     // path — one that arrived while you waited — and that one says so.
     if (wire.opts.thinker) this.use(wire.opts.thinker)
-  }
-
-  /** Another screen has the terminal: nothing here may draw over it. */
-  borrowed(): boolean {
-    return this.borrowing
-  }
-
-  /**
-   * Scrolled back, the lines you are reading stay where they are while new
-   * ones arrive below: the distance from the bottom grows by what was added.
-   */
-  anchored(next: AppState): AppState {
-    const before = this.wire.state
-    if (next.transcriptScroll === 0 || next.transcript === before.transcript) return next
-    const count = (transcript: AppState['transcript']) =>
-      transcriptLines(
-        transcript,
-        this.deps.terminal.columns,
-        PLAIN,
-        { hover: null, pressed: null },
-        0,
-      ).length
-    const grown = count(next.transcript) - count(before.transcript)
-    return { ...next, transcriptScroll: Math.max(0, next.transcriptScroll + grown) }
   }
 
   /** Who you are talking to: what it runs on, how hard it thinks, and who pays for it. */
@@ -279,7 +245,7 @@ export class Orchestrator implements Subject {
         this.deps.voice.speakMessage(event.text)
       }
       this.wire.put(
-        this.anchored(
+        this.deps.anchored(
           withTranscript(
             this.wire.state,
             fromThinker(this.wire.state.transcript, event, this.wire.now()),
@@ -343,23 +309,6 @@ export class Orchestrator implements Subject {
     )
     notify(this.wire, null)
     this.wire.draw()
-  }
-  /** Borrow the terminal for a flow on the shared screen, then put the window back. */
-  async onScreenWith(flow: (ui: Ui) => Promise<void>): Promise<void> {
-    if (this.borrowing) return
-    this.borrowing = true
-    this.deps.suspend()
-    try {
-      await runScreen({ title: 'Tade', terminal: this.deps.terminal }, flow)
-    } catch (err) {
-      if (!(err instanceof ScreenCancelled)) {
-        notify(this.wire, why(err))
-      }
-    } finally {
-      this.borrowing = false
-      this.deps.resume()
-      this.wire.draw()
-    }
   }
   /**
    * How hard the orchestrator thinks, from its next reply on. Written to the
@@ -445,43 +394,6 @@ export class Orchestrator implements Subject {
     }
     this.wire.draw()
   }
-  /** Ask, on a screen of its own, and put the window back afterwards. */
-  async onScreen(command: string): Promise<void> {
-    if (this.borrowing) return
-    this.borrowing = true
-    this.deps.suspend()
-    try {
-      await runScreen(
-        {
-          title: command,
-          context: [join(this.wire.opts.home, 'config.yaml')],
-          terminal: this.deps.terminal,
-        },
-        async (ui) => {
-          try {
-            const done = await this.runCommand(command, ui)
-            if (done) notify(this.wire, done)
-          } catch (err) {
-            // Shown here and waited on, rather than thrown out to a window
-            // that is about to redraw over it: an explanation that leaves with
-            // the screen is an explanation nobody read.
-            if (err instanceof ScreenCancelled) throw err
-            await ui.pause(`  ${err instanceof Error ? err.message : String(err)}`)
-          }
-        },
-      )
-    } catch (err) {
-      // ctrl+c closes the form, not Tade.
-      if (!(err instanceof ScreenCancelled)) {
-        notify(this.wire, err instanceof Error ? err.message : String(err))
-      }
-    } finally {
-      this.borrowing = false
-      this.deps.resume()
-      this.wire.draw()
-    }
-  }
-
   /** Free text, which only the orchestrator can answer; `about` is Tade's, above their words. */
   async ask(text: string, about: string | null = null): Promise<string> {
     if (!this.thinker) return 'The orchestrator is still starting.'
@@ -758,27 +670,6 @@ export class Orchestrator implements Subject {
     if (thinker.tell) await thinker.tell(message)
     else await thinker.ask(message)
   }
-  /** What each command actually does, once it has a screen to ask on. */
-  async runCommand(command: string, ui: Ui): Promise<string> {
-    switch (command) {
-      case '/settings':
-        await editRecorded(this.wire, ui)
-        return 'settings closed'
-      case '/project': {
-        const root = resolve(await ui.ask('repository path', this.wire.opts.cwd ?? process.cwd()))
-        if (!existsSync(join(root, '.git'))) throw new Error(`${root} is not a git repository`)
-        const fallback = basename(root)
-          .toLowerCase()
-          .replace(/[^a-z0-9-]+/g, '-')
-        const name = await ui.ask('call it what?', fallback)
-        writeRecorded(this.wire, `projects.${name}.root`, root)
-        return `added ${name} → ${root}, from the next time Tade starts`
-      }
-      default:
-        return ''
-    }
-  }
-
   /** What `status` answers: one agent's work, or the shape of everything (`orchestrator-status.ts`). */
   describe(scope: string | null): string {
     return describeLive(this.wire, scope)

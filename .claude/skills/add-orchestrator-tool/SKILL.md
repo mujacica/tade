@@ -26,7 +26,11 @@ these: it is an extension (see `add-extension`), which agents can use too and th
   of the file rather than imported. Keep it that way.
 - **Actions go back through the `ToolHost`; questions about state go through `tade status`.** The
   orchestrator is pi in its own process, so a tool that *does* something calls back over the host
-  socket (`packages/orchestrator/src/tool-host.ts`) to the window holding the workbench. That socket
+  socket (`packages/orchestrator/src/tool-host.ts`) to the window holding the workbench — `tade app`,
+  or `tade serve`, the window with no screen; both open it and start the orchestrator through one
+  module (`packages/cli/src/orchestrating.ts`), so a tool wired there is wired in both, and a part only
+  a window with a screen has (updating Tade, the links to other machines) is optional on `Holding`
+  and refused in words where it is missing. That socket
   is a channel between a parent and its own children, not a service: nothing discovers it, nothing
   outside the process tree may use it, and it dies with the window. If something that is not our own
   child would ever want to call it, it has stopped being a channel and become a daemon again.

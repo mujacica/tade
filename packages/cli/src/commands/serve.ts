@@ -10,32 +10,41 @@ import {
 import { makeCollector } from '@tade/status'
 import { watchProcess } from '@tade/telemetry'
 import { HomeBusyError, Workbench } from '@tade/workbench'
+import { lookAtCertificate } from '@tade/workbench/certificate'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
+import { type Orchestrating, orchestrating } from '../orchestrating.ts'
 import { closeAll, endSoon, hangingUp, leftBehind, onSignals } from '../quitting.ts'
 import { reporterLater, reportJournal } from '../telemetry.ts'
 
 // `tade serve` — the window with no screen, for a machine nobody sits at.
 //
 // It is `Heart.alone`: the beat, and on it the queue, schedules and watches,
-// and intake, over the same workbench and the same lock as `tade app`, so the
-// two never run on one home at once and every "while a window is open" is
-// true of it. What the window would have drawn in the conversation is written
-// to standard error instead, a line each, which is a service's log; nothing is
-// ever written to standard output, and nothing reads a key. It runs until it
+// and intake; the orchestrator, started as the window starts it
+// (`orchestrating.ts`) and told what happens; and the away view, with the
+// notifications it sends — over the same workbench and the same lock as
+// `tade app`, so the two never run on one home at once and every "while a
+// window is open" is true of it. What the window would have drawn in the
+// conversation is written to standard error instead, a line each, which is a
+// service's log — the orchestrator's words and what it ran among them; nothing
+// is ever written to standard output, and nothing reads a key. It runs until it
 // is asked to stop — a signal, or the terminal it was started in going — and
 // closing it is closing the window: the agents are the workbench's and carry
 // on under a driver whose lanes outlive it.
 
 /** What runs here with no screen, said first. */
-export const SERVES = 'the beat, the queue, schedules and watches, and intake'
+export const SERVES =
+  'the beat, the queue, schedules and watches, intake, the orchestrator, and the away view with its notifications'
 
 /**
  * What does not run here yet, said beside it, because a person reading the
  * log is deciding whether this is enough for their machine.
  */
 export const NOT_SERVED =
-  'Not under `tade serve` yet: the away view, the orchestrator, notifications, the batched checks, reopening agents that were working when Tade closed, and reading the config again while it runs — `tade app` does them.'
+  "Not under `tade serve` yet: the batched checks, links to other machines, updating Tade from the orchestrator, and taking a change a terminal made to the extensions' config while it runs — `tade app` does them."
+
+/** What the orchestrator is told of a part of the window `tade serve` does not have. */
+const WITHOUT = 'is not done by `tade serve`, which has no screen: `tade app` does it'
 
 /** What went wrong, in words. */
 function why(err: unknown): string {
@@ -120,6 +129,9 @@ export function registerServe(program: Command, io: Io, setExit: (code: number) 
       // An agent an extension starts has nowhere to be put in front of anybody.
       forExtensions = extensionWorkbench(client)
       const late: Unclosed[] = []
+      // The orchestrator and the way back for its tools, as the window has
+      // them: the socket now, the orchestrator once the heart is beating.
+      let thinking: Orchestrating | null = null
       // Settled by the first signal, or by the terminal it was started in going.
       let stop: () => void = () => {}
       const stopped = new Promise<void>((resolve) => {
@@ -127,6 +139,18 @@ export function registerServe(program: Command, io: Io, setExit: (code: number) 
       })
       let heart: Heart | null = null
       try {
+        const tools = await orchestrating({
+          client,
+          home,
+          configPath: cfg.path,
+          config: cfg.config,
+          safe,
+          looking,
+          extensions,
+          forExtensions: () => forExtensions,
+          without: WITHOUT,
+        })
+        thinking = tools
         heart = await Heart.alone(
           {
             client,
@@ -138,6 +162,15 @@ export function registerServe(program: Command, io: Io, setExit: (code: number) 
             extensions,
             extensionWorkbench: forExtensions,
             report,
+            // Its conversation, kept short and told what it is told now, as
+            // the window keeps it (`Keeping`).
+            restartThinker: () => tools.restart(),
+            toldNow: (since) => tools.toldNow(since),
+            // The public name's certificate, looked at on the away view's
+            // clock: a real window's, and this is one.
+            certificate: (name) => lookAtCertificate(name),
+            // A server turned off through the one door ends its session at once.
+            endServers: (servers) => mcp.useServers(servers),
           },
           (line) => io.err(saidLine(line)),
         )
@@ -147,6 +180,10 @@ export function registerServe(program: Command, io: Io, setExit: (code: number) 
         stopHeart = () => running.stop()
         io.err(`tade serve on ${home}: ${SERVES}, with no screen.`)
         io.err(NOT_SERVED)
+        // Its tools are the heart's to answer from here on, and it is started
+        // on them: a few seconds, said in the log when it is ready or why not.
+        tools.hold(running)
+        tools.start()
         onSignals(
           process,
           stop,
@@ -163,7 +200,9 @@ export function registerServe(program: Command, io: Io, setExit: (code: number) 
         late.push(
           ...(await closeAll({
             together: [
-              { name: 'the beat', close: async () => heart?.stop() },
+              ...(thinking?.closes() ?? []),
+              // The away view and the status look, named as the window names them.
+              ...(heart?.closes() ?? []),
               { name: 'the MCP servers', close: () => mcp.close() },
               { name: 'the status child', close: () => looking.close() },
             ],

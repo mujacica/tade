@@ -9,6 +9,7 @@ import type { StatusCollector } from '@tade/status'
 import type { Reporter } from '@tade/telemetry'
 import type { Recorder, Transcriber } from '@tade/voice-core'
 import type { Speaker } from '@tade/voice-tts'
+import type { Pusher, Signing } from '@tade/web'
 import type { Workbench } from '@tade/workbench'
 import type { UpdateLook } from '@tade/workbench/programs'
 import type { Open } from '../editor.ts'
@@ -285,6 +286,12 @@ export interface AppOptions {
    * network it runs on.
    */
   network?: MachineNetwork
+  /**
+   * What sends a notification to a phone's push service. The real one unless
+   * given, for `network`'s reason: a test suite may never reach the network it
+   * runs on, and what it would have sent is what a test asks about.
+   */
+  pusher?: (signing: Signing) => Pusher
   /**
    * How other machines are reached, by the name a remote's link is: the
    * registry's (`REMOTE_LINKS`) unless given, for the reason `network` is — a
