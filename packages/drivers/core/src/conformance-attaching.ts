@@ -39,12 +39,36 @@ function terminal(command: string, cols = 80, rows = 24) {
 export function testAttaching(at: Attaching): void {
   const attach = (id: LaneId, options?: AttachOptions) => at.driver().attachCommand(id, options)
 
-  it('attachCommand names the lane and is non-empty', async () => {
+  // The line reaches its lane, however that lane is titled by then. It used to
+  // be held to naming the lane, which tmux's did by the window's name — and
+  // `setTitle` renames the window, so a lane somebody retitled opened on
+  // whichever lane tmux had in front: another agent. So the lane is retitled,
+  // another is put in front where there is a front, and the line is run.
+  it('attachCommand reaches its lane however it is titled', async () => {
     const s = at.spec()
+    const other = at.spec()
     await at.driver().open(s)
-    const cmd = attach(s.id)
-    expect(cmd.length).toBeGreaterThan(0)
-    expect(cmd).toContain(s.id.split('/').at(-1)!)
+    await at.driver().open(other)
+    const before = attach(s.id)
+    expect(before.length).toBeGreaterThan(0)
+    await at.driver().setTitle(s.id, 'renamed · by somebody')
+    if (at.driver().capabilities.focus) await at.driver().focus(other.id)
+    // A line nobody here can run still never goes by the title.
+    expect(attach(s.id)).toBe(before)
+    if (!at.driver().capabilities.remoteAttach) return
+    await at.waitFor(s.id, 'ready')
+    await at.waitFor(other.id, 'ready')
+    await at.driver().write(s.id, line('mine'))
+    await at.driver().write(other.id, line('theirs'))
+    await at.waitFor(s.id, 'got:mine')
+    await at.waitFor(other.id, 'got:theirs')
+    const viewer = terminal(attach(s.id))
+    try {
+      await until(() => viewer.shown().includes('got:mine'))
+      expect(viewer.shown()).not.toContain('got:theirs')
+    } finally {
+      viewer.term.kill()
+    }
   })
 
   // A string that looks plausible and does not run is worse than no escape

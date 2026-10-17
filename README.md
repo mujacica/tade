@@ -758,9 +758,9 @@ terminal that actually opened. `tade setup --check` does the same whenever you w
 
 What it is looking for, in case you would rather do it yourself. The two native dependencies arrive
 prebuilt on macOS and are compiled on Linux, which needs python3 and a C++ toolchain
-(`build-essential`, or `gcc-c++ make python3`). Optional: tmux (agents that outlive the window),
-whisper.cpp and ffmpeg (speech), `gh` (pull request state); setup offers to install each where you
-want it.
+(`build-essential`, or `gcc-c++ make python3`). Optional: tmux 3.2 or newer (agents that outlive
+the window), whisper.cpp and ffmpeg (speech), `gh` (pull request state); setup offers to install
+each where you want it.
 
 **On a Linux server**, run the same `tade setup` over SSH. It knows the box has no screen: each
 missing program comes with its exact `apt` line, each harness signs in the way a server can —

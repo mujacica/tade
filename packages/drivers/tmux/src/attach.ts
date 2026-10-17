@@ -1,4 +1,5 @@
-import type { AttachOptions } from '@tade/drivers-core'
+import { compareVersions, parseVersion } from '@tade/core'
+import type { AttachOptions, Availability } from '@tade/drivers-core'
 import { quote } from './pipe.ts'
 
 // What a terminal somewhere else runs to be shown one lane: a session of its
@@ -9,6 +10,13 @@ import { quote } from './pipe.ts'
 // too: two agents opened at once were the same agent twice. A session made
 // with `new-session -t` shares the windows and keeps a current window of its
 // own (the conformance suite opens two at once to hold this).
+//
+// **It goes to the lane's window by its id** (`:@3`, the `@3` in the session
+// just made), never by a name. A window's name is whatever `setTitle` last
+// made it, and a lane retitled was not found by the name it opened with — or
+// was found by its first letters in another lane's — and the terminal was
+// left on the session's current window: another agent. A bare `@3` would let
+// tmux pick any session that has it.
 //
 // **It goes when its terminal does**, by a `client-detached` hook on it, so
 // nothing is left for `adopt` or a person to find. **Never by
@@ -37,11 +45,11 @@ import { quote } from './pipe.ts'
 /** The lane's size made the terminal's, as tmux runs it once its client is attached. */
 const FITTED = 'resize-window -x #{client_width} -y #{client_height}'
 
-/** The line for one lane, on the server `socket`, whose lanes are windows of `session`. */
+/** The line for the lane in `window` (`@3`), on the server `socket`, whose lanes are windows of `session`. */
 export function attachLine(
   socket: string,
   session: string,
-  lane: string,
+  window: string,
   options: AttachOptions = {},
 ): string {
   const then = (...words: string[]) => [';', ...words]
@@ -61,7 +69,7 @@ export function attachLine(
       : []),
     ...then('set-hook', 'client-detached', 'kill-session'),
     ...then('set-hook', 'client-resized', `run-shell -C '${FITTED}'`),
-    ...then('select-window', '-t', `:${windowName(lane)}`),
+    ...then('select-window', '-t', `:${window}`),
     ...then('run-shell', '-C', FITTED),
   ])
 }
@@ -69,4 +77,33 @@ export function attachLine(
 /** The name a lane's window is opened with: its id, as tmux takes a name. */
 export function windowName(id: string): string {
   return id.replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'lane'
+}
+
+/**
+ * The oldest tmux this driver works on: `run-shell -C`, which fits a lane to
+ * the terminal above, is 3.2's.
+ *
+ * A floor rather than a second line for older ones. Without `-C` the size can
+ * only be fitted by a shell starting another tmux client from inside the
+ * server on every resize, on whatever PATH that server was started with. And
+ * below 3.0 nothing could write to a lane at all (`send-keys -H`), so there
+ * was always a floor; nothing said it. Built in a `node:22` container, the
+ * conformance suite passes whole on 3.2a and fails only its attach cases on
+ * 3.1c and 3.0a — Debian 11's and Ubuntu 20.04's, both past their support.
+ */
+export const OLDEST = '3.2'
+
+/**
+ * Whether the tmux that answered `-V` with `said` can hold lanes. Nothing
+ * answered is not installed. A tmux that names no version (`tmux master`) is
+ * one nobody can tell is too old, and is let be.
+ */
+export function availableAs(said: string | null): Availability {
+  if (said === null) return { ok: false, reason: 'tmux is not installed (brew install tmux)' }
+  const version = parseVersion(said)
+  if (version === null || compareVersions(version, OLDEST) >= 0) return { ok: true }
+  return {
+    ok: false,
+    reason: `${said.trim()} is older than ${OLDEST}, the first that can show a lane in a terminal of its own (brew install tmux, or the tmux of Ubuntu 22.04, Debian 12 or later)`,
+  }
 }

@@ -114,13 +114,16 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
   human see a lane whatever the backend is — and, with `remoteAttach`, the far half of a lane on
   another machine drawn as a pane of this one's window (`embedded`: nothing of the backend's own
   around it, no key kept back, the pointer the lane's). **Two terminals on two lanes each show their
-  own**, which `tmux attach` does not: a session has one current window for all its clients. The
-  suite's cases are `conformance-attaching.ts` — a suite's part, which ships nowhere by its name;
-  the tmux recipe is `drivers/tmux/src/attach.ts` — a grouped session per terminal, ended by a
-  `client-detached` hook and **never `destroy-unattached`**, which ended the whole tmux server three
-  runs in eight on 3.4 (Ubuntu 24.04's), as does making a window follow its clients' size while
-  that session ends. Check a tmux change on 3.3a and 3.4 built in a `node:22` container, not only
-  on the laptop's newer one.
+  own**, which `tmux attach` does not: a session has one current window for all its clients. **It
+  reaches its lane however the lane is titled** — by the backend's own id, never by a name
+  `setTitle` can change, or a retitled lane opens on whichever one is in front. The suite's cases
+  are `conformance-attaching.ts` — a suite's part, which ships nowhere by its name; the tmux recipe
+  is `drivers/tmux/src/attach.ts` — a grouped session per terminal, on the lane's window as `:@3`,
+  ended by a `client-detached` hook and **never `destroy-unattached`**, which ended the whole tmux
+  server three runs in eight on 3.4 (Ubuntu 24.04's), as does making a window follow its clients'
+  size while that session ends. It needs `run-shell -C`, so **tmux 3.2 is the floor**, and
+  `available()` says so (`OLDEST`), which is what setup shows. Check a tmux change on 3.2a, 3.3a
+  and 3.4 built in a `node:22` container, not only on the laptop's newer one.
 - **`detach()` lets go, `shutdown()` ends it.** Closing Tade calls `detach`, and under a driver
   claiming `detach: true` that must leave every lane running. If lanes cannot outlive us and cannot
   be found again, `detach` ends them — leaving processes nobody can see, drive or stop is worse

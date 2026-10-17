@@ -29,7 +29,7 @@ import {
   type WorkspaceDriver,
   wheelBytes,
 } from '@tade/drivers-core'
-import { attachLine, windowName } from './attach.ts'
+import { attachLine, availableAs, windowName } from './attach.ts'
 import { exitStatus, lookAgain, serverPid, signalNumber } from './ended.ts'
 import { drawn, PANE_FORMAT, type Pane, pointingOf, readPane, scrollingOf } from './pane.ts'
 import { literal, piping, quote, written } from './pipe.ts'
@@ -173,8 +173,9 @@ export class TmuxDriver implements WorkspaceDriver {
       pollMs: opts.pollMs ?? DEFAULTS.pollMs,
       attachCommand:
         opts.attachCommand ??
+        // By the window's id, which a retitled lane keeps and its name does not.
         ((lane, how) =>
-          attachLine(opts.socket ?? DEFAULTS.socket, opts.session ?? DEFAULTS.session, lane, how)),
+          attachLine(this.opts.socket, this.opts.session, this.live(lane).window, how)),
       env: opts.env ?? process.env,
       cgroup: opts.cgroup ?? '/proc/self/cgroup',
       trouble: opts.trouble ?? (() => {}),
@@ -183,12 +184,8 @@ export class TmuxDriver implements WorkspaceDriver {
   }
 
   async available(): Promise<Availability> {
-    try {
-      await this.tmux(['-V'])
-      return { ok: true }
-    } catch {
-      return { ok: false, reason: 'tmux is not installed (brew install tmux)' }
-    }
+    // Installed, and new enough: what it says its version is (`attach.ts`).
+    return availableAs(await this.tmux(['-V']).catch(() => null))
   }
 
   async open(spec: LaneSpec): Promise<LaneHandle> {
