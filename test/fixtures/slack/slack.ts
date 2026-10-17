@@ -161,7 +161,10 @@ export interface SlackScript {
   edit(ts: string, text: string, at: number): void
   /** Somebody deleting one, which is a message that is simply not there any more. */
   remove(ts: string): void
-  /** Somebody replying in a thread, which moves `reply_count` and `latest_reply`. */
+  /**
+   * Somebody replying in a thread, which moves `reply_count` and `latest_reply`.
+   * Under what `chat.postMessage` takes and nothing else: anything else throws.
+   */
   replyTo(ts: string, reply: { user: string; text: string; at: number }): void
 }
 
@@ -269,44 +272,75 @@ export function slackScript(options: SlackOptions): SlackScript {
   }
 
   /**
-   * `chat.postMessage`: a real message in the thread, carrying the metadata it
-   * was sent with.
+   * The message a reply under `ts` goes in the thread of, or null where Slack
+   * would not thread one.
    *
-   * **Only under a parent, or under a message that can become one.** Slack's
-   * word on `thread_ts` is "avoid using a reply's `ts` value; use its parent
-   * instead", and what it does when asked anyway is not written down. What it
-   * never does is make a reply a parent, because a thread is one level deep. So
-   * a reply's `ts` is refused, and so is a `ts` that is no message at all,
-   * rather than becoming a thread Slack would never draw. That includes a reply
-   * also sent to the channel, which history returns like any other message.
+   * **Only a parent, or a message that can become one.** Slack's word on
+   * `thread_ts` is "avoid using a reply's `ts` value; use its parent instead",
+   * and what it does when asked anyway is not written down. What it never does
+   * is make a reply a parent, because a thread is one level deep. So a reply's
+   * `ts` is refused, and so is a `ts` that is no message at all, rather than
+   * becoming a thread Slack would never draw. That includes a reply also sent
+   * to the channel, which history returns like any other message.
    * `cannot_reply_to_message` is the nearest answer Slack documents, not one
    * recorded from it.
    */
+  function parentAt(ts: string): Record<string, unknown> | null {
+    const parent =
+      threads[ts]?.find((one) => one.ts === ts) ?? messages.find((one) => one.ts === ts)
+    if (!parent || (parent.thread_ts !== undefined && parent.thread_ts !== parent.ts)) return null
+    return parent
+  }
+
+  /**
+   * One reply into `parent`'s thread, and what Slack moves on every reply: the
+   * parent's `reply_count` and `latest_reply`, in history and in the thread
+   * alike, because those are two reads of one message.
+   */
+  function replyIn(parent: Record<string, unknown>, written: Record<string, unknown>): void {
+    const ts = String(parent.ts)
+    const whole = threads[ts] ?? [parent]
+    whole.push(written)
+    threads[ts] = whole
+    const copies = new Set([parent, ...[...messages, ...whole].filter((one) => one.ts === ts)])
+    for (const copy of copies) {
+      copy.thread_ts = ts
+      copy.reply_count = Number(copy.reply_count ?? 0) + 1
+      copy.latest_reply = written.ts
+    }
+  }
+
+  /**
+   * The `ts` of a message posted now: a second past every moment this Slack has
+   * recorded, so each post has its own and they only move forward, because a
+   * Slack `ts` is a message's id in its channel and when it was posted.
+   */
+  function now(): string {
+    const recorded = [...messages, ...Object.values(threads).flat()].flatMap((one) => [
+      Number(one.ts),
+      Number((one.edited as { ts?: string } | undefined)?.ts),
+    ])
+    return tsAt(0, Math.floor(Math.max(options.base, ...recorded.filter(Number.isFinite))) + 1)
+  }
+
+  /**
+   * `chat.postMessage`: a real message in the thread, with a `ts` of its own and
+   * the metadata it was sent with, under a parent `parentAt` will thread under.
+   */
   function post(form: Record<string, string>): Record<string, unknown> {
     if (!form.thread_ts) return { ok: false, error: 'no_text' }
-    const parent =
-      threads[form.thread_ts]?.find((one) => one.ts === form.thread_ts) ??
-      messages.find((one) => one.ts === form.thread_ts)
-    if (!parent || (parent.thread_ts !== undefined && parent.thread_ts !== parent.ts)) {
-      return { ok: false, error: 'cannot_reply_to_message' }
-    }
+    const parent = parentAt(form.thread_ts)
+    if (!parent) return { ok: false, error: 'cannot_reply_to_message' }
     const written: Record<string, unknown> = {
       type: 'message',
-      ts: `${Number(form.thread_ts) + 1}.000100`,
+      ts: now(),
       thread_ts: form.thread_ts,
       user: me.userId,
       bot_id: me.botId,
       text: form.text,
       ...(form.metadata ? { metadata: JSON.parse(form.metadata) } : {}),
     }
-    const whole = threads[form.thread_ts]
-    if (whole) whole.push(written)
-    else {
-      threads[form.thread_ts] = [parent, written]
-      parent.reply_count = 1
-      parent.latest_reply = written.ts
-      parent.thread_ts = form.thread_ts
-    }
+    replyIn(parent, written)
     return { ok: true, ts: written.ts, channel: form.channel }
   }
 
@@ -326,19 +360,15 @@ export function slackScript(options: SlackOptions): SlackScript {
       if (at >= 0) messages.splice(at, 1)
     },
     replyTo(ts, reply) {
-      const parent = messages.find((one) => one.ts === ts)
-      if (!parent) return
-      const written = {
+      const parent = parentAt(ts)
+      if (!parent) throw new Error(`cannot_reply_to_message: ${ts} is not a thread's parent`)
+      replyIn(parent, {
         type: 'message',
         ts: tsAt(options.base, reply.at),
         thread_ts: ts,
         user: reply.user,
         text: reply.text,
-      }
-      threads[ts] = [...(threads[ts] ?? [parent]), written]
-      parent.reply_count = (threads[ts] as unknown[]).length - 1
-      parent.latest_reply = written.ts
-      parent.thread_ts = ts
+      })
     },
     fetch: (async (input: unknown, init?: RequestInit) => {
       const url = String(input)

@@ -336,9 +336,46 @@ describe('saying a status back', () => {
     expect(await post(ts(300))).toEqual(refused)
     expect(await post(ts(250))).toEqual(refused)
     expect(await post(ts(999))).toEqual(refused)
+    // And so is somebody replying, which is the same rule.
+    const reply = { user: 'U0SAM', text: 'thanks, looking', at: 400 }
+    for (const at of [300, 250, 999]) {
+      expect(() => script.replyTo(ts(at), reply)).toThrow(/cannot_reply_to_message/)
+    }
     expect(broadcast).not.toHaveProperty('reply_count')
     expect(broadcast).toHaveProperty('thread_ts', ts(200))
     expect(await post(ts(200))).toMatchObject({ ok: true })
+  })
+
+  it('is said to a Slack where every reply has a ts of its own and moves its parent', async () => {
+    // A `ts` is a message's id in its channel and when it was posted, so two
+    // statuses in one thread are two ids, each later than everything before it,
+    // and each moves the parent's `reply_count` and `latest_reply` — in history
+    // and in the thread alike, because those are two reads of one message.
+    const script = slack()
+    const call = async (method: string, form: Record<string, string>) =>
+      (await (
+        await script.fetch(`https://slack.com/api/${method}`, {
+          method: 'POST',
+          body: new URLSearchParams({ channel: CHANNEL, ...form }),
+        })
+      ).json()) as { ts: string; messages: Record<string, unknown>[] }
+    const first = await call('chat.postMessage', { thread_ts: ts(420), text: 'Noticed.' })
+    const second = await call('chat.postMessage', { thread_ts: ts(420), text: 'Queued.' })
+    expect(first.ts).toMatch(/^\d+\.\d{6}$/)
+    expect(second.ts).toMatch(/^\d+\.\d{6}$/)
+    // The newest message in the channel is a reply sent to it at 1200.
+    expect(Number(first.ts)).toBeGreaterThan(Number(ts(1200)))
+    expect(Number(second.ts)).toBeGreaterThan(Number(first.ts))
+    const moved = { reply_count: 4, latest_reply: second.ts }
+    const history = await call('conversations.history', {
+      oldest: ts(420),
+      latest: ts(420),
+      inclusive: 'true',
+    })
+    expect(history.messages).toEqual([expect.objectContaining(moved)])
+    const thread = await call('conversations.replies', { ts: ts(420) })
+    expect(thread.messages[0]).toMatchObject(moved)
+    expect(thread.messages.slice(-2).map((one) => one.ts)).toEqual([first.ts, second.ts])
   })
 
   it('is an ordinary error when Slack will not take the write, and stops no look', async () => {
