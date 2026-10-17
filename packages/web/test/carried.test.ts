@@ -160,6 +160,64 @@ describe('carrying a setup here', () => {
     expect(file()).toContain('push: never')
   })
 
+  it('says back what is here and not in use yet, where it is read only when Tade next starts', async () => {
+    const started = Date.parse('2026-10-17T10:00:00.000Z')
+    const at = (ms: number) => new Date(ms).toISOString()
+    // The journal stamps every line; this Tade started at `started`.
+    const stamped = async (line: CarryLine) => {
+      lines.push({ ...line, ts: at(started + 60_000) })
+    }
+    // One set before this Tade started, so it is in use; one set since, so it is not.
+    writeFileSync(config, 'documents:\n  keep_days: 7\nnotes:\n  keep_days: 9\n')
+    lines.push(
+      {
+        type: 'config_changed',
+        ts: at(started - 1),
+        detail: { path: 'documents.keep_days', now: '7', by: 'window' },
+      },
+      {
+        type: 'config_changed',
+        ts: at(started + 1),
+        detail: { path: 'notes.keep_days', now: '9', by: 'window' },
+      },
+    )
+    const asked: string[] = []
+    const waits = ['documents.keep_days', 'notes.keep_days', 'telemetry.errors', 'journal.max_mb']
+    carrying = carryingAt({
+      home,
+      configPath: config,
+      lines: async () => lines,
+      write: (path, value, carry, by) => writeCarried(config, { path, value, carry, by }, stamped),
+      log: stamped,
+      signIns: async () => [],
+      machine: 'vps',
+      started,
+      waiting: (paths) => {
+        asked.push(...paths)
+        return new Set(paths.filter((one) => waits.includes(one)))
+      },
+    })
+    const answer = await carry({
+      settings: [
+        { path: 'documents.keep_days', value: 7 },
+        { path: 'notes.keep_days', value: 9 },
+        { path: 'telemetry.errors', value: false },
+        { path: 'agents.commit', value: 'as-you-go' },
+        { path: 'journal.max_mb', value: 64 },
+      ],
+    })
+    expect(answer.settings).toEqual([
+      { path: 'documents.keep_days', outcome: 'same' },
+      { path: 'notes.keep_days', outcome: 'same', nextStart: true },
+      { path: 'telemetry.errors', outcome: 'written', nextStart: true },
+      { path: 'agents.commit', outcome: 'written' },
+      { path: 'journal.max_mb', outcome: 'refused', why: expect.any(String) },
+    ])
+    // Asked only of what landed: never of what this machine refused, nor of
+    // what was already so before the Tade here started.
+    expect(asked).toEqual(['notes.keep_days', 'telemetry.errors', 'agents.commit'])
+  })
+
   it('compares a key it was only told the digest of, and writes it 0600 on a press', async () => {
     const key = 'jev-0123456789abcdef'
     const told = await carry({
@@ -247,8 +305,18 @@ describe('carrying a setup here', () => {
         },
         { type: 'config_changed', detail: { path: 'a', now: 'y', by: 'device d1' } },
         { type: 'web_paired', detail: { path: 'b' } },
+        {
+          type: 'config_changed',
+          ts: '2026-10-17T10:00:00.000Z',
+          detail: { path: 'c', now: 'z', by: 'window' },
+        },
+        { type: 'config_changed', ts: 'not a time', detail: { path: 'd', now: 'w', by: 'window' } },
       ]),
-    ).toEqual([{ path: 'a', now: 'y', carried: false, device: null }])
+    ).toEqual([
+      { path: 'a', now: 'y', carried: false, device: null, at: null },
+      { path: 'c', now: 'z', carried: false, device: null, at: Date.UTC(2026, 9, 17, 10) },
+      { path: 'd', now: 'w', carried: false, device: null, at: null },
+    ])
   })
 })
 
@@ -266,6 +334,8 @@ describe('the route', () => {
     put: async () => {},
     signIns: async () => [],
     machine: () => 'vps',
+    started: () => 0,
+    waiting: () => new Set(),
   }
   const body = { from: 'mac', complete: false, settings: [] }
 

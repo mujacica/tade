@@ -1,4 +1,12 @@
-import { carriedSays, machineLabel, writtenAt } from '@tade/core'
+import {
+  type Config,
+  carriedSays,
+  extensionEnabled,
+  machineLabel,
+  type SettingGroup,
+  writtenAt,
+} from '@tade/core'
+import type { LoadedExtension } from '@tade/extensions-core'
 import { carryingAt, inTime, type SignInHere, type WebCarrying } from '@tade/web'
 import type { AccountView } from '@tade/workbench/accounts'
 import { configPathOf, type Wiring } from './context.ts'
@@ -19,7 +27,10 @@ import type { Settings } from './settings.ts'
 const SIGN_INS_MS = 15_000
 
 /** The window's `WebCarrying`, over its own config, journal and harnesses. */
-export function carryingFor(wire: Wiring, settings: Pick<Settings, 'writeKey'>): WebCarrying {
+export function carryingFor(
+  wire: Wiring,
+  settings: Pick<Settings, 'writeKey' | 'rows'>,
+): WebCarrying {
   const carrying: WebCarrying = carryingAt({
     home: wire.opts.home,
     configPath: configPathOf(wire.opts),
@@ -45,8 +56,44 @@ export function carryingFor(wire: Wiring, settings: Pick<Settings, 'writeKey'>):
     // asked reads as "cannot tell" for it — never as signed out.
     signIns: async () => signInsOf(await inTime(wire.opts.client.accounts(), SIGN_INS_MS, [])),
     machine: machineLabel(),
+    started: wire.openedAt,
+    waiting: (paths) =>
+      waitingHere(
+        paths,
+        settings.rows(),
+        wire.opts.config.extensions,
+        wire.opts.extensions?.list() ?? [],
+      ),
   })
   return carrying
+}
+
+/**
+ * Of these paths, the ones a change to waits for Tade to start again here: a
+ * row Settings says is not live — what it says where somebody changes one here
+ * — and an extension that is on and not running, one of yours, which is never
+ * imported mid-session.
+ */
+export function waitingHere(
+  paths: readonly string[],
+  rows: readonly SettingGroup[],
+  extensions: Config['extensions'],
+  loaded: readonly Pick<LoadedExtension, 'name' | 'source' | 'state'>[],
+): Set<string> {
+  const live = new Map(rows.flatMap((group) => group.settings).map((one) => [one.path, one.live]))
+  const waiting = new Set<string>()
+  for (const path of paths) {
+    const row = live.get(path)
+    if (row !== undefined) {
+      if (!row) waiting.add(path)
+      continue
+    }
+    const name = /^extensions\.([^.]+)\.enabled$/.exec(path)?.[1]
+    const one = loaded.find((each) => each.name === name)
+    if (one === undefined || one.source === 'mcp' || one.state !== 'off') continue
+    if (extensionEnabled(extensions[one.name], one.source)) waiting.add(path)
+  }
+  return waiting
 }
 
 /**

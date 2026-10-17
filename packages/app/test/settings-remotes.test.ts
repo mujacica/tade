@@ -20,6 +20,7 @@ const LIST: Checklist = {
   refused: [],
   waiting: ['extensions.jev.key', 'telemetry.dsn'],
   sent: [],
+  nextStart: ['approvals.mode'],
   signIns: [
     { harness: 'claude-code', account: null, signedIn: true, told: true, lasts: '27 days left' },
     { harness: 'codex', account: null, signedIn: false, told: true, lasts: 'not signed in' },
@@ -57,7 +58,7 @@ describe('Settings › Remotes', () => {
     expect(side([VPS])).toContain('Remotes')
   })
 
-  it('draws the checklist: carried, changed there, on a press, each sign-in, and this machine’s own', () => {
+  it('draws the checklist: carried, what waits for a start there, changed there, on a press, each sign-in, and this machine’s own', () => {
     const drawn = page([VPS])
     expect(drawn).toContain('vps')
     expect(drawn).toContain('● linked')
@@ -65,6 +66,7 @@ describe('Settings › Remotes', () => {
       'ssh me@vps.example.com · it calls itself box-1 · carried 2026-10-17 14:02',
     )
     expect(drawn).toContain('3 settings and files, kept in step')
+    expect(drawn).toMatch(/Next start +approvals\.mode/)
     expect(drawn).toContain('queue.holds — there ask · here orchestrator')
     expect(drawn).toContain('Send this machine’s')
     expect(drawn).toContain('extensions.jev.key, telemetry.dsn')

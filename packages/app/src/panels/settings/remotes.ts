@@ -11,9 +11,9 @@ import type { SettingsPanel } from './state.ts'
 
 // The Remotes page: each other machine's Tade this one is an owner of, and
 // what became of this one's setup there — what was carried and is kept in
-// step, what that machine changed itself, what waits on a press, and each
-// harness's own sign-in there (`@tade/workbench/carry`'s checklist, the one
-// `tade remote add` ends with).
+// step, what applies only when Tade next starts there, what that machine
+// changed itself, what waits on a press, and each harness's own sign-in there
+// (`@tade/workbench/carry`'s checklist, the one `tade remote add` ends with).
 //
 // A category only while there is a remote: a page that says "none" to
 // everybody who never added one is a page in every picture of Settings.
@@ -163,6 +163,9 @@ export function drawRemotes(
     }
     for (const one of list?.refused ?? []) line('Not taken', `${one.what}: ${one.why}`, skin.hint)
     if (list !== null && list.sent.length > 0) line('Sent', list.sent.join(', '), skin.done)
+    if (list !== null && list.nextStart.length > 0) {
+      line('Next start', list.nextStart.join(', '), skin.hint)
+    }
     if (list !== null && list.waiting.length > 0) {
       line('On a press', list.waiting.join(', '), skin.waiting)
       buttons([`remote:keys:${at}`], 'attention')

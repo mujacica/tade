@@ -95,6 +95,12 @@ export interface CarriedSetting {
   theirs?: string
   /** Why not, where it was refused. Tade's own clause, or the config's. */
   why?: string
+  /**
+   * Here, and not in use yet: written now, or already so since the Tade running
+   * here started, and read only when it next starts. Absent is not said — what
+   * an older Tade says too — never "in use".
+   */
+  nextStart?: true
 }
 
 /** One file, as it came out. */
@@ -134,6 +140,8 @@ export interface ChangeSeen extends LastChange {
   path: string
   /** The device whose carry wrote it, or null for anything else. */
   device: string | null
+  /** When the line was written, in this machine's clock; null where it does not say. */
+  at: number | null
 }
 
 /** Who a carried write is from, as its line says it. */
@@ -170,6 +178,14 @@ export interface WebCarrying {
   signIns(): Promise<SignInHere[]>
   /** What this machine calls itself. */
   machine(): string
+  /** When the Tade running here started, in this machine's clock. */
+  started(): number
+  /**
+   * Of these paths, the ones a change to waits for Tade to start again here —
+   * as this machine's Settings says of each row, and its extensions of one
+   * turned on — asked after the writes, so it answers about what is written now.
+   */
+  waiting(paths: readonly string[]): ReadonlySet<string>
 }
 
 /**
@@ -229,6 +245,17 @@ export async function applyCarry(
     }
   }
   await writeAll(toWrite, settings, carrying, by)
+  // What is here and not in use yet — written now, or already so since the Tade
+  // running here started — where it is read only at a start: said back, so the
+  // machine that carried it says that rather than "kept in step" alone.
+  const started = carrying.started()
+  const landed = settings.filter((one) => {
+    if (one.outcome === 'written' || one.outcome === 'replaced') return true
+    const at = changes.get(one.path)?.at ?? null
+    return one.outcome === 'same' && at !== null && at >= started
+  })
+  const waiting = carrying.waiting(landed.map((one) => one.path))
+  for (const one of landed) if (waiting.has(one.path)) one.nextStart = true
   const files = await carryFiles(body.files, forced, carrying, by)
   // Harnesses that could not say are "cannot tell" there, and why is said.
   const said = await carrying.signIns().then(
@@ -341,6 +368,8 @@ export async function carryHere(
 /** A journal line, as much of one as the folds below read. */
 export interface CarryLine {
   type: string
+  /** When it was written, as the journal stamps it. */
+  ts?: string
   detail?: Readonly<Record<string, unknown>>
 }
 
@@ -361,11 +390,13 @@ export function changesIn(lines: readonly CarryLine[]): ChangeSeen[] {
     const path = line.detail?.path
     if (typeof path !== 'string' || path === '') continue
     const carried = typeof line.detail?.carried === 'string'
+    const at = line.ts === undefined ? Number.NaN : Date.parse(line.ts)
     newest.set(path, {
       path,
       now: typeof line.detail?.now === 'string' ? line.detail.now : String(line.detail?.now ?? ''),
       carried,
       device: carried ? deviceIn(line.detail?.by) : null,
+      at: Number.isNaN(at) ? null : at,
     })
   }
   return [...newest.values()]
@@ -399,6 +430,12 @@ export function carryingAt(opts: {
   log: (line: { type: 'carried_in'; detail: Record<string, string | number> }) => Promise<void>
   signIns: WebCarrying['signIns']
   machine: string
+  /**
+   * When the Tade here started, and what waits for its next start. Absent,
+   * nothing is said to wait, as an older Tade says nothing.
+   */
+  started?: number
+  waiting?: WebCarrying['waiting']
 }): WebCarrying {
   return {
     written: async () => {
@@ -432,5 +469,7 @@ export function carryingAt(opts: {
     },
     signIns: opts.signIns,
     machine: () => opts.machine,
+    started: () => opts.started ?? Number.POSITIVE_INFINITY,
+    waiting: opts.waiting ?? (() => new Set()),
   }
 }

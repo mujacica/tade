@@ -188,6 +188,10 @@ The rules the table stands on:
 - **`never` to the orchestrator is not "never carried".** Approvals, which extensions are on, a
   route's provider and the accounts are the person's own preferences, written by the person's own
   config, and they go with them; what `never` carries on a press is a credential or a grant.
+- **What that machine reads only at a start is said as such.** It answers `nextStart` for what is
+  there and not in use yet — a row its Settings says is not `live`, or one of yours turned on
+  (`waitingHere`), written now or since its Tade started by its journal — and the checklist and
+  Settings › Remotes say *applies when Tade next starts*. An older Tade says nothing, and so does this.
 - **A key is never carried by itself, wherever it is** — the leaf rule catches every credential
   Tade declares today, and a caller that knows of one with another name passes it in (`secret`).
 - **Unnamed is `here`**, the safe direction for a key nobody has looked at.

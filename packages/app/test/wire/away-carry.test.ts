@@ -1,11 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { keyDigest } from '@tade/core'
+import { keyDigest, type SettingGroup } from '@tade/core'
 import { digestOf, GRANTS, SCOPES, writeDevices } from '@tade/web'
 import type { AccountView } from '@tade/workbench/accounts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
-import { signInsOf } from '../../src/wire/web-carry.ts'
+import { signInsOf, waitingHere } from '../../src/wire/web-carry.ts'
 import { carried, closeAll, DEVICE, machine, paired, SECRET, waitFor } from './away-harness.ts'
 
 // Another machine's setup carried into this window, end to end: a real
@@ -121,6 +121,32 @@ describe('a carry into this window', () => {
     expect(JSON.stringify(changed)).not.toContain('jev-0123456789')
   })
 
+  it('says back what it reads only when it next starts, carry after carry until it does', async () => {
+    const one = await machine({ realKeys: true, accounts: async () => [] })
+    await owner(one.home, one.port)
+    await one.away.open()
+    const body = {
+      from: 'mac',
+      complete: false,
+      settings: [
+        { path: 'notes.keep_days', value: 9 },
+        { path: 'agents.commit', value: 'as-you-go' },
+      ],
+    }
+    const first = await carried(one.port, body)
+    expect(first.body.settings).toEqual([
+      { path: 'notes.keep_days', outcome: 'written', nextStart: true },
+      { path: 'agents.commit', outcome: 'written' },
+    ])
+    // Already so the next time, and still not in use: this window opened before it was.
+    await waitFor(one.client, 'config_changed')
+    const again = await carried(one.port, body)
+    expect(again.body.settings).toEqual([
+      { path: 'notes.keep_days', outcome: 'same', nextStart: true },
+      { path: 'agents.commit', outcome: 'same' },
+    ])
+  })
+
   it('says in the conversation where the line that marks it carried could not be written', async () => {
     const one = await machine({ realKeys: true, accounts: async () => [] })
     await owner(one.home, one.port)
@@ -162,6 +188,40 @@ describe('a carry into this window', () => {
     expect(answer.status).toBe(403)
     expect(answer.body.error).toBe('out_of_scope')
     expect(fileOf(one.home).agents?.commit).toBeUndefined()
+  })
+})
+
+describe('what waits for Tade to start again here', () => {
+  it('is a row Settings says is not live, and one of yours that is on and not running', () => {
+    const rows = [
+      {
+        settings: [
+          { path: 'notes.keep_days', live: false },
+          { path: 'agents.commit', live: true },
+        ],
+      },
+    ] as unknown as SettingGroup[]
+    const waiting = waitingHere(
+      [
+        'notes.keep_days',
+        'agents.commit',
+        'extensions.mine.enabled',
+        'extensions.idle.enabled',
+        'extensions.jev.enabled',
+        'extensions.mcp-docs.enabled',
+        'extensions.gone.enabled',
+        'prices',
+      ],
+      rows,
+      { mine: { enabled: true }, idle: {}, jev: { enabled: true }, 'mcp-docs': { enabled: true } },
+      [
+        { name: 'mine', source: 'yours', state: 'off' },
+        { name: 'idle', source: 'yours', state: 'off' },
+        { name: 'jev', source: 'built-in', state: 'ready' },
+        { name: 'mcp-docs', source: 'mcp', state: 'off' },
+      ],
+    )
+    expect([...waiting]).toEqual(['notes.keep_days', 'extensions.mine.enabled'])
   })
 })
 

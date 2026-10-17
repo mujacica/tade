@@ -221,6 +221,8 @@ export interface Checklist {
   waiting: string[]
   /** What a press sent this time. */
   sent: string[]
+  /** What is there and not in use yet: that machine's Tade reads it when it next starts. */
+  nextStart: string[]
   /**
    * Each harness's own sign-in there, for the harnesses this machine uses —
    * `told: false` where that machine did not say, which is "cannot tell" and
@@ -238,6 +240,9 @@ export interface Checklist {
   /** What else a home holds, and what becomes of each: the inventory, as said. */
   holds: typeof HOME_HOLDS
 }
+
+/** What a carry left there: written now, or already so. */
+const LANDED: ReadonlySet<string> = new Set(['written', 'replaced', 'same'])
 
 /**
  * The checklist out of what this home would give and what the remote said —
@@ -264,6 +269,7 @@ export function checklistOf(req: {
     refused: [],
     waiting: [],
     sent: [],
+    nextStart: [],
     signIns: [],
     here: setup.here.map((one) => ({ what: one.path, why: one.because })),
     holds: HOME_HOLDS,
@@ -289,6 +295,8 @@ export function checklistOf(req: {
     else if (isKey && (one.outcome === 'written' || one.outcome === 'replaced'))
       list.sent.push(one.path)
     else list.carried.push(one.path)
+    // Said only of what is there; an older Tade says nothing, and then neither does this.
+    if (one.nextStart === true && LANDED.has(one.outcome)) list.nextStart.push(one.path)
   }
   for (const one of answer.files) {
     const what = fileNamed(one)
@@ -364,6 +372,9 @@ export function checklistLines(list: Checklist, how: { address: string; tade: st
   for (const one of list.refused)
     lines.push(`  ${list.remote} would not take ${one.what}: ${one.why}`)
   for (const one of list.sent) lines.push(`sent on your press: ${one}`)
+  if (list.nextStart.length > 0) {
+    lines.push(`applies when Tade next starts on ${list.remote}: ${list.nextStart.join(', ')}`)
+  }
   if (list.waiting.length > 0) {
     lines.push(`waiting on a press: ${list.waiting.join(', ')}`)
     lines.push(
