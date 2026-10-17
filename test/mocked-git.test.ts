@@ -18,9 +18,10 @@ import { standInsIn } from './mocked-git.ts'
 // What a machine can see is what each test wrote: git's words. `standInsIn`
 // (`./mocked-git.ts`) counts a test that asks whether its program is `'git'`
 // and then, where it is, never hands it on, and a test that builds an `Error`
-// saying git. Two files had a stand-in before this, so this is a ratchet:
-// their number may go down and never up, and a test file not in ALLOWED is
-// allowed none.
+// saying git. No test's file is allowed one. Two had one when this was
+// written, and were held to it until they asked a real checkout instead:
+// `review.test.ts`'s `gitLike`, which 90e9c2d's was copied from, and
+// `surfaces.test.ts`'s.
 //
 // What it cannot see:
 //
@@ -30,16 +31,12 @@ import { standInsIn } from './mocked-git.ts'
 // - **A made-up failure that does not say git.** A reader that resolves
 //   `null`, or throws `not on this PATH`, is a function like any other; only
 //   the default it replaces says what it stands for, and that is in `src`.
-// - **More of a stand-in already allowed.** A new test in `review.test.ts`
-//   that hands `gitLike` another answer is under the same one.
 // - **Fakes that are not tests' files**: the `scripted` siblings and the
 //   conformance suites under `src/`.
 //
 // It runs in `test:smoke`, which is what the commit hook runs.
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-
-const TABLE = 'test/mocked-git.test.ts'
 
 /** A test's file: anything under a `test/` folder, fixtures and helpers included. */
 const TEST = /(^|\/)test\/.*\.(ts|m?js)$/
@@ -121,18 +118,6 @@ const FIXED: Record<string, string> = {
     const read = async () => { throw new Error('the disk is full') }`,
 }
 
-/**
- * How many stand-ins for git each test file has. A number here may go DOWN
- * in the commit that earns it, and never up; a file that is not here is
- * allowed none.
- */
-const ALLOWED: Record<string, number> = {
-  // git answering from a table, as the review loop's tests were written before
-  // anybody asked it of every change. 90e9c2d's `gitLike` was this one, copied.
-  'packages/extensions/review/test/review.test.ts': 1,
-  'packages/extensions/review/test/surfaces.test.ts': 1,
-}
-
 /** Repo-relative paths of every test's file git tracks. */
 function tracked(): string[] {
   return execFileSync('git', ['ls-files', '-z'], { cwd: ROOT, encoding: 'utf8' })
@@ -174,18 +159,15 @@ describe('a test asks git rather than answering for it', () => {
     expect(counts.map(([name]) => name)).toEqual([])
   })
 
-  it('holds each test file to the stand-ins it already had', () => {
+  it('allows no test file a stand-in', () => {
     const problems: string[] = []
     for (const path of tracked()) {
       const source = sourceOf(path)
       if (source === null) continue
       const found = standInsIn(path, source)
-      const allowed = ALLOWED[path] ?? 0
-      if (found.length <= allowed) continue
+      if (found.length === 0) continue
       const where = found.map((one) => `  ${path}:${one.line}  ${one.kind}`).join('\n')
-      problems.push(
-        `${path} stands in for git ${times(found.length)}, where it is allowed ${allowed}:\n${where}`,
-      )
+      problems.push(`${path} stands in for git ${times(found.length)}:\n${where}`)
     }
     if (problems.length > 0)
       problems.push(
@@ -195,22 +177,6 @@ describe('a test asks git rather than answering for it', () => {
           'If git cannot be made to fail that way, the branch is one reality does not reach: take it\n' +
           'out rather than hold it with a test. There is no number to raise.',
       )
-    report(problems)
-  })
-
-  it('keeps the numbers following the files down', () => {
-    const problems: string[] = []
-    for (const [path, allowed] of Object.entries(ALLOWED)) {
-      const source = sourceOf(path)
-      if (source === null) continue
-      const found = standInsIn(path, source).length
-      if (found < allowed)
-        problems.push(
-          `${path} stands in for git ${times(found)}, and ALLOWED (${TABLE}) still says ${allowed}.\n` +
-            (found === 0 ? 'Delete its line' : `Lower it to ${found}`) +
-            ' in the same commit: a number left above its file is room for the next one.',
-        )
-    }
     report(problems)
   })
 })

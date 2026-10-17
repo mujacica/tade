@@ -17,7 +17,8 @@ import { gitEnv, mkrepo } from '../../../../test/fixtures/mkrepo.ts'
 // forge's or the GitHub replay's, and nothing here reaches the network.
 //
 // Shared by `commit.test.ts` (what CI can say about a commit, and every honest
-// reason it cannot) and `branch.test.ts` (the watch built on that).
+// reason it cannot), `branch.test.ts` (the watch built on that), and the tests
+// of the tools and surfaces that ask which repository a project is on.
 
 export const NOW = Date.parse('2026-09-19T08:00:00Z')
 
@@ -71,6 +72,25 @@ export function project(
     repo.git('push', '-q', 'origin', options.branch ?? 'main')
   }
   return { repo, commit: repo.git('rev-parse', 'HEAD').trim() }
+}
+
+/**
+ * A project as it is checked out of GitHub, whose `origin` git really reaches.
+ *
+ * `origin` is GitHub's URL, rewritten by git's own `insteadOf` to the bare
+ * repository next door, so an `ls-remote` or a fetch is a real one and nothing
+ * leaves the machine; and `origin/HEAD` is asked of that repository, as a
+ * clone's is. For the tools and surfaces that first ask which repository a
+ * project is on (`review.test.ts`, `surfaces.test.ts`).
+ */
+export function checkout(
+  options: { branch?: string; subject?: string; pushed?: boolean; remoteUrl?: string } = {},
+) {
+  const remoteUrl = options.remoteUrl ?? 'git@github.com:acme/api.git'
+  const { repo } = project({ ...options, remoteUrl })
+  repo.git('config', `url.${repo.remote}.insteadOf`, remoteUrl)
+  repo.git('remote', 'set-head', 'origin', '--auto')
+  return repo
 }
 
 /**

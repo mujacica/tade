@@ -4,6 +4,7 @@ import { githubReplay, type ReplayOptions } from '../../../../test/fixtures/forg
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { reviewExtension } from '../src/extension.ts'
 import { forget } from '../src/forge.ts'
+import { checkout, reallyExec } from './repo.ts'
 
 // The four places a review reaches somebody without being asked for: the line
 // in the strip, the filters on the sidebar list, the page behind it, and the
@@ -17,15 +18,18 @@ import { forget } from '../src/forge.ts'
 // green strip — and **nothing polls twice**, because these four are drawn from
 // one snapshot and a page that asks the forge per surface is four requests a
 // second against somebody's rate limit.
+//
+// `api` is a real checkout of acme/api (`checkout`), and git is really asked
+// which repository it is on.
 
 const NOW = Date.parse('2026-09-19T08:00:00Z')
 const env = { GITHUB_TOKEN: 'ghp_pretend', PATH: '/usr/bin' }
 
-const gitLike = () => async (command: string, args: readonly string[]) => {
-  if (command === 'git' && args.join(' ').includes('remote.origin.url')) {
-    return { code: 0, stdout: 'git@github.com:acme/api.git\n', stderr: '' }
-  }
-  return { code: 1, stdout: '', stderr: '' }
+/** That checkout, made once: nothing here checks anything out, commits or pushes. */
+let made: string | null = null
+function api(): string {
+  made ??= checkout().root
+  return made
 }
 
 function load(options: ReplayOptions & { settings?: Record<string, unknown> } = {}) {
@@ -36,12 +40,13 @@ function load(options: ReplayOptions & { settings?: Record<string, unknown> } = 
       builtin: [reviewExtension],
       config: {
         extensions: { review: options.settings ?? {} },
-        projects: { api: { root: '/src/api' } },
+        projects: { api: { root: api() } },
       },
       home: tmp('tade-review-surfaces-'),
       env,
       fetch: replay.fetch,
-      exec: gitLike(),
+      exec: async (command: string, args: readonly string[]) =>
+        command === 'gh' ? replay.exec(command, args) : reallyExec(command, args),
       now: () => NOW,
     }),
   }
