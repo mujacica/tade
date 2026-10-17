@@ -406,12 +406,15 @@ export function renderSchedule(
       'FROM',
       `${who(from)}${watch ? ` · turned on by ${who(askedBy(watch.turnedOnBy))}` : ''}${one.said ? ` · “${one.said}”` : ''}`,
     )
+    // Every entry it was handed, never the newest few: the page scrolls, so an
+    // older one is further down rather than gone without a word. How many runs
+    // and looks there are is the fold's to say (`KEPT`); findings are all kept.
     if (watch) {
       const room = Math.max(1, width - 4 - 18)
       if (watch.findings.length > 0) {
         rows.push(blank(width))
         line((r) => r.text('FOUND', skin.label))
-        for (const each of watch.findings.slice(0, 6)) {
+        for (const each of watch.findings) {
           const found = printable(each.title)
           line((r) => {
             r.text(clock(each.at).padEnd(18), skin.hint)
@@ -440,7 +443,7 @@ export function renderSchedule(
       if (watch.looks.length > 0) {
         rows.push(blank(width))
         line((r) => r.text('LOOKS', skin.label))
-        for (const look of watch.looks.slice(0, 6)) {
+        for (const look of watch.looks) {
           line((r) =>
             r
               .text(clock(look.at).padEnd(18), skin.hint)
@@ -454,7 +457,7 @@ export function renderSchedule(
     } else if (one.runs.length > 0) {
       rows.push(blank(width))
       line((r) => r.text('RUNS', skin.label))
-      for (const each of one.runs.slice(0, 8)) {
+      for (const each of one.runs) {
         line((r) => {
           r.text(clock(each.due).padEnd(18), skin.hint)
           if (!each.ran) {

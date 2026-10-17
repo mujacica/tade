@@ -39,7 +39,7 @@ export const SCHEDULE_LINES: readonly string[] = [
   'hook_rung',
 ]
 
-/** How many runs, and looks, of each schedule are kept: more than any page draws (eight and six). */
+/** How many runs, and looks, of each schedule are kept: all a schedule's page draws of them. */
 export const KEPT = 20
 
 export class ScheduleFold {

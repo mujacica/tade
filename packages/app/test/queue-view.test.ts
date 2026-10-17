@@ -24,6 +24,7 @@ import {
 } from '../src/model.ts'
 import { queueEmptySays } from '../src/queue.ts'
 import { narrowing, type QueueView, WHOLE_QUEUE } from '../src/queue-view.ts'
+import { KEPT } from '../src/schedule-fold.ts'
 import { reachOf } from '../src/scroll.ts'
 import { draw, renderApp } from '../src/view.ts'
 
@@ -667,5 +668,83 @@ describe('a page where an agent’s screen would be', () => {
     const end = draw(toEnd(state, at), frame(at)).rows.map(plain)
     expect(end.some((row) => row.includes('step 40 of'))).toBe(true)
     expect(end.some((row) => row.includes('Run now'))).toBe(true)
+  })
+
+  it('draws every run, finding and look a schedule’s page is handed, and drops no older one', () => {
+    // What the fold keeps of each, and more findings than that: the page used
+    // to stop at the newest eight runs and six of the rest, without a word.
+    const at = { width: 100, height: 30 }
+    const every = (one: ScheduleView, pattern: RegExp) => {
+      let state: AppState = {
+        ...withProjects(initialState(), ['checkout']),
+        project: 'checkout',
+        schedule: one.id,
+      }
+      const seen = new Set<string>()
+      for (let notch = 0; notch < 80; notch++) {
+        const drawn = draw(state, frame({ ...at, schedules: [one] }))
+        for (const row of drawn.rows.map(plain)) {
+          for (const found of row.matchAll(pattern)) seen.add(found[1] ?? '')
+        }
+        state = scrollBy(state, 'page', 1, reachOf(drawn.hits, 'page'))
+      }
+      return [...seen].map(Number).sort((a, b) => a - b)
+    }
+    const upTo = (n: number) => Array.from({ length: n }, (_, i) => i)
+    const nightly: ScheduleView = {
+      id: 'perf-nightly',
+      name: 'perf nightly',
+      project: 'checkout',
+      said: '',
+      kind: 'agent',
+      does: 'starts an agent',
+      prompt: 'run the benchmarks',
+      when: 'every day at 02:00',
+      once: false,
+      next: [2_000],
+      paused: false,
+      by: 'you',
+      missed: 'once',
+      runs: upTo(KEPT).map((i) => ({
+        due: 1_000 - i,
+        ran: true,
+        missed: 0,
+        task: `checkout/bench-${i}`,
+      })),
+    }
+    expect(every(nightly, /bench-(\d+)/g)).toEqual(upTo(KEPT))
+    const watching: ScheduleView = {
+      ...nightly,
+      id: 'new-errors',
+      kind: 'watch',
+      prompt: '',
+      runs: [],
+      watch: {
+        id: 'sentry.new-errors',
+        turnedOnBy: 'you',
+        found: 'ask',
+        most: 1,
+        looks: upTo(KEPT).map((i) => ({
+          at: 1_000 - i,
+          found: i + 1,
+          fresh: 0,
+          left: 0,
+          problem: null,
+          trouble: null,
+          until: null,
+          said: null,
+        })),
+        findings: upTo(KEPT + 10).map((i) => ({
+          at: 1_000 - i,
+          key: `${i}`,
+          title: `error ${i}`,
+          task: null,
+          told: 'orchestrator',
+          problem: null,
+        })),
+      },
+    }
+    expect(every(watching, /error (\d+)/g)).toEqual(upTo(KEPT + 10))
+    expect(every(watching, /found (\d+),/g)).toEqual(upTo(KEPT).map((i) => i + 1))
   })
 })
