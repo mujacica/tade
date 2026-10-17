@@ -1,4 +1,5 @@
 import type { TadeEvent } from './events.ts'
+import type { Bell } from './hooks.ts'
 
 // What a watch has done, folded out of the journal: its looks, what each one
 // found, and what kind of trouble one ran into.
@@ -101,6 +102,8 @@ export interface Watched {
   looks: WatchLook[]
   /** Newest first. */
   findings: WatchFinding[]
+  /** Its doorbell, once a delivery has rung for it (`hooks.ts`): folded by the window, not here. */
+  bell?: Bell
 }
 
 /** What a watch schedule has done, from the journal. Pure: events in, facts out. */

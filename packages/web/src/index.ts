@@ -23,7 +23,7 @@
 // What it must never do: **import `@tade/app` or `@tade/workbench`.** It
 // declares what it needs to be handed (`reading.ts`, `input.ts`) and the window
 // implements it. That is what keeps the projection testable without a window,
-// and it is held by `test/modularity.test.ts` rather than by this sentence.
+// and it is held by `test/protocol.test.ts` rather than by this sentence.
 //
 // It also may never reach `say()` or `remember()`, and it cannot: `said` has
 // exactly one writer, `Keyboard.remember`, and `namedBy` reads those lines to
@@ -69,6 +69,8 @@ export * from './factory.ts'
 export * from './fields.ts'
 export * from './guard.ts'
 export * from './headers.ts'
+export * from './hooked.ts'
+export * from './hooks.ts'
 export * from './input.ts'
 export * from './listeners.ts'
 export * from './machine.ts'

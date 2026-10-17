@@ -373,6 +373,11 @@ One request says who asked, which key allowed it and the published version it is
 what approving it would start, before you do. What a stranger wrote is **material, never
 instruction**: an agent reads it as evidence about the work, under a heading that says so.
 
+Every door is polled. On a server with a public name a webhook from GitHub, Slack or Linear is a
+**doorbell** too: once its signature verifies over the raw body, it makes the matching watch look
+now — the look still reads the source under the grant, so a delivery can only ever make Tade look
+sooner — and that watch's poll slows to hourly while deliveries keep arriving.
+
 <table>
 <tr>
 <td width="25%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/intake.svg" alt="INTAKE down the side: work handed to this machine from outside it, each row saying who asked, the door it came through and how far it got"></td>
@@ -806,7 +811,10 @@ the box at the directory, the socket, the certificate the name answers with — 
 has stopped — and whether this Tade is behind, which the away view also says loudly while it is
 public. A phone paired through the name makes a passkey right after it pairs — inside the app it
 lives in, if you added the page to the home screen — and uses it before acting from there, every
-twelve hours by default; one that missed the moment reads until it pairs again.
+twelve hours by default; one that missed the moment reads until it pairs again. A webhook to
+`https://<name>/hooks/github`, `/hooks/slack` or `/hooks/linear` rings the intake watch once its
+source's secret is set — the last of each source's steps, which `tade intake status` prints until
+its grant is finished.
 
 **From your Mac**, `tade remote add vps --ssh vps` makes this machine an owner of the server's Tade
 and sets it up the way this one is. A server it has never connected to is shown by its host key's

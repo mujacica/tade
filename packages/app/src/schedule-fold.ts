@@ -1,4 +1,4 @@
-import { type TadeEvent, type Watched, watchedFrom } from '@tade/core'
+import { type HookSource, rungFrom, type TadeEvent, type Watched, watchedFrom } from '@tade/core'
 
 // What each schedule has done, folded as the journal says it rather than kept
 // a line apiece.
@@ -32,7 +32,12 @@ export interface ScheduleRuns {
 export const NEVER_RAN: ScheduleRuns = { ran: 0, runs: [] }
 
 /** The lines this keeps in place of the journal's. */
-export const SCHEDULE_LINES: readonly string[] = ['schedule_fired', 'watch_checked', 'watch_found']
+export const SCHEDULE_LINES: readonly string[] = [
+  'schedule_fired',
+  'watch_checked',
+  'watch_found',
+  'hook_rung',
+]
 
 /** How many runs, and looks, of each schedule are kept: more than any page draws (eight and six). */
 export const KEPT = 20
@@ -42,8 +47,22 @@ export class ScheduleFold {
   /** Each watch's newest looks, and the newest that worked and said where the next one starts. */
   private readonly looked = new Map<string, { lines: TadeEvent[]; since: TadeEvent | null }>()
   private readonly found = new Map<string, TadeEvent[]>()
+  /**
+   * Each schedule's doorbell (`Bell`, `hooks.ts`): when a delivery that
+   * verified last woke it and from where, and whether a look is owed to it —
+   * the next look after a wake is the one the doorbell made, so a look that
+   * finds something new without one owed is the poll finding what no delivery
+   * said. Three moments a schedule, and one a source for what did not verify.
+   */
+  private readonly bells = new Map<string, { woke: number; source: HookSource; owed: boolean }>()
+  private readonly missed = new Map<string, number>()
+  private readonly refused = new Map<HookSource, number>()
 
   add(event: TadeEvent): void {
+    if (event.type === 'hook_rung') {
+      this.rang(event)
+      return
+    }
     const schedule = event.detail.schedule
     if (typeof schedule !== 'string') return
     if (event.type === 'schedule_fired') {
@@ -65,10 +84,35 @@ export class ScheduleFold {
       // Held apart, because a look that has scrolled out of the newest is
       // still where the next one starts until another that worked says so.
       if (saysSince(event)) kept.since = event
+      this.counted(schedule, event)
     } else if (event.type === 'watch_found') {
       const kept = this.found.get(schedule) ?? []
       this.found.set(schedule, kept)
       kept.push(event)
+    }
+  }
+
+  /** A delivery's line: what it woke, or that its source sent one that did not verify. */
+  private rang(event: TadeEvent): void {
+    const rung = rungFrom(event)
+    if (rung === null) return
+    const at = Date.parse(event.ts)
+    if (!rung.verified) {
+      this.refused.set(rung.source, at)
+      return
+    }
+    for (const id of rung.woke ?? [])
+      this.bells.set(id, { woke: at, source: rung.source, owed: true })
+  }
+
+  /** A look: the one a doorbell made, where one was owed, or the poll's. */
+  private counted(schedule: string, event: TadeEvent): void {
+    const bell = this.bells.get(schedule)
+    const rung = bell?.owed === true
+    if (bell) bell.owed = false
+    const fresh = event.detail.fresh
+    if (!rung && saysSince(event) && Array.isArray(fresh) && fresh.length > 0) {
+      this.missed.set(schedule, Date.parse(event.ts))
     }
   }
 
@@ -81,10 +125,28 @@ export class ScheduleFold {
   watchedOf(schedule: string): Watched {
     const looked = this.looked.get(schedule)
     const lines = looked?.lines ?? []
-    const watched = watchedFrom([...lines, ...(this.found.get(schedule) ?? [])], schedule)
+    const watched = this.belled(
+      watchedFrom([...lines, ...(this.found.get(schedule) ?? [])], schedule),
+      schedule,
+    )
     if (!looked?.since || lines.includes(looked.since)) return watched
     const { since, elsewhereAt } = watchedFrom([looked.since], schedule)
     return { ...watched, since, ...(elsewhereAt ? { elsewhereAt } : {}) }
+  }
+
+  /** A watch with its doorbell, where one has ever rung for it. */
+  private belled(watched: Watched, schedule: string): Watched {
+    const bell = this.bells.get(schedule)
+    if (bell === undefined) return watched
+    return {
+      ...watched,
+      bell: {
+        source: bell.source,
+        woke: bell.woke,
+        refused: this.refused.get(bell.source) ?? null,
+        missed: this.missed.get(schedule) ?? null,
+      },
+    }
   }
 }
 

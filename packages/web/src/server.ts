@@ -21,6 +21,7 @@ import {
   Window,
 } from './guard.ts'
 import { headersFor } from './headers.ts'
+import { HookDoor } from './hooked.ts'
 import { keepingOf } from './installable.ts'
 import { listenAll } from './listeners.ts'
 import { carryOwned, OWNED_DOOR } from './owned.ts'
@@ -145,6 +146,7 @@ export function webServer(opts: ServerOptions): WebServer {
   const pairing = new Window(PAIR_TRIES, PAIR_WINDOW_MS)
   const refusals = new Window(REFUSALS_BEFORE_SAYING, REFUSAL_WINDOW_MS)
   const passkeys = new Passkeys({ home: opts.home, surface: opts.surface, now, tell })
+  const hooks = new HookDoor({ hooks: opts.hooks, now, tell, answer, json })
 
   async function handle(req: IncomingMessage, res: Res, listener: Listener): Promise<void> {
     const request = randomUUID()
@@ -251,6 +253,8 @@ export function webServer(opts: ServerOptions): WebServer {
       return answer(res, verdict.refusal)
     }
 
+    // A webhook delivery: its own door, and nothing after the guard is asked of it.
+    if (found.route.rings !== undefined) return hooks.ring(found.route.rings, req, res)
     // **The one public answer that is made rather than read**: the file in the
     // folder with a line of JSON in front of it. `asset` would answer it a
     // `404`, which is deliberate — `/assets/sw.js` is not a thing to register.

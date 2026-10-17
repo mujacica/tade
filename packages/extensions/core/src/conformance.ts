@@ -164,6 +164,9 @@ export function extensionConformance(
         expect(offer?.intake).toBe(watch.intake ?? null)
         expect(offer?.rechecks).toBe(typeof watch.recheck === 'function')
         expect(offer?.replies).toBe(typeof watch.reply === 'function')
+        // And what rings it: a doorbell is offered as it was declared, and one
+        // that could never ring is no extension at all (`doorbellShape`).
+        expect(offer?.doorbell).toEqual(watch.doorbell)
       }
     })
 

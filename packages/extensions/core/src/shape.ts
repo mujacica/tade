@@ -1,4 +1,4 @@
-import { INTAKE_SOURCES, whenProblem } from '@tade/core'
+import { HOOK_SOURCES, INTAKE_SOURCES, whenProblem } from '@tade/core'
 import type { TadeExtension } from './port.ts'
 import type { ExtensionWatch } from './watch.ts'
 
@@ -65,6 +65,8 @@ export function shapeProblem(extension: TadeExtension): string | null {
     }
     const intake = intakeShape(watch)
     if (intake) return `its watch ${watch.id} ${intake}`
+    const doorbell = doorbellShape(watch)
+    if (doorbell) return `its watch ${watch.id} ${doorbell}`
   }
   const lists = new Set<string>()
   for (const list of extension.lists ?? []) {
@@ -104,6 +106,37 @@ function intakeShape(watch: ExtensionWatch): string | null {
     return 'takes in work from outside, so it needs an agent: a request nothing can be started on is a request nobody answers'
   }
   return null
+}
+
+/**
+ * Why a watch's doorbell could never ring it, or null — because it has none,
+ * or because what it says holds together.
+ *
+ * Decided by looking, like every rule here: a doorbell from a source Tade has
+ * no door for, for no kind of delivery, on a watch that reads nothing off this
+ * machine, or matched on an input a schedule need not have, is one that would
+ * be declared and silently never ring — the failure nobody sees, because the
+ * poll goes on finding everything a little later.
+ */
+function doorbellShape(watch: ExtensionWatch): string | null {
+  const bell = watch.doorbell
+  if (bell === undefined) return null
+  if (!(HOOK_SOURCES as readonly string[]).includes(bell.source)) {
+    return `has a doorbell from ${String(bell.source)}, which has no door here (there is ${HOOK_SOURCES.join(', ')})`
+  }
+  if (bell.events.length === 0) return 'has a doorbell that no kind of delivery rings'
+  if (watch.network !== true) {
+    return 'has a doorbell but says its look never leaves this machine, so a delivery could change nothing it finds'
+  }
+  if (bell.input === undefined) {
+    return watch.about === 'repository'
+      ? null
+      : 'has a doorbell matched on the project’s repository, so it must say it is about the repository'
+  }
+  const required = Array.isArray(watch.input?.required) ? (watch.input.required as unknown[]) : []
+  return required.includes(bell.input)
+    ? null
+    : `has a doorbell matched on ${bell.input}, which it does not require, so a schedule may have nothing to match`
 }
 
 /** Why one watch cannot be turned on as what it says it is, in the host's words. */

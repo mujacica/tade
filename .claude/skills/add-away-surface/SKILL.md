@@ -85,6 +85,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | the person's **notes shared** with another machine of theirs | `OWNED` in `src/routes.ts` (`POST /api/notes/share`, `here`), `src/shared-notes.ts` (the body), the window's half in `packages/app/src/wire/notes-shared.ts` (`notesFor` answers, `SharedNotes` asks from the window that holds the link); the exchange is `@tade/workbench`'s `notes-shared.ts`, and `add-workbench-operation` has the rules |
 | another machine's **setup carried here** (`tade remote add`, Settings › Remotes) | `OWNED` in `src/routes.ts` (`POST /api/carry`, `here`; beside it `POST /api/attach`, an agent's attach line, `src/attached.ts`), `src/carried.ts` (the body, `applyCarry`, `carryingAt`, the folds of `config_changed` and `carried_in`), `src/owned.ts` (the one door in `server.ts` for every owner route), the window's half in `packages/app/src/wire/web-carry.ts` (through `Settings.writeKey`, and `signInsOf`); every decision is `@tade/core`'s `carry.ts`, and `add-config-key` has the table |
 | the public listener: Caddy's socket, its directory, the PROXY header | `src/listeners.ts` (every socket one server listens on, `dirSeen`, `answering`), `src/proxied.ts` (the header read before HTTP, `peerOf`), `src/proxy-protocol.ts` (pure: what the bytes are), and `public-listener.ts` in `@tade/core` (the directory, the socket, `caddySite`, what a health look says); `test/public.test.ts` is all of it over a real socket |
+| a **webhook delivery** (`POST /hooks/<source>`): what is checked, in what order, and what is written down | `HOOKS` in `src/routes.ts` (built only where a public name is), the guard's `rings` layer, `src/hooks.ts` (pure: each source's signature and window, the address), `src/hooked.ts` (`HookDoor`, `WebHooks`), the window's half in `packages/app/src/wire/doorbell.ts`; `test/hooked.test.ts` over Caddy's socket. What a delivery may do is `add-intake-source`'s doorbell |
 | the public listener's health: the certificate, Tade behind | `packages/app/src/wire/web-public.ts` (`PublicHealth`, on clocks of its own), `@tade/workbench/certificate` (one handshake), `tade host caddy --check` (`packages/cli/src/commands/host-caddy.ts`) |
 | what a device may read | `src/reach.ts` (the grants), `src/surface.ts`'s `reachOf` (the seam) |
 | **where** a grant withholds, and what a page says *not granted* about | `WITHHOLDS` in `src/reach.ts` — one line per place on the wire; `test/withholds.test.ts` takes each grant away and asserts the snapshot changes there and nowhere else. The page asks by path (`mayFor(store, 'plans')`, `src/assets/access.js`, a copy held equal), never by a grant's name, so a new gate is a line here or the test fails. **`ANSWERING` beside it** is the one place a scope decides instead (`Reach.answers`, the device's `answer`): the command an approval asks about, held by the same test |
@@ -376,6 +377,16 @@ a device still has none of the scopes that change anything until somebody at thi
   a dead Tade left is taken over; one something answers on, or a file, never. The name is the first
   trusted host, so it is `https` and the name a code carries — on its own, and **never copied into
   `trusted_hosts`**, where it would outlive the name (`publicWrite`, `core/src/public-name.ts`).
+- **A webhook delivery is answered on the public listener alone, and only for a source with a
+  secret** (`HOOKS`; the guard's `rings` layer; the secret read at each delivery, so absence is the
+  `404` of a path nobody built). It is a source's server and not a browser, so the `Host` is asked of
+  it and none of a browser's layers, and there is no session; what authenticates it is the signature
+  `hooked.ts` checks over the raw body **before anything is parsed**, and the ring of delivery ids
+  holds only verified ones. It is answered `200` before anything else is done, because Slack gives
+  three seconds, and then it only ever wakes a schedule. **What a stranger can make the journal say
+  is bounded where it is written**: a new delivery that verified is a `hook_rung` line; refusals,
+  and repeats (GitHub signs no moment, so a captured delivery verifies for ever), are one line a
+  minute per source with the count since the last.
 - **The PROXY header is the one address that is not the socket's**, read only on that socket
   (`proxied.ts`, v1 and v2) and **optional**: Caddy writes the request itself, so no client's bytes
   start the upstream connection, and a missing header is one shared address said once, never a

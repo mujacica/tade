@@ -214,6 +214,11 @@ export const EventType = z.enum([
   /** Something a watch found for the first time, and the work started on it or who was told. */
   'watch_found',
   /**
+   * A webhook delivery at the public listener (`hooks.ts`): its source, a digest of its id,
+   * whether it verified and which schedules it woke. Never the payload; refusals are counted.
+   */
+  'hook_rung',
+  /**
    * What was decided about work a schedule or a watch made and put to the
    * orchestrator first (`proposed: true` on its `watch_found` or
    * `schedule_fired`, or on the `task_created` of a check the orchestrator
@@ -623,6 +628,7 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // What it found is, and that is `watch_found`.
   watch_checked: 'routine',
   watch_found: 'notable',
+  hook_rung: 'routine',
   // Notable: what became of something a watch found, and why, is exactly what
   // somebody coming back asks. Never blocking — the decision is made.
   proposal_decided: 'notable',

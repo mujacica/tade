@@ -1,3 +1,4 @@
+import { HOOK_SECRETS } from './hooks.ts'
 import type { IntakeSource } from './intake.ts'
 
 // What turning a source on takes, and whether somebody has finished doing it.
@@ -39,6 +40,7 @@ export const INTAKE_SETUP: Readonly<Record<IntakeSource, readonly string[]>> = {
     'A watch, told the label: Settings › Extensions, or a schedule over intake.github.',
     'Then label an issue. mode is propose, so a task is made and parked for you to approve.',
     'For a workflow rather than one task: template: bug-repro-fix-review, document: report.',
+    `Optional, where this machine has a public name: a repository webhook to https://<name>/hooks/github, content type application/json, the Issues and Issue comments events, and a secret — the same one as $${HOOK_SECRETS.github.env} or extensions.intake.${HOOK_SECRETS.github.key}. A delivery only makes the watch look now, and it polls hourly while deliveries arrive.`,
   ],
   // Slack's own numbers, read off its documentation on 2026-10-09, because the
   // one that decides whether this is usable is not the one most people quote.
@@ -62,6 +64,7 @@ export const INTAKE_SETUP: Readonly<Record<IntakeSource, readonly string[]>> = {
     'A watch, told the channel id (C…): Settings › Extensions, or a schedule over intake.slack.',
     'Then @-mention the app in that channel. It is polled every two minutes: Tade notices a mention, it does not answer one.',
     'A mention inside a thread is invisible to a poll unless you also send it to the channel. Instant replies need Socket Mode, which is not built.',
+    `Optional, where this machine has a public name: the signing secret (Basic Information) as $${HOOK_SECRETS.slack.env} or extensions.intake.${HOOK_SECRETS.slack.key} FIRST, then Event Subscriptions on with the Request URL https://<name>/hooks/slack and the app_mention bot event. An event only makes the watch look now; it still reads the channel, so a mention only inside a thread stays invisible.`,
   ],
   // Linear's own numbers, read off its documentation and its own published
   // GraphQL schema on 2026-10-09. Two of them decide the shape rather than
@@ -82,6 +85,7 @@ export const INTAKE_SETUP: Readonly<Record<IntakeSource, readonly string[]>> = {
     'Then label an issue in that team. mode is propose, so a task is made and parked for you to approve.',
     'It is polled every ten minutes: Tade notices a labelled issue, it does not answer one.',
     'Nothing is ever posted back to Linear: this watch has no reply at all, so reply: true would turn nothing on.',
+    `Optional, where this machine has a public name: a webhook (Linear › Settings › API) to https://<name>/hooks/linear for Issues and Comments, its signing secret as $${HOOK_SECRETS.linear.env} or extensions.intake.${HOOK_SECRETS.linear.key}. A delivery only makes the watch look now, and it polls hourly while deliveries arrive.`,
   ],
 }
 

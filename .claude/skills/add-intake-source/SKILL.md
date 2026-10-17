@@ -28,6 +28,9 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
 | `packages/extensions/core/src/shape.ts` | `intakeProblem`: what a source must have to be turned on at all |
 | `packages/extensions/core/src/watching.ts` | `askLook`, `askRecheck`, `askReply`, and the deadline all three are held to |
 | `packages/extensions/intake/` | the local door (the spool, the `cli` watch) and the `github` watch beside it |
+| `packages/core/src/hooks.ts` | the doorbell: `HOOK_SOURCES`, `HOOK_SECRETS`, `HookAddress`, `WatchDoorbell`/`doorbellRings`, the `hook_rung` line (`HookRung`, `rungFrom`), and the hourly poll (`Bell`, `bellStands`, `bellWhen`, `bellDue`, `bellSaid`) |
+| `packages/web/src/hooks.ts` · `hooked.ts` | each source's signature over the raw body and its window, the address (`checkDelivery`); the door's order — rate, cap, signature, ring, `200`, wake (`HookDoor`) |
+| `packages/app/src/wire/doorbell.ts` | the window's half: the secret, which schedules a delivery is for (`doorbellFor`), waking them (`Schedules.wake`) |
 | `packages/extensions/intake/src/slack*.ts` | the Slack door: the four methods it needs (`slack-api.ts`), the pure half that reads a message as an envelope (`slack-message.ts`), and the watch |
 | `test/fixtures/slack/` | a Slack that answers from a file: `auth.test`, cursors, `has_more`, a 429 with a `Retry-After`, an edit, a deletion, metadata, a reaction already there |
 | `packages/forges/core/src/tickets.ts` | the things people *file*: `Ticket`, `Labelling`, `TicketQuery`, `capabilities.tickets` |
@@ -342,11 +345,50 @@ with your keys. So `from` is `U…` ids, nothing asks the source who they are �
 and one request fewer — and the look **names the ids it saw** so they can be copied into the
 grant, because an allowlist of opaque ids nobody can find is an allowlist nobody fills in.
 
+## A webhook is a doorbell, and the watch is still the door
+
+Where a machine has a public name, a delivery from GitHub, Slack or Linear makes the matching watch
+**look now** (REMOTE-TADE §6.1, §6.2). Nothing else about intake changes, and that is the design
+rather than a caution:
+
+- **A delivery never becomes work.** It wakes a schedule (`Schedules.wake`), and the look is the
+  one the clock would have taken: `check` reads the source with Tade's credentials, under the grant,
+  deduplicated by the keys Tade keeps, `propose` parking it. The payload is a stranger's claim and
+  not the record — GitHub works `mergeable` out lazily, Linear's comments are editable — so what the
+  door reads out of one is an **address** (`HookAddress`: which repository, channel or team, and the
+  kind) and nothing else, and it is never written down or handed on. A forged delivery can therefore
+  only make Tade look sooner, with its own credentials, at its own pace.
+- **What rings a watch is declared on it** (`ExtensionWatch.doorbell`): its source, the kinds of
+  delivery that can change what it finds, and the input — or, unsaid, the project's own repository —
+  an address is matched on. `doorbellShape` refuses one that could never ring: no such door, no kind,
+  a look that never leaves the machine, or an input a schedule need not have. A delivery that named
+  nowhere rings every schedule of its kind, because one look too many finds nothing and one too few
+  is the delivery lost.
+- **The secret is the switch.** Each source's is a key of the intake extension
+  (`extensions.intake.<HOOK_SECRETS key>`, its variable winning), read at every delivery; a source
+  with none is the `404` of a path nobody built. There is no setting beside it, because a delivery
+  nobody can verify is one nobody may act on however much a setting said yes.
+- **Checked before anything is read, in order** (`hooked.ts`): a rate per source, a body cap
+  (`200` past it, left unread), the signature over the raw bytes with `timingSafeEqual` and the
+  source's window (Slack's five minutes, Linear's minute; GitHub sends none and never retries), the
+  delivery id against a ring of verified ones only — or guesses could make the real one a repeat —
+  then `200` at once, because Slack gives three seconds; and only then which schedules, and the wake.
+- **The poll stays, and slows** (§14 decision 13): a missed delivery is lost on GitHub and, after six
+  hours, on Linear. While the newest of three moments for a schedule is a verified wake — not a
+  delivery from its source that did not verify, not a look nothing rang for that found something new
+  — it polls hourly (`bellDue`), and the moments that skipped are never counted as missed runs. The
+  row in SCHEDULES says which way it went and why (`bellSaid`).
+- **Slack's thread blindness is not fixed by this.** The Slack watch still reads `conversations.history`;
+  an `app_mention` inside a thread wakes a look that cannot see it. Reading the thread it names is
+  V15's, with the Events API's own address.
+
 ## What not to build
 
 A second scheduler · an `IntakeSource` port before a second source needs one · a second HTTP client
 for a forge Tade already talks to · a listener, a webhook endpoint, a public hostname or a socket
-held open inside a watch · a caller-chosen template, grant, repository or channel · an allowlist of
+held open inside a watch — the doorbell is the away view's public listener's (`HOOKS`) and only ever
+wakes a watch · work, a grant, a `from` or a word of an agent's prompt out of a delivery's payload ·
+a caller-chosen template, grant, repository or channel · an allowlist of
 display names · a confidence threshold that starts work · attachment downloading · a reply that
 carries an agent's prose · a table of pending replies beside the journal · a status that closes,
 assigns, labels or merges anything · a message to a channel a finding did not come from ·

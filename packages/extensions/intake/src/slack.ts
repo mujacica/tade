@@ -189,6 +189,10 @@ export const slackMessages: ExtensionWatch = {
   about: 'repository',
   intake: 'slack',
   network: true,
+  // Rung by the app's Events API subscription, for the channel it was turned
+  // on with. The look still reads the channel's history, so this makes a
+  // mention noticed sooner and not a mention in a thread visible.
+  doorbell: { source: 'slack', events: ['app_mention', 'message'], input: 'channel' },
   // One a look. The schedule's two is a ceiling on agents started, and this one
   // starts work on somebody else's words: three proposals from one poll is three
   // things a person has to read before they can do anything about any.

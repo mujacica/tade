@@ -1,4 +1,4 @@
-import type { Arming, Config, InboxRow } from '@tade/core'
+import type { Arming, Config } from '@tade/core'
 import {
   AGENT,
   type AgentIn,
@@ -32,24 +32,17 @@ import { AWAY_CONTROLS, awayPanel } from '../panels/away/state.ts'
 import type { AwayView } from '../panels/away/view.ts'
 import type { PanelInputs } from '../panels.ts'
 import type { Actions, Subject, Submits, Wiring } from './context.ts'
+import { hooksFor } from './doorbell.ts'
 import { evaluationsAnswer } from './evaluations.ts'
-import type { Settings } from './settings.ts'
-import { armingFor, seenFrom, type Talking } from './web-asking.ts'
-import {
-  type AwayHeld,
-  type FactoryHeld,
-  nothingYet,
-  partsFrom,
-  talkFor,
-  upSinceOf,
-} from './web-beat.ts'
+import { armingFor, seenFrom } from './web-asking.ts'
+import { type AwayHeld, nothingYet, partsFrom, talkFor, upSinceOf } from './web-beat.ts'
 import { carryingFor } from './web-carry.ts'
 import { CheckRecords } from './web-checks.ts'
+import type { AwayDeps } from './web-deps.ts'
 import { builtFrom, turnTo } from './web-follow.ts'
 import { EVERYTHING, widen } from './web-grants.ts'
 import { halvesFor } from './web-halves.ts'
 import { knownHere, Lanes } from './web-lanes.ts'
-import type { Lifecycle } from './web-lifecycle.ts'
 import { carryLink, isLink } from './web-link.ts'
 import { ownedFor } from './web-owned.ts'
 import { awayView, codeShownOn, keepCode, mintPairing, type PanelFacts } from './web-panel.ts'
@@ -58,6 +51,8 @@ import { PublicHealth } from './web-public.ts'
 import { pushFor, type WebPush } from './web-push.ts'
 import { letGoOfRevoked, revokeEvery, revokeOne, type Sessions } from './web-sessions.ts'
 import { heard, toldTo } from './web-told.ts'
+
+export type { AwayDeps }
 
 // The window's end of the away view: the server's lifetime, the pairing panel,
 // and the beat that moves the projection on.
@@ -80,64 +75,6 @@ import { heard, toldTo } from './web-told.ts'
 // line. With it on and nobody connected, `beat` builds **no projection**: `streams.listening()` is
 // empty, so there is nothing to project for. `test/away.test.ts` asserts that as a count of calls
 // rather than as a sentence.
-
-/** What the away subject needs of the rest of the window. */
-export interface AwayDeps {
-  /** What the approve/deny keys do when no device is waiting to be let in. */
-  decided(allow: boolean): void | Promise<void>
-  /** Said in the strip, where somebody who was not looking at the panel sees it. */
-  news(said: string): void
-  /**
-   * What the away view is allowed to know of the conversation: five methods,
-   * and the orchestrator subject happens to have all five.
-   *
-   * **Named one by one rather than taking that subject**, which is the same
-   * decision `ActingDeps` makes about the workbench: a parameter typed as the
-   * subject would put `say` — the one function that writes a `said` line —
-   * one property access away from a route.
-   *
-   * The transcript is **not** here, because it is not the subject's to answer:
-   * it is in `AppState`, which this subject already holds. A sixth method for
-   * it would be a second way to read one value.
-   */
-  talk: Talking
-  /**
-   * Why work that came from outside this machine may not go ahead now, or
-   * null — the queue's own question (`intakeStands`), asked at the moment a
-   * paired device asks to approve one.
-   *
-   * Handed in rather than asked here, because answering it needs the
-   * extension host that can reach the watch, and the subject that already
-   * does is the queue. **A throw holds**: a source nobody could ask has not
-   * said yes.
-   */
-  stands(row: InboxRow): Promise<string | null>
-  /**
-   * The factory floor, as the subject that folds the inbox already holds it.
-   *
-   * Handed in for `stands`' reason and one more: the away view may start no
-   * work to answer a request, so everything it reads has to be a value the
-   * window keeps — and the inbox, the request bodies and the stored workflows
-   * are three reads that belong to the subject which already does them. This
-   * file knows nothing about any of the three.
-   */
-  factory(): FactoryHeld
-  /**
-   * A draft was saved from away, so whatever folds the templates reads them
-   * again rather than waiting out its own clock.
-   *
-   * One method and no argument: the fold reads every template anyway, and a
-   * name here would be a second thing to keep in step for no gain.
-   */
-  saved(): void
-  /** Three methods of `Settings`, never the subject: the generated key, what a granted device
-   * reads, and the one change it may make (`web-settings.ts`). */
-  settings: Pick<Settings, 'rows' | 'write' | 'writeKey'>
-  /** The agents and projects subjects, for stopping and closing from away (`web-lifecycle.ts`). */
-  lifecycle: Lifecycle
-  /** The window's clipboard, for the pairing link's `Copy` (`web-link.ts`). */
-  copy(text: string): Promise<boolean>
-}
 
 export class Away implements Subject {
   private readonly wire: Wiring
@@ -285,6 +222,10 @@ export class Away implements Subject {
       looking: (device, at) => this.push.looking(device, at),
       since: this.presences.since(),
       carrying: carryingFor(this.wire, this.deps.settings),
+      // The doorbells, answered only on a public listener and only for a source with a secret.
+      ...(this.deps.doorbell && {
+        hooks: hooksFor(this.wire, () => this.config(), this.deps.doorbell),
+      }),
       ...ownedFor(this.wire, () => this.panelFacts(), this.deps.lifecycle),
       tickets: this.tickets,
       streams: this.streams,

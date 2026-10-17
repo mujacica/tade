@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { HookRung } from '@tade/core'
 import type { WebActing } from './acting.ts'
 import type { WebAsking } from './asking.ts'
 import type { WebAttaching } from './attached.ts'
@@ -6,6 +7,7 @@ import type { WebCarrying } from './carried.ts'
 import type { WebConfiguring } from './configuring.ts'
 import type { WebDocument } from './document.ts'
 import type { WebDrafting } from './drafting.ts'
+import type { WebHooks } from './hooked.ts'
 import type { WebMachine } from './machine.ts'
 import type { WebOpening } from './opened.ts'
 import type { Streams } from './peers.ts'
@@ -91,6 +93,8 @@ export type Told = (
       detail: Record<string, string | number | boolean>
     }
   | { type: 'warning'; detail: { message: string } & Record<string, string | number | boolean> }
+  // A delivery's line has a list in it (`woke`), which no other line here has.
+  | { type: 'hook_rung'; detail: HookRung & Record<string, unknown> }
 ) & {
   /**
    * The task the line is about, where it is about one.
@@ -263,6 +267,12 @@ export interface ServerOptions {
    * out here (`opened.ts`). Absent, the route is the `404` of a path nobody wired.
    */
   opening?: WebOpening
+  /**
+   * The doorbells, where this machine has a public name (`hooked.ts`): the
+   * secret each source signs with, which schedules a delivery is for, and
+   * waking them. Absent, every delivery is the `404` of a path nobody wired.
+   */
+  hooks?: WebHooks
   /** The tickets the pairing panel minted. */
   tickets: Tickets
   /**

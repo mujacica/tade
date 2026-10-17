@@ -1,4 +1,6 @@
 import {
+  bellSaid,
+  bellWhen,
   type Conflict,
   decidesOf,
   describeLook,
@@ -175,10 +177,12 @@ export function scheduleView(
   const last = runs.at(-1)?.due ?? null
   const created = Date.parse(schedule.created)
   const left = schedule.when.count === undefined ? 3 : Math.max(0, schedule.when.count - ran)
+  // Hourly while a doorbell rings it (`hooks.ts`), and the row says so and why.
+  const polledBy = bellWhen(schedule.when, watched?.bell)
   const next = scheduleEnded(schedule, last, ran, now)
     ? []
     : runsOf(
-        schedule.when,
+        polledBy,
         created,
         Math.max(last ?? created - 1, now),
         Number.POSITIVE_INFINITY,
@@ -208,7 +212,7 @@ export function scheduleView(
                   : 'proposes work on what it finds to the orchestrator'
             }`,
     prompt: does.kind === 'watch' ? '' : does.prompt,
-    when: describeWhen(schedule.when),
+    when: `${describeWhen(schedule.when)}${bellSaid(watched?.bell)}`,
     once: schedule.when.at !== undefined,
     next,
     paused: schedule.paused,

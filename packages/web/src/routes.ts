@@ -1,3 +1,4 @@
+import { HOOK_SOURCES, type HookSource } from '@tade/core'
 import { SAYINGS } from './asked.ts'
 import { CHANGES } from './configured.ts'
 import { SAVINGS } from './drafted.ts'
@@ -120,8 +121,17 @@ export interface Route {
    * that creates them. What authorises it is the keypress at the machine.
    */
   opens?: true
-  /** Whether it may be answered with no session: the bootstrap, and nothing else. */
+  /** Whether it may be answered with no session: the bootstrap, and a delivery (`rings`). */
   public?: true
+  /**
+   * The source whose deliveries this route takes, where it is one of `HOOKS`.
+   *
+   * Carried rather than read back out of the path, for the reason `verb` is.
+   * The guard answers such a route on the public listener alone and asks none
+   * of a browser's layers of it, because no browser sends one: what
+   * authenticates a delivery is its signature (`hooked.ts`).
+   */
+  rings?: HookSource
   /**
    * Whether only this machine may reach it: the loopback listener and a
    * loopback `Host` (`thisMachine`), which from anywhere else is a person over
@@ -575,6 +585,32 @@ export const OWNED: readonly Route[] = [
 ]
 
 /**
+ * The doorbells (REMOTE-TADE §6.2): **one path per source a delivery may come
+ * from**, and the table is `HOOK_SOURCES`.
+ *
+ * A third kind of table beside `ROUTES` and the five a setting turns on, and
+ * built only where a public name is (`routesFor`): a webhook is a source's
+ * server reaching this one over the internet, which is what a public name is
+ * for and nothing else here is. Each is answered only while its source has a
+ * secret, read at the delivery (`hooked.ts`), so a source nobody connected is
+ * the `404` of a path nobody built — absence is the enforcement, as it is for
+ * acting. Public, because no delivery has a session; mutating, because one
+ * leaves a line and makes a look; and none of the five jobs, because what it
+ * does is wake a schedule and never anything a device asks for.
+ *
+ * `/hooks/...` and not `/api/...`, which is the page's.
+ */
+export const HOOKS: readonly Route[] = HOOK_SOURCES.map((source) => ({
+  method: 'POST' as const,
+  path: `/hooks/${source}`,
+  name: `hook ${source}`,
+  needs: 'read' as Scope,
+  mutates: true,
+  public: true as const,
+  rings: source,
+}))
+
+/**
  * The table this listener answers from, which is a fact about the config.
  *
  * Built once, when the server is made, which is why turning any of the
@@ -594,6 +630,7 @@ export function routesFor(surface: Surface): readonly Route[] {
     ...(surface.pushing ? PUSHES : []),
     ...(surface.configuring ? SETTINGS : []),
     ...OWNED,
+    ...(surface.publicName === null ? [] : HOOKS),
   ]
 }
 

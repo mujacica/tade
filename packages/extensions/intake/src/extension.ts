@@ -1,4 +1,6 @@
 import {
+  HOOK_SECRETS,
+  HOOK_SOURCES,
   type IntakeCandidate,
   intakeKey,
   intakePrompt,
@@ -78,7 +80,7 @@ export const intakeExtension: TadeExtension = {
   name: 'intake',
   title: 'Intake',
   description:
-    'Work that arrives from outside this machine: a request written here, an issue somebody on your own list labelled on GitHub or in one Linear team, or an @-mention in one Slack channel. All of them go through the same grant, rule, queue and approval, and all of them are polled — Tade notices a request rather than answering one.',
+    'Work that arrives from outside this machine: a request written here, an issue somebody on your own list labelled on GitHub or in one Linear team, or an @-mention in one Slack channel. All of them go through the same grant, rule, queue and approval, and all of them are polled — Tade notices a request rather than answering one. Where this machine has a public name, a webhook from GitHub, Slack or Linear makes the matching watch look at once.',
   workflow: [
     'A person writes a request with `tade intake`, naming the project and who asked.',
     'Or somebody on your list puts the label you named on an issue in the project’s own repository.',
@@ -90,6 +92,7 @@ export const intakeExtension: TadeExtension = {
     'At the moment of starting it is checked again — closed, relabelled, deleted or rewritten holds the work.',
     'Nothing is posted anywhere unless `reply` is on. GitHub and Linear have no way back at all; Slack gets a reaction and one of Tade’s own seven sentences in the request’s own thread — never a word an agent wrote.',
     'Linear in realtime — Tade as a Linear agent you @-mention — and Jira are not supported and are not switches somebody has to find: `tade intake status` says what each would need.',
+    'Where this machine has a public name, a webhook delivery to /hooks/github, /hooks/slack or /hooks/linear is a doorbell: once its signature verifies it makes the matching watch look now, which still reads the source under the grant — and the poll slows to hourly while deliveries arrive.',
   ],
   settings: [
     {
@@ -106,6 +109,15 @@ export const intakeExtension: TadeExtension = {
       means:
         'a Linear personal API key for the team watch, which only ever reads: there is no reply path to Linear at all, so nothing Tade does needs a scope to write',
     },
+    // The doorbells' secrets (REMOTE-TADE §6.2), one per source, declared here
+    // so they are settings like any key; the away view's door reads them
+    // (`wire/doorbell.ts`) and no watch does. A source with none has no route.
+    ...HOOK_SOURCES.map((source) => ({
+      key: HOOK_SECRETS[source].key,
+      kind: 'secret' as const,
+      env: [HOOK_SECRETS[source].env],
+      means: HOOK_SECRETS[source].means,
+    })),
   ],
   // Nothing to set up for the local door: no key, no endpoint, no account.
   // Being ready is having a home to read, which every window has — so there is

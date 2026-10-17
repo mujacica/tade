@@ -190,6 +190,10 @@ export const githubIssues: ExtensionWatch = {
   about: 'repository',
   intake: 'github',
   network: true,
+  // Rung by this repository's own webhook, where this machine has a public
+  // name: an issue labelled, edited, closed or commented on — a comment moves
+  // `updated_at`, which is this door's revision, so it is a look worth taking.
+  doorbell: { source: 'github', events: ['issues', 'issue_comment'] },
   // One a look. The schedule's two is a ceiling on agents started, and this
   // one starts work on somebody else's words: four proposals from one poll is
   // four things a person has to read before they can do anything about any.

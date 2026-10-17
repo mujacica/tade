@@ -40,6 +40,11 @@ Nothing else will: a type missing from `summary.ts` silently reads as nothing at
   the lock where it can (`withShellJournal`) and otherwise hands the line to the holder — the one
   door built for that is the config-change spool (`recordConfigChanges`), which takes
   `config_changed` and nothing else.
+- **A line a stranger can cause is bounded where it is written**, never by urgency or compaction:
+  a webhook delivery that did not verify is anybody on the internet, and so may a repeat of one that
+  did be, so `hook_rung` refusals and repeats are one line a minute per source carrying the count
+  (`REFUSED_EVERY_MS`, `hooked.ts`), and only a new delivery that verified is a line each. A detail with a list in it (`woke`) needs its own `Told`
+  variant in `@tade/web`'s `serving.ts`, whose other lines are flat.
 - Old journals keep working. Anything reading events handles a type it has never seen by ignoring
   it, so adding one is never a migration.
 - **A line about several things names each in its detail, and every fold keyed by task has to be

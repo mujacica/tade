@@ -278,6 +278,7 @@ export class App {
       // Stopping and closing from away, through the keyboard's own two doors.
       lifecycle: { agents: () => this.agents, projects: () => this.projects },
       copy: (text) => copyText(text, (data) => this.terminal.write(data)),
+      doorbell: { wake: (id) => this.schedules.wake(id) },
     })
     this.remotes = remotesFor(this.wire, {
       orchestrator: () => this.orchestrator,

@@ -217,6 +217,8 @@ export async function start(
     repositories?: WebRepositories
     /** What the window says this machine is, a document, a tool that reads, and work it takes. */
     owned?: Pick<ServerOptions, 'machine' | 'document' | 'tool' | 'records' | 'taking' | 'opening'>
+    /** The window's half of the doorbells, for a test of a webhook delivery. */
+    hooks?: ServerOptions['hooks']
   } = {},
 ): Promise<Running> {
   settingRows = opts.settings ?? []
@@ -263,6 +265,7 @@ export async function start(
     ...(opts.since === undefined ? {} : { since: opts.since }),
     ...(opts.notes === undefined ? {} : { notes: opts.notes }),
     ...(opts.repositories === undefined ? {} : { repositories: opts.repositories }),
+    ...(opts.hooks === undefined ? {} : { hooks: opts.hooks }),
     ...opts.owned,
   })
   epoch = one.server.epoch

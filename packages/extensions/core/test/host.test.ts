@@ -7,6 +7,8 @@ import { ExtensionHost, type ExtensionRun } from '../src/host.ts'
 import type { TadeExtension } from '../src/port.ts'
 import { object, string } from '../src/schema.ts'
 import { settingFrom } from '../src/settings.ts'
+import { shapeProblem } from '../src/shape.ts'
+import type { ExtensionWatch } from '../src/watch.ts'
 
 // Holding extensions and running them. What any one extension finds is its
 // own business; this is the part every one of them relies on.
@@ -983,5 +985,67 @@ describe('a sentence somebody typed into search', () => {
     // their hands, so it is never shown.
     expect(answer.ids).toEqual([])
     expect(answer.problems[0]).toMatch(/did not answer within 20ms/)
+  })
+})
+
+describe('a watch’s doorbell', () => {
+  // What makes a watch look now rather than at its next turn (REMOTE-TADE
+  // §6.1): declared, offered as declared, and refused where it could never
+  // ring — because one that silently never rings is a poll a little late,
+  // which nobody would ever notice.
+  const watch = (over: Partial<ExtensionWatch>): TadeExtension => ({
+    name: 'weather',
+    title: 'Weather',
+    description: 'Whether it is raining.',
+    watches: [
+      {
+        id: 'rain',
+        title: 'Rain',
+        means: 'Asks a radar somewhere else.',
+        every: '10m',
+        offers: 'ask',
+        network: true,
+        about: 'repository',
+        input: object({ channel: string('the channel') }, ['channel']),
+        check: async () => ({ found: [] }),
+        ...over,
+      },
+    ],
+  })
+
+  it('holds together on the repository, or on an input every schedule has', () => {
+    expect(shapeProblem(watch({ doorbell: { source: 'github', events: ['issues'] } }))).toBeNull()
+    expect(
+      shapeProblem(
+        watch({ doorbell: { source: 'slack', events: ['app_mention'], input: 'channel' } }),
+      ),
+    ).toBeNull()
+  })
+
+  it('refuses one that could never ring it, and says which way', () => {
+    const problem = (doorbell: unknown, over: Partial<ExtensionWatch> = {}) =>
+      shapeProblem(watch({ doorbell: doorbell as ExtensionWatch['doorbell'], ...over }))
+    expect(problem({ source: 'jira', events: ['issue'] })).toMatch(/jira, which has no door here/)
+    expect(problem({ source: 'github', events: [] })).toMatch(/no kind of delivery rings/)
+    expect(problem({ source: 'github', events: ['issues'] }, { network: false })).toMatch(
+      /never leaves this machine/,
+    )
+    expect(problem({ source: 'github', events: ['issues'] }, { about: 'machine' })).toMatch(
+      /must say it is about the repository/,
+    )
+    expect(problem({ source: 'slack', events: ['message'], input: 'team' })).toMatch(
+      /matched on team, which it does not require/,
+    )
+  })
+
+  it('is offered as it was declared, and not at all where there is none', async () => {
+    const doorbell = { source: 'github', events: ['issues'] } as const
+    const loaded = await ExtensionHost.load({
+      builtin: [watch({ doorbell }), { ...watch({}), name: 'plain' }],
+      config: { extensions: {}, projects: {} },
+      home: tmp('tade-hooks-'),
+    })
+    expect(loaded.watches().find((one) => one.id === 'weather.rain')?.doorbell).toEqual(doorbell)
+    expect(loaded.watches().find((one) => one.id === 'plain.rain')).not.toHaveProperty('doorbell')
   })
 })

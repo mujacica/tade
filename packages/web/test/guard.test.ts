@@ -18,7 +18,7 @@ import {
 } from '../src/guard.ts'
 import { NEVER_TRUSTED } from '../src/headers.ts'
 import type { Route } from '../src/routes.ts'
-import { ACTS, ROUTES } from '../src/routes.ts'
+import { ACTS, HOOKS, ROUTES } from '../src/routes.ts'
 import { type Surface, thisMachine } from '../src/surface.ts'
 
 // What has to be true before a route runs, asked as the cross-product rather
@@ -660,6 +660,63 @@ describe('a route for this machine alone', () => {
     }
     // This machine's own names on a public listener never get as far as asking.
     expect(allowed(asking({ host: 'localhost', listener: 'public' }), SETUP, MINE).ok).toBe(false)
+  })
+})
+
+describe('a webhook delivery', () => {
+  // A source's server and not a browser (REMOTE-TADE §6.2): what authenticates
+  // it is its signature, which `hooked.ts` checks over the raw body, so the
+  // guard asks the `Host` of it and which listener it came in on, and nothing
+  // a browser would have to send.
+  const GITHUB = HOOKS.find((one) => one.rings === 'github') as Route
+  const NAME = 'tade.example.com'
+  const PUBLIC = guarding({ surface: { ...LAN, trustedHosts: [NAME] }, session: null })
+  const delivery = (over: Partial<Asking> = {}): Asking =>
+    asking({
+      method: 'POST',
+      path: '/hooks/github',
+      host: NAME,
+      origin: null,
+      site: null,
+      contentType: 'application/x-www-form-urlencoded',
+      token: null,
+      cookie: null,
+      tls: false,
+      from: '140.82.115.1',
+      listener: 'public',
+      ...over,
+    })
+
+  it('is let through on the public listener with no session, Origin, token or JSON', () => {
+    const verdict = allowed(delivery(), GITHUB, PUBLIC)
+    expect(verdict).toMatchObject({ ok: true, device: '', scopes: [] })
+  })
+
+  it('is the 404 of a path nobody built on this machine’s own listener', () => {
+    const mine = guarding({ bound: ['127.0.0.1'], session: null })
+    const verdict = allowed(
+      delivery({ host: '127.0.0.1:7654', listener: 'loopback' }),
+      GITHUB,
+      mine,
+    )
+    expect(verdict.ok).toBe(false)
+    if (!verdict.ok) expect(verdict.refusal.error).toBe('no_such')
+  })
+
+  it('still answers to the Host allow-list, this machine’s names on the public listener first', () => {
+    for (const host of ['evil.example', 'localhost', '127.0.0.1']) {
+      const verdict = allowed(delivery({ host }), GITHUB, PUBLIC)
+      expect(verdict.ok, host).toBe(false)
+      if (!verdict.ok) expect(verdict.refusal.error, host).toBe('bad_origin')
+    }
+  })
+
+  it('is no way round the session for anything that is not a delivery', () => {
+    // The layer is the route's, so a route without `rings` is asked everything
+    // it always was, from the same request.
+    const verdict = allowed(delivery({ path: '/api/snapshot', method: 'GET' }), READ, PUBLIC)
+    expect(verdict.ok).toBe(false)
+    if (!verdict.ok) expect(verdict.refusal.error).toBe('no_session')
   })
 })
 

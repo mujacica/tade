@@ -42,6 +42,8 @@ export const QUEUE_READS = [
   // What a watch has found, which is never forgotten: one finding, one piece of work.
   'watch_checked',
   'watch_found',
+  // What rang a watch's doorbell, and what did not verify: whether its poll is slowed.
+  'hook_rung',
   // What agents left unfixed, each made parked work: what later work is related on.
   'leftovers_reported',
   // Which queued work came from outside, so its grant, plan and source are asked

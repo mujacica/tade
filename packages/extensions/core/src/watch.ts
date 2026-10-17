@@ -1,4 +1,10 @@
-import type { IntakeCandidate, IntakeReceipt, IntakeSource, LookTrouble } from '@tade/core'
+import type {
+  IntakeCandidate,
+  IntakeReceipt,
+  IntakeSource,
+  LookTrouble,
+  WatchDoorbell,
+} from '@tade/core'
 import type { ExtensionContext, ExtensionWorkbench, JsonSchema, Link, ProjectRef } from './port.ts'
 
 // The watch half of the port: a cheap look on a clock, what it finds, and the
@@ -374,6 +380,19 @@ export interface ExtensionWatch {
    * ordinary watch and nothing here applies to it.
    */
   intake?: IntakeSource
+  /**
+   * What makes it look now rather than at its next turn: a delivery from a
+   * source outside this machine, to this machine's public name
+   * (REMOTE-TADE.md §6.1).
+   *
+   * **A doorbell, and the watch is still the door.** A delivery only wakes the
+   * schedule; what is found is what `check` reads, under the grant, with the
+   * keys Tade keeps — so nothing in a delivery can become work, and a watch
+   * that says this changes nothing about what its look may do. Declared, never
+   * sniffed: the window rings only what says so, and only for the kinds of
+   * delivery named, matched on the input named or the project's repository.
+   */
+  doorbell?: WatchDoorbell
   /**
    * Whether one finding is still worth starting work on, asked at the moment
    * the queue would start it.

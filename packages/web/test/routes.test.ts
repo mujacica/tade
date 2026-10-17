@@ -3,6 +3,7 @@ import {
   ACTS,
   ASKS,
   DRAFTS,
+  HOOKS,
   LIFECYCLE,
   OWNED,
   PUSHES,
@@ -306,6 +307,49 @@ describe('the five tables a setting turns on', () => {
         .map((route) => `${route.method} ${route.path}`)
         .sort(),
     ).toEqual(['GET /api/settings', 'POST /api/settings/change'])
+  })
+})
+
+describe('the doorbells', () => {
+  // A webhook is a source's server reaching this one over the internet, which
+  // is what a public name is for and nothing else here is (REMOTE-TADE §6.2).
+  it('is one path a source, under /hooks and never /api, built only where a public name is', () => {
+    expect(HOOKS.map((route) => `${route.method} ${route.path}`)).toEqual([
+      'POST /hooks/github',
+      'POST /hooks/slack',
+      'POST /hooks/linear',
+    ])
+    expect(routesFor({ ...OFF, enabled: true })).not.toContain(HOOKS[0])
+    const named = routesFor({ ...OFF, enabled: true, publicName: 'tade.example.com' })
+    for (const route of HOOKS) expect(named, route.path).toContain(route)
+  })
+
+  it('needs no session and no scope above read, and does none of the five jobs', () => {
+    for (const route of HOOKS) {
+      expect(route.public, route.path).toBe(true)
+      expect(route.mutates, route.path).toBe(true)
+      expect(route.needs, route.path).toBe('read')
+      expect(route.opens, route.path).toBeUndefined()
+      expect(route.here, route.path).toBeUndefined()
+      const jobs = [route.verb, route.says, route.saves, route.notifies, route.configures]
+      expect(
+        jobs.filter((one) => one !== undefined),
+        route.path,
+      ).toEqual([])
+      expect(route.path.split('/').at(-1), route.path).toBe(route.rings)
+    }
+    // And no other table has a route that rings, so no other door is one.
+    for (const route of [
+      ...ROUTES,
+      ...ACTS,
+      ...ASKS,
+      ...DRAFTS,
+      ...PUSHES,
+      ...SETTINGS,
+      ...OWNED,
+    ]) {
+      expect(route.rings, route.path).toBeUndefined()
+    }
   })
 })
 

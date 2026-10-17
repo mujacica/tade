@@ -218,6 +218,9 @@ export const linearIssues: ExtensionWatch = {
   about: 'repository',
   intake: 'linear',
   network: true,
+  // Rung by a Linear webhook for the team it was turned on with: an issue
+  // labelled or changed, or commented on.
+  doorbell: { source: 'linear', events: ['Issue', 'Comment'], input: 'team' },
   // One a look. The schedule's two is a ceiling on agents started, and this one
   // starts work on somebody else's words: three proposals from one poll is
   // three things a person has to read before they can do anything about any.

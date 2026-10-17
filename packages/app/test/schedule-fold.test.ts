@@ -94,3 +94,60 @@ describe('what a schedule has done, folded', () => {
     expect(fold.watchedOf('undefined').findings).toEqual([])
   })
 })
+
+describe('a watch’s doorbell, folded', () => {
+  // What `bellDue` slows the poll by (`hooks.ts`): a delivery that verified
+  // woke it, its source sent one that did not, or a look nothing rang for
+  // found something new. The next look after a wake is the doorbell's.
+  const rung = (minutes: number, detail: Record<string, unknown>) =>
+    line('hook_rung', minutes, { source: 'github', delivery: 'ab12', ...detail })
+
+  it('has no bell for a watch no delivery ever woke', () => {
+    const fold = folded([
+      looked(0, { since: 'x', fresh: ['k'] }),
+      rung(1, { verified: true, woke: ['other'] }),
+    ])
+    expect(fold.watchedOf('review').bell).toBeUndefined()
+  })
+
+  it('remembers the wake, and does not count the look it made as the poll missing anything', () => {
+    const fold = folded([
+      rung(10, { verified: true, woke: ['review', 'other'] }),
+      looked(10.1, { since: 'x', fresh: ['pr:1'] }),
+    ])
+    expect(fold.watchedOf('review').bell).toEqual({
+      source: 'github',
+      woke: T0 + 10 * 60_000,
+      refused: null,
+      missed: null,
+    })
+  })
+
+  it('counts a look nothing rang for that found something new as the poll finding what no delivery said', () => {
+    const fold = folded([
+      rung(10, { verified: true, woke: ['review'] }),
+      looked(10.1, { since: 'x' }),
+      looked(70, { since: 'y', fresh: ['pr:2'] }),
+      // A look that found nothing new, or could not look, is not that.
+      looked(80, { since: 'z' }),
+      looked(90, { problem: 'refused', fresh: ['pr:3'] }),
+    ])
+    expect(fold.watchedOf('review').bell?.missed).toBe(T0 + 70 * 60_000)
+  })
+
+  it('reads a delivery that did not verify against every schedule its source woke', () => {
+    const fold = folded([
+      rung(10, { verified: true, woke: ['review'] }),
+      rung(20, { verified: false, delivery: '', why: 'signature' }),
+      line('hook_rung', 30, { source: 'slack', delivery: '', verified: false }),
+    ])
+    expect(fold.watchedOf('review').bell?.refused).toBe(T0 + 20 * 60_000)
+  })
+
+  it('reads a line it cannot place as nothing', () => {
+    const fold = folded([
+      line('hook_rung', 1, { source: 'jira', verified: true, woke: ['review'] }),
+    ])
+    expect(fold.watchedOf('review').bell).toBeUndefined()
+  })
+})

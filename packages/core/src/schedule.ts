@@ -216,7 +216,7 @@ export function momentOf(
 const INTERVAL = /^(\d+)\s*(m|min|minutes?|h|hours?|d|days?)$/
 
 /** An interval's length, when `every` is one. */
-function intervalOf(every: string): number | null {
+export function intervalOf(every: string): number | null {
   const match = INTERVAL.exec(every.trim().toLowerCase())
   if (!match) return null
   const n = Number(match[1])

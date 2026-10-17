@@ -1,10 +1,10 @@
 import {
+  bellDue,
   DEFAULT_MOST,
   type Decides,
   type DoneRule,
   decidesOf,
   describeWhen,
-  dueNow,
   joined,
   madeByWords,
   newFindings,
@@ -114,6 +114,8 @@ export class Schedules implements Subject {
   private readonly fired = new Map<string, number>()
   /** Watches looking now, so a slow look is never started twice. */
   private readonly lookingWith = new Map<string, Promise<string>>()
+  /** Watches a doorbell rang for while they were looking: one more look each, after (`wake`). */
+  private readonly owed = new Set<string>()
   /** Whether this machine can reach a network: one answer, for every watch. */
   private readonly network: Network
   /** What `views` last made, kept: the fold asks for it every frame. */
@@ -404,7 +406,9 @@ export class Schedules implements Subject {
         runs.at(-1)?.due ?? Number.NEGATIVE_INFINITY,
         this.fired.get(one.id) ?? Number.NEGATIVE_INFINITY,
       )
-      const due = dueNow(one, Number.isFinite(last) ? last : null, ran, now)
+      // A watch a doorbell rings polls hourly while it does (`bellDue`, `hooks.ts`).
+      const watched = one.does.kind === 'watch' ? live.watchedOf(one.id) : undefined
+      const due = bellDue(one, Number.isFinite(last) ? last : null, ran, now, watched)
       if (!due) {
         // Another machine started looking with it: said now, not at its next look.
         if (this.handedOver(one)) await this.lookWith(one).catch((err) => this.wire.note(err))
@@ -485,9 +489,30 @@ export class Schedules implements Subject {
   lookWith(one: Schedule & { paused: boolean }, asked = false): Promise<string> {
     const running = this.lookingWith.get(one.id)
     if (running) return running
-    const looking = this.doLookWith(one, asked).finally(() => this.lookingWith.delete(one.id))
+    const looking = this.doLookWith(one, asked).finally(() => {
+      this.lookingWith.delete(one.id)
+      if (this.owed.delete(one.id)) this.wake(one.id)
+    })
     this.lookingWith.set(one.id, looking)
     return looking
+  }
+
+  /**
+   * A delivery rang this watch's doorbell (`wire/doorbell.ts`): it looks now,
+   * through the look its clock uses — or, where a look is under way, once more
+   * after it, because the one under way may have read the source before the
+   * thing the delivery was about. At most one owed, however many ring, which
+   * is what bounds a burst of deliveries to a look and the next. Read again at
+   * the wake, so a schedule paused or removed since is left alone.
+   */
+  wake(id: string): void {
+    const one = this.wire.opts.client.schedules().find((each) => each.id === id)
+    if (!one || one.paused || one.does.kind !== 'watch') return
+    if (this.lookingWith.has(id)) {
+      this.owed.add(id)
+      return
+    }
+    void this.lookWith(one).catch((err) => this.wire.note(err))
   }
 
   private async doLookWith(one: Schedule & { paused: boolean }, asked: boolean): Promise<string> {

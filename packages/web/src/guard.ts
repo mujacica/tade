@@ -51,6 +51,10 @@ import {
 //    proof younger than `passkey_hours` (`proven`), so a session copied off a
 //    phone reads and cannot act.
 //
+// A webhook delivery (`HOOKS`) is asked the first and no other, and only on
+// the public listener: it is a source's server and not a browser, and its
+// signature is what `hooked.ts` checks.
+//
 // All of them, because each fails differently and the cost of all of them is
 // this file. And **nothing here reads a forwarded header** (`NEVER_TRUSTED`,
 // `headers.ts`): the address is the socket's and the host is `Host`.
@@ -303,6 +307,19 @@ export function allowed(asking: Asking, route: Route, guarding: Guarding): Verdi
   // socket never gets as far as one, whatever it is told.
   if (route.here === true && !thisMachine(origin)) {
     return no('no_such', `${route.name} is answered on this machine alone`)
+  }
+  // **A delivery is not a browser's request** (`hooked.ts`): no browser sends
+  // one, so none of the cross-site layers below can apply to it and there is
+  // no session to ask for — what authenticates one is its signature over the
+  // raw body, checked before anything in it is parsed. The `Host` above still
+  // applies, and a delivery is answered on the public listener alone: it is a
+  // source's server on the internet, and anywhere else it is the `404` of a
+  // path nobody built.
+  if (route.rings !== undefined) {
+    if (origin.listener !== 'public') {
+      return no('no_such', `${route.name} is answered on the public listener alone`)
+    }
+    return { ok: true, device: '', scopes: [], origin }
   }
 
   // **Not on a document navigation**, and this is the correction somebody will
