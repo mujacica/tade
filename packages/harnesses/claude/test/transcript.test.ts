@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -11,6 +11,7 @@ import {
   spentIn,
   spentOn,
   transcriptFor,
+  turnIn,
 } from '../src/transcript.ts'
 
 const reply = (id: string, usage: Record<string, number>, model = 'claude-sonnet-5') =>
@@ -89,6 +90,29 @@ describe('a turn cut short', () => {
     expect(interruptedIn([reply('m1', {}), cut].join('\n'))).toBe(true)
     expect(interruptedIn([cut, reply('m2', {})].join('\n'))).toBe(false)
     expect(interruptedIn('')).toBe(false)
+  })
+})
+
+describe('a turn under way', () => {
+  const recorded = (name: string) =>
+    readFileSync(
+      fileURLToPath(
+        new URL(`../../../../test/fixtures/transcripts/claude-code/2.1/${name}`, import.meta.url),
+      ),
+      'utf8',
+    )
+
+  it('is read from the end of the transcript, since the words that began it', () => {
+    expect(turnIn(recorded('idle.jsonl'))).toBeNull()
+    // A subagent's reply that ended is its side conversation, not this turn.
+    expect(turnIn(recorded('mid-tool.jsonl'))).toEqual({
+      since: Date.parse('2026-09-11T10:00:00.000Z'),
+    })
+    expect(turnIn('')).toBeNull()
+  })
+
+  it('is over once somebody cut it short, behind its bookkeeping and a line still being written', () => {
+    expect(turnIn(recorded('orchestrator.jsonl'))).toBeNull()
   })
 })
 

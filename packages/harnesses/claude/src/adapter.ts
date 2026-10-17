@@ -47,6 +47,7 @@ import {
   type WorkerSignalListener,
   type WorkerSpec,
 } from '@tade/harnesses-core'
+import { UNHEARD } from './ask.ts'
 import { BACKGROUNDED } from './background.ts'
 import { claudeCapabilities, EFFORTS } from './capabilities.ts'
 import { type ChannelRequest, ClaudeChannel } from './channel.ts'
@@ -64,6 +65,7 @@ import {
   spentIn,
   spentOn,
   transcriptFor,
+  turnIn,
 } from './transcript.ts'
 import { trustFolder } from './trust.ts'
 
@@ -272,6 +274,12 @@ export class ClaudeAdapter implements WorkerAdapter {
   ]
 
   private readonly runs = new Map<string, Run>()
+  /**
+   * Runs being taken in, until whoever asked has them: what reaches one
+   * meanwhile waits, rather than being answered by nobody — which its hook
+   * took for heard, and dropped.
+   */
+  private readonly arriving = new Map<string, Promise<void>>()
   private readonly listeners = new Map<string, Set<WorkerSignalListener>>()
   private readonly opts: Required<Omit<ClaudeAdapterOptions, 'type' | 'home' | 'account'>> & {
     type: ClaudeAdapterOptions['type']
@@ -610,61 +618,88 @@ export class ClaudeAdapter implements WorkerAdapter {
 
   async supervise(spec: WorkerSpec): Promise<WorkerHandle> {
     if (this.runs.has(spec.run)) throw new Error(`run already started: ${spec.run}`)
-    // A folder Claude Code has never run in stops it with a question before
-    // anything starts; Tade answers it for the folders it starts agents in.
-    await trustFolder(spec.cwd, this.opts.configDir).catch((err) =>
-      this.opts.onWarning(
-        `could not mark ${spec.cwd} as trusted for Claude Code, so it will ask in its lane: ${(err as Error).message}`,
-      ),
-    )
-    const socket = runSocket(this.opts.socketDir, spec.run)
-    const channel = await ClaudeChannel.listen({
-      path: socket,
-      onRequest: (request) => this.onRequest(spec.run, request),
-      onWarning: this.opts.onWarning,
+    let arrived = (): void => {}
+    const arriving = new Promise<void>((resolve) => {
+      arrived = resolve
     })
-    // What its hooks could not tell while Tade was away (`missed.ts`), once it
-    // can be told: taken either way, since a launch is a new process and what
-    // an old one left is not about it.
-    const missed = await takeMissed(socket).catch((err: unknown) => {
-      this.opts.onWarning(
-        `could not read the turn a Claude Code agent ended while Tade was away, so it is not said: ${(err as Error).message}`,
+    this.arriving.set(spec.run, arriving)
+    let taken = (): void => {}
+    try {
+      // A folder Claude Code has never run in stops it with a question before
+      // anything starts; Tade answers it for the folders it starts agents in.
+      await trustFolder(spec.cwd, this.opts.configDir).catch((err) =>
+        this.opts.onWarning(
+          `could not mark ${spec.cwd} as trusted for Claude Code, so it will ask in its lane: ${(err as Error).message}`,
+        ),
       )
-      return null
-    })
-    const run: Run = {
-      handle: {
-        run: spec.run,
-        task: spec.task,
-        sessionId: sessionIdFor(spec.task),
-        startedAt: Date.now(),
-        lane: spec.lane ?? null,
-      },
-      channel,
-      child: null,
-      stderr: '',
-      cwd: spec.cwd,
-      turn: 'starting',
-      queued: [],
-      naming: null,
-      typing: Promise.resolve(),
-      held: new Map(),
-      calls: new Map(),
-      named: Boolean(spec.title),
-      titled: false,
-      transcript: await transcriptFor(spec.task, this.opts.configDir),
-      // A conversation it comes back to arrives with its history, which was
-      // reported by whoever was watching then: counted from here, not from zero.
-      spent: await spentOn(spec.task, this.opts.configDir),
-      cost: 0,
-      model: spec.model ? modelName(spec.model) : null,
-      context: null,
-      counting: null,
+      const socket = runSocket(this.opts.socketDir, spec.run)
+      const channel = await ClaudeChannel.listen({
+        path: socket,
+        onRequest: (request) => this.onRequest(spec.run, request),
+        onWarning: this.opts.onWarning,
+      })
+      // What its hooks could not tell while Tade was away (`missed.ts`), once it
+      // can be told: taken either way, since a launch is a new process and what
+      // an old one left is not about it.
+      const missed = await takeMissed(socket).catch((err: unknown) => {
+        this.opts.onWarning(
+          `could not read the turn a Claude Code agent ended while Tade was away, so it is not said: ${(err as Error).message}`,
+        )
+        return null
+      })
+      const transcript = await transcriptFor(spec.task, this.opts.configDir)
+      const text = transcript
+        ? await readFile(transcript, 'utf8').catch((err: unknown) => {
+            this.opts.onWarning(
+              `could not read ${transcript}, so a Claude Code agent's spend is counted from nothing and, taken back, it is taken to be between turns: ${(err as Error).message}`,
+            )
+            return ''
+          })
+        : ''
+      const run: Run = {
+        handle: {
+          run: spec.run,
+          task: spec.task,
+          sessionId: sessionIdFor(spec.task),
+          startedAt: Date.now(),
+          lane: spec.lane ?? null,
+        },
+        channel,
+        child: null,
+        stderr: '',
+        cwd: spec.cwd,
+        turn: 'starting',
+        queued: [],
+        naming: null,
+        typing: Promise.resolve(),
+        held: new Map(),
+        calls: new Map(),
+        named: Boolean(spec.title),
+        titled: false,
+        transcript,
+        // A conversation it comes back to arrives with its history, which was
+        // reported by whoever was watching then: counted from here, not from zero.
+        spent: spentIn(text),
+        cost: 0,
+        model: spec.model ? modelName(spec.model) : null,
+        context: null,
+        counting: null,
+      }
+      this.runs.set(spec.run, run)
+      if (spec.alreadyRunning) {
+        const under = turnIn(text)
+        taken = () => this.takenBack(run, missed, under)
+      }
+      return { ...run.handle }
+    } finally {
+      // On the next turn of the loop, once whoever took it has the run: where
+      // it is first, then whatever reached it meanwhile.
+      setTimeout(() => {
+        taken()
+        if (this.arriving.get(spec.run) === arriving) this.arriving.delete(spec.run)
+        arrived()
+      }, 0)
     }
-    this.runs.set(spec.run, run)
-    // On the next turn of the loop, once whoever took it back has the run.
-    if (missed && spec.alreadyRunning) setTimeout(() => this.sayMissed(run, missed), 0)
-    return { ...run.handle }
   }
 
   /**
@@ -1055,8 +1090,12 @@ export class ClaudeAdapter implements WorkerAdapter {
   // --- what the agent says ------------------------------------------------------
 
   private async onRequest(run: RunId, request: ChannelRequest): Promise<unknown> {
+    // Reaching a run while it is taken in, it waits until it is (`arriving`).
+    await this.arriving.get(run)
     const entry = this.runs.get(run)
-    if (!entry) return {}
+    // Nobody here to hear it — a run let go of, or never taken back — and said
+    // so, for a hook to keep what it had to say for a window that does.
+    if (!entry) return UNHEARD
     switch (request.kind) {
       case 'hook':
         return { output: await this.onHook(entry, request.event) }
@@ -1270,24 +1309,33 @@ export class ClaudeAdapter implements WorkerAdapter {
   }
 
   /**
-   * The turn that ended while Tade was away, said now it is back: when it
-   * ended, then where it is — idle, or in a turn begun since — unless a hook
-   * has already said that since it was taken back. Said once, because what
-   * said it was taken (`missed.ts`).
+   * A run taken back, once whoever took it has it: the turn that ended while
+   * Tade was away, said when it ended (`missed.ts`), then where it is now — in
+   * a turn, since it began, where what was left or its transcript (`turnIn`)
+   * says one is under way, and idle where neither does — unless a hook has
+   * said since. No hook says either until a turn ends, so one taken back idle
+   * stayed `starting`: drawn as working, and everything said to it held.
    */
-  private sayMissed(entry: Run, missed: Missed): void {
+  private takenBack(
+    entry: Run,
+    missed: Missed | null,
+    under: { since: number | null } | null,
+  ): void {
     if (this.runs.get(entry.handle.run) !== entry) return
-    const failed = missed.event.hook_event_name === 'StopFailure'
-    const reason = failed ? failureIn(missed.event) : undefined
-    this.say(
-      entry,
-      { type: 'turn_done', status: failed ? 'error' : 'ok', ...(reason ? { reason } : {}) },
-      missed.at,
-    )
+    if (missed) {
+      const failed = missed.event.hook_event_name === 'StopFailure'
+      const reason = failed ? failureIn(missed.event) : undefined
+      this.say(
+        entry,
+        { type: 'turn_done', status: failed ? 'error' : 'ok', ...(reason ? { reason } : {}) },
+        missed.at,
+      )
+    }
     if (entry.turn !== 'starting') return
-    if (missed.began !== undefined) {
+    const began = missed?.began ?? (under ? (under.since ?? Date.now()) : undefined)
+    if (began !== undefined) {
       entry.turn = 'running'
-      this.say(entry, { type: 'turn_started' }, missed.began)
+      this.say(entry, { type: 'turn_started' }, began)
       return
     }
     entry.turn = 'idle'

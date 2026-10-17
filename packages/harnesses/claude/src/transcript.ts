@@ -144,6 +144,61 @@ export function interruptedIn(tail: string): boolean {
 }
 
 /**
+ * The turn under way at the end of a transcript, and when it began where it
+ * says; null when none is. What a window taking an agent back reads, because
+ * no hook says anything until that turn ends: a reply cut off waiting on a
+ * tool it called, an answer it has not replied to, or words it has not
+ * answered yet are a turn; a reply that ended, or a turn somebody cut short,
+ * is not. Its own slash commands between turns are not words said to it.
+ */
+export function turnIn(text: string): { since: number | null } | null {
+  const lines = text.trimEnd().split('\n')
+  let under = false
+  for (let n = lines.length - 1; n >= 0; n--) {
+    let entry: {
+      type?: unknown
+      timestamp?: unknown
+      isSidechain?: unknown
+      isMeta?: unknown
+      isCompactSummary?: unknown
+      message?: { stop_reason?: unknown; content?: unknown }
+    }
+    try {
+      entry = JSON.parse(lines[n] ?? '')
+    } catch (err) {
+      // A half-written last line is what a live transcript looks like.
+      if (err instanceof SyntaxError) continue
+      throw err
+    }
+    if (typeof entry !== 'object' || entry === null || entry.isSidechain === true) continue
+    if (entry.type === 'assistant') {
+      if (under) continue
+      const stop = entry.message?.stop_reason
+      // Still replying, or waiting on what it called; any other reason ended it.
+      if (stop === 'tool_use' || stop === null || stop === undefined) under = true
+      else return null
+      continue
+    }
+    if (entry.type !== 'user' || entry.isMeta === true || entry.isCompactSummary === true) continue
+    const content = entry.message?.content
+    if (Array.isArray(content) && content.some((part) => part?.type === 'tool_result')) {
+      under = true
+      continue
+    }
+    const said =
+      typeof content === 'string'
+        ? content
+        : Array.isArray(content)
+          ? content.map((part) => (part as { text?: unknown }).text ?? '').join('')
+          : ''
+    if (said.startsWith('<command-') || said.startsWith('<local-command-')) continue
+    if (said.startsWith('[Request interrupted by user')) return under ? { since: null } : null
+    return { since: momentOf(entry.timestamp) || null }
+  }
+  return under ? { since: null } : null
+}
+
+/**
  * A page of a task's conversation, out of its transcript (`historyIn`), with
  * each tool called by the name the adapter gives it.
  */

@@ -14,6 +14,7 @@ import {
   spentIn,
   spentOn,
   threadOf,
+  turnIn,
   whoIn,
 } from '../src/sessions.ts'
 
@@ -112,6 +113,21 @@ describe('what a rollout says', () => {
     expect(spentIn('not json at all').tokens).toBe(0)
     expect(contextIn('{"type":"nonsense"}')).toBeNull()
     expect(limitsIn('{}', 1)).toBeNull()
+  })
+})
+
+describe('a turn under way', () => {
+  it('is read from where Codex wrote a turn starting and ending, since it started', () => {
+    expect(turnIn(readFileSync(fixture(`0.154/${ROLLOUT}`), 'utf8'))).toBeNull()
+    const asking = readFileSync(
+      fixture('0.104/rollout-2026-09-11T10-00-00-aaaaaaaa-0000-7000-8000-000000000002.jsonl'),
+      'utf8',
+    )
+    expect(turnIn(asking)).toEqual({ since: Date.parse('2026-09-11T10:00:01.000Z') })
+    const cut =
+      '{"timestamp":"2026-09-11T10:00:09.000Z","type":"event_msg","payload":{"type":"turn_aborted"}}'
+    expect(turnIn(`${asking}${cut}\n`)).toBeNull()
+    expect(turnIn('')).toBeNull()
   })
 })
 

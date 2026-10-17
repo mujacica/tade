@@ -22,6 +22,7 @@ import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 
 interface Ask {
   SOCKET: string | undefined
+  UNHEARD: unknown
   ask: (request: unknown, wait?: number) => Promise<unknown>
   reach: (request: unknown, wait?: number) => Promise<{ reply: unknown; reached: boolean }>
   readInput: () => Promise<Record<string, unknown> | null>
@@ -132,6 +133,17 @@ describe('asking Tade', () => {
     const at = await listening((_line, _say, hangUp) => hangUp())
     const there = await launchedWith(at.path)
     expect(await there.reach({ kind: 'hook' })).toEqual({ reply: null, reached: true })
+  })
+
+  it('says a question was not heard where the window says it has nobody to hear it', async () => {
+    // A run it has let go of, or has not taken back yet: what the hook had to
+    // say is kept for the window that does (`missed.ts`), and a tool call
+    // nobody can approve is refused rather than taken for approved.
+    const { UNHEARD } = await launchedWith(undefined)
+    const at = await listening((_line, say) => say(`${JSON.stringify(UNHEARD)}\n`))
+    const there = await launchedWith(at.path)
+    expect(await there.reach({ kind: 'hook' })).toEqual({ reply: null, reached: false })
+    expect(await there.ask({ kind: 'done', summary: 'finished' })).toBeNull()
   })
 
   it('is null where the answer is not JSON', async () => {

@@ -1,14 +1,17 @@
-import { spawn } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import {
   chmodSync,
   existsSync,
   lstatSync,
   mkdirSync,
   readFileSync,
+  rmSync,
   statSync,
   utimesSync,
   writeFileSync,
 } from 'node:fs'
+import { writeFile } from 'node:fs/promises'
+import { connect } from 'node:net'
 import { dirname, join } from 'node:path'
 import type { HarnessAccount, WorkerSignal } from '@tade/harnesses-core'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -45,6 +48,32 @@ function run(
     child.on('exit', (code) => resolve({ stdout, code }))
     child.stdin.end(input)
   })
+}
+
+/**
+ * Ask the window over a run's socket from here, as a hook does: `sent` once
+ * the question is on its way and the loop has turned for the window to read
+ * it, `reply` once it is answered.
+ */
+function askAt(socket: string, request: unknown): { sent: Promise<void>; reply: Promise<unknown> } {
+  const asking = connect(socket)
+  const sent = new Promise<void>((resolve) => {
+    asking.on('connect', () =>
+      asking.write(`${JSON.stringify(request)}\n`, () => setImmediate(resolve)),
+    )
+  })
+  const reply = new Promise<unknown>((resolve, reject) => {
+    let buffer = ''
+    asking.on('data', (chunk: Buffer) => {
+      buffer += chunk.toString('utf8')
+      const end = buffer.indexOf('\n')
+      if (end < 0) return
+      resolve(JSON.parse(buffer.slice(0, end)))
+      asking.destroy()
+    })
+    asking.on('error', reject)
+  })
+  return { sent, reply }
 }
 
 describe('ClaudeAdapter', () => {
@@ -338,23 +367,68 @@ describe('ClaudeAdapter', () => {
     // Under tmux the agent goes on while Tade is closed, and every hook it runs
     // then finds nobody listening. The window that comes back is another
     // adapter on the same folders, taking the run back as the workbench does.
-    const comeBack = async (
-      was: Awaited<ReturnType<typeof setUp>>,
-      how: { alreadyRunning?: boolean } = { alreadyRunning: true },
-    ) => {
+    const backAs = (was: Awaited<ReturnType<typeof setUp>>) => {
       const warnings: string[] = []
+      const typed: string[] = []
       const back = new ClaudeAdapter({
         runDir: was.runDir,
         configDir: was.account,
         home: tmp('tade-claude-home-'),
-        type: async () => {},
+        type: async (_run, text) => {
+          typed.push(text)
+        },
         onWarning: (message) => warnings.push(message),
       })
       adapter = back
       const signals: WorkerSignal[] = []
       back.onSignal(was.spec.run, (signal) => signals.push(signal))
-      await back.supervise({ ...was.spec, ...how })
-      return { back, signals, warnings, kinds: () => signals.map((signal) => signal.type) }
+      return { back, signals, warnings, typed, kinds: () => signals.map((signal) => signal.type) }
+    }
+    const comeBack = async (
+      was: Awaited<ReturnType<typeof setUp>>,
+      how: { alreadyRunning?: boolean } = { alreadyRunning: true },
+    ) => {
+      const window = backAs(was)
+      await window.back.supervise({ ...was.spec, ...how })
+      return window
+    }
+    /** The task's conversation as Claude Code wrote it down, by the time the window came back. */
+    const transcribed = (was: Awaited<ReturnType<typeof setUp>>, entries: object[]) => {
+      const dir = join(was.account, 'projects', '-work-checkout')
+      mkdirSync(dir, { recursive: true })
+      const text = entries.map((entry) => `${JSON.stringify(entry)}\n`).join('')
+      writeFileSync(join(dir, `${sessionIdFor(was.spec.task)}.jsonl`), text)
+    }
+    const asked = {
+      type: 'user',
+      timestamp: '2026-10-17T09:00:00.000Z',
+      message: { role: 'user', content: 'commit and push' },
+    }
+    const calling = {
+      type: 'assistant',
+      timestamp: '2026-10-17T09:00:05.000Z',
+      message: {
+        role: 'assistant',
+        stop_reason: 'tool_use',
+        content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'git push' } }],
+      },
+    }
+    const answered = {
+      type: 'user',
+      timestamp: '2026-10-17T09:00:09.000Z',
+      message: {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: 't1', content: 'ok' }],
+      },
+    }
+    const replied = {
+      type: 'assistant',
+      timestamp: '2026-10-17T09:00:12.000Z',
+      message: {
+        role: 'assistant',
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: 'Pushed.' }],
+      },
     }
 
     it('says a turn that ended while Tade was away once it is back, when it ended, and once', async () => {
@@ -386,7 +460,8 @@ describe('ClaudeAdapter', () => {
       await back.detach()
       const again = await comeBack(was)
       await was.hook({ hook_event_name: 'UserPromptSubmit', prompt: '<task-notification>' })
-      expect(again.kinds()).toEqual(['turn_started'])
+      // Idle as it was taken back, with no turn left to say and none under way.
+      expect(again.kinds()).toEqual(['idle', 'turn_started'])
     })
 
     it('says a turn begun since as under way, and its end when Tade is there to hear it', async () => {
@@ -415,7 +490,8 @@ describe('ClaudeAdapter', () => {
       writeFileSync(missedPath(runSocket(was.runDir, was.spec.run)), '{"at":')
       const { kinds, warnings } = await comeBack(was)
       expect(warnings).toEqual([expect.stringContaining('is not a turn that ended')])
-      expect(kinds()).toEqual([])
+      await until(() => kinds().length > 0)
+      expect(kinds()).toEqual(['idle'])
     })
 
     it('says nothing of it to a launch, which is a new process, and forgets it', async () => {
@@ -429,6 +505,98 @@ describe('ClaudeAdapter', () => {
       expect(existsSync(kept)).toBe(false)
       await was.hook({ hook_event_name: 'SessionStart', session_id: 's' })
       expect(launched.kinds()).toEqual(['started'])
+    })
+
+    it('says a run taken back between turns is idle, so what is said to it is typed rather than held', async () => {
+      const was = await setUp()
+      await was.hook({ hook_event_name: 'SessionStart', session_id: 's' })
+      await was.hook({ hook_event_name: 'UserPromptSubmit', prompt: 'commit and push' })
+      await was.hook({ hook_event_name: 'Stop', last_assistant_message: 'Pushed.' })
+      await was.adapter.detach()
+      // It missed nothing: its turn ended with Tade there, and none began since.
+      // A name it was given after is its own command, not a turn.
+      transcribed(was, [
+        asked,
+        calling,
+        answered,
+        replied,
+        { type: 'system', subtype: 'turn_duration', durationMs: 12_000 },
+        {
+          type: 'user',
+          isMeta: true,
+          message: {
+            role: 'user',
+            content: '<local-command-caveat>Caveat: …</local-command-caveat>',
+          },
+        },
+        {
+          type: 'user',
+          message: { role: 'user', content: '<command-name>/rename</command-name>' },
+        },
+        {
+          type: 'user',
+          message: {
+            role: 'user',
+            content: '<local-command-stdout>Renamed</local-command-stdout>',
+          },
+        },
+        { type: 'last-prompt', lastPrompt: 'commit and push' },
+      ])
+
+      const { back, kinds, typed } = await comeBack(was)
+      await until(() => kinds().includes('idle'))
+      expect(kinds()).toEqual(['idle'])
+      await back.queue(was.spec.run, 'then open a PR')
+      expect(typed.join('')).toContain('then open a PR')
+    })
+
+    it('says a run taken back in the middle of a turn is in one, since it began, and hears it end', async () => {
+      const was = await setUp()
+      await was.hook({ hook_event_name: 'SessionStart', session_id: 's' })
+      await was.hook({ hook_event_name: 'UserPromptSubmit', prompt: 'commit and push' })
+      await was.adapter.detach()
+      transcribed(was, [asked, calling, answered])
+
+      const { back, signals, kinds, typed } = await comeBack(was)
+      await until(() => kinds().includes('turn_started'))
+      expect(kinds()).toEqual(['turn_started'])
+      expect(signals[0]?.at).toBe(Date.parse(asked.timestamp))
+      // Held for the end of the turn it is in, as anything queued is.
+      await back.queue(was.spec.run, 'then open a PR')
+      expect(typed).toEqual([])
+      await was.hook({ hook_event_name: 'Stop', last_assistant_message: 'Pushed.' })
+      await until(() => typed.join('').includes('then open a PR'))
+      expect(kinds()).toEqual(['turn_started', 'message', 'turn_done', 'idle'])
+    })
+
+    it('answers a hook that reaches it while it takes the run back once it has the run, rather than losing it', async () => {
+      const was = await setUp()
+      await was.hook({ hook_event_name: 'SessionStart', session_id: 's' })
+      await was.adapter.detach()
+      await was.hook({ hook_event_name: 'Stop', last_assistant_message: 'Done.' })
+      await was.hook({ hook_event_name: 'UserPromptSubmit', prompt: '<task-notification>' })
+      // What was left is read once the window is listening, and before it has
+      // the run: left as a pipe nobody has written to yet, it holds the window
+      // there for as long as the test likes.
+      const socket = runSocket(was.runDir, was.spec.run)
+      const left = readFileSync(missedPath(socket), 'utf8')
+      rmSync(missedPath(socket))
+      execFileSync('mkfifo', [missedPath(socket)])
+      const { back, kinds } = backAs(was)
+      const taken = back.supervise({ ...was.spec, alreadyRunning: true })
+      await until(() => existsSync(`${missedPath(socket)}.taking`))
+
+      // The turn begun while Tade was away ends now, in between.
+      const stop = askAt(socket, {
+        kind: 'hook',
+        event: { hook_event_name: 'Stop', last_assistant_message: 'Pushed.' },
+      })
+      await stop.sent
+      await writeFile(`${missedPath(socket)}.taking`, left)
+      await taken
+      expect(await stop.reply).toEqual({ output: null })
+      await until(() => kinds().includes('idle'))
+      expect(kinds()).toEqual(['turn_done', 'turn_started', 'message', 'turn_done', 'idle'])
     })
 
     it('leaves nothing where Tade heard it', async () => {

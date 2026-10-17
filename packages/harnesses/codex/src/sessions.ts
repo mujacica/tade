@@ -97,8 +97,10 @@ async function sorted(dir: string): Promise<string[]> {
 }
 
 /** One rollout line, when it is one: `{type, payload}` and nothing assumed of the payload. */
-function entries(text: string): { type: string; payload: Record<string, unknown> }[] {
-  const found: { type: string; payload: Record<string, unknown> }[] = []
+function entries(
+  text: string,
+): { type: string; payload: Record<string, unknown>; timestamp: unknown }[] {
+  const found: { type: string; payload: Record<string, unknown>; timestamp: unknown }[] = []
   for (const line of text.split('\n')) {
     if (!line.trim()) continue
     let raw: unknown
@@ -109,10 +111,14 @@ function entries(text: string): { type: string; payload: Record<string, unknown>
       continue
     }
     if (typeof raw !== 'object' || raw === null) continue
-    const { type, payload } = raw as { type?: unknown; payload?: unknown }
+    const { type, payload, timestamp } = raw as {
+      type?: unknown
+      payload?: unknown
+      timestamp?: unknown
+    }
     if (typeof type !== 'string') continue
     if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) continue
-    found.push({ type, payload: payload as Record<string, unknown> })
+    found.push({ type, payload: payload as Record<string, unknown>, timestamp })
   }
   return found
 }
@@ -187,6 +193,22 @@ export async function spentOn(
   const file = await rolloutFor(thread, codexHome)
   if (!file) return noHarnessSpend()
   return spentIn(await readFile(file, 'utf8').catch(() => ''))
+}
+
+/**
+ * The turn under way at the end of a rollout, and when it began where it says;
+ * null when none is. What a window taking an agent back reads, because no hook
+ * says anything until that turn ends: Codex writes down a turn's start and its
+ * end, finished or cut short, and only those decide.
+ */
+export function turnIn(text: string): { since: number | null } | null {
+  let under: { since: number | null } | null = null
+  for (const { type, payload, timestamp } of entries(text)) {
+    if (type !== 'event_msg') continue
+    if (payload.type === 'task_started') under = { since: momentOf(timestamp) || null }
+    else if (payload.type === 'task_complete' || payload.type === 'turn_aborted') under = null
+  }
+  return under
 }
 
 /** The model a rollout's last turn ran on, as Codex wrote it down. */

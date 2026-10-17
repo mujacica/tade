@@ -1,5 +1,15 @@
-import { spawn } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs'
+import { execFileSync, spawn } from 'node:child_process'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs'
+import { writeFile } from 'node:fs/promises'
+import { connect } from 'node:net'
 import { dirname, join } from 'node:path'
 import type { WorkerSignal } from '@tade/harnesses-core'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -53,6 +63,32 @@ function run(
     child.on('exit', (code) => resolve({ stdout, code }))
     child.stdin.end(input)
   })
+}
+
+/**
+ * Ask the window over a run's socket from here, as a hook does: `sent` once
+ * the question is on its way and the loop has turned for the window to read
+ * it, `reply` once it is answered.
+ */
+function askAt(socket: string, request: unknown): { sent: Promise<void>; reply: Promise<unknown> } {
+  const asking = connect(socket)
+  const sent = new Promise<void>((resolve) => {
+    asking.on('connect', () =>
+      asking.write(`${JSON.stringify(request)}\n`, () => setImmediate(resolve)),
+    )
+  })
+  const reply = new Promise<unknown>((resolve, reject) => {
+    let buffer = ''
+    asking.on('data', (chunk: Buffer) => {
+      buffer += chunk.toString('utf8')
+      const end = buffer.indexOf('\n')
+      if (end < 0) return
+      resolve(JSON.parse(buffer.slice(0, end)))
+      asking.destroy()
+    })
+    asking.on('error', reject)
+  })
+  return { sent, reply }
 }
 
 describe('CodexAdapter', () => {
@@ -347,24 +383,71 @@ describe('CodexAdapter', () => {
     // Under tmux the agent goes on while Tade is closed, and every hook it runs
     // then finds nobody listening. The window that comes back is another
     // adapter on the same folders, taking the run back as the workbench does.
-    const comeBack = async (
+    const backAs = (
       was: Awaited<ReturnType<typeof setUp>>,
-      how: { alreadyRunning?: boolean } = { alreadyRunning: true },
+      approvals: 'bypass' | 'policy' = 'bypass',
     ) => {
       const warnings: string[] = []
+      const typed: string[] = []
       const back = new CodexAdapter({
         runDir: was.runDir,
         codexHome: was.codexHome,
         home: tmp('tade-codex-home-'),
         bin: '/nonexistent/codex',
-        type: async () => {},
+        approvals,
+        type: async (_run, text) => {
+          typed.push(text)
+        },
         onWarning: (message) => warnings.push(message),
       })
       adapter = back
       const signals: WorkerSignal[] = []
       back.onSignal(was.spec.run, (signal) => signals.push(signal))
-      await back.supervise({ ...was.spec, ...how })
-      return { back, signals, warnings, kinds: () => signals.map((signal) => signal.type) }
+      return { back, signals, warnings, typed, kinds: () => signals.map((signal) => signal.type) }
+    }
+    const comeBack = async (
+      was: Awaited<ReturnType<typeof setUp>>,
+      how: { alreadyRunning?: boolean } = { alreadyRunning: true },
+    ) => {
+      const window = backAs(was)
+      await window.back.supervise({ ...was.spec, ...how })
+      return window
+    }
+    /** The thread's rollout as Codex wrote it down, by the time the window came back. */
+    const rolledOut = (was: Awaited<ReturnType<typeof setUp>>, events: object[]) => {
+      const dir = join(was.codexHome, 'sessions', '2026', '10', '17')
+      mkdirSync(dir, { recursive: true })
+      const text = events.map((event) => `${JSON.stringify(event)}\n`).join('')
+      writeFileSync(join(dir, 'rollout-2026-10-17T09-00-00-thread-1.jsonl'), text)
+    }
+    const began = {
+      timestamp: '2026-10-17T09:00:00.000Z',
+      type: 'event_msg',
+      payload: { type: 'task_started' },
+    }
+    const asked = {
+      timestamp: '2026-10-17T09:00:00.100Z',
+      type: 'event_msg',
+      payload: { type: 'user_message', message: 'commit and push' },
+    }
+    const calling = {
+      timestamp: '2026-10-17T09:00:05.000Z',
+      type: 'response_item',
+      payload: { type: 'function_call', name: 'shell', arguments: '{"command":["git","push"]}' },
+    }
+    const replied = {
+      timestamp: '2026-10-17T09:00:12.000Z',
+      type: 'response_item',
+      payload: {
+        type: 'message',
+        role: 'assistant',
+        content: [{ type: 'output_text', text: 'Pushed.' }],
+      },
+    }
+    const ended = {
+      timestamp: '2026-10-17T09:00:12.500Z',
+      type: 'event_msg',
+      payload: { type: 'task_complete' },
     }
 
     it('says a turn cut short while Tade was away once it is back, when it ended, and once', async () => {
@@ -390,7 +473,8 @@ describe('CodexAdapter', () => {
       await back.detach()
       const again = await comeBack(was)
       await was.hook({ hook_event_name: 'UserPromptSubmit', prompt: '<task-notification>' })
-      expect(again.kinds()).toEqual(['turn_started'])
+      // Idle as it was taken back, with no turn left to say and none under way.
+      expect(again.kinds()).toEqual(['idle', 'turn_started'])
     })
 
     it('says a turn begun since as under way, so its end is heard when it comes', async () => {
@@ -415,7 +499,8 @@ describe('CodexAdapter', () => {
       writeFileSync(missedPath(runSocket(was.runDir, was.spec.run)), '{"at":')
       const { kinds, warnings } = await comeBack(was)
       expect(warnings).toEqual([expect.stringContaining('is not a turn that ended')])
-      expect(kinds()).toEqual([])
+      await until(() => kinds().length > 0)
+      expect(kinds()).toEqual(['idle'])
     })
 
     it('says nothing of it to a launch, which is a new process, and forgets it', async () => {
@@ -429,6 +514,88 @@ describe('CodexAdapter', () => {
       expect(existsSync(kept)).toBe(false)
       await was.hook(started())
       expect(launched.kinds()).toEqual(['started'])
+    })
+    it('says a run taken back between turns is idle, so what is said to it is typed rather than held', async () => {
+      const was = await setUp()
+      await was.hook(started())
+      await was.hook({ hook_event_name: 'UserPromptSubmit', prompt: 'commit and push' })
+      await was.hook({ hook_event_name: 'Stop', last_assistant_message: 'Pushed.' })
+      await was.adapter.detach()
+      // It missed nothing: its turn ended with Tade there, and none began since.
+      rolledOut(was, [began, asked, calling, replied, ended])
+
+      const { back, kinds, typed } = await comeBack(was)
+      await until(() => kinds().includes('idle'))
+      expect(kinds()).toEqual(['idle'])
+      await back.queue(was.spec.run, 'then open a PR')
+      expect(typed.join('')).toContain('then open a PR')
+    })
+
+    it('says a run taken back in the middle of a turn is in one, since it began, and hears it end', async () => {
+      const was = await setUp()
+      await was.hook(started())
+      await was.hook({ hook_event_name: 'UserPromptSubmit', prompt: 'commit and push' })
+      await was.adapter.detach()
+      rolledOut(was, [began, asked, calling])
+
+      const { back, signals, kinds, typed } = await comeBack(was)
+      await until(() => kinds().includes('turn_started'))
+      expect(kinds()).toEqual(['turn_started'])
+      expect(signals[0]?.at).toBe(Date.parse(began.timestamp))
+      await back.queue(was.spec.run, 'then open a PR')
+      expect(typed).toEqual([])
+      await was.hook({ hook_event_name: 'Stop', last_assistant_message: 'Pushed.' })
+      await until(() => typed.join('').includes('then open a PR'))
+      expect(kinds()).toEqual(['turn_started', 'message', 'turn_done', 'idle'])
+    })
+
+    it('holds a tool call that reaches it while it takes the run back for a person, rather than letting it through', async () => {
+      const was = await setUp('policy')
+      await was.hook(started())
+      await was.adapter.detach()
+      await was.hook({ hook_event_name: 'Stop', last_assistant_message: 'Done.' })
+      await was.hook({ hook_event_name: 'UserPromptSubmit', prompt: 'clean up' })
+      // What was left is read once the window is listening, and before it has
+      // the run: left as a pipe nobody has written to yet, it holds the window
+      // there for as long as the test likes.
+      const socket = runSocket(was.runDir, was.spec.run)
+      const left = readFileSync(missedPath(socket), 'utf8')
+      rmSync(missedPath(socket))
+      execFileSync('mkfifo', [missedPath(socket)])
+      const { back, signals, kinds } = backAs(was, 'policy')
+      const taken = back.supervise({ ...was.spec, alreadyRunning: true })
+      await until(() => existsSync(`${missedPath(socket)}.taking`))
+
+      const call = askAt(socket, {
+        kind: 'hook',
+        event: {
+          hook_event_name: 'PreToolUse',
+          tool_name: 'Bash',
+          tool_input: { command: 'rm -rf build' },
+          tool_use_id: 'c1',
+        },
+      })
+      await call.sent
+      await writeFile(`${missedPath(socket)}.taking`, left)
+      await taken
+      await until(() => kinds().includes('permission_request'))
+      expect(signals.find((signal) => signal.type === 'permission_request')).toMatchObject({
+        summary: 'Bash: rm -rf build',
+      })
+      await back.decide(was.spec.run, 'c1', { allow: false, reason: 'not that one' })
+      expect(await call.reply).toMatchObject({
+        output: { hookSpecificOutput: { permissionDecision: 'deny' } },
+      })
+    })
+  })
+
+  describe('a run whose session it never heard start', () => {
+    it('hears a turn end all the same, as Claude Code does, rather than dropping it', async () => {
+      // A SessionStart that took longer than its hook waits was answered by
+      // nobody, so the run is still `starting` when the turn it began ends.
+      const { hook, kinds } = await setUp()
+      await hook({ hook_event_name: 'Stop', last_assistant_message: 'Pushed.' })
+      expect(kinds()).toEqual(['message', 'turn_done', 'idle'])
     })
   })
 

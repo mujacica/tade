@@ -11,6 +11,13 @@ import { connect } from 'node:net'
 export const SOCKET = process.env.TADE_RUN_SOCKET
 
 /**
+ * What a window answers for a run it does not have — one it has let go of, or
+ * has not taken back yet — so that nobody there to hear it is not taken for
+ * having been heard.
+ */
+export const UNHEARD = { unheard: true } as const
+
+/**
  * Tade's answer, or null when it cannot be asked — no Tade, a window that
  * closed, an answer that never came. `wait` is how long an answer may take:
  * a tool call held for a person waits for as long as they take.
@@ -21,8 +28,9 @@ export async function ask(request: unknown, wait = 5_000): Promise<unknown> {
 
 /**
  * The same, and whether the question reached Tade at all. Only nobody
- * listening says it was never heard: a window that took it and then said
- * nothing, or nothing readable, may have heard every word.
+ * listening, or a window saying it has nobody to hear it (`UNHEARD`), says it
+ * was never heard: a window that took it and then said nothing, or nothing
+ * readable, may have heard every word.
  */
 export function reach(
   request: unknown,
@@ -51,11 +59,15 @@ export function reach(
       buffer += chunk.toString('utf8')
       const end = buffer.indexOf('\n')
       if (end < 0) return
+      let reply: unknown
       try {
-        done(JSON.parse(buffer.slice(0, end)))
+        reply = JSON.parse(buffer.slice(0, end))
       } catch {
         done(null)
+        return
       }
+      if ((reply as { unheard?: unknown } | null)?.unheard === true) reached = false
+      done(reached ? reply : null)
     })
     socket.on('error', () => done(null))
     socket.on('close', () => done(null))

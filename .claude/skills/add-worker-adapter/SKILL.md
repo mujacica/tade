@@ -389,7 +389,12 @@ through Tade, so a `/compact` is not theirs to send. Two declarations and one me
   hooks are processes that ask once and exit, so the one that found nobody listening (`reach`)
   leaves it beside the run's socket (`missed.ts`) for `supervise` to take — said only to a run taken
   back (`alreadyRunning`), because a launch is a new process. Dropped, a hand-over and a done rule
-  waited on a `turn_done` that never came.
+  waited on a `turn_done` that never came. **A run taken back then says where it is**, in a turn or
+  idle, from what was left or else its own record (`turnIn`): no hook says so until a turn ends, so
+  one taken back idle stayed `starting`, drawn as working with everything said to it held. What
+  reaches a run while it is taken in waits for it, and a window with no such run answers `UNHEARD`,
+  which `reach` reads as nobody listening — answered `{}`, a hook took it as heard and dropped it,
+  and Codex's took it for an approval.
 - **Whatever the harness records for itself is the ledger.** Tade reads pi's own session files to
   account for turns that happened while nothing was listening, so an adapter should prefer the
   harness's durable record over anything it reports live.
