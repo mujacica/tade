@@ -151,7 +151,12 @@ under a route or under a harness, stays `never`, and so do credentials: "these s
 the defaults, and which provider a route sends work to is a separate, standing rule, not one more
 default. A model row writes its own key alone — as `provider/id` where the harness names a model
 that way — so the default route, which sets no provider, is given a model with nothing written
-beside it; what the name picks there is said in `ALLOWED_UNDER`'s comment.
+beside it; what the name picks there is said in `ALLOWED_UNDER`'s comment. Where a route still
+keeps a `provider` and the model chosen is another provider's, pi would make a model up under the
+kept one's name, so the person's press clears that provider with it and says so, a line each
+(`providerBeside`); the orchestrator asking the same is refused with the `never` clause before its
+words are looked for. A pair that already disagrees in the file starts new agents on the model alone
+where the harness offers it, said once a window (`startingModel`).
 
 Two consequences when you add a key:
 
@@ -162,7 +167,9 @@ Two consequences when you add a key:
   costs nothing extra. A segment every row of its kind shares names none of them: a section, a
   project's name, a scope, and every word of a route's row, which a line names only by the route's
   or the harness's name *with* the setting's (`wordsTogether`) — "switch the model" names no
-  route's model, "make the default thinking high" names one row.
+  route's model, "make the default thinking high" names one row. A title counts on its own unless
+  it is only the kind of setting it is: the orchestrator's own `Model` and `Thinking` need whose
+  said in front (`OWNED_ROWS`, "your model"), so a row whose title is that bare goes there too.
 - Every change writes `config_changed` — the path, what it was, what it is now, who asked, and their
   words — because a change nobody watched has to be one somebody can find and undo. A credential is
   said there as `set` or `not set` (`held` in `wire/settings.ts`) and is never read back by any tool,

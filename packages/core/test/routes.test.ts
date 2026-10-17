@@ -4,8 +4,11 @@ import {
   clearedByHarness,
   modelChosen,
   orchestratorRoute,
+  providerBeside,
+  providerInDoubt,
   resolveRoute,
   routeIn,
+  startingModel,
   UnknownRouteError,
 } from '../src/routes.ts'
 
@@ -161,6 +164,97 @@ describe('clearedByHarness', () => {
     ]) {
       expect(clearedByHarness(path)).toEqual([])
     }
+  })
+})
+
+describe('providerBeside', () => {
+  const kept = config({
+    workers: {
+      routes: {
+        default: {
+          provider: 'anthropic',
+          model: 'claude-opus-5',
+          harnesses: { codex: { provider: 'openai', model: 'gpt-5' } },
+        },
+        fast: { model: 'openrouter/moonshotai/kimi-k2.6' },
+      },
+    },
+  })
+
+  it('names the provider a model of another provider’s would leave beside it', () => {
+    // As the row offers it, `provider/id`: pi given `--provider anthropic` with
+    // this would make an anthropic model of that name up.
+    expect(
+      providerBeside(kept, 'workers.routes.default.model', 'openrouter/anthropic/claude-opus-4.5'),
+    ).toEqual({ path: 'workers.routes.default.provider', provider: 'anthropic' })
+    expect(
+      providerBeside(kept, 'workers.routes.default.harnesses.codex.model', 'anthropic/x'),
+    ).toEqual({ path: 'workers.routes.default.harnesses.codex.provider', provider: 'openai' })
+  })
+
+  it('leaves the provider where the model is its own, names none, or there is none kept', () => {
+    const at = 'workers.routes.default.model'
+    expect(providerBeside(kept, at, 'anthropic/claude-sonnet-5')).toBeNull()
+    expect(providerBeside(kept, at, 'Anthropic/claude-sonnet-5')).toBeNull()
+    expect(providerBeside(kept, at, 'claude-sonnet-5')).toBeNull()
+    expect(providerBeside(kept, at, '')).toBeNull()
+    expect(providerBeside(kept, 'workers.routes.fast.model', 'anthropic/claude-opus-5')).toBeNull()
+    expect(providerBeside(kept, 'workers.routes.default.thinking', 'openrouter/x')).toBeNull()
+    expect(providerBeside(kept, 'workers.routes.constructor.model', 'openrouter/x')).toBeNull()
+    expect(providerBeside(kept, 'orchestrator.model', 'openrouter/x')).toBeNull()
+  })
+})
+
+describe('startingModel', () => {
+  const offered = [
+    { id: 'anthropic/claude-opus-5', provider: 'anthropic' },
+    { id: 'openrouter/anthropic/claude-opus-4.5', provider: 'openrouter' },
+  ]
+
+  it('starts on the model alone where the provider kept beside it has nothing of that name', () => {
+    // What the old route-keeping left, with the model row written over it.
+    const at = { provider: 'anthropic', model: 'openrouter/anthropic/claude-opus-4.5' }
+    expect(providerInDoubt(at)).toBe(true)
+    expect(startingModel(at, offered)).toEqual({
+      model: { id: 'openrouter/anthropic/claude-opus-4.5' },
+      disagrees: true,
+    })
+  })
+
+  it('keeps a pair that is one of the provider’s own, and one it cannot speak to', () => {
+    // The same shape is an OpenRouter model, which is why it takes the catalog.
+    const own = { provider: 'openrouter', model: 'anthropic/claude-opus-4.5' }
+    expect(startingModel(own, offered)).toEqual({
+      model: { id: own.model, provider: 'openrouter' },
+      disagrees: false,
+    })
+    const unknown = { provider: 'ollama', model: 'library/qwen' }
+    expect(startingModel(unknown, offered)).toEqual({
+      model: { id: 'library/qwen', provider: 'ollama' },
+      disagrees: false,
+    })
+    // Nothing offered says nothing either way.
+    const at = { provider: 'anthropic', model: 'openrouter/anthropic/claude-opus-4.5' }
+    expect(startingModel(at, [])).toEqual({
+      model: { id: at.model, provider: 'anthropic' },
+      disagrees: false,
+    })
+  })
+
+  it('asks nothing of the catalog for a pair that reads one way only', () => {
+    for (const at of [
+      { provider: 'anthropic', model: 'claude-opus-5' },
+      { provider: 'anthropic', model: 'anthropic/claude-opus-5' },
+      { model: 'openrouter/anthropic/claude-opus-4.5' },
+      {},
+    ]) {
+      expect(providerInDoubt(at), JSON.stringify(at)).toBe(false)
+    }
+    expect(startingModel({}, offered)).toEqual({ model: undefined, disagrees: false })
+    expect(startingModel({ model: 'openrouter/anthropic/claude-opus-4.5' }, offered)).toEqual({
+      model: { id: 'openrouter/anthropic/claude-opus-4.5' },
+      disagrees: false,
+    })
   })
 })
 

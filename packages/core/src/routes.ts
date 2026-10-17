@@ -106,6 +106,80 @@ export function modelChosen(value: string): {
   return { provider: first || undefined, model: rest.join('/') || undefined }
 }
 
+/**
+ * The `provider` a route's model row keeps beside it, where writing `value`
+ * there would leave the two naming different providers — its path and what it
+ * is — or null where nothing beside the model has to move.
+ *
+ * A model row writes its own key alone, spelled `provider/id` as the harness
+ * offers it (`settings-models.ts`), and shows a kept provider in front of the
+ * model (`shown`). A route the old route-keeping wrote still holds a provider
+ * beside its model, and pi reads the two as one: given `--provider anthropic
+ * --model openrouter/anthropic/claude-opus-4.5`, pi 0.99.1 makes up an
+ * anthropic model of that name, which nobody offers, and every new agent
+ * starts on it. So a value spelled with the kept provider leaves it (pi takes
+ * its own prefix off), a bare name names no provider and leaves it, and any
+ * other provider's spelling means the provider goes — what the row shows is
+ * then what runs. Moving it is the person's own press and never the
+ * orchestrator's, because a route's provider is `never` (`settingReach`).
+ */
+export function providerBeside(
+  config: Config,
+  path: string,
+  value: string,
+): { path: string; provider: string } | null {
+  const row = /^(workers\.routes\.([a-z0-9-]+)(?:\.harnesses\.([a-z0-9-]+))?)\.model$/.exec(path)
+  if (!row?.[1] || !row[2] || !Object.hasOwn(config.workers.routes, row[2])) return null
+  const route = config.workers.routes[row[2]]
+  const harness = row[3] as keyof NonNullable<WorkerRoute['harnesses']> | undefined
+  const provider = (harness === undefined ? route : route?.harnesses?.[harness])?.provider
+  if (!provider) return null
+  const [first = '', ...rest] = value.trim().split('/')
+  if (rest.length === 0 || first.toLowerCase() === provider.toLowerCase()) return null
+  return { path: `${row[1]}.provider`, provider }
+}
+
+/**
+ * Whether a route's provider and model can only be read together with what
+ * the harness offers: a provider kept beside a model spelled with a slash and
+ * not with that provider. `openrouter` beside `anthropic/claude-opus-4.5` is
+ * one of OpenRouter's; `anthropic` beside `openrouter/anthropic/claude-opus-4.5`
+ * is a model nobody has — and the two are the same shape.
+ */
+export function providerInDoubt(at: { provider?: string; model?: string }): boolean {
+  const { provider, model } = at
+  if (!provider || !model?.includes('/')) return false
+  return !model.toLowerCase().startsWith(`${provider.toLowerCase()}/`)
+}
+
+/**
+ * What new agents start on by one of a route's rows (`routeIn`), given what
+ * the harness offers: its model, with the provider kept beside it — unless the
+ * provider has nothing of that name and the model is another provider's own
+ * spelling (`providerInDoubt`). Handed both, pi would make a model up under the
+ * kept provider's name; so it is the model alone, which is one the harness
+ * offers, and `disagrees` is true for whoever starts the agent to say.
+ *
+ * Only on what the harness offers says: a pair it cannot speak to — it offered
+ * nothing, or has the model under neither reading — goes on as it was written,
+ * because a provider's own models (a local endpoint, one added by hand) need
+ * not be among what it offers.
+ */
+export function startingModel(
+  at: { provider?: string; model?: string },
+  offered: readonly { id: string; provider: string }[],
+): { model: { id: string; provider?: string } | undefined; disagrees: boolean } {
+  const { provider, model } = at
+  if (!model) return { model: undefined, disagrees: false }
+  const kept = { id: model, ...(provider ? { provider } : {}) }
+  if (!provider || !providerInDoubt(at)) return { model: kept, disagrees: false }
+  if (offered.some((one) => one.id === `${provider}/${model}`)) {
+    return { model: kept, disagrees: false }
+  }
+  const elsewhere = offered.some((one) => one.id === model && one.provider !== provider)
+  return elsewhere ? { model: { id: model }, disagrees: true } : { model: kept, disagrees: false }
+}
+
 /** The route the orchestrator itself runs on. */
 export function orchestratorRoute(config: Config): ResolvedRoute {
   const { harness, provider, model, thinking } = config.orchestrator

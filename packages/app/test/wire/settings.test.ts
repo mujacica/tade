@@ -518,4 +518,90 @@ describe('the window, and its settings', () => {
     await until('the level saved', () => client.config.orchestrator.thinking === 'minimal')
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).not.toMatch(/model: (pi|codex)\b/)
   })
+
+  it('clears the provider a route keeps when another provider’s model is chosen, and starts on it', async () => {
+    terminal.columns = 140
+    terminal.rows = 50
+    // What the old route-keeping wrote: the provider apart from the model. A
+    // model row writes its own key alone, so choosing OpenRouter's here once
+    // left `anthropic` beside it, and pi made up an anthropic model of that
+    // name for every new agent (`route-model.test.ts` in the pi harness).
+    const yaml = [
+      'projects:',
+      '  app:',
+      `    root: ${repo.root}`,
+      'workers:',
+      '  routes:',
+      '    default:',
+      '      harness: pi',
+      '      provider: anthropic',
+      '      model: claude-opus-5',
+      '',
+    ].join('\n')
+    writeFileSync(join(home, 'config.yaml'), yaml)
+    const loaded = await loadConfig(join(home, 'config.yaml'))
+    if (!loaded.ok) throw new Error('the test config would not load')
+    const offered = ['anthropic/claude-opus-5', 'openrouter/anthropic/claude-opus-4.5']
+    await start({
+      config: loaded.config,
+      models: async (harness) => ({
+        harness,
+        models: offered.map((id) => ({ id, provider: id.split('/')[0] ?? '', name: id })),
+        why: null,
+      }),
+    })
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const button = find('Settings ')
+    click(button.col + 1, button.row)
+    await until('the settings', () => terminal.written.includes('Where agents work'))
+    const models = find('Models')
+    click(models.col + 1, models.row)
+    const shown = () => screenOf(terminal.written)
+    const field = () => {
+      const rows = shown()
+      const row = rows.findIndex(
+        (line) => line.includes('Agent model') && line.includes('anthropic/claude-opus-5'),
+      )
+      return { row, col: rows[row]?.indexOf('anthropic/claude-opus-5') ?? -1 }
+    }
+    await until('the agent model', () => field().row >= 0)
+    const model = field()
+    click(model.col + 1, model.row)
+    // Listed under each provider, without its name in front.
+    await until('the models', () => shown().some((row) => row.includes('OPENROUTER')))
+    const chosen = find('anthropic/claude-opus-4.5')
+    click(chosen.col + 1, chosen.row)
+    await until(
+      'the model saved',
+      () => client.config.workers.routes.default?.model === 'openrouter/anthropic/claude-opus-4.5',
+    )
+    // The provider went with it, on the same press, and the page said so.
+    expect(client.config.workers.routes.default?.provider).toBeUndefined()
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).not.toContain('provider')
+    await until('said', () =>
+      shown().some((row) => row.includes('Its provider, anthropic, is cleared')),
+    )
+    // Each key its own line, so either can be found and put back.
+    const changed = async () =>
+      (await client.events({ types: ['config_changed'] })).map((event) => [
+        event.detail?.path,
+        event.detail?.was,
+        event.detail?.now,
+      ])
+    await until('both written down', async () => (await changed()).length === 2)
+    expect(await changed()).toEqual([
+      [
+        'workers.routes.default.model',
+        'anthropic/claude-opus-5',
+        'openrouter/anthropic/claude-opus-4.5',
+      ],
+      ['workers.routes.default.provider', 'anthropic', ''],
+    ])
+
+    // And the next agent starts on that model, named as pi has it.
+    const task = await client.createTask({ project: 'app', slug: 'fresh', intent: 'a new one' })
+    const lane = await client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' })
+    expect(lane.spec.args.join(' ')).toContain('--model openrouter/anthropic/claude-opus-4.5')
+    expect(lane.spec.args).not.toContain('--provider')
+  }, 60_000)
 })

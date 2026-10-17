@@ -28,6 +28,7 @@ import {
   type PlanSource,
   producesPath,
   producesProblem,
+  providerInDoubt,
   pushFor,
   recordsDir,
   resolveRoute,
@@ -38,6 +39,7 @@ import {
   type StartCondition,
   sinceLastLook,
   spendFrom,
+  startingModel,
   type TadeEvent,
   type TaskId,
   THINKING_LEVELS,
@@ -280,6 +282,8 @@ export class Workbench {
   private readonly openedAt = Date.now()
   private closing: Promise<void> | null = null
   private readonly extensions: WorkbenchExtensions | null
+  /** A route's provider and model that disagree, said once a window (`modelFor`). */
+  private readonly disagreeing = new Set<string>()
 
   private constructor(opts: {
     home: string
@@ -1406,7 +1410,7 @@ export class Workbench {
       (keeps
         ? undefined
         : ((resuming ? await this.lastModelOf(req.task, harness) : undefined) ??
-          this.modelFor(req.task, harness)))
+          (await this.modelFor(req.task, harness, adapter))))
     const spec = {
       run: lane as RunId,
       task: req.task,
@@ -2101,11 +2105,43 @@ export class Workbench {
     return routeIn(resolveRoute(this.config, project ? { project } : {}), harness).thinking
   }
 
-  private modelFor(task: string, harness: string): WorkerModel | undefined {
+  /**
+   * The model new agents in a task's project start on, as its route says.
+   *
+   * A provider kept beside a model spelled as another provider's is read with
+   * what the harness offers (`startingModel`), because handed both pi makes up
+   * a model under the provider's name and the agent starts on nothing that
+   * exists. Asked only of a harness that routes (`provider` is null): one that
+   * reaches its models through its own provider never reads the route's, and
+   * asking Codex is a program run.
+   */
+  private async modelFor(
+    task: string,
+    harness: string,
+    adapter: WorkerAdapter,
+  ): Promise<WorkerModel | undefined> {
     const project = task.split('/')[0]
-    const route = routeIn(resolveRoute(this.config, project ? { project } : {}), harness)
-    if (!route.model) return undefined
-    return { id: route.model, ...(route.provider ? { provider: route.provider } : {}) }
+    const resolved = resolveRoute(this.config, project ? { project } : {})
+    const route = routeIn(resolved, harness)
+    const offered =
+      adapter.provider === null && providerInDoubt(route)
+        ? (await modelsOffered(adapter)).models
+        : []
+    const { model, disagrees } = startingModel(route, offered)
+    if (disagrees && model) {
+      const at = `workers.routes.${resolved.name}${harness === resolved.harness ? '' : `.harnesses.${harness}`}`
+      const said = `${at}=${route.provider}/${route.model}`
+      if (!this.disagreeing.has(said)) {
+        this.disagreeing.add(said)
+        await this.log.append({
+          type: 'warning',
+          detail: {
+            message: `config.yaml: ${at}.provider is ${route.provider}, and its model ${model.id} is another provider's, so new agents start on ${model.id} rather than on a model ${route.provider} does not have. Choosing the model again in Settings › Models puts the two right.`,
+          },
+        })
+      }
+    }
+    return model
   }
 
   /**

@@ -10,6 +10,7 @@ import {
   loadConfig,
   modelChosen,
   parseSetting,
+  providerBeside,
   type SettingGroup,
   settingsOf,
   type ThinkingLevel,
@@ -473,6 +474,12 @@ export class Settings implements Subject {
       .flatMap((also) => rows.filter((one) => one.path === also))
       .filter((one) => one.value !== '')
       .map((one) => one.title.toLowerCase())
+    // A route's model of another provider than the one kept beside it takes
+    // that provider away on the same press, because handed both pi starts new
+    // agents on a model nobody has (`providerBeside`). Read before the write,
+    // for the same reason. The orchestrator is refused this before it gets
+    // here (`askedSetting`): which provider a route sends work to is never its.
+    const beside = providerBeside(this.wire.opts.config, path, value)
     // A public name is trusted on its own (`surfaceOf`), so it is written
     // alone, and changing or clearing it takes back every copy of one Tade
     // wrote into the trusted hostnames before — never a name somebody put
@@ -506,6 +513,7 @@ export class Settings implements Subject {
         // model belongs to the harness it was chosen in, and unset is the
         // harness deciding, which is where this sat before anybody chose.
         for (const also of clearable) writeSetting(this.path, also, undefined)
+        if (beside !== null) writeSetting(this.path, beside.path, undefined)
         if (taking !== null && 'now' in taking) writeSetting(this.path, TRUSTED, taking.now)
       }
       const loaded = await loadConfig(this.path)
@@ -541,7 +549,9 @@ export class Settings implements Subject {
       const reset =
         clearing.length > 0
           ? ` The ${clearing.join(' and ')} ${clearing.length === 1 ? 'is' : 'are'} cleared: ${value || 'the harness'} decides.`
-          : ''
+          : beside !== null
+            ? ` Its provider, ${beside.provider}, is cleared: the model names its own.`
+            : ''
       const told =
         setting?.live === false
           ? `Saved. ${setting.title} applies when Tade next starts.${reset}`
@@ -560,6 +570,7 @@ export class Settings implements Subject {
       // the disk takes.
       const changed = [
         { path, was: held(setting?.value ?? ''), now: held(value) },
+        ...(beside === null ? [] : [{ path: beside.path, was: beside.provider, now: '' }]),
         ...(taking === null || !('now' in taking)
           ? []
           : [{ path: TRUSTED, was: taking.was.join(' '), now: taking.now.join(' ') }]),

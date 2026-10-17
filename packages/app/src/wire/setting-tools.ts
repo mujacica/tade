@@ -1,10 +1,12 @@
 import {
   LINES_LOOKED_BACK,
   namedBy,
+  providerBeside,
   type Setting,
   type SettingGroup,
   settingFound,
   settingReach,
+  spokenAs,
 } from '@tade/core'
 import { isCredential } from '@tade/web'
 import { configPathOf, saidLately, tilde, type Wiring } from './context.ts'
@@ -105,7 +107,11 @@ function lineFor(group: SettingGroup, setting: Setting): string {
  *
  * The boundary is asked first, row or no row: a route's `provider` has no row
  * on purpose, and "Tade has no setting called" it read as a key to look for
- * again rather than as one no words reach, which the `never` clause says.
+ * again rather than as one no words reach, which the `never` clause says. And
+ * a route's model of another provider than the one kept beside it is that
+ * provider moved (`providerBeside`), which the person's own press does and
+ * this never does: it is refused in the same words, before their words are
+ * looked for, because no words reach it.
  *
  * The last check reads the journal, not the argument. `said` is the
  * orchestrator's account of what was asked and is written down beside the
@@ -138,6 +144,12 @@ export async function askedSetting(
       `Tade has no setting called ${path}. tade_settings lists the ones it offers; the rest of config.yaml is \`tade config\` and a person's own.`,
     )
   }
+  const beside = providerBeside(wire.opts.config, path, req.value)
+  if (beside !== null) {
+    throw new Error(
+      `${req.value.trim()} is not ${beside.provider}'s, and ${beside.path} is not mine to change: ${settingReach(beside.path).because}. One of ${beside.provider}'s I can set; that one a person chooses in Settings (ctrl+,), which clears the provider with it — say that rather than looking for another way.`,
+    )
+  }
   if (reach === 'asked') {
     if (req.said.trim() === '') {
       throw new Error(
@@ -147,7 +159,7 @@ export async function askedSetting(
     const line = namedBy(setting, await saidLately(wire, LINES_LOOKED_BACK))
     if (!line) {
       throw new Error(
-        `Nothing they have said names ${setting.title}, so I will not change it. Ask them plainly — "${setting.title.toLowerCase()}" said back to you is enough — or tell them it is Settings (ctrl+,) and \`tade config\`.`,
+        `Nothing they have said names ${setting.title}, so I will not change it. Ask them plainly — "${spokenAs(setting)}" said back to you is enough — or tell them it is Settings (ctrl+,) and \`tade config\`.`,
       )
     }
   }

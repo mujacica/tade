@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ConfigSchema } from '@tade/core'
+import { ConfigSchema, loadConfig } from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
@@ -249,6 +249,71 @@ describe('the orchestrator, configuring Tade', () => {
     }
     expect(client.config.workers.routes.default).toEqual({ harness: 'pi' })
     expect(await changes()).toHaveLength(0)
+  })
+
+  it('refuses a route’s model of another provider than the one it keeps, and writes nothing', async () => {
+    // The old route-keeping kept the provider apart from the model. Choosing
+    // another provider's model there moves where the work is sent, which the
+    // person's own press in Settings does and no words of theirs let me do.
+    writeFileSync(
+      join(home, 'config.yaml'),
+      `projects:\n  app:\n    root: ${repo.root}\nworkers:\n  routes:\n    default:\n      provider: anthropic\n      model: claude-opus-5\n`,
+    )
+    const loaded = await loadConfig(join(home, 'config.yaml'))
+    if (!loaded.ok) throw new Error('the test config would not load')
+    const before = readFileSync(join(home, 'config.yaml'), 'utf8')
+    const app = await start({ config: loaded.config })
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const config = app.configTools()
+    const said = 'make the agent model openrouter’s claude opus 4.5'
+    await theySaid(said)
+    const refused = config.change({
+      path: 'workers.routes.default.model',
+      value: 'openrouter/anthropic/claude-opus-4.5',
+      said,
+    })
+    await expect(refused).rejects.toThrow(
+      'workers.routes.default.provider is not mine to change: a route carries the provider',
+    )
+    await expect(refused).rejects.toThrow(/Settings \(ctrl\+,\)/)
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toBe(before)
+    expect(await changes()).toHaveLength(0)
+    // One of the provider it keeps is a default like any other.
+    const same = 'make the agent model anthropic’s sonnet 5'
+    await theySaid(same)
+    expect(
+      await config.change({
+        path: 'workers.routes.default.model',
+        value: 'anthropic/claude-sonnet-5',
+        said: same,
+      }),
+    ).toContain('Saved')
+    expect(client.config.workers.routes.default).toMatchObject({
+      provider: 'anthropic',
+      model: 'anthropic/claude-sonnet-5',
+    })
+  })
+
+  it('changes its own model only on words that say it is its own', async () => {
+    const config = await tools()
+    // "model" is in the line, and the line is about refunds.
+    await theySaid('use a cheaper model for refunds')
+    await expect(
+      config.change({
+        path: 'orchestrator.model',
+        value: 'anthropic/claude-haiku-4-5',
+        said: 'cheaper',
+      }),
+    ).rejects.toThrow(/"your model" said back to you/)
+    await expect(
+      config.change({ path: 'orchestrator.thinking', value: 'low', said: 'cheaper' }),
+    ).rejects.toThrow(/Nothing they have said names Thinking/)
+    expect(await changes()).toHaveLength(0)
+    const said = 'and lower your thinking to low'
+    await theySaid(said)
+    expect(await config.change({ path: 'orchestrator.thinking', value: 'low', said })).toContain(
+      'Saved',
+    )
   })
 
   it('refuses a path Tade does not offer rather than writing it anyway', async () => {

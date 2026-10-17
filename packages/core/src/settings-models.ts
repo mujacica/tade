@@ -15,7 +15,9 @@ import type { Setting, SettingGroup } from './settings.ts'
 // the person's, in `config.yaml`, and never the orchestrator's (`NEVER`); a
 // model row writes its own key alone, as `provider/id` where the harness names
 // a model that way — so the default route, which sets no provider, is given a
-// model without anything written beside it.
+// model without anything written beside it. A provider an older route keeps
+// beside it is cleared by the person's own press of another provider's model,
+// and never by the orchestrator's (`providerBeside`).
 
 /** `thinksAt` is what a harness can be told to think at, least to most: none is no row. */
 export function modelsGroup(

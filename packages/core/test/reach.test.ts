@@ -6,6 +6,7 @@ import {
   remoteNamedBy,
   settingReach,
   settingsOf,
+  spokenAs,
   updateNamedBy,
   wordsFor,
 } from '@tade/core'
@@ -743,6 +744,55 @@ describe('whether the person themselves named it', () => {
     expect(named('set workers.routes.fast.harness to codex', two)).toEqual([
       'workers.routes.fast.harness',
     ])
+  })
+
+  it('names the orchestrator’s own model and thinking only when whose is said with them', () => {
+    // Titled `Model` and `Thinking` because the page draws them under the
+    // Orchestrator heading, and the title always counted: any line saying
+    // "model" let the orchestrator change the model it runs on itself.
+    const own = (over: Record<string, unknown> = {}) =>
+      settingsOf(ConfigSchema.parse(over)).find((group) => group.id === 'orchestrator')?.settings ??
+      []
+    const named = (line: string) =>
+      own()
+        .filter((one) => namedBy(one, [line]) !== null)
+        .map((one) => one.path)
+    for (const line of [
+      'use a cheaper model for refunds',
+      'think harder about refunds, more thinking',
+      // Addressing it by name is not saying whose model the line is about.
+      'orchestrator, use a cheaper model for refunds',
+      'switch the model, and the thinking',
+    ]) {
+      expect(named(line), line).toEqual([])
+    }
+    expect(named('change your model to sonnet')).toEqual(['orchestrator.model'])
+    expect(named('use your own model for this, a cheaper one')).toEqual(['orchestrator.model'])
+    expect(named('make the orchestrator’s thinking high')).toEqual(['orchestrator.thinking'])
+    expect(named("raise the orchestrator's thinking")).toEqual(['orchestrator.thinking'])
+    expect(named('set orchestrator.model to opus')).toEqual(['orchestrator.model'])
+    // A refusal asks for words that would name it, never ones that do not.
+    const model = own().find((one) => one.path === 'orchestrator.model')
+    if (!model) throw new Error('no orchestrator model row')
+    expect(spokenAs(model)).toBe('your model')
+    expect(namedBy(model, [`yes, change ${spokenAs(model)} to opus`])).not.toBeNull()
+  })
+
+  it('still counts a title that is specific, however short', () => {
+    // The other direction: only a title that is just its kind lost the rule.
+    const rows = settingsOf(ConfigSchema.parse({})).flatMap((group) => group.settings)
+    const row = (path: string) => {
+      const found = rows.find((one) => one.path === path)
+      if (!found) throw new Error(`no row ${path}`)
+      return found
+    }
+    // Each named here by its title and nothing else of it.
+    const reflect = row('orchestrator.reflect')
+    expect(namedBy(reflect, ['stop: no look back at finished tasks'])).not.toBeNull()
+    expect(
+      namedBy(row('workers.routes.default.model'), ['set the agent model to opus']),
+    ).not.toBeNull()
+    expect(spokenAs(reflect)).toBe('look back at finished tasks')
   })
 
   it('is empty-handed with nothing to look at', () => {

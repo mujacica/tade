@@ -548,6 +548,15 @@ export function watchNamedBy(
  * of the ordinary conversation here — the orchestrator says the setting back
  * by name, and they answer naming it.
  *
+ * **Except where the title is only what kind of setting it is** (`OWNED_ROWS`):
+ * the orchestrator's own `Model` and `Thinking`, which are titled that way
+ * because the page draws them under its heading. Any line with "model" in it
+ * named the first, so "use a cheaper model for refunds" was the person letting
+ * the orchestrator change its own model. Those take whose they are said with
+ * the title, as one phrase — "your model", "the orchestrator's thinking" — and
+ * neither word alone, nor the two apart: "orchestrator, use a cheaper model for
+ * refunds" is about refunds. Every other title, being specific, still counts.
+ *
  * Known looseness, said rather than hidden: a leaf that is an ordinary word of
  * this house — `checks.before`, `telemetry.agents` — is matched by a line that
  * meant something else by it. An English stop list is the kind of thing that
@@ -566,14 +575,39 @@ export function wordsFor(
       .filter((part) => part !== '')
       .map((part) => part.toLowerCase()),
   )
-  // A route's row is named by its words together, never one of them (`wordsTogether`).
-  const segments = ROUTE_ROW.test(setting.path.toLowerCase())
-    ? []
-    : parts.slice(1).filter((part) => part.length >= 5)
-  const rest = [setting.title, ...(setting.keywords ?? []), ...segments]
+  // A route's row is named by its words together, never one of them, and a
+  // row whose title is only its kind by whose it is with it (`wordsTogether`).
+  const owned = Object.hasOwn(OWNED_ROWS, setting.path)
+  const segments =
+    owned || ROUTE_ROW.test(setting.path.toLowerCase())
+      ? []
+      : parts.slice(1).filter((part) => part.length >= 5)
+  const rest = [owned ? '' : setting.title, ...(setting.keywords ?? []), ...segments]
     .map((word) => word.trim().toLowerCase())
     .filter((word) => word !== '' && !sections.has(word))
   return [setting.path.trim().toLowerCase(), ...rest]
+}
+
+/** How a line says a row is the orchestrator's own: said in front of the row's title. */
+const THE_ORCHESTRATOR = ['your', 'your own', 'orchestrator', "orchestrator's", 'orchestrator’s']
+
+/**
+ * Rows whose title is only what kind of setting they are, and how a line says
+ * whose (`wordsFor` says why): named by one of these said in front of the title.
+ */
+const OWNED_ROWS: Readonly<Record<string, readonly string[]>> = {
+  'orchestrator.model': THE_ORCHESTRATOR,
+  'orchestrator.thinking': THE_ORCHESTRATOR,
+}
+
+/**
+ * What a person says to name a setting, as a refusal asks them for it: its
+ * title, or where the title is only its kind, whose it is with it.
+ */
+export function spokenAs(setting: Pick<Setting, 'path' | 'title'>): string {
+  const title = setting.title.toLowerCase()
+  const owners = Object.hasOwn(OWNED_ROWS, setting.path) ? OWNED_ROWS[setting.path] : undefined
+  return owners?.[0] ? `${owners[0]} ${title}` : title
 }
 
 /** The route Tade makes, and the default one unless `workers.default` was renamed. */
@@ -603,11 +637,19 @@ interface Together {
  * hyphens, as `watchNamedBy` says a watch: `claude-code`, `claude code`. And
  * the default route's model by `default` alone, where the line says none of
  * the route's other settings.
+ *
+ * A row whose title is only its kind (`OWNED_ROWS`) is one phrase instead:
+ * whose it is in front of the title, `your model`.
  */
-function wordsTogether(path: string): Together[] {
-  const row = ROUTE_ROW.exec(path.trim().toLowerCase())
-  if (!row) return []
-  const [, route = '', harness, setting = ''] = row
+function wordsTogether(row: Pick<Setting, 'path' | 'title'>): Together[] {
+  const { path } = row
+  if (Object.hasOwn(OWNED_ROWS, path)) {
+    const title = row.title.trim().toLowerCase()
+    return (OWNED_ROWS[path] ?? []).map((owner) => ({ all: [`${owner} ${title}`] }))
+  }
+  const found = ROUTE_ROW.exec(path.trim().toLowerCase())
+  if (!found) return []
+  const [, route = '', harness, setting = ''] = found
   if (harness === undefined) {
     const own = { all: [route, setting] }
     if (route !== DEFAULT_ROUTE || setting !== 'model') return [own]
@@ -651,7 +693,7 @@ export function namedBy(
   lines: readonly string[],
 ): string | null {
   const words = wordsFor(setting)
-  const together = wordsTogether(setting.path)
+  const together = wordsTogether(setting)
   for (const line of lines) {
     const said = line.toLowerCase()
     const says = (word: string) => saidIn(said, word)
