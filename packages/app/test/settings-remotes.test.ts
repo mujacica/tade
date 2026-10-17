@@ -1,4 +1,4 @@
-import { KEYS_TO_REMOTE } from '@tade/core'
+import { KEYS_TO_REMOTE, TALK_TO_REMOTE } from '@tade/core'
 import type { Checklist } from '@tade/workbench/carry'
 import { describe, expect, it } from 'vitest'
 import { type RemoteShown, remoteActions, remoteChoice } from '../src/panels/settings/remotes.ts'
@@ -7,8 +7,8 @@ import { drawnAt, panelFor, plainRows } from './settings-panel.ts'
 
 // Settings › Remotes: each other machine's Tade this one is an owner of, and
 // the checklist `tade remote add` ends with — what was carried, what that
-// machine changed itself, what waits on a press, and each harness's own
-// sign-in there — with the presses beside each.
+// machine changed itself, what waits on a press, whether its tab here takes a
+// message, and each harness's own sign-in there — with the presses beside each.
 
 const LIST: Checklist = {
   remote: 'vps',
@@ -26,6 +26,7 @@ const LIST: Checklist = {
     { harness: 'codex', account: null, signedIn: false, told: true, lasts: 'not signed in' },
     { harness: 'pi', account: null, signedIn: false, told: false, lasts: 'it did not say' },
   ],
+  talk: null,
   here: [
     { what: 'projects', why: 'a project is a folder on this machine' },
     { what: 'agents.workspace', why: 'where agents work is decided for the machine' },
@@ -98,6 +99,30 @@ describe('Settings › Remotes', () => {
     expect(drawn.replace(/\s+/g, ' ')).toContain(KEYS_TO_REMOTE.slice(0, 40))
     const second = remoteChoice(asked, 'remote:keys:vps')
     expect(second).toMatchObject({ submit: true, choice: 'remote:keys:vps' })
+  })
+
+  it('lists Talk to Tade until it is on there, and asks twice before turning it on', () => {
+    const off: RemoteShown = { ...VPS, list: { ...LIST, talk: 'off' } }
+    expect(page([off])).toMatch(/Talk to Tade +off there: its tab here takes no message/)
+    expect(remoteActions([off]).map((one) => one.id)).toContain('remote:talk:vps')
+    const first = remoteChoice(panelFor('remotes'), 'remote:talk:vps')
+    expect('submit' in first && first.submit).toBeFalsy()
+    const drawn = page([off], { confirm: 'remote:talk:vps' })
+    expect(drawn).toContain('Press again to turn on')
+    expect(drawn.replace(/\s+/g, ' ')).toContain(TALK_TO_REMOTE.slice(0, 40))
+    const asked = first.panel as ReturnType<typeof panelFor>
+    expect(remoteChoice(asked, 'remote:talk:vps')).toMatchObject({
+      submit: true,
+      choice: 'remote:talk:vps',
+    })
+    // Turned on is said once, and on is nothing to list or to press.
+    const turning: RemoteShown = { ...VPS, list: { ...LIST, talk: 'turning on' } }
+    expect(page([turning])).toMatch(/Talk to Tade +turned on there, on your press/)
+    for (const talk of ['on', 'turning on', null] as const) {
+      const ids = remoteActions([{ ...VPS, list: { ...LIST, talk } }]).map((one) => one.id)
+      expect(ids).not.toContain('remote:talk:vps')
+    }
+    expect(page([{ ...VPS, list: { ...LIST, talk: 'on' } }])).not.toContain('Talk to Tade')
   })
 
   it('walks the presses with the keyboard, and presses the one it is on', () => {

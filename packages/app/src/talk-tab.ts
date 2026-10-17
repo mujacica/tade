@@ -168,7 +168,7 @@ export function talkSays(
   if (talk === null) {
     return {
       said: machine.heard
-        ? `${name} takes no message from another screen: talking to Tade from away is off there (surfaces.web.orchestrator)`
+        ? `${name} takes no message from another screen: talking to Tade from away is off there (surfaces.web.orchestrator) — Settings › Remotes turns it on`
         : `nothing heard from ${name} yet`,
       tone: 'waiting',
     }

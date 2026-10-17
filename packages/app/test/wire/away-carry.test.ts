@@ -196,8 +196,8 @@ describe('what waits for Tade to start again here', () => {
     const rows = [
       {
         settings: [
-          { path: 'notes.keep_days', live: false },
-          { path: 'agents.commit', live: true },
+          { path: 'notes.keep_days', live: false, type: { kind: 'number' } },
+          { path: 'agents.commit', live: true, type: { kind: 'choice' } },
         ],
       },
     ] as unknown as SettingGroup[]
@@ -213,7 +213,15 @@ describe('what waits for Tade to start again here', () => {
         'prices',
       ],
       rows,
-      { mine: { enabled: true }, idle: {}, jev: { enabled: true }, 'mcp-docs': { enabled: true } },
+      {
+        extensions: {
+          mine: { enabled: true },
+          idle: {},
+          jev: { enabled: true },
+          'mcp-docs': { enabled: true },
+        },
+        mcp: { servers: {} },
+      },
       [
         { name: 'mine', source: 'yours', state: 'off' },
         { name: 'idle', source: 'yours', state: 'off' },
@@ -222,6 +230,76 @@ describe('what waits for Tade to start again here', () => {
       ],
     )
     expect([...waiting]).toEqual(['notes.keep_days', 'extensions.mine.enabled'])
+  })
+
+  // The broker is made once, as the window opens (`brokerFor`), so a server
+  // turned on there connects at the next start, and one it already has goes on
+  // as it was until then — changed, or turned off, alike.
+  it('is an MCP server that is on, or that was running when this Tade started', () => {
+    const waiting = waitingHere(
+      ['mcp.servers.new', 'mcp.servers.docs', 'mcp.servers.linear', 'mcp.servers.idle'],
+      [],
+      {
+        extensions: {},
+        mcp: {
+          servers: {
+            new: { enabled: true },
+            docs: { enabled: true, url: 'https://docs.example/mcp' },
+            linear: { enabled: false },
+            idle: { enabled: false, about: 'tried once' },
+          },
+        },
+      },
+      [
+        { name: 'mcp-docs', source: 'mcp', state: 'ready' },
+        { name: 'mcp-linear', source: 'mcp', state: 'ready' },
+      ],
+    )
+    expect([...waiting]).toEqual(['mcp.servers.new', 'mcp.servers.docs', 'mcp.servers.linear'])
+  })
+
+  it('is a provider changed alone, by the model row that writes it', () => {
+    const rows = [
+      {
+        settings: [
+          { path: 'orchestrator.model', live: false, type: { kind: 'model', harness: 'pi' } },
+          {
+            path: 'workers.routes.default.model',
+            live: true,
+            type: { kind: 'model', harness: 'pi' },
+          },
+        ],
+      },
+    ] as unknown as SettingGroup[]
+    const waiting = waitingHere(
+      ['orchestrator.provider', 'workers.routes.default.provider'],
+      rows,
+      { extensions: {}, mcp: { servers: {} } },
+      [],
+    )
+    expect([...waiting]).toEqual(['orchestrator.provider'])
+  })
+})
+
+describe('talking to Tade from another screen, turned on from the machine that owns it', () => {
+  it('is said back as off, and turned on by the window’s own door once the answer has gone', async () => {
+    const one = await machine({ realKeys: true, accounts: async () => [] })
+    await owner(one.home, one.port)
+    await one.away.open()
+    const body = { from: 'mac', complete: false, settings: [] }
+    const told = await carried(one.port, body)
+    expect(told.body.talk).toBe('off')
+    const pressed = await carried(one.port, { ...body, talk: true })
+    expect(pressed.status).toBe(200)
+    expect(pressed.body.talk).toBe('turning on')
+    const changed = await waitFor(one.client, 'config_changed')
+    expect(changed.map((line) => line.detail)).toEqual([
+      { path: 'surfaces.web.orchestrator', was: 'false', now: 'true', by: `device ${DEVICE}` },
+    ])
+    const file = parse(readFileSync(join(one.home, 'config.yaml'), 'utf8')) as {
+      surfaces?: { web?: { orchestrator?: boolean } }
+    }
+    expect(file.surfaces?.web?.orchestrator).toBe(true)
   })
 })
 

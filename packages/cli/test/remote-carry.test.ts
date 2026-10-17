@@ -1,13 +1,13 @@
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { loadConfig, personaDirs, writeSetting } from '@tade/core'
+import { loadConfig, personaDirs, TALK_TO_REMOTE, writeSetting } from '@tade/core'
 import type { LinkOptions, RemoteLink } from '@tade/remotes-core'
 import { type FarEnd, startFarEnd } from '@tade/remotes-core/far'
 import { readDevices } from '@tade/web'
 import { readJournal } from '@tade/workbench/events'
 import { lockHome } from '@tade/workbench/lock'
 import { REMOTE_LINKS } from '@tade/workbench/remotes'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import {
   type Asking,
@@ -228,6 +228,38 @@ describe('tade remote add, carrying this machine’s setup', () => {
     const theirs = far.lines.filter((one) => one.detail?.path === 'extensions.jev.key')
     expect(theirs.at(-1)?.detail).toMatchObject({ now: 'set', carried: 'mac' })
     expect(JSON.stringify(far.lines)).not.toContain(JEV_KEY)
+  })
+
+  it('turns talking to Tade from here on there only on the person’s press, saying first what it means', async () => {
+    far.talking = false
+    // Nobody to ask: the checklist says it is off, with the press that turns it on.
+    await add()
+    expect(exit, err.join('\n')).toBe(0)
+    expect(out.join('\n')).toContain(
+      'talking to Tade from here is off on vps, so its tab here takes no message',
+    )
+    expect(out.join('\n')).toContain('`tade remote carry vps --talk`, or Settings › Remotes')
+    expect(sent.some((one) => (one as { talk?: unknown }).talk !== undefined)).toBe(false)
+
+    // Asked, with what it means said first, and told no: still off.
+    await addRemote(place(asking(() => false)), 'box', { ssh: 'far', tade: 'tade', label: 'mac' })
+    expect(answers.map((one) => one.asked)).toContain('Turn it on on box now?')
+    expect(err).toContain(TALK_TO_REMOTE)
+    expect(far.talking).toBe(false)
+
+    // Told yes: turned on there, and written down here as asked.
+    out = []
+    await carryRemote(place(asking((q) => q.startsWith('Turn it on'))), 'vps', { talk: true })
+    expect(exit, err.join('\n')).toBe(0)
+    expect(out.join('\n')).toContain('talking to Tade from here is turned on on vps, on your press')
+    await vi.waitFor(() => expect(far.talking).toBe(true))
+    expect((await there()).surfaces.web.orchestrator).toBe(true)
+    const mine = await readJournal(home, { types: ['remote_carried'] })
+    expect(mine.at(-1)?.detail).toMatchObject({ remote: 'vps', by: 'cli', talk: 'turned on' })
+    // On, it is nothing left to do.
+    out = []
+    await carryRemote(place(), 'vps', {})
+    expect(out.join('\n')).not.toContain('talking to Tade')
   })
 
   it('never sends a harness’s sign-in, in anything', async () => {

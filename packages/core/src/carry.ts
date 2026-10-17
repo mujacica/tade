@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { TALKING_IS_NOT_YOU_SHORT } from './origin.ts'
 import { heldSays, IN_CONFIG, SEEN_BY_AGENTS } from './secrets.ts'
 
 // What another machine's Tade is given of this one's: the decision for every
@@ -381,6 +382,25 @@ export const KEYS_TO_REMOTE =
   `name — and there too ${SEEN_BY_AGENTS}: agents run as you, and nothing sandboxes them. That ` +
   'they were sent, and by whom, is written down on both machines; a key never is. To keep one off ' +
   'that machine, export its variable there instead, or leave it unsent.'
+
+/**
+ * Talking to that machine's orchestrator from another screen — this one's tab
+ * for it, and a phone paired there — which is that machine's own setting
+ * (`surfaces.web` is `here`), so it is never carried and never sent by itself.
+ *
+ * It is turned on there on the person's press, from `tade remote add` and
+ * Settings › Remotes, and only ever on: a press is an owner's, the SSH key's
+ * word, so it is no wider than editing that machine's config over ssh, and off
+ * is that machine's own Settings › Away view. Never the orchestrator's — the
+ * whole of `surfaces.web` is `never` to it — and never a carry by itself.
+ */
+export const TALK_THERE = 'surfaces.web.orchestrator'
+
+/** What is said where somebody is about to turn `TALK_THERE` on over there. */
+export const TALK_TO_REMOTE =
+  'Turns on Talk to Tade on that machine: what you type in its tab here goes to its orchestrator as ' +
+  `you at its keyboard, and a device paired there and granted it may send one too — ${TALKING_IS_NOT_YOU_SHORT}. ` +
+  'Its Settings › Away view turns it off again.'
 
 /**
  * Everything a Tade home holds, and what becomes of each when a remote is

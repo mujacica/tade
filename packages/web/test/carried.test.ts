@@ -1,8 +1,9 @@
+import { EventEmitter } from 'node:events'
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { fileHash, keyDigest, personaDirs, templateDirs, writeCarried } from '@tade/core'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import {
   applyCarry,
@@ -338,17 +339,54 @@ describe('the route', () => {
     waiting: () => new Set(),
   }
   const body = { from: 'mac', complete: false, settings: [] }
+  /** The answer's response, as far as the route reads one: when it has gone. */
+  const answering = () => new EventEmitter()
 
   it('answers an owner, and nobody else', async () => {
-    expect(await carryHere(asking(body), owner, nothing)).toEqual({
+    expect(await carryHere(asking(body), owner, nothing, answering())).toEqual({
       body: { machine: 'vps', settings: [], files: [], signIns: [] },
     })
-    const refused = await carryHere(asking(body), phone, nothing)
+    const refused = await carryHere(asking(body), phone, nothing, answering())
     expect('refusal' in refused && refused.refusal.error).toBe('out_of_scope')
   })
 
+  it('turns talking from another screen on where an owner pressed, once the answer has gone', async () => {
+    let on = false
+    const turned: string[] = []
+    const talking: WebCarrying = {
+      ...nothing,
+      talk: {
+        on: () => on,
+        turnOn: async (by) => {
+          turned.push(`${by.device} from ${by.from}`)
+          on = true
+        },
+      },
+    }
+    // Said, and nothing done, where nobody pressed.
+    expect(await carryHere(asking(body), owner, talking, answering())).toMatchObject({
+      body: { talk: 'off' },
+    })
+    const answer = answering()
+    const pressed = await carryHere(asking({ ...body, talk: true }), owner, talking, answer)
+    expect(pressed).toMatchObject({ body: { talk: 'turning on' } })
+    // Not while the answer is still going: the listener it is going out on is
+    // built again for it, which would cut it off.
+    await new Promise((done) => setImmediate(done))
+    expect(turned).toEqual([])
+    answer.emit('close')
+    await vi.waitFor(() => expect(turned).toEqual(['d1 from mac']))
+    // On is on: a second press turns nothing on again.
+    const again = await carryHere(asking({ ...body, talk: true }), owner, talking, answering())
+    expect(again).toMatchObject({ body: { talk: 'on' } })
+    expect(turned).toHaveLength(1)
+    // A window that says nothing of it is answered nothing of it, pressed or not.
+    const older = await carryHere(asking({ ...body, talk: true }), owner, nothing, answering())
+    expect(older).toEqual({ body: { machine: 'vps', settings: [], files: [], signIns: [] } })
+  })
+
   it('is a path nobody built where the window did not wire it', async () => {
-    const refused = await carryHere(asking(body), owner, undefined)
+    const refused = await carryHere(asking(body), owner, undefined, answering())
     expect('refusal' in refused && refused.refusal.error).toBe('no_such')
   })
 
@@ -358,8 +396,9 @@ describe('the route', () => {
       { ...body, settings: [{ path: 'agents.commit' }] },
       { ...body, files: [{ kind: 'persona', name: '../x', text: '' }] },
       { ...body, extra: true },
+      { ...body, talk: false },
     ]) {
-      const refused = await carryHere(asking(bad), owner, nothing)
+      const refused = await carryHere(asking(bad), owner, nothing, answering())
       expect('refusal' in refused && refused.refusal.error, JSON.stringify(bad)).toBe('malformed')
     }
   })

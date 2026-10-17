@@ -189,9 +189,18 @@ The rules the table stands on:
   route's provider and the accounts are the person's own preferences, written by the person's own
   config, and they go with them; what `never` carries on a press is a credential or a grant.
 - **What that machine reads only at a start is said as such.** It answers `nextStart` for what is
-  there and not in use yet — a row its Settings says is not `live`, or one of yours turned on
-  (`waitingHere`), written now or since its Tade started by its journal — and the checklist and
-  Settings › Remotes say *applies when Tade next starts*. An older Tade says nothing, and so does this.
+  there and not in use yet — a row its Settings says is not `live` (a key a row writes beside its own,
+  as `<x>.provider` beside a model row, is that row's), one of yours turned on, or an MCP server on
+  now or running since it started, because the broker reads `mcp.servers` once (`waitingHere`) —
+  written now or since its Tade started by its journal, and the checklist and Settings › Remotes say
+  *applies when Tade next starts*. An older Tade says nothing, and so does this.
+- **One setting of that machine's own is turned on from here, on a press**: talking to Tade from
+  another screen (`TALK_THERE`), without which this machine's tab for its orchestrator takes nothing.
+  Every carry's answer says whether it is on, the checklist lists it until it is, and the press —
+  `tade remote add`, `tade remote carry --talk`, Settings › Remotes, each after `TALK_TO_REMOTE` —
+  is the carry's `talk: true`, an owner's and so no wider than its config over ssh. It is written
+  there **once the answer has gone** (`talkHere`), because the listener it came in on is built again
+  for it, and it goes in the last body. Only ever on; never a carry by itself, never the orchestrator's.
 - **A key is never carried by itself, wherever it is** — the leaf rule catches every credential
   Tade declares today, and a caller that knows of one with another name passes it in (`secret`).
 - **Unnamed is `here`**, the safe direction for a key nobody has looked at.

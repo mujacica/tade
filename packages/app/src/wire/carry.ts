@@ -1,6 +1,7 @@
 import type { Config } from '@tade/core'
 import type { Remote, RemoteLink } from '@tade/remotes-core'
 import {
+  type CarryPress,
   CarryRefused,
   type Checklist,
   carriedLine,
@@ -23,9 +24,11 @@ import type { Ui } from '../screen.ts'
 // template made in the meantime. Only what is `kept`: keys go only on a press.
 //
 // **What a press does** (Settings › Remotes): send the keys, after
-// `KEYS_TO_REMOTE` was said and the button pressed twice; send this machine's
-// value over one that machine changed itself; sign a harness in there, in a
-// terminal the person types into, over the link; or carry again now. Each
+// `KEYS_TO_REMOTE` was said and the button pressed twice; turn talking to Tade
+// from here on there, after `TALK_TO_REMOTE` was said and pressed twice too;
+// send this machine's value over one that machine changed itself; sign a
+// harness in there, in a terminal the person types into, over the link; or
+// carry again now. Each
 // carry that sent anything is written down here as `remote_carried` — counts,
 // and the paths a press sent, never a value; that machine writes its own.
 //
@@ -114,10 +117,7 @@ export class Carries {
    * One carry to one remote, held when it answers; the checklist, or null
    * where there was nothing to carry to. Written down where it sent anything.
    */
-  async carry(
-    name: string,
-    opts: { keys: boolean; force?: readonly string[] },
-  ): Promise<Checklist | null> {
+  async carry(name: string, opts: Omit<CarryPress, 'from'>): Promise<Checklist | null> {
     const held = this.deps.reach(name)
     if (held === null || this.busy.has(name)) return null
     this.busy.add(name)
@@ -127,7 +127,8 @@ export class Carries {
       const { list, refused } = await this.answer(name, held, setup, opts)
       this.kept.set(name, { list, at: this.deps.now() })
       this.troubles(name, refused ? list.unreached : null)
-      if (list.unreached === null && (list.written > 0 || opts.keys || changedAny(list))) {
+      const pressed = opts.keys || opts.talk === true
+      if (list.unreached === null && (list.written > 0 || pressed || changedAny(list))) {
         await this.deps.log(carriedLine(name, 'window', list)).catch((err: unknown) => {
           // It landed there; only this machine's record of it did not.
           this.deps.said(null, `Carried to ${name}, and not written down here: ${String(err)}`)
@@ -144,7 +145,7 @@ export class Carries {
     name: string,
     held: { link: RemoteLink; remote: Remote },
     setup: Setup,
-    opts: { keys: boolean; force?: readonly string[] },
+    opts: Omit<CarryPress, 'from'>,
   ): Promise<{ list: Checklist; refused: boolean }> {
     const inUse = harnessesInUse(this.deps.config())
     const base = { remote: name, setup, inUse, now: this.deps.now() }
@@ -187,6 +188,10 @@ export class Carries {
         list === null ? null : `Sent to ${name}: ${list.sent.join(', ') || 'nothing new'}.`,
         list?.unreached ?? null,
       )
+    } else if (verb === 'talk') {
+      const list = await this.carry(name, { keys: false, talk: true })
+      if (list === null) this.deps.said(null, null)
+      else this.deps.said(...talkPressed(name, list))
     } else if (verb === 'ours') {
       const list = await this.carry(name, { keys: false, force: [what] })
       this.deps.said(
@@ -235,6 +240,19 @@ export class Carries {
       }
     })
   }
+}
+
+/** What a press to turn talking on there came to, as the page says it: done, or why not. */
+function talkPressed(name: string, list: Checklist): [string | null, string | null] {
+  if (list.unreached !== null) return [null, list.unreached]
+  if (list.talk === 'turning on') {
+    return [
+      `Talking to Tade is turned on on ${name}: its tab here takes a message once the link is back.`,
+      null,
+    ]
+  }
+  if (list.talk === 'on') return [`Talking to Tade is already on on ${name}.`, null]
+  return [null, `${name} did not turn it on: it says nothing of talking, as an older Tade does not`]
 }
 
 /** Whether a carry changed anything there — a line's worth of news here. */

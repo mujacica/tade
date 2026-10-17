@@ -1,7 +1,7 @@
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { writeCarried, writeSetting } from '@tade/core'
+import { TALK_THERE, writeCarried, writeSetting } from '@tade/core'
 import {
   appendDevice,
   type CarryLine,
@@ -85,6 +85,12 @@ export interface FarEnd {
   /** What its harnesses say of their sign-ins, as a carry answers them. A test sets it. */
   signIns: SignInHere[]
   /**
+   * Whether it takes a message from another screen, as a carry answers it
+   * (`TALK_THERE`): on, as a fresh Tade has it. A test turns it off; an owner's
+   * press turns it on again, through its config as a window's does.
+   */
+  talking: boolean
+  /**
    * The line its window answers an owner asking to be shown a task's agent
    * (`/api/attach`), by task. A test sets it; a task not in it is answered as
    * one whose agent is not running there.
@@ -132,6 +138,7 @@ class Far implements FarEnd {
   presentAt: number | null = null
   readonly lines: CarryLine[] = []
   signIns: SignInHere[] = []
+  talking = true
   readonly attachable = new Map<string, string>()
   readonly acted: FarAct[] = []
   readonly talk = new FarTalk()
@@ -193,6 +200,21 @@ class Far implements FarEnd {
         },
         signIns: async () => this.signIns,
         machine: 'far',
+        talk: {
+          on: () => this.talking,
+          turnOn: async (by) => {
+            const config = join(this.home, 'config.yaml')
+            await writeCarried(
+              config,
+              { path: TALK_THERE, value: true, carry: 'kept', by },
+              (line) => {
+                this.lines.push(line)
+                return Promise.resolve()
+              },
+            )
+            this.talking = true
+          },
+        },
       }),
       attaching: (task) => {
         const line = this.attachable.get(task)

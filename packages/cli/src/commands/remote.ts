@@ -136,7 +136,11 @@ export function registerRemote(program: Command, io: Io, setExit: (code: number)
       'Carry this machine’s preferences, personas and templates to a remote again, and say what is left',
     )
     .option('--keys', 'send the keys too, which waits on your press unless --yes')
-    .option('--yes', 'the press, given ahead: send the keys without asking')
+    .option(
+      '--talk',
+      'turn on talking to Tade from here on that machine, which waits on your press unless --yes',
+    )
+    .option('--yes', 'the press, given ahead: send the keys, or turn talking on, without asking')
     .option(
       '--ours <path>',
       'send this machine’s value over one that machine changed itself (repeat for each)',
@@ -146,7 +150,7 @@ export function registerRemote(program: Command, io: Io, setExit: (code: number)
     .action(
       async (
         name: string,
-        opts: { keys?: boolean; yes?: boolean; ours?: string[]; json?: boolean },
+        opts: { keys?: boolean; talk?: boolean; yes?: boolean; ours?: string[]; json?: boolean },
       ) => {
         await carryRemote(shellPlace(io, setExit, opts.json === true), name, opts)
       },

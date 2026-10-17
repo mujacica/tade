@@ -83,6 +83,12 @@ const CarryBody = z.strictObject({
   files: z.array(FileIn).max(200).default([]),
   /** Paths the person pressed for that machine's value to go over this one's. */
   force: z.array(z.string().max(220)).max(1_000).default([]),
+  /**
+   * The person pressed to turn talking to Tade from another screen on here
+   * (`TALK_THERE`): the one setting of this machine's own a carry may change,
+   * only ever on, and only on a press.
+   */
+  talk: z.literal(true).optional(),
 })
 
 export type CarryBody = z.infer<typeof CarryBody>
@@ -133,6 +139,12 @@ export interface CarryAnswer {
   signIns: SignInHere[]
   /** Why it could not say how its harnesses are signed in, where it could not. */
   unsaid?: string
+  /**
+   * Whether a message from another screen is taken here (`TALK_THERE`):
+   * `turning on` where a press asked, which is written once this answer has
+   * gone. Absent from an older Tade, which says nothing of it.
+   */
+  talk?: 'on' | 'off' | 'turning on'
 }
 
 /** The last line this machine wrote about one path, and which device's carry it was. */
@@ -186,17 +198,28 @@ export interface WebCarrying {
    * turned on — asked after the writes, so it answers about what is written now.
    */
   waiting(paths: readonly string[]): ReadonlySet<string>
+  /** Talking to Tade from another screen here (`TALK_THERE`). Absent, nothing is said of it. */
+  talk?: {
+    on(): boolean
+    /**
+     * Turn it on, through the one write path. Called once the answer that said
+     * so has gone, and never throws: what went wrong is said here.
+     */
+    turnOn(by: CarriedBy): Promise<void>
+  }
 }
 
 /**
  * Apply one carry: every setting and file decided here, the ones to write
  * written, and the answer. Pure apart from what `carrying` does, which is the
- * window's.
+ * window's. `answered` is when the answer has gone — where nothing waits on
+ * one, at once.
  */
 export async function applyCarry(
   body: CarryBody,
   device: string,
   carrying: WebCarrying,
+  answered: Promise<void> = Promise.resolve(),
 ): Promise<CarryAnswer> {
   const by: CarriedBy = { device, from: body.from }
   const written = await carrying.written()
@@ -265,7 +288,32 @@ export async function applyCarry(
       unsaid: `its harnesses could not say: ${err instanceof Error ? err.message : String(err)}`,
     }),
   )
-  return { machine: carrying.machine(), settings, files, ...said }
+  return {
+    machine: carrying.machine(),
+    settings,
+    files,
+    ...said,
+    ...talkHere(body, carrying, by, answered),
+  }
+}
+
+/**
+ * Talking from another screen, as said back — and turned on where the person
+ * pressed for it, **once this answer has gone**: the listener it came in on is
+ * built again for it, and built again first it would cut this answer off.
+ */
+function talkHere(
+  body: CarryBody,
+  carrying: WebCarrying,
+  by: CarriedBy,
+  answered: Promise<void>,
+): Pick<CarryAnswer, 'talk'> {
+  const talk = carrying.talk
+  if (talk === undefined) return {}
+  if (talk.on()) return { talk: 'on' }
+  if (body.talk !== true) return { talk: 'off' }
+  void answered.then(() => talk.turnOn(by))
+  return { talk: 'turning on' }
 }
 
 /**
@@ -347,14 +395,21 @@ function shown(value: unknown): string {
   return text.length > 120 ? `${text.slice(0, 119)}…` : text
 }
 
+/** As much of the answer's response as waiting for it to have gone needs. */
+export interface Answering {
+  once(event: 'close', listener: () => void): unknown
+}
+
 /**
  * The route: an owner's body read once, applied, answered. `carrying` absent
  * is a window that did not wire it, which is the `404` of a path nobody built.
+ * `res` is the answer's, for what waits until it has gone.
  */
 export async function carryHere(
   req: IncomingMessage,
   device: Device,
   carrying: WebCarrying | undefined,
+  res: Answering,
 ): Promise<{ body: CarryAnswer } | { refusal: Refusal }> {
   if (carrying === undefined) return { refusal: refuse('no_such') }
   if (!device.owner) return { refusal: refuse('out_of_scope') }
@@ -362,7 +417,10 @@ export async function carryHere(
   if (!got.read) return { refusal: got.refusal }
   const parsed = CarryBody.safeParse(got.body)
   if (!parsed.success) return { refusal: refuse('malformed') }
-  return { body: await applyCarry(parsed.data, device.id, carrying) }
+  // Gone once it is written out, or once its connection is: either way nobody
+  // is still reading it, and `close` comes for both.
+  const answered = new Promise<void>((done) => res.once('close', () => done()))
+  return { body: await applyCarry(parsed.data, device.id, carrying, answered) }
 }
 
 /** A journal line, as much of one as the folds below read. */
@@ -436,6 +494,8 @@ export function carryingAt(opts: {
    */
   started?: number
   waiting?: WebCarrying['waiting']
+  /** Talking from another screen here, and turning it on. Absent, nothing is said of it. */
+  talk?: WebCarrying['talk']
 }): WebCarrying {
   return {
     written: async () => {
@@ -471,5 +531,6 @@ export function carryingAt(opts: {
     machine: () => opts.machine,
     started: () => opts.started ?? Number.POSITIVE_INFINITY,
     waiting: opts.waiting ?? (() => new Set()),
+    ...(opts.talk === undefined ? {} : { talk: opts.talk }),
   }
 }

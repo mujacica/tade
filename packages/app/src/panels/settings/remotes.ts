@@ -1,4 +1,4 @@
-import { KEYS_TO_REMOTE } from '@tade/core'
+import { KEYS_TO_REMOTE, TALK_TO_REMOTE } from '@tade/core'
 // Type-only, so the pure panel model never loads what makes a checklist.
 import type { Checklist } from '@tade/workbench/carry'
 import type { Hit } from '../../hits.ts'
@@ -12,8 +12,9 @@ import type { SettingsPanel } from './state.ts'
 // The Remotes page: each other machine's Tade this one is an owner of, and
 // what became of this one's setup there — what was carried and is kept in
 // step, what applies only when Tade next starts there, what that machine
-// changed itself, what waits on a press, and each harness's own sign-in there
-// (`@tade/workbench/carry`'s checklist, the one `tade remote add` ends with).
+// changed itself, what waits on a press, whether its tab here takes a message,
+// and each harness's own sign-in there (`@tade/workbench/carry`'s checklist,
+// the one `tade remote add` ends with).
 //
 // A category only while there is a remote: a page that says "none" to
 // everybody who never added one is a page in every picture of Settings.
@@ -39,13 +40,19 @@ export interface RemoteShown {
 
 /**
  * One thing that can be pressed on the page: `remote:<verb>:<remote>:<rest>`.
- * `keys` is asked twice, because it sends credentials to another machine.
+ * `keys` is asked twice, because it sends credentials to another machine, and
+ * `talk` too, because it lets what is typed elsewhere reach a model there.
  */
 export interface RemoteAction {
   id: string
   label: string
   remote: string
+  /** What it says between the two presses, where it is asked twice. */
+  again?: string
 }
+
+/** The presses asked twice: what each means is said between the two. */
+const TWICE: readonly string[] = ['keys', 'talk']
 
 /** The account a sign-in is for, as an id carries it: empty for the harness's own. */
 function signInId(remote: string, one: { harness: string; account: string | null }): string {
@@ -66,7 +73,20 @@ export function remoteActions(remotes: readonly RemoteShown[]): RemoteAction[] {
       })
     }
     if ((list?.waiting.length ?? 0) > 0 && list?.unreached === null) {
-      actions.push({ id: `remote:keys:${at}`, label: 'Send them…', remote: at })
+      actions.push({
+        id: `remote:keys:${at}`,
+        label: 'Send them…',
+        remote: at,
+        again: 'Press again to send',
+      })
+    }
+    if (list?.talk === 'off' && list.unreached === null) {
+      actions.push({
+        id: `remote:talk:${at}`,
+        label: 'Turn it on…',
+        remote: at,
+        again: 'Press again to turn on',
+      })
     }
     for (const one of list?.signIns ?? []) {
       if (one.told && !one.signedIn) {
@@ -78,9 +98,10 @@ export function remoteActions(remotes: readonly RemoteShown[]): RemoteAction[] {
   return actions
 }
 
-/** Carry out a press, asking twice for the one that sends keys. */
+/** Carry out a press, asking twice for the ones that send keys or turn talking on. */
 export function remoteChoice(panel: SettingsPanel, id: string): PanelOutcome {
-  if (id.startsWith('remote:keys:') && panel.confirm !== id) {
+  const twice = TWICE.some((verb) => id.startsWith(`remote:${verb}:`))
+  if (twice && panel.confirm !== id) {
     return stay({ ...panel, confirm: id, saved: null, error: null })
   }
   return { panel: { ...panel, confirm: null }, submit: true, choice: id }
@@ -121,7 +142,7 @@ export function drawRemotes(
     if (mine.length === 0) return
     const row = new Row(form, skin, keys).space(3 + named)
     for (const action of mine) {
-      const label = panel.confirm === action.id ? 'Press again to send' : action.label
+      const label = panel.confirm === action.id ? (action.again ?? action.label) : action.label
       row.button(label, { kind: 'control', id: action.id }, look).space()
     }
     if (focused !== null && mine.some((action) => action.id === focused)) {
@@ -172,6 +193,14 @@ export function drawRemotes(
       // Said where somebody is deciding: once they have pressed, before the
       // press that sends.
       if (panel.confirm === `remote:keys:${at}`) say(KEYS_TO_REMOTE, skin.hint, 3 + named, 4)
+    }
+    // Listed until it is on: what is typed in its tab here goes nowhere until then.
+    if (list?.talk === 'off') {
+      line('Talk to Tade', 'off there: its tab here takes no message', skin.waiting)
+      buttons([`remote:talk:${at}`], 'attention')
+      if (panel.confirm === `remote:talk:${at}`) say(TALK_TO_REMOTE, skin.hint, 3 + named, 5)
+    } else if (list?.talk === 'turning on') {
+      line('Talk to Tade', 'turned on there, on your press', skin.done)
     }
     for (const one of list?.signIns ?? []) {
       const who = one.account === null ? one.harness : `${one.harness} · ${one.account}`

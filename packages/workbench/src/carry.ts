@@ -81,14 +81,24 @@ export async function setupOf(
 /** How big one body may be: under the away view's own bound (`BODY_MAX`, 64 KiB) with room. */
 const BODY_ROOM = 48 * 1024
 
+/** What one carry is asked to do beyond keeping in step: each a press of the person's. */
+export interface CarryPress {
+  from: string
+  /** Send the keys, rather than their digests. */
+  keys: boolean
+  /** Paths whose value here goes over one that machine changed itself. */
+  force?: readonly string[]
+  /** Turn talking to Tade from another screen on there (`TALK_THERE`). */
+  talk?: boolean
+}
+
 /**
  * The bodies of one carry: the settings in one — keys as digests unless this
  * is the press that sends them — and the files after, as many to a body as fit.
+ * A press to turn talking on goes in the last, because that machine builds the
+ * listener a body arrives on again for it, once it has answered.
  */
-export function carryBodies(
-  setup: Setup,
-  opts: { from: string; keys: boolean; force?: readonly string[] },
-): CarryBody[] {
+export function carryBodies(setup: Setup, opts: CarryPress): CarryBody[] {
   // A value is whatever the file said, which the far end reads as JSON.
   const valued = (one: CarryLeaf) => ({ path: one.path, value: one.value as never })
   const settings: CarryBody['settings'] = [
@@ -133,6 +143,8 @@ export function carryBodies(
   }
   if (files.length > 0)
     bodies.push({ from: opts.from, complete: false, settings: [], files, force })
+  const last = bodies.at(-1)
+  if (opts.talk === true && last !== undefined) last.talk = true
   return bodies
 }
 
@@ -145,7 +157,7 @@ export async function carryTo(
   link: RemoteLink,
   remote: Remote,
   setup: Setup,
-  opts: { from: string; keys: boolean; force?: readonly string[] },
+  opts: CarryPress,
 ): Promise<CarryAnswer> {
   const folded: CarryAnswer = { machine: '', settings: [], files: [], signIns: [] }
   for (const body of carryBodies(setup, opts)) {
@@ -165,9 +177,13 @@ export async function carryTo(
     folded.files.push(...one.files)
     folded.signIns = one.signIns
     if (typeof one.unsaid === 'string') folded.unsaid = one.unsaid
+    if (one.talk !== undefined && TALK_SAID.has(one.talk)) folded.talk = one.talk
   }
   return folded
 }
+
+/** What a remote may say of talking from another screen there; anything else is not said. */
+const TALK_SAID: ReadonlySet<string> = new Set(['on', 'off', 'turning on'])
 
 /**
  * A remote that answered and would not take a carry — an older Tade, a session
@@ -235,6 +251,13 @@ export interface Checklist {
     told: boolean
     lasts: string
   }[]
+  /**
+   * Whether that machine takes a message from another screen — this one's tab
+   * for its orchestrator among them (`TALK_THERE`, that machine's own): `off`
+   * waits on a press, `turning on` is one it took. Null where it did not say,
+   * as an older Tade does not, and then nothing is offered.
+   */
+  talk: 'on' | 'off' | 'turning on' | null
   /** This machine's own, never sent, and why. */
   here: { what: string; why: string }[]
   /** What else a home holds, and what becomes of each: the inventory, as said. */
@@ -271,6 +294,7 @@ export function checklistOf(req: {
     sent: [],
     nextStart: [],
     signIns: [],
+    talk: answer?.talk ?? null,
     here: setup.here.map((one) => ({ what: one.path, why: one.because })),
     holds: HOME_HOLDS,
   }
@@ -333,6 +357,7 @@ export function leftToDo(list: Checklist): boolean {
     list.waiting.length > 0 ||
     list.theirs.length > 0 ||
     list.refused.length > 0 ||
+    list.talk === 'off' ||
     list.signIns.some((one) => !one.signedIn)
   )
 }
@@ -379,6 +404,18 @@ export function checklistLines(list: Checklist, how: { address: string; tade: st
     lines.push(`waiting on a press: ${list.waiting.join(', ')}`)
     lines.push(
       `  \`tade remote carry ${list.remote} --keys\`, or Settings › Remotes in the window — it asks first`,
+    )
+  }
+  if (list.talk === 'off') {
+    lines.push(
+      `talking to Tade from here is off on ${list.remote}, so its tab here takes no message`,
+    )
+    lines.push(
+      `  \`tade remote carry ${list.remote} --talk\`, or Settings › Remotes — it says what that means first`,
+    )
+  } else if (list.talk === 'turning on') {
+    lines.push(
+      `talking to Tade from here is turned on on ${list.remote}, on your press: its tab here takes a message once the link is back`,
     )
   }
   for (const one of list.signIns) {
@@ -447,6 +484,7 @@ export function carriedLine(
       refused: list.refused.length,
       waiting: list.waiting.length,
       ...(list.sent.length > 0 ? { sent: list.sent.join(' ') } : {}),
+      ...(list.talk === 'turning on' ? { talk: 'turned on' } : {}),
     },
   }
 }

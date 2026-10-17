@@ -4,12 +4,20 @@ import {
   extensionEnabled,
   machineLabel,
   type SettingGroup,
+  TALK_THERE,
   writtenAt,
 } from '@tade/core'
 import type { LoadedExtension } from '@tade/extensions-core'
-import { carryingAt, inTime, type SignInHere, type WebCarrying } from '@tade/web'
+import {
+  type CarriedBy,
+  carryingAt,
+  inTime,
+  type SignInHere,
+  surfaceOf,
+  type WebCarrying,
+} from '@tade/web'
 import type { AccountView } from '@tade/workbench/accounts'
-import { configPathOf, type Wiring } from './context.ts'
+import { configPathOf, notify, type Wiring, why } from './context.ts'
 import type { Settings } from './settings.ts'
 
 // Another machine's Tade carrying its setup into this one (`@tade/web`'s
@@ -58,29 +66,60 @@ export function carryingFor(
     machine: machineLabel(),
     started: wire.openedAt,
     waiting: (paths) =>
-      waitingHere(
-        paths,
-        settings.rows(),
-        wire.opts.config.extensions,
-        wire.opts.extensions?.list() ?? [],
-      ),
+      waitingHere(paths, settings.rows(), wire.opts.config, wire.opts.extensions?.list() ?? []),
+    talk: {
+      on: () => surfaceOf(wire.opts.config.surfaces.web).talking,
+      turnOn: (by) => turnTalkOn(wire, settings, by),
+    },
   })
   return carrying
 }
 
 /**
+ * Talking to Tade from another screen turned on here, on an owner's press: by
+ * the window's own door, so it applies now — the listener is built again with
+ * the routes that take a message — and is written down as that device's. Never
+ * throws: what went wrong is said here, and the next carry finds it still off
+ * and says so there.
+ */
+async function turnTalkOn(
+  wire: Wiring,
+  settings: Pick<Settings, 'writeKey'>,
+  by: CarriedBy,
+): Promise<void> {
+  try {
+    const was = String(wire.opts.config.surfaces.web.orchestrator)
+    await settings.writeKey(TALK_THERE, true, was, { by: `device ${by.device}` })
+  } catch (err) {
+    notify(
+      wire,
+      `Talking to Tade from another screen was not turned on, as ${by.from} asked: ${why(err)}`,
+    )
+    wire.draw()
+  }
+}
+
+/**
  * Of these paths, the ones a change to waits for Tade to start again here: a
  * row Settings says is not live — what it says where somebody changes one here
- * — and an extension that is on and not running, one of yours, which is never
- * imported mid-session.
+ * — an extension that is on and not running, one of yours, which is never
+ * imported mid-session, and an MCP server that is on or was when Tade started.
  */
 export function waitingHere(
   paths: readonly string[],
   rows: readonly SettingGroup[],
-  extensions: Config['extensions'],
+  config: Pick<Config, 'extensions' | 'mcp'>,
   loaded: readonly Pick<LoadedExtension, 'name' | 'source' | 'state'>[],
 ): Set<string> {
-  const live = new Map(rows.flatMap((group) => group.settings).map((one) => [one.path, one.live]))
+  const settings = rows.flatMap((group) => group.settings)
+  const live = new Map(settings.map((one) => [one.path, one.live]))
+  // A model is chosen as provider/id and kept as two keys (`modelChosen`), so
+  // the row at `<x>.model` is the one somebody changed a provider with too.
+  for (const one of settings) {
+    if (one.type.kind !== 'model' || !one.path.endsWith('.model')) continue
+    const provider = `${one.path.slice(0, -'model'.length)}provider`
+    if (!live.has(provider)) live.set(provider, one.live)
+  }
   const waiting = new Set<string>()
   for (const path of paths) {
     const row = live.get(path)
@@ -88,10 +127,19 @@ export function waitingHere(
       if (!row) waiting.add(path)
       continue
     }
+    // The broker reads `mcp.servers` once, as Tade starts (`brokerFor`): a
+    // server turned on connects then, and one changed or turned off goes on as
+    // it was until then. One off then and now has nothing to wait for.
+    const server = /^mcp\.servers\.([^.]+)$/.exec(path)?.[1]
+    if (server !== undefined) {
+      const running = loaded.some((each) => each.source === 'mcp' && each.name === `mcp-${server}`)
+      if (running || config.mcp.servers[server]?.enabled === true) waiting.add(path)
+      continue
+    }
     const name = /^extensions\.([^.]+)\.enabled$/.exec(path)?.[1]
     const one = loaded.find((each) => each.name === name)
     if (one === undefined || one.source === 'mcp' || one.state !== 'off') continue
-    if (extensionEnabled(extensions[one.name], one.source)) waiting.add(path)
+    if (extensionEnabled(config.extensions[one.name], one.source)) waiting.add(path)
   }
   return waiting
 }

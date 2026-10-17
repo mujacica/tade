@@ -1,6 +1,6 @@
 import type { IncomingMessage } from 'node:http'
 import { type AttachAnswer, attachHere } from './attached.ts'
-import { type CarryAnswer, carryHere } from './carried.ts'
+import { type Answering, type CarryAnswer, carryHere } from './carried.ts'
 import type { Device } from './devices.ts'
 import type { Refusal } from './errors.ts'
 import { carryPresence } from './presence.ts'
@@ -21,10 +21,11 @@ export async function carryOwned(
   device: Device,
   now: number,
   opts: Pick<ServerOptions, 'present' | 'carrying' | 'attaching' | 'since'>,
+  res: Answering,
 ): Promise<
   { body: { at: string } | CarryAnswer | AttachAnswer | SinceAnswer } | { refusal: Refusal }
 > {
-  if (route === 'carry') return carryHere(req, device, opts.carrying)
+  if (route === 'carry') return carryHere(req, device, opts.carrying, res)
   if (route === 'attach') return attachHere(req, device, opts.attaching)
   if (route === 'since') return sinceHereFor(req, device, now, opts.since)
   return carryPresence(req, device, now, opts.present)

@@ -363,7 +363,7 @@ function refusedSaid(answer: Answer, name: string): string {
   // No route by that name: the routes that talk are built only where talking
   // from another screen is on there.
   if (answer.status === 404 && error === 'no_such') {
-    return `${name} takes no message from another screen — turn on talking to Tade from away there (surfaces.web.orchestrator)`
+    return `${name} takes no message from another screen: talking to Tade from away is off there (surfaces.web.orchestrator) — Settings › Remotes turns it on`
   }
   if (error === 'gone') return `${name}'s orchestrator started on something else first`
   return `${name}: ${said || `it answered ${answer.status}`}`

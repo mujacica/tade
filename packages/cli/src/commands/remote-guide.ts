@@ -12,10 +12,12 @@ import {
   type RemoteConfig,
   RemoteName,
   SshDestination,
+  TALK_TO_REMOTE,
   writeSetting,
 } from '@tade/core'
 import { LinkError, type Remote, type RemoteLink } from '@tade/remotes-core'
 import {
+  type CarryPress,
   type Checklist,
   carriedLine,
   carryTo,
@@ -33,8 +35,9 @@ import { heldIn, recordFromShell } from '../config-write.ts'
 import { Exit, type Io } from '../io.ts'
 
 // The guided half of `tade remote add` and `tade remote carry`: meeting a
-// machine never met, carrying this one's setup there, offering the keys on a
-// press, walking each harness's sign-in, and the checklist at the end
+// machine never met, carrying this one's setup there, offering the keys and
+// talking to Tade from here on a press, walking each harness's sign-in, and the
+// checklist at the end
 // (`@tade/workbench/carry`; `@tade/core`'s `carry.ts` decides every key).
 //
 // **Every question is a person's.** With nobody at the terminal — `--json`, a
@@ -161,7 +164,7 @@ export interface Carrying {
 export async function carryOnce(
   c: Carrying,
   setup: Setup,
-  opts: { keys: boolean; force?: readonly string[] },
+  opts: Omit<CarryPress, 'from'>,
 ): Promise<Checklist> {
   const inUse = harnessesInUse(c.config)
   try {
@@ -222,6 +225,45 @@ export async function offerKeys(
     )
   }
   return sent
+}
+
+/**
+ * Talking to Tade from here turned on there, on the person's press: what it
+ * means said first, then asked for, and written down here as asked — which
+ * needs this home's journal, so where a window holds it, it is pressed from
+ * that window instead. The checklist after. Only ever offered where that
+ * machine said it is off.
+ */
+export async function offerTalk(
+  c: Carrying,
+  setup: Setup,
+  list: Checklist,
+  pressed: boolean,
+): Promise<Checklist> {
+  if (list.unreached !== null || list.talk !== 'off') return list
+  // With nobody to ask and no press given ahead, the checklist says it is off and how.
+  if (!pressed && !c.asking.interactive) return list
+  c.io.err(
+    `Talking to Tade from here is off on ${c.remote.name}, so what you type in its tab here goes nowhere.`,
+  )
+  c.io.err(TALK_TO_REMOTE)
+  const yes =
+    pressed ||
+    (c.asking.interactive && (await c.asking.ask(`Turn it on on ${c.remote.name} now?`, false)))
+  if (!yes) return list
+  let turned: Checklist = list
+  try {
+    await withShellJournal(c.home, async (append) => {
+      turned = await carryOnce(c, setup, { keys: false, talk: true })
+      await append(carriedLine(c.remote.name, 'cli', turned))
+    })
+  } catch (err) {
+    if (!(err instanceof HomeBusyError)) throw err
+    c.io.err(
+      `the window open on this home holds its journal, so it is turned on from there: Settings › Remotes › ${c.remote.name}`,
+    )
+  }
+  return turned
 }
 
 /**
@@ -402,6 +444,7 @@ export async function addRemote(place: Place, name: string, opts: AddOpts): Prom
   const setup = await setupOf(place.home, path)
   let list = await carryOnce(c, setup, { keys: false })
   list = await offerKeys(c, setup, list, false)
+  list = await offerTalk(c, setup, list, false)
   list = await guideSignIns(c, setup, list)
   if (opts.json) {
     io.out(JSON.stringify({ ...listed(name, written), window, checklist: list }, null, 2))
@@ -420,7 +463,7 @@ export async function addRemote(place: Place, name: string, opts: AddOpts): Prom
 export async function carryRemote(
   place: Place,
   name: string,
-  opts: { keys?: boolean; yes?: boolean; ours?: string[]; json?: boolean },
+  opts: { keys?: boolean; talk?: boolean; yes?: boolean; ours?: string[]; json?: boolean },
 ): Promise<void> {
   const { io, setExit } = place
   const loaded = await loadConfig(place.configPath)
@@ -457,6 +500,7 @@ export async function carryRemote(
   const setup = await setupOf(place.home, place.configPath)
   let list = await carryOnce(c, setup, { keys: false, force: opts.ours ?? [] })
   if (opts.keys) list = await offerKeys(c, setup, list, opts.yes === true)
+  if (opts.talk) list = await offerTalk(c, setup, list, opts.yes === true)
   list = await guideSignIns(c, setup, list)
   if (opts.json) io.out(JSON.stringify(list, null, 2))
   else sayChecklist(io, list, { address: one.ssh, tade: one.tade })
