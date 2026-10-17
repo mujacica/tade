@@ -183,8 +183,10 @@ describe('the values carried', () => {
   })
 
   it('never says a pressed value on the line that records it', () => {
-    expect(carriedSays('pressed', 'sk-live-123456')).toBe('14 characters')
+    // Whether there is one, as every writer says a key: not even how long it is.
+    expect(carriedSays('pressed', 'sk-live-123456')).toBe('set')
     expect(carriedSays('pressed', { env: { TOKEN: 'x' } })).toBe('set')
+    expect(carriedSays('pressed', undefined)).toBe('not set')
     expect(carriedSays('kept', 'own-files')).toBe('own-files')
     expect(carriedSays('kept', undefined)).toBe('')
   })

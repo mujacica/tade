@@ -73,11 +73,12 @@ describe('a config write from a terminal', () => {
       unsaid,
     )
     const said = await details(home)
-    expect(said.map((one) => one.now)).toEqual([
-      '16 characters',
-      '14 characters',
-      '16 characters',
-      'set',
+    // Whether there is one, as Settings says a key — not even how long it is.
+    expect(said.map((one) => [one.was, one.now])).toEqual([
+      ['not set', 'set'],
+      ['not set', 'set'],
+      ['not set', 'set'],
+      ['', 'set'],
     ])
     const journal = readFileSync(join(home, 'events.jsonl'), 'utf8')
     for (const secret of ['THE-TOKEN', 'jev-0123456789', 'npm-secret-value', 'THE-SESSION']) {
@@ -171,7 +172,7 @@ describe('a config patched from a terminal', () => {
     const said = await details(home)
     expect(said).toEqual([
       { path: 'surfaces.voice.stt.driver', was: '', now: 'openai', by: 'cli' },
-      { path: 'extensions.jev.key', was: '', now: '14 characters', by: 'cli' },
+      { path: 'extensions.jev.key', was: 'not set', now: 'set', by: 'cli' },
       { path: 'extensions.jev.enabled', was: '', now: 'true', by: 'cli' },
     ])
     expect(JSON.stringify(said)).not.toContain('jev-0123456789')

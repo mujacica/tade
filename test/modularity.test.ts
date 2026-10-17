@@ -103,8 +103,9 @@ const BUDGET: Record<string, number> = {
   // 2,291 when a schedule's run followed it there, as both learned to propose;
   // 2,285 when the `cwd` the harness and account lookups no longer read went;
   // 2,267 when writing the config and keeping a route went to `config-kept.ts`,
-  // as both learned to write their change down.
-  'packages/workbench/src/workbench.ts': 2_267,
+  // as both learned to write their change down; 2,265 when keeping one learned
+  // the orchestrator's reach and to say why it was not kept (`keptOnRoute`).
+  'packages/workbench/src/workbench.ts': 2_265,
   // 1,100 -> 1,045 when what each agent has been doing went to `doing.ts`, as
   // it learned which files each one wrote for the conflict forecast.
   'packages/workbench/src/workers.ts': 1_045,

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { IN_CONFIG, SEEN_BY_AGENTS } from './secrets.ts'
+import { heldSays, IN_CONFIG, SEEN_BY_AGENTS } from './secrets.ts'
 
 // What another machine's Tade is given of this one's: the decision for every
 // key, beside `settingReach` because it is the same kind of question — what a
@@ -358,13 +358,14 @@ export function carryDecision(req: {
 
 /**
  * What one carried write says it set, on the `config_changed` line that
- * machine writes: the value as text for a preference, and never a value for
- * anything carried on a press — a key, or a block a key may be inside.
+ * machine writes: the value as text for a preference, and for anything carried
+ * on a press — a key, or a block a key may be inside — only whether there is
+ * one (`heldSays`), as every other writer says a key.
  */
 export function carriedSays(carry: Carry, value: unknown): string {
+  if (carry === 'pressed') return heldSays(value)
   if (value === undefined || value === null) return ''
-  if (carry !== 'pressed') return textOf(value)
-  return typeof value === 'string' ? `${value.length} characters` : 'set'
+  return textOf(value)
 }
 
 /**

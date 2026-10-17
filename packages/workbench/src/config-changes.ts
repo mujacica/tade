@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { configChangesSpool, type EventInput, textOf, writtenAt } from '@tade/core'
+import { configChangesSpool, type EventInput, heldSays, textOf, writtenAt } from '@tade/core'
 import { parseDocument } from 'yaml'
 import { EventLog } from './events.ts'
 import { HomeBusyError, lockHome } from './lock.ts'
@@ -66,10 +66,11 @@ export function heldIn(path: string): unknown {
 /**
  * The line a write of `value` at `key` leaves, over what the config held
  * `before` (`heldIn`) — or null where it changed nothing. A credential is said
- * only as whether there is one, `set` or `not set`, as the Settings page says
- * one; a block only as `set`, because a key may be inside one; a list as its
- * items with spaces between. For a writer that holds the journal, or hands its
- * lines to whoever does (`recordConfigChanges`).
+ * only as whether there is one (`heldSays`), as every writer says one, never
+ * how long it is; a block only as `set`, because a key may be inside one; a
+ * list as its items with spaces between. For a writer that holds the journal,
+ * or hands its lines to whoever does (`recordConfigChanges`) — a terminal's
+ * included.
  */
 export function changeOf(
   before: unknown,
@@ -86,7 +87,7 @@ export function changeOf(
 
 /** A value as `changeOf` says it. */
 function saidOnLine(value: unknown, credential: boolean): string {
-  if (credential) return value === undefined || value === null || value === '' ? 'not set' : 'set'
+  if (credential) return heldSays(value)
   if (value === undefined || value === null) return ''
   if (typeof value === 'string') return value
   if (Array.isArray(value)) {

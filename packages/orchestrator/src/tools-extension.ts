@@ -341,7 +341,7 @@ export function orchestratorTools(
 
   tool(
     'tade_agent_model',
-    'Switch the model an agent is running on: "switch refunds to opus 5", "use kimi in agent-1". New agents start on it from then on, until another is chosen; agents already working keep their own. Say the model the way the human did; Tade finds it among the models they are signed in to, and says which it means when more than one fits. The agent must be running: to start one on a model, give the model to tade_run_start instead.',
+    'Switch the model an agent is running on: "switch refunds to opus 5", "use kimi in agent-1". New agents start on it too where that changes only the model on the project\'s route; another provider\'s model, or one for an agent in a harness other than its route\'s, switches that agent alone, because which provider a route sends work to is the person\'s to change, in Settings — the answer says which it was. Agents already working keep their own. Say the model the way the human did; Tade finds it among the models they are signed in to, and says which it means when more than one fits. The agent must be running: to start one on a model, give the model to tade_run_start instead.',
     object(
       {
         task: string('task id, like checkout/refunds'),
@@ -356,14 +356,15 @@ export function orchestratorTools(
       })) as {
         provider?: string
         id?: string
+        route?: unknown
       }
-      return `${String(p.task)} is switching to ${chosen.provider ? `${chosen.provider}/` : ''}${chosen.id ?? String(p.model)}.`
+      return `${String(p.task)} is switching to ${chosen.provider ? `${chosen.provider}/` : ''}${chosen.id ?? String(p.model)}${newAgents(chosen.route, ', and new agents start on it too')}.`
     },
   )
 
   tool(
     'tade_agent_thinking',
-    'Set how hard an agent thinks before it answers — off, minimal, low, medium, high, xhigh or max — from its next turn: "think harder on refunds", "less thinking for agent-1". New agents think that hard too, until another level is chosen. A model that cannot think that hard takes the most it can. The agent must be running.',
+    'Set how hard an agent thinks before it answers — off, minimal, low, medium, high, xhigh or max — from its next turn: "think harder on refunds", "less thinking for agent-1". New agents think that hard too where the agent runs in its route\'s own harness; otherwise only it does, and the answer says so. A model that cannot think that hard takes the most it can. The agent must be running.',
     object(
       {
         task: string('task id, like checkout/refunds'),
@@ -375,8 +376,8 @@ export function orchestratorTools(
       const done = (await rpc('worker/thinking', {
         task: String(p.task),
         level: String(p.level),
-      })) as { level: string }
-      return `${String(p.task)} thinks at ${done.level} from its next turn, and new agents will too.`
+      })) as { level: string; route?: unknown }
+      return `${String(p.task)} thinks at ${done.level} from its next turn${newAgents(done.route, ', and new agents will too')}.`
     },
   )
 
@@ -714,6 +715,18 @@ export default function tadeTools(pi: PiApi): void {
       },
     })
   }
+}
+
+/**
+ * What became of keeping an agent's change for new agents, as the window
+ * answers it (`RouteKept`): `kept` where it was, or that agent alone and why —
+ * out of reach, or not written. Nothing from a window that said neither.
+ */
+function newAgents(route: unknown, kept: string): string {
+  const said = route as { kept?: boolean; why?: string } | null | undefined
+  if (said?.kept === true) return kept
+  if (said?.kept !== false) return ''
+  return `, and only it: new agents still start where they did, because ${said.why ?? 'the window did not say why'}`
 }
 
 async function worktreeOf(task: string): Promise<string | null> {

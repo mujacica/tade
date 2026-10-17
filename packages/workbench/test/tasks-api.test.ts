@@ -618,10 +618,11 @@ describe('task and run RPC', () => {
     const sessionsRoot = tmp('tade-sessions-')
     await client.close()
     client = await Workbench.open({ home, version: '9.9.9', sessionsRoot })
-    await client.keepAgentModel('app/refunds', {
+    const kept = await client.keepAgentRoute('app/refunds', {
       provider: 'openrouter',
-      id: 'anthropic/claude-opus-5',
+      model: 'anthropic/claude-opus-5',
     })
+    expect(kept).toEqual({ kept: true })
     // Kept where Settings shows the agent model, so the next window starts there too.
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('anthropic/claude-opus-5')
     // And written down like a change from Settings, by whoever asked: a model
@@ -655,35 +656,48 @@ describe('task and run RPC', () => {
     const returning = await client.startAgent({ task: back.id, cwd: back.worktree, prompt: '' })
     expect(returning.spec.args).not.toContain('--model')
 
-    // Chosen by the orchestrator for an agent in another harness: kept beside
-    // the route's own, and said to be the orchestrator's.
-    await client.keepAgentModel(
+    // The orchestrator moving one agent to another provider's model moves that
+    // agent alone: where a route sends work is never its to change, so nothing
+    // under `workers.routes` is written, and it is told why and whose it is.
+    const config = () => readFileSync(join(home, 'config.yaml'), 'utf8')
+    const before = config()
+    const elsewhere = await client.keepAgentRoute(
       'app/refunds',
-      { provider: 'anthropic', id: 'claude-opus-5' },
-      'claude-code',
+      { provider: 'openai', model: 'gpt-5' },
+      undefined,
+      'orchestrator',
+    )
+    expect(elsewhere.kept).toBe(false)
+    expect(elsewhere.kept === false && elsewhere.why).toMatch(
+      /^workers\.routes\.default\.provider is not mine to change — .*in Settings/,
+    )
+    expect(config()).toBe(before)
+    expect(await lines()).toHaveLength(2)
+    // Another model of the provider the route already has moves nothing out of
+    // its reach, and is new agents' model, said to be the orchestrator's.
+    await client.keepAgentRoute(
+      'app/refunds',
+      { provider: 'openrouter', model: 'openai/gpt-5' },
+      undefined,
       'orchestrator',
     )
     expect((await lines()).slice(2)).toEqual([
       {
-        path: 'workers.routes.default.harnesses.claude-code.provider',
-        was: '',
-        now: 'anthropic',
-        by: 'orchestrator',
-      },
-      {
-        path: 'workers.routes.default.harnesses.claude-code.model',
-        was: '',
-        now: 'claude-opus-5',
+        path: 'workers.routes.default.model',
+        was: 'anthropic/claude-opus-5',
+        now: 'openai/gpt-5',
         by: 'orchestrator',
       },
     ])
-    // The same model again changes nothing, and nothing is written down.
-    await client.keepAgentModel(
-      'app/refunds',
-      { provider: 'anthropic', id: 'claude-opus-5' },
-      'claude-code',
-    )
-    expect(await lines()).toHaveLength(4)
+    // Chosen in the window for an agent in another harness: kept beside the
+    // route's own. The same model again changes nothing, and writes nothing down.
+    const claude = { provider: 'anthropic', model: 'claude-opus-5' }
+    await client.keepAgentRoute('app/refunds', claude, 'claude-code')
+    await client.keepAgentRoute('app/refunds', claude, 'claude-code')
+    expect((await lines()).slice(3).map((one) => one.path)).toEqual([
+      'workers.routes.default.harnesses.claude-code.provider',
+      'workers.routes.default.harnesses.claude-code.model',
+    ])
   }, 60_000)
 
   it('starts new agents as hard-thinking as was last chosen, and refuses a level there is not', async () => {

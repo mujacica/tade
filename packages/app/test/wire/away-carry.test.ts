@@ -105,7 +105,7 @@ describe('a carry into this window', () => {
     expect(JSON.stringify(answer.body)).not.toContain('me@example.com')
   })
 
-  it('writes a key sent on the press, and its line says how long it was', async () => {
+  it('writes a key sent on the press, and its line says only that one is set', async () => {
     const one = await machine({ realKeys: true, accounts: async () => [] })
     await owner(one.home, one.port)
     await one.away.open()
@@ -117,7 +117,7 @@ describe('a carry into this window', () => {
     expect(answer.body.settings).toEqual([{ path: 'extensions.jev.key', outcome: 'written' }])
     expect(fileOf(one.home).extensions?.jev?.key).toBe('jev-0123456789')
     const changed = await waitFor(one.client, 'config_changed')
-    expect(changed[0]?.detail).toMatchObject({ now: '14 characters', carried: 'mac' })
+    expect(changed[0]?.detail).toMatchObject({ now: 'set', carried: 'mac' })
     expect(JSON.stringify(changed)).not.toContain('jev-0123456789')
   })
 

@@ -550,7 +550,7 @@ export class WebPush {
    *
    * Through `writeKey`, which is the one door a setting is written by: written,
    * read back, handed to everywhere a config is held, and recorded as
-   * `config_changed` with a count of characters rather than the key itself.
+   * `config_changed` as `set` rather than the key itself.
    *
    * Started and not awaited, with a guard so two beats do not mint two keys —
    * which would be the worse failure, because the second would make every
@@ -574,7 +574,8 @@ export class WebPush {
     this.generating = (async () => {
       try {
         const made = generateVapid()
-        await this.deps.writeKey('surfaces.web.push_key', made.privateKey, '')
+        // Only ever minted where there is none, so it was not set.
+        await this.deps.writeKey('surfaces.web.push_key', made.privateKey, 'not set')
         this.deps.tell({
           type: 'warning',
           detail: {

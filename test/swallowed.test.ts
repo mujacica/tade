@@ -360,7 +360,7 @@ const ALLOWED: Record<string, number> = {
   'packages/workbench/src/task-said.ts': 1,
   'packages/workbench/src/tasks.ts': 5,
   'packages/workbench/src/templates.ts': 1,
-  'packages/workbench/src/workbench.ts': 34,
+  'packages/workbench/src/workbench.ts': 33,
   'packages/workbench/src/workers.ts': 4,
 }
 

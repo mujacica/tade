@@ -229,9 +229,9 @@ describe('carrying a setup here', () => {
     expect(outcomes(sent)).toEqual({ 'extensions.jev.key': 'written' })
     expect(file()).toContain(key)
     expect(statSync(config).mode & 0o777).toBe(0o600)
-    // The line says it was sent, and how long it was, and never what it was.
+    // The line says it was sent, and that one is set, and never what it was.
     expect(JSON.stringify(lines)).not.toContain(key)
-    expect(lines.at(-1)?.detail).toMatchObject({ now: '20 characters', carried: 'mac' })
+    expect(lines.at(-1)?.detail).toMatchObject({ now: 'set', carried: 'mac' })
     expect(
       outcomes(await carry({ settings: [{ path: 'extensions.jev.key', digest: keyDigest(key) }] })),
     ).toEqual({ 'extensions.jev.key': 'same' })

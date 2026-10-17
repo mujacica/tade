@@ -224,7 +224,7 @@ describe('tade remote add, carrying this machine’s setup', () => {
     })
     expect(JSON.stringify(mine)).not.toContain(JEV_KEY)
     const theirs = far.lines.filter((one) => one.detail?.path === 'extensions.jev.key')
-    expect(theirs.at(-1)?.detail).toMatchObject({ now: '24 characters', carried: 'mac' })
+    expect(theirs.at(-1)?.detail).toMatchObject({ now: 'set', carried: 'mac' })
     expect(JSON.stringify(far.lines)).not.toContain(JEV_KEY)
   })
 

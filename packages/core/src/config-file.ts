@@ -72,8 +72,8 @@ export function writeSetting(
   // A credential is written here like anything else. It used to be refused —
   // the config was "a file people read out loud" — which sent every key to the
   // keychain, where it could not be read back, checked or copied. The file is
-  // `0600` and one person's (`ownerOnly`); that, and not a rule here, is what
-  // keeps it theirs.
+  // `0600` (`ownerOnly`), which keeps it from other people and not from the
+  // agents you run, which can read it (`KEYS_AND_AGENTS`).
   let text = ''
   try {
     text = readFileSync(path, 'utf8')
@@ -89,10 +89,11 @@ export function writeSetting(
 }
 
 /**
- * The config is one person's, so it is that person's alone to read: where
- * their projects are, which Sentry they watch, a DSN anybody holding it could
- * send events to — and now the keys they pasted in, which is what makes this
- * the whole of the promise rather than tidiness. Writing with `mode` only
+ * Keep the config from other people: where somebody's projects are, which
+ * Sentry they watch, a DSN anybody holding it could send events to, and the
+ * keys they pasted in. `0600` is the whole of what that buys — the agents they
+ * run run as them and can read it like any other file of theirs, which is said
+ * where somebody is deciding (`KEYS_AND_AGENTS`). Writing with `mode` only
  * covers a file that is being made; one that was already there is narrowed
  * here, keeping whatever the owner may do with it and taking away what
  * everybody else could.

@@ -6,6 +6,7 @@ import {
   copiedHosts,
   copiesUnreadSays,
   HARNESS_CHOICES,
+  heldSays,
   LINES_LOOKED_BACK,
   loadConfig,
   modelChosen,
@@ -22,7 +23,7 @@ import {
   withoutCopies,
 } from '@tade/core'
 import { isCredential } from '@tade/web'
-import { foldConfigChanges } from '@tade/workbench/config-changes'
+import { CREDENTIAL, foldConfigChanges } from '@tade/workbench/config-changes'
 import type { Frame } from '../frame.ts'
 import { checkTalkKey } from '../keys.ts'
 import { withTranscript } from '../model.ts'
@@ -492,8 +493,7 @@ export class Settings implements Subject {
       was,
       // **Never the value where it is a credential**, which is the one thing
       // this line may not carry: a key is never in the journal
-      // (`KEYS_AND_AGENTS`). A count of characters is a thing Tade may say,
-      // and is enough to tell a write that landed from one that did not.
+      // (`KEYS_AND_AGENTS`), and is said as whether there is one.
       now: how.now ?? said(key, value as boolean | string | undefined),
       by: how.by ?? 'window',
       ...(how.carried === undefined ? {} : { carried: how.carried }),
@@ -564,7 +564,7 @@ export class Settings implements Subject {
     // as whether there is one. `settingReach` already keeps the orchestrator
     // out of every path one can live at; this is about the page, which can
     // write one, and about the line the page's write leaves behind.
-    const held = (text: string) => (this.secret(path) ? (text === '' ? 'not set' : 'set') : text)
+    const held = (text: string) => (this.secret(path) ? heldSays(text) : text)
     // What choosing this harness clears — read before the write, because
     // after it there is nothing left to read. Only where it actually changes
     // hands: choosing the harness you are already on is not a new choice, and
@@ -775,12 +775,10 @@ function named(name: string): string {
  * A credential is **never** the value: a key is not in the journal, not in
  * what telemetry sends and not in a launch line (`KEYS_AND_AGENTS`), and the
  * one key with no field on the page is the generated notification one. What
- * goes in instead is a count of characters, which is a thing Tade may say and
- * is enough to tell a write that landed from one that did not.
+ * goes in instead is whether there is one (`heldSays`), which is how every
+ * writer of the config says a key — never how long it is.
  */
 function said(key: string, value: boolean | string | undefined): string {
-  if (value === undefined) return ''
-  if (typeof value !== 'string') return String(value)
-  if (!key.endsWith('_key') && !key.endsWith('.key') && !key.endsWith('token')) return value
-  return value === '' ? '' : `${value.length} characters`
+  if (CREDENTIAL.test(key)) return heldSays(value)
+  return value === undefined ? '' : String(value)
 }

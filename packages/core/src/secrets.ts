@@ -13,8 +13,9 @@ import { fileURLToPath } from 'node:url'
 //
 // So: `config.yaml`, in `TADE_HOME`, written `0600`, as itself. It can be read
 // back, copied, and corrected. What that costs is that the file now holds
-// credentials, so it is one person's alone (`ownerOnly`) and is never a file
-// to commit or paste into an issue — which it never was.
+// credentials, so it is kept from other people (`ownerOnly`) — never from the
+// agents you run, which can read it (`KEYS_AND_AGENTS`) — and is never a file
+// to commit or paste into an issue, which it never was.
 //
 // The order a credential is found in is the other half, and is unchanged:
 // **the environment always wins**. A machine that works today by exporting
@@ -57,6 +58,17 @@ export const KEYS_AND_AGENTS =
   `Kept in ${IN_CONFIG} as you typed it, so you can read it back — and ${SEEN_BY_AGENTS} too: ` +
   `agents run as you, and nothing sandboxes them. To keep one out of the file, export its ` +
   `variable instead, which wins and is never written down, or leave this unset.`
+
+/**
+ * A credential wherever its value would be said — a `config_changed` line, a
+ * carry's: whether there is one, and nothing of it. Never a count of its
+ * characters either, which says something about a secret, and is how a key
+ * written from a terminal and the same key written from Settings came to be
+ * said two ways.
+ */
+export function heldSays(value: unknown): 'set' | 'not set' {
+  return value === undefined || value === null || value === '' ? 'not set' : 'set'
+}
 
 /** Where an extension's credential is written: `extensions.jev.key`. */
 export function secretPath(extension: string, key: string): string {

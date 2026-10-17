@@ -9,6 +9,7 @@ import {
 } from '@tade/core'
 import type { HarnessModels } from '@tade/harnesses-core'
 import { taskFilePath } from '@tade/workbench'
+import type { RouteKept } from '@tade/workbench/config-kept'
 import { markOf } from '../checkout-look.ts'
 import type { Frame } from '../frame.ts'
 import { notice, ORCHESTRATOR_TAB, shownName, type TaskSnapshot } from '../model.ts'
@@ -396,7 +397,7 @@ export class Routes implements Subject {
       if (loaded.ok) this.deps.useConfig(loaded.config)
       notify(
         this.wire,
-        `${task} thinks at ${chosen} from its next turn, and new agents start there`,
+        `${task} thinks at ${chosen.level} from its next turn${newAgents(chosen.route, 'start there')}`,
       )
     } catch (err) {
       notify(this.wire, why(err))
@@ -599,13 +600,13 @@ export class Routes implements Subject {
         await this.wire.opts.restartThinker?.()
       } else {
         const chosen = await this.wire.opts.client.setAgentModel(panel.for, id)
-        // It is new agents' model now too: read back what the workbench wrote.
+        // New agents' model now too, where it was kept: read back what the workbench wrote.
         const loaded = await loadConfig(configPathOf(this.wire.opts))
         if (loaded.ok) this.wire.opts.config = loaded.config
         this.wire.put(
           notice(
             { ...this.wire.state, panel: null },
-            `${panel.for} is switching to ${chosen.id}, and new agents start on it`,
+            `${panel.for} is switching to ${chosen.id}${newAgents(chosen.route, 'start on it')}`,
             this.wire.now(),
           ),
         )
@@ -615,4 +616,15 @@ export class Routes implements Subject {
     }
     this.wire.draw()
   }
+}
+
+/**
+ * What an agent's change did for new agents, after what it did for the agent:
+ * kept for them, or not — the agent has switched either way, and a route that
+ * could not be written is said with why rather than as if it had been.
+ */
+function newAgents(route: RouteKept, kept: string): string {
+  return route.kept
+    ? `, and new agents ${kept}`
+    : `, but new agents still start where they did: ${route.why}`
 }

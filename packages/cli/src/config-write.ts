@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { tadeHome, textOf, writeSetting, writtenAt } from '@tade/core'
-import { CREDENTIAL, heldIn, recordConfigChanges } from '@tade/workbench/config-changes'
+import { tadeHome, writeSetting } from '@tade/core'
+import { changeOf, heldIn, recordConfigChanges } from '@tade/workbench/config-changes'
 
 export { heldIn }
 
@@ -12,11 +12,12 @@ export { heldIn }
 // watched has to be one somebody can find and undo. While a window holds the
 // journal the line waits for it in a spool (`@tade/workbench/config-changes`).
 //
-// **Never a key on the line**: a credential is said as a count of characters,
-// and a block — an MCP server, a remote with its session — as `set`, because a
-// key may be inside one. A list is its items with spaces between, as Settings
-// says one, so `copiedHosts` reads a trusted-hostnames line from here the way
-// it reads one from there.
+// **Never a key on the line**: each one is said by `changeOf`, the rule every
+// writer's lines follow — a credential as `set` or `not set` and nothing of it,
+// a block — an MCP server, a remote with its session — as `set`, because a key
+// may be inside one, and a list as its items with spaces between, so
+// `copiedHosts` reads a trusted-hostnames line from here the way it reads one
+// from Settings.
 //
 // Only this home's config is written down in this home's journal: `--config`
 // naming another file is not a change to this Tade.
@@ -108,13 +109,9 @@ export async function recordFromShell(
   home: string = tadeHome(),
 ): Promise<void> {
   if (resolve(path) !== resolve(join(home, 'config.yaml'))) return
-  const changes = writes
-    .map((one) => ({ one, was: writtenAt(before, one.key) }))
-    .filter(({ one, was }) => textOf(was) !== textOf(one.value))
-    .map(({ one, was }) => {
-      const secret = one.secret === true || CREDENTIAL.test(one.key)
-      return { path: one.key, was: saidAs(was, secret), now: saidAs(one.value, secret), by: 'cli' }
-    })
+  const changes = writes.flatMap(
+    (one) => changeOf(before, one.key, one.value, 'cli', one.secret === true) ?? [],
+  )
   try {
     await recordConfigChanges(home, changes)
   } catch (err) {
@@ -123,18 +120,4 @@ export async function recordFromShell(
       `${keys} ${changes.length === 1 ? 'is' : 'are'} written, but not yet in the journal: ${err instanceof Error ? err.message : String(err)}`,
     )
   }
-}
-
-/** A value as its line says it: never a credential, and a block only as being there. */
-function saidAs(value: unknown, secret: boolean): string {
-  if (value === undefined || value === null) return ''
-  if (secret) {
-    if (typeof value !== 'string') return 'set'
-    return value === '' ? '' : `${value.length} characters`
-  }
-  if (typeof value === 'string') return value
-  if (Array.isArray(value)) {
-    return value.every((one) => one === null || typeof one !== 'object') ? value.join(' ') : 'set'
-  }
-  return typeof value === 'object' ? 'set' : String(value)
 }

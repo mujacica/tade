@@ -390,8 +390,8 @@ path, and it calls `ownerOnly` on every write.
 
 **From a terminal, never `writeSetting` alone**: `writeFromShell` (or `heldIn` then
 `recordFromShell`, where the command reads the file back first) in `cli/src/config-write.ts`, which
-writes `config_changed` `by: cli` — a key as a count, a block as `set`, a list with spaces between,
-so `copiedHosts` and `changedThere` read it as they read Settings'. The CLI may not append beside
+writes `config_changed` `by: cli` through `changeOf` — a key as `set` or `not set`, a block as
+`set`, a list with spaces between — so `copiedHosts` and `changedThere` read it as they read Settings'. The CLI may not append beside
 an open window, so the line goes through `recordConfigChanges` (`workbench/src/config-changes.ts`):
 folded in at once where nobody holds the home, and otherwise by the window on its beat
 (`Settings.fold`). A change made to the config as data — `tade setup`'s — is `patchFromShell`, a
@@ -400,15 +400,25 @@ line per leaf.
 **Nowhere else either.** Every writer is one of these, and a new one picks its door rather than
 calling `writeSetting` bare:
 
-| Writing from | Door | Says a key as |
-|---|---|---|
-| the Settings page, a carry | `Settings.write` / `writeKey` (`app/src/wire/settings.ts`) | `set` / `not set`, or a count |
-| the window, off the page — a switch, a model, a setup panel, `/settings` | `writeRecorded`, `writeApplied` where something must take it first, `editRecorded` (`app/src/wire/config-written.ts`) | `set` / `not set` |
-| the workbench — accounts, an account's key, a route kept | `keptIn` then `recordKept` (`workbench/src/config-kept.ts`) | `set` / `not set` |
-| a process at startup that may not hold the journal | `changeOf` into `recordConfigChanges` (the extension-folder move, `by: tade`) | `set` / `not set` |
+| Writing from | Door |
+|---|---|
+| the Settings page, a carry | `Settings.write` / `writeKey` (`app/src/wire/settings.ts`) |
+| the window, off the page — a switch, a model, a setup panel, `/settings` | `writeRecorded`, `writeApplied` where something must take it first, `editRecorded` (`app/src/wire/config-written.ts`) |
+| the workbench — accounts, an account's key, a route kept | `keptIn` then `recordKept` (`workbench/src/config-kept.ts`) |
+| a process at startup that may not hold the journal | `changeOf` into `recordConfigChanges` (the extension-folder move, `by: tade`) |
 
-`changeOf` (`config-changes.ts`) is the one rule for those lines: no line for a key written as it
-was, a credential by its leaf name or `secret`, a block as `set`. `by` is whoever asked —
-`window`, `orchestrator` (pass it down: `setAgentModel(…, 'orchestrator')`), `cli`, `tade`.
+Every one says a key as `set` or `not set` (`heldSays`, `core/src/secrets.ts`), a carry's included,
+and never how long it is: the terminal, `writeKey` and a carry once counted its characters, which
+says something about a secret and wrote the same key two ways. `changeOf`
+(`config-changes.ts`) is the one rule for those lines: no line for a key written as it was, a
+credential by its leaf name or `secret`, a block as `set`. `by` is whoever asked — `window`,
+`orchestrator` (pass it down: `setAgentModel(…, 'orchestrator')`), `cli`, `tade`.
+
+**A write made on the side of an act is held to `settingReach` at its own door.** Moving one agent
+to a model keeps it on the route for new agents, which is a config write the orchestrator never
+asked `tade_setting_change` for — so `keptOnRoute` holds `by: 'orchestrator'` to the reach the
+settings tool is held to: kept only where nothing `never` changes (another model of the route's
+provider), and otherwise the agent switches alone and the answer says why and that the route is the
+person's. A route that could not be written is said the same way, never swallowed.
 
 Then: `pnpm check` on its own.

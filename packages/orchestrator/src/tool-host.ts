@@ -402,10 +402,11 @@ export class ToolHost {
           worktree: String(p.worktree),
           title: String(p.title),
         }),
+      // `orchestrator`, which is what holds what is kept for new agents to
+      // `settingReach` (`keptOnRoute`): here, and never in the tool.
       'worker/model': (p) => tade.setAgentModel(String(p.task), String(p.model), 'orchestrator'),
-      'worker/thinking': async (p) => ({
-        level: await tade.setAgentThinking(String(p.task), String(p.level), 'orchestrator'),
-      }),
+      'worker/thinking': (p) =>
+        tade.setAgentThinking(String(p.task), String(p.level), 'orchestrator'),
       'worker/harness': (p) =>
         tade.setAgentHarness({
           task: String(p.task),

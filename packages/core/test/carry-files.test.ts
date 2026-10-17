@@ -150,8 +150,8 @@ describe('a carried setting written where no window holds the home', () => {
         type: 'config_changed',
         detail: {
           path: 'extensions.jev.key',
-          was: '',
-          now: '14 characters',
+          was: 'not set',
+          now: 'set',
           by: 'device d1',
           carried: 'mac',
         },
