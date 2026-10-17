@@ -162,7 +162,12 @@ describe('the window, under the pointer', () => {
     terminal.columns = 100
     terminal.rows = 20
     await start()
-    await until('both agents', () => terminal.written.includes('search'))
+    // The agent's own row in the side, drawn: the header says `search` beside
+    // ctrl+k from its first frame, while AGENTS can still say *looking…*, and
+    // a side found on the header is a notch that moves nothing.
+    await until('both agents', () =>
+      screenOf(terminal.written).some((row) => row.includes('○ search')),
+    )
     // Down the side a notch at a time until a file comes into view at its foot,
     // by the wheel and nothing else.
     const side = find(' search')
