@@ -91,7 +91,14 @@ export async function doorbellFor(
     let asked = repositories.get(project)
     if (asked === undefined) {
       asked = inTime(
-        repositoryAt(expandHome(configured.root)).catch(() => null),
+        repositoryAt(expandHome(configured.root)).catch((err: unknown) => {
+          wire.note(
+            new Error(
+              `a delivery from ${address.source} did not wake ${project}'s watches, because git could not say which repository it is: ${err instanceof Error ? err.message : String(err)}`,
+            ),
+          )
+          return null
+        }),
         REPOSITORY_MS,
         null,
       )

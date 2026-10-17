@@ -209,18 +209,15 @@ function githubBody(raw: Buffer, type: string | null): Record<string, unknown> |
 function repositoryOf(value: unknown): string | null {
   const repository = objectOf(value)
   if (repository === null) return null
-  if (typeof repository.html_url === 'string') {
-    try {
-      const url = new URL(repository.html_url)
-      const parts = url.pathname
-        .replace(/\.git$/, '')
-        .split('/')
-        .filter(Boolean)
-      if (url.protocol === 'https:' && parts.length === 2) {
-        return `${url.hostname}/${parts.join('/')}`.toLowerCase()
-      }
-    } catch {
-      // Not an address: fall back to the name below.
+  // Not an address falls back to the name below.
+  if (typeof repository.html_url === 'string' && URL.canParse(repository.html_url)) {
+    const url = new URL(repository.html_url)
+    const parts = url.pathname
+      .replace(/\.git$/, '')
+      .split('/')
+      .filter(Boolean)
+    if (url.protocol === 'https:' && parts.length === 2) {
+      return `${url.hostname}/${parts.join('/')}`.toLowerCase()
     }
   }
   const named = typeof repository.full_name === 'string' ? repository.full_name : ''
@@ -256,11 +253,13 @@ function wordOf(value: unknown): string {
   return typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,64}$/.test(value) ? value : 'other'
 }
 
+/** A body's JSON, or null for one that is not, which its caller answers as `unreadable`. */
 function jsonOf(raw: Buffer): unknown {
   try {
     return JSON.parse(raw.toString('utf8'))
-  } catch {
-    return null
+  } catch (problem) {
+    if (problem instanceof SyntaxError) return null
+    throw problem
   }
 }
 
