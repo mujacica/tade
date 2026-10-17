@@ -1,5 +1,5 @@
 import { newFindings } from '@tade/core'
-import { ExtensionHost } from '@tade/extensions-core'
+import { ExtensionHost, Unreachable } from '@tade/extensions-core'
 import { extensionConformance } from '@tade/extensions-core/conformance'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { githubReplay, type ReplayOptions } from '../../../../test/fixtures/forge/github.ts'
@@ -447,6 +447,33 @@ describe('the watches', () => {
         turnedOn: '2026-09-01T00:00:00Z',
       }),
     ).rejects.toThrow(/rate limiting/)
+  })
+
+  it('holds while the machine is offline, and names the host when nothing came back', async () => {
+    // Each of these asks the forge, so the scheduler asks the reach before it
+    // runs one; and a look that got nothing back says which host, so an
+    // outage with the interfaces still up is found on the first failed look
+    // rather than on every look all night.
+    const { host } = load({ unreachable: true })
+    const loaded = await host
+    const offered = loaded
+      .watches()
+      .filter((one) => /^review\.(comments|requested|pushed)$/.test(one.id))
+    expect(offered.map((one) => [one.id, one.network])).toEqual([
+      ['review.comments', true],
+      ['review.requested', true],
+      ['review.pushed', true],
+    ])
+    for (const watch of ['review.comments', 'review.requested']) {
+      const err = await loaded
+        .look(watch, { project: 'api', input: {}, since: null, turnedOn: '2026-09-01T00:00:00Z' })
+        .then(
+          () => null,
+          (thrown: unknown) => thrown,
+        )
+      expect(err, watch).toBeInstanceOf(Unreachable)
+      expect((err as Unreachable).host, watch).toBe('github.com')
+    }
   })
 })
 

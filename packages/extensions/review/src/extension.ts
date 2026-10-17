@@ -880,11 +880,14 @@ export const reviewExtension: TadeExtension = {
       means: 'looks for conversations on your reviews that nobody has answered — robots first',
       every: '15m',
       about: 'repository',
+      network: true,
       async check(ctx) {
         const where = await whereOf(ctx, ctx.watching)
         if ('problem' in where) throw new Error(where.problem)
         const settings = settingsOf(ctx)
-        const mine = await where.forge.reviews({ who: 'mine', state: ['open', 'draft'], limit: 20 })
+        const mine = await where.forge
+          .reviews({ who: 'mine', state: ['open', 'draft'], limit: 20 })
+          .catch((err: unknown) => Promise.reject(asLookFailed(err, where)))
         const findings: Finding[] = []
         for (const review of mine.items) {
           if (!moved(review, ctx.since ?? ctx.turnedOn)) continue
@@ -930,13 +933,16 @@ export const reviewExtension: TadeExtension = {
       means: 'looks for reviews somebody has asked you to look at, and tells the orchestrator',
       every: '15m',
       about: 'repository',
+      network: true,
       async check(ctx) {
         const where = await whereOf(ctx, ctx.watching)
         if ('problem' in where) throw new Error(where.problem)
         if (!where.forge.capabilities.assigned) {
           throw new Error(`${where.forge.id} cannot say what is waiting on you`)
         }
-        const waiting = await where.forge.reviews({ who: 'waiting on you', limit: 20 })
+        const waiting = await where.forge
+          .reviews({ who: 'waiting on you', limit: 20 })
+          .catch((err: unknown) => Promise.reject(asLookFailed(err, where)))
         return {
           found: waiting.items.map((review) => ({
             key: `${review.ref.host}/${review.ref.repo}#${review.ref.number}:requested:${review.updatedAt}`,
@@ -967,6 +973,7 @@ export const reviewExtension: TadeExtension = {
       means: 'looks for branches of yours that are on the remote with nothing open for them',
       every: '10m',
       about: 'repository',
+      network: true,
       async check(ctx) {
         const where = await whereOf(ctx, ctx.watching)
         if ('problem' in where) throw new Error(where.problem)
