@@ -221,7 +221,16 @@ const NEVER: readonly (readonly [string, string])[] = [
  *
  * A route is the same shape: its model, how hard it thinks and which harness
  * it opens are ordinary settings, and `provider` is the one left that a
- * sentence I read must not reach, because it is where the work is sent.
+ * sentence I read must not reach, because it is where the work is sent. So
+ * are the model and thinking it keeps for each other harness
+ * (`harnesses.<h>`): what new agents start on there, a default like the
+ * route's own — the person's decision, 2026-10-17, that defaults are settings
+ * the orchestrator changes when they ask. `provider` under one stays out, and
+ * so does anything added beside them. What is left is named rather than
+ * hidden: a model is written as its harness names it, and on a route that
+ * sets no provider `openrouter/…` picks the provider out of the name — only
+ * among those somebody is already signed in to, handing nobody new anything,
+ * and only on words of theirs naming that model setting.
  *
  * **`title` is `asked` and deliberately not `open`**, which is the one here
  * somebody will argue about, because a display name moves nothing: the id
@@ -259,6 +268,7 @@ const ALLOWED_UNDER: readonly RegExp[] = [
   /^projects\.[a-z0-9-]+\.max_parallel$/,
   /^projects\.[a-z0-9-]+\.watches$/,
   /^workers\.routes\.[a-z0-9-]+\.(model|thinking|harness)$/,
+  /^workers\.routes\.[a-z0-9-]+\.harnesses\.[a-z0-9-]+\.(model|thinking)$/,
   /^surfaces\.intake\.sources\.[a-z0-9-]+\.(template|document)$/,
   /^surfaces\.web\.(install|offline)$/,
 ]

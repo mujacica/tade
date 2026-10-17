@@ -261,35 +261,23 @@ describe('a tool that needs to know where a task works', () => {
 })
 
 describe('moving an agent to another model or thinking level', () => {
-  it('says whether new agents follow it, and where they do not, why', async () => {
-    const why = 'workers.routes.default.provider is not mine to change'
+  it('moves that agent alone, and says new agents keep the default, which is a setting', async () => {
     const host = await hostListening((call) =>
-      call.method === 'worker/model'
-        ? { provider: 'openai', id: 'gpt-5', route: { kept: false, why } }
-        : { level: 'high', route: { kept: true } },
+      call.method === 'worker/model' ? { provider: 'openai', id: 'gpt-5' } : { level: 'high' },
     )
     const { by } = await tools({ TADE_SOCKET: host.path })
-    // The agent switched either way: what is said is what new agents do.
     expect(
       await by('tade_agent_model').run({ task: 'shop/refunds', model: 'gpt 5' }, 'c1', {}),
     ).toBe(
-      `shop/refunds is switching to openai/gpt-5, and only it: new agents still start where they did, because ${why}.`,
+      "shop/refunds is switching to openai/gpt-5. Only it: new agents keep the project's default model, which is a setting — tade_settings says what it is.",
     )
     expect(
       await by('tade_agent_thinking').run({ task: 'shop/refunds', level: 'high' }, 'c2', {}),
-    ).toBe('shop/refunds thinks at high from its next turn, and new agents will too.')
-  })
-
-  it('says a kept route whose journal line was not written, rather than nothing', async () => {
-    const unrecorded =
-      'workers.routes.default.thinking is written, but the journal would not take the line that says so: ENOSPC'
-    const host = await hostListening(() => ({ level: 'high', route: { kept: true, unrecorded } }))
-    const { by } = await tools({ TADE_SOCKET: host.path })
-    expect(
-      await by('tade_agent_thinking').run({ task: 'shop/refunds', level: 'high' }, 'c1', {}),
     ).toBe(
-      `shop/refunds thinks at high from its next turn, and new agents will too; ${unrecorded}.`,
+      "shop/refunds thinks at high from its next turn. Only it: new agents keep the project's default thinking, which is a setting — tade_settings says what it is.",
     )
+    // Nothing but the switch is asked of the window: no default is written on the side.
+    expect(host.calls.map((one) => one.method)).toEqual(['worker/model', 'worker/thinking'])
   })
 })
 

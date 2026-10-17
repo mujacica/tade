@@ -71,6 +71,18 @@ these: it is an extension (see `add-extension`), which agents can use too and th
   time — and write the change down (`config_changed`) with what it was before, so somebody who was
   not watching can find it and undo it.
 
+- **A tool that acts on one thing changes that thing alone, and never a default on the side.**
+  `tade_agent_model` and `tade_agent_thinking` switch one running agent and write nothing under
+  `workers.routes`. They used to keep the choice on the project's route for new agents, which was a
+  config write nobody had asked `tade_setting_change` for; the person decided a switch is one agent.
+  So each answer says that new agents keep the project's default and that the default is a setting,
+  and `RULES` says which tool changes a default — `tade_setting_change` on that row, on their words.
+  Without that, a model asked for a new default switches an agent and calls it done. Defaults are
+  settings the orchestrator may change when asked (each route's model and thinking, and each
+  harness's under it); which provider a route sends work to is not a default and stays `never`
+  (`add-config-key`). A new tool that seems to need a default changed beside its act is two acts:
+  do the one asked for, and name the row for the other.
+
 - **A tool that takes the person's own words out of what is told takes a line of theirs.**
   `tade_notes_retire` is refused in the window unless `said` is something the journal has them
   saying lately (`theirLine`, `host-notes.ts`) — the check `tade_document_triage` makes of an

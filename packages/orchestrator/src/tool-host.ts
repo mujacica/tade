@@ -402,11 +402,10 @@ export class ToolHost {
           worktree: String(p.worktree),
           title: String(p.title),
         }),
-      // `orchestrator`, which is what holds what is kept for new agents to
-      // `settingReach` (`keptOnRoute`): here, and never in the tool.
-      'worker/model': (p) => tade.setAgentModel(String(p.task), String(p.model), 'orchestrator'),
-      'worker/thinking': (p) =>
-        tade.setAgentThinking(String(p.task), String(p.level), 'orchestrator'),
+      // That agent alone: what new agents start on is a setting, changed with
+      // `config/change` and held to `settingReach` there, never on the side.
+      'worker/model': (p) => tade.setAgentModel(String(p.task), String(p.model)),
+      'worker/thinking': (p) => tade.setAgentThinking(String(p.task), String(p.level)),
       'worker/harness': (p) =>
         tade.setAgentHarness({
           task: String(p.task),

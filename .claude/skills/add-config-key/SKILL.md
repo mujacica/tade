@@ -19,6 +19,7 @@ orchestrator's arm reaches into it, and whether a person can read back what they
 | `packages/core/src/settings-projects.ts` | the one `projects` group: every row of it one project's, by `scope` |
 | `packages/core/src/settings-keep.ts` | the Journal group — what Tade keeps and lets go: `journal.max_mb`, `documents.keep_days`, `notes.keep_days` |
 | `packages/core/src/settings-queue.ts` | the Queue group — who decides what was held: `queue.holds` |
+| `packages/core/src/settings-models.ts` | the Models group — what new agents start on: each route's model, thinking and harness, and each other harness's model and thinking under it |
 | `packages/core/src/reach.ts` | `settingReach`, `Reach`, the `NEVER` table, `OPEN`, `OPEN_UNDER`, `ALLOWED_UNDER`, `namedBy`, `wordsFor`, `WATCH_REACH`, `watchNamedBy`, `LINES_LOOKED_BACK` |
 | `packages/core/src/carry.ts` | `carryOf` — what another machine's Tade is given of each key — `leavesOf`, `carryDecision`, `changedThere`, `HOME_HOLDS`, `KEYS_TO_REMOTE`; `carry-files.ts` for the personas and templates |
 | `packages/core/src/project.ts` | what one project answers for itself: `workspaceFor`, `pushFor`, `PUSH_MODES`, `pushProblems` |
@@ -139,6 +140,17 @@ Three answers and no fourth:
   the day it is added, so `SETTINGS_FROM_AWAY`'s list moves in the same commit —
   `packages/web/test/configuring.test.ts` holds the two together. `asked` and `never` are never
   reachable from a device; that is argued in `configuring.ts`.
+
+**Defaults are settings, and where work is sent is not a default.** What new agents start on —
+each route's model and thinking, and each other harness's under it
+(`workers.routes.<r>.harnesses.<h>.(model|thinking)`) — is `asked` (`ALLOWED_UNDER`): the person
+decided the orchestrator changes those defaults when they ask, and a default somebody can ask for
+is a row in `settings-models.ts`, or `config/change` refuses it as no setting at all. `provider`,
+under a route or under a harness, stays `never`, and so do credentials: "these settings" meant
+the defaults, and which provider a route sends work to is a separate, standing rule, not one more
+default. A model row writes its own key alone — as `provider/id` where the harness names a model
+that way — so the default route, which sets no provider, is given a model with nothing written
+beside it; what the name picks there is said in `ALLOWED_UNDER`'s comment.
 
 Two consequences when you add a key:
 
@@ -414,7 +426,7 @@ calling `writeSetting` bare:
 |---|---|
 | the Settings page, a carry | `Settings.write` / `writeKey` (`app/src/wire/settings.ts`) |
 | the window, off the page — a switch, a model, a setup panel, `/settings` | `writeRecorded`, `writeApplied` where something must take it first, `editRecorded` (`app/src/wire/config-written.ts`) |
-| the workbench — accounts, an account's key, a route kept | `keptIn` then `recordKept` (`workbench/src/config-kept.ts`) |
+| the workbench — accounts, an account's key | `keptIn` then `recordKept` (`workbench/src/config-kept.ts`) |
 | a process at startup that may not hold the journal | `changeOf` into `recordConfigChanges` (the extension-folder move, `by: tade`) |
 
 Every one says a key as `set` or `not set` (`heldSays`, `core/src/secrets.ts`), a carry's included,
@@ -422,13 +434,14 @@ and never how long it is: the terminal, `writeKey` and a carry once counted its 
 says something about a secret and wrote the same key two ways. `changeOf`
 (`config-changes.ts`) is the one rule for those lines: no line for a key written as it was, a
 credential by its leaf name or `secret`, a block as `set`. `by` is whoever asked — `window`,
-`orchestrator` (pass it down: `setAgentModel(…, 'orchestrator')`), `cli`, `tade`.
+`orchestrator` (pass it down: `Settings.write(…, 'orchestrator', said)`), `cli`, `tade`.
 
-**A write made on the side of an act is held to `settingReach` at its own door.** Moving one agent
-to a model keeps it on the route for new agents, which is a config write the orchestrator never
-asked `tade_setting_change` for — so `keptOnRoute` holds `by: 'orchestrator'` to the reach the
-settings tool is held to: kept only where nothing `never` changes (another model of the route's
-provider), and otherwise the agent switches alone and the answer says why and that the route is the
-person's. A route that could not be written is said the same way, never swallowed.
+**No act writes a default on its side.** Switching one agent's model or thinking — the orchestrator's
+`tade_agent_model`, the pane's picker — moves that agent alone and writes nothing under
+`workers.routes`, and its answer says new agents keep the project's default, which is a setting.
+It once kept the choice on the route for new agents, which was a config write nobody asked
+`tade_setting_change` for and had to be held to `settingReach` at a door of its own; the person
+decided a switch is one agent and a default is changed where defaults are. A new act that seems to
+want a default changed beside it is two acts: do the one asked for, and say which row the other is.
 
 Then: `pnpm check` on its own.

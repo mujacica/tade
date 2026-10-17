@@ -10,7 +10,7 @@ import {
 } from '@tade/core'
 import { until } from '@tade/drivers-core/conformance'
 import { sessionIdFor } from '@tade/harnesses-pi'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { triageDocument } from '../src/documents.ts'
 import { Workbench } from '../src/workbench.ts'
@@ -614,36 +614,47 @@ describe('task and run RPC', () => {
     expect(again?.spec.args).toContain(sessionIdFor(task.id))
   }, 60_000)
 
-  it('starts new agents on the model last chosen for one, and a returning one on its own', async () => {
+  it('moves one agent alone, and starts new agents on the project’s default', async () => {
     const sessionsRoot = tmp('tade-sessions-')
+    const text = `projects:\n  app:\n    root: ${repo.root}\n    max_parallel: 3\nworkers:\n  routes:\n    default:\n      model: anthropic/claude-opus-5\n`
+    writeFileSync(join(home, 'config.yaml'), text)
     await client.close()
     client = await Workbench.open({ home, version: '9.9.9', sessionsRoot })
-    const kept = await client.keepAgentRoute('app/refunds', {
-      provider: 'openrouter',
+    const task = await client.createTask({ project: 'app', slug: 'refunds', intent: INTENT })
+    await client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' })
+    // Only what pi itself would answer is stood in for — its catalog, which
+    // needs a sign-in, and its channel, which needs a model to connect back.
+    const pi = client.workers.adapterOf('app/refunds/agent' as never)
+    vi.spyOn(pi, 'resolveModel').mockResolvedValue({ ok: true, provider: 'openai', id: 'gpt-5' })
+    const moved = vi.spyOn(client.workers, 'setModel').mockResolvedValue()
+    const thinks = vi.spyOn(client.workers, 'setThinking').mockResolvedValue()
+    try {
+      expect(await client.setAgentModel(task.id, 'gpt 5')).toEqual({
+        provider: 'openai',
+        id: 'gpt-5',
+      })
+      expect(await client.setAgentThinking(task.id, 'high')).toEqual({ level: 'high' })
+      expect(moved).toHaveBeenCalledWith('app/refunds/agent', { provider: 'openai', id: 'gpt-5' })
+      expect(thinks).toHaveBeenCalledWith('app/refunds/agent', 'high')
+    } finally {
+      vi.restoreAllMocks()
+    }
+    // That agent alone: nothing under `workers.routes` is written, and no
+    // change to the config is written down, because none was made.
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toBe(text)
+    expect(client.config.workers.routes.default).toEqual({
+      harness: 'pi',
       model: 'anthropic/claude-opus-5',
     })
-    expect(kept).toEqual({ kept: true })
-    // Kept where Settings shows the agent model, so the next window starts there too.
-    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('anthropic/claude-opus-5')
-    // And written down like a change from Settings, by whoever asked: a model
-    // chosen for one agent is new agents' model from then on.
-    const lines = async () =>
-      (await client.events({ types: ['config_changed'] })).map(({ detail }) => detail)
-    expect(await lines()).toEqual([
-      { path: 'workers.routes.default.provider', was: '', now: 'openrouter', by: 'window' },
-      {
-        path: 'workers.routes.default.model',
-        was: '',
-        now: 'anthropic/claude-opus-5',
-        by: 'window',
-      },
-    ])
+    expect(await client.events({ types: ['config_changed'] })).toEqual([])
 
+    // A new agent starts on the default the config says, not on the last switch.
     const fresh = await client.createTask({ project: 'app', slug: 'fresh', intent: INTENT })
     const lane = await client.startAgent({ task: fresh.id, cwd: fresh.worktree, prompt: '' })
-    expect(lane.spec.args.join(' ')).toContain(
-      '--provider openrouter --model anthropic/claude-opus-5',
-    )
+    const args = lane.spec.args.join(' ')
+    expect(args).toContain('--model anthropic/claude-opus-5')
+    expect(args).not.toContain('gpt-5')
+    expect(args).not.toContain('--thinking')
 
     // A conversation to come back to keeps the model it was on: pi remembers it.
     const back = await client.createTask({ project: 'app', slug: 'back', intent: INTENT })
@@ -655,52 +666,9 @@ describe('task and run RPC', () => {
     )
     const returning = await client.startAgent({ task: back.id, cwd: back.worktree, prompt: '' })
     expect(returning.spec.args).not.toContain('--model')
-
-    // The orchestrator moving one agent to another provider's model moves that
-    // agent alone: where a route sends work is never its to change, so nothing
-    // under `workers.routes` is written, and it is told why and whose it is.
-    const config = () => readFileSync(join(home, 'config.yaml'), 'utf8')
-    const before = config()
-    const elsewhere = await client.keepAgentRoute(
-      'app/refunds',
-      { provider: 'openai', model: 'gpt-5' },
-      undefined,
-      'orchestrator',
-    )
-    expect(elsewhere.kept).toBe(false)
-    expect(elsewhere.kept === false && elsewhere.why).toMatch(
-      /^workers\.routes\.default\.provider is not mine to change — .*in Settings/,
-    )
-    expect(config()).toBe(before)
-    expect(await lines()).toHaveLength(2)
-    // Another model of the provider the route already has moves nothing out of
-    // its reach, and is new agents' model, said to be the orchestrator's.
-    await client.keepAgentRoute(
-      'app/refunds',
-      { provider: 'openrouter', model: 'openai/gpt-5' },
-      undefined,
-      'orchestrator',
-    )
-    expect((await lines()).slice(2)).toEqual([
-      {
-        path: 'workers.routes.default.model',
-        was: 'anthropic/claude-opus-5',
-        now: 'openai/gpt-5',
-        by: 'orchestrator',
-      },
-    ])
-    // Chosen in the window for an agent in another harness: kept beside the
-    // route's own. The same model again changes nothing, and writes nothing down.
-    const claude = { provider: 'anthropic', model: 'claude-opus-5' }
-    await client.keepAgentRoute('app/refunds', claude, 'claude-code')
-    await client.keepAgentRoute('app/refunds', claude, 'claude-code')
-    expect((await lines()).slice(3).map((one) => one.path)).toEqual([
-      'workers.routes.default.harnesses.claude-code.provider',
-      'workers.routes.default.harnesses.claude-code.model',
-    ])
   }, 60_000)
 
-  it('starts new agents as hard-thinking as was last chosen, and refuses a level there is not', async () => {
+  it('starts new agents as hard-thinking as their route says, and refuses a level there is not', async () => {
     await expect(client.setAgentThinking('app/refunds', 'ludicrous')).rejects.toThrow(
       /not a thinking level/,
     )

@@ -62,8 +62,10 @@ const BUDGET: Record<string, number> = {
   // `settings/{agents,window,voice,queue,checks,telemetry,keys}.ts`, each
   // exporting one `SettingGroup` and `settingsOf` composing them — mechanical,
   // and the payoff is that `.claude/skills/add-config-key` gets to say "add a
-  // row to *this* file" instead of naming a line number in a thousand.
-  'packages/core/src/settings.ts': 1_101,
+  // row to *this* file" instead of naming a line number in a thousand. 1,101
+  // -> 1,062 when the Models group went to `settings-models.ts`, as it learned
+  // a row for every default new agents start on.
+  'packages/core/src/settings.ts': 1_062,
   // What tmux says about a pane — `readPane`, `scrollingOf`, `pointingOf`,
   // `drawn` — is now `pane.ts`: the part of driving tmux that asks nothing of
   // the world, and the part every question about a pane goes through. How a
@@ -106,8 +108,9 @@ const BUDGET: Record<string, number> = {
   // 2,267 when writing the config and keeping a route went to `config-kept.ts`,
   // as both learned to write their change down; 2,265 when keeping one learned
   // the orchestrator's reach and to say why it was not kept (`keptOnRoute`);
-  // 2,236 when the budget check went to `budget.ts`, as it learned the machine's.
-  'packages/workbench/src/workbench.ts': 2_236,
+  // 2,236 when the budget check went to `budget.ts`, as it learned the machine's;
+  // 2,197 when switching one agent stopped keeping a route at all.
+  'packages/workbench/src/workbench.ts': 2_197,
   // 1,100 -> 1,045 when what each agent has been doing went to `doing.ts`, as
   // it learned which files each one wrote for the conflict forecast.
   'packages/workbench/src/workers.ts': 1_045,

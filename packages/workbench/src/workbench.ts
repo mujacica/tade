@@ -77,15 +77,7 @@ import { answerAgentTool } from './agent-tools.ts'
 import { recordAuthored } from './authored.ts'
 import { guardBudget } from './budget.ts'
 import { checksGate, checksTold, sharesCheckout } from './checks.ts'
-import {
-  type KeptWrite,
-  keptIn,
-  keptOnRoute,
-  type RouteChange,
-  type RouteKept,
-  recordKept,
-  recordKeptRoute,
-} from './config-kept.ts'
+import { type KeptWrite, keptIn, recordKept } from './config-kept.ts'
 import { documentsFolder, removedDocument, settleDocuments, waitedDetail } from './documents.ts'
 import { chooseDriver, troubleSaid } from './driver-choice.ts'
 import { EventLog, readJournal } from './events.ts'
@@ -1886,14 +1878,12 @@ export class Workbench {
 
   /**
    * Switch a running agent to another model, said the way people say it —
-   * "opus 5" — and keep it for new agents where `by` may (`keepAgentRoute`),
-   * saying in `route` whether it was kept. Nothing running changes with it.
+   * "opus 5". That agent alone: what new agents start on is the project's
+   * default, a setting (`workers.routes.<route>.model`, and `.harnesses.<h>.`
+   * for another harness), and choosing for one agent never writes it — a
+   * default is changed where defaults are, never on the side of a switch.
    */
-  async setAgentModel(
-    task: string,
-    said: string,
-    by = 'window',
-  ): Promise<{ provider: string; id: string; route: RouteKept }> {
+  async setAgentModel(task: string, said: string): Promise<{ provider: string; id: string }> {
     const run = `${task}/agent` as RunId
     if (!this.registry.get(run as unknown as LaneId)?.alive) {
       throw new Error(`${task} has no agent running: open it first`)
@@ -1908,8 +1898,7 @@ export class Workbench {
     // What it switched to is journalled by the agent itself, as the model its usage is priced at.
     if (support === 'restart') await this.restartAgent(task, { model })
     else await this.workers.setModel(run, model)
-    const kept = { provider: model.provider, model: model.id }
-    return { ...model, route: await this.keepAgentRoute(task, kept, adapter.id, by) }
+    return model
   }
 
   /**
@@ -1985,36 +1974,11 @@ export class Workbench {
   }
 
   /**
-   * A model or thinking level chosen for an agent is what new agents start on
-   * from then on, until another is chosen: kept in the route the agent's
-   * project uses, which is where Settings shows the agent model. Unset, the
-   * harness picks — and pi picks by what you are signed in to, which is how
-   * every agent ended up on the same model whatever anyone chose. In the file,
-   * here, and written down `by` whoever asked — or said why not, where it could
-   * not be written or is out of the orchestrator's reach (`keptOnRoute`).
+   * How hard an agent thinks from its next turn on. That agent alone, as with
+   * its model (`setAgentModel`): how hard new agents think is the project's
+   * default, a setting, and choosing for one agent never writes it.
    */
-  async keepAgentRoute(
-    task: string,
-    change: RouteChange,
-    harness?: string,
-    by = 'window',
-  ): Promise<RouteKept> {
-    const kept = keptOnRoute(this.home, this.config, { task, change, harness, by })
-    if (!kept.kept) return kept
-    this.config = kept.config
-    return recordKeptRoute(kept.changes, (line) => this.log.append(line))
-  }
-
-  /**
-   * How hard an agent thinks from its next turn on — and new agents from
-   * their first, until another level is chosen, where it is kept beside the
-   * agent model (`route` says whether it was).
-   */
-  async setAgentThinking(
-    task: string,
-    level: string,
-    by = 'window',
-  ): Promise<{ level: ThinkingLevel; route: RouteKept }> {
+  async setAgentThinking(task: string, level: string): Promise<{ level: ThinkingLevel }> {
     const chosen = THINKING_LEVELS.find((one) => one === level.trim().toLowerCase())
     if (!chosen) {
       throw new Error(`${level} is not a thinking level: ${THINKING_LEVELS.join(', ')}`)
@@ -2034,10 +1998,7 @@ export class Workbench {
     // What it settled on is said back by the agent: a model that cannot think that hard takes less.
     if (support === 'restart') await this.restartAgent(task, { thinking: chosen })
     else await this.workers.setThinking(run, chosen)
-    return {
-      level: chosen,
-      route: await this.keepAgentRoute(task, { thinking: chosen }, thinker.id, by),
-    }
+    return { level: chosen }
   }
 
   /**

@@ -1,16 +1,7 @@
 import type { PlanStanding, Spend } from '@tade/core'
 import { projectRev, taskRev } from './acting.ts'
 import { commandShown } from './command.ts'
-import {
-  type IntakeIn,
-  intakeRow,
-  type RunIn,
-  runRow,
-  type SourceIn,
-  sourceRow,
-  type WorkflowIn,
-  workflowRow,
-} from './factory.ts'
+import { intakeRow, runRow, sourceRow, type WorkflowIn, workflowRow } from './factory.ts'
 import { withoutPaths } from './fields.ts'
 import {
   type ChatIn,
@@ -48,7 +39,6 @@ import type {
   TaskRow,
 } from './protocol.ts'
 import { PROTOCOL_VERSION } from './protocol.ts'
-import type { IntakeRow, RunRow, SourceRow, WorkflowRow } from './protocol-factory.ts'
 import { has, type Reach, readsOf, sees } from './reach.ts'
 
 // The projection. One pure function of what it is handed and the moment.

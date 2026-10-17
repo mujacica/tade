@@ -178,6 +178,73 @@ describe('the orchestrator, configuring Tade', () => {
     ).rejects.toThrow(/person/)
   })
 
+  it('changes what new agents start on when the person names it, with no provider written', async () => {
+    const config = await tools()
+    // Every default is a row it can read, the other harnesses' among them.
+    const listed = await config.settings('model')
+    expect(listed).toContain('workers.routes.default.model = (the harness decides)')
+    expect(listed).toMatch(
+      /workers\.routes\.default\.harnesses\.claude-code\.model = \(Claude Code decides\) — .*\[only when they ask for it\]/,
+    )
+    // The default route sets no provider, and naming its model writes none.
+    const said = 'make the agent model opus 5 for new agents'
+    await theySaid(said)
+    expect(
+      await config.change({
+        path: 'workers.routes.default.model',
+        value: 'anthropic/claude-opus-5',
+        said,
+      }),
+    ).toContain('Saved')
+    const said2 = 'and start new ones in claude code on sonnet: the claude code model'
+    await theySaid(said2)
+    await config.change({
+      path: 'workers.routes.default.harnesses.claude-code.model',
+      value: 'claude-sonnet-5',
+      said: said2,
+    })
+    expect(client.config.workers.routes.default).toEqual({
+      harness: 'pi',
+      model: 'anthropic/claude-opus-5',
+      harnesses: { 'claude-code': { model: 'claude-sonnet-5' } },
+    })
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).not.toContain('provider')
+    await until('both written down', async () => (await changes()).length === 2)
+    expect((await changes()).map((one) => [one.path, one.by])).toEqual([
+      ['workers.routes.default.model', 'orchestrator'],
+      ['workers.routes.default.harnesses.claude-code.model', 'orchestrator'],
+    ])
+  })
+
+  it('refuses a default nobody named, and where a route sends work however it is asked', async () => {
+    const config = await tools()
+    await theySaid('how is refunds getting on?')
+    for (const path of [
+      'workers.routes.default.model',
+      'workers.routes.default.harnesses.claude-code.model',
+      'workers.routes.default.harnesses.codex.thinking',
+    ]) {
+      await expect(
+        config.change({ path, value: 'high', said: 'they want it' }),
+        path,
+      ).rejects.toThrow(/Nothing they have said names/)
+    }
+    // Which provider a route sends work to is no default: their words are not
+    // enough, and there is no row of it to write.
+    await theySaid('send the default route to openrouter, change its provider')
+    for (const path of [
+      'workers.routes.default.provider',
+      'workers.routes.default.harnesses.claude-code.provider',
+    ]) {
+      await expect(
+        config.change({ path, value: 'openrouter', said: 'change its provider' }),
+        path,
+      ).rejects.toThrow(/no setting called/)
+    }
+    expect(client.config.workers.routes.default).toEqual({ harness: 'pi' })
+    expect(await changes()).toHaveLength(0)
+  })
+
   it('refuses a path Tade does not offer rather than writing it anyway', async () => {
     await expect(
       (await tools()).change({ path: 'agents.nonsense', value: '1', said: 'do it' }),

@@ -9,7 +9,6 @@ import {
 } from '@tade/core'
 import type { HarnessModels } from '@tade/harnesses-core'
 import { taskFilePath } from '@tade/workbench'
-import type { RouteKept } from '@tade/workbench/config-kept'
 import { markOf } from '../checkout-look.ts'
 import type { Frame } from '../frame.ts'
 import { notice, ORCHESTRATOR_TAB, shownName, type TaskSnapshot } from '../model.ts'
@@ -48,8 +47,10 @@ import {
 // harness it runs as, its model, and how hard it thinks.
 //
 // Four questions with one shape — each is asked of an agent or of the
-// orchestrator, each is answered in a menu beside the thing it is about, and
-// each writes what was chosen where new agents will read it. That is why they
+// orchestrator, and each is answered in a menu beside the thing it is about.
+// An agent's answer is that agent's alone: what new agents start on is the
+// project's default, a setting on its own row (Settings › Models), and
+// choosing for one agent never writes it. That is why they
 // are one subject and not four, and why they are not the agent's: making,
 // opening and stopping an agent is a different question from what it is
 // running on, and the two only meet where an agent's own menu offers both.
@@ -97,6 +98,12 @@ export interface RoutesDeps {
   accounts(): readonly AccountShown[]
 }
 
+/**
+ * Said after an agent's own switch, because "and new agents?" is the next
+ * question: they keep the default, and where that is changed.
+ */
+const ALONE = '; new agents keep the default, in Settings › Models'
+
 export class Routes implements Subject {
   private readonly wire: Wiring
   private readonly deps: RoutesDeps
@@ -121,6 +128,8 @@ export class Routes implements Subject {
    * had none to offer, and `asking` until it has answered (`openModels`).
    */
   private picker: (HarnessModels & { asking?: boolean }) | null = null
+  /** The harnesses a Settings list is asking right now (`learnListed`), so it asks each once. */
+  private readonly listing = new Set<string>()
 
   constructor(wire: Wiring, deps: RoutesDeps) {
     this.wire = wire
@@ -180,7 +189,10 @@ export class Routes implements Subject {
   /** Which model to start on, and — in Settings — which ones there are. */
   panel(): Frame['panel'] {
     const panel = this.wire.state.panel
-    if (panel?.kind === 'settings') return { choices: this.choices() }
+    if (panel?.kind === 'settings') {
+      this.learnListed(panel.dropdown?.path ?? '')
+      return { choices: this.choices() }
+    }
     if (panel?.kind !== 'model') return {}
     const pane = this.wire.state.panes.find((one) => one.task === panel.for)
     return {
@@ -370,6 +382,25 @@ export class Routes implements Subject {
   }
 
   /**
+   * A model row's list opened for a harness nobody has asked yet — a default
+   * under a route's `harnesses`, or a route of another harness — asks it then,
+   * once, and draws what it says. `refreshModels` asks only the two harnesses
+   * in play, because asking one costs a program run (Codex), and a catalog
+   * nobody opens is one nobody needed. Never waited on: it is drawn.
+   */
+  private learnListed(path: string): void {
+    const row = /^workers\.routes\.([a-z0-9-]+)\.(?:harnesses\.([a-z0-9-]+)\.)?model$/.exec(path)
+    if (!row?.[1]) return
+    const harness = row[2] ?? this.wire.opts.config.workers.routes[row[1]]?.harness ?? 'pi'
+    if (this.offered.has(harness) || this.listing.has(harness)) return
+    this.listing.add(harness)
+    void this.learnModels(harness).then(() => {
+      this.listing.delete(harness)
+      this.wire.draw()
+    })
+  }
+
+  /**
    * What one harness runs, asked of it and written down. What comes back is
    * kept under the harness that answered, so the next question about that
    * harness is answered without asking again — and a harness that could not
@@ -388,17 +419,12 @@ export class Routes implements Subject {
     return offered
   }
 
-  /** How hard an agent thinks from its next turn, and new agents from their first. */
+  /** How hard an agent thinks from its next turn: that agent's, and nobody else's. */
   async chooseThinking(task: string, level: string): Promise<void> {
     if (task === ORCHESTRATOR_TAB) return this.deps.chooseThinkerThinking(level)
     try {
       const chosen = await this.wire.opts.client.setAgentThinking(task, level)
-      const loaded = await loadConfig(configPathOf(this.wire.opts))
-      if (loaded.ok) this.deps.useConfig(loaded.config)
-      notify(
-        this.wire,
-        `${task} thinks at ${chosen.level} from its next turn${newAgents(chosen.route, 'start there')}`,
-      )
+      notify(this.wire, `${task} thinks at ${chosen.level} from its next turn${ALONE}`)
     } catch (err) {
       notify(this.wire, why(err))
     }
@@ -578,7 +604,8 @@ export class Routes implements Subject {
   }
 
   /**
-   * Switch to a model. An agent switches its own session there and then. The
+   * Switch to a model. An agent switches its own session there and then, and
+   * nothing else moves: new agents keep the project's default. The
    * orchestrator's is written to the config — so it stays — and it is started
    * again on it, carrying on the same conversation.
    */
@@ -600,13 +627,10 @@ export class Routes implements Subject {
         await this.wire.opts.restartThinker?.()
       } else {
         const chosen = await this.wire.opts.client.setAgentModel(panel.for, id)
-        // New agents' model now too, where it was kept: read back what the workbench wrote.
-        const loaded = await loadConfig(configPathOf(this.wire.opts))
-        if (loaded.ok) this.wire.opts.config = loaded.config
         this.wire.put(
           notice(
             { ...this.wire.state, panel: null },
-            `${panel.for} is switching to ${chosen.id}${newAgents(chosen.route, 'start on it')}`,
+            `${panel.for} is switching to ${chosen.id}${ALONE}`,
             this.wire.now(),
           ),
         )
@@ -616,15 +640,4 @@ export class Routes implements Subject {
     }
     this.wire.draw()
   }
-}
-
-/**
- * What an agent's change did for new agents, after what it did for the agent:
- * kept for them, or not — the agent has switched either way, and a route that
- * could not be written is said with why rather than as if it had been, as is
- * one written that the journal would not take the line for.
- */
-function newAgents(route: RouteKept, kept: string): string {
-  if (!route.kept) return `, but new agents still start where they did: ${route.why}`
-  return `, and new agents ${kept}${route.unrecorded ? `; ${route.unrecorded}` : ''}`
 }

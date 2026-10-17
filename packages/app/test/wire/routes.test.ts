@@ -165,16 +165,17 @@ describe('the model picker, opened before its harness has answered', () => {
 })
 
 describe('an agent moved to another model or thinking level, from the window', () => {
-  /** A window whose workbench switched the agent, and kept it for new agents or not. */
-  function choosing(route: { kept: true; unrecorded?: string } | { kept: false; why: string }) {
+  /** A window whose workbench switched the agent, and the config it was opened with. */
+  function choosing() {
     let state = { panel: null, panes: [], transcript: emptyTranscript() } as unknown as AppState
+    const config = ConfigSchema.parse({ projects: {} })
     const wire = {
       opts: {
         home: tmp('tade-routes-'),
-        config: ConfigSchema.parse({ projects: {} }),
+        config,
         client: {
-          setAgentModel: async () => ({ provider: 'openai', id: 'gpt-5', route }),
-          setAgentThinking: async () => ({ level: 'high', route }),
+          setAgentModel: async () => ({ provider: 'openai', id: 'gpt-5' }),
+          setAgentThinking: async () => ({ level: 'high' }),
         },
       },
       live: null,
@@ -187,41 +188,71 @@ describe('an agent moved to another model or thinking level, from the window', (
       draw: () => {},
       now: () => 0,
     }
-    const routes = new Routes(wire as never, { useConfig: () => {} } as never)
+    let used = 0
+    const routes = new Routes(wire as never, { useConfig: () => used++ } as never)
     const panel = { kind: 'model', for: 'app/refunds' } as ModelPanel
-    return { routes, panel, notice: () => wire.state.notice }
+    return { routes, panel, wire, config, used: () => used, notice: () => wire.state.notice }
   }
 
-  it('says new agents start on it where it was kept', async () => {
-    const { routes, panel, notice } = choosing({ kept: true })
-    await routes.chooseModel(panel, 'openai/gpt-5')
-    expect(notice()).toBe('app/refunds is switching to gpt-5, and new agents start on it')
-    await routes.chooseThinking('app/refunds', 'high')
-    expect(notice()).toBe(
-      'app/refunds thinks at high from its next turn, and new agents start there',
-    )
-  })
-
-  it('says a kept route whose journal line was not written beside the switch', async () => {
-    const unrecorded =
-      'workers.routes.default.model is written, but the journal would not take the line that says so: ENOSPC'
-    const { routes, panel, notice } = choosing({ kept: true, unrecorded })
+  it('moves that agent alone, and says new agents keep the default in Settings', async () => {
+    const { routes, panel, wire, config, used, notice } = choosing()
     await routes.chooseModel(panel, 'openai/gpt-5')
     expect(notice()).toBe(
-      `app/refunds is switching to gpt-5, and new agents start on it; ${unrecorded}`,
-    )
-  })
-
-  it('says the agent switched and the route did not, and why, where it was not kept', async () => {
-    const why = 'the route could not be written: that would make config.yaml invalid'
-    const { routes, panel, notice } = choosing({ kept: false, why })
-    await routes.chooseModel(panel, 'openai/gpt-5')
-    expect(notice()).toBe(
-      `app/refunds is switching to gpt-5, but new agents still start where they did: ${why}`,
+      'app/refunds is switching to gpt-5; new agents keep the default, in Settings › Models',
     )
     await routes.chooseThinking('app/refunds', 'high')
     expect(notice()).toBe(
-      `app/refunds thinks at high from its next turn, but new agents still start where they did: ${why}`,
+      'app/refunds thinks at high from its next turn; new agents keep the default, in Settings › Models',
     )
+    // Nothing was written, so nothing is read back or handed round as new.
+    expect(wire.opts.config).toBe(config)
+    expect(used()).toBe(0)
   })
 })
+
+describe('a Settings list of a harness nobody has asked yet', () => {
+  /** Settings open on the Models page, a list open on `path`, and the harnesses asked. */
+  function listing(path: string) {
+    const asked: string[] = []
+    let drawn = 0
+    const wire = {
+      opts: {
+        config: ConfigSchema.parse({ projects: {} }),
+        models: async (harness: string) => {
+          asked.push(harness)
+          return { harness, models: [offered('gpt-5')], why: null }
+        },
+      },
+      state: { panel: { kind: 'settings', dropdown: { path, query: '', index: 0 } }, panes: [] },
+      draw: () => {
+        drawn++
+      },
+    }
+    const routes = new Routes(wire as never, {} as never)
+    return { routes, asked, drawn: () => drawn }
+  }
+
+  it('asks that harness once when its list opens, and draws what it said', async () => {
+    const { routes, asked, drawn } = listing('workers.routes.default.harnesses.codex.model')
+    routes.panel()
+    routes.panel()
+    expect(asked).toEqual(['codex'])
+    await until(() => drawn() === 1)
+    const choices = routes.panel()?.choices ?? []
+    expect(choices.map((one) => [one.harness, one.value])).toEqual([['codex', 'openai/gpt-5']])
+    routes.panel()
+    expect(asked, 'asked again once it had answered').toEqual(['codex'])
+  })
+
+  it('asks nothing for a list that is not a model', () => {
+    const { routes, asked } = listing('workers.routes.default.harnesses.codex.thinking')
+    routes.panel()
+    expect(asked).toEqual([])
+  })
+})
+
+/** Until `ready` holds, a microtask at a time: a promise nobody can await is paced by what it does. */
+async function until(ready: () => boolean): Promise<void> {
+  for (let turns = 0; turns < 100 && !ready(); turns++) await Promise.resolve()
+  expect(ready()).toBe(true)
+}

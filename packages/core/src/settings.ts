@@ -2,7 +2,6 @@ import {
   AGENT_WORKSPACES,
   COMMIT_RULES,
   type Config,
-  HARNESS_IDS,
   THINKING_LEVELS,
   type ThinkingLevel,
 } from './config.ts'
@@ -12,6 +11,7 @@ import { KEYS_AND_AGENTS, SEEN_BY_AGENTS } from './secrets.ts'
 import { awayGroup } from './settings-away.ts'
 import { intakeGroup } from './settings-intake.ts'
 import { keepGroup } from './settings-keep.ts'
+import { modelsGroup } from './settings-models.ts'
 import { numberFrom, numberStepped, numberWanted, withDecimals } from './settings-numbers.ts'
 import { orchestratorGroup } from './settings-orchestrator.ts'
 import { projectGroups } from './settings-projects.ts'
@@ -186,9 +186,7 @@ export function settingsOf(
       .at(-1)
       ?.replace(/^ggml-/, '')
       .replace(/\.bin$/, '') ?? 'base.en'
-  const route = config.workers.routes[config.workers.default]
   // Each side of the model question asks its own harness, and says which.
-  const agentHarness = route?.harness ?? 'pi'
   const thinkerHarness = config.orchestrator.harness
   const thinksAt = (harness: string): readonly ThinkingLevel[] => levels[harness] ?? THINKING_LEVELS
   // The Sentry extension's own settings, shown beside the reporting ones:
@@ -361,44 +359,7 @@ export function settingsOf(
         },
       ],
     },
-    {
-      id: 'models',
-      title: 'Models',
-      about: 'What agents think with, unless a project says otherwise.',
-      settings: [
-        {
-          path: `workers.routes.${config.workers.default}.model`,
-          title: 'Agent model',
-          means: 'the model new agents start on; the harness picks when unset',
-          value: route?.model
-            ? route.provider
-              ? `${route.provider}/${route.model}`
-              : route.model
-            : '',
-          fallback: 'the harness decides',
-          type: { kind: 'model', harness: agentHarness },
-          live: true,
-        },
-        {
-          path: `workers.routes.${config.workers.default}.thinking`,
-          title: 'Agent thinking',
-          means: 'how hard new agents think; each agent can be changed from its pane',
-          value: route?.thinking ?? '',
-          fallback: 'the harness decides',
-          type: { kind: 'choice', options: [...thinksAt(agentHarness)] },
-          live: true,
-        },
-        {
-          path: `workers.routes.${config.workers.default}.harness`,
-          title: 'Agent harness',
-          means: 'what runs new agents; each agent can be moved to another from its pane',
-          value: route?.harness ?? 'pi',
-          fallback: 'pi',
-          type: { kind: 'choice', options: [...HARNESS_IDS] },
-          live: true,
-        },
-      ],
-    },
+    modelsGroup(config, thinksAt),
     orchestratorGroup(config, thinksAt(thinkerHarness)),
     queueGroup(config),
     {

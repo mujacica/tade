@@ -420,7 +420,7 @@ describe('the list a setting drops', () => {
       workers: { routes: { default: { harness: 'claude-code' } } },
     }),
     [],
-    { codex: CODEX, 'claude-code': CLAUDE },
+    { codex: CODEX, 'claude-code': CLAUDE, acp: [] },
   )
   const models = [
     { value: 'openai/gpt-5.5-codex', label: 'gpt-5.5-codex', group: 'openai', harness: 'codex' },
@@ -461,15 +461,26 @@ describe('the list a setting drops', () => {
     // new agents, and the same bug — thinking dropped the models, and the model
     // field dropped the harnesses once the keyboard had walked down to them.
     const rows = visibleSettings(panelFor('models'), groups).map((one) => one.path)
+    // Then what new agents start on in each other harness, each a default of its own.
     expect(rows).toEqual([
       'workers.routes.default.model',
       'workers.routes.default.thinking',
       'workers.routes.default.harness',
+      'workers.routes.default.harnesses.pi.model',
+      'workers.routes.default.harnesses.pi.thinking',
+      'workers.routes.default.harnesses.codex.model',
+      'workers.routes.default.harnesses.codex.thinking',
+      // ACP is told no thinking level, so it has no row asking for one.
+      'workers.routes.default.harnesses.acp.model',
     ])
     expect(offered('models', 'workers.routes.default.thinking', 0)).toEqual([...CLAUDE])
     expect(offered('models', 'workers.routes.default.model', 2)).toEqual([
       'anthropic/claude-opus-5',
     ])
+    // Another harness's default is chosen among that harness's own.
+    const codex = 'workers.routes.default.harnesses.codex'
+    expect(offered('models', `${codex}.model`, 0)).toEqual(['openai/gpt-5.5-codex'])
+    expect(offered('models', `${codex}.thinking`, 0)).toEqual([...CODEX])
   })
 })
 

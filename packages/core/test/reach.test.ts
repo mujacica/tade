@@ -40,6 +40,25 @@ describe('what no words reach', () => {
     expect(settingReach('workers.routes.default.harness').reach).toBe('asked')
   })
 
+  it('leaves what new agents start on in another harness, and never where that sends work', () => {
+    // Defaults are settings the person may ask the orchestrator to change,
+    // every one of them; which provider one sends work to is not a default.
+    for (const path of [
+      'workers.routes.default.harnesses.claude-code.model',
+      'workers.routes.local.harnesses.codex.thinking',
+    ]) {
+      expect(settingReach(path).reach, path).toBe('asked')
+    }
+    for (const path of [
+      'workers.routes.default.harnesses.claude-code.provider',
+      'workers.routes.default.harnesses.claude-code',
+      'workers.routes.default.harnesses',
+      'workers.routes.local.provider',
+    ]) {
+      expect(settingReach(path).reach, path).toBe('never')
+    }
+  })
+
   it('refuses a whole extension, not only the switch that turns it on', () => {
     // The subtree is the point. `enabled` hands somebody's code to your
     // agents; `org` points an extension that is already on at somebody else's
