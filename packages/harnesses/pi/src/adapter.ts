@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import {
   effectByName,
   type RequiredProgram,
+  type TaskId,
   THINKING_LEVELS,
   type ThinkingLevel,
   type ToolEffect,
@@ -17,6 +18,7 @@ import {
   endHeadless,
   type HarnessModel,
   type HarnessProbe,
+  type HarnessSession,
   type HarnessSpend,
   type HistoryAsk,
   type HistoryPage,
@@ -41,6 +43,7 @@ import {
   type WorkerSignalListener,
   type WorkerSpec,
 } from '@tade/harnesses-core'
+import { carryHere, folderOf, sessionsHere } from './folder.ts'
 import { findModel, loggedInProviders, usableModels } from './models.ts'
 import { historyOfTask, type SessionsAt, sessionFileFor, usageOfTask } from './sessions.ts'
 import { type Spent, spentBy, spentByMessage } from './usage.ts'
@@ -430,6 +433,23 @@ export class PiAdapter implements WorkerAdapter {
 
   async carryConversation(): Promise<boolean> {
     return false
+  }
+
+  async sessions(cwd: string, tasks: readonly TaskId[]): Promise<HarnessSession[]> {
+    return sessionsHere(
+      await folderOf(cwd, this.opts.sessionsRoot, this.opts.env),
+      tasks,
+      sessionIdFor,
+      (task) => sessionFileFor(task, cwd, this.recordsAt()),
+    )
+  }
+
+  async carrySession(session: string, task: TaskId, cwd: string): Promise<boolean> {
+    return carryHere(await folderOf(cwd, this.opts.sessionsRoot, this.opts.env), session, {
+      task,
+      id: sessionIdFor(task),
+      has: () => this.hasConversation(task, cwd),
+    })
   }
 
   /** What pi can run on: its catalog, narrowed to what you are signed in to. */

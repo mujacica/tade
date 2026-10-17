@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import {
   type RequiredProgram,
   runProgram,
+  type TaskId,
   type ThinkingLevel,
   type ToolEffect,
   type Unsubscribe,
@@ -18,6 +19,7 @@ import {
   type HarnessAccount,
   type HarnessModel,
   type HarnessProbe,
+  type HarnessSession,
   type HarnessSpend,
   type HistoryAsk,
   type HistoryPage,
@@ -43,6 +45,7 @@ import {
   type WorkerSpec,
 } from '@tade/harnesses-core'
 import { type ChannelRequest, CodexChannel } from './channel.ts'
+import { carryThread, threadsIn } from './folder.ts'
 import { askPlan } from './plan.ts'
 import {
   contextIn,
@@ -387,6 +390,14 @@ export class CodexAdapter implements WorkerAdapter {
 
   history(task: string, _cwd: string, ask: HistoryAsk): Promise<HistoryPage> {
     return historyOn(task, this.opts.runDir, this.opts.codexHome, ask)
+  }
+
+  sessions(cwd: string, tasks: readonly TaskId[]): Promise<HarnessSession[]> {
+    return threadsIn(cwd, this.opts.codexHome, this.opts.runDir, tasks)
+  }
+
+  carrySession(session: string, task: TaskId, cwd: string): Promise<boolean> {
+    return carryThread(session, task, cwd, this.opts.codexHome, this.opts.runDir)
   }
 
   /**

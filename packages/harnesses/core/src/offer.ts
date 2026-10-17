@@ -55,6 +55,17 @@ export function offer(
   }
 }
 
+/**
+ * Whether an agent whose process has gone — a chat closed by accident, an
+ * agent somebody stopped — can be brought back to its conversation: by
+ * starting it again on the one its harness kept, or not at all, and then in
+ * the harness's own words why. `resume` is a yes or a no, so this is the one
+ * reading of it every surface goes through.
+ */
+export function resumeOffer(capabilities: Pick<WorkerCapabilities, 'resume' | 'why'>): Offer {
+  return offer(capabilities, 'resume', capabilities.resume ? 'restart' : 'none')
+}
+
 /** How a picture reaches the agent: with the instruction, as a file it is told about, or not at all. */
 export type ImageSupport = 'inline' | 'path' | 'none'
 

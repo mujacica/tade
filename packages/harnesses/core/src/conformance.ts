@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   type HarnessFeature,
   modelsOffered,
+  resumeOffer,
   SUPPORT,
   WORKER_ENV,
   type WorkerAdapter,
@@ -307,6 +308,22 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
           items: [],
           earlier: null,
         })
+      })
+
+      it('keeps no conversation for a folder nothing ran in, and carries none it does not have', async () => {
+        const one = await adapter()
+        const fresh = await spec()
+        expect(await one.sessions(fresh.cwd, [fresh.task])).toEqual([])
+        expect(await one.carrySession('no-such-conversation', fresh.task, fresh.cwd)).toBe(false)
+        // Nothing was carried, so there is still nothing to come back to.
+        expect(await one.hasConversation(fresh.task, fresh.cwd)).toBe(false)
+      })
+
+      it('says whether it can come back to a conversation, and in words when it cannot', async () => {
+        const one = await adapter()
+        const offered = resumeOffer(one.capabilities)
+        expect(offered.shown).toBe(one.capabilities.resume)
+        if (!offered.shown) expect(offered.note).toBe(one.capabilities.why.resume)
       })
     })
 

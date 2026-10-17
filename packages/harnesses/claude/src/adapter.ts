@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import {
   type RequiredProgram,
   runProgram,
+  type TaskId,
   type ThinkingLevel,
   type ToolEffect,
   type Unsubscribe,
@@ -18,6 +19,7 @@ import {
   type HarnessAccount,
   type HarnessModel,
   type HarnessProbe,
+  type HarnessSession,
   type HarnessSpend,
   type HistoryAsk,
   type HistoryPage,
@@ -49,6 +51,7 @@ import { COMPACT_LINE, compactionIn, percentOf, tokensIn, windowIn } from './com
 import { headlessArgs, headlessEnv, SNAPSHOT_OPTION } from './headless.ts'
 import { optionsOf } from './installed.ts'
 import { signedInUntil } from './login.ts'
+import { carryInto, sessionsIn } from './sessions.ts'
 import {
   defaultConfigDir,
   historyOn,
@@ -368,6 +371,14 @@ export class ClaudeAdapter implements WorkerAdapter {
 
   history(task: string, _cwd: string, ask: HistoryAsk): Promise<HistoryPage> {
     return historyOn(task, this.opts.configDir, ask, toolName)
+  }
+
+  sessions(cwd: string, tasks: readonly TaskId[]): Promise<HarnessSession[]> {
+    return sessionsIn(cwd, this.opts.configDir, tasks)
+  }
+
+  carrySession(session: string, task: string, cwd: string): Promise<boolean> {
+    return carryInto(session, task, cwd, this.opts.configDir)
   }
 
   /**

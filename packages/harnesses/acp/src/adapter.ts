@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import {
   type RequiredProgram,
   runProgram,
+  type TaskId,
   type ThinkingLevel,
   type ToolEffect,
   type Unsubscribe,
@@ -13,6 +14,7 @@ import {
   type AccountStatus,
   type HarnessModel,
   type HarnessProbe,
+  type HarnessSession,
   type HarnessSpend,
   type HistoryAsk,
   type HistoryPage,
@@ -313,6 +315,15 @@ export class AcpAdapter implements WorkerAdapter {
   async prepareAccount(_share: boolean): Promise<void> {}
 
   async carryConversation(_task: string, _cwd: string, _to: WorkerAdapter): Promise<boolean> {
+    return false
+  }
+
+  /** None worth offering: it cannot say it would come back to one (`why.resume`). */
+  async sessions(_cwd: string, _tasks: readonly TaskId[]): Promise<HarnessSession[]> {
+    return []
+  }
+
+  async carrySession(_session: string, _task: TaskId, _cwd: string): Promise<boolean> {
     return false
   }
 

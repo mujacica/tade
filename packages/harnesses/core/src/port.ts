@@ -11,8 +11,10 @@ import type {
 import { z } from 'zod'
 import type { HistoryAsk, HistoryPage } from './history.ts'
 import type { HarnessFeature, ImageSupport, Support } from './offer.ts'
+import type { HarnessSession } from './sessions.ts'
 
 export * from './offer.ts'
+export * from './sessions.ts'
 
 // The WorkerAdapter port: what an agent is telling us, and how we answer it.
 //
@@ -666,6 +668,23 @@ export interface WorkerAdapter {
    * there and could not be read throws, because that is not an empty one.
    */
   history(task: TaskId, cwd: string, ask: HistoryAsk): Promise<HistoryPage>
+  /**
+   * The conversations this harness keeps for a folder, newest first and at
+   * most `SESSIONS_LISTED`: what a person could pick up again there. Read out
+   * of its own record by the harness itself — nothing reads another harness's
+   * store — and each of `tasks` whose conversation is among them is named on
+   * it, since how a task's conversation is named is the harness's to know. A
+   * harness that cannot come back to a conversation (`capabilities.resume`)
+   * answers nothing. A folder it has none for is nothing too; a record that
+   * is there and could not be read throws, because that is not an empty one.
+   */
+  sessions(cwd: string, tasks: readonly TaskId[]): Promise<HarnessSession[]>
+  /**
+   * Have a task's agent carry on one of the conversations `sessions` listed,
+   * rather than start its own: its next launch in `cwd` comes back to it.
+   * False when there was no such conversation there, or the harness cannot.
+   */
+  carrySession(session: string, task: TaskId, cwd: string): Promise<boolean>
   /** The models an agent of this harness can be started on, as it offers them. */
   models(): Promise<HarnessModel[]>
   /** A model said the way people say it — "opus 5" — among this harness's. */
