@@ -1,6 +1,8 @@
 import {
   LINES_LOOKED_BACK,
+  modelChosen,
   namedBy,
+  ownProviderMoved,
   providerBeside,
   type Setting,
   type SettingGroup,
@@ -23,6 +25,8 @@ export interface SettingTools {
   change(req: { path: string; value: string; said: string }): Promise<string>
   /** Refuses switching the orchestrator's own model unless they asked for it (`ownModelAsked`). */
   ownModelAsked(): Promise<void>
+  /** Refuses the model it resolved where that moves the provider it keeps (`ownProviderHeld`). */
+  ownProviderHeld(chosen: { provider: string; id: string }): void
 }
 
 /** What the tools need of the page: every row it shows, and the one write. */
@@ -45,6 +49,7 @@ export function settingTools(wire: Wiring, page: SettingWriting): SettingTools {
     settings: async (find) => settingsListed(page.rows(), find),
     change: async (req) => askedSetting(wire, page, req),
     ownModelAsked: async () => ownModelAsked(wire, page),
+    ownProviderHeld: (chosen) => ownProviderHeld(wire, chosen),
   }
 }
 
@@ -114,7 +119,9 @@ function lineFor(group: SettingGroup, setting: Setting): string {
  * a route's model of another provider than the one kept beside it is that
  * provider moved (`providerBeside`), which the person's own press does and
  * this never does: it is refused in the same words, before their words are
- * looked for, because no words reach it.
+ * looked for, because no words reach it. So is the orchestrator's own model of
+ * another provider than the one it keeps (`ownProviderMoved`), which its row
+ * writes beside the model rather than clearing.
  *
  * The last check reads the journal, not the argument. `said` is the
  * orchestrator's account of what was asked and is written down beside the
@@ -153,6 +160,9 @@ export async function askedSetting(
       `${req.value.trim()} is not ${beside.provider}'s, and ${beside.path} is not mine to change: ${settingReach(beside.path).because}. One of ${beside.provider}'s I can set; that one a person chooses in Settings (ctrl+,), which clears the provider with it — say that rather than looking for another way.`,
     )
   }
+  const moved =
+    path === OWN_MODEL ? ownProviderMoved(wire.opts.config, modelChosen(req.value).provider) : null
+  if (moved !== null) throw new Error(ownProviderRefused(req.value.trim(), moved))
   if (reach === 'asked') {
     if (req.said.trim() === '') {
       throw new Error(
@@ -196,4 +206,22 @@ async function ownModelAsked(wire: Wiring, page: SettingWriting): Promise<void> 
   const { reach, because } = settingReach(OWN_MODEL)
   if (reach === 'never') throw new Error(`${setting.title} is not mine to change: ${because}.`)
   if (reach === 'asked') await namedOrRefused(wire, setting)
+}
+
+/**
+ * Refuse a model `tade_orchestrator_model` resolved where keeping it would move
+ * the provider the orchestrator keeps (`ownProviderMoved`).
+ *
+ * After resolving and before anything is kept or switched: which provider a
+ * name resolves to is the harness's answer, so it cannot be asked sooner, and
+ * a refusal here throws before a harness that switches live is told anything.
+ */
+function ownProviderHeld(wire: Wiring, chosen: { provider: string; id: string }): void {
+  const moved = ownProviderMoved(wire.opts.config, chosen.provider)
+  if (moved !== null) throw new Error(ownProviderRefused(`${chosen.provider}/${chosen.id}`, moved))
+}
+
+/** What the orchestrator is told when a model would move the provider it keeps, at either door. */
+function ownProviderRefused(model: string, moved: { path: string; provider: string }): string {
+  return `${model} would move me off ${moved.provider}, and ${moved.path} is not mine to change: ${settingReach(moved.path).because}. One of ${moved.provider}'s I can switch to, named as ${moved.provider}/<model>; another provider's a person chooses in Settings (ctrl+,) or on my tab's model picker — say that rather than looking for another way.`
 }

@@ -153,6 +153,18 @@ const NEVER: readonly (readonly [string, string])[] = [
     'an MCP server is somebody else’s code with tools your agents will call, and only a person turns one on',
   ],
   ['orchestrator.extensions', 'that is the folder my own tools are read from'],
+  // Where my own conversation is sent, as a route's provider is where an
+  // agent's work is. My `Model` row writes it beside the model it is chosen
+  // with (`modelChosen`), so the row stays `asked` and the window refuses a
+  // model that would move it at both doors that write one, `tade_setting_change`
+  // and `tade_orchestrator_model` (`ownProviderMoved`): the person's own press
+  // in Settings or on my tab's picker moves it. Where none is kept yet the name
+  // picks it, as on a route that sets none, and Tade keeps the one I first
+  // start on.
+  [
+    'orchestrator.provider',
+    'it is the provider everything said to me is sent to, and where Tade sends something is not mine to move',
+  ],
   ['telemetry.dsn', 'a DSN is where Tade sends things, and I read pages all day'],
   [
     'projects',

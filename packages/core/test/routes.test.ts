@@ -4,6 +4,7 @@ import {
   clearedByHarness,
   modelChosen,
   orchestratorRoute,
+  ownProviderMoved,
   providerBeside,
   providerInDoubt,
   resolveRoute,
@@ -202,6 +203,26 @@ describe('providerBeside', () => {
     expect(providerBeside(kept, 'workers.routes.default.thinking', 'openrouter/x')).toBeNull()
     expect(providerBeside(kept, 'workers.routes.constructor.model', 'openrouter/x')).toBeNull()
     expect(providerBeside(kept, 'orchestrator.model', 'openrouter/x')).toBeNull()
+  })
+})
+
+describe('ownProviderMoved', () => {
+  const kept = config({ orchestrator: { provider: 'anthropic', model: 'claude-opus-5' } })
+
+  it('names the provider the orchestrator keeps where a model would move it', () => {
+    // Another provider's, written over it; and a bare name, which writes none
+    // and so clears it.
+    const moved = { path: 'orchestrator.provider', provider: 'anthropic' }
+    expect(ownProviderMoved(kept, 'openrouter')).toEqual(moved)
+    expect(ownProviderMoved(kept, undefined)).toEqual(moved)
+    expect(ownProviderMoved(kept, '')).toEqual(moved)
+  })
+
+  it('leaves it where the model is its own, or none is kept yet', () => {
+    expect(ownProviderMoved(kept, 'anthropic')).toBeNull()
+    expect(ownProviderMoved(kept, 'Anthropic')).toBeNull()
+    expect(ownProviderMoved(config({}), 'openrouter')).toBeNull()
+    expect(ownProviderMoved(config({}), undefined)).toBeNull()
   })
 })
 

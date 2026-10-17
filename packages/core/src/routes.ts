@@ -140,6 +140,29 @@ export function providerBeside(
 }
 
 /**
+ * The provider the orchestrator keeps, where switching it to a model of
+ * `provider` would move it — its path and what it is — or null where it stays.
+ *
+ * Where a route's is moved by `providerBeside`, the orchestrator's own is moved
+ * by its model: its `Model` row and `tade_orchestrator_model` store a choice as
+ * the two keys (`modelChosen`), so another provider's model writes that
+ * provider over the kept one, and a bare name writes none and clears it. It is
+ * where the orchestrator's own conversation is sent, so it is `never`
+ * (`settingReach`), like a route's: a model of the kept provider leaves it,
+ * and anything else is the person's press in Settings or on its tab's picker,
+ * never the orchestrator's. Where none is kept yet — before Tade keeps the one
+ * it first started on — the name picks it, as on a route that sets none.
+ */
+export function ownProviderMoved(
+  config: Config,
+  provider: string | undefined,
+): { path: string; provider: string } | null {
+  const kept = config.orchestrator.provider
+  if (!kept || provider?.toLowerCase() === kept.toLowerCase()) return null
+  return { path: 'orchestrator.provider', provider: kept }
+}
+
+/**
  * Whether a route's provider and model can only be read together with what
  * the harness offers: a provider kept beside a model spelled with a slash and
  * not with that provider. `openrouter` beside `anthropic/claude-opus-4.5` is

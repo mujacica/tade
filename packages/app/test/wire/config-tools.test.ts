@@ -327,6 +327,49 @@ describe('the orchestrator, configuring Tade', () => {
     await expect(config.ownModelAsked()).resolves.toBeUndefined()
   })
 
+  it('never moves its own provider, by either door, and writes nothing', async () => {
+    // Its Model row writes the provider beside the model, so another
+    // provider's model is where its own conversation is sent moving, which is
+    // the person's press and no words of theirs let me do. A bare name writes
+    // none, which clears it.
+    writeFileSync(
+      join(home, 'config.yaml'),
+      `projects:\n  app:\n    root: ${repo.root}\norchestrator:\n  provider: anthropic\n  model: claude-opus-5\n`,
+    )
+    const loaded = await loadConfig(join(home, 'config.yaml'))
+    if (!loaded.ok) throw new Error('the test config would not load')
+    const before = readFileSync(join(home, 'config.yaml'), 'utf8')
+    const app = await start({ config: loaded.config })
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const config = app.configTools()
+    const said = 'change your model to openrouter’s opus 4.5'
+    await theySaid(said)
+    for (const value of ['openrouter/anthropic/claude-opus-4.5', 'claude-sonnet-5']) {
+      const refused = config.change({ path: 'orchestrator.model', value, said })
+      await expect(refused).rejects.toThrow(
+        `${value} would move me off anthropic, and orchestrator.provider is not mine to change`,
+      )
+      await expect(refused).rejects.toThrow(/Settings \(ctrl\+,\)/)
+    }
+    // `tade_orchestrator_model`, once its harness has said which one it is.
+    expect(() =>
+      config.ownProviderHeld({ provider: 'openrouter', id: 'anthropic/claude-opus-4.5' }),
+    ).toThrow('openrouter/anthropic/claude-opus-4.5 would move me off anthropic')
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toBe(before)
+    expect(await changes()).toHaveLength(0)
+    // One of the provider it keeps is its own model like any other.
+    expect(() =>
+      config.ownProviderHeld({ provider: 'anthropic', id: 'claude-sonnet-5' }),
+    ).not.toThrow()
+    expect(
+      await config.change({ path: 'orchestrator.model', value: 'anthropic/claude-sonnet-5', said }),
+    ).toContain('Saved')
+    expect(client.config.orchestrator).toMatchObject({
+      provider: 'anthropic',
+      model: 'claude-sonnet-5',
+    })
+  })
+
   it('refuses a path Tade does not offer rather than writing it anyway', async () => {
     await expect(
       (await tools()).change({ path: 'agents.nonsense', value: '1', said: 'do it' }),

@@ -116,8 +116,8 @@ Three answers and no fourth:
 
 - **`never`** is everything that widens what an agent may do, hands a third party tools or a
   credential, changes who is asked, or changes where Tade sends something — `approvals`, `accounts`
-  and `workers.accounts`, a route's `provider`, the whole of `extensions` and `mcp`,
-  `orchestrator.extensions`, `telemetry.dsn`, a project's `root`, and the whole of `remotes` (another
+  and `workers.accounts`, a route's `provider` and the orchestrator's own, the whole of `extensions`
+  and `mcp`, `orchestrator.extensions`, `telemetry.dsn`, a project's `root`, and the whole of `remotes` (another
   machine this one drives, with a session that is your keyboard there: `core/src/remotes.ts`, written
   only by `tade remote add`). Each is a **subtree** and not
   a key, which is the whole point: a key added under one of them is refused on the day it is added,
@@ -155,8 +155,11 @@ beside it; what the name picks there is said in `ALLOWED_UNDER`'s comment. Where
 keeps a `provider` and the model chosen is another provider's, pi would make a model up under the
 kept one's name, so the person's press clears that provider with it and says so, a line each
 (`providerBeside`); the orchestrator asking the same is refused with the `never` clause before its
-words are looked for. A pair that already disagrees in the file starts new agents on the model alone
-where the harness offers it, said once a window (`startingModel`).
+words are looked for. The orchestrator's own `provider` is `never` the same way, and its `Model` row
+writes it beside the model, so a model that would move it — another provider's, or a bare name,
+which clears it — is refused at both doors that write it, `tade_setting_change` and
+`tade_orchestrator_model` (`ownProviderMoved`). A pair that already disagrees in the file starts
+new agents on the model alone where the harness offers it, said once a window (`startingModel`).
 
 Two consequences when you add a key:
 

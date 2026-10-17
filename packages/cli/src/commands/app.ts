@@ -421,6 +421,9 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           // person's words that row takes, before anything is resolved.
           await settings.ownModelAsked()
           const chosen = await orchestrator.resolveModel(said)
+          // And never off the provider it keeps: where its conversation is
+          // sent is the person's to move, so that is refused before it is kept.
+          settings.ownProviderHeld(chosen)
           keepOrchestratorModel(chosen)
           // A harness that takes a model only when it starts is started again
           // on it, on the same conversation.

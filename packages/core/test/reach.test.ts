@@ -77,6 +77,15 @@ describe('what no words reach', () => {
     expect(settingReach('orchestrator.model').reach).toBe('asked')
   })
 
+  it('refuses where its own conversation is sent, as it does a route’s', () => {
+    // Its Model row writes the provider beside the model, so a model that
+    // would move it is refused by the window at both doors
+    // (`ownProviderMoved`); this is the clause it is refused with.
+    expect(settingReach('orchestrator.provider').reach).toBe('never')
+    expect(settingReach('orchestrator.provider').because).toContain('where Tade sends something')
+    expect(settingReach('orchestrator.thinking').reach).toBe('asked')
+  })
+
   it('refuses where telemetry is sent, while letting it be turned off', () => {
     // A DSN is an endpoint, not a credential, and this is not about secrecy:
     // it is that changing where Tade sends anything, on the strength of a page
