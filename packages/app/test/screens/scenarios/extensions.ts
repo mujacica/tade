@@ -286,6 +286,7 @@ function extensionFacts() {
           name: 'github',
           how: 'https://api.githubcopilot.com/mcp/',
           on: true,
+          startedOn: true,
           decided: true,
           install: null,
           note: 'Reviews, checks and merges are the Forge port’s, not this server’s.',

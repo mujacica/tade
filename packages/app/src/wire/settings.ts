@@ -413,8 +413,10 @@ export class Settings implements Subject {
     // extension may be asked about and every watch may look at — on the next
     // call and the next look, not after Tade is started again.
     this.wire.opts.extensions?.useProjects(config.projects)
-    // And an MCP server turned off, by whichever door: off is at once.
+    // And an MCP server turned off, by whichever door: off is at once, and so
+    // is the end of its session, and of its program where it runs one.
     this.wire.opts.extensions?.useServers(config.mcp.servers)
+    void this.wire.opts.endServers?.(config.mcp.servers)
     // Muted is quiet now, not at the end of the sentence: the moment you press
     // it is the moment you needed it. What was queued behind goes with it, and
     // the rest of the answer still arriving is not spoken either. Here rather
@@ -518,21 +520,30 @@ export class Settings implements Subject {
   /**
    * On the window's beat: the config changes a terminal made while this window
    * held the journal, written down by its own append (`foldConfigChanges`), so
-   * every number in it is still this window's. Trouble is said once.
+   * every number in it is still this window's. Trouble is said once. A server
+   * a terminal turned off (`tade mcp disable`) is taken the way this window's
+   * own switch takes one, which is `serversMoved`: the config read back.
    */
-  async fold(): Promise<void> {
+  async fold(serversMoved?: () => Promise<void>): Promise<void> {
     if (this.folding) return
     this.folding = true
+    let moved = false
     try {
-      const { trouble } = await foldConfigChanges(this.wire.opts.home, (line) =>
-        this.wire.opts.client.log.append(line),
-      )
+      const { trouble } = await foldConfigChanges(this.wire.opts.home, (line) => {
+        if (SWITCH.test(String(line.detail?.path))) moved = true
+        return this.wire.opts.client.log.append(line)
+      })
       if (trouble !== null && trouble !== this.foldTrouble) {
         this.said(
           `The changes a terminal made to the config are not in the journal yet: ${trouble}`,
         )
       }
       this.foldTrouble = trouble
+      if (moved && serversMoved) {
+        await serversMoved().catch((err: unknown) =>
+          this.said(`What a terminal changed about an MCP server is not taken here: ${why(err)}`),
+        )
+      }
     } finally {
       this.folding = false
     }
@@ -767,6 +778,9 @@ function takingSays(taking: Taking): string {
 }
 
 /** A name as two writes of it compare: case, spaces and a final dot aside. */
+/** A line that may turn a server off: its switch, or its block written again (`tade mcp add`). */
+const SWITCH = /^mcp\.servers\.[^.]+(?:\.enabled)?$/
+
 function named(name: string): string {
   return name.trim().toLowerCase().replace(/\.$/, '')
 }

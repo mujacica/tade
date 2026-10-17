@@ -5,6 +5,7 @@ import { sentryExtension } from '@tade/extension-sentry'
 import { ExtensionHost } from '@tade/extensions-core'
 import { CATALOGUE } from '@tade/mcp-core'
 import type { Workbench } from '@tade/workbench'
+import { recordConfigChanges } from '@tade/workbench/config-changes'
 import { describe, expect, it } from 'vitest'
 import { parse, stringify } from 'yaml'
 import type { McpServerShown } from '../../src/panels/extensions/state.ts'
@@ -228,9 +229,12 @@ describe('the window, and its extensions', () => {
     ])
   })
 
-  // The page says its tools stop being offered, and an agent launched while it
-  // was on still has the name: the window has to refuse it, not a restart.
-  it('turns a running server off from its page, and its tools stop at once', async () => {
+  /**
+   * A window opened with the catalogue's Sentry server on, brokered as it
+   * opened with one tool, and what it was asked to end — the sessions the
+   * broker holds, which is `endServers`'s to reach.
+   */
+  const sentryRunning = async () => {
     terminal.columns = 120
     terminal.rows = 50
     const settings = {
@@ -254,10 +258,27 @@ describe('the window, and its extensions', () => {
       home,
       env: {},
     })
-    await start({ config, extensions, mcpServers: (now) => [sentryServer(now)] })
+    const ended: (boolean | undefined)[] = []
+    await start({
+      config,
+      extensions,
+      mcpServers: (now) => [sentryServer(now)],
+      endServers: async (servers) => void ended.push(servers.sentry?.enabled),
+    })
     await until('the footer', () =>
       screenOf(terminal.written).some((row) => row.includes('Extensions ]')),
     )
+    const refused = () =>
+      expect(
+        extensions.call(search.name, {}, { caller: { kind: 'orchestrator' } }),
+      ).rejects.toThrow('Sentry (MCP) is off: turned off')
+    return { settings, extensions, ended, refused }
+  }
+
+  // The page says its tools stop being offered, and an agent launched while it
+  // was on still has the name: the window has to refuse it, not a restart.
+  it('turns a running server off from its page, and its tools stop at once', async () => {
+    const { extensions, ended, refused } = await sentryRunning()
     const button = find('Extensions ]')
     click(button.col + 2, button.row)
     await until('the server, running', () =>
@@ -266,13 +287,38 @@ describe('the window, and its extensions', () => {
     const off = find('Turn off ]')
     click(off.col + 2, off.row)
     await until('it says its tools stop', () =>
-      screenOf(terminal.written).some((row) => row.includes('sentry is off — its tools stop')),
+      screenOf(terminal.written).some((row) => row.includes('sentry is off — its session ends')),
     )
     expect(written(home).mcp?.servers?.sentry?.enabled).toBe(false)
     expect(extensions.specs('agent')).toEqual([])
-    await expect(
-      extensions.call(search.name, {}, { caller: { kind: 'orchestrator' } }),
-    ).rejects.toThrow('Sentry (MCP) is off: turned off')
+    await refused()
+    // And its session is ended with it, rather than when Tade quits.
+    expect(ended).toContain(false)
+    // What the page says of it now is what is true: it was connected.
+    await until('it says it is disconnected', () =>
+      screenOf(terminal.written).some((row) =>
+        row.includes('off — turned off since Tade started, and disconnected'),
+      ),
+    )
+  })
+
+  // `tade mcp disable` while this window holds the journal: its line waits in
+  // the spool for the window's beat, which writes it down and takes the server
+  // off the way the page's own switch does — then and there, not at a restart.
+  it('turns a server off that a terminal turned off, on its next beat', async () => {
+    const { settings, extensions, ended, refused } = await sentryRunning()
+    expect(extensions.specs('agent')).toHaveLength(1)
+    const path = join(home, 'config.yaml')
+    writeFileSync(
+      path,
+      stringify({ ...settings, mcp: { servers: { sentry: { enabled: false } } } }),
+    )
+    const change = { path: 'mcp.servers.sentry.enabled', was: 'true', now: 'false', by: 'cli' }
+    expect(await recordConfigChanges(home, [change])).toBe('spool')
+    await until('the server off', () => extensions.specs('agent').length === 0)
+    await refused()
+    expect(ended).toContain(false)
+    expect((await changes(client, 1))[0]).toMatchObject(change)
   })
 
   it('runs an extension from its panel, and shows it working and what it said', async () => {

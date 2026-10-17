@@ -392,6 +392,7 @@ describe('what an extension keeps and says', () => {
         name: 'evil',
         how: hostile('https://evil.invalid/mcp'),
         on: true,
+        startedOn: true,
         decided: true,
         install: null,
         note: hostile('servernote'),

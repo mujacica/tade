@@ -404,7 +404,8 @@ export function extensionBody(
 
   // What is true of a server and of nothing else: where it is, when anybody
   // last asked it what it offers, and what of that Tade will not hand on. A
-  // server that is off was never connected, so there is none of it to say.
+  // server that is off was never connected, so there is none of it to say —
+  // unless it was on as this window opened, and was turned off since.
   if (view.server) {
     lines.push(blank(form))
     heading('THE SERVER')
@@ -418,7 +419,9 @@ export function extensionBody(
         ? asked
           ? `last asked ${asked}`
           : 'never asked what it offers'
-        : 'off — never connected',
+        : view.server.startedOn
+          ? 'off — turned off since Tade started, and disconnected'
+          : 'off — never connected',
       1,
       skin.hint,
     )

@@ -515,6 +515,9 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
               home,
               servers: now.mcp.servers,
             }),
+          // And the sessions of the ones that are on, held here since the
+          // window opened: a server turned off has its session ended at once.
+          endServers: (servers) => mcp.useServers(servers),
         })
         timingOpen.end()
         // It has drawn, so the reporter's SDK may load now: never before.

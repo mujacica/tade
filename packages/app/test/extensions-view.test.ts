@@ -219,6 +219,7 @@ const SERVER_ON: ExtensionView = {
     name: 'linear',
     how: 'npx linear-mcp --stdio',
     on: true,
+    startedOn: true,
     decided: true,
     install: null,
     note: null,
@@ -244,6 +245,7 @@ const SERVER_OFF: ExtensionView = {
     name: 'postgres',
     how: 'mcp-server-postgres',
     on: false,
+    startedOn: false,
     decided: true,
     install: 'npm install --global @modelcontextprotocol/server-postgres',
     note: null,
@@ -667,6 +669,27 @@ describe('the extensions page at any width', () => {
     const read = prose(extensionsPanel('mcp-postgres'), over)
     expect(read).toContain('runs as you')
     expect(read).toContain('scratch directory of its own')
+  })
+
+  // One on as this window opened was brokered, and asked what it offers as the
+  // window came up: turned off since, its session was ended — never "never".
+  it('says of a server turned off since Tade started that it is disconnected', () => {
+    const turned: ExtensionView = {
+      ...SERVER_ON,
+      state: 'off',
+      problem: 'turned off',
+      tools: [],
+      server: {
+        ...(SERVER_OFF.server as NonNullable<ExtensionView['server']>),
+        name: 'linear',
+        how: 'npx linear-mcp --stdio',
+        startedOn: true,
+      },
+    }
+    const said = wholePage(extensionsPanel('mcp-linear'), { extensions: [...EXTENSIONS, turned] })
+    expect(said).toContain('off — turned off since Tade started, and disconnected')
+    expect(said).not.toContain('never connected')
+    expect(said).not.toContain('last asked')
   })
 
   it('lists what each harness loads by itself without claiming any of it', () => {

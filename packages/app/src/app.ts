@@ -633,7 +633,7 @@ export class App {
         this.away.beat()
         this.remotes.beat()
         this.updates.beat()
-        void this.settings.fold()
+        void this.settings.fold(() => this.extensions.reloadExtensions())
         if (moved) this.draw() // a beat that found what the last did is not news
       },
       onEvent: (event) => {

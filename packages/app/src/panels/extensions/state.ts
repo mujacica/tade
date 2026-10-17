@@ -99,6 +99,11 @@ export interface McpServerView {
   how: string
   /** Whether a person has turned it on. */
   on: boolean
+  /**
+   * Whether it was on as this window opened, and so brokered here: one off now
+   * was turned off since, and had its session ended — not one never connected.
+   */
+  startedOn: boolean
   /** Whether anybody has decided about it at all, either way. */
   decided: boolean
   /** The line a person runs to get the program, shown and never run unwatched. */
@@ -638,12 +643,16 @@ export function extensionsClick(
  * it has no tools, no version and no "last asked" — and saying otherwise
  * would be the page inventing a connection nobody made.
  */
-export function serverFacts(server: McpServerShown | undefined): McpServerView | undefined {
+export function serverFacts(
+  server: McpServerShown | undefined,
+  startedOn: boolean,
+): McpServerView | undefined {
   if (!server) return undefined
   return {
     name: server.name,
     how: server.how,
     on: server.on,
+    startedOn,
     decided: server.decided,
     install: server.install,
     note: server.note,
@@ -707,7 +716,7 @@ export function serverView(server: McpServerShown): ExtensionView {
     configurable: false,
     folder: null,
     watches: [],
-    server: serverFacts(server),
+    server: serverFacts(server, false),
   }
 }
 
@@ -749,6 +758,7 @@ export function extensionRow(
     folder: one.source === 'yours' ? one.path : null,
     watches: about.watches,
     // What is true of a server and of nothing else, for a row that is one.
-    ...(one.source === 'mcp' ? { server: serverFacts(about.server) } : {}),
+    // A row the host loaded was brokered as this window opened, so it was on then.
+    ...(one.source === 'mcp' ? { server: serverFacts(about.server, true) } : {}),
   }
 }

@@ -384,7 +384,7 @@ export class Extensions implements Subject {
     const needs = on && server?.problem ? `, and needs setting up: ${server.problem}` : ''
     return on
       ? `${name} is on — it connects the next time Tade starts, and its tools are offered to every agent and the orchestrator${needs}`
-      : `${name} is off — its tools stop being offered`
+      : `${name} is off — its session ends and its tools stop being offered`
   }
 
   /** The extensions, as the panel shows them. */

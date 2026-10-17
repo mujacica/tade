@@ -82,8 +82,13 @@ not duplicate something Tade already does better through a port of its own.
 - **Off means never opened.** Only `mcp.servers.<name>.enabled: true` is handed to the extension
   host. An off server has no extension, no tools and no process. `extensions.mcp-<server>` is not a
   second switch, and the page never offers one. Turned off while the window runs, its extension is
-  off at once (`useServers`, called from `Settings.use`, which every window door goes through), and
-  turned on again it waits for the next start like any server turned on.
+  off at once and its sessions end, a program's process with them (the host's and the broker's
+  `useServers`, both from `Settings.use`, which every window door goes through — the broker's
+  reached as `endServers`, since the CLI holds it). After that the broker never opens it again in
+  that window, not even on the one retry of a call that was in flight, and turned on again it waits
+  for the next start like any server turned on. `tade mcp disable` from a terminal reaches an open
+  window the same way: its `config_changed` line is folded on the beat (`Settings.fold`), and a
+  server's switch among them is taken as the page's own switch takes one (`reloadExtensions`).
 - **A catalogue name may be an extension's name as well, so which switch a row is comes from the
   row and never from the name.** `sentry` is Tade's Sentry extension and this catalogue's Sentry
   server both. A server's row is the extension the broker made of it or the stand-in drawn for one
@@ -147,7 +152,8 @@ not duplicate something Tade already does better through a port of its own.
 - **The page is the Extensions page.** A server somebody decided about is a row among the
   extensions (`ExtensionView.server`); the rest are the catalogue behind one group row. What a
   server's row says comes from `shownServers`, and it says only what is true — a server that is
-  off was never connected, so it has no tools, no version and no "last asked".
+  off was never connected, so it has no tools, no version and no "last asked"; one that was on as
+  the window opened and was turned off since says it is disconnected (`McpServerView.startedOn`).
 
 ## What not to build
 

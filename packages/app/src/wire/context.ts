@@ -273,6 +273,12 @@ export interface AppOptions {
    */
   mcpServers?: (config: Config) => readonly McpServerShown[]
   /**
+   * End the sessions of each MCP server the config now has off — a program's
+   * process with them — and open none of them again in this window
+   * (`Brokered.useServers`). Absent, nothing was ever opened: a test's window.
+   */
+  endServers?: (servers: Config['mcp']['servers']) => Promise<void>
+  /**
    * How the machine is asked whether it can reach a network at all — the one
    * thing that decides whether the watches look. The machine's own unless
    * given, for the reason `clipboard` is: a test suite may never reach the

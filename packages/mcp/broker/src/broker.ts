@@ -1,10 +1,11 @@
 import { findSecret } from '@tade/core'
-import type {
-  ExtensionContext,
-  ExtensionTool,
-  TadeExtension,
-  ToolAnswer,
-  ToolContext,
+import {
+  type ExtensionContext,
+  type ExtensionTool,
+  inTime,
+  type TadeExtension,
+  type ToolAnswer,
+  type ToolContext,
 } from '@tade/extensions-core'
 import {
   type CachedServer,
@@ -69,6 +70,13 @@ const KEY = 'key'
 /** How long opening a server may take before it is abandoned. */
 const OPEN_MS = 10_000
 
+/**
+ * How long ending one is waited on. A program is killed by its transport well
+ * inside this; what it guards is a server reached over the network that never
+ * answers its goodbye, which is left to finish on its own.
+ */
+const CLOSE_MS = 5_000
+
 /** How much of a server's answer is kept. Longer is cut, never dropped. */
 const ANSWER_CAP = 20_000
 
@@ -127,6 +135,17 @@ export interface Brokered {
    * have the tools at all.
    */
   warm(signal?: AbortSignal): Promise<void>
+  /**
+   * Take the servers' switches as the config now has them, from whoever holds
+   * it. One turned off since the window opened has every session it has
+   * ended — its program with them, because whoever started one ends it — and
+   * is never opened again in this window: turned on again, it connects the
+   * next time Tade starts, as turning any server on does. Settles once they
+   * have ended or been given up on, and never throws.
+   */
+  useServers(
+    servers: Readonly<Record<string, { enabled?: boolean | undefined } | undefined>>,
+  ): Promise<void>
   /** End every session. Safe to call twice. */
   close(): Promise<void>
 }
@@ -169,11 +188,21 @@ export class ServerSessions {
     return opening
   }
 
-  /** Forget one, ending it if it is still there. */
+  /** Forget one, ending it if it is still there — and never waiting longer than `CLOSE_MS`. */
   async drop(name: string): Promise<void> {
     const held = this.open.get(name)
     this.open.delete(name)
-    await held?.then((session) => session.close()).catch(() => {})
+    if (!held) return
+    const ending = held.then((session) => session.close())
+    // One that would not open, would not close or ran out of time has ended
+    // as far as anybody waiting on it is concerned.
+    await inTime(ending, CLOSE_MS, 'late', new AbortController()).catch(() => {})
+  }
+
+  /** Forget every one a server has — the window's, and each project's — ending each. */
+  async end(server: string): Promise<void> {
+    const keys = [...this.open.keys()].filter((key) => isSessionOf(key, server))
+    await Promise.all(keys.map((key) => this.drop(key)))
   }
 
   async close(): Promise<void> {
@@ -210,6 +239,8 @@ export function brokered(options: BrokerOptions): Brokered {
   // light on every frame.
   const talked = new Map<string, Talked>()
   const said = options.onWarning ?? (() => {})
+  // The servers turned off since the window opened: never opened again in it.
+  const off = new Set<string>()
 
   /**
    * A server went away, or would not answer: written down, and said once.
@@ -270,6 +301,7 @@ export function brokered(options: BrokerOptions): Brokered {
       watched,
       answered,
       wentWrong,
+      isOff: (name) => off.has(name),
     }),
   )
 
@@ -280,6 +312,7 @@ export function brokered(options: BrokerOptions): Brokered {
       for (const server of on) {
         if (signal?.aborted) return
         const declaration = server.declaration
+        if (off.has(declaration.name)) continue
         // A server that runs one per project is warmed in the first of them:
         // what it *offers* is the same wherever it runs, and the alternative
         // is a server whose tools nobody ever has.
@@ -329,6 +362,8 @@ export function brokered(options: BrokerOptions): Brokered {
           // window that refuses to open. Nothing here throws — and nothing
           // goes wrong silently either, so it is said once, in its own words.
           await sessions.drop(key)
+          // One turned off while it was being asked was not failing to answer.
+          if (off.has(declaration.name)) continue
           talked.set(declaration.name, {
             trouble: err instanceof McpError ? err.trouble : 'unavailable',
             page: trouble(err),
@@ -336,6 +371,13 @@ export function brokered(options: BrokerOptions): Brokered {
           said(`${declaration.name} could not be asked what it offers: ${why(err)}`)
         }
       }
+    },
+    async useServers(now) {
+      const ending = on
+        .map((server) => server.declaration.name)
+        .filter((name) => now[name]?.enabled !== true && !off.has(name))
+      for (const name of ending) off.add(name)
+      await Promise.all(ending.map((name) => sessions.end(name)))
     },
     close: () => sessions.close(),
   }
@@ -348,6 +390,11 @@ export function brokered(options: BrokerOptions): Brokered {
  */
 function sessionKey(name: string, project: string | undefined): string {
   return project ? `${name} in ${project}` : name
+}
+
+/** Whether `key` is one of `server`'s sessions. A server's name has no space in it. */
+function isSessionOf(key: string, server: string): boolean {
+  return key === server || key.startsWith(`${server} in `)
 }
 
 /**
@@ -448,6 +495,8 @@ function extensionFor(opts: {
   watched: (name: string, session: ServerSession) => ServerSession
   answered: (name: string) => void
   wentWrong: (name: string, err: McpError) => void
+  /** Whether it was turned off since the window opened, and so may not be opened again. */
+  isOff: (name: string) => boolean
 }): TadeExtension {
   const { declaration } = opts.server
   const name = declaration.name
@@ -501,7 +550,11 @@ function extensionFor(opts: {
     return { text }
   }
 
-  const start = (ctx: ExtensionContext, where?: string) => {
+  const start = async (ctx: ExtensionContext, where?: string) => {
+    // The host refuses a call to a server turned off before it gets here; a
+    // call already in flight when its session was ended would otherwise open
+    // the program again on its one retry.
+    if (opts.isOff(name)) throw new Error(`${name} was turned off`)
     const transport = opts.transport()
     return transport
       .open(declaration, contextFor(declaration, credential(ctx), opts.home, ctx, where))
