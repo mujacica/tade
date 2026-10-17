@@ -866,6 +866,51 @@ describe('CodexAdapter', () => {
       expect(said).toBe('where are we')
     })
 
+    it('ends a turn whose SessionStart hook ran inside it, as a real `codex exec` runs it', async () => {
+      // Codex runs the hook as its own process, on the socket Tade gave it,
+      // and reads what it prints, before the turn goes any further.
+      const session = JSON.stringify({ ...started('thread-9'), source: 'startup' })
+      const bin = join(tmp('tade-codex-fake-'), 'codex')
+      writeFileSync(
+        bin,
+        [
+          '#!/bin/sh',
+          'cat > /dev/null',
+          `echo '{"type":"thread.started","thread_id":"thread-9"}'`,
+          `echo '${session}' | "${process.execPath}" "${HOOK_PATH}" > /dev/null`,
+          `echo '{"type":"turn.started"}'`,
+          `echo '{"type":"item.completed","item":{"id":"i1","type":"agent_message","text":"all quiet"}}'`,
+          `echo '{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":2}}'`,
+          '',
+        ].join('\n'),
+      )
+      chmodSync(bin, 0o755)
+      const made = new CodexAdapter({
+        runDir: tmp('tcx-'),
+        codexHome: tmp('tade-codex-account-'),
+        home: tmp('tade-codex-home-'),
+        bin,
+      })
+      adapter = made
+      const spec = {
+        run: 'tade/orchestrator/agent',
+        task: 'tade/orchestrator',
+        cwd: tmp('tade-codex-cwd-'),
+        prompt: '',
+      }
+      const signals: WorkerSignal[] = []
+      made.onSignal(spec.run, (signal) => signals.push(signal))
+      await made.start(spec)
+      await made.prompt(spec.run, 'where are we')
+      await until(() => signals.some((signal) => signal.type === 'idle'))
+      const kinds = signals.map((signal) => signal.type)
+      // The hook was heard, and the turn it ran in still ended once.
+      expect(kinds.filter((kind) => kind === 'started')).toHaveLength(2)
+      expect(kinds.filter((kind) => kind === 'turn_done')).toHaveLength(1)
+      expect(signals.find((signal) => signal.type === 'turn_done')).toMatchObject({ status: 'ok' })
+      expect(kinds.indexOf('turn_done')).toBeGreaterThan(kinds.indexOf('message'))
+    })
+
     it('resumes the thread it already has rather than starting the conversation over', async () => {
       const bin = fakeCodex(['{"type":"turn.completed","usage":{"output_tokens":1}}'])
       const runDir = tmp('tcx-')

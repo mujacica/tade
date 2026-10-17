@@ -903,7 +903,12 @@ export class CodexAdapter implements WorkerAdapter {
     const str = (key: string) => (typeof event[key] === 'string' ? (event[key] as string) : null)
     switch (event.hook_event_name) {
       case 'SessionStart': {
-        entry.turn = 'idle'
+        // In a lane, the session has begun and waits to be told something.
+        // Headless, `codex exec` runs this hook inside the turn `runTurn`
+        // already started, whose own events and exit end it: idle here, and
+        // that end was dropped (`settle`) and the next message started a
+        // second process on the same thread.
+        if (!entry.headless) entry.turn = 'idle'
         entry.model = str('model') ?? entry.model
         await this.learnThread(entry, str('session_id'))
         this.say(entry, {
