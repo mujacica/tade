@@ -16,7 +16,9 @@ import { clockOf, shortened } from './text.ts'
 // watches with their last looks, and the documents its work produced — each
 // out of `Machine.detail`, so every word is text another machine wrote and
 // `machine-there.ts` reduced. A document is read on a press: copied here over
-// the link and opened in the viewer (`remote-document`).
+// the link and opened in the viewer (`remote-document`). A request is opened
+// on a press too, into a page that only reads (`remote-request`,
+// `panels/intake/there.ts`): approving it is that machine's.
 //
 // **Each section is that machine's**, which the top row and the AGENTS heading
 // already say, and while its link is down each says as of when it last heard —
@@ -67,14 +69,25 @@ export function thereSections(frame: Frame, place: Place, width: number, skin: S
           : requests.slice(0, MOST).flatMap((one) => {
               const mark = inboxStateMark(one.state)
               const tone = mark === 'queued' ? skin.hint : skin[MARK_TONES[mark]]
+              // A press opens it, read-only: approving it is that machine's.
+              const press = {
+                kind: 'action' as const,
+                name: `remote-request:${machine.name} ${one.item}`,
+              }
               const title = row()
                 .space()
                 .text(markGlyph(mark, frame.now ?? 0), tone)
                 .space()
-              title.text(shortened(one.title ?? one.item, Math.max(1, room - one.state.length - 2)))
+              title.text(
+                shortened(one.title ?? one.item, Math.max(1, room - one.state.length - 2)),
+                undefined,
+                press,
+              )
               title.right((r) => r.text(one.state, tone).space())
               const who = [one.who === null ? '' : `@${one.who}`, one.source, one.because]
-              return [title.build(), ...said(row, who.filter(Boolean).join(' · '))]
+              const under = row().space(3)
+              under.text(shortened(who.filter(Boolean).join(' · '), room), skin.hint, press)
+              return [title.build(), under.build()]
             })),
         ...more(row, requests.length),
         // The doors are the machine's, not the project's: one line each, so a

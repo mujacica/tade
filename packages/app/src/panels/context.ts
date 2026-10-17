@@ -29,6 +29,7 @@ import type { ExtensionView, McpServerOffer, WrittenToolView } from './extension
 import { extensionSetup, extensions, extensionView } from './extensions/view.ts'
 import type { InlineRow } from './file/inline.ts'
 import { fileView } from './file/view.ts'
+import { requestThereView } from './intake/there.ts'
 import { intake } from './intake/view.ts'
 import { landing } from './landing/view.ts'
 import type { MenuItem } from './menu/state.ts'
@@ -323,6 +324,8 @@ export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
       return { panel: rowSummary(panel, ctx), popups: [] }
     case 'intake':
       return { panel: intake(panel, ctx), popups: [] }
+    case 'request-there':
+      return { panel: requestThereView(panel, ctx), popups: [] }
     case 'workflow':
       return { panel: workflow(panel, ctx), popups: [] }
     case 'model':

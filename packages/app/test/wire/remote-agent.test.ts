@@ -20,7 +20,11 @@ const INTAKE: FarAgent = {
   title: 'Doorbell',
   screen:
     '> wire the hook to the doorbell\n● Bash(gh api repos/acme/x/hooks)\n  Do you want to proceed?',
-  approval: { id: 'call-7', tool: 'Bash' },
+  approval: {
+    id: 'call-7',
+    tool: 'Bash',
+    command: 'gh api repos/acme/x/hooks --method POST\n./scripts/ring.sh ~/.tade/doorbell',
+  },
 }
 
 const LINK: FarAgent = {
@@ -131,13 +135,17 @@ describe('an agent on another machine, from this window', () => {
   it('shows the screen of the agent pressed, as that machine reads it, and lets go of it', async () => {
     await linkedTo([INTAKE, LINK])
     row('Doorbell')
-    await until('its screen there', () => shown('wire the hook to the doorbell'), 20_000)
+    // Its newest rows: the card over it takes the room its command needs first.
+    await until('its screen there', () => shown('Do you want to proceed?'), 20_000)
     expect(shown('its screen on vps · read-only')).toBe(true)
-    expect(shown('waits to use Bash')).toBe(true)
+    // What it waits to run, whole, as that machine sent it: both of its lines.
+    expect(shown('wants approval')).toBe(true)
+    expect(shown('Bash  gh api repos/acme/x/hooks --method POST')).toBe(true)
+    expect(shown('./scripts/ring.sh ~/.tade/doorbell')).toBe(true)
     // Another row is another agent's screen.
     row('Linking')
     await until('the other screen', () => shown('14 passed'), 20_000)
-    expect(shown('wire the hook to the doorbell')).toBe(false)
+    expect(shown('Do you want to proceed?')).toBe(false)
     // The one in front, pressed again, is let go of: the project as it was.
     row('Linking')
     await until('the project again', () => !shown('its screen on vps'), 20_000)

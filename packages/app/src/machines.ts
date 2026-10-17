@@ -51,8 +51,17 @@ export interface RemoteAgent {
    * be made without.
    */
   rev: string | null
-  /** The approval it is held on: the harness's id for it, which an answer names, and the tool's name. */
-  approval: { id: string; tool: string } | null
+  /**
+   * The approval it is held on: the harness's id for it, which an answer names,
+   * the tool's name, and the command it asks to run as that machine sent it —
+   * paths already shortened there (`commandOut`), with how many characters it
+   * did not send. `command` is null where it sent none: an older Tade.
+   */
+  approval: {
+    id: string
+    tool: string
+    command: { text: string; notShown: number } | null
+  } | null
   /** Whether somebody set it aside there. */
   parked: boolean
   /** Its own agent's lane, in the remote's one word: running, stopped and kept, or none. */
@@ -130,6 +139,11 @@ export const NO_DETAIL: MachineDetail = {
   produced: [],
   about: null,
   aboutSaid: null,
+  records: null,
+  recordsSaid: null,
+  recordsLooking: false,
+  cards: null,
+  cardsSaid: null,
 }
 
 /** One line of a machine's conversation with its orchestrator, as text. */
@@ -322,13 +336,37 @@ function agentOf(
 /** Its own agent's lane, in the words the protocol has for one. */
 const LANES = ['running', 'stopped', 'none'] as const
 
-/** An approval as a row carries one: an id to echo, and a tool's name to draw as text. */
+/** How much of a command one card here holds: the most that machine sends one (`budget.material`). */
+const COMMAND_MOST = 8_000
+
+/**
+ * An approval as a row carries one: an id to echo, a tool's name to draw as
+ * text, and the command it asks to run. The command is read **whole**
+ * (`printableLines`'s `'whole'`, as the card at that machine reads its own):
+ * every character kept, one that is not text a mark rather than taken out with
+ * whatever it hid, its own line breaks kept, because a line break in a command
+ * is a second command. Past the bound it is cut and the rest counted, never
+ * dropped in silence.
+ */
 function approvalIn(value: unknown): RemoteAgent['approval'] {
   const approval = objectIn(value)
   const id = stringIn(approval, 'id')
   const tool = text(approval?.tool, NAME_MOST)
   if (id === null || id === '' || id.length > 200 || !/^[\x21-\x7e]+$/.test(id)) return null
-  return { id, tool: tool === '' ? 'a tool' : tool }
+  return { id, tool: tool === '' ? 'a tool' : tool, command: commandIn(approval?.command) }
+}
+
+/** The command an approval asks about, as that machine sent it: whole, bounded, and what it did not send. */
+function commandIn(value: unknown): { text: string; notShown: number } | null {
+  const command = objectIn(value)
+  const said = stringIn(command, 'text')
+  if (said === null) return null
+  const points = [...printableLines(said, 'whole')]
+  const sent = numberIn(command, 'notShown')
+  const notShown = sent === null ? 0 : Math.max(0, Math.floor(sent))
+  if (points.length <= COMMAND_MOST) return { text: points.join(''), notShown }
+  const over = points.slice(COMMAND_MOST).filter((one) => one !== '\n').length
+  return { text: points.slice(0, COMMAND_MOST).join(''), notShown: notShown + over }
 }
 
 /** A short token the protocol echoes or names a verb by: printable, no spaces, bounded. Null otherwise. */

@@ -35,6 +35,11 @@ import {
 import type { InlineRow } from './panels/file/inline.ts'
 import { type FilePanel, fileClick, fileDismiss, fileKey } from './panels/file/state.ts'
 import { type IntakePanel, intakeClick, intakeKey } from './panels/intake/state.ts'
+import {
+  type RequestTherePanel,
+  requestThereClick,
+  requestThereKey,
+} from './panels/intake/there.ts'
 import { type LandingPanel, landingClick, landingKey } from './panels/landing/state.ts'
 import { type MenuItem, type MenuPanel, menuClick, menuKey } from './panels/menu/state.ts'
 import { type ModelChoice, type ModelPanel, modelClick, modelKey } from './panels/models/state.ts'
@@ -125,6 +130,7 @@ export type Panel =
   | ModelPanel
   | RowSummaryPanel
   | IntakePanel
+  | RequestTherePanel
   | WorkflowPanel
   | LandingPanel
 
@@ -247,6 +253,7 @@ export function panelKey(
   if (panel.kind === 'extensions') return extensionsKey(panel, key, data, inputs)
   if (panel.kind === 'row-summary') return rowSummaryKey(panel, key)
   if (panel.kind === 'intake') return intakeKey(panel, key, data)
+  if (panel.kind === 'request-there') return requestThereKey(panel, key)
   if (panel.kind === 'workflow') {
     return workflowKey(panel, key, data, {
       fields: inputs.workflowFields ?? [],
@@ -306,6 +313,7 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
   if (panel.kind === 'extensions') return extensionsClick(panel, control, inputs)
   if (panel.kind === 'row-summary') return rowSummaryClick(panel, control)
   if (panel.kind === 'intake') return intakeClick(panel, control)
+  if (panel.kind === 'request-there') return requestThereClick(panel, control)
   if (panel.kind === 'workflow') {
     return workflowClick(panel, control, {
       fields: inputs.workflowFields ?? [],

@@ -6,6 +6,7 @@ import { MARK_TONES, markGlyph } from '../model.ts'
 import type { Look, Skin } from '../skin.ts'
 import { blank, type Drawn, fit, NO_POINTER, type Pointer, Row, stack } from '../ui.ts'
 import { widthOf } from '../width.ts'
+import { approvalRows } from './approval.ts'
 import { clockOf, shortened } from './text.ts'
 
 // An agent on another machine, in the pane: what it is and how it stands
@@ -86,8 +87,8 @@ export function renderRemoteAgent(
   // What it is held on, with the answer, where that machine says one may be given.
   const held: { text: string; hits: Hit[] }[] = []
   if (agent.approval !== null && machine.link === 'live' && agent.can.includes('answer')) {
+    held.push(...approvalCard(agent.approval, machine.name, width, height, skin))
     const card = new Row(width, skin, pointer).space()
-    card.text('waits to use ', skin.waiting).text(agent.approval.tool, skin.you).space(2)
     card.button('allow', action('remote-allow'), 'primary').space()
     card.button('deny', action('remote-deny'), 'danger')
     held.push(card.build())
@@ -130,4 +131,49 @@ export function renderRemoteAgent(
   const shown = [...drawn.rows]
   while (shown.length < height) shown.push(' '.repeat(width))
   return { rows: shown, hits: drawn.hits }
+}
+
+/**
+ * What it waits to run: the tool and the whole command, as the card at this
+ * machine draws one (`approvalRows`) — every character kept, wrapped under
+ * itself, its own line breaks kept, and what did not fit or that machine did
+ * not send counted on the last row. The paths in it are as that machine
+ * shortened them (`commandOut`), the same rule its phone reads them by. Where
+ * it sent no command — a Tade older than that rule — that is said beside the
+ * tool, rather than a yes asked for as though the tool's name were all of it.
+ */
+function approvalCard(
+  approval: NonNullable<RemoteAgent['approval']>,
+  machine: string,
+  width: number,
+  height: number,
+  skin: Skin,
+): { text: string; hits: Hit[] }[] {
+  const inner = Math.max(1, width - 2)
+  const head = new Row(width, skin).space().text('wants approval', skin.waiting).build()
+  if (approval.command === null) {
+    const row = new Row(width, skin).space(2).text(approval.tool, skin.you).space(2)
+    row.text(
+      shortened(`${machine} did not send the command`, Math.max(1, width - row.used - 1)),
+      skin.hint,
+    )
+    return [head, row.build()]
+  }
+  // What it asks to run comes before its screen: every row of the pane but
+  // those above the card, its buttons, the rule and one row of the screen,
+  // as the card at this machine leaves one row of the agent's showing.
+  const most = Math.max(1, height - 9)
+  const said = approvalRows(
+    { tool: approval.tool, summary: approval.command.text, notShown: approval.command.notShown },
+    inner,
+    most,
+    skin,
+  )
+  return [
+    head,
+    ...said.map((one) => ({
+      text: ` ${one.text} `,
+      hits: one.hits.map((hit) => ({ ...hit, from: hit.from + 1, to: hit.to + 1 })),
+    })),
+  ]
 }

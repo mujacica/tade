@@ -12,9 +12,11 @@ import {
   withProjects,
   withTasks,
 } from '../src/model.ts'
+import { evaluationsPanel } from '../src/panels/evaluations/state.ts'
 import { extensionViewPanel } from '../src/panels/extensions/setup.ts'
 import { extensionsPanel } from '../src/panels/extensions/state.ts'
 import { intakePanel } from '../src/panels/intake/state.ts'
+import { requestTherePanel } from '../src/panels/intake/there.ts'
 import { settingsPanel } from '../src/panels/settings/state.ts'
 import { notePanel } from '../src/panels/small/state.ts'
 import { spendPanel } from '../src/panels/spend/state.ts'
@@ -32,6 +34,7 @@ import {
 } from '../src/transcript.ts'
 import { listsShown, summaryShown } from '../src/wire/rows.ts'
 import { expectNoEscapes, expectOnlyText, hostile, notText, see } from './outside-text.ts'
+import { evals } from './screens/scenarios/evaluations.ts'
 import { base, NOW } from './screens/scenarios/fixtures.ts'
 
 // Text that arrives from outside, drawn as text: a ticket, an agent's own words,
@@ -503,6 +506,47 @@ describe('an agent on another machine, opened here', () => {
       'screenrow',
     )
   })
+
+  it('draws the command an approval there is for whole, and as text', () => {
+    const held = {
+      ...heldFor('vps'),
+      link: { kind: 'live' as const, since: NOW },
+      heardAt: NOW,
+      projection: {
+        v: 1,
+        fresh: { at: new Date(NOW).toISOString(), epoch: 'e1', rev: 3 },
+        projects: [{ name: 'tade', open: true }],
+        tasks: [
+          {
+            id: 'tade/door',
+            project: 'tade',
+            name: 'door',
+            mark: 'needs-you',
+            rev: 'r1',
+            lane: 'running',
+            approval: {
+              id: 'call-1',
+              tool: 'Bash',
+              command: { text: `npm i ${hostile('stripe')}`, notShown: 0 },
+            },
+            can: [{ verb: 'answer' }],
+          },
+        ],
+        queue: [],
+      } as never,
+    }
+    const looking = goElsewhere(withProjects(initialState(), ['checkout']), {
+      machine: 'vps',
+      project: 'tade',
+      agent: 'tade/door',
+    })
+    // Read whole, as the card here reads its own: a sequence's words are drawn, as text.
+    expectNoEscapes(
+      see(looking, { machines: { here: 'this Mac', remotes: [machineOf(held, 0)] } }),
+      'npm i',
+      'stripe',
+    )
+  })
 })
 
 describe('everything else another machine says, drawn here', () => {
@@ -554,6 +598,26 @@ describe('everything else another machine says, drawn here', () => {
             title: { words: hostile('requesttitle'), more: false },
             who: { words: hostile('filer'), more: false },
             at,
+            externalId: hostile('requestid'),
+            grant: hostile('grantpath'),
+            url: `https://example.invalid/${hostile('page')}`,
+            material: { words: `first line\n${hostile('requestbody')}`, more: true },
+            would: {
+              starts: [
+                {
+                  task: 'tade/fix',
+                  workspace: 'worktree',
+                  done: 'review',
+                  produces: null,
+                  after: [{ task: 'tade/first', why: { words: hostile('waitwhy'), more: false } }],
+                  parked: true,
+                },
+              ],
+              grant: [hostile('grantsaid')],
+              limits: [],
+              problems: [],
+              warnings: [],
+            },
           },
         ],
         sources: [
@@ -615,6 +679,62 @@ describe('everything else another machine says, drawn here', () => {
       at: NOW,
       roundTrip: 30,
       said: null,
+      records: {
+        answer: {
+          at,
+          name: 'tade.example.com',
+          head: hostile('zonehead'),
+          lines: [
+            {
+              record: 'CAA',
+              state: 'missing',
+              said: hostile('recordsaid'),
+              add: hostile('addrecord'),
+              remove: [],
+              loud: false,
+            },
+          ],
+          cannot: null,
+        },
+        at: NOW,
+        said: null,
+        busy: false,
+      },
+      cards: {
+        answer: {
+          read: true,
+          mergedFrom: 'journal',
+          granted: { spend: true, findings: true },
+          judge: 'none here',
+          total: null,
+          by: {
+            harness: [
+              {
+                key: 'x',
+                label: hostile('harnessthere'),
+                named: true,
+                tasks: 1,
+                done: { count: 1, of: 1, said: '1 of 1' },
+                landed: { count: 1, of: 1, said: '1 of 1' },
+                merged: 1,
+                firstPushGreen: { count: 0, of: 0, said: '—' },
+                redsHere: null,
+                findings: null,
+                cost: [{ said: hostile('$1'), kind: 'billed' }],
+                tokensPerLanded: null,
+                toDoneMs: null,
+                moved: 0,
+              },
+            ],
+            model: [],
+            persona: [],
+            template: [],
+          },
+        },
+        at: NOW,
+        said: null,
+        busy: false,
+      },
     })
     const machines = { here: 'this Mac', remotes: [machine] }
     const standing = goElsewhere(withProjects(initialState(), ['checkout']), {
@@ -647,8 +767,28 @@ describe('everything else another machine says, drawn here', () => {
       see({ ...base(), panel: { ...settingsPanel('remotes'), row: 0 } }, { panel: { remotes } }),
       'version',
       'certsaid',
+      'zonehead',
+      'recordsaid',
+      'addrecord',
       'problemsaid',
       'gitwarned',
+    )
+    // One of its requests, opened: every word of it as text, its own under this machine's label.
+    expectOnlyText(
+      see({ ...standing, panel: requestTherePanel('vps', 'github:1', 'its row') }, { machines }),
+      'requestid',
+      'filer',
+      'grantpath',
+      'waitwhy',
+      'grantsaid',
+      'page',
+      'requestbody',
+    )
+    // Its scorecards on /evals, under its own name.
+    expectOnlyText(
+      see({ ...base(), panel: evaluationsPanel('harness') }, { machines, evaluations: evals }),
+      'harnessthere',
+      '$1',
     )
     expectOnlyText(see({ ...base(), panel: spendPanel() }, { machines }), 'claude-code · ', 'me')
   })

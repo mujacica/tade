@@ -551,6 +551,17 @@ export const OWNED: readonly Route[] = [
     here: true,
   },
   { method: 'POST', path: '/api/tool', name: 'tool', needs: 'read', mutates: true, here: true },
+  // The records this machine's public name needs, looked at now (`records.ts`):
+  // what `tade host domain` says here, asked only while somebody there has its
+  // Settings › Remotes open, because the look is asking the world. A read.
+  {
+    method: 'POST',
+    path: '/api/records',
+    name: 'records',
+    needs: 'read',
+    mutates: true,
+    here: true,
+  },
   // Work another machine of the person's hands this one (`taken.ts`): made
   // queued work in one of its projects, which the window here starts by its
   // own rule. The one route that makes work — what `ssh` here and a plan at

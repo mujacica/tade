@@ -12,6 +12,7 @@ import type { Streams } from './peers.ts'
 import type { WebPushing } from './pushing.ts'
 import type { Grant, Reach } from './reach.ts'
 import type { WebReading } from './reading.ts'
+import type { WebRecords } from './records.ts'
 import type { WebRepositories } from './repositories.ts'
 import type { WebNotes } from './shared-notes.ts'
 import type { WebSince } from './since.ts'
@@ -245,6 +246,12 @@ export interface ServerOptions {
   machine?: WebMachine
   document?: WebDocument
   tool?: WebToolRead
+  /**
+   * This machine's public name's records, looked at now, for an owner's window
+   * on another machine whose Settings › Remotes is open on it (`records.ts`).
+   * Absent, the route is the `404` of a path nobody wired.
+   */
+  records?: WebRecords
   /**
    * Work an owner's window on another machine hands this one, made queued
    * work here (`taken.ts`). Absent, the route is the `404` of a path nobody wired.

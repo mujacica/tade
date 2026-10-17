@@ -22,8 +22,11 @@ export interface FarAgent {
   reason?: string
   /** What its lane's screen shows, as the driver there hands it over: anything at all. */
   screen?: string
-  /** What it is held on, by the harness's id for it and the tool's name. */
-  approval?: { id: string; tool: string }
+  /**
+   * What it is held on, by the harness's id for it and the tool's name — and
+   * the command it asks to run, as the harness summarised it, where it says.
+   */
+  approval?: { id: string; tool: string; command?: string }
   lane?: AgentLane
   parked?: boolean
   /** Queued work there, waiting to start. */
@@ -91,7 +94,14 @@ export function farTask(agent: FarAgent, now: number): TaskIn {
     agents: lane === 'running' ? 1 : 0,
     lanes: lane === 'none' ? 0 : 1,
     question: false,
-    approval: agent.approval ? { ...agent.approval, sinceAt: now - 30_000, command: null } : null,
+    approval: agent.approval
+      ? {
+          id: agent.approval.id,
+          tool: agent.approval.tool,
+          sinceAt: now - 30_000,
+          command: agent.approval.command ?? null,
+        }
+      : null,
     finished: agent.finished === true,
     queue: agent.queued ? 'waiting' : '',
     lane,

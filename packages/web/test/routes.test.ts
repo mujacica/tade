@@ -310,7 +310,7 @@ describe('the five tables a setting turns on', () => {
 })
 
 describe('the owner’s table', () => {
-  it('is ten routes, at this machine’s own door only, and none of the five jobs', () => {
+  it('is eleven routes, at this machine’s own door only, and none of the five jobs', () => {
     // The one route that can write a key (`carried.ts`), and the exception to
     // "no route reaches a credential" above; the one answer that is a way
     // into a lane (`attached.ts`), which every row a phone reads promises
@@ -319,8 +319,9 @@ describe('the owner’s table', () => {
     // agent here is told (`shared-notes.ts`); and where each project is
     // checked out, a path no phone reads (`repositories.ts`); what this machine
     // is, one of its documents, and one of its tools that only reads, run with
-    // this machine's own keys (`machine.ts`, `document.ts`, `tool-read.ts`); and
-    // work another machine hands this one, the one route that makes work
+    // this machine's own keys (`machine.ts`, `document.ts`, `tool-read.ts`); its
+    // public name's records, looked at now, which asks the world (`records.ts`);
+    // and work another machine hands this one, the one route that makes work
     // (`taken.ts`); and a project it moves here, cloned and opened
     // (`opened.ts`) — named
     // here, by path, so another cannot join them without this line changing.
@@ -328,7 +329,8 @@ describe('the owner’s table', () => {
     // owner, which is the SSH key, on the one door that key reaches; each
     // handler refuses every other session (`test/carried.test.ts`,
     // `test/attached.test.ts`, `test/since.test.ts`, `test/shared-notes.test.ts`,
-    // `test/repositories.test.ts`, `test/machine.test.ts`, `test/taken.test.ts`, `test/opened.test.ts`).
+    // `test/repositories.test.ts`, `test/machine.test.ts`, `test/records.test.ts`,
+    // `test/taken.test.ts`, `test/opened.test.ts`).
     expect(OWNED.map((route) => `${route.method} ${route.path}`)).toEqual([
       'POST /api/carry',
       'POST /api/attach',
@@ -338,6 +340,7 @@ describe('the owner’s table', () => {
       'POST /api/machine',
       'POST /api/document',
       'POST /api/tool',
+      'POST /api/records',
       'POST /api/take',
       'POST /api/open',
     ])

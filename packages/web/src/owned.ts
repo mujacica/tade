@@ -8,6 +8,7 @@ import { carryLooking } from './looking.ts'
 import { type MachineAnswer, machineHere } from './machine.ts'
 import { type OpenAnswer, openHere } from './opened.ts'
 import { carryPresence } from './presence.ts'
+import { type RecordsAnswer, recordsHere } from './records.ts'
 import { type RepositoriesAnswer, repositoriesHere } from './repositories.ts'
 import type { ServerOptions } from './serving.ts'
 import { type NotesShareAnswer, shareHere } from './shared-notes.ts'
@@ -23,7 +24,8 @@ import { type ToolReadAnswer, toolHere } from './tool-read.ts'
 // machines (`shared-notes.ts`), where each project's work is, for a fetch
 // over the same SSH (`repositories.ts`), and what this machine is, one of its
 // documents and one of its tools that only reads (`machine.ts`, `document.ts`,
-// `tool-read.ts`), work it hands this machine to start here (`taken.ts`), and
+// `tool-read.ts`), its public name's records looked at now (`records.ts`),
+// work it hands this machine to start here (`taken.ts`), and
 // a project it is moving here, opened (`opened.ts`). One door in `server.ts` for all of them (`OWNED_DOOR`),
 // because each is the SSH key's word and nothing a phone's session is ever
 // answered.
@@ -45,6 +47,7 @@ export const OWNED_DOOR: ReadonlySet<string> = new Set([
   'machine',
   'document',
   'tool',
+  'records',
   'take',
   'open',
 ])
@@ -66,6 +69,7 @@ export async function carryOwned(
     | 'machine'
     | 'document'
     | 'tool'
+    | 'records'
     | 'taking'
     | 'opening'
   >,
@@ -82,6 +86,7 @@ export async function carryOwned(
         | MachineAnswer
         | DocumentAnswer
         | ToolReadAnswer
+        | RecordsAnswer
         | TakeAnswer
         | OpenAnswer
     }
@@ -95,6 +100,7 @@ export async function carryOwned(
   if (route === 'machine') return machineHere(req, device, opts.machine)
   if (route === 'document') return documentHere(req, device, opts.document)
   if (route === 'tool') return toolHere(req, device, opts.tool)
+  if (route === 'records') return recordsHere(req, device, opts.records)
   if (route === 'take') return takeHere(req, device, opts.taking)
   if (route === 'open') return openHere(req, device, opts.opening)
   if (route === 'looking') return carryLooking(req, device, now, opts.looking)

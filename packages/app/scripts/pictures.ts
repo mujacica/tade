@@ -542,7 +542,8 @@ export const PICTURES: readonly Picture[] = [
     about:
       'An agent on the VPS, opened from the Mac: what it is and how it stands there, the controls ' +
       'the VPS says may be used on it — type into it, steer it, park it, stop it, allow or deny ' +
-      'the gh api call it is held on — and its screen there, read-only, as the VPS last read it.',
+      'the gh api call it is held on, with the whole command as the VPS sent it — and its screen ' +
+      'there, read-only, as the VPS last read it.',
   },
   {
     file: 'remote-terminal.svg',

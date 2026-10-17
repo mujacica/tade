@@ -1,6 +1,7 @@
 import type { Frame } from '../../../src/frame.ts'
 import type { MachineDetail } from '../../../src/machine-there.ts'
 import { goElsewhere, type Machines } from '../../../src/machines.ts'
+import { requestTherePanel } from '../../../src/panels/intake/there.ts'
 import { frame, NOW, type Scenario } from './fixtures.ts'
 import { elsewhere, onThisMac } from './machines.ts'
 
@@ -24,6 +25,42 @@ const DETAIL: Partial<MachineDetail> = {
       who: 'kim',
       at: NOW - 20 * MINUTE,
       tasks: ['tade/webhook-load'],
+      externalId: 'acme/checkout#412',
+      url: 'https://github.com/acme/checkout/issues/412',
+      grant: 'intake.grants.github-issues',
+      stamp: { name: 'triage', version: 3 },
+      revision: 'r2',
+      moved: false,
+      watch: 'github.issues',
+      attempts: 0,
+      tries: 3,
+      work: [
+        { task: 'tade/webhook-load', parked: true, started: false, finished: false, held: null },
+      ],
+      material: {
+        words:
+          'Under load the webhook endpoint drops deliveries: GitHub shows 502s for about one in\n' +
+          'twenty during a burst of pushes.\n\nSteps: push ten commits in a minute and watch the\n' +
+          'deliveries page.',
+        more: false,
+      },
+      materialSays: null,
+      would: {
+        starts: [
+          {
+            task: 'tade/webhook-load',
+            workspace: 'worktree',
+            done: 'review',
+            produces: null,
+            after: [],
+            parked: true,
+          },
+        ],
+        grant: ['intake.grants.github-issues lets acme/checkout issues in, and approves none'],
+        limits: ['$5.00 a day for this project, $1.20 spent today'],
+        problems: [],
+        warnings: [],
+      },
     },
     {
       item: 'slack:C04/1712',
@@ -35,6 +72,21 @@ const DETAIL: Partial<MachineDetail> = {
       who: 'amir',
       at: NOW - 3 * 60 * MINUTE,
       tasks: ['tade/linear-door'],
+      externalId: 'C04/1712',
+      url: null,
+      grant: 'intake.grants.slack-ops',
+      stamp: null,
+      revision: 'r1',
+      moved: false,
+      watch: 'slack.mentions',
+      attempts: 0,
+      tries: 3,
+      work: [
+        { task: 'tade/linear-door', parked: false, started: true, finished: false, held: null },
+      ],
+      material: null,
+      materialSays: 'not on this page: only the requests waiting on a decision carry their words',
+      would: null,
     },
   ],
   doors: [
@@ -177,6 +229,19 @@ export const MACHINE_THERE_SCREENS: Scenario[] = [
       'its watches with their last looks, and the documents its work produced — one a press ' +
       'away, read here over the link.',
     state: goElsewhere(onThisMac(), { machine: 'vps', project: 'tade' }),
+    frame: tall({ machines: told(false) }),
+  },
+  {
+    name: 'a-request-on-another-machine',
+    about:
+      'A request in the VPS’s INTAKE pressed: the page a request here opens, read-only and ' +
+      'labelled with the VPS — where it stands there and why, what let it in and what it was ' +
+      'stamped from, what approving it would start there, and the request itself under the ' +
+      'label that says whose words those are — and at its foot, that approving it is the VPS’s.',
+    state: {
+      ...goElsewhere(onThisMac(), { machine: 'vps', project: 'tade' }),
+      panel: requestTherePanel('vps', 'github:412', 'Webhook deliveries are dropped under load'),
+    },
     frame: tall({ machines: told(false) }),
   },
   {

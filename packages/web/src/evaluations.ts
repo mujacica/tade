@@ -21,6 +21,7 @@ import {
   WITHOUT,
   worthSaid,
 } from '@tade/core'
+import { z } from 'zod'
 import { has, type Reach } from './reach.ts'
 
 // The scorecards, as one device may read them: which harness, model, persona
@@ -309,3 +310,63 @@ function labelOf(key: string, by: EvalBy): string {
   if (key === WITHOUT) return `no ${by}`
   return key
 }
+
+// ── Read by another machine ──────────────────────────────────────────────────
+//
+// What an owner's window on another machine reads of this answer, over the link
+// it holds (`GET /api/evaluations`): read **for its shape and nothing more** — a
+// field a newer Tade adds is let be, the races are not read at all — and every
+// value bounded, because the machine that reads it reads it as another
+// machine's, and draws it as that machine's section beside its own. It is never
+// added into the reader's own figures: two machines' scorecards are two folds
+// over two journals, and a sum of them would be a third thing nobody counted.
+
+/** How many rows of one grouping another machine reads. */
+export const CARDS_MOST = 200
+
+const Count = z.int().nonnegative()
+const RateSchema = z.object({ count: Count, of: Count, said: z.string().max(200) })
+
+const CardSchema = z.object({
+  key: z.string().max(200),
+  label: z.string().max(200),
+  named: z.boolean(),
+  tasks: Count,
+  done: RateSchema,
+  landed: RateSchema,
+  merged: Count,
+  firstPushGreen: RateSchema,
+  redsHere: Count.nullable(),
+  findings: z
+    .object({ fired: Count, on: Count, confirmed: Count, wrong: Count, open: Count })
+    .nullable(),
+  cost: z
+    .array(
+      z.object({
+        said: z.string().max(80),
+        kind: z.enum(['billed', 'worked out', 'at list', 'none']),
+      }),
+    )
+    .max(4)
+    .nullable(),
+  tokensPerLanded: z.number().nonnegative().nullable(),
+  toDoneMs: z.number().nonnegative().nullable(),
+  moved: Count,
+})
+export type CardRead = z.infer<typeof CardSchema>
+
+/** `EvaluationsOut` as another machine reads it: the scorecards, and whether money and the judge reached it. */
+export const EvaluationsAnswerSchema = z.object({
+  read: z.boolean(),
+  mergedFrom: z.enum(['journal', 'journal and forge']).nullable(),
+  granted: z.object({ spend: z.boolean(), findings: z.boolean() }),
+  judge: z.enum(['read', 'none here', 'not granted']),
+  total: CardSchema.nullable(),
+  by: z.object({
+    harness: z.array(CardSchema).max(CARDS_MOST),
+    model: z.array(CardSchema).max(CARDS_MOST),
+    persona: z.array(CardSchema).max(CARDS_MOST),
+    template: z.array(CardSchema).max(CARDS_MOST),
+  }),
+})
+export type EvaluationsAnswer = z.infer<typeof EvaluationsAnswerSchema>

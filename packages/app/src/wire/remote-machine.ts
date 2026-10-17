@@ -2,7 +2,17 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { printable, printableLines, remoteDocumentPath } from '@tade/core'
 import type { Remote, RemoteLink } from '@tade/remotes-core'
-import { DocumentAnswerSchema, MachineAnswerSchema, ToolAnswerSchema } from '@tade/web'
+import {
+  CARDS_MOST,
+  DocumentAnswerSchema,
+  type EvaluationsAnswer,
+  EvaluationsAnswerSchema,
+  MachineAnswerSchema,
+  type RecordsAnswer,
+  RecordsAnswerSchema,
+  ToolAnswerSchema,
+} from '@tade/web'
+import type { LookHeld } from '../machine-looks.ts'
 import type { AboutHeld } from '../machine-there.ts'
 
 // What each other machine says it is, asked as its owner (REMOTE-TADE.md §9.4;
@@ -24,6 +34,17 @@ import type { AboutHeld } from '../machine-there.ts'
 // machine with no problems, no schedules and no version. What could not be
 // asked is said beside it, once, as the reason: an older Tade there has no such
 // door, which is a fact about that machine and not trouble here.
+//
+// **Two more things are asked only while somebody here is looking**
+// (`RemoteMachinesDeps.looking`), because each is asked again of the world or
+// folded again over a journal there, and nobody here reads them otherwise:
+// the records its public name needs (`/api/records`), looked at there by that
+// machine's own `tade host domain` look — once for each opening of Settings ›
+// Remotes, and again on its Look again, which is the look's own rule there
+// (`web-domain.ts`) — and its scorecards (`GET /api/evaluations`), while /evals
+// is open on a grouping, and every `AGAIN_MS` while it stays open. Both are
+// kept when the page closes or the link goes down, with when they came, so a
+// page opened again says as of when until the next answer.
 
 /** How long a linked remote goes before what it is, is asked again. */
 export const AGAIN_MS = 60_000
@@ -32,6 +53,8 @@ export const AGAIN_MS = 60_000
 const MACHINE_DOOR = '/api/machine'
 const DOCUMENT_DOOR = '/api/document'
 const TOOL_DOOR = '/api/tool'
+const RECORDS_DOOR = '/api/records'
+const CARDS_DOOR = '/api/evaluations'
 
 export interface RemoteMachinesDeps {
   home: string
@@ -40,6 +63,11 @@ export interface RemoteMachinesDeps {
   now: () => number
   /** What is held moved: a frame, to draw what reads it. */
   draw: () => void
+  /**
+   * What somebody here is looking at now: Settings › Remotes (`records`), and
+   * /evals on a grouping (`scorecards`). Absent, nobody ever is.
+   */
+  looking?: () => { records: boolean; scorecards: boolean }
 }
 
 interface Kept extends AboutHeld {
@@ -50,9 +78,20 @@ interface Kept extends AboutHeld {
   owed: boolean
 }
 
+/** One look asked while somebody looks, and when it was last asked. */
+interface LookKept<T> extends LookHeld<T> {
+  asked: number
+}
+
 export class RemoteMachines {
   private readonly deps: RemoteMachinesDeps
   private readonly kept = new Map<string, Kept>()
+  private readonly records = new Map<string, LookKept<RecordsAnswer>>()
+  private readonly cards = new Map<string, LookKept<EvaluationsAnswer>>()
+  /** The remotes whose records this opening of Settings › Remotes has not asked for yet. */
+  private readonly recordsOwed = new Set<string>()
+  /** What was being looked at on the last beat, so an opening is told from staying open. */
+  private was = { records: false, scorecards: false }
   /** Moved whenever something held moved, so what folds it folds again. */
   private moved = 0
 
@@ -60,9 +99,20 @@ export class RemoteMachines {
     this.deps = deps
   }
 
-  /** What is held for one remote: its last answer and why there is none, or null before anything. */
+  /** What is held for one remote: its last answers and why there are none, or null before anything. */
   held(name: string): AboutHeld | null {
-    return this.kept.get(name) ?? null
+    const about = this.kept.get(name)
+    const records = this.records.get(name) ?? null
+    const cards = this.cards.get(name) ?? null
+    if (about === undefined && records === null && cards === null) return null
+    return {
+      answer: about?.answer ?? null,
+      at: about?.at ?? null,
+      roundTrip: about?.roundTrip ?? null,
+      said: about?.said ?? null,
+      records,
+      cards,
+    }
   }
 
   /** Moves whenever anything held moved. */
@@ -73,12 +123,105 @@ export class RemoteMachines {
   /** The window's beat: ask every linked remote that is due. Returns at once. */
   beat(names: readonly string[]): void {
     const now = this.deps.now()
+    const looking = this.deps.looking?.() ?? { records: false, scorecards: false }
+    // An opening of the page owes every remote one look, asked once it can be.
+    if (looking.records && !this.was.records) for (const name of names) this.recordsOwed.add(name)
+    if (!looking.records) this.recordsOwed.clear()
+    const opened = looking.scorecards && !this.was.scorecards
+    this.was = looking
     for (const name of names) {
-      const one = this.kept.get(name)
-      if (one?.busy === true) continue
-      if (one !== undefined && !one.owed && now - one.asked < AGAIN_MS) continue
       if (this.deps.reach(name)?.live !== true) continue
-      void this.ask(name)
+      const one = this.kept.get(name)
+      if (one?.busy !== true && (one === undefined || one.owed || now - one.asked >= AGAIN_MS)) {
+        void this.ask(name)
+      }
+      // Only of a machine that said it has a public name: nothing else has records to look at.
+      if (this.recordsOwed.has(name) && one?.answer?.public != null) void this.lookAgain(name)
+      const cards = this.cards.get(name)
+      if (
+        looking.scorecards &&
+        cards?.busy !== true &&
+        (opened || cards === undefined || now - cards.asked >= AGAIN_MS)
+      ) {
+        void this.scorecards(name)
+      }
+    }
+  }
+
+  /**
+   * Its public name's records, looked at there now — on an opening of Settings
+   * › Remotes, or its Look again. Nothing while a look is under way, or while
+   * its link is down. Never throws.
+   */
+  async lookAgain(name: string): Promise<void> {
+    const reach = this.deps.reach(name)
+    if (reach === null || !reach.live || this.records.get(name)?.busy === true) return
+    this.recordsOwed.delete(name)
+    await this.look(name, this.records, async () => {
+      const answer = await reach.link.request(name, RECORDS_DOOR, {})
+      if (answer.status === 404) {
+        return `${name} runs a Tade that does not look at its records for another machine yet: update it there`
+      }
+      if (answer.status !== 200) {
+        return `${name} answered ${answer.status} when asked to look at its records`
+      }
+      const read = RecordsAnswerSchema.safeParse(answer.body)
+      return read.success
+        ? read.data
+        : `${name} said what its records are in a shape this Tade does not read`
+    })
+  }
+
+  /** Its scorecards over all its work, as it folds them there. Never throws. */
+  async scorecards(name: string): Promise<void> {
+    const reach = this.deps.reach(name)
+    if (reach === null || !reach.live || this.cards.get(name)?.busy === true) return
+    await this.look(name, this.cards, async () => {
+      const answer = await reach.link.request(name, CARDS_DOOR)
+      if (answer.status !== 200) {
+        return `${name} answered ${answer.status} when asked for its scorecards`
+      }
+      const read = EvaluationsAnswerSchema.safeParse(withinCards(answer.body))
+      return read.success
+        ? read.data
+        : `${name} said what it scored in a shape this Tade does not read`
+    })
+  }
+
+  /** One ask of a look, held: its answer and when, or why there is none. Never throws. */
+  private async look<T>(
+    name: string,
+    held: Map<string, LookKept<T>>,
+    ask: () => Promise<T | string>,
+  ): Promise<void> {
+    const was = held.get(name)
+    const one: LookKept<T> = {
+      answer: was?.answer ?? null,
+      at: was?.at ?? null,
+      said: was?.said ?? null,
+      busy: true,
+      asked: this.deps.now(),
+    }
+    held.set(name, one)
+    this.moved++
+    this.deps.draw()
+    try {
+      const got = await ask()
+      if (typeof got === 'string') one.said = got
+      else {
+        one.answer = got
+        one.at = this.deps.now()
+        one.said = null
+      }
+    } catch (err) {
+      // A link that went down is the link's news, and the last answer stands.
+      if (this.deps.reach(name)?.live === true) {
+        one.said = `${name} could not be asked: ${printable(why(err))}`
+      }
+    } finally {
+      one.busy = false
+      this.moved++
+      this.deps.draw()
     }
   }
 
@@ -90,7 +233,9 @@ export class RemoteMachines {
 
   /** A remote no longer in the config: what it said goes with it. */
   forget(name: string): void {
-    if (this.kept.delete(name)) this.moved++
+    const went = [this.kept.delete(name), this.records.delete(name), this.cards.delete(name)]
+    this.recordsOwed.delete(name)
+    if (went.some(Boolean)) this.moved++
   }
 
   /** Ask one remote what it is, and hold what it answered. Never throws. */
@@ -197,4 +342,22 @@ export class RemoteMachines {
 
 function why(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
+}
+
+/**
+ * Its scorecards' groupings cut to what this Tade reads of one before they are
+ * read for their shape: a machine with more models than that is still read,
+ * its first ones — it sends them in its own order — rather than refused whole.
+ */
+function withinCards(body: unknown): unknown {
+  if (typeof body !== 'object' || body === null) return body
+  const by = (body as { by?: unknown }).by
+  if (typeof by !== 'object' || by === null) return body
+  const cut = Object.fromEntries(
+    Object.entries(by).map(([key, rows]) => [
+      key,
+      Array.isArray(rows) ? rows.slice(0, CARDS_MOST) : rows,
+    ]),
+  )
+  return { ...body, by: cut }
 }

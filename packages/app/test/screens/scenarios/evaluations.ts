@@ -1,6 +1,7 @@
 import {
   caseDetail,
   type EvalFinding,
+  evaluationsFrom,
   noSpend,
   type ReplayCase,
   type ReplayEntrantFacts,
@@ -9,7 +10,9 @@ import {
   type Spend,
   type TadeEvent,
 } from '@tade/core'
+import { EvaluationsAnswerSchema, evaluationsFor, GRANTS } from '@tade/web'
 import { type EvalsView, evalsView } from '../../../src/evaluations.ts'
+import { cardsOf } from '../../../src/machine-looks.ts'
 import type { FindingThere } from '../../../src/machine-there.ts'
 import { evaluationsPanel } from '../../../src/panels/evaluations/state.ts'
 import { base, frame, NOW, type Scenario } from './fixtures.ts'
@@ -283,6 +286,62 @@ export const evals: EvalsView = evalsView(journal, {
   merged: new Set(),
 })
 
+/**
+ * The VPS's scorecards, as it folds them over its own journal and sends them
+ * (`GET /api/evaluations`), read here the one way the window reads them: the
+ * same models as this machine's, and never added into this machine's rows.
+ */
+const vpsJournal: TadeEvent[] = [
+  ['tade/remote-link', 'claude-code', 'claude-opus-5', 'merged'],
+  ['tade/intake-door', 'claude-code', 'claude-opus-5', 'merged'],
+  ['tade/mirror-branches', 'codex', 'gpt-5.1-codex', 'committed'],
+  ['tade/notes-shared', 'claude-code', 'claude-opus-5', null],
+].flatMap(([task, harness, model, landed], index): TadeEvent[] => [
+  line({ type: 'task_created', task, ts: at(60 - index * 5) }),
+  line({
+    type: 'run_started',
+    task,
+    run: `${task}/agent`,
+    ts: at(60 - index * 5),
+    detail: { harness, model },
+  }),
+  ...(landed === 'committed'
+    ? [line({ type: 'commit_seen', task, ts: at(58 - index * 5), detail: { sha: task } })]
+    : []),
+  line({
+    type: 'task_done',
+    task,
+    ts: at(57 - index * 5),
+    detail: { by: 'rule', ...(landed === 'merged' ? { rule: 'merged' } : {}) },
+  }),
+])
+
+const vpsCards = cardsOf({
+  answer: EvaluationsAnswerSchema.parse(
+    JSON.parse(
+      JSON.stringify(
+        evaluationsFor(
+          { device: 'mac', projects: { kind: 'every' }, granted: [...GRANTS], answers: true },
+          (projects) =>
+            evaluationsFrom(vpsJournal, {
+              since: 0,
+              projects,
+              spent: {
+                'tade/remote-link': money(3.1, 4_200_000),
+                'tade/intake-door': money(1.4, 2_000_000),
+                'tade/mirror-branches': money(0.6, 900_000),
+              },
+              findings: null,
+            }),
+        ),
+      ),
+    ),
+  ),
+  at: NOW - 30_000,
+  said: null,
+  busy: false,
+})
+
 /** One case that landed, as a replay took it: its words, what it ran on, cost and changed. */
 const original = (task: string, over: Partial<ReplayCase> = {}): ReplayCase => ({
   task,
@@ -432,6 +491,25 @@ export const EVALUATION_SCREENS: Scenario[] = [
           .remotes.map((one) =>
             one.name !== 'vps' ? one : { ...one, detail: { ...one.detail, findings: vpsFindings } },
           ),
+      },
+    }),
+  },
+  {
+    name: 'evaluations-on-two-machines',
+    about:
+      'By harness with the VPS linked: this Mac’s own scorecards, then the VPS’s as it folded ' +
+      'them over its own journal — the same harnesses in the same columns, one under the other, ' +
+      'its own `all` row its total, over all its work whatever range this page is on, and as of ' +
+      'when it said — and nothing of the one added into the other.',
+    state: { ...base(), panel: evaluationsPanel('harness') },
+    frame: frame({
+      evaluations: evals,
+      machines: {
+        ...elsewhere.up(),
+        remotes: elsewhere
+          .up()
+          .remotes.filter((one) => one.name === 'vps')
+          .map((one) => ({ ...one, detail: { ...one.detail, cards: vpsCards } })),
       },
     }),
   },

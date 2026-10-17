@@ -1,11 +1,12 @@
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { TALK_THERE, writeCarried, writeSetting } from '@tade/core'
+import { type Evaluations, TALK_THERE, writeCarried, writeSetting } from '@tade/core'
 import {
   appendDevice,
   type CarryLine,
   carryingAt,
+  type IntakeIn,
   type MachineAnswer,
   mintOwner,
   type Open,
@@ -14,6 +15,7 @@ import {
   type Projector,
   projector,
   type Reach,
+  type RecordsAnswer,
   type RepositoryHere,
   reachOf,
   readDevices,
@@ -123,6 +125,17 @@ export interface FarEnd {
   machine: MachineAnswer | null
   /** How many times an owner has asked what it is. */
   readonly machineAsked: number
+  /**
+   * What its window answers an owner asking it to look at its public name's
+   * records (`/api/records`): a test sets it; null, a machine with no public name.
+   */
+  records: RecordsAnswer | null
+  /** How many times an owner has asked it to look at its records. */
+  readonly recordsAsked: number
+  /** Its scorecards, as its window folds them (`GET /api/evaluations`); null before it has read its journal. */
+  evaluations: Evaluations | null
+  /** The requests handed to it, as its projection carries them (`intake`). A test sets them. */
+  intake: IntakeIn[]
   /** The documents its window reads an owner, by `<task>/<name>` (`/api/document`). A test sets them. */
   readonly documents: Map<string, { at: string; text: string }>
   /** Its extension tools that only read, by name, as its window runs them for an owner (`/api/tool`). */
@@ -190,6 +203,10 @@ class Far implements FarEnd {
   readonly watching = new Map<string, readonly string[]>()
   machine: MachineAnswer | null = null
   machineAsked = 0
+  records: RecordsAnswer | null = null
+  recordsAsked = 0
+  evaluations: Evaluations | null = null
+  intake: IntakeIn[] = []
   readonly documents = new Map<string, { at: string; text: string }>()
   readonly tools = new Map<string, (input: Record<string, unknown>) => ToolReadAnswer>()
   readonly taken: { take: Take; device: string }[] = []
@@ -288,6 +305,18 @@ class Far implements FarEnd {
         return one === undefined ? null : { ...one, bytes: Buffer.byteLength(one.text) }
       },
       tool: async ({ tool, input }) => this.tools.get(tool)?.(input) ?? null,
+      records: async () => {
+        this.recordsAsked++
+        return (
+          this.records ?? {
+            at: new Date().toISOString(),
+            name: null,
+            head: null,
+            lines: [],
+            cannot: 'it has no public name',
+          }
+        )
+      },
       opening: async (open, device) => {
         this.opened.push({ open, device })
         if (this.opening !== null) return this.opening(open)
@@ -399,6 +428,7 @@ class Far implements FarEnd {
         const one = this.agents.find((agent) => agent.task === task)
         return one === undefined ? null : farLane(one, this.shownAt)
       },
+      evaluations: () => this.evaluations,
     })
     this.projectors.set(reach.device, made)
     return made
@@ -415,7 +445,7 @@ class Far implements FarEnd {
       queue: [],
       findings: null,
       notes: [],
-      intake: [],
+      intake: this.intake,
       sources: [],
       runs: [],
       workflows: [],

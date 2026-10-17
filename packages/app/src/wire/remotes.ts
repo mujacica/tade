@@ -23,8 +23,9 @@ import type { Frame } from '../frame.ts'
 import { machineThere } from '../machine-there.ts'
 import { goElsewhere, type Machines, type Place, skewOf, unheard } from '../machines.ts'
 import { notice } from '../model.ts'
+import { type RequestTherePanel, requestTherePanel } from '../panels/intake/there.ts'
 import { projectsMenuItems } from '../panels/menu/state.ts'
-import { type RemoteShown, remoteActions } from '../panels/settings/remotes.ts'
+import { REMOTES, type RemoteShown, remoteActions } from '../panels/settings/remotes.ts'
 import type { Ui } from '../screen.ts'
 import { remoteStanding } from '../view/standing.ts'
 import { projectSays } from '../view/top.ts'
@@ -123,6 +124,8 @@ export interface RemotesDeps {
   draw: () => void
   /** Open a file here in the viewer: a copy of another machine's document, once it is read. */
   open?: (path: string) => void
+  /** Put a page in front: one of another machine's requests, read-only. */
+  show?: (panel: RequestTherePanel) => void
 }
 
 export class Remotes implements Subject {
@@ -227,7 +230,17 @@ export class Remotes implements Subject {
     return {
       ...this.agents?.actions(),
       ...this.moves?.actions(),
-      'remote-document': (rest) => this.readDocument(rest),
+      // A name ending in `:` is handed the rest of a press's name; without it no press reaches it.
+      'remote-document:': (rest) => this.readDocument(rest),
+      // `<machine> <item>`: one of its requests, on a page that only reads.
+      'remote-request:': (rest) => {
+        const [machine = '', ...item] = rest.split(' ')
+        const one = this.machines()
+          .remotes.find((there) => there.name === machine)
+          ?.detail.requests.find((request) => request.item === item.join(' '))
+        if (one === undefined) return this.deps.say(`${machine} no longer lists that request`)
+        this.deps.show?.(requestTherePanel(machine, one.item, one.title ?? one.item))
+      },
     }
   }
 
@@ -458,6 +471,10 @@ export class Remotes implements Subject {
   action(choice: string, projects?: ProjectDoor): Promise<void> {
     if (this.moves !== null && choice.startsWith('remote:move-')) {
       return this.moves.projects.step(choice, projects)
+    }
+    // Look again at its records, there: the look's own rule, a press somebody made.
+    if (choice.startsWith('remote:records:')) {
+      return this.about?.lookAgain(choice.slice('remote:records:'.length)) ?? Promise.resolve()
     }
     return this.carries.action(choice)
   }
@@ -702,6 +719,10 @@ export function remotesFor(
     },
     draw: () => wire.draw(),
     open: (path) => subjects.files().openFile(path),
+    show: (panel) => {
+      wire.put({ ...wire.state, panel })
+      wire.draw()
+    },
     home: wire.opts.home,
     ...(wire.opts.remoteLinks ? { links: wire.opts.remoteLinks } : {}),
     remotes: () => wire.opts.config.remotes,
@@ -733,8 +754,24 @@ export function remotesFor(
           reach: (name) => remotes.reachFor(name),
           now: () => wire.now(),
           draw: () => wire.draw(),
+          looking: () => lookingAt(wire.state.panel),
         }),
     )
+}
+
+/**
+ * What somebody is looking at that another machine is asked about only then
+ * (`RemoteMachines`): Settings › Remotes itself, not a search over Settings,
+ * and /evals on a grouping, not its Judge or Replays tab.
+ */
+export function lookingAt(panel: Wiring['state']['panel']): {
+  records: boolean
+  scorecards: boolean
+} {
+  return {
+    records: panel?.kind === 'settings' && panel.category === REMOTES && !panel.search,
+    scorecards: panel?.kind === 'evaluations' && panel.tab !== 'judge' && panel.tab !== 'replays',
+  }
 }
 
 /** What a subject of the remotes reaches them through: the link, the fold, the clocks. */

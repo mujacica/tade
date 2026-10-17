@@ -1,12 +1,6 @@
 import {
   type Calibration,
-  duration,
-  ENOUGH,
-  type EvalBy,
-  perLanded,
-  perLandedCost,
   precisionSaid,
-  type Scorecard,
   scorecardsBy,
   UNRECORDED,
   WITHOUT,
@@ -16,85 +10,30 @@ import { EVAL_TABS } from '../../evaluations.ts'
 import type { Skin } from '../../skin.ts'
 import { SPEND_WINDOWS } from '../../spend.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
-import { widthOf } from '../../width.ts'
 import { cap, padTo } from '../cells.ts'
 import type { PanelContext } from '../context.ts'
 import { BAR, column, type Line, panelSize, tabRow } from '../frame.ts'
+import { cardsElsewhere } from './cards-there.ts'
 import { judgeElsewhere } from './elsewhere.ts'
+import { cardLine, cellsOf, figuresFor, GAP, HEADS, labelOf, nameWidth } from './figures.ts'
 import { replaysTab } from './replays.ts'
 import type { EvaluationsPanel } from './state.ts'
 
 // What the Evaluations panel looks like: one table of scorecards per way of
-// grouping the work, and the judge's own calibration on a tab beside them.
+// grouping the work, and the judge's own calibration on a tab beside them —
+// and under this machine's table, each other machine's own, in the same
+// columns and never added into this one's (`cards-there.ts`).
 //
-// Counts before rates on every cell (`rateCell`): `3/4` until there are
-// `ENOUGH` of something, and the percentage after the counts once there are,
-// never instead of them. A figure nothing could say is drawn as what it is —
-// `—`, `not read` — and never as nought. What is cut for room is a whole
-// column, the least read first, and the name keeps what is left: it is the one
-// column here that cannot be abbreviated without lying.
+// Counts before rates on every cell (`rateCell`, `figures.ts`). A figure
+// nothing could say is drawn as what it is — `—`, `not read` — and never as
+// nought. What is cut for room is a whole column, the least read first, and
+// the name keeps what is left: it is the one column here that cannot be
+// abbreviated without lying.
+
+export { rateCell } from './figures.ts'
 
 /** As wide as the table wants. */
 export const EVALS_WIDTH = 120
-
-/** One figure column: what it is headed, how wide, and what a row says in it. */
-interface Figure {
-  head: string
-  width: number
-  cell: (card: Scorecard) => string
-  /** A cell made of more than one claim, each said in its own tone. */
-  parts?: (card: Scorecard, skin: Skin) => { text: string; tone?: (text: string) => string }[]
-}
-
-/** The figures, in the order they are read across. */
-const FIGURES: readonly Figure[] = [
-  { head: 'AGENTS', width: 6, cell: (card) => String(card.tasks) },
-  { head: 'DONE', width: 11, cell: (card) => rateCell(card.done, card.tasks) },
-  { head: 'LANDED', width: 11, cell: (card) => rateCell(card.landed, card.tasks) },
-  { head: '1ST PUSH', width: 10, cell: (card) => rateCell(card.firstPushGreen, card.pushed) },
-  {
-    head: 'REDS',
-    width: 5,
-    cell: (card) => (card.checkedHere === 0 ? '—' : String(card.redsHere)),
-  },
-  { head: 'FINDINGS', width: 14, cell: findingsCell },
-  {
-    // Money per billed task and a plan's list price per task it paid for, side
-    // by side over their own denominators — never one figure made of the two —
-    // each a step quieter the less it is a bill (`costTone`'s three steps).
-    head: 'PER LANDED',
-    width: 15,
-    cell: (card) => costParts(card).join(' '),
-    parts: (card, skin) =>
-      perLandedCost(card).map((part, at) => ({
-        text: at === 0 ? part.said : ` ${part.said}`,
-        ...(part.kind === 'billed'
-          ? {}
-          : { tone: part.kind === 'at list' ? skin.chrome : skin.hint }),
-      })),
-  },
-  {
-    head: 'TOKENS',
-    width: 6,
-    cell: (card) => {
-      const tokens = perLanded(card, (spend) => spend.tokens)
-      return tokens === null ? '—' : tokenCount(tokens)
-    },
-  },
-  {
-    head: 'TO DONE',
-    width: 7,
-    cell: (card) => (card.toDoneMs === null ? '—' : duration(card.toDoneMs)),
-  },
-]
-
-/** Which figures give ground first, least read first: an index into `FIGURES`. */
-const GIVES_UP = [7, 4, 3, 8, 1, 5]
-
-/** The gap between columns. */
-const GAP = 2
-/** The narrowest a name is ever left. */
-const NAME_MIN = 14
 
 export function evaluations(panel: EvaluationsPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
@@ -131,37 +70,49 @@ export function evaluations(panel: EvaluationsPanel, ctx: PanelContext): Drawn {
   } else {
     const cards = scorecardsBy(evals, panel.tab)
     const shown = figuresFor(inner)
-    const name = Math.max(NAME_MIN, inner - 1 - used(shown))
+    const name = nameWidth(inner, shown)
     const heading = row().space().text(padTo(HEADS[panel.tab], name), skin.label)
     for (const figure of shown)
       heading.space(GAP).text(figure.head.padStart(figure.width), skin.label)
     head.push(heading.build())
+    const elsewhere = cardsElsewhere(ctx.machines, panel.tab, {
+      row,
+      skin,
+      date: ctx.date,
+      shown,
+      name,
+    })
+    // With another machine's below, this one's is headed as this machine's own.
+    if (elsewhere.length > 0) {
+      rows.push(
+        row()
+          .space()
+          .text(`ON ${(ctx.machines?.here ?? 'here').toUpperCase()}`, skin.label)
+          .build(),
+      )
+    }
     if (cards.length === 0) rows.push(row().space(3).text(`No work ${over}.`, skin.hint).build())
-    for (const card of cards) rows.push(line(card, labelOf(card.key, panel.tab), false))
+    for (const card of cards) {
+      const known = card.key !== UNRECORDED && card.key !== WITHOUT
+      rows.push(
+        cardLine(row, cellsOf(card), labelOf(card.key, panel.tab), {
+          shown,
+          name,
+          skin,
+          ...(known ? {} : { tone: skin.hint }),
+        }),
+      )
+    }
     if (cards.length > 1) {
       rows.push(blank(inner))
-      rows.push(line(evals.total, 'all', true))
+      rows.push(cardLine(row, cellsOf(evals.total), 'all', { shown, name, skin, tone: skin.label }))
     }
     const moved = evals.total.moved
     if (moved > 0 && (panel.tab === 'harness' || panel.tab === 'model')) {
       rows.push(blank(inner))
       rows.push(row().space().text(`${moved} moved after their first run`, skin.hint).build())
     }
-
-    function line(card: Scorecard, label: string, all: boolean): Line {
-      const known = card.key !== UNRECORDED && card.key !== WITHOUT
-      const drawn = row()
-        .space()
-        .text(padTo(cap(label, name), name), all ? skin.label : known ? undefined : skin.hint)
-      for (const figure of shown) {
-        drawn.space(GAP)
-        const parts = figure.parts?.(card, skin) ?? [{ text: figure.cell(card) }]
-        const wide = parts.reduce((sum, part) => sum + widthOf(part.text), 0)
-        drawn.space(Math.max(0, figure.width - wide))
-        for (const part of parts) drawn.text(part.text, part.tone)
-      }
-      return drawn.build()
-    }
+    rows.push(...elsewhere)
   }
 
   const drawn = column(
@@ -271,61 +222,4 @@ function judge(
         .build(),
     )
   }
-}
-
-/** The figures that fit beside a name of at least `NAME_MIN`, giving up the least read first. */
-function figuresFor(inner: number): Figure[] {
-  const dropped = new Set<number>()
-  const kept = () => FIGURES.filter((_, at) => !dropped.has(at))
-  for (const at of GIVES_UP) {
-    if (inner - 1 - used(kept()) >= NAME_MIN) break
-    dropped.add(at)
-  }
-  return kept()
-}
-
-function used(figures: readonly Figure[]): number {
-  return figures.reduce((sum, figure) => sum + GAP + figure.width, 0)
-}
-
-const HEADS: Readonly<Record<EvalBy, string>> = {
-  harness: 'HARNESS',
-  model: 'MODEL',
-  persona: 'PERSONA',
-  template: 'TEMPLATE',
-}
-
-/** A key as a person reads it: never a harness or a persona called `unknown`. */
-function labelOf(key: string, by: EvalBy): string {
-  if (key === UNRECORDED) return 'not recorded'
-  if (key === WITHOUT) return `no ${by}`
-  return key
-}
-
-/**
- * A count out of a count: the two numbers, and the rate after them only from
- * `ENOUGH` — `countSaid`'s rule, in the room a column has.
- */
-export function rateCell(count: number, of: number): string {
-  if (of === 0) return '—'
-  if (of < ENOUGH) return `${count}/${of}`
-  return `${count}/${of} ${Math.round((count / of) * 100)}%`
-}
-
-/** What a judge raised about a row's changes: how many, then confirmed, wrong and open. */
-function findingsCell(card: Scorecard): string {
-  const found = card.findings
-  if (found === null) return 'not read'
-  if (found.fired === 0) return '0'
-  return `${found.fired}·${found.confirmed}✓${found.wrong}✗${found.open}?`
-}
-
-function costParts(card: Scorecard): string[] {
-  return perLandedCost(card).map((part) => part.said)
-}
-
-function tokenCount(count: number): string {
-  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`
-  if (count >= 1_000) return `${Math.round(count / 1_000)}k`
-  return String(Math.round(count))
 }

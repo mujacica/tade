@@ -112,6 +112,71 @@ describe('what is kept of a row there, for acting on it', () => {
   })
 })
 
+describe('the command an approval there is for', () => {
+  it('keeps the command that machine sent whole, every line of it, and what it did not send', () => {
+    const command = { text: `npm i stripe@15 &&\n  ./scripts/x.sh ${ESCAPES}`, notShown: 12 }
+    const approval = machineOf(
+      held([row({ approval: { id: 'call-7', tool: 'Bash', since: 'x', command } })]),
+      0,
+    ).projects[0]?.agents[0]?.approval
+    // Read whole: its line break kept, and every escape a mark rather than taken out.
+    expect(approval?.command?.text).toBe(
+      'npm i stripe@15 &&\n  ./scripts/x.sh ␛]0;pwned␛␛[2J␛[31mred␛[0m␛6n␛]52;c;eA==␛',
+    )
+    expect(approval?.command?.notShown).toBe(12)
+  })
+
+  it('cuts a command past its bound and counts what it cut, and reads anything else as none sent', () => {
+    const long = { text: 'x'.repeat(9_000), notShown: 3 }
+    const cut = machineOf(held([row({ approval: { id: 'c', tool: 'Bash', command: long } })]), 0)
+      .projects[0]?.agents[0]?.approval?.command
+    expect([...(cut?.text ?? '')]).toHaveLength(8_000)
+    expect(cut?.notShown).toBe(1_003)
+    for (const odd of [null, 'rm -rf /', { text: 7 }, { words: 'npm i' }]) {
+      const none = machineOf(held([row({ approval: { id: 'c', tool: 'Bash', command: odd } })]), 0)
+      expect(none.projects[0]?.agents[0]?.approval?.command).toBeNull()
+    }
+    const counted = machineOf(
+      held([row({ approval: { id: 'c', tool: 'Bash', command: { text: 'ls', notShown: -4 } } })]),
+      0,
+    ).projects[0]?.agents[0]?.approval?.command
+    expect(counted).toEqual({ text: 'ls', notShown: 0 })
+  })
+
+  it('draws the whole command on the card, wrapped under itself, with what was not sent counted', () => {
+    const command = {
+      text: `gh api repos/acme/checkout/hooks --method POST -f name=web -f config[url]=https://vps.example.com/hooks/github ${ESCAPES}\n./scripts/after.sh`,
+      notShown: 40,
+    }
+    const one = held([row({ approval: { id: 'call-7', tool: 'Bash', command } })])
+    const text = draw(
+      looking(),
+      frame({ skin: PLAIN, width: 90, machines: machines(one), remoteScreen: screen(['>']) }),
+    ).rows.join('\n')
+    expect(text).toContain('wants approval')
+    expect(text).toContain('Bash  gh api repos/acme/checkout/hooks')
+    // Its second line is a line of its own, and nothing of it is dropped before the count.
+    expect(text).toContain('./scripts/after.sh')
+    // Wrapped under itself where the pane runs out, never cut at its edge.
+    expect(text).toContain('config[url]=https://vps.example.com/hooks/')
+    expect(text).toMatch(/\n[^\n]*│ {8}github /)
+    expect(text).toContain('… 40 characters not shown')
+    expect(text).not.toContain('pwned\x07')
+    const plain = text.replaceAll('\x1b[0m', '').replaceAll('\x1b]8;;\x07', '')
+    expect(plain).not.toContain('\x1b')
+  })
+
+  it('says that machine sent no command, rather than asking for a yes on the tool’s name alone', () => {
+    const text = draw(
+      looking(),
+      frame({ skin: PLAIN, width: 120, machines: machines(held([row()])) }),
+    ).rows.join('\n')
+    expect(text).toContain('wants approval')
+    expect(text).toContain('Bash  vps did not send the command')
+    expect(text).toContain('allow')
+  })
+})
+
 describe('an agent’s screen there, read as text', () => {
   it('keeps the rows as text, indent and all, and says when that machine read them', () => {
     const read = screenOf(

@@ -10,6 +10,23 @@ import { remoteReads } from '../../src/wire/remote-reads.ts'
 const NOW = Date.UTC(2026, 9, 17, 12, 0)
 const clock = (at: number) => new Date(at).toISOString().slice(11, 16)
 
+/** What a request's own page holds, which nothing here reads. */
+const PAGE = {
+  externalId: '412',
+  url: null,
+  grant: null,
+  stamp: null,
+  revision: 'r1',
+  moved: false,
+  watch: 'github.issues',
+  attempts: 0,
+  tries: 3,
+  work: [],
+  material: null,
+  materialSays: null,
+  would: null,
+}
+
 const vps = {
   ...unheard('vps', null),
   link: 'live' as const,
@@ -28,6 +45,7 @@ const vps = {
         who: 'kim',
         at: NOW,
         tasks: [],
+        ...PAGE,
       },
       {
         item: 'slack:1',
@@ -39,6 +57,7 @@ const vps = {
         who: null,
         at: NOW,
         tasks: ['web/one'],
+        ...PAGE,
       },
     ],
     doors: [

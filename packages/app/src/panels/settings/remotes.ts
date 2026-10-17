@@ -23,7 +23,10 @@ import type { SettingsPanel } from './state.ts'
 // public name's certificate, its own problems and warnings, and its schedules
 // and watches with their last looks — out of what it said asked as its owner
 // (`machine-there.ts`). A machine that stopped answering is drawn as of its
-// last answer, never as one with nothing wrong.
+// last answer, never as one with nothing wrong. Under its public name, the
+// records that name needs, as that machine's own look found them when this
+// page was opened or Look again was pressed (`records`) — always as of when,
+// because a look at DNS is a moment.
 //
 // **And moving a project there** (`moves`, REMOTE-TADE.md §9.2): each project
 // here with the one press that is next — open it there, hand its work over,
@@ -103,6 +106,10 @@ export function remoteActions(remotes: readonly RemoteShown[]): RemoteAction[] {
   for (const remote of remotes) {
     const list = remote.list
     const at = remote.name
+    if (remote.live && remote.machine?.detail.about?.public != null) {
+      const label = remote.machine.detail.recordsLooking ? 'Looking…' : 'Look again'
+      actions.push({ id: `remote:records:${at}`, label, remote: at })
+    }
     for (const one of list?.theirs ?? []) {
       actions.push({
         id: `remote:ours:${at}:${one.what}`,
@@ -216,7 +223,19 @@ export function drawRemotes(
       remote.busy ? 'carrying…' : remote.at === null ? null : `carried ${ctx.date(remote.at)}`,
     ].filter(Boolean)
     say(where.join(' · '))
-    connection(remote, ctx, line, (text, tone) => say(text, tone, 3 + named, 3))
+    connection(
+      remote,
+      ctx,
+      line,
+      (text, tone) => say(text, tone, 3 + named, 3),
+      // Under its public name: the records that name needs, and the press that looks again.
+      () => {
+        records(remote, ctx, line, (text, tone, indent = 0, lines = 4) =>
+          say(text, tone, 3 + named + indent, lines),
+        )
+        buttons([`remote:records:${at}`])
+      },
+    )
     if (list === null) {
       say(remote.live ? 'nothing carried yet' : 'carried once it answers', skin.hint)
     } else if (list.unreached !== null) {
@@ -290,6 +309,8 @@ function connection(
   line: (label: string, text: string, tone?: (text: string) => string) => void,
   /** Wrapped under a line's own column, as much of it as three rows hold. */
   under: (text: string, tone: (text: string) => string) => void,
+  /** What goes under its public name. */
+  underPublic: () => void,
 ): void {
   const { skin } = ctx
   const machine = remote.machine
@@ -318,6 +339,7 @@ function connection(
   )
   if (detail.aboutSaid !== null) under(detail.aboutSaid, skin.hint)
   if (about.public !== null) publicLines(about, line, under, skin)
+  underPublic()
   const problems = [...about.problems.map((one) => one.said), ...detail.warnings]
   line(
     'Problems',
@@ -353,4 +375,48 @@ function publicLines(
     loud ? skin.waiting : skin.done,
   )
   for (const one of shown.health) under(one.said, one.loud ? skin.waiting : skin.hint)
+}
+
+/**
+ * The records its public name needs, as its own look found them: the line
+ * about the zone, then a line per record with what to add or take away under
+ * it — written out whole, because a record cut to fit is a record somebody
+ * types in wrong at a registrar. Always as of when that look came back.
+ */
+function records(
+  remote: RemoteShown,
+  ctx: PanelContext,
+  line: (label: string, text: string, tone?: (text: string) => string) => void,
+  /** Wrapped under a line's own column, `indent` further in, as much as `lines` rows hold. */
+  under: (text: string, tone: (text: string) => string, indent?: number, lines?: number) => void,
+): void {
+  const { skin } = ctx
+  const detail = remote.machine?.detail
+  if (detail === undefined || (detail.about?.public == null && detail.records === null)) return
+  const seen = detail.records
+  const again = detail.recordsLooking ? ' · looking again…' : ''
+  if (seen === null) {
+    line(
+      'Records',
+      detail.recordsLooking ? `looking at them on ${remote.name}…` : 'not looked at yet',
+      skin.hint,
+    )
+    if (detail.recordsSaid !== null) under(detail.recordsSaid, skin.waiting)
+    return
+  }
+  const loud = seen.lines.some((one) => one.loud)
+  line('Records', `as of ${ctx.date(seen.at)}${again}`, loud ? skin.waiting : skin.done)
+  if (detail.recordsSaid !== null) under(detail.recordsSaid, skin.waiting)
+  if (seen.cannot !== null) under(seen.cannot, skin.hint)
+  if (seen.head !== null) under(seen.head, skin.hint, 0, 3)
+  for (const one of seen.lines) {
+    const mark = one.loud ? '▲' : one.state === 'right' ? '✓' : '·'
+    const tone = one.loud ? skin.bad : one.state === 'right' ? skin.done : skin.hint
+    under(`${mark} ${one.said}`, tone)
+    const zone = [
+      ...(one.add === null ? [] : [`add ${one.add}`]),
+      ...one.remove.map((gone) => `remove ${gone}`),
+    ]
+    for (const record of zone) under(record, skin.you, 2, Number.POSITIVE_INFINITY)
+  }
 }

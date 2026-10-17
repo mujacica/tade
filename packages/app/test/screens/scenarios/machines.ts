@@ -68,7 +68,15 @@ const vps = (over: Partial<Machine> = {}): Machine => ({
           mark: 'needs-you',
           reason: 'wants approval: gh api',
           movedAt: NOW - 12 * MINUTE,
-          approval: { id: 'call-1', tool: 'gh api' },
+          approval: {
+            id: 'call-1',
+            tool: 'gh api',
+            // As the VPS sent it: its paths shortened there, whole.
+            command: {
+              text: 'repos/acme/checkout/hooks --method POST -f name=web -f events[]=push -f config[url]=https://vps.example.com/hooks/github -f config[secret]=•••',
+              notShown: 0,
+            },
+          },
           can: ['park', 'answer', 'steer', 'stop'],
         }),
         agent({
@@ -322,8 +330,8 @@ export const MACHINE_SCREENS: Scenario[] = [
     about:
       'An agent on the VPS pressed down the side: the pane says what it is and how it stands there, ' +
       'offers what the VPS says may be asked of it — type into it, steer it, park it, stop it, and ' +
-      'allow or deny the `gh api` call it is held on — and shows its screen there, read-only, as ' +
-      'the VPS last read it.',
+      'allow or deny the `gh api` call it is held on, with the whole command as the VPS sent it — ' +
+      'and shows its screen there, read-only, as the VPS last read it.',
     state: looking(),
     frame: wide({
       machines: machines(vps(), lab),

@@ -296,4 +296,78 @@ describe('Settings › Remotes', () => {
     expect(drawn).toContain('○ nothing answers on localhost:7654 there')
     expect(remoteActions([down]).map((one) => one.id)).not.toContain('remote:keys:vps')
   })
+
+  it('draws the records its public name needs as of its own look, whole, with a press that looks again', () => {
+    const records = {
+      at: NOW - 60_000,
+      name: 'tade.example.com',
+      head: 'tade.example.com, in the zone example.com, answered for by ns1.dns.example',
+      lines: [
+        {
+          record: 'A' as const,
+          state: 'right' as const,
+          said: 'A: tade.example.com → 203.0.113.7, this machine',
+          add: null,
+          remove: [],
+          loud: false,
+        },
+        {
+          record: 'CAA' as const,
+          state: 'missing' as const,
+          said: 'CAA: none, so any CA may issue for it',
+          add: 'tade.example.com. CAA 0 issue "letsencrypt.org; accounturi=https://acme-v02.api.letsencrypt.org/acme/acct/2104831; validationmethods=tls-alpn-01,http-01"',
+          remove: [],
+          loud: true,
+        },
+      ],
+      cannot: null,
+    }
+    const machine = vpsMachine({ detail: { ...vpsMachine().detail, records } })
+    const drawn = at([{ ...VPS, machine }])
+    expect(drawn).toContain('Records as of 2026-10-17 14:09')
+    expect(drawn).toContain('✓ A: tade.example.com → 203.0.113.7, this machine')
+    expect(drawn).toContain('▲ CAA: none, so any CA may issue for it')
+    // A record to type in at a registrar is never cut: every character of it, in order,
+    // read down the page's own column.
+    const column = drawn
+      .split('\n')
+      .map((row) => row.split('│')[2] ?? '')
+      .join('')
+      .replace(/[\s▕█]/g, '')
+    expect(column).toContain(`add ${records.lines[1]?.add}`.replace(/\s/g, ''))
+    expect(remoteActions([{ ...VPS, machine }]).map((one) => one.id)).toContain(
+      'remote:records:vps',
+    )
+    expect(drawn).toContain('Look again')
+  })
+
+  it('says it is looking, why there are none, and offers no look where it has no public name or no link', () => {
+    const looking = vpsMachine({ detail: { ...vpsMachine().detail, recordsLooking: true } })
+    expect(at([{ ...VPS, machine: looking }])).toContain('Records looking at them on vps…')
+    expect(
+      remoteActions([{ ...VPS, machine: looking }]).find((one) => one.id === 'remote:records:vps')
+        ?.label,
+    ).toBe('Looking…')
+    const failed = vpsMachine({
+      detail: {
+        ...vpsMachine().detail,
+        recordsSaid: 'vps answered 500 when asked to look at its records',
+      },
+    })
+    expect(at([{ ...VPS, machine: failed }])).toContain(
+      'vps answered 500 when asked to look at its records',
+    )
+    const nameless = vpsMachine()
+    const none = {
+      ...nameless,
+      detail: { ...nameless.detail, about: { ...nameless.detail.about!, public: null } },
+    }
+    expect(at([{ ...VPS, machine: none }])).not.toContain('Records')
+    expect(remoteActions([{ ...VPS, machine: none }]).map((one) => one.id)).not.toContain(
+      'remote:records:vps',
+    )
+    expect(
+      remoteActions([{ ...VPS, live: false, machine: vpsMachine() }]).map((one) => one.id),
+    ).not.toContain('remote:records:vps')
+  })
 })

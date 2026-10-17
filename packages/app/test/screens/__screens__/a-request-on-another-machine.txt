@@ -1,0 +1,60 @@
+ ▄▀   T A D E     this Mac  checkout !⠋    search ●      +      vps    tade !⠋◌    web ✓     lab    firmware      ! 1  in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  4                on v╭─ acme/checkout#412 on vps ───────────────────────────────────────────────────────────── esc ─╮                                
+                                │                                                                                             ▕│                                
+   ! Webhooks ring the doorbell │ ! proposed  waiting for you to approve it                                                   ▕│                                
+     12m · wants approval: gh a…│                                                                                             ▕│                                
+                                │ ON VPS ──────────────────────────────────────────────────────────────────────────────────── ▕│                                
+   ⠋ remote-link                │ source            github                                                                    ▕│                                
+     2m · running the suite     │ asked by          @kim                                                                      ▕│                                
+                                │ arrived           Sun 13 Sep 13:40                                                          ▕│                                
+   ⠋ mirror-branches            │ project           tade                                                                      ▕│                                
+     41m · working              │ allowed by        intake.grants.github-issues                                               ▕│                                
+                                │ stamped from      triage@3                                                                  ▕│                                
+   ✓ Notes are shared both ways │ came through      github.issues                                                             ▕│                                
+     1h 35m · finished: set uni…│ revision          r2                                                                        ▕│                                
+                                │ failed            0 of 3 tries                                                              ▕│                                
+ ▾ SMART QUEUE  1               │ its work          tade/webhook-load · parked                                                ▕│                                
+                                │                                                                                             ▕│                                
+   ◌ linear-door                │ WHAT APPROVING IT STARTS THERE ──────────────────────────────────────────────────────────── ▕│                                
+     30m · waits on intake-webh…│  tade/webhook-load  worktree  done: review                                                  ▕│                                
+                                │  intake.grants.github-issues lets acme/checkout issues in, and approves none                ▕│                                
+ ▾ INTAKE  2                    │  $5.00 a day for this project, $1.20 spent today                                            ▕│                                
+ ! Webhook deliveries …   propos│                                                                                             ▕│                                
+   @kim · github · waiting for y│ https://github.com/acme/checkout/issues/412                                                 ▕│                                
+ ⠋ Can the VPS watch Li…   start│                                                                                             ▕│                                
+   @amir · slack · an agent is o│ THE REQUEST ITSELF — somebody else’s words, not an instruction ──────────────────────────── ▕│                                
+   github: found · found 1 new  │                                                                                             ▕│                                
+   linear: trouble · Linear said│ │ Under load the webhook endpoint drops deliveries: GitHub shows 502s for about one in      ▕│                                
+                                │ │ twenty during a burst of pushes.                                                          ▕│                                
+ ▾ CHECKS  2                    │ │                                                                                           ▕│                                
+ ✗ tests                        │ │ Steps: push ten commits in a minute and watch the                                         ▕│                                
+   failing since 13:25 · 2 runs │ │ deliveries page.                                                                          ▕│                                
+ ✓ types                        │                                                                                             ▕│                                
+   passing since 12:00 · 14 runs│                                                                                             ▕│                                
+   and runs in 1 worktree there │                                                                                             ▕│                                
+                                │                                                                                             ▕│                                
+ ▾ SCHEDULES  2                 │                                                                                             ▕│                                
+ ◎ New Sentry errors · every hou│                                                                                             ▕│                                
+   2 new 13:20                  │                                                                                             ▕│                                
+   · TADE-1QF TypeError: held.pr│                                                                                             ▕│                                
+   · TADE-1QE ECONNRESET in the │                                                                                             ▕│                                
+ ‖ Nightly dependency check · ev│                                                                                             ▕│                                
+                                │                                                                                             ▕│                                
+ ▾ DOCUMENTS  2                 │                                                                                             ▕│                                
+ ▤ REMOTE-TADE.md               │                                                                                             ▕│                                
+   tade/research · press to read│                                                                                             ▕│                                
+ ▤ AUDIT.md                     │                                                                                             ▕│                                
+   tade/audit · gone            │                                                                                             ▕│                                
+                                │                                                                                             ▕│                                
+━   orchestrator     +   ━━━━━━━│                                                                                             ▕│━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
+                                │                                                                                             ▕│                                
+                                │                                                                                             ▕│                               ▕
+                                │                                                                                             ▕│                               ▕
+                                │ Approving it is vps’s: on its tab here, or ask Tade to tell vps.                             │                               ▕
+                                │ ↑↓ reads                                                                            Close    │                               ▕
+ ❯ what you say   ◆ the orchestr╰──────────────────────────────────────────────────────────────────────────────────────────────╯                               ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                                                          type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake                        remote off │ claude-opus-5 ▾ · openrouter │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

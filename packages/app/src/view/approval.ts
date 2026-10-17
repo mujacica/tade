@@ -30,6 +30,12 @@ const CHROME = 3
 export interface Approval {
   tool: string
   summary: string
+  /**
+   * Characters of the command the machine that holds it did not send (another
+   * machine's card, `machines.ts`): counted with what the room here cut, so the
+   * last row never says the command is whole when it is not.
+   */
+  notShown?: number
 }
 
 /** How wide a card over an agent's screen `width` wide is, or null where none fits. */
@@ -103,7 +109,12 @@ function approvalLines(approval: Approval, inner: number, most: number): Line[] 
   const alone = beside > inner / 2
   const lead = alone ? 3 : beside
   const room = Math.max(1, most - (alone ? 1 : 0))
-  const { rows, notShown } = wrapped(printableLines(approval.summary, 'whole'), inner - lead, room)
+  const { rows, notShown } = wrapped(
+    printableLines(approval.summary, 'whole'),
+    inner - lead,
+    room,
+    approval.notShown ?? 0,
+  )
   const lines: Line[] = rows.map((text, i) => ({
     lead: i === 0 && !alone ? 1 : lead,
     tool: i === 0 && !alone ? tool : '',
@@ -122,9 +133,15 @@ function approvalLines(approval: Approval, inner: number, most: number): Line[] 
  * Text in rows of a width, every character kept — a space is part of a
  * command — broken after a space past half way where there is one, and at
  * each of its own line breaks. No more than `most` rows; where the text did
- * not fit, one fewer, and how many characters were left over.
+ * not fit, or `sent` says it was cut before it got here, a row is kept for
+ * saying so, and how many characters were left over.
  */
-function wrapped(text: string, width: number, most: number): { rows: string[]; notShown: number } {
+function wrapped(
+  text: string,
+  width: number,
+  most: number,
+  sent = 0,
+): { rows: string[]; notShown: number } {
   const points = [...text]
   const rows: string[] = []
   let at = 0
@@ -146,8 +163,9 @@ function wrapped(text: string, width: number, most: number): { rows: string[]; n
     if (points[at] === '\n') at += 1
   }
   const left = (from: number) => points.slice(from).filter((one) => one !== '\n').length
-  if (left(at) === 0) return { rows, notShown: 0 }
+  if (left(at) === 0 && sent === 0) return { rows, notShown: 0 }
+  if (left(at) === 0 && rows.length < most) return { rows, notShown: sent }
   // The last row gives way to the one that says how much is not shown.
   const dropped = rows.pop() ?? ''
-  return { rows, notShown: left(at) + [...dropped].length }
+  return { rows, notShown: left(at) + [...dropped].length + sent }
 }

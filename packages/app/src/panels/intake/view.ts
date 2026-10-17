@@ -162,7 +162,7 @@ export function intake(panel: IntakePanel, ctx: PanelContext): Drawn {
  */
 let wrapped: { body: string; width: number; lines: readonly string[] } | null = null
 
-function quoted(body: string, width: number): readonly string[] {
+export function quoted(body: string, width: number): readonly string[] {
   if (wrapped && wrapped.body === body && wrapped.width === width) return wrapped.lines
   const lines = printableLines(body)
     .replace(/\s+$/, '')
@@ -172,10 +172,30 @@ function quoted(body: string, width: number): readonly string[] {
   return lines
 }
 
+/**
+ * What approving a request would start, as either page draws it: this
+ * machine's own working-out (`intakeWouldRun`), or another machine's, as it
+ * sent it (`WouldThere`).
+ */
+export interface WouldShown {
+  starts: readonly {
+    task: string
+    workspace: string
+    done: string
+    produces: string | null
+    after: readonly { task: string; why: string }[]
+    parked: boolean
+  }[]
+  grant: readonly string[]
+  limits: readonly string[]
+  problems: readonly string[]
+  warnings: readonly string[]
+}
+
 /** What approving it would start, as rows: the task, how it is finished, what it waits on. */
-function starts(
+export function starts(
   row: () => Row,
-  would: NonNullable<PanelContext['intake']>['would'],
+  would: WouldShown | null,
   inner: number,
   skin: Skin,
 ): Line[] {
@@ -304,7 +324,13 @@ function foot(r: Row, panel: IntakePanel, ctx: PanelContext): Line {
 }
 
 /** A group's heading: its name, then a rule to the edge. */
-function heading(row: () => Row, label: string, note: string, inner: number, skin: Skin): Line[] {
+export function heading(
+  row: () => Row,
+  label: string,
+  note: string,
+  inner: number,
+  skin: Skin,
+): Line[] {
   const r = row()
     .space()
     .text(cap(label, Math.max(4, inner - 6)), skin.label)
@@ -319,7 +345,7 @@ function heading(row: () => Row, label: string, note: string, inner: number, ski
 }
 
 /** One of the five tones an inbox mark wears, as the skin paints it. */
-function toneFor(
+export function toneFor(
   tone: 'busy' | 'hint' | 'waiting' | 'bad' | 'done',
   skin: Skin,
 ): (text: string) => string {

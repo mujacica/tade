@@ -1,6 +1,6 @@
 import { evaluationsFrom, noSpend, type TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
-import { evaluationsFor } from '../src/evaluations.ts'
+import { CARDS_MOST, EvaluationsAnswerSchema, evaluationsFor } from '../src/evaluations.ts'
 import { EVERY, reach } from './fixtures.ts'
 
 // The scorecards as one device may read them: folded over its own projects,
@@ -97,5 +97,32 @@ describe('the scorecards a device reads', () => {
       evaluationsFrom(journal, { since: 0, projects, spent: {}, findings: null })
     expect(evaluationsFor(reach(['findings']), none).judge).toBe('none here')
     expect(evaluationsFor(reach([]), none).judge).toBe('not granted')
+  })
+})
+
+describe('the scorecards, as another machine of the person’s reads them', () => {
+  it('is an answer that reads for its shape, granted or not, read or not', () => {
+    for (const out of [
+      evaluationsFor(reach(EVERY), fold),
+      evaluationsFor(reach([]), fold),
+      evaluationsFor(reach(EVERY), () => null),
+    ]) {
+      const read = EvaluationsAnswerSchema.safeParse(JSON.parse(JSON.stringify(out)))
+      expect(read.success, JSON.stringify(read.error?.issues)).toBe(true)
+    }
+  })
+
+  it('keeps what it reads and lets be what a newer Tade adds, and refuses what is not a count', () => {
+    const out = JSON.parse(JSON.stringify(evaluationsFor(reach(EVERY), fold)))
+    const read = EvaluationsAnswerSchema.parse({ ...out, newer: 'a field from later' })
+    expect(read.total?.tasks).toBe(2)
+    expect(read.by.harness.map((row) => row.key).sort()).toEqual(['codex', 'pi'])
+    expect('newer' in read).toBe(false)
+    // Its races are not read: a scorecard is all another machine draws of it.
+    expect('races' in read).toBe(false)
+    const odd = { ...out, total: { ...out.total, tasks: -1 } }
+    expect(EvaluationsAnswerSchema.safeParse(odd).success).toBe(false)
+    const many = { ...out, by: { ...out.by, model: Array(CARDS_MOST + 1).fill(out.total) } }
+    expect(EvaluationsAnswerSchema.safeParse(many).success).toBe(false)
   })
 })

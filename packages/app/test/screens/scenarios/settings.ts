@@ -277,6 +277,47 @@ function vpsShown(): RemoteShown {
       detail: {
         ...NO_DETAIL,
         warnings: ['checkout: git could not read the base: it is being rewritten'],
+        // Its own `tade host domain` look, asked as this page opened.
+        records: {
+          at: NOW - 20_000,
+          name: 'tade.example.com',
+          head: 'tade.example.com, in the zone example.com, answered for by ns1.dns.example, ns2.dns.example',
+          lines: [
+            {
+              record: 'A',
+              state: 'right',
+              said: 'A: tade.example.com → 203.0.113.7, this machine',
+              add: null,
+              remove: [],
+              loud: false,
+            },
+            {
+              record: 'AAAA',
+              state: 'wrong',
+              said: 'AAAA: tade.example.com → 2001:db8::7, where 443 does not answer, and Let’s Encrypt tries IPv6 first: take it away, or have Caddy answer there',
+              add: null,
+              remove: ['tade.example.com. AAAA 2001:db8::7'],
+              loud: true,
+            },
+            {
+              record: 'DNSSEC',
+              state: 'right',
+              said: 'DNSSEC: example.com is not signed, so nothing stands in the way of the CAA lookup',
+              add: null,
+              remove: [],
+              loud: false,
+            },
+            {
+              record: 'CAA',
+              state: 'missing',
+              said: 'CAA: none, so any CA may issue for it: add the record that names Caddy’s account',
+              add: 'tade.example.com. CAA 0 issue "letsencrypt.org; accounturi=https://acme-v02.api.letsencrypt.org/acme/acct/2104831; validationmethods=tls-alpn-01,http-01"',
+              remove: [],
+              loud: false,
+            },
+          ],
+          cannot: null,
+        },
         about: {
           at: NOW - 60_000,
           roundTrip: 41,
@@ -376,11 +417,12 @@ export const SETTINGS_SCREENS: Scenario[] = [
     about:
       'Another machine of yours on Settings › Remotes: how it stands as a machine — heard from ' +
       'and what asking it costs there and back, the Tade it runs, its public name and its ' +
-      'certificate, its own problems and warnings, its watches with their last looks — above ' +
-      'what was carried there and each harness’s sign-in.',
+      'certificate, the records that name needs as its own look found them when this page ' +
+      'opened, its own problems and warnings, its watches with their last looks — above what ' +
+      'was carried there and each harness’s sign-in.',
     state: { ...base(), panel: { ...settingsPanel('remotes'), row: 0 } },
     frame: frame({
-      height: 40,
+      height: 50,
       date: utcDate,
       panel: { ...settingsFacts(), remotes: [vpsShown()] },
     }),

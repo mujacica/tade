@@ -983,7 +983,13 @@ drawn from what its away view sends — the projection the link holds (REMOTE-TA
   documents its tasks produce, out of the projection — and `about`, what it said it is when asked as
   its owner (`/api/machine`, asked on the beat by `wire/remote-machine.ts`, with the round trip). A
   machine whose link is down keeps both, so a page says `as of 14:02` and never *none*;
-  Settings › Remotes draws `about` as each remote's connection block (`settings-remotes`).
+  Settings › Remotes draws `about` as each remote's connection block (`settings-remotes`). Two
+  more are asked only while somebody here looks (`lookingAt`, `machine-looks.ts`): its public
+  name's records, looked at there as Settings › Remotes opens and on its Look again
+  (`/api/records`), drawn under its public name as of when, every record whole; and its scorecards
+  while /evals is open on a grouping (`GET /api/evaluations`), drawn as that machine's own section
+  under this one's in the same columns (`cards-there.ts`, `figures.ts`), over all its work, never
+  added in.
 - **Its tabs are grouped under its name**, this machine's first (`Frame.machines.here`, said only
   where there are remotes): a chip per machine whose menu (`machine`, the Remotes subject's) is its
   projects, then a tab per project carrying the marks that machine drew (`remoteStanding`). Short of
@@ -998,6 +1004,10 @@ drawn from what its away view sends — the projection the link holds (REMOTE-TA
   (`thereSections`, `view/elsewhere-more.ts`), each out of `Machine.detail` and saying as of when
   while the link is down; a document's row is a press (`remote-document:<machine> <task> <name>`)
   that copies it here over the link and opens the copy in the viewer, offered only while linked.
+  A request's row is a press too (`remote-request:<machine> <item>`, a name the router hands the
+  rest of only because it ends in `:`), into a page that only reads (`panels/intake/there.ts`):
+  labelled with its machine, its own words under this machine's `MATERIAL_LABEL`, and approving it
+  said to be that machine's — on its tab, or Tade asked to tell it — with no act on the page.
   What another machine's judge flagged is on /evals' Judge tab under `ON <MACHINE>` (counts out of
   verdicts, open ones oldest first, the probability grey — `panels/evaluations/elsewhere.ts`); its
   plan windows are under its row on Spend (`plansThere`), never in this machine's PLAN list.
@@ -1006,7 +1016,10 @@ drawn from what its away view sends — the projection the link holds (REMOTE-TA
   you look and only then, read through `screenOf`), and a control only for what that machine's row
   says it `can` — a verb each (`/api/act/<verb>`, with `was` and `rev` echoed, so a stale press is
   that machine's to refuse), `steer…` a prompt (`remote-steer`), nothing at all while the link is
-  down. `wire/remote-agent.ts` is the subject, owned by `Remotes` so `app.ts` never heard of it;
+  down. An approval it is held on is drawn as the card here draws one (`approvalRows`): the whole
+  command that machine sent (`approval.command`, its paths already shortened there by `commandOut`,
+  read `'whole'` by `machines.ts`), what it did not send counted with what did not fit, and where
+  an older Tade sent none, that said beside the tool. `wire/remote-agent.ts` is the subject, owned by `Remotes` so `app.ts` never heard of it;
   everything rides `link.request`, the held connection, never one of its own.
 - **Typing into one is a terminal in the lower pane, never a second pane**: enter (or the first
   control) asks that machine for its line (`/api/attach`), the link for how to run it there, and
