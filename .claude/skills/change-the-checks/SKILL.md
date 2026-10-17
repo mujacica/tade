@@ -37,7 +37,7 @@ and that record.
 | `packages/workbench/src/checks.ts` | `checksAt`, `runProjectChecks`, `checksGate`, `quickLook`, `pushOrCommit` |
 | `packages/core/src/batches.ts` | `batchDue`, `nextToTry`, `culpritOf`: when a batch runs, and whose commit broke a red one — pure |
 | `packages/workbench/src/batch.ts` | `treeAt`, `runBatch`, `coveredBy`, `narrowingCommand`, `narrowRed`: the batch's own tree, and narrowing in it |
-| `packages/app/src/wire/batches.ts` | `Batches`: the window's pass, and a red batch made one proposal |
+| `packages/app/src/wire/batches.ts` | `Batches`: the heart's pass, so `tade serve` runs it too, and a red batch made one proposal |
 | `scripts/related.ts` | Tade's own `pnpm test:related`: vitest's import graph over the changed paths |
 | `packages/core/src/checks.ts` | `checksFor`, `batchedFor`, `runsBefore`, `checksTold`, `CHECK_IT_YOURSELF`, `overrideFor`, `overridesFrom`, `overrideProblem` |
 | `packages/core/src/config.ts` | `ChecksConfigSchema`: `before`, `on_red`, `full`, `only`, `run_here`, `parallel`, `keep`, `ci`; `test_command` on a project |
@@ -154,8 +154,8 @@ and that record.
   full run at HEAD covers every task committed before it). The agent is told the related run is what
   "passes its checks" means (`checksTold`'s batch wording); a commit under `checks.before` is held
   to the hook and `related` (`quickLook`), and **a push to the full checks, always** — leaving the
-  machine is never batched, and CI and `release.yml` stay full. The window's pass (`wire/batches.ts`,
-  paced to `BATCH_LOOK_MS`) asks the pure rule (`batchDue`): HEAD settled (`SETTLE_MS`), not green,
+  machine is never batched, and CI and `release.yml` stay full. The heart's pass (`wire/batches.ts`,
+  on its beat, paced to `BATCH_LOOK_MS`) asks the pure rule (`batchDue`): HEAD settled (`SETTLE_MS`), not green,
   no batch answered it yet, nothing running, a run that could not start tried again only after
   `RETRY_MS`. Never a second batch beside one, never again at a HEAD a batch answered — red
   included, because the same tree asks the same question.

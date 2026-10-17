@@ -20,11 +20,11 @@ import { reporterLater, reportJournal } from '../telemetry.ts'
 // `tade serve` — the window with no screen, for a machine nobody sits at.
 //
 // It is `Heart.alone`: the beat, and on it the queue, schedules and watches,
-// and intake; the orchestrator, started as the window starts it
-// (`orchestrating.ts`) and told what happens; and the away view, with the
-// notifications it sends — over the same workbench and the same lock as
-// `tade app`, so the two never run on one home at once and every "while a
-// window is open" is true of it. What the window would have drawn in the
+// intake, and the full checks once a batch; the orchestrator, started as the
+// window starts it (`orchestrating.ts`) and told what happens; and the away
+// view, with the notifications it sends — over the same workbench and the same
+// lock as `tade app`, so the two never run on one home at once and every "while
+// a window is open" is true of it. What the window would have drawn in the
 // conversation is written to standard error instead, a line each, which is a
 // service's log — the orchestrator's words and what it ran among them; nothing
 // is ever written to standard output, and nothing reads a key. It runs until it
@@ -34,14 +34,14 @@ import { reporterLater, reportJournal } from '../telemetry.ts'
 
 /** What runs here with no screen, said first. */
 export const SERVES =
-  'the beat, the queue, schedules and watches, intake, the orchestrator, and the away view with its notifications'
+  'the beat, the queue, schedules and watches, intake, the batched full checks, the orchestrator, and the away view with its notifications'
 
 /**
  * What does not run here yet, said beside it, because a person reading the
  * log is deciding whether this is enough for their machine.
  */
 export const NOT_SERVED =
-  'Not under `tade serve` yet: the batched checks, links to other machines, and updating Tade from the orchestrator — `tade app` does them.'
+  'Not under `tade serve` yet: links to other machines, and updating Tade from the orchestrator — `tade app` does them.'
 
 /** What the orchestrator is told of a part of the window `tade serve` does not have. */
 const WITHOUT = 'is not done by `tade serve`, which has no screen: `tade app` does it'

@@ -16,6 +16,7 @@ import {
 } from './model.ts'
 import { type Entry, REPEAT_MS, tadeDid } from './transcript.ts'
 import { Agents, type AgentsDeps } from './wire/agents.ts'
+import { Batches } from './wire/batches.ts'
 import {
   type AppOptions,
   clockOf,
@@ -37,7 +38,8 @@ import { Away, type AwayDeps } from './wire/web.ts'
 import { talkingThrough } from './wire/web-asking.ts'
 
 // The part of the window that runs with no screen: the beat, and on it the
-// queue, schedules and watches, and intake; the orchestrator, told what
+// queue, schedules and watches, intake, and the full checks once a batch where
+// a project batches them; the orchestrator, told what
 // happened and deciding; the away view and the notifications it sends; and
 // the subjects those act through — the one door a setting is written by,
 // opening and closing a project, stopping and opening an agent again.
@@ -304,6 +306,8 @@ export class Heart {
   readonly schedules: Schedules
   /** What has been handed to this machine from outside, and what is due to be said back. */
   readonly intake: Intake
+  /** The full checks once a batch on HEAD, where a project batches them. */
+  readonly batches: Batches
   /** The one door a setting is written by, and the page a face draws for it. */
   readonly settings: Settings
   /** Opening, closing and naming projects. */
@@ -376,6 +380,7 @@ export class Heart {
       twins: (project) => face.twins(project),
     })
     this.intake = new Intake(this.wire, { advanceQueue: () => void this.advanceQueue() })
+    this.batches = new Batches(this.wire, () => this.told)
     this.projects = new Projects(this.wire, {
       ...face.projects,
       useConfig: (loaded) => this.settings.use(loaded),
@@ -478,6 +483,7 @@ export class Heart {
         void this.queue.recordRulesMet()
         void this.schedules.runDue().then(() => this.advanceQueue())
         void this.orchestrator.reflect(tasks)
+        void this.batches.beat()
         this.away.beat()
         void this.settings.fold(() => this.serversMoved())
         face.beat(tasks, moved)

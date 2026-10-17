@@ -174,7 +174,6 @@ export class App {
         void this.routes.learnHarnesses(tasks)
       },
       beat: (_tasks, moved) => {
-        void this.checks.beat()
         this.remotes.beat()
         this.updates.beat()
         if (moved) this.draw() // a beat that found what the last did is not news
@@ -297,7 +296,6 @@ export class App {
       sections: () => this.extensions.lists(),
       callId: () => this.extensions.callId(),
       writeKey: (key, value, was) => this.settings.writeKey(key, value, was),
-      orchestrator: () => this.orchestrator,
     })
     this.terminal = opts.terminal ?? new ProcessTerminal()
     // Mouse reporting is on by default, which is what makes the window

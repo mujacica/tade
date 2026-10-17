@@ -2,15 +2,17 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { request } from 'node:http'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ConfigSchema, type TaskId } from '@tade/core'
+import { readRuns } from '@tade/checks-core'
+import { ConfigSchema, recordsDir, type TaskId } from '@tade/core'
 import { LINEAR_APP, LINEAR_APP_IN } from '@tade/extension-intake'
 import { ExtensionHost } from '@tade/extensions-core'
 import { AUTH_BYTES, appendPush, generateVapid, P256DH_BYTES, scriptedPusher } from '@tade/web'
-import { readTaskFile, Workbench } from '@tade/workbench'
+import { BATCH_BY, readTaskFile, Workbench } from '@tade/workbench'
 import { recordConfigChanges } from '@tade/workbench/config-changes'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parse, stringify } from 'yaml'
 import { mkrepo } from '../../../test/fixtures/mkrepo.ts'
+import { CI_WORKFLOW, ciWorkflow } from '../../../test/fixtures/workflow.ts'
 import {
   Heart,
   NOBODY_TO_TELL,
@@ -545,6 +547,42 @@ describe('the heart, with no screen', () => {
     await until('the log names it for the orchestrator', () =>
       sayings().some(
         (text) => text.startsWith(NOBODY_TO_TELL) && text.includes('app/bring-in-shed'),
+      ),
+    )
+  })
+
+  it('runs the full checks once a batch on its beat, and says a red one is for the orchestrator', async () => {
+    repo.commit('the gate', {
+      [CI_WORKFLOW]: ciWorkflow([{ id: 'tests', run: 'test ! -e broken' }]),
+    })
+    const head = repo.commit('work of b\n\nTade-Task: app/b', { broken: 'yes' })
+    const projects = { app: { root: repo.root, checks: { full: 'batched' } } }
+    writeFileSync(join(home, 'config.yaml'), stringify({ projects }))
+    // A minute a second: HEAD has settled by the beat after the first look.
+    const started = Date.now()
+    await alone({
+      config: ConfigSchema.parse({ projects }),
+      now: () => started + (Date.now() - started) * 60,
+    })
+    await until(
+      'a batch ran at HEAD, with nobody asking',
+      async () =>
+        (await readRuns(recordsDir(home, 'app', null))).some(
+          (run) => run.by === BATCH_BY && run.commit === head && run.state === 'failed',
+        ),
+      SPAWNING_MS,
+    )
+    const proposal = `app/red-full-run-${head.slice(0, 7)}`
+    await until('one proposal parked', async () =>
+      Boolean((await readTaskFile(home, proposal))?.parked),
+    )
+    // Nothing starts what the orchestrator decides, and there is none here to decide it.
+    expect(client.runs()).toEqual([])
+    await until('the log says it is for the orchestrator', () =>
+      sayings().some(
+        (text) =>
+          text.startsWith(NOBODY_TO_TELL) &&
+          text.includes(`The full checks of app went red at ${head.slice(0, 8)}`),
       ),
     )
   })

@@ -99,8 +99,6 @@ const deps = (rows: unknown[] = []) => ({
   writeKey: async (key: string, value: boolean | undefined, was: string) => {
     written.push({ key, value, was })
   },
-  // Nothing here batches its checks, so nothing is ever put to it.
-  orchestrator: () => ({ started: false, tell: async () => {}, note: () => {} }),
 })
 
 const seen = (over: Partial<ActionsView> = {}): ActionsView =>

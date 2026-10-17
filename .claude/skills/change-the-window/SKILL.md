@@ -67,7 +67,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `title.ts` | What the terminal window calls itself | — |
 | `inbox.ts` | What Tade tells the orchestrator without being asked, and where you are when you ask (`whereYouAre`), and a line for every other machine (`machinesSaid`) | — |
 | `settings.ts` | Reading and writing a setting from the window, through core's one writer | a real disk |
-| `heart.ts` | The part that runs with no screen: the beat (`Live`) and, on it, the queue, schedules and watches, and intake; the orchestrator, the away view and its notifications; and the settings, projects and agents they act through — over the state every subject reads and writes. `App` is a face over it (`Face`); `tade serve` runs it alone (`Heart.alone`) | a terminal |
+| `heart.ts` | The part that runs with no screen: the beat (`Live`) and, on it, the queue, schedules and watches, intake and the batched full checks; the orchestrator, the away view and its notifications; and the settings, projects and agents they act through — over the state every subject reads and writes. `App` is a face over it (`Face`); `tade serve` runs it alone (`Heart.alone`) | a terminal |
 | `app.ts` | Wiring only: pi-tui, the voice surface, the workbench, and the list of subjects | — |
 | `screen.ts` | The screen Tade asks you things on: setup, settings, any command that needs a form | a terminal (rendering is pure) |
 

@@ -4,9 +4,7 @@ import type { ListSection } from '@tade/extensions-core'
 import type { ActionsView, Frame } from '../frame.ts'
 import type { Live } from '../live.ts'
 import { ORCHESTRATOR_TAB, showingActions } from '../model.ts'
-import { Batches } from './batches.ts'
 import { type Actions, flash, notify, type Subject, type Wiring } from './context.ts'
-import type { Tellable } from './handed.ts'
 
 // A check that nobody ran is not a check that passed, and this is the window's
 // end of that: the button that runs a task's own checks, and the tail of what
@@ -44,8 +42,6 @@ export interface ChecksDeps {
    * leaves the `config_changed` line that makes a change undoable.
    */
   writeKey(key: string, value: boolean | undefined, was: string): Promise<void>
-  /** Who a red batch is put to (`batches.ts`). */
-  orchestrator(): Tellable
 }
 
 export class Checks implements Subject {
@@ -57,18 +53,10 @@ export class Checks implements Subject {
    * time to write anything down.
    */
   private readonly running = new Map<string, number>()
-  /** The full checks once a batch, where a project batches them. */
-  private readonly batches: Batches
 
   constructor(wire: Wiring, deps: ChecksDeps) {
     this.wire = wire
     this.deps = deps
-    this.batches = new Batches(wire, () => deps.orchestrator())
-  }
-
-  /** A look at the tasks: where a batched checkout's HEAD needs its full checks, they start. */
-  beat(): Promise<void> {
-    return this.batches.beat()
   }
 
   /**
