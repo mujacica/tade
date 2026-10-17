@@ -2,8 +2,11 @@ import { spawn } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { type DomainSeen, loadConfig, TADE_SH_IS_THE_INSTALLER } from '@tade/core'
-import { describe, expect, it } from 'vitest'
+import { copiedHosts, type DomainSeen, loadConfig, TADE_SH_IS_THE_INSTALLER } from '@tade/core'
+import { Workbench } from '@tade/workbench'
+import { foldConfigChanges } from '@tade/workbench/config-changes'
+import { readJournal } from '@tade/workbench/events'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import {
   domainJson,
@@ -29,6 +32,11 @@ import type { Asker } from '../src/commands/host-service.ts'
 const NAME = 'tade.example.com'
 const OLD = 'old.example.com'
 const HERE4 = '203.0.113.7'
+
+/** Where a write could not be written down: never, for a config that is not this home's. */
+function unsaid(said: string): void {
+  throw new Error(`said that it could not be written down: ${said}`)
+}
 
 /** A config file holding `text`, somewhere of its own. */
 function configWith(text: string): string {
@@ -106,20 +114,20 @@ describe('the name', () => {
 
   it('is written as the public name alone, keeping the trusted hostnames as they were', async () => {
     const path = configWith('# mine\nsurfaces:\n  web:\n    trusted_hosts: [studio.ts.net]\n')
-    expect(await writePublic(path, NAME, [])).toEqual({ public: NAME, taken: [] })
+    expect(await writePublic(path, NAME, [], unsaid)).toEqual({ public: NAME, taken: [] })
     const text = readFileSync(path, 'utf8')
     expect(text).toContain('# mine')
     expect(text).toContain(`public: ${NAME}`)
     expect(await web(path)).toEqual({ public: NAME, trusted_hosts: ['studio.ts.net'] })
     // Twice is once.
-    expect(await writePublic(path, NAME, [])).toBeNull()
+    expect(await writePublic(path, NAME, [], unsaid)).toBeNull()
   })
 
   it('takes back what Tade copied beside the public name it replaces, and nothing else', async () => {
     const path = configWith(
       `surfaces:\n  web:\n    public: ${OLD}\n    trusted_hosts: [studio.ts.net, ${OLD}]\n`,
     )
-    expect(await writePublic(path, NAME, [OLD, 'gone.example.com'])).toEqual({
+    expect(await writePublic(path, NAME, [OLD, 'gone.example.com'], unsaid)).toEqual({
       public: NAME,
       taken: [OLD],
     })
@@ -128,9 +136,9 @@ describe('the name', () => {
 
   it('is added to the trusted hostnames alone for a Caddy in front of the loopback listener', async () => {
     const path = configWith('surfaces:\n  web:\n    trusted_hosts: [studio.ts.net]\n')
-    expect(await writeLoopback(path, NAME)).toEqual(['studio.ts.net', NAME])
+    expect(await writeLoopback(path, NAME, unsaid)).toEqual(['studio.ts.net', NAME])
     expect(await web(path)).toEqual({ public: '', trusted_hosts: ['studio.ts.net', NAME] })
-    expect(await writeLoopback(path, NAME)).toBeNull()
+    expect(await writeLoopback(path, NAME, unsaid)).toBeNull()
   })
 
   it('puts the file back as it was where the config would not load with it', async () => {
@@ -138,16 +146,96 @@ describe('the name', () => {
     const path = join(dir, 'config.yaml')
     const before = '# mine\nsurfaces:\n  web:\n    enabled: true\n'
     writeFileSync(path, before)
-    await expect(writePublic(path, 'box.tade.sh', [])).rejects.toThrow(TADE_SH_IS_THE_INSTALLER)
+    await expect(writePublic(path, 'box.tade.sh', [], unsaid)).rejects.toThrow(
+      TADE_SH_IS_THE_INSTALLER,
+    )
     expect(readFileSync(path, 'utf8')).toBe(before)
     // And where there was no file, there is none after.
     const none = join(dir, 'none.yaml')
-    await expect(writePublic(none, 'box.tade.sh', [])).rejects.toThrow(TADE_SH_IS_THE_INSTALLER)
+    await expect(writePublic(none, 'box.tade.sh', [], unsaid)).rejects.toThrow(
+      TADE_SH_IS_THE_INSTALLER,
+    )
     expect(existsSync(none)).toBe(false)
     // A config that does not load is not written into.
     writeFileSync(path, 'surfaces: [\n')
-    await expect(writePublic(path, NAME, [])).rejects.toThrow('does not load')
-    await expect(writeLoopback(path, NAME)).rejects.toThrow('does not load')
+    await expect(writePublic(path, NAME, [], unsaid)).rejects.toThrow('does not load')
+    await expect(writeLoopback(path, NAME, unsaid)).rejects.toThrow('does not load')
+  })
+})
+
+describe('the name, written down', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  /** A home of its own, as `TADE_HOME`, its config holding `text`. */
+  function homeWith(text: string): { home: string; path: string } {
+    const home = tmp('tade-domain-home-')
+    vi.stubEnv('TADE_HOME', home)
+    const path = join(home, 'config.yaml')
+    writeFileSync(path, text)
+    return { home, path }
+  }
+
+  const lines = (home: string) => readJournal(home, { types: ['config_changed'] })
+
+  it('says what each key was and is, by the CLI, where no window holds the home', async () => {
+    const { home, path } = homeWith(
+      `surfaces:\n  web:\n    public: ${OLD}\n    trusted_hosts: [studio.ts.net, ${OLD}]\n`,
+    )
+    await writePublic(path, NAME, [OLD], unsaid)
+    expect((await lines(home)).map((line) => line.detail)).toEqual([
+      { path: 'surfaces.web.public', was: OLD, now: NAME, by: 'cli', at: expect.any(Number) },
+      {
+        path: 'surfaces.web.trusted_hosts',
+        was: `studio.ts.net ${OLD}`,
+        now: 'studio.ts.net',
+        by: 'cli',
+        at: expect.any(Number),
+      },
+    ])
+  })
+
+  it('waits while a window holds the home, which writes it down, and a take-back then reads it', async () => {
+    const { home, path } = homeWith(
+      `surfaces:\n  web:\n    public: ${OLD}\n    trusted_hosts: [${OLD}]\n`,
+    )
+    const window = await Workbench.open({ home })
+    try {
+      // What Settings wrote for a public name typed in before 2026-10-17: the name, then its copy.
+      for (const detail of [
+        { path: 'surfaces.web.public', was: '', now: OLD },
+        { path: 'surfaces.web.trusted_hosts', was: '', now: OLD },
+      ]) {
+        await window.log.append({ type: 'config_changed', detail: { ...detail, by: 'window' } })
+      }
+      expect(copiedHosts(await lines(home))).toEqual([OLD])
+      // From a terminal while the window is open: the name moves, taking the copy back —
+      expect(await writePublic(path, NAME, [OLD], unsaid)).toEqual({ public: NAME, taken: [OLD] })
+      // — and the old name is put back on a press, for a Caddy in front of the loopback listener.
+      expect(await writeLoopback(path, OLD, unsaid)).toEqual([OLD])
+      // Nothing appended beside the window: its numbers are its own.
+      expect(await lines(home)).toHaveLength(2)
+      // The window's beat (`Settings.fold`), by the window's own append.
+      expect(await foldConfigChanges(home, (line) => window.log.append(line))).toEqual({
+        folded: 3,
+        trouble: null,
+      })
+      const after = await lines(home)
+      expect(after.map((line) => [line.detail.path, line.detail.now, line.detail.by])).toEqual([
+        ['surfaces.web.public', OLD, 'window'],
+        ['surfaces.web.trusted_hosts', OLD, 'window'],
+        ['surfaces.web.public', NAME, 'cli'],
+        ['surfaces.web.trusted_hosts', '', 'cli'],
+        ['surfaces.web.trusted_hosts', OLD, 'cli'],
+      ])
+      expect(new Set(after.map((line) => line.seq)).size).toBe(after.length)
+      // The name put back on a press is somebody's: the next change of name leaves it.
+      // Unrecorded, the copy Settings once wrote would still be read as Tade's, and taken.
+      expect(copiedHosts(after)).toEqual([])
+    } finally {
+      await window.close()
+    }
   })
 })
 

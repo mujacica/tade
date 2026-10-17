@@ -110,8 +110,11 @@ export function loopbackWrite(web: PublicAndTrusted, name: string): string[] | n
  * name is somebody putting it there, which makes it theirs, and one that takes
  * it away — or whose `was` no longer has it — ends the copy either way.
  *
- * What the CLI wrote is not here: it writes no `config_changed` line, so a name
- * it copied cannot be told from one typed into the file, and stays.
+ * The CLI's lines are read the same way, `by: cli` (`recordFromShell`): one
+ * that takes a copy away ends it, and one that adds a name makes it somebody's.
+ * What the CLI copied before it wrote any — `tade host domain --write` from
+ * 1321b946 to b5072d57, never in a release — has no line, so it cannot be told
+ * from a name typed into the file, and stays.
  */
 export function copiedHosts(lines: readonly ChangedLine[]): string[] {
   const copied = new Set<string>()

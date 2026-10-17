@@ -29,6 +29,7 @@ import {
 } from '@tade/workbench/carry'
 import { HomeBusyError, heldBy } from '@tade/workbench/lock'
 import { linkOf, remoteOf } from '@tade/workbench/remotes'
+import { heldIn, recordFromShell } from '../config-write.ts'
 import { Exit, type Io } from '../io.ts'
 
 // The guided half of `tade remote add` and `tade remote carry`: meeting a
@@ -357,10 +358,9 @@ export async function addRemote(place: Place, name: string, opts: AddOpts): Prom
     host: session.host,
   }
   const path = place.configPath
-  writeSetting(path, `remotes.${name}`, {
-    ...written,
-    ...(opts.tade === 'tade' ? { tade: undefined } : {}),
-  })
+  const held = heldIn(path)
+  const kept = { ...written, ...(opts.tade === 'tade' ? { tade: undefined } : {}) }
+  writeSetting(path, `remotes.${name}`, kept)
   const loaded = await loadConfig(path)
   if (!loaded.ok || loaded.config.remotes[name] === undefined) {
     // What the remote printed would not load as a remote here: it is taken
@@ -378,6 +378,7 @@ export async function addRemote(place: Place, name: string, opts: AddOpts): Prom
     setExit(Exit.error)
     return
   }
+  await recordFromShell(path, held, [{ key: `remotes.${name}`, value: kept }], io.err, place.home)
   const window = (await heldBy(place.home)) !== null
   if (!opts.json) {
     io.out(

@@ -103,6 +103,8 @@ export interface Machine {
   task: string
   port: number
   news: string[]
+  /** The conversation the window holds now: what Tade itself said in it, among the rest. */
+  transcript(): Transcript
   /** Add a task to the faked world, so the projection has a row for it. */
   watch(task: string): void
   /** An agent is running on this task, as the world and the harness say. */
@@ -429,6 +431,7 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     task: first.id,
     port,
     news,
+    transcript: () => state.transcript,
     said,
     armed,
     decided,

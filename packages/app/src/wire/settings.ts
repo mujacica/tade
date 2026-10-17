@@ -22,8 +22,10 @@ import {
   withoutCopies,
 } from '@tade/core'
 import { isCredential } from '@tade/web'
+import { foldConfigChanges } from '@tade/workbench/config-changes'
 import type { Frame } from '../frame.ts'
 import { checkTalkKey } from '../keys.ts'
+import { withTranscript } from '../model.ts'
 import { LOOK_AGAIN } from '../panels/settings/domain.ts'
 import {
   actsOf,
@@ -35,6 +37,7 @@ import {
 } from '../panels/settings/state.ts'
 import { keysPanel } from '../panels/small/state.ts'
 import { writeSetting } from '../settings.ts'
+import { tadeDid } from '../transcript.ts'
 import {
   type Actions,
   configPathOf,
@@ -115,6 +118,9 @@ export class Settings implements Subject {
   private readonly deps: SettingsDeps
   /** The records the public name needs, under its row (`web-domain.ts`). */
   private readonly domain: DomainLook
+  /** A fold under way, so a slow disk never stacks beats; and what last stopped one (`fold`). */
+  private folding = false
+  private foldTrouble: string | null = null
 
   constructor(wire: Wiring, deps: SettingsDeps) {
     this.wire = wire
@@ -480,26 +486,65 @@ export class Settings implements Subject {
       throw new Error(loaded.issues[0]?.message ?? 'the config would not load with that')
     }
     this.use(loaded.config)
-    const written = this.wire.opts.client.log
-      .append({
-        type: 'config_changed',
-        detail: {
-          path: key,
-          was,
-          // **Never the value where it is a credential**, which is the one
-          // thing this line may not carry: a key is never in the journal
-          // (`KEYS_AND_AGENTS`). A count of characters is a thing Tade may
-          // say, and is enough to tell a write that landed from one that did
-          // not.
-          now: how.now ?? said(key, value as boolean | string | undefined),
-          by: how.by ?? 'window',
-          ...(how.carried === undefined ? {} : { carried: how.carried }),
-        },
-      })
-      .catch(() => {})
+    const written = this.recorded({
+      path: key,
+      was,
+      // **Never the value where it is a credential**, which is the one thing
+      // this line may not carry: a key is never in the journal
+      // (`KEYS_AND_AGENTS`). A count of characters is a thing Tade may say,
+      // and is enough to tell a write that landed from one that did not.
+      now: how.now ?? said(key, value as boolean | string | undefined),
+      by: how.by ?? 'window',
+      ...(how.carried === undefined ? {} : { carried: how.carried }),
+    })
     // A carried write is told apart from one made here by this line
     // (`changedThere`), so the next carry must find it: it waits for it.
     if (how.carried !== undefined) await written
+  }
+
+  /**
+   * One `config_changed` line, said in the conversation where the journal
+   * would not take it: without it a change is one nobody can find and undo,
+   * and a carried one reads to the next carry as changed here. Begun before
+   * anything is awaited, so lines written in a loop keep their order.
+   */
+  private async recorded(detail: Record<string, string>): Promise<void> {
+    try {
+      await this.wire.opts.client.log.append({ type: 'config_changed', detail })
+    } catch (err) {
+      this.said(unrecordedSays(detail, why(err)))
+    }
+  }
+
+  /**
+   * On the window's beat: the config changes a terminal made while this window
+   * held the journal, written down by its own append (`foldConfigChanges`), so
+   * every number in it is still this window's. Trouble is said once.
+   */
+  async fold(): Promise<void> {
+    if (this.folding) return
+    this.folding = true
+    try {
+      const { trouble } = await foldConfigChanges(this.wire.opts.home, (line) =>
+        this.wire.opts.client.log.append(line),
+      )
+      if (trouble !== null && trouble !== this.foldTrouble) {
+        this.said(
+          `The changes a terminal made to the config are not in the journal yet: ${trouble}`,
+        )
+      }
+      this.foldTrouble = trouble
+    } finally {
+      this.folding = false
+    }
+  }
+
+  /** A line of Tade's own in the conversation. */
+  private said(text: string): void {
+    this.wire.put(
+      withTranscript(this.wire.state, tadeDid(this.wire.state.transcript, text, this.wire.now())),
+    )
+    this.wire.draw()
   }
 
   /**
@@ -623,11 +668,7 @@ export class Settings implements Subject {
           ? []
           : [{ path: TRUSTED, was: taking.was.join(' '), now: taking.now.join(' ') }]),
       ]
-      for (const one of changed) {
-        void this.wire.opts.client.log
-          .append({ type: 'config_changed', detail: { ...one, by, ...(said ? { said } : {}) } })
-          .catch(() => {})
-      }
+      for (const one of changed) void this.recorded({ ...one, by, ...(said ? { said } : {}) })
       return told
     } catch (err) {
       // Put back as it was, and said as a throw: the page shows it on the
@@ -729,6 +770,15 @@ function takingSays(taking: Taking): string {
 /** A name as two writes of it compare: case, spaces and a final dot aside. */
 function named(name: string): string {
   return name.trim().toLowerCase().replace(/\.$/, '')
+}
+
+/** What is said where a change's `config_changed` line could not be written. */
+function unrecordedSays(detail: Readonly<Record<string, string>>, trouble: string): string {
+  const after =
+    detail.carried === undefined
+      ? 'so nothing records what it was before'
+      : `so the next carry from ${detail.carried} reads it as changed here and leaves it`
+  return `${detail.path} is written, but the journal would not take the line that says so (${trouble}), ${after}.`
 }
 
 /**

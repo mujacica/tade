@@ -152,4 +152,21 @@ describe('what the journal says Tade copied into the trusted hostnames', () => {
   it('reads past a line it cannot read', () => {
     expect(copiedHosts([{ seq: 3, ts: 'never' }, ...copied(10, 0, OLD, [])])).toEqual([OLD])
   })
+
+  it("reads the CLI's lines as it reads Settings'", () => {
+    // `tade host domain` moving the name and taking the copy back, then the
+    // old name put back on a press for a Caddy in front of the loopback
+    // listener: the lines `recordFromShell` writes, `at` and all.
+    const cli = (seq: number, detail: Record<string, unknown>) =>
+      changed(seq, 60_000, { ...detail, by: 'cli', at: AT + 60_000 })
+    const lines = [
+      ...copied(10, 0, OLD, [TAILNET]),
+      cli(20, { path: PUBLIC, was: OLD, now: NAME }),
+      cli(21, { path: TRUSTED, was: `${TAILNET} ${OLD}`, now: TAILNET }),
+    ]
+    expect(copiedHosts(lines)).toEqual([])
+    expect(
+      copiedHosts([...lines, cli(30, { path: TRUSTED, was: TAILNET, now: `${TAILNET} ${OLD}` })]),
+    ).toEqual([])
+  })
 })

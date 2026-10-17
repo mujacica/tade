@@ -1,7 +1,8 @@
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ConfigSchema, type DomainSeen, loadConfig } from '@tade/core'
 import type { Workbench } from '@tade/workbench'
+import { recordConfigChanges } from '@tade/workbench/config-changes'
 import { describe, expect, it, vi } from 'vitest'
 import { asPaste } from '../../src/input.ts'
 import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
@@ -245,5 +246,80 @@ describe('a public name, set up from Settings', () => {
     const again = find('Look again')
     click(again.col + 1, again.row)
     await until('a second look', () => asked.length === 2)
+  })
+
+  /** Empty the Trusted hostnames row, type `names` into it as a person would, and leave it with enter. */
+  function typeTrusted(names: string): void {
+    const field = find('Trusted hostnames')
+    click(field.col + 30, field.row)
+    terminal.press('\x15')
+    terminal.press(asPaste(names))
+    terminal.press('\r')
+  }
+
+  it('saves the trusted hostnames typed in as the list the config holds', async () => {
+    const config = await onThePage({ trusted_hosts: [TAILNET] })
+    typeTrusted(`${TAILNET}, ${MINE}`)
+    await until('saved', () =>
+      screenOf(terminal.written).some((row) => row.includes('Saved. It applies now.')),
+    )
+    // Refused on every save while the row handed the schema a line of text.
+    expect(screenOf(terminal.written).join('\n')).not.toContain('expected array')
+    const saved = await loadConfig(config)
+    if (!saved.ok) throw new Error('the config would not load')
+    expect(saved.config.surfaces.web.trusted_hosts).toEqual([TAILNET, MINE])
+    await until('written down', () => trustedLines().length === 1)
+    expect(trustedLines()[0]).toMatchObject({ was: TAILNET, now: `${TAILNET}, ${MINE}` })
+  })
+
+  it('says in the conversation where the journal would not take the line a change needs', async () => {
+    const config = await onThePage({ trusted_hosts: [TAILNET] })
+    const append = client.log.append.bind(client.log)
+    const refusing = vi.spyOn(client.log, 'append').mockImplementation(async (line) => {
+      if (line.type === 'config_changed') throw new Error('ENOSPC: no space left on device')
+      return append(line)
+    })
+    try {
+      typeTrusted(MINE)
+      await until('saved', () =>
+        screenOf(terminal.written).some((row) => row.includes('Saved. It applies now.')),
+      )
+      const done = find('Done')
+      click(done.col + 1, done.row)
+      const shown = () =>
+        screenOf(terminal.written)
+          .map((row) => row.replace(/[│┃▕▏█▌]/g, ' ').trim())
+          .join(' ')
+          .replace(/\s+/g, ' ')
+      await until('it said so', () =>
+        shown().includes(
+          'surfaces.web.trusted_hosts is written, but the journal would not take the line that says so (ENOSPC: no space left on device), so nothing records what it was before.',
+        ),
+      )
+    } finally {
+      refusing.mockRestore()
+    }
+    const saved = await loadConfig(config)
+    if (!saved.ok) throw new Error('the config would not load')
+    expect(saved.config.surfaces.web.trusted_hosts).toEqual([MINE])
+  })
+
+  it('writes down, on its beat, what a terminal changed while it was open', async () => {
+    await onThePage({ trusted_hosts: [] })
+    // What `tade host domain` hands it, from a terminal, while this window holds the journal.
+    const told = await recordConfigChanges(home, [
+      { path: 'surfaces.web.trusted_hosts', was: '', now: MINE, by: 'cli' },
+    ])
+    expect(told).toBe('spool')
+    await until('the terminal’s change in the journal', () => trustedLines().length === 1)
+    expect(trustedLines()[0]).toMatchObject({ was: '', now: MINE, by: 'cli' })
+    // Numbered by the window, among its own lines: none given out twice.
+    const seqs = readFileSync(join(home, 'events.jsonl'), 'utf8')
+      .split('\n')
+      .filter((line) => line !== '')
+      .map((line) => JSON.parse(line).seq as number)
+    expect(new Set(seqs).size).toBe(seqs.length)
+    // Taken out of the spool once it is in the journal, which is just after.
+    await until('the spool emptied', () => readdirSync(join(home, 'config-changes')).length === 0)
   })
 })

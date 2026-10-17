@@ -13,13 +13,13 @@ import {
   skillDirs,
   skillStanding,
   tadeHome,
-  writeSetting,
 } from '@tade/core'
 import type { LoadedExtension } from '@tade/extensions-core'
 import { activeSkills, brokerFor, loadExtensions, writtenTools } from '@tade/orchestrator'
 import { recordAuthored } from '@tade/workbench'
 import { readJournal } from '@tade/workbench/events'
 import type { Command } from 'commander'
+import { writeFromShell } from '../config-write.ts'
 import { Exit, type Io } from '../io.ts'
 
 // What Tade wrote for itself: tools, and lessons.
@@ -197,7 +197,7 @@ export function registerExtensions(
       setExit(Exit.invalidInput)
       return
     }
-    writeSetting(configPath, `extensions.${name}.enabled`, on)
+    await writeFromShell(configPath, [{ key: `extensions.${name}.enabled`, value: on }], io.err)
     // A decision about what Tade may do to itself is worth a commit: the
     // question later is never "what is on" — the config says that — but "when
     // did this start, and what was going on when I agreed".

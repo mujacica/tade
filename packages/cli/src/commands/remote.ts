@@ -1,14 +1,9 @@
-import {
-  defaultConfigPath,
-  loadConfig,
-  type RemoteConfig,
-  tadeHome,
-  writeSetting,
-} from '@tade/core'
+import { defaultConfigPath, loadConfig, type RemoteConfig, tadeHome } from '@tade/core'
 import { readJournal } from '@tade/workbench/events'
 import { heldBy } from '@tade/workbench/lock'
 import { type LinkSeen, linkOf, linksSeen, REMOTE_LINKS, remoteOf } from '@tade/workbench/remotes'
 import type { Command } from 'commander'
+import { writeFromShell } from '../config-write.ts'
 import { Exit, type Io } from '../io.ts'
 import {
   type AddOpts,
@@ -223,7 +218,7 @@ async function removeOne(io: Io, setExit: (code: number) => void, name: string):
       why = err instanceof Error ? err.message : String(err)
     }
   }
-  writeSetting(defaultConfigPath(), `remotes.${name}`, undefined)
+  await writeFromShell(defaultConfigPath(), [{ key: `remotes.${name}`, value: undefined }], io.err)
   io.out(`${name}: forgotten here`)
   if (signedOut) io.out(`and signed out there: ${one.ssh} no longer knows device ${one.device}`)
   else {

@@ -452,6 +452,43 @@ describe('reading what was typed', () => {
   it('treats an empty answer as clearing it', () => {
     expect(parseSetting(find('orchestrator.model'), '   ')).toBeUndefined()
   })
+
+  it('reads a list as a list, with spaces or commas between', () => {
+    const trusted = find('surfaces.web.trusted_hosts')
+    expect(parseSetting(trusted, 'studio.ts.net, tunnel.example.com  box.example.com')).toEqual([
+      'studio.ts.net',
+      'tunnel.example.com',
+      'box.example.com',
+    ])
+    // Nothing on it is the default, which is empty: the key goes away.
+    expect(parseSetting(trusted, ' , ')).toBeUndefined()
+  })
+
+  it('hands the schema the kind of value it holds, at every path a row offers', () => {
+    // Every row a person can save, read from what its field would hold — the
+    // example it shows, or what it holds now — and written where it says. A
+    // list row read as a line of text was refused on every save:
+    // "Invalid input: expected array, received string".
+    const file = {
+      projects: { app: { root: '/src/app' } },
+      extensions: { sentry: { enabled: true }, jev: { enabled: true } },
+    }
+    const wrong: string[] = []
+    for (const setting of settingsOf(config(file)).flatMap((group) => group.settings)) {
+      const typed = setting.type.kind === 'text' ? setting.type.placeholder : setting.value
+      const value = parseSetting(setting, typed)
+      if (value === undefined) continue
+      const written = structuredClone(file) as Record<string, unknown>
+      applySetting(written, setting.path, value)
+      const parsed = ConfigSchema.safeParse(written)
+      for (const issue of parsed.success ? [] : parsed.error.issues) {
+        if (issue.code === 'invalid_type' && issue.path.join('.') === setting.path) {
+          wrong.push(`${setting.path}: ${issue.message}`)
+        }
+      }
+    }
+    expect(wrong).toEqual([])
+  })
 })
 
 describe('a project’s own answer to where its agents work', () => {

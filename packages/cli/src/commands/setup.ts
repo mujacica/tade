@@ -20,13 +20,13 @@ import {
   stringEnv,
   tadeHome,
   worksStep,
-  writeSetting,
 } from '@tade/core'
 import { usableModels } from '@tade/harnesses-pi'
 import { makeJudge } from '@tade/workbench'
 import { proveALane } from '@tade/workbench/prove'
 import type { Command } from 'commander'
 import { type Document, parseDocument } from 'yaml'
+import { writeFromShell } from '../config-write.ts'
 import { Exit, type Io } from '../io.ts'
 import { setUpUnattended } from './host-service.ts'
 import { gather, type Look, lookHere } from './setup-facts.ts'
@@ -490,7 +490,11 @@ async function setUpJudge(ui: Ui): Promise<void> {
       ui.say('  skipped — Settings › Extensions › Jev whenever you want it')
       return
     }
-    writeSetting(configPath, secretPath('jev', 'key'), typed)
+    await writeFromShell(
+      configPath,
+      [{ key: secretPath('jev', 'key'), value: typed, secret: true }],
+      (said) => ui.say(`  ${said}`),
+    )
     key = typed
     where = 'config.yaml'
     ui.say(`  written into ${configPath}`)

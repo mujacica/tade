@@ -11,7 +11,6 @@ import {
   PUSH_NEEDS_A_GESTURE,
   publicSocket,
   tadeHome,
-  writeSetting,
 } from '@tade/core'
 import {
   appendDevice,
@@ -35,6 +34,7 @@ import {
 } from '@tade/web'
 import { heldBy } from '@tade/workbench/lock'
 import type { Command } from 'commander'
+import { writeFromShell } from '../config-write.ts'
 import { Exit, type Io } from '../io.ts'
 
 // `tade web` — what the away view is, who is paired, and turning it off.
@@ -87,8 +87,14 @@ export function registerWeb(program: Command, io: Io, setExit: (code: number) =>
     .option('--lan', 'listen on every interface, in the clear, rather than on this machine alone')
     .action(async (opts: { lan?: boolean }) => {
       const path = defaultConfigPath()
-      writeSetting(path, 'surfaces.web.enabled', true)
-      if (opts.lan === true) writeSetting(path, 'surfaces.web.bind', 'lan')
+      await writeFromShell(
+        path,
+        [
+          { key: 'surfaces.web.enabled', value: true },
+          ...(opts.lan === true ? [{ key: 'surfaces.web.bind', value: 'lan' }] : []),
+        ],
+        io.err,
+      )
       const said = await look()
       io.out(said.bind === 'lan' ? 'on, listening on the network' : 'on, on this machine alone')
       if (said.bind === 'lan') io.out(LAN)
@@ -102,7 +108,11 @@ export function registerWeb(program: Command, io: Io, setExit: (code: number) =>
       // **Two acts, one word**, because "off" that leaves credentials behind is
       // not off: a setting somebody turns back on next week would otherwise
       // let every phone that was ever paired straight back in.
-      writeSetting(defaultConfigPath(), 'surfaces.web.enabled', false)
+      await writeFromShell(
+        defaultConfigPath(),
+        [{ key: 'surfaces.web.enabled', value: false }],
+        io.err,
+      )
       const gone = await revokeAll(tadeHome(), new Date())
       io.out('off')
       io.out(

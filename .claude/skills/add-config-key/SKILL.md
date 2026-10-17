@@ -74,8 +74,9 @@ orchestrator's arm reaches into it, and whether a person can read back what they
 4. If people will want to change it, add it to `settingsOf` in `packages/core/src/settings.ts`, in
    the group they would look for it in: a `title`, a `means` sentence saying what changing it does,
    a `kind` (`choice`, `flag`, `number` with a `unit` — `fraction` for a share of something —
-   `text` (`pairs` for `a=b, c=d`), `hours`, `key`, `model`), and `live: false` if it is only read
-   when Tade starts — the panel labels it *on restart*.
+   `text` (`pairs` for `a=b, c=d`, `list` for a key the schema holds as a list — without it every
+   save is refused, `expected array, received string`), `hours`, `key`, `model`), and
+   `live: false` if it is only read when Tade starts — the panel labels it *on restart*.
    - Name the group and the setting the words somebody would search for, and put the rest in
      `keywords`: the panel's search reads `findableBy`, which is the title, the `means`, the key
      itself and those words. A setting nobody can find is a setting nobody has.
@@ -148,7 +149,8 @@ Two consequences when you add a key:
 - Every change writes `config_changed` — the path, what it was, what it is now, who asked, and their
   words — because a change nobody watched has to be one somebody can find and undo. A credential is
   said there as `set` or `not set` (`held` in `wire/settings.ts`) and is never read back by any tool,
-  the way it is never in the journal anywhere else.
+  the way it is never in the journal anywhere else. A line the journal would not take is said in the
+  conversation, never dropped: a carried one without it reads to the next carry as changed here.
 
 One thing decided here is **not a config key at all** — a watch, which lives in `schedules.jsonl`
 (`WATCH_REACH`, `watchNamedBy`). It is in `reach.ts` because the question is the same question, and
@@ -381,5 +383,13 @@ where every agent in it works.
 Always edit the YAML **document** (`parseDocument`, `setIn`, `deleteIn`), never `parse` then
 `stringify` — that drops every comment in a file somebody wrote by hand. `writeSetting` is the one
 path, and it calls `ownerOnly` on every write.
+
+**From a terminal, never `writeSetting` alone**: `writeFromShell` (or `heldIn` then
+`recordFromShell`, where the command reads the file back first) in `cli/src/config-write.ts`, which
+writes `config_changed` `by: cli` — a key as a count, a block as `set`, a list with spaces between,
+so `copiedHosts` and `changedThere` read it as they read Settings'. The CLI may not append beside
+an open window, so the line goes through `recordConfigChanges` (`workbench/src/config-changes.ts`):
+folded in at once where nobody holds the home, and otherwise by the window on its beat
+(`Settings.fold`).
 
 Then: `pnpm check` on its own.

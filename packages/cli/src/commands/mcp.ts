@@ -6,12 +6,12 @@ import {
   MCP_TRANSPORT_NAMES,
   SERVER_RUNS_AS_YOU,
   tadeHome,
-  writeSetting,
 } from '@tade/core'
 import { type DeclaredServer, readCache, serverNameProblem } from '@tade/mcp-core'
 import { brokerFor } from '@tade/orchestrator'
 import { recordAuthored } from '@tade/workbench'
 import type { Command } from 'commander'
+import { writeFromShell } from '../config-write.ts'
 import { Exit, type Io } from '../io.ts'
 
 // The MCP servers, from a terminal: what this machine is set up to reach,
@@ -170,7 +170,11 @@ export function registerMcp(program: Command, io: Io, setExit: (code: number) =>
           setExit(Exit.invalidInput)
           return
         }
-        writeSetting(opts.config, `mcp.servers.${name}`, { ...written })
+        await writeFromShell(
+          opts.config,
+          [{ key: `mcp.servers.${name}`, value: { ...written } }],
+          io.err,
+        )
         io.out(
           `${name} is written down, and off — a server is somebody else's code with tools your agents will call.`,
         )
@@ -206,7 +210,11 @@ export function registerMcp(program: Command, io: Io, setExit: (code: number) =>
           setExit(Exit.invalidInput)
           return
         }
-        writeSetting(opts.config, `mcp.servers.${name}.enabled`, on)
+        await writeFromShell(
+          opts.config,
+          [{ key: `mcp.servers.${name}.enabled`, value: on }],
+          io.err,
+        )
         // A decision about what your agents may call is worth a commit: the
         // question later is never "what is on" — the config says that — but
         // "when did this start, and what was going on when I agreed".

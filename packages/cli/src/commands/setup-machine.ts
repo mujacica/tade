@@ -4,10 +4,10 @@ import {
   type InstallCommand,
   type MissingProgram,
   type NativeTrouble,
-  writeSetting,
 } from '@tade/core'
 import { signInLasts } from '@tade/harnesses-core'
 import type { HarnessHere } from '@tade/workbench/machine'
+import { writeFromShell } from '../config-write.ts'
 import type { Look } from './setup-facts.ts'
 
 // The half of setting up that is about this machine rather than about your
@@ -252,7 +252,9 @@ export async function setUpKeys(ui: Ui, look: Look): Promise<void> {
         ui.say(`  skipped — Settings › Extensions › ${one.title} whenever you want it`)
         continue
       }
-      writeSetting(configPath, secret.path, typed)
+      await writeFromShell(configPath, [{ key: secret.path, value: typed, secret: true }], (said) =>
+        ui.say(`  ${said}`),
+      )
       ui.say(`  written into ${configPath} as ${secret.path}`)
     }
   }

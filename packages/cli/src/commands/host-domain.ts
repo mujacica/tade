@@ -13,6 +13,7 @@ import {
   tookBackSays,
   writeSetting,
 } from '@tade/core'
+import { heldIn, recordFromShell, type Unrecorded } from '../config-write.ts'
 import type { Asker } from './host-service.ts'
 
 // `tade host domain <name>`: the records a public name needs, looked at from
@@ -106,7 +107,7 @@ export async function offerName(ask: Asker, name: string, offer: NameOffer): Pro
     }
     let taken: readonly string[]
     try {
-      taken = (await writePublic(offer.path, name, copied))?.taken ?? []
+      taken = (await writePublic(offer.path, name, copied, ask.say))?.taken ?? []
     } catch (err) {
       ask.say(err instanceof Error ? err.message : String(err))
       return false
@@ -119,7 +120,7 @@ export async function offerName(ask: Asker, name: string, offer: NameOffer): Pro
   if (web === null || loopbackWrite(web, name) === null) return true
   if (!(await ask.confirm(loopbackAsks(name, web.port), false))) return true
   try {
-    await writeLoopback(offer.path, name)
+    await writeLoopback(offer.path, name, ask.say)
   } catch (err) {
     ask.say(err instanceof Error ? err.message : String(err))
     return false
@@ -147,15 +148,20 @@ export async function writePublic(
   path: string,
   name: string,
   copied: readonly string[],
+  unrecorded: Unrecorded,
 ): Promise<{ public: string; taken: string[] } | null> {
   const wanted = publicWrite(await webIn(path), name, copied)
   if (wanted === null) return null
-  await written(path, [
-    ['surfaces.web.public', wanted.public],
-    ...(wanted.taken.length === 0
-      ? []
-      : [['surfaces.web.trusted_hosts', wanted.trusted_hosts] as const]),
-  ])
+  await written(
+    path,
+    [
+      ['surfaces.web.public', wanted.public],
+      ...(wanted.taken.length === 0
+        ? []
+        : [['surfaces.web.trusted_hosts', wanted.trusted_hosts] as const]),
+    ],
+    unrecorded,
+  )
   return { public: wanted.public, taken: wanted.taken }
 }
 
@@ -164,10 +170,14 @@ export async function writePublic(
  * loopback listener (`loopbackWrite`). Null where it is there already. Only
  * ever called on a press.
  */
-export async function writeLoopback(path: string, name: string): Promise<string[] | null> {
+export async function writeLoopback(
+  path: string,
+  name: string,
+  unrecorded: Unrecorded,
+): Promise<string[] | null> {
   const wanted = loopbackWrite(await webIn(path), name)
   if (wanted === null) return null
-  await written(path, [['surfaces.web.trusted_hosts', wanted]])
+  await written(path, [['surfaces.web.trusted_hosts', wanted]], unrecorded)
   return wanted
 }
 
@@ -179,11 +189,15 @@ async function webIn(path: string) {
 
 /**
  * Each key through the one write path, and the config read back: one that
- * would not load with them is put back as it was, and why is thrown.
+ * would not load with them is put back as it was, and why is thrown. One that
+ * stands is written down as `config_changed`, each key a line
+ * (`recordFromShell`), which is what lets a later take-back tell what this
+ * wrote from what somebody typed.
  */
 async function written(
   path: string,
   keys: readonly (readonly [string, string | readonly string[]])[],
+  unrecorded: Unrecorded,
 ): Promise<void> {
   let before: string | null = null
   try {
@@ -192,6 +206,7 @@ async function written(
     // No file yet: this write starts one, and putting it back is taking it away.
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
   }
+  const held = heldIn(path)
   for (const [key, value] of keys) writeSetting(path, key, value)
   const after = await loadConfig(path)
   if (!after.ok) {
@@ -199,4 +214,6 @@ async function written(
     else writeFileSync(path, before)
     throw new Error(after.issues[0]?.message ?? 'the config would not load with it')
   }
+  const writes = keys.map(([key, value]) => ({ key, value }))
+  await recordFromShell(path, held, writes, unrecorded)
 }

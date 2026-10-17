@@ -46,6 +46,13 @@ export type SettingKind =
        * whose reader wants a map rather than a line of text.
        */
       pairs?: boolean
+      /**
+       * Read back as a list — `studio.ts.net tunnel.example.com`, spaces or
+       * commas between — for a setting the schema holds as one, drawn the
+       * same way with spaces between. A list row without it hands the schema
+       * a line of text, and every save of it was refused.
+       */
+      list?: boolean
     }
   | {
       kind: 'number'
@@ -1033,6 +1040,7 @@ export type SettingValue =
   | string
   | number
   | boolean
+  | readonly string[]
   | Readonly<Record<string, string | string[]>>
   | undefined
 
@@ -1050,6 +1058,11 @@ export function parseSetting(setting: Setting, said: string): SettingValue {
       return Number.isInteger(value) && value > 0 ? value : undefined
     }
     case 'text': {
+      if (setting.type.list) {
+        // Nothing on the list is the list's default, which is empty: the key goes away.
+        const items = text.split(/[\s,]+/).filter((one) => one !== '')
+        return items.length > 0 ? items : undefined
+      }
       if (!setting.type.pairs) return text
       // Nothing that reads as a pair is nothing to write: the key goes away
       // rather than being left as an empty map.

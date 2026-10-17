@@ -132,6 +132,15 @@ export function intakeSpool(home: string): string {
 }
 
 /**
+ * The config changes a terminal made while a window held the journal, waiting
+ * for that window to write them down (`@tade/workbench/config-changes`): one
+ * file per write, and gone once it is in the journal.
+ */
+export function configChangesSpool(home: string): string {
+  return join(home, 'config-changes')
+}
+
+/**
  * Where what Tade records *about a directory* goes — check runs, the run lock,
  * what is running now.
  *

@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { keyDigest } from '@tade/core'
 import { digestOf, GRANTS, SCOPES, writeDevices } from '@tade/web'
 import type { AccountView } from '@tade/workbench/accounts'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
 import { signInsOf } from '../../src/wire/web-carry.ts'
 import { carried, closeAll, DEVICE, machine, paired, SECRET, waitFor } from './away-harness.ts'
@@ -119,6 +119,35 @@ describe('a carry into this window', () => {
     const changed = await waitFor(one.client, 'config_changed')
     expect(changed[0]?.detail).toMatchObject({ now: '14 characters', carried: 'mac' })
     expect(JSON.stringify(changed)).not.toContain('jev-0123456789')
+  })
+
+  it('says in the conversation where the line that marks it carried could not be written', async () => {
+    const one = await machine({ realKeys: true, accounts: async () => [] })
+    await owner(one.home, one.port)
+    await one.away.open()
+    const append = one.client.log.append.bind(one.client.log)
+    const refusing = vi.spyOn(one.client.log, 'append').mockImplementation(async (line) => {
+      if (line.type === 'config_changed') throw new Error('ENOSPC: no space left on device')
+      return append(line)
+    })
+    try {
+      const answer = await carried(one.port, {
+        from: 'mac',
+        complete: false,
+        settings: [{ path: 'agents.commit', value: 'as-you-go' }],
+      })
+      expect(answer.body.settings).toEqual([{ path: 'agents.commit', outcome: 'written' }])
+    } finally {
+      refusing.mockRestore()
+    }
+    expect(fileOf(one.home).agents?.commit).toBe('as-you-go')
+    // Without the line, the next carry reads the value as changed here: said, never dropped.
+    const said = one
+      .transcript()
+      .entries.flatMap((entry) => (entry.kind === 'tade' ? [entry.text] : []))
+    expect(said).toEqual([
+      'agents.commit is written, but the journal would not take the line that says so (ENOSPC: no space left on device), so the next carry from mac reads it as changed here and leaves it.',
+    ])
   })
 
   it('is refused to a phone, however much it was granted', async () => {

@@ -35,6 +35,11 @@ Nothing else will: a type missing from `summary.ts` silently reads as nothing at
   ("the driver could not find it again") beats a boolean nobody can interpret later.
 - Append after the thing happened, never before: an event for something that then failed is worse
   than no event.
+- **Only whoever holds the home appends**, because `seq` is counted in its memory: a terminal
+  appending beside an open window hands out a number twice. A process that does not hold it takes
+  the lock where it can (`withShellJournal`) and otherwise hands the line to the holder — the one
+  door built for that is the config-change spool (`recordConfigChanges`), which takes
+  `config_changed` and nothing else.
 - Old journals keep working. Anything reading events handles a type it has never seen by ignoring
   it, so adding one is never a migration.
 - **A line about several things names each in its detail, and every fold keyed by task has to be

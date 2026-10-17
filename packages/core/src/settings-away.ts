@@ -147,7 +147,7 @@ export function awayGroup(config: Config): SettingGroup {
         short: 'a tailnet or tunnel name: the only way an https origin off this machine is trusted',
         value: web.trusted_hosts.join(' '),
         fallback: 'none',
-        type: { kind: 'text', placeholder: 'studio.yak-bebop.ts.net' },
+        type: { kind: 'text', placeholder: 'studio.yak-bebop.ts.net', list: true },
         live: true,
         keywords: ['tailscale', 'tailnet', 'tunnel', 'cloudflare', 'reverse proxy', 'origin'],
       },

@@ -165,7 +165,7 @@ const ALLOWED: Record<string, number> = {
   'packages/app/src/wire/routes.ts': 5,
   'packages/app/src/wire/schedules.ts': 3,
   'packages/app/src/wire/search.ts': 3,
-  'packages/app/src/wire/settings.ts': 4,
+  'packages/app/src/wire/settings.ts': 2,
   // One of these is still the finding on tade/updates-chip-and-reload: a cache
   // that could not be written, `rememberUpdates(…).catch(() => {})`.
   'packages/app/src/wire/updates.ts': 2,
