@@ -653,7 +653,7 @@ export class Agents implements Subject {
       // exactly where they were, and nothing is said to it. An agent told its
       // first instruction a second time would do the work again.
       await this.wire.opts.client.reopenAgent({ task: task as never, cwd: worktree })
-      const told = acknowledge(this.wire.state, `opened ${task} where it left off`, this.wire.now())
+      const told = acknowledge(this.wire.state, this.cameBack(task), this.wire.now())
       this.wire.put(focus ? focusTask(told, task) : told)
       this.wire.draw()
       await this.wire.live?.refresh()
@@ -665,6 +665,25 @@ export class Agents implements Subject {
       this.opening.delete(task)
     }
     this.wire.draw()
+  }
+
+  /**
+   * What bringing a task's agent back did, in words that are true of its
+   * harness: where it left off, or — for a harness that cannot say it comes
+   * back to a conversation — started again, in that harness's own words.
+   */
+  private cameBack(task: string): string {
+    const client = this.wire.opts.client
+    const harness = client.lane(`${task}/agent` as never)?.harness ?? 'pi'
+    let offered: ReturnType<Workbench['resumeOf']>
+    try {
+      offered = client.resumeOf(harness)
+    } catch (err) {
+      return `opened ${task} again; whether ${harness} came back to its conversation it cannot say: ${why(err)}`
+    }
+    return offered.shown
+      ? `opened ${task} where it left off`
+      : `opened ${task} again — ${harness} ${offered.note}`
   }
 
   /**

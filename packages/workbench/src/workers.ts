@@ -53,6 +53,11 @@ export interface StartRunRequest {
   thinking?: ThinkingLevel
   /** Pictures to send with the opening prompt. */
   images?: readonly WorkerImage[]
+  /**
+   * Brought back in the place of an agent whose lane went: when that lane's
+   * tab was first opened, so its tab goes back where it was (`LaneRecord.openedAt`).
+   */
+  openedAt?: number
 }
 
 /** An agent running one of Tade's extension tools. */

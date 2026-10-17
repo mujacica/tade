@@ -7,6 +7,7 @@ export type { UpdatesShown }
 import type { LineComment } from './comments.ts'
 import type { ParsedDiff } from './diff.ts'
 import { type AwayPanel, awayClick, awayKey } from './panels/away/state.ts'
+import { type ChatRow, type ChatsPanel, chatsClick, chatsKey } from './panels/chats/state.ts'
 import type { CommentChoice } from './panels/comment.ts'
 import { type DiffPanel, diffClick, diffKey } from './panels/diff/state.ts'
 import {
@@ -130,6 +131,7 @@ export type Panel =
   | IntakePanel
   | RequestTherePanel
   | WorkflowPanel
+  | ChatsPanel
 
 /** What the panel needs to know that it does not hold: the settings themselves, and lists. */
 export interface PanelInputs {
@@ -186,6 +188,8 @@ export interface PanelInputs {
   listRoom?: number
   /** Models there are to choose from. */
   models?: readonly ModelChoice[]
+  /** The conversations a chat can be brought back on, in the order the keyboard walks them. */
+  chatRows?: readonly ChatRow[]
   /** The tools Tade wrote for itself, on or off. */
   written?: readonly WrittenToolView[]
   /** The fields of the extension being set up. */
@@ -233,6 +237,7 @@ export function panelKey(
   if (panel.kind === 'file') return fileKey(panel, key, data, inputs)
   if (panel.kind === 'keys') return keysKey(panel, key)
   if (panel.kind === 'model') return modelKey(panel, key, data, inputs.models ?? [])
+  if (panel.kind === 'chats') return chatsKey(panel, key, inputs.chatRows ?? [])
   if (panel.kind === 'extension-setup') return setupKey(panel, key, data, inputs.setupFields ?? [])
   if (panel.kind === 'extension-view') {
     return extensionViewKey(panel, key, inputs.lines ?? 0, {
@@ -292,6 +297,7 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
   if (panel.kind === 'file') return fileClick(panel, control, inputs)
   if (panel.kind === 'keys') return keysClick(panel, control)
   if (panel.kind === 'model') return modelClick(panel, control, inputs.models ?? [])
+  if (panel.kind === 'chats') return chatsClick(panel, control, inputs.chatRows ?? [])
   if (panel.kind === 'extension-view') {
     return extensionViewClick(panel, control, {
       tabs: inputs.viewTabs ?? [],

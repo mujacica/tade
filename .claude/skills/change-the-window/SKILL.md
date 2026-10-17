@@ -424,6 +424,15 @@ nothing else. **Add a kind here by making it a tab, not by making a second pane.
   tab. A mark would be a second vocabulary for what the pane already shows.
 - **Nothing in the window decides where a chat stands or what it is told.** Both are `openChat`'s,
   which is the one door, so the orchestrator's tool and the `+` make the same decisions.
+- **A closed chat comes back on its own number, from a list** (`Bring a chat back…` on the `+`, the
+  `reopen-chat` action, the `chats` panel, `wire/chat-picker.ts`): the closed chats whose harness
+  kept the conversation, then the other conversations a harness keeps in your home, each named by
+  the first thing said in it. All of it is asked of each harness's adapter through the workbench
+  (`chatSessions`) and brought back through the door `tade_chat_reopen` uses (`reopenClosedChat`),
+  with its tab back where it was first opened (`LaneRecord.openedAt`, which `chatsFrom` orders by —
+  never the last start, which for chats the window reopens at once is a race). What it ran in the
+  background did not come back, and the window says so; a harness that could not be read is named
+  in the panel rather than drawn as an empty list.
 - **Another machine's orchestrator is a fourth kind, and has no lane either** (`talk-tab.ts`): a
   tab per remote beside this machine's own (`talk:<machine>`, which no lane id can be), drawing that
   machine's conversation in the strip where this one's goes, with the same line. `withTerminals`

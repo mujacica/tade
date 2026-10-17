@@ -1,11 +1,25 @@
-import { writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { CHATS } from '@tade/core'
+import { CHATS, type TadeEvent } from '@tade/core'
+import { resumeOffer } from '@tade/harnesses-core'
 import { sessionIdFor } from '@tade/harnesses-pi'
+import { sessionDirFor } from '@tade/harnesses-pi/sessions'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
-import { chatCwd, chatsFrom, lostChats, openChat, reopenChat } from '../src/chats.ts'
+import {
+  BACKGROUND_ENDED,
+  type ClosedChatHost,
+  chatCwd,
+  chatFromSession,
+  chatSessions,
+  chatsFrom,
+  chatsHeard,
+  lostChats,
+  openChat,
+  reopenChat,
+  reopenClosedChat,
+} from '../src/chats.ts'
 import { terminalsFrom } from '../src/terminals.ts'
 import { Workbench } from '../src/workbench.ts'
 
@@ -30,18 +44,45 @@ describe('chats', () => {
    * there. The default is a pure decision and is tested as one.
    */
   let somewhere: string
+  /** Where pi keeps the conversations of the chats these tests open. */
+  let sessions: string
 
   beforeEach(async () => {
     repo = mkrepo()
     home = tmp('tade-chats-')
     somewhere = tmp('tade-chats-cwd-')
+    sessions = tmp('tade-chats-sessions-')
     writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
-    client = await Workbench.open({
-      home,
-      version: '9.9.9',
-      sessionsRoot: tmp('tade-chats-sessions-'),
-    })
+    client = await Workbench.open({ home, version: '9.9.9', sessionsRoot: sessions })
   })
+
+  /**
+   * What pi keeps of a conversation once something was said in it: a session
+   * file under the id, in the folder it files `cwd`'s sessions in. A chat
+   * with no model says nothing, so a test that needs the conversation kept
+   * writes it the way pi does.
+   */
+  function said(id: string, cwd: string, words: string): void {
+    const dir = sessionDirFor(realpathSync(cwd), sessions)
+    mkdirSync(dir, { recursive: true })
+    const lines = [
+      { type: 'session', version: 3, id, timestamp: '2026-10-16T19:02:02.279Z', cwd },
+      {
+        type: 'message',
+        id: 'm1',
+        parentId: null,
+        timestamp: '2026-10-16T19:03:35.000Z',
+        message: { role: 'user', content: [{ type: 'text', text: words }] },
+      },
+    ]
+    writeFileSync(
+      join(dir, `2026-10-16T19-02-02-279Z_${id}.jsonl`),
+      lines.map((line) => `${JSON.stringify(line)}\n`).join(''),
+    )
+  }
+
+  /** The line a chat's lane was launched with. */
+  const lineOf = (lane: string) => (client.lane(lane as never)?.spec.args ?? []).join(' ')
 
   afterEach(async () => {
     await client.close().catch(() => {})
@@ -145,6 +186,95 @@ describe('chats', () => {
     expect((await client.runs()).map((run) => run.task)).toEqual(['app/refunds'])
   }, 120_000)
 
+  it('brings a closed chat back on the conversation its harness kept, in its own tab', async () => {
+    const chat = await openChat(client, { cwd: somewhere })
+    const beside = await openChat(client, { cwd: somewhere })
+    said(sessionIdFor(chat.task), somewhere, 'research how SA:MP servers sync players')
+    await client.stopAgent(chat.task)
+
+    const found = await chatSessions(client)
+    expect(found.problems).toEqual([])
+    expect(found.closed).toMatchObject([
+      {
+        id: chat.id,
+        task: chat.task,
+        name: 'pi 1',
+        cwd: somewhere,
+        harness: 'pi',
+        first: 'research how SA:MP servers sync players',
+        session: sessionIdFor(chat.task),
+      },
+    ])
+    expect(found.closed[0]?.closedAt).toEqual(expect.any(Number))
+
+    const back = await reopenClosedChat(client, chat.task)
+    // The same chat — its number, its folder, its harness — on the same
+    // session, which is what carries the conversation on.
+    expect(back.chat).toMatchObject({ id: chat.id, task: chat.task, cwd: somewhere, harness: 'pi' })
+    expect(lineOf(chat.id)).toContain(`--session-id ${sessionIdFor(chat.task)}`)
+    // Its tab goes back where it was — before the chat opened after it — and
+    // what it was running in the background is said to have gone with it.
+    expect(chatsFrom(client.lanes()).map((one) => one.id)).toEqual([chat.id, beside.id])
+    expect(back.said).toBe(BACKGROUND_ENDED)
+    // Open again, it is not a closed chat any more.
+    expect((await chatSessions(client)).closed).toEqual([])
+    await expect(reopenClosedChat(client, chat.task)).rejects.toThrow(/open already/)
+  }, 120_000)
+
+  it('refuses a chat whose conversation is gone, and one that never was', async () => {
+    const chat = await openChat(client, { cwd: somewhere })
+    await client.stopAgent(chat.task)
+
+    // Nothing was ever said in it, so pi kept nothing: not a chat to bring back.
+    expect((await chatSessions(client)).closed).toEqual([])
+    await expect(reopenClosedChat(client, chat.task)).rejects.toThrow(
+      /pi no longer keeps chats\/1's conversation/,
+    )
+    await expect(reopenClosedChat(client, 'chats/9')).rejects.toThrow(/no chat called chats\/9/)
+    await expect(reopenClosedChat(client, 'refunds')).rejects.toThrow(/not a chat/)
+  }, 60_000)
+
+  it('carries one of a folder’s other conversations into a new chat', async () => {
+    said('8f1c-theirs', somewhere, 'tidy my downloads folder')
+    const found = await chatSessions(client, { harnesses: ['pi'], folders: [somewhere] })
+    expect(found.others).toMatchObject([
+      { harness: 'pi', cwd: somewhere, session: '8f1c-theirs', first: 'tidy my downloads folder' },
+    ])
+
+    const opened = await chatFromSession(client, {
+      harness: 'pi',
+      cwd: somewhere,
+      session: '8f1c-theirs',
+    })
+    expect(opened.chat).toMatchObject({ task: `${CHATS}/1`, cwd: somewhere, harness: 'pi' })
+    expect(lineOf(opened.chat.id)).toContain(`--session-id ${sessionIdFor(opened.chat.task)}`)
+    // A copy under the chat's own session, beside the one it came from.
+    const files = readdirSync(sessionDirFor(realpathSync(somewhere), sessions)).sort()
+    expect(files).toEqual([
+      '2026-10-16T19-02-02-279Z_8f1c-theirs.jsonl',
+      `2026-10-16T19-02-02-279Z_${sessionIdFor(opened.chat.task)}.jsonl`,
+    ])
+    // Now it is the chat's, it is no longer somebody else's to offer.
+    const after = await chatSessions(client, { harnesses: ['pi'], folders: [somewhere] })
+    expect(after.others.map((one) => one.session)).toEqual(['8f1c-theirs'])
+  }, 60_000)
+
+  it('keeps the tabs in the order they were first opened when the window brings them back', async () => {
+    const first = await openChat(client, { cwd: somewhere })
+    const second = await openChat(client, { cwd: somewhere })
+    await client.close()
+    client = await Workbench.open({ home, version: '9.9.9', sessionsRoot: sessions })
+    const lost = lostChats(client.lanes())
+    // Brought back the other way round, as harnesses coming up at once may be.
+    for (const lane of [...lost].reverse()) await reopenChat(client, lane)
+
+    expect(chatsFrom(client.lanes()).map((one) => one.id)).toEqual([first.id, second.id])
+    expect(chatsFrom(client.lanes()).map((one) => one.openedAt)).toEqual([
+      first.openedAt,
+      second.openedAt,
+    ])
+  }, 120_000)
+
   it('comes back where it stood after the window closed on it', async () => {
     const chat = await openChat(client, { cwd: repo.root })
     await client.close()
@@ -165,4 +295,110 @@ describe('chats', () => {
       { id: chat.id, task: chat.task, cwd: repo.root },
     ])
   }, 120_000)
+})
+
+describe('closed chats, as the journal remembers them', () => {
+  const at = (minute: number) => `2026-10-16T19:${String(minute).padStart(2, '0')}:00.000Z`
+  let seq = 0
+  const event = (minute: number, type: string, fields: Partial<TadeEvent> = {}): TadeEvent =>
+    ({
+      seq: ++seq,
+      ts: at(minute),
+      type,
+      urgency: 'notable',
+      task: 'chats/5',
+      lane: null,
+      run: null,
+      detail: {},
+      ...fields,
+    }) as TadeEvent
+  const started = (minute: number) =>
+    event(minute, 'run_started', {
+      run: 'chats/5/agent',
+      detail: { cwd: '/Users/me', adapter: 'claude-code', account: null },
+    })
+  const opened = (minute: number) =>
+    event(minute, 'lane_opened', { lane: 'chats/5/agent', detail: { cwd: '/Users/me' } })
+
+  it('says when each was first opened and when it last stopped', () => {
+    const heard = chatsHeard([
+      started(2),
+      opened(2),
+      event(8, 'run_exited', { run: 'chats/5/agent' }),
+      event(8, 'lane_closed', { lane: 'chats/5/agent' }),
+      // A terminal and a task are not chats.
+      event(9, 'lane_opened', { task: 'app/refunds', lane: 'app/refunds/agent' }),
+    ])
+    expect(heard).toEqual([
+      {
+        task: 'chats/5',
+        harness: 'claude-code',
+        account: null,
+        cwd: '/Users/me',
+        openedAt: Date.parse(at(2)),
+        closedAt: Date.parse(at(8)),
+      },
+    ])
+  })
+
+  it('is not closed once it started again, and keeps when it was first opened', () => {
+    const heard = chatsHeard([
+      started(2),
+      opened(2),
+      event(8, 'lane_closed', { lane: 'chats/5/agent' }),
+      started(20),
+      opened(20),
+    ])
+    expect(heard[0]).toMatchObject({ openedAt: Date.parse(at(2)), closedAt: null })
+  })
+
+  it('is refused, in its harness’s own words, where the harness cannot come back to one', async () => {
+    const why = 'comes back to a conversation only where the agent offers session/load'
+    const host: ClosedChatHost = {
+      events: async () => [
+        started(2),
+        opened(2),
+        event(8, 'lane_closed', { lane: 'chats/5/agent' }),
+      ],
+      lanes: () => [],
+      resumeOf: () => resumeOffer({ resume: false, why: { resume: why } }),
+      sessionsIn: () => Promise.reject(new Error('a harness that cannot resume is never asked')),
+      carrySession: () => Promise.reject(new Error('a harness that cannot resume is never asked')),
+      startAgent: () => Promise.reject(new Error('nothing is started')),
+    }
+    await expect(reopenClosedChat(host, 'chats/5')).rejects.toThrow(
+      `chats/5 ran in claude-code, which ${why}`,
+    )
+    // And it is never offered: nothing guesses that it might come back.
+    expect(
+      await chatSessions(host, { harnesses: ['claude-code'], folders: ['/Users/me'] }),
+    ).toEqual({
+      closed: [],
+      others: [],
+      problems: [],
+    })
+  })
+
+  it('says which harness could not be read, rather than offering nothing', async () => {
+    const host: ClosedChatHost = {
+      events: async () => [
+        started(2),
+        opened(2),
+        event(8, 'lane_closed', { lane: 'chats/5/agent' }),
+      ],
+      lanes: () => [],
+      resumeOf: () => resumeOffer({ resume: true, why: {} }),
+      sessionsIn: () => Promise.reject(new Error('EACCES: permission denied')),
+      carrySession: async () => false,
+      startAgent: () => Promise.reject(new Error('nothing is started')),
+    }
+    const found = await chatSessions(host)
+    expect(found.closed).toEqual([])
+    expect(found.problems).toEqual([
+      "could not read claude-code's conversations in /Users/me: EACCES: permission denied",
+    ])
+    await expect(
+      chatFromSession(host, { harness: 'claude-code', cwd: '/Users/me', session: 'x' }),
+    ).rejects.toThrow('claude-code has no conversation x in /Users/me')
+  })
 })

@@ -89,6 +89,15 @@ closes, which is the thing this design exists to avoid.
   exchanges so a tool is never cut from its answer; the adapter only says what one line of its
   record holds (`HistoryLine`), returning null for anything that is not the conversation as it
   was had — bookkeeping, a subagent's side conversation, its own slash commands.
+- List what it keeps for a folder (`sessions(cwd, tasks)`) and carry one into a task's
+  (`carrySession`): what bringing back a closed chat, and the window's "Bring a chat back…", ask
+  (`workbench/src/chats.ts`). Only the adapter knows how a task's conversation is named, so it says
+  which of `tasks` each one is; it reads the head of each record (`firstSaidIn`, `newestIn`),
+  never the whole, because a home folder holds hundreds. Carrying never writes over a task's own
+  conversation, and leaves the one it came from as it was where the harness lets it be copied
+  (Claude Code, pi); Codex names its threads itself, so carrying one is writing it down as the
+  task's. A harness whose `resume` is false lists nothing, and every surface reads `resume`
+  through `resumeOffer` — restart, or its own `why` — so nothing guesses that one came back.
 
 - Own its accounts, if it can have more than one (`capabilities.accounts`): an adapter is made
   per account (`HarnessOptions.account`: a folder, and for an API key a *command* that prints it),

@@ -1,7 +1,9 @@
 import { CHATS, HARNESS_CHOICES, type TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { initialState, terminalsOf, withTerminals } from '../src/model.ts'
+import { type ChatRow, chatsPanel } from '../src/panels/chats/state.ts'
 import { bottomNewItems, chatMenuItems, terminalMenuItems } from '../src/panels/menu/state.ts'
+import { panelClick, panelKey } from '../src/panels.ts'
 import { type SpendBy, spendView } from '../src/spend.ts'
 
 // Chats in the window: the tabs they are, the menu that opens one, and what
@@ -48,10 +50,11 @@ describe('a chat’s tab in the lower pane', () => {
 describe('the `+` at the end of the tabs', () => {
   const items = bottomNewItems(HARNESS_CHOICES)
 
-  it('offers a terminal and one agent per harness', () => {
+  it('offers a terminal, one agent per harness, and a chat brought back', () => {
     expect(items.map((item) => item.id)).toEqual([
       'terminal',
       ...HARNESS_CHOICES.map((harness) => `chat:${harness.id}`),
+      'reopen-chat',
     ])
     expect(items[0]?.note).toBe('ctrl+t')
   })
@@ -151,5 +154,44 @@ describe('what a chat costs', () => {
     // are counted as exactly that.
     expect(unknown).toMatchObject({ tokens: 900, usd: 0, priced: 'none' })
     expect(page.tokensUnpriced).toBe(900)
+  })
+})
+
+describe('bringing a chat back', () => {
+  const rows: ChatRow[] = [
+    {
+      key: 'closed:chats/5',
+      kind: 'closed',
+      name: 'claude-code 5',
+      cwd: '~',
+      at: NOW,
+      first: 'I spent my childhood playing SA:MP',
+    },
+    { key: 'other:x', kind: 'other', name: 'pi', cwd: '~', at: NOW, first: 'tidy my downloads' },
+  ]
+  const inputs = { chatRows: rows }
+
+  it('walks the list and brings back the one the keyboard is on, by its key', () => {
+    const down = panelKey(chatsPanel(), 'down', '', inputs)
+    expect(down.panel).toMatchObject({ kind: 'chats', index: 1 })
+    const chosen = panelKey(down.panel as never, 'enter', '', inputs)
+    expect(chosen).toMatchObject({ submit: true, choice: 'other:x', panel: { busy: true } })
+    // Never past either end.
+    expect(panelKey(chatsPanel(), 'up', '', inputs).panel).toMatchObject({ index: 0 })
+  })
+
+  it('brings back the row clicked, and only one at a time', () => {
+    expect(panelClick(chatsPanel(), 'row:0', inputs)).toMatchObject({
+      submit: true,
+      choice: 'closed:chats/5',
+    })
+    const busy = { ...chatsPanel(), busy: true }
+    expect(panelKey(busy, 'enter', '', inputs).submit).toBe(false)
+    expect(panelClick(busy, 'row:1', inputs).submit).toBe(false)
+    expect(panelClick(chatsPanel(), 'cancel', inputs).panel).toBeNull()
+  })
+
+  it('has nothing to bring back from an empty list', () => {
+    expect(panelKey(chatsPanel(), 'enter', '', { chatRows: [] }).submit).toBe(false)
   })
 })

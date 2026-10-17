@@ -14,6 +14,7 @@ import {
 } from '@tade/core'
 import type { PermissionDecision, RunId, WorkerImage } from '@tade/harnesses-core'
 import {
+  chatSessions,
   chatsFrom,
   clipped,
   inboxFrom,
@@ -21,6 +22,7 @@ import {
   intakeWouldRun,
   openChat,
   readTaskFile,
+  reopenClosedChat,
   type Workbench,
   wouldRunSays,
 } from '@tade/workbench'
@@ -470,7 +472,29 @@ export class ToolHost {
       // task id this hands back, because that is what they are — agents — and
       // a second pair of verbs for the same act is a second thing to keep in
       // step.
-      'chat/list': () => chatsFrom(tade.lanes()),
+      // The closed ones too, whose harness still keeps the conversation: what
+      // `chat/reopen` can bring back, said with when each closed and what was
+      // first said in it, which is how a person names one.
+      'chat/list': async () => {
+        const found = await chatSessions(tade)
+        return {
+          open: chatsFrom(tade.lanes()),
+          closed: found.closed.map((one) => ({
+            id: one.task,
+            name: one.name,
+            harness: one.harness,
+            cwd: one.cwd,
+            closed: one.closedAt === null ? null : new Date(one.closedAt).toISOString(),
+            first: one.first,
+          })),
+          ...(found.problems.length > 0 ? { problems: found.problems } : {}),
+        }
+      },
+      'chat/reopen': async (p) => {
+        const back = await reopenClosedChat(tade, String(p.chat ?? ''))
+        opts.onTerminal?.(back.chat.id)
+        return { ...back.chat, said: back.said }
+      },
       'chat/open': async (p) => {
         const opened = await openChat(tade, {
           ...(p.harness ? { harness: String(p.harness) } : {}),

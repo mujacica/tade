@@ -499,6 +499,7 @@ export class Search implements Subject {
       ['run:new-agent', 'New agent'],
       ['run:new-terminal', 'New terminal'],
       ['run:new-chat', 'New chat'],
+      ['run:reopen-chat', 'Bring a chat back'],
       ['run:open-project', 'Open project'],
       ['run:spend', 'Spend'],
       ['run:extensions', 'Extensions'],

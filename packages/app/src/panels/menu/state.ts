@@ -107,6 +107,9 @@ export function bottomNewItems(
       ...(at === 0 ? { divider: true } : {}),
       ...(harness.ready ? {} : { off: harness.about }),
     })),
+    // A chat closed by accident is a conversation its harness still keeps:
+    // brought back from a list, because which one is the whole question.
+    { id: 'reopen-chat', label: 'Bring a chat back…', divider: true },
   ]
 }
 

@@ -1,4 +1,5 @@
 import { initialState, withProjects } from '../../../src/model.ts'
+import { chatsPanel } from '../../../src/panels/chats/state.ts'
 import {
   branchMenuItems,
   changeMenuItems,
@@ -146,6 +147,48 @@ export const PANEL_SCREENS: Scenario[] = [
         modelsFrom: { harness: 'pi', why: null },
         modelTarget: 'the orchestrator',
         currentModel: 'openrouter/anthropic/claude-opus-5',
+      },
+    }),
+  },
+  {
+    name: 'bringing-a-chat-back',
+    about:
+      'Bring a chat back…, from the `+` under the tabs: the chats that were closed whose harness kept the conversation, newest closed first and each named by the first thing said in it, then the other conversations a harness keeps in your home — and a harness that could not be read, named rather than passed over.',
+    state: { ...base(), panel: { ...chatsPanel(), index: 0 } },
+    frame: frame({
+      panel: {
+        chats: {
+          looking: false,
+          rows: [
+            {
+              key: 'closed:chats/5',
+              kind: 'closed',
+              name: 'claude-code 5',
+              cwd: '~',
+              at: Date.parse('2026-09-13T12:08:25Z'),
+              first:
+                'I spent my childhood playing SA:MP - can you research if there is a way for us to build on top of it',
+            },
+            {
+              key: 'closed:chats/3',
+              kind: 'closed',
+              name: 'pi 3',
+              cwd: '~/notes',
+              at: Date.parse('2026-09-12T18:40:00Z'),
+              first: 'why is my fan running at night',
+            },
+            {
+              key: 'other:a',
+              kind: 'other',
+              name: 'Claude Code',
+              cwd: '~',
+              at: Date.parse('2026-09-11T09:15:00Z'),
+              first:
+                'My disk usage is huge from unknown sources - can you analyze what is using it',
+            },
+          ],
+          problems: ["could not read codex's conversations in ~: EACCES: permission denied"],
+        },
       },
     }),
   },

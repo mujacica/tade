@@ -1,7 +1,13 @@
+import { mkdirSync, realpathSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { CHATS, isChatTask } from '@tade/core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
+// pi's own: where it files a folder's sessions and what it names a chat's.
+// By path, since the window does not depend on any one harness.
+import { sessionIdFor } from '../../../harnesses/pi/src/adapter.ts'
+import { sessionDirFor, sessionsRoot } from '../../../harnesses/pi/src/sessions.ts'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
 
 // Opening something in the lower pane from the `+` at the end of its tabs: a
@@ -27,6 +33,30 @@ function chatsIn(client: Workbench, cwd: string): Workbench {
         target.startAgent({ ...req, ...(isChatTask(req.task) ? { cwd } : {}) } as never)
     },
   }) as Workbench
+}
+
+/**
+ * What pi keeps of a conversation once something was said in it, written the
+ * way pi writes it where it files `cwd`'s sessions: a chat with no model says
+ * nothing, so a test that needs the conversation kept writes it.
+ */
+function said(id: string, cwd: string, words: string): void {
+  const dir = sessionDirFor(realpathSync(cwd), sessionsRoot())
+  mkdirSync(dir, { recursive: true })
+  const lines = [
+    { type: 'session', version: 3, id, timestamp: '2026-10-16T19:02:02.279Z', cwd },
+    {
+      type: 'message',
+      id: 'm1',
+      parentId: null,
+      timestamp: '2026-10-16T19:03:35.000Z',
+      message: { role: 'user', content: [{ type: 'text', text: words }] },
+    },
+  ]
+  writeFileSync(
+    join(dir, `2026-10-16T19-02-02-279Z_${id}.jsonl`),
+    lines.map((line) => `${JSON.stringify(line)}\n`).join(''),
+  )
 }
 
 describe('the window, opening something in the lower pane', () => {
@@ -143,6 +173,52 @@ describe('the window, opening something in the lower pane', () => {
     )
     await until('the tab gone', () =>
       screenOf(terminal.written).every((row) => !row.includes('pi 1')),
+    )
+  })
+
+  it('brings a closed chat back from the `+`, on its own conversation and in its own tab', async () => {
+    const somewhere = tmp('tade-chat-cwd-')
+    await start({ client: chatsIn(client, somewhere) })
+    await openPlus()
+    terminal.press('\x1b[B')
+    terminal.press('\r')
+    await until(
+      'the chat on the tabs',
+      () => screenOf(terminal.written).some((row) => row.includes('pi 1')),
+      60_000,
+    )
+    said(sessionIdFor(`${CHATS}/1`), somewhere, 'why is my fan running at night')
+    // Closed, as a person closing it by accident would: the agent ends, the
+    // conversation stays in pi's own store.
+    await client.stopAgent(`${CHATS}/1`)
+    await until('the tab gone', () =>
+      screenOf(terminal.written).every((row) => !row.includes('pi 1')),
+    )
+
+    await openPlus()
+    const item = find('Bring a chat back…')
+    click(item.col, item.row)
+    // Listed by what was first said in it, which is how one chat is told from another.
+    await until('the closed chat listed', () =>
+      screenOf(terminal.written).some((row) => row.includes('why is my fan running at night')),
+    )
+    terminal.press('\r')
+
+    await until(
+      'the chat back on the tabs',
+      () => client.lanes().find((one) => one.id === `${CHATS}/1/agent`)?.alive === true,
+      60_000,
+    )
+    // The same chat, on the same session: what carries its conversation on.
+    const lane = client.lanes().find((one) => one.id === `${CHATS}/1/agent`)
+    expect(lane?.spec.args.join(' ')).toContain(`--session-id ${sessionIdFor(`${CHATS}/1`)}`)
+    expect(lane?.spec.cwd).toBe(somewhere)
+    await until('its tab back', () =>
+      screenOf(terminal.written).some((row) => row.includes('pi 1')),
+    )
+    // And what it ran in the background is said to have ended with it.
+    await until('said what did not come back', () =>
+      screenOf(terminal.written).some((row) => row.includes('pi 1 is back on its conversation')),
     )
   })
 })

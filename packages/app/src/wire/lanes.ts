@@ -33,12 +33,14 @@ import {
   typingLane,
   unsplitPane,
 } from '../split.ts'
+import { ChatPicker } from './chat-picker.ts'
 import {
   type Actions,
   type Menus,
   notify,
   type Prompts,
   type Subject,
+  type Submits,
   type Wiring,
   why,
 } from './context.ts'
@@ -108,6 +110,8 @@ export class Lanes implements Subject {
   private readonly fitting: Fitting
   /** A terminal's scrollback, read for finding in it. */
   private readonly find = new Finding()
+  /** Bringing a closed chat back, or another conversation as a chat: the `chats` panel. */
+  private readonly picker: ChatPicker
   private router: RouterState = initialRouter()
   /** Which agent the router's half-typed line belongs to. */
   private routerFor: string | null = null
@@ -117,6 +121,7 @@ export class Lanes implements Subject {
     this.deps = deps
     this.fitting = new Fitting(wire, { size: () => deps.size(), told: () => deps.soonTick() })
     this.held = new Held(wire, this.fitting, deps.skin)
+    this.picker = new ChatPicker(wire, (id) => this.showTerminal(id))
   }
 
   /** The two screens, as the frame draws them. */
@@ -176,6 +181,7 @@ export class Lanes implements Subject {
   /** What the find box over a terminal has to say: how many lines match, and whose they are. */
   panel(): Frame['panel'] {
     const panel = this.wire.state.panel
+    if (panel?.kind === 'chats') return { chats: this.picker.view() }
     if (panel?.kind !== 'find') return {}
     return {
       found: this.findMatches().length,
@@ -185,7 +191,11 @@ export class Lanes implements Subject {
   }
 
   inputs() {
-    return { found: this.findMatches().length }
+    return { found: this.findMatches().length, chatRows: this.picker.rows() }
+  }
+
+  submits(): Submits {
+    return { chats: (panel, choice) => this.picker.choose(panel, choice ?? '') }
   }
 
   actions(): Actions {
@@ -194,6 +204,9 @@ export class Lanes implements Subject {
       'new-terminal': () => this.openTerminal().then(() => {}),
       // Typed as well as clicked, in the default harness: the `+` is a menu now.
       'new-chat': () => this.openChat().then(() => {}),
+      // A chat that was closed, back on its conversation — or another one a
+      // harness keeps here — chosen from a list, since which is the question.
+      'reopen-chat': () => this.picker.open(),
       'find-terminal': async () => {
         const terminal = activeTerminal(this.wire.state)
         if (terminal) await this.openFind(terminal.id)
@@ -238,6 +251,7 @@ export class Lanes implements Subject {
         items: () => bottomNewItems(HARNESS_CHOICES),
         choose: async (_subject, item) => {
           if (item === 'terminal') await this.openTerminal()
+          else if (item === 'reopen-chat') this.picker.open()
           else if (item.startsWith('chat:')) await this.openChat(item.slice('chat:'.length))
         },
       },

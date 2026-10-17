@@ -57,11 +57,14 @@ import type {
 import {
   type HarnessAccount,
   type HarnessModels,
+  type HarnessSession,
   modelsOffered,
   noHarnessSpend,
+  type Offer,
   offer,
   type PermissionDecision,
   type RunId,
+  resumeOffer,
   type SignIn,
   type Support,
   type WorkerAdapter,
@@ -1454,6 +1457,7 @@ export class Workbench {
         harness,
         giveWay: this.config.agents.give_way,
         ...(account ? { account } : {}),
+        ...(req.openedAt !== undefined ? { openedAt: req.openedAt } : {}),
       })
       this.followExit(lane)
       return record
@@ -1462,6 +1466,37 @@ export class Workbench {
       await this.workers.stop(lane as RunId).catch(() => {})
       throw err
     }
+  }
+
+  /**
+   * The conversations a harness keeps for a folder, each of `tasks` whose
+   * conversation is one of them named on it: asked of the adapter that
+   * harness's agents run under, for that account, which is the only thing
+   * that may read its store (`WorkerAdapter.sessions`).
+   */
+  sessionsIn(req: {
+    harness: string
+    account?: string | null
+    cwd: string
+    tasks: readonly TaskId[]
+  }): Promise<HarnessSession[]> {
+    return this.adapterFor(req.harness, req.account).sessions(req.cwd, req.tasks)
+  }
+
+  /** Have a task's agent carry on one of a folder's conversations (`WorkerAdapter.carrySession`). */
+  carrySession(req: {
+    harness: string
+    account?: string | null
+    session: string
+    task: TaskId
+    cwd: string
+  }): Promise<boolean> {
+    return this.adapterFor(req.harness, req.account).carrySession(req.session, req.task, req.cwd)
+  }
+
+  /** Whether a harness can come back to a conversation whose agent has gone, as every surface offers it. */
+  resumeOf(harness: string): Offer {
+    return resumeOffer(this.adapterFor(harness).capabilities)
   }
 
   /**

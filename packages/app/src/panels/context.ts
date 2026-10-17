@@ -14,6 +14,8 @@ import type { Drawn, Pointer } from '../ui.ts'
 import type { ViewedFile } from '../viewer.ts'
 import type { AwayView } from './away/view.ts'
 import { away } from './away/view.ts'
+import type { ChatsView } from './chats/state.ts'
+import { chats } from './chats/view.ts'
 import type { CommentChoice } from './comment.ts'
 import { diff } from './diff/view.ts'
 import { evaluations } from './evaluations/view.ts'
@@ -250,6 +252,8 @@ export interface PanelContext {
   modelTarget: string
   /** The model it is on now. */
   currentModel: string | null
+  /** What a chat can be brought back on, for the chats panel; null before it has been opened. */
+  chats?: ChatsView | null
   /**
    * What the away view is: what is listening, the code, who is asking, and
    * every paired device. Null where the window was built without one, which
@@ -324,6 +328,8 @@ export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
       return { panel: workflow(panel, ctx), popups: [] }
     case 'model':
       return { panel: models(panel, ctx), popups: [] }
+    case 'chats':
+      return { panel: chats(panel, ctx), popups: [] }
     case 'evaluations':
       return { panel: evaluations(panel, ctx), popups: [] }
     case 'race':

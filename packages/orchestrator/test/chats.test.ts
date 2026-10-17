@@ -1,7 +1,8 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { CHATS } from '@tade/core'
-import type { LaneRecord, Workbench } from '@tade/workbench'
+import { CHATS, type TadeEvent } from '@tade/core'
+import { type HarnessSession, resumeOffer } from '@tade/harnesses-core'
+import { BACKGROUND_ENDED, type LaneRecord, type Workbench } from '@tade/workbench'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { ToolHost } from '../src/tool-host.ts'
@@ -42,10 +43,21 @@ describe('the orchestrator and the chats', () => {
   const steered: string[] = []
   const stopped: string[] = []
   let open: LaneRecord[] = []
+  /** What the journal says of chats, and what each harness says it kept. */
+  let heard: TadeEvent[] = []
+  let kept: HarnessSession[] = []
+  const resumes: Record<string, boolean> = { pi: true, 'claude-code': true, acp: false }
 
   const tade = {
     lanes: () => open,
-    events: async () => [],
+    events: async () => heard,
+    resumeOf: (harness: string) =>
+      resumeOffer({
+        resume: resumes[harness] ?? false,
+        why: { resume: 'comes back to a conversation only where the agent offers session/load' },
+      }),
+    sessionsIn: async (req: { tasks: readonly string[] }) =>
+      kept.filter((one) => one.task === null || req.tasks.includes(one.task)),
     async startAgent(request: Record<string, unknown>) {
       started.push(request)
       const id = `${String(request.task)}/agent`
@@ -69,6 +81,8 @@ describe('the orchestrator and the chats', () => {
     steered.length = 0
     stopped.length = 0
     open = []
+    heard = []
+    kept = []
     const path = join(tmp('tade-chat-tools-'), 'tools.sock')
     host = await ToolHost.listen({ tade, path })
     vi.resetModules()
@@ -136,11 +150,101 @@ describe('the orchestrator and the chats', () => {
       lane({ id: 'app/refunds/agent', task: 'app/refunds', startedAt: 1 }),
       lane({ id: 'app/terminals/1', task: 'app/terminals', kind: 'terminal', startedAt: 3 }),
     ]
-    const listed = (await by('tade_chat_list').run({}, 'c1', {})) as Record<string, unknown>[]
+    const listed = (await by('tade_chat_list').run({}, 'c1', {})) as Record<string, unknown>
 
-    expect(listed).toMatchObject([
-      { id: `${CHATS}/2/agent`, task: `${CHATS}/2`, name: 'claude-code 2', project: '' },
+    expect(listed).toMatchObject({
+      open: [{ id: `${CHATS}/2/agent`, task: `${CHATS}/2`, name: 'claude-code 2', project: '' }],
+      closed: [],
+    })
+  })
+
+  /** A chat the journal heard open in `harness` at 19:02 and close at 20:08. */
+  function closedChat(number: number, harness: string): TadeEvent[] {
+    const task = `${CHATS}/${number}`
+    const event = (ts: string, type: string, fields: Partial<TadeEvent>) =>
+      ({
+        seq: 0,
+        ts,
+        type,
+        urgency: 'notable',
+        task,
+        lane: null,
+        run: null,
+        detail: {},
+        ...fields,
+      }) as TadeEvent
+    return [
+      event('2026-10-16T19:02:02.279Z', 'run_started', {
+        run: `${task}/agent`,
+        detail: { cwd: '/Users/me', adapter: harness, account: null },
+      }),
+      event('2026-10-16T19:02:02.315Z', 'lane_opened', {
+        lane: `${task}/agent`,
+        detail: { cwd: '/Users/me' },
+      }),
+      event('2026-10-16T20:08:25.928Z', 'lane_closed', { lane: `${task}/agent` }),
+    ]
+  }
+
+  it('lists a closed chat whose conversation is kept, and brings it back on it', async () => {
+    const by = await tools()
+    heard = closedChat(5, 'claude-code')
+    kept = [
+      {
+        id: 'ef256a55',
+        at: 1,
+        first: 'I spent my childhood playing SA:MP',
+        task: `${CHATS}/5` as never,
+      },
+    ]
+
+    const listed = (await by('tade_chat_list').run({}, 'c1', {})) as Record<string, unknown>
+    expect(listed).toEqual({
+      open: [],
+      closed: [
+        {
+          id: `${CHATS}/5`,
+          name: 'claude-code 5',
+          harness: 'claude-code',
+          cwd: '/Users/me',
+          closed: '2026-10-16T20:08:25.928Z',
+          first: 'I spent my childhood playing SA:MP',
+        },
+      ],
+    })
+
+    const back = (await by('tade_chat_reopen').run({ chat: `${CHATS}/5` }, 'c2', {})) as Record<
+      string,
+      unknown
+    >
+    // The same chat in the same harness and folder, told nothing, its tab
+    // back where it was first opened.
+    expect(started).toEqual([
+      {
+        task: `${CHATS}/5`,
+        cwd: '/Users/me',
+        worktree: '',
+        prompt: '',
+        extras: {},
+        harness: 'claude-code',
+        openedAt: Date.parse('2026-10-16T19:02:02.315Z'),
+      },
     ])
+    expect(back).toMatchObject({ id: `${CHATS}/5/agent`, said: BACKGROUND_ENDED })
+  })
+
+  it('says why a chat cannot come back rather than starting it over', async () => {
+    const by = await tools()
+    heard = [...closedChat(6, 'acp'), ...closedChat(7, 'pi')]
+
+    await expect(by('tade_chat_reopen').run({ chat: `${CHATS}/6` }, 'c1', {})).rejects.toThrow(
+      'chats/6 ran in acp, which comes back to a conversation only where the agent offers session/load',
+    )
+    // pi keeps nothing of chats/7: nothing was ever said in it.
+    await expect(by('tade_chat_reopen').run({ chat: `${CHATS}/7` }, 'c2', {})).rejects.toThrow(
+      /pi no longer keeps chats\/7's conversation/,
+    )
+    expect(started).toEqual([])
   })
 
   it('steers and stops one by that id, through the tools that steer and stop agents', async () => {

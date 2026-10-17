@@ -501,9 +501,16 @@ export function orchestratorTools(
 
   tool(
     'tade_chat_list',
-    'The chats open in the lower pane: agents with no task and no project. Each comes with the id that steers and stops it (tade_steer, tade_run_stop), what it is called on its tab, the harness it runs in and the folder it is standing in.',
+    'The chats in the lower pane: agents with no task and no project. `open` are running, each with the id that steers and stops it (tade_steer, tade_run_stop), what it is called on its tab, the harness it runs in and the folder it is standing in. `closed` are chats that were closed whose harness still keeps the conversation, with when each closed and the first thing said in it: tade_chat_reopen brings one back.',
     object({}),
     () => rpc('chat/list', {}),
+  )
+
+  tool(
+    'tade_chat_reopen',
+    "Bring back a chat that was closed — by accident, or wanted again — in its own tab, carrying on the same conversation: the same number, harness and folder. Use it when somebody asks for a chat they closed back, rather than opening a new one, which would start the conversation over. Name it by its id from tade_chat_list's `closed`, like chats/5. Nothing is said to it. Whatever it had running in the background when it closed — a subagent, a background shell — ended with it: say so, and never say it is still running. Refused, with why, for a harness that cannot come back to a conversation or no longer keeps this one.",
+    object({ chat: string('the closed chat, like chats/5') }, ['chat']),
+    (p) => rpc('chat/reopen', p),
   )
 
   tool(
