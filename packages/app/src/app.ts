@@ -499,8 +499,8 @@ export class App {
    * The orchestrator switched its own model, because it was asked to: kept for
    * the next start and shown on its tab, without restarting what it is doing.
    */
-  thinkerMovedTo(model: { provider: string; id: string }): void {
-    this.heart.thinkerMovedTo(model)
+  thinkerMovedTo(model: { provider: string; id: string }, said = ''): void {
+    this.heart.thinkerMovedTo(model, said)
   }
 
   /**

@@ -60,7 +60,7 @@ export interface ToolHostOptions {
    * Finds the model the orchestrator was asked to think with and keeps it for
    * the next start. Without it, the orchestrator cannot change its own model.
    */
-  orchestratorModel?: (said: string) => Promise<{ provider: string; id: string }>
+  orchestratorModel?: (model: string, said: string) => Promise<{ provider: string; id: string }>
   /**
    * What goes with the prompt of an agent the orchestrator starts: the files
    * attached to what it is answering, put where the agent works (`cwd`), a
@@ -417,7 +417,7 @@ export class ToolHost {
       'orchestrator/model': (p) => {
         if (!opts.orchestratorModel)
           throw new Error('this window cannot change the orchestrator model')
-        return opts.orchestratorModel(String(p.model))
+        return opts.orchestratorModel(String(p.model), String(p.said ?? ''))
       },
       'worker/start': async (p) => {
         // The model is settled before anything starts: one that cannot be

@@ -375,10 +375,19 @@ export function orchestratorTools(
 
   tool(
     'tade_orchestrator_model',
-    'Switch the model you — the orchestrator — think with: "change your model to sonnet", "use opus 5 as your model". Refused unless a line of theirs names your model — "your model", "the orchestrator\'s model" — so where they did not, ask them plainly first. Say the model the way the human did. It takes effect from your next reply and is kept for the next time Tade starts. For an agent\'s model use tade_agent_model; for "both", call each.',
-    object({ model: string('the model as the human said it') }, ['model']),
+    'Switch the model you — the orchestrator — think with: "change your model to sonnet", "use opus 5 as your model". Refused unless a line of theirs names your model — "your model", "the orchestrator\'s model" — so where they did not, ask them plainly first. Say the model the way the human did, and pass their sentence as `said`: it is written down beside the change. Only among the provider you are on: a model of another provider is refused, because where your own conversation is sent is a person\'s to move, in Settings (ctrl+,) or on your tab\'s model picker. It takes effect from your next reply and is kept for the next time Tade starts. For an agent\'s model use tade_agent_model; for "both", call each.',
+    object(
+      {
+        model: string('the model as the human said it'),
+        said: string('what the person said that asked for this, word for word'),
+      },
+      ['model', 'said'],
+    ),
     async (p, _id, ctx) => {
-      const chosen = (await rpc('orchestrator/model', { model: String(p.model) })) as {
+      const chosen = (await rpc('orchestrator/model', {
+        model: String(p.model),
+        said: String(p.said ?? ''),
+      })) as {
         provider: string
         id: string
       }

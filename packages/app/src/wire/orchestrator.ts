@@ -268,17 +268,19 @@ export class Orchestrator implements Subject {
   /**
    * The orchestrator switched its own model, because it was asked to: kept for
    * the next start and shown on its tab, without restarting what it is doing.
+   * What they said is written down beside it, as `tade_setting_change` writes
+   * theirs, so whoever finds the change finds why.
    */
-  movedTo(model: { provider: string; id: string }): void {
-    this.saveModel(model, 'orchestrator')
+  movedTo(model: { provider: string; id: string }, said = ''): void {
+    this.saveModel(model, 'orchestrator', said)
     notify(this.wire, `the orchestrator is now on ${model.provider}/${model.id}`)
     this.wire.draw()
   }
 
-  private saveModel(model: { provider?: string; id: string }, by = 'window'): void {
+  private saveModel(model: { provider?: string; id: string }, by = 'window', said = ''): void {
     try {
-      writeRecorded(this.wire, 'orchestrator.provider', model.provider, by)
-      writeRecorded(this.wire, 'orchestrator.model', model.id, by)
+      writeRecorded(this.wire, 'orchestrator.provider', model.provider, by, said)
+      writeRecorded(this.wire, 'orchestrator.model', model.id, by, said)
       this.deps.useConfig({
         ...this.wire.opts.config,
         orchestrator: {

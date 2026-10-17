@@ -31,14 +31,21 @@ export interface WindowWrite {
 }
 
 /**
- * Write `key` into the window's config and write it down `by` whoever asked.
+ * Write `key` into the window's config and write it down `by` whoever asked,
+ * with their words where somebody's asked for it (`said`).
  * Throws what writing throws, and then nothing is written down.
  */
-export function writeRecorded(wire: Wiring, key: string, value: Value, by = 'window'): void {
+export function writeRecorded(
+  wire: Wiring,
+  key: string,
+  value: Value,
+  by = 'window',
+  said = '',
+): void {
   const path = configPathOf(wire.opts)
   const before = heldIn(path)
   writeSetting(path, key, value)
-  recordWritten(wire, before, [{ key, value }], by)
+  recordWritten(wire, before, [{ key, value }], by, said)
 }
 
 /**
@@ -73,10 +80,11 @@ export function recordWritten(
   before: unknown,
   writes: readonly WindowWrite[],
   by = 'window',
+  said = '',
 ): void {
   for (const one of writes) {
     const change = changeOf(before, one.key, one.value, by, one.secret)
-    if (change) void recordChange(wire, { ...change })
+    if (change) void recordChange(wire, { ...change, ...(said ? { said } : {}) })
   }
 }
 

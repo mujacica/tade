@@ -432,24 +432,26 @@ describe('Orchestrator', () => {
   }, 90_000)
 
   it('switches its own model when asked, and hands it to the window to keep', async () => {
-    const asked: string[] = []
+    const asked: [string, string][] = []
     await tools.close()
     tools = await ToolHost.listen({
       tade,
       path: join(home, 'tools.sock'),
-      orchestratorModel: async (said) => {
-        asked.push(said)
+      orchestratorModel: async (model, said) => {
+        asked.push([model, said])
         return { provider: 'tade-test', id: 'fake' }
       },
     })
     const events: OrchestratorEvent[] = []
+    const said = 'change your model to opus 5'
     const chat = await start({
-      tool: { name: 'tade_orchestrator_model', arguments: { model: 'opus 5' } },
+      tool: { name: 'tade_orchestrator_model', arguments: { model: 'opus 5', said } },
       finalText: 'Switched.',
     })
     chat.onEvent((event) => events.push(event))
-    expect(await chat.askFor('change your model to opus 5', 30_000)).toContain('Switched.')
-    expect(asked).toEqual(['opus 5'])
+    expect(await chat.askFor(said, 30_000)).toContain('Switched.')
+    // Their words go to the window with the model, to be written down beside it.
+    expect(asked).toEqual([['opus 5', said]])
     const done = events.find((event) => event.type === 'tool_done')
     expect(done).toMatchObject({ ok: true })
     expect(done?.type === 'tool_done' ? done.text : '').toContain('tade-test/fake')

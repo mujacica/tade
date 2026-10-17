@@ -316,18 +316,20 @@ describe('the window, talking to the orchestrator', () => {
     const app = await start()
     // None was chosen, so the one it ended up on is kept: Tade's own doing.
     app.keepThinkerModel({ provider: 'anthropic', id: 'claude-opus-5' })
-    // Asked to move, it moved itself: the orchestrator's doing.
-    app.thinkerMovedTo({ provider: 'openrouter', id: 'anthropic/claude-opus-5' })
-    await until('the lines', async () => (await changes()).length === 4)
+    // Asked to move, it moved itself: the orchestrator's doing, with the
+    // words that asked for it beside it, as `tade_setting_change` writes them.
+    const said = 'use sonnet 5 as your model'
+    app.thinkerMovedTo({ provider: 'anthropic', id: 'claude-sonnet-5' }, said)
+    await until('the lines', async () => (await changes()).length === 3)
     expect(await changes()).toEqual([
       { path: 'orchestrator.provider', was: '', now: 'anthropic', by: 'window' },
       { path: 'orchestrator.model', was: '', now: 'claude-opus-5', by: 'window' },
-      { path: 'orchestrator.provider', was: 'anthropic', now: 'openrouter', by: 'orchestrator' },
       {
         path: 'orchestrator.model',
         was: 'claude-opus-5',
-        now: 'anthropic/claude-opus-5',
+        now: 'claude-sonnet-5',
         by: 'orchestrator',
+        said,
       },
     ])
   })

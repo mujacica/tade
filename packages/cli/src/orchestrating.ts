@@ -230,7 +230,7 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
       seen: async (arm) => part((one) => one.away, 'the away view').seen(arm),
       refused: (arm, method, why) => held?.away.refused(arm, method, why),
     },
-    orchestratorModel: async (said) => {
+    orchestratorModel: async (model, said) => {
       // Among what the orchestrator's own harness offers, and kept for the
       // next start either way. Only its own: a model is resolved by the
       // harness it is for, so with nobody there to ask, the honest answer is
@@ -241,11 +241,11 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
       // It writes the orchestrator's own Model row, so it takes the person's
       // words that row takes, before anything is resolved.
       await asked.ownModelAsked()
-      const chosen = await orchestrator.resolveModel(said)
+      const chosen = await orchestrator.resolveModel(model)
       // And never off the provider it keeps: where its conversation is sent is
       // the person's to move, so that is refused before it is kept.
       asked.ownProviderHeld(chosen)
-      held?.holding.thinkerMovedTo(chosen)
+      held?.holding.thinkerMovedTo(chosen, said)
       // A harness that takes a model only when it starts is started again on
       // it, on the same conversation.
       if (orchestrator.capabilities.model !== 'live') await restart()

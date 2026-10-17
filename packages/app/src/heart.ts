@@ -568,8 +568,8 @@ export class Heart {
   }
 
   /** The orchestrator switched its own model, because it was asked to: kept for the next start. */
-  thinkerMovedTo(model: { provider: string; id: string }): void {
-    this.orchestrator.movedTo(model)
+  thinkerMovedTo(model: { provider: string; id: string }, said = ''): void {
+    this.orchestrator.movedTo(model, said)
   }
 
   /** The orchestrator could not be started, said where somebody would have waited for it. */
