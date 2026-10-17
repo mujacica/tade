@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readdirSync, renameSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import {
   activityFrom,
   type Config,
@@ -20,6 +20,7 @@ import type { LoadedExtension } from '@tade/extensions-core'
 import { activeSkills, brokerFor, loadExtensions, writtenTools } from '@tade/orchestrator'
 import { recordAuthored } from '@tade/workbench'
 import { readJournal } from '@tade/workbench/events'
+import { heldBy } from '@tade/workbench/lock'
 import type { Command } from 'commander'
 import { writeFromShell } from '../config-write.ts'
 import { Exit, type Io } from '../io.ts'
@@ -46,6 +47,22 @@ function skillNames(dir: string): string[] {
   } catch {
     return []
   }
+}
+
+/**
+ * When an extension turned off from a terminal is off. A window or `tade serve`
+ * holding this home takes a terminal's change to its config on its next look,
+ * as the Extensions page's own switch takes one — its tools refused and the
+ * orchestrator started again on what is left (`Settings.taken`) — but only a
+ * change to the home's own config is written where it looks
+ * (`recordFromShell`), so anywhere else it is off from the next start.
+ */
+async function whenOff(configPath: string): Promise<string> {
+  const home = tadeHome()
+  const looked = resolve(configPath) === resolve(join(home, 'config.yaml'))
+  return looked && (await heldBy(home)) !== null
+    ? 'a window or `tade serve` has this home open, and turns it off at once'
+    : 'it does not load the next time Tade starts'
 }
 
 /**
@@ -146,7 +163,9 @@ export function registerExtensions(
 
   group
     .command('disable <name>')
-    .description('Turn an extension off — it stops loading the next time Tade starts')
+    .description(
+      'Turn an extension off — at once where a window or `tade serve` has this home open, and from the next time Tade starts otherwise',
+    )
     .option('-c, --config <path>', 'config file path', defaultConfigPath())
     .action((name: string, opts: { config: string }) => turn(name, opts.config, false))
 
@@ -180,9 +199,11 @@ export function registerExtensions(
       return
     }
     const root = expandHome(cfg.config.orchestrator.extensions)
+    const folder = existsSync(join(root, name, 'extension.ts'))
+    const tool = !folder && writtenTools(root).some((one) => one.name === name)
     const known =
-      existsSync(join(root, name, 'extension.ts')) ||
-      writtenTools(root).some((tool) => tool.name === name) ||
+      folder ||
+      tool ||
       (await loadExtensions({ config: cfg.config, home: tadeHome(), configPath }))
         .list()
         .some((one) => one.name === name)
@@ -206,10 +227,14 @@ export function registerExtensions(
     // question later is never "what is on" — the config says that — but "when
     // did this start, and what was going on when I agreed".
     await recordAuthored(root, `${on ? 'enable' : 'disable'} extension ${name}`)
+    // On is the rule's: it loads the next time Tade starts, never as a hot
+    // reload. Off is at once where Tade holds this home (`whenOff`), except for
+    // a tool Tade wrote for itself, which is in the orchestrator from its start
+    // and is not one of the extensions a running Tade hands the config to.
     io.out(
       on
         ? `${name} is on — it loads the next time Tade starts`
-        : `${name} is off — it stops loading the next time Tade starts`,
+        : `${name} is off — ${tool ? 'it stops loading the next time Tade starts' : await whenOff(configPath)}`,
     )
   }
 

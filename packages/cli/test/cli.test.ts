@@ -4,6 +4,7 @@ import { access, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { lockHome } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
 
 const bin = fileURLToPath(new URL('../src/bin.ts', import.meta.url))
@@ -107,6 +108,44 @@ describe('tade CLI', () => {
     })
     expect(missing.code).toBe(2)
     expect(missing.stderr).toContain('no extension called nothing-here')
+  }, 30_000)
+
+  // A window or `tade serve` holding the home takes a terminal's change to its
+  // config on its next look and turns the extension off then
+  // (`Settings.taken`). With nothing holding it, a config it never reads, or a
+  // tool Tade wrote for itself — in the orchestrator from its start — it is
+  // the next start.
+  it('disable says an extension is off at once where Tade holds the home', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'tade-ext-'))
+    const root = join(home, 'extensions')
+    await mkdir(root, { recursive: true })
+    await writeFile(
+      join(root, 'standup.ts'),
+      '// Reads out the day.\nexport default function () {}\n',
+    )
+    const path = join(home, 'config.yaml')
+    const elsewhere = join(home, 'elsewhere.yaml')
+    for (const one of [path, elsewhere]) {
+      await writeFile(one, `orchestrator:\n  extensions: ${root}\n`)
+    }
+    const off = (name: string, config = path) => {
+      const r = tade(['extensions', 'disable', name, '--config', config], { TADE_HOME: home })
+      expect(r.code).toBe(0)
+      return r.stdout.trim()
+    }
+    const later = 'sentry is off — it does not load the next time Tade starts'
+
+    expect(off('sentry')).toBe(later)
+    const held = await lockHome(home)
+    try {
+      expect(off('sentry')).toBe(
+        'sentry is off — a window or `tade serve` has this home open, and turns it off at once',
+      )
+      expect(off('sentry', elsewhere)).toBe(later)
+      expect(off('standup')).toBe('standup is off — it stops loading the next time Tade starts')
+    } finally {
+      await held.release()
+    }
   }, 30_000)
 
   // `pnpm link --global` puts a `tade` shim on PATH that execs whatever `bin.tade`
