@@ -98,6 +98,13 @@ export const LaneRecord = z.object({
   }),
   pid: z.number().nullable(),
   startedAt: z.number(),
+  /**
+   * When the first lane under this id started, where this one was run again
+   * in its place (`SpawnRequest.openedAt`): what its tab is ordered by, so it
+   * stays where it was. `startedAt` is still this run's, which is what tells
+   * the two lanes apart. Absent, the two are one.
+   */
+  openedAt: z.number().optional(),
   title: z.string(),
   alive: z.boolean(),
   exitCode: z.number().nullable(),
@@ -153,6 +160,8 @@ export interface SpawnRequest {
   harness?: string
   /** For an agent: the account it runs as, when not its harness's own. */
   account?: string
+  /** Run again in the place of a lane under the same id: when that one's tab was opened. */
+  openedAt?: number
   /**
    * How far the config asks this lane to give way to the window, in nice
    * steps. Whether it may at all is the *kind*'s answer and not the caller's
@@ -345,6 +354,7 @@ export class LaneRegistry {
       spec: { ...handle.spec, command: req.command, args: req.args ?? [] },
       pid: handle.pid,
       startedAt: handle.startedAt,
+      ...(req.openedAt !== undefined ? { openedAt: req.openedAt } : {}),
       title: handle.title,
       alive: true,
       exitCode: null,

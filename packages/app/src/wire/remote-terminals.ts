@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { type LaneId, printable, runtimeDir } from '@tade/core'
 import type { Answer, Held, Remote, RemoteLink, TerminalThere } from '@tade/remotes-core'
 import { ATTACHED, type AttachedInfo, attachedFrom, nextAttached } from '@tade/workbench/attached'
+import type { LaneRecord } from '@tade/workbench/registry'
 import { ORCHESTRATOR_TAB, showTerminal } from '../model.ts'
 import { flash, notify, type Wiring, why } from './context.ts'
 
@@ -148,9 +149,9 @@ export class RemoteTerminals {
   }
 
   /**
-   * Run a terminal there in lane `id`, at `size` where it takes the place of
-   * one: what `said` is printed first, and how it ends is written down
-   * (`HOLD`, `endedAt`).
+   * Run a terminal there in lane `id`, at the size and in the tab's place of
+   * the lane `was` where it takes the place of one: what `said` is printed
+   * first, and how it ends is written down (`HOLD`, `endedAt`).
    */
   private async run(
     id: string,
@@ -158,7 +159,7 @@ export class RemoteTerminals {
     task: string,
     terminal: TerminalThere,
     said: string,
-    size?: { cols?: number; rows?: number },
+    was?: LaneRecord | null,
   ): Promise<void> {
     const ended = endedAt(this.wire.opts.home, id)
     await mkdir(dirname(ended), { recursive: true, mode: 0o700 })
@@ -182,8 +183,12 @@ export class RemoteTerminals {
         ...terminal.args,
       ],
       title: task,
-      ...(size?.cols ? { cols: size.cols } : {}),
-      ...(size?.rows ? { rows: size.rows } : {}),
+      ...(was?.spec.cols ? { cols: was.spec.cols } : {}),
+      ...(was?.spec.rows ? { rows: was.spec.rows } : {}),
+      // The driver gives this run a start of its own, and the tabs are in the
+      // order they were opened: without the old one's it would move along the
+      // row, past every tab opened after it — another machine's too.
+      ...(was ? { openedAt: was.openedAt ?? was.startedAt } : {}),
     })
     if (terminal.proving === undefined) {
       this.proving.delete(id)
@@ -199,9 +204,9 @@ export class RemoteTerminals {
   }
 
   /**
-   * Another terminal in the lane one was in: the same tab, at the size the
-   * lane last had, so the window tells it nothing new — and in front again if
-   * the gap between the two took it away from there.
+   * Another terminal in the lane one was in: the same tab, where it was along
+   * the row and at the size the lane last had, so the window tells it nothing
+   * new — and in front again if the gap between the two took it away from there.
    */
   private async replace(
     one: { id: string; machine: string; task: string },
@@ -212,7 +217,7 @@ export class RemoteTerminals {
     const was = client.lane(one.id as LaneId)
     const before = { bottom: this.wire.state.bottom, keyboard: this.wire.state.keyboard }
     if (was?.alive) await client.closeLane(one.id as LaneId)
-    await this.run(one.id, one.machine, one.task, terminal, said, was?.spec)
+    await this.run(one.id, one.machine, one.task, terminal, said, was)
     this.wire.live?.tabsNow()
     const now = this.wire.state
     if (before.bottom === one.id && now.bottom === ORCHESTRATOR_TAB) {

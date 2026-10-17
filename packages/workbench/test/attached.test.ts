@@ -57,6 +57,14 @@ describe('terminals to another machine’s agents', () => {
     ])
   })
 
+  it('keeps one run again in its lane where its tab was, before those opened after it', () => {
+    const again = [
+      lane('remotes/vps/1', 'tade/intake-door', { startedAt: 30, openedAt: 10 }),
+      lane('remotes/lab/1', 'firmware/flash', { startedAt: 20 }),
+    ]
+    expect(attachedFrom(again).map((one) => one.id)).toEqual(['remotes/vps/1', 'remotes/lab/1'])
+  })
+
   it('finds the one already open to an agent there, and none to an agent on another machine', () => {
     expect(attachedTo(lanes, 'vps', 'tade/remote-link')?.id).toBe('remotes/vps/2')
     expect(attachedTo(lanes, 'lab', 'tade/remote-link')).toBeNull()

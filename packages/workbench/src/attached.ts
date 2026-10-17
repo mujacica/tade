@@ -27,7 +27,8 @@ export interface AttachedInfo {
   machine: string
   /** The task there whose agent it shows, as its title has it. */
   task: string
-  startedAt: number
+  /** When its tab was opened, which a terminal run again in its lane keeps (`LaneRecord.openedAt`). */
+  openedAt: number
 }
 
 /** Whether this is an attachment's lane — `remotes/<machine>/<n>`. */
@@ -35,7 +36,7 @@ export function isAttachedLane(id: string): boolean {
   return /^remotes\/[a-z0-9][a-z0-9-]*\/\d+$/.test(id)
 }
 
-/** The live attachments among a registry's lanes, oldest first. */
+/** The live attachments among a registry's lanes, in the order their tabs were opened. */
 export function attachedFrom(lanes: readonly LaneRecord[]): AttachedInfo[] {
   return lanes
     .filter((lane) => lane.alive && lane.kind === 'terminal' && isAttachedLane(lane.id))
@@ -43,9 +44,9 @@ export function attachedFrom(lanes: readonly LaneRecord[]): AttachedInfo[] {
       id: lane.id,
       machine: lane.id.split('/')[1] ?? '',
       task: lane.title,
-      startedAt: lane.startedAt,
+      openedAt: lane.openedAt ?? lane.startedAt,
     }))
-    .sort((a, b) => a.startedAt - b.startedAt || a.id.localeCompare(b.id))
+    .sort((a, b) => a.openedAt - b.openedAt || a.id.localeCompare(b.id))
 }
 
 /** The attachment already open to this agent there, or null. */

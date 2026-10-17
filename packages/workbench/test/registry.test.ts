@@ -129,6 +129,26 @@ describe('the lane registry, across a restart', () => {
       expect(adopted.map((e) => e.lane)).toContain('app/notes/agent')
       expect(adopted.map((e) => e.task)).toContain('app/notes')
     })
+
+    it('keeps when the tab of a lane run again in another’s place was opened, through a restart', async () => {
+      const first = await session(tmux())
+      taskFile('remotes/vps')
+      const again = await first.spawn({
+        id: 'remotes/vps/1' as LaneId,
+        task: 'remotes/vps',
+        kind: 'terminal',
+        cwd: home,
+        command: process.execPath,
+        args: [ECHO_CHILD],
+        openedAt: 1,
+      })
+      expect(again.openedAt).toBe(1)
+      expect(again.startedAt).toBeGreaterThan(1)
+      await first.detach()
+
+      const second = await session(tmux())
+      expect(second.get('remotes/vps/1' as LaneId)).toMatchObject({ alive: true, openedAt: 1 })
+    })
   })
 
   describe('with a driver whose lanes do not', () => {

@@ -219,6 +219,44 @@ describe('a terminal to an agent on another machine, kept up', () => {
     )
   })
 
+  it('keeps a terminal run again where its tab was, before one opened after it', async () => {
+    const far = await linkedTo([DOOR, LINK])
+    const door = await dropping('door')
+    far.attachable.set(DOOR.task, door.line)
+    // One that keeps its connection, as a terminal to another machine whose link never went does.
+    far.attachable.set(LINK.task, 'echo link-kept; exec sleep 60')
+    await attach('Doorbell', 'remotes/vps/1', 'door-run-1')
+    await attach('Linking', 'remotes/vps/2', 'link-kept')
+    const before = client.lane('remotes/vps/1' as LaneId)
+
+    await far.close()
+    await door.drop()
+    await until(
+      'it lost its connection',
+      async () => (await endedOf(home, 'remotes/vps/1')) === 'lost',
+    )
+    await door.mend()
+    await far.reopen()
+    await until(
+      'said once',
+      () => shown('intake-door on vps: connected again, over scripted'),
+      30_000,
+    )
+    const after = client.lane('remotes/vps/1' as LaneId)
+    expect(after?.alive).toBe(true)
+    expect(after?.startedAt).not.toBe(before?.startedAt)
+    await until('it ran again', async () => (await door.runs()) === 2)
+
+    // A start of its own, and its tab where it was along the row.
+    const tabs = rows().find(
+      (one) => one.includes('vps · intake-door') && one.includes('vps · remote-link'),
+    )
+    expect(tabs).toBeDefined()
+    expect(tabs?.indexOf('vps · intake-door')).toBeLessThan(
+      tabs?.indexOf('vps · remote-link') ?? -1,
+    )
+  })
+
   it('leaves one the person closed, one that ended there and one whose agent has gone as they are', async () => {
     const far = await linkedTo([DOOR, LINK, GONE, SUITE])
     const ended = await dropping('door')
