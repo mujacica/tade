@@ -11,6 +11,7 @@ import { type RepositoriesAnswer, repositoriesHere } from './repositories.ts'
 import type { ServerOptions } from './serving.ts'
 import { type NotesShareAnswer, shareHere } from './shared-notes.ts'
 import { type SinceAnswer, sinceHereFor } from './since.ts'
+import { type TakeAnswer, takeHere } from './taken.ts'
 import { type ToolReadAnswer, toolHere } from './tool-read.ts'
 
 // What only an owner device may ask of this machine, and only at its own door
@@ -21,7 +22,8 @@ import { type ToolReadAnswer, toolHere } from './tool-read.ts'
 // machines (`shared-notes.ts`), where each project's work is, for a fetch
 // over the same SSH (`repositories.ts`), and what this machine is, one of its
 // documents and one of its tools that only reads (`machine.ts`, `document.ts`,
-// `tool-read.ts`). One door in `server.ts` for all of them (`OWNED_DOOR`),
+// `tool-read.ts`), and work it hands this machine to start here
+// (`taken.ts`). One door in `server.ts` for all of them (`OWNED_DOOR`),
 // because each is the SSH key's word and nothing a phone's session is ever
 // answered.
 //
@@ -42,6 +44,7 @@ export const OWNED_DOOR: ReadonlySet<string> = new Set([
   'machine',
   'document',
   'tool',
+  'take',
 ])
 
 export async function carryOwned(
@@ -61,6 +64,7 @@ export async function carryOwned(
     | 'machine'
     | 'document'
     | 'tool'
+    | 'taking'
   >,
   res: Answering,
 ): Promise<
@@ -75,6 +79,7 @@ export async function carryOwned(
         | MachineAnswer
         | DocumentAnswer
         | ToolReadAnswer
+        | TakeAnswer
     }
   | { refusal: Refusal }
 > {
@@ -86,6 +91,7 @@ export async function carryOwned(
   if (route === 'machine') return machineHere(req, device, opts.machine)
   if (route === 'document') return documentHere(req, device, opts.document)
   if (route === 'tool') return toolHere(req, device, opts.tool)
+  if (route === 'take') return takeHere(req, device, opts.taking)
   if (route === 'looking') return carryLooking(req, device, now, opts.looking)
   return carryPresence(req, device, now, opts.present)
 }

@@ -1278,7 +1278,7 @@ export class Workbench {
   }
 
   /** Each harness's own answer for what conversation a task name makes, for `guardName`'s rule. */
-  private keyOf(): ((id: string) => string)[] {
+  keyOf(): ((id: string) => string)[] {
     return Object.values(this.adapters).map((one) => (id) => one.conversationKey(id as TaskId))
   }
 

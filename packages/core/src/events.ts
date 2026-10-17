@@ -50,6 +50,23 @@ export const EventType = z.enum([
   'task_named',
   'task_removed',
   /**
+   * The work went to another machine of the person's (REMOTE-TADE.md §9.2),
+   * written on the task here: `to` (the machine, by its name here), `as` (its
+   * id there), `how` (`queued`, started there instead of here; or `running`,
+   * its agent committed and pushed, the work carries on there and the agent
+   * here was stopped), and `branch` and `head` it begins from there. The
+   * conversation never moves, so the line says where the work went, not the
+   * agent.
+   */
+  'task_moved',
+  /**
+   * Work another machine of the person's handed this one, written on the task
+   * it was made into: `from` (what that machine calls itself), `was` (its id
+   * there), `device` (the owner device that asked), and `branch` and `head`
+   * where it begins from what was pushed there.
+   */
+  'task_taken',
+  /**
    * A change that spans repositories was named: its slug and the sentence
    * that asked for it, verbatim, written once when the plan is made. The
    * effort itself is the fold of the task files that name it — this is here
@@ -556,6 +573,8 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   task_created: 'notable',
   task_named: 'notable',
   task_removed: 'notable',
+  task_moved: 'notable',
+  task_taken: 'notable',
   effort_named: 'notable',
   template_used: 'notable',
   race_won: 'notable',

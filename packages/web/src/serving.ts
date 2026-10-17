@@ -15,6 +15,7 @@ import type { WebRepositories } from './repositories.ts'
 import type { WebNotes } from './shared-notes.ts'
 import type { WebSince } from './since.ts'
 import type { Listener, Scope, Surface } from './surface.ts'
+import type { WebTaking } from './taken.ts'
 import type { Tickets } from './tickets.ts'
 import type { WebToolRead } from './tool-read.ts'
 
@@ -243,6 +244,11 @@ export interface ServerOptions {
   machine?: WebMachine
   document?: WebDocument
   tool?: WebToolRead
+  /**
+   * Work an owner's window on another machine hands this one, made queued
+   * work here (`taken.ts`). Absent, the route is the `404` of a path nobody wired.
+   */
+  taking?: WebTaking
   /** The tickets the pairing panel minted. */
   tickets: Tickets
   /**

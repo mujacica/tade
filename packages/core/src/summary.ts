@@ -48,6 +48,11 @@ export interface WorkSummary {
   failed: string | null
   /** What it found and did not fix, as the parked tasks each was made into. */
   left: string[]
+  /**
+   * Where the work went or came from, as a sentence: another machine of the
+   * person's took it over, or handed it here (`task_moved`, `task_taken`).
+   */
+  moved: string | null
   state: TaskState | null
   lastAt: number | null
 }
@@ -68,6 +73,7 @@ export function summariseWork(
     interrupted: null,
     failed: null,
     left: [],
+    moved: null,
     state: null,
     lastAt: null,
   }
@@ -135,6 +141,12 @@ export function summariseWork(
       case 'leftovers_reported':
         summary.left.push(...leftoversIn(event).map((one) => one.task))
         break
+      case 'task_moved':
+        summary.moved = `It went to ${String(event.detail.to ?? 'another machine')}, where it is ${String(event.detail.as ?? 'a task of its own')}, and its conversation stayed here.`
+        break
+      case 'task_taken':
+        summary.moved = `It came from ${String(event.detail.from ?? 'another machine')}, where it was ${String(event.detail.was ?? 'a task of its own')}.`
+        break
       default:
         break
     }
@@ -168,6 +180,7 @@ export function describeWork(summary: WorkSummary, now: number): string {
       `This machine slept for ${summary.interrupted} part way through, and it was told to carry on.`,
     )
   if (summary.failed) sentences.push(`It failed: ${summary.failed}.`)
+  if (summary.moved) sentences.push(summary.moved)
   if (summary.waiting) sentences.push(`It is waiting on ${summary.waiting}.`)
   if (summary.left.length > 0) {
     const things = summary.left.length === 1 ? 'something' : `${summary.left.length} things`

@@ -31,8 +31,10 @@ import { VERBS } from './verbs.ts'
 // is still how it is enforced.
 //
 // What is **not** here, in any table, matters as much as what is: no route
-// grants anything, no route publishes anything, no route starts an agent, no
-// route takes a path or a command, and no route reaches the `ToolHost`. One
+// grants anything, no route publishes anything, no route starts an agent —
+// but the owner's `take`, which makes queued work the window starts by its own
+// rule (`taken.ts`) — no route takes a path or a command, and no route reaches
+// the `ToolHost`. One
 // route reads the settings, behind a grant, and the one that writes one is
 // `SETTINGS`, built only where `surfaces.web.settings` says so and reaching
 // `settingReach`'s `open` tier and nothing else (`configuring.ts`). By §10.8 a path that is not in
@@ -478,13 +480,15 @@ export const SETTINGS: readonly Route[] = Object.keys(CHANGES).map((name) => ({
  * machine's Tade carrying its setup here (`carried.ts`), asking what to run
  * here to be shown one of its agents (`attached.ts`), asking what the person
  * missed while away (`since.ts`), sharing the person's notes
- * (`shared-notes.ts`), and what this machine is (`machine.ts`).
+ * (`shared-notes.ts`), what this machine is (`machine.ts`), and work handed
+ * here to start (`taken.ts`).
  *
  * A table of its own because each is what no phone may ever be given: the
  * carry writes the config beyond `settingReach`'s `open` tier — preferences,
  * files and, on a press, keys — and so is the one exception to "no route
  * reaches a credential", and the attach line is the one answer that is a way
- * into a lane; `test/routes.test.ts` names both rather than lets one slip. What
+ * into a lane, and the take the one route that makes work; `test/routes.test.ts`
+ * names each rather than lets one slip. What
  * makes them no wider than what already was is who may use them: an owner
  * session, which is the SSH key's (`owner.ts`), on the loopback listener for a
  * loopback `Host` (`here`), which from anywhere else is that same SSH
@@ -547,6 +551,11 @@ export const OWNED: readonly Route[] = [
     here: true,
   },
   { method: 'POST', path: '/api/tool', name: 'tool', needs: 'read', mutates: true, here: true },
+  // Work another machine of the person's hands this one (`taken.ts`): made
+  // queued work in one of its projects, which the window here starts by its
+  // own rule. The one route that makes work — what `ssh` here and a plan at
+  // this machine's window in tmux already allow the same key.
+  { method: 'POST', path: '/api/take', name: 'take', needs: 'read', mutates: true, here: true },
 ]
 
 /**

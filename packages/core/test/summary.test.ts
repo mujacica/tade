@@ -23,6 +23,29 @@ const tool = (name: string, over: Partial<TadeEvent> = {}): TadeEvent =>
   event({ type: 'tool_call', detail: { tool: name }, ...over })
 
 describe('summariseWork', () => {
+  it('says where the work went or came from, and that the conversation did not go with it', () => {
+    const went = summariseWork(
+      [
+        tool('bash'),
+        event({
+          type: 'task_moved',
+          detail: { to: 'vps', as: 'checkout/refunds', how: 'running' },
+        }),
+      ],
+      'checkout/refunds',
+      NOW,
+    )
+    expect(describeWork(went, NOW)).toContain(
+      'It went to vps, where it is checkout/refunds, and its conversation stayed here.',
+    )
+    const came = summariseWork(
+      [event({ type: 'task_taken', detail: { from: 'mac', was: 'checkout/refunds' } })],
+      'checkout/refunds',
+      NOW,
+    )
+    expect(came.moved).toBe('It came from mac, where it was checkout/refunds.')
+  })
+
   it('says plainly when it has never heard of it', () => {
     const summary = summariseWork([], 'checkout/refunds', NOW)
     expect(summary.empty).toBe(true)
