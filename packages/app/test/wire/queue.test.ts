@@ -259,6 +259,11 @@ describe('the window, and the work waiting in it', () => {
     for (let look = 0; look < 3; look++) await window.queueTools().advance()
     expect(client.runs().some((run) => run.task === 'app/second-one')).toBe(false)
 
+    // The queue saying so is not the card drawing it: a loaded machine draws a
+    // frame later, so the button is waited on where it is pressed.
+    await until('its card offers Resume', () =>
+      screenOf(terminal.written).some((line) => line.includes('▶ Resume')),
+    )
     const resume = find('▶ Resume')
     click(resume.col + 1, resume.row)
     await until(
