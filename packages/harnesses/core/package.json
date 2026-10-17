@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@tade/core": "workspace:*",
-    "zod": "^4.6.5",
+    "zod": "^4.6.7",
     "vitest": "^5.0.4"
   }
 }

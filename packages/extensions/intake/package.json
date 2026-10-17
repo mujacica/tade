@@ -12,6 +12,6 @@
     "@tade/extensions-core": "workspace:*",
     "@tade/forges-core": "workspace:*",
     "@tade/status": "workspace:*",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   }
 }
