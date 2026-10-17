@@ -1,6 +1,6 @@
 import { ExtensionHost, Unreachable } from '@tade/extensions-core'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { githubReplay } from '../../../../test/fixtures/forge/github.ts'
+import { githubReplay, type ReplayOptions } from '../../../../test/fixtures/forge/github.ts'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { reviewExtension } from '../src/extension.ts'
 import { forget } from '../src/forge.ts'
@@ -25,8 +25,9 @@ function origin(url?: string) {
   return repo
 }
 
-function load(root: string) {
-  const replay = githubReplay({ clock: () => NOW })
+/** The extension over a project at `root`, asking a GitHub that answers as `forge` says. */
+function load(root: string, forge: Omit<ReplayOptions, 'clock'> = {}) {
+  const replay = githubReplay({ clock: () => NOW, ...forge })
   return ExtensionHost.load({
     builtin: [reviewExtension],
     config: { extensions: { review: {} }, projects: { api: { root } } },
@@ -39,8 +40,8 @@ function load(root: string) {
   })
 }
 
-const look = async (root: string) =>
-  (await load(root)).look('review.pushed', {
+const look = async (root: string, forge: Omit<ReplayOptions, 'clock'> = {}) =>
+  (await load(root, forge)).look('review.pushed', {
     project: 'api',
     input: {},
     since: null,
@@ -78,6 +79,23 @@ describe('branches pushed with no review', () => {
     expect(err).toBeInstanceOf(Error)
     expect(err).not.toBeInstanceOf(Unreachable)
     expect((err as Error).message).toMatch(/does not appear to be a git repository/)
+  })
+
+  it('finds nothing when the forge could not be reached to ask about a review', async () => {
+    // Origin answered and GitHub did not: read as "no review open", every
+    // tade/* branch on origin became a finding parked for the orchestrator.
+    const err = await failure(look(origin().root, { unreachable: true }))
+    expect(err).toBeInstanceOf(Unreachable)
+    expect((err as Unreachable).host).toBe('github.com')
+  })
+
+  it('finds nothing when the forge answered with a failure, and keeps its words', async () => {
+    // A 500 is GitHub answering, so it is no outage and names no host — but it
+    // is still a look that failed rather than a branch with nothing open.
+    const err = await failure(look(origin().root, { serverError: true }))
+    expect(err).toBeInstanceOf(Error)
+    expect(err).not.toBeInstanceOf(Unreachable)
+    expect((err as Error).message).toMatch(/500|Server Error/)
   })
 })
 

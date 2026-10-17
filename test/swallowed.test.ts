@@ -232,7 +232,7 @@ const ALLOWED: Record<string, number> = {
   'packages/extensions/jev/src/reviews.ts': 3,
   'packages/extensions/resources/src/extension.ts': 1,
   'packages/extensions/review/src/branch.ts': 1,
-  'packages/extensions/review/src/extension.ts': 7,
+  'packages/extensions/review/src/extension.ts': 6,
   'packages/extensions/review/src/record.ts': 3,
   'packages/extensions/sentry/src/api.ts': 2,
   'packages/extensions/sentry/src/auth.ts': 4,

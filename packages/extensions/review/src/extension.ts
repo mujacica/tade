@@ -986,7 +986,12 @@ export const reviewExtension: TadeExtension = {
         for (const line of heads.split('\n')) {
           const branch = line.split('\t')[1]?.replace('refs/heads/', '').trim()
           if (!branch) continue
-          const already = await where.forge.reviewOf(where.repo, branch).catch(() => null)
+          // A forge that did not answer is a look that failed, never "no
+          // review open": read as null, every tade/* branch on origin became
+          // a finding parked for the orchestrator, all through one outage.
+          const already = await where.forge
+            .reviewOf(where.repo, branch)
+            .catch((err: unknown) => Promise.reject(asLookFailed(err, where)))
           if (already) continue
           findings.push({
             key: `${where.repo}:${branch}:first-push`,
