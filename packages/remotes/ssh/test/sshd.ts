@@ -24,6 +24,21 @@ export interface Sshd {
 
 const SSHD = ['/usr/sbin/sshd', '/usr/bin/sshd', '/usr/local/sbin/sshd', '/opt/homebrew/sbin/sshd']
 
+/** The longest temp folder this goes under: the suite’s root is 30 bytes at most, macOS’s 48. */
+const SHORT = 40
+
+/**
+ * Where this run's folder goes: under the suite's own temp root
+ * (`test/own-tmp.ts`), which goes when the run does — `/tmp` itself is watched
+ * by the suite's guard, so a run still going there turns another run red.
+ * Short, because a Unix socket's path is capped near 104 bytes, so `/tmp`
+ * only where the temp folder is long, as macOS's own is.
+ */
+function shortTmp(): string {
+  const tmp = tmpdir()
+  return tmp.length <= SHORT || !existsSync('/tmp') ? tmp : '/tmp'
+}
+
 /** A port nothing is listening on, a moment ago. */
 async function freePort(): Promise<number> {
   return new Promise((done, failed) => {
@@ -62,8 +77,7 @@ export async function startSshd(opts: { met?: boolean } = {}): Promise<Sshd | st
   if (sshd === undefined) return 'no sshd on this machine'
   const keygen = await runProgram('ssh-keygen', ['-?'], { timeoutMs: 5_000 })
   if (keygen.missing) return 'no ssh-keygen on this machine'
-  // Short, because ssh's own sockets are capped near 104 bytes.
-  const dir = await mkdtemp(join(existsSync('/tmp') ? '/tmp' : tmpdir(), 'tsd-'))
+  const dir = await mkdtemp(join(shortTmp(), 'tsd-'))
   for (const key of ['host', 'client']) {
     const made = await runProgram(
       'ssh-keygen',

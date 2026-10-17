@@ -1,10 +1,11 @@
+import { spawnSync } from 'node:child_process'
 import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { type LaneId, taskDir } from '@tade/core'
 import { ECHO_CHILD, until } from '@tade/drivers-core/conformance'
 import { PtyDriver } from '@tade/drivers-pty'
 import { TmuxDriver } from '@tade/drivers-tmux'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { EventLog } from '../src/events.ts'
 import { LaneRegistry } from '../src/registry.ts'
@@ -74,6 +75,12 @@ describe('the lane registry, across a restart', () => {
 
     beforeEach(() => {
       space = `reg-${Math.random().toString(36).slice(2, 10)}`
+    })
+    // A registry that was detached and never opened again lets go of its
+    // session without ending it, so one a failed test left kept the server
+    // running. The whole server goes when these are done.
+    afterAll(() => {
+      spawnSync('tmux', ['-L', socket, 'kill-server'], { stdio: 'ignore', timeout: 10_000 })
     })
 
     it('walks back into a lane that kept running, and can drive it', async () => {

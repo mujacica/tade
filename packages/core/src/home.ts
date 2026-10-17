@@ -4,8 +4,9 @@ import { join } from 'node:path'
 
 // Where Tade's own files are, which is a different question from what is in
 // them. Four answers, and nothing here reads or writes anything: they are the
-// paths the rest of the house joins onto, and `TADE_HOME` is the one override,
-// so a test can point the whole of Tade at a temp directory by setting it.
+// paths the rest of the house joins onto, and `TADE_HOME` is the one override
+// for what Tade keeps, so a test can point the whole of Tade at a temp
+// directory by setting it. `TADE_RUNTIME_DIR` is the one for its sockets.
 
 /**
  * Where sockets for this home go.
@@ -15,9 +16,14 @@ import { join } from 'node:path'
  * an agent that will not start, for a reason no user could act on. These are
  * runtime files with no value after a restart, so somewhere short and
  * disposable is also the honest place for them.
+ *
+ * `TADE_RUNTIME_DIR` puts them somewhere else without moving
+ * `XDG_RUNTIME_DIR`, which `systemctl --user` reads to find the user's
+ * manager: the suite points it at its own temp root (`test/own-tmp.ts`), where
+ * on Linux a run's sockets would otherwise pile up in `/run/user/<uid>`.
  */
 export function runtimeDir(home: string, env: NodeJS.ProcessEnv = process.env): string {
-  const base = env.XDG_RUNTIME_DIR || tmpdir()
+  const base = env.TADE_RUNTIME_DIR || env.XDG_RUNTIME_DIR || tmpdir()
   return join(base, `tade-${createHash('sha1').update(home).digest('hex').slice(0, 8)}`)
 }
 

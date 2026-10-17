@@ -1,5 +1,7 @@
+import { spawnSync } from 'node:child_process'
 import { chmodSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { opendir, rm } from 'node:fs/promises'
+import { constants } from 'node:os'
 import { basename, join } from 'node:path'
 
 // Each suite run has a temp root of its own, and the root goes when the run
@@ -25,6 +27,17 @@ import { basename, join } from 'node:path'
 // - **tmux's too** (`TMUX_TMPDIR`). tmux does not read `TMPDIR`, so the
 //   servers the tests start put their sockets in `/tmp/tmux-<uid>`. A server
 //   that is killed leaves its socket there, which had added up to 1,813 of them.
+//   A server still running when the root goes would run on with no socket for
+//   anything to reach it by, so each one under the root is stopped first
+//   (`stopServersUnder`) and named, since a test should have stopped it.
+// - **And Tade's runtime folder** (`TADE_RUNTIME_DIR`, `runtimeDir`), where a
+//   home's sockets go. On Linux that is `XDG_RUNTIME_DIR` otherwise, outside
+//   the root, and `systemctl --user` reads that one to find the user's
+//   manager, so it is left alone.
+// - **A run ended by a signal never reaches its teardown** — ctrl+c, a
+//   shell's timeout, a terminal closed — so SIGINT, SIGTERM and SIGHUP take the
+//   root away before the run exits (`onEnding`), once everything the run
+//   started has ended (`endWhatItStarted`), so nothing writes there after.
 // - **A run that was killed leaves its root**, so every run starts by removing
 //   any root older than `STALE_MS` whose suite is gone (`sweepRoots`). The
 //   suite's pid is in the root's name.
@@ -219,14 +232,22 @@ export function leftSaid(left: readonly string[], dirs: readonly string[]): stri
   ].join('\n')
 }
 
+/** What `ownTmp` points at the root: the temp folder, tmux's, and Tade's runtime folder. */
+export const POINTED = ['TMPDIR', 'TMUX_TMPDIR', 'TADE_RUNTIME_DIR'] as const
+
 export interface OwnTmp {
-  /** This run's root. `TMPDIR` and `TMUX_TMPDIR` point at it until `done`. */
+  /** This run's root. Each of `POINTED` points at it until `done`. */
   root: string
   /**
    * Put the environment back and remove the root, then for a guarded run
    * throw when anything new is left in the temp folders.
    */
   done(): Promise<void>
+  /**
+   * Remove the root now, at once and without looking at anything else: a run
+   * that is ending before its teardown. Safe to call twice, and before `done`.
+   */
+  abandon(): void
 }
 
 /**
@@ -253,24 +274,183 @@ export async function ownTmp(opts: {
   await sweepRoots(made.base, opts.now ?? Date.now(), say)
   const before = opts.guard ? await lookAt(watched) : null
   const { root } = made
-  const was = { TMPDIR: opts.env.TMPDIR, TMUX_TMPDIR: opts.env.TMUX_TMPDIR }
-  opts.env.TMPDIR = root
-  opts.env.TMUX_TMPDIR = root
+  const was = Object.fromEntries(POINTED.map((key) => [key, opts.env[key]]))
+  for (const key of POINTED) opts.env[key] = root
+  // Once, whichever comes first: the end of the run, or a signal before it.
+  let kept: string | null | undefined
+  const takeAway = (): string | null => {
+    if (kept === undefined) {
+      try {
+        const stopped = stopServersUnder(root)
+        if (stopped.length > 0) say(`\n${serversSaid(stopped)}\n`)
+      } catch (err) {
+        say(`\nCould not look for tmux servers under ${root}: ${String(err)}\n`)
+      }
+      kept = removeRoot(root)
+    }
+    return kept
+  }
   return {
     root,
+    abandon: () => {
+      const why = takeAway()
+      if (why) say(`\n${why}\n`)
+    },
     done: async () => {
       for (const [key, value] of Object.entries(was)) {
         if (value === undefined) delete opts.env[key]
         else opts.env[key] = value
       }
-      const kept = removeRoot(root)
-      if (kept && !before) say(`\n${kept}\n`)
+      const why = takeAway()
+      if (why && !before) say(`\n${why}\n`)
       if (!before) return
-      if (kept) throw new Error(kept)
+      if (why) throw new Error(why)
       const left = await leftBehind(before, await lookAt(watched), opts.settleMs)
       if (left.length > 0) throw new Error(leftSaid(left, watched))
     },
   }
+}
+
+/** The signals that end a run before its teardown: ctrl+c, a shell's timeout or `kill`, a terminal closed. */
+export const ENDINGS = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const
+
+/**
+ * How long a signalled run has to exit by itself before `onEnding` ends it:
+ * short, because vitest starts another worker for a file whose worker died,
+ * and one started now would find no root.
+ */
+export const EXIT_MS = 20
+
+/**
+ * Call `takeAway` when one of `ENDINGS` arrives, then end the run the way that
+ * signal ends it, and answer how to stop listening.
+ *
+ * Synchronously, because vitest exits on SIGINT and SIGTERM by itself a
+ * millisecond later; nothing exits on SIGHUP but this, which is what the timer
+ * is for. The exit status is the signal's, as Node's own would be, whatever a
+ * worker ended under it made vitest set. A second signal finds nobody
+ * listening and ends the process where it stands.
+ */
+export function onEnding(takeAway: () => void, proc: NodeJS.Process = process): () => void {
+  const ended = (signal: NodeJS.Signals) => {
+    off()
+    const status = 128 + (constants.signals[signal] ?? 0)
+    try {
+      takeAway()
+    } finally {
+      proc.exitCode = status
+      setTimeout(() => proc.exit(status), EXIT_MS).unref()
+    }
+  }
+  const off = () => {
+    for (const signal of ENDINGS) proc.off(signal, ended)
+  }
+  for (const signal of ENDINGS) proc.on(signal, ended)
+  return off
+}
+
+/**
+ * Kill every process `pid` started, and every process those started, and
+ * answer which. Synchronous, for a signal's handler.
+ *
+ * A signal sent to the suite's own process alone — `kill`, a shell's timeout —
+ * leaves vitest's workers running tests after the suite has gone, and a tmux a
+ * test starts then, finding its `TMUX_TMPDIR` gone with the root, makes its
+ * socket in `/tmp` instead and outlives everything. So a run that is ending
+ * ends its whole tree first, at once, since nothing in it has anything left to
+ * finish. What has already left the tree, as a tmux server has, is
+ * `stopServersUnder`'s.
+ */
+export function endWhatItStarted(pid = process.pid): number[] {
+  const listed = spawnSync('ps', ['-A', '-o', 'pid=,ppid='], { encoding: 'utf8', timeout: TMUX_MS })
+  if (listed.status !== 0) {
+    throw new Error(`ps could not list processes: ${listed.error?.message ?? listed.stderr}`)
+  }
+  const children = new Map<number, number[]>()
+  for (const line of listed.stdout.split('\n')) {
+    const [one, parent] = line.trim().split(/\s+/).map(Number)
+    if (one === undefined || parent === undefined || one === listed.pid) continue
+    children.set(parent, [...(children.get(parent) ?? []), one])
+  }
+  const tree: number[] = []
+  const walk = (from: number) => {
+    for (const one of children.get(from) ?? []) {
+      if (one === process.pid || tree.includes(one)) continue
+      tree.push(one)
+      walk(one)
+    }
+  }
+  walk(pid)
+  for (const one of tree) {
+    try {
+      process.kill(one, 'SIGKILL')
+    } catch {
+      // Ended by itself since the listing.
+    }
+  }
+  return tree
+}
+
+/** A tmux server `stopServersUnder` stopped: its socket's name and its sessions'. */
+export interface Stopped {
+  socket: string
+  sessions: string[]
+}
+
+/** How long one tmux command may take here. */
+const TMUX_MS = 5_000
+
+/**
+ * Stop every tmux server whose socket is under `root`, and answer which. Only
+ * one answering is stopped: a server that ended leaves its socket behind.
+ * Synchronous, because a signal's handler has no later.
+ */
+export function stopServersUnder(root: string): Stopped[] {
+  const dir = join(root, `tmux-${process.getuid?.() ?? 0}`)
+  let sockets: string[]
+  try {
+    sockets = readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isSocket())
+      .map((entry) => entry.name)
+  } catch (err) {
+    // No test started a tmux server.
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return []
+    throw err
+  }
+  const stopped: Stopped[] = []
+  for (const socket of sockets) {
+    const at = join(dir, socket)
+    const sessions = tmux(['-S', at, 'list-sessions', '-F', '#{session_name}'])
+    if (sessions === null) continue
+    tmux(['-S', at, 'kill-server'])
+    stopped.push({ socket, sessions })
+  }
+  return stopped
+}
+
+/** What a tmux command printed, a line each, or null where it failed: no server there, or no tmux. */
+function tmux(args: string[]): string[] | null {
+  const ran = spawnSync('tmux', args, {
+    encoding: 'utf8',
+    timeout: TMUX_MS,
+    stdio: ['ignore', 'pipe', 'ignore'],
+  })
+  return ran.status === 0 ? ran.stdout.split('\n').filter(Boolean) : null
+}
+
+/** The servers that had to be stopped, by socket, with the sessions that say which test left each. */
+export function serversSaid(stopped: readonly Stopped[]): string {
+  const most = 3
+  const rows = stopped.map(({ socket, sessions }) => {
+    const more = sessions.length > most ? `, and ${sessions.length - most} more` : ''
+    return `  tmux -L ${socket}: ${sessions.slice(0, most).join(', ') || 'no sessions'}${more}`
+  })
+  const servers = stopped.length === 1 ? 'a tmux server' : `${stopped.length} tmux servers`
+  return [
+    `This suite stopped ${servers} its tests left running, which would have run on with no socket once its temp root went:`,
+    ...rows,
+    'A test that starts a tmux server has to kill it when it is done. The sessions say which test it was.',
+  ].join('\n')
 }
 
 /**

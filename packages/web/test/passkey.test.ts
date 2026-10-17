@@ -1,4 +1,4 @@
-import { chmod, mkdtemp } from 'node:fs/promises'
+import { chmod, chown, mkdtemp } from 'node:fs/promises'
 import { request } from 'node:http'
 import { connect } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -35,6 +35,9 @@ interface Phone {
 /** A machine with a public name, and a phone paired through it that may steer. */
 async function phone(hours = 12): Promise<Phone> {
   const dir = await mkdtemp(join(tmpdir(), 'tade-pk-'))
+  // This user's own group first: a folder in `/tmp` is `wheel`'s, and a setgid
+  // bit on a group its owner is not in is dropped without a word.
+  await chown(dir, process.getuid?.() ?? 0, process.getgid?.() ?? 0)
   await chmod(dir, 0o2750)
   const socket = join(dir, 'away.sock')
   const clock = { at: Date.now() }

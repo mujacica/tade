@@ -1,10 +1,11 @@
-import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { homedir, tmpdir } from 'node:os'
+import { basename, dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   projectDir,
   recordsDir,
   remoteDocumentPath,
+  runtimeDir,
   tadeHome,
   taskDir,
   taskFolder,
@@ -85,5 +86,28 @@ describe('where a copy of another machine’s document is kept', () => {
         `${machine} ${task} ${name}`,
       ).toThrow()
     }
+  })
+})
+
+describe('where a home’s sockets go', () => {
+  it('is a short folder named after the home, the same for the same home', () => {
+    const at = runtimeDir('/h/.tade', {})
+    expect(dirname(at)).toBe(tmpdir())
+    expect(basename(at)).toMatch(/^tade-[0-9a-f]{8}$/)
+    expect(runtimeDir('/h/.tade', {})).toBe(at)
+    expect(runtimeDir('/other/.tade', {})).not.toBe(at)
+  })
+
+  it('is the runtime folder the session has, and Tade’s own over that', () => {
+    const name = basename(runtimeDir('/h/.tade', {}))
+    expect(runtimeDir('/h/.tade', { XDG_RUNTIME_DIR: '/run/user/1000' })).toBe(
+      `/run/user/1000/${name}`,
+    )
+    // Without moving XDG_RUNTIME_DIR, which systemctl --user finds its manager by.
+    const both = { XDG_RUNTIME_DIR: '/run/user/1000', TADE_RUNTIME_DIR: '/tmp/suite' }
+    expect(runtimeDir('/h/.tade', both)).toBe(`/tmp/suite/${name}`)
+    expect(runtimeDir('/h/.tade', { TADE_RUNTIME_DIR: '', XDG_RUNTIME_DIR: '/r' })).toBe(
+      `/r/${name}`,
+    )
   })
 })

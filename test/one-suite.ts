@@ -1,6 +1,6 @@
 import { type Holders, holdersSaid, insideHeldSlot, waitForMachineSlot } from '@tade/checks-core'
 import type { TestProject } from 'vitest/node'
-import { ownTmp } from './own-tmp.ts'
+import { endWhatItStarted, onEnding, ownTmp } from './own-tmp.ts'
 
 // One suite at a time on this machine, however it was started.
 //
@@ -96,7 +96,8 @@ export async function takeTurn(opts: {
 /**
  * The suite's `globalSetup`: wait for the machine, give the run a temp root of
  * its own (`own-tmp.ts`), and at teardown hand both back — and fail a full run
- * that left anything in the machine's temp folder.
+ * that left anything in the machine's temp folder. A run ended by a signal
+ * takes its root away as it goes.
  */
 export default async function oneSuite(project: TestProject): Promise<() => Promise<void>> {
   const { vitest } = project
@@ -112,7 +113,19 @@ export default async function oneSuite(project: TestProject): Promise<() => Prom
       throw err
     },
   )
+  // A run ended by a signal never reaches the teardown below.
+  const listening = onEnding(() => {
+    try {
+      endWhatItStarted()
+    } catch (err) {
+      say(
+        `\nCould not end what this suite started, so its temp root goes with it running: ${String(err)}\n`,
+      )
+    }
+    tmp.abandon()
+  })
   return async () => {
+    listening()
     await release()
     // Last: vitest runs no teardown after one that throws, and this one
     // throws when a full run left something behind.

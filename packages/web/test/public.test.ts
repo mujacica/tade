@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { chmod, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, chown, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { request } from 'node:http'
 import { connect, createServer, type Server as NetServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -23,6 +23,9 @@ afterEach(closeAll)
 /** A directory like the one `publicDirCommand` makes: this user's, `2750`. */
 async function dirFor(mode = 0o2750): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'tade-pub-'))
+  // This user's own group first: a folder in `/tmp` is `wheel`'s, and a setgid
+  // bit on a group its owner is not in is dropped without a word.
+  await chown(dir, process.getuid?.() ?? 0, process.getgid?.() ?? 0)
   await chmod(dir, mode)
   return dir
 }

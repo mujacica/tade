@@ -1,11 +1,19 @@
-import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, realpathSync, utimesSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { execFileSync, spawn, spawnSync } from 'node:child_process'
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs'
+import { constants, tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { tmp } from './fixtures/mkrepo.ts'
 import {
+  ENDINGS,
   GUARDED,
   guarded,
   leftBehind,
@@ -14,6 +22,8 @@ import {
   prefixOf,
   ROOT,
   STALE_MS,
+  serversSaid,
+  stopServersUnder,
   sweepRoots,
 } from './own-tmp.ts'
 
@@ -35,6 +45,7 @@ describe('a suite run has a temp root of its own', () => {
     expect(basename(root)).toMatch(new RegExp(`^${ROOT}\\d+-[A-Za-z0-9]{6}$`))
     expect(tmpdir()).toBe(root)
     expect(process.env.TMUX_TMPDIR).toBe(root)
+    expect(process.env.TADE_RUNTIME_DIR).toBe(root)
     // test/own-home.ts made this file's home before any test ran.
     expect(realpathSync(process.env.HOME ?? '')).toContain(realpathSync(root))
     const child = execFileSync(
@@ -51,11 +62,110 @@ describe('a suite run has a temp root of its own', () => {
     const own = await ownTmp({ env, guard: false, base, watch: [] })
     expect(dirname(own.root)).toBe(base)
     expect(basename(own.root)).toMatch(new RegExp(`^${ROOT}${process.pid}-`))
-    expect(env).toEqual({ TMPDIR: own.root, TMUX_TMPDIR: own.root })
+    expect(env).toEqual({ TMPDIR: own.root, TMUX_TMPDIR: own.root, TADE_RUNTIME_DIR: own.root })
     mkdirSync(join(own.root, 'tade-repo-abc123', 'repo'), { recursive: true })
     await own.done()
     expect(existsSync(own.root)).toBe(false)
     expect(env).toEqual({ TMPDIR: '/somewhere/else/' })
+  })
+})
+
+describe('a run ended before its teardown takes its root away as it goes', () => {
+  /**
+   * A process that makes a root the way the suite does and listens the way the
+   * suite does — after a listener that exits a millisecond later, as vitest's
+   * own does on SIGINT and SIGTERM — with a child of its own that has a child,
+   * ended by `signal` once it has said where its root is. Answers the root,
+   * the two processes it started and the status it ended with.
+   */
+  async function endedBy(
+    signal: NodeJS.Signals,
+  ): Promise<{ root: string; started: number[]; code: number | null }> {
+    const dir = tmp('tade-run-')
+    const script = join(dir, 'run.ts')
+    const ownTmpAt = fileURLToPath(new URL('./own-tmp.ts', import.meta.url))
+    writeFileSync(
+      script,
+      [
+        'import { spawn } from "node:child_process"',
+        `import { endWhatItStarted, onEnding, ownTmp } from ${JSON.stringify(ownTmpAt)}`,
+        'for (const signal of ["SIGINT", "SIGTERM"]) {',
+        '  process.once(signal, (_, number) => {',
+        '    process.exitCode ??= 128 + number',
+        '    setTimeout(() => process.exit(), 1)',
+        '  })',
+        '}',
+        `const own = await ownTmp({ env: process.env, guard: false, base: ${JSON.stringify(dir)}, watch: [] })`,
+        'onEnding(() => {',
+        '  endWhatItStarted()',
+        '  own.abandon()',
+        '})',
+        'const sh = spawn("sh", ["-c", "sleep 600 & echo $!; wait"], { stdio: ["ignore", "pipe", "ignore"] })',
+        'let its = ""',
+        'for await (const chunk of sh.stdout) {',
+        '  its += String(chunk)',
+        '  if (its.includes("\\n")) break',
+        '}',
+        'process.stdout.write([own.root, sh.pid, its.trim()].join(" ") + "\\n")',
+        'setInterval(() => {}, 1_000)',
+      ].join('\n'),
+    )
+    const child = spawn(process.execPath, [script], { stdio: ['ignore', 'pipe', 'inherit'] })
+    const ended = new Promise<number | null>((done) => child.once('exit', (code) => done(code)))
+    let said = ''
+    for await (const chunk of child.stdout) {
+      said += String(chunk)
+      if (said.includes('\n')) break
+    }
+    if (!said.includes('\n')) throw new Error(`the run ended before it said its root: ${said}`)
+    child.kill(signal)
+    const [root = '', ...started] = said.trim().split(' ')
+    return { root, started: started.map(Number), code: await ended }
+  }
+
+  /** Whether a pid is still a process. */
+  const running = (pid: number) => {
+    try {
+      process.kill(pid, 0)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  for (const signal of ENDINGS) {
+    it(`on ${signal}, once what it started has ended, and ends with that signal's status`, async () => {
+      const { root, started, code } = await endedBy(signal)
+      expect(basename(root)).toMatch(new RegExp(`^${ROOT}\\d+-`))
+      expect(code).toBe(128 + constants.signals[signal])
+      expect(existsSync(root)).toBe(false)
+      expect(started).toHaveLength(2)
+      for (const pid of started) await expect.poll(() => running(pid)).toBe(false)
+    })
+  }
+
+  it('safely twice, and before the teardown', async () => {
+    const own = await ownTmp({ env: {}, guard: false, base: tmp('tade-base-'), watch: [] })
+    mkdirSync(join(own.root, 'tade-repo-abc123'))
+    own.abandon()
+    own.abandon()
+    expect(existsSync(own.root)).toBe(false)
+    await expect(own.done()).resolves.toBeUndefined()
+  })
+
+  it('stopping a tmux server still running under it, and naming its sessions', () => {
+    const root = tmp('tade-base-')
+    const env = { ...process.env, TMUX_TMPDIR: root }
+    const tmux = (...args: string[]) => spawnSync('tmux', ['-L', 'left', ...args], { env })
+    expect(tmux('new-session', '-d', '-s', 'conf-abc12345', 'sleep 600').status).toBe(0)
+    expect(stopServersUnder(root)).toEqual([{ socket: 'left', sessions: ['conf-abc12345'] }])
+    expect(tmux('has-session').status).not.toBe(0)
+    // Its socket is still there, and nothing answers on it.
+    expect(stopServersUnder(root)).toEqual([])
+    expect(stopServersUnder(join(root, 'none'))).toEqual([])
+    expect(serversSaid([{ socket: 'left', sessions: ['conf-abc12345'] }])).toContain(
+      'tmux -L left: conf-abc12345',
+    )
   })
 })
 
