@@ -375,7 +375,7 @@ export function orchestratorTools(
 
   tool(
     'tade_orchestrator_model',
-    'Switch the model you — the orchestrator — think with: "use opus 5 yourself", "change your model to sonnet". Say the model the way the human did. It takes effect from your next reply and is kept for the next time Tade starts. For an agent\'s model use tade_agent_model; for "both", call each.',
+    'Switch the model you — the orchestrator — think with: "change your model to sonnet", "use opus 5 as your model". Refused unless a line of theirs names your model — "your model", "the orchestrator\'s model" — so where they did not, ask them plainly first. Say the model the way the human did. It takes effect from your next reply and is kept for the next time Tade starts. For an agent\'s model use tade_agent_model; for "both", call each.',
     object({ model: string('the model as the human said it') }, ['model']),
     async (p, _id, ctx) => {
       const chosen = (await rpc('orchestrator/model', { model: String(p.model) })) as {

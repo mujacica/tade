@@ -433,7 +433,7 @@
   },
   {
     "name": "tade_orchestrator_model",
-    "description": "Switch the model you — the orchestrator — think with: \"use opus 5 yourself\", \"change your model to sonnet\". Say the model the way the human did. It takes effect from your next reply and is kept for the next time Tade starts. For an agent's model use tade_agent_model; for \"both\", call each.",
+    "description": "Switch the model you — the orchestrator — think with: \"change your model to sonnet\", \"use opus 5 as your model\". Refused unless a line of theirs names your model — \"your model\", \"the orchestrator's model\" — so where they did not, ask them plainly first. Say the model the way the human did. It takes effect from your next reply and is kept for the next time Tade starts. For an agent's model use tade_agent_model; for \"both\", call each.",
     "parameters": {
       "type": "object",
       "properties": {

@@ -416,7 +416,10 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           // the harness it is for, so with nobody there to ask, the honest
           // answer is that there is nobody there to ask — pi's catalog is
           // not Claude Code's or Codex's to answer out of.
-          if (!orchestrator) throw opening()
+          if (!orchestrator || !settings) throw opening()
+          // It writes the orchestrator's own Model row, so it takes the
+          // person's words that row takes, before anything is resolved.
+          await settings.ownModelAsked()
           const chosen = await orchestrator.resolveModel(said)
           keepOrchestratorModel(chosen)
           // A harness that takes a model only when it starts is started again

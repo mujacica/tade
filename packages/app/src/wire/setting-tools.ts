@@ -21,6 +21,8 @@ import { configPathOf, saidLately, tilde, type Wiring } from './context.ts'
 export interface SettingTools {
   settings(find: string): Promise<string>
   change(req: { path: string; value: string; said: string }): Promise<string>
+  /** Refuses switching the orchestrator's own model unless they asked for it (`ownModelAsked`). */
+  ownModelAsked(): Promise<void>
 }
 
 /** What the tools need of the page: every row it shows, and the one write. */
@@ -42,6 +44,7 @@ export function settingTools(wire: Wiring, page: SettingWriting): SettingTools {
   return {
     settings: async (find) => settingsListed(page.rows(), find),
     change: async (req) => askedSetting(wire, page, req),
+    ownModelAsked: async () => ownModelAsked(wire, page),
   }
 }
 
@@ -156,12 +159,41 @@ export async function askedSetting(
         `${setting.title} is only changed when somebody asks for it. Pass what they said, word for word.`,
       )
     }
-    const line = namedBy(setting, await saidLately(wire, LINES_LOOKED_BACK))
-    if (!line) {
-      throw new Error(
-        `Nothing they have said names ${setting.title}, so I will not change it. Ask them plainly — "${spokenAs(setting)}" said back to you is enough — or tell them it is Settings (ctrl+,) and \`tade config\`.`,
-      )
-    }
+    await namedOrRefused(wire, setting)
   }
   return page.write(path, req.value, 'orchestrator', req.said.trim())
+}
+
+/** Refuses unless a line of theirs names this setting: the half of `asked` that reads the journal. */
+async function namedOrRefused(wire: Wiring, setting: Setting): Promise<void> {
+  if (!namedBy(setting, await saidLately(wire, LINES_LOOKED_BACK))) {
+    throw new Error(
+      `Nothing they have said names ${setting.title}, so I will not change it. Ask them plainly — "${spokenAs(setting)}" said back to you is enough — or tell them it is Settings (ctrl+,) and \`tade config\`.`,
+    )
+  }
+}
+
+/** The row `tade_orchestrator_model` writes, with `orchestrator.provider` beside it. */
+const OWN_MODEL = 'orchestrator.model'
+
+/**
+ * Refuse switching the orchestrator's own model unless its row's reach allows
+ * it, on the words `askedSetting` asks of that row.
+ *
+ * `tade_orchestrator_model` writes `orchestrator.model` and
+ * `orchestrator.provider` without going through `tade_setting_change`, so it
+ * is held here, at its own door, before anything is resolved, switched or
+ * kept. Without it, "use a cheaper model for refunds" — which that row refuses,
+ * because it names no model of the orchestrator's (`OWNED_ROWS`) — switched
+ * the orchestrator's model anyway, by the other door.
+ */
+async function ownModelAsked(wire: Wiring, page: SettingWriting): Promise<void> {
+  const setting = page
+    .rows()
+    .flatMap((group) => group.settings)
+    .find((one) => one.path === OWN_MODEL)
+  if (!setting) throw new Error(`Tade has no setting called ${OWN_MODEL}, so I will not switch it.`)
+  const { reach, because } = settingReach(OWN_MODEL)
+  if (reach === 'never') throw new Error(`${setting.title} is not mine to change: ${because}.`)
+  if (reach === 'asked') await namedOrRefused(wire, setting)
 }

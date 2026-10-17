@@ -316,6 +316,17 @@ describe('the orchestrator, configuring Tade', () => {
     )
   })
 
+  it('switches its own model by its own tool on the same words, and on no others', async () => {
+    // `tade_orchestrator_model` writes the same row without `change`, so it
+    // is asked here before anything is resolved: the refunds line was a
+    // switch by that door.
+    const config = await tools()
+    await theySaid('use a cheaper model for refunds')
+    await expect(config.ownModelAsked()).rejects.toThrow(/"your model" said back to you/)
+    await theySaid('use opus 5 as your model')
+    await expect(config.ownModelAsked()).resolves.toBeUndefined()
+  })
+
   it('refuses a path Tade does not offer rather than writing it anyway', async () => {
     await expect(
       (await tools()).change({ path: 'agents.nonsense', value: '1', said: 'do it' }),
