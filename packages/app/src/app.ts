@@ -242,7 +242,7 @@ export class App {
         void this.voice.silence()
       },
       accountAction: (choice) => this.machine.accountAction(choice),
-      remoteAction: (choice) => this.remotes.action(choice),
+      remoteAction: (choice) => this.remotes.action(choice, this.projects),
       updateAction: (choice) => this.updates.action(choice),
       testMicrophone: () => this.voice.testMicrophone(),
       openFile: (path) => this.files.openPlace({ path }),

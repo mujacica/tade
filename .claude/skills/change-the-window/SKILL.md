@@ -1040,6 +1040,14 @@ drawn from what its away view sends — the projection the link holds (REMOTE-TA
 - **Down is drawn from what it last said**: the chip wears `○` (`machineMark`), the rows stay with
   their ages as of `asOf` (`ageThere`, the remote's moments moved by `skewOf` into this clock), and
   the heading says `as of 14:02` — never an empty list.
+- **Moving work there is three presses in three places, one door** (`wire/moves.ts`, owned by
+  `Remotes` so `app.ts` hears of it only as the project door it hands `Remotes.action`): queued
+  work's card says `Start on vps` where `Frame.startsOn` names that machine for its project and
+  `startsOnFor` lets it leave; a machine's menu along the top lists `Hand <task> to vps` for each
+  agent running here whose project it holds (`Moves.menuItems`, `chose`); and Settings › Remotes
+  has a row per project here, `Move <project>`, with the one press that is next — open it there,
+  hand its work over, close it here, the last asked twice (`ProjectMove`, `CLOSE_AFTER_MOVE`). What
+  comes of a hand-over is said in the strip when it comes, because it comes on a later beat.
 
 ## Drawing the queue and a plan
 

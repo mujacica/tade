@@ -7,6 +7,7 @@ import type { WebConfiguring } from './configuring.ts'
 import type { WebDocument } from './document.ts'
 import type { WebDrafting } from './drafting.ts'
 import type { WebMachine } from './machine.ts'
+import type { WebOpening } from './opened.ts'
 import type { Streams } from './peers.ts'
 import type { WebPushing } from './pushing.ts'
 import type { Grant, Reach } from './reach.ts'
@@ -249,6 +250,12 @@ export interface ServerOptions {
    * work here (`taken.ts`). Absent, the route is the `404` of a path nobody wired.
    */
   taking?: WebTaking
+  /**
+   * A project an owner's window on another machine is moving here, opened —
+   * cloned first with this machine's own credentials where it is not checked
+   * out here (`opened.ts`). Absent, the route is the `404` of a path nobody wired.
+   */
+  opening?: WebOpening
   /** The tickets the pairing panel minted. */
   tickets: Tickets
   /**

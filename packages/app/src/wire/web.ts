@@ -285,7 +285,7 @@ export class Away implements Subject {
       looking: (device, at) => this.push.looking(device, at),
       since: this.presences.since(),
       carrying: carryingFor(this.wire, this.deps.settings),
-      ...ownedFor(this.wire, () => this.panelFacts()),
+      ...ownedFor(this.wire, () => this.panelFacts(), this.deps.lifecycle),
       tickets: this.tickets,
       streams: this.streams,
       tell: heard(

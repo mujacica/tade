@@ -1,4 +1,5 @@
 import { runProgram } from '@tade/core'
+import { CLONE_URL } from '@tade/web'
 
 // A running task handed to another machine of the person's (REMOTE-TADE.md
 // §9.2), the parts of it that are git and words: what its agent is told, how
@@ -159,4 +160,34 @@ export async function pushedTo(from: HandedFrom): Promise<{ head: string } | { n
 export async function branchAt(cwd: string): Promise<string | null> {
   const on = await git(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
   return on.code === 0 && on.stdout.trim() !== '' ? on.stdout.trim() : null
+}
+
+/**
+ * The URL another machine clones this checkout's repository from: its
+ * `origin`, with any credential in it taken out — a token in an https remote
+ * is this machine's, and the other clones with its own — or null where there
+ * is none, or it is not one another machine could clone from (`CLONE_URL`).
+ */
+export async function cloneUrlAt(root: string): Promise<string | null> {
+  const got = await git(root, ['remote', 'get-url', 'origin'])
+  if (got.code !== 0) return null
+  const url = withoutCredential(got.stdout.trim())
+  return CLONE_URL.test(url) ? url : null
+}
+
+/** A remote URL with the user and password of an https or ssh URL taken out; `git@host:path` as it is. */
+export function withoutCredential(url: string): string {
+  if (!/^(?:https|ssh):\/\//.test(url)) return url
+  // Not a URL `URL` reads is answered as nothing a clone could use.
+  if (!URL.canParse(url)) return ''
+  const parsed = new URL(url)
+  // ssh's user is who to log in as, not a secret; https's is a token's place.
+  if (parsed.protocol === 'https:') parsed.username = ''
+  parsed.password = ''
+  return parsed.toString()
+}
+
+/** The project half of a task's id. */
+export function projectOf(task: string): string {
+  return task.slice(0, Math.max(0, task.indexOf('/')))
 }

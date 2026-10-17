@@ -6,6 +6,7 @@ import { type DocumentAnswer, documentHere } from './document.ts'
 import type { Refusal } from './errors.ts'
 import { carryLooking } from './looking.ts'
 import { type MachineAnswer, machineHere } from './machine.ts'
+import { type OpenAnswer, openHere } from './opened.ts'
 import { carryPresence } from './presence.ts'
 import { type RepositoriesAnswer, repositoriesHere } from './repositories.ts'
 import type { ServerOptions } from './serving.ts'
@@ -22,8 +23,8 @@ import { type ToolReadAnswer, toolHere } from './tool-read.ts'
 // machines (`shared-notes.ts`), where each project's work is, for a fetch
 // over the same SSH (`repositories.ts`), and what this machine is, one of its
 // documents and one of its tools that only reads (`machine.ts`, `document.ts`,
-// `tool-read.ts`), and work it hands this machine to start here
-// (`taken.ts`). One door in `server.ts` for all of them (`OWNED_DOOR`),
+// `tool-read.ts`), work it hands this machine to start here (`taken.ts`), and
+// a project it is moving here, opened (`opened.ts`). One door in `server.ts` for all of them (`OWNED_DOOR`),
 // because each is the SSH key's word and nothing a phone's session is ever
 // answered.
 //
@@ -45,6 +46,7 @@ export const OWNED_DOOR: ReadonlySet<string> = new Set([
   'document',
   'tool',
   'take',
+  'open',
 ])
 
 export async function carryOwned(
@@ -65,6 +67,7 @@ export async function carryOwned(
     | 'document'
     | 'tool'
     | 'taking'
+    | 'opening'
   >,
   res: Answering,
 ): Promise<
@@ -80,6 +83,7 @@ export async function carryOwned(
         | DocumentAnswer
         | ToolReadAnswer
         | TakeAnswer
+        | OpenAnswer
     }
   | { refusal: Refusal }
 > {
@@ -92,6 +96,7 @@ export async function carryOwned(
   if (route === 'document') return documentHere(req, device, opts.document)
   if (route === 'tool') return toolHere(req, device, opts.tool)
   if (route === 'take') return takeHere(req, device, opts.taking)
+  if (route === 'open') return openHere(req, device, opts.opening)
   if (route === 'looking') return carryLooking(req, device, now, opts.looking)
   return carryPresence(req, device, now, opts.present)
 }

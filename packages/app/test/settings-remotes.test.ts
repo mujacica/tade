@@ -4,7 +4,12 @@ import type { Checklist } from '@tade/workbench/carry'
 import { describe, expect, it } from 'vitest'
 import { type Machine, NO_DETAIL, unheard } from '../src/machines.ts'
 import { sideWidth } from '../src/panels/cells.ts'
-import { type RemoteShown, remoteActions, remoteChoice } from '../src/panels/settings/remotes.ts'
+import {
+  CLOSE_AFTER_MOVE,
+  type RemoteShown,
+  remoteActions,
+  remoteChoice,
+} from '../src/panels/settings/remotes.ts'
 import { settingsKey } from '../src/panels/settings/state.ts'
 import { drawnAt, panelFor, plainRows, WIDTHS } from './settings-panel.ts'
 
@@ -141,6 +146,40 @@ describe('Settings › Remotes', () => {
       'remote:sign-in:vps:codex:',
       'remote:again:vps',
     ])
+  })
+
+  it('walks moving a project there one press at a time, and asks twice before closing it here', () => {
+    const moving: RemoteShown = {
+      ...VPS,
+      list: null,
+      moves: [
+        { project: 'docs', said: 'not on vps yet', next: 'open' },
+        { project: 'app', said: 'on vps as tade · 1 running here', next: 'hand' },
+        { project: 'web', said: 'on vps as web · nothing of it is working here', next: 'close' },
+        { project: 'shop', said: 'moving to vps…', next: null },
+      ],
+    }
+    const drawn = page([moving]).replace(/ +/g, ' ')
+    expect(drawn).toContain('Move docs not on vps yet')
+    expect(drawn).toContain('Open it on vps')
+    expect(drawn).toContain('Hand its work over')
+    expect(drawn).toContain('Close it here…')
+    expect(drawn).toContain('moving to vps…')
+    expect(remoteActions([moving]).map((one) => one.id)).toEqual([
+      'remote:move-open:vps:docs',
+      'remote:move-hand:vps:app',
+      'remote:move-close:vps:web',
+      'remote:again:vps',
+    ])
+    const first = remoteChoice(panelFor('remotes'), 'remote:move-close:vps:web')
+    expect('submit' in first && first.submit).toBeFalsy()
+    const asked = page([moving], { confirm: 'remote:move-close:vps:web' }).replace(/\s+/g, ' ')
+    expect(asked).toContain('Press again to close it here')
+    expect(asked).toContain(CLOSE_AFTER_MOVE.slice(0, 40))
+    expect(remoteChoice(panelFor('remotes'), 'remote:move-open:vps:docs')).toMatchObject({
+      submit: true,
+      choice: 'remote:move-open:vps:docs',
+    })
   })
 
   it('asks twice before keys go, saying what that means between the two presses', () => {

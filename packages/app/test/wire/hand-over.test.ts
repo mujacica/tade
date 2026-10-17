@@ -92,6 +92,7 @@ async function handing(over: { workspace?: 'checkout' | 'worktree' } = {}) {
     machines: () => ({ remotes: [{ name: 'vps' }] }) as unknown as Machines,
     sameAs: (project) => (project === 'app' ? [{ machine: 'vps', project: 'tade' }] : []),
     say: (one) => said.push(one),
+    told: (saved, error) => said.push(error ?? saved ?? ''),
   })
   /**
    * The window's beat, waited on until its look has finished: still there and

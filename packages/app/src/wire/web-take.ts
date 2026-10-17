@@ -28,10 +28,13 @@ import { type Wiring, why } from './context.ts'
 // `core.sshCommand` is left as it is — it is often what names this machine's
 // key.
 
-/** How long fetching the branch may take. */
-const FETCH_MS = 60_000
-/** How long the dry-run push may take, and the two small looks. */
-const LOOK_MS = 30_000
+/**
+ * How long fetching the branch may take, and the dry-run push and the small
+ * looks: all of it inside the one call the other machine makes (`CALL_MS`, a
+ * minute), so it is answered rather than given up on there while it goes on here.
+ */
+const FETCH_MS = 30_000
+const LOOK_MS = 10_000
 
 /** What git is run with: the window's own environment, and nothing that asks. */
 function quiet(): Record<string, string | undefined> {

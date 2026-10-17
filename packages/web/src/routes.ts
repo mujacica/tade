@@ -480,8 +480,8 @@ export const SETTINGS: readonly Route[] = Object.keys(CHANGES).map((name) => ({
  * machine's Tade carrying its setup here (`carried.ts`), asking what to run
  * here to be shown one of its agents (`attached.ts`), asking what the person
  * missed while away (`since.ts`), sharing the person's notes
- * (`shared-notes.ts`), what this machine is (`machine.ts`), and work handed
- * here to start (`taken.ts`).
+ * (`shared-notes.ts`), what this machine is (`machine.ts`), work handed
+ * here to start (`taken.ts`), and a project moved here (`opened.ts`).
  *
  * A table of its own because each is what no phone may ever be given: the
  * carry writes the config beyond `settingReach`'s `open` tier — preferences,
@@ -556,6 +556,11 @@ export const OWNED: readonly Route[] = [
   // own rule. The one route that makes work — what `ssh` here and a plan at
   // this machine's window in tmux already allow the same key.
   { method: 'POST', path: '/api/take', name: 'take', needs: 'read', mutates: true, here: true },
+  // A project another machine of the person's is moving here (`opened.ts`):
+  // cloned with this machine's own credentials where it is not checked out
+  // yet, and opened through the window's own door — what `ssh` here and
+  // `git clone` already allow the same key.
+  { method: 'POST', path: '/api/open', name: 'open', needs: 'read', mutates: true, here: true },
 ]
 
 /**

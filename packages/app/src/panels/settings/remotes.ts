@@ -25,6 +25,11 @@ import type { SettingsPanel } from './state.ts'
 // (`machine-there.ts`). A machine that stopped answering is drawn as of its
 // last answer, never as one with nothing wrong.
 //
+// **And moving a project there** (`moves`, REMOTE-TADE.md §9.2): each project
+// here with the one press that is next — open it there, hand its work over,
+// close it here — which is the whole guided flow, because the steps are only
+// ever taken in that order and each is a press somebody can see the result of.
+//
 // A category only while there is a remote: a page that says "none" to
 // everybody who never added one is a page in every picture of Settings.
 
@@ -47,7 +52,29 @@ export interface RemoteShown {
   busy: boolean
   /** The machine as this window folds it — its link, its detail — or null before anything was held. */
   machine: Machine | null
+  /** Each project here, as moving it to this machine stands (`wire/moves.ts`). */
+  moves?: readonly ProjectMove[]
 }
+
+/** One project here, as moving it to one machine stands: what it says, and the one press that is next. */
+export interface ProjectMove {
+  project: string
+  /** Where it is there, and what of it is still here. */
+  said: string
+  /** Open it there, hand its work over, or close it here — or nothing while a press is under way. */
+  next: 'open' | 'hand' | 'close' | null
+}
+
+/** What each step's press says, and what closing says between its two presses. */
+const MOVE_LABELS = {
+  open: (machine: string) => `Open it on ${machine}`,
+  hand: () => 'Hand its work over',
+  close: () => 'Close it here…',
+} as const
+
+/** Said between the two presses that close a project here, because that is the one that takes it away. */
+export const CLOSE_AFTER_MOVE =
+  'Closing keeps everything here — the folder, its branches, its tasks and their conversations — and opening the same path again brings it all back.'
 
 /**
  * One thing that can be pressed on the page: `remote:<verb>:<remote>:<rest>`.
@@ -63,7 +90,7 @@ export interface RemoteAction {
 }
 
 /** The presses asked twice: what each means is said between the two. */
-const TWICE: readonly string[] = ['keys', 'talk']
+const TWICE: readonly string[] = ['keys', 'talk', 'move-close']
 
 /** The account a sign-in is for, as an id carries it: empty for the harness's own. */
 function signInId(remote: string, one: { harness: string; account: string | null }): string {
@@ -103,6 +130,15 @@ export function remoteActions(remotes: readonly RemoteShown[]): RemoteAction[] {
       if (one.told && !one.signedIn) {
         actions.push({ id: signInId(at, one), label: 'Sign in…', remote: at })
       }
+    }
+    for (const one of remote.moves ?? []) {
+      if (one.next === null) continue
+      actions.push({
+        id: `remote:move-${one.next}:${at}:${one.project}`,
+        label: MOVE_LABELS[one.next](at),
+        remote: at,
+        ...(one.next === 'close' ? { again: 'Press again to close it here' } : {}),
+      })
     }
     actions.push({ id: `remote:again:${at}`, label: 'Carry again', remote: at })
   }
@@ -225,6 +261,14 @@ export function drawRemotes(
     }
     if (list !== null && list.here.length > 0) {
       line('This machine’s', list.here.map((one) => one.what).join(', '), skin.hint)
+    }
+    for (const one of remote.moves ?? []) {
+      const tone = one.next === 'close' ? skin.done : one.next === null ? skin.waiting : skin.hint
+      line(`Move ${one.project}`, one.said, tone)
+      if (one.next === null) continue
+      const id = `remote:move-${one.next}:${at}:${one.project}`
+      buttons([id])
+      if (panel.confirm === id) say(CLOSE_AFTER_MOVE, skin.hint, 3 + named, 3)
     }
     buttons([`remote:again:${at}`])
     body.push(blank(form))

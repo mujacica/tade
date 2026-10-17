@@ -42,6 +42,7 @@ import type { DeskElsewhere } from './landing.ts'
 import { type Mirrors, mirrorsFor } from './mirrors.ts'
 import { Moves, type MoveTools } from './moves.ts'
 import { type SharedNotes, sharedNotesFor } from './notes-shared.ts'
+import type { ProjectDoor } from './project-moves.ts'
 import { RemoteAgents } from './remote-agent.ts'
 import { RemoteMachines } from './remote-machine.ts'
 import { type RemoteReads, remoteReads } from './remote-reads.ts'
@@ -450,8 +451,14 @@ export class Remotes implements Subject {
     return this.deps.settingsOpen() ? { remoteActions: remoteActions(this.shown()) } : {}
   }
 
-  /** A press on the Remotes page. */
-  action(choice: string): Promise<void> {
+  /**
+   * A press on the Remotes page — with the window's door that closes a project
+   * here, for the last step of moving one there (`moves.ts`).
+   */
+  action(choice: string, projects?: ProjectDoor): Promise<void> {
+    if (this.moves !== null && choice.startsWith('remote:move-')) {
+      return this.moves.projects.step(choice, projects)
+    }
     return this.carries.action(choice)
   }
 
@@ -471,6 +478,7 @@ export class Remotes implements Subject {
           ),
           live: held?.live === true,
           machine: machines.find((machine) => machine.name === name) ?? null,
+          ...(this.moves === null ? {} : { moves: this.moves.projects.projectMoves(name) }),
         }
       }),
     )
@@ -662,6 +670,15 @@ export function remotesFor(
     wire.put(notice(wire.state, said, wire.now()))
     wire.draw()
   }
+  /** Said on the Settings page where it is open, and in the strip where it is not. */
+  const told = (saved: string | null, error: string | null) => {
+    const panel = wire.state.panel
+    if (panel?.kind === 'settings') wire.put({ ...wire.state, panel: { ...panel, saved, error } })
+    else if (error !== null || saved !== null) {
+      wire.put(notice(wire.state, error ?? saved ?? '', wire.now()))
+    }
+    wire.draw()
+  }
   return new Remotes({
     carrying: {
       config: (): Config => wire.opts.config,
@@ -706,6 +723,7 @@ export function remotesFor(
           ...reachingOf(remotes),
           sameAs: (project) => remotes.mirrored()?.sameAs(project) ?? [],
           say,
+          told,
         }),
     )
     .withMachines(

@@ -8,6 +8,8 @@ import {
   carryingAt,
   type MachineAnswer,
   mintOwner,
+  type Open,
+  type OpenAnswer,
   type ProjectIn,
   type Projector,
   projector,
@@ -133,6 +135,13 @@ export interface FarEnd {
    * project it has not got — in the real window's own words for that.
    */
   taking: ((take: Take) => TakeAnswer) | null
+  /** Projects an owner moved here (`/api/open`), oldest first, as its window was handed each. */
+  readonly opened: { open: Open; device: string }[]
+  /**
+   * What its window answers a project moved to it. A test sets it; unset, it
+   * opens it under the name asked for and shows it among its projects.
+   */
+  opening: ((open: Open) => OpenAnswer) | null
   /** Its window closed and opened again: the same home and port, another epoch. */
   restart(): Promise<void>
   /** Nothing answers on its port any more. Safe twice. */
@@ -185,6 +194,8 @@ class Far implements FarEnd {
   readonly tools = new Map<string, (input: Record<string, unknown>) => ToolReadAnswer>()
   readonly taken: { take: Take; device: string }[] = []
   taking: ((take: Take) => TakeAnswer) | null = null
+  readonly opened: { open: Open; device: string }[] = []
+  opening: ((open: Open) => OpenAnswer) | null = null
   readonly acted: FarAct[] = []
   readonly talk = new FarTalk()
   private agents: readonly FarAgent[] = []
@@ -277,6 +288,13 @@ class Far implements FarEnd {
         return one === undefined ? null : { ...one, bytes: Buffer.byteLength(one.text) }
       },
       tool: async ({ tool, input }) => this.tools.get(tool)?.(input) ?? null,
+      opening: async (open, device) => {
+        this.opened.push({ open, device })
+        if (this.opening !== null) return this.opening(open)
+        if (!this.projects.includes(open.name)) this.projects = [...this.projects, open.name]
+        const root = join(this.home, 'checkouts', open.name)
+        return { opened: true, project: open.name, root, said: `Opened ${open.name}.` }
+      },
       taking: async (take, device) => {
         this.taken.push({ take, device })
         if (this.taking !== null) return this.taking(take)

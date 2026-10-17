@@ -216,7 +216,7 @@ export async function start(
     /** The window's projects and branches, for a test of an owner asking where they are. */
     repositories?: WebRepositories
     /** What the window says this machine is, a document, a tool that reads, and work it takes. */
-    owned?: Pick<ServerOptions, 'machine' | 'document' | 'tool' | 'taking'>
+    owned?: Pick<ServerOptions, 'machine' | 'document' | 'tool' | 'taking' | 'opening'>
   } = {},
 ): Promise<Running> {
   settingRows = opts.settings ?? []

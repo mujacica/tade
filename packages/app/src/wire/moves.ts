@@ -34,8 +34,10 @@ import {
   type HandedFrom,
   handedNote,
   handSays,
+  projectOf,
   pushedTo,
 } from './hand-over.ts'
+import { ProjectMoves } from './project-moves.ts'
 
 // Work moved to another machine of the person's (REMOTE-TADE.md §9.2): queued
 // work started there instead of here — "Start on vps" on its card, or the
@@ -87,6 +89,8 @@ export interface MovesDeps {
   sameAs(project: string): readonly { machine: string; project: string }[]
   /** Said in the strip: how a hand-over that went on in the background came out. */
   say(said: string): void
+  /** Said on the Remotes page: what a press in moving a project did, or why it did not. */
+  told(saved: string | null, error: string | null): void
 }
 
 /** How long an agent has to commit and push once it is told it is being handed over. */
@@ -123,10 +127,18 @@ export class Moves {
   private readonly moving = new Set<string>()
   /** Running tasks being handed over, by task. */
   private readonly handing = new Map<string, Handing>()
+  /** A whole project moved there, a press at a time (`project-moves.ts`). */
+  readonly projects: ProjectMoves
 
   constructor(wire: Wiring, deps: MovesDeps) {
     this.wire = wire
     this.deps = deps
+    this.projects = new ProjectMoves(wire, deps, this)
+  }
+
+  /** Whether a running task is being handed over now. */
+  handingNow(task: string): boolean {
+    return this.handing.has(task)
   }
 
   /**
@@ -289,7 +301,7 @@ export class Moves {
     const head = await runProgram('git', ['-C', cwd, 'rev-parse', 'HEAD'], { timeoutMs: 10_000 })
     if (head.code !== 0) throw new Error(`${task}'s work has no commit to begin from.`)
     // Asked first, so an agent is never stopped for a name already used there.
-    const asked = await this.ask(reach.link, machine, {
+    const asked = await this.ask(reach, machine, {
       from: machineLabel(),
       was: task,
       project: there,
@@ -359,7 +371,7 @@ export class Moves {
         return
       }
       this.handing.delete(task)
-      this.deps.say(await this.handed(handing, reach.link, pushed.head))
+      this.deps.say(await this.handed(handing, reach, pushed.head))
     } catch (err) {
       this.handing.delete(task)
       this.deps.say(`${task} was not handed to ${machine}: ${why(err)}. Its agent goes on here.`)
@@ -369,7 +381,11 @@ export class Moves {
   }
 
   /** Its work is on origin: made there, and the agent here stopped. What happened, in a sentence. */
-  private async handed(handing: Handing, link: RemoteLink, head: string): Promise<string> {
+  private async handed(
+    handing: Handing,
+    reach: { link: RemoteLink; remote: Remote },
+    head: string,
+  ): Promise<string> {
     const { task, machine, branch } = handing
     const client = this.wire.opts.client
     const file = await readTaskFile(this.wire.opts.home, task)
@@ -393,7 +409,7 @@ export class Moves {
     if (take.context.length > TAKE_CONTEXT_MOST || take.intent.length > TAKE_WORDS_MOST) {
       throw new Error(`its context is longer than one request to ${machine} carries`)
     }
-    const answer = await this.ask(link, machine, take)
+    const answer = await this.ask(reach, machine, take)
     if (!answer.took) {
       return `${machine} did not take ${task}: ${printable(answer.said)}. Its work is on origin at ${branch}, and its agent goes on here.`
     }
@@ -504,7 +520,7 @@ export class Moves {
     }
     let answer: TakeAnswer
     try {
-      answer = await this.ask(reach.link, machine, take)
+      answer = await this.ask(reach, machine, take)
     } catch (err) {
       throw new Error(`${why(err)}${await this.pickUp(task, by)}`)
     }
@@ -528,10 +544,19 @@ export class Moves {
   }
 
   /** Over the link already up, as this machine's owner there. Throws what to say where it was not taken. */
-  private async ask(link: RemoteLink, machine: string, take: Take): Promise<TakeAnswer> {
+  /**
+   * Over a call of its own rather than the held link's quick request: making
+   * the work there may fetch a branch first, which takes longer than a look
+   * at a screen is given (`CALL_MS`, against `REQUEST_MS`).
+   */
+  private async ask(
+    reach: { link: RemoteLink; remote: Remote },
+    machine: string,
+    take: Take,
+  ): Promise<TakeAnswer> {
     let answer: Answer
     try {
-      answer = await link.request(machine, '/api/take', take)
+      answer = await reach.link.call(reach.remote, '/api/take', take)
     } catch (err) {
       throw new Error(
         `${machine}: ${printable(why(err))} — it may not have been taken there; look at its queue before moving it again`,
@@ -664,9 +689,4 @@ export class Moves {
       `No machine here is called ${name}: ${names === '' ? 'none is linked (tade remote add)' : `the ones linked are ${names}`}.`,
     )
   }
-}
-
-/** The project half of a task's id. */
-function projectOf(task: string): string {
-  return task.slice(0, Math.max(0, task.indexOf('/')))
 }
