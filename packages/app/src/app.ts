@@ -332,6 +332,7 @@ export class App {
       quit: () => this.window.quit(),
       soonTick: () => this.looks.soonTick(),
       settle: () => this.mouse.settle(),
+      reach: (area) => this.mouse.reach(area),
       toLane: (data) => this.lanes.toLane(data),
       act: (said) => void this.router.act(said),
       say: (said) => this.remotes.say(said) || this.orchestrator.say(said),

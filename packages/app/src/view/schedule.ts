@@ -1,4 +1,4 @@
-import { describeLook, printable, type WatchLook } from '@tade/core'
+import { describeLook, printable, printableLines, type WatchLook } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, type Target } from '../hits.ts'
 import { type AppState, glyph, projects, type ScheduleView, shownName } from '../model.ts'
@@ -9,6 +9,7 @@ import { blank, type Drawn, type Pointer, Row, stack } from '../ui.ts'
 import { widthOf } from '../width.ts'
 import {
   type ListItem,
+  paged,
   QUEUE_ICONS,
   type Section,
   TAB_EDGES,
@@ -344,134 +345,140 @@ export function renderSchedule(
     .space(2)
     .text(shortened(word, Math.max(1, width - probe.used - widthOf(title) - 6)), mark.tone)
   header.right(controls)
-  const rows: { text: string; hits: Hit[] }[] = [
-    header.build(),
-    { text: skin.chrome('─'.repeat(width)), hits: [] },
-    blank(width),
-  ]
-  const line = (build: (r: Row) => void) => {
-    const r = new Row(width, skin, pointer).space(2)
-    build(r)
-    rows.push(r.build())
-  }
-  // What a watch found and why a look failed are a source's words — a
-  // review's title, an issue's, a provider's error — so all of it is text.
-  const said = (text: string) => shortened(printable(text), Math.max(1, width - 16))
-  for (const text of wrapWords(
-    printable(`${capitalised(one.when)}, it ${one.does}.`),
-    Math.max(10, width - 6),
-  ).slice(0, 2)) {
-    line((r) => r.text(text, skin.you))
-  }
-  if (one.prompt.trim()) {
+  const top = [header.build(), { text: skin.chrome('─'.repeat(width)), hits: [] }]
+  // Everything under the heading is the page, laid out at the width it is
+  // handed — a column narrower where it scrolls — and scrolled: what it tells
+  // its agent is as long as it is. The heading stays, so Run now is never
+  // scrolled out of reach.
+  const page = (width: number) => {
+    const rows: { text: string; hits: Hit[] }[] = [blank(width)]
+    const line = (build: (r: Row) => void) => {
+      const r = new Row(width, skin, pointer).space(2)
+      build(r)
+      rows.push(r.build())
+    }
+    // What a watch found and why a look failed are a source's words — a
+    // review's title, an issue's, a provider's error — so all of it is text.
+    const said = (text: string) => shortened(printable(text), Math.max(1, width - 16))
+    for (const text of wrapWords(
+      printable(`${capitalised(one.when)}, it ${one.does}.`),
+      Math.max(10, width - 6),
+    )) {
+      line((r) => r.text(text, skin.you))
+    }
+    if (one.prompt.trim()) {
+      rows.push(blank(width))
+      line((r) => r.text(one.kind === 'ask' ? 'ASKS' : 'TELLS ITS AGENT', skin.label))
+      const told = wrapWords(printableLines(one.prompt).trim(), Math.max(10, width - 6))
+      for (const text of told) line((r) => r.text('│', skin.chrome).space().text(text))
+    }
     rows.push(blank(width))
-    line((r) => r.text(one.kind === 'ask' ? 'ASKS' : 'TELLS ITS AGENT', skin.label))
-    const told = wrapWords(printable(one.prompt).trim(), Math.max(10, width - 6))
-    for (const text of told.slice(0, 6)) line((r) => r.text('│', skin.chrome).space().text(text))
-    if (told.length > 6) line((r) => r.text('│', skin.chrome).space().text('…', skin.hint))
-  }
-  rows.push(blank(width))
-  const fact = (label: string, value: string) =>
-    line((r) => r.text(label.padEnd(10), skin.label).space().text(said(value), skin.hint))
-  fact(
-    'NEXT',
-    one.paused
-      ? 'paused'
-      : one.next.length > 0
-        ? one.next.map(clock).join(' · ')
-        : 'nothing left to run',
-  )
-  fact('IF MISSED', one.missed === 'once' ? 'runs once when Tade opens' : 'skipped')
-  const from = askedBy(one.by)
-  const who = (name: string) =>
-    name === 'you' ? 'you' : name === 'orchestrator' ? 'the orchestrator' : name
-  const watch = one.watch
-  if (watch) {
-    const acts = watch.found === 'agent' ? (watch.most === 1 ? 'agent' : 'agents') : 'told'
-    fact('AT MOST', `${watch.most} ${acts} a look`)
-    // Which machine looks with it, wherever this one links to another: one per
-    // repository (`watchWhere`), and the newest look says which and why.
-    const left = watch.looks[0]
-    if (left?.on || (frame.machines?.remotes.length ?? 0) > 0) {
-      fact('RUNS ON', left?.on ?? 'here')
-      const why = printable(left?.on ? (left.said ?? '') : '')
-      for (const text of wrapWords(why, Math.max(10, width - 16))) {
-        line((r) => r.text(' '.repeat(11)).text(text, skin.hint))
+    const fact = (label: string, value: string) =>
+      line((r) => r.text(label.padEnd(10), skin.label).space().text(said(value), skin.hint))
+    fact(
+      'NEXT',
+      one.paused
+        ? 'paused'
+        : one.next.length > 0
+          ? one.next.map(clock).join(' · ')
+          : 'nothing left to run',
+    )
+    fact('IF MISSED', one.missed === 'once' ? 'runs once when Tade opens' : 'skipped')
+    const from = askedBy(one.by)
+    const who = (name: string) =>
+      name === 'you' ? 'you' : name === 'orchestrator' ? 'the orchestrator' : name
+    const watch = one.watch
+    if (watch) {
+      const acts = watch.found === 'agent' ? (watch.most === 1 ? 'agent' : 'agents') : 'told'
+      fact('AT MOST', `${watch.most} ${acts} a look`)
+      // Which machine looks with it, wherever this one links to another: one per
+      // repository (`watchWhere`), and the newest look says which and why.
+      const left = watch.looks[0]
+      if (left?.on || (frame.machines?.remotes.length ?? 0) > 0) {
+        fact('RUNS ON', left?.on ?? 'here')
+        const why = printable(left?.on ? (left.said ?? '') : '')
+        for (const text of wrapWords(why, Math.max(10, width - 16))) {
+          line((r) => r.text(' '.repeat(11)).text(text, skin.hint))
+        }
       }
     }
-  }
-  fact(
-    'FROM',
-    `${who(from)}${watch ? ` · turned on by ${who(askedBy(watch.turnedOnBy))}` : ''}${one.said ? ` · “${one.said}”` : ''}`,
-  )
-  if (watch) {
-    const room = Math.max(1, width - 4 - 18)
-    if (watch.findings.length > 0) {
+    fact(
+      'FROM',
+      `${who(from)}${watch ? ` · turned on by ${who(askedBy(watch.turnedOnBy))}` : ''}${one.said ? ` · “${one.said}”` : ''}`,
+    )
+    if (watch) {
+      const room = Math.max(1, width - 4 - 18)
+      if (watch.findings.length > 0) {
+        rows.push(blank(width))
+        line((r) => r.text('FOUND', skin.label))
+        for (const each of watch.findings.slice(0, 6)) {
+          const found = printable(each.title)
+          line((r) => {
+            r.text(clock(each.at).padEnd(18), skin.hint)
+            const task = each.task ? state.panes.find((pane) => pane.task === each.task) : null
+            if (task) {
+              r.text(glyph(task, frame.now ?? 0), toneOf(task, skin))
+                .space()
+                .text(shortened(`${shownName(task)} · ${found}`, Math.max(1, room - 2)))
+            } else if (each.task) {
+              r.text(shortened(`${inProject(one.project, each.task)} · ${found}`, room), skin.hint)
+            } else if (each.told) {
+              r.text(shortened(`told ${who(each.told)} · ${found}`, room), skin.hint)
+            } else {
+              r.text(shortened(`could not start · ${found}`, room), skin.waiting)
+            }
+          })
+          if (!each.task && !each.told && each.problem) {
+            line((r) =>
+              r
+                .text(' '.repeat(18))
+                .text(shortened(printable(each.problem ?? ''), room), skin.hint),
+            )
+          }
+        }
+      }
+      if (watch.looks.length > 0) {
+        rows.push(blank(width))
+        line((r) => r.text('LOOKS', skin.label))
+        for (const look of watch.looks.slice(0, 6)) {
+          line((r) =>
+            r
+              .text(clock(look.at).padEnd(18), skin.hint)
+              .text(
+                shortened(printable(describeLook(look)), room),
+                look.problem ? skin.waiting : skin.hint,
+              ),
+          )
+        }
+      }
+    } else if (one.runs.length > 0) {
       rows.push(blank(width))
-      line((r) => r.text('FOUND', skin.label))
-      for (const each of watch.findings.slice(0, 6)) {
-        const found = printable(each.title)
+      line((r) => r.text('RUNS', skin.label))
+      for (const each of one.runs.slice(0, 8)) {
         line((r) => {
-          r.text(clock(each.at).padEnd(18), skin.hint)
+          r.text(clock(each.due).padEnd(18), skin.hint)
+          if (!each.ran) {
+            r.text(`skipped ${each.missed} missed`, skin.faded)
+            return
+          }
           const task = each.task ? state.panes.find((pane) => pane.task === each.task) : null
-          if (task) {
+          if (task)
             r.text(glyph(task, frame.now ?? 0), toneOf(task, skin))
               .space()
-              .text(shortened(`${shownName(task)} · ${found}`, Math.max(1, room - 2)))
-          } else if (each.task) {
-            r.text(shortened(`${inProject(one.project, each.task)} · ${found}`, room), skin.hint)
-          } else if (each.told) {
-            r.text(shortened(`told ${who(each.told)} · ${found}`, room), skin.hint)
-          } else {
-            r.text(shortened(`could not start · ${found}`, room), skin.waiting)
-          }
+              .text(shownName(task))
+          else
+            r.text(
+              each.task ? inProject(one.project, each.task) : 'ran',
+              each.task ? skin.hint : (t) => t,
+            )
+          if (each.missed > 0) r.space(2).text(`${each.missed} missed before it`, skin.hint)
         })
-        if (!each.task && !each.told && each.problem) {
-          line((r) =>
-            r.text(' '.repeat(18)).text(shortened(printable(each.problem ?? ''), room), skin.hint),
-          )
-        }
       }
     }
-    if (watch.looks.length > 0) {
-      rows.push(blank(width))
-      line((r) => r.text('LOOKS', skin.label))
-      for (const look of watch.looks.slice(0, 6)) {
-        line((r) =>
-          r
-            .text(clock(look.at).padEnd(18), skin.hint)
-            .text(
-              shortened(printable(describeLook(look)), room),
-              look.problem ? skin.waiting : skin.hint,
-            ),
-        )
-      }
-    }
-  } else if (one.runs.length > 0) {
-    rows.push(blank(width))
-    line((r) => r.text('RUNS', skin.label))
-    for (const each of one.runs.slice(0, 8)) {
-      line((r) => {
-        r.text(clock(each.due).padEnd(18), skin.hint)
-        if (!each.ran) {
-          r.text(`skipped ${each.missed} missed`, skin.faded)
-          return
-        }
-        const task = each.task ? state.panes.find((pane) => pane.task === each.task) : null
-        if (task)
-          r.text(glyph(task, frame.now ?? 0), toneOf(task, skin))
-            .space()
-            .text(shownName(task))
-        else
-          r.text(
-            each.task ? inProject(one.project, each.task) : 'ran',
-            each.task ? skin.hint : (t) => t,
-          )
-        if (each.missed > 0) r.space(2).text(`${each.missed} missed before it`, skin.hint)
-      })
-    }
+    return rows
   }
-  const shown = stack(rows.slice(0, height))
+  const room = Math.max(0, height - top.length)
+  const shown = stack([...top, ...paged(page, room, width, 'page', state, skin)].slice(0, height))
   const filled = [...shown.rows]
   while (filled.length < height) filled.push(' '.repeat(width))
   return { rows: filled, hits: shown.hits }

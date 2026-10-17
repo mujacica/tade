@@ -173,6 +173,8 @@ export class Mouse {
   private turning: Wheeled | null = null
   /** The pointer the terminal was last asked for; the arrow until then, as reporting the mouse leaves it. */
   private shape: PointerShape = 'default'
+  /** The component this subject paints with, once the TUI holds it: what the last frame drew is in it. */
+  private painted: Painted | null = null
 
   constructor(wire: Wiring, deps: MouseDeps) {
     this.wire = wire
@@ -188,7 +190,7 @@ export class Mouse {
     frame: (width: number) => { state: AppState; frame: Frame },
     clock: () => number,
   ): Component {
-    return new Painted(
+    this.painted = new Painted(
       frame,
       (event) => this.pointer(event),
       (text) => this.deps.copySelection(text),
@@ -196,6 +198,16 @@ export class Mouse {
       new LastFrame({ checked: this.wire.opts.checkLastFrame === true }),
       () => this.deps.sideways(),
     )
+    return this.painted
+  }
+
+  /**
+   * How far a region goes, as the last frame drew it: for a key that moves a
+   * region, which has no notch to carry the bar's numbers in and must not lay
+   * the region out again to find them.
+   */
+  reach(area: ScrollArea): Reach {
+    return this.painted?.reach(area) ?? { total: 0, shown: 0 }
   }
 
   /**
@@ -245,9 +257,11 @@ export class Mouse {
   private scrolled(event: Wheeled): boolean {
     const panel = this.wire.state.panel
     // The picture of a chain only ever moves sideways, so the wheel over
-    // it does, shift or no shift: there is nothing above or below it.
-    // Somewhere with nowhere to go sideways hands the wheel back rather
-    // than swallowing it, and it scrolls as it would without shift.
+    // it does, shift or no shift, where the page it is on has nothing above
+    // or below it — where it has, a notch up or down is the page's and never
+    // reaches here as the picture's (`notchedIn`). Somewhere with nowhere to
+    // go sideways hands the wheel back rather than swallowing it, and it
+    // scrolls as it would without shift.
     if (!panel && (event.turnedSideways || event.shift || event.area === 'plan')) {
       const moved = scrollBy(this.wire.state, event.area, event.rows, event.sideways, true)
       if (moved !== this.wire.state) {

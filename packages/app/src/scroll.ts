@@ -1,5 +1,5 @@
 import type { LaneScrolling } from '@tade/drivers-core'
-import type { Hit, ScrollArea } from './hits.ts'
+import { type Hit, type ScrollArea, scrollAt } from './hits.ts'
 
 // What the wheel means, in one place.
 //
@@ -99,6 +99,26 @@ export function reachOf(hits: readonly Hit[], area: ScrollArea, across = false):
     return { total: target.total, shown: target.shown }
   }
   return NOWHERE
+}
+
+/**
+ * Which region a notch over this cell moves: the one drawn on top, except the
+ * picture of a chain turned up or down. The picture only ever moves sideways,
+ * and it is drawn on a page, so a notch up or down over it is the page's
+ * wherever the page has somewhere to go: it is a part of what is being read,
+ * not a place of its own, and a page that stopped scrolling wherever the
+ * pointer crossed a box would be one you could not read to the end of. Where
+ * the page fits, the picture keeps the notch and slides (`Mouse.scrolled`).
+ */
+export function notchedIn(
+  hits: readonly Hit[],
+  x: number,
+  y: number,
+  sideways: boolean,
+): ScrollArea | null {
+  const area = scrollAt(hits, x, y)
+  if (area !== 'plan' || sideways) return area
+  return scrollable(reachOf(hits, 'page')) ? 'page' : area
 }
 
 /** The furthest a region goes: the last line you can put at the top of it. */

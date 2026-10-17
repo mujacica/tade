@@ -23,6 +23,7 @@ import {
   markOf,
   moveProject,
   noteTyping,
+  offsetOf,
   onEvent,
   openLine,
   openSchedule,
@@ -946,5 +947,32 @@ describe('the one move', () => {
       expect(scrollBy(state(), 'terminal', -3, fits)).toEqual(state())
     }
     expect(scrollBy(state(), 'sidebar', 0, deep)).toEqual(state())
+  })
+
+  it('keeps a page’s place on that page, and every other page starts at its top', () => {
+    const on = state({ project: 'app', focused: 'app/queued' })
+    // Counted from the top, as the ACTIONS page is, and stopped at its end.
+    const down = scrollBy(on, 'page', 30, deep)
+    expect(offsetOf(down, 'page', 100, 10)).toBe(30)
+    expect(offsetOf(scrollBy(down, 'page', 500, deep), 'page', 100, 10)).toBe(90)
+    // A page that got shorter is at its end, never past it.
+    expect(offsetOf(down, 'page', 20, 10)).toBe(10)
+    // Another agent's page, the plan, a schedule, another project's: each is
+    // at its top, whichever door it came through — an agent that needs you
+    // raises itself by setting `focused` and nothing else.
+    for (const other of [
+      { ...down, focused: 'app/other' },
+      focusTask(withTasks(down, [{ task: 'app/other', state: 'working' }]), 'app/other'),
+      showPlan(down),
+      openSchedule(down, 'nightly'),
+      { ...down, project: 'site' },
+    ]) {
+      expect(offsetOf(other, 'page', 100, 10)).toBe(0)
+    }
+    // Back on the page it was scrolled on, with nothing scrolled since, it is
+    // where it was left.
+    expect(
+      offsetOf({ ...showPlan(down), focused: 'app/queued', showingPlan: false }, 'page', 100, 10),
+    ).toBe(30)
   })
 })

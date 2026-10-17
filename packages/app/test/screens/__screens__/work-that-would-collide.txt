@@ -2,21 +2,21 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2   H  X     +    █│ checkout › plan  3 tasks · 1 working · 1 waiting to start                               
                              █│─────────────────────────────────────────────────────────────────────────────────────────
-   ⠋ fix-charge ⇄            █│                                                                                         
-     working                 █│  FIRST                         THEN                                                     
-                             █│  ╭──────────────────────╮      ╭──────────────────────╮                                 
-   ✓ bump-mailer ⇄           █│  │ ⠋ fix-charge       ⇄ │─┬───▶│ ◌ refund-emails      │                                 
-     finished                █│  │   ⇄ bump-mailer · s… │ │    │   ◆ after fix-charg… │                                 
-                             █│  ╰──────────────────────╯ │    ╰──────────────────────╯                                 
- ▾ SMART QUEUE  1      plan  █│                           │                                                             
-                             █│  ╭──────────────────────╮ │                                                             
-   ◌ refund-emails 2 ahead   █│  │ ✓ bump-mailer      ⇄ │─╯                                                             
-     ◆ after fix-charge +1   █│  │   ⇄ fix-charge · sr… │                                                               
-                             █│  ╰──────────────────────╯                                                               
- ▸ SCHEDULES            none █│                                                                                         
- ▸ INTAKE                off ▕│                                                                                         
- ▸ CHANGES  3        vs main ▕│  WHY THIS ORDER                                                                         
- ▸ FILES                     ▕│  ⠋ fix-charge                                                                           
+   ⠋ fix-charge ⇄            █│                                                                                        █
+     working                 █│  FIRST                         THEN                                                    █
+                             █│  ╭──────────────────────╮      ╭──────────────────────╮                                █
+   ✓ bump-mailer ⇄           █│  │ ⠋ fix-charge       ⇄ │─┬───▶│ ◌ refund-emails      │                                █
+     finished                █│  │   ⇄ bump-mailer · s… │ │    │   ◆ after fix-charg… │                                █
+                             █│  ╰──────────────────────╯ │    ╰──────────────────────╯                                █
+ ▾ SMART QUEUE  1      plan  █│                           │                                                            █
+                             █│  ╭──────────────────────╮ │                                                            █
+   ◌ refund-emails 2 ahead   █│  │ ✓ bump-mailer      ⇄ │─╯                                                            █
+     ◆ after fix-charge +1   █│  │   ⇄ fix-charge · sr… │                                                              █
+                             █│  ╰──────────────────────╯                                                              █
+ ▸ SCHEDULES            none █│                                                                                        █
+ ▸ INTAKE                off ▕│                                                                                        ▕
+ ▸ CHANGES  3        vs main ▕│  WHY THIS ORDER                                                                        ▕
+ ▸ FILES                     ▕│  ⠋ fix-charge                                                                          ▕
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
                                                                                                                         
                                                                                                                        ▕

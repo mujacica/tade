@@ -12,7 +12,7 @@ import {
   type Target,
 } from './hits.ts'
 import type { AppState } from './model.ts'
-import { AxisLock, type Reach, reachOf, Wheel } from './scroll.ts'
+import { AxisLock, notchedIn, type Reach, reachOf, Wheel } from './scroll.ts'
 import {
   cellsIn,
   type End,
@@ -320,6 +320,11 @@ export class Painted implements Component {
     this.clock = clock
     this.lastFrame = lastFrame
     this.sideways = sideways
+  }
+
+  /** How far a region goes, read off the bar the last frame drew beside it (`reachOf`). */
+  reach(area: ScrollArea): Reach {
+    return reachOf(this.hits, area)
   }
 
   render(width: number): string[] {
@@ -689,7 +694,7 @@ export class Painted implements Component {
         const turnedSideways = this.sideways()
         // Asked of every notch, wherever it lands: the hand is the same hand.
         const straight = this.axis.holds(turnedSideways, this.clock())
-        const area = scrollAt(this.hits, event.x, event.y)
+        const area = notchedIn(this.hits, event.x, event.y, turnedSideways || event.shift)
         if (!straight || !area || !event.wheelDelta) return { handled: true, render: false }
         // How far a notch goes is the wheel's to say: what the terminal
         // counted, at a few rows each when they arrive apart and a row each

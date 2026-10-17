@@ -10,6 +10,7 @@ import {
 import type { LaneId } from '@tade/core'
 import { matchActions } from '../commands.ts'
 import type { Frame } from '../frame.ts'
+import type { ScrollArea } from '../hits.ts'
 import { filePaths, imagePaths, pasted } from '../images.ts'
 import {
   asPaste,
@@ -38,6 +39,7 @@ import {
   ORCHESTRATOR_TAB,
   openLine,
   projectNumber,
+  scrollBy,
   searchKey,
   setDictation,
   setListening,
@@ -47,6 +49,7 @@ import {
 import type { PanelOutcome } from '../panels/outcome.ts'
 import { type PanelInputs, panelKey } from '../panels.ts'
 import { pasteGoes } from '../pasting.ts'
+import { type Reach, scrollable } from '../scroll.ts'
 import type { Skin } from '../skin.ts'
 import { terminalSplitShown } from '../split.ts'
 import { notify, type Subject, type Wiring } from './context.ts'
@@ -119,6 +122,8 @@ export interface KeyboardDeps {
   soonTick(): void
   /** The notches turned before this key, answered first: the key comes after them. */
   settle(): void
+  /** How far a region the last frame drew goes, read off the bar beside it. */
+  reach(area: ScrollArea): Reach
   /** Everything the window did not keep goes to the agent you are watching. */
   toLane(data: string): void
   /** A slash command, carried out. */
@@ -342,6 +347,13 @@ export class Keyboard implements Subject {
       this.type(data)
       return { consume: true }
     }
+    // A page where an agent's screen would be — queued work, the plan, a
+    // schedule — has no lane to hand page up and down to, so they move the
+    // page, as they move a panel: only while one is drawn with somewhere to
+    // go, so they are never taken from anything that wanted them.
+    const paging = parseKey(data)
+    if ((paging === 'pageUp' || paging === 'pageDown') && this.page(paging === 'pageUp' ? -1 : 1))
+      return { consume: true }
     // Nothing focused means the orchestrator is, and it is a thing you type
     // at: a window with no agents used to swallow every keystroke.
     if (
@@ -444,6 +456,21 @@ export class Keyboard implements Subject {
       case 'move':
         return this.moveOrExtend(what, selected, text)
     }
+  }
+
+  /**
+   * A screenful of the page in front, less a row so the one you were reading
+   * is still there: through the one move, so a key and the wheel agree about
+   * where the page ends. Whether there was a page to move.
+   */
+  private page(way: 1 | -1): boolean {
+    const reach = this.deps.reach('page')
+    if (!scrollable(reach)) return false
+    const moved = scrollBy(this.wire.state, 'page', way * Math.max(1, reach.shown - 1), reach)
+    if (moved === this.wire.state) return true
+    this.wire.put(moved)
+    this.wire.draw()
+    return true
   }
 
   /**

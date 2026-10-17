@@ -12,6 +12,7 @@ import {
   endOf,
   HELD_LINES,
   NOTCH,
+  notchedIn,
   RUN_MS,
   reachOf,
   scrollable,
@@ -612,6 +613,56 @@ describe('the project picker', () => {
 // no bar beside it, because nothing knew how long the form was. Both were one
 // bug. So: over every panel there is, a notch moves the body and touches
 // nothing else.
+describe('a notch over the picture of a chain', () => {
+  // The picture is drawn on a page: each of its rows carries the page's
+  // scroll hit and, over it, the picture's own, which only moves sideways.
+  const over = (area: 'page' | 'plan'): Hit => ({
+    row: 4,
+    from: 0,
+    to: 79,
+    target: { kind: 'scroll', area },
+  })
+  const pageBar: Hit = {
+    row: 0,
+    from: 79,
+    to: 79,
+    target: { kind: 'scrollbar', area: 'page', total: 60, shown: 20 },
+  }
+
+  it('moves the page up and down, wherever the page has somewhere to go', () => {
+    // Otherwise a page stopped scrolling wherever the pointer crossed a box,
+    // and a page with its chain at the top could not be read to its end.
+    expect(notchedIn([over('page'), over('plan'), pageBar], 10, 4, false)).toBe('page')
+  })
+
+  it('is the picture’s turned sideways, and where the page fits', () => {
+    expect(notchedIn([over('page'), over('plan'), pageBar], 10, 4, true)).toBe('plan')
+    // A page that fits has no bar, and then the picture slides for a notch
+    // up or down too, as it always did.
+    expect(notchedIn([over('page'), over('plan')], 10, 4, false)).toBe('plan')
+  })
+
+  it('is whatever is drawn on top anywhere else', () => {
+    expect(notchedIn([over('page'), pageBar], 10, 4, false)).toBe('page')
+    expect(notchedIn([over('page'), over('plan'), pageBar], 10, 5, false)).toBe(null)
+    const side: Hit = { row: 4, from: 0, to: 79, target: { kind: 'scroll', area: 'sidebar' } }
+    expect(notchedIn([side, pageBar], 10, 4, false)).toBe('sidebar')
+  })
+
+  it('reaches the page through a queued agent’s picture, as the window draws it', () => {
+    const scenario = SCENARIOS.find((one) => one.name === 'waiting-in-the-queue')
+    expect(scenario).toBeDefined()
+    if (!scenario) return
+    const drawn = draw(scenario.state, scenario.frame)
+    expect(scrollable(reachOf(drawn.hits, 'page'))).toBe(true)
+    const box = drawn.hits.find((hit) => hit.target.kind === 'scroll' && hit.target.area === 'plan')
+    expect(box).toBeDefined()
+    if (!box) return
+    expect(notchedIn(drawn.hits, box.from + 4, box.row, false)).toBe('page')
+    expect(notchedIn(drawn.hits, box.from + 4, box.row, true)).toBe('plan')
+  })
+})
+
 describe('a notch over a panel', () => {
   /**
    * Everything a panel holds except where it is scrolled to, which is exactly

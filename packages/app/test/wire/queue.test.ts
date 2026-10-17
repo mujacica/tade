@@ -173,6 +173,90 @@ describe('the window, and the work waiting in it', () => {
     )
   })
 
+  /**
+   * A queued agent opened from the side, whose prompt is longer than any pane
+   * here: forty lines, the last of which is what the page has to reach.
+   */
+  const openLongQueued = async () => {
+    terminal.columns = 120
+    terminal.rows = 40
+    const window = await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    await window.queueTools().plan({
+      project: 'app',
+      said: 'look first, then fix',
+      agents: [
+        { name: 'look-first', said: 'look first', prompt: '', after: [], touches: [] },
+        {
+          name: 'fix-after',
+          said: 'then fix',
+          prompt: Array.from({ length: 40 }, (_, i) => `step ${i + 1} of the plan`).join('\n'),
+          after: [{ agent: 'look-first', why: 'it needs what that finds' }],
+          touches: [],
+        },
+      ],
+    })
+    await until('the queue on screen', () =>
+      screenOf(terminal.written).some((row) => row.includes('SMART QUEUE')),
+    )
+    const tab = find('fix-after')
+    click(tab.col + 1, tab.row)
+    await until('its page', () => onScreen('WILL BE TOLD'))
+    expect(onScreen('step 1 of the plan')).toBe(true)
+    expect(onScreen('step 40 of the plan')).toBe(false)
+  }
+  const onScreen = (text: string) => screenOf(terminal.written).some((row) => row.includes(text))
+  /** Where the page is: the row its heading is on, and the first step of the prompt in view. */
+  const pageAt = () => {
+    const rows = screenOf(terminal.written)
+    const heading = rows.findIndex((row) => row.includes('WILL BE TOLD'))
+    return `${heading} ${rows.find((row) => /step \d+ of the plan/.test(row)) ?? ''}`
+  }
+
+  it('scrolls a queued agent’s page to the end of what it will be told, under the wheel', async () => {
+    await openLongQueued()
+    const notch = (at: { col: number; row: number }) =>
+      terminal.press(`\x1b[<65;${at.col + 2};${at.row + 1}M`)
+    // Over the picture of the chain, a notch down moves the page and not the
+    // picture: the chain is a part of what is being read, so a page with its
+    // chain at the top can still be read to its end.
+    const chain = screenOf(terminal.written).findIndex((row) => row.includes('THE CHAIN IT IS IN'))
+    const box = find('┏━')
+    let was = pageAt()
+    notch(box)
+    await until('the page to move under the picture', () => pageAt() !== was)
+    const now = screenOf(terminal.written).findIndex((row) => row.includes('THE CHAIN IT IS IN'))
+    expect(now).toBeLessThan(chain)
+    // Then over the words, a notch at a time, until the last of them is in view.
+    const over = find('step ')
+    for (let left = 80; left > 0 && !onScreen('step 40 of the plan'); left--) {
+      was = pageAt()
+      notch(over)
+      await until('the page to move', () => pageAt() !== was)
+    }
+    expect(onScreen('step 40 of the plan')).toBe(true)
+    // The heading did not scroll with it: starting it is still one press.
+    expect(onScreen('Start now')).toBe(true)
+  })
+
+  it('pages a queued agent’s page with page down and page up', async () => {
+    await openLongQueued()
+    for (let left = 20; left > 0 && !onScreen('step 40 of the plan'); left--) {
+      const was = pageAt()
+      terminal.press('\x1b[6~')
+      await until('the page to move', () => pageAt() !== was)
+    }
+    expect(onScreen('step 40 of the plan')).toBe(true)
+    // And back to its top, where what it waits on is said.
+    for (let left = 20; left > 0 && !onScreen('Waits on look-first'); left--) {
+      const was = pageAt()
+      terminal.press('\x1b[5~')
+      await until('the page to move back', () => pageAt() !== was)
+    }
+    expect(onScreen('Waits on look-first')).toBe(true)
+    expect(onScreen('step 1 of the plan')).toBe(true)
+  })
+
   it('warns when a plan runs into work the project already has, which no plan can see', async () => {
     const window = await start()
     await until('the first frame', () => terminal.written.includes('refunds'))

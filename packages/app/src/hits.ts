@@ -101,7 +101,8 @@ export type Target =
 /**
  * Somewhere the wheel moves what is shown: the sidebar, a panel, the
  * conversation. `plan` is the picture of a chain where an agent's screen
- * would be, which only ever moves sideways.
+ * would be, which only ever moves sideways; `page` is what that picture is
+ * drawn on — queued work, the plan, a schedule — which moves up and down.
  */
 export type ScrollArea =
   | 'sidebar'
@@ -113,6 +114,7 @@ export type ScrollArea =
   | 'terminal'
   | 'plan'
   | 'actions'
+  | 'page'
 
 export interface Hit {
   /** Inclusive row, zero-based from the top of the window. */

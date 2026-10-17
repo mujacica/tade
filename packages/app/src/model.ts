@@ -256,6 +256,13 @@ export interface AppState {
   across: number
   /** How many columns the picture of a plan is scrolled across, where it is wider than its pane. */
   planAcross: number
+  /**
+   * How far down the page in the main pane is scrolled, where it draws one
+   * rather than a lane — queued work, the plan, a schedule — counted from its
+   * top, and which page that was (`pageOf`). The place is that page's and no
+   * other's: every other page is at its top when it is come to.
+   */
+  page: { of: string; offset: number }
   /** When the microphone opened, while it is open. */
   talkingSince: number | null
   /** What was said is being turned into words. */
@@ -395,6 +402,7 @@ export function initialState(): AppState {
     scroll: 0,
     across: 0,
     planAcross: 0,
+    page: { of: '', offset: 0 },
     talkingSince: null,
     hearing: false,
     levels: [],
@@ -1278,7 +1286,24 @@ export function offsetOf(state: AppState, area: ScrollArea, total: number, shown
     // A picture of a chain is as tall as it is; it only ever moves sideways.
     case 'plan':
       return 0
+    // Counted from the top, as the ACTIONS page is — and only on the page it
+    // was kept for: anywhere else, a page starts where it starts.
+    case 'page':
+      return state.page.of === pageOf(state)
+        ? Math.max(0, Math.min(state.page.offset, total - shown))
+        : 0
   }
+}
+
+/**
+ * Which page the main pane is on, as far as where it was scrolled to goes:
+ * everything that decides what it draws, put together. Only ever compared,
+ * so coming to another page — through whichever door, a blocking agent
+ * raising itself included — finds it at its top, and no door has to remember
+ * to put it there.
+ */
+export function pageOf(state: AppState): string {
+  return JSON.stringify([state.project, state.focused, state.showingPlan, state.schedule])
 }
 
 /**
@@ -1406,6 +1431,8 @@ export function atOffset(
         : state
     case 'plan':
       return state
+    case 'page':
+      return { ...state, page: { of: pageOf(state), offset } }
   }
 }
 

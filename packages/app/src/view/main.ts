@@ -8,7 +8,6 @@ import {
   type AgentPane,
   type AppState,
   laneShown,
-  offsetOf,
   showingActions,
   shownName,
   shownProject,
@@ -34,7 +33,7 @@ import {
   typingIn,
 } from './lane.ts'
 import { renderPlan, renderQueued } from './queue.ts'
-import { barBeside, gutterBeside } from './rows.ts'
+import { gutterBeside, paged } from './rows.ts'
 import { renderSchedule } from './schedule.ts'
 import { belowFirst, besideFirst, splitView } from './split.ts'
 import { shortened, shortModel } from './text.ts'
@@ -225,32 +224,11 @@ export function renderMain(
   // scrolling it carries the selection rather than abandoning it.
   let regions: Regions = {}
   if (work) {
-    // Laid out in the room there is, then windowed: a page longer than its
-    // pane scrolls, with a bar beside it, rather than losing its end.
-    const full = actionRows(frame.actions ?? null, pane, state, frame, width, skin, pointer)
-    if (full.length <= room) {
-      rows.push(...full)
-    } else {
-      const body = width - BAR
-      const page = actionRows(frame.actions ?? null, pane, state, frame, body, skin, pointer)
-      const offset = offsetOf(state, 'actions', page.length, room)
-      const seen = page.slice(offset, offset + room)
-      while (seen.length < room) seen.push(blank(body))
-      rows.push(
-        ...barBeside(
-          seen,
-          { total: page.length, shown: room, offset, rows: room },
-          'actions',
-          body,
-          state,
-          skin,
-        ),
-      )
-    }
-    // The wheel over the page scrolls it, wherever on it the pointer is.
-    rows.forEach((row, i) => {
-      if (i >= 2) row.hits.unshift(rowHit(0, width, { kind: 'scroll', area: 'actions' }))
-    })
+    // A page longer than its pane scrolls, with a bar beside it, rather than
+    // losing its end.
+    const page = (w: number) =>
+      actionRows(frame.actions ?? null, pane, state, frame, w, skin, pointer)
+    rows.push(...paged(page, room, width, 'actions', state, skin))
   } else if (!shown) {
     rows.push(blank(width))
     rows.push(

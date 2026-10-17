@@ -2,8 +2,16 @@ import { printable } from '@tade/core'
 import type { LaneScrolling } from '@tade/drivers-core'
 import type { Hit, ScrollArea, Target } from '../hits.ts'
 import { pointingIn, rowHit, shift } from '../hits.ts'
-import { type AgentPane, type AppState, glyph, MARK_TONES, markOf, shownName } from '../model.ts'
-import { barRows, gutterRows, type Scrolled } from '../scrollbar.ts'
+import {
+  type AgentPane,
+  type AppState,
+  glyph,
+  MARK_TONES,
+  markOf,
+  offsetOf,
+  shownName,
+} from '../model.ts'
+import { BAR, barRows, gutterRows, type Scrolled } from '../scrollbar.ts'
 import type { Band, Look, Skin } from '../skin.ts'
 import { blank, fit, type Pointer, Row } from '../ui.ts'
 import { widthOf } from '../width.ts'
@@ -214,6 +222,41 @@ export function barBeside(
     text: `${fit(rows[i]?.text ?? '', width)}${bar[i] ?? ' '}`,
     hits: [...(rows[i]?.hits ?? []), { row: 0, from: width, to: width, target }],
   }))
+}
+
+/**
+ * A page where an agent's screen would be — queued work, the plan, a
+ * schedule, an agent's ACTIONS — in the rows under its heading. Laid out in
+ * the room there is, and where it is longer than that, laid out again a
+ * column narrower and windowed, with a bar in the column it gave up: a page
+ * longer than its pane scrolls, rather than losing its end.
+ *
+ * `lay` is the page at a width, asked a second time only where the first
+ * answer did not fit, because what wraps depends on how wide it is. Every row
+ * carries the page's scroll hit under what is drawn on it, so the wheel moves
+ * the page wherever on it the pointer is, and a control on it is still what a
+ * click lands on.
+ */
+export function paged(
+  lay: (width: number) => { text: string; hits: Hit[] }[],
+  room: number,
+  width: number,
+  area: ScrollArea,
+  state: AppState,
+  skin: Skin,
+): { text: string; hits: Hit[] }[] {
+  const scrolls: Target = { kind: 'scroll', area }
+  const under = (rows: readonly { text: string; hits: Hit[] }[]) =>
+    rows.map((row) => ({ text: row.text, hits: [rowHit(0, width, scrolls), ...row.hits] }))
+  const whole = lay(width)
+  if (whole.length <= room) return under(whole)
+  const body = width - BAR
+  const page = lay(body)
+  const offset = offsetOf(state, area, page.length, room)
+  const seen = page.slice(offset, offset + room)
+  while (seen.length < room) seen.push(blank(body))
+  const view = { total: page.length, shown: room, offset, rows: room }
+  return under(barBeside(seen, view, area, body, state, skin))
 }
 
 /**

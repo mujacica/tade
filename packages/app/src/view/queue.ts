@@ -1,5 +1,11 @@
 import { sliceByColumn } from '@earendil-works/pi-tui'
-import { type ConflictOn, DONE_RULE_MEANS, printable, type QueueState } from '@tade/core'
+import {
+  type ConflictOn,
+  DONE_RULE_MEANS,
+  printable,
+  printableLines,
+  type QueueState,
+} from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, type Target } from '../hits.ts'
 import { startsOnFor } from '../machines.ts'
@@ -29,6 +35,7 @@ import {
   CLASH,
   doing,
   type ListItem,
+  paged,
   QUEUE_ICONS,
   type Section,
   TAB_EDGES,
@@ -462,34 +469,37 @@ export function renderPlan(
   const inProjectName = state.project === null ? '' : shownProject(state, state.project)
   header.text(`${inProjectName} › plan`, skin.you).space(2)
   header.text(`${tasks.length} tasks · ${working} working · ${queued} waiting to start`, skin.hint)
-  const rows: { text: string; hits: Hit[] }[] = [
-    header.build(),
-    { text: skin.chrome('─'.repeat(width)), hits: [] },
-    blank(width),
-  ]
-  const line = (build: (r: Row) => void) => {
-    const r = new Row(width, skin, pointer).space(2)
-    build(r)
-    rows.push(r.build())
-  }
-  if (tasks.length === 0) {
-    line((r) => r.text('Nothing here waits on anything.', skin.hint))
-  }
+  const top = [header.build(), { text: skin.chrome('─'.repeat(width)), hits: [] }]
+  // Everything under the heading is the page, laid out at the width it is
+  // handed — a column narrower where it scrolls — and scrolled: a plan is as
+  // long as the work in it and the reasons for its order.
+  const page = (width: number) => {
+    const rows: { text: string; hits: Hit[] }[] = [blank(width)]
+    const line = (build: (r: Row) => void) => {
+      const r = new Row(width, skin, pointer).space(2)
+      build(r)
+      rows.push(r.build())
+    }
+    if (tasks.length === 0) {
+      line((r) => r.text('Nothing here waits on anything.', skin.hint))
+    }
 
-  const boxes = planBoxes(tasks, frame, skin, null)
-  const drawing = drawPlan(boxes, waits, Math.max(0, width - 4), (column) =>
-    column === 0 ? 'FIRST' : 'THEN',
-  )
-  rows.push(
-    ...planPicture(state, skin, pointer, width, [
-      { rows: drawing.rows },
-      ...(waits.length > 0
-        ? [{ label: 'WHY THIS ORDER', rows: drawWhy(boxes, waits, Math.max(8, width - 4)) }]
-        : []),
-    ]),
-  )
-
-  const shown = stack(rows.slice(0, height))
+    const boxes = planBoxes(tasks, frame, skin, null)
+    const drawing = drawPlan(boxes, waits, Math.max(0, width - 4), (column) =>
+      column === 0 ? 'FIRST' : 'THEN',
+    )
+    rows.push(
+      ...planPicture(state, skin, pointer, width, [
+        { rows: drawing.rows },
+        ...(waits.length > 0
+          ? [{ label: 'WHY THIS ORDER', rows: drawWhy(boxes, waits, Math.max(8, width - 4)) }]
+          : []),
+      ]),
+    )
+    return rows
+  }
+  const room = Math.max(0, height - top.length)
+  const shown = stack([...top, ...paged(page, room, width, 'page', state, skin)].slice(0, height))
   const filled = [...shown.rows]
   while (filled.length < height) filled.push(' '.repeat(width))
   return { rows: filled, hits: shown.hits }
@@ -617,156 +627,161 @@ export function renderQueued(
     .text(word, look.tone)
   header.right(controls)
 
-  const rows: { text: string; hits: Hit[] }[] = [
-    header.build(),
-    { text: skin.chrome('─'.repeat(width)), hits: [] },
-    blank(width),
-  ]
-  const line = (build: (r: Row) => void) => {
-    const r = new Row(width, skin, pointer).space(2)
-    build(r)
-    rows.push(r.build())
-  }
-  const name = (task: string) => inProject(pane.project, task)
-  // Why it waits and what it will be told name other people's work and quote
-  // whoever queued it, the orchestrator among them: drawn as text.
-  const said = (text: string) => shortened(printable(text), Math.max(1, width - 6))
-  switch (queued.state.kind) {
-    case 'held': {
-      const because = inProject(pane.project, queued.state.because)
-      line((r) =>
-        r
-          .text('!', skin.waiting)
-          .space()
-          .text(said(`Held: ${because}.`), skin.you),
-      )
-      rows.push(blank(width))
-      line((r) =>
-        r
-          .button(
-            'Wait for a retry',
-            { kind: 'action', name: `queue-wait:${pane.task}` },
-            'attention',
-          )
-          .space()
-          .button('Start anyway', start)
-          .space()
-          .button('Remove', remove, 'danger'),
-      )
-      break
+  const top = [header.build(), { text: skin.chrome('─'.repeat(width)), hits: [] }]
+  // Everything under the heading is the page, laid out at the width it is
+  // handed — a column narrower where it scrolls — and scrolled: what its agent
+  // will be told is as long as it is, and the chain it is in as deep. The
+  // heading stays, so Start now is never scrolled out of reach.
+  const page = (width: number) => {
+    const rows: { text: string; hits: Hit[] }[] = [blank(width)]
+    const line = (build: (r: Row) => void) => {
+      const r = new Row(width, skin, pointer).space(2)
+      build(r)
+      rows.push(r.build())
     }
-    case 'waiting': {
-      const on = queued.state.on.map(name)
-      line((r) =>
-        r
-          .text('◌', skin.hint)
-          .space()
-          .text(said(`Waits on ${on.join(', ')}.`)),
-      )
-      break
-    }
-    case 'ready':
-      line((r) => r.text('◌', skin.busy).space().text(said('Waiting for room.')))
-      break
-    case 'scheduled': {
-      const at = queued.state.at
-      line((r) =>
-        r
-          .text('◷', skin.hint)
-          .space()
-          .text(said(`Starts at ${clock(at)}.`)),
-      )
-      break
-    }
-    case 'paused':
-      line((r) => r.text('‖', skin.faded).space().text(said('Paused.')))
-      break
-  }
-  // Started on another machine instead (REMOTE-TADE.md §9.2): there, in its
-  // project that is this repository, and gone from this queue.
-  const elsewhere = startsOnFor(state, frame.startsOn, pane.task)
-  if (elsewhere.length > 0) {
-    rows.push(blank(width))
-    line((r) => {
-      for (const machine of elsewhere) {
-        const there: Target = { kind: 'action', name: `queue-there:${machine} ${pane.task}` }
-        r.button(`Start on ${machine}`, there).space()
-      }
-    })
-  }
-
-  // The whole path it is on, drawn: everything it waits on however far back,
-  // everything that waits on it, a box each, and an arrow for every wait. Its
-  // own box is the heavy one. Wider than the pane, it is scrolled along — a
-  // chain that loses its boxes the moment it gets long loses them exactly
-  // when there was something to see.
-  const chain = chainOf(state, pane.task)
-  const boxes = planBoxes(chain.tasks, frame, skin, pane.task)
-  const laid = layoutPlan(
-    chain.tasks.map((one) => one.task),
-    chain.waits,
-  )
-  const at = laid.columns.findIndex((column) => column.includes(pane.task))
-  const drawing =
-    chain.waits.length > 0
-      ? drawPlan(boxes, chain.waits, Math.max(0, width - 4), (column) =>
-          column === at ? 'THIS ONE' : column > at ? 'AFTER IT' : column === 0 ? 'FIRST' : 'THEN',
+    const name = (task: string) => inProject(pane.project, task)
+    // Why it waits and what it will be told name other people's work and quote
+    // whoever queued it, the orchestrator among them: drawn as text.
+    const said = (text: string) => shortened(printable(text), Math.max(1, width - 6))
+    switch (queued.state.kind) {
+      case 'held': {
+        const because = inProject(pane.project, queued.state.because)
+        line((r) =>
+          r
+            .text('!', skin.waiting)
+            .space()
+            .text(said(`Held: ${because}.`), skin.you),
         )
-      : null
-  if (drawing || chain.waits.length > 0) {
-    rows.push(
-      ...planPicture(state, skin, pointer, width, [
-        ...(drawing ? [{ label: 'THE CHAIN IT IS IN', rows: drawing.rows }] : []),
-        ...(chain.waits.length > 0
-          ? [
-              {
-                label: 'WHY IT WAITS',
-                rows: drawWhy(boxes, chain.waits, Math.max(8, width - 4)),
-              },
-            ]
-          : []),
-      ]),
-    )
-  } else if (queued.after.length > 0) {
-    rows.push(blank(width))
-    line((r) => r.text('WAITS ON', skin.label))
-    for (const dep of queued.after) {
-      const other = state.panes.find((one) => one.task === dep.task)
-      const to: Target = { kind: 'task', task: dep.task }
-      line((r) => {
-        r.text(other ? glyph(other, frame.now ?? 0) : '✕', other ? toneOf(other, skin) : skin.bad)
-        r.space()
-          .text(name(dep.task), (text) => text, to)
-          .space(2)
-        // What it waits on may itself be waiting: then that is what it is doing.
-        const now = !other
-          ? 'gone'
-          : other.queued
-            ? queueSays({ ...other, queued: other.queued })
-            : doing(other)
-        r.text(said(now), skin.hint)
-      })
-      if (dep.why) line((r) => r.space(2).text(said(dep.why), skin.hint))
+        rows.push(blank(width))
+        line((r) =>
+          r
+            .button(
+              'Wait for a retry',
+              { kind: 'action', name: `queue-wait:${pane.task}` },
+              'attention',
+            )
+            .space()
+            .button('Start anyway', start)
+            .space()
+            .button('Remove', remove, 'danger'),
+        )
+        break
+      }
+      case 'waiting': {
+        const on = queued.state.on.map(name)
+        line((r) =>
+          r
+            .text('◌', skin.hint)
+            .space()
+            .text(said(`Waits on ${on.join(', ')}.`)),
+        )
+        break
+      }
+      case 'ready':
+        line((r) => r.text('◌', skin.busy).space().text(said('Waiting for room.')))
+        break
+      case 'scheduled': {
+        const at = queued.state.at
+        line((r) =>
+          r
+            .text('◷', skin.hint)
+            .space()
+            .text(said(`Starts at ${clock(at)}.`)),
+        )
+        break
+      }
+      case 'paused':
+        line((r) => r.text('‖', skin.faded).space().text(said('Paused.')))
+        break
     }
-  }
+    // Started on another machine instead (REMOTE-TADE.md §9.2): there, in its
+    // project that is this repository, and gone from this queue.
+    const elsewhere = startsOnFor(state, frame.startsOn, pane.task)
+    if (elsewhere.length > 0) {
+      rows.push(blank(width))
+      line((r) => {
+        for (const machine of elsewhere) {
+          const there: Target = { kind: 'action', name: `queue-there:${machine} ${pane.task}` }
+          r.button(`Start on ${machine}`, there).space()
+        }
+      })
+    }
 
-  if (queued.prompt.trim()) {
+    // The whole path it is on, drawn: everything it waits on however far back,
+    // everything that waits on it, a box each, and an arrow for every wait. Its
+    // own box is the heavy one. Wider than the pane, it is scrolled along — a
+    // chain that loses its boxes the moment it gets long loses them exactly
+    // when there was something to see.
+    const chain = chainOf(state, pane.task)
+    const boxes = planBoxes(chain.tasks, frame, skin, pane.task)
+    const laid = layoutPlan(
+      chain.tasks.map((one) => one.task),
+      chain.waits,
+    )
+    const at = laid.columns.findIndex((column) => column.includes(pane.task))
+    const drawing =
+      chain.waits.length > 0
+        ? drawPlan(boxes, chain.waits, Math.max(0, width - 4), (column) =>
+            column === at ? 'THIS ONE' : column > at ? 'AFTER IT' : column === 0 ? 'FIRST' : 'THEN',
+          )
+        : null
+    if (drawing || chain.waits.length > 0) {
+      rows.push(
+        ...planPicture(state, skin, pointer, width, [
+          ...(drawing ? [{ label: 'THE CHAIN IT IS IN', rows: drawing.rows }] : []),
+          ...(chain.waits.length > 0
+            ? [
+                {
+                  label: 'WHY IT WAITS',
+                  rows: drawWhy(boxes, chain.waits, Math.max(8, width - 4)),
+                },
+              ]
+            : []),
+        ]),
+      )
+    } else if (queued.after.length > 0) {
+      rows.push(blank(width))
+      line((r) => r.text('WAITS ON', skin.label))
+      for (const dep of queued.after) {
+        const other = state.panes.find((one) => one.task === dep.task)
+        const to: Target = { kind: 'task', task: dep.task }
+        line((r) => {
+          r.text(other ? glyph(other, frame.now ?? 0) : '✕', other ? toneOf(other, skin) : skin.bad)
+          r.space()
+            .text(name(dep.task), (text) => text, to)
+            .space(2)
+          // What it waits on may itself be waiting: then that is what it is doing.
+          const now = !other
+            ? 'gone'
+            : other.queued
+              ? queueSays({ ...other, queued: other.queued })
+              : doing(other)
+          r.text(said(now), skin.hint)
+        })
+        if (dep.why) line((r) => r.space(2).text(said(dep.why), skin.hint))
+      }
+    }
+
+    if (queued.prompt.trim()) {
+      rows.push(blank(width))
+      line((r) => r.text('WILL BE TOLD', skin.label))
+      // Its own lines kept, as the conversation keeps them: a prompt is
+      // paragraphs and lists, and run together it is a wall of words.
+      const told = wrapWords(printableLines(queued.prompt).trim(), Math.max(10, width - 6))
+      for (const text of told) line((r) => r.text('│', skin.chrome).space().text(text))
+    }
+
     rows.push(blank(width))
-    line((r) => r.text('WILL BE TOLD', skin.label))
-    const told = wrapWords(printable(queued.prompt).trim(), Math.max(10, width - 6))
-    for (const text of told.slice(0, 6)) line((r) => r.text('│', skin.chrome).space().text(text))
-    if (told.length > 6) line((r) => r.text('│', skin.chrome).space().text('…', skin.hint))
+    const fact = (label: string, value: string) =>
+      line((r) => r.text(label.padEnd(10), skin.label).space().text(said(value), skin.hint))
+    if (queued.touches.length > 0) fact('TOUCHES', queued.touches.join(', '))
+    fact('FINISHES', DONE_RULE_MEANS[pane.done ?? 'said'])
+    const from = askedBy(pane.by)
+    fact('FROM', from === 'you' ? 'you' : from === 'orchestrator' ? 'the orchestrator' : from)
+    return rows
   }
-
-  rows.push(blank(width))
-  const fact = (label: string, value: string) =>
-    line((r) => r.text(label.padEnd(10), skin.label).space().text(said(value), skin.hint))
-  if (queued.touches.length > 0) fact('TOUCHES', queued.touches.join(', '))
-  fact('FINISHES', DONE_RULE_MEANS[pane.done ?? 'said'])
-  const from = askedBy(pane.by)
-  fact('FROM', from === 'you' ? 'you' : from === 'orchestrator' ? 'the orchestrator' : from)
-
-  const shown = stack(rows.slice(0, height))
+  const room = Math.max(0, height - top.length)
+  const shown = stack([...top, ...paged(page, room, width, 'page', state, skin)].slice(0, height))
   const filled = [...shown.rows]
   while (filled.length < height) filled.push(' '.repeat(width))
   return { rows: filled, hits: shown.hits }

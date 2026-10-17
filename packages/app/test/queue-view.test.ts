@@ -13,6 +13,7 @@ import {
   queueTree,
   queueViewOf,
   type ScheduleView,
+  scrollBy,
   showPlan,
   showQueue,
   type TaskSnapshot,
@@ -23,6 +24,7 @@ import {
 } from '../src/model.ts'
 import { queueEmptySays } from '../src/queue.ts'
 import { narrowing, type QueueView, WHOLE_QUEUE } from '../src/queue-view.ts'
+import { reachOf } from '../src/scroll.ts'
 import { draw, renderApp } from '../src/view.ts'
 
 // The SMART QUEUE: what it holds, what it shows of that, and how the side
@@ -549,5 +551,121 @@ describe('the smart queue down the side', () => {
     // The count stays on the heading: what was put away is still there.
     expect(rows.find((row) => row.includes('SMART QUEUE'))).toMatch(/▸ SMART QUEUE +\(?3\)?/)
     expect(rows.some((row) => row.includes('add-refunds'))).toBe(false)
+  })
+})
+
+describe('a page where an agent’s screen would be', () => {
+  /** What an agent will be told, in forty lines — far more than any pane here has. */
+  const long = Array.from({ length: 40 }, (_, i) => `step ${i + 1} of the plan`).join('\n')
+  const waiting: TaskSnapshot[] = [
+    { task: 'checkout/schema', state: 'working', lane: 'checkout/schema/agent' },
+    {
+      task: 'checkout/client',
+      state: 'queued',
+      queued: {
+        state: { kind: 'waiting', on: ['checkout/schema'] },
+        after: [{ task: 'checkout/schema', why: 'it reads the new schema' }],
+        prompt: long,
+        touches: [],
+        at: null,
+      },
+    },
+  ]
+  const looking = focusTask(
+    { ...withTasks(withProjects(initialState(), ['checkout']), waiting), project: 'checkout' },
+    'checkout/client',
+  )
+  const sizes = [
+    { width: 100, height: 30 },
+    { width: 60, height: 18 },
+    { width: 48, height: 16 },
+  ]
+
+  /** The page scrolled as far as it goes, the way the wheel and the keys get there. */
+  const toEnd = (state: AppState, at: Partial<Frame>) =>
+    scrollBy(state, 'page', 10_000, reachOf(draw(state, frame(at)).hits, 'page'))
+
+  it('scrolls what a queued agent will be told to its last line, under the same heading', () => {
+    for (const at of sizes) {
+      const top = draw(looking, frame(at))
+      const rows = top.rows.map(plain)
+      // Longer than the pane, so the end of it is below — and a bar says so,
+      // rather than the page stopping where the pane does.
+      expect(
+        rows.some((row) => row.includes('step 40 of')),
+        `${at.width}`,
+      ).toBe(false)
+      const reach = reachOf(top.hits, 'page')
+      expect(reach.total, `${at.width}`).toBeGreaterThan(reach.shown)
+
+      const end = draw(toEnd(looking, at), frame(at))
+      const seen = end.rows.map(plain)
+      // The whole of it, never six lines and a `…`: its last line, and the
+      // facts under it, which were the first thing cut.
+      expect(
+        seen.some((row) => row.includes('step 40 of')),
+        `${at.width}`,
+      ).toBe(true)
+      expect(
+        seen.some((row) => row.includes('FROM')),
+        `${at.width}`,
+      ).toBe(true)
+      // The heading does not scroll: what it has room for — Start now, where
+      // the pane is wide enough for its controls — is there at the end too.
+      expect(seen.slice(0, 4), `${at.width}`).toEqual(rows.slice(0, 4))
+      for (const drawn of [top, end]) {
+        expect(drawn.rows.length).toBe(at.height)
+        for (const row of drawn.rows) expect(visibleWidth(row), `${at.width}`).toBe(at.width)
+      }
+    }
+    const wide = draw(toEnd(looking, sizes[0] ?? {}), frame(sizes[0])).rows.map(plain)
+    expect(wide.some((row) => row.includes('Start now'))).toBe(true)
+  })
+
+  it('draws every line of it on the way down, and skips none', () => {
+    // A notch at a time, as a slow hand turns the wheel: every step of the
+    // prompt goes past once, in order, and nothing is skipped between.
+    const at = { width: 100, height: 30 }
+    let state = looking
+    const seen: string[] = []
+    for (let notch = 0; notch < 60; notch++) {
+      for (const row of draw(state, frame(at)).rows.map(plain)) {
+        const step = /step (\d+) of/.exec(row)?.[1]
+        if (step && !seen.includes(step)) seen.push(step)
+      }
+      state = scrollBy(state, 'page', 1, reachOf(draw(state, frame(at)).hits, 'page'))
+    }
+    expect(seen).toEqual(Array.from({ length: 40 }, (_, i) => `${i + 1}`))
+  })
+
+  it('scrolls a schedule’s page to the end of what it tells its agent', () => {
+    const nightly: ScheduleView = {
+      id: 'perf-nightly',
+      name: 'perf nightly',
+      project: 'checkout',
+      said: '',
+      kind: 'agent',
+      does: 'starts an agent',
+      prompt: long,
+      when: 'every day at 02:00',
+      once: false,
+      next: [2_000],
+      paused: false,
+      by: 'you',
+      missed: 'once',
+      runs: [],
+    }
+    const state = {
+      ...withProjects(initialState(), ['checkout']),
+      project: 'checkout',
+      schedule: 'perf-nightly',
+    }
+    const at = { width: 100, height: 30, schedules: [nightly] }
+    const top = draw(state, frame(at)).rows.map(plain)
+    expect(top.some((row) => row.includes('Run now'))).toBe(true)
+    expect(top.some((row) => row.includes('step 40 of'))).toBe(false)
+    const end = draw(toEnd(state, at), frame(at)).rows.map(plain)
+    expect(end.some((row) => row.includes('step 40 of'))).toBe(true)
+    expect(end.some((row) => row.includes('Run now'))).toBe(true)
   })
 })
