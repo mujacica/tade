@@ -43,6 +43,7 @@ import { noteRecent } from '../projects.ts'
 import type { Reach } from '../scroll.ts'
 import { pointerSequence } from '../skin.ts'
 import { splitRatio } from '../split.ts'
+import { isTalkTab, showTalk } from '../talk-tab.ts'
 import { LastFrame } from '../view/last-frame.ts'
 import type { Pressed, Wiring } from './context.ts'
 import { EdgeHold } from './edge.ts'
@@ -82,7 +83,9 @@ function subjectOf(target: Target): MenuSubject | null {
     case 'menu':
       return target.subject
     case 'bottom-tab':
-      return target.tab === ORCHESTRATOR_TAB ? null : { kind: 'terminal', id: target.tab }
+      return target.tab === ORCHESTRATOR_TAB || isTalkTab(target.tab)
+        ? null
+        : { kind: 'terminal', id: target.tab }
     default:
       return null
   }
@@ -622,7 +625,9 @@ export class Mouse {
         this.wire.put(
           target.tab === ORCHESTRATOR_TAB
             ? showOrchestrator(this.wire.state)
-            : showTerminal(this.wire.state, target.tab),
+            : isTalkTab(target.tab)
+              ? showTalk(this.wire.state, target.tab)
+              : showTerminal(this.wire.state, target.tab),
         )
         break
       case 'terminal':

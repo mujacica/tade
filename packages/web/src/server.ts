@@ -59,10 +59,8 @@ import { type Listener, type Origin, reachOf, type Scope } from './surface.ts'
 // orchestrator nor its socket.
 //
 // **Nothing here starts anything.** `listen` is called by whoever holds the
-// home lock — the window, in a later slice — and only when the config says so.
-// This slice ships the server and its tests; a listener on somebody's network
-// is a separate act with its own setting (`surfaces.web.enabled`), and until
-// something calls `listen` there is no socket.
+// home lock — the window — and only where its own setting says so
+// (`surfaces.web.enabled`): until something calls it there is no socket.
 //
 // **Every answer goes through `answer`**, which writes the security headers
 // before anything else — a refusal included, because a refusal is a response a
@@ -360,6 +358,7 @@ export function webServer(opts: ServerOptions): WebServer {
       }
       case 'presence':
       case 'attach':
+      case 'since':
       case 'carry': {
         const said = await carryOwned(found.route.name, req, device, now(), opts)
         return 'refusal' in said ? answer(res, said.refusal) : json(res, said.body)

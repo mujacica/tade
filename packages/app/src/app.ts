@@ -56,7 +56,7 @@ import { Orchestrator } from './wire/orchestrator.ts'
 import { kittyActive, Repaint, repaintScreen, type Screen, screenFor } from './wire/paint.ts'
 import { Projects, type ProjectTools } from './wire/projects.ts'
 import { Queue, type QueueTools } from './wire/queue.ts'
-import { type Remotes, remotesFor } from './wire/remotes.ts'
+import { type Remotes, type RemoteTools, remotesFor } from './wire/remotes.ts'
 import { Routes } from './wire/routes.ts'
 import { Schedules, type WatchTools } from './wire/schedules.ts'
 import { Search } from './wire/search.ts'
@@ -325,13 +325,13 @@ export class App {
       decide: (allow) => void this.away.decide(allow),
       openSearch: () => this.search.open(),
       run: (action) => void this.router.run(action),
-      interrupt: () => void this.orchestrator.interrupt(),
+      interrupt: () => void (this.remotes.interrupt() || this.orchestrator.interrupt()),
       quit: () => this.window.quit(),
       soonTick: () => this.looks.soonTick(),
       settle: () => this.mouse.settle(),
       toLane: (data) => this.lanes.toLane(data),
       act: (said) => void this.router.act(said),
-      say: (said) => this.orchestrator.say(said),
+      say: (said) => this.remotes.say(said) || this.orchestrator.say(said),
     })
     this.lanes = new Lanes(this.wire, {
       size: () => this.room(),
@@ -368,6 +368,7 @@ export class App {
       remember: (said) => this.keyboard.remember(said),
       useConfig: (config) => this.settings.use(config),
       credentialProblem: (provider) => this.machine.credentialProblem(provider),
+      machines: () => this.remotes.machines(),
     })
     this.agents = new Agents(this.wire, {
       useConfig: (config) => this.settings.use(config),
@@ -499,18 +500,17 @@ export class App {
   /**
    * Hand the window the orchestrator, once it has started.
    *
-   * Said out loud in the strip rather than silently: until this happens, a
-   * sentence Tade's own grammar does not recognise has nowhere to go, and
-   * knowing when that changed is the difference between waiting and retyping.
+   * Said out loud in the strip rather than silently: until this happens, a sentence Tade's own
+   * grammar does not recognise has nowhere to go, and knowing when that changed is the
+   * difference between waiting and retyping.
    */
   attachThinker(thinker: Thinker): void {
     this.orchestrator.attach(thinker)
   }
 
   /**
-   * Write down the model the orchestrator ended up on when none was chosen,
-   * so it stays on it. Otherwise the harness's default decides every start,
-   * and that default is whatever an agent last switched to.
+   * Write down the model the orchestrator ended up on when none was chosen, so it stays on it.
+   * Otherwise the harness's default decides every start: whatever an agent last switched to.
    */
   keepThinkerModel(model: { provider?: string; id: string }): void {
     this.orchestrator.keepModel(model)
@@ -525,9 +525,8 @@ export class App {
   }
 
   /**
-   * The orchestrator could not be started, said where you would have waited
-   * for it — not swallowed, which left a window that never answered anything
-   * and gave no reason.
+   * The orchestrator could not be started, said where you would have waited for it — not
+   * swallowed, which left a window that never answered anything and gave no reason.
    */
   thinkerFailed(reason: string): void {
     this.orchestrator.failed(reason)
@@ -781,6 +780,9 @@ export class App {
   awayTools(): Arming {
     return this.away.arming()
   }
+
+  /** What the orchestrator's `tade_remote_tell` does, over this window's links. */
+  readonly remoteTools = (): RemoteTools => this.remotes.tools()
 
   private draw(): void {
     if (!this.stopped && !this.orchestrator.borrowed()) this.tui.requestRender()

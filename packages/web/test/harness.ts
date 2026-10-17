@@ -16,6 +16,7 @@ import {
   type WebServer,
   webServer,
 } from '../src/server.ts'
+import type { WebSince } from '../src/since.ts'
 import type { Surface } from '../src/surface.ts'
 import { Tickets } from '../src/tickets.ts'
 import { input, NOW } from './fixtures.ts'
@@ -203,6 +204,8 @@ export async function start(
     present?: (device: string, at: number) => void
     /** The window's attach lines, for a test of an owner asking for one. */
     attaching?: WebAttaching
+    /** The window's catch-up card, for a test of an owner asking what it missed. */
+    since?: WebSince
   } = {},
 ): Promise<Running> {
   settingRows = opts.settings ?? []
@@ -245,6 +248,7 @@ export async function start(
     ...(opts.now === undefined ? {} : { now: opts.now }),
     ...(opts.present === undefined ? {} : { present: opts.present }),
     ...(opts.attaching === undefined ? {} : { attaching: opts.attaching }),
+    ...(opts.since === undefined ? {} : { since: opts.since }),
   })
   epoch = one.server.epoch
   one.epoch = epoch

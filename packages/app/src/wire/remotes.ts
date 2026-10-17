@@ -36,7 +36,10 @@ import {
   type Wiring,
 } from './context.ts'
 import { RemoteAgents } from './remote-agent.ts'
+import { RemoteTalks, type RemoteTools } from './remote-talk.ts'
 import { MACHINE } from './web-panel.ts'
+
+export type { RemoteTools } from './remote-talk.ts'
 
 // The window's links to other machines' Tades it is an owner of: one link per
 // `remotes.<name>`, held while the window is open (REMOTE-TADE.md §2.5, §5.4).
@@ -130,6 +133,8 @@ export class Remotes implements Subject {
   private readonly skews = new Map<string, { projection: object; skew: number }>()
   /** An agent there, looked at, typed into and acted on (`remote-agent.ts`), where the window has one. */
   private agents: RemoteAgents | null = null
+  /** Each machine's orchestrator, talked to on its tab (`remote-talk.ts`), where the window has one. */
+  private talks: RemoteTalks | null = null
 
   constructor(deps: RemotesDeps) {
     this.deps = deps
@@ -147,7 +152,29 @@ export class Remotes implements Subject {
   /** Every remote's projects, for the top row, the side and Spend — and nothing where there are none. */
   facts(): Partial<Frame> {
     const machines = this.machines()
-    return machines.remotes.length === 0 ? {} : { machines, ...this.agents?.facts() }
+    // Asked with none too: the tab of a remote just taken out hands its line back.
+    const talks = this.talks?.facts() ?? {}
+    return machines.remotes.length === 0 ? {} : { machines, ...this.agents?.facts(), ...talks }
+  }
+
+  /** What was typed, sent to the machine whose orchestrator's tab is in front: false where none is. */
+  say(said: string): boolean {
+    return this.talks?.say(said) ?? false
+  }
+
+  /** Escape on a machine's orchestrator's tab: its turn stopped there. False where none is in front. */
+  interrupt(): boolean {
+    return this.talks?.interrupt() ?? false
+  }
+
+  /** What the orchestrator's `tade_remote_tell` does, answered from this window. */
+  tools(): RemoteTools {
+    return {
+      tell: async (req) => {
+        if (this.talks === null) throw new Error('this window talks to no other machine')
+        return this.talks.tell(req)
+      },
+    }
   }
 
   /** What an agent there may be asked from here: looked at, typed into, told, stopped, parked. */
@@ -162,6 +189,12 @@ export class Remotes implements Subject {
   /** Hand it what opens an agent there, which reaches the links through it. */
   withAgents(make: (remotes: Remotes) => RemoteAgents): this {
     this.agents = make(this)
+    return this
+  }
+
+  /** Hand it what talks to each machine's orchestrator, which reaches the links through it. */
+  withTalks(make: (remotes: Remotes) => RemoteTalks): this {
+    this.talks = make(this)
     return this
   }
 
@@ -328,6 +361,7 @@ export class Remotes implements Subject {
       this.words.delete(name)
       this.skews.delete(name)
       this.carries.forget(name)
+      this.talks?.forget(name)
       void this.links.get(kind)?.close(name)
     }
     for (const [name, config] of Object.entries(remotes)) {
@@ -359,6 +393,7 @@ export class Remotes implements Subject {
 
   private changed(link: RemoteLink, name: string): void {
     const held = link.held(name)
+    if (held !== null) this.talks?.moved(name, held)
     this.deps.draw()
     if (held !== null) {
       const word = wordOf(held)
@@ -470,12 +505,16 @@ export function remotesFor(
       wire.put(notice(wire.state, said, wire.now()))
       wire.draw()
     },
-  }).withAgents(
-    (remotes) =>
-      new RemoteAgents(wire, {
-        reach: (name) => remotes.reachFor(name),
-        machines: () => remotes.machines(),
-        skew: (name) => remotes.skewOf(name),
-      }),
-  )
+  })
+    .withAgents((remotes) => new RemoteAgents(wire, reachingOf(remotes)))
+    .withTalks((remotes) => new RemoteTalks(wire, reachingOf(remotes)))
+}
+
+/** What a subject of the remotes reaches them through: the link, the fold, the clocks. */
+function reachingOf(remotes: Remotes) {
+  return {
+    reach: (name: string) => remotes.reachFor(name),
+    machines: () => remotes.machines(),
+    skew: (name: string) => remotes.skewOf(name),
+  }
 }

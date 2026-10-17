@@ -1070,6 +1070,33 @@
     }
   },
   {
+    "name": "tade_remote_tell",
+    "description": "Pass a sentence to another machine’s orchestrator: a Tade on a machine this one is linked to as its owner, each named under \"Other machines\" in what you are told with every message. Use it when the person asks for something on that machine — start or plan work there, ask how its agents are doing, steer, park or stop one of them: none of your other tools reach another machine, and its projects are not projects here even where one has the same name. Say what they asked, in their words, with what that orchestrator needs to act on it; it acts there with that machine’s own tools, and answers in its own conversation, which the person reads on that machine’s tab in this window — you are not given its answer, so tell them it went and where to look. Refused unless a line of theirs names that machine — pass that line, word for word, in `asked` — and refused while its link is down, while its orchestrator is answering something else, and where talking to it from another screen is off there. Never reached from a turn that came from a paired device.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "machine": {
+          "type": "string",
+          "description": "the machine, by the name it has here: `vps`"
+        },
+        "said": {
+          "type": "string",
+          "description": "what to pass on, as the person would put it to that machine"
+        },
+        "asked": {
+          "type": "string",
+          "description": "what the person said that asked for this, word for word. Tade checks it against what they actually said and that it names the machine, so pass their sentence and never your own summary of it"
+        }
+      },
+      "required": [
+        "machine",
+        "said",
+        "asked"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "tade_replay",
     "description": "Start a replay — their own eval: the last N tasks that landed in a project, each asked again in a worktree at the commit it began from, with its original words, on a candidate model or harness, and scored by the project’s checks, the tests the original change added, whether the judge says it did what was asked, its size beside the original, and what it cost and took. Reach for it when they ask to eval, benchmark or compare a model or a harness on their own work — and only then: it spends real money, so the window refuses it unless they asked for an eval in their own words, and it needs a ceiling in dollars they gave you. It varies one thing: a model (each task on the harness it first ran on, or only the tasks of the harness you name beside it), or a harness alone. Tasks whose words lean on a conversation nobody kept are set aside as \"could not replay\", never counted as fails. It is a plan underneath, run a few at a time by the queue; `at` puts it off until a time (overnight).",
     "parameters": {

@@ -1,7 +1,9 @@
 import {
   ConfigSchema,
   namedBy,
+  REMOTE_TELL_REACH,
   reloadNamedBy,
+  remoteNamedBy,
   settingReach,
   settingsOf,
   updateNamedBy,
@@ -579,6 +581,20 @@ describe('whether the person asked for an update or a reload', () => {
     expect(reloadNamedBy(['update tade'])).toBeNull()
     // Restarting an agent is not restarting the window.
     expect(reloadNamedBy(['restart the refunds agent'])).toBeNull()
+  })
+})
+
+describe('whether the person asked for something on another machine', () => {
+  // The turn a sentence starts there is an owner's, so a stranger's words the
+  // orchestrator read must not be one call from being carried out there.
+  it('finds a line of theirs that names the machine, and only as a word', () => {
+    expect(REMOTE_TELL_REACH.reach).toBe('asked')
+    expect(remoteNamedBy('vps', ['ask the vps what it is doing'])).toBe(
+      'ask the vps what it is doing',
+    )
+    expect(remoteNamedBy('vps', ['start the deps bump on VPS'])).toBe('start the deps bump on VPS')
+    expect(remoteNamedBy('vps', ['how are the vpsx agents', 'open shop'])).toBeNull()
+    expect(remoteNamedBy('lab', ['tell vps to stop'])).toBeNull()
   })
 })
 

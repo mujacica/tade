@@ -413,6 +413,9 @@ const PURE = [
   'packages/app/src/selection.ts',
   'packages/app/src/skin.ts',
   'packages/app/src/spend.ts',
+  // Another machine's orchestrator's tab: its conversation as entries, the
+  // card its link brought back as rows, where a message there stands.
+  'packages/app/src/talk-tab.ts',
   'packages/app/src/turning.ts',
   'packages/app/src/ui.ts',
   'packages/app/src/view.ts',

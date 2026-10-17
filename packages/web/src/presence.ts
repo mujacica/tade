@@ -29,11 +29,14 @@ import { readBody } from './request.ts'
 //    clocks: `ago` is milliseconds before *this* request, and the moment is
 //    worked out here, in this machine's clock, where `noticed.ts` compares it.
 //    Bounded, so a link cannot say somebody was here last week.
-// 4. **Held and never written.** Presence is what the window holds for a
-//    couple of minutes, the way it holds a keypress; it is not a fact about
-//    work, and a line per keystroke on another machine is a journal nobody
-//    could read. What it changes is whether a notification is sent, and every
-//    notification sent or not is already written down (`web_pushed`).
+// 4. **Held, and written once a stretch, never per keystroke.** Presence is
+//    what the window holds for a couple of minutes, the way it holds a
+//    keypress, and that is what decides whether a notification is sent. The
+//    window also writes `person_present` — at most one line every few minutes
+//    (`@tade/core`'s `presenceLineDue`) — because "since you were here" is
+//    folded from the last moment this machine counted the person present
+//    (`since.ts`), and a moment held in memory dies with a restart. A line per
+//    keystroke on another machine would be a journal nobody could read.
 // 5. **It can only hold a notification back.** Nothing here sends one, reads
 //    one or reaches a project: the worst a presence can do is make this
 //    machine quieter, and only for its owner.

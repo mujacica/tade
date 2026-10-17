@@ -463,6 +463,18 @@ the tab ends the terminal and never the agent.
 
 ![Typing into an agent on the VPS, in a terminal on the Mac](https://raw.githubusercontent.com/mujacica/tade/main/images/remote-terminal.svg)
 
+**And its orchestrator is a tab beside this one's.** What you type on the VPS's tab goes to the
+orchestrator on the VPS — as this Mac's owner session there, so it can start and plan work on that
+machine — and never to the Mac's; escape there stops its turn there. (Talking to Tade from another
+screen has to be on there, `surfaces.web.orchestrator`, and the tab says so where it is not.) When
+the laptop opens and the link comes back after a while, the tab says what the VPS says happened
+since this Mac last told it you were at the keyboard: what waits on you, what finished, what is
+waiting to be read, what is held, what it cost. The Mac's orchestrator is told a line about each
+machine with everything you say to it (`vps: 3 working, 1 wants you`), and passes a sentence on to
+one when you ask for something there by its name — never when the words came from a phone.
+
+![The VPS's orchestrator on a tab beside the Mac's, with what happened there since you were last here](https://raw.githubusercontent.com/mujacica/tade/main/images/remote-orchestrator.svg)
+
 ## An IDE in the terminal
 
 The repository is right there while the agents work it: the file tree, the diffs, the branch, a
@@ -705,10 +717,6 @@ Tade", then "reload" — and it is the same run, checked against what you actual
 ## Planned
 
 Not built yet, and named here rather than anywhere above, at the part of Tade it would be built on.
-
-- **That machine's orchestrator, in this window.** Its projects and agents are drawn and opened
-  here (`packages/app/src/machines.ts`, `wire/remote-agent.ts`), and its agents take a verb over
-  the owner channel; talking to the orchestrator that runs there is still done on that machine.
 
 - **Time from done to landed**, beside the cost per landed task on Evaluations
   (`evaluationsFrom`, `core/src/evaluations.ts`). The desk already says how long each piece of work

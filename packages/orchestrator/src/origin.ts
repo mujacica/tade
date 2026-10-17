@@ -142,6 +142,14 @@ const READS_WIDE =
 // nobody ever saw waiting, which is the one failure the list exists to prevent.
 const DECIDES_FOR_SOMEBODY =
   'it writes down a decision, and a decision recorded from away is one the person never saw waiting'
+// The sixth, and the only one about another machine: what it carries is this
+// machine's owner session there, whose turns reach what that machine's keyboard
+// does (`@tade/web`'s `owner.ts`). The arm of the turn that calls it is not
+// carried with it — that machine sees its owner, not a phone — so a narrowed
+// turn passing its words on would leave the narrowing behind on this side
+// (REMOTE-TADE.md §9.4).
+const OWNS_ELSEWHERE =
+  'it hands words to another machine’s Tade as its owner, where they reach what its keyboard does and no narrowing goes with them'
 
 /**
  * Every one of Tade's own tools, and what a remote turn may do with it.
@@ -200,6 +208,9 @@ export const REMOTE_TOOLS: Readonly<Record<string, Reaching>> = {
   // person at it asks for in their own words (`UPDATE_REACH`, `RELOAD_REACH`).
   tade_updates_run: { kind: 'local', because: EXECUTES },
   tade_reload: { kind: 'local', because: EXECUTES },
+  // A phone's words, passed on through an owner session, would arrive on the
+  // other machine with the keyboard's reach.
+  tade_remote_tell: { kind: 'local', because: OWNS_ELSEWHERE },
 
   // Grants, credentials, and who is asked.
   tade_setting_change: { kind: 'local', because: GRANTS },
@@ -461,6 +472,7 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
   'updates/read': never(PUBLISHES),
   'updates/run': never(EXECUTES),
   'window/reload': never(EXECUTES),
+  'remote/tell': never(OWNS_ELSEWHERE),
   'worker/list': never(READS_WIDE),
   'worker/stop': never(CONFIRMS),
   'events/read': never(READS_WIDE),

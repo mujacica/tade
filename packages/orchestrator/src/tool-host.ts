@@ -30,6 +30,7 @@ import { machineMethods, type UpdateHost } from './host-machine.ts'
 import { noteMethods } from './host-notes.ts'
 import { doneRuleOf, scheduleMethods } from './host-queue.ts'
 import { type RaceHost, raceMethods } from './host-race.ts'
+import { type RemoteHost, remoteMethods } from './host-remotes.ts'
 import { type ReplayHost, replayMethods } from './host-replay.ts'
 import { templateMethods } from './host-templates.ts'
 import { type Arming, allowMethod, allowTool, waiting } from './origin.ts'
@@ -172,6 +173,8 @@ export interface ToolHostOptions {
   race?: RaceHost
   /** Starting a replay and reading one: the window's (`host-replay.ts`). */
   replay?: ReplayHost
+  /** Passing a sentence to another machine's orchestrator: the window's link (`host-remotes.ts`). */
+  remotes?: RemoteHost
   /** Runs the orchestrator's extension tools. Without it, it has none. */
   extensions?: (call: {
     tool: string
@@ -243,6 +246,8 @@ export class ToolHost {
       ...raceMethods(() => opts.race),
       // Replays, which the window's queue starts and paces: `host-replay.ts`.
       ...replayMethods(() => opts.replay),
+      // Another machine's orchestrator, over the window's link to it: `host-remotes.ts`.
+      ...remoteMethods(() => opts.remotes),
       // Work that arrived from outside, read and never acted on. Two methods
       // and deliberately not a third: there is no way from here to approve,
       // refuse or retry one, and no way to change a grant — `settingReach`

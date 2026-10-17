@@ -19,6 +19,7 @@ import {
   addEnded,
   addNews,
   type Ended,
+  machinesSaid,
   type News,
   TADE_WORDS,
   THEIR_WORDS,
@@ -27,6 +28,7 @@ import {
   whereYouAre,
   withNews,
 } from '../inbox.ts'
+import type { Machines } from '../machines.ts'
 import {
   type AppState,
   focusTask,
@@ -110,10 +112,8 @@ export interface OrchestratorDeps {
    * nothing is — which is the usual answer, and the strip draws nothing for it.
    */
   credentialProblem(provider: string | null): string | null
-  /**
-   * Scrolled back, the lines you are reading stay where they are while new
-   * ones arrive below.
-   */
+  /** Other machines this window links to, as each last said: a line said with every message. */
+  machines?: () => Machines | undefined
 }
 
 export class Orchestrator implements Subject {
@@ -326,9 +326,8 @@ export class Orchestrator implements Subject {
   }
 
   /**
-   * The orchestrator could not be started, said where you would have waited
-   * for it — not swallowed, which left a window that never answered anything
-   * and gave no reason.
+   * The orchestrator could not be started, said where you would have waited for it — not
+   * swallowed, which left a window that never answered anything and gave no reason.
    */
   failed(reason: string): void {
     this.wire.put(
@@ -513,7 +512,8 @@ export class Orchestrator implements Subject {
       projects: this.wire.state.known,
       elsewhere: this.wire.state.elsewhere,
     })
-    const above = [here, about].filter(Boolean).join('\n\n') || null
+    const there = machinesSaid(this.deps.machines?.(), clockOf)
+    const above = [here, there, about].filter(Boolean).join('\n\n') || null
     const message = withNews(text, this.newsWaiting, clockOf, THEIR_WORDS, above)
     this.newsWaiting = []
     try {

@@ -61,6 +61,7 @@ export const RESERVED: readonly string[] = [
   'race',
   'reload',
   'remember',
+  'remote',
   'replay',
   'resume',
   'run',

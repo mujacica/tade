@@ -1,4 +1,5 @@
 import { AWAY_WORDS, documentSize, documentsIn, producedClause, type TadeEvent } from '@tade/core'
+import type { Machine, Machines } from './machines.ts'
 import type { TaskSnapshot } from './model.ts'
 
 // What Tade tells the orchestrator without being asked.
@@ -300,6 +301,54 @@ export function whereYouAre(here: {
     ? ` ${here.projects.length} projects are open: ${here.projects.join(', ')}.`
     : ''
   return `You are looking at ${at}.${rest}`
+}
+
+/**
+ * Every other machine this window links to, as each last said, in one line:
+ * `Other machines, as each last said: vps: 3 working, 1 wants you; lab:
+ * nothing running.` — said with every message, beside where they are
+ * standing, for the same reason that is: it is a fact about now (REMOTE-TADE.md
+ * §9.4).
+ *
+ * **Not in the briefing**, which is composed once as the window opens, before
+ * any link has dialled: a line written then would say every machine was being
+ * linked, and go on saying it all day. What a machine's own work is, its own
+ * orchestrator answers for (`tade_remote_tell`); this is enough to know which
+ * one to ask, and that there is something to ask about. Null where none is.
+ *
+ * A machine that is down is said as down, with when it was last heard from
+ * and what it said then — never as nothing running, which is the one thing
+ * it cannot say.
+ */
+export function machinesSaid(
+  machines: Machines | undefined,
+  clock: (at: number) => string,
+): string | null {
+  const remotes = machines?.remotes ?? []
+  if (remotes.length === 0) return null
+  const each = remotes.map((machine) => {
+    const counts = countsOf(machine)
+    if (machine.link === 'ended') return `${machine.name}: signed this machine out`
+    if (!machine.heard) return `${machine.name}: not heard from yet`
+    if (machine.link === 'live') return `${machine.name}: ${counts}`
+    const at = machine.asOf === null ? '' : ` since ${clock(machine.asOf)}`
+    return `${machine.name}: not linked${at} — then, ${counts}`
+  })
+  return `Other machines, as each last said: ${each.join('; ')}.`
+}
+
+/** A machine's agents by what they are doing, as its own marks say. */
+function countsOf(machine: Machine): string {
+  const agents = machine.projects.flatMap((project) => project.agents)
+  const count = (n: number, said: string) => (n > 0 ? [`${n} ${said}`] : [])
+  const parts = [
+    ...count(agents.filter((one) => !one.queued && one.mark === 'working').length, 'working'),
+    ...count(agents.filter((one) => one.mark === 'needs-you').length, 'wants you'),
+    ...count(agents.filter((one) => one.mark === 'failed').length, 'failed'),
+    ...count(agents.filter((one) => !one.queued && one.mark === 'done').length, 'done'),
+    ...count(agents.filter((one) => one.queued && one.mark !== 'needs-you').length, 'queued'),
+  ]
+  return parts.length > 0 ? parts.join(', ') : 'nothing running'
 }
 
 /**

@@ -110,6 +110,12 @@ an unnamed one is refused.
 - **A tool that shells out to the CLI reaches no method at all** (`tade_notes`, and `tade_updates`
   where no window answers `updates/read`), so the tool table is the only gate for it — which is
   why reads whose answer is wider than a read grant are `local` even though they change nothing.
+- **A tool whose effect is on another machine is `local` with a clause of its own** (`OWNS_ELSEWHERE`,
+  `tade_remote_tell`): what it carries is this machine's owner session there, which reaches what that
+  machine's keyboard does, and the arm of the turn that called it is not carried with it — so a
+  phone's words passed on would arrive with the keyboard's reach. The window holds it to a line of the
+  person's naming that machine (`REMOTE_TELL_REACH`, `remoteNamedBy`), and says it there as this
+  machine's orchestrator's words, never the person's. `origin.test.ts` holds both refusals.
 - Only where a turn runs under a remote arm does any of this apply. A local turn is checked against
   nothing, which is the type saying it rather than a comment promising it (`Arm`) — and so is an
   **owner device's** turn (`{ how: 'owner' }`, minted only by `tade web pair --owner` over SSH and

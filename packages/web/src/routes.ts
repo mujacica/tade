@@ -466,8 +466,9 @@ export const SETTINGS: readonly Route[] = Object.keys(CHANGES).map((name) => ({
 
 /**
  * What only an owner may do, and only at this machine's own door: another
- * machine's Tade carrying its setup here (`carried.ts`), and asking what to run
- * here to be shown one of its agents (`attached.ts`).
+ * machine's Tade carrying its setup here (`carried.ts`), asking what to run
+ * here to be shown one of its agents (`attached.ts`), and asking what the
+ * person missed while away (`since.ts`).
  *
  * A table of its own because each is what no phone may ever be given: the
  * carry writes the config beyond `settingReach`'s `open` tier — preferences,
@@ -486,6 +487,12 @@ export const SETTINGS: readonly Route[] = Object.keys(CHANGES).map((name) => ({
 export const OWNED: readonly Route[] = [
   { method: 'POST', path: '/api/carry', name: 'carry', needs: 'read', mutates: true, here: true },
   { method: 'POST', path: '/api/attach', name: 'attach', needs: 'read', mutates: true, here: true },
+  // What the person missed while they were away (`since.ts`): a read, folded
+  // over this machine's journal from the last moment it counted them present.
+  // A `POST` and `here` like its neighbours — an owner's, through SSH — and it
+  // changes nothing; it is here rather than in `ROUTES` because it is read
+  // from the cursor an owner's presence wrote, which no phone carries.
+  { method: 'POST', path: '/api/since', name: 'since', needs: 'read', mutates: true, here: true },
 ]
 
 /**

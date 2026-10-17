@@ -553,6 +553,15 @@ export const PICTURES: readonly Picture[] = [
       'lower pane with the room to read it, its tab saying which machine and which agent.',
   },
   {
+    file: 'remote-orchestrator.svg',
+    scenario: 'another-machines-orchestrator',
+    crop: { top: 16, height: 18 },
+    about:
+      'The VPS’s orchestrator on a tab beside the Mac’s own: what was asked of it last night, then ' +
+      'what it says happened since the person was last there — the agent waiting on them, what ' +
+      'finished, what is held, what it cost — and that what is typed here goes to the VPS.',
+  },
+  {
     file: 'project-menu.svg',
     scenario: 'a-projects-menu',
     crop: 'panel',

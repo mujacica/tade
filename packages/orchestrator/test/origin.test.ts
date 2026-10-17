@@ -35,8 +35,8 @@ function methodNames(): string[] {
   // at a known depth. Read rather than exported, because the record is built
   // inside `listen` out of closures over its options — and a second exported
   // list of the same names is the thing this test exists to prevent. The
-  // document, lesson, template, update, race, replay, schedule and note
-  // methods are spread into it from their own files, one level up.
+  // document, lesson, template, update, race, replay, schedule, note and
+  // remote methods are spread into it from their own files, one level up.
   const keys = (source: string, depth: number): string[] =>
     [...source.matchAll(new RegExp(`^ {${depth}}'([a-z]+\\/[a-z-]+)':`, 'gm'))].map(
       (found) => found[1] ?? '',
@@ -52,6 +52,7 @@ function methodNames(): string[] {
       'host-replay.ts',
       'host-queue.ts',
       'host-notes.ts',
+      'host-remotes.ts',
     ].flatMap((file) => keys(read(file), 4)),
   ]
 }
@@ -123,6 +124,31 @@ describe('what a remote turn may reach', () => {
     expect(armMay(owner, 'steer')).toBe(true)
     expect(cameFromAway(owner)).toContain('owner device')
     expect(cameFromAway(owner)).toContain('still not their own words')
+  })
+
+  it('never passes a phone’s words on to another machine, where they would be its owner’s', () => {
+    // REMOTE-TADE.md §9.4. This machine is an owner of another (`tade remote
+    // add`), so what it passes there runs with that machine's keyboard's
+    // reach. A turn here that came from a paired device is narrowed; passing
+    // its words on through the owner session would launder the phone's
+    // request into full authority there. So the tool and its method are both
+    // `local`, whatever the phone was granted, and every project it may see.
+    const phone = arm({ may: ['answer', 'steer'], projects: null })
+    expect(REMOTE_TOOLS.tade_remote_tell?.kind).toBe('local')
+    expect(REMOTE_METHODS['remote/tell']?.reaching.kind).toBe('local')
+    const tool = allowTool('tade_remote_tell', phone)
+    expect(tool.ok).toBe(false)
+    if (!tool.ok) {
+      expect(tool.said).toContain('another machine’s Tade as its owner')
+      expect(tool.said).toContain('needs the person at the machine')
+    }
+    const method = allowMethod('remote/tell', { machine: 'vps', said: 'start the release' }, phone)
+    expect(method.ok).toBe(false)
+    if (!method.ok) expect(method.said).toContain('no narrowing goes with them')
+    // The person at the keyboard, and an owner of this machine, pass it on.
+    expect(allowTool('tade_remote_tell', LOCAL)).toEqual({ ok: true })
+    const owner: Arm = { how: 'owner', device: 'a1b2c3d4e5f60718' }
+    expect(allowMethod('remote/tell', { machine: 'vps' }, owner)).toEqual({ ok: true })
   })
 
   it('refuses a setting change however the request is worded', () => {

@@ -23,6 +23,7 @@ import type { HeldLines } from '../scroll.ts'
 import { BAR } from '../scrollbar.ts'
 import type { Regions } from '../selection.ts'
 import type { Look, Skin } from '../skin.ts'
+import type { TalkTab } from '../talk-tab.ts'
 import { onATurn } from '../transcript.ts'
 import { type Drawn, fit, type Pointer, Row, stack } from '../ui.ts'
 import { widthOf } from '../width.ts'
@@ -149,6 +150,7 @@ export function bottomTabs(
   pointer: Pointer,
   now = 0,
   unread = false,
+  talks: readonly TalkTab[] = [],
 ): { text: string; hits: Hit[] } {
   const edge: Target = { kind: 'divider', edge: 'bottom' }
   const lit = state.resizing === 'bottom' || sameTarget(state.hover, edge)
@@ -175,6 +177,12 @@ export function bottomTabs(
     orchestrator,
     state.bottom === ORCHESTRATOR_TAB,
   )
+  // Each other machine's orchestrator beside this one's, by the machine's
+  // name (`talk-tab.ts`): its own marks for a turn, something unread and a
+  // link that is down, in the order its tabs along the top are in.
+  for (const talk of talks) {
+    row.space().tab(talk.label, { kind: 'bottom-tab', tab: talk.tab }, talk.tab === state.bottom)
+  }
   for (const terminal of terminalsOf(state)) {
     const on = terminal.id === state.bottom
     const target: Target = { kind: 'bottom-tab', tab: terminal.id }

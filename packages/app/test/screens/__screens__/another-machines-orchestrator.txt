@@ -1,0 +1,34 @@
+ ▄▀   T A D E     this Mac  checkout !⠋    search ●      +      vps    tade !⠋◌    web ✓     lab    firmware      ! 1  in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2                  +    █│ checkout › refunds    agent    actions     +                   pi ▾     claude-opus-5 ▾     high ▾   ctx ██░░░░ 41%   ×   
+                                   █│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   ! stripe-v15         880k tok   █│                                                                                                                           
+     wants you to approve npm i…   █│                                                                                                                           
+                                   █│                                                                                                                           
+ ▌ ⠋ refunds               $0.62   █│                                                                                                                           
+ ▌   working                       ▕│                                                                                                                           
+                                   ▕│                                                                                                                           
+ ▸ SMART QUEUE   nothing is queued ▕│  ● Upgrading stripe to v15. The webhook signature API changed,                                                            
+ ▸ SCHEDULES    nothing on a clock ▕│    so src/webhooks.ts needs the new constructEvent signature.                                                             
+ ▸ INTAKE                      off ▕│                                                                                                                           
+ ▾ CHANGES  3              vs main ▕│  ▸ Read src/webhooks.ts                                                                                                   
+  M package.json             +2 −1 ▕│  ▸ Edit src/webhooks.ts  +12 −4                                                                                           
+  A src/webhooks.test.ts       +48 ▕│  ▸ bash npm i stripe@15                                                                                                   
+━   orchestrator     vps     lab     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
+                                                                                                                                                                
+                                                                                                                                                               ▕
+❯ overnight: land the deps bump, and get the webhook doorbell as far as you can                                                                                ▕
+  ✓ plan                                                                                                                                                       ▕
+◆ Planned both: the deps bump runs first, and intake-webhooks starts once it lands.                                                                            ▕
+                                                                                                                                                               ▕
+ Since you were here at 02:00 — on vps:                                                                                                                        ▕
+   waiting on you: tade/intake-webhooks wants an answer about Bash                                                                                             ▕
+   finished: tade/deps-bump — its rule was met · web/landing-copy — its agent said so                                                                          ▕
+   held: tade/release-notes — waiting on tade/intake-webhooks                                                                                                  ▕
+   spent: $6.40 over 3.9M tok                                                                                                                                  ▕
+                                                                                                                                                               ▕
+ ◇ what you type here goes to the orchestrator on vps                                                                                                          ▕
+───────────────────────────────────────────────────────────────────────────────────────────────────────  enter sends · shift+enter new line · ↑ ctrl+r history ─
+ ▏                                                                                                                                                              
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake                        remote off │ claude-opus-5 ▾ · openrouter │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

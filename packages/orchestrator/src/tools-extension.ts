@@ -11,6 +11,7 @@ import { machineTools } from './tools-machine.ts'
 import { noteTools } from './tools-notes.ts'
 import { done, PLAN_AFTER, PLAN_CONTEXT, queueTools, stringList, TOUCHES } from './tools-queue.ts'
 import { raceTools, replayTools } from './tools-race.ts'
+import { remoteTools } from './tools-remotes.ts'
 import { intakeTools, templateTools } from './tools-templates.ts'
 
 /** Where extensions live. Set by the orchestrator that launched us. */
@@ -659,7 +660,7 @@ export function orchestratorTools(
   // Tade configuring itself, and the work it runs. Each in a file of its own
   // because what it may touch is a boundary, worth reading in one place.
   const groups = [configTools, documentTools, lessonTools, templateTools, raceTools, replayTools]
-  for (const group of [...groups, intakeTools]) tools.push(...group(rpc))
+  for (const group of [...groups, intakeTools, remoteTools]) tools.push(...group(rpc))
   tools.push(...machineTools(rpc, runTade), ...noteTools(rpc, runTade))
 
   tool(

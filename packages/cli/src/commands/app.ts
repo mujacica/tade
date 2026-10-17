@@ -238,6 +238,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       // Updating and reloading are the window's: the run is in a terminal it
       // puts in front, and the person's words are checked there.
       let updates: ReturnType<App['updateTools']> | null = null
+      let remotes: ReturnType<App['remoteTools']> | null = null
       // How far the turn in flight reaches, and what a narrowed one is
       // answered with. Null until the window is up, and **a remote arm is
       // impossible until then**: the host reads `LOCAL` for every call, which
@@ -353,6 +354,14 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           standing: async (req) => {
             if (!queue) throw opening()
             return queue.replay.standing(req)
+          },
+        },
+        // Another machine's orchestrator, over the window's link to it, and
+        // checked there against the person's own lines.
+        remotes: {
+          tell: async (req) => {
+            if (!remotes) throw opening()
+            return remotes.tell(req)
           },
         },
         updates: {
@@ -508,6 +517,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         settings = app.configTools()
         watches = app.watchTools()
         updates = app.updateTools()
+        remotes = app.remoteTools()
         away = app.awayTools()
 
         // The orchestrator is a model in another process and takes a few

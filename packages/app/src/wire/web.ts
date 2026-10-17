@@ -53,6 +53,7 @@ import { knownHere, Lanes } from './web-lanes.ts'
 import type { Lifecycle } from './web-lifecycle.ts'
 import { carryLink, isLink } from './web-link.ts'
 import { awayView, codeShownOn, keepCode, mintPairing } from './web-panel.ts'
+import { Presences } from './web-presence.ts'
 import { PublicHealth } from './web-public.ts'
 import { pushFor, type WebPush } from './web-push.ts'
 import { letGoOfRevoked, revokeEvery, revokeOne, type Sessions } from './web-sessions.ts'
@@ -185,13 +186,14 @@ export class Away implements Subject {
   private readers = 0
   /** The certificate and the version, while a public listener is up (`web-public.ts`). */
   private readonly health: PublicHealth
-  /** When an owner's link last said somebody pressed a key at another of their screens. */
-  private presentAt: number | null = null
+  /** The person at another of their screens, held and written once a stretch (`web-presence.ts`). */
+  private readonly presences: Presences
 
   constructor(wire: Wiring, deps: AwayDeps) {
     this.wire = wire
     this.deps = deps
     this.log = toldTo(wire, (said) => deps.news(said))
+    this.presences = new Presences(wire, (said) => deps.news(said))
     this.health = new PublicHealth({
       look: () => wire.opts.certificate ?? null,
       newer: async () => (await lastUpdates(wire.opts.home))?.tade.newer ?? null,
@@ -211,7 +213,7 @@ export class Away implements Subject {
         tasks: () => this.collections().tasks,
         devices: () => this.devices,
         tell: (told) => void this.log(told),
-        presentAt: () => this.presentAt,
+        presentAt: () => this.presences.presentAt(),
       },
     )
   }
@@ -278,9 +280,8 @@ export class Away implements Subject {
         },
         now: () => this.wire.now(),
       }),
-      present: (_device, at) => {
-        this.presentAt = Math.max(this.presentAt ?? at, at)
-      },
+      present: (device, at) => this.presences.seen(device, at),
+      since: this.presences.since(),
       carrying: carryingFor(this.wire, this.deps.settings),
       attaching: attachingFor(this.wire.opts.client),
       tickets: this.tickets,

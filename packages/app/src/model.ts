@@ -22,6 +22,7 @@ import { stillAnswered } from './pending.ts'
 import { type QueueView, shownBy, WHOLE_QUEUE } from './queue-view.ts'
 import { endOf, type Reach, scrollable } from './scroll.ts'
 import { offsetAt, thumbOf } from './scrollbar.ts'
+import { isTalkTab, talkingTo } from './talk-tab.ts'
 import { emptyTranscript, fromTurn, onATurn, type Transcript, tadeDid } from './transcript.ts'
 
 // What the app is showing, as data.
@@ -295,6 +296,8 @@ export interface AppState {
    * back finds it. `leaveLine` and `openLine` are the only two doors.
    */
   orchestratorDraft: string
+  /** The machines whose orchestrator is on a turn there, as their links last said (`talk-tab.ts`). */
+  talkBusy: readonly string[]
   /** A divider being dragged. */
   resizing: 'sidebar' | 'bottom' | 'split' | 'terminal-split' | null
   /**
@@ -415,6 +418,7 @@ export function initialState(): AppState {
     splitFocus: false,
     planShown: null,
     orchestratorDraft: '',
+    talkBusy: [],
   }
 }
 
@@ -1155,7 +1159,9 @@ export function laneShown(state: AppState, pane: AgentPane): string | null {
  */
 export function withTerminals(state: AppState, terminals: readonly TerminalTab[]): AppState {
   const gone =
-    state.bottom !== ORCHESTRATOR_TAB && !terminals.some((one) => one.id === state.bottom)
+    state.bottom !== ORCHESTRATOR_TAB &&
+    !isTalkTab(state.bottom) &&
+    !terminals.some((one) => one.id === state.bottom)
   return {
     ...state,
     terminals: [...terminals],
@@ -1865,7 +1871,10 @@ export function escapeMeans(state: AppState): EscapeMeans {
     if (state.focused !== null) return 'lane'
   }
   if (state.historySearch) return 'search'
-  if (onATurn(state.transcript)) return 'interrupt'
+  // On another machine's orchestrator's tab, what is thinking is that one.
+  const there = talkingTo(state)
+  if (there === null ? onATurn(state.transcript) : state.talkBusy.includes(there))
+    return 'interrupt'
   // Stepping off the line, and only ever with nothing on it to lose: escape
   // backs out of where you are everywhere else, and here there is nothing for
   // it to back out of until the line is empty. With something typed it does

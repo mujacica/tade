@@ -22,8 +22,10 @@ import {
   webServer,
 } from '@tade/web'
 import { type FarAct, type FarAgent, farActing, farLane, farTask } from './far-agents.ts'
+import { FarTalk } from './far-talk.ts'
 
 export type { FarAct, FarAgent } from './far-agents.ts'
+export type { FarSaid, FarTalk } from './far-talk.ts'
 
 import type { OwnerSession } from './port.ts'
 
@@ -67,6 +69,8 @@ export interface FarEnd {
   ): void
   /** Every verb an owner asked of it, oldest first, as its window was handed each. */
   readonly acted: FarAct[]
+  /** Its orchestrator's conversation, what was said to it, and the journal its catch-up reads (`far-talk.ts`). */
+  readonly talk: FarTalk
   /** The newest presence any owner carried, in its clock, or null. */
   readonly presentAt: number | null
   /** How many streams are open to it. */
@@ -130,6 +134,7 @@ class Far implements FarEnd {
   signIns: SignInHere[] = []
   readonly attachable = new Map<string, string>()
   readonly acted: FarAct[] = []
+  readonly talk = new FarTalk()
   private agents: readonly FarAgent[] = []
   /** When the agents were last shown: their moments, fixed, so a beat finds nothing moved. */
   private shownAt = Date.now()
@@ -159,15 +164,19 @@ class Far implements FarEnd {
     const streams = new Streams()
     const server = webServer({
       home: this.home,
-      // Acting on: what an owner asks of an agent there is written down (`acted`).
-      surface: { ...SURFACE, port, acting: true },
+      // Acting on: what an owner asks of an agent there is written down (`acted`);
+      // talking on: what is said to its orchestrator is too (`talk`).
+      surface: { ...SURFACE, port, acting: true, talking: true },
       acting: farActing(this.acted),
+      asking: this.talk.asking(),
+      since: async (device, cut) => this.talk.since(device, cut, Date.now()),
       readingFor: (reach) => this.projectorFor(reach),
       tickets: new Tickets(),
       streams,
       confirm: async () => ({ let: false, why: 'refused' }),
-      present: (_device, at) => {
+      present: (device, at) => {
         this.presentAt = Math.max(this.presentAt ?? at, at)
+        this.talk.present(device, at, Date.now())
       },
       // A carry lands the way it does on a machine with a window: the one
       // write path into its config, read back, and a line for each.
@@ -297,7 +306,7 @@ class Far implements FarEnd {
       sources: [],
       runs: [],
       workflows: [],
-      talk: null,
+      talk: this.talk.input(),
       plans: [],
       warnings: [],
       machineUpSince: null,

@@ -32,7 +32,8 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `evaluations.ts` | What the Evaluations panel shows (`/evals`): the tabs (`EVAL_TABS` — a grouping each, then the judge; the replay results are one more tab when they have something to draw) and the fold over a range, kept by `wire/evaluations.ts`, which reads the **whole** journal's lines with the journal's own reader on the beat while something looks | a terminal |
 | `races.ts` | The races, folded: core's `racesIn` over status's last look, the ACTIONS look, what the judges last said and the journal's `race_won` — drawn by `panels/race/` (`/race`), kept by `wire/landing.ts` beside the desk, and answered for the orchestrator by `wire/races.ts`, where a pick by it is held to a line of the person's | a terminal |
 | `spend.ts` | What the Spend panel shows, from `usage` events, and which window a day is (`sinceOf`) | a terminal |
-| `machines.ts` | Other machines' projects, read out of what each link holds — the one reader of a remote's projection (`machineOf`) — and standing in one (`goElsewhere`, `elsewhereOf`) | a terminal |
+| `machines.ts` | Other machines' projects, read out of what each link holds — the one reader of a remote's projection (`machineOf`) and of its card (`missedOf`) — and standing in one (`goElsewhere`, `elsewhereOf`) | a terminal |
+| `talk-tab.ts` | Another machine's orchestrator's tab: its id (`talkTab`, `talkingTo`), its conversation as entries (`talkTranscript`), where a message there stands (`talkSays`), its card as rows (`missedLines`) | a terminal |
 | `queue-view.ts` | What the SMART QUEUE shows (`QueueView`, `shownBy`) and nothing about what is in it | a terminal |
 | `queue.ts` | What the queue says in words, including what an empty list says (`queueEmptySays`) | a terminal |
 | `plan-graph.ts` | A plan as boxes and lines: a column per step of the resolved tree (`drawPlan`, `treeStems`, `drawWhy`) | a terminal |
@@ -65,7 +66,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `pace.ts` | How often the window looks, how soon after a lane prints it looks again (`printedWait`), how long a key's echo is owed (`ECHO_OWED_MS`), and how far apart frames go when the terminal is slow to take them (`paced`, `renderWait`) | — |
 | `wire/looks.ts` | `Looks`: when the lanes are looked at, one look at a time — the beat, a look asked for soon, a lane printing looked at now, and a key's echo owed a look and a frame (`typed`, `printed`) | a terminal |
 | `title.ts` | What the terminal window calls itself | — |
-| `inbox.ts` | What Tade tells the orchestrator without being asked, and where you are when you ask (`whereYouAre`) | — |
+| `inbox.ts` | What Tade tells the orchestrator without being asked, and where you are when you ask (`whereYouAre`), and a line for every other machine (`machinesSaid`) | — |
 | `settings.ts` | Reading and writing a setting from the window, through core's one writer | a real disk |
 | `app.ts` | Wiring only: pi-tui, the voice surface, the workbench, and the list of subjects | — |
 | `screen.ts` | The screen Tade asks you things on: setup, settings, any command that needs a form | a terminal (rendering is pure) |
@@ -409,6 +410,11 @@ nothing else. **Add a kind here by making it a tab, not by making a second pane.
   tab. A mark would be a second vocabulary for what the pane already shows.
 - **Nothing in the window decides where a chat stands or what it is told.** Both are `openChat`'s,
   which is the one door, so the orchestrator's tool and the `+` make the same decisions.
+- **Another machine's orchestrator is a fourth kind, and has no lane either** (`talk-tab.ts`): a
+  tab per remote beside this machine's own (`talk:<machine>`, which no lane id can be), drawing that
+  machine's conversation in the strip where this one's goes, with the same line. `withTerminals`
+  keeps the tab, a click is `showTalk`, and `talkingTo` is the one reading of which machine is in
+  front. Below "Projects on other machines" is what it sends and how.
 
 ## Lanes that draw their own screen
 
@@ -991,6 +997,21 @@ drawn from what its away view sends — the projection the link holds (REMOTE-TA
   so the pacing, scrolling, selection and find a terminal has come with it, and the one already open
   is put in front rather than a second. It is no project's terminal: `terminalsFrom` never lists
   one, its menu is Find and Close (`attachedMenuItems`), and nothing types a command into it.
+- **Its orchestrator is a tab of the lower pane** (`talk-tab.ts`, the subject `wire/remote-talk.ts`,
+  owned by `Remotes` like the agents): that machine's conversation out of its projection (`talk`,
+  read by `machines.ts` a line at a time, paragraphs kept), turned into this window's `Transcript`
+  so the strip draws it with `transcriptLines`, and a last row saying where a message typed there
+  stands (`talkSays`) — so nobody takes it for this machine's. **What is typed on its tab is
+  `/api/ask/ask` there and nothing here, however that goes**: `App`'s keyboard `say` asks
+  `Remotes.say` first, a refusal or a link that is down is a line on that tab with what was typed,
+  and no `said` line is written. Escape there means its turn (`talkBusy`, put in the state by the
+  subject for `escapeMeans` and `turning`), stopped with `/api/ask/stop`. Unread is per machine, as
+  `unreadSince` is for this one: what was there when it was first heard is not news.
+- **"Since you were here" is asked when a link comes back after `AWAY_MS` of silence, or first in a
+  window** — read off the held value (`RemoteTalks.moved`), never off the journal's word, because a
+  wake redials live → dialling → live and `wordOf` hears nothing. `/api/since` takes how long ago the
+  link came back; the card (`missedOf`, `missedLines`) stays on its tab until a message is sent
+  there or the link comes back again, and is said once in the strip.
 - **Down is drawn from what it last said**: the chip wears `○` (`machineMark`), the rows stay with
   their ages as of `asOf` (`ageThere`, the remote's moments moved by `skewOf` into this clock), and
   the heading says `as of 14:02` — never an empty list.

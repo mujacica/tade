@@ -90,6 +90,7 @@ describe('the tools the orchestrator has', () => {
       'tade_race_standing',
       'tade_reload',
       'tade_remember',
+      'tade_remote_tell',
       'tade_replay',
       'tade_replay_standing',
       'tade_resume',

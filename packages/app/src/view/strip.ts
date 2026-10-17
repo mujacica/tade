@@ -7,6 +7,7 @@ import { BAR } from '../scrollbar.ts'
 import type { Regions } from '../selection.ts'
 import type { Skin } from '../skin.ts'
 import { terminalSplitShown } from '../split.ts'
+import { missedLines, type TalkShown, talkingTo } from '../talk-tab.ts'
 import { type Line, transcriptLines } from '../transcript-view.ts'
 import { blank, type Drawn, fit, type Pointer, Row, shiftRegions } from '../ui.ts'
 import { bottomTabs, terminalBody } from './foot.ts'
@@ -14,7 +15,7 @@ import { pointedIn, typingIn } from './lane.ts'
 import { inputBox, inputRows } from './line.ts'
 import { barBeside } from './rows.ts'
 import { splitView } from './split.ts'
-import { clock } from './text.ts'
+import { clock, clockOf, wrapWords } from './text.ts'
 
 // The orchestrator's line: what it is thinking, what it last said, and the
 // box you talk to it in.
@@ -50,7 +51,15 @@ export function renderStrip(
     left.text(tail, skin.chrome)
     bar = left.build().text
   } else {
-    const tabs = bottomTabs(state, width, skin, pointer, frame.now ?? 0, frame.unread === true)
+    const tabs = bottomTabs(
+      state,
+      width,
+      skin,
+      pointer,
+      frame.now ?? 0,
+      frame.unread === true,
+      frame.talkTabs ?? [],
+    )
     bar = tabs.text
     barHits = tabs.hits
   }
@@ -156,17 +165,22 @@ export function renderStrip(
 
   // A column down the right of the conversation belongs to its scrollbar.
   const inner = width - BAR
+  // Another machine's orchestrator's tab in front: its conversation in place
+  // of this one's, and the same line to type on (`talk-tab.ts`).
+  const there = frame.talk !== undefined && talkingTo(state) === frame.talk.machine
+  const talk = there ? frame.talk : undefined
   const body: Line[] = transcriptLines(
-    state.transcript,
+    talk?.transcript ?? state.transcript,
     inner,
     skin,
     pointer,
     frame.now ?? 0,
     frame.linkers,
-    frame.orchestratorOffers?.interrupt.shown ?? false,
+    talk === undefined ? (frame.orchestratorOffers?.interrupt.shown ?? false) : true,
   )
   const quiet = (text: string): Line => ({ text: fit(text, inner), hits: [] })
-  if (state.question) {
+  if (talk !== undefined) body.push(...talkRows(talk, inner, skin, clockOf(frame)).map(quiet))
+  if (state.question && talk === undefined) {
     // Which of them was meant names them, and an agent names itself: as text.
     body.push(quiet(skin.waiting(` ? ${printable(state.question.question)}`)))
     body.push(quiet(skin.hint(`   ${printable(state.question.candidates.join('  ·  '))}`)))
@@ -250,6 +264,37 @@ export function renderStrip(
   hits.push(...shift(box.hits, rows.length))
   rows.push(...box.rows)
   return { rows: rows.slice(0, height), hits, regions: region }
+}
+
+/**
+ * Below another machine's conversation: the card its link brought back, then
+ * where a message typed here stands — always the last row above the line,
+ * because what this tab may not do is let somebody think they are talking to
+ * this machine's orchestrator.
+ */
+function talkRows(
+  talk: TalkShown,
+  width: number,
+  skin: Skin,
+  clock: (at: number) => string,
+): string[] {
+  const rows: string[] = []
+  if (talk.missed !== null) {
+    rows.push('')
+    for (const [at, line] of missedLines(talk.missed, clock).entries()) {
+      const indent = at === 0 ? ' ' : '   '
+      wrapWords(line, Math.max(10, width - indent.length - 2)).forEach((part, n) => {
+        const said = `${n === 0 ? indent : `${indent}  `}${part}`
+        rows.push(at === 0 ? skin.signal(said) : skin.hint(said))
+      })
+    }
+  }
+  rows.push('')
+  const tone = talk.says.tone === 'waiting' ? skin.waiting : skin.hint
+  for (const [n, part] of wrapWords(talk.says.said, Math.max(10, width - 4)).entries()) {
+    rows.push(tone(`${n === 0 ? ' ◇ ' : '   '}${part}`))
+  }
+  return rows
 }
 
 /**

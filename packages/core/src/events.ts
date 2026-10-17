@@ -525,6 +525,8 @@ export const EventType = z.enum([
    * what tells a file somebody here edited since from the one carried.
    */
   'carried_in',
+  /** Counted present here through an owner's link (`device`): the cursor `since.ts` folds from. */
+  'person_present',
   // you
   /** A line you said or typed to Tade, verbatim: what up and ctrl+r bring back. */
   'said',
@@ -692,6 +694,8 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // and the person who did not make the change is the one who needs to see it.
   remote_carried: 'notable',
   carried_in: 'notable',
+  // Never trace: it is read back as a cursor, and trace is dropped first.
+  person_present: 'routine',
   said: 'routine',
   tade_opened: 'notable',
   tade_closing: 'notable',

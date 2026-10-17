@@ -4,7 +4,9 @@ import {
   goElsewhere,
   type Machine,
   type Machines,
+  type Missed,
   type RemoteAgent,
+  type RemoteTalk,
 } from '../../../src/machines.ts'
 import {
   focusTask,
@@ -14,6 +16,7 @@ import {
   withTerminals,
 } from '../../../src/model.ts'
 import { menuPanel, projectsMenuItems } from '../../../src/panels/menu/state.ts'
+import { showTalk, talkSays, talkTab, talkTabsOf, talkTranscript } from '../../../src/talk-tab.ts'
 import { frame, NOW, type Scenario, tasks } from './fixtures.ts'
 
 // Other machines' projects in this window (REMOTE-TADE.md §9.4): a tab per
@@ -112,6 +115,7 @@ const vps = (over: Partial<Machine> = {}): Machine => ({
     hasCost: true,
     partial: false,
   },
+  talk: null,
   ...over,
 })
 
@@ -125,9 +129,81 @@ const lab: Machine = {
   heard: true,
   projects: [{ name: 'firmware', title: null, more: 0, agents: [] }],
   spend: null,
+  talk: null,
 }
 
 const machines = (...remotes: Machine[]): Machines => ({ here: 'this Mac', remotes })
+
+/** What was said to the VPS's orchestrator last night, from this Mac, as its projection carries it. */
+const TALK: RemoteTalk = {
+  lines: [
+    {
+      id: 'l0041',
+      at: NOW - 13 * 60 * MINUTE,
+      kind: 'asked',
+      from: 'device mac',
+      text: 'overnight: land the deps bump, and get the webhook doorbell as far as you can',
+      tool: null,
+      outcome: null,
+      streaming: false,
+    },
+    {
+      id: 'l0042',
+      at: NOW - 13 * 60 * MINUTE + 20_000,
+      kind: 'tool',
+      from: null,
+      text: '',
+      tool: 'tade_plan',
+      outcome: 'ok',
+      streaming: false,
+    },
+    {
+      id: 'l0043',
+      at: NOW - 13 * 60 * MINUTE + 40_000,
+      kind: 'reply',
+      from: null,
+      text: 'Planned both: the deps bump runs first, and intake-webhooks starts once it lands.',
+      tool: null,
+      outcome: null,
+      streaming: false,
+    },
+  ],
+  rev: 'b0',
+  busy: false,
+  whose: null,
+  mine: true,
+  more: 0,
+}
+
+/** What the VPS said happened since the person was last there, as its link came back this morning. */
+const MISSED: Missed = {
+  machine: 'vps',
+  since: NOW - 12 * 60 * MINUTE,
+  waiting: {
+    rows: [{ task: 'tade/intake-webhooks', at: NOW, said: 'wants an answer about Bash' }],
+    more: 0,
+  },
+  finished: {
+    rows: [
+      { task: 'tade/deps-bump', at: NOW - 9 * 60 * MINUTE, said: 'its rule was met' },
+      { task: 'web/landing-copy', at: NOW - 7 * 60 * MINUTE, said: 'its agent said so' },
+    ],
+    more: 0,
+  },
+  documents: { rows: [], more: 0 },
+  held: {
+    rows: [
+      {
+        task: 'tade/release-notes',
+        at: NOW - 6 * 60 * MINUTE,
+        said: 'waiting on tade/intake-webhooks',
+      },
+    ],
+    more: 0,
+  },
+  proposed: { rows: [], more: 0 },
+  spend: { usd: 6.4, tokens: 3_900_000, hasCost: true },
+}
 
 /**
  * The VPS down since a train went into a tunnel: what it last said, eight
@@ -256,6 +332,25 @@ export const MACHINE_SCREENS: Scenario[] = [
     frame: wide({
       machines: machines(vps(), lab),
       terminal: { screen: ['', ...DOORBELL, '', '1'].join('\n') },
+    }),
+  },
+  {
+    name: 'another-machines-orchestrator',
+    about:
+      'The laptop opened: beside this Mac’s orchestrator, a tab for the VPS’s, marked with ' +
+      'something unread. On it, what was said to it last night, then what the VPS says happened ' +
+      'since the person was last there — what waits on them, what finished, what is held, what ' +
+      'it cost — and where a sentence typed here goes: to the orchestrator on the VPS.',
+    state: { ...showTalk(onThisMac(), talkTab('vps')), sizes: { stripHeight: 16 } },
+    frame: wide({
+      machines: machines(vps({ talk: TALK }), lab),
+      talkTabs: talkTabsOf(machines(vps({ talk: TALK }), lab), [], NOW),
+      talk: {
+        machine: 'vps',
+        transcript: talkTranscript(TALK, 'device mac', []),
+        missed: MISSED,
+        says: talkSays(vps({ talk: TALK }), 'device mac', false),
+      },
     }),
   },
   {

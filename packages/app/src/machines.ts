@@ -1,4 +1,4 @@
-import { AGENT_MARKS, type AgentMark, printable } from '@tade/core'
+import { AGENT_MARKS, type AgentMark, printable, printableLines } from '@tade/core'
 import type { Held } from '@tade/remotes-core'
 import { whereYouWere } from './layout.ts'
 import type { AppState } from './model.ts'
@@ -98,6 +98,45 @@ export interface Machine {
   heard: boolean
   projects: readonly RemoteProject[]
   spend: MachineSpend | null
+  /**
+   * Its conversation with its own orchestrator, as its projection carries it:
+   * null where talking to it from another screen is off there, which is that
+   * machine's `surfaces.web.orchestrator`, or before anything was heard.
+   */
+  talk: RemoteTalk | null
+}
+
+/** One line of a machine's conversation with its orchestrator, as text. */
+export interface RemoteLine {
+  /** Its own place in that conversation: what tells two lines apart, never drawn. */
+  id: string
+  /** When, in **this** machine's clock. Null where it did not say. */
+  at: number | null
+  kind: 'asked' | 'reply' | 'tool' | 'tade' | 'problem'
+  /** Who asked: `you` there, or `device <id>`. Null for its own lines. */
+  from: string | null
+  /** The words, a line break kept where the remote had one. */
+  text: string
+  /** A tool's name, never its arguments: the protocol carries no more. */
+  tool: string | null
+  outcome: 'running' | 'ok' | 'failed' | null
+  streaming: boolean
+}
+
+/** A machine's conversation with its orchestrator, and whether a message may be sent to it now. */
+export interface RemoteTalk {
+  /** Oldest first. */
+  lines: readonly RemoteLine[]
+  /** What a message must still find true there (`chatRev`), echoed as `was` and never read. */
+  rev: string | null
+  /** A turn is in flight there. */
+  busy: boolean
+  /** Whose turn it is, as text; null for none. */
+  whose: string | null
+  /** That machine says this one may send it a message: it was granted `ask`. */
+  mine: boolean
+  /** Lines it has and did not send, inside its own budget. */
+  more: number
 }
 
 /** Every machine the window draws: this one's name in a sentence, and the remotes in config order. */
@@ -150,6 +189,7 @@ export function machineOf(held: Held, skew: number): Machine {
     heard: projection !== null,
     projects: projection === null ? [] : projectsIn(projection, skew),
     spend: projection === null ? null : spendIn(projection),
+    talk: projection === null ? null : talkIn(projection, skew),
   }
 }
 
@@ -164,6 +204,7 @@ export function unheard(name: string, said: string | null): Machine {
     heard: false,
     projects: [],
     spend: null,
+    talk: null,
   }
 }
 
@@ -282,6 +323,141 @@ function spendIn(projection: Record<string, unknown>): MachineSpend {
     total.hasCost ||= spend.hasCost === true
   }
   return total
+}
+
+// ── Its conversation with its orchestrator ───────────────────────────────────
+
+/** How long one line of a conversation may be here: a reply, not a book. */
+const LINE_MOST = 8_000
+const KINDS = ['asked', 'reply', 'tool', 'tade', 'problem'] as const
+const OUTCOMES = ['running', 'ok', 'failed'] as const
+
+/**
+ * Its conversation, out of `you.talk` and the `chat` rows: null where `talk`
+ * is, which is talking from away turned off there. Every line reduced to text
+ * a line at a time, so a reply keeps its paragraphs and loses everything else
+ * a terminal would read as an instruction; oldest first, by when and then by
+ * its own id, because the protocol sends a page in no order of its own.
+ */
+function talkIn(projection: Record<string, unknown>, skew: number): RemoteTalk | null {
+  const talk = objectIn(objectIn(projection.you)?.talk)
+  if (talk === null) return null
+  const lines = listIn(projection.chat).flatMap((row): RemoteLine[] => {
+    const id = tokenIn(row, 'id') ?? stringIn(row, 'id')
+    const kind = KINDS.find((one) => one === row.kind)
+    if (id === null || id.length > 200 || kind === undefined) return []
+    const at = Date.parse(stringIn(row, 'at') ?? '')
+    const from = text(row.from, NAME_MOST)
+    const tool = text(row.tool, NAME_MOST)
+    return [
+      {
+        id,
+        at: Number.isFinite(at) ? at + skew : null,
+        kind,
+        from: from === '' ? null : from,
+        text: paragraphs(objectIn(row.text)?.words, LINE_MOST),
+        tool: tool === '' ? null : tool,
+        outcome: OUTCOMES.find((one) => one === row.outcome) ?? null,
+        streaming: row.streaming === true,
+      },
+    ]
+  })
+  lines.sort((one, other) => (one.at ?? 0) - (other.at ?? 0) || (one.id < other.id ? -1 : 1))
+  const whose = text(talk.whose, NAME_MOST)
+  return {
+    lines,
+    rev: tokenIn(talk, 'rev'),
+    busy: talk.busy === true,
+    whose: whose === '' ? null : whose,
+    mine: talk.mine === true,
+    more: numberIn(objectIn(objectIn(projection.pages)?.chat), 'omitted') ?? 0,
+  }
+}
+
+/** Free text whose line breaks are its own: each line reduced to text, the breaks kept, bounded. */
+function paragraphs(value: unknown, most: number): string {
+  if (typeof value !== 'string') return ''
+  const kept = printableLines(value).trim()
+  const points = [...kept]
+  return points.length <= most ? kept : `${points.slice(0, most - 1).join('')}…`
+}
+
+// ── What was missed there ────────────────────────────────────────────────────
+
+/** One thing that happened there, as the card draws it. */
+export interface MissedRow {
+  task: string
+  /** When, in this machine's clock. Null where it did not say. */
+  at: number | null
+  said: string
+}
+
+/** One list on the card: its rows, and how many more there were. */
+export interface MissedList {
+  rows: readonly MissedRow[]
+  more: number
+}
+
+/**
+ * "Since you were here": what a machine says happened from the last moment
+ * it counted the person present (`/api/since`, REMOTE-TADE.md §5.4), read
+ * once when its link came back.
+ */
+export interface Missed {
+  machine: string
+  /** The moment it is since, in this machine's clock. */
+  since: number
+  finished: MissedList
+  waiting: MissedList
+  documents: MissedList
+  held: MissedList
+  proposed: MissedList
+  spend: { usd: number; tokens: number; hasCost: boolean } | null
+}
+
+/**
+ * What a machine answered `/api/since`, read like everything else it wrote:
+ * every string as text, bounded, its moments moved into this clock. Null
+ * where there is nothing to catch up on — it has never counted anybody
+ * present, or nothing on it happened — and where the answer is not one.
+ */
+export function missedOf(machine: string, answer: unknown, skew: number): Missed | null {
+  const body = objectIn(answer)
+  const since = Date.parse(stringIn(body, 'since') ?? '')
+  if (body === null || !Number.isFinite(since)) return null
+  const list = (key: string): MissedList => {
+    const one = objectIn(body[key])
+    return {
+      rows: listIn(one?.rows)
+        .slice(0, 20)
+        .flatMap((row) => {
+          const task = text(row.task, NAME_MOST)
+          if (task === '') return []
+          const at = Date.parse(stringIn(row, 'at') ?? '')
+          return [
+            { task, at: Number.isFinite(at) ? at + skew : null, said: text(row.said, SAID_MOST) },
+          ]
+        }),
+      more: numberIn(one, 'more') ?? 0,
+    }
+  }
+  const spent = objectIn(body.spend)
+  const usd = numberIn(spent, 'usd')
+  const tokens = numberIn(spent, 'tokens')
+  const missed: Missed = {
+    machine,
+    since: since + skew,
+    finished: list('finished'),
+    waiting: list('waiting'),
+    documents: list('documents'),
+    held: list('held'),
+    proposed: list('proposed'),
+    spend:
+      usd === null || tokens === null ? null : { usd, tokens, hasCost: spent?.hasCost === true },
+  }
+  const lists = [missed.finished, missed.waiting, missed.documents, missed.held, missed.proposed]
+  const anything = lists.some((one) => one.rows.length > 0 || one.more > 0)
+  return anything || missed.spend !== null ? missed : null
 }
 
 // ── An agent's screen there ──────────────────────────────────────────────────

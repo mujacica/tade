@@ -19,7 +19,8 @@ export type Shown = Pick<Frame, 'actions' | 'intake'>
 
 /**
  * Whether anything on screen turns: the orchestrator on a turn, one of its
- * tools running, or an agent working in any project — every project's tab
+ * tools running, another machine's on a turn, or an agent working in any
+ * project — every project's tab
  * wears its agents' marks, and the right of the top row counts all of them —
  * and, from the frame, a check running on the ACTIONS page or a request down
  * INTAKE whose work is going.
@@ -33,6 +34,8 @@ export function turning(state: AppState, shown: Shown = {}): boolean {
   if (state.transcript.entries.some((one) => one.kind === 'tool' && one.state === 'running'))
     return true
   if (state.panes.some((pane) => markOf(pane) === 'working')) return true
+  // Another machine's orchestrator on a turn turns on its tab, in front or not.
+  if (state.talkBusy.length > 0) return true
   const actions = shown.actions
   if (actions && (actions.running || actions.checks.some((one) => one.state === 'running')))
     return true

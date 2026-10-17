@@ -77,7 +77,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | what a request *is* | `src/request.ts` — reading an `IncomingMessage`, and every bound on one |
 | what a request must satisfy | `src/guard.ts` — pure, and `test/guard.test.ts` runs the cross-product |
 | a route only this machine may reach (`presence`, and the pages that connect a source) | `Route.here` — `allowed` answers it the `404` of a path nobody built anywhere but `thisMachine` |
-| another machine's Tade linked to this one as an owner (`tade remote`) | `@tade/remotes-core` (the `RemoteLink` port, the stream follower, the far end its suite links to) — the client half of everything in this table, over SSH; `add-workspace-driver` has its shape. What it posts here is `presence` (`src/presence.ts`): an owner's age of a keypress at another screen, held by the window (`presentAt` in `wire/web.ts`) and read as one by push, never written down |
+| another machine's Tade linked to this one as an owner (`tade remote`) | `@tade/remotes-core` (the `RemoteLink` port, the stream follower, the far end its suite links to) — the client half of everything in this table, over SSH; `add-workspace-driver` has its shape. What it posts here is `presence` (`src/presence.ts`): an owner's age of a keypress at another screen, held by the window (`Presences` in `wire/web-presence.ts`) and read as one by push, and written down once a stretch as `person_present` — the cursor of `since` below |
 | another machine's **setup carried here** (`tade remote add`, Settings › Remotes) | `OWNED` in `src/routes.ts` (`POST /api/carry`, `here`; beside it `POST /api/attach`, an agent's attach line, `src/attached.ts`), `src/carried.ts` (the body, `applyCarry`, `carryingAt`, the folds of `config_changed` and `carried_in`), `src/owned.ts` (the one door in `server.ts` for every owner route), the window's half in `packages/app/src/wire/web-carry.ts` (through `Settings.writeKey`, and `signInsOf`); every decision is `@tade/core`'s `carry.ts`, and `add-config-key` has the table |
 | the public listener: Caddy's socket, its directory, the PROXY header | `src/listeners.ts` (every socket one server listens on, `dirSeen`, `answering`), `src/proxied.ts` (the header read before HTTP, `peerOf`), `src/proxy-protocol.ts` (pure: what the bytes are), and `public-listener.ts` in `@tade/core` (the directory, the socket, `caddySite`, what a health look says); `test/public.test.ts` is all of it over a real socket |
 | the public listener's health: the certificate, Tade behind | `packages/app/src/wire/web-public.ts` (`PublicHealth`, on clocks of its own), `@tade/workbench/certificate` (one handshake), `tade host caddy --check` (`packages/cli/src/commands/host-caddy.ts`) |
@@ -127,7 +127,7 @@ a device still has none of the scopes that change anything until somebody at thi
   `scripts/browser-frame.ts`'s.
 - **No route in `ROUTES` mutates a project or a task.** The non-`GET` routes there are session
   lifecycle — this browser's own credential, created, destroyed and proved with its passkey, and an
-  owner saying the person is at another of their screens (`presence`, `here`, never written) — and
+  owner saying the person is at another of their screens (`presence`, `here`) — and
   `test/routes.test.ts` asserts that set is exactly `LIFECYCLE` **by name**. Another fails the test
   until somebody puts it there deliberately, which is the conversation the rule is for.
 - **The one route that writes a key is the owner's carry, and it is in no setting's table**
@@ -145,6 +145,15 @@ a device still has none of the scopes that change anything until somebody at thi
   (`wire/web-attach.ts`), or why not — not running, or a driver whose lanes no other terminal can
   reach (`remoteAttach`). An owner whose `lanes` the window took back is answered as for a task that
   is not there. It writes nothing: the terminal is an SSH session, which is `sshd`'s record.
+- **What the person missed while away is the owner's third** (`OWNED`'s `since`, `src/since.ts`):
+  the card another machine of theirs draws once its link comes back, folded here over this
+  machine's own journal (`@tade/core`'s `since.ts`) from the last `person_present` line written
+  **before** the moment the link came back — told as an age (`back`), never a moment — so a
+  presence its link carried a breath before asking cannot empty it. Those lines are the window's,
+  a line a stretch (`presenceLineDue`), never one per keystroke: an instant in this machine's own
+  clock is a cursor a compaction, a restart and a restored journal cannot move, where `seq` and a
+  byte offset can (REMOTE-TADE §4.5). Each row is within what the device reads, money only with
+  `spend`, and each list a cap with a count. It writes nothing.
 - **From the public listener, anything above `read` needs a passkey proved within
   `passkey_hours`** (`proven`, after the scope and the origin, so it never says more than they
   would). The **listener and never the host**, like `thisMachine`: this machine, an SSH forward and a

@@ -25,6 +25,7 @@ import type { AgentOffers, ThinkerOffers } from './panels/menu/state.ts'
 import type { HeldLines } from './scroll.ts'
 import type { Skin } from './skin.ts'
 import type { SpendView } from './spend.ts'
+import type { TalkShown, TalkTab } from './talk-tab.ts'
 
 // What the window is handed, as data.
 //
@@ -510,6 +511,10 @@ export interface Frame {
    * away view last answered — read only while you look (`wire/remote-agent.ts`).
    */
   remoteScreen?: RemoteScreen
+  /** Each other machine's orchestrator, a tab beside this one's (`talk-tab.ts`). */
+  talkTabs?: readonly TalkTab[]
+  /** That machine's conversation, while its orchestrator's tab is in front (`wire/remote-talk.ts`). */
+  talk?: TalkShown
   /**
    * Every race the window can see: the entrants given one request, in the
    * order the facts put them, undecided races first (`racesIn`).

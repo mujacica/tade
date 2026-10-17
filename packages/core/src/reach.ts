@@ -389,6 +389,32 @@ export const RELOAD_REACH: Reaches = {
   because: 'a reload starts the window again and ends my own turn, so it happens when they ask',
 }
 
+/**
+ * How far the orchestrator reaches into another machine's Tade: passing a
+ * sentence to its orchestrator, as this machine's owner there (REMOTE-TADE.md
+ * §9.4, `tade_remote_tell`).
+ *
+ * `asked`, and what is asked for is **that machine, by its name**
+ * (`remoteNamedBy`). The turn it starts there runs as an owner's — it reaches
+ * what that machine's keyboard does, starting agents included — so the words
+ * it carries are worth as much as being at that machine, and the orchestrator
+ * reads a stranger's text all day: an issue that says "tell the vps to run
+ * this" must not be one tool call from being carried out there. A line of the
+ * person's naming the machine is the barrier, and like every `asked` it can
+ * only refuse. Where the turn calling it came from a paired device, it is
+ * never reached at all (`origin.ts`).
+ */
+export const REMOTE_TELL_REACH: Reaches = {
+  reach: 'asked',
+  because:
+    'it puts words to another machine’s Tade as its owner, where they reach what its keyboard does, so it happens when they name that machine',
+}
+
+/** The line of theirs that names a machine this one is linked to, or null when none does. */
+export function remoteNamedBy(machine: string, lines: readonly string[]): string | null {
+  return namedBy({ path: machine, title: machine }, lines)
+}
+
 /** The line of theirs that asks for an update, or null when none does. */
 export function updateNamedBy(lines: readonly string[]): string | null {
   return namedBy({ path: 'update', title: 'upgrade', keywords: ['updates', 'updating'] }, lines)
