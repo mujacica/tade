@@ -1,4 +1,4 @@
-import type { AgentWorkspace, Config } from './config.ts'
+import { type AgentWorkspace, type Config, type HarnessId, OWN_SIGN_IN } from './config.ts'
 
 // What one project answers for itself, with the machine's answer under it.
 //
@@ -24,6 +24,43 @@ import type { AgentWorkspace, Config } from './config.ts'
  */
 export function workspaceFor(config: Config, project: string | null): AgentWorkspace {
   return (project ? config.projects[project]?.workspace : undefined) ?? config.agents.workspace
+}
+
+/**
+ * The account a project's new agents of one harness run as: the project's own
+ * answer, else the machine's (`workers.accounts`), else null — the harness's
+ * own sign-in, what you would get running it yourself. The one reader:
+ * starting an agent, the plan a start would spend and the Accounts page all
+ * ask it, so none of them can disagree about whose sign-in a start uses.
+ *
+ * Only ever an account of that harness, whatever the file says: an account
+ * belongs to one harness, and a name that is not one of its is the harness's
+ * own sign-in rather than another harness's folder. Never read to ask what an
+ * agent already working runs as — its task and its lane say that, and it
+ * stays on it when somebody changes this underneath it.
+ */
+export function accountFor(config: Config, project: string | null, harness: string): string | null {
+  const own = project ? config.projects[project]?.accounts?.[harness as HarnessId] : undefined
+  const chosen = own ?? config.workers.accounts[harness as HarnessId]
+  if (!chosen || chosen === OWN_SIGN_IN) return null
+  return config.accounts[chosen]?.harness === harness ? chosen : null
+}
+
+/** Who runs as one sign-in when nobody chose otherwise. */
+export interface SignInUse {
+  /** New agents of its harness, in every project that does not say otherwise. */
+  newAgents: boolean
+  /** The projects whose own answer is this sign-in, by name. */
+  projects: string[]
+}
+
+/** Who runs as one sign-in — `account` null for the harness's own — by the machine's and each project's answer. */
+export function signInUse(config: Config, harness: string, account: string | null): SignInUse {
+  const projects = Object.entries(config.projects)
+    .filter(([, project]) => project.accounts?.[harness as HarnessId] !== undefined)
+    .filter(([name]) => accountFor(config, name, harness) === account)
+    .map(([name]) => name)
+  return { newAgents: accountFor(config, null, harness) === account, projects }
 }
 
 /**

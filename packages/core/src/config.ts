@@ -87,6 +87,15 @@ export const Account = z.strictObject({
 })
 export type Account = z.infer<typeof Account>
 
+/**
+ * What a project says one harness's new agents run as: an account by its name,
+ * or `default` for the harness's own sign-in — which is how a project on a
+ * machine whose agents run as `work` says that its own run as you. Unset is the
+ * machine's answer (`workers.accounts`), read through `accountFor`.
+ */
+export const OWN_SIGN_IN = 'default'
+const ProjectAccount = z.union([z.literal(OWN_SIGN_IN), AccountName])
+
 /** Where agents do their work. */
 export const AGENT_WORKSPACES = ['checkout', 'worktree'] as const
 export type AgentWorkspace = (typeof AGENT_WORKSPACES)[number]
@@ -198,6 +207,13 @@ export const ProjectConfigSchema = z.strictObject({
   prepare: PrepareConfigSchema.optional(),
   /** Which machine looks with its watches on outside sources: `here` or a remote (`watch-where.ts`). */
   watches: WatchesOn.optional(),
+  /**
+   * Which account this project's new agents run as, by harness, over
+   * `workers.accounts`: a personal repository on your own sign-in and a
+   * company one on the company's, both at once on one machine. Read through
+   * `accountFor`; an agent already working keeps the one it started as.
+   */
+  accounts: z.partialRecord(Harness, ProjectAccount).optional(),
 })
 
 /**
@@ -769,21 +785,20 @@ export const ConfigSchema = z
         message: `unknown route "${config.workers.default}" (have: ${routes.join(', ') || 'none'})`,
       })
     }
-    for (const [harness, name] of Object.entries(config.workers.accounts)) {
+    // An account named for a harness is one of that harness's: the machine's
+    // choice and each project's, and a project's may also be its own sign-in.
+    const accountIssue = (harness: string, name: string | undefined): string | null => {
+      if (name === OWN_SIGN_IN) return null
       const account = name ? config.accounts[name] : undefined
-      if (!account) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['workers', 'accounts', harness],
-          message: `no account called "${name}" (have: ${Object.keys(config.accounts).join(', ') || 'none'})`,
-        })
-      } else if (account.harness !== harness) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['workers', 'accounts', harness],
-          message: `"${name}" is a ${account.harness} account, not ${harness}'s`,
-        })
-      }
+      if (!account)
+        return `no account called "${name}" (have: ${Object.keys(config.accounts).join(', ') || 'none'})`
+      return account.harness === harness
+        ? null
+        : `"${name}" is a ${account.harness} account, not ${harness}'s`
+    }
+    for (const [harness, name] of Object.entries(config.workers.accounts)) {
+      const message = accountIssue(harness, name)
+      if (message) ctx.addIssue({ code: 'custom', path: ['workers', 'accounts', harness], message })
     }
     for (const [name, project] of Object.entries(config.projects)) {
       if (project.worker && !routes.includes(project.worker)) {
@@ -792,6 +807,11 @@ export const ConfigSchema = z
           path: ['projects', name, 'worker'],
           message: `unknown route "${project.worker}" (have: ${routes.join(', ') || 'none'})`,
         })
+      }
+      for (const [harness, account] of Object.entries(project.accounts ?? {})) {
+        const message = accountIssue(harness, account)
+        if (message)
+          ctx.addIssue({ code: 'custom', path: ['projects', name, 'accounts', harness], message })
       }
     }
   })

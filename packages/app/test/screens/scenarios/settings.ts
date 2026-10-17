@@ -56,6 +56,8 @@ const ACCOUNTS_SHOWN = [
     limits: null,
     agents: 0,
     forNewAgents: false,
+    // A company repository on the company's sign-in, whatever the machine's is.
+    projects: ['infra'],
     canSignIn: true,
   },
   {
@@ -595,7 +597,8 @@ export const SETTINGS_SCREENS: Scenario[] = [
     name: 'settings-accounts',
     about:
       "Who each harness's agents run as: each harness's own sign-in, a second Claude Code " +
-      'account beside it, how much of the plan is used, and what can be done to each.',
+      'account beside it that one project runs as, how much of the plan is used, what can be ' +
+      'done to each, and that an agent runs as you whichever it is on.',
     state: { ...base(), panel: { ...settingsPanel('accounts'), row: 0 } },
     frame: frame({ panel: settingsFacts() }),
   },

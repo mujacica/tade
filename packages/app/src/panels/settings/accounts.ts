@@ -35,6 +35,8 @@ export interface AccountShown {
   limits: { windows: readonly { minutes: number; used: number }[] } | null
   agents: number
   forNewAgents: boolean
+  /** The projects whose own answer it is, whatever the machine's is. */
+  projects?: readonly string[]
   canSignIn: boolean
   /**
    * What would put its harness on this machine, where it is not here: the

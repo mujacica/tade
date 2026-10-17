@@ -138,8 +138,13 @@ const NEVER: readonly (readonly [string, string])[] = [
     'approvals',
     'approvals decide what agents may do without asking, and I relay them — a thing inside that loop does not get to rewrite it',
   ],
-  ['accounts', 'an account is a sign-in: whose money and whose permissions agents run with'],
-  ['workers.accounts', 'which sign-in agents run as is a sign-in decision'],
+  // Adding one, taking one away, signing one in, its kind and an API-key
+  // account's key: each is a credential, so the whole subtree. *Which* of the
+  // ones that exist new agents run as is not here (`ALLOWED_UNDER` says why).
+  [
+    'accounts',
+    'an account is a sign-in: adding, removing or signing one in is whose money and whose permissions agents run with',
+  ],
   [
     'workers.routes',
     'a route carries the provider an agent’s work is sent to, and where Tade sends something is not mine to move',
@@ -264,6 +269,25 @@ const NEVER: readonly (readonly [string, string])[] = [
  * the hole the skill warns about is a template the *requester* chose, and this
  * is the owner choosing, in their own words.
  *
+ * **Which account new agents run as — the machine's (`workers.accounts.<h>`,
+ * `asked` by being in no subtree) and a project's (`accounts.<h>` here) — and
+ * only among accounts that already exist.** It was `never` beside the accounts
+ * themselves, on the argument that which sign-in agents run as is whose money
+ * and whose permissions. The person decided otherwise on 2026-10-17, asking
+ * that they "and the orchestrator switch which one gets used" between a
+ * personal and a company subscription, project by project. What a switch can
+ * do is bounded by what a person already did: every value is an account they
+ * added and signed in themselves (the schema refuses any other name, and a
+ * row offers no other), so it hands nobody a credential and sends nothing
+ * anywhere new — it moves the next agent between two plans of theirs. What
+ * makes a sign-in exists stays `never`: the `accounts` subtree, which is
+ * adding, removing, signing in and every key. The residual risk, said: a
+ * sentence the orchestrator read cannot reach this, because the person's own
+ * words must name the harness's account (`wordsTogether`), but words of theirs
+ * that do can put company work on a personal plan or the other way round —
+ * which is exactly the act they asked to be able to ask for. A running agent
+ * is never moved by it (`accountFor`).
+ *
  * **Two of the away view's, and only the two that hand a device nothing.**
  * `install` puts the static page on a device already paired — the same bytes
  * for every device, no projection, no way to read one without a session — and
@@ -279,6 +303,7 @@ const ALLOWED_UNDER: readonly RegExp[] = [
   /^projects\.[a-z0-9-]+\.workspace$/,
   /^projects\.[a-z0-9-]+\.max_parallel$/,
   /^projects\.[a-z0-9-]+\.watches$/,
+  /^projects\.[a-z0-9-]+\.accounts\.[a-z0-9-]+$/,
   /^workers\.routes\.[a-z0-9-]+\.(model|thinking|harness)$/,
   /^workers\.routes\.[a-z0-9-]+\.harnesses\.[a-z0-9-]+\.(model|thinking)$/,
   /^surfaces\.intake\.sources\.[a-z0-9-]+\.(template|document)$/,
@@ -555,6 +580,13 @@ export function watchNamedBy(
  * fast route's codex thinking", names the default route's codex thinking too,
  * which takes no route word: the same harness and the same setting they named.
  *
+ * **An account row is the same shape a fourth time.** `accounts` is in every
+ * one of them and a harness's name in every row about it, so "how are my
+ * accounts" named which sign-in every project runs as. A line names one by
+ * the harness and the word together — "the claude code account", "codex
+ * accounts" — and the machine's row and a project's both by those, the
+ * project's name counting for nothing inside it, as everywhere.
+ *
  * The title always counts however short it is: it is the name the setting
  * actually has, and somebody who says it has named it. Which is also the shape
  * of the ordinary conversation here — the orchestrator says the setting back
@@ -594,9 +626,8 @@ export function wordsFor(
   // A route's row is named by its words together, never one of them, and a
   // row whose title is only its kind by whose it is with it (`wordsTogether`).
   const owned = Object.hasOwn(OWNED_ROWS, setting.path)
-  const segments = ROUTE_ROW.test(setting.path.toLowerCase())
-    ? []
-    : parts.slice(1).filter((part) => part.length >= 5)
+  const together = ROUTE_ROW.test(setting.path.toLowerCase()) || ACCOUNT_ROW.test(setting.path)
+  const segments = together ? [] : parts.slice(1).filter((part) => part.length >= 5)
   const rest = (owned ? [] : [setting.title, ...(setting.keywords ?? []), ...segments])
     .map((word) => word.trim().toLowerCase())
     .filter((word) => word !== '' && !sections.has(word))
@@ -636,6 +667,9 @@ const DEFAULT_ROUTE = 'default'
  */
 const ROUTE_ROW = /^workers\.routes\.([^.]+)\.(?:harnesses\.([^.]+)\.)?([^.]+)$/
 
+/** Which account a harness's new agents run as: the machine's, or one project's. */
+const ACCOUNT_ROW = /^(?:workers|projects\.[^.]+)\.accounts\.([^.]+)$/
+
 /** What every route has a row of: a line saying one of the others is not about its model. */
 const ROUTE_SETTINGS = ['model', 'thinking', 'harness']
 
@@ -662,6 +696,13 @@ function wordsTogether(row: Pick<Setting, 'path' | 'title'>): Together[] {
   if (Object.hasOwn(OWNED_ROWS, path)) {
     const title = row.title.trim().toLowerCase()
     return (OWNED_ROWS[path] ?? []).map((owner) => ({ all: [`${owner} ${title}`] }))
+  }
+  const account = ACCOUNT_ROW.exec(path.trim().toLowerCase())
+  if (account) {
+    const said = [...new Set([account[1] ?? '', (account[1] ?? '').replace(/-/g, ' ')])]
+    return said.flatMap((harness) =>
+      ['account', 'accounts'].map((word) => ({ all: [harness, word] })),
+    )
   }
   const found = ROUTE_ROW.exec(path.trim().toLowerCase())
   if (!found) return []

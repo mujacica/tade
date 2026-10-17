@@ -661,10 +661,22 @@ in to, priced per million tokens — and how hard it should think.
 
 Agents run in **pi**, **Claude Code** or **Codex**, side by side, one harness per agent, moved from
 one to another from its menu — or in any agent that speaks the **Agent Client Protocol** (Gemini
-CLI, opencode, goose, Copilot CLI, Kiro CLI), whose conversation Tade draws in its lane. Claude Code signs in as itself — Tade never sees it — and can run as more
-than one account at once; an agent that runs out moves to another, its conversation with it.
+CLI, opencode, goose, Copilot CLI, Kiro CLI), whose conversation Tade draws in its lane.
 
-![Accounts: each harness's own sign-in, a second Claude Code account beside it, how much of the plan is used, and what can be done to each](https://raw.githubusercontent.com/mujacica/tade/main/images/accounts.svg)
+Claude Code and Codex sign in as themselves — Tade never sees it — and each can run as more than one
+account at once: your personal subscription and your company's, side by side. Choose which one new
+agents run as for the machine, and remember a different one for a project, so the company repository
+always runs on the company's plan; switch in Settings, from a terminal, or by asking the
+orchestrator in your own words. A switch is for new agents — one already working stays where it is,
+and one that runs out moves to another account from its menu, its conversation with it.
+
+![Accounts: each harness's own sign-in, a second Claude Code account beside it that one project runs as, how much of the plan is used, and what can be done to each](https://raw.githubusercontent.com/mujacica/tade/main/images/accounts.svg)
+
+```sh
+tade accounts                                    # every sign-in, its plan, and who runs as it
+tade accounts add claude-code work               # a second sign-in, in a folder of its own
+tade accounts use claude-code work -p payments   # payments' new agents run as work, remembered
+```
 
 ## Extensions
 

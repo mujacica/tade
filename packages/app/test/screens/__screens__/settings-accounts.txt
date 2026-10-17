@@ -3,28 +3,28 @@
  ▾ A╭─ Settings ─────────────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮×   
     │  search settings            │ Accounts                                                                       │────
  ▌ !│                             │                                                                                │    
- ▌  │  Orchestrator              ▕│ pi                                                                            ▕│    
-    │                            ▕│ ▸ its own sign-in       ● anthropic, openrouter · 1 agent                     ▕│    
-   ⠋│  Queue                     ▕│     Sign in again…                                                            ▕│    
-    │                            █│   pi keeps one set of sign-ins, in ~/.pi: its providers are its accounts, and ▕│    
-    │  Checks                    █│   you sign in to them inside pi.                                              ▕│    
- ▸ S│                            █│                                                                               ▕│    
- ▸ S│  Voice                     █│ Claude Code                                                                   ▕│    
- ▸ I│                            █│ ▸ its own sign-in       ● you@example.com · max · 34% of 5h · 2 agents        ▕│    
- ▾ C│  Window                    █│     Sign in again…     Sign out                                               ▕│    
-  M │                            █│   work                  ○ not signed in yet                                   ▕│    
-  A │  Away view                 █│     Sign in…     Use for new agents     Remove                                ▕│    
-  M │                            █│                                                                               ▕│    
-    │  Intake                    █│     Add an account…     Add an API-key account…                               ▕│    
- ▾ F│                            █│                                                                               ▕│    
-   ▾│  Projects              ● 1 █│ Codex                                                                         ▕│    
-    │                            █│ ▸ its own sign-in       ● you@example.com · pro · 1 agent                     ▕│    
-    │  Journal                   █│     Sign in again…     Sign out                                               ▕│    
-   ▸│                            █│                                                                               ▕│    
-━   │  Telemetry                 █│     Add an account…     Add an API-key account…                               ▕│   ━
-    │                            █│                                                                               ▕│    
+ ▌  │  Orchestrator              ▕│ pi                                                                            █│    
+    │                            ▕│ ▸ its own sign-in       ● anthropic, openrouter · 1 agent                     █│    
+   ⠋│  Queue                     ▕│     Sign in again…                                                            █│    
+    │                            █│   pi keeps one set of sign-ins, in ~/.pi: its providers are its accounts, and █│    
+    │  Checks                    █│   you sign in to them inside pi.                                              █│    
+ ▸ S│                            █│                                                                               █│    
+ ▸ S│  Voice                     █│ Claude Code                                                                   █│    
+ ▸ I│                            █│ ▸ its own sign-in       ● you@example.com · max · 34% of 5h · 2 agents        █│    
+ ▾ C│  Window                    █│     Sign in again…     Sign out                                               █│    
+  M │                            █│   work                  ○ not signed in yet                                   █│    
+  A │  Away view                 █│                         new agents in infra                                   █│    
+  M │                            █│     Sign in…     Use for new agents     Remove                                █│    
+    │  Intake                    █│                                                                               █│    
+ ▾ F│                            █│     Add an account…     Add an API-key account…                               █│    
+   ▾│  Projects              ● 1 █│                                                                               █│    
+    │                            █│ Codex                                                                         █│    
+    │  Journal                   █│ ▸ its own sign-in       ● you@example.com · pro · 1 agent                     █│    
+   ▸│                            █│     Sign in again…     Sign out                                               █│    
+━   │  Telemetry                 █│                                                                               █│   ━
+    │                            █│     Add an account…     Add an API-key account…                               ▕│    
     │  Shortcuts                 █│                                                                               ▕│   ▕
-    │                            █│                                                                               ▕│   ▕
+    │                            █│ Kept in config.yaml as you typed it, so you can read it back — and any        ▕│   ▕
     │▌ Accounts              ● 3 ▕│ ● Saved as you change it.                                                      │   ▕
     │▌                           ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕

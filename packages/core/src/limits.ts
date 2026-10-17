@@ -1,3 +1,5 @@
+import type { SignInUse } from './project.ts'
+
 // How much of a subscription's plan has been used, and when it starts over.
 //
 // A subscription has no price per turn, so dollars say nothing about it: what
@@ -86,6 +88,8 @@ export interface PlanSource {
   why: string | null
   /** The last thing it said, when it has said anything. */
   said: PlanSaid | null
+  /** Who runs as it when nobody chose otherwise (`signInUse`), where whoever gathered it knew. */
+  uses?: SignInUse
 }
 
 /** How one account's plan stands: what is used of it, or why nobody can say. */
@@ -99,6 +103,8 @@ export interface PlanStanding {
   at: number | null
   /** Why there is nothing to show, in words. Null when there is something. */
   cannotTell: string | null
+  /** Who runs as it, carried from its source. */
+  uses?: SignInUse
 }
 
 const SAYS_NOTHING = 'does not say how much of a plan is used'
@@ -115,7 +121,12 @@ const STARTED_OVER =
  */
 export function planStandings(sources: readonly PlanSource[], now: number): PlanStanding[] {
   return sources.map((source) => {
-    const where = { harness: source.harness, account: source.account, pays: source.pays }
+    const where = {
+      harness: source.harness,
+      account: source.account,
+      pays: source.pays,
+      ...(source.uses ? { uses: source.uses } : {}),
+    }
     const nothing = (why: string): PlanStanding => ({
       ...where,
       windows: [],
@@ -376,9 +387,10 @@ export interface StartSays {
  * **A sign-in that is not on a plan is not pressure.** `pays: 'per-token'` is
  * money with a bill and no window to fill, and money is `checkBudget`'s.
  *
- * **It never suggests another account.** Which sign-in agents run as is a
- * person's decision, and a rule that moved work to a less full plan would be
- * that decision taken by a rule.
+ * **It never moves work to another account.** Which sign-in agents run as is
+ * a person's decision — theirs in Settings, or the orchestrator's on their own
+ * words naming it (`reach.ts`) — and a rule that moved work to a less full plan
+ * would be that decision taken by a rule nobody asked.
  *
  * `probing` is a request from outside running now, where one is — only the
  * window knows what runs, so it is always said and never assumed. `spends` is
@@ -450,6 +462,11 @@ export interface PlanStandingSaid {
   cannotTell: string | null
   /** How long ago the harness said it. Null where it never has. */
   saidAgo: number | null
+  /**
+   * Who runs as it: whether new agents do, and which projects name it as
+   * theirs (`accountFor`). Null where whoever gathered the sign-ins could not say.
+   */
+  uses: SignInUse | null
 }
 
 /**
@@ -458,7 +475,7 @@ export interface PlanStandingSaid {
  * A fold and nothing else: it asks nobody anything and decides nothing. Which
  * sign-in agents run as is a person's — whose money and whose permissions the
  * work runs with — so the most this can ever be is what somebody needs in
- * order to say something useful about it.
+ * order to say something useful about it, or to ask for a switch.
  */
 export interface PlanReport {
   /** Every sign-in there is, in the order they were gathered. */
@@ -517,5 +534,6 @@ function standingSaid(standing: PlanStanding, now: number): PlanStandingSaid {
     pressure: tightest === null ? null : planPressure(tightest.used),
     cannotTell: standing.cannotTell,
     saidAgo: standing.at === null ? null : Math.max(0, now - standing.at),
+    uses: standing.uses ?? null,
   }
 }

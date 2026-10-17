@@ -116,7 +116,7 @@ Three answers and no fourth:
 
 - **`never`** is everything that widens what an agent may do, hands a third party tools or a
   credential, changes who is asked, or changes where Tade sends something — `approvals`, `accounts`
-  and `workers.accounts`, a route's `provider` and the orchestrator's own, the whole of `extensions`
+  (adding, removing, signing in and every key), a route's `provider` and the orchestrator's own, the whole of `extensions`
   and `mcp`, `orchestrator.extensions`, `telemetry.dsn`, a project's `root`, and the whole of `remotes` (another
   machine this one drives, with a session that is your keyboard there: `core/src/remotes.ts`, written
   only by `tade remote add`). Each is a **subtree** and not
@@ -141,6 +141,20 @@ Three answers and no fourth:
   the day it is added, so `SETTINGS_FROM_AWAY`'s list moves in the same commit —
   `packages/web/test/configuring.test.ts` holds the two together. `asked` and `never` are never
   reachable from a device; that is argued in `configuring.ts`.
+
+**Which account new agents run as is a default too, among the accounts that exist.**
+`workers.accounts.<harness>` (the machine's) and `projects.<name>.accounts.<harness>` (one
+project's, which wins for it — `default` there is the harness's own sign-in) are `asked`: the person
+decided on 2026-10-17 that they and the orchestrator switch between a personal and a company
+subscription, project by project. Every value is an account they added and signed in themselves —
+the schema refuses any other name and the row offers no other — so a switch hands nobody a
+credential and sends nothing anywhere new; it moves the next agent between two plans of theirs, and
+never one already working. What makes a sign-in stays `never`: the `accounts` subtree. A line names
+an account row only by the harness and the word together ("the claude code account"), never by
+`accounts` or the harness alone (`wordsTogether`). **One reader**: `accountFor`
+(`core/src/project.ts`), beside `workspaceFor`; the workbench, the plan a start would spend and the
+Accounts page all go through it, and `signInUse` says who runs as each sign-in for the surfaces that
+list them.
 
 **Defaults are settings, and where work is sent is not a default.** What new agents start on —
 each route's model and thinking, and each other harness's under it
@@ -243,8 +257,8 @@ are exactly two files it can go wrong in:
 - The key goes on `ProjectConfigSchema` as `.optional()` — never with a default, which would make
   "unset" and "set to the default" different things.
 - **One reader, and every call site goes through it**: `checksFor` (`core/src/checks.ts`),
-  `workspaceFor` and `pushFor` (`core/src/project.ts`) are the three there are, and a fourth
-  belongs beside them. The bug is never the resolution, it is the site that still reads the global
+  `workspaceFor`, `pushFor` and `accountFor` (`core/src/project.ts`) are the four there are, and a
+  fifth belongs beside them. The bug is never the resolution, it is the site that still reads the global
   — so grep for the global key after you add the override and make sure the only reader left is
   the resolver.
 - **A default that depends on another setting goes in the resolver, and then the global carries no

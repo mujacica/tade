@@ -7,10 +7,12 @@ import { checksFor } from '../src/checks.ts'
 import { ConfigSchema, updateCheckEvery } from '../src/config.ts'
 import { loadConfig, parseConfig, writeSetting } from '../src/config-file.ts'
 import {
+  accountFor,
   pushDefault,
   pushFor,
   pushNeedsABranch,
   pushProblems,
+  signInUse,
   workspaceFor,
 } from '../src/project.ts'
 import { WATCHES_HERE } from '../src/watch-where.ts'
@@ -492,6 +494,57 @@ describe('accounts', () => {
       'accounts:\n  work:\n    harness: claude-code\nworkers:\n  accounts:\n    pi: work\n',
     )
     expect(!wrong.ok && wrong.issues[0]?.message).toContain('claude-code account')
+  })
+
+  it('let a project name its own account for a harness, or its own sign-in, and nothing else', () => {
+    const base =
+      'accounts:\n  work:\n    harness: claude-code\nprojects:\n  app:\n    root: /src/app\n'
+    const named = accounts(`${base}    accounts:\n      claude-code: work\n`)
+    expect(named.ok && named.config.projects.app?.accounts).toEqual({ 'claude-code': 'work' })
+    const own = accounts(`${base}    accounts:\n      claude-code: default\n`)
+    expect(own.ok && own.config.projects.app?.accounts?.['claude-code']).toBe('default')
+    const unset = accounts(base)
+    expect(unset.ok && unset.config.projects.app?.accounts).toBeUndefined()
+    const missing = accounts(`${base}    accounts:\n      claude-code: home\n`)
+    expect(!missing.ok && missing.issues[0]?.path).toBe('projects.app.accounts.claude-code')
+    const wrong = accounts(`${base}    accounts:\n      codex: work\n`)
+    expect(!wrong.ok && wrong.issues[0]?.message).toContain('claude-code account')
+  })
+
+  it('resolve a project’s answer over the machine’s, in one place', () => {
+    const config = ConfigSchema.parse({
+      accounts: {
+        work: { harness: 'claude-code' },
+        home: { harness: 'claude-code' },
+        company: { harness: 'codex' },
+      },
+      workers: { accounts: { 'claude-code': 'work' } },
+      projects: {
+        shop: { root: '/src/shop', accounts: { 'claude-code': 'home', codex: 'company' } },
+        folio: { root: '/src/folio', accounts: { 'claude-code': 'default' } },
+        docs: { root: '/src/docs' },
+      },
+    })
+    expect(accountFor(config, 'shop', 'claude-code')).toBe('home')
+    expect(accountFor(config, 'shop', 'codex')).toBe('company')
+    // `default` is the harness's own sign-in, over a machine that says `work`.
+    expect(accountFor(config, 'folio', 'claude-code')).toBeNull()
+    // Nothing said is the machine's answer, and no project is the machine.
+    expect(accountFor(config, 'docs', 'claude-code')).toBe('work')
+    expect(accountFor(config, null, 'claude-code')).toBe('work')
+    expect(accountFor(config, 'ghost', 'codex')).toBeNull()
+    // An account is one harness's, whatever is asked.
+    expect(accountFor(config, 'shop', 'pi')).toBeNull()
+    expect(signInUse(config, 'claude-code', 'work')).toEqual({ newAgents: true, projects: [] })
+    expect(signInUse(config, 'claude-code', 'home')).toEqual({
+      newAgents: false,
+      projects: ['shop'],
+    })
+    expect(signInUse(config, 'claude-code', null)).toEqual({
+      newAgents: false,
+      projects: ['folio'],
+    })
+    expect(signInUse(config, 'codex', null)).toEqual({ newAgents: true, projects: [] })
   })
 
   it("keep 'default' for each harness's own sign-in", () => {

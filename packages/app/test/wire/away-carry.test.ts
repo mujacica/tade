@@ -35,6 +35,7 @@ const CLAUDE: AccountView = {
   limits: null,
   agents: 0,
   forNewAgents: true,
+  projects: [],
   canSignIn: true,
   provider: 'anthropic',
   install: null,

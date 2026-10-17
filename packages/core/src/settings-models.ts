@@ -33,8 +33,57 @@ export function modelsGroup(
     title: 'Models',
     about:
       'What new agents start on, unless a project says otherwise. Switching one agent changes that agent alone.',
-    settings: [main, ...others].flatMap((name) => routeRows(config, name, name === main, thinksAt)),
+    settings: [
+      ...[main, ...others].flatMap((name) => routeRows(config, name, name === main, thinksAt)),
+      ...accountRows(config),
+    ],
   }
+}
+
+/**
+ * Which account each harness's new agents run as, for a harness somebody has
+ * added one to: a default like a model, so a row the orchestrator changes on
+ * the person's own words (`ALLOWED_UNDER`), offering only the accounts there
+ * are. Adding, signing in and removing one is the Accounts page's.
+ */
+function accountRows(config: Config): Setting[] {
+  return HARNESS_CHOICES.flatMap((harness): Setting[] => {
+    const names = Object.keys(config.accounts).filter(
+      (name) => config.accounts[name]?.harness === harness.id,
+    )
+    if (names.length === 0) return []
+    const own = `${harness.title}'s own sign-in`
+    return [
+      {
+        path: `workers.accounts.${harness.id}`,
+        title: `${harness.title} account`,
+        means: `which of your ${harness.title} sign-ins new agents run as, unless a project says otherwise; an agent already working stays on its own`,
+        value: config.workers.accounts[harness.id as keyof Config['workers']['accounts']] ?? '',
+        fallback: own,
+        type: {
+          kind: 'choice',
+          options: ['', ...names],
+          list: true,
+          about: accountsAbout(harness.title, names, { '': own }),
+        },
+        live: true,
+        keywords: [`${harness.title} sign-in`, `${harness.title} subscription`],
+      },
+    ]
+  })
+}
+
+/** An account choice's list: each option under the row's heading, the ones that are not a name labelled. */
+export function accountsAbout(
+  title: string,
+  names: readonly string[],
+  labels: Readonly<Record<string, string>>,
+): Record<string, { group: string; note: string; label: string }> {
+  const about: Record<string, { group: string; note: string; label: string }> = {}
+  for (const [option, label] of Object.entries(labels))
+    about[option] = { group: `${title} account`, note: '', label }
+  for (const name of names) about[name] = { group: `${title} account`, note: '', label: name }
+  return about
 }
 
 /** One route's rows: its own three, then a model and thinking for each other harness. */

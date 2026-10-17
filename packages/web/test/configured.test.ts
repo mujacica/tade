@@ -118,7 +118,7 @@ const CRAFTED_NEVER = [
   'approvals.mode',
   'approvals.rules',
   'accounts.work.key',
-  'workers.accounts.default',
+  'accounts.work.harness',
   'workers.routes.default.provider',
   'extensions.sentry.enabled',
   'extensions.jev.key',

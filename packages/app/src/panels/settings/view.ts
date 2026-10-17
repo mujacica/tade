@@ -1,6 +1,7 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
 import {
   HARNESS_CHOICES,
+  KEYS_AND_AGENTS,
   type Setting,
   type SettingGroup,
   settingLabel,
@@ -347,6 +348,19 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
             .text(cap(status, form - named - 5), one.status.signedIn ? skin.done : skin.hint)
             .build(),
         )
+        // Which projects run as it whatever the machine says: remembered per
+        // project (`projects.<name>.accounts`), and set on its Projects page.
+        if (one.projects && one.projects.length > 0) {
+          const said = `new agents in ${one.projects.join(', ')}`
+          for (const line of wrapTo(said, form - named - 5, 2)) {
+            body.push(
+              new Row(form, skin)
+                .space(named + 3)
+                .text(line, skin.hint)
+                .build(),
+            )
+          }
+        }
         // Not installed comes with what would install it here — this
         // machine's line, the one setup offers — or why nothing here can.
         if (one.install) {
@@ -378,6 +392,12 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
           .text(cap('Asking each harness…', form - 2), skin.hint)
           .build(),
       )
+    // Where somebody decides which sign-in agents run as, and adds one with a
+    // key: whichever it is, an agent runs as you and can read what Tade keeps.
+    else
+      for (const line of wrapTo(KEYS_AND_AGENTS, form - 4, 4)) {
+        body.push(new Row(form, skin).space().text(line, skin.hint).build())
+      }
   } else if (panel.category === UPDATES && !panel.search) {
     drawUpdates(panel, ctx, form, body, (from, to) => {
       focusFrom = from

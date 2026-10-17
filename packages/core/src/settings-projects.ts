@@ -1,7 +1,9 @@
-import { AGENT_WORKSPACES, type Config } from './config.ts'
+import { AGENT_WORKSPACES, type Config, type HarnessId, OWN_SIGN_IN } from './config.ts'
+import { HARNESS_CHOICES } from './model.ts'
 import { PREPARE_DEADLINE_MINUTES } from './prepare.ts'
-import { PUSH_MODES, pushDefault, pushFor, workspaceFor } from './project.ts'
+import { accountFor, PUSH_MODES, pushDefault, pushFor, workspaceFor } from './project.ts'
 import type { Setting, SettingGroup } from './settings.ts'
+import { accountsAbout } from './settings-models.ts'
 import { WATCHES_HERE } from './watch-where.ts'
 
 // What one project answers for itself, as a person changes it.
@@ -31,7 +33,7 @@ export function projectGroups(config: Config): SettingGroup[] {
       id: 'projects',
       title: 'Projects',
       about:
-        "Each repository Tade can start work in: where it is, what it is called, what its agents do with finished work, its own answers to the check rules, and what it may spend. Left empty each follows the machine's answer above. What a project actually checks is read from its own workflows and commit hook, which Settings does not hold because they live in the repository.",
+        "Each repository Tade can start work in: where it is, what it is called, what its agents do with finished work, which account they run as, its own answers to the check rules, and what it may spend. Left empty each follows the machine's answer above. What a project actually checks is read from its own workflows and commit hook, which Settings does not hold because they live in the repository.",
       keywords: ['project', 'projects', 'repository', 'repo', 'checks', 'budget', 'spend'],
       scoped: {
         word: 'for',
@@ -182,6 +184,7 @@ export function projectGroups(config: Config): SettingGroup[] {
           keywords: [name, 'watch', 'watches', 'remote', 'vps', 'machine', 'duplicate'],
           scope: name,
         },
+        ...accountRows(config, name),
         {
           // `budget` rather than the project's name, which the page says once
           // at the top: a title is what a refusal tells somebody to say back,
@@ -258,4 +261,43 @@ export function projectGroups(config: Config): SettingGroup[] {
       ]),
     },
   ]
+}
+
+/**
+ * Which account this project's new agents of each harness run as, for every
+ * harness somebody has added an account to: empty is the machine's answer
+ * (`accountFor`), and `default` the harness's own sign-in where the machine's
+ * is another. Remembered in the config, so the project starts there every time.
+ */
+function accountRows(config: Config, name: string): Setting[] {
+  const project = config.projects[name]
+  return HARNESS_CHOICES.flatMap((harness): Setting[] => {
+    const names = Object.keys(config.accounts).filter(
+      (one) => config.accounts[one]?.harness === harness.id,
+    )
+    if (names.length === 0) return []
+    const own = `${harness.title}'s own sign-in`
+    const machine = accountFor(config, null, harness.id) ?? own
+    return [
+      {
+        path: `projects.${name}.accounts.${harness.id}`,
+        title: `${harness.title} account`,
+        means: `which of your ${harness.title} sign-ins ${name}'s new agents run as, over the machine's; an agent already working stays on its own`,
+        value: project?.accounts?.[harness.id as HarnessId] ?? '',
+        fallback: machine,
+        type: {
+          kind: 'choice',
+          options: ['', OWN_SIGN_IN, ...names],
+          list: true,
+          about: accountsAbout(harness.title, names, {
+            '': `as all projects do (${machine})`,
+            [OWN_SIGN_IN]: own,
+          }),
+        },
+        live: true,
+        keywords: [name, `${harness.title} sign-in`, `${harness.title} subscription`],
+        scope: name,
+      },
+    ]
+  })
 }

@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { tmp } from '../../../test/fixtures/mkrepo.ts'
+import { parse as parseYaml } from 'yaml'
+import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 
 const bin = fileURLToPath(new URL('../src/bin.ts', import.meta.url))
 
@@ -55,6 +56,35 @@ describe('tade accounts', () => {
     for (const view of views)
       expect(typeof (view.status as { signedIn: unknown }).signedIn).toBe('boolean')
   }, 30_000)
+
+  it('adds one, has a project’s new agents run as it, and takes it away again', async () => {
+    const repo = mkrepo()
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
+    const config = () => parseYaml(readFileSync(join(home, 'config.yaml'), 'utf8'))
+    const added = await tade('accounts', 'add', 'claude-code', 'work')
+    expect(added.code).toBe(0)
+    // Nobody at a keyboard here, so its sign-in is said rather than run.
+    expect(added.stdout).toContain('tade accounts sign-in claude-code work')
+    expect(config().accounts.work).toMatchObject({ harness: 'claude-code' })
+
+    const used = await tade('accounts', 'use', 'claude-code', 'work', '--project', 'app')
+    expect(used.code).toBe(0)
+    expect(used.stdout).toContain('in app run as work')
+    expect(config().projects.app.accounts).toEqual({ 'claude-code': 'work' })
+    const listed = await tade('accounts', '-c', join(home, 'config.yaml'))
+    expect(listed.stdout).toContain('new agents in app')
+
+    expect((await tade('accounts', 'use', 'claude-code', '--unset')).code).toBe(1)
+    await tade('accounts', 'use', 'claude-code', '--project', 'app', '--unset')
+    expect(config().projects.app.accounts?.['claude-code']).toBeUndefined()
+
+    await tade('accounts', 'use', 'claude-code', 'work')
+    expect(config().workers.accounts['claude-code']).toBe('work')
+    const removed = await tade('accounts', 'remove', 'work')
+    expect(removed.code).toBe(0)
+    expect(config().accounts ?? {}).toEqual({})
+    expect(config().workers?.accounts?.['claude-code']).toBeUndefined()
+  }, 60_000)
 
   it('says which account it does not know, rather than signing in to another', async () => {
     const result = await tade(

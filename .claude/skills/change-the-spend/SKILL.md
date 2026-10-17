@@ -205,11 +205,15 @@ Tade counted.
 - **When a plan is worrying is one rule** (`planPressure`, `PLAN_WARM`, `PLAN_TIGHT`): the strip's
   colours, the page's colours and what the orchestrator is told all read it, and it was two copies of
   the same literal before the third reader arrived.
-- **The orchestrator reads where every sign-in stands and never moves one** (`planReport`,
-  `tade_limits`): used, what is left, when it comes back, who is at their limit, and what else there
-  is — ordered by what is known and never by a guess, since "cannot tell" is not "has room". Which
-  sign-in agents run as is `never` its to write (`settingReach`: *which sign-in agents run as is a
-  sign-in decision*), so the tool says that in its own words and suggests.
+- **The orchestrator reads where every sign-in stands, and moves new agents only on the person's
+  words** (`planReport`, `tade_limits`): used, what is left, when it comes back, who is at their
+  limit, who runs as each (`uses`: new agents, and the projects that name it — `signInUse`), and what
+  else there is — ordered by what is known and never by a guess, since "cannot tell" is not "has
+  room". Which of the existing accounts new agents run as, the machine's or a project's, is `asked`
+  (`settingReach`, the person's decision of 2026-10-17): `tade_setting_change` on that harness's
+  account row, with their words, and never an agent already working. Adding, removing or signing in
+  one stays `never`. **No rule moves work to a less full plan** (`planTooTight` holds, never
+  switches): that would be the person's decision taken by a rule nobody asked.
 
 ### What is true of a harness is true of its old lines too
 

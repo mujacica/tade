@@ -99,6 +99,54 @@ describe('accounts', () => {
     })
   })
 
+  it('remembers which account a project’s new agents run as, over the machine’s', async () => {
+    await client.addAccount({ name: 'work', harness: 'claude-code' })
+    await client.addAccount({ name: 'home', harness: 'claude-code' })
+    await client.useAccount('claude-code', 'work')
+    await client.useAccount('claude-code', 'home', 'app')
+    expect(config().projects.app.accounts).toEqual({ 'claude-code': 'home' })
+    // A task in the project starts there without anybody choosing for it.
+    const task = await client.createTask({ project: 'app', slug: 'refunds', intent: 'fix it' })
+    await client.setAgentHarness({ task: task.id, worktree: task.worktree, harness: 'claude-code' })
+    expect((await client.agentHarness(task.id)).account).toBe('home')
+    // Every surface reads the same answer: whose new agents run as which.
+    const claude = (await client.accounts()).filter((one) => one.harness === 'claude-code')
+    expect(claude.map((one) => [one.name, one.forNewAgents, one.projects])).toEqual([
+      [null, false, []],
+      ['work', true, []],
+      ['home', false, ['app']],
+    ])
+    expect(client.planUsage().find((one) => one.account === 'home')?.uses).toEqual({
+      newAgents: false,
+      projects: ['app'],
+    })
+    // Its own sign-in is an answer of its own, over a machine on another.
+    await client.useAccount('claude-code', null, 'app')
+    expect(config().projects.app.accounts['claude-code']).toBe('default')
+    expect((await client.agentHarness(task.id)).account).toBeNull()
+    // And nothing said gives it back to the machine.
+    await client.useAccount('claude-code', undefined, 'app')
+    expect(config().projects.app.accounts?.['claude-code']).toBeUndefined()
+    expect((await client.agentHarness(task.id)).account).toBe('work')
+    await expect(client.useAccount('claude-code', 'home', 'ghost')).rejects.toThrow(/no project/)
+    const lines = (await client.events({ types: ['config_changed'] })).map(({ detail }) => detail)
+    expect(lines.filter((one) => String(one.path).startsWith('projects.'))).toEqual([
+      { path: 'projects.app.accounts.claude-code', was: '', now: 'home', by: 'window' },
+      { path: 'projects.app.accounts.claude-code', was: 'home', now: 'default', by: 'window' },
+      { path: 'projects.app.accounts.claude-code', was: 'default', now: '', by: 'window' },
+    ])
+  })
+
+  it('keeps a task on its own sign-in when one is chosen for it, whatever new agents use', async () => {
+    await client.addAccount({ name: 'work', harness: 'claude-code' })
+    await client.useAccount('claude-code', 'work')
+    const task = await client.createTask({ project: 'app', slug: 'mine', intent: 'fix it' })
+    await client.setAgentHarness({ task: task.id, worktree: task.worktree, harness: 'claude-code' })
+    expect((await client.agentHarness(task.id)).account).toBe('work')
+    await client.setAgentAccount({ task: task.id, worktree: task.worktree, account: null })
+    expect((await client.agentHarness(task.id)).account).toBeNull()
+  })
+
   it('says what every account can report about its plan, and none of it as money', async () => {
     const usage = client.planUsage()
     const pi = usage.find((one) => one.harness === 'pi')
@@ -206,9 +254,11 @@ describe('accounts', () => {
   it('takes one away, and nothing is left pointing at it', async () => {
     await client.addAccount({ name: 'work', harness: 'claude-code' })
     await client.useAccount('claude-code', 'work')
+    await client.useAccount('claude-code', 'work', 'app')
     await client.removeAccount('work')
     expect(config().accounts ?? {}).toEqual({})
     expect(config().workers?.accounts?.['claude-code']).toBeUndefined()
+    expect(config().projects.app.accounts?.['claude-code']).toBeUndefined()
     expect(existsSync(join(home, 'accounts', 'work'))).toBe(false)
     await expect(client.removeAccount('work')).rejects.toThrow(/no account called work/)
   })

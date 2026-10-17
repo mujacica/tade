@@ -59,6 +59,37 @@ describe('the window, and its settings', () => {
     expect(client.config.agents.workspace).toBe('worktree')
   })
 
+  it('reads which account new agents run as back from the workbench after the Accounts page sets it', async () => {
+    await client.addAccount({ name: 'work', harness: 'claude-code' })
+    // Tall enough that the Accounts category is drawn without scrolling to it.
+    terminal.resize(120, 60)
+    const app = await start({
+      config: ConfigSchema.parse({
+        projects: { app: { root: repo.root } },
+        accounts: { work: { harness: 'claude-code' } },
+      }),
+    })
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const button = find('Settings ')
+    click(button.col + 1, button.row)
+    await until('the settings', () => terminal.written.includes('Accounts'))
+    const accounts = find('Accounts')
+    click(accounts.col + 1, accounts.row)
+    await until('the account to choose', () => terminal.written.includes('Use for new agents'))
+    const use = find('Use for new agents')
+    terminal.written = ''
+    click(use.col + 1, use.row)
+    await until('it said so', () => terminal.written.includes('agents run as work'))
+    expect(client.config.workers.accounts['claude-code']).toBe('work')
+    // The row the orchestrator and the Models page read is the same answer,
+    // not the one the window was opened with — once the action has read the
+    // accounts back, which is after the page has said what it did.
+    const row = async () => app.configTools().settings('account')
+    await until('the row to say so', async () =>
+      (await row()).includes('workers.accounts.claude-code = work'),
+    )
+  })
+
   it('holds the machine awake from the button in the strip, and says the machine is held', async () => {
     // The whole way through, because the interesting part is the wiring: the
     // press writes the setting, the setting comes back through the one door

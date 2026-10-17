@@ -223,7 +223,12 @@ export class Settings implements Subject {
       await this.copied(panel, choice.slice('copy:'.length))
       return
     }
-    if (choice.startsWith('account:')) await this.deps.accountAction(choice)
+    if (choice.startsWith('account:')) {
+      await this.deps.accountAction(choice)
+      // What an account action wrote, the workbench wrote: the rows that say
+      // which account new agents run as read the config the window holds.
+      this.use(this.wire.opts.client.config)
+    }
     if (choice.startsWith('remote:')) await this.deps.remoteAction(choice)
     if (choice.startsWith('updates:')) await this.deps.updateAction(choice)
     if (choice === 'mic-test') await this.deps.testMicrophone()
@@ -530,6 +535,8 @@ export class Settings implements Subject {
         throw new Error(loaded.issues[0]?.message ?? 'the config would not load with that')
       }
       this.use(loaded.config)
+      // Which account new agents run as is drawn on the Accounts page too.
+      if (ACCOUNT_ROW.test(path)) this.deps.loadAccounts()
       // A harness that just changed hands has never been asked what it runs,
       // and its model setting is the next thing somebody opens. `clearable` is
       // already the answer to "is this a harness path": what choosing one
@@ -685,6 +692,9 @@ function takingSays(taking: Taking): string {
 /** A name as two writes of it compare: case, spaces and a final dot aside. */
 /** A line that may turn a server off: its switch, or its block written again (`tade mcp add`). */
 const SWITCH = /^mcp\.servers\.[^.]+(?:\.enabled)?$/
+
+/** Which account a harness's new agents run as: the machine's, or one project's. */
+const ACCOUNT_ROW = /^(?:workers|projects\.[^.]+)\.accounts\.[^.]+$/
 
 function named(name: string): string {
   return name.trim().toLowerCase().replace(/\.$/, '')

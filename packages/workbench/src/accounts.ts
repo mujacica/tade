@@ -1,7 +1,6 @@
 import { join } from 'node:path'
 import {
   type Config,
-  type HarnessId,
   type InstallCommand,
   type InstallersHere,
   installWith,
@@ -10,6 +9,7 @@ import {
   type PlanWindow,
   planStandings,
   secretCommand,
+  signInUse,
   windowLabel,
 } from '@tade/core'
 import type { AccountStatus, HarnessAccount, PlanLimits, WorkerAdapter } from '@tade/harnesses-core'
@@ -34,8 +34,10 @@ export interface AccountView {
   limits: PlanLimits | null
   /** Agents running as it now. */
   agents: number
-  /** The one this harness's new agents run as. */
+  /** The one this harness's new agents run as, in every project that does not say otherwise. */
   forNewAgents: boolean
+  /** The projects whose own answer it is (`accountFor`), by name. */
+  projects: string[]
   /** Whether it has a sign-in of its own to run. */
   canSignIn: boolean
   /**
@@ -133,6 +135,7 @@ export function planSources(
       pays: paysFor(config, name, adapter),
       why: adapter.capabilities.why.limits ?? null,
       said: said ? { at: said.at, windows: planWindows(said) } : null,
+      uses: signInUse(config, harness, name),
     }
   })
 }
@@ -228,7 +231,7 @@ export async function listAccounts(
   const machine = opts.machine ?? installersHere(env)
   const views: AccountView[] = []
   for (const { harness, name } of signIns(config)) {
-    const chosen = config.workers.accounts[harness as HarnessId] ?? null
+    const uses = signInUse(config, harness, name)
     const adapter = opts.adapterFor(harness, name)
     const status: AccountStatus = await adapter.account().catch((err: unknown) => ({
       signedIn: false,
@@ -249,7 +252,8 @@ export async function listAccounts(
       status,
       limits: adapter.limits(),
       agents: opts.agentsOn?.(adapter) ?? 0,
-      forNewAgents: chosen === name,
+      forNewAgents: uses.newAgents,
+      projects: uses.projects,
       canSignIn: adapter.signIn() !== null,
       provider: adapter.provider,
       install: program && !programHere(program, env) ? installWith(program.install, machine) : null,

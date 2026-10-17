@@ -215,6 +215,8 @@ export function harnessesInUse(config: Config): Set<string> {
   const used = new Set<string>([config.orchestrator.harness])
   for (const route of Object.values(config.workers.routes)) used.add(route.harness)
   for (const harness of Object.keys(config.workers.accounts)) used.add(harness as HarnessId)
+  for (const project of Object.values(config.projects))
+    for (const harness of Object.keys(project.accounts ?? {})) used.add(harness)
   return used
 }
 

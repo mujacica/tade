@@ -216,6 +216,49 @@ describe('the orchestrator, configuring Tade', () => {
     ])
   })
 
+  it('switches which existing account new agents run as on words naming it, and never makes one', async () => {
+    await client.addAccount({ name: 'work', harness: 'claude-code' })
+    const app = await start({
+      config: ConfigSchema.parse({
+        projects: { app: { root: repo.root } },
+        accounts: { work: { harness: 'claude-code' } },
+      }),
+    })
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const config = app.configTools()
+    const listed = await config.settings('account')
+    expect(listed).toContain('workers.accounts.claude-code')
+    expect(listed).toContain('projects.app.accounts.claude-code')
+    // `accounts` alone names every one of them, so it names none.
+    await theySaid('how are my accounts doing?')
+    await expect(
+      config.change({ path: 'workers.accounts.claude-code', value: 'work', said: 'they asked' }),
+    ).rejects.toThrow(/Nothing they have said names/)
+    const said = 'use my work account for claude code in app'
+    await theySaid(said)
+    expect(
+      await config.change({ path: 'projects.app.accounts.claude-code', value: 'work', said }),
+    ).toContain('Saved')
+    expect(client.config.projects.app?.accounts).toEqual({ 'claude-code': 'work' })
+    // Only among the accounts there are: a name nobody added is no switch.
+    await expect(
+      config.change({ path: 'workers.accounts.claude-code', value: 'home', said }),
+    ).rejects.toThrow(/no account called "home"/)
+    // And making one, or its key, stays a person's however it is asked.
+    await theySaid('add a claude code account called home, with this key')
+    for (const path of ['accounts.home', 'accounts.work.key']) {
+      await expect(
+        config.change({ path, value: 'x', said: 'add a claude code account' }),
+        path,
+      ).rejects.toThrow(/is not mine to change: an account is a sign-in/)
+    }
+    const mine = async () => (await changes()).filter((one) => one.by === 'orchestrator')
+    await until('the switch written down', async () => (await mine()).length > 0)
+    expect(await mine()).toEqual([
+      { path: 'projects.app.accounts.claude-code', was: '', now: 'work', by: 'orchestrator', said },
+    ])
+  })
+
   it('refuses a default nobody named, and where a route sends work however it is asked', async () => {
     const config = await tools()
     await theySaid('how is refunds getting on?')

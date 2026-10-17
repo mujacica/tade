@@ -28,9 +28,20 @@ describe('what no words reach', () => {
   })
 
   it('refuses a sign-in, an account, and the key an account is paid for with', () => {
-    for (const path of ['accounts.work', 'accounts.work.key', 'workers.accounts.pi']) {
+    for (const path of ['accounts.work', 'accounts.work.key', 'accounts.work.harness']) {
       expect(settingReach(path).reach, path).toBe('never')
     }
+  })
+
+  it('leaves which existing account new agents run as to the person’s words, here and per project', () => {
+    // The person's decision (`ALLOWED_UNDER`): switching among accounts they
+    // added is theirs to ask for, and making, removing or keying one is not.
+    expect(settingReach('workers.accounts.claude-code').reach).toBe('asked')
+    expect(settingReach('projects.app.accounts.codex').reach).toBe('asked')
+    // The block is not one harness's choice, and a key beside one is nothing
+    // anybody has decided about yet.
+    expect(settingReach('projects.app.accounts').reach).toBe('never')
+    expect(settingReach('projects.app.accounts.codex.key').reach).toBe('never')
   })
 
   it('refuses where a route sends work, while leaving what it thinks with', () => {
@@ -754,6 +765,44 @@ describe('whether the person themselves named it', () => {
     expect(named('set workers.routes.fast.harness to codex', two)).toEqual([
       'workers.routes.fast.harness',
     ])
+  })
+
+  it('names an account row by its harness with the word, never by `accounts` or the harness alone', () => {
+    // Every account row has `accounts` in its path and a harness's name in
+    // every row about that harness, so either alone named which sign-in every
+    // project runs as: "how are my accounts" was a switch.
+    const config = ConfigSchema.parse({
+      accounts: { work: { harness: 'claude-code' }, company: { harness: 'codex' } },
+      projects: { app: { root: '/src/app' } },
+    })
+    const rows = settingsOf(config)
+      .flatMap((group) => group.settings)
+      .filter((one) => one.path.includes('accounts.'))
+    expect(rows.map((one) => one.path).sort()).toEqual([
+      'projects.app.accounts.claude-code',
+      'projects.app.accounts.codex',
+      'workers.accounts.claude-code',
+      'workers.accounts.codex',
+    ])
+    const named = (line: string) =>
+      rows
+        .filter((one) => namedBy(one, [line]) !== null)
+        .map((one) => one.path)
+        .sort()
+    expect(named('how are my accounts doing?')).toEqual([])
+    expect(named('start the next one in claude code')).toEqual([])
+    expect(named('how is the app project getting on?')).toEqual([])
+    expect(named('use my work account for claude code')).toEqual([
+      'projects.app.accounts.claude-code',
+      'workers.accounts.claude-code',
+    ])
+    expect(named('switch codex to the company account')).toEqual([
+      'projects.app.accounts.codex',
+      'workers.accounts.codex',
+    ])
+    // What a refusal asks them to say back names it.
+    const machine = rows.find((one) => one.path === 'workers.accounts.claude-code')
+    expect(machine && namedBy(machine, [spokenAs(machine)])).not.toBeNull()
   })
 
   it('names the orchestrator’s own model, thinking and harness only when whose is said with them', () => {

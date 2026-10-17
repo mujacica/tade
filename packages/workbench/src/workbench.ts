@@ -5,6 +5,7 @@ import { readRuns } from '@tade/checks-core'
 import {
   AccountName,
   type Asker,
+  accountFor,
   type Caution,
   type Config,
   ConfigSchema,
@@ -13,7 +14,6 @@ import {
   type EventFilter,
   expandHome,
   HARNESS_CHOICES,
-  type HarnessId,
   type IntakeCandidate,
   type LaneId,
   type LookTrouble,
@@ -22,6 +22,7 @@ import {
   modelLastRunOn,
   type Note,
   noSpend,
+  OWN_SIGN_IN,
   type Plan,
   type PlanBusy,
   type PlanChoice,
@@ -1600,24 +1601,21 @@ export class Workbench {
   }
 
   /**
-   * The account a task's agent runs as: its own choice, else the one its
-   * harness's new agents use, else the harness's own sign-in. One that is not
-   * this harness's is not used: an account belongs to one harness.
+   * The account a task's agent runs as: its own choice — `default` being the
+   * harness's own sign-in — else the one its project's new agents use
+   * (`accountFor`). One that is not this harness's is not used: an account
+   * belongs to one harness.
    */
   private async accountOf(task: string, harness: string): Promise<string | undefined> {
     const own = await this.taskAccount(task)
-    if (!own) return this.accountUsing(harness)
+    if (!own) return this.accountUsing(harness, task.split('/')[0] ?? null)
+    if (own === OWN_SIGN_IN) return undefined
     return this.config.accounts[own]?.harness === harness ? own : undefined
   }
 
-  /**
-   * The account a harness's new agents run as: the one chosen for it, when it
-   * is that harness's own. An account belongs to one harness.
-   */
-  private accountUsing(harness: string): string | undefined {
-    const chosen = this.config.workers.accounts[harness as HarnessId]
-    if (!chosen) return undefined
-    return this.config.accounts[chosen]?.harness === harness ? chosen : undefined
+  /** The account a harness's new agents run as in a project, or on the machine where there is none. */
+  private accountUsing(harness: string, project: string | null = null): string | undefined {
+    return accountFor(this.config, project, harness) ?? undefined
   }
 
   private async taskAccount(task: string): Promise<string | null> {
@@ -1755,6 +1753,11 @@ export class Workbench {
     if (this.config.workers.accounts[account.harness] === name) {
       await this.writeConfig(`workers.accounts.${account.harness}`, undefined)
     }
+    // And every project that named it: each goes back to the machine's answer.
+    for (const [project, said] of Object.entries(this.config.projects)) {
+      if (said.accounts?.[account.harness] === name)
+        await this.writeConfig(`projects.${project}.accounts.${account.harness}`, undefined)
+    }
     await this.writeConfig(`accounts.${name}`, undefined)
     delete this.adapters[adapterKey(account.harness, name)]
     await this.log.append({
@@ -1763,15 +1766,37 @@ export class Workbench {
     })
   }
 
-  /** Which account a harness's new agents run as: `null` for its own sign-in. */
-  async useAccount(harness: string, name: string | null): Promise<void> {
+  /**
+   * Which account a harness's new agents run as: `null` for its own sign-in.
+   * With a project, that project's own answer, remembered over the machine's;
+   * `undefined` there gives the question back to the machine. An agent
+   * already working stays on the account it started as.
+   */
+  async useAccount(
+    harness: string,
+    name: string | null | undefined,
+    project?: string,
+  ): Promise<void> {
     if (name && this.config.accounts[name]?.harness !== harness) {
       throw new Error(`${name} is not a ${harness} account`)
     }
-    await this.writeConfig(`workers.accounts.${harness}`, name ?? undefined)
+    if (project === undefined) {
+      await this.writeConfig(`workers.accounts.${harness}`, name ?? undefined)
+    } else {
+      if (!this.config.projects[project]) throw new Error(`no project called ${project}`)
+      const said = name === undefined ? undefined : (name ?? OWN_SIGN_IN)
+      await this.writeConfig(`projects.${project}.accounts.${harness}`, said)
+    }
     await this.log.append({
       type: 'state_change',
-      detail: { harness, account: name ?? 'default', forNewAgents: true, by: 'you' },
+      detail: {
+        harness,
+        account:
+          name ?? (project !== undefined && name === undefined ? 'as the machine' : 'default'),
+        forNewAgents: true,
+        ...(project === undefined ? {} : { project }),
+        by: 'you',
+      },
     })
   }
 
@@ -1799,7 +1824,9 @@ export class Workbench {
       from !== to
         ? await from.carryConversation(req.task as TaskId, req.worktree, to).catch(() => false)
         : false
-    await setTaskAccount(this.home, req.task, req.account)
+    // Its own sign-in said as such, so a project or a machine that runs new
+    // agents as another account does not take this one back there.
+    await setTaskAccount(this.home, req.task, req.account ?? OWN_SIGN_IN)
     if (running) {
       await this.startAgent({
         task: req.task as TaskId,
