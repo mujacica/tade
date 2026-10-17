@@ -81,7 +81,9 @@ export type RemoteTools = RemoteTalkTools & RemoteReads & MoveTools
 // one's branches fetched into a mirror** of every project here that is the
 // same repository (`mirrors.ts`), for the forecast, the desk and the diffs.
 // **And work moved there** (`moves.ts`): queued work started on that machine
-// instead, over the owner channel, and gone from this queue.
+// instead, over the owner channel, and gone from this queue; and a running
+// task handed over from the machine's menu — its agent told to commit and
+// push, the work begun there on its branch, and the agent here stopped.
 //
 // **What each remote holds is drawn as its projects** (`facts`, folded by
 // `machines.ts`, which is where everything another machine wrote is reduced
@@ -351,20 +353,26 @@ export class Remotes implements Subject {
         items: (subject) => {
           const machine = this.machines().remotes.find((one) => one.name === subject.machine)
           if (machine === undefined) return []
+          // What can go there from here: agents running here, handed over.
+          const moves = this.moves?.menuItems(machine.name) ?? []
           if (machine.projects.length === 0) {
             const why = machine.heard ? 'no project is open there' : 'nothing heard from it yet'
-            return [{ id: '', label: machine.said ?? why, off: why }]
+            return [{ id: '', label: machine.said ?? why, off: why }, ...moves]
           }
           const now = this.deps.now()
-          return projectsMenuItems(
-            machine.projects.map((project) => ({
-              project: project.name,
-              label: project.title ?? project.name,
-              says: projectSays(remoteStanding(project), now),
-            })),
-          )
+          return [
+            ...projectsMenuItems(
+              machine.projects.map((project) => ({
+                project: project.name,
+                label: project.title ?? project.name,
+                says: projectSays(remoteStanding(project), now),
+              })),
+            ),
+            ...moves,
+          ]
         },
         choose: (subject, project) => {
+          if (this.moves?.chose(subject.machine, project) === true) return
           if (project !== '') this.deps.go({ machine: subject.machine, project })
         },
       },
@@ -498,6 +506,7 @@ export class Remotes implements Subject {
     void this.mirrors?.beat([...this.holder.keys()])
     this.about?.beat([...this.holder.keys()])
     this.agents?.beat()
+    this.moves?.beat()
     void this.reread()
   }
 
@@ -696,6 +705,7 @@ export function remotesFor(
         new Moves(wire, {
           ...reachingOf(remotes),
           sameAs: (project) => remotes.mirrored()?.sameAs(project) ?? [],
+          say,
         }),
     )
     .withMachines(

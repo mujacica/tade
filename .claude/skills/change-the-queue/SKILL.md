@@ -481,6 +481,19 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   `Schedules.where`), because a press there could only be refused. **No remote is called `here`**,
   the word `watches` uses for this machine: `tade remote add` refuses it (`NewRemoteName`), and a
   config that has one keeps working without it, the block ignored and said (`gone.ts`).
+- **Work moves between machines by git, and the conversation never does** (REMOTE-TADE.md §9.2,
+  `wire/moves.ts`, `wire/hand-over.ts`; the far half is `web-take.ts` behind `/api/take`). Queued
+  work started on a remote instead ("Start on vps" on its card, `tade_task_move`) is the same task
+  file made there — words, prompt, context, links, done rule, `at` — and removed here once taken,
+  **parked meanwhile** so this queue cannot start it in the gap. A running task is handed over:
+  asked there first (`check`), its agent told to commit what is its own and push, the window looking
+  on its beat until origin has it and a turn has ended since — never on a guess that it is done —
+  then made there with `start.from` on that branch (in a worktree there, whatever that project's
+  workspace, because `start.from` means nothing in a shared checkout) and stopped and parked here,
+  with `task_moved` here and `task_taken` there. **No wait crosses machines**: work that waits on
+  anything, or that anything waits on, stays, and the refusal says how to change that. The machine
+  there fetches with **its own credentials** and a dry-run push says whether it could push back;
+  the link never forwards an agent (`NO_AGENT`).
 - **Which projects there are is asked at every look, and a project that is not open is nothing to
   watch.** A watch names its project and resolves it when it looks, so the list it is resolved
   against is read from the config each time (`projectsOf`; the window hands the host each new config

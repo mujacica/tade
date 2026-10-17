@@ -17,11 +17,25 @@ import {
   type TakeAnswer,
   TakeAnswerSchema,
 } from '@tade/web'
-import { contextDocument, readTaskFile, taskContextPath } from '@tade/workbench/tasks'
+import {
+  contextDocument,
+  readTaskFile,
+  TASK_BRANCH_PREFIX,
+  taskContextPath,
+} from '@tade/workbench/tasks'
 import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
 import type { Machines } from '../machines.ts'
+import type { MenuItem } from '../panels/menu/state.ts'
 import { type Actions, saidLately, type Wiring, why } from './context.ts'
+import {
+  branchAt,
+  carryOnSays,
+  type HandedFrom,
+  handedNote,
+  handSays,
+  pushedTo,
+} from './hand-over.ts'
 
 // Work moved to another machine of the person's (REMOTE-TADE.md §9.2): queued
 // work started there instead of here — "Start on vps" on its card, or the
@@ -47,6 +61,17 @@ import { type Actions, saidLately, type Wiring, why } from './context.ts'
 // again here as it was. Taken there, `task_moved` says where it went and the
 // task is removed here, which keeps its document if it made one.
 //
+// **A running task is handed over** (`handOver`, and `hand-over.ts` for the
+// git and the words): asked there first (`check`), so an agent is never
+// stopped for a name already used there; its agent told to commit what is its
+// own and push its branch; the window looking on its beat — never waiting —
+// until origin has the work and the agent has finished a turn since it was
+// told; then made there beginning on that branch (`start.from`), with the same
+// words, its context file and a note of where things stood, and the agent here
+// stopped and its task parked. Nothing of the conversation moves, and every
+// sentence about it says so. Not done within `HAND_MS`, nothing changes and
+// that is said.
+//
 // **One door for both ways of asking.** The card's button is the person's
 // press; the orchestrator's tool is held to a line of theirs naming that
 // machine (`REMOTE_MOVE_REACH`), checked here against the journal and never in
@@ -60,6 +85,28 @@ export interface MovesDeps {
   machines(): Machines
   /** Other machines' projects that are one project here's repository, as each last said. */
   sameAs(project: string): readonly { machine: string; project: string }[]
+  /** Said in the strip: how a hand-over that went on in the background came out. */
+  say(said: string): void
+}
+
+/** How long an agent has to commit and push once it is told it is being handed over. */
+export const HAND_MS = 15 * 60_000
+
+/** How often a hand-over looks at origin, at the most. */
+export const HAND_LOOK_MS = 5_000
+
+/** A running task being handed over: told, and looked at on the beat until its work is on origin. */
+interface Handing extends HandedFrom {
+  /** The project here, and its project there. */
+  project: string
+  there: string
+  by: By
+  /** When its agent was told, in this clock. */
+  since: number
+  lookedAt: number
+  looking: boolean
+  /** What is not done yet, as the last look said. */
+  waiting: string
 }
 
 /** What the orchestrator's `tade_task_move` is answered with. */
@@ -74,6 +121,8 @@ export class Moves {
   private readonly deps: MovesDeps
   /** Work being moved now, so a second press is not a second move. */
   private readonly moving = new Set<string>()
+  /** Running tasks being handed over, by task. */
+  private readonly handing = new Map<string, Handing>()
 
   constructor(wire: Wiring, deps: MovesDeps) {
     this.wire = wire
@@ -133,9 +182,245 @@ export class Moves {
             `Nothing they have said names ${machine}, so I will not: ${REMOTE_MOVE_REACH.because}.`,
           )
         }
-        return this.startThere(req.task, machine, 'orchestrator')
+        const running = this.wire.opts.client.runs().some((run) => run.task === req.task)
+        return running
+          ? this.handOver(req.task, machine, 'orchestrator')
+          : this.startThere(req.task, machine, 'orchestrator')
       },
     }
+  }
+
+  /**
+   * What a machine's menu along the top offers besides its projects: each
+   * agent running here whose project is a repository there, handed over.
+   */
+  menuItems(machine: string): MenuItem[] {
+    const tasks = this.wire.opts.client
+      .runs()
+      .map((run) => run.task as string)
+      .filter((task) => this.deps.sameAs(projectOf(task)).some((one) => one.machine === machine))
+    return tasks.map((task, at) => ({
+      id: `hand:${task}`,
+      label: `Hand ${task} to ${machine}`,
+      ...(this.handing.has(task) ? { off: 'being handed over' } : {}),
+      ...(at === 0 ? { divider: true } : {}),
+    }))
+  }
+
+  /** A machine's menu, chosen: `hand:<task>`. False for anything that is not this one's. */
+  chose(machine: string, id: string): boolean {
+    if (!id.startsWith('hand:')) return false
+    const task = id.slice('hand:'.length)
+    void this.handOver(task, machine, 'you').then(
+      (said) => {
+        this.wire.put(acknowledge(this.wire.state, said, this.wire.now()))
+        this.wire.draw()
+      },
+      (err: unknown) => {
+        this.wire.note(err)
+        this.wire.draw()
+      },
+    )
+    return true
+  }
+
+  /** The window's beat: every hand-over due a look, looked at; nothing waits on it. */
+  beat(): void {
+    const now = this.wire.now()
+    for (const handing of this.handing.values()) {
+      if (handing.looking || now - handing.lookedAt < HAND_LOOK_MS) continue
+      void this.look(handing, now)
+    }
+  }
+
+  /**
+   * A running task, handed to that machine: asked there first, its agent told
+   * to commit and push, and looked at on the beat until it has (`look`).
+   * Answers what was set going; throws why not.
+   */
+  async handOver(task: string, machine: string, by: By): Promise<string> {
+    this.machineNamed(machine)
+    if (this.handing.has(task) || this.moving.has(task)) {
+      throw new Error(`${task} is already being moved`)
+    }
+    this.moving.add(task)
+    try {
+      return await this.tellToPush(task, machine, by)
+    } finally {
+      this.moving.delete(task)
+    }
+  }
+
+  private async tellToPush(task: string, machine: string, by: By): Promise<string> {
+    const client = this.wire.opts.client
+    if (!client.runs().some((run) => run.task === task)) {
+      throw new Error(
+        `${task} has no agent running here to hand over: queued work is started there with Start on ${machine}, and a stopped one is opened again first.`,
+      )
+    }
+    const file = await readTaskFile(this.wire.opts.home, task)
+    if (file === null) throw new Error(`There is no task called ${task} here.`)
+    if (file.race || file.replay) {
+      throw new Error(
+        `${task} is one entrant in a measurement made on this machine, so it stays here.`,
+      )
+    }
+    const waiting = (this.wire.live?.queued ?? [])
+      .filter((one) => one.start.after.some((dep) => dep.task === task))
+      .map((one) => one.task)
+    if (waiting.length > 0) {
+      throw new Error(
+        `${waiting.join(', ')} ${waiting.length === 1 ? 'waits' : 'wait'} on ${task} here, and no wait crosses machines: change ${waiting.length === 1 ? 'that wait' : 'those waits'} first, or let ${task} finish here.`,
+      )
+    }
+    const project = projectOf(task)
+    const there = this.projectThere(project, machine)
+    const reach = this.deps.reach(machine)
+    if (reach === null || !reach.live) {
+      throw new Error(`${machine} is not linked now, so nothing was moved.`)
+    }
+    const [made] = await client.log.read({ task, types: ['task_created'] })
+    const cwd = typeof made?.detail.worktree === 'string' ? made.detail.worktree : null
+    if (cwd === null) throw new Error(`The journal does not say where ${task} works.`)
+    const workspace = made?.detail.workspace === 'checkout' ? 'checkout' : 'worktree'
+    const slug = task.slice(task.indexOf('/') + 1)
+    const own = `${TASK_BRANCH_PREFIX}${slug}`
+    const branch = workspace === 'worktree' ? ((await branchAt(cwd)) ?? own) : own
+    const head = await runProgram('git', ['-C', cwd, 'rev-parse', 'HEAD'], { timeoutMs: 10_000 })
+    if (head.code !== 0) throw new Error(`${task}'s work has no commit to begin from.`)
+    // Asked first, so an agent is never stopped for a name already used there.
+    const asked = await this.ask(reach.link, machine, {
+      from: machineLabel(),
+      was: task,
+      project: there,
+      name: slug,
+      intent: file.intent_spoken.slice(0, TAKE_WORDS_MOST),
+      prompt: '',
+      context: '',
+      links: [],
+      begins: { branch, head: head.stdout.trim() },
+      check: true,
+    })
+    if (!asked.took) throw new Error(`${machine} would not take ${task}: ${printable(asked.said)}`)
+    const from: HandedFrom = { task, machine, branch, cwd, workspace }
+    await client.steerAgent(task, handSays(from))
+    const now = this.wire.now()
+    this.handing.set(task, {
+      ...from,
+      project,
+      there,
+      by,
+      since: now,
+      lookedAt: now,
+      looking: false,
+      waiting: 'it has not pushed yet',
+    })
+    return `Told ${task} to commit and push to ${branch} for ${machine}. Once its work is on origin and its turn is over, ${machine} begins on it as ${there}/${slug} and the agent here stops — its conversation does not move. If that has not happened within ${HAND_MS / 60_000} minutes, nothing changes and I say so.`
+  }
+
+  /** One look at a hand-over: given up, still waiting, or handed. */
+  private async look(handing: Handing, now: number): Promise<void> {
+    handing.looking = true
+    handing.lookedAt = now
+    const { task, machine } = handing
+    try {
+      if (now - handing.since > HAND_MS) {
+        this.handing.delete(task)
+        this.deps.say(
+          `${task} was told to commit and push for ${machine} ${HAND_MS / 60_000} minutes ago, and ${handing.waiting}: nothing was started on ${machine}, and it goes on here.`,
+        )
+        return
+      }
+      const client = this.wire.opts.client
+      const run = client.runs().find((one) => one.task === task)
+      if (run !== undefined) {
+        // Not part way through a turn, which may be part way through the push;
+        // and not before it has finished one since it was told.
+        if (client.turnOf(run.run) === 'running') {
+          handing.waiting = 'it is still in its turn'
+          return
+        }
+        const turned = (await client.log.read({ task, types: ['turn_done'] })).some(
+          (line) => Date.parse(line.ts) >= handing.since,
+        )
+        if (!turned) {
+          handing.waiting = 'it has not finished a turn since it was told'
+          return
+        }
+      }
+      const pushed = await pushedTo(handing)
+      if ('not' in pushed) {
+        handing.waiting = pushed.not
+        return
+      }
+      const reach = this.deps.reach(machine)
+      if (reach === null || !reach.live) {
+        handing.waiting = `its work is on origin, and ${machine} is not linked now`
+        return
+      }
+      this.handing.delete(task)
+      this.deps.say(await this.handed(handing, reach.link, pushed.head))
+    } catch (err) {
+      this.handing.delete(task)
+      this.deps.say(`${task} was not handed to ${machine}: ${why(err)}. Its agent goes on here.`)
+    } finally {
+      handing.looking = false
+    }
+  }
+
+  /** Its work is on origin: made there, and the agent here stopped. What happened, in a sentence. */
+  private async handed(handing: Handing, link: RemoteLink, head: string): Promise<string> {
+    const { task, machine, branch } = handing
+    const client = this.wire.opts.client
+    const file = await readTaskFile(this.wire.opts.home, task)
+    if (file === null) throw new Error('its task file is gone')
+    const context = await this.contextOf(task, file)
+    const here = machineLabel()
+    const note = handedNote({ machine: here, task, branch, head, told: file.start?.prompt ?? '' })
+    const take: Take = {
+      from: here,
+      was: task,
+      project: handing.there,
+      name: task.slice(task.indexOf('/') + 1),
+      intent: file.intent_spoken,
+      prompt: carryOnSays({ machine: here, branch }),
+      context: [context.context.trim(), note].filter((part) => part !== '').join('\n\n'),
+      links: context.links,
+      ...(file.done ? { done: file.done } : {}),
+      begins: { branch, head },
+      check: false,
+    }
+    if (take.context.length > TAKE_CONTEXT_MOST || take.intent.length > TAKE_WORDS_MOST) {
+      throw new Error(`its context is longer than one request to ${machine} carries`)
+    }
+    const answer = await this.ask(link, machine, take)
+    if (!answer.took) {
+      return `${machine} did not take ${task}: ${printable(answer.said)}. Its work is on origin at ${branch}, and its agent goes on here.`
+    }
+    const as = printable(answer.task)
+    const after: string[] = []
+    try {
+      await client.stopAgent(task)
+    } catch (err) {
+      after.push(`its agent here could not be stopped (${why(err)}): stop it`)
+    }
+    try {
+      await client.parkTask(task, true, { by: handing.by })
+    } catch (err) {
+      after.push(`it could not be parked here (${why(err)})`)
+    }
+    await client.log.append({
+      type: 'task_moved',
+      task,
+      detail: { to: machine, as, how: 'running', branch, head, by: handing.by },
+    })
+    void this.wire.live?.refresh()
+    const pushes =
+      answer.pushes === false
+        ? ` ${machine} cannot push to ${branch} with its own credentials yet, so its agent's work stays there until it can.`
+        : ''
+    const went = `${task} went to ${machine} as ${as}, on ${branch} at ${head.slice(0, 12)}: its agent here is stopped and parked, and its conversation stays here.`
+    return `${went}${pushes}${after.length > 0 ? ` But ${after.join(', and ')}.` : ''}`
   }
 
   /**
@@ -189,7 +474,7 @@ export class Moves {
         `${waiting.join(', ')} ${waiting.length === 1 ? 'waits' : 'wait'} on ${task} here, and no wait crosses machines: move ${waiting.length === 1 ? 'it' : 'them'} first, or let ${task} start here.`,
       )
     }
-    const project = task.slice(0, task.indexOf('/'))
+    const project = projectOf(task)
     const there = this.projectThere(project, machine)
     const reach = this.deps.reach(machine)
     if (reach === null || !reach.live)
@@ -379,4 +664,9 @@ export class Moves {
       `No machine here is called ${name}: ${names === '' ? 'none is linked (tade remote add)' : `the ones linked are ${names}`}.`,
     )
   }
+}
+
+/** The project half of a task's id. */
+function projectOf(task: string): string {
+  return task.slice(0, Math.max(0, task.indexOf('/')))
 }
