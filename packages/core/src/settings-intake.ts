@@ -158,7 +158,7 @@ export function intakeGroup(config: Config): SettingGroup {
       scopes: INTAKE_SOURCES.map((source) => ({ id: source, title: INTAKE_SOURCE_TITLES[source] })),
       none: '',
     },
-    about: `Work that arrives from outside this machine — a ticket somebody filed, a line typed at the local door — read on a clock like every other watch, with no listener and no inbound port. Off by default, and every source is a separate act. ${INTAKE_NO_REALTIME} ${INTAKE_IS_SOMEBODY_ELSE}`,
+    about: `Work that arrives from outside this machine — a ticket somebody filed, a message in a channel, a line typed at the local door — read on a clock like every other watch, everywhere; and where this machine has a public name, a signed webhook from the source rings its door there too, which only makes that watch look now. Off by default, and every source is a separate act. ${INTAKE_NO_REALTIME} ${INTAKE_IS_SOMEBODY_ELSE}`,
     keywords: [
       'intake',
       'inbox',

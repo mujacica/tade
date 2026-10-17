@@ -757,3 +757,16 @@ describe('the Away page', () => {
     expect(rows.filter((one) => !one.live).map((one) => one.path)).toEqual([])
   })
 })
+
+describe('the Intake page', () => {
+  it('says what reaches it: a clock everywhere, and a webhook where there is a public name', () => {
+    // Held because "with no listener and no inbound port" outlived the
+    // doorbell: on a machine with a public name a signed delivery from a source
+    // rings its door, so the page that turns intake on must say so.
+    const about = settingsOf(config()).find((group) => group.id === 'intake')?.about ?? ''
+    expect(about).toContain('on a clock')
+    expect(about).toContain('public name')
+    expect(about).toContain('webhook')
+    expect(about).not.toMatch(/no listener|no inbound port/)
+  })
+})
