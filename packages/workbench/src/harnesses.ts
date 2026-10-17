@@ -35,22 +35,39 @@ export interface HarnessOptions {
   args?: string[]
   /** The environment its processes start from, when not this one's. */
   env?: NodeJS.ProcessEnv
+  /**
+   * The Unix user its agents run as, when not Tade's own (`agents.user`):
+   * `home` is then that user's and `runDir` and `socketDir` are in its share,
+   * so what a launch hands its harness is what that user can read.
+   */
+  user?: string
 }
 
 /**
  * How an account's adapter is filed beside its harness's own: `claude-code`
- * for the harness's own sign-in, `claude-code@work` for the account "work".
+ * for the harness's own sign-in, `claude-code@work` for the account "work" —
+ * and `claude-code~tade-agent` for the harness as run by another user, whose
+ * own sign-in it is (an account's folder is in Tade's home, which that user
+ * cannot open, so the two are never put together).
  */
-export function adapterKey(harness: string, account?: string | null): string {
+export function adapterKey(harness: string, account?: string | null, user?: string | null): string {
+  if (user) return `${harness}~${user}`
   return account ? `${harness}@${account}` : harness
 }
 
-/** The harness and account an adapter is filed under, read back out of its key. */
-export function adapterParts(key: string): { harness: string; account: string | null } {
+/** The harness, account and user an adapter is filed under, read back out of its key. */
+export function adapterParts(key: string): {
+  harness: string
+  account: string | null
+  user: string | null
+} {
+  const tilde = key.indexOf('~')
+  if (tilde !== -1)
+    return { harness: key.slice(0, tilde), account: null, user: key.slice(tilde + 1) }
   const at = key.indexOf('@')
   return at === -1
-    ? { harness: key, account: null }
-    : { harness: key.slice(0, at), account: key.slice(at + 1) }
+    ? { harness: key, account: null, user: null }
+    : { harness: key.slice(0, at), account: key.slice(at + 1), user: null }
 }
 
 /** Where Tade keeps an API-key account's key: named so no extension's can collide with it. */

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { USER_NAME } from './agent-user.ts'
 import { WebSurface } from './away.ts'
 import { BudgetSchema } from './budget.ts'
 import { IntakeSurface } from './intake.ts'
@@ -214,6 +215,13 @@ export const ProjectConfigSchema = z.strictObject({
    * `accountFor`; an agent already working keeps the one it started as.
    */
   accounts: z.partialRecord(Harness, ProjectAccount).optional(),
+  /**
+   * The Unix user this project's agents run as, over `agents.user`: one user
+   * per project, so one project's agents cannot read another's. A person's,
+   * never the orchestrator's (`reach.ts`), and a fact about this machine that
+   * is never carried to another (`carry.ts`).
+   */
+  user: z.string().regex(USER_NAME, 'a user name: lower case, digits, _ and -').optional(),
 })
 
 /**
@@ -628,6 +636,17 @@ export const ConfigSchema = z
          * `priority.ts` carries the rest of the argument.
          */
         give_way: z.number().int().min(0).max(GIVE_WAY_MAX).default(0),
+        /**
+         * The Unix user agents run as on this machine, with their harness's
+         * own sandbox on, so none can open Tade's home or read a key in it
+         * (`agent-user.ts`). Unset is the default and runs them as you, which
+         * is what `KEYS_AND_AGENTS` says; a project may name its own.
+         */
+        user: z
+          .string()
+          .regex(USER_NAME, 'a user name: lower case, digits, _ and -')
+          .nullable()
+          .default(null),
       })
       .prefault({}),
     /**

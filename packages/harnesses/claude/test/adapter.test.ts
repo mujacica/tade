@@ -136,7 +136,7 @@ describe('ClaudeAdapter', () => {
         title: 'Refunds',
       })
       expect(launch.command).toBe('/bin/sh')
-      const [, script, , id, look, name, bin, ...rest] = launch.args
+      const [, script, , id, look, name, bin, node, trust, ...rest] = launch.args
       expect(script).toContain('--resume')
       expect(script).toContain('unset ANTHROPIC_API_KEY')
       expect([id, look, name, bin]).toEqual([
@@ -145,6 +145,8 @@ describe('ClaudeAdapter', () => {
         'Refunds',
         'claude',
       ])
+      // Running as Tade's own user, the folder is trusted from here, not in the line.
+      expect([node, trust]).toEqual(['', ''])
       // Several values follow it, so it comes first: never just before the prompt.
       expect(rest[0]).toBe('--mcp-config')
       expect(rest).toContain('bypassPermissions')

@@ -53,6 +53,11 @@ and yours to turn on; containing an agent is its harness's business, not Tade's;
 would rather Tade never wrote down can stay in an environment variable, which always wins over the
 file.
 
+On a server you can have them run as a user of their own instead (`agents.user`): `tade setup` makes
+`tade-agent` on a press, showing each command, and its agents then work with their harness's own
+sandbox on and cannot open Tade's home or read a key in it — only their own sign-in and their
+project's code.
+
 ## Agents, together or apart
 
 Every agent gets a lane of its own. By default they all work in the project's checkout; one setting

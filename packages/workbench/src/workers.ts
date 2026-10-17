@@ -100,6 +100,12 @@ export interface WorkerSupervisorOptions {
    * it threw — goes back to the agent as the tool's result.
    */
   onExtensionCall?: (call: ExtensionCall) => Promise<string>
+  /**
+   * Called before what an agent says it finished with is read: where it runs
+   * as a user of its own, the document it wrote in its share is brought into
+   * Tade's home first (`agent-user.ts`). Never a reason the done is lost.
+   */
+  handOver?: (task: string) => Promise<void>
   /** Where Tade's own trouble goes, and what times its agents' turns. */
   report?: Reporter
   /**
@@ -197,6 +203,7 @@ export class WorkerSupervisor {
   private readonly approvals: ApprovalSettings
   private readonly onTitle: WorkerSupervisorOptions['onTitle']
   private readonly onExtensionCall: WorkerSupervisorOptions['onExtensionCall']
+  private readonly handOver: WorkerSupervisorOptions['handOver']
   private readonly checks: WorkerSupervisorOptions['checks']
   private readonly askCaution: WorkerSupervisorOptions['caution']
   private readonly runs = new Map<string, RunState>()
@@ -242,6 +249,7 @@ export class WorkerSupervisor {
     this.approvals = opts.approvals
     this.onTitle = opts.onTitle
     this.onExtensionCall = opts.onExtensionCall
+    this.handOver = opts.handOver
     this.checks = opts.checks
     this.askCaution = opts.caution
     this.timing = agentTurns(opts.report ?? noReporter())
@@ -564,6 +572,17 @@ export class WorkerSupervisor {
         return
       }
       case 'done': {
+        if (task) {
+          await this.handOver?.(task).catch((err: unknown) =>
+            this.log.append({
+              type: 'warning',
+              task,
+              detail: {
+                message: `could not bring ${task}'s document home: ${(err as Error).message}`,
+              },
+            }),
+          )
+        }
         const made = await producedDetail(this.home, task)
         const detail = { by: 'agent', summary: signal.summary, ...made }
         await this.log.append({ type: 'task_done', task, run, detail })

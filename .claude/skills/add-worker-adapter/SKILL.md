@@ -197,6 +197,47 @@ relaunch from.
   moving reads `lastOutputAt`, and why sampling more often to make one work buys nothing and costs
   the journal (the sizing argument is in `add-event-type`).
 
+## Agents as a user of their own (`agents.user`)
+
+On a box on the internet agents run as another Unix user — `tade-agent`, or one per project
+(`projects.<name>.user`) — with their harness's own sandbox on, so none can open Tade's home or read
+a key in it (`core/src/agent-user.ts`; setting it up is `set-up-the-machine`). Placing the process
+is still not the adapter's: the registry wraps the line in `sudo -n -H -u <user>` at every launch
+(`asAgent`, re-decided like `niced`, never written into the stored spec; `LaneRecord.user` is what a
+window that finds the lane again supervises it by). What the adapter owes:
+
+- **Take `HarnessOptions.user`.** The workbench makes one adapter per harness and user
+  (`adapterAs`, filed `claude-code~tade-agent`) with `home` that user's — where its harness keeps
+  its own sign-in and records, which Tade reads through the group — and `runDir`/`socketDir` in that
+  user's share (`agentShare`, `~<user>/tade-share`, set-group-id, Tade in the group). An account's
+  folder is in Tade's closed home, so accounts and users never mix: the user's own sign-in wins, and
+  that is said.
+- **Write a run's files with `runModes(shared)`**, never a bare `0o700`/`0o600`: the agent reads its
+  settings, MCP config, instructions, pictures and thread file as a member of the group. Listen with
+  `socketFolder`/`listenOn` (`harnesses/core/src/modes.ts`): connecting needs write on the socket,
+  and the folder must keep set-group-id or every socket after it is Tade's own group's — the agent's
+  turns then never reach Tade, which is what happened the first time this ran on Linux. What the
+  agent's own hooks leave beside the socket (`missed.ts`, ACP's `record.ts`) takes its folder's group
+  bits, since the hook cannot know whose machine it is on.
+- **Anything you write into the harness's own files as Tade, do as that user instead.** Claude
+  Code's folder question lives in a state file in the user's home, which Tade cannot write in, so its
+  launch line answers it as that user (`trust-here.ts`, `LAUNCHER`'s `node`/`trust` words) and
+  `supervise` does not.
+- **Declare `capabilities.sandbox`, with `why.sandbox` when false**, and honour
+  `WorkerSpec.sandbox` (`{ writes }`, asked only for an agent of its own user): Codex `--sandbox
+  workspace-write` with `--add-dir` for each and network on (it has only on or off, and an agent
+  that cannot push never hands anything over); Claude Code `sandbox.enabled` in the run's settings
+  with `allowUnsandboxedCommands: false` — under `bypassPermissions` a refused command is otherwise
+  retried outside without asking — and `failIfUnavailable: true` (`sandboxOf`); pi and ACP say they
+  have none. Off where nobody asked, so a laptop's agents are exactly as before. `writes` is the
+  repository's git folder where a worktree's is elsewhere, and the user's package caches.
+- **Say how setup proves it** (`sandboxProof(platform)`): a command that exits 0 only where the
+  sandbox can start here, run as the agent's user, and what it needs when it cannot. On Linux both
+  sandboxes are bubblewrap making namespaces, which Ubuntu 24.04's AppArmor refuses until `bwrap`
+  has a profile — and then every command the agent runs is refused, one at a time, in its lane.
+  `sandboxed-lane.test.ts` holds Claude Code's keys against the real `claude` where it can start
+  (Seatbelt, on a Mac): inside written, handed written, outside refused, no second call.
+
 ## What Claude Code taught (`packages/harnesses/claude`)
 
 When the harness has nothing of ours inside it, everything comes through what it offers — hooks,
@@ -221,8 +262,8 @@ everything said to it is typed into its lane. Each of these was found the hard w
 - **No hook runs when a turn is cut short**, and the Stop hook runs *before* the last of the reply is
   in the transcript: say the abort yourself, and count tokens after the status line is drawn.
 - **Containment is the harness's, never Tade's.** Tade has no sandbox and offers none: where the
-  harness has one of its own, the adapter decides what to pass it — Codex's adapter passes
-  `--sandbox danger-full-access`, because Tade's approval gate is what decides here.
+  harness has one of its own, the adapter decides what to pass it — `danger-full-access` for Codex
+  where Tade's approval gate decides, its own sandbox where the agent runs as a user of its own.
 - **Subscriptions are the user's own, through the harness's own sign-in.** Tade runs the unmodified
   binary, never reads or stores a subscription token, and an API key it keeps is read by the harness
   through a command, so it is never written into a launch line.

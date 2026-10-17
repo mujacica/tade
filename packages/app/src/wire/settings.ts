@@ -19,6 +19,7 @@ import {
   withoutCopies,
 } from '@tade/core'
 import { isCredential } from '@tade/web'
+import { ownUser } from '@tade/workbench/agent-user'
 import { CREDENTIAL, foldConfigChanges } from '@tade/workbench/config-changes'
 import type { Frame } from '../frame.ts'
 import { checkTalkKey } from '../keys.ts'
@@ -258,7 +259,13 @@ export class Settings implements Subject {
       const can = this.wire.opts.client.capabilitiesOf(harness.id)
       if (can) levels[harness.id] = can.thinkingLevels
     }
-    return settingsOf(this.wire.opts.config, secrets, levels, this.wire.opts.keptBy ?? null)
+    return settingsOf(
+      this.wire.opts.config,
+      secrets,
+      levels,
+      this.wire.opts.keptBy ?? null,
+      ownUser(),
+    )
   }
 
   /** What the orchestrator may do with the config, and the boundary it is held to (`settingTools`). */

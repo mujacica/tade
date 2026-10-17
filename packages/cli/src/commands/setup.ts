@@ -4,6 +4,7 @@ import { basename, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runScreen, ScreenCancelled, type Ui } from '@tade/app'
 import {
+  agentUserTrouble,
   askAboutWatches,
   defaultConfigPath,
   isReady,
@@ -24,6 +25,7 @@ import type { Command } from 'commander'
 import { writeFromShell } from '../config-write.ts'
 import { Exit, type Io } from '../io.ts'
 import { setUpUnattended } from './host-service.ts'
+import { proveAgentUser, setUpAgents } from './setup-agents.ts'
 import { gather, type Look, lookHere } from './setup-facts.ts'
 import {
   dictationSaid,
@@ -69,6 +71,7 @@ const ORDER: StepId[] = [
   'judge',
   'extensions',
   'keys',
+  'agents',
   'unattended',
 ]
 
@@ -85,6 +88,7 @@ const CHANGES_MACHINE = new Set<StepId>([
   'voice',
   'judge',
   'extensions',
+  'agents',
   'unattended',
 ])
 
@@ -135,6 +139,12 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
           for (const line of render(steps)) io.out(line)
           for (const line of report(look)) io.out(line)
           for (const line of serverSays(look)) io.out(line)
+          // Each agent user with nothing left to do, proved by a lane opened as
+          // it: the one look that sees the rule, Node and the closed home at once.
+          for (const seen of look.agents?.seen ?? []) {
+            if (agentUserTrouble(seen, look.agents?.self ?? '').length > 0) continue
+            io.out(`  as ${seen.user}: ${(await proveAgentUser(facts.driver, home, seen)).says}`)
+          }
         }
         if (!isReady(steps)) setExit(Exit.error)
         return
@@ -243,6 +253,9 @@ async function doStep(
   // Both of these read the look they were handed: the step before either of
   // them changes the machine, so the loop has already looked again.
   if (id === 'keys') return setUpKeys(ui, look)
+  if (id === 'agents' && look.agents) {
+    return setUpAgents(ui, look.agents, tadeHome(), facts.driver)
+  }
   if (id === 'unattended' && look.unattended) return setUpUnattended(ui, look.unattended)
 }
 

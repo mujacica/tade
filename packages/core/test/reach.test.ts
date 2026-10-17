@@ -399,6 +399,9 @@ describe('the shape of the rule', () => {
       'projects.app.push',
     ])
     expect(byTier.never?.sort()).toEqual([
+      // Which Unix user agents run as: whether they can read every key Tade
+      // keeps, the machine's and one project's (`agent-user.ts`).
+      'agents.user',
       'approvals.mode',
       'extensions.sentry.brief',
       'extensions.sentry.brief_query',
@@ -414,6 +417,7 @@ describe('the shape of the rule', () => {
       'projects.app.prepare.command',
       'projects.app.prepare.deadline_minutes',
       'projects.app.root',
+      'projects.app.user',
       // The away view's five, and **every one of them `never`**: each either
       // widens who can reach the control room (`enabled`, `bind`), decides
       // what the pairing code says (`port`), names a host whose `https`

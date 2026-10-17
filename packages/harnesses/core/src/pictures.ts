@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { forgetOldPictures } from '@tade/core'
+import { type RunModes, runModes } from './modes.ts'
 import type { WorkerImage } from './port.ts'
 
 /**
@@ -23,14 +24,16 @@ export function promptWithImages(
   message: string,
   images: readonly WorkerImage[] | undefined,
   dir: string,
+  /** Its user's group's too, where its agent runs as a user of its own (`runModes`). */
+  modes: RunModes = runModes(false),
 ): string {
   if (!images || images.length === 0) return message
   const folder = join(dir, 'attachments')
-  mkdirSync(folder, { recursive: true, mode: 0o700 })
+  mkdirSync(folder, { recursive: true, mode: modes.dir })
   forgetOldPictures(folder, Date.now())
   const paths = images.map((image) => {
     const path = join(folder, `${randomUUID()}.${extensionOf(image.mimeType)}`)
-    writeFileSync(path, Buffer.from(image.data, 'base64'), { mode: 0o600, flag: 'wx' })
+    writeFileSync(path, Buffer.from(image.data, 'base64'), { mode: modes.file, flag: 'wx' })
     return path
   })
   return `${message}\n\n${paths.map((path) => `[picture: ${path}]`).join('\n')}`

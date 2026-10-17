@@ -95,6 +95,7 @@ const emptyLook: Look = {
   extensions: [],
   installers: { platform: 'darwin', managers: ['brew'] },
   unattended: null,
+  agents: null,
 }
 
 const harness = (over: Partial<HarnessHere> & { id: string }): HarnessHere => ({

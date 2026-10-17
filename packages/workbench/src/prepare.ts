@@ -248,21 +248,25 @@ export async function setupBefore(
   config: Config,
   task: string,
   first: boolean,
+  /** Where its log goes, when not the task's own folder: an agent user's share (`shareSetupLog`). */
+  log = setupLogPath(home, task),
 ): Promise<{ before?: { setup: Setup; log: string; root: string } }> {
   const project = config.projects[task.split('/')[0] ?? '']
   if (!first || !project) return {}
   const setup = await setupOf(home, task)
   const root = expandHome(project.root)
-  return setup ? { before: { setup, log: setupLogPath(home, task), root } } : {}
+  return setup ? { before: { setup, log, root } } : {}
 }
 
 /** What an agent is told about its worktree's setup, where it has one. */
 export async function setupTold(
   home: string,
   task: string,
+  /** Where its log went, as `setupBefore` was told. */
+  log = setupLogPath(home, task),
 ): Promise<{ setup?: { command: string; log: string } }> {
   const setup = await setupOf(home, task)
-  return setup ? { setup: { command: setup.command, log: setupLogPath(home, task) } } : {}
+  return setup ? { setup: { command: setup.command, log } } : {}
 }
 
 function firstLine(text: string): string {

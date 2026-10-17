@@ -12,6 +12,8 @@ import {
   NO_HISTORY,
   noHarnessSpend,
   type PlanLimits,
+  type RunModes,
+  runModes,
 } from '@tade/harnesses-core'
 
 // Reading what an agent did out of Codex's own records, rather than out of
@@ -62,10 +64,12 @@ export async function rememberThread(
   task: string,
   stateDir: string,
   thread: string,
+  /** Its user's group's to read too, where the agent runs as one (`runModes`): its launch line reads it. */
+  modes: RunModes = runModes(false),
 ): Promise<void> {
   const file = threadFile(task, stateDir)
-  await mkdir(join(file, '..'), { recursive: true, mode: 0o700 })
-  await writeFile(file, `${thread}\n`, { mode: 0o600 })
+  await mkdir(join(file, '..'), { recursive: true, mode: modes.dir })
+  await writeFile(file, `${thread}\n`, { mode: modes.file })
 }
 
 /**

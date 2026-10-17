@@ -37,6 +37,9 @@ and setting up ends by actually opening a lane — because every other check is 
 | `packages/workbench/src/machine.ts` (`unattendedHere`, `systemdHere`, `serviceUnitPath`, `lookAtService`) | whether this is a server, linger, the unit and what it runs — files, no process — and how the service stands, one `systemctl show` |
 | `packages/harnesses/core/src/sign-in.ts` | `signInHere` (is a browser here?), `signInLasts` (how long a sign-in has left) |
 | `packages/drivers/tmux/src/scope.ts` | the lanes' tmux server in a systemd scope of its own, under a user service |
+| `packages/core/src/agent-user.ts` | pure: `agentUserOf`, `agentsKeptAs`, `asAgent` (the launch through `sudo`), `sudoersRule`, `agentShare`, `agentCommands` (what setup shows), `agentUserTrouble`, `AGENT_USER_MEANS` |
+| `packages/workbench/src/agent-user.ts` | `homeOf`, `agentUserFor`, `shareReady`, `closeHome`, `contextFor`, `sandboxWrites`, `lookAtAgentUser`, `sandboxProofs` |
+| `packages/cli/src/commands/setup-agents.ts` | the `agents` step: `agentsLooked`, `setUpAgents`, `proveAgentUser` |
 | `packages/cli/src/commands/update.ts` | `tade update`, and `--check` as the only thing that dials |
 | `packages/cli/src/bin.ts` | the door: `nodeTooOld` before any other import, then `nativeTrouble` |
 | `packages/cli/src/node.ts` | `nodeTooOld`, and the two private halves `numbers` and `below` |
@@ -366,6 +369,57 @@ for this laptop's Ghostty) and came back on the restarted unit's new epoch with 
 Not proved: systemd below 246, where `systemd-notify` races; a distribution with
 `KillUserProcesses=yes`, where a tmux server started from an SSH login — by `tade setup`'s own proof
 lane, say — dies at logout; and a sign-in carried through to the end.
+
+### Agents as a user of their own (`agents.user`)
+
+The machine that holds an App's key, webhook secrets and the device list, and whose agents read
+strangers' comments unattended, should not hand those agents every key — so there they run as
+another Unix user (`agents.user`, or `projects.<name>.user` for one per project), with their
+harness's own sandbox on (`add-worker-adapter` has what each harness does). Tade runs as whoever runs
+it — `tade` in the recommended install — and **setup makes the agents' user on a press**:
+
+- **The step** (`agents`) is offered on a Linux server and wherever the config names a user; never
+  required, never on a Mac (`agentsLooked`). What it sees is looked at (`lookAtAgentUser`): the
+  password file, `id`, one `sudo -n -u <user> true`, the share, the user's git, its projects' roots,
+  and each sandbox in use tried *as that user* (`sandboxProof`). With no user named it asks once, and
+  writes `agents.user` only after every command ran — a half-made user is never one agents start as.
+- **The commands** (`agentCommands`), each said with what it is for and run through `/bin/sh` in a
+  terminal the person types into (a `sudo` password goes there): `useradd --create-home
+  --user-group` and `chmod 0750` on its home (Debian makes it `0700`, which Tade could not enter);
+  `usermod --append --groups <user> <tade>`; **one sudoers line**, `<tade> ALL=(<user>) NOPASSWD:SETENV:
+  ALL`, written to a temporary file, passed by `visudo -cf` and only then installed — a broken file
+  in `sudoers.d` is a `sudo` that refuses everybody; the share, `install -d -m 2770`; the user's git
+  name, address and `safe.directory '*'`, run **from its own home** (from Tade's, which it cannot
+  enter, git fails before it starts — found in the container); and each project root made the
+  group's, set-group-id, with `core.sharedRepository group`.
+- **What Tade does itself, at every open where a user is named**: `umask 007`, so what it makes in a
+  checkout is the group's to write, and `chmod 0700` on its home (`closeHome`), narrowed and never
+  widened, said once in the journal. An agent cannot be started as Tade instead: a user this machine
+  has not got, or a share Tade cannot write in, refuses the start with the setup line.
+- **The group takes effect at the next login** — and for a service, at its next start. The step says
+  so rather than proving a lane that would fail; `--check` then proves each finished user with a lane
+  opened *as it* that tries to read `config.yaml` (`proveALane`'s `as`): passed only where it comes
+  back as that user and the file stays shut.
+
+**Proved** in `tade-vps-jammy` (Ubuntu 22.04, the git-core PPA's git, kernel 6.8 under colima) with
+this tree in `/opt/tade`, Tade as `you`: `--check` named the three missing pieces; the six commands
+ran as `you` (the git one failed until it `cd`'d); `--check` then ticked the step and said `opened a
+lane under tmux as tade-agent, which cannot read /home/you/.tade/config.yaml`. A pi agent started
+through the workbench against `test/fixtures/fake-model.ts` (a provider in `tade-agent`'s own
+`~/.pi/agent/models.json`, which is what its own sign-in is) ran `id -un` as `tade-agent` with umask
+`0007`, got `Permission denied` on `config.yaml` and on Tade's home, wrote a `0660` file the
+`tade-agent` group owns, committed it, and Tade committed over it; its `turn_started`/`turn_done`
+reached Tade over the share's socket — only after `socketFolder` kept set-group-id. Claude Code
+2.1.302 started the same way with no folder dialog (trusted in its line) and its turns heard; its
+Bash call ran inside `bwrap`, which this kernel refused (`kernel.apparmor_restrict_unprivileged_userns
+= 1`, Ubuntu 24.04's), and with no unsandboxed retry the command was refused rather than run — and
+`--check` said `claude-code's own sandbox will not start as tade-agent here`.
+
+**Not proved**: a sandbox that *starts* under a user of its own on Linux (this VM refuses it, and
+loosening its kernel was not this test's to do; Claude Code's keys are proved on a Mac,
+`sandboxed-lane.test.ts`); a Codex agent's whole turn as another user; one user per project on one
+box; the agent pushing (its own key or token, which setup says nothing about yet); and `tade serve`
+under systemd picking the group up after `usermod`.
 
 ### A public name, behind Caddy (`tade host caddy`)
 

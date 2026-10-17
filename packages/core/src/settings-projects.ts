@@ -1,3 +1,4 @@
+import { AGENT_USER, AGENT_USER_MEANS } from './agent-user.ts'
 import { AGENT_WORKSPACES, type Config, type HarnessId, OWN_SIGN_IN } from './config.ts'
 import { HARNESS_CHOICES } from './model.ts'
 import { PREPARE_DEADLINE_MINUTES } from './prepare.ts'
@@ -165,6 +166,22 @@ export function projectGroups(config: Config): SettingGroup[] {
             'one at a time',
             'concurrency',
           ],
+          scope: name,
+        },
+        {
+          // One user per project, so one project's agents cannot read
+          // another's; empty follows the machine's (`agents.user`). A person's,
+          // like everything under `projects` that is not named in
+          // `ALLOWED_UNDER` — it is what an agent may read and write.
+          path: `projects.${name}.user`,
+          title: 'Run agents as',
+          means: `the Unix user ${name}'s agents run as, over the machine's: ${AGENT_USER_MEANS}`,
+          short: `a user of ${name}'s own keeps its agents from every key and every other project`,
+          value: project.user ?? '',
+          fallback: config.agents.user ?? 'you',
+          type: { kind: 'text', placeholder: `${AGENT_USER}-${name}` } as const,
+          live: false,
+          keywords: [name, 'user', 'unix user', 'sandbox', 'isolation', AGENT_USER],
           scope: name,
         },
         {

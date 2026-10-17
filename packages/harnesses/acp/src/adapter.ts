@@ -26,6 +26,8 @@ import {
   type PlanLimits,
   promptWithImages,
   type RunId,
+  type RunModes,
+  runModes,
   SignalChannel,
   type SignIn,
   WORKER_ENV,
@@ -77,6 +79,12 @@ export interface AcpAdapterOptions {
   agents?: readonly AcpAgent[]
   env?: NodeJS.ProcessEnv
   onWarning?: (message: string) => void
+  /**
+   * The Unix user its agents run as, where not Tade's own (`agents.user`): its
+   * launch file and socket are then its group's too (`runModes`), and so is the
+   * record its lane writes (`record.ts`, which follows its folder).
+   */
+  user?: string
 }
 
 interface Run {
@@ -120,7 +128,10 @@ export class AcpAdapter implements WorkerAdapter {
     accounts: false,
     compact: 'none',
     pins: false,
+    sandbox: false,
     why: {
+      sandbox:
+        'cannot turn on a sandbox an agent may have over ACP, so where its agents run as a user of their own, that user is all that holds what they may reach',
       permissionGate:
         'is asked only about the calls the agent itself chooses to ask about over ACP — what it does without asking, Tade sees only once it is done',
       steer:
@@ -155,7 +166,7 @@ export class AcpAdapter implements WorkerAdapter {
   private readonly agents: readonly AcpAgent[]
   private readonly runs = new Map<string, Run>()
   private readonly listeners = new Map<string, Set<WorkerSignalListener>>()
-  private readonly opts: Required<Omit<AcpAdapterOptions, 'agents'>>
+  private readonly opts: Required<Omit<AcpAdapterOptions, 'agents' | 'user'>>
 
   constructor(opts: AcpAdapterOptions) {
     this.agents = opts.agents ?? ACP_AGENTS
@@ -167,7 +178,13 @@ export class AcpAdapter implements WorkerAdapter {
       env: opts.env ?? process.env,
       onWarning: opts.onWarning ?? (() => {}),
     }
+    this.shared = opts.user !== undefined
+    this.modes = runModes(this.shared)
   }
+
+  /** Whether its agents run as a user of their own, whose group shares what a run is handed. */
+  private readonly shared: boolean
+  private readonly modes: RunModes
 
   /** Each agent's version, or null where it is not here. Asked of all of them at once. */
   private async here(): Promise<{ agent: AcpAgent; version: string | null; missing: boolean }[]> {
@@ -351,14 +368,18 @@ export class AcpAdapter implements WorkerAdapter {
       instructions: contextFor(spec),
       mcpServers: this.mcpServers(spec),
     }
-    mkdirSync(join(this.opts.runDir, 'acp'), { recursive: true, mode: 0o700 })
-    writeFileSync(launch, `${JSON.stringify(said, null, 2)}\n`, { mode: 0o600 })
+    mkdirSync(join(this.opts.runDir, 'acp'), { recursive: true, mode: this.modes.dir })
+    writeFileSync(launch, `${JSON.stringify(said, null, 2)}\n`, { mode: this.modes.file })
     return {
       command: process.execPath,
       args: [LANE_PATH, launch],
       env: this.runEnv(spec),
       ...(spec.prompt
-        ? { opening: [promptWithImages(spec.prompt, spec.images, this.filesDir(spec.run))] }
+        ? {
+            opening: [
+              promptWithImages(spec.prompt, spec.images, this.filesDir(spec.run), this.modes),
+            ],
+          }
         : {}),
     }
   }
@@ -370,6 +391,7 @@ export class AcpAdapter implements WorkerAdapter {
       run: spec.run,
       onSignal: (signal) => this.dispatch(spec.run, signal),
       onWarning: this.opts.onWarning,
+      shared: this.shared,
     })
     const handle: WorkerHandle = {
       run: spec.run,
@@ -403,7 +425,7 @@ export class AcpAdapter implements WorkerAdapter {
     // Held by the lane until the turn ends either way: ACP has no steering.
     this.send(this.require(run), {
       type: 'queue',
-      message: promptWithImages(message, images, this.filesDir(run)),
+      message: promptWithImages(message, images, this.filesDir(run), this.modes),
     })
   }
 

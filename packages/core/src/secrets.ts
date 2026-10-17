@@ -52,12 +52,57 @@ export const SEEN_BY_AGENTS = 'any agent you run can read it'
  * It says "nothing sandboxes them" and not "unless you say so", because there
  * is nothing to say: Tade had a sandbox setting, it was off by every default,
  * and half-owning containment was worse than leaving it to the harness or the
- * agent, which is where it went.
+ * agent, which is where it went. Where agents do run as a user of their own,
+ * with their harness's sandbox on (`agents.user`), that is still the operating
+ * system's and the harness's containment rather than Tade's, and the machine
+ * says the second sentence instead (`keysKeptFromAgents`).
  */
 export const KEYS_AND_AGENTS =
   `Kept in ${IN_CONFIG} as you typed it, so you can read it back — and ${SEEN_BY_AGENTS} too: ` +
   `agents run as you, and nothing sandboxes them. To keep one out of the file, export its ` +
   `variable instead, which wins and is never written down, or leave this unset.`
+
+/**
+ * The short of it where every agent here runs as a user of its own: the clause
+ * `SEEN_BY_AGENTS` gives way to on such a machine (`seenByAgents`).
+ */
+export const KEPT_FROM_AGENTS = 'no agent here can read it'
+
+/**
+ * `KEYS_AND_AGENTS`'s second sentence, for a machine whose every agent runs as
+ * a Unix user of its own (`agents.user`, `agent-user.ts`): `0600` now does keep
+ * the file from them, because they are other people as far as the file is
+ * concerned, and Tade's home is closed to them besides. The first sentence
+ * stays true everywhere else — a laptop, or a box where even one project's
+ * agents run as you — and is what is said there.
+ *
+ * What it does not fix goes in the same breath, as the first's way out does:
+ * an agent still reads its own harness's sign-in, which it needs to run, and
+ * its project's code — and a key still leaves the box with a backup, which is
+ * why exporting it instead is still offered.
+ */
+export function keysKeptFromAgents(as: string): string {
+  return (
+    `Kept in ${IN_CONFIG} as you typed it, so you can read it back — and ${KEPT_FROM_AGENTS}: ` +
+    `agents run as ${as}, which cannot open Tade’s home, with their harness’s own sandbox on. An ` +
+    `agent can still read its own harness’s sign-in and its project’s code. To keep a key off this ` +
+    `machine altogether, export its variable instead, which wins and is never written down, or ` +
+    `leave this unset.`
+  )
+}
+
+/**
+ * Which of the two sentences is true here: `as` is who every agent runs as
+ * where none runs as you (`agentsKeptAs`), and null where any does.
+ */
+export function keysAndAgents(as: string | null): string {
+  return as ? keysKeptFromAgents(as) : KEYS_AND_AGENTS
+}
+
+/** The short of whichever is true here, for the one line a control gets. */
+export function seenByAgents(as: string | null): string {
+  return as ? KEPT_FROM_AGENTS : SEEN_BY_AGENTS
+}
 
 /**
  * A credential wherever its value would be said — a `config_changed` line, a

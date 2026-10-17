@@ -68,6 +68,9 @@ export function claudeCapabilities(
     // id stay, and it says what is left (`compact_boundary`).
     compact: 'idle',
     pins,
+    // `sandbox.enabled` in the run's own settings: bubblewrap on Linux,
+    // Seatbelt on a Mac, around its shell commands (`sandboxOf`).
+    sandbox: true,
     why: {
       model:
         'takes a model only when it starts, so changing it starts the agent again, keeping the conversation',

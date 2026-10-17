@@ -1,6 +1,7 @@
-import { mkdir, rm } from 'node:fs/promises'
+import { rm } from 'node:fs/promises'
 import { createServer, type Server, type Socket } from 'node:net'
 import { dirname } from 'node:path'
+import { listenOn, socketFolder } from '@tade/harnesses-core'
 
 // The Tade side of a Codex agent's supervision socket.
 //
@@ -23,6 +24,8 @@ export interface CodexChannelOptions {
   onRequest: ChannelHandler
   /** Malformed requests: reported, never thrown. */
   onWarning?: (message: string) => void
+  /** Its agent runs as a user of its own, so its group may connect (`runModes`). */
+  shared?: boolean
 }
 
 export class CodexChannel {
@@ -39,7 +42,7 @@ export class CodexChannel {
     if (Buffer.byteLength(opts.path) > 100) {
       throw new Error(`supervision socket path is too long: ${opts.path}`)
     }
-    await mkdir(dirname(opts.path), { recursive: true, mode: 0o700 })
+    await socketFolder(dirname(opts.path), opts.shared === true)
     await rm(opts.path, { force: true })
     const server = createServer()
     const channel = new CodexChannel(opts.path, server)
@@ -76,13 +79,7 @@ export class CodexChannel {
       socket.on('close', drop)
       socket.on('error', drop)
     })
-    await new Promise<void>((resolve, reject) => {
-      server.once('error', reject)
-      server.listen(opts.path, () => {
-        server.removeListener('error', reject)
-        resolve()
-      })
-    })
+    await listenOn(server, opts.path, opts.shared === true)
     return channel
   }
 

@@ -90,6 +90,11 @@ const RULES: readonly Rule[] = [
   },
   { at: 'agents.keep_awake', carry: 'here', because: 'it holds this machine’s sleep off' },
   {
+    at: 'agents.user',
+    carry: 'here',
+    because: 'the user agents run as is a user on this machine, made by its own setup',
+  },
+  {
     at: 'agents.give_way',
     carry: 'here',
     because: 'it keeps agents below this machine’s own window',
@@ -398,12 +403,15 @@ export function carriedSays(carry: Carry, value: unknown): string {
  *
  * `KEYS_AND_AGENTS` again, one machine further — its clause, never a second
  * wording of it: on that machine too the file is read by every agent, and that
- * machine may be on the internet. The way out in the same breath, because that
+ * machine may be on the internet — unless its agents run as a user of their
+ * own there (`agent-user.ts`), which this machine cannot see from here, so it
+ * is said as the condition it is. The way out in the same breath, because that
  * is the rule for every sentence of this kind.
  */
 export const KEYS_TO_REMOTE =
   `Sends these to that machine’s ${IN_CONFIG}, written 0600 there and replacing any of the same ` +
-  `name — and there too ${SEEN_BY_AGENTS}: agents run as you, and nothing sandboxes them. That ` +
+  `name — and there too ${SEEN_BY_AGENTS}, unless that machine runs its agents as a user of their ` +
+  `own (agents.user there): otherwise they run as you, and nothing sandboxes them. That ` +
   'they were sent, and by whom, is written down on both machines; a key never is. To keep one off ' +
   'that machine, export its variable there instead, or leave it unsent.'
 

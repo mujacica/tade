@@ -8,7 +8,9 @@
 // filesystem and the network; deciding what they mean does not, so the deciding
 // is here and exhaustively testable.
 
+import { AGENT_USER, type AgentUserSeen, agentUserTrouble } from './agent-user.ts'
 import type { InstallCommand } from './programs.ts'
+import { IN_CONFIG } from './secrets.ts'
 import { type ServiceState, serviceTrouble } from './service.ts'
 
 // A judge is a Tade concept with a port and a registry behind it, and Jev is
@@ -24,6 +26,8 @@ export type StepId =
   | 'judge'
   | 'extensions'
   | 'keys'
+  /** Agents run as a user of their own, so none can read Tade's keys. See `agentsApart`. */
+  | 'agents'
   /** A server: Tade kept running by the user's own service manager. See `unattended`. */
   | 'unattended'
   /** The closing check, which is an act rather than a fact: see `worksStep`. */
@@ -191,6 +195,21 @@ export interface ReadinessFacts {
    * is never asked about lingering.
    */
   unattended?: Unattended
+  /**
+   * Whether this machine's agents run as a user of their own, and what of that
+   * is still to do: looked at on a Linux server, and wherever the config names
+   * a user. Absent anywhere else, and where nobody looked.
+   */
+  agents?: AgentsHere
+}
+
+/** Who Tade is, and each user its agents run as, as looked at. */
+export interface AgentsHere {
+  self: string
+  /** Empty where the config names none: agents run as `self`. */
+  seen: readonly AgentUserSeen[]
+  /** Why the look could not be made at all, where it could not: said, never read as nothing to do. */
+  problem?: string
 }
 
 /** What keeps Tade working on a server once everybody has logged out. */
@@ -252,6 +271,7 @@ export function readiness(facts: ReadinessFacts): Step[] {
     // After the extensions, because which keys are wanted is decided by which
     // of them are on, and that is the question just above.
     keys(facts),
+    ...(facts.agents ? [agentsApart(facts.agents)] : []),
     // Last, and only on a server: what the service runs is everything above.
     ...(facts.unattended ? [unattended(facts.unattended)] : []),
   ]
@@ -294,6 +314,42 @@ function unattended(box: Unattended): Step {
     title: 'Working with nobody logged in',
     done: missing.length === 0,
     detail: missing.join('; '),
+    required: false,
+  }
+}
+
+/**
+ * Agents running as a user of their own, with their harness's sandbox on, so
+ * none can read what Tade keeps. Never required — a laptop is the ordinary
+ * case, where `KEYS_AND_AGENTS` is the truth and is said — and offered on a
+ * server because that is where the trade is the wrong one (`agent-user.ts`).
+ */
+function agentsApart(here: AgentsHere): Step {
+  const title = 'Agents kept from Tade’s keys'
+  if (here.problem) {
+    return {
+      id: 'agents',
+      title,
+      done: false,
+      detail: `could not look: ${here.problem}`,
+      required: false,
+    }
+  }
+  if (here.seen.length === 0) {
+    return {
+      id: 'agents',
+      title,
+      done: false,
+      detail: `agents run as ${here.self}, so any of them can read every key in ${IN_CONFIG}: setup can make ${AGENT_USER} for them, each command shown first`,
+      required: false,
+    }
+  }
+  const trouble = here.seen.flatMap((seen) => agentUserTrouble(seen, here.self))
+  return {
+    id: 'agents',
+    title,
+    done: trouble.length === 0,
+    detail: trouble.join('; '),
     required: false,
   }
 }

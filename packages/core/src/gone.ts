@@ -70,7 +70,7 @@ export const CHECKS_ARE_READ =
 const GONE: readonly (readonly [pattern: string, said: string])[] = [
   [
     'workers.routes.*.sandbox',
-    'sandboxes are gone from Tade: agents run as you, and what needs containing is a harness’s or an agent’s to do',
+    'sandboxes are gone from Tade: what needs containing is the harness’s or the operating system’s to do — agents.user runs agents as a user of their own, with their harness’s sandbox on',
   ],
   ['mcp.servers.*.sandbox', `sandboxes are gone from Tade. ${SERVER_RUNS_AS_YOU}`],
   ['checks.from_ci', CHECKS_ARE_READ],
