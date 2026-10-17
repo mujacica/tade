@@ -40,6 +40,7 @@ export const loopTools: ExtensionTool[] = [
       'What the review watch has looked at, what it flagged, what came of it, and whether it was right: where every finding stands and why the open ones are open, which questions earn their place, whether a probability means what it says, and how the looks themselves have gone. Precision is counted out of verdicts and stated as a rate only once there are enough of them, so read the counts rather than the percentage on a young question. It asks the judge nothing and costs nothing. Use it for "what did the overnight review turn up", to decide which questions are worth keeping, and — as an agent — to read what was flagged about your own change, which is what you answer with jev_account.',
     parameters: object({ project, task: string('only findings about this task') }, []),
     for: ['orchestrator', 'agent'],
+    reads: true,
     run: async (input, ctx) => {
       const named = input.project ? String(input.project) : null
       if (named) ctx.project(named)

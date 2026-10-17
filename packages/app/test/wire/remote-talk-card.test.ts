@@ -1,6 +1,6 @@
 import { heldFor } from '@tade/remotes-core'
 import { describe, expect, it } from 'vitest'
-import type { Machine } from '../../src/machines.ts'
+import { type Machine, NO_DETAIL } from '../../src/machines.ts'
 import { initialState } from '../../src/model.ts'
 import { showTalk, talkTab } from '../../src/talk-tab.ts'
 import type { Wiring } from '../../src/wire/context.ts'
@@ -22,6 +22,7 @@ const vps: Machine = {
   projects: [],
   spend: null,
   talk: { lines: [], rev: 'b0', busy: false, whose: null, mine: true, more: 0 },
+  detail: NO_DETAIL,
 }
 
 /** A window standing on vps's tab, linked to a machine that answers the card with `status`. */

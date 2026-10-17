@@ -20,7 +20,8 @@ import {
 } from '@tade/workbench/remotes'
 import { type DeskThere, deskThere } from '../desk-there.ts'
 import type { Frame } from '../frame.ts'
-import { goElsewhere, type Machines, machineOf, type Place, skewOf, unheard } from '../machines.ts'
+import { machineThere } from '../machine-there.ts'
+import { goElsewhere, type Machines, type Place, skewOf, unheard } from '../machines.ts'
 import { notice } from '../model.ts'
 import { projectsMenuItems } from '../panels/menu/state.ts'
 import { type RemoteShown, remoteActions } from '../panels/settings/remotes.ts'
@@ -40,6 +41,7 @@ import type { DeskElsewhere } from './landing.ts'
 import { type Mirrors, mirrorsFor } from './mirrors.ts'
 import { type SharedNotes, sharedNotesFor } from './notes-shared.ts'
 import { RemoteAgents } from './remote-agent.ts'
+import { RemoteMachines } from './remote-machine.ts'
 import { RemoteTalks, type RemoteTools } from './remote-talk.ts'
 import type { WatchTwinsHere } from './watch-where.ts'
 import { MACHINE } from './web-panel.ts'
@@ -132,10 +134,11 @@ export class Remotes implements Subject {
   private stopped = false
   /** This machine's setup, kept in step on each remote (`carry.ts`). */
   private readonly carries: Carries
-  /** The machines as last folded, and the held values they were folded from. */
+  /** The machines as last folded, and the held values and answers they were folded from. */
   private folded: {
     names: readonly string[]
     helds: readonly (Held | null)[]
+    about: number
     machines: Machines
   } | null = null
   /** Every machine's desk rows as last folded, and the held values they were folded from. */
@@ -150,6 +153,8 @@ export class Remotes implements Subject {
   private notes: SharedNotes | null = null
   /** Each machine's branches, mirrored here (`mirrors.ts`), where the window has them. */
   private mirrors: Mirrors | null = null
+  /** What each machine says it is, asked as its owner (`remote-machine.ts`), where the window asks. */
+  private about: RemoteMachines | null = null
 
   constructor(deps: RemotesDeps) {
     this.deps = deps
@@ -223,6 +228,17 @@ export class Remotes implements Subject {
   withMirrors(make: (remotes: Remotes) => Mirrors): this {
     this.mirrors = make(this)
     return this
+  }
+
+  /** Hand it what asks each machine what it is, which reaches the links through it. */
+  withMachines(make: (remotes: Remotes) => RemoteMachines): this {
+    this.about = make(this)
+    return this
+  }
+
+  /** What asks each machine what it is, reads its documents and runs its tools that read; or null. */
+  asked(): RemoteMachines | null {
+    return this.about
   }
 
   /** Each machine's branches as mirrored here, or null where the window keeps no mirrors. */
@@ -313,9 +329,11 @@ export class Remotes implements Subject {
     const helds = names.map(
       (name) => this.links.get(this.holder.get(name) ?? '')?.held(name) ?? null,
     )
+    const about = this.about?.revision() ?? 0
     const was = this.folded
     if (
       was !== null &&
+      was.about === about &&
       was.names.length === names.length &&
       was.names.every((name, at) => name === names[at]) &&
       was.helds.every((held, at) => held === helds[at])
@@ -325,11 +343,12 @@ export class Remotes implements Subject {
       here: this.deps.here,
       remotes: names.map((name, at) => {
         const held = helds[at] ?? null
-        if (held !== null) return machineOf(held, this.skewFor(name, held))
+        const told = this.about?.held(name) ?? null
+        if (held !== null) return machineThere(held, this.skewFor(name, held), told)
         return unheard(name, this.unreachable.has(name) ? 'no link here can reach it' : null)
       }),
     }
-    this.folded = { names, helds, machines }
+    this.folded = { names, helds, about, machines }
     return machines
   }
 
@@ -382,6 +401,7 @@ export class Remotes implements Subject {
 
   private shown(): RemoteShown[] {
     const remotes = this.fromFile ?? this.deps.remotes()
+    const machines = this.machines().remotes
     return this.carries.shown(
       Object.entries(remotes).map(([name, one]) => {
         const held = this.reach(name)
@@ -394,6 +414,7 @@ export class Remotes implements Subject {
               : (this.links.get(this.holder.get(name) ?? '')?.held(name) ?? null),
           ),
           live: held?.live === true,
+          machine: machines.find((machine) => machine.name === name) ?? null,
         }
       }),
     )
@@ -427,6 +448,7 @@ export class Remotes implements Subject {
     this.carries.beat([...this.holder.keys()])
     void this.notes?.beat([...this.holder.keys()])
     void this.mirrors?.beat([...this.holder.keys()])
+    this.about?.beat([...this.holder.keys()])
     this.agents?.beat()
     void this.reread()
   }
@@ -461,6 +483,7 @@ export class Remotes implements Subject {
       this.talks?.forget(name)
       this.notes?.forget(name)
       this.mirrors?.forget(name)
+      this.about?.forget(name)
       void this.links.get(kind)?.close(name)
     }
     for (const [name, config] of Object.entries(remotes)) {
@@ -512,6 +535,7 @@ export class Remotes implements Subject {
         if (word === 'up') this.carries.up(name)
         if (word === 'up') this.notes?.up(name)
         if (word === 'up') this.mirrors?.up(name)
+        if (word === 'up') this.about?.up(name)
       }
     }
   }
@@ -615,6 +639,15 @@ export function remotesFor(
     .withTalks((remotes) => new RemoteTalks(wire, reachingOf(remotes)))
     .withNotes((remotes) => sharedNotesFor(wire, (name) => remotes.reachFor(name), say))
     .withMirrors((remotes) => mirrorsFor(wire, (name) => remotes.reachFor(name), say))
+    .withMachines(
+      (remotes) =>
+        new RemoteMachines({
+          home: wire.opts.home,
+          reach: (name) => remotes.reachFor(name),
+          now: () => wire.now(),
+          draw: () => wire.draw(),
+        }),
+    )
 }
 
 /** What a subject of the remotes reaches them through: the link, the fold, the clocks. */

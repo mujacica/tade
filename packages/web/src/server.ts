@@ -23,7 +23,7 @@ import {
 import { headersFor } from './headers.ts'
 import { keepingOf } from './installable.ts'
 import { listenAll } from './listeners.ts'
-import { carryOwned } from './owned.ts'
+import { carryOwned, OWNED_DOOR } from './owned.ts'
 import { carryPairing } from './paired.ts'
 import { Passkeys } from './passkeyed.ts'
 import { passkeyStanding } from './passkeys.ts'
@@ -354,17 +354,11 @@ export function webServer(opts: ServerOptions): WebServer {
         const said = await passkeys.carry(found.route.name, at, device, asking.origin ?? '')
         return 'refusal' in said ? answer(res, said.refusal) : json(res, said.body)
       }
-      case 'presence':
-      case 'looking':
-      case 'attach':
-      case 'since':
-      case 'share notes':
-      case 'repositories':
-      case 'carry': {
-        const said = await carryOwned(found.route.name, req, device, now(), opts, res)
-        return 'refusal' in said ? answer(res, said.refusal) : json(res, said.body)
-      }
       default:
+        if (OWNED_DOOR.has(found.route.name)) {
+          const said = await carryOwned(found.route.name, req, device, now(), opts, res)
+          return 'refusal' in said ? answer(res, said.refusal) : json(res, said.body)
+        }
         if (found.route.verb !== undefined) return act(res, found.route, device, at)
         if (found.route.says !== undefined) return say(res, found.route.says, device, at)
         if (found.route.saves !== undefined) return save(res, found.route.saves, device, at)

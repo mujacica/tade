@@ -121,9 +121,10 @@ export function awayView(facts: PanelFacts): AwayView {
 /**
  * The public listener as the panel says it: up, with what its health look
  * found, or set and not up, with why — never silent about a name the person
- * set and nothing answering on it.
+ * set and nothing answering on it. What another machine of the person's is
+ * told of it too (`web-machine.ts`).
  */
-function publicOf(facts: PanelFacts): AwayView['public'] {
+export function publicOf(facts: PanelFacts): AwayView['public'] {
   const name = facts.surface.publicName
   if (name === null || !facts.listening) return null
   if (facts.publicAt === null) {

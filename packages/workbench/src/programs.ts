@@ -447,6 +447,17 @@ function versionAt(root: string): string {
   }
 }
 
+/**
+ * The version of the Tade that is running, as its own package says — read once,
+ * because it cannot change under a running process: what another machine of
+ * the person's is told this one runs (`@tade/web`'s `machine.ts`).
+ */
+export function runningVersion(): string {
+  if (running === undefined) running = versionAt(tadeRoot())
+  return running
+}
+let running: string | undefined
+
 /** git, in Tade's own checkout. Empty when it would not answer. */
 async function inRepo(root: string, args: readonly string[]): Promise<string> {
   const ran = await runProgram('git', ['-C', root, ...args], { timeoutMs: 15_000 })

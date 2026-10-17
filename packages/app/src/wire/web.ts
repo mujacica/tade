@@ -52,7 +52,7 @@ import { knownHere, Lanes } from './web-lanes.ts'
 import type { Lifecycle } from './web-lifecycle.ts'
 import { carryLink, isLink } from './web-link.ts'
 import { ownedFor } from './web-owned.ts'
-import { awayView, codeShownOn, keepCode, mintPairing } from './web-panel.ts'
+import { awayView, codeShownOn, keepCode, mintPairing, type PanelFacts } from './web-panel.ts'
 import { Presences } from './web-presence.ts'
 import { PublicHealth } from './web-public.ts'
 import { pushFor, type WebPush } from './web-push.ts'
@@ -62,22 +62,19 @@ import { heard, toldTo } from './web-told.ts'
 // The window's end of the away view: the server's lifetime, the pairing panel,
 // and the beat that moves the projection on.
 //
-// **The server lives in this process, behind the lock holder, and dies with
-// it.** Four reasons, and the one that decides it: half the state only exists
-// here. Pending approvals live in the supervisor, lane liveness is the
-// driver's answer, and `Live` already computes the rest on a beat — a second
-// process would either take `tade.lock` (refused) or write behind it
-// (corrupt), and would double every `git` and `ps` call to give two answers to
-// one question. The cost is stated rather than papered over: **the away view
-// answers only while this window is open**, and a phone that taps the bookmark
-// with Tade closed gets the browser's own connection error
+// **The server lives in this process, behind the lock holder, and dies with it.** Four reasons, and
+// the one that decides it: half the state only exists here. Pending approvals live in the
+// supervisor, lane liveness is the driver's answer, and `Live` already computes the rest on a beat
+// — a second process would either take `tade.lock` (refused) or write behind it (corrupt), and
+// would double every `git` and `ps` call to give two answers to one question. The cost is stated
+// rather than papered over: **the away view answers only while this window is open**, and a phone
+// that taps the bookmark with Tade closed gets the browser's own connection error
 // (`AWAY_IS_WHILE_OPEN`).
 //
-// **Nothing here is reachable by the orchestrator.** Every key it reads is in
-// `reach.ts`'s `never` subtree, so a page an agent wrote cannot turn the
-// listener on, move it to the network, change its port or add a trusted host.
-// Pairing, granting and revoking are not settings at all: they are a keypress
-// at this machine, which is the one authorisation nothing remote can obtain.
+// **Nothing here is reachable by the orchestrator.** Every key it reads is in `reach.ts`'s `never`
+// subtree, so a page an agent wrote cannot turn the listener on, move it to the network, change its
+// port or add a trusted host. Pairing, granting and revoking are not settings at all: they are a
+// keypress at this machine, which is the one authorisation nothing remote can obtain.
 //
 // **Idle costs nothing.** With `enabled: false` there is no server and `beat` returns on its first
 // line. With it on and nobody connected, `beat` builds **no projection**: `streams.listening()` is
@@ -288,7 +285,7 @@ export class Away implements Subject {
       looking: (device, at) => this.push.looking(device, at),
       since: this.presences.since(),
       carrying: carryingFor(this.wire, this.deps.settings),
-      ...ownedFor(this.wire),
+      ...ownedFor(this.wire, () => this.panelFacts()),
       tickets: this.tickets,
       streams: this.streams,
       tell: heard(
@@ -589,9 +586,14 @@ export class Away implements Subject {
 
   /** What the panel draws, out of what this subject holds at this moment. */
   private view(): AwayView {
+    return awayView(this.panelFacts())
+  }
+
+  /** What this subject holds at this moment: what the panel and another machine read (`web-machine.ts`). */
+  private panelFacts(): PanelFacts {
     const now = this.wire.now()
     const ticket = this.tickets.outstanding(now)[0] ?? null
-    return awayView({
+    return {
       surface: surfaceOf(this.config().surfaces.web),
       bound: this.server?.bound ?? [],
       listening: this.server !== null && this.server.bound.length > 0,
@@ -605,7 +607,7 @@ export class Away implements Subject {
       streams: this.streams.count,
       problem: this.problem,
       now,
-    })
+    }
   }
 
   /**
@@ -719,12 +721,11 @@ export class Away implements Subject {
     const parts = this.collections()
     return {
       ...parts,
-      // **Raised here and nowhere else**, because whether this device may send
-      // a message is a fact about *this* device and the collections are built
-      // once for everybody. `mine` arrives `false` from `talkIn`, so a wiring
-      // change that forgot this line leaves every phone reading the
-      // conversation and unable to send one — a capability that stopped
-      // working rather than one that was handed out.
+      // **Raised here and nowhere else**, because whether this device may send a message is a fact
+      // about *this* device and the collections are built once for everybody. `mine` arrives
+      // `false` from `talkIn`, so a wiring change that forgot this line leaves every phone reading
+      // the conversation and unable to send one — a capability that stopped working rather than one
+      // that was handed out.
       talk: parts.talk === null ? null : { ...parts.talk, mine: this.mayAsk(reach.device) },
       reach,
       lifetime: {

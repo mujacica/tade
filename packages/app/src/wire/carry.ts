@@ -227,9 +227,7 @@ export class Carries {
   }
 
   /** Each remote as the page draws it. */
-  shown(
-    remotes: readonly { name: string; address: string; link: string; live: boolean }[],
-  ): RemoteShown[] {
+  shown(remotes: readonly Omit<RemoteShown, 'list' | 'at' | 'busy'>[]): RemoteShown[] {
     return remotes.map((one) => {
       const kept = this.kept.get(one.name)
       return {

@@ -1,8 +1,10 @@
 import { ConfigSchema, settingsOf } from '@tade/core'
 import { blocksFor, codeFor } from '@tade/web'
+import { NO_DETAIL, unheard } from '../../../src/machines.ts'
+import type { RemoteShown } from '../../../src/panels/settings/remotes.ts'
 import { settingsPanel } from '../../../src/panels/settings/state.ts'
 import { awayFixture } from './away.ts'
-import { base, frame, type Scenario, utcDate } from './fixtures.ts'
+import { base, frame, NOW, type Scenario, utcDate } from './fixtures.ts'
 
 // Settings: the categories down the side, one of them open beside them, and
 // what the page does as the window narrows.
@@ -230,6 +232,115 @@ function settingsFacts(intake: Record<string, unknown> = {}, web: Record<string,
   }
 }
 
+/**
+ * The VPS on Settings › Remotes: linked, carried an hour ago, and what it said
+ * it is a minute ago — its Tade a version behind, its certificate late, a
+ * problem and a warning of its own, and its watches with their last looks.
+ */
+function vpsShown(): RemoteShown {
+  return {
+    name: 'vps',
+    address: 'me@vps.example.com',
+    link: '● linked',
+    live: true,
+    at: NOW - 3_600_000,
+    busy: false,
+    list: {
+      remote: 'vps',
+      machine: 'box-1',
+      unreached: null,
+      carried: ['agents.commit', 'approvals.mode', 'persona reviewer'],
+      written: 0,
+      theirs: [],
+      refused: [],
+      waiting: [],
+      sent: [],
+      nextStart: [],
+      signIns: [
+        {
+          harness: 'claude-code',
+          account: null,
+          signedIn: true,
+          told: true,
+          lasts: '27 days left',
+        },
+      ],
+      talk: 'on',
+      here: [{ what: 'projects', why: 'a project is a folder on this machine' }],
+      holds: [],
+    },
+    machine: {
+      ...unheard('vps', null),
+      link: 'live',
+      heard: true,
+      asOf: NOW - 2_000,
+      detail: {
+        ...NO_DETAIL,
+        warnings: ['checkout: git could not read the base: it is being rewritten'],
+        about: {
+          at: NOW - 60_000,
+          roundTrip: 41,
+          version: '0.2.3',
+          newer: 'Tade 0.2.4 is out',
+          public: {
+            name: 'tade.example.com',
+            up: true,
+            health: [
+              {
+                said: 'certificate: 6 days left of 45 — renewing has been failing for weeks',
+                loud: true,
+              },
+            ],
+          },
+          problems: [{ from: 'extension', at: null, said: 'Sentry needs setting up: no token' }],
+          schedules: [
+            {
+              id: 'new-sentry-errors',
+              name: 'New Sentry errors',
+              project: 'checkout',
+              kind: 'watch',
+              when: 'every hour',
+              paused: false,
+              next: NOW + 1_800_000,
+              watch: {
+                id: 'sentry.new-errors',
+                looks: [
+                  { at: NOW - 1_800_000, found: 3, fresh: 2, problem: null, said: null, on: null },
+                ],
+                found: [],
+              },
+            },
+            {
+              id: 'reviews',
+              name: 'Reviews',
+              project: 'checkout',
+              kind: 'watch',
+              when: 'every 10m',
+              paused: false,
+              next: NOW + 300_000,
+              watch: {
+                id: 'review.reviews',
+                looks: [
+                  {
+                    at: NOW - 300_000,
+                    found: 0,
+                    fresh: 0,
+                    problem: 'GitHub said 401: the token was revoked',
+                    said: null,
+                    on: null,
+                  },
+                ],
+                found: [],
+              },
+            },
+          ],
+          documents: [],
+        },
+      },
+    },
+  }
+}
+
 /** The away view as the Away page of Settings is handed it: on, on this machine, one phone paired. */
 function awayOn() {
   const url = 'http://localhost:7654/pair#t=Qp3vNn1bXg7kQ2mPvR4tLz8'
@@ -259,6 +370,20 @@ export const SETTINGS_SCREENS: Scenario[] = [
       'they do, and what it may spend a day.',
     state: { ...base(), panel: { ...settingsPanel('projects', '', 'search'), row: 4 } },
     frame: frame({ panel: settingsFacts() }),
+  },
+  {
+    name: 'settings-remotes',
+    about:
+      'Another machine of yours on Settings › Remotes: how it stands as a machine — heard from ' +
+      'and what asking it costs there and back, the Tade it runs, its public name and its ' +
+      'certificate, its own problems and warnings, its watches with their last looks — above ' +
+      'what was carried there and each harness’s sign-in.',
+    state: { ...base(), panel: { ...settingsPanel('remotes'), row: 0 } },
+    frame: frame({
+      height: 40,
+      date: utcDate,
+      panel: { ...settingsFacts(), remotes: [vpsShown()] },
+    }),
   },
   {
     name: 'settings-intake',

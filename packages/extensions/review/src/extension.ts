@@ -750,6 +750,7 @@ export const reviewExtension: TadeExtension = {
         'What the review watches found and what became of it. Straight from the journal: no network, and it works with the window closed.',
       parameters: object({ limit: { type: 'number', description: 'how many, newest last (20)' } }),
       for: ['orchestrator', 'agent'],
+      reads: true,
       async run(input, ctx) {
         const limit = Number(input.limit) > 0 ? Math.min(200, Number(input.limit)) : 20
         const record = (await found(ctx)).slice(-limit)

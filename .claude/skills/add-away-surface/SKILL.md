@@ -78,6 +78,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | what a request must satisfy | `src/guard.ts` — pure, and `test/guard.test.ts` runs the cross-product |
 | a route only this machine may reach (`presence`, and the pages that connect a source) | `Route.here` — `allowed` answers it the `404` of a path nobody built anywhere but `thisMachine` |
 | another machine's Tade linked to this one as an owner (`tade remote`) | `@tade/remotes-core` (the `RemoteLink` port, the stream follower, the far end its suite links to) — the client half of everything in this table, over SSH; `add-workspace-driver` has its shape. What it posts here is `presence` (`src/presence.ts`): an owner's age of a keypress at another screen, held by the window (`Presences` in `wire/web-presence.ts`) and read as one by push, and written down once a stretch as `person_present` — the cursor of `since` below. A phone's `looking` (`src/looking.ts`) is its sibling and quiets only that phone (below) |
+| **what this machine is**, for another machine of the person's: its version, its public name's health, its problems, its schedules' looks, its documents — and one of those documents as text, and one of its extension tools that only reads | `OWNED` in `src/routes.ts` (`/api/machine`, `/api/document`, `/api/tool`, all `here`), `src/machine.ts`, `src/document.ts`, `src/tool-read.ts` (each the body, the bounds and the answer's schema), the window's half in `packages/app/src/wire/web-machine.ts` (out of what the window holds; a document only where the journal says the task wrote one by that name; a tool only where it declares `reads`); the asking side is `packages/app/src/wire/remote-machine.ts` |
 | **where each project's work is**, for another machine's mirror of it | `OWNED` in `src/routes.ts` (`POST /api/repositories`, `here`), `src/repositories.ts` (the answer, read for its shape there), the window's half in `packages/app/src/wire/web-repositories.ts`; the asking side is `packages/app/src/wire/mirrors.ts` |
 | the person's **notes shared** with another machine of theirs | `OWNED` in `src/routes.ts` (`POST /api/notes/share`, `here`), `src/shared-notes.ts` (the body), the window's half in `packages/app/src/wire/notes-shared.ts` (`notesFor` answers, `SharedNotes` asks from the window that holds the link); the exchange is `@tade/workbench`'s `notes-shared.ts`, and `add-workbench-operation` has the rules |
 | another machine's **setup carried here** (`tade remote add`, Settings › Remotes) | `OWNED` in `src/routes.ts` (`POST /api/carry`, `here`; beside it `POST /api/attach`, an agent's attach line, `src/attached.ts`), `src/carried.ts` (the body, `applyCarry`, `carryingAt`, the folds of `config_changed` and `carried_in`), `src/owned.ts` (the one door in `server.ts` for every owner route), the window's half in `packages/app/src/wire/web-carry.ts` (through `Settings.writeKey`, and `signInsOf`); every decision is `@tade/core`'s `carry.ts`, and `add-config-key` has the table |
@@ -192,6 +193,16 @@ a device still has none of the scopes that change anything until somebody at thi
   why it is no wider than that key. Within what the device reads; a value the other machine would
   refuse the whole answer over is sent as null rather than sent; the body is `{}` and nothing else.
   It writes nothing.
+- **What this machine is, one of its documents and one of its tools that only reads are the owner's
+  sixth, seventh and eighth** (`OWNED`'s `machine`, `document`, `tool`): what `ssh vps tade status`,
+  `cat` on a document in its home and `tade extensions run` there already give the same key. Each
+  is within what the device reads (a project it was not given is a `404`), bounded and cut rather
+  than refused (`machineFor`), and read by the asking machine for its shape. A document is asked by
+  its task and its file's name, never a path, and read only where the journal says that task wrote
+  it; the copy goes under `remotes/<machine>/documents/` in the asking home (`remoteDocumentPath`,
+  which refuses a name that walks). A tool runs only where it declares `reads` (`ExtensionTool.reads`,
+  never guessed from a name), with this machine's own settings and keys, after a `tool_call` line
+  naming the device. None of them writes anything else.
 - **From the public listener, anything above `read` needs a passkey proved within
   `passkey_hours`** (`proven`, after the scope and the origin, so it never says more than they
   would). The **listener and never the host**, like `thisMachine`: this machine, an SSH forward and a

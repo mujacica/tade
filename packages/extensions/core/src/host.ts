@@ -123,6 +123,8 @@ export interface ToolSpec {
   label: string
   description: string
   parameters: Record<string, unknown>
+  /** It only reads (`ExtensionTool.reads`): another machine of the person's may ask for it. */
+  reads?: true
 }
 
 /** A tool being run, as the window shows it. */
@@ -488,11 +490,10 @@ export class ExtensionHost {
       state: 'ready' as ExtensionState,
       problem: null,
     }
-    // A brokered one was only ever handed over because a person turned its
-    // server on: one switch, and it is `mcp.servers.<name>.enabled`, which is
-    // `useServers`'s to read. Asking a second question under
-    // `extensions.mcp-<server>` would be a place to put something that turns
-    // nothing on.
+    // A brokered one was only ever handed over because a person turned its server on: one switch,
+    // and it is `mcp.servers.<name>.enabled`, which is `useServers`'s to read. Asking a second
+    // question under `extensions.mcp-<server>` would be a place to put something that turns nothing
+    // on.
     const off =
       entry.loaded.source === 'mcp'
         ? this.serversOff.get(extension.name)
@@ -503,10 +504,9 @@ export class ExtensionHost {
       entry.loaded = { ...base, state: 'off', problem: off }
       return
     }
-    // With a deadline, like everything else Tade waits on. `ready()` is
-    // declared not to dial, but an extension is somebody else's code and this
-    // is awaited from the Settings page: one that never answers would leave a
-    // key that was saved looking like a key that was not.
+    // With a deadline, like everything else Tade waits on. `ready()` is declared not to dial, but
+    // an extension is somebody else's code and this is awaited from the Settings page: one that
+    // never answers would leave a key that was saved looking like a key that was not.
     const needs = await inTime(
       Promise.resolve().then(() => extension.ready?.(entry.ctx) ?? null),
       this.opts.readyMs ?? READY_MS_LIMIT,
@@ -904,11 +904,10 @@ export class ExtensionHost {
   watchProblem(id: string, input: Readonly<Record<string, unknown>>): string | null {
     const found = this.watchCalled(id)
     if ('problem' in found) return found.problem
-    // An intake source that cannot be asked whether a request still stands
-    // cannot be turned on at all. Refused here rather than held for ever at the
-    // start door: a watch that would make work nobody could ever start is a
-    // broken watch, and saying so when somebody turns it on is the only moment
-    // anybody can do anything about it.
+    // An intake source that cannot be asked whether a request still stands cannot be turned on at
+    // all. Refused here rather than held for ever at the start door: a watch that would make work
+    // nobody could ever start is a broken watch, and saying so when somebody turns it on is the
+    // only moment anybody can do anything about it.
     const capability = intakeProblem(found.watch)
     if (capability) return capability
     return found.watch.input ? inputProblem(found.watch.input, { ...input }) : null
@@ -1018,6 +1017,7 @@ export class ExtensionHost {
           label: `${entry.extension.title}: ${tool.name.slice(entry.extension.name.length + 1).replace(/_/g, ' ')}`,
           description: tool.description,
           parameters: tool.parameters,
+          ...(tool.reads ? { reads: true as const } : {}),
         })),
     )
   }

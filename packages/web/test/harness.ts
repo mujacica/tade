@@ -17,6 +17,7 @@ import {
   type WebServer,
   webServer,
 } from '../src/server.ts'
+import type { ServerOptions } from '../src/serving.ts'
 import type { WebNotes } from '../src/shared-notes.ts'
 import type { WebSince } from '../src/since.ts'
 import type { Surface } from '../src/surface.ts'
@@ -214,6 +215,8 @@ export async function start(
     notes?: WebNotes
     /** The window's projects and branches, for a test of an owner asking where they are. */
     repositories?: WebRepositories
+    /** What the window says this machine is, a document, a tool that reads: an owner's three reads. */
+    owned?: Pick<ServerOptions, 'machine' | 'document' | 'tool'>
   } = {},
 ): Promise<Running> {
   settingRows = opts.settings ?? []
@@ -260,6 +263,7 @@ export async function start(
     ...(opts.since === undefined ? {} : { since: opts.since }),
     ...(opts.notes === undefined ? {} : { notes: opts.notes }),
     ...(opts.repositories === undefined ? {} : { repositories: opts.repositories }),
+    ...opts.owned,
   })
   epoch = one.server.epoch
   one.epoch = epoch

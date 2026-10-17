@@ -123,6 +123,33 @@ export function mirrorDir(home: string, project: string): string {
 }
 
 /**
+ * Where a copy of a document another machine's work produced is kept here, once
+ * somebody asked to read it (`wire/remote-machine.ts`): under that machine's
+ * name, the project and the task's own folder there, so two machines' documents
+ * never share a path. A copy — the document stays the truth on the machine that
+ * made it — and always safe to delete: reading it again fetches it again.
+ *
+ * **Every part came from another machine but its name here**, so a task that is
+ * not a task id or a name that is not a file's name — `..`, a separator — is
+ * refused rather than joined: a path is never somewhere else's word.
+ */
+export function remoteDocumentPath(
+  home: string,
+  machine: string,
+  task: string,
+  name: string,
+): string {
+  const [project = '', rest = ''] = task.split(/\/(.*)/s)
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(project) || !/^[a-z0-9][a-z0-9._-]*$/.test(rest)) {
+    throw new Error(`${machine} named a document of something that is not a task`)
+  }
+  if (!/^(?!\.\.?$)[^/\\\0]{1,200}$/.test(name)) {
+    throw new Error(`${machine} named a document by something that is not a file's name`)
+  }
+  return join(home, 'remotes', machine, 'documents', project, taskFolder(task), name)
+}
+
+/**
  * The spool the local intake door writes into, and the `intake.cli` watch
  * reads: one file per request, named by the id the door gave it.
  *

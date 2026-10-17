@@ -6,6 +6,7 @@ import {
   appendDevice,
   type CarryLine,
   carryingAt,
+  type MachineAnswer,
   mintOwner,
   type ProjectIn,
   type Projector,
@@ -19,6 +20,7 @@ import {
   Streams,
   type Surface,
   Tickets,
+  type ToolReadAnswer,
   type WebServer,
   webServer,
 } from '@tade/web'
@@ -109,6 +111,18 @@ export interface FarEnd {
    * not in it watches nothing there.
    */
   readonly watching: Map<string, readonly string[]>
+  /**
+   * What its window answers an owner asking what that machine is
+   * (`/api/machine`): a test sets it; null, a machine with nothing to say —
+   * no public name, no problem, no schedule and no document.
+   */
+  machine: MachineAnswer | null
+  /** How many times an owner has asked what it is. */
+  readonly machineAsked: number
+  /** The documents its window reads an owner, by `<task>/<name>` (`/api/document`). A test sets them. */
+  readonly documents: Map<string, { at: string; text: string }>
+  /** Its extension tools that only read, by name, as its window runs them for an owner (`/api/tool`). */
+  readonly tools: Map<string, (input: Record<string, unknown>) => ToolReadAnswer>
   /** Its window closed and opened again: the same home and port, another epoch. */
   restart(): Promise<void>
   /** Nothing answers on its port any more. Safe twice. */
@@ -155,6 +169,10 @@ class Far implements FarEnd {
   readonly attachable = new Map<string, string>()
   repositories: RepositoryHere[] = []
   readonly watching = new Map<string, readonly string[]>()
+  machine: MachineAnswer | null = null
+  machineAsked = 0
+  readonly documents = new Map<string, { at: string; text: string }>()
+  readonly tools = new Map<string, (input: Record<string, unknown>) => ToolReadAnswer>()
   readonly acted: FarAct[] = []
   readonly talk = new FarTalk()
   private agents: readonly FarAgent[] = []
@@ -238,6 +256,15 @@ class Far implements FarEnd {
           : { command: line }
       },
       repositories: async () => this.repositories,
+      machine: async () => {
+        this.machineAsked++
+        return this.machine ?? quietMachine()
+      },
+      document: async ({ task, name }) => {
+        const one = this.documents.get(`${task}/${name}`)
+        return one === undefined ? null : { ...one, bytes: Buffer.byteLength(one.text) }
+      },
+      tool: async ({ tool, input }) => this.tools.get(tool)?.(input) ?? null,
     })
     this.server = server
     const bound = await server.listen()
@@ -362,4 +389,18 @@ class Far implements FarEnd {
 
 function projectIn(name: string, title: string, watching: readonly string[]): ProjectIn {
   return { name, title, open: true, changes: 0, can: [], cannot: [], watching }
+}
+
+/** A machine with nothing to say about itself: what the far end answers until a test says more. */
+function quietMachine(): MachineAnswer {
+  const at = new Date().toISOString()
+  return {
+    at,
+    version: '0.0.0',
+    newer: null,
+    public: null,
+    problems: [],
+    schedules: [],
+    documents: [],
+  }
 }

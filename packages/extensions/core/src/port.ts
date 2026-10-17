@@ -91,6 +91,13 @@ export interface ExtensionTool {
   parameters: JsonSchema
   /** Who may call it. */
   for: readonly Audience[]
+  /**
+   * It only reads — it changes nothing here or anywhere it reaches — so
+   * another machine of the person's that links to this one as an owner may
+   * ask for it, and is answered with this machine's own settings and keys
+   * (`@tade/web`'s `tool-read.ts`). Declared, never guessed from a name.
+   */
+  reads?: true
   run(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolAnswer>
 }
 

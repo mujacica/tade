@@ -259,6 +259,7 @@ export const sentryExtension: TadeExtension = {
         limit: number('how many, up to 100; 25 unless said'),
       }),
       for: ['orchestrator', 'agent'],
+      reads: true,
       run: async (input, ctx) => {
         const sentry = api(ctx)
         const { slugs } = slugsFor(ctx, input.project)
@@ -284,6 +285,7 @@ export const sentryExtension: TadeExtension = {
         'Everything Sentry knows about one issue: what it is, how often and for whom, the release and environment, the exception with its stack trace and the most relevant frame of your own code, what happened just before (breadcrumbs), the request, tags, and the trace id to follow with sentry_trace.',
       parameters: object({ issue }, ['issue']),
       for: ['orchestrator', 'agent'],
+      reads: true,
       run: async (input, ctx) => {
         const details = await detailsOf(api(ctx), String(input.issue))
         return { text: details.text, links: details.links, data: details.issue }
@@ -304,6 +306,7 @@ export const sentryExtension: TadeExtension = {
         ['dataset'],
       ),
       for: ['orchestrator', 'agent'],
+      reads: true,
       run: async (input, ctx) => {
         const sentry = api(ctx)
         const kind = DATASETS[String(input.dataset)] ?? DATASETS.errors
@@ -327,6 +330,7 @@ export const sentryExtension: TadeExtension = {
         'One trace as a tree of spans with how long each took and where errors happened: the request an issue happened in, end to end, across services. Give it the trace id from sentry_issue or from a log line.',
       parameters: object({ trace: string('the trace id: 32 hex characters') }, ['trace']),
       for: ['orchestrator', 'agent'],
+      reads: true,
       run: async (input, ctx) => {
         const sentry = api(ctx)
         const id = String(input.trace).trim()
@@ -355,6 +359,7 @@ export const sentryExtension: TadeExtension = {
         ['y_axis'],
       ),
       for: ['orchestrator', 'agent'],
+      reads: true,
       run: async (input, ctx) => {
         const sentry = api(ctx)
         const kind = DATASETS[String(input.dataset ?? 'spans')] ?? DATASETS.spans

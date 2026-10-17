@@ -2,6 +2,7 @@ import { sliceByColumn, visibleWidth } from '@earendil-works/pi-tui'
 import { KEYS_TO_REMOTE, TALK_TO_REMOTE } from '@tade/core'
 import type { Checklist } from '@tade/workbench/carry'
 import { describe, expect, it } from 'vitest'
+import { type Machine, NO_DETAIL, unheard } from '../src/machines.ts'
 import { sideWidth } from '../src/panels/cells.ts'
 import { type RemoteShown, remoteActions, remoteChoice } from '../src/panels/settings/remotes.ts'
 import { settingsKey } from '../src/panels/settings/state.ts'
@@ -44,7 +45,58 @@ const VPS: RemoteShown = {
   list: LIST,
   at: Date.UTC(2026, 9, 17, 14, 2),
   busy: false,
+  machine: null,
 }
+
+const NOW = Date.UTC(2026, 9, 17, 14, 10)
+
+/** The VPS as this window folds it: heard from a few seconds ago, with what it said it is. */
+const vpsMachine = (over: Partial<Machine> = {}): Machine => ({
+  ...unheard('vps', null),
+  link: 'live',
+  heard: true,
+  asOf: NOW - 4_000,
+  detail: {
+    ...NO_DETAIL,
+    warnings: ['tade: git could not read the checkout: locked'],
+    about: {
+      at: NOW - 30_000,
+      roundTrip: 38,
+      version: '0.2.3',
+      newer: 'Tade 0.2.4 is out',
+      public: {
+        name: 'tade.example.com',
+        up: true,
+        health: [{ said: 'certificate: 9 days left of 45, renewing is late', loud: true }],
+      },
+      problems: [{ from: 'extension', at: null, said: 'Sentry needs setting up: no token' }],
+      schedules: [
+        {
+          id: 'new-sentry-errors',
+          name: 'New Sentry errors',
+          project: 'tade',
+          kind: 'watch',
+          when: 'every hour',
+          paused: false,
+          next: null,
+          watch: {
+            id: 'sentry.new-errors',
+            looks: [{ at: NOW - 600_000, found: 3, fresh: 2, problem: null, said: null, on: null }],
+            found: [],
+          },
+        },
+      ],
+      documents: [],
+    },
+  },
+  ...over,
+})
+
+/** The page at `NOW`, its runs of spaces made one: what a row says, not where its columns are. */
+const at = (remotes: RemoteShown[]) =>
+  plainRows(drawnAt('remotes', { remotes, now: NOW }, panelFor('remotes', { focus: 'form' })))
+    .join('\n')
+    .replace(/ +/g, ' ')
 
 const page = (remotes: RemoteShown[], over = {}) =>
   plainRows(drawnAt('remotes', { remotes }, panelFor('remotes', { focus: 'form', ...over }))).join(
@@ -157,6 +209,36 @@ describe('Settings › Remotes', () => {
     expect(down.row).toBe(1)
     const pressed = settingsKey({ ...down, row: 3 }, 'enter', '\r', inputs)
     expect(pressed).toMatchObject({ submit: true, choice: 'remote:again:vps' })
+  })
+
+  it('says how each machine stands: heard from, the round trip, its Tade, its public name, its problems and its watches', () => {
+    const drawn = at([{ ...VPS, machine: vpsMachine() }])
+    expect(drawn).toContain('Heard 4s ago · 38 ms there and back')
+    expect(drawn).toContain('Tade 0.2.3 · Tade 0.2.4 is out')
+    expect(drawn).toContain('Public name tade.example.com')
+    expect(drawn).toContain('certificate: 9 days left of 45, renewing is late')
+    expect(drawn).toContain('Problems 2')
+    expect(drawn).toContain('· Sentry needs setting up: no token')
+    expect(drawn).toContain('· tade: git could not read the checkout: locked')
+    expect(drawn).toContain('◎ New Sentry errors in tade · every hour · 2 new')
+  })
+
+  it('says a machine that stopped answering as of its last answer, never as one with nothing wrong', () => {
+    const down = vpsMachine({ link: 'down', asOf: NOW - 3_600_000 })
+    const drawn = at([{ ...VPS, live: false, machine: down }])
+    expect(drawn).toContain('Heard as of 2026-10-17 13:10, 1h 0m ago · 38 ms there and back')
+    expect(drawn).toMatch(/Tade 0\.2\.3 · Tade 0\.2\.4 is out · as of /)
+    expect(drawn).toContain('Problems 2')
+    // An older Tade there has no such door: said, and nothing invented in its place.
+    const older = vpsMachine({
+      detail: {
+        ...NO_DETAIL,
+        aboutSaid: 'vps runs a Tade that does not say what it is yet: update it there',
+      },
+    })
+    const said = at([{ ...VPS, machine: older }])
+    expect(said).toContain('vps runs a Tade that does not say what it is yet')
+    expect(said).not.toContain('Problems')
   })
 
   it('says why nothing was carried, rather than drawing an empty list', () => {

@@ -5,6 +5,7 @@ import {
   type Machine,
   type Machines,
   type Missed,
+  NO_DETAIL,
   type RemoteAgent,
   type RemoteTalk,
 } from '../../../src/machines.ts'
@@ -118,6 +119,7 @@ const vps = (over: Partial<Machine> = {}): Machine => ({
     partial: false,
   },
   talk: null,
+  detail: NO_DETAIL,
   ...over,
 })
 
@@ -132,6 +134,7 @@ const lab: Machine = {
   projects: [{ name: 'firmware', title: null, more: 0, watching: null, agents: [] }],
   spend: null,
   talk: null,
+  detail: NO_DETAIL,
 }
 
 const machines = (...remotes: Machine[]): Machines => ({ here: 'this Mac', remotes })

@@ -403,6 +403,9 @@ const PURE = [
   'packages/app/src/pasting.ts',
   'packages/app/src/hits.ts',
   'packages/app/src/layout.ts',
+  // Everything else another machine says about itself and its work, read for
+  // its shape through `machines.ts`' readers: findings, requests, plans, checks.
+  'packages/app/src/machine-there.ts',
   // Other machines' projects out of what their links hold: the one reader of a
   // remote's projection, and nothing it does waits or reads a clock.
   'packages/app/src/machines.ts',

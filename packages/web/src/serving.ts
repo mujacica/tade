@@ -4,7 +4,9 @@ import type { WebAsking } from './asking.ts'
 import type { WebAttaching } from './attached.ts'
 import type { WebCarrying } from './carried.ts'
 import type { WebConfiguring } from './configuring.ts'
+import type { WebDocument } from './document.ts'
 import type { WebDrafting } from './drafting.ts'
+import type { WebMachine } from './machine.ts'
 import type { Streams } from './peers.ts'
 import type { WebPushing } from './pushing.ts'
 import type { Grant, Reach } from './reach.ts'
@@ -14,6 +16,7 @@ import type { WebNotes } from './shared-notes.ts'
 import type { WebSince } from './since.ts'
 import type { Listener, Scope, Surface } from './surface.ts'
 import type { Tickets } from './tickets.ts'
+import type { WebToolRead } from './tool-read.ts'
 
 // What the window hands the away view, and what it hands back.
 //
@@ -232,6 +235,14 @@ export interface ServerOptions {
    * Absent, the route is the `404` of a path nobody wired.
    */
   repositories?: WebRepositories
+  /**
+   * What this machine is, one of its documents, and one of its tools that only
+   * reads, for an owner's window on another machine (`machine.ts`,
+   * `document.ts`, `tool-read.ts`). Each absent is the `404` of a path nobody wired.
+   */
+  machine?: WebMachine
+  document?: WebDocument
+  tool?: WebToolRead
   /** The tickets the pairing panel minted. */
   tickets: Tickets
   /**

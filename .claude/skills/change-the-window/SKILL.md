@@ -978,6 +978,12 @@ drawn from what its away view sends — the projection the link holds (REMOTE-TA
   as what it should be or not at all, bounds it, and reduces every string to text (`printable`,
   core). Anything new drawn from a remote is a field of `Machine` added there, never a read of
   `Held.projection` in a view. `machines.test.ts` draws a title full of escapes on every surface.
+  **Everything else it says is `Machine.detail`**, folded by `machine-there.ts` through the same
+  readers (`machineThere`): its findings, requests, doors, plans, warnings, check runs and the
+  documents its tasks produce, out of the projection — and `about`, what it said it is when asked as
+  its owner (`/api/machine`, asked on the beat by `wire/remote-machine.ts`, with the round trip). A
+  machine whose link is down keeps both, so a page says `as of 14:02` and never *none*;
+  Settings › Remotes draws `about` as each remote's connection block (`settings-remotes`).
 - **Its tabs are grouped under its name**, this machine's first (`Frame.machines.here`, said only
   where there are remotes): a chip per machine whose menu (`machine`, the Remotes subject's) is its
   projects, then a tab per project carrying the marks that machine drew (`remoteStanding`). Short of

@@ -1,7 +1,9 @@
-import { KEYS_TO_REMOTE, TALK_TO_REMOTE } from '@tade/core'
+import { duration, KEYS_TO_REMOTE, TALK_TO_REMOTE } from '@tade/core'
 // Type-only, so the pure panel model never loads what makes a checklist.
 import type { Checklist } from '@tade/workbench/carry'
 import type { Hit } from '../../hits.ts'
+import type { MachineAbout } from '../../machine-there.ts'
+import type { Machine } from '../../machines.ts'
 import type { Look } from '../../skin.ts'
 import { blank, Row } from '../../ui.ts'
 import { cap, padTo, withFocus, wrapTo } from '../cells.ts'
@@ -15,6 +17,13 @@ import type { SettingsPanel } from './state.ts'
 // changed itself, what waits on a press, whether its tab here takes a message,
 // and each harness's own sign-in there (`@tade/workbench/carry`'s checklist,
 // the one `tade remote add` ends with).
+//
+// **And how each one stands as a machine** (`connection`): when it was last
+// heard from and what asking it costs there and back, the Tade it runs, its
+// public name's certificate, its own problems and warnings, and its schedules
+// and watches with their last looks — out of what it said asked as its owner
+// (`machine-there.ts`). A machine that stopped answering is drawn as of its
+// last answer, never as one with nothing wrong.
 //
 // A category only while there is a remote: a page that says "none" to
 // everybody who never added one is a page in every picture of Settings.
@@ -36,6 +45,8 @@ export interface RemoteShown {
   at: number | null
   /** A carry or a press is under way. */
   busy: boolean
+  /** The machine as this window folds it — its link, its detail — or null before anything was held. */
+  machine: Machine | null
 }
 
 /**
@@ -169,6 +180,7 @@ export function drawRemotes(
       remote.busy ? 'carrying…' : remote.at === null ? null : `carried ${ctx.date(remote.at)}`,
     ].filter(Boolean)
     say(where.join(' · '))
+    connection(remote, ctx, line, (text, tone) => say(text, tone, 3 + named, 3))
     if (list === null) {
       say(remote.live ? 'nothing carried yet' : 'carried once it answers', skin.hint)
     } else if (list.unreached !== null) {
@@ -218,4 +230,95 @@ export function drawRemotes(
     body.push(blank(form))
     if (focused !== null && focused.split(':')[2] === at) keepInView(from, body.length - 1)
   }
+}
+
+/** How many of a machine's problems, warnings and schedules the page lists before it counts the rest. */
+const LISTED = 4
+
+/**
+ * How one remote stands as a machine: heard from, the round trip, its Tade, its
+ * public name, its problems and warnings, its schedules and their last looks.
+ * Every figure is as of its last answer, and says so while its link is down.
+ */
+function connection(
+  remote: RemoteShown,
+  ctx: PanelContext,
+  line: (label: string, text: string, tone?: (text: string) => string) => void,
+  /** Wrapped under a line's own column, as much of it as three rows hold. */
+  under: (text: string, tone: (text: string) => string) => void,
+): void {
+  const { skin } = ctx
+  const machine = remote.machine
+  if (machine === null) return
+  const detail = machine.detail
+  const about = detail.about
+  const asOf = machine.asOf === null ? null : ctx.now - machine.asOf
+  const heard =
+    asOf === null
+      ? 'not heard from yet'
+      : machine.link === 'live'
+        ? `${duration(asOf)} ago`
+        : `as of ${ctx.date(machine.asOf ?? 0)}, ${duration(asOf)} ago`
+  const trip =
+    about?.roundTrip === null || about === null ? '' : ` · ${about.roundTrip} ms there and back`
+  line('Heard', `${heard}${trip}`, machine.link === 'live' ? skin.done : skin.waiting)
+  if (about === null) {
+    if (detail.aboutSaid !== null) under(detail.aboutSaid, skin.hint)
+    return
+  }
+  const stale = machine.link === 'live' ? '' : ` · as of ${ctx.date(about.at)}`
+  line(
+    'Tade',
+    `${about.version}${about.newer ? ` · ${about.newer}` : ''}${stale}`,
+    about.newer ? skin.waiting : (text) => text,
+  )
+  if (detail.aboutSaid !== null) under(detail.aboutSaid, skin.hint)
+  if (about.public !== null) publicLines(about, line, under, skin)
+  const problems = [...about.problems.map((one) => one.said), ...detail.warnings]
+  line(
+    'Problems',
+    problems.length === 0 ? 'none it knows of' : `${problems.length}`,
+    problems.length === 0 ? skin.done : skin.waiting,
+  )
+  for (const said of problems.slice(0, LISTED)) under(`· ${said}`, skin.hint)
+  if (problems.length > LISTED) under(`and ${problems.length - LISTED} more`, skin.hint)
+  const schedules = about.schedules
+  line('Schedules', schedules.length === 0 ? 'none' : `${schedules.length}`, skin.hint)
+  for (const one of schedules.slice(0, LISTED)) {
+    const look = one.watch?.looks[0]
+    const mark = one.paused ? '‖' : one.kind === 'watch' ? '◎' : '↻'
+    const said = [`${mark} ${one.name} in ${one.project}`, one.when, lookSaid(one, ctx.date)]
+    under(said.filter(Boolean).join(' · '), look?.problem ? skin.waiting : skin.hint)
+  }
+  if (schedules.length > LISTED) under(`and ${schedules.length - LISTED} more`, skin.hint)
+}
+
+/** What a watch's newest look there came to, in a few words; empty for a schedule that is not one. */
+function lookSaid(one: MachineAbout['schedules'][number], date: (at: number) => string): string {
+  if (one.watch === null) return ''
+  const look = one.watch.looks[0]
+  if (look === undefined) return 'has not looked'
+  if (look.problem !== null) return `! ${look.problem}`
+  if (look.on !== null) return `on ${look.on}`
+  const found =
+    look.fresh > 0 ? `${look.fresh} new` : look.found === 0 ? 'found nothing' : 'nothing new'
+  return look.at === null ? found : `${found} ${date(look.at)}`
+}
+
+/** Its public name, and what the certificate look and the version said of it, loudest first. */
+function publicLines(
+  about: MachineAbout,
+  line: (label: string, text: string, tone?: (text: string) => string) => void,
+  under: (text: string, tone: (text: string) => string) => void,
+  skin: PanelContext['skin'],
+): void {
+  const shown = about.public
+  if (shown === null) return
+  const loud = shown.health.some((one) => one.loud) || !shown.up
+  line(
+    'Public name',
+    `${shown.name}${shown.up ? '' : ' · not listening'}`,
+    loud ? skin.waiting : skin.done,
+  )
+  for (const one of shown.health) under(one.said, one.loud ? skin.waiting : skin.hint)
 }

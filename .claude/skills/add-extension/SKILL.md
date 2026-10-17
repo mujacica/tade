@@ -35,7 +35,9 @@ tools registered by Tade's own pi extensions, which call back to Tade. What only
   else, which is what keeps two extensions from shadowing each other or Tade's own `tade_*` tools.
 - **Say who a tool is for** (`for: ['orchestrator', 'agent']`). Anything that changes something
   outside the project — resolving a Sentry issue — is `['orchestrator']` only, and its description
-  says "only when asked".
+  says "only when asked". **A tool that changes nothing anywhere says `reads: true`**, and only then
+  may another machine of the person's ask for it there, answered with that machine's settings and
+  keys (`@tade/web`'s `tool-read.ts`) — declared, never guessed from a name.
 - **Work happens in agents.** A tool that changes a project calls `ctx.tade.startAgent(...)` with a
   `context` (becomes `context.md` in the task's own folder in Tade's home, so it is the agent's to read and
   nobody's to commit), `links` (kept in `task.yaml`, shown under GIT) and

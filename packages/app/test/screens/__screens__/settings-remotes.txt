@@ -1,0 +1,40 @@
+ ▄▀   T A D E      checkout !⠋    search ✓    infra      +          ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ A╭─ Settings ─────────────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮×   
+    │  search settings            │ Remotes                                                                        │────
+ ▌ !│                             │                                                                                │    
+ ▌  │  Agents             bypass █│ vps  ● linked                                                                 ▕│    
+    │                            █│   ssh me@vps.example.com · it calls itself box-1 · carried Sun 13 Sep 13:00   ▕│    
+   ⠋│  Models                    █│   Heard           2s ago · 41 ms there and back                               ▕│    
+    │                            █│   Tade            0.2.3 · Tade 0.2.4 is out                                   ▕│    
+    │  Orchestrator              █│   Public name     tade.example.com                                            ▕│    
+ ▸ S│                            █│                   certificate: 6 days left of 45 — renewing has been failing  ▕│    
+ ▸ S│  Queue                     █│                   for weeks                                                   ▕│    
+ ▸ I│                            █│   Problems        2                                                           ▕│    
+ ▾ C│  Checks                    █│                   · Sentry needs setting up: no token                         ▕│    
+  M │                            █│                   · checkout: git could not read the base: it is being        ▕│    
+  A │  Voice                     █│                   rewritten                                                   ▕│    
+  M │                            █│   Schedules       2                                                           ▕│    
+    │  Window                    █│                   ◎ New Sentry errors in checkout · every hour · 2 new Sun 13 ▕│    
+ ▾ F│                            █│                   Sep 13:30                                                   ▕│    
+   ▾│  Away view                 █│                   ◎ Reviews in checkout · every 10m · ! GitHub said 401: the  ▕│    
+    │                            █│                   token was revoked                                           ▕│    
+    │  Intake                    █│   Carried         3 settings and files, kept in step                          ▕│    
+   ▸│                            █│   claude-code     ● 27 days left                                              ▕│    
+    │  Projects              ● 1 █│   This machine’s  projects                                                    ▕│    
+    │                            █│                     Carry again                                               ▕│    
+    │  Journal                   █│                                                                               ▕│    
+ ▸ N│                            █│                                                                               ▕│    
+ ▾ G│  Telemetry                 █│                                                                               ▕│    
+   r│                            █│                                                                               ▕│    
+━   │  Shortcuts                 █│                                                                               ▕│   ━
+    │                            █│                                                                               ▕│    
+    │  Accounts              ● 3 █│                                                                               ▕│   ▕
+    │                            █│                                                                               ▕│   ▕
+    │▌ Remotes                   ▕│ ● Saved as you change it.                                                      │   ▕
+    │▌                           ▕│                                                   Open config.yaml     Done    │   ▕
+ ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

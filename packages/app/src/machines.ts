@@ -1,6 +1,7 @@
 import { AGENT_MARKS, type AgentMark, printable, printableLines } from '@tade/core'
 import type { Held } from '@tade/remotes-core'
 import { whereYouWere } from './layout.ts'
+import type { MachineDetail } from './machine-there.ts'
 import type { AppState } from './model.ts'
 
 // The other machines' projects, as the window draws them (REMOTE-TADE.md §9.4).
@@ -109,6 +110,26 @@ export interface Machine {
    * machine's `surfaces.web.orchestrator`, or before anything was heard.
    */
   talk: RemoteTalk | null
+  /**
+   * Everything else it said about itself and its work — findings, requests,
+   * plans, warnings, check runs, documents, and what it is (`machine-there.ts`,
+   * which folds it): kept, like the rest, as of when it was last heard.
+   */
+  detail: MachineDetail
+}
+
+/** A machine that has said nothing beyond its projects, or nothing at all. */
+export const NO_DETAIL: MachineDetail = {
+  findings: [],
+  findingsMore: 0,
+  requests: [],
+  doors: [],
+  plans: [],
+  warnings: [],
+  checks: [],
+  produced: [],
+  about: null,
+  aboutSaid: null,
 }
 
 /** One line of a machine's conversation with its orchestrator, as text. */
@@ -195,6 +216,7 @@ export function machineOf(held: Held, skew: number): Machine {
     projects: projection === null ? [] : projectsIn(projection, skew),
     spend: projection === null ? null : spendIn(projection),
     talk: projection === null ? null : talkIn(projection, skew),
+    detail: NO_DETAIL,
   }
 }
 
@@ -210,6 +232,7 @@ export function unheard(name: string, said: string | null): Machine {
     projects: [],
     spend: null,
     talk: null,
+    detail: NO_DETAIL,
   }
 }
 
@@ -582,7 +605,7 @@ export function text(value: unknown, most: number): string {
 }
 
 /** Free text the away protocol sends as `{ words, more }` (`said.ts`), to draw, or null. */
-function saidIn(value: unknown, most: number): string | null {
+export function saidIn(value: unknown, most: number): string | null {
   const said = objectIn(value)
   const words = text(said?.words, most)
   if (words === '') return null

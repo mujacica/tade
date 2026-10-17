@@ -1,4 +1,4 @@
-import type { Machines } from '../../../src/machines.ts'
+import { type Machines, NO_DETAIL } from '../../../src/machines.ts'
 import {
   initialState,
   openSchedule,
@@ -138,6 +138,7 @@ const vpsLinked: Machines = {
       ],
       spend: null,
       talk: null,
+      detail: NO_DETAIL,
     },
   ],
 }
