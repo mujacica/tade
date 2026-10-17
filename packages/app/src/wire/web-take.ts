@@ -70,6 +70,28 @@ async function nameRefused(wire: Wiring, id: string): Promise<string | null> {
   }
 }
 
+/**
+ * The answer to a hand-over this machine made already, or null where it made
+ * none: what it made is `task_taken` with that hand-over's id.
+ */
+async function takenBefore(wire: Wiring, id: string, handOver: string): Promise<TakeAnswer | null> {
+  let made: boolean
+  try {
+    const lines = await wire.opts.client.log.read({ task: id, types: ['task_taken'] })
+    made = lines.some((line) => line.detail.handOver === handOver)
+  } catch (err) {
+    return no(`Whether ${id} was taken here before could not be read (${why(err)}).`)
+  }
+  if (!made) return null
+  return {
+    took: true,
+    task: id,
+    said: `${id} was taken here already.`,
+    pushes: null,
+    already: true,
+  }
+}
+
 /** The window's `WebTaking`. */
 export function takingFrom(wire: Wiring): WebTaking {
   return async (take, device) => {
@@ -79,6 +101,12 @@ export function takingFrom(wire: Wiring): WebTaking {
     const configured = Object.hasOwn(projects, take.project) ? projects[take.project] : undefined
     if (configured === undefined) return no(`There is no project called ${take.project} here.`)
     const root = expandHome(configured.root)
+    // The same hand-over asked again, by a window there that closed before it
+    // heard the answer: the same answer, not a no for a name used.
+    if (take.handOver !== undefined) {
+      const before = await takenBefore(wire, id, take.handOver)
+      if (before !== null) return before
+    }
     const named = await nameRefused(wire, id)
     if (named !== null) return no(`${named}.`)
     const branch = `${TASK_BRANCH_PREFIX}${take.name}`
@@ -124,6 +152,7 @@ export function takingFrom(wire: Wiring): WebTaking {
         was: take.was,
         device,
         ...(take.begins ? { branch: take.begins.branch, head: take.begins.head } : {}),
+        ...(take.handOver === undefined ? {} : { handOver: take.handOver }),
       },
     })
     // The next look starts it, by the queue's own rule.

@@ -38,6 +38,12 @@ import { reachOf } from './surface.ts'
 // **Asked first, made second** (`check`): the machine handing a running task
 // over asks whether this one would take it before telling its agent to push,
 // so an agent is never stopped mid-work for a name already used here.
+//
+// **A hand-over asked twice is answered twice the same** (`handOver`): the
+// machine handing it gives each hand-over an id, written here beside what it
+// made, and a window there that closed before it heard the answer asks again
+// with the same id — `already`, a success there, where the name alone would
+// be a no for a name used here, and the work safe here all along.
 
 /** The most of the context file's text one request carries, so the whole stays under `BODY_MAX`. */
 export const TAKE_CONTEXT_MOST = 40_000
@@ -52,6 +58,8 @@ const HEAD = /^[0-9a-f]{40,64}$/
 const PROJECT = /^[a-z0-9][a-z0-9-]{0,99}$/
 /** A task's own half of its id. */
 const SLUG = /^[a-z0-9][a-z0-9._-]{0,99}$/
+/** A hand-over's id, as the machine handing it made one. */
+const HAND_OVER = /^[A-Za-z0-9-]{8,64}$/
 
 export const TakeSchema = z.strictObject({
   /** What the machine handing it calls itself, for the line written here. */
@@ -85,6 +93,8 @@ export const TakeSchema = z.strictObject({
     .optional(),
   /** Only say whether it would be taken: make nothing, fetch nothing. */
   check: z.boolean().default(false),
+  /** The hand-over this finishes, by the id the machine handing it gave it. */
+  handOver: z.string().regex(HAND_OVER).optional(),
 })
 export type Take = z.infer<typeof TakeSchema>
 
@@ -106,6 +116,8 @@ export const TakeAnswerSchema = z.union([
      * refused — its agent can still work, and somebody can give it a key.
      */
     pushes: z.boolean().nullable().default(null),
+    /** Made here already, by an earlier asking of the same hand-over. */
+    already: z.boolean().optional(),
   }),
   z.object({ took: z.literal(false), said: z.string().max(2_000) }),
 ])

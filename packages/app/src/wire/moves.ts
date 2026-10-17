@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import {
   LINES_LOOKED_BACK,
   machineLabel,
@@ -6,14 +7,8 @@ import {
   remoteNamedBy,
   runProgram,
 } from '@tade/core'
-import type { Answer, Remote, RemoteLink } from '@tade/remotes-core'
-import {
-  TAKE_CONTEXT_MOST,
-  TAKE_WORDS_MOST,
-  type Take,
-  type TakeAnswer,
-  TakeAnswerSchema,
-} from '@tade/web'
+import type { Remote, RemoteLink } from '@tade/remotes-core'
+import { TAKE_CONTEXT_MOST, TAKE_WORDS_MOST, type Take, type TakeAnswer } from '@tade/web'
 import { readTaskFile, TASK_BRANCH_PREFIX } from '@tade/workbench/tasks'
 import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
@@ -25,6 +20,7 @@ import {
   carryOnSays,
   type HandedFrom,
   type HandOverAsked,
+  handAgainSays,
   handedNote,
   handOversOpen,
   handSays,
@@ -32,7 +28,7 @@ import {
   pushedTo,
 } from './hand-over.ts'
 import { ProjectMoves } from './project-moves.ts'
-import { beginsOf, contextOf, removeHere } from './take-parts.ts'
+import { askHanding, askThere, beginsOf, contextOf, removeHere } from './take-parts.ts'
 
 // Work moved to another machine of the person's (REMOTE-TADE.md §9.2): queued
 // work started there instead of here — "Start on vps" on its card, or the
@@ -76,7 +72,16 @@ import { beginsOf, contextOf, removeHere } from './take-parts.ts'
 // up what is still open (`handOversOpen`, once, on its first beat), says so,
 // and looks on from there; the time it has is counted from that moment, and a
 // sleep with the window open is not counted either (`beat`'s `slept`),
-// because nothing could look and the agent could not work.
+// because nothing could look and the agent could not work. An agent whose
+// lanes died with the window is opened again having been told nothing
+// (`reopenAgent`), part way through what it was asked: one with no turn
+// ended since and opened since it was told is told again once, in the same
+// words (`retell`) — finishing a request, never starting one; an agent that
+// went on running is never opened again, so never told twice. Each hand-over
+// has an id (`task_handing`'s `id`, the take's `handOver`), so a window asking
+// again after one that closed before it heard the answer is told `already`
+// and finishes it; a no from a machine too old to read the id, to a hand-over
+// an earlier window may have asked, is said as not known, never as handed.
 //
 // **The Mac finishes it; the machine there never takes it unasked.** Whether
 // the work is all on origin is only answerable here — its worktree's
@@ -125,6 +130,12 @@ interface Handing extends HandedFrom {
   looking: boolean
   /** What is not done yet, as the last look said. */
   waiting: string
+  /** What the machine there knows it by once taken; null where an older window wrote none. */
+  id: string | null
+  /** Picked up from the journal, so an earlier window may have asked there already. */
+  resumed: boolean
+  /** Told again since it was opened part way through (`retell`). */
+  retold: boolean
 }
 
 /** What the orchestrator's `tade_task_move` is answered with. */
@@ -328,6 +339,9 @@ export class Moves {
           lookedAt: now - HAND_LOOK_MS,
           looking: false,
           waiting: 'it has not pushed yet',
+          id: one.id,
+          resumed: true,
+          retold: false,
         })
         this.deps.say(
           `${task} was being handed to ${machine} when Tade last closed, so I am looking again: once its work is on origin, ${machine} begins on it and the agent here stops. If that has not happened within ${HAND_MS / 60_000} minutes, nothing changes and I say so.`,
@@ -421,7 +435,7 @@ export class Moves {
     const head = await runProgram('git', ['-C', cwd, 'rev-parse', 'HEAD'], { timeoutMs: 10_000 })
     if (head.code !== 0) throw new Error(`${task}'s work has no commit to begin from.`)
     // Asked first, so an agent is never stopped for a name already used there.
-    const asked = await this.ask(reach, machine, {
+    const asked = await askThere(reach, machine, {
       from: machineLabel(),
       was: task,
       project: there,
@@ -437,6 +451,7 @@ export class Moves {
     const from: HandedFrom = { task, machine, branch, cwd, workspace }
     await client.steerAgent(task, handSays(from))
     const now = this.wire.now()
+    const id = randomUUID()
     // Written down, so Tade closing before the push lands is not the end of
     // it — and before anything can look, so its end is always written after it.
     let kept =
@@ -445,7 +460,7 @@ export class Moves {
       await client.log.append({
         type: 'task_handing',
         task,
-        detail: { to: machine, there, branch, by },
+        detail: { to: machine, there, branch, by, id },
       })
     } catch (err) {
       kept = ` It could not be written down (${why(err)}), so if Tade closes before then, nothing finishes it.`
@@ -460,6 +475,9 @@ export class Moves {
       lookedAt: now,
       looking: false,
       waiting: 'it has not pushed yet',
+      id,
+      resumed: false,
+      retold: false,
     })
     return `Told ${task} to commit and push to ${branch} for ${machine}. Once its work is on origin and its turn is over, ${machine} begins on it as ${there}/${slug} and the agent here stops — its conversation does not move. If that has not happened within ${HAND_MS / 60_000} minutes, nothing changes and I say so.${kept}`
   }
@@ -487,11 +505,16 @@ export class Moves {
           handing.waiting = 'it is still in its turn'
           return
         }
-        const turned = (await client.log.read({ task, types: ['turn_done'] })).some(
+        const since = (await client.log.read({ task, types: ['turn_done', 'lane_opened'] })).filter(
           (line) => Date.parse(line.ts) >= handing.since,
         )
-        if (!turned) {
+        if (!since.some((line) => line.type === 'turn_done')) {
           handing.waiting = 'it has not finished a turn since it was told'
+          // Opened again since, and idle — said so by pi, so it is up to be told.
+          const opened = since.some(
+            (line) => line.type === 'lane_opened' && line.lane === `${task}/agent`,
+          )
+          if (opened && client.turnOf(run.run) === 'idle') await this.retell(handing)
           return
         }
       }
@@ -520,6 +543,27 @@ export class Moves {
     }
   }
 
+  /**
+   * An agent opened again part way through being handed over, told nothing by
+   * the opening: told once more what it was asked, in its own lane and here.
+   */
+  private async retell(handing: Handing): Promise<void> {
+    if (handing.retold) return
+    // Before it is sent: one that throws is not sent again on the next look.
+    handing.retold = true
+    const { task, machine } = handing
+    try {
+      await this.wire.opts.client.steerAgent(task, handAgainSays(handing))
+      this.deps.say(
+        `${task} was opened again part way through being handed to ${machine}, and had not finished what it was asked, so I told it again to commit and push.`,
+      )
+    } catch (err) {
+      this.deps.say(
+        `${task} was opened again part way through being handed to ${machine}, and could not be told again to commit and push (${why(err)}): tell it, or it is let go of when its time is up.`,
+      )
+    }
+  }
+
   /** Its work is on origin: made there, and the agent here stopped. Whether it went, and what happened in a sentence. */
   private async handed(
     handing: Handing,
@@ -545,15 +589,22 @@ export class Moves {
       ...(file.done ? { done: file.done } : {}),
       begins: { branch, head },
       check: false,
+      ...(handing.id === null ? {} : { handOver: handing.id }),
     }
     if (take.context.length > TAKE_CONTEXT_MOST || take.intent.length > TAKE_WORDS_MOST) {
       throw new Error(`its context is longer than one request to ${machine} carries`)
     }
-    const answer = await this.ask(reach, machine, take)
+    const { answer, readId } = await askHanding(reach, machine, take)
     if (!answer.took) {
+      const left = `Its work is on origin at ${branch}, and its agent goes on here.`
+      // Asked by an earlier window too, of a machine that could not say which
+      // hand-over it was: the name it refuses may be the one it was given then.
       return {
         went: false,
-        said: `${machine} did not take ${task}: ${printable(answer.said)}. Its work is on origin at ${branch}, and its agent goes on here.`,
+        said:
+          handing.resumed && !readId
+            ? `Whether ${machine} has ${task} cannot be told: it said ${printable(answer.said)}, which may be the name it was given when a window here asked before Tade closed — look at its queue. ${left}`
+            : `${machine} did not take ${task}: ${printable(answer.said)}. ${left}`,
       }
     }
     const as = printable(answer.task)
@@ -578,7 +629,8 @@ export class Moves {
       answer.pushes === false
         ? ` ${machine} cannot push to ${branch} with its own credentials yet, so its agent's work stays there until it can.`
         : ''
-    const went = `${task} went to ${machine} as ${as}, on ${branch} at ${head.slice(0, 12)}: its agent here is stopped and parked, and its conversation stays here.`
+    const gone = answer.already ? `had gone to ${machine} already` : `went to ${machine}`
+    const went = `${task} ${gone} as ${as}, on ${branch} at ${head.slice(0, 12)}: its agent here is stopped and parked, and its conversation stays here.`
     return {
       went: true,
       said: `${went}${pushes}${after.length > 0 ? ` But ${after.join(', and ')}.` : ''}`,
@@ -668,7 +720,7 @@ export class Moves {
     }
     let answer: TakeAnswer
     try {
-      answer = await this.ask(reach, machine, take)
+      answer = await askThere(reach, machine, take)
     } catch (err) {
       throw new Error(`${why(err)}${await this.pickUp(task, by)}`)
     }
@@ -689,40 +741,6 @@ export class Moves {
     return removed === null
       ? `${went} It is no longer queued here.`
       : `${went} It could not be removed here (${removed}), so it stays parked here: remove it.`
-  }
-
-  /** Over the link already up, as this machine's owner there. Throws what to say where it was not taken. */
-  /**
-   * Over a call of its own rather than the held link's quick request: making
-   * the work there may fetch a branch first, which takes longer than a look
-   * at a screen is given (`CALL_MS`, against `REQUEST_MS`).
-   */
-  private async ask(
-    reach: { link: RemoteLink; remote: Remote },
-    machine: string,
-    take: Take,
-  ): Promise<TakeAnswer> {
-    let answer: Answer
-    try {
-      answer = await reach.link.call(reach.remote, '/api/take', take)
-    } catch (err) {
-      throw new Error(
-        `${machine}: ${printable(why(err))} — it may not have been taken there; look at its queue before moving it again`,
-      )
-    }
-    if (answer.status === 404) {
-      throw new Error(
-        `${machine}'s Tade cannot take work from another machine: it is older than this one. Update it there (tade update), then try again.`,
-      )
-    }
-    const read = TakeAnswerSchema.safeParse(answer.body)
-    if (answer.status !== 200 || !read.success) {
-      const said = (answer.body as { said?: unknown } | null)?.said
-      throw new Error(
-        `${machine} refused it: ${typeof said === 'string' ? printable(said) : `it answered ${answer.status}`}`,
-      )
-    }
-    return read.data
   }
 
   /** The project there that is this one's repository: exactly one, or why not. */

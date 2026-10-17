@@ -28,8 +28,12 @@ afterEach(async () => {
   }
 })
 
-/** This machine's project `app`, a worktree task in it, and `vps` holding the same repository as `tade`. */
-async function handing(over: { workspace?: 'checkout' | 'worktree' } = {}) {
+/**
+ * This machine's project `app`, a worktree task in it, and `vps` holding the
+ * same repository as `tade` — `older`, a Tade there from before a hand-over
+ * had an id, whose strict reading refuses one as a request that made no sense.
+ */
+async function handing(over: { workspace?: 'checkout' | 'worktree'; older?: boolean } = {}) {
   const repo = mkrepo({ remote: true })
   const home = tmp('tade-hand-')
   writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
@@ -58,6 +62,8 @@ async function handing(over: { workspace?: 'checkout' | 'worktree' } = {}) {
   const stopped: string[] = []
   let turn: 'running' | 'idle' = 'idle'
   let running = true
+  /** Tade closing while the agent is being stopped: the stop never comes back. */
+  let stopHangs = false
   const said: string[] = []
   let now = Date.now()
   const agent = {
@@ -67,10 +73,25 @@ async function handing(over: { workspace?: 'checkout' | 'worktree' } = {}) {
       told.push(message)
     },
     stopAgent: async (task: string) => {
+      if (stopHangs) return new Promise<void>(() => {})
       stopped.push(task)
       running = false
     },
   }
+  const reaching: RemoteLink = over.older
+    ? new Proxy(link, {
+        get: (target, key, receiver) =>
+          key === 'call'
+            ? async (to: Remote, path: string, body: unknown) =>
+                typeof body === 'object' && body !== null && 'handOver' in body
+                  ? {
+                      status: 400,
+                      body: { error: 'malformed', said: 'that request did not make sense' },
+                    }
+                  : target.call(to, path, body)
+            : Reflect.get(target, key, receiver),
+      })
+    : link
   let live = true
   /** A window's moves over a workbench: the first, or one opened again on the same home. */
   const windowOver = (over: Workbench): Moves => {
@@ -91,7 +112,7 @@ async function handing(over: { workspace?: 'checkout' | 'worktree' } = {}) {
       note: () => {},
     } as unknown as Wiring
     return new Moves(wire, {
-      reach: (name) => (name === 'vps' ? { link, remote, live } : null),
+      reach: (name) => (name === 'vps' ? { link: reaching, remote, live } : null),
       machines: () => ({ remotes: [{ name: 'vps' }] }) as unknown as Machines,
       sameAs: (project) => (project === 'app' ? [{ machine: 'vps', project: 'tade' }] : []),
       say: (one) => said.push(one),
@@ -142,6 +163,18 @@ async function handing(over: { workspace?: 'checkout' | 'worktree' } = {}) {
     setLive: (to: boolean) => {
       live = to
     },
+    holdStop: (to: boolean) => {
+      stopHangs = to
+    },
+    /** What the window opening a lane writes, as `lane_opened` or `lane_adopted` (`registry.ts`). */
+    laneLine: async (type: 'lane_opened' | 'lane_adopted') => {
+      await one.client.log.append({
+        type,
+        lane: 'app/refunds/agent',
+        task: 'app/refunds',
+        detail: {},
+      })
+    },
     /**
      * Tade closed and opened again on the same home: the journal is all that
      * is kept, and the agent goes on as it was.
@@ -156,6 +189,29 @@ async function handing(over: { workspace?: 'checkout' | 'worktree' } = {}) {
     },
   }
   return one
+}
+
+/**
+ * vps answering as its window does (`web-take.ts`): a name made once, and the
+ * same hand-over asked again known by its id — where it was given one.
+ */
+function remembers(far: FarEnd): void {
+  const made = new Map<string, string | undefined>()
+  far.taking = (take) => {
+    const task = `${take.project}/${take.name}`
+    if (made.has(task)) {
+      return take.handOver !== undefined && made.get(task) === take.handOver
+        ? { took: true, task, said: `${task} was taken here already.`, pushes: null, already: true }
+        : { took: false, said: `${task} was used before here, and a name is never used twice` }
+    }
+    if (!take.check) made.set(task, take.handOver)
+    return { took: true, task, said: `${task} is queued`, pushes: null }
+  }
+}
+
+/** Waited on, not slept on: until it holds, or four seconds. */
+async function until(holds: () => boolean): Promise<void> {
+  for (let i = 0; i < 400 && !holds(); i++) await new Promise((done) => setTimeout(done, 10))
 }
 
 function commitIn(dir: string, name: string): string {
@@ -363,6 +419,106 @@ describe('a running task, handed to another machine', () => {
     expect(one.said.at(-1)).toContain('nothing was started on vps, and it goes on here')
     expect(one.far.taken).toHaveLength(1)
     expect(one.stopped).toEqual([])
+  }, 60_000)
+
+  it('tells an agent opened again part way through it, once, to finish what it was asked', async () => {
+    const one = await handing()
+    await one.moves.handOver('app/refunds', 'vps', 'you')
+    // In its turn when Tade closed: its lane died with the window, as a pty's
+    // does, and the next window opened it again where it left off, saying
+    // nothing — so no turn of it ends, and nothing it was asked is done.
+    one.setTurn('running')
+    await one.reopen()
+    await one.laneLine('lane_opened')
+    one.setTurn('idle')
+    await one.beat()
+    expect(one.said.at(-1)).toContain('when Tade last closed, so I am looking again')
+    await one.beat()
+    expect(one.told).toHaveLength(2)
+    expect(one.told[1]).toContain('Tade closed before you had finished what you were asked here')
+    expect(one.told[1]).toContain('git push origin HEAD:refs/heads/tade/refunds')
+    expect(one.said.at(-1)).toContain('so I told it again to commit and push')
+    // Once: idle on the next look too, it is not told a third time.
+    await one.beat()
+    expect(one.told).toHaveLength(2)
+    // It finishes its push, and is handed over.
+    const head = commitIn(one.made.worktree, 'fix.txt')
+    runGit(one.made.worktree, 'push', '-q', 'origin', 'HEAD:refs/heads/tade/refunds')
+    await one.finishTurn()
+    await one.beat()
+    await until(() => one.stopped.length > 0)
+    expect(one.far.taken[1]?.take.begins).toEqual({ branch: 'tade/refunds', head })
+    expect(one.stopped).toEqual(['app/refunds'])
+    expect(one.said.at(-1)).toContain('went to vps as tade/refunds')
+  }, 60_000)
+
+  it('tells an agent that went on running while Tade was closed nothing more', async () => {
+    const one = await handing()
+    await one.moves.handOver('app/refunds', 'vps', 'you')
+    await one.reopen()
+    // Taken up again rather than opened, as tmux's are: it was never cut off.
+    await one.laneLine('lane_adopted')
+    await one.beat()
+    await one.beat()
+    await one.beat()
+    expect(one.told).toHaveLength(1)
+    expect(one.said.join('\n')).not.toContain('told it again')
+  }, 60_000)
+
+  it('is finished as handed where the machine there took it before Tade closed, asked again by its id', async () => {
+    const one = await handing()
+    remembers(one.far)
+    await one.moves.handOver('app/refunds', 'vps', 'you')
+    const head = commitIn(one.made.worktree, 'fix.txt')
+    runGit(one.made.worktree, 'push', '-q', 'origin', 'HEAD:refs/heads/tade/refunds')
+    await one.finishTurn()
+    // vps makes it, and Tade closes before the agent here is stopped.
+    one.holdStop(true)
+    one.later(6_000)
+    one.moves.beat()
+    await until(() => one.far.taken.length === 2)
+    const [asked] = await one.client.log.read({ types: ['task_handing'] })
+    const id = asked?.detail.id
+    expect(id).toEqual(expect.any(String))
+    expect(await one.client.log.read({ types: ['task_moved'] })).toEqual([])
+    one.holdStop(false)
+    await one.reopen()
+    await one.beat()
+    await one.beat()
+    await until(() => one.said.some((said) => said.includes('already')))
+    // Checked without one, made with it, and asked again with the same.
+    expect(one.far.taken.map((entry) => entry.take.handOver)).toEqual([undefined, id, id])
+    expect(one.stopped).toEqual(['app/refunds'])
+    expect((await readTaskFile(one.home, 'app/refunds'))?.parked).toBe(true)
+    const [moved] = await one.client.log.read({ types: ['task_moved'] })
+    expect(moved?.detail).toMatchObject({ to: 'vps', as: 'tade/refunds', how: 'running', head })
+    expect(one.said.at(-1)).toContain('app/refunds had gone to vps already as tade/refunds')
+  }, 60_000)
+
+  it('asks a machine too old to read its id without it, and says a no to a window asking again is not known', async () => {
+    const one = await handing({ older: true })
+    remembers(one.far)
+    await one.moves.handOver('app/refunds', 'vps', 'you')
+    commitIn(one.made.worktree, 'fix.txt')
+    runGit(one.made.worktree, 'push', '-q', 'origin', 'HEAD:refs/heads/tade/refunds')
+    await one.finishTurn()
+    one.holdStop(true)
+    one.later(6_000)
+    one.moves.beat()
+    await until(() => one.far.taken.length === 2)
+    // Refused with the id, and taken without it.
+    expect(one.far.taken[1]?.take).toMatchObject({ check: false, name: 'refunds' })
+    expect(one.far.taken[1]?.take.handOver).toBeUndefined()
+    one.holdStop(false)
+    await one.reopen()
+    await one.beat()
+    await one.beat()
+    // The name it refuses may be the one it was given: not known, never handed.
+    expect(one.said.at(-1)).toContain('Whether vps has app/refunds cannot be told')
+    expect(one.said.at(-1)).toContain('its agent goes on here')
+    expect(one.stopped).toEqual([])
+    expect(await one.client.log.read({ types: ['task_moved'] })).toEqual([])
+    expect((await readTaskFile(one.home, 'app/refunds'))?.parked).toBe(false)
   }, 60_000)
 
   it('tells the agent nothing where the machine there would not take it', async () => {

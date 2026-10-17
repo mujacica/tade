@@ -137,6 +137,7 @@ describe('work handed to this machine', () => {
       { ...TAKE, project: '../etc' },
       { ...TAKE, name: 'Fix It' },
       { ...TAKE, harness: 'claude-code' },
+      { ...TAKE, handOver: '../../x' },
       { ...TAKE, context: 'x'.repeat(40_001) },
       { ...TAKE, intent: undefined },
     ]) {

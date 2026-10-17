@@ -1,14 +1,80 @@
 import { readFile } from 'node:fs/promises'
-import { expandHome, runProgram, type TaskFile } from '@tade/core'
-import { TAKE_CONTEXT_MOST, type Take } from '@tade/web'
+import { expandHome, printable, runProgram, type TaskFile } from '@tade/core'
+import type { Answer, Remote, RemoteLink } from '@tade/remotes-core'
+import { TAKE_CONTEXT_MOST, type Take, type TakeAnswer, TakeAnswerSchema } from '@tade/web'
 import { contextDocument, taskContextPath } from '@tade/workbench/tasks'
 import { type Wiring, why } from './context.ts'
 
-// What moving a task to another machine reads and does here besides asking
+// What moving a task to another machine reads, asks and does here
 // (`moves.ts`): the parts of a `Take` read off the task — its context file
-// and links, and where it begins — and the task removed here once that
-// machine has it. Beside the flow rather than in it, so neither is over its
-// budget.
+// and links, and where it begins — the asking itself, and the task removed
+// here once that machine has it. Beside the flow rather than in it, so
+// neither is over its budget.
+
+/** Over the link already up, as this machine's owner there. Throws what to say where it was not taken. */
+export async function askThere(
+  reach: { link: RemoteLink; remote: Remote },
+  machine: string,
+  take: Take,
+): Promise<TakeAnswer> {
+  return answerOf(machine, await call(reach, machine, take))
+}
+
+/**
+ * A hand-over's take, with its id — asked again without it of a machine too
+ * old to read one, whose strict reading refuses a field it does not know as
+ * a request that made no sense, having made nothing. Whether the id was read.
+ */
+export async function askHanding(
+  reach: { link: RemoteLink; remote: Remote },
+  machine: string,
+  take: Take,
+): Promise<{ answer: TakeAnswer; readId: boolean }> {
+  const { handOver, ...without } = take
+  const answer = await call(reach, machine, take)
+  if (handOver === undefined || answer.status !== 400) {
+    return { answer: answerOf(machine, answer), readId: handOver !== undefined }
+  }
+  return { answer: await askThere(reach, machine, without), readId: false }
+}
+
+/**
+ * Over a call of its own rather than the held link's quick request: making
+ * the work there may fetch a branch first, which takes longer than a look
+ * at a screen is given (`CALL_MS`, against `REQUEST_MS`).
+ */
+async function call(
+  reach: { link: RemoteLink; remote: Remote },
+  machine: string,
+  take: Take,
+): Promise<Answer> {
+  let answer: Answer
+  try {
+    answer = await reach.link.call(reach.remote, '/api/take', take)
+  } catch (err) {
+    throw new Error(
+      `${machine}: ${printable(why(err))} — it may not have been taken there; look at its queue before moving it again`,
+    )
+  }
+  if (answer.status === 404) {
+    throw new Error(
+      `${machine}'s Tade cannot take work from another machine: it is older than this one. Update it there (tade update), then try again.`,
+    )
+  }
+  return answer
+}
+
+/** What that machine answered, read for its shape. Throws what to say where it refused. */
+function answerOf(machine: string, answer: Answer): TakeAnswer {
+  const read = TakeAnswerSchema.safeParse(answer.body)
+  if (answer.status !== 200 || !read.success) {
+    const said = (answer.body as { said?: unknown } | null)?.said
+    throw new Error(
+      `${machine} refused it: ${typeof said === 'string' ? printable(said) : `it answered ${answer.status}`}`,
+    )
+  }
+  return read.data
+}
 
 /** Its context file's text, with the links it ends in handed over as links. */
 export async function contextOf(

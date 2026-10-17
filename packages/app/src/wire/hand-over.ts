@@ -51,6 +51,14 @@ export function handSays(from: HandedFrom): string {
   ].join(' ')
 }
 
+/**
+ * What the agent here is told once more where it was opened again part way
+ * through being handed over: the same request, never anything new.
+ */
+export function handAgainSays(from: HandedFrom): string {
+  return `Tade closed before you had finished what you were asked here, and you were opened again where you left off. ${handSays(from)}`
+}
+
 /** What the agent there is told first: where it begins, and that nothing of the conversation came. */
 export function carryOnSays(from: { machine: string; branch: string }): string {
   return [
@@ -94,6 +102,8 @@ export interface HandOverAsked {
   by: 'you' | 'orchestrator'
   /** When its agent was told, as the journal wrote it down. */
   at: number
+  /** Its id, which the machine there knows it by once taken; null where an older window wrote none. */
+  id: string | null
 }
 
 /**
@@ -113,7 +123,8 @@ export function handOversOpen(lines: readonly TadeEvent[]): HandOverAsked[] {
     const at = Date.parse(line.ts)
     if (typeof to !== 'string' || typeof there !== 'string' || typeof branch !== 'string') continue
     if ((by !== 'you' && by !== 'orchestrator') || Number.isNaN(at)) continue
-    open.set(task, { task, machine: to, there, branch, by, at })
+    const id = typeof line.detail.id === 'string' ? line.detail.id : null
+    open.set(task, { task, machine: to, there, branch, by, at, id })
   }
   return [...open.values()]
 }

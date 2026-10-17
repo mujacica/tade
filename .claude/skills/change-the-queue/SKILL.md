@@ -494,6 +494,11 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   (`task_handing`, asked and then `ended` or `task_moved`), because it is asked just before a lid
   closes: the next window picks up what is open (`handOversOpen`) and counts its time from then, a
   sleep with the window open is not counted, and every let-go is written so none is taken up twice.
+  An agent opened again since it was told (`lane_opened` — a pty lane died with the window) and idle
+  with no turn ended is told once more in the same words (`retell`); one adopted is never told
+  twice. Each hand-over has an id (`task_handing`'s `id`, the take's `handOver`), so a re-ask is
+  answered `already` and finished as handed; a no from a Tade too old to read the id (asked again
+  without it on its `400`) to a hand-over an earlier window may have asked is said as not known.
   The Mac finishes it, never the remote unasked — only this machine can tell the push was the last
   and stop the agent here. **No wait crosses machines**: work that waits on
   anything, or that anything waits on, stays, and the refusal says how to change that. The machine

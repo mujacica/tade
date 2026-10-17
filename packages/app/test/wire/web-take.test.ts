@@ -163,6 +163,28 @@ describe('work handed to this machine, as its window makes it', () => {
     expect(await lines(one.client, 'task_taken')).toEqual([])
   })
 
+  it('answers a hand-over asked again with the same id as taken already, and any other as the name used', async () => {
+    const one = await machines()
+    const id = '6f1c2a7e-0b3d-4e59-9a61-2c8d7f4b1e03'
+    expect(await takingFrom(one.wire)(take({ handOver: id }), 'd')).toMatchObject({ took: true })
+    // The machine handing it closed before it heard that, and asks again.
+    const again = await takingFrom(one.wire)(take({ handOver: id }), 'd')
+    expect(again).toEqual({
+      took: true,
+      task: 'tade/fix-it',
+      said: 'tade/fix-it was taken here already.',
+      pushes: null,
+      already: true,
+    })
+    const other = await takingFrom(one.wire)(take({ handOver: `${id.slice(0, -1)}4` }), 'd')
+    expect(other).toMatchObject({ took: false })
+    if (!other.took) expect(other.said).toContain('never used twice')
+    expect(await takingFrom(one.wire)(take(), 'd')).toMatchObject({ took: false })
+    // Made once, with the id it was made for written beside it.
+    const taken = await lines(one.client, 'task_taken')
+    expect(taken.map((line) => line.detail.handOver)).toEqual([id])
+  })
+
   it('answers a check without making, fetching or writing anything', async () => {
     const one = await machines()
     const before = (await one.client.log.read({})).length
