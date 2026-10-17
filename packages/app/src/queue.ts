@@ -381,6 +381,15 @@ export function heldMessage(
   ].join(' ')
 }
 
+/**
+ * What is said, once, when a look at a project's checkout before starting work
+ * in it could not read the tree (`Reality.unread`): why, and that it lets
+ * nothing go — the queue keeps every hold on those files until a look can.
+ */
+export function unreadSays(project: string, why: string): string {
+  return `could not read ${project}'s checkout before starting work in it: ${why.replace(/\.$/, '')}. Nothing held on its files is let go until a look can read them.`
+}
+
 /** What a conflict's message needs to know besides the conflict: names the tools take. */
 export interface ConflictTold {
   holds: QueueHolds

@@ -18,7 +18,14 @@ export interface CmdResult {
   ok: boolean
   stdout: string
   stderr: string
+  /** And what `problemWith` reads to say which of its three cases a failure was. */
+  exitCode: number | undefined
+  timedOut: boolean
+  code?: string | undefined
 }
+
+/** How long one git call may take, unless its caller says otherwise. */
+export const GIT_MS = 5_000
 
 /**
  * How many git processes have been started, and how many ever ran at once.
@@ -50,7 +57,7 @@ export function resetGitLoad(): void {
   commands.clear()
 }
 
-export async function git(dir: string, args: string[], timeoutMs = 5_000): Promise<CmdResult> {
+export async function git(dir: string, args: string[], timeoutMs = GIT_MS): Promise<CmdResult> {
   started++
   commands.set(args[0] ?? '', (commands.get(args[0] ?? '') ?? 0) + 1)
   running++
@@ -79,6 +86,9 @@ async function run(dir: string, args: string[], timeoutMs: number): Promise<CmdR
     ok: r.exitCode === 0,
     stdout: typeof r.stdout === 'string' ? r.stdout : '',
     stderr: typeof r.stderr === 'string' ? r.stderr.trim() : String(r.message),
+    exitCode: r.exitCode,
+    timedOut: r.timedOut === true,
+    code: (r as { code?: string }).code,
   }
 }
 

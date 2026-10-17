@@ -157,7 +157,11 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   wait, never unhold and never exceed `max_parallel` — and held work is not ready, so it never takes
   the slot of work behind it. It heals rather than waiting on a person: the look that finds the
   files settled starts the work, and until somebody looks again the last hold written stands
-  (`writtenCollision`), so every reader says the same thing. **Who is at work is `atWorkFrom`**: a
+  (`writtenCollision`), so every reader says the same thing. **A look git could not answer is not
+  one that found the files settled** (`Reality.unread`): it read as nothing dirty and nothing
+  committed, and let held work go on a look that never happened. Each half it could not read is the
+  last that could (`TreeReads`, `checkout-look.ts`), the hold written stands and that look may only
+  add one, and the queue says why once per project until a look can read it. **Who is at work is `atWorkFrom`**: a
   run `RuntimeFold` still calls open (so `QUEUE_READS` carries `AT_WORK_READS`, every end of a run),
   of a task the last look listed, whose *own* workspace is the checkout, and unfinished — so a name
   in a hold is always a task the tools take. Reading only `run_started` and `run_exited`, it kept a

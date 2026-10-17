@@ -1,9 +1,10 @@
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { taskDir } from '@tade/core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
 import type { Live } from '../../src/live.ts'
+import type { AppState } from '../../src/model.ts'
 import {
   type FakeTerminal,
   type Repo,
@@ -417,6 +418,75 @@ describe('the window, and the work waiting in it', () => {
     expect(await answer).toBe('Done. Started app/write-up.')
     const [started] = await client.events({ types: ['queue_started'], task: 'app/write-up' })
     expect(started?.detail.why).toBe('it was started anyway')
+  })
+
+  it('keeps work held on the tree held while git cannot read the tree, and says why once', async () => {
+    const told: string[] = []
+    const window = await start({
+      thinker: {
+        ask: async () => 'ok',
+        tell: async (text: string) => {
+          told.push(text)
+        },
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const tools = window.queueTools()
+    await tools.plan({
+      project: 'app',
+      said: 'fix the charge, have a look, then write the charge up',
+      agents: [
+        { name: 'fix-charge', said: 'fix', prompt: 'fix it', after: [], touches: ['charge.ts'] },
+        { name: 'look-around', said: 'look', prompt: 'look', after: [], touches: [] },
+        {
+          name: 'write-up',
+          said: 'write it up',
+          prompt: 'write up how charging works',
+          after: [{ agent: 'look-around', why: 'it needs what that finds' }],
+          touches: ['charge.ts'],
+        },
+      ],
+    })
+    await until('the first two started', () => client.runs().length === 2, SPAWNING_MS)
+    // Changed under it and not committed, which only `git status` can see.
+    repo.write({ 'charge.ts': 'charge once\n' })
+    await client.markDone('app/look-around', { by: 'you' })
+    const holds = async () => client.events({ types: ['queue_held'], task: 'app/write-up' })
+    await until('held on the tree', async () => (await holds()).length === 1, 10_000)
+
+    // Now git fails in the middle of the look: `git status` cannot read the
+    // index, while `git log` still answers. That used to read as nothing
+    // dirty, and the next look let the work go.
+    const index = join(repo.root, '.git', 'index')
+    const whole = readFileSync(index)
+    writeFileSync(index, 'DIRC')
+    const unread = () =>
+      (window as unknown as { wire: { state: AppState } }).wire.state.transcript.entries.flatMap(
+        (entry) =>
+          entry.kind === 'tade' && entry.text.startsWith("could not read app's checkout")
+            ? [entry.text]
+            : [],
+      )
+    try {
+      for (let look = 0; look < 3; look++) await tools.advance()
+      expect(client.runs().some((run) => run.task === 'app/write-up')).toBe(false)
+      expect((await holds()).length).toBe(1)
+      // Said once, with why, however many looks could not read it.
+      expect(unread()).toEqual([
+        "could not read app's checkout before starting work in it: git exited 128: fatal: .git/index: index file smaller than expected. Nothing held on its files is let go until a look can read them.",
+      ])
+    } finally {
+      writeFileSync(index, whole)
+    }
+
+    // A look that can read the tree, and finds the file settled, heals it.
+    rmSync(join(repo.root, 'charge.ts'))
+    await until(
+      'it started once the tree could be read',
+      () => client.runs().some((run) => run.task === 'app/write-up'),
+      SPAWNING_MS,
+    )
+    expect(unread().length).toBe(1)
   })
 
   it('holds work whose dependency stopped, tells the orchestrator, and starts it when told to', async () => {

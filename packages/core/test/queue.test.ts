@@ -422,6 +422,43 @@ describe('what the tree says when work is about to start', () => {
     ).toEqual({ kind: 'ready' })
   })
 
+  it('never heals on a look git could not answer, and holds on the last look that could', () => {
+    const held = [
+      event('queue_held', 'shop/notes-on-charge', {
+        because: 'shop/fix-charge, which is working, has already changed src/charge.ts',
+        changed: ['src/charge.ts'],
+        by: ['shop/fix-charge'],
+      }),
+    ]
+    const unread = 'git exited 128: fatal: .git/index: index file smaller than expected'
+    // Nothing read is not nothing changed: the hold written stands, as it
+    // would with nobody looking at all.
+    const blind = { shop: { working: ['shop/fix-charge'], unread } }
+    expect(queueStateOf(notes, facts({ events: held, reality: blind }))).toMatchObject({
+      kind: 'held',
+      changed: ['src/charge.ts'],
+      by: ['shop/fix-charge'],
+    })
+    expect(readyToStart([notes], facts({ events: held, reality: blind }), new Map())).toEqual([])
+    // What the last look that could read the tree found may add a hold of its own.
+    const last = { ...blind.shop, dirty: ['docs/refunds.md'] }
+    expect(queueStateOf(notes, facts({ reality: { shop: last } }))).toMatchObject({
+      kind: 'held',
+      changed: ['docs/'],
+    })
+    // With no hold written and no look that could read the tree, it is as if
+    // nobody had looked: the rule's own answer.
+    expect(queueStateOf(notes, facts({ reality: blind }))).toEqual({ kind: 'ready' })
+    // A person's answer is still the answer.
+    const released = [
+      ...held,
+      event('queue_changed', 'shop/notes-on-charge', { change: 'start', by: 'you' }),
+    ]
+    expect(queueStateOf(notes, facts({ events: released, reality: blind }))).toEqual({
+      kind: 'ready',
+    })
+  })
+
   it('is not held by what it waits on, by itself, or by a worktree of somebody else', () => {
     const after = queued('shop/add-refunds', {
       touches: ['src/charge.ts'],

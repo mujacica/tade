@@ -110,12 +110,12 @@ export const spawnProbe: Run = async (command, args) => {
  * will never answer this, a program that failed said something worth repeating,
  * and a program that ran out of time was working — reporting the third as the
  * first is how `ps unavailable` came to be written about a `ps` sitting in
- * `/bin` answering everybody else.
+ * `/bin` answering everybody else. `ms` is how long it was given.
  */
-export function problemWith(program: string, ran: Ran): string | null {
+export function problemWith(program: string, ran: Ran, ms = PROBE_MS): string | null {
   if (ran.code === 'ENOENT') return `there is no ${program} on this machine`
   if (ran.timedOut) {
-    return `${program} took longer than ${Math.round(PROBE_MS / 1000)}s, which is a busy machine rather than a broken one`
+    return `${program} took longer than ${Math.round(ms / 1000)}s, which is a busy machine rather than a broken one`
   }
   if (ran.exitCode !== 0) {
     return `${program} exited ${ran.exitCode ?? 'without a code'}${ran.stderr ? `: ${ran.stderr.split('\n')[0]}` : ''}`

@@ -47,9 +47,9 @@ import {
   diffIn,
   marksIn,
   STILL,
+  TreeReads,
   type TreeSaid,
   toldOf,
-  treeIn,
   treesFrom,
 } from './checkout-look.ts'
 import { type FileEntry, type Listed, treeOf } from './files.ts'
@@ -249,6 +249,8 @@ export class Live {
   private upstreams = new Map<string, Upstream>()
   /** What each project's tree said the last time work was about to start in it. */
   private realities = new Map<string, Reality>()
+  /** And each checkout as the last look that could read it, for one that could not (`TreeReads`). */
+  private readonly treeReads = new TreeReads()
   private timer: NodeJS.Timeout | null = null
   private refreshing: Promise<void> | null = null
   /** The whole-history lists being read (`histories.ts`), which the first look waits on. */
@@ -422,7 +424,7 @@ export class Live {
     if (workspace !== 'checkout') return bare
     const root = this.opts.config.projects[project]?.root
     if (!root || working.length === 0) return bare
-    return { workspace, working, ...(await treeIn(root, at)) }
+    return { workspace, working, ...(await this.treeReads.look(root, at)) }
   }
 
   /** What each task could hand queued work to begin from: its branch, where it is, its rule. */

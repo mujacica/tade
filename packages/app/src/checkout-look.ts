@@ -1,7 +1,7 @@
 import { stat } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import type { Reality, Workspace } from '@tade/core'
-import { git, newProbeGate, REUSE_MS } from '@tade/status'
+import { GIT_MS, git, newProbeGate, problemWith, REUSE_MS } from '@tade/status'
 import { marksFrom, marksOf } from './files.ts'
 import type { Change } from './frame.ts'
 import { CHANGED_FORMAT, changedFrom, diffFrom, withUntracked } from './reality.ts'
@@ -379,15 +379,20 @@ export async function branchesIn(
     .filter((row) => row.name !== '')
 }
 
+/** What one look at a shared checkout read, each half `null` where git could not read it. */
+interface TreeRead {
+  dirty: string[] | null
+  committed: { task: string; paths: string[] }[] | null
+  /** Why not, in `problemWith`'s words, where either half could not be read. */
+  unread?: string
+}
+
 /**
  * What a shared checkout says now about the agents at work in it (`at`, each
  * with when it started): every dirty path, whoever changed it, and what each of
  * them has committed since the first of them started.
  */
-export async function treeIn(
-  root: string,
-  at: ReadonlyMap<string, number>,
-): Promise<Pick<Reality, 'dirty' | 'committed'>> {
+async function treeIn(root: string, at: ReadonlyMap<string, number>): Promise<TreeRead> {
   const since = [...at.values()].sort((one, other) => one - other)[0]
   const [status, log] = await Promise.all([
     git(root, ['status', '--porcelain=v2', '-z', '--untracked-files=all']),
@@ -409,8 +414,41 @@ export async function treeIn(
     for (const path of commit.paths) paths.add(path)
     committed.set(commit.task, paths)
   }
+  // Once each, so git missing or a machine too busy for both is said once.
+  const problems = [problemWith('git', status, GIT_MS), problemWith('git', log, GIT_MS)]
+  const unread = [...new Set(problems.filter(Boolean))].join('; ')
   return {
-    dirty: status.ok ? Object.keys(marksFrom(status.stdout)).sort() : [],
-    committed: [...committed].map(([task, paths]) => ({ task, paths: [...paths].sort() })),
+    dirty: status.ok ? Object.keys(marksFrom(status.stdout)).sort() : null,
+    committed: log.ok
+      ? [...committed].map(([task, paths]) => ({ task, paths: [...paths].sort() }))
+      : null,
+    ...(unread ? { unread } : {}),
+  }
+}
+
+/**
+ * Each shared checkout as the last look that could read it, half by half.
+ *
+ * A failed `git status` or `git log` used to come back as nothing dirty and
+ * nothing committed, which the queue reads as the files having settled: it
+ * let held work go and started it on a look that never happened. So a half
+ * git could not read is the last one it could, and the answer says why
+ * (`Reality.unread`) — which the queue's rule takes as evidence that may only
+ * hold. Kept by root, one entry a checkout, for as long as the window is open.
+ */
+export class TreeReads {
+  private readonly last = new Map<string, Pick<Reality, 'dirty' | 'committed'>>()
+
+  async look(
+    root: string,
+    at: ReadonlyMap<string, number>,
+  ): Promise<Pick<Reality, 'dirty' | 'committed' | 'unread'>> {
+    const now = await treeIn(root, at)
+    const last = this.last.get(resolve(root)) ?? { dirty: [], committed: [] }
+    const read = { dirty: now.dirty ?? last.dirty, committed: now.committed ?? last.committed }
+    this.last.set(resolve(root), read)
+    // What a look would have counted: the commits of agents still at work.
+    const committed = read.committed.filter((one) => at.has(one.task))
+    return { dirty: read.dirty, committed, ...(now.unread ? { unread: now.unread } : {}) }
   }
 }

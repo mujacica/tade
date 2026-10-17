@@ -35,6 +35,7 @@ import {
   planAnswer,
   planBusyOf,
   unnamedSays,
+  unreadSays,
   whyStarting,
 } from '../queue.ts'
 import { QUEUE_SCOPES } from '../queue-view.ts'
@@ -152,6 +153,8 @@ export class Queue implements Subject {
   private readonly answering = new Set<string>()
   /** What would collide, told on the same pass (`forecast.ts`). */
   private readonly forecast: Forecast
+  /** Projects whose checkout the last look could not read, said once until one can. */
+  private readonly unread = new Set<string>()
 
   constructor(wire: Wiring, deps: QueueDeps) {
     this.wire = wire
@@ -216,6 +219,14 @@ export class Queue implements Subject {
     // moment of starting, because that is the moment it is true.
     await live.lookAtTrees(items).catch(() => {})
     const facts = live.queueFacts()
+    for (const [project, seen] of facts.reality ?? []) {
+      if (seen.unread === undefined) this.unread.delete(project)
+      else if (!this.unread.has(project)) {
+        this.unread.add(project)
+        this.said(unreadSays(project, seen.unread))
+        this.deps.news(unreadSays(project, seen.unread))
+      }
+    }
     for (const item of items) {
       const state = queueStateOf(item, facts)
       if (state.kind !== 'held') continue

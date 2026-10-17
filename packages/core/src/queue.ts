@@ -63,6 +63,12 @@ export interface Reality {
   dirty: readonly string[]
   /** What each agent at work has committed since it started, by task. */
   committed: readonly { task: string; paths: readonly string[] }[]
+  /**
+   * Why git could not read the tree, where it could not. What is above is then
+   * the last look that could, and a look that could not read the files is no
+   * evidence they have settled: it may add a hold and never heals one.
+   */
+  unread?: string
 }
 
 /**
@@ -425,14 +431,17 @@ function stateOf(item: Queued, facts: QueueFacts, tree: boolean): QueueState {
 /**
  * What holds queued work on the evidence: what the last look at the tree
  * found, or — where nobody has looked — what the last look wrote down and
- * nobody has answered. A hold heals on its own: the look that finds the
- * files settled says ready, so work never waits on a person for a reason
- * that has gone.
+ * nobody has answered. A hold heals on its own: the look that reads the
+ * files and finds them settled says ready, so work never waits on a person
+ * for a reason that has gone.
  */
 function collides(item: Queued, facts: QueueFacts, since: number): Collision | null {
   const seen = facts.reality?.get(item.project)
-  if (seen) return collidesNow(item, seen)
-  return writtenCollision(item.task, facts.events, since)
+  if (seen && seen.unread === undefined) return collidesNow(item, seen)
+  // A look git could not answer is not one that found nothing: the hold
+  // written stands, and what the last look that could read found may add one.
+  const written = writtenCollision(item.task, facts.events, since)
+  return written ?? (seen ? collidesNow(item, seen) : null)
 }
 
 /**
