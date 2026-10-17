@@ -1,3 +1,4 @@
+import type { Machines } from '../../../src/machines.ts'
 import {
   initialState,
   openSchedule,
@@ -96,6 +97,51 @@ const sentryWatch: ScheduleView = {
   },
 }
 
+/**
+ * The same watch on a Mac whose VPS has the same repository and looks with it
+ * there: on here, and left to that machine at every look, with why.
+ */
+const sentryOnVps: ScheduleView = {
+  ...sentryWatch,
+  watch: {
+    ...(sentryWatch.watch as NonNullable<ScheduleView['watch']>),
+    looks: [
+      {
+        at: Date.parse('2026-09-14T09:00:00Z'),
+        found: 0,
+        fresh: 0,
+        left: 0,
+        problem: null,
+        trouble: null,
+        until: null,
+        said: 'vps looks with it on the same repository (checkout there), so this machine does not',
+        on: 'vps',
+      },
+      ...(sentryWatch.watch?.looks.slice(0, 2) ?? []),
+    ],
+  },
+}
+
+/** A VPS this Mac is linked to, with nothing of its own in front: what the card reads to say where. */
+const vpsLinked: Machines = {
+  here: 'this Mac',
+  remotes: [
+    {
+      name: 'vps',
+      link: 'live',
+      rev: 1,
+      said: null,
+      asOf: Date.parse('2026-09-14T09:00:00Z'),
+      heard: true,
+      projects: [
+        { name: 'checkout', title: null, more: 0, watching: ['sentry.new-errors'], agents: [] },
+      ],
+      spend: null,
+      talk: null,
+    },
+  ],
+}
+
 export const SCHEDULE_SCREENS: Scenario[] = [
   {
     name: 'a-schedule',
@@ -145,6 +191,28 @@ export const SCHEDULE_SCREENS: Scenario[] = [
       clock: utcClock,
       date: utcDate,
       schedules: [...queueSchedules, sentryWatch],
+    }),
+  },
+  {
+    name: 'a-watch-on-vps',
+    about:
+      'A watch whose repository is a project on the VPS too, which looks with it there: on here, its mark quiet and its last look left to vps down the side, and the card saying which machine runs it and why.',
+    state: {
+      ...openSchedule(
+        withTasks(withProjects(initialState(), ['checkout']), queueTasks),
+        'new-sentry-errors',
+      ),
+      project: 'checkout',
+      folded: ['changes', 'files', 'notes', 'where'],
+      ...showing('checkout', { scope: 'next' }),
+    },
+    frame: frame({
+      screen: '',
+      height: 44,
+      clock: utcClock,
+      date: utcDate,
+      schedules: [...queueSchedules, sentryOnVps],
+      machines: vpsLinked,
     }),
   },
 ]

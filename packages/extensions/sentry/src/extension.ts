@@ -490,6 +490,7 @@ export const sentryExtension: TadeExtension = {
       title: 'New Sentry errors',
       means: 'starts an agent on each issue first seen since its last look',
       every: '1h',
+      about: 'repository',
       // It asks Sentry, so an offline machine holds it rather than letting it
       // find that out once an hour, against two endpoints, all night.
       network: true,

@@ -622,6 +622,7 @@ function projectRow(
       queued: mine.filter((task) => task.state === 'queued').length,
     },
     checks: project.open ? checkTreesOf(trees, project.name, reach) : null,
+    watching: [...project.watching],
   }
 }
 

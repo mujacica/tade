@@ -59,6 +59,7 @@ const vps = (over: Partial<Machine> = {}): Machine => ({
       name: 'tade',
       title: null,
       more: 0,
+      watching: null,
       agents: [
         agent({
           name: 'intake-webhooks',
@@ -102,6 +103,7 @@ const vps = (over: Partial<Machine> = {}): Machine => ({
       name: 'web',
       title: null,
       more: 0,
+      watching: null,
       agents: [agent({ name: 'og-images', mark: 'done', movedAt: NOW - 3 * 60 * MINUTE })],
     },
   ],
@@ -127,7 +129,7 @@ const lab: Machine = {
   said: null,
   asOf: NOW - 9_000,
   heard: true,
-  projects: [{ name: 'firmware', title: null, more: 0, agents: [] }],
+  projects: [{ name: 'firmware', title: null, more: 0, watching: null, agents: [] }],
   spend: null,
   talk: null,
 }

@@ -354,6 +354,12 @@ export const ProjectRowSchema = z.strictObject({
    * — or never will, for a closed project — which is not *nothing ran*.
    */
   checks: z.array(CheckTreeOutSchema).nullable(),
+  /**
+   * The watches on outside sources this machine looks with in it, as
+   * `<extension>.<watch>`: what another machine of the person's with the same
+   * repository reads so that only one of them watches it (`watchWhere`).
+   */
+  watching: z.array(z.string()),
 })
 export type ProjectRow = z.infer<typeof ProjectRowSchema>
 

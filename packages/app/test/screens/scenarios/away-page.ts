@@ -293,6 +293,7 @@ const PROJECTS: ProjectIn[] = ['checkout', 'search', 'infra'].map((name) => ({
   changes: 1,
   can: [{ verb: 'close', how: 'now' }],
   cannot: [{ verb: 'open', why: 'it is open' }],
+  watching: [],
 }))
 
 const QUEUE: QueueIn[] = [

@@ -75,9 +75,8 @@ import { Window } from './wire/window.ts'
 // how it looks is in `view.ts`, and where the facts come from is in `live.ts`,
 // so all three can be tested without a terminal.
 
-// `Thinker`, `WorkerImageFile` and `AppOptions` live in `wire/context.ts`
-// beside the `Wiring` every subject is handed first, and are re-exported here
-// so nothing outside the package has to know that they moved.
+// `Thinker`, `WorkerImageFile` and `AppOptions` live in `wire/context.ts` beside the
+// `Wiring` every subject is handed first, re-exported so nothing outside has to know.
 export type { AppOptions, Thinker, WorkerImageFile } from './wire/context.ts'
 
 /** How long the window's own closes may take, of the second quitting has (`quitting.ts`). */
@@ -198,6 +197,7 @@ export class App {
       news: (said) => this.orchestrator.note(said),
       orchestrator: () => this.orchestrator,
       advanceQueue: () => void this.advanceQueue(),
+      twins: (project) => this.remotes.watchTwins(project),
     })
     this.intake = new Intake(this.wire, { advanceQueue: () => void this.advanceQueue() })
     this.search = new Search(this.wire, {

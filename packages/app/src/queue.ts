@@ -21,6 +21,7 @@ import {
   scheduleEnded,
   WATCH_REACH,
   type Watched,
+  type WatchWhere,
 } from '@tade/core'
 import type { WatchOffer } from '@tade/extensions-core'
 import {
@@ -732,6 +733,8 @@ export function watchesListed(req: {
   offers: readonly WatchOffer[]
   projects: readonly string[]
   watching: (watch: string, project: string) => { paused: boolean } | null
+  /** Which machine looks with it there (`watchWhere`); here where unsaid. */
+  where?: (watch: string, project: string) => WatchWhere
   find: string
 }): string {
   const words = req.find.trim().toLowerCase().split(/\s+/).filter(Boolean)
@@ -741,6 +744,9 @@ export function watchesListed(req: {
     if (!words.every((word) => text.includes(word))) continue
     const where = req.projects.map((project) => {
       const one = req.watching(offer.id, project)
+      const there = req.where?.(offer.id, project)
+      // Another machine's to look with: what is turned on here does not look.
+      if (there && !there.here) return `${project}: on ${there.on}, not here — ${there.said}`
       return `${project}: ${one ? (one.paused ? 'off, paused' : 'on') : 'off'}`
     })
     lines.push(

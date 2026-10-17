@@ -806,6 +806,7 @@ export const reviewExtension: TadeExtension = {
       title: 'Failing checks on your reviews',
       means: 'looks at what CI says about the reviews you opened, and starts work on what is red',
       every: '10m',
+      about: 'repository',
       // It asks a forge, so an offline machine holds it rather than letting it
       // find that out with a request that times out once every ten minutes.
       network: true,
@@ -877,6 +878,7 @@ export const reviewExtension: TadeExtension = {
       title: 'Unanswered comments on your reviews',
       means: 'looks for conversations on your reviews that nobody has answered — robots first',
       every: '15m',
+      about: 'repository',
       async check(ctx) {
         const where = await whereOf(ctx, ctx.watching)
         if ('problem' in where) throw new Error(where.problem)
@@ -926,6 +928,7 @@ export const reviewExtension: TadeExtension = {
       title: 'Reviews asked of you',
       means: 'looks for reviews somebody has asked you to look at, and tells the orchestrator',
       every: '15m',
+      about: 'repository',
       async check(ctx) {
         const where = await whereOf(ctx, ctx.watching)
         if ('problem' in where) throw new Error(where.problem)
@@ -962,6 +965,7 @@ export const reviewExtension: TadeExtension = {
       title: 'Branches pushed with no review',
       means: 'looks for branches of yours that are on the remote with nothing open for them',
       every: '10m',
+      about: 'repository',
       async check(ctx) {
         const where = await whereOf(ctx, ctx.watching)
         if ('problem' in where) throw new Error(where.problem)

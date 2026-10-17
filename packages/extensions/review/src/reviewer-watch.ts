@@ -205,6 +205,7 @@ export const toReview: ExtensionWatch = {
   means:
     'reads the diff of each open pull request on the repositories you have granted, and starts an independent reviewer on the ones nothing has reviewed at this head',
   every: '15m',
+  about: 'repository',
   network: true,
   offers: 'agent',
 
@@ -292,6 +293,7 @@ export const reviewFix: ExtensionWatch = {
   means:
     'starts one agent on the findings of a review Tade published, on the repositories you have granted — one fix per pull request, and never one started from somebody else’s comment',
   every: '15m',
+  about: 'repository',
   network: true,
   offers: 'agent',
 

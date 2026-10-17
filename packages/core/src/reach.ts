@@ -211,6 +211,14 @@ const NEVER: readonly (readonly [string, string])[] = [
  * many of its agents work at once, which says when the next one starts and
  * nothing about what any of them may do.
  *
+ * `watches` is which machine's clock looks with the project's watches on
+ * outside sources (`watch-where.ts`): naming a remote there sends that machine
+ * nothing and reaches it in no new way, and `here` cannot start a second
+ * machine watching, because a remote already looking holds this one whatever
+ * the key says. What it can do is turn this machine's watches off for the
+ * project, which `WATCH_REACH` already lets the person's own words do one
+ * watch at a time — so `asked`, like turning one off, and not `never`.
+ *
  * A route is the same shape: its model, how hard it thinks and which harness
  * it opens are ordinary settings, and `provider` is the one left that a
  * sentence I read must not reach, because it is where the work is sent.
@@ -249,6 +257,7 @@ const ALLOWED_UNDER: readonly RegExp[] = [
   /^projects\.[a-z0-9-]+\.checks\./,
   /^projects\.[a-z0-9-]+\.workspace$/,
   /^projects\.[a-z0-9-]+\.max_parallel$/,
+  /^projects\.[a-z0-9-]+\.watches$/,
   /^workers\.routes\.[a-z0-9-]+\.(model|thinking|harness)$/,
   /^surfaces\.intake\.sources\.[a-z0-9-]+\.(template|document)$/,
   /^surfaces\.web\.(install|offline)$/,

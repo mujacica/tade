@@ -70,6 +70,7 @@ export const branchChecks: ExtensionWatch = {
   means:
     'watches what CI says about the commit every branch of the project is on — the one it pushes straight to main, and the one each agent pushed from its own worktree — and puts one agent on each commit it finds red',
   every: '10m',
+  about: 'repository',
   // It asks a forge, so an offline machine holds it rather than letting it
   // find that out with a request that times out once every ten minutes.
   network: true,

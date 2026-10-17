@@ -1166,8 +1166,8 @@ export class Workbench {
   }
 
   /**
-   * A watch looked: how much it found, which was new, how much of that waits
-   * for its next look, and where that look starts — or why it could not look.
+   * A watch looked: how much it found, which was new, how much of that waits for its next
+   * look, and where that look starts — or why it could not look, or the machine it left it to.
    */
   async watchChecked(
     id: string,
@@ -1179,10 +1179,10 @@ export class Workbench {
           since: string | null
           /** Why it found nothing, where the watch said: never a problem. */
           said?: string
+          on?: string
         }
-      // `trouble` is classified by the `catch` that held the error
-      // (`troubleOf`): that is the only moment anything knows, and a
-      // classifier over `problem` would break when somebody reworded one.
+      // `trouble` is classified by the `catch` that held the error (`troubleOf`): that is
+      // the only moment anything knows, and a classifier over `problem` breaks on a rewording.
       | { problem: string; trouble: LookTrouble; until?: number },
   ): Promise<void> {
     await this.log.append({

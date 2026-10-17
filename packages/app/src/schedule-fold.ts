@@ -83,7 +83,8 @@ export class ScheduleFold {
     const lines = looked?.lines ?? []
     const watched = watchedFrom([...lines, ...(this.found.get(schedule) ?? [])], schedule)
     if (!looked?.since || lines.includes(looked.since)) return watched
-    return { ...watched, since: watchedFrom([looked.since], schedule).since }
+    const { since, elsewhereAt } = watchedFrom([looked.since], schedule)
+    return { ...watched, since, ...(elsewhereAt ? { elsewhereAt } : {}) }
   }
 }
 

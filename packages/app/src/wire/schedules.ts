@@ -6,18 +6,16 @@ import {
   describeWhen,
   dueNow,
   joined,
-  LINES_LOOKED_BACK,
   madeByWords,
   newFindings,
-  nothingToWatch,
   type Schedule,
   type ScheduleDoes,
   scheduleIdOf,
   standingSchedules,
-  WATCH_REACH,
+  type Watched,
+  type WatchWhere,
   type When,
   watchedFrom,
-  watchNamedBy,
 } from '@tade/core'
 import { type ExtensionHost, troubleOf, troubleUntil } from '@tade/extensions-core'
 import { readEverMade } from '@tade/workbench/schedules'
@@ -26,7 +24,7 @@ import type { Frame } from '../frame.ts'
 import { openSchedule, type ScheduleView, withTranscript } from '../model.ts'
 import { scheduleMenuItems } from '../panels/menu/state.ts'
 import { promptPanel } from '../panels/small/state.ts'
-import { foundMessage, scheduleView, scheduleViews, watchesListed } from '../queue.ts'
+import { foundMessage, scheduleView, scheduleViews } from '../queue.ts'
 import { NEVER_RAN } from '../schedule-fold.ts'
 import { hush, unhush } from '../schedules-view.ts'
 import { problem, tadeDid } from '../transcript.ts'
@@ -36,7 +34,6 @@ import {
   notify,
   type Prompts,
   type Subject,
-  saidLately,
   type Wiring,
   whenShort,
   why,
@@ -45,6 +42,10 @@ import { type Tellable, tellOrKeep } from './handed.ts'
 import { Kept } from './kept.ts'
 import { mayRun, type Network, networkOf, wasOffline } from './network.ts'
 import { actOnFound, offerRun } from './proposals.ts'
+import { mayWatch, type WatchTools, watchTools } from './watch-tools.ts'
+import { noTwins, notLooking, type WatchTwinsHere, whereNow } from './watch-where.ts'
+
+export type { WatchTools } from './watch-tools.ts'
 
 /** What a schedule's row and its menu offer to do to it. */
 const CHANGES = ['open', 'run', 'pause', 'resume', 'remove', 'rename'] as const
@@ -60,12 +61,6 @@ const CHANGES = ['open', 'run', 'pause', 'resume', 'remove', 'rename'] as const
 // A watch that reaches the network also reads one thing it does not own: the
 // machine's reach for a network (`network.ts`). With none, its look does not
 // happen at all — not a failed look, and not a red line per watch per timer.
-
-/** What the orchestrator's watch tools do, answered from this window. */
-export interface WatchTools {
-  watches(find: string): Promise<string>
-  change(req: { watch: string; project: string; on: boolean; said: string }): Promise<string>
-}
 
 /** What a schedule is asked for, in the words the orchestrator's tool takes. */
 export interface ScheduleRequest {
@@ -106,6 +101,8 @@ export interface SchedulesDeps {
   orchestrator(): Tellable
   /** Start whatever the queue can now start. */
   advanceQueue(): void
+  /** What the links know of other machines' watches on one project's repository; none without. */
+  twins?(project: string): WatchTwinsHere
 }
 
 export class Schedules implements Subject {
@@ -238,8 +235,22 @@ export class Schedules implements Subject {
     return this.fire(one, { run: true, due: this.wire.now(), missed: 0 }, { asked })
   }
 
+  /** Which machine looks with a watch in a project now (`watchWhere`): schedule `id`'s newest look, and the links. */
+  where(project: string, watch: string, id: string, watched?: Watched): WatchWhere {
+    const looks = () => watched ?? this.wire.live?.watchedOf(id) ?? null
+    return whereNow(this.wire, project, watch, looks, this.deps.twins?.(project) ?? noTwins())
+  }
+
+  /** A watch another machine now looks with, whose newest look here did not leave it there. */
+  private handedOver(one: Schedule): boolean {
+    if (one.does.kind !== 'watch' || this.lookingWith.has(one.id)) return false
+    const where = this.where(one.project, one.does.watch, one.id)
+    if (where.here) return false
+    return this.wire.live?.watchedOf(one.id).looks[0]?.on !== where.on
+  }
+
   /** The schedule watching one watch in one project, or null when none is. */
-  private watching(watch: string, project: string): (Schedule & { paused: boolean }) | null {
+  watching(watch: string, project: string): (Schedule & { paused: boolean }) | null {
     return (
       this.wire.opts.client
         .schedules()
@@ -286,6 +297,10 @@ export class Schedules implements Subject {
     const offer = this.wire.opts.extensions?.watches().find((one) => one.id === watch)
     if (!offer) throw new Error(`there is no watch called ${watch}`)
     const already = this.watching(watch, project)
+    const where = this.where(project, watch, already?.id ?? '')
+    if (on && already?.paused && !where.here) {
+      throw new Error(`${offer.title} stays off in ${project}: ${where.said}`)
+    }
     if (already) {
       if (already.paused !== on) {
         return `${already.name} is already ${on ? 'on' : 'off'} in ${project}`
@@ -346,12 +361,17 @@ export class Schedules implements Subject {
     // already in hand, this is a set lookup and after the first look it comes
     // back empty — so the file behind the second question is read only on the
     // looks where something might actually be written.
+    // One another machine looks with is not written: written, it would be
+    // turned on here; unwritten, it is written the day it is this machine's.
+    const ours = (made: readonly Schedule[]) =>
+      made.filter(
+        (one) => one.does.kind !== 'watch' || this.where(one.project, one.does.watch, one.id).here,
+      )
     const there = new Set(this.wire.opts.client.schedules().map((one) => one.id))
-    if (standingSchedules(watches, projects, (id) => there.has(id), this.wire.now()).length === 0) {
-      return
-    }
+    const now = this.wire.now()
+    if (ours(standingSchedules(watches, projects, (id) => there.has(id), now)).length === 0) return
     const ever = readEverMade(this.wire.opts.home)
-    const standing = standingSchedules(watches, projects, (id) => ever.has(id), this.wire.now())
+    const standing = ours(standingSchedules(watches, projects, (id) => ever.has(id), now))
     for (const schedule of standing) {
       try {
         const kept = await this.wire.opts.client.setSchedule(schedule, schedule.by)
@@ -385,7 +405,11 @@ export class Schedules implements Subject {
         this.fired.get(one.id) ?? Number.NEGATIVE_INFINITY,
       )
       const due = dueNow(one, Number.isFinite(last) ? last : null, ran, now)
-      if (!due) continue
+      if (!due) {
+        // Another machine started looking with it: said now, not at its next look.
+        if (this.handedOver(one)) await this.lookWith(one).catch((err) => this.wire.note(err))
+        continue
+      }
       if (due.run && !(await mayRun(this.network, one.does, watches, now))) continue
       await this.fire(one, due).catch((err) => {
         this.wire.put(
@@ -484,27 +508,12 @@ export class Schedules implements Subject {
       this.wire.draw()
       return said
     }
-    // Its project is not one Tade is working in any more, so there is nothing
-    // to look at. Written down as the quiet look it is rather than thrown as
-    // trouble: the watch keeps everything it has found, comes back the moment
-    // the project is opened again, and says this once instead of a red line
-    // every ten minutes about a project somebody closed on purpose.
-    const nothing = nothingToWatch(one.project, Object.keys(this.wire.opts.config.projects))
-    if (nothing) {
-      this.wire.put(unhush(this.wire.state, one.id))
-      await client
-        .watchChecked(one.id, {
-          found: 0,
-          fresh: [],
-          left: 0,
-          since: watched.since,
-          said: nothing,
-        })
-        .catch(() => {})
-      const said = `${one.name}: ${nothing}`
-      if (asked || watched.looks[0]?.said !== nothing) return say(said)
-      return said
-    }
+    // Its project is not open, or another machine looks with it: written down
+    // as the quiet look it is rather than thrown as trouble, and said once
+    // rather than a line every ten minutes (`watch-where.ts`).
+    const where = this.where(one.project, does.watch, one.id, watched)
+    const quiet = await notLooking(this.wire, one, watched, where, asked)
+    if (quiet) return quiet.news ? say(quiet.said) : quiet.said
     let looked: Awaited<ReturnType<ExtensionHost['look']>>
     try {
       const host = this.wire.opts.extensions
@@ -513,7 +522,8 @@ export class Schedules implements Subject {
         project: one.project,
         input: does.input,
         since: watched.since,
-        turnedOn: one.created,
+        // Back from another machine, what came before it was that one's.
+        turnedOn: watched.elsewhereAt ?? one.created,
         // A watch that looks at what Tade is running needs the window it is
         // running in; one that does not never asks for it.
         tade: this.wire.opts.extensionWorkbench ?? null,
@@ -648,7 +658,11 @@ export class Schedules implements Subject {
       // rule with a door beside it that nobody guards is worse than no rule,
       // because it reads like a promise. Nothing here gates an agent or an
       // ask schedule — those are the queue's, and always were.
-      if ((req.by ?? 'orchestrator') === 'orchestrator') await this.mayWatch(offer, true)
+      if ((req.by ?? 'orchestrator') === 'orchestrator') await mayWatch(this.wire, offer, true)
+      // And one machine per repository: another one looking with it means this one's stays off.
+      const where = existing ? null : this.where(req.project, req.watch, id)
+      if (where && !where.here)
+        throw new Error(`${offer.title} stays off in ${req.project}: ${where.said}`)
       if (req.most !== undefined && !(Number.isInteger(req.most) && req.most > 0)) {
         throw new Error('most is how many new things one look acts on: a whole number, 1 or more')
       }
@@ -709,88 +723,10 @@ export class Schedules implements Subject {
   }
 
   /**
-   * What the orchestrator's watch tools do, answered from this window.
-   *
-   * The boundary is `WATCH_REACH` in core and it is enforced here rather than
-   * in the tool, for the reason the settings boundary is: the tool runs inside
-   * the model's own process, and a rule that lives where the model lives is a
-   * rule the model can be talked out of. It may only ever refuse — everything
-   * it allows, the button on the Extensions page already allowed.
+   * What the orchestrator's watch tools do, answered from this window, held to
+   * `WATCH_REACH` (`watch-tools.ts`).
    */
   tools(): WatchTools {
-    return {
-      watches: async (find) =>
-        watchesListed({
-          offers: this.wire.opts.extensions?.watches() ?? [],
-          projects: Object.keys(this.wire.opts.config.projects),
-          watching: (watch, project) => this.watching(watch, project),
-          find,
-        }),
-      change: async (req) => this.askedWatch(req),
-    }
-  }
-
-  /**
-   * Turn a watch on or off on somebody's behalf, or say why not.
-   *
-   * The same three things that hold for a setting: Tade has to offer the watch
-   * at all, the boundary has to reach it, and the person has to have asked for
-   * *this* watch in their own words. That last check reads the journal, not
-   * the argument — `said` is the orchestrator's account of what was asked and
-   * is written down beside the change, and what authorises it is a line the
-   * person themselves typed or spoke. A page can tell a model to turn the
-   * review watch off. It cannot put "turn the review watch off" in somebody's
-   * mouth.
-   */
-  private async askedWatch(req: {
-    watch: string
-    project: string
-    on: boolean
-    said: string
-  }): Promise<string> {
-    const watch = req.watch.trim()
-    const offer = this.wire.opts.extensions?.watches().find((one) => one.id === watch)
-    if (!offer) {
-      throw new Error(
-        `Tade has no watch called ${watch}. tade_watches lists every one there is, by the id this takes.`,
-      )
-    }
-    const project = req.project.trim()
-    if (!this.wire.opts.config.projects[project]) {
-      throw new Error(
-        `${project || 'no project'} is not a project Tade has open. A watch runs in one, so say which.`,
-      )
-    }
-    if (req.said.trim() === '') {
-      throw new Error(
-        `${offer.title} only goes ${req.on ? 'on' : 'off'} when somebody asks for it. Pass what they said, word for word.`,
-      )
-    }
-    await this.mayWatch(offer, req.on)
-    return this.turnWatch(watch, project, req.on, 'orchestrator', req.said.trim())
-  }
-
-  /**
-   * Whether the orchestrator may turn this watch, or why not.
-   *
-   * The rule is `WATCH_REACH` in core and the check is the journal's: what
-   * authorises it is a line the *person* typed or spoke, kept verbatim, which
-   * nothing an agent read can ever become. It may only ever refuse.
-   */
-  private async mayWatch(offer: { id: string; title: string }, on: boolean): Promise<void> {
-    const { reach, because } = WATCH_REACH
-    const way = on ? 'on' : 'off'
-    if (reach === 'never') {
-      throw new Error(
-        `${offer.title} is not mine to turn ${way}: ${because}. A person does it on the Extensions page or in the queue.`,
-      )
-    }
-    if (reach !== 'asked') return
-    const line = watchNamedBy(offer, await saidLately(this.wire, LINES_LOOKED_BACK))
-    if (!line) {
-      throw new Error(
-        `Nothing they have said names ${offer.title}, so I will not turn it ${way} — ${because}. Ask them plainly: "${offer.title.toLowerCase()}" said back to you is enough.`,
-      )
-    }
+    return watchTools(this.wire, this)
   }
 }

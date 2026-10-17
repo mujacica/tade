@@ -320,6 +320,18 @@ export interface ExtensionWatch {
    */
   network?: boolean
   /**
+   * What it looks at: the repository as a service outside this machine sees
+   * it — its forge, its tracker, its chat, its errors, its dependencies — the
+   * same from every machine with a checkout of it; or this machine's own work.
+   *
+   * Declared, never read off `network`: a judge reaches a model somewhere else
+   * and reads this machine's agents. `repository` makes it one machine's where
+   * the repository is a project on another of the person's machines too, so
+   * one red build is one finding there and not one on each (`watchWhere`,
+   * REMOTE-TADE.md §9.5). Unsaid is `machine`, which looks on every machine.
+   */
+  about?: 'repository' | 'machine'
+  /**
    * Look, and say what there is. No model: it runs on a clock, and a look that
    * finds nothing costs nothing. Nothing found is an empty list, never a throw;
    * it throws, with why, only when it cannot look at all. What it returns as

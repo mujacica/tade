@@ -2,6 +2,7 @@ import { AGENT_WORKSPACES, type Config } from './config.ts'
 import { PREPARE_DEADLINE_MINUTES } from './prepare.ts'
 import { PUSH_MODES, pushDefault, pushFor, workspaceFor } from './project.ts'
 import type { Setting, SettingGroup } from './settings.ts'
+import { WATCHES_HERE } from './watch-where.ts'
 
 // What one project answers for itself, as a person changes it.
 //
@@ -162,6 +163,23 @@ export function projectGroups(config: Config): SettingGroup[] {
             'one at a time',
             'concurrency',
           ],
+          scope: name,
+        },
+        {
+          // Read at every look a watch would take here (`watchWhere`), so it is
+          // live; a remote already looking with a watch holds this machine's
+          // whatever it says, and that is said on the watch's own row.
+          path: `projects.${name}.watches`,
+          title: 'Watches run on',
+          means: `which machine looks with ${name}'s watches on GitHub, Slack, Linear, Sentry and dependencies; one machine per repository, so one red build is one finding`,
+          value: project.watches ?? '',
+          fallback: 'a remote where it is a project too, else here',
+          type: {
+            kind: 'choice',
+            options: ['', WATCHES_HERE, ...Object.keys(config.remotes)],
+          } as const,
+          live: true,
+          keywords: [name, 'watch', 'watches', 'remote', 'vps', 'machine', 'duplicate'],
           scope: name,
         },
         {

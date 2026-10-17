@@ -105,6 +105,8 @@ export class Mirrors {
   private readonly revs = new Map<string, number | null>()
   /** What each remote's last look could not do, so it is said once. */
   private readonly troubled = new Map<string, string>()
+  /** The remotes that have said, since the window opened, which of their projects are which repository. */
+  private readonly answered = new Set<string>()
   /** By project here. */
   private readonly held = new Map<string, Mirrored>()
   /** One fetch at a time into each mirror, whichever machine it is from. */
@@ -142,6 +144,7 @@ export class Mirrors {
     this.owed.delete(name)
     this.revs.delete(name)
     this.troubled.delete(name)
+    this.answered.delete(name)
     for (const [project, mirrored] of this.held) {
       this.held.set(project, {
         ...mirrored,
@@ -201,6 +204,19 @@ export class Mirrors {
       }
     }
     return null
+  }
+
+  /** Whether a remote has said, since the window opened, which of its projects are which repository. */
+  toldBy(name: string): boolean {
+    return this.answered.has(name)
+  }
+
+  /** Other machines' projects that are one project here's repository, as each last said. */
+  sameAs(project: string): readonly { machine: string; project: string }[] {
+    return (this.held.get(project)?.there ?? []).map((one) => ({
+      machine: one.machine,
+      project: one.project,
+    }))
   }
 
   /** A count that moves whenever what the readers draw did: a file list arrived, a mirror moved. */
@@ -311,6 +327,7 @@ export class Mirrors {
         }
         this.keep(here.name, name, there)
       }
+      this.answered.add(name)
       this.troubles(
         name,
         problems.length === 0 ? null : `${name}'s branches: ${problems.join('; ')}`,

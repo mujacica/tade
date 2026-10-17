@@ -215,6 +215,7 @@ export const linearIssues: ExtensionWatch = {
   // about how soon somebody wants an answer rather than about a budget. Two
   // requests a look is nothing against 2,500 an hour.
   every: '10m',
+  about: 'repository',
   intake: 'linear',
   network: true,
   // One a look. The schedule's two is a ceiling on agents started, and this one

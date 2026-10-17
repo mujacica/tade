@@ -184,6 +184,37 @@ describe('an agent an extension starts', () => {
     expect(host.specs('orchestrator').some((spec) => spec.name.startsWith('jev_'))).toBe(false)
   })
 
+  it('says of every watch it ships whether it looks at the repository or at this machine', () => {
+    // One machine per repository looks with the first kind (`watchWhere`), and
+    // every machine with the second. Read off nothing: a watch added here makes
+    // this list wrong until somebody decides which it is.
+    const about = BUILTIN_EXTENSIONS.flatMap((one) =>
+      (one.watches ?? []).map((watch) => [`${one.name}.${watch.id}`, watch.about ?? 'machine']),
+    )
+    expect(Object.fromEntries(about)).toEqual({
+      'deps.vulnerabilities': 'repository',
+      'deps.updates': 'repository',
+      'intake.cli': 'machine',
+      'intake.github': 'repository',
+      'intake.slack': 'repository',
+      'intake.linear': 'repository',
+      // A judge reaches a model somewhere else, and reads this machine's agents.
+      'jev.review': 'machine',
+      'jev.circles': 'machine',
+      'jev.mistakes': 'machine',
+      'jev.verdicts': 'machine',
+      'review.branch-checks': 'repository',
+      'review.checks-failed': 'repository',
+      'review.conflicts': 'repository',
+      'review.comments': 'repository',
+      'review.requested': 'repository',
+      'review.to-review': 'repository',
+      'review.review-fix': 'repository',
+      'review.pushed': 'repository',
+      'sentry.new-errors': 'repository',
+    })
+  })
+
   it('lists the tools Tade wrote for itself, and loads only the ones turned on', async () => {
     const root = tmp('wx-written-')
     writeFileSync(

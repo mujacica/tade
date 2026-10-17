@@ -109,6 +109,7 @@ export const reviewConflicts: ExtensionWatch = {
   means:
     'looks for reviews Tade opened that conflict with their base, and puts one agent on each conflicted head to merge the base in, resolve it, run the checks and push — a merge, never a rebase or a force-push',
   every: '10m',
+  about: 'repository',
   // It asks a forge, so an offline machine holds it rather than letting it
   // find that out with a request that times out once every ten minutes.
   network: true,

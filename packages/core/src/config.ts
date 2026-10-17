@@ -8,6 +8,7 @@ import { ModelPriceSchema } from './prices.ts'
 import { GIVE_WAY_MAX } from './priority.ts'
 import { PUSH_MODES } from './project.ts'
 import { RemotesSchema } from './remotes.ts'
+import { WatchesOn } from './watch-where.ts'
 
 // Schema for ~/.tade/config.yaml. Objects are strict so a typo'd key is an
 // error rather than a silently ignored setting.
@@ -195,6 +196,8 @@ export const ProjectConfigSchema = z.strictObject({
   checks: ChecksConfigSchema.omit({ suites: true }).partial().optional(),
   /** What a new worktree is given before its agent starts, over what the project says (`prepare.ts`). */
   prepare: PrepareConfigSchema.optional(),
+  /** Which machine looks with its watches on outside sources: `here` or a remote (`watch-where.ts`). */
+  watches: WatchesOn.optional(),
 })
 
 /**
@@ -298,12 +301,10 @@ export const EDITORS = [
   'emacs',
   'system',
 ] as const
-
 export type EditorName = (typeof EDITORS)[number]
 
 /** How often the window asks what is current, and how long each answer stands. */
 export const UPDATE_CHECKS = ['daily', 'weekly', 'never'] as const
-
 export type UpdateCheck = (typeof UPDATE_CHECKS)[number]
 
 /** How long an answer about what is current stands before the window asks again. Null is never. */
@@ -314,7 +315,6 @@ export function updateCheckEvery(check: UpdateCheck): number | null {
 
 /** Who answers when queued work is held: the person, asked by the orchestrator, or the orchestrator. */
 export const QUEUE_HOLDS = ['ask', 'orchestrator'] as const
-
 export type QueueHolds = (typeof QUEUE_HOLDS)[number]
 
 export const ConfigSchema = z

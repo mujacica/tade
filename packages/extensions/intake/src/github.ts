@@ -187,6 +187,7 @@ export const githubIssues: ExtensionWatch = {
   // an unchanged list costs none of them, so this is about how soon somebody
   // wants an answer rather than about a budget.
   every: '10m',
+  about: 'repository',
   intake: 'github',
   network: true,
   // One a look. The schedule's two is a ceiling on agents started, and this

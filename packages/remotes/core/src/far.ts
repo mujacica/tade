@@ -103,6 +103,12 @@ export interface FarEnd {
    * it has no project anybody could fetch.
    */
   repositories: RepositoryHere[]
+  /**
+   * The outside watches its window says it looks with, by project, as its
+   * projection carries them (`ProjectRow.watching`). A test sets it; a project
+   * not in it watches nothing there.
+   */
+  readonly watching: Map<string, readonly string[]>
   /** Its window closed and opened again: the same home and port, another epoch. */
   restart(): Promise<void>
   /** Nothing answers on its port any more. Safe twice. */
@@ -148,6 +154,7 @@ class Far implements FarEnd {
   talking = true
   readonly attachable = new Map<string, string>()
   repositories: RepositoryHere[] = []
+  readonly watching = new Map<string, readonly string[]>()
   readonly acted: FarAct[] = []
   readonly talk = new FarTalk()
   private agents: readonly FarAgent[] = []
@@ -328,7 +335,9 @@ class Far implements FarEnd {
     return {
       lifetime: { epoch: this.epoch, rev: this.projectorRev(reach), openedAt: 0 },
       reach,
-      projects: this.projects.map((name) => projectIn(name, this.titles[name] ?? '')),
+      projects: this.projects.map((name) =>
+        projectIn(name, this.titles[name] ?? '', this.watching.get(name) ?? []),
+      ),
       tasks: this.agents.map((agent) => farTask(agent, this.shownAt)),
       queue: [],
       findings: null,
@@ -351,6 +360,6 @@ class Far implements FarEnd {
   }
 }
 
-function projectIn(name: string, title: string): ProjectIn {
-  return { name, title, open: true, changes: 0, can: [], cannot: [] }
+function projectIn(name: string, title: string, watching: readonly string[]): ProjectIn {
+  return { name, title, open: true, changes: 0, can: [], cannot: [], watching }
 }

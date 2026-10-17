@@ -6,6 +6,7 @@ import type {
   QueueFacts,
   Spend,
   TadeEvent,
+  Watched,
   Workspace,
 } from '@tade/core'
 import {
@@ -16,6 +17,7 @@ import {
   planStandings,
   startOfToday,
   titlesOf,
+  watchingIn,
   writtenOrder,
 } from '@tade/core'
 import type { JudgeFinding } from '@tade/extensions-core'
@@ -195,6 +197,12 @@ export function partsFrom(
       spendSince: startOfToday(wire.now()),
       checks: kept.records.heldNow(wire.opts.home, world),
       findings: heldFindings(wire),
+      // The schedules in hand and the looks `Live` folded: no file read here.
+      watching: watchingIn(
+        wire.opts.client.schedules(),
+        wire.opts.extensions?.watches() ?? [],
+        (schedule) => live.watchedOf(schedule).looks[0]?.on ?? null,
+      ),
     },
     world,
     (task) => steeringFor(wire.opts.client, task),
@@ -326,6 +334,7 @@ export function beatParts(
     projectLines: projectLines(live.rootLines),
     checks: live.checks,
     findings: live.findings ? live.findings.map(findingIn) : null,
+    watching: live.watching ?? new Map(),
   }
 }
 
@@ -348,6 +357,8 @@ export interface Held {
   queueFacts(): QueueFacts
   notes(project: string | null): readonly NoteShown[]
   tasks: readonly { task: string; waiting?: boolean }[]
+  /** What each watch did: whose newest look left it to another machine (`watchingIn`). */
+  watchedOf(schedule: string): Watched
 }
 
 /** What `beatParts` needs, so it can be tested without a window. */
@@ -377,6 +388,8 @@ export interface Beatable {
   checks: readonly CheckTreeIn[] | null
   /** What the judges last said (`heldFindings`), or null where none reads anything. */
   findings?: readonly JudgeFinding[] | null
+  /** The outside watches this machine looks with, by project (`watchingIn`); none where unsaid. */
+  watching?: ReadonlyMap<string, readonly string[]>
 }
 
 /**

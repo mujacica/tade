@@ -43,6 +43,7 @@ const offer = (over: Partial<WatchOffer> = {}): WatchOffer => ({
   offers: 'ask',
   standing: false,
   network: true,
+  about: 'repository',
   most: null,
   needs: [],
   intake: 'github',

@@ -205,6 +205,19 @@ describe('a remote’s projection, read for the window', () => {
     expect(machine.spend?.partial).toBe(true)
   })
 
+  it('reads what a project there is watched with as ids and nothing else, and a list it does not send as not said', () => {
+    const watching = (row: Record<string, unknown>) =>
+      machineOf(held({}, projection({ projects: [{ name: 'tade', open: true, ...row }] })), 0)
+        .projects[0]?.watching
+    // Compared against this machine's watches (`watchWhere`), never drawn as it came.
+    expect(
+      watching({ watching: ['review.branch-checks', `sentry.${ESCAPES}`, 7, 'deps.updates'] }),
+    ).toEqual(['review.branch-checks', 'deps.updates'])
+    expect(watching({ watching: [] })).toEqual([])
+    // An older Tade there sends no list, which is not a list of none.
+    expect(watching({})).toBeNull()
+  })
+
   it('adds up what its agents spent, the three kinds of dollar kept apart', () => {
     expect(machineOf(held(), 0).spend).toMatchObject({
       usd: 1.75,

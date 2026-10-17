@@ -378,6 +378,8 @@ export interface ProjectIn {
   /** What may be asked of the whole project, and what may not with why: `TaskIn.can`'s rule. */
   can: readonly Can[]
   cannot: readonly Cannot[]
+  /** The watches on outside sources this machine looks with in it (`watchingIn`). Tade's names. */
+  watching: readonly string[]
 }
 
 /** The facts a project's revision is built from, out of its projected row: `factsOf`'s rule. */

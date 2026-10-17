@@ -488,6 +488,13 @@ to the agent there. And the collision forecast adds the VPS's live branches: a b
 would conflict with one there wears `⇄`, and the Mac's orchestrator is told once, with where to
 fetch the other branch from to merge it in — the side on the VPS is that machine's own.
 
+**And its watches run on one of them.** A watch on GitHub, Slack, Linear, Sentry or your
+dependencies finds the same thing from either machine, so one red build would be two findings and
+two agents; each project says which machine looks (Settings › Projects, `here` or a remote's name),
+the VPS by default, since it never closes. Where the VPS already looks with a watch on the same
+repository, the Mac's own stays off and says why, its row under SCHEDULES reading `on vps` — and
+taken back, it starts from the last moment the VPS had it.
+
 ## An IDE in the terminal
 
 The repository is right there while the agents work it: the file tree, the diffs, the branch, a

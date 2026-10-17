@@ -134,6 +134,8 @@ export function scheduleMark(
 ): { glyph: string; tone: (text: string) => string } {
   if (one.paused) return { glyph: '‖', tone: skin.faded }
   if (one.watch?.looks[0]?.problem) return { glyph: '!', tone: skin.waiting }
+  // Another machine looks with it: on here, and quiet, like one that is paused.
+  if (one.watch?.looks[0]?.on) return { glyph: '◎', tone: skin.faded }
   if (one.kind === 'watch') return { glyph: '◎', tone: skin.hint }
   return { glyph: one.once ? '◷' : '↻', tone: skin.hint }
 }
@@ -150,6 +152,7 @@ function cadenceRoom(one: ScheduleView, width: number): number {
 
 /** What a watch's last look came to, as short as a row down the side can have it. */
 function lookShort(look: WatchLook): string {
+  if (look.on) return `on ${look.on}`
   if (look.found === 0) return 'found nothing'
   return look.fresh === 0 ? 'nothing new' : `${look.fresh} new`
 }
@@ -386,6 +389,16 @@ export function renderSchedule(
   if (watch) {
     const acts = watch.found === 'agent' ? (watch.most === 1 ? 'agent' : 'agents') : 'told'
     fact('AT MOST', `${watch.most} ${acts} a look`)
+    // Which machine looks with it, wherever this one links to another: one per
+    // repository (`watchWhere`), and the newest look says which and why.
+    const left = watch.looks[0]
+    if (left?.on || (frame.machines?.remotes.length ?? 0) > 0) {
+      fact('RUNS ON', left?.on ?? 'here')
+      const why = printable(left?.on ? (left.said ?? '') : '')
+      for (const text of wrapWords(why, Math.max(10, width - 16))) {
+        line((r) => r.text(' '.repeat(11)).text(text, skin.hint))
+      }
+    }
   }
   fact(
     'FROM',

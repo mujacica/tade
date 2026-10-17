@@ -41,6 +41,7 @@ import { type Mirrors, mirrorsFor } from './mirrors.ts'
 import { type SharedNotes, sharedNotesFor } from './notes-shared.ts'
 import { RemoteAgents } from './remote-agent.ts'
 import { RemoteTalks, type RemoteTools } from './remote-talk.ts'
+import type { WatchTwinsHere } from './watch-where.ts'
 import { MACHINE } from './web-panel.ts'
 
 export type { RemoteTools } from './remote-talk.ts'
@@ -330,6 +331,30 @@ export class Remotes implements Subject {
     }
     this.folded = { names, helds, machines }
     return machines
+  }
+
+  /**
+   * What the links know of other machines for one project here's watches
+   * (`watchWhere`): every remote, the ones that have said what their projects
+   * are and whose projection is held, and their projects that are this one's
+   * repository with the watches each says it looks with there.
+   */
+  watchTwins(project: string): WatchTwinsHere {
+    const machines = this.machines().remotes
+    const mirrors = this.mirrors
+    const told = new Set(
+      machines
+        .filter((one) => one.heard && mirrors?.toldBy(one.name) === true)
+        .map((one) => one.name),
+    )
+    const twins = (mirrors?.sameAs(project) ?? []).map((one) => ({
+      ...one,
+      watching:
+        machines
+          .find((machine) => machine.name === one.machine)
+          ?.projects.find((there) => there.name === one.project)?.watching ?? null,
+    }))
+    return { remotes: machines.map((one) => one.name), told, twins }
   }
 
   /** How far apart the two clocks are, asked once per projection (`skewOf`). */

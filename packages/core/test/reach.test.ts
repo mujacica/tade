@@ -90,6 +90,9 @@ describe('what no words reach', () => {
     // How many of its agents work at once says when the next one starts, and
     // nothing about what any of them may do.
     expect(settingReach('projects.checkout.max_parallel').reach).toBe('asked')
+    // Which machine's clock looks with its watches: one per repository, and a
+    // remote already looking holds this one whatever the key says.
+    expect(settingReach('projects.checkout.watches').reach).toBe('asked')
     expect(settingReach('checks.suites').reach).toBe('asked')
   })
 

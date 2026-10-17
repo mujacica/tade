@@ -273,6 +273,7 @@ export function projectIn(
   project: Project,
   titles: Readonly<Record<string, string>>,
   line: ProjectLine | undefined = undefined,
+  watching: readonly string[] = [],
 ): ProjectIn {
   // `root` is deliberately not read at all, rather than read and dropped.
   const title = titles[project.name] ?? ''
@@ -281,6 +282,7 @@ export function projectIn(
     title,
     open: true,
     changes: line?.changes ?? 0,
+    watching,
     ...projectAble(true),
   }
 }
@@ -517,6 +519,8 @@ export interface AwayParts {
   projectLines: ReadonlyMap<string, ProjectLine>
   /** Every tree's run record as last read (`wire/web-checks.ts`), or null before the first read. */
   checks: readonly CheckTreeIn[] | null
+  /** The outside watches this machine looks with, by project (`watchingIn`); none where unsaid. */
+  watching?: ReadonlyMap<string, readonly string[]>
 }
 
 /** Every collection one projection is built from, as one value. */
@@ -582,7 +586,12 @@ export function awayCollections(parts: AwayParts): AwayCollections {
     // door re-asks the config at the act.
     projects: [
       ...parts.world.projects.map((project) =>
-        projectIn(project, parts.titles, parts.projectLines.get(project.name)),
+        projectIn(
+          project,
+          parts.titles,
+          parts.projectLines.get(project.name),
+          parts.watching?.get(project.name),
+        ),
       ),
       ...closedIn(parts.projectLines, open),
     ],

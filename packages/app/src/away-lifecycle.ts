@@ -117,7 +117,8 @@ export function closedIn(
   const out: ProjectIn[] = []
   for (const [name, line] of lines) {
     if (line.closedFrom === null || open.has(name)) continue
-    out.push({ name, title: '', open: false, changes: line.changes, ...projectAble(false) })
+    const closed = { name, title: '', open: false, changes: line.changes, watching: [] }
+    out.push({ ...closed, ...projectAble(false) })
   }
   return out
 }

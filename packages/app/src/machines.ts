@@ -66,6 +66,11 @@ export interface RemoteProject {
   agents: readonly RemoteAgent[]
   /** Tasks the remote holds and did not send, inside its own budget: said, never dropped. */
   more: number
+  /**
+   * The outside watches it says it looks with there (`ProjectRow.watching`), as
+   * tokens; null where its Tade does not say, which is not *none*.
+   */
+  watching: readonly string[] | null
 }
 
 /**
@@ -214,11 +219,14 @@ function projectsIn(projection: Record<string, unknown>, skew: number): RemotePr
     const task = stringIn(row, 'task')
     if (task !== null && stringIn(objectIn(row.state), 'kind') === 'paused') paused.add(task)
   }
-  const byName = new Map<string, { title: string | null; agents: RemoteAgent[]; more: number }>()
+  const byName = new Map<
+    string,
+    Omit<RemoteProject, 'name' | 'agents'> & { agents: RemoteAgent[] }
+  >()
   const named = (name: string) => {
     const already = byName.get(name)
     if (already) return already
-    const made = { title: null, agents: [], more: 0 }
+    const made = { title: null, agents: [], more: 0, watching: null }
     byName.set(name, made)
     return made
   }
@@ -234,6 +242,12 @@ function projectsIn(projection: Record<string, unknown>, skew: number): RemotePr
     const total = numberIn(counts, 'tasks')
     const shown = numberIn(counts, 'shown')
     if (total !== null && shown !== null) one.more = Math.max(0, total - shown)
+    // A watch's id is a token or it is nothing: it is compared, never drawn as it came.
+    if (Array.isArray(row.watching)) {
+      one.watching = row.watching.flatMap((watch) =>
+        typeof watch === 'string' && /^[a-z0-9][a-z0-9._-]{0,99}$/.test(watch) ? [watch] : [],
+      )
+    }
   }
   for (const row of listIn(projection.tasks)) {
     const id = stringIn(row, 'id')

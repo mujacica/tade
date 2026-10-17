@@ -66,6 +66,7 @@ const CLI_WATCH: WatchOffer = {
   offers: 'agent',
   standing: true,
   network: false,
+  about: 'machine',
   most: 1,
   needs: [],
   intake: 'cli',

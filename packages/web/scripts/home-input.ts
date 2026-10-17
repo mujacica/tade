@@ -149,7 +149,7 @@ export function inputFrom(home: string, reach: Reach, now: number): SnapshotInpu
   for (const name of folders(join(home, PROJECTS_DIR))) {
     // Every folder here is a project the measurement treats as open, and what
     // may be asked of it is nothing, for `can: []`'s reason above.
-    projects.push({ name, title: '', open: true, changes: 0, can: [], cannot: [] })
+    projects.push({ name, title: '', open: true, changes: 0, can: [], cannot: [], watching: [] })
     const dir = join(home, PROJECTS_DIR, name, 'tasks')
     for (const folder of folders(dir)) {
       const file = taskFileAt(join(dir, folder, 'task.yaml'))

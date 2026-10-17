@@ -163,7 +163,7 @@ const ALLOWED: Record<string, number> = {
   'packages/app/src/wire/races.ts': 2,
   'packages/app/src/wire/replays.ts': 3,
   'packages/app/src/wire/routes.ts': 5,
-  'packages/app/src/wire/schedules.ts': 3,
+  'packages/app/src/wire/schedules.ts': 2,
   'packages/app/src/wire/search.ts': 3,
   'packages/app/src/wire/settings.ts': 2,
   // One of these is still the finding on tade/updates-chip-and-reload: a cache

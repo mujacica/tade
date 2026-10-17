@@ -186,6 +186,7 @@ export const slackMessages: ExtensionWatch = {
   // requests a look is 60 an hour, which an internal app does not notice and a
   // throttled one survives as a 429 that ends one sweep.
   every: '2m',
+  about: 'repository',
   intake: 'slack',
   network: true,
   // One a look. The schedule's two is a ceiling on agents started, and this one

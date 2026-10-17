@@ -66,6 +66,8 @@ export interface WatchLook {
    * failure to look at one.
    */
   said: string | null
+  /** The machine it left the watch to instead of looking, where one is looking (`watchWhere`). */
+  on?: string
 }
 
 /** Something a watch found, and what became of it. */
@@ -88,6 +90,11 @@ export interface WatchFinding {
 export interface Watched {
   /** Where its next look starts, as its last look that worked said; null before one has. */
   since: string | null
+  /**
+   * When another machine last had it (a look left to one), as an ISO time, where no look here
+   * has worked since: what was there then was that machine's, so a look here starts from it.
+   */
+  elsewhereAt?: string
   /** Every key it has found, so one finding never starts work twice. */
   seen: ReadonlySet<string>
   /** Newest first. */
@@ -99,6 +106,7 @@ export interface Watched {
 /** What a watch schedule has done, from the journal. Pure: events in, facts out. */
 export function watchedFrom(events: readonly TadeEvent[], schedule: string): Watched {
   let since: string | null = null
+  let elsewhereAt: string | undefined
   const seen = new Set<string>()
   const looks: WatchLook[] = []
   const findings: WatchFinding[] = []
@@ -109,7 +117,11 @@ export function watchedFrom(events: readonly TadeEvent[], schedule: string): Wat
     const count = (value: unknown) => (typeof value === 'number' ? value : 0)
     if (event.type === 'watch_checked') {
       const problem = text(event.detail.problem)
-      if (!problem && 'since' in event.detail) since = text(event.detail.since)
+      const on = text(event.detail.on)
+      if (!problem && 'since' in event.detail) {
+        since = text(event.detail.since)
+        elsewhereAt = on ? event.ts : undefined
+      }
       const until = count(event.detail.until)
       looks.push({
         at,
@@ -123,6 +135,7 @@ export function watchedFrom(events: readonly TadeEvent[], schedule: string): Wat
         trouble: problem ? lookTroubleOf(event.detail.trouble) : null,
         until: until > 0 ? until : null,
         said: text(event.detail.said),
+        ...(on ? { on } : {}),
       })
     } else if (event.type === 'watch_found') {
       const key = text(event.detail.key)
@@ -140,7 +153,8 @@ export function watchedFrom(events: readonly TadeEvent[], schedule: string): Wat
       })
     }
   }
-  return { since, seen, looks: looks.reverse(), findings: findings.reverse() }
+  const back = elsewhereAt ? { elsewhereAt } : {}
+  return { since, ...back, seen, looks: looks.reverse(), findings: findings.reverse() }
 }
 
 /** How one look went, in a few words: `found 3, 2 new, 1 waits for the next look`, or why it could not look. */
@@ -149,6 +163,7 @@ export function describeLook(look: WatchLook): string {
   // is what a person decides on and the sentence is what they chase, and a
   // look written down before the kind existed has only the sentence — which is
   // `unknown`, and reads as the line it always did rather than as `other`.
+  if (look.on) return `left to ${look.on}: ${look.said ?? 'it looks there'}`
   if (look.problem) {
     const kind = look.trouble === null ? '' : ` (${look.trouble})`
     return `could not look${kind}: ${look.problem}`

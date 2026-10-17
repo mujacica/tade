@@ -1,0 +1,44 @@
+ ▄▀   T A D E     this Mac  checkout !✕⠋◌‖      +      vps    checkout            ! 1  ⠋ 1      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2            +    █│ checkout › New Sentry err…  ◎ every hour              Run now     ‖ Pause     ≡     ×   
+                             █│─────────────────────────────────────────────────────────────────────────────────────────
+   ✕ fix-charge              █│                                                                                         
+     tests failed twice      █│  Every hour, it looks with sentry.new-errors, and starts work on what it finds.         
+                             █│                                                                                         
+   ⠋ bump-mailer             █│  NEXT       Mon 14 Sep 10:00 · Mon 14 Sep 11:00 · Mon 14 Sep 12:00                      
+     working                 █│  IF MISSED  runs once when Tade opens                                                   
+                             █│  AT MOST    2 agents a look                                                             
+ ▾ SMART QUEUE  5      plan  █│  RUNS ON    vps                                                                         
+   all   next                █│             vps looks with it on the same repository (checkout there), so this          
+                             █│             machine does not                                                            
+   ◌ docs-typos       next   █│  FROM       sentry · turned on by you                                                   
+     ◆ waiting for room      █│                                                                                         
+                             █│  FOUND                                                                                  
+   ◷ release-notes   18:00   █│  Mon 14 Sep 09:00  could not start · CHECKOUT-3F: Error: card_declined is not handled   
+     ❯ waits for its time    █│                    Sentry answered 502: Bad Gateway                                     
+                             █│  Mon 14 Sep 09:00  fix-checkout-3e · CHECKOUT-3E: TypeError: Cannot read properties o…  
+ ▾ SCHEDULES  4              █│  Sun 13 Sep 16:00  fix-checkout-3a · CHECKOUT-3A: RangeError: Invalid currency code     
+                             █│                                                                                         
+   ↻ morning brief   08:45   █│  LOOKS                                                                                  
+     every weekday … tells   █│  Mon 14 Sep 09:00  left to vps: vps looks with it on the same repository (checkout th…  
+                             █│  Mon 14 Sep 09:00  found 3, 3 new, 1 waits for the next look                            
+   ↻ deps weekly     09:00   █│  Mon 14 Sep 08:00  found 1, nothing new                                                 
+     every Monday … agents   █│                                                                                         
+                             █│                                                                                         
+ ▌ ◎ New Sentry err… 10:00   ▕│                                                                                         
+ ▌   every hour     agents   ▕│                                                                                         
+ ▌   09:00 · on vps          ▕│                                                                                         
+                             ▕│                                                                                         
+   ‖ perf nightly   paused   ▕│                                                                                         
+     every day at … agents   ▕│                                                                                         
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
+                                                                                                                        
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

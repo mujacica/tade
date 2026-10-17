@@ -186,21 +186,20 @@ export interface WatchOffer {
   standing: boolean
   /** Whether its look reaches off this machine, so an offline machine may hold it. */
   network: boolean
+  /** What it looks at: the repository's outside services (`watchWhere`), or this machine's. */
+  about: 'repository' | 'machine'
   /** How many of one look's findings to act on, where the watch says two is wrong for it. */
   most: number | null
   /**
-   * The input keys it requires, read off `input`. Empty for a watch that can be
-   * turned on with nothing — most of them. Here as well as in the schema
-   * because whoever reads it is deciding whether it may offer the watch *at
-   * all*, and digging a required list out of a JSON schema is not their job.
+   * The input keys it requires, read off `input`. Empty for a watch that can be turned on with
+   * nothing — most of them. Here as well as in the schema because whoever reads it is deciding
+   * whether it may offer the watch *at all*, and digging a list out of a schema is not their job.
    */
   needs: readonly string[]
   /**
-   * Which intake source this is, where it is one; null for an ordinary watch.
-   *
-   * Offered rather than discovered, so that whoever is about to turn one on —
-   * the window, the watch tool, `tade_schedule` — can read what it would start
-   * reading before it has read anything.
+   * Which intake source this is, where it is one; null for an ordinary watch. Offered rather
+   * than discovered, so whoever is about to turn one on — the window, the watch tool,
+   * `tade_schedule` — can read what it would start reading before it has read anything.
    */
   intake: string | null
   /** Whether it can say, at the moment work would start, that a finding still stands. */
@@ -885,6 +884,7 @@ export class ExtensionHost {
         offers: watch.offers ?? 'agent',
         standing: watch.standing === true,
         network: watch.network === true,
+        about: watch.about ?? 'machine',
         most: watch.most ?? null,
         // Read off the schema it already declares rather than said twice.
         needs: required(watch.input),

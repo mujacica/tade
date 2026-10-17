@@ -33,7 +33,9 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 | `packages/workbench/src/tasks.ts` | `by`, `done`, `start` and `produces` in a task file; `producedDetail`; `beginFrom` for stacked worktrees |
 | `packages/app/src/live.ts` | `QUEUE_READS`: what the rules read, from the whole journal; `lookAtTrees` at the moment of starting |
 | `packages/app/src/app.ts` | the passes: `advanceQueue`, `runSchedules`, `fire`, `lookWith`, and `queueTools` for the orchestrator |
-| `packages/app/src/wire/schedules.ts` | the one door: `Schedules.set`, `mayWatch`, `turnWatch`, `writeStanding` |
+| `packages/app/src/wire/schedules.ts` | the one door: `Schedules.set`, `turnWatch`, `writeStanding`, and `where` |
+| `packages/app/src/wire/watch-tools.ts` | the orchestrator's `tade_watches` and `tade_watch_change`, held to `WATCH_REACH` (`mayWatch`) |
+| `packages/core/src/watch-where.ts`, `app/src/wire/watch-where.ts` | one machine per repository: `watchWhere`, `watchingIn`; `whereNow`, `notLooking` |
 | `packages/app/src/wire/proposals.ts` | what a look's findings become, and a decision carried out: `actOnFound`, `offerProposals`, `putToOrchestrator`, `workNow`, `decideProposal` |
 | `packages/app/src/wire/leftovers.ts` | what an agent left, told to the orchestrator the moment it is written down: `offerLeftovers` (from `tellNow`, `wire/handed.ts`) |
 | `packages/app/src/wire/batches.ts`, `core/src/batches.ts` | the full checks once a batch, and a red batch made one proposal (`change-the-checks`) |
@@ -447,6 +449,26 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   (`reachedResolver`, `dns.resolve` and never `lookup`, whose cache answers the wrong question).
   The one line is said on the edge and only there (`reachSaid`), because a window that has quietly
   stopped looking must still be legible.
+- **A watch on an outside source looks from one machine per repository** (REMOTE-TADE.md §9.5,
+  `watchWhere`). Where one repository is a project here and on a remote, a review, a red build, a
+  Sentry issue or a Slack request is found from both, and "one red commit is one finding" is two
+  proposals to two orchestrators. So a watch that says it looks at the repository (`about:
+  'repository'` — declared, never read off `network`, because Jev reaches a model and reads this
+  machine's agents, which every machine has its own of) looks from the machine its project names (`projects.<name>.watches`: `here` or a remote), and
+  unsaid from the remote where the repository is a project too — the machine that never closes — or
+  here where none or several are. **Evidence may only hold**: a remote whose projection says it
+  looks with the same watch on the same repository (`ProjectRow.watching`, built by `watchingIn` from
+  this machine's own looks, matched by `repositoryNamed` through `Mirrors.sameAs`) keeps this
+  machine's off whatever the key says, and the sentence says what to turn off where. A remote not
+  heard from since the window opened holds what the last look said (`last`), as a tree's hold stands
+  until a look can read it. Not looking is a quiet look (`notLooking`): `watch_checked` with `on` and
+  `said`, said when it starts being true or says something new, and **no cursor** — the first look
+  back here starts from the last moment the other machine had it (`Watched.elsewhereAt`, handed as
+  `turnedOn`), because what came before was that machine's to find and its keys are not this
+  machine's. A remote that starts looking is written down on the next pass (`handedOver`), not at
+  the watch's next turn; `Schedules.set` and `turnWatch` refuse to turn on what another machine looks
+  with, and `writeStanding` does not write it, so it is written the day it is this machine's. The
+  row says `on vps` and the card `RUNS ON`; `tade_watches` says it per project.
 - **Which projects there are is asked at every look, and a project that is not open is nothing to
   watch.** A watch names its project and resolves it when it looks, so the list it is resolved
   against is read from the config each time (`projectsOf`; the window hands the host each new config

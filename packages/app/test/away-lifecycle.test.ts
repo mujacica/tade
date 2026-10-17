@@ -97,6 +97,8 @@ describe('the projects that may be opened again', () => {
         title: '',
         open: false,
         changes: 2,
+        // A closed project is looked at by no watch here.
+        watching: [],
         can: [{ verb: 'open', how: 'now' }],
         cannot: [{ verb: 'close', why: 'it is already closed' }],
       },

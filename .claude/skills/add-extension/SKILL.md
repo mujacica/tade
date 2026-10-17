@@ -150,6 +150,12 @@ tools registered by Tade's own pi extensions, which call back to Tade. What only
   behaviour they have. One endpoint being down is never the machine being offline: the throw is
   only the prompt, and what decides is the reach (`change-the-queue`). A watch that reads this
   machine and nothing else leaves it alone and keeps looking through an outage.
+- **A watch says what it looks at** (`about`): `repository` where it reads the repository's outside
+  services — a forge, a tracker, a chat, an error tracker, a registry — which answer the same from
+  every machine with a checkout of it, and then it looks from one machine per repository
+  (`watchWhere`, `change-the-queue`), so one red build is one finding and not one per machine.
+  Unsaid is `machine`, which looks on every machine: right for what reads this machine's own work,
+  as Jev does even though it reaches a model, and the old behaviour for anything nobody declared.
 - **A watch may be on without anybody turning it on** (`standing: true`): the window writes its
   schedule once per project, the first time its extension can look (`standingSchedules`), and from
   then on it is an ordinary schedule — pausable, changeable, removable, and removed it stays

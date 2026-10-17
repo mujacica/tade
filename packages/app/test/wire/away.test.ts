@@ -141,12 +141,12 @@ async function wiring(
           },
         },
         planUsage: () => [],
-        // What `steeringFor` asks: which agent is running on a task, and what
-        // its harness can do. Nothing is, here — so what every row says is
-        // that there is nothing to tell, which is the honest answer and is the
-        // one a projection built for a page to read must not default past.
+        // What `steeringFor` asks — which agent runs on a task and what its harness can do —
+        // and which watches a project's row says look here: none, so every row says there is
+        // nothing to tell, the honest answer a page's projection must not default past.
         runs: () => [],
         capabilitiesOf: () => null,
+        schedules: () => [],
       },
     },
     get state() {

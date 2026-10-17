@@ -277,6 +277,7 @@ export const dependencyUpdates: ExtensionWatch = {
   means:
     'looks daily for patch and minor releases and puts an agent on them in a worktree of its own, whatever the project says — the patches in one commit, each minor on its own — which installs, runs the project’s own checks and commits only if they pass; majors are reported and never bumped',
   every: '1d',
+  about: 'repository',
   input: object({
     level: oneOf(
       ['patch', 'minor'],

@@ -439,6 +439,8 @@ describe('watching', () => {
         standing: false,
         // Nor that it reaches off this machine, so an outage never holds it.
         network: false,
+        // Nor what it looks at, so every machine looks with it (`watchWhere`).
+        about: 'machine',
         // A watch that starts an agent per finding leaves `most` alone: the right
         // ceiling on agents started is not the right one on questions asked, and
         // only a watch that knows the difference says so.

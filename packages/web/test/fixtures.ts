@@ -197,6 +197,7 @@ export function project(over: Partial<ProjectIn> = {}): ProjectIn {
     changes: 1,
     can: [{ verb: 'close', how: 'now' }],
     cannot: [{ verb: 'open', why: 'it is open' }],
+    watching: [],
     ...over,
   }
 }
