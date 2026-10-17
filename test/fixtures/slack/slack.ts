@@ -268,9 +268,28 @@ export function slackScript(options: SlackOptions): SlackScript {
     return { ok: true }
   }
 
-  /** `chat.postMessage`: a real message in the thread, carrying the metadata it was sent with. */
+  /**
+   * `chat.postMessage`: a real message in the thread, carrying the metadata it
+   * was sent with.
+   *
+   * **Only under a parent, or under a message that can become one.** Slack's
+   * word on `thread_ts` is "avoid using a reply's `ts` value; use its parent
+   * instead", and what it does when asked anyway is not written down. What it
+   * never does is make a reply a parent, because a thread is one level deep. So
+   * a reply's `ts` is refused, and so is a `ts` that is no message at all,
+   * rather than becoming a thread Slack would never draw. That includes a reply
+   * also sent to the channel, which history returns like any other message.
+   * `cannot_reply_to_message` is the nearest answer Slack documents, not one
+   * recorded from it.
+   */
   function post(form: Record<string, string>): Record<string, unknown> {
     if (!form.thread_ts) return { ok: false, error: 'no_text' }
+    const parent =
+      threads[form.thread_ts]?.find((one) => one.ts === form.thread_ts) ??
+      messages.find((one) => one.ts === form.thread_ts)
+    if (!parent || (parent.thread_ts !== undefined && parent.thread_ts !== parent.ts)) {
+      return { ok: false, error: 'cannot_reply_to_message' }
+    }
     const written: Record<string, unknown> = {
       type: 'message',
       ts: `${Number(form.thread_ts) + 1}.000100`,
@@ -283,13 +302,10 @@ export function slackScript(options: SlackOptions): SlackScript {
     const whole = threads[form.thread_ts]
     if (whole) whole.push(written)
     else {
-      const parent = messages.find((one) => one.ts === form.thread_ts)
-      threads[form.thread_ts] = [...(parent ? [parent] : []), written]
-      if (parent) {
-        parent.reply_count = (threads[form.thread_ts] as unknown[]).length - 1
-        parent.latest_reply = written.ts
-        parent.thread_ts = form.thread_ts
-      }
+      threads[form.thread_ts] = [parent, written]
+      parent.reply_count = 1
+      parent.latest_reply = written.ts
+      parent.thread_ts = form.thread_ts
     }
     return { ok: true, ts: written.ts, channel: form.channel }
   }

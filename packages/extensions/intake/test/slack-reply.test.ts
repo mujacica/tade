@@ -315,6 +315,32 @@ describe('saying a status back', () => {
     expect(script.methods()).not.toContain('chat.postMessage')
   })
 
+  it('is said to a Slack that threads only under a parent, as Slack does', async () => {
+    // A status sent under a reply's `ts` is refused here, rather than turning
+    // the reply into a parent of a thread Slack would never draw.
+    const parent = msg(200, { thread_ts: ts(200), reply_count: 2 })
+    const inThread = msg(250, { thread_ts: ts(200) })
+    const broadcast = msg(300, { thread_ts: ts(200), subtype: 'thread_broadcast' })
+    const script = slack({
+      messages: [parent, broadcast],
+      threads: { [ts(200)]: [parent, inThread, broadcast] },
+    })
+    const post = async (thread: string) =>
+      (
+        await script.fetch('https://slack.com/api/chat.postMessage', {
+          method: 'POST',
+          body: new URLSearchParams({ channel: CHANNEL, thread_ts: thread, text: 'Queued.' }),
+        })
+      ).json()
+    const refused = { ok: false, error: 'cannot_reply_to_message' }
+    expect(await post(ts(300))).toEqual(refused)
+    expect(await post(ts(250))).toEqual(refused)
+    expect(await post(ts(999))).toEqual(refused)
+    expect(broadcast).not.toHaveProperty('reply_count')
+    expect(broadcast).toHaveProperty('thread_ts', ts(200))
+    expect(await post(ts(200))).toMatchObject({ ok: true })
+  })
+
   it('is an ordinary error when Slack will not take the write, and stops no look', async () => {
     const script = slack({
       messages: [msg(300)],
