@@ -175,6 +175,9 @@ in under Tade by `programsNeeded`: `PROCESSES_PROGRAMS` (`ps`, `status/src/proce
   with `tooOld` beside the one not here, so the checklist, `--check`, the wizard, Settings › Updates
   and `tade update` all say `too old: 3.1, needs 3.2`, never a tick. Its line is `upgradeWith`: the
   manager's own update; on a Mac, for macOS's own copy, the line `installWith` offers beside it.
+  A Debian or Ubuntu release keeps its package at the version it shipped, so where apt's is below
+  the floor the declaration says so in `aptTooOld` and that clause is the line: apt's ran, succeeded
+  and left Ubuntu 22.04's git at 2.34, and Settings › Updates ran it.
 - **The system's own copy moves the platform's way** (`updateWith(install, how, machine)`): on a
   Mac with macOS and its command line tools (`Software Update`, a `cannot`), on Linux with the
   distribution's manager — apt's install line, which moves a package that is there to the newest the

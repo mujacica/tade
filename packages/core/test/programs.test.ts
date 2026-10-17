@@ -541,4 +541,40 @@ describe('a program that is here and too old', () => {
       expect(belowOldest(parseVersion(said), git?.oldest), said).toBe(tooOld)
     }
   })
+
+  // Ubuntu 22.04 keeps git at 2.34, so apt's line ran, succeeded and left it
+  // too old — offered by setup and run by Settings › Updates.
+  it('never offers apt’s line for a git apt has nothing new enough of', () => {
+    const [git] = TADE_PROGRAMS
+    const jammy = { manager: 'system' as const, name: 'git', where: '/usr/bin/git', said: '' }
+    const clause = {
+      cannot:
+        'apt has no git that new for this release — on Ubuntu, `sudo add-apt-repository ppa:git-core/ppa` adds one apt can install',
+    }
+    expect(upgradeWith(jammy, git?.install, linux)).toEqual(clause)
+    expect(upgradeWith(jammy, git?.install, { ...linux, root: true })).toEqual(clause)
+    // Fedora's moves forward within a release, and a Mac's goes beside macOS's.
+    expect(upgradeWith(jammy, git?.install, { platform: 'linux', managers: ['dnf'] })).toEqual({
+      command: 'sudo dnf upgrade -y git',
+    })
+    expect(upgradeWith(jammy, git?.install, mac)).toEqual({ command: 'brew install git' })
+    // Only the system's own copy is apt's: Homebrew's moves with Homebrew.
+    const brewedGit = { ...brewed, name: 'git', where: '/home/linuxbrew/.linuxbrew/bin/git' }
+    expect(upgradeWith(brewedGit, git?.install, linux)).toEqual({ command: 'brew upgrade git' })
+    // Where it is not here at all, apt's is still the line: on a newer
+    // release its git is new enough.
+    expect(installWith(git?.install, linux)).toEqual({
+      command: 'sudo apt-get update && sudo apt-get install -y git',
+    })
+  })
+
+  it('refuses a clause for apt’s package being too old where there is no apt package', () => {
+    const tmux = { command: 'tmux', title: 'tmux', why: 'lanes', versionArgs: ['-V'] }
+    expect(
+      declarationProblems([{ ...tmux, install: { apt: 'tmux', aptTooOld: 'build it' } }]),
+    ).toEqual([])
+    expect(
+      declarationProblems([{ ...tmux, install: { dnf: 'tmux', aptTooOld: 'build it' } }]),
+    ).toEqual(['tmux: says what to do where apt’s package is too old, and names none'])
+  })
 })

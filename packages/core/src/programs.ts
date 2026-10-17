@@ -68,6 +68,14 @@ export interface HowToInstall {
   cask?: boolean
   /** A Debian or Ubuntu package. */
   apt?: string
+  /**
+   * Where apt's own package is older than the oldest that works, what brings
+   * it up instead, as a clause. A Debian or Ubuntu release keeps a package at
+   * the version it shipped with, so for the system's copy below the floor
+   * apt's line runs, succeeds and leaves it too old — a line that reads as an
+   * answer and is not one.
+   */
+  aptTooOld?: string
   /** A Fedora package. */
   dnf?: string
   /** A package installed globally with npm, which is the same on every platform. */
@@ -132,6 +140,11 @@ export const TADE_PROGRAMS: readonly RequiredProgram[] = [
     install: {
       brew: 'git',
       apt: 'git',
+      // Ubuntu 22.04's git is 2.34 for the life of the release, and the
+      // git-core PPA is where Ubuntu's newer ones are. Fedora's moves forward
+      // within a release, so dnf's line stands.
+      aptTooOld:
+        'apt has no git that new for this release — on Ubuntu, `sudo add-apt-repository ppa:git-core/ppa` adds one apt can install',
       dnf: 'git',
       // Every Mac has one behind the command line tools, which is a download
       // Apple runs rather than a package anybody installs — and a sentence
@@ -546,13 +559,17 @@ export function belowOldest(have: string | null | undefined, oldest: string | un
  * Its own manager's update wherever it has one — `brew upgrade tmux`, and on
  * Linux the distribution's for the system's own copy. A Mac's own copy moves
  * only with macOS, so there a newer one is installed beside it: the same line
- * `installWith` offers where it is missing.
+ * `installWith` offers where it is missing. Where the declaration says apt's
+ * own is older than the floor, its clause rather than apt's line.
  */
 export function upgradeWith(
   install: Install,
   how: HowToInstall | undefined,
   machine: InstallersHere,
 ): InstallCommand {
+  const apt = machine.platform === 'linux' && machine.managers.includes('apt-get')
+  const instead = how?.apt && how.aptTooOld?.trim()
+  if (install.manager === 'system' && apt && instead) return { cannot: instead }
   const update = updateWith(install, how, machine)
   if ('command' in update || install.manager !== 'system' || !how) return update
   return installWith(how, machine)
@@ -632,6 +649,10 @@ export function declarationProblems(programs: readonly RequiredProgram[] | undef
     }
     if (how?.cask && !how.brew) {
       problems.push(`${said}: a Homebrew cask with no name`)
+    }
+    // Read only in place of apt's line, so with no apt package it is never read.
+    if (how?.aptTooOld && !how.apt) {
+      problems.push(`${said}: says what to do where apt’s package is too old, and names none`)
     }
     // A Homebrew line and nothing else is a Mac's answer said to every
     // machine: a Linux box is owed its own line, its own steps, or a plain
