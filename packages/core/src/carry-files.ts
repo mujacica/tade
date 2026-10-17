@@ -33,10 +33,15 @@ export function fileNamed(file: Pick<CarriedFile, 'kind' | 'name'> & { version?:
 
 /** Where one lives in a home. Only for a name `isPersonaName` takes: nothing else is joined. */
 function whereIn(home: string, file: Pick<CarriedFile, 'kind' | 'name'> & { version?: number }) {
+  // Both halves of the path are checked here, whatever checked them before: a
+  // name is a lesson's name (no `/`, no `.`) and a version a whole number.
   if (!isPersonaName(file.name)) throw new Error(`"${file.name}" is not a name Tade will use`)
-  return file.kind === 'persona'
-    ? join(personaDirs(home).active, `${file.name}.md`)
-    : join(templateDirs(home).published, file.name, `${file.version ?? 0}.yaml`)
+  if (file.kind === 'persona') return join(personaDirs(home).active, `${file.name}.md`)
+  const version = file.version
+  if (version === undefined || !Number.isInteger(version) || version <= 0) {
+    throw new Error(`${String(version)} is not a version Tade publishes`)
+  }
+  return join(templateDirs(home).published, file.name, `${version}.yaml`)
 }
 
 /** Whether a failed read is only that there is nothing there. */
