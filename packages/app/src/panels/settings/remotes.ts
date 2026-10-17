@@ -191,8 +191,11 @@ export function drawRemotes(
       line('On a press', list.waiting.join(', '), skin.waiting)
       buttons([`remote:keys:${at}`], 'attention')
       // Said where somebody is deciding: once they have pressed, before the
-      // press that sends.
-      if (panel.confirm === `remote:keys:${at}`) say(KEYS_TO_REMOTE, skin.hint, 3 + named, 4)
+      // press that sends. Whole, however many lines that takes — the way out
+      // is its last clause, so any cap drops it, and the page scrolls.
+      if (panel.confirm === `remote:keys:${at}`) {
+        say(KEYS_TO_REMOTE, skin.hint, 3 + named, Number.POSITIVE_INFINITY)
+      }
     }
     // Listed until it is on: what is typed in its tab here goes nowhere until then.
     if (list?.talk === 'off') {

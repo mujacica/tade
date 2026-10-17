@@ -1,9 +1,11 @@
+import { sliceByColumn, visibleWidth } from '@earendil-works/pi-tui'
 import { KEYS_TO_REMOTE, TALK_TO_REMOTE } from '@tade/core'
 import type { Checklist } from '@tade/workbench/carry'
 import { describe, expect, it } from 'vitest'
+import { sideWidth } from '../src/panels/cells.ts'
 import { type RemoteShown, remoteActions, remoteChoice } from '../src/panels/settings/remotes.ts'
 import { settingsKey } from '../src/panels/settings/state.ts'
-import { drawnAt, panelFor, plainRows } from './settings-panel.ts'
+import { drawnAt, panelFor, plainRows, WIDTHS } from './settings-panel.ts'
 
 // Settings › Remotes: each other machine's Tade this one is an owner of, and
 // the checklist `tade remote add` ends with — what was carried, what that
@@ -99,6 +101,29 @@ describe('Settings › Remotes', () => {
     expect(drawn.replace(/\s+/g, ' ')).toContain(KEYS_TO_REMOTE.slice(0, 40))
     const second = remoteChoice(asked, 'remote:keys:vps')
     expect(second).toMatchObject({ submit: true, choice: 'remote:keys:vps' })
+  })
+
+  it('says all of what sending keys means, the way out at its end included, at every width', () => {
+    // From the narrowest width at which each of its words fits on a line.
+    for (const width of WIDTHS.filter((one) => one >= 56)) {
+      const rows = plainRows(
+        drawnAt(
+          'remotes',
+          { remotes: [VPS], width, height: 90 },
+          panelFor('remotes', { focus: 'form', confirm: 'remote:keys:vps' }),
+        ),
+      )
+      // The form's own columns — past the list, its scrollbar and the line
+      // between, short of the form's scrollbar — as one flowing string: where
+      // it wrapped is not what the page is held to.
+      const inner = visibleWidth(rows[0] ?? '') - 2
+      const side = sideWidth(inner)
+      const said = rows
+        .map((row) => sliceByColumn(row, side + 3, inner - side - 3))
+        .join(' ')
+        .replace(/\s+/g, ' ')
+      expect(said, `at ${width}`).toContain(KEYS_TO_REMOTE)
+    }
   })
 
   it('lists Talk to Tade until it is on there, and asks twice before turning it on', () => {
