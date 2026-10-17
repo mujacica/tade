@@ -540,6 +540,15 @@ export class ClaudeAdapter implements WorkerAdapter {
     }
   }
 
+  /**
+   * Its transcripts, a folder per working directory under `projects` — never
+   * the whole config folder, whose sign-in a backup has no business holding
+   * and a restore on another machine is signed in to again.
+   */
+  records(): readonly string[] {
+    return [join(this.opts.configDir, 'projects')]
+  }
+
   async signOut(): Promise<void> {
     const ran = await runProgram(this.opts.bin, ['auth', 'logout'], {
       timeoutMs: 30_000,

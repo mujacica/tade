@@ -593,6 +593,14 @@ export class CodexAdapter implements WorkerAdapter {
     }
   }
 
+  /**
+   * Its rollouts, a folder per day under `sessions` — never its sign-in beside
+   * them, which a restore on another machine is signed in to again.
+   */
+  records(): readonly string[] {
+    return [join(this.opts.codexHome, 'sessions')]
+  }
+
   async signOut(): Promise<void> {
     const ran = await runProgram(this.opts.bin, ['logout'], {
       timeoutMs: 30_000,

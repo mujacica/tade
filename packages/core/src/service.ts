@@ -106,6 +106,65 @@ export function serviceUnit(facts: ServiceFacts): string {
   ].join('\n')
 }
 
+/** The backup's two units: the one run, and the timer that runs it hourly. */
+export const BACKUP_SERVICE = 'tade-backup.service'
+export const BACKUP_TIMER = 'tade-backup.timer'
+
+/** Starting the timer, now and at every boot, as the person would type it. */
+export const BACKUP_START = `systemctl --user daemon-reload && systemctl --user enable --now ${BACKUP_TIMER}`
+
+/**
+ * `tade host backup`, hourly, by the person's own service manager: a oneshot
+ * that runs it with the same Node, CLI, PATH and home as the service, and a
+ * timer that starts it. `Persistent=` catches up one run missed while the box
+ * was off, never one per hour missed, and the spread keeps every box on a
+ * storage service from arriving on the hour at once. Idle for the disk and
+ * nice for the processor, because agents work on this machine while it reads.
+ */
+export function backupUnits(facts: ServiceFacts): { service: string; timer: string } {
+  const env = [
+    `Environment=${quoted(`PATH=${facts.path}`, false)}`,
+    `Environment=${quoted(`LANG=${facts.lang}`, false)}`,
+    ...(facts.home ? [`Environment=${quoted(`TADE_HOME=${facts.home}`, false)}`] : []),
+  ]
+  const service = [
+    '# Tade’s backup, run by tade-backup.timer. `tade host backup --timer` wrote this.',
+    '#',
+    '# It runs `tade host backup`: Tade’s home and the harnesses’ conversations, encrypted',
+    '# by restic, to the repository in backup.repository. What it said, each time:',
+    `#   journalctl --user -u ${BACKUP_SERVICE}`,
+    '',
+    '[Unit]',
+    'Description=Tade’s backup',
+    'Documentation=https://tade.sh',
+    '',
+    '[Service]',
+    'Type=oneshot',
+    ...env,
+    `ExecStart=${[...facts.tade, 'host', 'backup'].map((word) => quoted(word, true)).join(' ')}`,
+    'SyslogIdentifier=tade-backup',
+    'Nice=10',
+    'IOSchedulingClass=idle',
+    '',
+  ].join('\n')
+  const timer = [
+    '# Runs tade-backup.service hourly. `tade host backup --timer` wrote this.',
+    '',
+    '[Unit]',
+    'Description=Tade’s backup, hourly',
+    '',
+    '[Timer]',
+    'OnCalendar=hourly',
+    'RandomizedDelaySec=10min',
+    'Persistent=true',
+    '',
+    '[Install]',
+    'WantedBy=timers.target',
+    '',
+  ].join('\n')
+  return { service, timer }
+}
+
 /**
  * The command a unit runs, word by word, as systemd reads its `ExecStart=`
  * back: quoted words joined, `%%` and `$$` single again, a prefix systemd

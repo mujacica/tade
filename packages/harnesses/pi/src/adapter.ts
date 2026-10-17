@@ -446,6 +446,11 @@ export class PiAdapter implements WorkerAdapter {
     }
   }
 
+  /** Its sessions folder, a folder per working directory inside it: every conversation an agent had. */
+  records(): readonly string[] {
+    return [this.opts.sessionsRoot ?? sessionsRoot(this.opts.env, this.opts.home)]
+  }
+
   async signOut(): Promise<void> {
     throw new Error('pi signs out inside pi: open it and type /logout')
   }

@@ -687,6 +687,16 @@ export interface WorkerAdapter {
    */
   sandboxProof?(platform: NodeJS.Platform): SandboxProof | null
 
+  /**
+   * The folders this harness keeps its agents' conversations in, absolute —
+   * for the account and the user it was made for. What a backup of this
+   * machine keeps beside Tade's home (`backupPaths`), so an agent restored on
+   * another one picks its conversation back up. Read off how it was made, no
+   * I/O: a folder not made yet is still the answer. Absent where it keeps none
+   * Tade can name.
+   */
+  records?(): readonly string[]
+
   /** Whether the harness is installed and can run here, and what to do if not. */
   probe(): Promise<HarnessProbe>
   /**

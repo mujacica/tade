@@ -216,6 +216,16 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
         }
       })
 
+      it('says where it keeps conversations as absolute folders, asking nothing', async () => {
+        // What a backup keeps beside Tade's home: a relative path would be
+        // read from wherever the backup ran, and an empty one is the home.
+        const records = (await adapter()).records?.() ?? []
+        for (const folder of records) {
+          expect(folder.startsWith('/')).toBe(true)
+          expect(folder.length).toBeGreaterThan(1)
+        }
+      })
+
       it('probes without throwing, and says what is wrong when it cannot run', async () => {
         const probe = await (await adapter()).probe()
         expect(typeof probe.ok).toBe('boolean')
