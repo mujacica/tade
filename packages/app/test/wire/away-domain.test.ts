@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ConfigSchema, type DomainSeen, loadConfig } from '@tade/core'
 import type { Workbench } from '@tade/workbench'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { asPaste } from '../../src/input.ts'
 import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
 
@@ -140,6 +140,32 @@ describe('a public name, set up from Settings', () => {
     if (!saved.ok) throw new Error('the config would not load')
     expect(saved.config.surfaces.web.public).toBe('')
     expect(saved.config.surfaces.web.trusted_hosts).toEqual([TAILNET])
+  })
+
+  it('takes nothing back, and says so, where the journal could not be read', async () => {
+    copiedBefore(OLD, [TAILNET])
+    const config = await onThePage({ public: OLD, trusted_hosts: [TAILNET, OLD] })
+    const events = client.events.bind(client)
+    const read = vi.spyOn(client, 'events').mockImplementation(async (filter = {}) => {
+      if (filter.types?.includes('config_changed')) throw new Error('EIO')
+      return events(filter)
+    })
+    try {
+      typeName(NAME)
+      await until('saved', () =>
+        screenOf(terminal.written).some((row) =>
+          row.includes('Saved. It applies now. Trusted hostnames left as they were'),
+        ),
+      )
+    } finally {
+      read.mockRestore()
+    }
+    const saved = await loadConfig(config)
+    if (!saved.ok) throw new Error('the config would not load')
+    expect(saved.config.surfaces.web.public).toBe(NAME)
+    expect(saved.config.surfaces.web.trusted_hosts).toEqual([TAILNET, OLD])
+    // Only the line Settings wrote before: nothing taken, so nothing written down as taken.
+    expect(trustedLines()).toHaveLength(1)
   })
 
   it('takes nothing back that Tade did not put there', async () => {

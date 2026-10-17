@@ -76,9 +76,13 @@ export function tookBackSays(taken: readonly string[]): string {
   return ` ${taken.join(', ')} ${one ? 'is no longer a trusted hostname' : 'are no longer trusted hostnames'}: Tade had copied ${one ? 'it' : 'them'} there beside a public name, which is trusted on its own.`
 }
 
-/** What is said where the journal could not be read for Tade's copies, so none were taken back. */
+/**
+ * What is said where the journal could not be read for Tade's copies, so none
+ * were taken back: what happened first, because Settings draws it on one line
+ * and cuts what does not fit.
+ */
 export function copiesUnreadSays(why: string): string {
-  return ` Whether Tade had copied an earlier public name into the trusted hostnames could not be read (${why}), so they are as they were.`
+  return ` Trusted hostnames left as they were: the journal, which says which of them Tade copied there, could not be read (${why}).`
 }
 
 /**

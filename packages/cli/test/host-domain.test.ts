@@ -213,7 +213,9 @@ describe('the name, on a press', () => {
     expect(await offerName(ask, NAME, offer(path, { write: true, copies }))).toBe(true)
     expect(ask.asked).toEqual([])
     expect(await web(path)).toEqual({ public: NAME, trusted_hosts: [OLD] })
-    expect(ask.said.at(-1)).toContain('could not be read (EACCES), so they are as they were.')
+    expect(ask.said.at(-1)).toContain(
+      `surfaces.web.public is ${NAME}. Trusted hostnames left as they were: the journal, which says which of them Tade copied there, could not be read (EACCES).`,
+    )
   })
 
   it('offers the trusted hostnames only once the public name is declined, said as the loopback path', async () => {
