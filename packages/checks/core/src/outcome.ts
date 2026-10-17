@@ -78,18 +78,51 @@ export function readOutcome(tail: string, opts: { places?: number } = {}): Check
  * and only where it printed none, the last thing it said. Never the last line
  * by itself: vitest ends on a hint that `isolate: false` would be faster, and
  * biome on a colour reset, and each was recorded as the summary.
+ *
+ * It is the line of a run that did not pass, so counts with no failure in them
+ * are not why it is red — a suite that passed, and a coverage floor after it
+ * that did not — and the line goes on with what it said below them (`saidAfter`).
  */
 export function summaryOf(tail: string): string | null {
   const { counts } = readOutcome(tail)
+  const failed = counts.some((one) => one.tone === 'bad' && one.count > 0)
   const line =
     counts.length > 0
-      ? counts.map((one) => `${one.count} ${one.label}`).join(' · ')
+      ? [
+          counts.map((one) => `${one.count} ${one.label}`).join(' · '),
+          failed ? null : saidAfter(tail),
+        ]
+          .filter(Boolean)
+          .join(' · ')
       : plain(tail)
           .split('\n')
           .map((part) => part.replace(/\s+$/, ''))
           .filter((part) => part.trim() !== '')
           .at(-1)
   return line ? line.slice(0, 200) : null
+}
+
+/**
+ * The first line of the last paragraph a run printed below its counts:
+ * `packages/extensions/checks covers 83.1% of its lines, under its floor of 89.`,
+ * whose last line, once recorded on its own, was `argument somebody has to
+ * make.` A paragraph that opens indented is the counting tool's own table —
+ * vitest's `Isolate` hint — and one that counts is its summary, where the
+ * search stops: nothing printed above the counts is why they went red.
+ */
+function saidAfter(tail: string): string | null {
+  const paragraphs = plain(tail)
+    .split(/\n\s*\n/)
+    .reverse()
+  for (const paragraph of paragraphs) {
+    if (readOutcome(paragraph).counts.length > 0) return null
+    const first = paragraph
+      .split('\n')
+      .map((part) => part.replace(/\s+$/, ''))
+      .find((part) => part !== '')
+    if (first && /^\S/.test(first)) return first
+  }
+  return null
 }
 
 /** Every reader, tried in turn: an output can be two tools' at once (`pnpm check`). */

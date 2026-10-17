@@ -144,4 +144,46 @@ describe('the one line a run is recorded with', () => {
     expect(summaryOf('one\n\x1b[31m8 failed\x1b[39m\n\x1b[0m\n')).toBe('8 failed')
     expect(summaryOf('\x1b[0m\n\n')).toBeNull()
   })
+
+  // `pnpm coverage` red on a floor with every test passed: the suite's own
+  // summary, its isolate hint, then the floors' problems, each a paragraph.
+  const passedSuite = [
+    '\x1b[2m Test Files \x1b[22m \x1b[1m\x1b[32m671 passed\x1b[39m\x1b[22m\x1b[2m | \x1b[22m\x1b[33m1 skipped\x1b[39m\x1b[90m (672)\x1b[39m',
+    '\x1b[2m      Tests \x1b[22m \x1b[1m\x1b[32m10814 passed\x1b[39m\x1b[22m\x1b[2m | \x1b[22m\x1b[33m18 skipped\x1b[39m\x1b[90m (10832)\x1b[39m',
+    '\x1b[2m   Start at \x1b[22m 12:00:38',
+    '\x1b[2m   Duration \x1b[22m 261.68s\x1b[2m (tests 90%, import 8%, transform 1%)\x1b[22m',
+    '',
+    '\x1b[2m    Isolate \x1b[22m \x1b[33m672 workers spawned\x1b[39m\x1b[2m · ~175ms startup each (spawn + environment, per file)\x1b[22m',
+    '\x1b[2m            \x1b[22m \x1b[2mat least ~16.61s faster with \x1b[22m\x1b[33misolate: false\x1b[39m\x1b[2m — reuses workers across files instead of one per file\x1b[22m',
+    '',
+    '',
+  ]
+
+  it('goes on with what a run said below counts that had no failure in them', () => {
+    const tail = [
+      ...passedSuite,
+      'packages/cli/src/commands/setup.ts is excluded as unmeasurable, and 8 of its functions ran where loading it runs 1.',
+      'Something runs what it does in process now, so it can be measured: delete its lines from',
+      "UNSEEN and LOADED (scripts/coverage-floors.ts) and let its package's floor account for it. If what ran",
+      'is still only what loading it runs, its count in LOADED is 8.',
+      '',
+      'packages/extensions/checks covers 83.1% of its lines, under its floor of 89.',
+      'Cover what this change left behind — and cover it with a test that asserts',
+      'something, because a test written to move this number is worse than none.',
+      'If the floor is wrong, lower it in FLOOR (scripts/coverage-floors.ts) and say why in the commit',
+      'message: a floor may go UP in the commit that earns it, and going down is an',
+      'argument somebody has to make.',
+      '',
+      '',
+    ].join('\n')
+    expect(summaryOf(tail)).toBe(
+      '10814 passed · 18 skipped · packages/extensions/checks covers 83.1% of its lines, under its floor of 89.',
+    )
+  })
+
+  it('is the counts alone where nothing below them is more than the suite’s own hint', () => {
+    // A test's own output above the counts is not why they went red.
+    const tail = ['stderr | packages/core/test/run.test.ts > logs', '', ...passedSuite].join('\n')
+    expect(summaryOf(tail)).toBe('10814 passed · 18 skipped')
+  })
 })
