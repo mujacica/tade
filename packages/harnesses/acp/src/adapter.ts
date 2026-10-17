@@ -1,9 +1,8 @@
 import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  forgetOldPictures,
   type RequiredProgram,
   runProgram,
   type TaskId,
@@ -13,6 +12,7 @@ import {
 } from '@tade/core'
 import {
   type AccountStatus,
+  forgetRunFiles,
   type HarnessModel,
   type HarnessProbe,
   type HarnessSession,
@@ -24,6 +24,7 @@ import {
   type PermissionDecision,
   PermissionNotPendingError,
   type PlanLimits,
+  promptWithImages,
   type RunId,
   SignalChannel,
   type SignIn,
@@ -317,6 +318,14 @@ export class AcpAdapter implements WorkerAdapter {
 
   async carryConversation(_task: string, _cwd: string, _to: WorkerAdapter): Promise<boolean> {
     return false
+  }
+
+  /** Each run's launch file and the pictures it was pointed at: never the record, which is the task's. */
+  forgetRuns(runs: readonly RunId[]): Promise<RunId[]> {
+    return forgetRunFiles(join(this.opts.runDir, 'acp'), runs, (run) => [
+      basename(this.launchFile(run)),
+      basename(this.filesDir(run)),
+    ])
   }
 
   /** None worth offering: it cannot say it would come back to one (`why.resume`). */
@@ -667,24 +676,4 @@ export function contextFor(spec: WorkerSpec): string {
 
 function skillName(dir: string): string {
   return dir.split('/').filter(Boolean).at(-1) ?? dir
-}
-
-/** Pictures, as files it is told about: the lane is handed text, and an agent reads a file it is pointed at. */
-function promptWithImages(
-  message: string,
-  images: readonly WorkerImage[] | undefined,
-  dir: string,
-): string {
-  if (!images || images.length === 0) return message
-  const folder = join(dir, 'attachments')
-  mkdirSync(folder, { recursive: true, mode: 0o700 })
-  // Kept a week rather than for good: nothing says when its reader is done (`PICTURES_KEPT_MS`).
-  forgetOldPictures(folder, Date.now())
-  const paths = images.map((image, n) => {
-    const extension = image.mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'png'
-    const path = join(folder, `${Date.now()}-${n + 1}.${extension}`)
-    writeFileSync(path, Buffer.from(image.data, 'base64'), { mode: 0o600 })
-    return path
-  })
-  return `${message}\n\n${paths.map((path) => `[picture: ${path}]`).join('\n')}`
 }

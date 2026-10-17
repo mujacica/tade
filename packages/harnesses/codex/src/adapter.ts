@@ -1,12 +1,11 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { copyFile, mkdir, readFile, symlink } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  forgetOldPictures,
   type RequiredProgram,
   runProgram,
   type TaskId,
@@ -17,6 +16,7 @@ import {
 import {
   type AccountStatus,
   endHeadless,
+  forgetRunFiles,
   type HarnessAccount,
   type HarnessModel,
   type HarnessProbe,
@@ -29,8 +29,10 @@ import {
   type PermissionDecision,
   PermissionNotPendingError,
   type PlanLimits,
+  promptWithImages,
   type RunId,
   reaped,
+  runFolderName,
   type SignIn,
   type SignInHere,
   signInHere,
@@ -572,6 +574,11 @@ export class CodexAdapter implements WorkerAdapter {
     await copyFile(from, target)
     await rememberThread(task, to.opts.runDir, thread)
     return true
+  }
+
+  /** Each run's folder of the pictures it was pointed at: never its thread, which is the task's. */
+  forgetRuns(runs: readonly RunId[]): Promise<RunId[]> {
+    return forgetRunFiles(join(this.opts.runDir, 'codex'), runs, (run) => [runFolderName(run)])
   }
 
   /** Whether this account has a folder of its own, rather than Codex's default. */
@@ -1451,11 +1458,7 @@ export class CodexAdapter implements WorkerAdapter {
   }
 
   private filesDir(run: string): string {
-    return join(
-      this.opts.runDir,
-      'codex',
-      createHash('sha1').update(run).digest('hex').slice(0, 12),
-    )
+    return join(this.opts.runDir, 'codex', runFolderName(run))
   }
 }
 
@@ -1677,29 +1680,6 @@ function skillIn(dir: string): { name: string; description: string } {
     name: field('name') || fallback.name,
     description: field('description') || fallback.description,
   }
-}
-
-/**
- * Pictures, as files it is told about: its terminal cannot be handed one, and
- * it reads a picture it is pointed at.
- */
-function promptWithImages(
-  message: string,
-  images: readonly WorkerImage[] | undefined,
-  dir: string,
-): string {
-  if (!images || images.length === 0) return message
-  const folder = join(dir, 'attachments')
-  mkdirSync(folder, { recursive: true, mode: 0o700 })
-  // Kept a week rather than for good: nothing says when its reader is done (`PICTURES_KEPT_MS`).
-  forgetOldPictures(folder, Date.now())
-  const paths = images.map((image, n) => {
-    const extension = image.mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'png'
-    const path = join(folder, `${Date.now()}-${n + 1}.${extension}`)
-    writeFileSync(path, Buffer.from(image.data, 'base64'), { mode: 0o600 })
-    return path
-  })
-  return `${message}\n\n${paths.map((path) => `[picture: ${path}]`).join('\n')}`
 }
 
 /** One line, exact enough to read back before approving. */

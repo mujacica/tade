@@ -98,6 +98,12 @@ closes, which is the thing this design exists to avoid.
   (Claude Code, pi); Codex names its threads itself, so carrying one is writing it down as the
   task's. A harness whose `resume` is false lists nothing, and every surface reads `resume`
   through `resumeOffer` — restart, or its own `why` — so nothing guesses that one came back.
+- Write what launches a run under `runDir/<harness>/` named by `runFolderName(run)`, and take it
+  away when asked (`forgetRuns`, through `forgetRunFiles`) — never a conversation, which is the
+  task's and named apart. Which runs are over is the workbench's rule (`settleRuns`): a task that
+  was made and is gone, with no lane running or `lost`. Nothing took one away before, and one
+  machine kept 628. A picture you point the agent at goes through `promptWithImages`, never a name
+  of your own made from the time.
 
 - Own its accounts, if it can have more than one (`capabilities.accounts`): an adapter is made
   per account (`HarnessOptions.account`: a folder, and for an API key a *command* that prints it),

@@ -148,6 +148,10 @@ export class FakeAdapter implements WorkerAdapter {
     return false
   }
 
+  async forgetRuns() {
+    return []
+  }
+
   async start(spec: WorkerSpec): Promise<WorkerHandle> {
     this.starts.push(spec)
     return this.supervise(spec)

@@ -6,7 +6,6 @@ import { homedir } from 'node:os'
 import { basename, dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  forgetOldPictures,
   type RequiredProgram,
   runProgram,
   type TaskId,
@@ -17,6 +16,7 @@ import {
 import {
   type AccountStatus,
   endHeadless,
+  forgetRunFiles,
   type HarnessAccount,
   type HarnessModel,
   type HarnessProbe,
@@ -29,8 +29,10 @@ import {
   type PermissionDecision,
   PermissionNotPendingError,
   type PlanLimits,
+  promptWithImages,
   type RunId,
   reaped,
+  runFolderName,
   type SignIn,
   type SignInHere,
   signInHere,
@@ -548,6 +550,11 @@ export class ClaudeAdapter implements WorkerAdapter {
       await cp(beside, target.replace(/\.jsonl$/, ''), { recursive: true, force: true })
     }
     return true
+  }
+
+  /** Each run's folder of what launches it (`filesFor`): never its transcript, which is the task's. */
+  forgetRuns(runs: readonly RunId[]): Promise<RunId[]> {
+    return forgetRunFiles(join(this.opts.runDir, 'claude'), runs, (run) => [runFolderName(run)])
   }
 
   /** When the sign-in runs out, or null — said, where its record is there and unreadable. */
@@ -1453,11 +1460,7 @@ export class ClaudeAdapter implements WorkerAdapter {
   }
 
   private filesDir(run: string): string {
-    return join(
-      this.opts.runDir,
-      'claude',
-      createHash('sha1').update(run).digest('hex').slice(0, 12),
-    )
+    return join(this.opts.runDir, 'claude', runFolderName(run))
   }
 
   /**
@@ -1590,29 +1593,6 @@ export function effortOf(level: ThinkingLevel): string {
 /** Tade's own tools by their own names; everything else as Claude Code calls it. */
 export function toolName(name: string): string {
   return name.startsWith(OURS) ? name.slice(OURS.length) : name
-}
-
-/**
- * Pictures, as files it is told about: its terminal cannot be handed one, and
- * it reads a picture it is pointed at.
- */
-function promptWithImages(
-  message: string,
-  images: readonly WorkerImage[] | undefined,
-  dir: string,
-): string {
-  if (!images || images.length === 0) return message
-  const folder = join(dir, 'attachments')
-  mkdirSync(folder, { recursive: true, mode: 0o700 })
-  // Kept a week rather than for good: nothing says when its reader is done (`PICTURES_KEPT_MS`).
-  forgetOldPictures(folder, Date.now())
-  const paths = images.map((image, n) => {
-    const extension = image.mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'png'
-    const path = join(folder, `${Date.now()}-${n + 1}.${extension}`)
-    writeFileSync(path, Buffer.from(image.data, 'base64'), { mode: 0o600 })
-    return path
-  })
-  return `${message}\n\n${paths.map((path) => `[picture: ${path}]`).join('\n')}`
 }
 
 /** The files a call of Claude Code's own tools writes: its editing tools, by their own field. */

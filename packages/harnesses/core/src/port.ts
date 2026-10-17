@@ -736,6 +736,15 @@ export interface WorkerAdapter {
    * none to carry, or the harness cannot.
    */
   carryConversation(task: TaskId, cwd: string, to: WorkerAdapter): Promise<boolean>
+  /**
+   * Take away what this harness wrote for each of these runs so that a line
+   * could launch it — settings, instructions, the pictures it was pointed at —
+   * and never a conversation, which is a task's and not a run's. Asked only of
+   * runs nothing can launch again, whose task is gone; a run it wrote nothing
+   * for, or launched in another harness, is nothing to take away. The runs it
+   * removed something for.
+   */
+  forgetRuns(runs: readonly RunId[]): Promise<RunId[]>
 
   /**
    * How to run this agent in a lane. Tade places the process — that is the

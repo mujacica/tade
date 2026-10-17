@@ -435,6 +435,11 @@ export class PiAdapter implements WorkerAdapter {
     return false
   }
 
+  /** Nothing: a run is handed its pictures and Tade's own extension as they are, and writes no folder. */
+  async forgetRuns(): Promise<RunId[]> {
+    return []
+  }
+
   async sessions(cwd: string, tasks: readonly TaskId[]): Promise<HarnessSession[]> {
     return sessionsHere(
       await folderOf(cwd, this.opts.sessionsRoot, this.opts.env),

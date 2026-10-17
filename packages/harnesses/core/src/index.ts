@@ -1,5 +1,7 @@
 export * from './channel.ts'
+export * from './forget.ts'
 export * from './headless.ts'
 export * from './history.ts'
+export * from './pictures.ts'
 export * from './port.ts'
 export * from './sign-in.ts'

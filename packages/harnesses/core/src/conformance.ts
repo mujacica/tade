@@ -325,6 +325,21 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
         expect(await one.hasConversation(fresh.task, fresh.cwd)).toBe(false)
       })
 
+      it('takes away nothing for a run it never launched, and launches one it forgot the same again', async () => {
+        const one = await adapter()
+        const never = await spec()
+        expect(await one.forgetRuns([never.run])).toEqual([])
+        const told = await spec()
+        const first = one.launchSpec(told)
+        // Whatever it wrote for that run, and only that run, may be what it takes.
+        expect(
+          (await one.forgetRuns([told.run, never.run])).filter((run) => run !== told.run),
+        ).toEqual([])
+        const again = one.launchSpec(told)
+        expect(again.command).toBe(first.command)
+        expect(again.args).toEqual(first.args)
+      })
+
       it('says whether it can come back to a conversation, and in words when it cannot', async () => {
         const one = await adapter()
         const offered = resumeOffer(one.capabilities)

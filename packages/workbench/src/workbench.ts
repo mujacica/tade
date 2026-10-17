@@ -99,6 +99,7 @@ import { makePlan, type PlanMade } from './plans.ts'
 import { preparedDetail, setupBefore, setupTold } from './prepare.ts'
 import { changeQueued, type HeldHow, holdQueued, type QueueChangeRequest } from './queue-changes.ts'
 import { type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
+import { settleRuns } from './run-files.ts'
 import { type KeptSchedule, Schedules } from './schedules.ts'
 import { continueRun as continueAgent } from './sleep.ts'
 import { taskSaid } from './task-said.ts'
@@ -448,6 +449,7 @@ export class Workbench {
       await workbench.lookAtChecks().catch(() => {})
       await settleDocuments(workbench, config.documents.keep_days)
       await settleNotes({ home: opts.home, memory: workbench.memory, log }, config.notes.keep_days)
+      await workbench.settleRunFiles()
       return workbench
     } catch (err) {
       await journal?.close().catch(() => {})
@@ -1313,8 +1315,22 @@ export class Workbench {
         ...(req.task ? { task: req.task } : {}),
         detail: { branch: req.branch, worktree: req.worktree, forced: req.force === true, ...lost },
       })
+      if (req.task) await this.settleRunFiles(req.task)
     }
     return result
+  }
+
+  /** What a task's runs were launched with, taken away once nothing can launch them again. */
+  private settleRunFiles(task?: string): Promise<RunId[]> {
+    return settleRuns(
+      {
+        home: this.home,
+        log: this.log,
+        lanes: () => this.registry.list(),
+        adapters: () => Object.values(this.adapters),
+      },
+      task,
+    )
   }
 
   /** Set a task aside, or pick it back up. Who asked, and what they saw: `parked.ts`. */
