@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, Server, ServerResponse } from 'node:http'
-import { publicSocket } from '@tade/core'
+import { networkInterfaces } from 'node:os'
+import { publicSocket, routesOf } from '@tade/core'
 import { carryOut, type Did } from './acted.ts'
 import { carryAsk } from './asked.ts'
 import { assetsDir, readAssets } from './assets.ts'
@@ -43,7 +44,7 @@ import {
   type Told,
   type WebServer,
 } from './serving.ts'
-import { clearCookie, renamed, renewal, sessionOf } from './sessions.ts'
+import { clearCookie, renamed, renewal, renewedCookie, sessionOf } from './sessions.ts'
 import { cursorOf } from './stream.ts'
 import { type Listener, type Origin, reachOf, type Scope } from './surface.ts'
 
@@ -210,7 +211,18 @@ export function webServer(opts: ServerOptions): WebServer {
     saidSkipped(devices.skipped)
     const guarding: Guarding = {
       surface: opts.surface,
-      bound: boundHosts,
+      // **A wildcard answers on every address this machine has**, so on a
+      // `lan` bind those are what a phone names — `0.0.0.0` and `::` never
+      // are — by `routesOf`, the rule a pairing code's address is picked by
+      // (`pairingUrl`). Asked of the interfaces at this request and never at
+      // start: the address a phone was given moves with the wifi, and a list
+      // read once is a 403 the morning after. Only ever a host the guard
+      // allows: on a `lan` bind every listener is public, so none of them is
+      // ever this machine, and a session minted on one only reads.
+      bound:
+        opts.surface.bind === 'lan'
+          ? [...boundHosts, ...routesOf((opts.interfaces ?? networkInterfaces)())]
+          : boundHosts,
       session:
         host === null ? null : sessionOf(asking.cookie, devices.devices, asking.host ?? '', now()),
       now: now(),
@@ -308,13 +320,15 @@ export function webServer(opts: ServerOptions): WebServer {
     // The sliding expiry, written down. Bounded to once a day by `renewal`, so this is a file
     // append on one request out of thousands and not one per request — which is what the bound is
     // for. Awaited before the answer so a phone that comes back after thirty days of daily use is
-    // never signed out by a write that had not landed yet.
-    const until = renewal(device, now())
+    // never signed out by a write that had not landed yet. One moment for all of it, so the
+    // cookie's `Max-Age` is the line's term to the second rather than a second short of it.
+    const used = now()
+    const until = renewal(device, used)
     if (until !== null) {
       await appendDevice(opts.home, {
         kind: 'renewed',
         device: device.id,
-        at: new Date(now()).toISOString(),
+        at: new Date(used).toISOString(),
         until: new Date(until).toISOString(),
       })
       // A stream opened days ago holds the expiry it was opened with, and the
@@ -324,8 +338,13 @@ export function webServer(opts: ServerOptions): WebServer {
       // stream gets closed as expired.
       streams.renewed(device.id, until)
     }
-    // A session from before `__Host-`, used over `https`, moves under it here.
-    const moved = renamed(asking.cookie, verdict.origin, (until ?? device.until) - now())
+    // And the cookie with it, or the browser drops it thirty days after pairing
+    // whatever the device list says (`renewedCookie`). Otherwise a session from
+    // before `__Host-`, used over `https`, moves under it here.
+    const moved =
+      until === null
+        ? renamed(asking.cookie, verdict.origin, device.until - used)
+        : renewedCookie(asking.cookie, verdict.origin, opts.surface, until - used)
     if (moved !== null) res.setHeader('set-cookie', moved)
 
     const at: At = { req, origin: verdict.origin, request }

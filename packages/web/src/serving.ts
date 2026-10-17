@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import type { HookRung } from '@tade/core'
+import type { HookRung, NetworkAddress } from '@tade/core'
 import type { WebActing } from './acting.ts'
 import type { WebAsking } from './asking.ts'
 import type { WebAttaching } from './attached.ts'
@@ -303,6 +303,13 @@ export interface ServerOptions {
    * root's to make and no test may need root.
    */
   publicSocket?: string
+  /**
+   * This machine's interfaces, asked at every request on a `lan` bind for the
+   * `Host` allow-list: `os.networkInterfaces` unless a test says otherwise,
+   * because no test may bind the LAN and no test may depend on the network of
+   * whoever runs it.
+   */
+  interfaces?: () => Readonly<Record<string, readonly NetworkAddress[] | undefined>>
 }
 
 /** The away view, as the window holds it. */

@@ -108,7 +108,11 @@ export type Verdict =
 /** What a guard needs to know beyond the request itself. */
 export interface Guarding {
   surface: Surface
-  /** The addresses actually bound, so the allow-list is what is listened on. */
+  /**
+   * The addresses actually bound, so the allow-list is what is listened on —
+   * and on a `lan` bind the addresses its wildcards answer on, which are this
+   * machine's own as its interfaces say at this request (`routesOf`).
+   */
   bound: readonly string[]
   /** The session behind this cookie, or null. Already checked for expiry. */
   session: Session | null
@@ -178,7 +182,9 @@ export function hostAllowed(host: string | null, listener: Listener, guarding: G
   if (loopbackHost(bare)) return listener === 'loopback'
   const allowed = [...guarding.bound, ...guarding.surface.trustedHosts]
   // `0.0.0.0` and `::` are what was *bound*, never what a browser asks for: a
-  // request that named either is a request nobody's browser made.
+  // request that named either is a request nobody's browser made. What a phone
+  // names is one of the addresses a wildcard answers on, which `bound` holds,
+  // and which is an allowed host and nothing more: the listener is public.
   return allowed.some((one) => one !== '0.0.0.0' && one !== '::' && sameHost(one, bare))
 }
 

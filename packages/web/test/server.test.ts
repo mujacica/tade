@@ -2,13 +2,25 @@ import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { join, relative } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { allowDevice } from '../src/devices.ts'
 import { COMPANIONS, CSP } from '../src/headers.ts'
 import { BODY_MAX, CSRF_HEADER, pathOf, queryOf } from '../src/request.ts'
 import type { Told } from '../src/server.ts'
 import { webServer } from '../src/server.ts'
 import { listenerAt, listenOn } from '../src/surface.ts'
 import { Tickets } from '../src/tickets.ts'
-import { ask, BASE, closeAll, homeFor, pair, reading, said, start } from './harness.ts'
+import {
+  actingStub,
+  ask,
+  BASE,
+  closeAll,
+  homeFor,
+  pair,
+  type Running,
+  reading,
+  said,
+  start,
+} from './harness.ts'
 
 // **The door**: what a request gets, what it is refused, and what is written
 // down about it. The credential itself — minting one, using it, losing it — is
@@ -642,5 +654,147 @@ describe('which listener a request came in on', () => {
     } finally {
       await new Promise<void>((done) => outside.close(() => done()))
     }
+  })
+})
+
+describe('a lan bind', () => {
+  type Interfaces = Record<string, { address: string; internal: boolean }[]>
+
+  /**
+   * A server on a `lan` bind, and a loopback listener of the test's own that
+   * hands it every request as the wildcard would: `public`. Binding `0.0.0.0`
+   * would put a port on the network of whoever runs this, and the machine's
+   * own interfaces are whatever `interfaces` says at that moment.
+   */
+  async function onTheLan(machine: () => Interfaces, over: Partial<typeof BASE> = {}) {
+    const home = await homeFor('lan')
+    const tickets = new Tickets()
+    const server = webServer({
+      home,
+      surface: { ...BASE, bind: 'lan', trustedHosts: [], ...over },
+      readingFor: reading,
+      tickets,
+      interfaces: machine,
+      // Everything a person at the machine could give, so that what the
+      // origin takes away is the only thing in the way.
+      confirm: async () => ({
+        let: true,
+        projects: null,
+        granted: [],
+        scopes: ['read', 'answer', 'steer'],
+      }),
+      ...(over.acting === true ? { acting: actingStub() } : {}),
+    })
+    const outside = createServer((req, res) => {
+      void server.handle(req, res, 'public')
+    })
+    await new Promise<void>((done) => outside.listen({ host: '127.0.0.1', port: 0 }, done))
+    lanServers.push(async () => {
+      await server.close()
+      await new Promise<void>((done) => outside.close(() => done()))
+    })
+    const port = (outside.address() as { port: number }).port
+    const there: Running = {
+      server,
+      home,
+      tickets,
+      told: [],
+      asked: [],
+      origin: `http://127.0.0.1:${port}`,
+      host: `127.0.0.1:${port}`,
+      epoch: server.epoch,
+      answer: async () => ({ let: false, why: 'refused' }),
+    }
+    return { there, port }
+  }
+
+  const lanServers: (() => Promise<void>)[] = []
+  afterEach(async () => {
+    for (const close of lanServers.splice(0)) await close()
+  })
+
+  const shell = (there: Running, host: string) =>
+    ask(there, '/', { headers: { host, 'sec-fetch-site': 'none' } })
+
+  it('answers the phone at this machine’s own address, which a wildcard never is', async () => {
+    const machine: Interfaces = {
+      lo0: [{ address: '127.0.0.1', internal: true }],
+      en0: [
+        { address: 'fe80::1c2b:3a4d:5e6f:7081', internal: false },
+        { address: '192.168.1.20', internal: false },
+        { address: 'fd01::20', internal: false },
+      ],
+    }
+    const { there, port } = await onTheLan(() => machine)
+    // The bug: the allow-list held `0.0.0.0` and `::`, which it never
+    // accepts, so the address in the pairing code was a 403.
+    expect((await shell(there, `192.168.1.20:${port}`)).status).toBe(200)
+    expect((await shell(there, `[fd01::20]:${port}`)).status).toBe(200)
+    // What was bound is still nobody's address, and an address this machine
+    // does not have is still somebody else's name.
+    expect((await shell(there, `0.0.0.0:${port}`)).status).toBe(403)
+    expect((await shell(there, `[::]:${port}`)).status).toBe(403)
+    expect((await shell(there, `192.168.1.21:${port}`)).status).toBe(403)
+    // A wildcard is public, so this machine's own names are refused on it.
+    expect((await shell(there, `localhost:${port}`)).status).toBe(403)
+    expect((await shell(there, `127.0.0.1:${port}`)).status).toBe(403)
+  })
+
+  it('is never this machine there: a session paired at that address reads and does nothing else', async () => {
+    const machine: Interfaces = { en0: [{ address: '192.168.1.20', internal: false }] }
+    const { there, port } = await onTheLan(() => machine, { acting: true })
+    const lan = `192.168.1.20:${port}`
+    const through = { host: lan, origin: `http://${lan}` }
+    const paired = await pair(there, { headers: through })
+    expect(paired.answer.status).toBe(201)
+    // Granted three at the machine, minted with one: plain HTTP on a network.
+    expect(said(paired.answer).scopes).toEqual(['read'])
+    const read = await ask(there, '/api/snapshot', {
+      headers: { host: lan, cookie: paired.cookie },
+    })
+    expect(read.status).toBe(200)
+
+    // Widened at the machine afterwards, and still not an act from there.
+    await allowDevice(there.home, paired.device, ['read', 'steer'], new Date())
+    const mutation = {
+      ...through,
+      cookie: paired.cookie,
+      'content-type': 'application/json',
+      [CSRF_HEADER]: paired.csrf,
+    }
+    const act = await ask(there, '/api/act/park', { method: 'POST', headers: mutation, body: '{}' })
+    expect(act.status).toBe(403)
+    expect(said(act).error).toBe('locked')
+    // And a route for this machine alone is a path nobody built there.
+    const since = await ask(there, '/api/since', { method: 'POST', headers: mutation, body: '{}' })
+    expect(since.status).toBe(404)
+  })
+
+  it('reads the interfaces at the request, so an address that moved is followed', async () => {
+    let machine: Interfaces = { en0: [{ address: '192.168.1.20', internal: false }] }
+    const { there, port } = await onTheLan(() => machine)
+    expect((await shell(there, `192.168.1.20:${port}`)).status).toBe(200)
+    // The wifi gave this machine another address: the new one is answered and
+    // the old one, which somebody else may have now, is not.
+    machine = { en0: [{ address: '10.0.0.7', internal: false }] }
+    expect((await shell(there, `10.0.0.7:${port}`)).status).toBe(200)
+    expect((await shell(there, `192.168.1.20:${port}`)).status).toBe(403)
+  })
+
+  it('asks no interface at all on a loopback bind', async () => {
+    let asked = 0
+    const one = await start(
+      {},
+      {
+        interfaces: () => {
+          asked++
+          return {}
+        },
+      },
+    )
+    const paired = await pair(one)
+    await ask(one, '/api/snapshot', { headers: { cookie: paired.cookie } })
+    await ask(one, '/', { headers: { 'sec-fetch-site': 'none' } })
+    expect(asked).toBe(0)
   })
 })

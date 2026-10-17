@@ -12,11 +12,13 @@ import {
   RENEW_AFTER_MS,
   renamed,
   renewal,
+  renewedCookie,
   SESSION_MS,
   sessionOf,
   setCookie,
   splitCookie,
 } from '../src/sessions.ts'
+import { OFF } from '../src/surface.ts'
 
 const NOW = Date.parse('2026-10-08T12:00:00Z')
 
@@ -251,6 +253,71 @@ describe('the sliding expiry', () => {
   it('renews a session that is nearly out, which is the point of it', () => {
     const one = device({ until: NOW + 60_000 })
     expect(renewal(one, NOW)).toBe(NOW + SESSION_MS)
+  })
+})
+
+describe('the cookie, renewed with the session', () => {
+  const value = `${'0'.repeat(16)}.${'A'.repeat(43)}`
+  const TUNNEL = { ...OFF, enabled: true, trustedHosts: ['studio.yak-bebop.ts.net'] }
+  const via = (scheme: string, host: string) => ({ scheme, host })
+
+  it('carries the new expiry under the name it came in under', () => {
+    // The bug: pairing set `Max-Age` once, the session slid and the cookie did
+    // not, so a phone used every day lost it thirty days after it paired.
+    const plain = renewedCookie(
+      `${COOKIE}=${value}`,
+      via('http', '192.168.1.10'),
+      TUNNEL,
+      SESSION_MS,
+    )
+    expect(plain).toEqual([setCookie(value, false, SESSION_MS)])
+    expect(plain?.[0]).toContain(`Max-Age=${SESSION_MS / 1000}`)
+    expect(plain?.[0]).not.toContain('Secure')
+  })
+
+  it('keeps __Host- as itself, on a read that cannot say its scheme too', () => {
+    // A browser sends no `Origin` on a read of its own origin, so a read
+    // through the tunnel is `http` to `originOf` — and still `__Host-`, which
+    // only a browser on `https` holds.
+    for (const origin of [
+      via('http', 'studio.yak-bebop.ts.net'),
+      via('https', 'studio.yak-bebop.ts.net'),
+    ]) {
+      const kept = renewedCookie(`${HOST_COOKIE}=${value}`, origin, TUNNEL, SESSION_MS)
+      expect(kept, origin.scheme).toEqual([setCookie(value, true, SESSION_MS)])
+      expect(kept?.[0]?.startsWith(`${HOST_COOKIE}=${value}; `)).toBe(true)
+      expect(kept?.[0]).toContain('Secure')
+    }
+  })
+
+  it('never takes Secure off a cookie on a name a proxy ends TLS for', () => {
+    // The old name, from before the prefix, on a read through the tunnel: set
+    // again `Secure`, which a browser on plain HTTP would discard rather than
+    // store. Without it, the renewal would make the session one a browser
+    // sends in the clear.
+    const read = renewedCookie(
+      `${COOKIE}=${value}`,
+      via('http', 'studio.yak-bebop.ts.net'),
+      TUNNEL,
+      SESSION_MS,
+    )
+    expect(read).toHaveLength(1)
+    expect(read?.[0]?.startsWith(`${COOKIE}=${value}; `)).toBe(true)
+    expect(read?.[0]).toContain('Secure')
+    // An origin that said `https` moves it under the prefix, as an act does.
+    const act = renewedCookie(
+      `${COOKIE}=${value}`,
+      via('https', 'studio.yak-bebop.ts.net'),
+      TUNNEL,
+      SESSION_MS,
+    )
+    expect(act).toEqual(renamed(`${COOKIE}=${value}`, { scheme: 'https' }, SESSION_MS))
+    expect(act?.[0]).toContain(`Max-Age=${SESSION_MS / 1000}`)
+  })
+
+  it('sends nothing where no session was presented', () => {
+    expect(renewedCookie(null, via('http', '192.168.1.10'), TUNNEL, SESSION_MS)).toBeNull()
+    expect(renewedCookie('a=1', via('http', '192.168.1.10'), TUNNEL, SESSION_MS)).toBeNull()
   })
 })
 

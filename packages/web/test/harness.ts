@@ -221,6 +221,8 @@ export async function start(
     hooks?: ServerOptions['hooks']
     /** The window's half of the connect pages, for a test of connecting a source. */
     connecting?: ServerOptions['connecting']
+    /** This machine's interfaces, for a test of what a bind asks of them. */
+    interfaces?: ServerOptions['interfaces']
   } = {},
 ): Promise<Running> {
   settingRows = opts.settings ?? []
@@ -269,6 +271,7 @@ export async function start(
     ...(opts.repositories === undefined ? {} : { repositories: opts.repositories }),
     ...(opts.hooks === undefined ? {} : { hooks: opts.hooks }),
     ...(opts.connecting === undefined ? {} : { connecting: opts.connecting }),
+    ...(opts.interfaces === undefined ? {} : { interfaces: opts.interfaces }),
     ...opts.owned,
   })
   epoch = one.server.epoch

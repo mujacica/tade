@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import type { Device } from './devices.ts'
 import type { Session } from './guard.ts'
-import type { Scope } from './surface.ts'
+import { type Scope, type Surface, sameHost } from './surface.ts'
 
 // The session credential: minted here, hashed before it is written down, and
 // verified in constant time.
@@ -25,9 +25,11 @@ import type { Scope } from './surface.ts'
 // (`DEVICES_AND_AGENTS`) holds nothing it could present.
 //
 // **The expiry slides, and the renewal is bounded.** Thirty days, pushed
-// forward at most once a day, so somebody who opens Tade on their phone every
-// morning never signs in again and a phone in a drawer expires on its own. A
-// renewal per request would be a write per request, which is a file of them.
+// forward at most once a day — the line in the device list and the cookie's
+// own `Max-Age` together (`renewedCookie`) — so somebody who opens Tade on
+// their phone every morning never signs in again and a phone in a drawer
+// expires on its own. A renewal per request would be a write per request,
+// which is a file of them.
 
 /** How long a session lasts, and how often using it pushes that forward. */
 export const SESSION_MS = 30 * 24 * 60 * 60_000
@@ -222,8 +224,12 @@ export function presentedIn(header: string): { value: string; named: string } | 
  * with it — another transport is another host, and another pairing.
  */
 export function setCookie(value: string, secure: boolean, maxAgeMs = SESSION_MS): string {
+  return cookieLine(secure ? HOST_COOKIE : COOKIE, value, secure, maxAgeMs)
+}
+
+function cookieLine(named: string, value: string, secure: boolean, maxAgeMs: number): string {
   const parts = [
-    `${secure ? HOST_COOKIE : COOKIE}=${value}`,
+    `${named}=${value}`,
     'HttpOnly',
     'SameSite=Strict',
     'Path=/',
@@ -285,4 +291,48 @@ export function renewal(device: Device, now: number): number | null {
   const until = now + SESSION_MS
   if (until - device.until < RENEW_AFTER_MS) return null
   return until
+}
+
+/**
+ * The `Set-Cookie`s that carry a renewed expiry to the browser, or null where
+ * the request presented no session under either name.
+ *
+ * **Sent with the renewal and with no other answer.** `renewal` already
+ * decides when the expiry moves — once a day of use at most — and the
+ * cookie's lifetime is the same number, so a phone used every morning holds a
+ * cookie as far out as its session and a phone in a drawer loses both
+ * together. Pairing set `Max-Age` once; before this the session slid and the
+ * cookie did not, and a phone used every day lost it thirty days after it
+ * paired. Not "when less than half is left": a browser never says how long a
+ * cookie has, so that rule could only be judged against the session's own
+ * expiry, which for a phone used daily is never less than twenty-nine days
+ * away — and a cookie set once at pairing is exactly the one it would miss.
+ *
+ * **Under the name it came in under, and never less `Secure` than it was.**
+ * A read cannot say its scheme — no `Origin` on one, so a read through
+ * `tailscale serve` or Caddy is `http` to `originOf` — and the first request
+ * of the day is a read. So `__Host-`, which only a browser on `https` holds,
+ * is set again as itself; the old name on an origin that said `https` moves
+ * under the prefix (`renamed`), as an act moves it; the old name on a host
+ * the config trusts — what a proxy ends TLS for — is `Secure`, which a browser
+ * on plain HTTP discards rather than stores, so the worst it does there is not
+ * renew, where the plain line would take `Secure` off a cookie that had it;
+ * and anywhere else it is plain HTTP, a LAN address or this machine's own
+ * name, and is set again as it was.
+ */
+export function renewedCookie(
+  header: string | null,
+  origin: { scheme: string; host: string },
+  surface: Surface,
+  maxAgeMs: number,
+): string[] | null {
+  if (header === null) return null
+  const moved = renamed(header, origin, maxAgeMs)
+  if (moved !== null) return moved
+  const presented = presentedIn(header)
+  if (presented === null) return null
+  const secure =
+    presented.named === HOST_COOKIE ||
+    surface.trustedHosts.some((one) => sameHost(one, origin.host))
+  return [cookieLine(presented.named, presented.value, secure, maxAgeMs)]
 }

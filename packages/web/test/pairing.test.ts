@@ -371,14 +371,11 @@ describe('a session over time', () => {
     }
   })
 
-  it('renews a session that has been used a day later, once', async () => {
-    const one = await start()
-    const paired = await pair(one)
+  /** The one paired device's expiry pushed two days into the past, which is what days of use look like to `renewal`. */
+  async function aged(one: Running): Promise<void> {
     const { devices } = await readDevices(one.home)
     const device = devices[0]
     if (device === undefined) throw new Error('nothing paired')
-    // Its expiry pushed a day into the past, which is what a day of use looks
-    // like to `renewal`.
     await writeDevices(one.home, [
       {
         kind: 'paired',
@@ -395,16 +392,54 @@ describe('a session over time', () => {
         from: device.from,
       },
     ])
-    expect((await ask(one, '/api/snapshot', { headers: { cookie: paired.cookie } })).status).toBe(
-      200,
-    )
+  }
+
+  it('renews a session that has been used a day later, once, and its cookie with it', async () => {
+    const one = await start()
+    const paired = await pair(one)
+    await aged(one)
+    const renewed = await ask(one, '/api/snapshot', { headers: { cookie: paired.cookie } })
+    expect(renewed.status).toBe(200)
     const file = await readFile(join(one.home, 'web-devices.jsonl'), 'utf8')
     expect(file.split('\n').filter((line) => line.includes('"renewed"'))).toHaveLength(1)
+    // **The cookie slides with the line**: the same value, a full term from
+    // now. Pairing set its `Max-Age` once, so without this a phone used every
+    // day lost its cookie thirty days after it paired, whatever the list said.
+    const set = renewed.headers['set-cookie'] ?? ''
+    expect(set.startsWith(`${paired.cookie}; `)).toBe(true)
+    expect(set).toContain(`Max-Age=${SESSION_MS / 1000}`)
+    expect(set).not.toContain('Secure')
     // And not again on the next request: the bound is what keeps a sliding
-    // expiry from being a write per request.
-    await ask(one, '/api/snapshot', { headers: { cookie: paired.cookie } })
+    // expiry from being a write per request, and a cookie per answer.
+    const next = await ask(one, '/api/snapshot', { headers: { cookie: paired.cookie } })
+    expect(next.headers['set-cookie']).toBeUndefined()
     const after = await readFile(join(one.home, 'web-devices.jsonl'), 'utf8')
     expect(after.split('\n').filter((line) => line.includes('"renewed"'))).toHaveLength(1)
+  })
+
+  it('keeps __Host- when it renews on a read through the tunnel, which cannot say https', async () => {
+    // The first request of the day is a read, and a browser sends no `Origin`
+    // on one, so through `tailscale serve` it arrives as plain HTTP from a
+    // name the config trusts. The cookie it renews is still the prefixed,
+    // `Secure` one it was given.
+    const one = await start()
+    const host = 'studio.yak-bebop.ts.net'
+    const paired = await pair(one, { headers: { host, origin: `https://${host}` } })
+    expect(paired.cookie.startsWith(`${HOST_COOKIE}=`)).toBe(true)
+    await aged(one)
+    const renewed = await ask(one, '/api/snapshot', { headers: { host, cookie: paired.cookie } })
+    expect(renewed.status).toBe(200)
+    const set = renewed.headers['set-cookie'] ?? ''
+    expect(set.startsWith(`${paired.cookie}; `)).toBe(true)
+    for (const flag of [
+      'Secure',
+      'Path=/',
+      'HttpOnly',
+      'SameSite=Strict',
+      `Max-Age=${SESSION_MS / 1000}`,
+    ])
+      expect(set, flag).toContain(flag)
+    expect(set).not.toContain('Domain')
   })
 })
 describe('read scopes, enforced', () => {

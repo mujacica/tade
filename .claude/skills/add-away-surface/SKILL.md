@@ -393,7 +393,9 @@ a device still has none of the scopes that change anything until somebody at thi
   OpenClaw hole). It rides on the `Origin` every gate re-asks at the act. A public listener refuses
   this machine's names at the door (`hostAllowed`), so a session minted for this machine is never
   usable from one; a wildcard (`lan`) bind is public too, and a browser here reaches it by the
-  address the network knows. **A new listener says which it is**: a proxy's socket is `public`,
+  address the network knows — this machine's own, read off its interfaces at every request
+  (`routesOf`, never once at start), and an allowed `Host` and nothing more. **A new listener says
+  which it is**: a proxy's socket is `public`,
   whatever is on the other end. `test/guard.test.ts` holds every cell of {listener} × {`Host`} ×
   {session}, and `server.test.ts` the same over sockets.
 - **A public name is a second socket, and everything on it is public** (`surfaces.web.public`,
@@ -680,6 +682,9 @@ line or commit message can say the easy half. `test/separation.test.ts` holds ea
   bound to the exact host it was minted for, and TLS. The cookie *is* `__Host-tade_away` on https
   (a sibling on a shared domain cannot plant one), plain `tade_away` where it cannot be `Secure`; the
   old name is still read where no prefixed one came, and `renamed` moves it on its first https act.
+  **The cookie slides with the session** (`renewedCookie`): sent with the once-a-day renewal and no
+  other answer, under the name it came in under and never with `Secure` taken off — the first
+  request of a day is a read, and a read cannot say its scheme.
 - `HTTPONLY_IS_NOT_XSS` — it stops a script reading the cookie, not injected script using it.
 - `DEVICES_AND_AGENTS` — `0600` keeps the file from other people, and **an agent is not another
   person**: one on this machine can append a line and pair itself. Said with the way out in the same
