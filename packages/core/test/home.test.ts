@@ -1,7 +1,14 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { projectDir, recordsDir, tadeHome, taskDir, taskFolder } from '../src/home.ts'
+import {
+  projectDir,
+  recordsDir,
+  remoteDocumentPath,
+  tadeHome,
+  taskDir,
+  taskFolder,
+} from '../src/home.ts'
 
 // Where everything Tade writes about a project goes, and the one way that
 // could go wrong.
@@ -52,5 +59,31 @@ describe('the home itself', () => {
   it('is `~/.tade` unless TADE_HOME says otherwise', () => {
     expect(tadeHome({})).toBe(join(homedir(), '.tade'))
     expect(tadeHome({ TADE_HOME: '/somewhere/else' })).toBe('/somewhere/else')
+  })
+})
+
+describe('where a copy of another machine’s document is kept', () => {
+  it('is under that machine’s name, the project and the task’s own folder', () => {
+    expect(remoteDocumentPath('/h', 'vps', 'tade/research', 'PLAN.md')).toBe(
+      join('/h', 'remotes', 'vps', 'documents', 'tade', 'research', 'PLAN.md'),
+    )
+  })
+
+  it('refuses every part that would walk out of it, rather than joining it', () => {
+    for (const [machine, task, name] of [
+      ['../vps', 'tade/research', 'PLAN.md'],
+      ['vps', '../tade/research', 'PLAN.md'],
+      ['vps', 'tade/../../x', 'PLAN.md'],
+      ['vps', 'tade', 'PLAN.md'],
+      ['vps', 'tade/research', '../config.yaml'],
+      ['vps', 'tade/research', 'a/b'],
+      ['vps', 'tade/research', '..'],
+      ['vps', 'tade/research', 'a\\b'],
+    ] as const) {
+      expect(
+        () => remoteDocumentPath('/h', machine, task, name),
+        `${machine} ${task} ${name}`,
+      ).toThrow()
+    }
   })
 })

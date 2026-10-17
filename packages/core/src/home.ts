@@ -131,7 +131,8 @@ export function mirrorDir(home: string, project: string): string {
  *
  * **Every part came from another machine but its name here**, so a task that is
  * not a task id or a name that is not a file's name — `..`, a separator — is
- * refused rather than joined: a path is never somewhere else's word.
+ * refused rather than joined, and so is a machine name the config could not
+ * hold: a path is never somewhere else's word.
  */
 export function remoteDocumentPath(
   home: string,
@@ -139,6 +140,10 @@ export function remoteDocumentPath(
   task: string,
   name: string,
 ): string {
+  // Its name here is held by `RemoteName` in the config; said again so no other path can use it.
+  if (!/^[a-z0-9][a-z0-9-]{0,23}$/.test(machine)) {
+    throw new Error('a document is kept only for a machine named by `remotes.<name>`')
+  }
   const [project = '', rest = ''] = task.split(/\/(.*)/s)
   if (!/^[a-z0-9][a-z0-9-]*$/.test(project) || !/^[a-z0-9][a-z0-9._-]*$/.test(rest)) {
     throw new Error(`${machine} named a document of something that is not a task`)

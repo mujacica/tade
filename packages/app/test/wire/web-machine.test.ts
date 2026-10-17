@@ -282,6 +282,20 @@ describe('what this machine is, as its window answers it', () => {
     expect(ran).toEqual(['now'])
   })
 
+  it('says a config that will not load as its problem, and a document gone since the journal as none', async () => {
+    const home = tmp('tade-machine-')
+    const dir = join(home, 'projects', 'app', 'documents', 'app', 'plan')
+    const { wire } = wired({
+      home,
+      config: 'agents:\n  harness: [\n',
+      events: [line('document_ready', { produces: join(dir, 'GONE.md') }, 'app/plan')],
+    })
+    const answer = await machineFrom(wire, QUIET)()
+    expect(answer.problems[0]).toMatchObject({ from: 'config' })
+    expect(answer.problems[0]?.said).toContain('config.yaml: ')
+    expect(await documentFrom(wire)({ task: 'app/plan', name: 'GONE.md' })).toBeNull()
+  })
+
   it('answers a quiet machine with nothing to say rather than with a throw', async () => {
     const { wire } = wired({ home: tmp('tade-machine-') })
     const answer = await machineFrom(wire, QUIET)()
