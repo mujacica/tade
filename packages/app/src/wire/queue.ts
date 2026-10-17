@@ -277,11 +277,17 @@ export class Queue implements Subject {
       // And what a schedule or a watch made, asked about the plan at the same
       // moment for the same reason (`planHold`).
       const outside = intakeOf(intake, task)
-      const plan = outside ? null : planHold(this.wire, item)
+      const plan = outside ? null : await planHold(this.wire, item)
       const says: StartSays | null = plan
         ? { kind: 'held', because: plan }
         : outside
-          ? await intakeSays(this.wire, outside, task, await plansFor(this.wire, probing), probing)
+          ? await intakeSays(
+              this.wire,
+              outside,
+              task,
+              await plansFor(this.wire, task, probing),
+              probing,
+            )
           : null
       if (says?.kind === 'waits') {
         // Not a hold: nobody has to answer it, and the next look decides again.

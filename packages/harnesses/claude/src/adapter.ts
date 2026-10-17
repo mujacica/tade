@@ -1201,16 +1201,19 @@ export class ClaudeAdapter implements WorkerAdapter {
     }
     const limits = status.rate_limits as Record<string, unknown> | undefined
     if (limits) {
-      const window = (key: string) => {
+      // Claude Code names its two windows rather than saying how long they are,
+      // so the name is where their length comes from.
+      const window = (key: string, minutes: number) => {
         const one = limits[key] as { used_percentage?: unknown; resets_at?: unknown } | undefined
         return typeof one?.used_percentage === 'number'
-          ? { used: one.used_percentage, resetsAt: Number(one.resets_at ?? 0) * 1000 }
+          ? { minutes, used: one.used_percentage, resetsAt: Number(one.resets_at ?? 0) * 1000 }
           : null
       }
       this.planLimits = {
         at: Date.now(),
-        fiveHour: window('five_hour'),
-        sevenDay: window('seven_day'),
+        windows: [window('five_hour', 5 * 60), window('seven_day', 7 * 24 * 60)].filter(
+          (one) => one !== null,
+        ),
       }
     }
   }

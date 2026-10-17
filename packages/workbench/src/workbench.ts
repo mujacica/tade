@@ -24,6 +24,7 @@ import {
   noSpend,
   type Plan,
   type PlanBusy,
+  type PlanChoice,
   type PlanSource,
   producesPath,
   producesProblem,
@@ -711,8 +712,8 @@ export class Workbench {
     return planSources(this.config, { adapterFor: this.adapterFor.bind(this) })
   }
 
-  askPlans(timeoutMs: number): Promise<PlanSource[]> {
-    return askPlans(this.config, { adapterFor: this.adapterFor.bind(this) }, timeoutMs)
+  askPlans(timeoutMs: number, only?: PlanChoice): Promise<PlanSource[]> {
+    return askPlans(this.config, { adapterFor: this.adapterFor.bind(this) }, timeoutMs, only)
   }
 
   info(): WorkbenchInfo {

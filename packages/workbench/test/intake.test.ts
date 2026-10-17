@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import {
   type IntakeCandidate,
   intakeFrom,
+  type PlanChoice,
   type PlanStanding,
   queueStateOf,
   readyToStart,
@@ -494,6 +495,7 @@ describe('whether an intake start still stands', () => {
   const stands = async (
     over: {
       plans?: readonly PlanStanding[]
+      spends?: PlanChoice
       probing?: string
       recheck?: (key: string) => Promise<{ still: boolean; because?: string }>
     } = {},
@@ -505,6 +507,8 @@ describe('whether an intake start still stands', () => {
       item,
       task: 'app/cli-req-1',
       plans: over.plans ?? [],
+      // The sign-in the start would run as, which is what the stand-in plans below are.
+      spends: over.spends ?? { harness: 'claude-code', account: null },
       probing: over.probing ?? null,
       recheck: over.recheck ?? (async () => ({ still: true })),
     })
@@ -627,6 +631,7 @@ describe('whether an intake start still stands', () => {
             cannotTell: 'does not say how much of a plan is used',
           }),
         ],
+        spends: { harness: 'codex', account: 'work' },
       }),
     ).toBeNull()
   })

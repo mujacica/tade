@@ -2,10 +2,12 @@ import { join } from 'node:path'
 import {
   type Config,
   type HarnessId,
+  type PlanChoice,
   type PlanSource,
   type PlanWindow,
   planStandings,
   secretCommand,
+  windowLabel,
 } from '@tade/core'
 import type { AccountStatus, HarnessAccount, PlanLimits, WorkerAdapter } from '@tade/harnesses-core'
 import { accountKey, HARNESS_ADAPTERS } from './harnesses.ts'
@@ -47,20 +49,22 @@ export interface AccountView {
 }
 
 /**
- * A harness's two named windows as plain ones, labelled with what each covers.
+ * A harness's windows as the ones a plan is drawn with, each labelled by how
+ * long it is (`windowLabel`), in the order the harness gave them.
  *
- * The port names them `fiveHour` and `sevenDay` because that is what both
- * subscription harnesses are told; this is the one place those names become
- * words somebody reads, so nothing downstream has to know either harness.
+ * The one place a window's length becomes a word somebody reads, so nothing
+ * downstream has to know any harness. They were labelled by slot — `5h` for
+ * the short one whatever it covered — and a Codex plan with one window of
+ * thirty days read `5h` everywhere a plan is drawn.
  */
 export function planWindows(limits: {
-  fiveHour: { used: number; resetsAt: number } | null
-  sevenDay: { used: number; resetsAt: number } | null
+  windows: readonly { minutes: number; used: number; resetsAt: number }[]
 }): PlanWindow[] {
-  return [
-    limits.fiveHour ? { label: '5h', ...limits.fiveHour } : null,
-    limits.sevenDay ? { label: '7d', ...limits.sevenDay } : null,
-  ].filter((one) => one !== null)
+  return limits.windows.map((one) => ({
+    label: windowLabel(one.minutes),
+    used: one.used,
+    resetsAt: one.resetsAt,
+  }))
 }
 
 /**
@@ -124,23 +128,28 @@ export function planSources(
 /**
  * Every sign-in's plan, after asking each one that can be asked without running
  * anything (`anytime`) and has nothing true to say yet — all at once, each
- * within `timeoutMs`.
+ * within `timeoutMs` — or only `only`, where a start names the one it would
+ * spend.
  *
  * The one place a plan is asked rather than read, and only when somebody is
  * about to decide on it: before an unknown plan lets a start through to find
- * out (`planTooTight`). A sign-in that could not answer says what it said
- * before, which is nothing — asking never makes a figure up.
+ * out (`planTooTight`), which reads only the sign-in that start would spend, so
+ * asking any other would be a wait that changes nothing. A sign-in that could
+ * not answer says what it said before, which is nothing — asking never makes a
+ * figure up.
  */
 export async function askPlans(
   config: Config,
   opts: { adapterFor: (harness: string, name: string | null) => WorkerAdapter },
   timeoutMs: number,
+  only?: PlanChoice,
 ): Promise<PlanSource[]> {
   const before = planSources(config, opts)
   const standings = planStandings(before, Date.now())
   await Promise.all(
     before.map(async (source, at) => {
       if (source.can !== 'anytime' || source.pays !== 'plan') return
+      if (only && (source.harness !== only.harness || source.account !== only.account)) return
       if (standings[at]?.cannotTell === null) return
       // Never throws, by the port's word; what it could not hear it has said.
       await opts.adapterFor(source.harness, source.account).askLimits(timeoutMs)

@@ -22,11 +22,11 @@ arithmetic over the same tokens, in no total of money and no budget, and nobody'
 | `packages/core/src/budget.ts` | what may be spent in a day: `BudgetSchema` (a project's and the machine's), `checkBudget`, `startBudget` — the two a start is held to — and `packages/workbench/src/budget.ts`'s `guardBudget`, which asks it before every agent starts |
 | `packages/core/src/prices.ts` | what a model costs where nobody will say: `PRICES`, `PRICES_TAKEN`, `priceFor`, `priceKey`, `estimateUsd`, `pricesFrom` — and `config.prices`, the override |
 | `packages/core/src/runtime.ts` | how long: `runtimeFrom`, `RUNTIME_EVENTS`, `Runtime`, `workedOf`, `runtimeSays`, `workedSays`, `duration` |
-| `packages/core/src/limits.ts` | a plan: `LimitsSupport`, `PlanPays`, `PlanWindow`, `PlanStanding`, `planStandings`, `tightestPlan`, `planShown`, `nextPlan`, `PLAN_WARM`/`PLAN_TIGHT`/`planPressure`, `planReport`, `resetsIn`, `planLabel`, `cannotTell` |
+| `packages/core/src/limits.ts` | a plan: `LimitsSupport`, `PlanPays`, `PlanWindow`, `PlanStanding`, `planStandings`, `tightestPlan`, `planShown`, `nextPlan`, `PLAN_WARM`/`PLAN_TIGHT`/`planPressure`, `planReport`, `planTooTight`, `resetsIn`, `planLabel`, `windowLabel`, `windowUsed`, `cannotTell` |
 | `packages/core/src/stats.ts` | what it bought: `statsFrom`, `Produced`, `STATS_EVENTS` |
 | `packages/core/src/evaluations.ts` | what landed, per harness, model, persona and template: `evaluationsFrom`, `outcomesFrom`, `Scorecard`, `perLandedCost` (billed money and a plan's list price, each over its own agents), `countSaid`, `MONEY_MARK`, `EVALUATION_EVENTS` — read by `/evals` (`app/src/evaluations.ts`, `panels/evaluations/`, `wire/evaluations.ts`), `tade stats` and the away view's `/api/evaluations` (`web/src/evaluations.ts`) |
 | `packages/harnesses/core/src/port.ts` | what a harness declares: `capabilities.spend` (`usd`, `tokens`, `limits`), `why.limits`, `WorkerAdapter.provider`, `limits()` |
-| `packages/workbench/src/accounts.ts` | which sign-ins there are and what each says about its plan: `signIns`, `planSources`, `planWindows` |
+| `packages/workbench/src/accounts.ts` | which sign-ins there are and what each says about its plan: `signIns`, `planSources`, `planWindows`, `askPlans` |
 | `packages/orchestrator/src/tools-extension.ts`, `tool-host.ts` | `tade_limits`, over `plan/limits` |
 | `packages/workbench/src/workers.ts` | what is written down: `usage`, `run_started`, `run_model`, and `agentTurns` for the reporter |
 | `packages/workbench/src/workbench.ts` | the two that cannot be re-derived: `lookAtCommits` → `commit_seen`, `lookAtChecks` → `check_ran` |
@@ -172,10 +172,15 @@ Tade counted.
 - `planStandings` is where that is decided, and it **throws away a share whose window has already
   started over** (`cannotTell`) — a percentage belonging to a window that is gone looks exactly like
   one that is true, which is the one way this could be worse than saying nothing.
+- **A window is named by how long it is** (`PlanLimits.windows`, each with its `minutes`;
+  `windowLabel`, `windowUsed`), never by which slot a harness filed it under. The port had a
+  five-hour slot and a seven-day one, and the ChatGPT free plan's one window of 43,200 minutes went
+  in the first and read `5h` on every surface. A length nobody said is `—`.
 - Nothing here asks anybody anything: the window draws it on its own beat, so `limits()` reads what
   the harness already holds rather than reaching for the network four times a second. The one ask is
   `askPlans` (`workbench/src/accounts.ts`), made by the queue with a deadline only when an unknown plan
-  would otherwise let a start from outside through to find out (`change-the-queue`).
+  would otherwise let a start from outside through to find out (`change-the-queue`), and of that
+  start's own sign-in alone (`only`).
 - **Every sign-in is gathered, not only the ones something has run as** (`planSources`, over
   `signIns`): an account that exists and has said nothing is somewhere somebody could go when a plan
   is nearly gone, and an absent row is one nobody can suggest. What pays for each rides along

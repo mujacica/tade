@@ -1,6 +1,13 @@
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
-import { type Config, defaultConfigPath, loadConfig, runtimeDir, tadeHome } from '@tade/core'
+import {
+  type Config,
+  defaultConfigPath,
+  loadConfig,
+  runtimeDir,
+  tadeHome,
+  windowUsed,
+} from '@tade/core'
 import type { LaunchSpec } from '@tade/harnesses-core'
 // Subpath imports: the CLI must not load the driver stack to read who is signed in.
 import { harnessAccount, listAccounts } from '@tade/workbench/accounts'
@@ -71,9 +78,8 @@ export function registerAccounts(program: Command, io: Io, setExit: (code: numbe
         const who = view.status.signedIn
           ? `signed in${view.status.who ? ` as ${view.status.who}` : ''}${view.status.plan ? ` (${view.status.plan})` : ''}`
           : (view.status.problem ?? 'not signed in')
-        const used = view.limits?.fiveHour
-          ? ` · ${Math.round(view.limits.fiveHour.used)}% of 5h`
-          : ''
+        const shortest = view.limits?.windows[0]
+        const used = shortest ? ` · ${windowUsed(shortest)}` : ''
         io.out(`${view.forNewAgents ? '▸' : ' '} ${name.padEnd(24)} ${who}${used}`)
       }
     })

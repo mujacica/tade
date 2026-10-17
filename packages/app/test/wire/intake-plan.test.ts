@@ -10,7 +10,8 @@ import { type Repo, SPAWNING_MS, until, windowUnderTest } from './harness.ts'
 // every request from outside until one did meant nothing ever started. So one
 // is let through to make the plan known, and says that is why; any other waits
 // for it, with nobody answering; and once the plan is known the ordinary rule
-// decides. A harness that can be asked first is asked first.
+// decides. A harness that can be asked first is asked first. And the plan is
+// the one of the sign-in the work would run as, never another one's.
 
 /** Claude Code's own sign-in after a restart: on a plan, and nothing said yet. */
 const silent = (): PlanSource => ({
@@ -88,6 +89,18 @@ describe('work from outside on a plan nobody can see yet', () => {
       asked += 1
       return plan
     }
+    runsOn('claude-code')
+  }
+
+  /**
+   * Has the hold read the work as running on `harness`'s own sign-in. The
+   * agents a test starts are pi's, the one harness every machine running the
+   * suite has, so the sign-in a start would spend is stood in for, as the plan
+   * beside it is.
+   */
+  function runsOn(harness: string): void {
+    const asked = Object.getPrototypeOf(client).agentHarness.bind(client)
+    client.agentHarness = async (task) => ({ ...(await asked(task)), harness, account: null })
   }
 
   /** One request handed over through the door a watch uses, made into queued work. */
@@ -212,11 +225,34 @@ describe('work from outside on a plan nobody can see yet', () => {
     await until('the other started by itself', () => started(waited), SPAWNING_MS)
   })
 
+  it('runs work on Claude Code as ordinary on a box where Codex cannot say, and never asks Codex', async () => {
+    restarted()
+    // Claude Code's plan is known and has room. Codex's own sign-in is listed
+    // on every machine and has never said anything, as on a box that never
+    // runs Codex: read as the plan of every start, it ran these one at a time
+    // for good.
+    const neverRuns: PlanSource = { ...silent(), harness: 'codex', can: 'anytime', why: null }
+    plan = [seen(20), neverRuns]
+    const one = await delivered('req-1')
+    const two = await delivered('req-2')
+    await start({ config: configFor(repo.root), extensions: await host() })
+    await until(
+      'both started',
+      async () => (await started(one)) && (await started(two)),
+      SPAWNING_MS,
+    )
+    expect(await startedWhy(one)).not.toContain('let through')
+    expect(await startedWhy(two)).not.toContain('let through')
+    // Codex could be asked, and its answer would change nothing about these starts.
+    expect(asked).toBe(0)
+  })
+
   it('asks a harness that can be asked before letting anything through, and goes by its answer', async () => {
     restarted()
     // A sign-in that can be asked without running anything, and has not been.
     const askable: PlanSource = { ...silent(), harness: 'codex', can: 'anytime', why: null }
     plan = [askable]
+    runsOn('codex')
     client.askPlans = async () => {
       asked += 1
       plan = [{ ...askable, said: seen(96).said }]

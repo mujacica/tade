@@ -214,8 +214,7 @@ export function contextIn(text: string): { tokens: number; percent: number | nul
 /**
  * How much of the plan is used, as Codex last heard from the service. Codex
  * names its windows by how many minutes they cover rather than by "five hours"
- * and "a week", so the shorter of the two is read as the short window and the
- * longer as the long one.
+ * and "a week", so each is kept by its length (`windowsAsLimits`).
  */
 export function limitsIn(text: string, at: number): PlanLimits | null {
   let limits: Record<string, unknown> | null = null
@@ -245,23 +244,25 @@ export interface CodexWindow {
 }
 
 /**
- * Codex's windows in Tade's two: the shorter as the short window and the longer
- * as the long one, whichever of its two names each came under. Read the same
- * way from a rollout and from its app server (`plan.ts`), so the two can never
- * file one window under different names.
+ * Codex's windows as a plan: each by how long it is, shortest first, whichever
+ * of its two names (`primary`, `secondary`) it came under. Read the same way
+ * from a rollout and from its app server (`plan.ts`), so the two can never
+ * file one window differently.
+ *
+ * Never as a short window and a long one: the ChatGPT free plan has one window,
+ * of thirty days, and filed as the short one it was drawn as `5h`.
  */
 export function windowsAsLimits(
   windows: readonly (CodexWindow | null)[],
   at: number,
 ): PlanLimits | null {
-  const both = windows.filter((one) => one !== null)
-  if (both.length === 0) return null
-  const order = [...both].sort((a, b) => a.minutes - b.minutes)
-  const short = order[0] ?? null
-  const long = order.length > 1 ? (order.at(-1) ?? null) : null
-  const said = (one: CodexWindow | null) =>
-    one ? { used: one.used, resetsAt: one.resetsAt } : null
-  return { at, fiveHour: said(short), sevenDay: said(long) }
+  const said = windows.filter((one) => one !== null)
+  if (said.length === 0) return null
+  const order = [...said].sort((a, b) => a.minutes - b.minutes)
+  return {
+    at,
+    windows: order.map((one) => ({ minutes: one.minutes, used: one.used, resetsAt: one.resetsAt })),
+  }
 }
 
 /**

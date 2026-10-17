@@ -86,13 +86,13 @@ describe("asking Codex's app server for the plan", () => {
     said = []
   })
 
-  it('hears both windows, shorter as the short one, and ends the server once it has', async () => {
+  it('hears both windows, each by its length and the shorter first, and ends the server once it has', async () => {
     const bin = stand({ hello: HELLO, read: READ })
     const heard = await ask(bin)
-    expect(heard).toMatchObject({
-      fiveHour: { used: 40, resetsAt: 1_799_990_000_000 },
-      sevenDay: { used: 12, resetsAt: 1_800_000_000_000 },
-    })
+    expect(heard?.windows).toEqual([
+      { minutes: 300, used: 40, resetsAt: 1_799_990_000_000 },
+      { minutes: 10_080, used: 12, resetsAt: 1_800_000_000_000 },
+    ])
     expect(Number.isFinite(heard?.at)).toBe(true)
     expect(said).toEqual([])
     expect(await gone(bin)).toBe(true)
@@ -125,9 +125,10 @@ describe("asking Codex's app server for the plan", () => {
     expect(said).toEqual([])
   })
 
-  it('reads one window as the short one, and a window that never resets as one', () => {
+  it('reads a lone window by its own length, and a window that never resets as one', () => {
+    // The ChatGPT free plan, live: one window of 43,200 minutes, which is thirty days.
     const one = limitsOf({ primary: { usedPercent: 4, windowDurationMins: 43_200 } }, 1_000)
-    expect(one).toEqual({ at: 1_000, fiveHour: { used: 4, resetsAt: 0 }, sevenDay: null })
+    expect(one).toEqual({ at: 1_000, windows: [{ minutes: 43_200, used: 4, resetsAt: 0 }] })
     expect(limitsOf(null, 1_000)).toBeNull()
   })
 })
@@ -146,7 +147,7 @@ describe('a Codex account asked for its plan', () => {
     const one = adapter(stand({ hello: HELLO, read: READ }))
     expect(one.limits()).toBeNull()
     const heard = await one.askLimits(5_000)
-    expect(heard?.fiveHour?.used).toBe(40)
+    expect(heard?.windows[0]?.used).toBe(40)
     expect(one.limits()).toEqual(heard)
   })
 

@@ -31,7 +31,8 @@ export interface AccountShown {
   canAdd: boolean
   why: string | null
   status: { signedIn: boolean; who: string | null; plan: string | null; problem: string | null }
-  limits: { fiveHour: { used: number; resetsAt: number } | null } | null
+  /** Its plan's windows, shortest first, each by its length. */
+  limits: { windows: readonly { minutes: number; used: number }[] } | null
   agents: number
   forNewAgents: boolean
   canSignIn: boolean

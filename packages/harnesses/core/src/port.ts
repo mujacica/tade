@@ -552,11 +552,25 @@ export interface SignInHere {
  * Percentages of a rolling window and when that window starts over: what both
  * subscription harnesses are told by the service and neither counts itself.
  * Never money — a plan has no price per turn, and `Spend` is the other thing.
+ *
+ * Every window the service named, shortest first, each with how long it is.
+ * It was a five-hour slot and a seven-day one, which is what Claude Code is
+ * told; Codex names its windows in minutes, and a plan with one window of
+ * thirty days went in the five-hour slot and was drawn as `5h` everywhere.
  */
 export interface PlanLimits {
   at: number
-  fiveHour: { used: number; resetsAt: number } | null
-  sevenDay: { used: number; resetsAt: number } | null
+  windows: readonly PlanLimitWindow[]
+}
+
+/** One of a plan's windows, as the service said it. */
+export interface PlanLimitWindow {
+  /** How long it is, in minutes. Zero where the service did not say. */
+  minutes: number
+  /** How much of it is used, 0 to 100. */
+  used: number
+  /** When it starts over. Zero where the service did not say. */
+  resetsAt: number
 }
 
 /** Whether this harness can run here, and why not. Never throws. */

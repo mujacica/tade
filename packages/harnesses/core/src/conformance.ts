@@ -120,12 +120,16 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
         if (one.capabilities.spend.limits === 'none') expect(limits).toBeNull()
         if (limits === null) return
         expect(Number.isFinite(limits.at)).toBe(true)
-        for (const window of [limits.fiveHour, limits.sevenDay]) {
-          if (!window) continue
+        for (const window of limits.windows) {
+          // Each by how long it is, which is never negative: zero is "not said".
+          expect(Number.isFinite(window.minutes)).toBe(true)
+          expect(window.minutes).toBeGreaterThanOrEqual(0)
           expect(Number.isFinite(window.used)).toBe(true)
           expect(window.used).toBeGreaterThanOrEqual(0)
           expect(Number.isFinite(window.resetsAt)).toBe(true)
         }
+        const lengths = limits.windows.map((window) => window.minutes)
+        expect(lengths).toEqual([...lengths].sort((a, b) => a - b))
       })
 
       it('asks for its plan only where it says it can, within the time it is given, and keeps what it heard', async () => {

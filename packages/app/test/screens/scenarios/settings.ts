@@ -41,7 +41,7 @@ const ACCOUNTS_SHOWN = [
     canAdd: true,
     why: null,
     status: { signedIn: true, who: 'you@example.com', plan: 'max', problem: null },
-    limits: { fiveHour: { used: 34, resetsAt: 1_789_900_000_000 } },
+    limits: { windows: [{ minutes: 300, used: 34, resetsAt: 1_789_900_000_000 }] },
     agents: 2,
     forNewAgents: true,
     canSignIn: true,

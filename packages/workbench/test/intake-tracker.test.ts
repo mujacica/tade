@@ -140,6 +140,7 @@ describe('a tracker’s request, through the queue, with no tracker', () => {
       item,
       task: 'app/linear-eng-412',
       plans: [],
+      spends: { harness: 'pi', account: null },
       probing: null,
       recheck: over.recheck ?? (async () => ({ still: true })),
     })

@@ -85,12 +85,14 @@ describe('what a rollout says', () => {
     expect(full?.percent).toBeCloseTo((27942 / 258400) * 100, 5)
   })
 
-  it('reads the shorter window as the short one and the longer as the long one', () => {
+  it('reads each window by how long it is, the shorter first', () => {
     const limits = limitsIn(text(), 1_000)
     expect(limits).toEqual({
       at: 1_000,
-      fiveHour: { used: 13, resetsAt: 1792568749000 },
-      sevenDay: { used: 3.5, resetsAt: 1792999999000 },
+      windows: [
+        { minutes: 300, used: 13, resetsAt: 1792568749000 },
+        { minutes: 10_080, used: 3.5, resetsAt: 1792999999000 },
+      ],
     })
   })
 

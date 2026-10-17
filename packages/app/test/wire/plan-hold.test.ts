@@ -5,7 +5,8 @@ import { type Repo, SPAWNING_MS, until, windowUnderTest } from './harness.ts'
 
 // Work a schedule or a watch made, on a plan window that is nearly gone: held
 // at the moment it would start where `queue.hold_scheduled` says so, through
-// the one hold path there is, and started as ever where it does not.
+// the one hold path there is, and started as ever where it does not — or where
+// the window is another sign-in's than the one the work would run as.
 
 /** A sign-in on a plan whose session window has been seen 95% used. */
 const nearlyFull = (): PlanSource => ({
@@ -26,7 +27,19 @@ describe('scheduled work on a full plan', () => {
   const { start } = windowUnderTest((wired) => {
     client = wired.client
     repo = wired.repo
+    runsOn('claude-code')
   })
+
+  /**
+   * Has the hold read the work as running on `harness`'s own sign-in. The
+   * agents a test starts are pi's, the one harness every machine running the
+   * suite has, so the sign-in a start would spend is stood in for, as the plan
+   * beside it is.
+   */
+  function runsOn(harness: string): void {
+    const asked = Object.getPrototypeOf(client).agentHarness.bind(client)
+    client.agentHarness = async (task) => ({ ...(await asked(task)), harness, account: null })
+  }
 
   /** A watch, and one finding of it made into queued work — not proposed, so the rule is what starts it. */
   async function found(): Promise<string> {
@@ -96,6 +109,22 @@ describe('scheduled work on a full plan', () => {
     ).toBe(true)
     // Above Tade's own words, never mistaken for the person's.
     expect(said.indexOf('Nobody has been')).toBeLessThan(said.indexOf('Tade says:'))
+  })
+
+  it('starts work that runs on Claude Code where it is a Codex window that is nearly full', async () => {
+    const codex: PlanSource = { ...nearlyFull(), harness: 'codex', can: 'anytime' }
+    const roomy: PlanSource = {
+      ...nearlyFull(),
+      said: {
+        at: Date.now(),
+        windows: [{ label: '5h', used: 20, resetsAt: Date.now() + 3_600_000 }],
+      },
+    }
+    client.planUsage = () => [codex, roomy]
+    const task = await found()
+    await start()
+    await until('started', () => client.runs().some((run) => run.task === task), SPAWNING_MS)
+    expect(await client.events({ types: ['queue_held'], task })).toEqual([])
   })
 
   it('starts it as ever where the setting is off', async () => {

@@ -161,7 +161,8 @@ an agent runs as you and could label an issue itself, and then somebody is looki
 - **A subscription window that is nearly full holds an intake-originated start**, and one nobody
   can read lets **one** through at a time, to make it known, and says that is why it went — unknown
   is not zero, and holding every one was a restarted always-on box that never started anything
-  (`planTooTight`). A harness that can be asked first is asked first. It never moves the work to
+  (`planTooTight`). It is the window of the sign-in that start would run as (`spends`), never
+  another's: read across every sign-in, a Codex nobody ran kept a Claude Code box one at a time. A harness that can be asked first is asked first. It never moves the work to
   another sign-in — whose money and whose permissions agents run with is a person's decision, and
   an automatic switch is that decision taken by a rule.
 - **A reply is bounded status Tade generated**, from a fixed set of sentences, never a word an agent

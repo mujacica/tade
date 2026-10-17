@@ -26,6 +26,7 @@ import {
   intakeSays,
   intakeSuffix,
   intakeSummary,
+  type PlanChoice,
   type PlanStanding,
   planTooTight,
   readPublished,
@@ -711,10 +712,11 @@ export async function sayBackAbout(
  *    the hold names the key. A grant is permission at the moment of acting, not
  *    a permission granted once in the past.
  * 2. **The plan.** `planTooTight` holds a start that would spend what is left
- *    of a subscription window on somebody else's request. Where nobody can say
- *    how full that window is, it lets one request through to make it known and
- *    any other waits for that one, because unknown is not zero — and a wait is
- *    answered before the source is asked, since it would only be asked again.
+ *    of a subscription window on somebody else's request — the window of the
+ *    sign-in this start would run as (`spends`), and no other. Where nobody can
+ *    say how full that window is, it lets one request through to make it known
+ *    and any other waits for that one, because unknown is not zero — and a wait
+ *    is answered before the source is asked, since it would only be asked again.
  * 3. **The source.** The watch is asked whether the request still stands.
  *    Closed, reassigned, relabelled or rewritten holds it. So does a source
  *    nobody can reach: an inaccessible source is never permission, which is the
@@ -726,6 +728,8 @@ export async function intakeStands(req: {
   task: string
   /** Every account's plan standing, as the window already folds them. */
   plans: readonly PlanStanding[]
+  /** The sign-in this start would run as, or null where nobody could say (`planTooTight`). */
+  spends: PlanChoice | null
   /** Another request from outside running now, where one is (`planTooTight`'s `probing`). */
   probing: string | null
   /** The host's door to that watch's `recheck`. Throwing is a hold. */
@@ -743,7 +747,7 @@ export async function intakeStands(req: {
   if (req.item.requester && !grant.from.includes(req.item.requester)) {
     return held(`${grant.path}.from no longer lists @${req.item.requester}`)
   }
-  const plan = planTooTight(req.plans, 'outside', req.probing)
+  const plan = planTooTight(req.plans, req.spends, 'outside', req.probing)
   if (plan && plan.kind !== 'probe') return plan
   const key = intakeKey({
     source,

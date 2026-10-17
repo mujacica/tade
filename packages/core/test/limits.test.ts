@@ -12,6 +12,8 @@ import {
   planTooTight,
   resetsIn,
   tightestPlan,
+  windowLabel,
+  windowUsed,
 } from '../src/limits.ts'
 
 // What a plan has left is the only figure that means anything on a
@@ -383,16 +385,21 @@ describe('work nobody here asked for, on a full plan', () => {
     said: { at: NOW, windows: [{ label: '5h', used: 93, resetsAt: NOW + HOUR }] },
   })
   const silent = source({ said: null })
+  /** The sign-in the work would run as: Claude Code's own. */
+  const claude = { harness: 'claude-code', account: null }
+  /** Codex's own sign-in, which every machine lists and Codex declares a plan. */
+  const codex = (over: Partial<PlanSource> = {}): PlanSource =>
+    source({ harness: 'codex', can: 'anytime', why: null, ...over })
 
   it('holds scheduled work on a window seen nearly full, and names the setting that does it', () => {
-    const held = planTooTight(planStandings([full], NOW), 'scheduled', null)
+    const held = planTooTight(planStandings([full], NOW), claude, 'scheduled', null)
     expect(held).toEqual({
       kind: 'held',
       because:
         "claude-code has used 93% of its 5h window, and what is left of it is not a schedule's to spend while queue.hold_scheduled is on",
     })
     // Outside work is held by the same window, in its own words.
-    const outside = planTooTight(planStandings([full], NOW), 'outside', null)
+    const outside = planTooTight(planStandings([full], NOW), claude, 'outside', null)
     expect(outside?.kind).toBe('held')
     expect(outside?.because).toContain('a request from outside')
   })
@@ -400,22 +407,23 @@ describe('work nobody here asked for, on a full plan', () => {
   it('does not hold scheduled work where nobody can say yet, or it would never start again', () => {
     // After a restart a plan says nothing until an agent has run on it: held
     // on unknown, the only work a quiet machine makes could never start.
-    expect(planTooTight(planStandings([silent], NOW), 'scheduled', null)).toBeNull()
-    // And a full window beside a silent one still holds.
-    expect(planTooTight(planStandings([silent, full], NOW), 'scheduled', null)?.kind).toBe('held')
+    expect(planTooTight(planStandings([silent], NOW), claude, 'scheduled', null)).toBeNull()
+    // And a full window beside another sign-in that cannot say still holds.
+    const beside = planStandings([codex({ said: null }), full], NOW)
+    expect(planTooTight(beside, claude, 'scheduled', null)?.kind).toBe('held')
   })
 
   it('lets one request from outside through while nobody can say, and says that is why', () => {
     // The same restart, on a box whose only work comes from outside: holding
     // every one on unknown held the very start that would make it known.
-    const through = planTooTight(planStandings([silent], NOW), 'outside', null)
+    const through = planTooTight(planStandings([silent], NOW), claude, 'outside', null)
     expect(through?.kind).toBe('probe')
     expect(through?.because).toContain('claude-code says it while one of its agents replies')
     expect(through?.because).toContain('let through as the one request from outside')
   })
 
   it('has any other request from outside wait for the one running, while nobody can say', () => {
-    const waits = planTooTight(planStandings([silent], NOW), 'outside', 'app/req-1')
+    const waits = planTooTight(planStandings([silent], NOW), claude, 'outside', 'app/req-1')
     // A wait and not a hold: nobody has to answer it, and it names the one it waits for.
     expect(waits?.kind).toBe('waits')
     expect(waits?.because).toContain('this waits for app/req-1')
@@ -424,7 +432,12 @@ describe('work nobody here asked for, on a full plan', () => {
   it('holds outside work on a window seen nearly full even where another plan is unknown', () => {
     // What is known is the ordinary rule, and nothing is let through to spend it.
     for (const probing of [null, 'app/req-1']) {
-      const held = planTooTight(planStandings([silent, full], NOW), 'outside', probing)
+      const held = planTooTight(
+        planStandings([codex({ said: null }), full], NOW),
+        claude,
+        'outside',
+        probing,
+      )
       expect(held?.kind).toBe('held')
       expect(held?.because).toContain('93%')
     }
@@ -435,19 +448,105 @@ describe('work nobody here asked for, on a full plan', () => {
       said: { at: NOW, windows: [{ label: '5h', used: 20, resetsAt: NOW + HOUR }] },
     })
     // Not one at a time any more: the window is seen, and it has room.
-    expect(planTooTight(planStandings([roomy], NOW), 'outside', 'app/req-1')).toBeNull()
+    expect(planTooTight(planStandings([roomy], NOW), claude, 'outside', 'app/req-1')).toBeNull()
   })
 
   it('does not hold below the line, nor on a sign-in billed per token', () => {
     const warm = source({
       said: { at: NOW, windows: [{ label: '5h', used: PLAN_TIGHT - 1, resetsAt: NOW + HOUR }] },
     })
-    expect(planTooTight(planStandings([warm], NOW), 'scheduled', null)).toBeNull()
+    expect(planTooTight(planStandings([warm], NOW), claude, 'scheduled', null)).toBeNull()
     expect(
-      planTooTight(planStandings([{ ...full, pays: 'per-token' }], NOW), 'scheduled', null),
+      planTooTight(planStandings([{ ...full, pays: 'per-token' }], NOW), claude, 'scheduled', null),
     ).toBeNull()
     // Nor does a sign-in billed per token that cannot say, on outside work.
     const unsaid = { ...silent, pays: 'per-token' as const }
-    expect(planTooTight(planStandings([unsaid], NOW), 'outside', null)).toBeNull()
+    expect(planTooTight(planStandings([unsaid], NOW), claude, 'outside', null)).toBeNull()
+  })
+
+  it('does not hold Claude Code work on a box where Codex cannot say', () => {
+    // Codex not installed, or never signed in: its own sign-in is listed on
+    // every machine and is a plan, and it never says anything. Read as the
+    // plan of every start, that ran requests from outside one at a time for good.
+    const roomy = source({
+      said: { at: NOW, windows: [{ label: '5h', used: 20, resetsAt: NOW + HOUR }] },
+    })
+    const box = planStandings([roomy, codex({ said: null })], NOW)
+    for (const probing of [null, 'app/req-1']) {
+      expect(planTooTight(box, claude, 'outside', probing)).toBeNull()
+    }
+    expect(planTooTight(box, claude, 'scheduled', null)).toBeNull()
+    // And where Claude Code cannot say either, what is let through names its own plan.
+    const restarted = planStandings([silent, codex({ said: null })], NOW)
+    const through = planTooTight(restarted, claude, 'outside', null)
+    expect(through?.kind).toBe('probe')
+    expect(through?.because.startsWith('claude-code ')).toBe(true)
+  })
+
+  it('does not hold Claude Code work on a Codex window seen nearly full', () => {
+    const roomy = source({
+      said: { at: NOW, windows: [{ label: '5h', used: 20, resetsAt: NOW + HOUR }] },
+    })
+    const box = planStandings(
+      [
+        roomy,
+        codex({ said: { at: NOW, windows: [{ label: '5h', used: 97, resetsAt: NOW + HOUR }] } }),
+      ],
+      NOW,
+    )
+    expect(planTooTight(box, claude, 'outside', null)).toBeNull()
+    expect(planTooTight(box, claude, 'scheduled', null)).toBeNull()
+    // Work that would run on Codex is held by it, as ever.
+    const onCodex = { harness: 'codex', account: null }
+    expect(planTooTight(box, onCodex, 'scheduled', null)?.because).toContain(
+      'codex has used 97% of its 5h window',
+    )
+  })
+
+  it('reads the account the work runs as, and not its harness’s own sign-in beside it', () => {
+    const work = source({ account: 'work', said: null })
+    const box = planStandings([full, work], NOW)
+    // The own sign-in is nearly full; the account the start runs as cannot say.
+    const said = planTooTight(box, { harness: 'claude-code', account: 'work' }, 'outside', null)
+    expect(said?.kind).toBe('probe')
+    expect(said?.because.startsWith('claude-code @work ')).toBe(true)
+  })
+
+  it('says nothing where nobody could say which sign-in the start would run as', () => {
+    expect(planTooTight(planStandings([full], NOW), null, 'scheduled', null)).toBeNull()
+    expect(planTooTight(planStandings([silent], NOW), null, 'outside', null)).toBeNull()
+  })
+})
+
+describe('what a window is called', () => {
+  it('is how long it is, whichever slot a harness filed it under', () => {
+    expect(windowLabel(300)).toBe('5h')
+    expect(windowLabel(10_080)).toBe('7d')
+    // The ChatGPT free plan's one window, as Codex's app server answered it live.
+    expect(windowLabel(43_200)).toBe('30d')
+    expect(windowLabel(90)).toBe('90m')
+  })
+
+  it('is no length at all where none was said, rather than a guess', () => {
+    expect(windowLabel(0)).toBe('—')
+    expect(windowLabel(Number.NaN)).toBe('—')
+  })
+
+  it('says a lone thirty-day window as thirty days wherever a share of it is said', () => {
+    expect(windowUsed({ minutes: 43_200, used: 4.4 })).toBe('4% of 30d')
+    const lone = source({
+      harness: 'codex',
+      said: {
+        at: NOW,
+        windows: [{ label: windowLabel(43_200), used: 95, resetsAt: NOW + 20 * 24 * HOUR }],
+      },
+    })
+    const held = planTooTight(
+      planStandings([lone], NOW),
+      { harness: 'codex', account: null },
+      'outside',
+      null,
+    )
+    expect(held?.because).toContain('codex has used 95% of its 30d window')
   })
 })

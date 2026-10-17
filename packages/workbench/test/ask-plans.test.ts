@@ -35,8 +35,7 @@ function adapter(
 
 const seen = (used: number): PlanLimits => ({
   at: Date.now(),
-  fiveHour: { used, resetsAt: Date.now() + HOUR },
-  sevenDay: null,
+  windows: [{ minutes: 300, used, resetsAt: Date.now() + HOUR }],
 })
 
 describe('asking the sign-ins that can be asked for their plan', () => {
@@ -87,6 +86,42 @@ describe('asking the sign-ins that can be asked for their plan', () => {
     )
     expect(own.asked).toBe(1)
     expect(paid.asked).toBe(0)
+  })
+
+  it('asks only the sign-in a start would spend, where one is named', async () => {
+    const own = adapter('anytime', 'none', seen(5))
+    const work = adapter('anytime', 'none', seen(70))
+    const other = adapter('none', 'exact')
+    const sources = await askPlans(
+      ConfigSchema.parse({ accounts: { work: { harness: 'codex', kind: 'subscription' } } }),
+      {
+        adapterFor: (harness, name) => (harness !== 'codex' ? other : name === 'work' ? work : own),
+      },
+      2_000,
+      { harness: 'codex', account: 'work' },
+    )
+    // The other is just as unknown and just as askable, and the start would not run as it.
+    expect(work.asked).toBe(1)
+    expect(own.asked).toBe(0)
+    const said = sources.find((one) => one.harness === 'codex' && one.account === 'work')?.said
+    expect(said?.windows).toEqual([{ label: '5h', used: 70, resetsAt: expect.any(Number) }])
+  })
+
+  it('says what it heard by how long each window is: a lone one of thirty days is 30d', async () => {
+    // The ChatGPT free plan, as Codex's app server answered it live: one window of 43,200 minutes.
+    const lone: PlanLimits = {
+      at: Date.now(),
+      windows: [{ minutes: 43_200, used: 4, resetsAt: Date.now() + 20 * 24 * HOUR }],
+    }
+    const codex = adapter('anytime', 'none', lone)
+    const other = adapter('none', 'exact')
+    const sources = await askPlans(
+      ConfigSchema.parse({}),
+      { adapterFor: (harness) => (harness === 'codex' ? codex : other) },
+      2_000,
+    )
+    const said = sources.find((one) => one.harness === 'codex')?.said
+    expect(said?.windows.map((one) => one.label)).toEqual(['30d'])
   })
 
   it('leaves a sign-in that could not answer as unknown as it was', async () => {

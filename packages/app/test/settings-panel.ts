@@ -55,7 +55,7 @@ export const context = (over: Partial<PanelContext> = {}): PanelContext =>
         canAdd: true,
         why: null,
         status: { signedIn: true, who: 'you@example.com', plan: 'max', problem: null },
-        limits: { fiveHour: { used: 34, resetsAt: 0 } },
+        limits: { windows: [{ minutes: 300, used: 34, resetsAt: 0 }] },
         agents: 1,
         forNewAgents: true,
         canSignIn: true,

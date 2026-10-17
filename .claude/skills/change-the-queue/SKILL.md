@@ -347,7 +347,11 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   always (`intakeStands`), and work a schedule or a watch made — `by: schedule:<id>` in its task file,
   carried on `Queued.by` and never looked up in a journal fold that forgets — where
   `queue.hold_scheduled` says so, on by default (`planHold`, `wire/queue-holds.ts`). It is what stops a
-  night of watches on a box with nobody there from spending the morning's window. Each difference is
+  night of watches on a box with nobody there from spending the morning's window. **It reads one
+  plan: the sign-in that start would run as** (`spentBy`, the workbench's own `agentHarness`, which
+  is the question the start asks) — read across every sign-in, the Codex sign-in every machine
+  lists kept a box that never runs Codex one request at a time for good, and a Codex window nearly
+  full held work bound for Claude Code. Each difference is
   argued where it is written. For scheduled work **an unknown plan does not hold**, because both
   subscription harnesses only say how full a plan is as their agents run, so holding on unknown would
   hold the one start that could make it known, for good. For outside work **an unknown plan lets one
@@ -356,7 +360,8 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   work comes from outside was nothing ever starting; a wait is not a hold, needs no answer, and is said
   once (`waitSaid`), and once the plan is known the ordinary rule decides. A harness that can be asked
   without running anything (`anytime`, `askLimits`) is asked first, with a deadline (`plansFor`,
-  `ASK_PLANS_MS`), and its answer preferred. And the hold is told with **its own answer**
+  `ASK_PLANS_MS`), and its answer preferred — that sign-in alone, since no other's answer could
+  change this start. And the hold is told with **its own answer**
   (`HoldTold.plan`, `ANSWERS.plan`), never "start it anyway" — a start while the window is that full is
   held and told again, which offered to the orchestrator is a loop. Work somebody asked for here is
   never held by it. The queue knows what came from outside only because `QUEUE_READS` carries

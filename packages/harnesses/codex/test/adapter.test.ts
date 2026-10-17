@@ -309,7 +309,7 @@ describe('CodexAdapter', () => {
         tokens: 110,
         percent: 11,
       })
-      expect(one.limits()?.fiveHour).toEqual({ used: 5, resetsAt: 7_000 })
+      expect(one.limits()?.windows).toEqual([{ minutes: 300, used: 5, resetsAt: 7_000 }])
       expect(await threadOf('app/refunds', runDir)).toBe('thread-1')
     })
   })

@@ -1,4 +1,4 @@
-import { THINKING_LEVELS } from '@tade/core'
+import { THINKING_LEVELS, windowUsed } from '@tade/core'
 import { type Offer, offer, type WorkerCapabilities } from '@tade/harnesses-core'
 import { close, type PanelOutcome, stay } from '../outcome.ts'
 import type { AccountShown } from '../settings/accounts.ts'
@@ -577,8 +577,8 @@ export function accountMenuItems(
         ...(id === current
           ? { note: 'now' }
           : one.status.signedIn
-            ? one.limits?.fiveHour
-              ? { note: `${Math.round(one.limits.fiveHour.used)}% of 5h` }
+            ? one.limits?.windows[0]
+              ? { note: windowUsed(one.limits.windows[0]) }
               : {}
             : { off: 'not signed in' }),
       }

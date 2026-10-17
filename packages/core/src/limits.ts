@@ -27,12 +27,32 @@ export type LimitsSupport = (typeof LIMITS_SUPPORT)[number]
 
 /** One of a plan's rolling windows, as the harness itself reported it. */
 export interface PlanWindow {
-  /** What it covers, in the words a person reads: `5h`, `7d`. */
+  /** What it covers, in the words a person reads: `5h`, `7d`, `30d` (`windowLabel`). */
   label: string
   /** How much of it is used, 0 to 100. The service's own number, never a count of ours. */
   used: number
   /** When it starts over. Zero when the harness did not say. */
   resetsAt: number
+}
+
+/**
+ * What a window covers, by how long it is: `5h`, `7d`, `30d`.
+ *
+ * By its length, and never by which of two slots a harness filed it under.
+ * Codex names its windows in minutes, and the ChatGPT free plan has one of
+ * 43,200 — thirty days — which, filed as the short window, was drawn as `5h`
+ * everywhere a plan is. A length nobody said is `—`, never a guess.
+ */
+export function windowLabel(minutes: number): string {
+  if (!Number.isFinite(minutes) || minutes <= 0) return '—'
+  if (minutes % 1440 === 0) return `${minutes / 1440}d`
+  if (minutes % 60 === 0) return `${minutes / 60}h`
+  return `${Math.round(minutes)}m`
+}
+
+/** How much of one window is used, as a list of sign-ins says it beside each: `34% of 5h`. */
+export function windowUsed(window: { minutes: number; used: number }): string {
+  return `${Math.round(window.used)}% of ${windowLabel(window.minutes)}`
 }
 
 /** The last thing one account said about its plan. */
@@ -207,7 +227,11 @@ export function planLabel(of: { harness: string; account: string | null }): stri
   return of.account ? `${of.harness} @${of.account}` : of.harness
 }
 
-/** One sign-in, as a surface that shows one at a time names the one it is showing. */
+/**
+ * One sign-in: a harness, and the account in it — null for its own. What a
+ * surface that shows one at a time names the one it is showing by, and what a
+ * start names the one it would spend by (`planTooTight`).
+ */
 export interface PlanChoice {
   harness: string
   account: string | null
@@ -341,25 +365,36 @@ export interface StartSays {
  * one start at a time rather than all at once, because what it spends the
  * window on is somebody else's request and not the person's own standing rule.
  *
- * **An account that is not on a plan is not pressure.** `pays: 'per-token'` is
- * money with a bill and no window to fill, and money is `checkBudget`'s. No
- * plan accounts at all means nothing here holds anything.
+ * **Only the sign-in the start would spend** (`spends`: the harness its route
+ * resolves to, and the account it runs as there). It read every sign-in there
+ * is, and every machine lists Codex's own, which Codex's declaration makes a
+ * plan: on a box that never runs Codex — not installed, or never signed in —
+ * that plan stayed unknown for good, so requests from outside ran one at a time
+ * for good; and a window nearly full on one sign-in held work that would run on
+ * another. A sign-in this start would not run as is no plan of its.
+ *
+ * **A sign-in that is not on a plan is not pressure.** `pays: 'per-token'` is
+ * money with a bill and no window to fill, and money is `checkBudget`'s.
  *
  * **It never suggests another account.** Which sign-in agents run as is a
  * person's decision, and a rule that moved work to a less full plan would be
  * that decision taken by a rule.
  *
  * `probing` is a request from outside running now, where one is — only the
- * window knows what runs, so it is always said and never assumed.
+ * window knows what runs, so it is always said and never assumed. `spends` is
+ * null where nobody could say which sign-in it is: then this says nothing,
+ * since the start asks the same question and fails, saying why, on the same
+ * answer.
  */
 export function planTooTight(
   standings: readonly PlanStanding[],
+  spends: PlanChoice | null,
   of: 'outside' | 'scheduled',
   probing: string | null,
 ): StartSays | null {
-  const plans = standings.filter((standing) => standing.pays === 'plan')
-  if (plans.length === 0) return null
-  const worst = tightestPlan(plans)
+  const spent = spends ? standings.find((one) => isChosen(one, spends)) : undefined
+  if (spent?.pays !== 'plan') return null
+  const worst = planOf(spent)
   if (worst && planPressure(worst.tightest.used) === 'tight') {
     const used = `${planLabel(worst)} has used ${Math.round(worst.tightest.used)}% of its ${worst.tightest.label} window`
     return {
@@ -370,9 +405,8 @@ export function planTooTight(
           : `${used}, and what is left of it is not a schedule's to spend while queue.hold_scheduled is on`,
     }
   }
-  const unknown = of === 'outside' ? plans.find((one) => one.cannotTell !== null) : undefined
-  if (!unknown) return null
-  const said = `${planLabel(unknown)} ${unknown.cannotTell}`
+  if (of !== 'outside' || spent.cannotTell === null) return null
+  const said = `${planLabel(spent)} ${spent.cannotTell}`
   return probing === null
     ? {
         kind: 'probe',
@@ -386,7 +420,7 @@ export function planTooTight(
 
 /** One of a plan's windows, as somebody who is being told about it reads it. */
 export interface PlanWindowSaid {
-  /** What it covers: `5h`, `7d`. */
+  /** What it covers: `5h`, `7d`, `30d`. */
   label: string
   /** What is used of it, the service's own number. */
   used: number

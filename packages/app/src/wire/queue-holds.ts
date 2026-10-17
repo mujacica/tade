@@ -3,6 +3,7 @@ import {
   type IntakeItem,
   intakeFrom,
   intakeOf,
+  type PlanChoice,
   type PlanStanding,
   planStandings,
   planTooTight,
@@ -23,16 +24,39 @@ import type { Wiring } from './context.ts'
 export const ASK_PLANS_MS = 10_000
 
 /**
- * Why queued work a schedule or a watch made does not start now, or null:
- * a plan window it would spend is nearly full and `queue.hold_scheduled` is
- * on (`planTooTight`'s rule, which argues both). Read from the config and the
- * plan standings as they are at this start, like the trees.
+ * The sign-in a start of this task would run as: the harness its route
+ * resolves to, or the one its task file names, and the account it runs as
+ * there. The workbench's own answer (`agentHarness`), which is the question
+ * the start itself asks, so the plan read is the plan spent. Null where it
+ * could not say — the start asks again, fails on the same answer, and says why.
  */
-export function planHold(wire: Wiring, item: Queued): string | null {
+export async function spentBy(wire: Wiring, task: string): Promise<PlanChoice | null> {
+  const known = await wire.opts.client.agentHarness(task).catch((err: unknown) => {
+    wire.note(err)
+    return null
+  })
+  return known ? { harness: known.harness, account: known.account } : null
+}
+
+/** What one start would spend, and every sign-in's plan as it stands at that start. */
+export interface Spending {
+  spends: PlanChoice | null
+  plans: readonly PlanStanding[]
+}
+
+/**
+ * Why queued work a schedule or a watch made does not start now, or null:
+ * the plan window of the sign-in it would run as is nearly full and
+ * `queue.hold_scheduled` is on (`planTooTight`'s rule, which argues both).
+ * Read from the config and the plan standings as they are at this start, like
+ * the trees.
+ */
+export async function planHold(wire: Wiring, item: Queued): Promise<string | null> {
   if (!wire.opts.config.queue.hold_scheduled) return null
   if (taskOrigin(item.by).kind !== 'schedule') return null
   const standings = planStandings(wire.opts.client.planUsage(), wire.now())
-  return planTooTight(standings, 'scheduled', null)?.because ?? null
+  const spends = await spentBy(wire, item.task)
+  return planTooTight(standings, spends, 'scheduled', null)?.because ?? null
 }
 
 /**
@@ -52,27 +76,36 @@ export function probingNow(
 }
 
 /**
- * Every sign-in's plan, for a start from outside about to be decided — after
- * asking, first and with a deadline, each sign-in that can be asked without
- * running anything, wherever the rule would otherwise let the start through to
- * find out. An answer asked for costs nothing and a start costs an agent, so
- * the asked one is preferred; one that did not come in time leaves the plan
- * unknown, and the start goes as the rule says.
+ * What a start from outside about to be decided would spend — after asking,
+ * first and with a deadline, the sign-in it would run as, where that one can
+ * be asked without running anything and the rule would otherwise let the start
+ * through to find out. An answer asked for costs nothing and a start costs an
+ * agent, so the asked one is preferred; one that did not come in time leaves
+ * the plan unknown, and the start goes as the rule says. No other sign-in is
+ * asked: the rule reads only this one, so its answer could change nothing.
  */
-export async function plansFor(wire: Wiring, probing: string | null): Promise<PlanStanding[]> {
+export async function plansFor(
+  wire: Wiring,
+  task: string,
+  probing: string | null,
+): Promise<Spending> {
+  const spends = await spentBy(wire, task)
   const sources = wire.opts.client.planUsage()
-  const standings = planStandings(sources, wire.now())
-  if (planTooTight(standings, 'outside', probing)?.kind !== 'probe') return standings
-  const askable = sources.some(
-    (one, at) => one.can === 'anytime' && one.pays === 'plan' && standings[at]?.cannotTell !== null,
+  const plans = planStandings(sources, wire.now())
+  if (!spends || planTooTight(plans, spends, 'outside', probing)?.kind !== 'probe') {
+    return { spends, plans }
+  }
+  // Let through means this sign-in is on a plan nobody can see yet.
+  const spent = sources.find(
+    (one) => one.harness === spends.harness && one.account === spends.account,
   )
-  if (!askable) return standings
-  const ask = wire.opts.client.askPlans(ASK_PLANS_MS).catch((err: unknown) => {
+  if (spent?.can !== 'anytime') return { spends, plans }
+  const ask = wire.opts.client.askPlans(ASK_PLANS_MS, spends).catch((err: unknown) => {
     wire.note(err)
     return null
   })
   const asked = await inTime(ask, ASK_PLANS_MS + 1_000, null)
-  return planStandings(asked ?? wire.opts.client.planUsage(), wire.now())
+  return { spends, plans: planStandings(asked ?? wire.opts.client.planUsage(), wire.now()) }
 }
 
 /**
@@ -90,7 +123,7 @@ export async function intakeSays(
   wire: Wiring,
   one: IntakeItem | null,
   task: string,
-  plans: readonly PlanStanding[],
+  spending: Spending,
   probing: string | null,
 ): Promise<StartSays | null> {
   if (!one) return null
@@ -101,7 +134,8 @@ export async function intakeSays(
     config: wire.opts.config,
     item: one,
     task,
-    plans,
+    plans: spending.plans,
+    spends: spending.spends,
     probing,
     recheck: async (key) => {
       if (!host) throw new Error('this window runs no extensions')
@@ -133,7 +167,11 @@ export async function standsFor(wire: Wiring, row: InboxRow): Promise<string | n
   if (!one) {
     return `has no record on this machine that Tade can check: approve it at the machine`
   }
-  const plans = planStandings(wire.opts.client.planUsage(), wire.now())
-  const says = await intakeSays(wire, one, row.tasks[0] ?? '', plans, null)
+  const task = row.tasks[0] ?? ''
+  const spending = {
+    spends: await spentBy(wire, task),
+    plans: planStandings(wire.opts.client.planUsage(), wire.now()),
+  }
+  const says = await intakeSays(wire, one, task, spending, null)
   return says?.kind === 'held' ? says.because : null
 }

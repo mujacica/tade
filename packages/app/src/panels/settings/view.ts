@@ -1,5 +1,11 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
-import { HARNESS_CHOICES, type Setting, type SettingGroup, settingLabel } from '@tade/core'
+import {
+  HARNESS_CHOICES,
+  type Setting,
+  type SettingGroup,
+  settingLabel,
+  windowUsed,
+} from '@tade/core'
 import { type Hit, sameTarget, type Target } from '../../hits.ts'
 import { blank, box, NO_POINTER, type Pointer, Row } from '../../ui.ts'
 import { awayLines } from '../away/view.ts'
@@ -328,7 +334,7 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
               one.kind === 'api-key'
                 ? '● paid with an API key'
                 : `● ${one.status.who ?? 'signed in'}${one.status.plan ? ` · ${one.status.plan}` : ''}`,
-              one.limits?.fiveHour ? `${Math.round(one.limits.fiveHour.used)}% of 5h` : null,
+              one.limits?.windows[0] ? windowUsed(one.limits.windows[0]) : null,
               one.agents > 0 ? `${one.agents} agent${one.agents === 1 ? '' : 's'}` : null,
             ]
               .filter(Boolean)

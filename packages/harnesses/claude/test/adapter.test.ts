@@ -358,7 +358,11 @@ describe('ClaudeAdapter', () => {
       // that says nothing is still a line in the journal.
       expect(adapter.capabilities.spend.usd).toBe('none')
       expect(signals.filter((s) => s.type === 'usage')).toEqual([])
-      expect(adapter.limits()?.fiveHour).toEqual({ used: 34, resetsAt: 1_800_000_000_000 })
+      expect(adapter.limits()?.windows[0]).toEqual({
+        minutes: 300,
+        used: 34,
+        resetsAt: 1_800_000_000_000,
+      })
     })
 
     it('is its cost as it grows, where an API key is what pays', async () => {
