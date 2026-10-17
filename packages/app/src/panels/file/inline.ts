@@ -1,4 +1,4 @@
-import type { ParsedDiff } from '../../diff.ts'
+import type { DiffLine, ParsedDiff } from '../../diff.ts'
 
 // What git says about the file you have open, as rows the viewer draws.
 //
@@ -104,21 +104,25 @@ export interface ChangeRun {
 
 /**
  * Every change in the rows, top to bottom — what going to the next one steps
- * through and what the bar down the side marks.
+ * through and what the bar down the side marks. The patch reader asks it of
+ * git's own lines, where a hunk's `@@` line ends a run as an unchanged one does.
  *
  * A pass over the whole file, so it is kept with the rows it was made from:
- * those are made once per edit (`Viewed.rows`), and the same rows always
- * answer with the very same list rather than a fresh one every frame.
+ * those are made once per edit (`Viewed.rows`), git's once per diff read, and
+ * the same rows always answer with the very same list rather than a fresh one
+ * every frame.
  */
-export function changesIn(rows: readonly InlineRow[] | null | undefined): readonly ChangeRun[] {
+export function changesIn(
+  rows: readonly { kind: InlineRow['kind'] | DiffLine['kind'] }[] | null | undefined,
+): readonly ChangeRun[] {
   if (!rows) return NONE
   const kept = CHANGES.get(rows)
   if (kept) return kept
   const changes: ChangeRun[] = []
   let open: ChangeRun | null = null
   for (let at = 0; at < rows.length; at++) {
-    const kind = rows[at]?.kind ?? 'context'
-    if (kind === 'context') {
+    const kind = rows[at]?.kind
+    if (kind !== 'add' && kind !== 'remove') {
       open = null
       continue
     }
@@ -135,7 +139,7 @@ export function changesIn(rows: readonly InlineRow[] | null | undefined): readon
 }
 
 const NONE: readonly ChangeRun[] = []
-const CHANGES = new WeakMap<readonly InlineRow[], readonly ChangeRun[]>()
+const CHANGES = new WeakMap<readonly object[], readonly ChangeRun[]>()
 
 /**
  * Where a line of the file is drawn, which the gone lines above it move down.

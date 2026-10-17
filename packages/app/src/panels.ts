@@ -152,7 +152,7 @@ export interface PanelInputs {
   lines?: number
   /** The file's own lines, uncoloured: what a find looks through and an edit starts from. */
   text?: readonly string[]
-  /** How many lines the file panel shows at once, and how wide they are drawn. */
+  /** How many lines the file panel (or the patch reader) shows at once, and how wide they are drawn. */
   body?: number
   columns?: number
   /**

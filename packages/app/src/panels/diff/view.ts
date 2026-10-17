@@ -4,17 +4,32 @@ import { blank, box, type Drawn, Row } from '../../ui.ts'
 import { TAB } from '../../viewer.ts'
 import { COMMENTED, commentBar, toLabel } from '../comment.ts'
 import type { PanelContext } from '../context.ts'
+import { changesIn } from '../file/inline.ts'
 import { BAR, column, type Line, panelSize } from '../frame.ts'
-import { type DiffPanel, keptOn } from './state.ts'
+import { changeAt, type DiffPanel, keptOn } from './state.ts'
 
 // How the patch reader looks: git's answer for one file, the line the keyboard
 // is on marked down the side, a dot beside every line a comment is kept on,
-// and under it the comment box or what the marked line's comment says. What a
-// key does is beside this in `state.ts`.
+// where each change is marked on the bar, and under it the comment box or what
+// the marked line's comment says. What a key does is beside this in `state.ts`.
+
+/** How big the patch reader is: as wide as is worth reading, as tall as the window. */
+const SIZE = { max: 96 }
+
+/** Its foot: what the marked line says, then the buttons and the keys. */
+const FOOT = 2
+
+/**
+ * Rows of git's answer the patch reader shows at once. Exported because the
+ * keys need the same number, to put a change a few lines down the view.
+ */
+export function diffBody(width: number, height: number): number {
+  return Math.max(1, panelSize({ width, height }, SIZE).rows - FOOT)
+}
 
 export function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const { width, rows: tall } = panelSize(ctx, { max: 96 })
+  const { width, rows: tall } = panelSize(ctx, SIZE)
   // The diff keeps a column for its bar: it is the one panel where how far
   // through a file you are is most of what you want to know.
   const inner = width - 2 - BAR
@@ -72,15 +87,36 @@ export function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
   }
   const drafted = ctx.comments?.total ?? 0
   const kept = keptOn(panel.at === null ? undefined : parsed?.lines[panel.at], here)
+  // Every change in the file: what the bar marks and `n` and `p` go through.
+  const changes = changesIn(parsed && !parsed.binary ? parsed.lines : null)
+  // Which change the keyboard is on, at the end of the row the marked line's
+  // comment is said on — and that `n` or `p` went round an end to get there, in
+  // the colour a panel says things in, because the press did something other
+  // than the one before it did.
+  const among = parsed ? changeAt(panel, parsed.lines) : null
+  const position = (r: Row) =>
+    among
+      ? r.right((on) =>
+          on
+            .text(
+              `change ${among.index + 1} of ${among.count}${among.wrapped ? ', wrapped' : ''}`,
+              among.wrapped ? skin.waiting : skin.hint,
+            )
+            .space(),
+        )
+      : r
   const said = panel.composing
     ? commentBar(panel.composing, `On line ${panel.composing.line}`, inner, ctx)
     : kept
-      ? row()
-          .space()
-          .text(`${COMMENTED} to ${toLabel(kept.to, ctx.commentTo ?? [])}: `, skin.signal)
-          .text(kept.words.replaceAll('\n', ' ⏎ '), skin.you)
-          .build()
-      : blank(inner)
+      ? position(
+          row()
+            .space()
+            .text(`${COMMENTED} to ${toLabel(kept.to, ctx.commentTo ?? [])}: `, skin.signal)
+            .text(kept.words.replaceAll('\n', ' ⏎ '), skin.you),
+        ).build()
+      : among
+        ? position(row()).build()
+        : blank(inner)
   // The keys in whatever room the buttons and the file stepper leave: which
   // line you are on and that `c` writes on it are what this row says first.
   const stepper = ` ${panel.file + 1}/${panel.files.length} `
@@ -92,7 +128,7 @@ export function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
     'Ask the agent about this'.length +
     4
   const room = inner - buttons - (panel.files.length > 1 ? stepper.length + 4 : 0) - 2
-  const keys = KEYS.find((one) => one.length <= room) ?? ''
+  const keys = (changes.length > 0 ? STEPS : KEYS).find((one) => one.length <= room) ?? ''
   const drawn = column(
     {
       body: {
@@ -100,6 +136,7 @@ export function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
         width: inner,
         scroll: panel.scroll,
         chosen: panel.following && panel.at !== null ? { from: panel.at, to: panel.at } : null,
+        marks: changes,
       },
       foot: [
         said,
@@ -131,6 +168,17 @@ export function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
 
 /** What the foot says of the keys, longest first: the first that fits is drawn. */
 const KEYS = ['↑↓ line · c comment · ←→ file', '↑↓ line · c comment', 'c comment']
+
+/**
+ * The same where there are changes to go through: `n` and `p` give way only
+ * to `c`, because nothing else on the screen says them.
+ */
+const STEPS = [
+  '↑↓ line · n/p change · c comment · ←→ file',
+  '↑↓ line · n/p change · c comment',
+  'n/p change · c comment',
+  'c comment',
+]
 
 /**
  * Send, where there is something to send, and first on the row: it is what

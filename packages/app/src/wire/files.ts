@@ -14,6 +14,7 @@ import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
 import { atOffset, focusTask, shownName, toggleFolder, viewLane } from '../model.ts'
 import { type DiffPanel, diffPanel } from '../panels/diff/state.ts'
+import { diffBody } from '../panels/diff/view.ts'
 import {
   type FilePanel,
   filePanel,
@@ -130,7 +131,9 @@ export class Files implements Subject {
       text: this.textAt(panel),
       branches: this.branchRows,
       ...(panel?.kind === 'file' ? { diffRows: this.viewed.rows(panel.edit) } : {}),
-      ...(panel?.kind === 'diff' ? { patch: this.diff } : {}),
+      ...(panel?.kind === 'diff'
+        ? { patch: this.diff, body: diffBody(this.deps.size().columns, this.deps.size().rows) }
+        : {}),
       ...(file ? { lines: this.lines(), body: file.rows, columns: file.columns } : {}),
     }
   }

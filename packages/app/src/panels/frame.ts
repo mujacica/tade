@@ -1,5 +1,5 @@
 import type { Hit, Target } from '../hits.ts'
-import { BAR, type BarMark, barRows, type Scrolled } from '../scrollbar.ts'
+import { BAR, type BarMark, barRows, type Marked, marksAlong, type Scrolled } from '../scrollbar.ts'
 import type { Skin } from '../skin.ts'
 import { blank, Row } from '../ui.ts'
 import { widthOf } from '../width.ts'
@@ -177,7 +177,8 @@ export function startOf(
  *
  * Drawn whether or not there is anything to scroll: a column that comes and
  * goes moves everything beside it every time the page changes. `marks` are
- * what the file viewer lays down it — where the changes are (`marksAlong`).
+ * what the file viewer and the patch reader lay down it — where the changes
+ * are (`marksAlong`).
  */
 export function bar(
   view: Scrolled,
@@ -206,6 +207,8 @@ export interface Body {
   chosen?: { from: number; to: number } | null
   /** Which of the window's two panel areas this is. */
   area?: 'panel' | 'panel-side'
+  /** Runs of lines to mark on the bar beside it, by where they are down it: the patch reader's changes. */
+  marks?: readonly Marked[]
 }
 
 /** The body drawn: its rows, each with its bar cell, and where it ended up. */
@@ -216,7 +219,9 @@ export function bodyRows(
   const total = body.lines.length
   const room = Math.max(1, body.room)
   const offset = startOf(body.scroll, total, room, body.chosen)
-  const cells = bar({ total, shown: room, offset, rows: room }, body.area ?? 'panel', ctx)
+  const view = { total, shown: room, offset, rows: room }
+  const marks = body.marks ? marksAlong(body.marks, view) : undefined
+  const cells = bar(view, body.area ?? 'panel', ctx, marks)
   const rows = Array.from({ length: room }, (_, i) => {
     const line = body.lines[offset + i] ?? blank(body.width)
     const cell = cells[i]
