@@ -3,24 +3,20 @@ import {
   expandHome,
   holdSaid,
   type InboxRow,
-  type IntakeItem,
   intakeFrom,
   intakeOf,
   inWrittenOrder,
   joined,
   orderFirst,
   type Plan,
-  planStandings,
-  planTooTight,
   projectsIn,
   QUEUE_CHANGES,
-  type Queued,
   queueStateOf,
   readyToStart,
+  type StartSays,
   startFrom,
-  taskOrigin,
 } from '@tade/core'
-import { type HandedOn, handOnWaits, intakeStands } from '@tade/workbench'
+import { type HandedOn, handOnWaits } from '@tade/workbench'
 import { acknowledge } from '../flash.ts'
 import { type ScheduleView, showPlan, showQueue, withTranscript } from '../model.ts'
 import { promptPanel } from '../panels/small/state.ts'
@@ -52,6 +48,7 @@ import {
 } from './context.ts'
 import { Forecast } from './forecast.ts'
 import { decideProposal, type ProposalRequest } from './proposals.ts'
+import { intakeSays, planHold, plansFor, probingNow, standsFor } from './queue-holds.ts'
 import { type RaceTools, raceTools } from './races.ts'
 import { type ReplayTools, replaysLook, replayTools } from './replays.ts'
 // Type-only, so it is erased and no module edge exists between the two
@@ -155,6 +152,8 @@ export class Queue implements Subject {
   private readonly forecast: Forecast
   /** Projects whose checkout the last look could not read, said once until one can. */
   private readonly unread = new Set<string>()
+  /** Work from outside waiting its turn on an unknown plan, and what was said of it. */
+  private readonly waitSaid = new Map<string, string>()
 
   constructor(wire: Wiring, deps: QueueDeps) {
     this.wire = wire
@@ -265,6 +264,9 @@ export class Queue implements Subject {
     // the trees are: a grant is permission at the moment of acting, and a
     // request can be closed, rewritten or un-granted while its task waits.
     const intake = intakeFrom(facts.events)
+    // While a plan is unknown, one request from outside runs at a time to make
+    // it known, and this is the one running, if any (`planTooTight`).
+    let probing = probingNow(this.wire, intake, facts.finished)
     // In the order last written for it, which is a fact in the journal like
     // every other choice about the queue. The rule is unchanged: what starts
     // is what `readyToStart` says is ready, as far as there is room.
@@ -275,8 +277,23 @@ export class Queue implements Subject {
       // And what a schedule or a watch made, asked about the plan at the same
       // moment for the same reason (`planHold`).
       const outside = intakeOf(intake, task)
-      const plan = outside ? null : this.planHold(item)
-      const hold = plan ?? (await this.intakeHold(outside, task))
+      const plan = outside ? null : planHold(this.wire, item)
+      const says: StartSays | null = plan
+        ? { kind: 'held', because: plan }
+        : outside
+          ? await intakeSays(this.wire, outside, task, await plansFor(this.wire, probing), probing)
+          : null
+      if (says?.kind === 'waits') {
+        // Not a hold: nobody has to answer it, and the next look decides again.
+        if (this.waitSaid.get(task) !== says.because) {
+          this.waitSaid.set(task, says.because)
+          this.said(`${task} waits: ${says.because}`)
+          this.deps.news(`${task} waits: ${says.because}`)
+        }
+        continue
+      }
+      this.waitSaid.delete(task)
+      const hold = says?.kind === 'held' ? says.because : null
       if (hold) {
         // Through the one hold path there is, so what the window draws, what
         // the orchestrator is told and what `queueStateOf` reads are one fact.
@@ -290,7 +307,11 @@ export class Queue implements Subject {
         continue
       }
       this.starting.add(task)
-      const because = whyStarting(item, facts)
+      // Let through to make a plan known says so, since nothing else would.
+      const because =
+        says?.kind === 'probe'
+          ? `${whyStarting(item, facts)} — ${says.because}`
+          : whyStarting(item, facts)
       try {
         await this.wire.opts.client.startQueued({
           task,
@@ -305,6 +326,7 @@ export class Queue implements Subject {
           ),
         })
         started.push(task)
+        if (outside) probing ??= task
         this.startNumber.set(task, ++this.starts)
         this.deps.news(`started ${task}: ${because}`)
         this.said(`started ${task}: ${because}`)
@@ -326,69 +348,9 @@ export class Queue implements Subject {
     return started
   }
 
-  /**
-   * Why an intake-originated start does not go ahead now, or null — for
-   * anything else, null without asking anybody anything.
-   *
-   * The rule is `intakeStands`'; what is here is the three things only the
-   * window has: the config as it stands, the plan standings it already folds for
-   * the strip, and the extension host that can ask a watch about its source.
-   * A source whose watch is gone — the extension turned off, the schedule
-   * removed — holds, because a request nobody can check is a request nobody has
-   * confirmed still stands.
-   */
-  /**
-   * The same question, asked of an inbox row rather than of a start.
-   *
-   * **Here because the rule has to be one rule.** A paired device asking to
-   * approve a request that came from outside gets the grant, the plan and the
-   * source asked again — which is what the queue asks at the moment it
-   * would start one, and a second reading of it in the away view's own wiring
-   * would be a second answer to one question. The window hands this to
-   * `webActing` as `stands`.
-   *
-   * A row Tade has no record of holds: approving a request whose own item is
-   * not in the journal is approving something nothing can check.
-   */
-  async standsFor(row: InboxRow): Promise<string | null> {
-    const events = this.wire.live?.events ?? (await this.wire.opts.client.events({}))
-    const one = intakeFrom(events).get(row.item) ?? null
-    if (!one) {
-      return `has no record on this machine that Tade can check: approve it at the machine`
-    }
-    return this.intakeHold(one, row.tasks[0] ?? '')
-  }
-
-  /**
-   * Why queued work a schedule or a watch made does not start now, or null:
-   * a plan window it would spend is nearly full and `queue.hold_scheduled` is
-   * on (`planTooTight`'s rule, which argues both). Read from the config and the
-   * plan standings as they are at this start, like the trees.
-   */
-  private planHold(item: Queued): string | null {
-    if (!this.wire.opts.config.queue.hold_scheduled) return null
-    if (taskOrigin(item.by).kind !== 'schedule') return null
-    const standings = planStandings(this.wire.opts.client.planUsage(), this.wire.now())
-    return planTooTight(standings, 'scheduled')?.because ?? null
-  }
-
-  private async intakeHold(one: IntakeItem | null, task: string): Promise<string | null> {
-    if (!one) return null
-    const host = this.wire.opts.extensions
-    const schedule = this.wire.opts.client.schedules().find((kept) => kept.id === one.schedule)
-    const input = schedule?.does.kind === 'watch' ? schedule.does.input : {}
-    const held = await intakeStands({
-      config: this.wire.opts.config,
-      item: one,
-      task,
-      plans: planStandings(this.wire.opts.client.planUsage(), this.wire.now()),
-      recheck: async (key) => {
-        if (!host) throw new Error('this window runs no extensions')
-        if (!one.watch) throw new Error('nothing says which watch found it')
-        return host.recheck(one.watch, { project: one.project, input, key })
-      },
-    })
-    return held?.because ?? null
+  /** Whether approving an inbox row may go ahead: `queue-holds.ts`, one rule with the start's. */
+  standsFor(row: InboxRow): Promise<string | null> {
+    return standsFor(this.wire, row)
   }
 
   /**

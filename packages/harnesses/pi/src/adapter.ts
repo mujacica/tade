@@ -418,6 +418,11 @@ export class PiAdapter implements WorkerAdapter {
     return null
   }
 
+  /** Nothing to ask: there is no plan here to be told about. */
+  async askLimits(): Promise<PlanLimits | null> {
+    return null
+  }
+
   async prepareAccount(_share: boolean): Promise<void> {
     throw new Error(`pi ${this.capabilities.why.accounts}`)
   }

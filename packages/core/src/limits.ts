@@ -16,7 +16,8 @@
 /**
  * What a harness can say about how much of a plan is used.
  *
- * - `anytime`: it can be asked whenever, so there is always an answer.
+ * - `anytime`: it can be asked whenever, without any work running
+ *   (`askLimits`), so whoever needs an answer can have one before spending.
  * - `while-working`: its agents report it as they run, so there is nothing to
  *   show until one of them has.
  * - `none`: it cannot say at all.
@@ -279,7 +280,25 @@ export function planPressure(used: number): PlanPressure {
 }
 
 /**
- * Why a subscription is too full for work nobody here asked for, or null.
+ * What one start of work nobody here asked for comes to, where it is not
+ * simply "go": the plan's answer (`planTooTight`), and for a request from
+ * outside the grant's and the source's as well (`intakeStands`).
+ *
+ * - `held`: not until somebody answers — a window seen nearly full, a grant
+ *   taken back, a source that says no or could not be asked.
+ * - `waits`: not yet, and nobody has to answer: the one start an unknown plan
+ *   lets through is still running, and the next look decides again.
+ * - `probe`: let through as that one start, and `because` is said wherever its
+ *   starting is, since nothing else would say why it went.
+ */
+export interface StartSays {
+  kind: 'held' | 'waits' | 'probe'
+  because: string
+}
+
+/**
+ * What a subscription says about starting work nobody here asked for
+ * (`StartSays`), or null where it says nothing.
  *
  * **Two kinds of work, asked separately.** A start whose request came from
  * outside (`outside`, always), where the trade is plainest: spending what is
@@ -289,14 +308,27 @@ export function planPressure(used: number): PlanPressure {
  * (REMOTE-TADE.md §5.2, decision 15): a night of `deps` and `sentry` watches on
  * a machine with nobody there stops before the morning's window is gone,
  * rather than being found to have spent it. Work somebody asked for here is
- * never held by this: it is theirs to spend on.
+ * never held by this: it is theirs to spend on. A window seen nearly full holds
+ * both, whatever else is unknown.
  *
  * **`unknown` is not zero**, which is the whole of why this reads `PlanStanding`
  * rather than a number. An account on a plan that cannot say how full it is, or
  * has not said yet, or whose every window has started over since it last said,
  * is *unknown* — and treating unknown as 0% used is how a backlog burns a
- * window that was already full. For outside work it holds, and says which
- * account and why.
+ * window that was already full.
+ *
+ * **For outside work, unknown lets one start through at a time, and says so.**
+ * It held every one, and on the machine this rule is for that never ended:
+ * after a restart nothing reports a plan until an agent has run, and on a VPS
+ * whose only work comes from outside no agent ran until the plan was known. So
+ * while it is unknown, one request from outside runs (`probe`, `because`
+ * saying that is why it went) and any other waits for it (`waits`, with
+ * `probing` the one running) — a wait and not a hold, because it needs no
+ * answer: once the plan is known the ordinary rule decides, and if the one
+ * running finishes with nothing known, the next is let through. Unknown is
+ * still never room: one agent is what seeing the window costs, never a backlog
+ * spent on a guess. A harness that can be asked without running anything
+ * (`anytime`) is asked first, by the window, and its answer preferred.
  *
  * **For scheduled work, unknown does not hold, and that is deliberate.** Both
  * subscription harnesses say how full a plan is only as their agents run
@@ -305,7 +337,9 @@ export function planPressure(used: number): PlanPressure {
  * would hold the very start that would make it known, every time, for good.
  * That is a setting accepted and ignored, which is worse than none. A window
  * that has been seen nearly full is what holds it; the first agent after a
- * restart is the price of being able to see one.
+ * restart is the price of being able to see one. Outside work pays that price
+ * one start at a time rather than all at once, because what it spends the
+ * window on is somebody else's request and not the person's own standing rule.
  *
  * **An account that is not on a plan is not pressure.** `pays: 'per-token'` is
  * money with a bill and no window to fill, and money is `checkBudget`'s. No
@@ -314,30 +348,40 @@ export function planPressure(used: number): PlanPressure {
  * **It never suggests another account.** Which sign-in agents run as is a
  * person's decision, and a rule that moved work to a less full plan would be
  * that decision taken by a rule.
+ *
+ * `probing` is a request from outside running now, where one is — only the
+ * window knows what runs, so it is always said and never assumed.
  */
 export function planTooTight(
   standings: readonly PlanStanding[],
-  of: 'outside' | 'scheduled' = 'outside',
-): { because: string } | null {
+  of: 'outside' | 'scheduled',
+  probing: string | null,
+): StartSays | null {
   const plans = standings.filter((standing) => standing.pays === 'plan')
   if (plans.length === 0) return null
-  for (const standing of of === 'outside' ? plans : []) {
-    if (standing.cannotTell === null) continue
-    return {
-      because: `${planLabel(standing)} ${standing.cannotTell}, and what is unknown about a plan is not nothing: a request from outside waits until somebody says to spend it`,
-    }
-  }
   const worst = tightestPlan(plans)
   if (worst && planPressure(worst.tightest.used) === 'tight') {
     const used = `${planLabel(worst)} has used ${Math.round(worst.tightest.used)}% of its ${worst.tightest.label} window`
     return {
+      kind: 'held',
       because:
         of === 'outside'
           ? `${used}, and what is left of it is not a rule's to spend on a request from outside`
           : `${used}, and what is left of it is not a schedule's to spend while queue.hold_scheduled is on`,
     }
   }
-  return null
+  const unknown = of === 'outside' ? plans.find((one) => one.cannotTell !== null) : undefined
+  if (!unknown) return null
+  const said = `${planLabel(unknown)} ${unknown.cannotTell}`
+  return probing === null
+    ? {
+        kind: 'probe',
+        because: `${said}, so this was let through as the one request from outside that runs until its agent makes the plan known — what is unknown is not nothing, and anything else from outside waits for it`,
+      }
+    : {
+        kind: 'waits',
+        because: `${said}, and one request from outside runs at a time until it is known: this waits for ${probing}, and is looked at again, with nobody doing anything, once the plan is known or that has finished`,
+      }
 }
 
 /** One of a plan's windows, as somebody who is being told about it reads it. */

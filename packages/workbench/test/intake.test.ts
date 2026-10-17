@@ -494,6 +494,7 @@ describe('whether an intake start still stands', () => {
   const stands = async (
     over: {
       plans?: readonly PlanStanding[]
+      probing?: string
       recheck?: (key: string) => Promise<{ still: boolean; because?: string }>
     } = {},
   ) => {
@@ -504,6 +505,7 @@ describe('whether an intake start still stands', () => {
       item,
       task: 'app/cli-req-1',
       plans: over.plans ?? [],
+      probing: over.probing ?? null,
       recheck: over.recheck ?? (async () => ({ still: true })),
     })
   }
@@ -567,17 +569,51 @@ describe('whether an intake start still stands', () => {
         }),
       ],
     })
+    expect(held?.kind).toBe('held')
     expect(held?.because).toContain('94%')
   })
 
-  it('holds when nobody can say how full a plan is, because unknown is not zero', async () => {
-    const held = await stands({
+  it('lets one request through when nobody can say how full a plan is, and says that is why', async () => {
+    const asked: string[] = []
+    const through = await stands({
       plans: [plan({ cannotTell: 'has not said how much of the plan is used yet' })],
+      recheck: async (key) => {
+        asked.push(key)
+        return { still: true }
+      },
     })
-    expect(held?.because).toContain('not said how much of the plan is used')
+    expect(through?.kind).toBe('probe')
+    expect(through?.because).toContain('not said how much of the plan is used')
+    expect(through?.because).toContain('let through as the one request from outside')
+    // Let through only once the source has said it still stands.
+    expect(asked).toHaveLength(1)
     // And it never names another sign-in to move the work to: whose money and
     // whose permissions agents run with is a person's decision.
-    expect(held?.because).not.toContain('switch')
+    expect(through?.because).not.toContain('switch')
+  })
+
+  it('has it wait for the one running while the plan is unknown, without asking the source', async () => {
+    const asked: string[] = []
+    const waits = await stands({
+      plans: [plan({ cannotTell: 'has not said how much of the plan is used yet' })],
+      probing: 'app/cli-req-0',
+      recheck: async (key) => {
+        asked.push(key)
+        return { still: true }
+      },
+    })
+    expect(waits?.kind).toBe('waits')
+    expect(waits?.because).toContain('this waits for app/cli-req-0')
+    // Asked when it would start, not now: it would only be asked again.
+    expect(asked).toEqual([])
+  })
+
+  it('holds a request that would be let through once its source says it no longer stands', async () => {
+    const held = await stands({
+      plans: [plan({ cannotTell: 'has not said how much of the plan is used yet' })],
+      recheck: async () => ({ still: false, because: 'req-1 was withdrawn at revision 2' }),
+    })
+    expect(held).toEqual({ kind: 'held', because: 'req-1 was withdrawn at revision 2' })
   })
 
   it('does not hold on an account that pays per token, which has no window to fill', async () => {

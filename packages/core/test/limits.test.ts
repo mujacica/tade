@@ -385,31 +385,69 @@ describe('work nobody here asked for, on a full plan', () => {
   const silent = source({ said: null })
 
   it('holds scheduled work on a window seen nearly full, and names the setting that does it', () => {
-    const held = planTooTight(planStandings([full], NOW), 'scheduled')
-    expect(held?.because).toBe(
-      "claude-code has used 93% of its 5h window, and what is left of it is not a schedule's to spend while queue.hold_scheduled is on",
-    )
+    const held = planTooTight(planStandings([full], NOW), 'scheduled', null)
+    expect(held).toEqual({
+      kind: 'held',
+      because:
+        "claude-code has used 93% of its 5h window, and what is left of it is not a schedule's to spend while queue.hold_scheduled is on",
+    })
     // Outside work is held by the same window, in its own words.
-    expect(planTooTight(planStandings([full], NOW))?.because).toContain('a request from outside')
+    const outside = planTooTight(planStandings([full], NOW), 'outside', null)
+    expect(outside?.kind).toBe('held')
+    expect(outside?.because).toContain('a request from outside')
   })
 
   it('does not hold scheduled work where nobody can say yet, or it would never start again', () => {
     // After a restart a plan says nothing until an agent has run on it: held
     // on unknown, the only work a quiet machine makes could never start.
-    expect(planTooTight(planStandings([silent], NOW), 'scheduled')).toBeNull()
-    // Outside work keeps the stricter rule: unknown is not zero.
-    expect(planTooTight(planStandings([silent], NOW))?.because).toContain('unknown about a plan')
+    expect(planTooTight(planStandings([silent], NOW), 'scheduled', null)).toBeNull()
     // And a full window beside a silent one still holds.
-    expect(planTooTight(planStandings([silent, full], NOW), 'scheduled')).not.toBeNull()
+    expect(planTooTight(planStandings([silent, full], NOW), 'scheduled', null)?.kind).toBe('held')
+  })
+
+  it('lets one request from outside through while nobody can say, and says that is why', () => {
+    // The same restart, on a box whose only work comes from outside: holding
+    // every one on unknown held the very start that would make it known.
+    const through = planTooTight(planStandings([silent], NOW), 'outside', null)
+    expect(through?.kind).toBe('probe')
+    expect(through?.because).toContain('claude-code says it while one of its agents replies')
+    expect(through?.because).toContain('let through as the one request from outside')
+  })
+
+  it('has any other request from outside wait for the one running, while nobody can say', () => {
+    const waits = planTooTight(planStandings([silent], NOW), 'outside', 'app/req-1')
+    // A wait and not a hold: nobody has to answer it, and it names the one it waits for.
+    expect(waits?.kind).toBe('waits')
+    expect(waits?.because).toContain('this waits for app/req-1')
+  })
+
+  it('holds outside work on a window seen nearly full even where another plan is unknown', () => {
+    // What is known is the ordinary rule, and nothing is let through to spend it.
+    for (const probing of [null, 'app/req-1']) {
+      const held = planTooTight(planStandings([silent, full], NOW), 'outside', probing)
+      expect(held?.kind).toBe('held')
+      expect(held?.because).toContain('93%')
+    }
+  })
+
+  it('runs outside work as ordinary once the plan is known and has room', () => {
+    const roomy = source({
+      said: { at: NOW, windows: [{ label: '5h', used: 20, resetsAt: NOW + HOUR }] },
+    })
+    // Not one at a time any more: the window is seen, and it has room.
+    expect(planTooTight(planStandings([roomy], NOW), 'outside', 'app/req-1')).toBeNull()
   })
 
   it('does not hold below the line, nor on a sign-in billed per token', () => {
     const warm = source({
       said: { at: NOW, windows: [{ label: '5h', used: PLAN_TIGHT - 1, resetsAt: NOW + HOUR }] },
     })
-    expect(planTooTight(planStandings([warm], NOW), 'scheduled')).toBeNull()
+    expect(planTooTight(planStandings([warm], NOW), 'scheduled', null)).toBeNull()
     expect(
-      planTooTight(planStandings([{ ...full, pays: 'per-token' }], NOW), 'scheduled'),
+      planTooTight(planStandings([{ ...full, pays: 'per-token' }], NOW), 'scheduled', null),
     ).toBeNull()
+    // Nor does a sign-in billed per token that cannot say, on outside work.
+    const unsaid = { ...silent, pays: 'per-token' as const }
+    expect(planTooTight(planStandings([unsaid], NOW), 'outside', null)).toBeNull()
   })
 })

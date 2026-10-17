@@ -225,7 +225,7 @@ export function limitsIn(text: string, at: number): PlanLimits | null {
     if (said) limits = said
   }
   if (!limits) return null
-  const window = (value: unknown) => {
+  const window = (value: unknown): CodexWindow | null => {
     const one = record(value)
     if (!one || typeof one.used_percent !== 'number') return null
     return {
@@ -234,12 +234,32 @@ export function limitsIn(text: string, at: number): PlanLimits | null {
       minutes: count(one.window_minutes),
     }
   }
-  const both = [window(limits.primary), window(limits.secondary)].filter((one) => one !== null)
+  return windowsAsLimits([window(limits.primary), window(limits.secondary)], at)
+}
+
+/** One of the windows Codex names, by how many minutes it covers. */
+export interface CodexWindow {
+  used: number
+  resetsAt: number
+  minutes: number
+}
+
+/**
+ * Codex's windows in Tade's two: the shorter as the short window and the longer
+ * as the long one, whichever of its two names each came under. Read the same
+ * way from a rollout and from its app server (`plan.ts`), so the two can never
+ * file one window under different names.
+ */
+export function windowsAsLimits(
+  windows: readonly (CodexWindow | null)[],
+  at: number,
+): PlanLimits | null {
+  const both = windows.filter((one) => one !== null)
   if (both.length === 0) return null
   const order = [...both].sort((a, b) => a.minutes - b.minutes)
   const short = order[0] ?? null
   const long = order.length > 1 ? (order.at(-1) ?? null) : null
-  const said = (one: { used: number; resetsAt: number } | null) =>
+  const said = (one: CodexWindow | null) =>
     one ? { used: one.used, resetsAt: one.resetsAt } : null
   return { at, fiveHour: said(short), sevenDay: said(long) }
 }

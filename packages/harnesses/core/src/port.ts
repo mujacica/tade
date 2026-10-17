@@ -678,6 +678,13 @@ export interface WorkerAdapter {
    */
   limits(): PlanLimits | null
   /**
+   * Ask the service how much of this account's plan is used, without running
+   * any work, and hold the answer for `limits()`. Only a harness whose
+   * `spend.limits` is `anytime` can; any other answers null at once. Null too
+   * where no answer came within `timeoutMs` — never a throw, never a guess.
+   */
+  askLimits(timeoutMs: number): Promise<PlanLimits | null>
+  /**
    * Make this account's folder ready to sign in to: made, and — with `share`
    * — given its owner's own settings, skills and plugins, so the second
    * account works like the first. Only for a harness with `accounts`.

@@ -306,6 +306,10 @@ export class AcpAdapter implements WorkerAdapter {
     return null
   }
 
+  async askLimits(): Promise<PlanLimits | null> {
+    return null
+  }
+
   async prepareAccount(_share: boolean): Promise<void> {}
 
   async carryConversation(_task: string, _cwd: string, _to: WorkerAdapter): Promise<boolean> {

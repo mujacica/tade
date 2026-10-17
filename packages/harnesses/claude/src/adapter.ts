@@ -412,6 +412,11 @@ export class ClaudeAdapter implements WorkerAdapter {
     return this.planLimits
   }
 
+  /** Nothing: Claude Code says its plan only as its agents reply, and cannot be asked. */
+  async askLimits(): Promise<PlanLimits | null> {
+    return null
+  }
+
   /** Who it is signed in as, as `claude auth status` says: it reads, and asks nothing of anybody. */
   async account(): Promise<AccountStatus> {
     const none = { signedIn: false, who: null, plan: null, method: null }

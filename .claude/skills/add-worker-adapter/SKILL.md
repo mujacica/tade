@@ -264,8 +264,10 @@ differently enough to be worth writing down:
   prices none of it. Adding an estimate would be money that was guessed sitting beside money that
   was priced, so the number is simply not given, and `why` says so.
 - **What a plan has left is `spend.limits` and `limits()`, and never money.** Say `anytime` only if
-  the harness can be asked whenever; both of the ones here are told as their agents run, so they say
-  `while-working` and `why.limits` says what a person sees until one has. `limits()` must be cheap
+  the harness can be asked whenever without running a turn, and answer `askLimits` by asking — Codex
+  does, through its app server (`codex/src/plan.ts`); Claude Code is told only as its agents run, so
+  it says `while-working`, answers `askLimits` with `null`, and `why.limits` says what a person sees
+  until one has. `limits()` must be cheap
   and never reach the network — the window reads it every frame — so hold the last thing the harness
   said and return it, `null` when nothing has been said. Percentages of a window and when that
   window starts over, nothing else: Claude Code's status line carries `rate_limits.five_hour` and

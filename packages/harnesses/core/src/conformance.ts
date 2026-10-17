@@ -128,6 +128,17 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
         }
       })
 
+      it('asks for its plan only where it says it can, within the time it is given, and keeps what it heard', async () => {
+        const one = await adapter()
+        const began = Date.now()
+        const asked = await one.askLimits(2_000)
+        // The queue waits on this before letting a start through, so a harness
+        // that cannot answer must say so at once, and one that can, in time.
+        expect(Date.now() - began).toBeLessThan(5_000)
+        if (one.capabilities.spend.limits !== 'anytime') expect(asked).toBeNull()
+        if (asked !== null) expect(one.limits()).toEqual(asked)
+      })
+
       it('says which provider it reaches, or that it routes', async () => {
         // A fact about the harness, because a route is only a wish: a route
         // asking for a router a harness cannot reach filed eleven thousand

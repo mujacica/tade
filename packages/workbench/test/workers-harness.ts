@@ -130,6 +130,10 @@ export class FakeAdapter implements WorkerAdapter {
     return null
   }
 
+  async askLimits() {
+    return null
+  }
+
   async prepareAccount() {}
 
   async carryConversation() {

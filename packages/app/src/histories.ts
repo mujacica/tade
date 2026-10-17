@@ -1,6 +1,7 @@
 import {
   AT_WORK_READS,
   DOCUMENT_EVENTS,
+  INTAKE_EVENTS,
   REPLAY_EVENTS,
   RUNTIME_EVENTS,
   type TadeEvent,
@@ -43,6 +44,9 @@ export const QUEUE_READS = [
   'watch_found',
   // What agents left unfixed, each made parked work: what later work is related on.
   'leftovers_reported',
+  // Which queued work came from outside, so its grant, plan and source are asked
+  // again as it starts: without these the queue read every piece as yours.
+  ...INTAKE_EVENTS,
   // Whether the person approved a document queued work waits on (`approvedFrom`),
   // which is a fold over every line about documents and not only the triage.
   ...DOCUMENT_EVENTS,

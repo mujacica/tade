@@ -153,6 +153,21 @@ const MODES = new Set<string>(INTAKE_MODES)
 const REFUSALS = new Set<string>(INTAKE_REFUSALS)
 
 /**
+ * Every line `intakeFrom` reads, so that whatever folds it from a list of lines
+ * hands it all of them — the queue's among them (`QUEUE_READS`), which asks the
+ * grant, the plan and the source again at the moment intake work would start.
+ */
+export const INTAKE_EVENTS = [
+  'intake_received',
+  'intake_accepted',
+  'intake_refused',
+  'intake_held',
+  'intake_replied',
+] as const
+
+const INTAKE_READ: ReadonlySet<string> = new Set(INTAKE_EVENTS)
+
+/**
  * What the journal says about every external thing Tade has been handed.
  *
  * Additive: it reads the five intake event types and ignores everything else,
@@ -170,15 +185,7 @@ export function intakeFrom(events: readonly TadeEvent[]): Map<string, IntakeItem
   const text = (value: unknown): string => (typeof value === 'string' ? value : '')
   for (const event of events) {
     const type = event.type
-    if (
-      type !== 'intake_received' &&
-      type !== 'intake_accepted' &&
-      type !== 'intake_refused' &&
-      type !== 'intake_held' &&
-      type !== 'intake_replied'
-    ) {
-      continue
-    }
+    if (!INTAKE_READ.has(type)) continue
     const item = text(event.detail.item)
     if (!item) continue
     const at = Date.parse(event.ts)

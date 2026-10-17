@@ -34,6 +34,7 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 | `packages/app/src/live.ts` | `QUEUE_READS`: what the rules read, from the whole journal; `lookAtTrees` at the moment of starting |
 | `packages/app/src/app.ts` | the passes: `advanceQueue`, `runSchedules`, `fire`, `lookWith`, and `queueTools` for the orchestrator |
 | `packages/app/src/wire/schedules.ts` | the one door: `Schedules.set`, `turnWatch`, `writeStanding`, and `where` |
+| `packages/app/src/wire/queue-holds.ts` | what holds work as it starts besides the rule: `planHold`, `intakeSays`, `plansFor` (asking first), `probingNow`, `standsFor` |
 | `packages/app/src/wire/watch-tools.ts` | the orchestrator's `tade_watches` and `tade_watch_change`, held to `WATCH_REACH` (`mayWatch`) |
 | `packages/core/src/watch-where.ts`, `app/src/wire/watch-where.ts` | one machine per repository: `watchWhere`, `watchingIn`; `whereNow`, `notLooking` |
 | `packages/app/src/wire/proposals.ts` | what a look's findings become, and a decision carried out: `actOnFound`, `offerProposals`, `putToOrchestrator`, `workNow`, `decideProposal` |
@@ -345,14 +346,21 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   asked at the moment of starting like the trees and through the one hold path: a request from outside
   always (`intakeStands`), and work a schedule or a watch made — `by: schedule:<id>` in its task file,
   carried on `Queued.by` and never looked up in a journal fold that forgets — where
-  `queue.hold_scheduled` says so, on by default (`planHold`, `wire/queue.ts`). It is what stops a night
-  of watches on a box with nobody there from spending the morning's window. Two differences, each argued
-  where it is written: for scheduled work **an unknown plan does not hold**, because both subscription
-  harnesses only say how full a plan is as their agents run, so holding on unknown would hold the one
-  start that could make it known, for good; and the hold is told with **its own answer**
+  `queue.hold_scheduled` says so, on by default (`planHold`, `wire/queue-holds.ts`). It is what stops a
+  night of watches on a box with nobody there from spending the morning's window. Each difference is
+  argued where it is written. For scheduled work **an unknown plan does not hold**, because both
+  subscription harnesses only say how full a plan is as their agents run, so holding on unknown would
+  hold the one start that could make it known, for good. For outside work **an unknown plan lets one
+  start through at a time** (`StartSays`: `probe`, saying in `queue_started`'s `why` that is why it
+  went; any other `waits` for it, `probingNow`) — it held every one, which on a restarted VPS whose only
+  work comes from outside was nothing ever starting; a wait is not a hold, needs no answer, and is said
+  once (`waitSaid`), and once the plan is known the ordinary rule decides. A harness that can be asked
+  without running anything (`anytime`, `askLimits`) is asked first, with a deadline (`plansFor`,
+  `ASK_PLANS_MS`), and its answer preferred. And the hold is told with **its own answer**
   (`HoldTold.plan`, `ANSWERS.plan`), never "start it anyway" — a start while the window is that full is
   held and told again, which offered to the orchestrator is a loop. Work somebody asked for here is
-  never held by it.
+  never held by it. The queue knows what came from outside only because `QUEUE_READS` carries
+  `INTAKE_EVENTS`: without them every request read as yours and started with nothing asked.
 - **What a schedule or a watch would start is the orchestrator's to decide** (`decidesOf`,
   `core/src/proposals.ts`, `wire/proposals.ts`). A watch only knows its keys, and one red commit is one
   key — so `review.branch-checks` put an agent on red CI on main, and ten minutes later put a second

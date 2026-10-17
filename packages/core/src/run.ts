@@ -93,6 +93,14 @@ function stop(pid: number): void {
   }
 }
 
+/**
+ * End a process group Tade started and talks to itself rather than waits for —
+ * the same end `runProgram` gives its own, so the catches live here once.
+ */
+export function stopGroup(pid: number): void {
+  stop(pid)
+}
+
 function track(pid: number): void {
   running.add(pid)
   if (reaping) return

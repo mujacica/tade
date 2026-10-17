@@ -4,6 +4,7 @@ import {
   type HarnessId,
   type PlanSource,
   type PlanWindow,
+  planStandings,
   secretCommand,
 } from '@tade/core'
 import type { AccountStatus, HarnessAccount, PlanLimits, WorkerAdapter } from '@tade/harnesses-core'
@@ -118,6 +119,34 @@ export function planSources(
       said: said ? { at: said.at, windows: planWindows(said) } : null,
     }
   })
+}
+
+/**
+ * Every sign-in's plan, after asking each one that can be asked without running
+ * anything (`anytime`) and has nothing true to say yet — all at once, each
+ * within `timeoutMs`.
+ *
+ * The one place a plan is asked rather than read, and only when somebody is
+ * about to decide on it: before an unknown plan lets a start through to find
+ * out (`planTooTight`). A sign-in that could not answer says what it said
+ * before, which is nothing — asking never makes a figure up.
+ */
+export async function askPlans(
+  config: Config,
+  opts: { adapterFor: (harness: string, name: string | null) => WorkerAdapter },
+  timeoutMs: number,
+): Promise<PlanSource[]> {
+  const before = planSources(config, opts)
+  const standings = planStandings(before, Date.now())
+  await Promise.all(
+    before.map(async (source, at) => {
+      if (source.can !== 'anytime' || source.pays !== 'plan') return
+      if (standings[at]?.cannotTell === null) return
+      // Never throws, by the port's word; what it could not hear it has said.
+      await opts.adapterFor(source.harness, source.account).askLimits(timeoutMs)
+    }),
+  )
+  return planSources(config, opts)
 }
 
 /**

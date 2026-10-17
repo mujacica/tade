@@ -23,7 +23,7 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
 | `packages/core/src/events.ts` | `intake_received`, `intake_refused`, `intake_accepted`, `intake_held`, `intake_replied` |
 | `packages/core/src/settings-intake.ts` | the controls, with the sentence a control is tempted to leave out |
 | `packages/core/src/reach.ts` | `surfaces.intake` in `NEVER`, matched as a prefix; `template` and `document` carved out in `ALLOWED_UNDER` |
-| `packages/core/src/limits.ts` | `planTooTight`: the subscription hold, scoped to intake-originated starts |
+| `packages/core/src/limits.ts` | `planTooTight`: the subscription hold, scoped to intake-originated starts — one let through at a time while a plan is unknown |
 | `packages/extensions/core/src/watch.ts` | the watch half of the port: `Finding.intake`, `Recheck`, `ReplyRequest`, `ReplyReceipt`, `ExtensionWatch.intake`/`recheck`/`reply` |
 | `packages/extensions/core/src/shape.ts` | `intakeProblem`: what a source must have to be turned on at all |
 | `packages/extensions/core/src/watching.ts` | `askLook`, `askRecheck`, `askReply`, and the deadline all three are held to |
@@ -34,7 +34,7 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
 | `packages/status/src/forges.ts` | `forgeAt`/`remoteAt`: which forge serves a checkout and as whom, for anybody |
 | `packages/workbench/src/intake.ts` | the doors: `takeIntake`, `intakeStands`, `sayBackAbout`, `intakeGrant` |
 | `packages/workbench/src/workbench.ts` | `watchFound` branches on `finding.intake` and writes down only what settled |
-| `packages/app/src/wire/queue.ts` | `intakeHold`: the grant, the plan and the source, asked again at the moment of starting |
+| `packages/app/src/wire/queue-holds.ts` | `intakeSays`: the grant, the plan and the source, asked again at the moment of starting — which the queue can only do because `QUEUE_READS` carries `INTAKE_EVENTS` |
 | `packages/app/src/wire/intake-reply.ts` | `sayDue`: the one thing that posts, drained from the inbox's own fold |
 | `packages/core/src/intake-inbox.ts` | the inbox: `INBOX_STATES`, `inboxOf`, `inboxStateOf`, `whyNotAct`, `inboxProvenance`, `MATERIAL_LABEL` |
 | `packages/workbench/src/intake-acts.ts` | the local acts: `inboxFrom`, `openIntakeRow`, `approveIntake`, `refuseIntake`, `retryIntake`, `intakeWouldRun` |
@@ -155,10 +155,12 @@ an agent runs as you and could label an issue itself, and then somebody is looki
   not permission once. A source that cannot be reached **holds** — an inaccessible source is never
   permission, and that is the one direction this must get right. The precedent is `lookAtTrees`:
   what was true when the work was planned is read again, because that is the moment it is true.
-- **A subscription window that is nearly full holds an intake-originated start**, and so does one
-  nobody can read: unknown is not zero. It never moves the work to another sign-in — whose money
-  and whose permissions agents run with is a person's decision, and an automatic switch is that
-  decision taken by a rule.
+- **A subscription window that is nearly full holds an intake-originated start**, and one nobody
+  can read lets **one** through at a time, to make it known, and says that is why it went — unknown
+  is not zero, and holding every one was a restarted always-on box that never started anything
+  (`planTooTight`). A harness that can be asked first is asked first. It never moves the work to
+  another sign-in — whose money and whose permissions agents run with is a person's decision, and
+  an automatic switch is that decision taken by a rule.
 - **A reply is bounded status Tade generated**, from a fixed set of sentences, never a word an agent
   wrote, never a diff, a log line, a file name, a link or anything out of a private repository. Four
   gates, all in `sayBackAbout`: the grant, what the grant lets a sentence *name*, the bounds, and the

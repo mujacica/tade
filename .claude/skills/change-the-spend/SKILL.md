@@ -165,14 +165,17 @@ the strip, and in no total anywhere. Every figure is what the *service* told the
 Tade counted.
 
 - When a harness can say is **declared** (`capabilities.spend.limits`: `anytime`, `while-working`,
-  `none`, each short of full carrying a sentence in `why.limits`) and never sniffed. Both
-  subscription harnesses are told as their agents run, so before one has, the honest answer is the
-  harness's own sentence rather than zero.
+  `none`, each short of full carrying a sentence in `why.limits`) and never sniffed. Claude Code is
+  told only as its agents run, so before one has, the honest answer is its own sentence rather than
+  zero. Codex is `anytime`: its app server answers `account/rateLimits/read` with no turn run
+  (`askLimits`, `codex/src/plan.ts`).
 - `planStandings` is where that is decided, and it **throws away a share whose window has already
   started over** (`cannotTell`) — a percentage belonging to a window that is gone looks exactly like
   one that is true, which is the one way this could be worse than saying nothing.
 - Nothing here asks anybody anything: the window draws it on its own beat, so `limits()` reads what
-  the harness already holds rather than reaching for the network four times a second.
+  the harness already holds rather than reaching for the network four times a second. The one ask is
+  `askPlans` (`workbench/src/accounts.ts`), made by the queue with a deadline only when an unknown plan
+  would otherwise let a start from outside through to find out (`change-the-queue`).
 - **Every sign-in is gathered, not only the ones something has run as** (`planSources`, over
   `signIns`): an account that exists and has said nothing is somewhere somebody could go when a plan
   is nearly gone, and an absent row is one nobody can suggest. What pays for each rides along
@@ -446,7 +449,9 @@ corrects them for every reader.
 
 **A harness that can say what is left of a plan.** Declare `capabilities.spend.limits` and a sentence
 in `why.limits` for anything short of `anytime`, answer `limits()` from what the harness already
-holds, and let `planStandings` decide whether the figure is still true. Never total it with money, and
+holds, and let `planStandings` decide whether the figure is still true. Say `anytime` only where
+`askLimits` can ask the service without running a turn, within the deadline it is given, and hold the
+answer for `limits()`; anything else answers it `null` at once. Never total it with money, and
 never turn a window that has started over into a percentage. A harness with accounts needs nothing
 else: `planSources` walks every sign-in there is.
 

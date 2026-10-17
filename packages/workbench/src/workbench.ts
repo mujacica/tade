@@ -71,7 +71,8 @@ import {
 import { git, readCommits } from '@tade/status'
 import type { Reporter } from '@tade/telemetry'
 import { parse as parseYaml } from 'yaml'
-import { type AccountView, harnessAccount, listAccounts, planSources } from './accounts.ts'
+import type { AccountView } from './accounts.ts'
+import { askPlans, harnessAccount, listAccounts, planSources } from './accounts.ts'
 import { answerAgentTool } from './agent-tools.ts'
 import { recordAuthored } from './authored.ts'
 import { guardBudget } from './budget.ts'
@@ -713,14 +714,13 @@ export class Workbench {
     }
   }
 
-  /**
-   * How much of every sign-in's plan is used, as its harness last said. Which
-   * sign-ins those are, and why none of it asks anybody, is `planSources`'.
-   */
+  /** Every sign-in's plan as its harness last said (`planSources`), or once asked (`askPlans`). */
   planUsage(): PlanSource[] {
-    return planSources(this.config, {
-      adapterFor: (harness, name) => this.adapterFor(harness, name ?? undefined),
-    })
+    return planSources(this.config, { adapterFor: this.adapterFor.bind(this) })
+  }
+
+  askPlans(timeoutMs: number): Promise<PlanSource[]> {
+    return askPlans(this.config, { adapterFor: this.adapterFor.bind(this) }, timeoutMs)
   }
 
   info(): WorkbenchInfo {
@@ -1517,7 +1517,7 @@ export class Workbench {
    * A harness's adapter: the route's harness unless one is named. The very
    * one the supervisor answers its runs with, never a second made to ask.
    */
-  private adapterFor(harness?: string, account?: string): WorkerAdapter {
+  private adapterFor(harness?: string, account?: string | null): WorkerAdapter {
     const id = harness ?? this.config.workers.routes[this.config.workers.default]?.harness ?? 'pi'
     const own = this.adapters[id]
     if (!own)

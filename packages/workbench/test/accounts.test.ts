@@ -106,13 +106,15 @@ describe('accounts', () => {
     expect(pi?.why).toContain('plan')
     // A fresh window has heard nothing from either subscription harness. That
     // is not zero used, and the declaration is what makes the difference
-    // readable: it can say, and has not yet.
-    for (const harness of ['claude-code', 'codex']) {
-      const one = usage.find((source) => source.harness === harness)
-      expect(one?.can).toBe('while-working')
-      expect(one?.said).toBeNull()
-      expect((one?.why ?? '').length).toBeGreaterThan(10)
-    }
+    // readable: it can say, and has not yet — Claude Code only as its agents
+    // reply, which it says in its own words, and Codex whenever it is asked.
+    const claude = usage.find((source) => source.harness === 'claude-code')
+    expect(claude?.can).toBe('while-working')
+    expect(claude?.said).toBeNull()
+    expect((claude?.why ?? '').length).toBeGreaterThan(10)
+    const codex = usage.find((source) => source.harness === 'codex')
+    expect(codex?.can).toBe('anytime')
+    expect(codex?.said).toBeNull()
     // No money anywhere in it: a plan is a share of a window, and the two are
     // never added up.
     expect(JSON.stringify(usage)).not.toContain('usd')

@@ -43,6 +43,7 @@ import {
   type WorkerSpec,
 } from '@tade/harnesses-core'
 import { type ChannelRequest, CodexChannel } from './channel.ts'
+import { askPlan } from './plan.ts'
 import {
   contextIn,
   conversationKey,
@@ -242,7 +243,8 @@ export class CodexAdapter implements WorkerAdapter {
     // `codex exec --json`: a turn run to completion under Codex's own event
     // stream, which is how Tade draws the thing you talk to.
     headless: true,
-    spend: { usd: 'none', tokens: true, limits: 'while-working' },
+    // Told as each turn ends, and askable outright between them (`askLimits`).
+    spend: { usd: 'none', tokens: true, limits: 'anytime' },
     accounts: true,
     // Run headless it is one `codex exec` per turn, with nothing to say
     // `/compact` to in between; what Tade tells it arrives at every session
@@ -264,7 +266,6 @@ export class CodexAdapter implements WorkerAdapter {
         'has no place for pi extensions: their tools and skills still reach it, their own code does not',
       spend:
         'counts tokens but never prices them, so what a Codex agent cost in money is not a number anybody here can honestly give',
-      limits: 'says it as each turn ends, so nothing shows until an agent has worked',
     },
   }
 
@@ -439,6 +440,20 @@ export class CodexAdapter implements WorkerAdapter {
   /** How much of its plan the account has used, as the last agent to report it said. */
   limits(): PlanLimits | null {
     return this.planLimits
+  }
+
+  /**
+   * Its app server asked outright (`plan.ts`), as the account it runs as, and
+   * the answer kept as if an agent had said it. An account paid by key has no
+   * plan to ask about, and one that could not answer keeps what it had.
+   */
+  async askLimits(timeoutMs: number): Promise<PlanLimits | null> {
+    if (this.opts.account?.kind === 'api-key') return null
+    const heard = await askPlan(this.opts.bin, this.accountEnv(), timeoutMs, (why) =>
+      this.opts.onWarning(`Codex could not be asked how much of its plan is used: ${why}`),
+    )
+    if (heard) this.planLimits = heard
+    return heard
   }
 
   /**

@@ -29,6 +29,7 @@ import {
   type PlanStanding,
   planTooTight,
   readPublished,
+  type StartSays,
 } from '@tade/core'
 import { readTaskFile } from './tasks.ts'
 import { fillFor, stampTemplate, type TemplateFilled } from './templates.ts'
@@ -699,7 +700,7 @@ export async function sayBackAbout(
 
 /**
  * Whether an intake-originated start may go ahead now, asked at the moment the
- * queue would start it — and it may only ever hold.
+ * queue would start it — and it may only ever hold, wait, or say why it went.
  *
  * The precedent is `lookAtTrees`: what was true when the work was planned is
  * read again at the moment of starting, because that is the moment it is true.
@@ -710,8 +711,10 @@ export async function sayBackAbout(
  *    the hold names the key. A grant is permission at the moment of acting, not
  *    a permission granted once in the past.
  * 2. **The plan.** `planTooTight` holds a start that would spend what is left
- *    of a subscription window on somebody else's request — and holds it when
- *    nobody can say how full that window is, because unknown is not zero.
+ *    of a subscription window on somebody else's request. Where nobody can say
+ *    how full that window is, it lets one request through to make it known and
+ *    any other waits for that one, because unknown is not zero — and a wait is
+ *    answered before the source is asked, since it would only be asked again.
  * 3. **The source.** The watch is asked whether the request still stands.
  *    Closed, reassigned, relabelled or rewritten holds it. So does a source
  *    nobody can reach: an inaccessible source is never permission, which is the
@@ -723,24 +726,25 @@ export async function intakeStands(req: {
   task: string
   /** Every account's plan standing, as the window already folds them. */
   plans: readonly PlanStanding[]
+  /** Another request from outside running now, where one is (`planTooTight`'s `probing`). */
+  probing: string | null
   /** The host's door to that watch's `recheck`. Throwing is a hold. */
   recheck: (key: string) => Promise<{ still: boolean; because?: string }>
-}): Promise<{ because: string } | null> {
+}): Promise<StartSays | null> {
+  const held = (because: string): StartSays => ({ kind: 'held', because })
   const source = intakeSourceOf(req.item.source)
-  if (!source) {
-    return { because: `${req.item.source} is not a source Tade implements any more` }
-  }
+  if (!source) return held(`${req.item.source} is not a source Tade implements any more`)
   const grant = intakeGrant(req.config, source)
-  if (!grant.on) return { because: 'surfaces.intake.enabled is off' }
-  if (!grant.accept) return { because: `${grant.path}.accept is off` }
+  if (!grant.on) return held('surfaces.intake.enabled is off')
+  if (!grant.accept) return held(`${grant.path}.accept is off`)
   if (!grant.projects.includes(req.item.project)) {
-    return { because: `${grant.path}.projects no longer lists ${req.item.project}` }
+    return held(`${grant.path}.projects no longer lists ${req.item.project}`)
   }
   if (req.item.requester && !grant.from.includes(req.item.requester)) {
-    return { because: `${grant.path}.from no longer lists @${req.item.requester}` }
+    return held(`${grant.path}.from no longer lists @${req.item.requester}`)
   }
-  const tight = planTooTight(req.plans)
-  if (tight) return tight
+  const plan = planTooTight(req.plans, 'outside', req.probing)
+  if (plan && plan.kind !== 'probe') return plan
   const key = intakeKey({
     source,
     externalId: req.item.externalId,
@@ -749,14 +753,15 @@ export async function intakeStands(req: {
   try {
     const answer = await req.recheck(key)
     if (!answer.still) {
-      return { because: answer.because ?? `${req.item.externalId} no longer stands at its source` }
+      return held(answer.because ?? `${req.item.externalId} no longer stands at its source`)
     }
   } catch (err) {
     // A source that could not be asked has not said yes. This is the whole of
     // "inaccessible holds rather than assumes permission", and it is why the
     // throw is not swallowed into a shrug.
     const why = err instanceof Error ? err.message : String(err)
-    return { because: `${req.item.externalId} could not be checked at its source: ${why}` }
+    return held(`${req.item.externalId} could not be checked at its source: ${why}`)
   }
-  return null
+  // Let through to make a plan known, which is said where it starts; or nothing to say.
+  return plan
 }
