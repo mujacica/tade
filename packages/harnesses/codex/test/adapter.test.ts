@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { chmodSync, existsSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import type { WorkerSignal } from '@tade/harnesses-core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
@@ -123,6 +123,34 @@ describe('CodexAdapter', () => {
       expect(launch.opening).toEqual(['fix the flaky login test'])
       expect(line({ prompt: '' }).opening).toBeUndefined()
       expect(line({ prompt: '' }).args).toEqual(launch.args)
+    })
+
+    it('keeps a picture a week, and takes it away with the next once it is older', () => {
+      const one = new CodexAdapter({
+        runDir: tmp('tade-codex-run-'),
+        codexHome: '/accounts/work',
+        home: tmp('tade-codex-home-'),
+        bin: 'codex',
+      })
+      const shown = () =>
+        /\[picture: (.+)\]/.exec(
+          one.launchSpec({
+            run: 'app/refunds/agent',
+            task: 'app/refunds',
+            cwd: '/work/refunds',
+            prompt: 'look at this',
+            images: [{ data: Buffer.from('png').toString('base64'), mimeType: 'image/png' }],
+          }).opening?.[0] ?? '',
+        )?.[1] ?? ''
+      const first = shown()
+      const old = join(dirname(first), 'old.png')
+      writeFileSync(old, 'png')
+      const overAWeek = (Date.now() - 8 * 24 * 60 * 60 * 1000) / 1000
+      utimesSync(old, overAWeek, overAWeek)
+      const next = shown()
+      expect(existsSync(old)).toBe(false)
+      expect(readFileSync(first, 'utf8')).toBe('png')
+      expect(readFileSync(next, 'utf8')).toBe('png')
     })
 
     it('looks for the thread this task talks in, and resumes it when there is one', () => {

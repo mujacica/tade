@@ -4,7 +4,7 @@ import { existsSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { copyFile, mkdir } from 'node:fs/promises'
 import type { Socket } from 'node:net'
 import { basename, extname, join } from 'node:path'
-import { located, runProgram } from '@tade/core'
+import { forgetOldPictures, located, runProgram } from '@tade/core'
 
 // Pictures: screenshots dropped on the window or pasted into it.
 //
@@ -380,8 +380,9 @@ async function askLinux(exec: Run): Promise<ClipboardCopy | null> {
  * machine can read one.
  *
  * `dir` is the attachments of whoever it was pasted to, never the temp
- * folder: the picture is handed on by its path, so it cannot be taken away
- * once it has gone, and in the temp folder every one of them stayed for good.
+ * folder, where every one of them stayed for good. The picture is handed on
+ * by its path, so nothing can tell when it is done with: one is kept a week,
+ * and what is older goes as the next is saved (`forgetOldPictures`).
  *
  * macOS needs nothing installed: AppleScript can write the clipboard's PNG
  * out. Linux asks wl-paste, then xclip.
@@ -401,6 +402,7 @@ export async function clipboardImage(
   }
   // Somebody's screenshot: a folder only they can read, as each harness makes its own.
   await mkdir(dir, { recursive: true, mode: 0o700 })
+  forgetOldPictures(dir, Date.now())
   const saved =
     platform === 'darwin'
       ? await exec('osascript', [

@@ -6,6 +6,7 @@ import { homedir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  forgetOldPictures,
   type RequiredProgram,
   runProgram,
   type TaskId,
@@ -1650,6 +1651,8 @@ function promptWithImages(
   if (!images || images.length === 0) return message
   const folder = join(dir, 'attachments')
   mkdirSync(folder, { recursive: true, mode: 0o700 })
+  // Kept a week rather than for good: nothing says when its reader is done (`PICTURES_KEPT_MS`).
+  forgetOldPictures(folder, Date.now())
   const paths = images.map((image, n) => {
     const extension = image.mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'png'
     const path = join(folder, `${Date.now()}-${n + 1}.${extension}`)

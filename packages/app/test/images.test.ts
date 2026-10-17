@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process'
-import { existsSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -136,6 +136,25 @@ describe('the clipboard', () => {
       await clipboardImage(nowhere, 'win32', async () => ({ ok: true, stdout: '' })),
     ).toBeNull()
     expect(existsSync(nowhere)).toBe(false)
+  })
+
+  it('keeps a picture a week, and takes older ones away as the next is saved', async () => {
+    // Handed on by its path, so nothing says when it is done with: in the
+    // temp folder, and then here, every one of them stayed for good.
+    const dir = join(tmp('tade-clip-'), 'orchestrator', 'attachments')
+    const save = (_command: string, args: string[]) => {
+      const target = /POSIX file "(.+?)"/.exec(args.join(' '))?.[1]
+      if (target) writeFileSync(target, 'png')
+      return Promise.resolve({ ok: Boolean(target), stdout: '' })
+    }
+    const days = (n: number) => (Date.now() - n * 24 * 60 * 60 * 1000) / 1000
+    const old = (await clipboardImage(dir, 'darwin', save)) ?? ''
+    utimesSync(old, days(8), days(8))
+    const recent = (await clipboardImage(dir, 'darwin', save)) ?? ''
+    utimesSync(recent, days(6), days(6))
+
+    const now = (await clipboardImage(dir, 'darwin', save)) ?? ''
+    expect(readdirSync(dir).sort()).toEqual([basename(recent), basename(now)].sort())
   })
 
   it('gives a picture file copied in Finder as that file', async () => {

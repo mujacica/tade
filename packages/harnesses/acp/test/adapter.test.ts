@@ -1,5 +1,5 @@
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { chmodSync, existsSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import type { TaskId } from '@tade/core'
 import {
   PermissionNotPendingError,
@@ -184,6 +184,28 @@ describe('what the lane is handed', () => {
     expect(said).toMatch(/^look at this\n\n\[picture: .+\.png\]$/)
     const path = /\[picture: (.+)\]/.exec(said)?.[1] ?? ''
     expect(readFileSync(path, 'utf8')).toBe('png')
+  })
+
+  it('keeps a picture a week, and takes it away with the next once it is older', () => {
+    const one = adapter()
+    const shown = () =>
+      /\[picture: (.+)\]/.exec(
+        one.launchSpec(
+          spec({
+            prompt: 'look at this',
+            images: [{ data: Buffer.from('png').toString('base64'), mimeType: 'image/png' }],
+          }),
+        ).opening?.[0] ?? '',
+      )?.[1] ?? ''
+    const first = shown()
+    const old = join(dirname(first), 'old.png')
+    writeFileSync(old, 'png')
+    const overAWeek = (Date.now() - 8 * 24 * 60 * 60 * 1000) / 1000
+    utimesSync(old, overAWeek, overAWeek)
+    const next = shown()
+    expect(existsSync(old)).toBe(false)
+    expect(readFileSync(first, 'utf8')).toBe('png')
+    expect(readFileSync(next, 'utf8')).toBe('png')
   })
 
   it('passes on the MCP servers extensions gave it, in ACP’s words', () => {

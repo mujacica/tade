@@ -164,9 +164,9 @@ export function remoteDocumentPath(
  * What was pasted to the orchestrator: a picture taken off the clipboard at
  * its line, kept in the orchestrator's own folder (`runDir`) beside what its
  * harness keeps there. It went to the temp folder, where nothing ever took one
- * away — it is handed on by its path, so nothing could. One handed to an agent
- * the orchestrator starts is copied into that task's own `attachments`
- * (`handOffFiles`), and goes with the task.
+ * away; here one is kept a week, as its harness's copy is (`forgetOldPictures`).
+ * One handed to an agent the orchestrator starts is copied into that task's
+ * own `attachments` (`handOffFiles`), and goes with the task.
  */
 export function orchestratorAttachments(home: string): string {
   return join(home, 'orchestrator', 'attachments')

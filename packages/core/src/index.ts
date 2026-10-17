@@ -1,3 +1,4 @@
+export * from './attachments.ts'
 export * from './attention.ts'
 export * from './away.ts'
 export * from './batches.ts'

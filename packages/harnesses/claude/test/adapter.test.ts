@@ -6,9 +6,10 @@ import {
   mkdirSync,
   readFileSync,
   statSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { HarnessAccount, WorkerSignal } from '@tade/harnesses-core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
@@ -448,6 +449,16 @@ describe('ClaudeAdapter', () => {
       ])
       const said = typed[0] ?? ''
       const path = /\[picture: (.+\.png)\]/.exec(said)?.[1] ?? ''
+      expect(readFileSync(path, 'utf8')).toBe('png')
+      // Kept a week, and gone with the next picture once it is older.
+      const old = join(dirname(path), 'old.png')
+      writeFileSync(old, 'png')
+      const overAWeek = (Date.now() - 8 * 24 * 60 * 60 * 1000) / 1000
+      utimesSync(old, overAWeek, overAWeek)
+      await adapter.prompt(spec.run, 'and now?', [
+        { data: Buffer.from('png').toString('base64'), mimeType: 'image/png' },
+      ])
+      expect(existsSync(old)).toBe(false)
       expect(readFileSync(path, 'utf8')).toBe('png')
     })
   })
