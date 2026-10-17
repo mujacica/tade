@@ -1,3 +1,4 @@
+import { printable } from '@tade/core'
 import { isAction, matchActions } from '../commands.ts'
 import type { Frame } from '../frame.ts'
 import { type Hit, rowHit, sameTarget, shift } from '../hits.ts'
@@ -166,8 +167,9 @@ export function renderStrip(
   )
   const quiet = (text: string): Line => ({ text: fit(text, inner), hits: [] })
   if (state.question) {
-    body.push(quiet(skin.waiting(` ? ${state.question.question}`)))
-    body.push(quiet(skin.hint(`   ${state.question.candidates.join('  ·  ')}`)))
+    // Which of them was meant names them, and an agent names itself: as text.
+    body.push(quiet(skin.waiting(` ? ${printable(state.question.question)}`)))
+    body.push(quiet(skin.hint(`   ${printable(state.question.candidates.join('  ·  '))}`)))
   }
 
   // Choosing a command: the commands that fit, best first, in place of the conversation.

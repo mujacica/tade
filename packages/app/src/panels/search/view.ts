@@ -1,3 +1,4 @@
+import { printable } from '@tade/core'
 import { type Hit, sameTarget } from '../../hits.ts'
 import { completed, GROUPS, parseQuery, SCOPES, type SearchEntry } from '../../search.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
@@ -28,7 +29,7 @@ export function search(panel: SearchPanel, ctx: PanelContext): Drawn {
     new Row(inner, skin)
       .space()
       .text('⌕', skin.signal)
-      .field(panel.query, inner - 4, { caret: true, ghost })
+      .field(panel.query, inner - 4, { caret: true, ghost: printable(ghost) })
       .build(),
   ]
   const chips = new Row(inner, skin, ctx.pointer).space(3)
@@ -130,8 +131,12 @@ function resultRow(
   const target = { kind: 'control' as const, id: `entry:${at}` }
   const pointed = sameTarget(ctx.pointer.hover, target)
   const r = new Row(width, skin).marker(on).space().text(entry.mark, tone).space()
-  const hits = new Set(entry.hits ?? [])
-  const label = [...entry.label]
+  // An agent's title, a file's name, what somebody said: made text before it
+  // is cut into runs, or a run could hold half a sequence. Where that changed
+  // it, the letters that matched no longer line up, so none are lit.
+  const plain = printable(entry.label)
+  const hits = new Set(plain === entry.label ? (entry.hits ?? []) : [])
+  const label = [...plain]
   // Runs of matched and unmatched characters, painted as runs.
   let run = ''
   let lit = false
@@ -148,10 +153,10 @@ function resultRow(
     run += char
   })
   flush()
-  if (entry.detail) r.space(2).text(entry.detail, skin.hint)
+  if (entry.detail) r.space(2).text(printable(entry.detail), skin.hint)
   if (entry.preview !== undefined) {
     r.space(2)
-    const preview = entry.preview
+    const preview = printable(entry.preview)
     const found = text ? preview.toLowerCase().indexOf(text.toLowerCase()) : -1
     // The line from a little before what matched, so the match is in view.
     const from = found > 24 ? found - 20 : 0
@@ -166,7 +171,7 @@ function resultRow(
     }
   }
   if (entry.note) {
-    const note = entry.note
+    const note = printable(entry.note)
     r.right((right) =>
       right.text(note, entry.tone === 'waiting' ? skin.waiting : skin.hint).space(),
     )

@@ -1,4 +1,5 @@
 import { stripTerminalSequences } from '@earendil-works/pi-tui'
+import { printable } from '@tade/core'
 import type { Frame, LaneView } from '../frame.ts'
 import { type Hit, pointingIn, rowHit, type ScrollArea, sameTarget, type Target } from '../hits.ts'
 import { linkedRow } from '../links.ts'
@@ -120,7 +121,8 @@ export function renderMain(
   const switcher: Target = { kind: 'action', name: `model:${pane.task}` }
   const thinker: Target = { kind: 'action', name: `thinking:${pane.task}` }
   // How hard it thinks, as it said; before it has, what new agents are given.
-  const thinking = vitals?.thinking ?? route?.thinking ?? null
+  // The model and the level are the harness's own words for what it runs: text.
+  const thinking = printable(vitals?.thinking ?? route?.thinking ?? '') || null
   const percent = vitals?.contextPercent ?? null
   type Shown = { context: boolean; thinking: 'long' | 'short' | 'none'; harness: boolean }
   // A harness that cannot change them has no button for them: the model is
@@ -128,7 +130,7 @@ export function renderMain(
   const offers = frame.offers
   const controls = (show: Shown) => (r: Row) => {
     if (show.harness) r.button(`${route?.harness ?? 'pi'} ▾`, harness).space()
-    const named = `${model ? shortModel(model) : 'its default model'}`
+    const named = model ? printable(shortModel(model)) : 'its default model'
     if (offers?.model.shown === false) r.text(named, skin.hint)
     else r.button(`${named} ▾`, switcher)
     if (show.thinking !== 'none' && offers?.thinking.shown !== false) {
@@ -541,9 +543,9 @@ function withApproval(
     [
       new Row(inner, skin)
         .space()
-        .text(approval.tool, skin.you)
+        .text(printable(approval.tool), skin.you)
         .space(2)
-        .text(approval.summary)
+        .text(printable(approval.summary))
         .build(),
       new Row(inner, skin, pointer)
         .space()
@@ -588,8 +590,9 @@ export function laneLabels(
   return lanes.map((lane) => {
     const n = (seen.get(lane.kind) ?? 0) + 1
     seen.set(lane.kind, n)
-    // A shell you named is called what you called it.
-    if (lane.kind !== 'agent' && lane.title) return { id: lane.id, label: lane.title }
+    // A shell you named is called what you called it — or what the
+    // orchestrator did, which is why it is drawn as text.
+    if (lane.kind !== 'agent' && lane.title) return { id: lane.id, label: printable(lane.title) }
     return { id: lane.id, label: n === 1 ? lane.kind : `${lane.kind} ${n}` }
   })
 }

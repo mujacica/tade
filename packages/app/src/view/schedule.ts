@@ -1,4 +1,4 @@
-import { describeLook, type WatchLook } from '@tade/core'
+import { describeLook, printable, type WatchLook } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, type Target } from '../hits.ts'
 import { type AppState, glyph, projects, type ScheduleView, shownName } from '../model.ts'
@@ -204,7 +204,7 @@ export function scheduleRow(
   const right = pointed ? QUEUE_ICONS : widthOf(when) + 1
   const room = Math.max(1, inner.width - inner.used - right - 1)
   const nameTone = selected ? skin.you : one.paused ? skin.faded : (text: string) => text
-  inner.text(shortened(one.name, room), nameTone, target)
+  inner.text(shortened(printable(one.name), room), nameTone, target)
   inner.right((r) => {
     if (pointed) {
       r.icon(one.paused ? '▶' : '‖', toggle)
@@ -245,7 +245,7 @@ export function scheduleRow(
     const said = new Row(edge, skin, pointer).space(3)
     said.text(
       shortened(
-        `${clockOf(frame)(look.at)} · ${lookShort(look)}`,
+        printable(`${clockOf(frame)(look.at)} · ${lookShort(look)}`),
         Math.max(1, said.width - said.used - 1),
       ),
       skin.hint,
@@ -290,7 +290,9 @@ function troubleRows(
   // takes nothing away, and the remove two rows above it does.
   // Four columns for the `×` and its margin, and one to keep it clear of the
   // words: `Row.right` drops what it cannot pin with a column to spare.
-  why.text(shortened(problem, Math.max(1, why.width - why.used - 5)), skin.hint, target)
+  // A source's own words for what went wrong, drawn as text: hushing is keyed
+  // by the reason as it was said, so it is only made text here.
+  why.text(shortened(printable(problem), Math.max(1, why.width - why.used - 5)), skin.hint, target)
   why.right((r) => r.icon('×', hush).space())
   return [said.build(), why.build()]
 }
@@ -332,7 +334,7 @@ export function renderSchedule(
   const probe = new Row(width, skin)
   controls(probe)
   const header = new Row(width, skin, pointer).space()
-  const title = `${one.project} › ${one.name}`
+  const title = printable(`${one.project} › ${one.name}`)
   const word = `${mark.glyph} ${one.paused ? 'paused' : one.when}`
   header
     .text(shortened(title, Math.max(8, Math.floor((width - probe.used) / 2))), skin.you)
@@ -349,9 +351,11 @@ export function renderSchedule(
     build(r)
     rows.push(r.build())
   }
-  const said = (text: string) => shortened(text, Math.max(1, width - 16))
+  // What a watch found and why a look failed are a source's words — a
+  // review's title, an issue's, a provider's error — so all of it is text.
+  const said = (text: string) => shortened(printable(text), Math.max(1, width - 16))
   for (const text of wrapWords(
-    `${capitalised(one.when)}, it ${one.does}.`,
+    printable(`${capitalised(one.when)}, it ${one.does}.`),
     Math.max(10, width - 6),
   ).slice(0, 2)) {
     line((r) => r.text(text, skin.you))
@@ -359,7 +363,7 @@ export function renderSchedule(
   if (one.prompt.trim()) {
     rows.push(blank(width))
     line((r) => r.text(one.kind === 'ask' ? 'ASKS' : 'TELLS ITS AGENT', skin.label))
-    const told = wrapWords(one.prompt.trim(), Math.max(10, width - 6))
+    const told = wrapWords(printable(one.prompt).trim(), Math.max(10, width - 6))
     for (const text of told.slice(0, 6)) line((r) => r.text('│', skin.chrome).space().text(text))
     if (told.length > 6) line((r) => r.text('│', skin.chrome).space().text('…', skin.hint))
   }
@@ -393,26 +397,26 @@ export function renderSchedule(
       rows.push(blank(width))
       line((r) => r.text('FOUND', skin.label))
       for (const each of watch.findings.slice(0, 6)) {
+        const found = printable(each.title)
         line((r) => {
           r.text(clock(each.at).padEnd(18), skin.hint)
           const task = each.task ? state.panes.find((pane) => pane.task === each.task) : null
           if (task) {
             r.text(glyph(task, frame.now ?? 0), toneOf(task, skin))
               .space()
-              .text(shortened(`${shownName(task)} · ${each.title}`, Math.max(1, room - 2)))
+              .text(shortened(`${shownName(task)} · ${found}`, Math.max(1, room - 2)))
           } else if (each.task) {
-            r.text(
-              shortened(`${inProject(one.project, each.task)} · ${each.title}`, room),
-              skin.hint,
-            )
+            r.text(shortened(`${inProject(one.project, each.task)} · ${found}`, room), skin.hint)
           } else if (each.told) {
-            r.text(shortened(`told ${who(each.told)} · ${each.title}`, room), skin.hint)
+            r.text(shortened(`told ${who(each.told)} · ${found}`, room), skin.hint)
           } else {
-            r.text(shortened(`could not start · ${each.title}`, room), skin.waiting)
+            r.text(shortened(`could not start · ${found}`, room), skin.waiting)
           }
         })
         if (!each.task && !each.told && each.problem) {
-          line((r) => r.text(' '.repeat(18)).text(shortened(each.problem ?? '', room), skin.hint))
+          line((r) =>
+            r.text(' '.repeat(18)).text(shortened(printable(each.problem ?? ''), room), skin.hint),
+          )
         }
       }
     }
@@ -423,7 +427,10 @@ export function renderSchedule(
         line((r) =>
           r
             .text(clock(look.at).padEnd(18), skin.hint)
-            .text(shortened(describeLook(look), room), look.problem ? skin.waiting : skin.hint),
+            .text(
+              shortened(printable(describeLook(look)), room),
+              look.problem ? skin.waiting : skin.hint,
+            ),
         )
       }
     }

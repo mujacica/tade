@@ -4,6 +4,8 @@ import {
   stripTerminalSequences,
   visibleWidth,
 } from '@earendil-works/pi-tui'
+import { printable } from '@tade/core'
+import { fileText } from '../../highlight.ts'
 import type { Hit } from '../../hits.ts'
 import { onLine, type Place, placeOf } from '../../input.ts'
 import type { Skin } from '../../skin.ts'
@@ -132,7 +134,10 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
     2
   const head = new Row(inner, skin, ctx.pointer)
     .space()
-    .text(shownPath(tildeOf(panel.path, ctx.homeDir), Math.max(12, inner - 1 - beside)), skin.you)
+    .text(
+      shownPath(printable(tildeOf(panel.path, ctx.homeDir)), Math.max(12, inner - 1 - beside)),
+      skin.you,
+    )
   if (facts) head.space(2).text(facts, skin.hint)
   if (dirty) head.space(2).text('● not saved', skin.waiting)
   if (counts) {
@@ -230,7 +235,7 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
       const source = !there
         ? ''
         : gone
-          ? skin.bad(shown?.text ?? '')
+          ? skin.bad(fileText(shown?.text ?? ''))
           : line === null
             ? ''
             : colouredAt(line, edit, viewing, ctx)

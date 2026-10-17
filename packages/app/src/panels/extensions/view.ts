@@ -1,5 +1,5 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
-import { KEYS_AND_AGENTS } from '@tade/core'
+import { KEYS_AND_AGENTS, printable } from '@tade/core'
 import { type Hit, sameTarget } from '../../hits.ts'
 import { linkedRow } from '../../links.ts'
 import { SPEND_WINDOWS } from '../../spend.ts'
@@ -139,7 +139,7 @@ export function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
       .text(mark, undefined, target)
       .space()
       .text(
-        cap(entry.title, names - 7),
+        cap(printable(entry.title), names - 7),
         entry.state === 'off' ? skin.hint : on || pointed ? skin.you : (text) => text,
         target,
       )
@@ -169,7 +169,9 @@ export function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
   const head: { text: string; hits: Hit[] }[] = []
   const heading = new Row(told, skin, pointer).space()
   if (view) {
-    heading.text(cap(view.title, told - 24), skin.brand).text(`  ${view.source}`, skin.hint)
+    heading
+      .text(cap(printable(view.title), told - 24), skin.brand)
+      .text(`  ${printable(view.source)}`, skin.hint)
     heading.right((r) =>
       r
         .text(
@@ -185,10 +187,10 @@ export function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
         .space(),
     )
   } else if (here) {
-    heading.text(cap(here.title, told - 2), skin.brand)
+    heading.text(cap(printable(here.title), told - 2), skin.brand)
   } else {
     heading.text(
-      cap(panel.search ? `Nothing matches “${panel.search}”` : 'Extensions', told - 2),
+      cap(panel.search ? `Nothing matches “${printable(panel.search)}”` : 'Extensions', told - 2),
       skin.brand,
     )
   }
@@ -244,7 +246,7 @@ export function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
   const said = panel.said
     ? new Row(told, skin)
         .space()
-        .text(cap(panel.said, told - 2), skin.busy)
+        .text(cap(printable(panel.said), told - 2), skin.busy)
         .build()
     : blank(told)
   // Done is pinned to the foot, which no part of the page scrolls over: a
@@ -373,7 +375,7 @@ export function extensionView(panel: ExtensionViewPanel, ctx: PanelContext): Dra
     },
     ctx,
   )
-  return box(shown?.title ?? 'Extension', drawn.rows, width, skin, { corner: 'esc' })
+  return box(printable(shown?.title ?? 'Extension'), drawn.rows, width, skin, { corner: 'esc' })
 }
 
 /** What the keys do on this page, which depends on what it offers. */
@@ -406,7 +408,7 @@ function viewHead(
   const chosen = tabs.some((tab) => tab.id === panel.tab) ? panel.tab : (tabs[0]?.id ?? '')
   const row = new Row(inner, ctx.skin, ctx.pointer).space()
   for (const tab of tabs) {
-    row.tab(tab.title, { kind: 'control', id: `tab:${tab.id}` }, tab.id === chosen)
+    row.tab(printable(tab.title), { kind: 'control', id: `tab:${tab.id}` }, tab.id === chosen)
   }
   if (!shown?.windowed) return [row.build(), blank(inner)]
   const ranges = SPEND_WINDOWS.reduce((wide, one) => wide + visibleWidth(one.label) + 4, 1)
@@ -471,7 +473,7 @@ export function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): D
       .text(setup.state === 'ready' ? skin.done('●') : skin.waiting('◐'))
       .space()
       .text(
-        setup.state === 'ready' ? 'Ready' : `Needs setting up: ${setup.problem ?? ''}`,
+        setup.state === 'ready' ? 'Ready' : `Needs setting up: ${printable(setup.problem ?? '')}`,
         setup.state === 'ready' ? skin.done : skin.waiting,
       )
       .build(),
@@ -485,7 +487,7 @@ export function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): D
   if (setup.links.length > 0) {
     const links = row().space()
     for (const link of setup.links)
-      links.text(`${link.title} ↗`, skin.link, { kind: 'link', url: link.url }).space(3)
+      links.text(`${printable(link.title)} ↗`, skin.link, { kind: 'link', url: link.url }).space(3)
     rows.push(links.build())
   }
   rows.push(blank(inner))
@@ -511,7 +513,7 @@ export function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): D
     const value = panel.values[field.key] ?? ''
     const r = row()
       .space()
-      .text(field.label.padEnd(label).slice(0, label), focused ? skin.you : skin.label)
+      .text(printable(field.label).padEnd(label).slice(0, label), focused ? skin.you : skin.label)
     if (field.kind === 'flag') {
       // The same switch a flag is on the Settings page. It was a checkbox here
       // and a switch there, for the same question — which is the kind of
@@ -522,7 +524,7 @@ export function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): D
       // A key is drawn as itself, here and everywhere else: it is in the
       // config in plain text, and one you cannot read is one you cannot check
       // against the console that issued it.
-      r.field(value, Math.max(10, inner - label - 4), {
+      r.field(printable(value), Math.max(10, inner - label - 4), {
         caret: focused,
         target: { kind: 'control', id: `field:${field.key}` },
         ...(value === '' && field.kind === 'secret' && field.have
@@ -537,7 +539,7 @@ export function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): D
       rows.push(
         row()
           .text(' '.repeat(label + 1))
-          .text(field.help, skin.hint)
+          .text(printable(field.help), skin.hint)
           .build(),
       )
     if (field.choices.length > 0) {
@@ -548,7 +550,9 @@ export function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): D
           picks = row().text(' '.repeat(label + 1))
         }
         marking(`pick:${field.key}:${choice}`)
-        picks.button(choice, { kind: 'control', id: `pick:${field.key}:${choice}` }).space()
+        picks
+          .button(printable(choice), { kind: 'control', id: `pick:${field.key}:${choice}` })
+          .space()
       }
       rows.push(picks.build())
     }
@@ -563,9 +567,12 @@ export function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): D
       },
       foot: [
         panel.error
-          ? row().space().text(`▲ ${panel.error}`, skin.waiting).build()
+          ? row()
+              .space()
+              .text(`▲ ${printable(panel.error)}`, skin.waiting)
+              .build()
           : panel.said
-            ? row().space().text(panel.said, skin.done).build()
+            ? row().space().text(printable(panel.said), skin.done).build()
             : blank(inner),
         row()
           .space()

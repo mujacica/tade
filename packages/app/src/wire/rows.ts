@@ -1,3 +1,4 @@
+import { printable } from '@tade/core'
 import type { ListRow, ListSection } from '@tade/extensions-core'
 import type { Frame, RowSummaryView } from '../frame.ts'
 import { type RowSummaryPanel, rowSummaryPanel } from '../panels/summary/state.ts'
@@ -23,28 +24,80 @@ import { type Wiring, why } from './context.ts'
 // entry in `app.ts` for something that only ever answers about them would be
 // wiring with nothing of its own to wire.
 
-/** The sections extensions keep, as the frame carries them to the side. */
+/**
+ * The sections extensions keep, as the frame carries them to the side.
+ *
+ * Every word a row says is somebody else's — a review's title, a Sentry
+ * issue's, a check's name — so it is made text here (`printable`), once a
+ * poll, and nothing that draws a row has to remember to. What it is *called*
+ * by (`id`, `section`, what it opens) is a key and is never drawn.
+ */
 export function listsShown(sections: readonly ListSection[]): NonNullable<Frame['lists']> {
   return sections.map((section) => ({
     id: section.id,
-    title: section.title,
-    problem: section.problem,
+    title: printable(section.title),
+    problem: section.problem === null ? null : printable(section.problem),
     summarises: section.summarises,
     rows: section.rows.map((row) => ({
       section: section.id,
       id: row.id,
-      title: row.title,
-      ...(row.label ? { label: row.label } : {}),
-      ...(row.note ? { note: row.note } : {}),
-      ...(row.marks ? { marks: row.marks } : {}),
-      ...(row.figures ? { figures: row.figures } : {}),
-      ...(row.age ? { age: row.age } : {}),
-      ...(row.links ? { links: row.links } : {}),
+      title: printable(row.title),
+      ...(row.label ? { label: printable(row.label) } : {}),
+      ...(row.note ? { note: printable(row.note) } : {}),
+      ...(row.marks ? { marks: marked(row.marks) } : {}),
+      ...(row.figures ? { figures: marked(row.figures) } : {}),
+      ...(row.age ? { age: { ...row.age, says: printable(row.age.says) } } : {}),
+      ...(row.links
+        ? { links: row.links.map((link) => ({ ...link, title: printable(link.title) })) }
+        : {}),
       ...(row.opens ? { opens: row.opens } : {}),
       ...(row.task ? { task: row.task } : {}),
       ...(row.project ? { project: row.project } : {}),
     })),
   }))
+}
+
+/** A row's marks, each made text. */
+function marked<T extends { text: string }>(marks: readonly T[] | undefined): T[] | undefined {
+  return marks?.map((mark) => ({ ...mark, text: printable(mark.text) }))
+}
+
+/**
+ * One row in full, as the panel draws it — the extension's answer, and as
+ * much somebody else's words as the row was (`listsShown`). A link opens what
+ * is drawn, so its address is made text too.
+ */
+export function summaryShown(summary: RowSummaryView): RowSummaryView {
+  return {
+    title: printable(summary.title),
+    ...(summary.marks ? { marks: marked(summary.marks) } : {}),
+    ...(summary.groups
+      ? {
+          groups: summary.groups.map((group) => ({
+            label: printable(group.label),
+            marks: marked(group.marks) ?? [],
+            ...(group.note === undefined ? {} : { note: printable(group.note) }),
+          })),
+        }
+      : {}),
+    ...(summary.facts
+      ? {
+          facts: summary.facts.map((fact) => ({
+            ...fact,
+            label: printable(fact.label),
+            value: printable(fact.value),
+          })),
+        }
+      : {}),
+    ...(summary.links
+      ? {
+          links: summary.links.map((link) => ({
+            title: printable(link.title),
+            url: printable(link.url),
+          })),
+        }
+      : {}),
+  }
 }
 
 /** What this subject needs of the rest of the window. */
@@ -168,7 +221,7 @@ export class Rows {
   ): void {
     const panel = this.wire.state.panel
     if (panel?.kind !== 'row-summary' || panel.section !== section || panel.row !== row) return
-    if (summary) this.shown = { section, row, summary }
+    if (summary) this.shown = { section, row, summary: summaryShown(summary) }
     this.wire.put({ ...this.wire.state, panel: { ...panel, busy: false, problem } })
     this.wire.draw()
   }

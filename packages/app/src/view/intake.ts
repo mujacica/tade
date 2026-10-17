@@ -1,4 +1,4 @@
-import type { InboxRow } from '@tade/core'
+import { type InboxRow, printable } from '@tade/core'
 import { pointingIn, type Target } from '../hits.ts'
 import { inboxMark, inboxSays } from '../intake-view.ts'
 import type { AppState } from '../model.ts'
@@ -22,6 +22,12 @@ import { shortened, wrapWords } from './text.ts'
 // under. The name is the one column that cannot be abbreviated without lying,
 // so it keeps its columns and the state word at the right gives ground at its
 // own left end.
+//
+// **Every word of a row is somebody else's but the state** — the id, the
+// handle and the source's own page are what a GitHub issue, a Slack message or
+// a Linear ticket said they were, and nothing scrubs them on the way in, since
+// the agent is handed them verbatim. So they are made text where they are
+// drawn (`printable`), never trusted to be.
 //
 // **Clicking one opens it; it never approves it.** Approving starts agents on
 // somebody else's words, which is a button with its own confirmation on the
@@ -94,9 +100,9 @@ function intakeRow(
   first.space().text(mark.glyph, tone).space()
   const kept = TAB_ICONS
   const room = Math.max(1, first.width - first.used - kept)
-  first.text(shortened(one.externalId, room), chosen ? skin.you : (text) => text, target)
+  first.text(shortened(printable(one.externalId), room), chosen ? skin.you : (text) => text, target)
   first.right((r) => r.text(mark.word, tone).space())
-  const said = inboxSays(one)
+  const said = printable(inboxSays(one))
   const second = new Row(Math.max(0, width - TAB_EDGES), skin, pointer)
   second.space(3).text(shortened(said, Math.max(1, second.width - 4)), skin.hint)
   return {

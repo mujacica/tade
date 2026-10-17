@@ -6,6 +6,7 @@ import {
   planLabel,
   planPressure,
   planShown,
+  printable,
   resetsIn,
 } from '@tade/core'
 import type { Frame } from '../frame.ts'
@@ -193,7 +194,10 @@ export function bottomTabs(
     // room was kept for them either way, so nothing is paid for keeping them:
     // these tabs sit in a row you sweep along, and columns taken on hover
     // would slide every tab after them out from under the pointer.
-    row.space().tab(terminal.name, target, on, pointingIn(state.hover, [target, menu, close]))
+    // Named by whoever opened it, the orchestrator among them: drawn as text.
+    row
+      .space()
+      .tab(printable(terminal.name), target, on, pointingIn(state.hover, [target, menu, close]))
     row.icon('×', close, 'danger').icon('≡', menu)
   }
   // A menu rather than the act it used to be: the lower pane holds two kinds
@@ -547,7 +551,9 @@ export function renderFoot(
         const tone =
           one.tone === 'bad' ? skin.bad : one.tone === 'warning' ? skin.waiting : skin.hint
         pay(r)
-        r.text(one.text, lit(view, tone), one.viewable ? view : undefined)
+        // An extension's own words for what it keeps — a figure a service sent
+        // among them — so drawn as text.
+        r.text(printable(one.text), lit(view, tone), one.viewable ? view : undefined)
         owe()
       }
     }
@@ -575,7 +581,7 @@ export function renderFoot(
     if (show.model && thinker !== undefined) {
       const look = lit(switcher, skin.hint)
       pay(r)
-      r.text(`${thinker ? shortModel(thinker) : 'no model'} ▾`, look, switcher)
+      r.text(`${thinker ? printable(shortModel(thinker)) : 'no model'} ▾`, look, switcher)
       if (show.account && account?.provider) r.text(` · ${account.provider}`, look, switcher)
       // Only what needs somebody. How a provider is paid for used to be said
       // here in full — `signed in` beside every model, every draw — which is
@@ -583,7 +589,7 @@ export function renderFoot(
       // A provider with no credential for it is the other case, and it is the
       // one somebody has to do something about, so it is never one of the
       // trimmings: it stays for as long as the model it belongs to does.
-      if (account?.problem) r.text(` · ${account.problem}`, skin.bad, switcher)
+      if (account?.problem) r.text(` · ${printable(account.problem)}`, skin.bad, switcher)
       owe()
       // How hard it thinks, changed like an agent's: a dropdown of the same
       // levels, beside the model it applies to.
@@ -692,7 +698,9 @@ function ruled(flash: string | null, width: number, skin: Skin): string {
   const lead = '── '
   if (!flash || width < widthOf(lead) + 8) return skin.chrome('─'.repeat(width))
   // A column for the space after it and one for the rule it runs back into.
-  const said = shortened(flash, width - widthOf(lead) - 2)
+  // What was pressed is often named by somebody else — a branch, a path, a
+  // terminal's name — so the flash is drawn as text.
+  const said = shortened(printable(flash), width - widthOf(lead) - 2)
   const rest = Math.max(0, width - widthOf(lead) - widthOf(said))
   return `${skin.chrome(lead)}${skin.flash(said)}${skin.chrome(` ${'─'.repeat(Math.max(0, rest - 1))}`)}`
 }

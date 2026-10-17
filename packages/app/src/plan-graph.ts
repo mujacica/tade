@@ -1,4 +1,5 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
+import { printable } from '@tade/core'
 
 // A plan, drawn: which work comes first, what waits on what, and what can run
 // side by side. Each column is a step — everything in it can run once the
@@ -560,17 +561,18 @@ export function drawWhy(
     // Under it, and inside the line that carries on to whatever waits on it:
     // the wait it hangs from, and every other wait it is on, each with its
     // reason. A wait is one line, cut with an `…`; a reason wraps, because a
-    // reason cut short is a reason nobody can act on.
+    // reason cut short is a reason nobody can act on. Whoever wrote the plan
+    // wrote the reason, a model as often as not, so it is drawn as text.
     const notes: { text: string; tone: PlanTone; whole?: boolean }[] = []
     if (said !== '' && !beside) notes.push({ text: said, tone: 'waiting', whole: true })
-    if (wait) notes.push({ text: wait.why.trim() || '—', tone: 'hint' })
+    if (wait) notes.push({ text: printable(wait.why).trim() || '—', tone: 'hint' })
     for (const other of into(entry.task).slice(1)) {
       notes.push({
         text: `also after ${byTask.get(other.from)?.name ?? other.from}`,
         tone: 'waiting',
         whole: true,
       })
-      notes.push({ text: other.why.trim() || '—', tone: 'hint' })
+      notes.push({ text: printable(other.why).trim() || '—', tone: 'hint' })
     }
     const carry = bars.padEnd(indent + 1)
     for (const note of notes) {

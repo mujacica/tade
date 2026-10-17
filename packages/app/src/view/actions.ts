@@ -1,4 +1,4 @@
-import { duration } from '@tade/core'
+import { duration, printable } from '@tade/core'
 import type { ActionsView, CheckView, CommitView, Frame } from '../frame.ts'
 import { type Hit, rowHit, sameTarget, type Target } from '../hits.ts'
 import { type AgentPane, type AppState, sectionOpen, spinner } from '../model.ts'
@@ -60,7 +60,10 @@ export function actionRows(
     build(r)
     rows.push(r.build())
   }
-  const said = (text: string, from = 6) => shortened(text, Math.max(1, width - from))
+  // Branches, steps, files and trailers are named in a project, by whoever
+  // wrote it — an agent as often as not — so what they are called is drawn as
+  // text (`printable`); the fold made the rest of the page so already.
+  const said = (text: string, from = 6) => shortened(printable(text), Math.max(1, width - from))
   if (!view) {
     rows.push(blank(width))
     line((r) => r.text('Nothing is known about this work yet.', skin.hint))
@@ -131,14 +134,14 @@ export function actionRows(
     ahead === 0 && view.mine.length === 0
       ? 'nothing committed yet'
       : [
-          `${ahead} ahead${view.base ? ` of ${view.base}` : ''}`,
+          `${ahead} ahead${view.base ? ` of ${printable(view.base)}` : ''}`,
           view.behind ? `${view.behind} behind` : '',
         ]
           .filter(Boolean)
           .join(' · ')
   line((r) => {
     r.text(
-      tailOf(view.branch ?? 'no branch yet', Math.max(8, width - standing.length - 8)),
+      tailOf(printable(view.branch ?? 'no branch yet'), Math.max(8, width - standing.length - 8)),
       skin.you,
     )
     r.right((g) => g.text(standing, skin.hint).space(2))
@@ -317,7 +320,7 @@ export function commitRow(r: Row, commit: CommitView, now: number, skin: Skin, o
     .join('')
   const when = commit.at > 0 ? `${duration(Math.max(0, now - commit.at))} ago` : ''
   const group = (g: Row) => {
-    if (!own && commit.task) g.text(shortened(commit.task, 22), skin.hint).space(2)
+    if (!own && commit.task) g.text(shortened(printable(commit.task), 22), skin.hint).space(2)
     if (touched) g.text(touched, skin.hint).space()
     if (commit.added) g.text(`+${commit.added}`, skin.done).space()
     if (commit.removed) g.text(`−${commit.removed}`, skin.bad).space()
@@ -331,7 +334,7 @@ export function commitRow(r: Row, commit: CommitView, now: number, skin: Skin, o
     .text(commit.sha.slice(0, 7), skin.hint)
     .space()
   const room = Math.max(6, r.width - r.used - probe.used - 2)
-  r.text(shortened(commit.subject, room), own ? (text) => text : skin.hint)
+  r.text(shortened(printable(commit.subject), room), own ? (text) => text : skin.hint)
   r.right(group)
 }
 
@@ -392,7 +395,7 @@ export function checkRows(
   head
     .text(check.state === 'running' ? spinner(now) : glyphFor(check.state), tone)
     .space()
-    .text(check.id.padEnd(pad), hovered ? skin.you : (text) => text)
+    .text(printable(check.id).padEnd(pad), hovered ? skin.you : (text) => text)
     .space(2)
     .text(spark(check.seconds, longest), skin.hint)
     .space()
@@ -405,10 +408,10 @@ export function checkRows(
         if (i > 0) g.text(' · ', skin.chrome)
         const paint =
           count.tone === 'good' ? skin.done : count.tone === 'bad' ? skin.bad : skin.hint
-        g.text(`${count.count} ${count.label}`, count.count === 0 ? skin.hint : paint)
+        g.text(`${count.count} ${printable(count.label)}`, count.count === 0 ? skin.hint : paint)
       })
     } else if (check.summary && check.state !== 'passed') {
-      g.text(shortened(check.summary, Math.max(8, Math.floor(width / 2))), skin.hint)
+      g.text(shortened(printable(check.summary), Math.max(8, Math.floor(width / 2))), skin.hint)
     } else if (!check.required) {
       g.text('not required', skin.hint)
     }
@@ -427,21 +430,27 @@ export function checkRows(
   // What actually ran, which is the question a green tick never answers, and
   // is asked for rather than printed at you.
   if (open && check.run) {
-    const after = check.needs.length > 0 ? `after ${check.needs.join(', ')}` : ''
+    const after = check.needs.length > 0 ? printable(`after ${check.needs.join(', ')}`) : ''
     line((r) => {
       r.text('$', skin.chrome)
         .space()
-        .text(shortened(check.run ?? '', Math.max(8, width - 12 - widthOf(after))), skin.you)
+        .text(
+          shortened(printable(check.run ?? ''), Math.max(8, width - 12 - widthOf(after))),
+          skin.you,
+        )
       if (after) r.right((g) => g.text(after, skin.hint).space(2))
     })
   }
   const places = open ? check.places : red ? check.places.slice(0, 1) : []
   for (const place of places) {
     line((r) => {
-      r.text(shortPath(place.path, Math.max(12, width - 24)), red ? skin.you : skin.hint)
+      r.text(shortPath(printable(place.path), Math.max(12, width - 24)), red ? skin.you : skin.hint)
       if (place.at) r.text(`:${place.at}`, skin.hint)
       if (place.note) {
-        r.space(2).text(shortened(place.note, Math.max(6, width - r.used - 8)), skin.hint)
+        r.space(2).text(
+          shortened(printable(place.note), Math.max(6, width - r.used - 8)),
+          skin.hint,
+        )
       }
     })
   }
@@ -453,7 +462,7 @@ export function checkRows(
         r
           .text('│', skin.chrome)
           .space()
-          .text(shortened(text, Math.max(8, width - 12))),
+          .text(shortened(printable(text), Math.max(8, width - 12))),
       )
     }
   }
@@ -511,13 +520,13 @@ export function skippedRow(
   control(probe)
   r.text(check.chosen === false ? '⊘' : '–', skin.hint)
     .space()
-    .text(check.id.padEnd(pad), skin.hint)
+    .text(printable(check.id).padEnd(pad), skin.hint)
     .space(2)
   // The reason gives way to the control rather than the other way round: with
   // the control pushed off the edge the row says why and offers no way to
   // change it, which is the worse half to lose.
   const room = width - r.used - probe.used - 4
-  if (room > 2) r.text(shortened(check.skip ?? '', room), skin.hint)
+  if (room > 2) r.text(shortened(printable(check.skip ?? ''), room), skin.hint)
   r.right(control)
   return [r.build()]
 }

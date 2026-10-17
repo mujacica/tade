@@ -1,9 +1,9 @@
-import { stripTerminalSequences } from '@earendil-works/pi-tui'
 import {
   conflictsOn,
   devServerPorts,
   type Finished,
   type KnownTask,
+  printable,
   type Workspace,
 } from '@tade/core'
 import { chatsFrom } from '@tade/workbench/chats'
@@ -282,18 +282,13 @@ export function commitsFrom(stdout: string): CommitView[] {
 
 /**
  * A line of somebody else's output as a row of the page: no colour, no tabs
- * and no control bytes. A tab in a row is a row whose width the window and
- * the terminal disagree about, which is the one thing `draw` may never do.
+ * and no control bytes (`printable`, the one rule). A tab in a row is a row
+ * whose width the window and the terminal disagree about, which is the one
+ * thing `draw` may never do, so it is two columns before it is anything else.
  */
 export function plainly(line: string): string {
-  return stripTerminalSequences(line).replace(/\t/g, '  ').replace(CONTROL, '')
+  return printable(line.replace(/\t/g, '  '))
 }
-
-/** Built from character codes: a control character in a regex literal reads as a typo. */
-const CONTROL = new RegExp(
-  `[${String.fromCharCode(0)}-${String.fromCharCode(31)}${String.fromCharCode(127)}]`,
-  'g',
-)
 
 /** The same tasks, as the resolver wants them. */
 export function knownTasks(snapshots: readonly TaskSnapshot[]): KnownTask[] {

@@ -1,3 +1,4 @@
+import { printable } from '@tade/core'
 import { sameTarget } from '../../hits.ts'
 import { box, type Drawn, Row } from '../../ui.ts'
 import type { PanelContext } from '../context.ts'
@@ -10,14 +11,19 @@ import type { MenuPanel } from './state.ts'
 // A menu is the one panel whose height is read off what it holds: its items
 // are fixed the whole time it is open, so nothing moves under the pointer
 // between two clicks. Past the room there is it scrolls, like everything else.
+//
+// What a menu is of — an agent, a file, a branch, a schedule — is named by
+// whoever made it, an agent as often as not, so its title and its items are
+// drawn as text (`printable`).
 
 export function menu(panel: MenuPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
+  const title = printable(panel.title)
   // As wide as its longest item and what is said beside it, within reason —
   // and never wider than the window it is opened over.
   const wanted = Math.max(
     30,
-    panel.title.length + 8,
+    title.length + 8,
     ...ctx.items.map((item) => item.label.length + (item.off ?? item.note ?? '').length + 6),
   )
   const lines: Line[] = []
@@ -47,9 +53,9 @@ export function menu(panel: MenuPanel, ctx: PanelContext): Drawn {
         : on || pointed
           ? skin.you
           : (t: string) => t
-    row.text(item.label, paint, item.off ? undefined : target)
+    row.text(printable(item.label), paint, item.off ? undefined : target)
     const note = item.off ?? item.note
-    if (note) row.right((r) => r.text(note, skin.hint).space())
+    if (note) row.right((r) => r.text(printable(note), skin.hint).space())
     const built = row.build()
     if (at === panel.index) chosen = lines.length
     lines.push({
@@ -69,5 +75,5 @@ export function menu(panel: MenuPanel, ctx: PanelContext): Drawn {
     },
     ctx,
   )
-  return box(panel.title, drawn.rows, width, skin)
+  return box(title, drawn.rows, width, skin)
 }

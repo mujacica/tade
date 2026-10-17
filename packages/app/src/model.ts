@@ -5,6 +5,7 @@ import {
   type Marked,
   markOf,
   type PlanChoice,
+  printable,
   type QueueState,
   type TadeEvent,
   type TaskState,
@@ -535,10 +536,11 @@ export function moveProject(state: AppState, project: string, by: -1 | 1): strin
  * One reading wherever a project is drawn as a label, because two would
  * disagree the moment somebody renamed one — while everywhere it is an *id* (a
  * task, a trailer, a path, a line of the journal) goes on using the name,
- * which is what makes a rename safe to offer at all.
+ * which is what makes a rename safe to offer at all. As text, because whoever
+ * renamed it — the orchestrator can — typed it.
  */
 export const shownProject = (state: { titles: Readonly<Record<string, string>> }, name: string) =>
-  state.titles[name] ?? name
+  printable(state.titles[name] ?? name)
 
 /**
  * Go to a project, and stand where you left it (`standingIn`).
@@ -1068,9 +1070,15 @@ export function focusBy(state: AppState, delta: number): AppState {
   return { ...leaveLine({ ...state, spots: whereYouWere(state) }), focused, project }
 }
 
-/** What an agent is shown as: what its work is called, once it has said, else its name. */
+/**
+ * What an agent is shown as: what its work is called, once it has said, else
+ * its name — as text, because the agent says what its title is, and an agent
+ * that read a stranger's words can be talked into saying anything
+ * (`printable`). Every surface that names one, the terminal's title included,
+ * reads it here.
+ */
 export function shownName(pane: { name: string; title: string | null }): string {
-  return pane.title ?? pane.name
+  return printable(pane.title ?? pane.name)
 }
 
 /**

@@ -1,4 +1,11 @@
-import { deskSays, LANDING_SAID, LANDING_TIERS, type LandingTier, linesOf } from '@tade/core'
+import {
+  deskSays,
+  LANDING_SAID,
+  LANDING_TIERS,
+  type LandingTier,
+  linesOf,
+  printable,
+} from '@tade/core'
 import type { DeskRow } from '../../frame.ts'
 import { sameTarget, type Target } from '../../hits.ts'
 import type { Skin } from '../../skin.ts'
@@ -154,7 +161,8 @@ function item(
   const under = new Row(inner, skin)
     .marker(on)
     .space(4)
-    .text(because, row.tier === 'ready' ? skin.hint : toneOf(row.tier, skin))
+    // Why it is not ready names checks and files a project calls what it likes.
+    .text(printable(because), row.tier === 'ready' ? skin.hint : toneOf(row.tier, skin))
     .build()
   const whole = { row: 0, from: 0, to: Math.max(0, inner - 1), target }
   return [top, under].map((line) => ({

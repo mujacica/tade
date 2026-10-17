@@ -1,3 +1,4 @@
+import { printable } from '@tade/core'
 import { spinner } from './model.ts'
 
 // What the terminal window calls itself.
@@ -72,7 +73,10 @@ export function windowTitle(facts: TitleFacts): string {
   }
 
   const head = `${titleMark(facts)} tade · ${said.join(' · ')}`
-  const where = facts.where?.trim()
+  // Where you are is named by a project and an agent, and an agent names
+  // itself: as text, or a BEL in it would end this title and hand the rest to
+  // the terminal.
+  const where = printable(facts.where ?? '').trim()
   if (!where) return head
   const whole = `${head} — ${where}`
   return whole.length <= ROOM ? whole : head

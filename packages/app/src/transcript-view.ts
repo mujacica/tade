@@ -1,5 +1,6 @@
 import { basename } from 'node:path'
 import { stripTerminalSequences, visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
+import { printable, printableLines } from '@tade/core'
 import type { Hit, Target } from './hits.ts'
 import { type Linker, linkedRow } from './links.ts'
 import { spinner } from './model.ts'
@@ -12,6 +13,12 @@ import { markdownLines } from './viewer.ts'
 // your words after `❯`, what it did as a line each — spinning while it works,
 // `✓` or `✗` after — and its answers as formatted text. Nothing is cut at the
 // edge; long lines wrap, because the part past the edge is usually the reason.
+//
+// **Nothing in an entry is Tade's to trust.** The orchestrator's answers are a
+// model's, which reads tickets and agents' output; a tool's result is whatever
+// the tool said; a problem quotes what failed; a line from a phone is from a
+// phone. So every one of them is made text before it is laid out
+// (`printable`), and only the marks and colours around them are the window's.
 
 export interface Line {
   text: string
@@ -43,7 +50,7 @@ function wrapped(
   const indent = ' '.repeat(visibleWidth(lead))
   const room = Math.max(8, width - visibleWidth(lead))
   const out: string[] = []
-  for (const paragraph of text.split('\n')) {
+  for (const paragraph of printableLines(text).split('\n')) {
     const pieces = paragraph === '' ? [''] : wrapTextWithAnsi(paragraph, room)
     for (const piece of pieces) out.push(`${out.length === 0 ? lead : indent}${paint(piece)}`)
   }
@@ -141,15 +148,15 @@ function entryLines(entry: Entry, width: number, skin: Skin, now: number): Drawn
       // what the journal and the device list name a phone by, so the line
       // joins up with both.
       if (entry.from !== '' && entry.from !== 'you') {
-        out.push({ text: `  ${skin.hint(`from ${entry.from}, not from you`)}` })
+        out.push({ text: `  ${skin.hint(`from ${printable(entry.from)}, not from you`)}` })
       }
       for (const image of entry.images) {
-        out.push({ text: `  ${skin.hint(`▣ ${basename(image)}`)}` })
+        out.push({ text: `  ${skin.hint(`▣ ${printable(basename(image))}`)}` })
       }
       return out
     }
     case 'routed':
-      return [{ text: skin.hint(`  → ${entry.text}`) }]
+      return [{ text: skin.hint(`  → ${printable(entry.text)}`) }]
     case 'said': {
       const room = Math.max(10, width - 2)
       const lines = [...markdown(entry.text, room, !skin.colour)]
@@ -175,13 +182,13 @@ function entryLines(entry: Entry, width: number, skin: Skin, now: number): Drawn
           : entry.state === 'ok'
             ? skin.done('✓')
             : skin.bad('✗')
-      const name = toolName(entry.tool)
+      const name = printable(toolName(entry.tool))
       const head = `  ${mark} ${entry.state === 'failed' ? skin.bad(name) : skin.hint(name)}${
-        entry.detail ? skin.hint(` · ${entry.detail}`) : ''
+        entry.detail ? skin.hint(` · ${printable(entry.detail)}`) : ''
       }`
       const out: Drawn[] = [{ text: head, linkable: true }]
       if (entry.state === 'running' && entry.progress) {
-        out.push({ text: `    ${skin.hint(entry.progress)}` })
+        out.push({ text: `    ${skin.hint(printable(entry.progress))}` })
       } else if (entry.state === 'failed' && entry.result) {
         // The whole reason: this is the line people came looking for.
         for (const text of wrapped(entry.result, width, '    ', skin.bad)) {
@@ -189,7 +196,7 @@ function entryLines(entry: Entry, width: number, skin: Skin, now: number): Drawn
         }
       } else if (entry.state === 'ok' && entry.result) {
         const first = entry.result.split('\n').find((line) => line.trim() !== '') ?? ''
-        out.push({ text: `    ${skin.hint(first.trim())}`, linkable: true })
+        out.push({ text: `    ${skin.hint(printable(first).trim())}`, linkable: true })
       }
       return out
     }
@@ -201,7 +208,7 @@ function entryLines(entry: Entry, width: number, skin: Skin, now: number): Drawn
     case 'suggestion':
       return [
         {
-          text: `  ${skin.signal('?')} ${entry.text}`,
+          text: `  ${skin.signal('?')} ${printable(entry.text)}`,
           target: { kind: 'action', name: `ask:${entry.ask}` },
         },
       ]

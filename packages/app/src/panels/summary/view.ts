@@ -1,4 +1,5 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
+import { printable } from '@tade/core'
 import type { MarkView } from '../../frame.ts'
 import type { Skin } from '../../skin.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
@@ -40,7 +41,7 @@ export function rowSummary(panel: RowSummaryPanel, ctx: PanelContext): Drawn {
       row()
         .space()
         .text(
-          panel.problem ?? (panel.busy ? 'Looking…' : 'Nothing more is known about it.'),
+          printable(panel.problem ?? (panel.busy ? 'Looking…' : 'Nothing more is known about it.')),
           panel.problem ? skin.bad : skin.hint,
         )
         .build(),
@@ -95,7 +96,9 @@ export function rowSummary(panel: RowSummaryPanel, ctx: PanelContext): Drawn {
     },
     ctx,
   )
-  return box(cap(shown?.title ?? panel.title, width - 10), drawn.rows, width, skin, {
+  // What it is called is the row's own word, and the answer is made text where
+  // it is kept (`summaryShown`): only the title asked for before it came is not.
+  return box(cap(printable(shown?.title ?? panel.title), width - 10), drawn.rows, width, skin, {
     corner: 'esc',
   })
 }

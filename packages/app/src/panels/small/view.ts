@@ -1,5 +1,5 @@
 import { visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
-import { KEY_BINDINGS, KEYS_AND_AGENTS } from '@tade/core'
+import { KEY_BINDINGS, KEYS_AND_AGENTS, printable } from '@tade/core'
 import { type Hit, sameTarget } from '../../hits.ts'
 import { keyCaps } from '../../keys.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
@@ -236,18 +236,20 @@ export function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
   const rows: { text: string; hits: Hit[] }[] = [blank(inner)]
   // A note opens on what it is before it opens on the field: the headline it
   // was given, what it is about, and who said it when. The words under the
-  // field are the note itself, whole — this page is where it is read.
+  // field are the note itself, whole — this page is where it is read. All of
+  // it is drawn as text (`printable`): a note is kept word for word, and the
+  // orchestrator takes them too, from whatever it read.
   if (panel.note) {
     const at = Date.parse(panel.note.at)
     const facts = noteFacts(panel.note, Number.isNaN(at) ? panel.note.at : ctx.date(at))
     if (panel.note.summary) {
-      for (const line of wrapTextWithAnsi(panel.note.summary, inner - 2).slice(0, 2)) {
+      for (const line of wrapTextWithAnsi(printable(panel.note.summary), inner - 2).slice(0, 2)) {
         rows.push(row().space().text(line, skin.you).build())
       }
     }
-    rows.push(row().space().text(facts.about, skin.hint).build())
-    rows.push(row().space().text(facts.said, skin.hint).build())
-    for (const line of wrapTextWithAnsi(facts.retired ?? '', inner - 2).slice(0, 3)) {
+    rows.push(row().space().text(printable(facts.about), skin.hint).build())
+    rows.push(row().space().text(printable(facts.said), skin.hint).build())
+    for (const line of wrapTextWithAnsi(printable(facts.retired ?? ''), inner - 2).slice(0, 3)) {
       if (line.trim()) rows.push(row().space().text(line, skin.hint).build())
     }
     rows.push(blank(inner))
@@ -260,7 +262,7 @@ export function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
       rows.push(
         row()
           .space()
-          .text(fitTo(said, inner - 2), skin.hint)
+          .text(fitTo(printable(said), inner - 2), skin.hint)
           .build(),
       )
       rows.push(blank(inner))
@@ -280,13 +282,13 @@ export function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
     row().space().text(panel.label, skin.label).build(),
     row()
       .space()
-      .field(panel.text, inner - 2, { caret: true })
+      .field(printable(panel.text), inner - 2, { caret: true })
       .build(),
   )
   // A field shows the end of what is typed; a note is read whole, under it.
   const aNote = panel.purpose === 'note' || panel.purpose === 'edit-note'
   if (aNote && visibleWidth(panel.text) > inner - 5) {
-    for (const line of wrapTextWithAnsi(panel.text, inner - 3).slice(0, 8)) {
+    for (const line of wrapTextWithAnsi(printable(panel.text), inner - 3).slice(0, 8)) {
       rows.push(row().space(2).text(line, skin.hint).build())
     }
   }
@@ -306,7 +308,12 @@ export function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
     rows.push(row().space().text('Kept word for word.', skin.hint).build())
   }
   rows.push(
-    panel.error ? row().space().text(`▲ ${panel.error}`, skin.waiting).build() : blank(inner),
+    panel.error
+      ? row()
+          .space()
+          .text(`▲ ${printable(panel.error)}`, skin.waiting)
+          .build()
+      : blank(inner),
   )
   const buttons = row()
   // Taking it back sits apart from saving it, at the other end of the row:
@@ -340,7 +347,7 @@ export function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
       )
       .build(),
   )
-  return box(panel.title, rows, width, skin, { corner: 'esc' })
+  return box(printable(panel.title), rows, width, skin, { corner: 'esc' })
 }
 
 /** The project's branches, narrowed by typing, with a new one offered for a name nobody has. */
@@ -357,7 +364,7 @@ export function branches(panel: BranchPanel, ctx: PanelContext): Drawn {
       .build(),
     new Row(inner, skin)
       .space()
-      .text(`on ${ctx.checkout ?? 'no branch'} now`, skin.hint)
+      .text(`on ${printable(ctx.checkout ?? 'no branch')} now`, skin.hint)
       .build(),
     blank(inner),
   ]
@@ -371,10 +378,10 @@ export function branches(panel: BranchPanel, ctx: PanelContext): Drawn {
     if (choice.create) {
       r.text('+ ', skin.signal)
         .text('Create ', lit ? skin.you : (t: string) => t)
-        .text(choice.name, skin.busy)
+        .text(printable(choice.name), skin.busy)
     } else {
       r.text(choice.row?.current ? '● ' : '  ', skin.done).text(
-        choice.name,
+        printable(choice.name),
         lit ? skin.you : skin.busy,
       )
       const when = choice.row?.when ?? ''
@@ -399,7 +406,10 @@ export function branches(panel: BranchPanel, ctx: PanelContext): Drawn {
       },
       foot: [
         panel.error
-          ? new Row(inner, skin).space().text(`▲ ${panel.error}`, skin.waiting).build()
+          ? new Row(inner, skin)
+              .space()
+              .text(`▲ ${printable(panel.error)}`, skin.waiting)
+              .build()
           : blank(inner),
         new Row(inner, skin, ctx.pointer)
           .space()
@@ -436,7 +446,9 @@ export function find(panel: FindPanel, ctx: PanelContext): Drawn {
     .text(said.padEnd(9), count === 0 && panel.query ? skin.waiting : skin.hint)
     .button('↑', { kind: 'control', id: 'older' }, count > 1 ? 'rest' : 'off')
     .button('↓', { kind: 'control', id: 'newer' }, count > 1 ? 'rest' : 'off')
-  return box(`Find in ${ctx.terminalName}`, [row.build()], width, skin, { corner: 'esc' })
+  return box(`Find in ${printable(ctx.terminalName)}`, [row.build()], width, skin, {
+    corner: 'esc',
+  })
 }
 
 /** Throwing a file's uncommitted changes away, asked first. */
@@ -450,10 +462,15 @@ export function confirm(panel: ConfirmPanel, ctx: PanelContext): Drawn {
   const row = () => new Row(inner, skin, pointer)
   const rows: { text: string; hits: Hit[] }[] = [
     blank(inner),
-    row().space().text(panel.path, skin.you).build(),
+    row().space().text(printable(panel.path), skin.you).build(),
     blank(inner),
     row().space().text('Back to the last commit — a new file is deleted.').build(),
-    panel.error ? row().space().text(`▲ ${panel.error}`, skin.waiting).build() : blank(inner),
+    panel.error
+      ? row()
+          .space()
+          .text(`▲ ${printable(panel.error)}`, skin.waiting)
+          .build()
+      : blank(inner),
     row()
       .right((r) =>
         r
@@ -492,7 +509,7 @@ export function confirmRemove(panel: ConfirmRemovePanel, ctx: PanelContext): Dra
           : change.mark === 'D'
             ? skin.bad
             : skin.waiting
-      rows.push(row().space(3).text(change.mark, tone).space().text(change.path).build())
+      rows.push(row().space(3).text(change.mark, tone).space().text(printable(change.path)).build())
     }
     if (ctx.changes.length > 6)
       rows.push(
@@ -507,7 +524,7 @@ export function confirmRemove(panel: ConfirmRemovePanel, ctx: PanelContext): Dra
         row()
           .space(3)
           .text(
-            `${commits} on ${ctx.branch} that ${ctx.base ?? 'its base'} doesn't have`,
+            printable(`${commits} on ${ctx.branch} that ${ctx.base ?? 'its base'} doesn't have`),
             skin.hint,
           )
           .build(),
@@ -526,12 +543,17 @@ export function confirmRemove(panel: ConfirmRemovePanel, ctx: PanelContext): Dra
     rows.push(
       row().space().text('It produced a document nobody has read yet, which is kept:').build(),
     )
-    rows.push(row().space(3).text(panel.unread).build())
+    rows.push(row().space(3).text(printable(panel.unread)).build())
   }
   rows.push(blank(inner))
   rows.push(row().space().text('Deletes the worktree and branch; the conversation stays.').build())
   rows.push(
-    panel.error ? row().space().text(`▲ ${panel.error}`, skin.waiting).build() : blank(inner),
+    panel.error
+      ? row()
+          .space()
+          .text(`▲ ${printable(panel.error)}`, skin.waiting)
+          .build()
+      : blank(inner),
   )
   rows.push(
     row()
@@ -605,7 +627,12 @@ export function closeDone(panel: CloseDonePanel, ctx: PanelContext): Drawn {
     row().space().text('Each stops, with its worktree and branch; conversations stay.').build(),
   )
   rows.push(
-    panel.error ? row().space().text(`▲ ${panel.error}`, skin.waiting).build() : blank(inner),
+    panel.error
+      ? row()
+          .space()
+          .text(`▲ ${printable(panel.error)}`, skin.waiting)
+          .build()
+      : blank(inner),
   )
   rows.push(
     row()

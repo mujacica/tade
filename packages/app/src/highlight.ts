@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module'
+import { printable } from '@tade/core'
 import { QUIET } from './skin.ts'
 
 /**
@@ -180,15 +181,26 @@ const TOKENS: Record<string, string> = {
 const RESET = '\x1b[0m'
 
 /**
+ * A line of a file, as text: a file holds whatever whoever wrote it put there,
+ * an agent among them, so it is made text (`printable`) — and its tabs kept,
+ * because how wide one is drawn is the viewer's own rule (`TAB`).
+ */
+export function fileText(line: string): string {
+  return line.includes('\t') ? line.split('\t').map(printable).join('\t') : printable(line)
+}
+
+/**
  * A file's lines, coloured. `plain` returns them uncoloured, as the plain skin
  * draws everything; so does a language highlight.js does not know, or a file
  * it cannot make sense of — colour is decoration, never a reason to fail.
+ * Made text first (`fileText`), so the only escapes in what comes out are the
+ * colours put there.
  */
 export function highlight(code: string, language: string | null, plain = false): string[] {
-  const lines = code.replace(/\r\n/g, '\n').split('\n')
+  const lines = code.replace(/\r\n/g, '\n').split('\n').map(fileText)
   if (plain || !language || !hljs().getLanguage(language)) return lines
   try {
-    const html = hljs().highlight(code.replace(/\r\n/g, '\n'), {
+    const html = hljs().highlight(lines.join('\n'), {
       language,
       ignoreIllegals: true,
     }).value

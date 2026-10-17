@@ -4,6 +4,7 @@ import {
   dollars,
   ENOUGH,
   minutes,
+  printable,
   type ReplayEntrant,
   sizeBeside,
   spentSays,
@@ -108,7 +109,8 @@ export function replaysTab(
         rows.push(
           row()
             .space(3)
-            .text(cap(one.why, inner - 4), skin.hint)
+            // Why a case did not pass is what its run said, and a run says anything.
+            .text(cap(printable(one.why), inner - 4), skin.hint)
             .build(),
         )
       }

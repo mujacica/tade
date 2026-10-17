@@ -1,4 +1,5 @@
 import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
+import { printable } from '@tade/core'
 import { sameTarget } from '../../hits.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
 import type { PanelContext } from '../context.ts'
@@ -51,7 +52,7 @@ export function models(panel: ModelPanel, ctx: PanelContext): Drawn {
     new Row(inner, skin)
       .space()
       .text(`${ctx.modelTarget} is on `, skin.hint)
-      .text(ctx.currentModel ?? 'its default model', skin.busy)
+      .text(printable(ctx.currentModel ?? 'its default model'), skin.busy)
       .text(ctx.modelsFrom ? `, in ${ctx.modelsFrom.harness}` : '', skin.hint)
       .build(),
     blank(inner),
@@ -76,7 +77,9 @@ export function models(panel: ModelPanel, ctx: PanelContext): Drawn {
       .marker(on)
       .space()
       .text(current ? '● ' : '  ', skin.done)
-    const id = choice.id.slice(choice.provider.length + 1)
+    // A model is named by whoever offers it — a provider's own list, read over
+    // the network — so its id and its name are drawn as text.
+    const id = printable(choice.id.slice(choice.provider.length + 1))
     const shownId = visibleWidth(id) > idWidth ? truncateToWidth(id, idWidth, '…') : id
     r.text(shownId, on || pointed ? skin.you : skin.busy).space(idWidth - visibleWidth(shownId))
     if (priced) {
@@ -85,7 +88,7 @@ export function models(panel: ModelPanel, ctx: PanelContext): Drawn {
       for (const cell of [input, output, cached]) r.text(cell.padStart(PRICE_CELL), tone)
     }
     if (nameRoom >= 8) {
-      const said = `${choice.name} · ${choice.provider}`
+      const said = printable(`${choice.name} · ${choice.provider}`)
       r.space(3).text(
         visibleWidth(said) > nameRoom ? truncateToWidth(said, nameRoom, '…') : said,
         skin.hint,
@@ -114,7 +117,7 @@ export function models(panel: ModelPanel, ctx: PanelContext): Drawn {
     lines.push(
       new Row(inner, skin)
         .space()
-        .text(said, why ? skin.waiting : skin.hint)
+        .text(printable(said), why ? skin.waiting : skin.hint)
         .build(),
     )
   }
@@ -129,7 +132,10 @@ export function models(panel: ModelPanel, ctx: PanelContext): Drawn {
       },
       foot: [
         panel.error
-          ? new Row(inner, skin).space().text(`▲ ${panel.error}`, skin.waiting).build()
+          ? new Row(inner, skin)
+              .space()
+              .text(`▲ ${printable(panel.error)}`, skin.waiting)
+              .build()
           : asking && choices.length > 0
             ? new Row(inner, skin).space().text(asking, skin.hint).build()
             : blank(inner),

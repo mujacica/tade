@@ -1,5 +1,6 @@
 import { closeSync, openSync, readSync, statSync, writeFileSync } from 'node:fs'
 import { Markdown, type MarkdownTheme, visibleWidth } from '@earendil-works/pi-tui'
+import { printableLines } from '@tade/core'
 import { highlight, languageOf } from './highlight.ts'
 import { placeOf, type Span, wordStep } from './input.ts'
 import { QUIET } from './skin.ts'
@@ -150,10 +151,15 @@ function shallowHeadings(markdown: string): string {
     .join('\n')
 }
 
-/** Any markdown as it reads, at a width: the viewer's files, the orchestrator's answers. */
+/**
+ * Any markdown as it reads, at a width: the viewer's files, the orchestrator's
+ * answers, an extension's page. Somebody else's words, nearly always, so made
+ * text first (`printable`) — a tab given the three columns the renderer gives
+ * one, so nothing about how it lays out moves.
+ */
 export function markdownLines(text: string, width: number, plain: boolean, padding = 0): string[] {
   const markdown = new Markdown(
-    shallowHeadings(text),
+    shallowHeadings(printableLines(text.replace(/\t/g, '   '))),
     padding,
     0,
     plain ? PLAIN_THEME : COLOUR_THEME,

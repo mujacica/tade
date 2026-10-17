@@ -1,4 +1,11 @@
-import { type Race, type Racer, raceDollars, racerRunsOn, raceSpentSays } from '@tade/core'
+import {
+  printable,
+  type Race,
+  type Racer,
+  raceDollars,
+  racerRunsOn,
+  raceSpentSays,
+} from '@tade/core'
 import { sameTarget, type Target } from '../../hits.ts'
 import type { Skin } from '../../skin.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
@@ -113,7 +120,7 @@ function headOf(
   const at = Math.min(panel.race, count - 1)
   const top = new Row(inner, skin, ctx.pointer)
     .space()
-    .text(shown.name, skin.you)
+    .text(printable(shown.name), skin.you)
     .text(
       ` in ${shown.project} · ${shown.racers.length} entrants · ${shown.finished} finished · ${raceSpentSays(shown)}`,
       skin.hint,
@@ -126,7 +133,11 @@ function headOf(
         .space()
     })
     .build()
-  const asked = new Row(inner, skin).space().text(`asked: ${shown.said}`, skin.busy).build()
+  // What it was asked, in whoever asked's words: text.
+  const asked = new Row(inner, skin)
+    .space()
+    .text(`asked: ${printable(shown.said)}`, skin.busy)
+    .build()
   const decided = shown.won
     ? new Row(inner, skin)
         .space()

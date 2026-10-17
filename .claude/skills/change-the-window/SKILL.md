@@ -101,6 +101,14 @@ regions in a cycle now.
   carry ANSI, and `length` counts escape bytes as characters. `widthOf` is pi-tui's `visibleWidth`,
   reached without segmenting the glyphs Tade's own chrome is made of — the trade it makes, and the
   table it makes it from, are in `width.ts`. Call `visibleWidth` directly only outside the drawing.
+- **Text Tade did not write is drawn through `printable`** (core), and nothing else: an agent's
+  title, a ticket, a review, a model's answer, a file's name or its lines, a provider's error. Put
+  it where the text stops being a key — at the fold where it is only ever drawn (`listsShown`,
+  `shownName`, `markdownLines`, `highlight`'s `fileText`), at the draw site where it is also
+  somebody's id (a note is found by its words, a hush by its reason) — and *before* it is cut or
+  measured. Never in `Row.text`: it is handed painted text, and the resets a cut leaves. A lane's
+  screen is the emulator's own drawing and is not scrubbed. `test/outside-text.test.ts` draws
+  every such surface with escapes in it; a new one gets a case there.
 - **Tail, don't clip.** A pi-tui stack allocates height and then cuts children off *at the bottom*,
   which would show the top of an agent's screen and hide its newest output. The window composes its
   own rows and keeps the last N itself. Do the same for anything that grows.

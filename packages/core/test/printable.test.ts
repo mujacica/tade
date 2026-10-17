@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isText, printable } from '../src/printable.ts'
+import { isText, printable, printableLines } from '../src/printable.ts'
 
 /** Every code point in a string that is not text, which must be none. */
 const notText = (said: string): number[] =>
@@ -46,6 +46,15 @@ describe('printable', () => {
   it('takes out what reorders or hides the words around it', () => {
     expect(printable('admin‮⁦gnp.exe⁩')).toBe('admingnp.exe')
     expect(printable('in​visible﻿ soft­hyphen')).toBe('invisible softhyphen')
+  })
+
+  it('keeps the line breaks of many lines and makes each of them text', () => {
+    expect(printableLines('one\r\ntwo\n\nthree')).toBe('one\ntwo\n\nthree')
+    expect(printableLines('\x1b]0;pwned\x07first\n\x1b[2Jsecond\u009b6n\n\x1b')).toBe(
+      'first\nsecond\n',
+    )
+    // A string left open ends with its line: the next one is text again.
+    expect(printableLines('\x1b]0;open\nafter')).toBe('\nafter')
   })
 
   it('leaves nothing that is not text in a title made of escapes', () => {

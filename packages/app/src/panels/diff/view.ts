@@ -1,4 +1,7 @@
+import { printable } from '@tade/core'
+import { fileText } from '../../highlight.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
+import { TAB } from '../../viewer.ts'
 import { COMMENTED, commentBar, toLabel } from '../comment.ts'
 import type { PanelContext } from '../context.ts'
 import { BAR, column, type Line, panelSize } from '../frame.ts'
@@ -32,10 +35,13 @@ export function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
     const numberWidth = String(
       Math.max(...parsed.lines.map((line) => line.new ?? line.old ?? 0)),
     ).length
+    // A changed file's lines are its author's, an agent's as often as not:
+    // drawn as text, a tab as wide as the viewer draws one.
+    const said = (text: string) => fileText(text).replaceAll('\t', TAB)
     parsed.lines.forEach((line, at) => {
       const r = row().space()
       if (line.kind === 'hunk') {
-        r.text(line.text, skin.hint)
+        r.text(said(line.text), skin.hint)
         rows.push(r.build())
         return
       }
@@ -52,7 +58,7 @@ export function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
       const sign = line.kind === 'add' ? '+ ' : line.kind === 'remove' ? '- ' : '  '
       const tone =
         line.kind === 'add' ? skin.done : line.kind === 'remove' ? skin.bad : (t: string) => t
-      r.text(`${sign}${line.text}`, tone)
+      r.text(`${sign}${said(line.text)}`, tone)
       const built = r.build()
       // The whole line is something to press: it is where a comment goes.
       rows.push({
@@ -120,7 +126,7 @@ export function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
     parsed && !parsed.binary
       ? `${skin.done(`+${parsed.added}`)} ${skin.bad(`−${parsed.removed}`)} `
       : ''
-  return box(`${path} · ${name}`, drawn.rows, width, skin, { corner: `${counts}esc` })
+  return box(`${printable(path)} · ${name}`, drawn.rows, width, skin, { corner: `${counts}esc` })
 }
 
 /** What the foot says of the keys, longest first: the first that fits is drawn. */

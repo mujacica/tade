@@ -1,5 +1,5 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
-import { MATERIAL_LABEL } from '@tade/core'
+import { MATERIAL_LABEL, printable, printableLines } from '@tade/core'
 import { inboxMark } from '../../intake-view.ts'
 import type { Skin } from '../../skin.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
@@ -30,6 +30,12 @@ import type { IntakePanel } from './state.ts'
 // drawing with no label at all is a page that hands somebody a stranger's
 // instructions as though Tade had written them.
 //
+// **Everything on it but Tade's own labels is made text where it is drawn**
+// (`printable`): the id, the handle, the page, the body and any reason that
+// names them came from a stranger, and nothing scrubbed them on the way in —
+// the agent is handed the request verbatim, so the drawing is the one place
+// it can be reduced to words without changing what was asked.
+//
 // **A judge's reading, where there is one, is marked as advice and is never
 // the reason given for anything.** There is none wired in yet; when there is,
 // it goes beside the question in the judge's own words, and the button copy
@@ -55,7 +61,7 @@ export function intake(panel: IntakePanel, ctx: PanelContext): Drawn {
       row()
         .space()
         .text(
-          panel.problem ?? (panel.busy ? 'Reading…' : 'Nothing is known about it.'),
+          printable(panel.problem ?? (panel.busy ? 'Reading…' : 'Nothing is known about it.')),
           panel.problem ? skin.bad : skin.hint,
         )
         .build(),
@@ -70,7 +76,7 @@ export function intake(panel: IntakePanel, ctx: PanelContext): Drawn {
         .space()
         .text(mark.word, toneFor(mark.tone, skin))
         .space(2)
-        .text(cap(shown.row.because, Math.max(4, inner - 16)), skin.hint)
+        .text(cap(printable(shown.row.because), Math.max(4, inner - 16)), skin.hint)
         .build(),
     )
     lines.push(blank(inner), ...heading(row, 'WHERE IT CAME FROM', '', inner, skin))
@@ -79,7 +85,7 @@ export function intake(panel: IntakePanel, ctx: PanelContext): Drawn {
         row()
           .space()
           .text(padTo(fact.label, LABEL), skin.hint)
-          .text(cap(fact.value, Math.max(4, inner - LABEL - 3)))
+          .text(cap(printable(fact.value), Math.max(4, inner - LABEL - 3)))
           .build(),
       )
     }
@@ -92,12 +98,14 @@ export function intake(panel: IntakePanel, ctx: PanelContext): Drawn {
     // window's own act everywhere, so this page grows no button of its own for
     // it. Only `http` and `https` — a source's reference is not always
     // something a browser should be handed.
-    if (/^https?:\/\//.test(shown.row.url)) {
+    // What is drawn is what is opened, so the address is made text once.
+    const url = printable(shown.row.url)
+    if (/^https?:\/\//.test(url)) {
       lines.push(
         blank(inner),
         row()
           .space()
-          .text(cap(shown.row.url, inner - 3), skin.link, { kind: 'link', url: shown.row.url })
+          .text(cap(url, inner - 3), skin.link, { kind: 'link', url })
           .build(),
       )
     }
@@ -107,7 +115,7 @@ export function intake(panel: IntakePanel, ctx: PanelContext): Drawn {
       row()
         .space()
         .text(
-          cap(material.where ?? material.ref ?? 'nowhere Tade wrote it down', inner - 3),
+          cap(printable(material.where ?? material.ref ?? 'nowhere Tade wrote it down'), inner - 3),
           skin.hint,
         )
         .build(),
@@ -115,8 +123,8 @@ export function intake(panel: IntakePanel, ctx: PanelContext): Drawn {
     if (material.body === null) {
       lines.push(
         blank(inner),
-        ...wrapWords(material.problem ?? 'there is nothing to read', inner - 4).map((text) =>
-          row().space(2).text(text, skin.hint).build(),
+        ...wrapWords(printable(material.problem ?? 'there is nothing to read'), inner - 4).map(
+          (text) => row().space(2).text(text, skin.hint).build(),
         ),
       )
     } else {
@@ -138,9 +146,8 @@ export function intake(panel: IntakePanel, ctx: PanelContext): Drawn {
     },
     ctx,
   )
-  return box(cap(shown?.row.externalId ?? panel.title, width - 10), drawn.rows, width, skin, {
-    corner: 'esc',
-  })
+  const title = printable(shown?.row.externalId ?? panel.title)
+  return box(cap(title, width - 10), drawn.rows, width, skin, { corner: 'esc' })
 }
 
 /**
@@ -157,7 +164,7 @@ let wrapped: { body: string; width: number; lines: readonly string[] } | null = 
 
 function quoted(body: string, width: number): readonly string[] {
   if (wrapped && wrapped.body === body && wrapped.width === width) return wrapped.lines
-  const lines = body
+  const lines = printableLines(body)
     .replace(/\s+$/, '')
     .split('\n')
     .flatMap((text) => (text === '' ? [''] : wrapWords(text, width)))
@@ -177,7 +184,9 @@ function starts(
   if (would.problems.length > 0) {
     for (const problem of would.problems) {
       lines.push(
-        ...wrapWords(problem, inner - 4).map((t) => row().space(2).text(t, skin.bad).build()),
+        ...wrapWords(printable(problem), inner - 4).map((t) =>
+          row().space(2).text(t, skin.bad).build(),
+        ),
       )
     }
     return lines
@@ -202,20 +211,25 @@ function starts(
         row()
           .space(2)
           .text(' '.repeat(widest + 2))
-          .text(cap(`after ${dep.task} — ${dep.why}`, Math.max(4, inner - widest - 5)), skin.hint)
+          .text(
+            cap(printable(`after ${dep.task} — ${dep.why}`), Math.max(4, inner - widest - 5)),
+            skin.hint,
+          )
           .build(),
       )
     }
   }
   for (const warning of would.warnings) {
     lines.push(
-      ...wrapWords(`warning  ${warning}`, inner - 4).map((t) =>
+      ...wrapWords(printable(`warning  ${warning}`), inner - 4).map((t) =>
         row().space(2).text(t, skin.waiting).build(),
       ),
     )
   }
   for (const one of [...would.grant, ...would.limits]) {
-    lines.push(...wrapWords(one, inner - 4).map((t) => row().space(2).text(t, skin.hint).build()))
+    lines.push(
+      ...wrapWords(printable(one), inner - 4).map((t) => row().space(2).text(t, skin.hint).build()),
+    )
   }
   return lines
 }
@@ -232,7 +246,7 @@ function said(r: Row, panel: IntakePanel, skin: Skin, inner: number): Line {
       .text(cap(asks(panel.asking), inner - 3), skin.waiting)
       .build()
   }
-  const text = panel.problem ?? panel.said ?? ''
+  const text = printable(panel.problem ?? panel.said ?? '')
   return r
     .space()
     .text(cap(text, inner - 3), panel.problem ? skin.bad : skin.hint)

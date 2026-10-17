@@ -1,5 +1,5 @@
 import { visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
-import { SERVER_HELD_BY_NOTHING, SERVER_RUNS_AS_YOU } from '@tade/core'
+import { printable, SERVER_HELD_BY_NOTHING, SERVER_RUNS_AS_YOU } from '@tade/core'
 import type { Hit } from '../../hits.ts'
 import { blank, type Pointer, Row } from '../../ui.ts'
 import { cap, padTo } from '../cells.ts'
@@ -11,6 +11,12 @@ import { type ExtensionEntry, watchOn } from './state.ts'
 // Apart from the drawing that frames it because it is the longer half: a page
 // that says only what something *is* is how an extension with eight tools gets
 // taken for the one watch it happens to show.
+//
+// Most of what it says is somebody else's: a tool server's description of
+// itself and of every tool, what it calls them, what went wrong starting it,
+// a harness's own files. So everything that is not a sentence of this file is
+// drawn as text (`printable`) — a server's words are material, never a way
+// into the terminal.
 
 /**
  * What a command like `npx -y …` does, said once beside it.
@@ -52,7 +58,7 @@ export function extensionBody(
   const control = (id: string) => ({ kind: 'control' as const, id })
   const plain = (text: string) => text
   const wrap = (text: string, indent: number, tone: (text: string) => string = skin.hint) => {
-    for (const piece of wrapTextWithAnsi(text, Math.max(10, form - indent - 1))) {
+    for (const piece of wrapTextWithAnsi(printable(text), Math.max(10, form - indent - 1))) {
       lines.push(row().space(indent).text(piece, tone).build())
     }
   }
@@ -62,7 +68,7 @@ export function extensionBody(
       row()
         .space()
         .text(title, skin.label)
-        .text(note ? `  ${cap(note, room)}` : '', skin.hint)
+        .text(note ? `  ${cap(printable(note), room)}` : '', skin.hint)
         .build(),
     )
   }
@@ -108,7 +114,7 @@ export function extensionBody(
         .space()
         .text(tool.on ? skin.done('●') : skin.hint('○'))
         .space()
-        .text(tool.name, tool.on ? skin.you : skin.hint)
+        .text(printable(tool.name), tool.on ? skin.you : skin.hint)
         .text(tool.on ? '  on' : '  off', skin.hint)
       title.right((r) =>
         r
@@ -135,7 +141,13 @@ export function extensionBody(
     wrap('What each harness loads by itself. Listed only — not Tade’s to change.', 1)
     lines.push(blank(form))
     for (const piece of facts.harnessExtensions) {
-      lines.push(row().space().text(piece.name).text(`  ${piece.where}`, skin.hint).build())
+      lines.push(
+        row()
+          .space()
+          .text(printable(piece.name))
+          .text(`  ${printable(piece.where)}`, skin.hint)
+          .build(),
+      )
     }
     return lines
   }
@@ -157,8 +169,11 @@ export function extensionBody(
         // The room the buttons pinned at the right need, measured before the
         // name is cut: a row that does not fit drops its right-hand group,
         // and the button that turns a server on is not one to lose.
-        .text(cap(server.title, Math.max(8, form - (server.install ? 36 : 22))), skin.you)
-        .text(`  ${server.name}`, skin.hint)
+        .text(
+          cap(printable(server.title), Math.max(8, form - (server.install ? 36 : 22))),
+          skin.you,
+        )
+        .text(`  ${printable(server.name)}`, skin.hint)
       title.right((r) => {
         // The line that installs it is run in a lane you are looking at, and
         // never behind a spinner.
@@ -186,7 +201,8 @@ export function extensionBody(
   const trouble = view.state === 'needs setup' || view.state === 'broken'
   if (trouble && view.problem) {
     lines.push(blank(form))
-    for (const [index, piece] of wrapTextWithAnsi(view.problem, Math.max(10, form - 4)).entries()) {
+    const problem = wrapTextWithAnsi(printable(view.problem), Math.max(10, form - 4))
+    for (const [index, piece] of problem.entries()) {
       lines.push(
         row()
           .space()
@@ -229,7 +245,7 @@ export function extensionBody(
     items.push(
       ...view.actions.map((action) => ({
         id: `action:${view.name}:${action.id}`,
-        label: action.title,
+        label: printable(action.title),
       })),
     )
   }
@@ -249,7 +265,7 @@ export function extensionBody(
     lines.push(blank(form))
     heading('HOW IT IS USED')
     for (const line of view.workflow) {
-      const pieces = wrapTextWithAnsi(line, Math.max(10, form - 5))
+      const pieces = wrapTextWithAnsi(printable(line), Math.max(10, form - 5))
       pieces.forEach((piece, index) => {
         lines.push(
           row()
@@ -273,7 +289,7 @@ export function extensionBody(
     // rule the Settings form's name column follows, for the same reason — a
     // column that starts at a third of the width cuts `jev_read_request` to
     // make room for a summary that had columns to spare.
-    const longest = Math.max(0, ...view.tools.map((tool) => visibleWidth(tool.name)))
+    const longest = Math.max(0, ...view.tools.map((tool) => visibleWidth(printable(tool.name))))
     const named = Math.max(10, Math.min(longest + 1, Math.floor(form / 2)))
     for (const tool of view.tools) {
       // Who may call it, said only where it is not both: anything that changes
@@ -283,15 +299,17 @@ export function extensionBody(
       // does not fit drops its right-hand group, and a tool whose audience
       // quietly disappeared is worse than one line less of what it does.
       const room = Math.max(4, form - 1 - named - (only ? visibleWidth(only) + 2 : 0))
+      const name = printable(tool.name)
       const line = row()
         .space()
-        .text(padTo(cap(tool.name, named), named), skin.you)
-      line.text(cap(tool.summary, room), skin.hint)
+        .text(padTo(cap(name, named), named), skin.you)
+      line.text(cap(printable(tool.summary), room), skin.hint)
       // What the server itself calls it, so a person reading its own
       // documentation can tell which tool this is.
-      const theirs = view.server?.theirs[tool.name]
+      const said = view.server?.theirs[tool.name]
+      const theirs = said === undefined ? undefined : printable(said)
       if (only) line.right((r) => r.text(only, skin.hint).space())
-      else if (theirs && theirs !== tool.name) {
+      else if (theirs && theirs !== name) {
         line.right((r) => r.text(theirs, skin.hint).space())
       }
       lines.push(line.build())
@@ -325,7 +343,10 @@ export function extensionBody(
         .space()
         .text('◎', running ? skin.done : skin.hint)
         .space()
-        .text(cap(watch.title, Math.max(8, form - 3 - visibleWidth(every) - pinned)), skin.you)
+        .text(
+          cap(printable(watch.title), Math.max(8, form - 3 - visibleWidth(every) - pinned)),
+          skin.you,
+        )
         .text(every, skin.hint)
       title.right((r) => {
         if (show) r.button(show, control(`watching:${watch.on ?? ''}`)).space()
@@ -368,8 +389,8 @@ export function extensionBody(
       lines.push(
         row()
           .space()
-          .text(padTo(cap(option.label, named - 1), named))
-          .text(cap(value, Math.max(4, form - named - 3)), set ? skin.you : skin.hint)
+          .text(padTo(cap(printable(option.label), named - 1), named))
+          .text(cap(printable(value), Math.max(4, form - named - 3)), set ? skin.you : skin.hint)
           .build(),
       )
     }

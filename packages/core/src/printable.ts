@@ -78,6 +78,15 @@ export function printable(text: string): string {
   return out
 }
 
+/**
+ * Somebody else's text of many lines — a request's body, a comment, an answer
+ * — as text: each line `printable`, and the breaks between them kept, because
+ * a surface that quotes or wraps it needs to know where its paragraphs are.
+ */
+export function printableLines(text: string): string {
+  return text.split(/\r?\n/).map(printable).join('\n')
+}
+
 /** Whether every character of it is text already, so it can be handed back as it is. */
 function isPlain(text: string): boolean {
   for (const one of text) if (!isText(one.codePointAt(0) ?? 0)) return false

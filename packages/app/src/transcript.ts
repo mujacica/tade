@@ -1,4 +1,4 @@
-import { byOf, wentQuiet } from '@tade/core'
+import { byOf, printable, wentQuiet } from '@tade/core'
 import type { HistoryItem } from '@tade/harnesses-core'
 import type { Turn } from '@tade/voice-core'
 import { unwrapped } from './inbox.ts'
@@ -502,7 +502,8 @@ export function toolDetail(input: unknown): string {
   for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
     if (parts.length >= 3) break
     if (typeof value === 'string' && value.trim() !== '') {
-      const flat = value.replace(/\s+/g, ' ').trim()
+      // Made text before it is measured, or a cut lands inside an escape.
+      const flat = printable(value).replace(/\s+/g, ' ').trim()
       const cut = flat.length > 48 ? `${flat.slice(0, 47)}…` : flat
       parts.push(/\s/.test(cut) || key === 'command' ? `"${cut}"` : cut)
     } else if (typeof value === 'number' || typeof value === 'boolean') {

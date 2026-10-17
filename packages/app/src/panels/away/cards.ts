@@ -1,3 +1,4 @@
+import { printable } from '@tade/core'
 import { sameTarget, shift, type Target } from '../../hits.ts'
 import { blank, Row } from '../../ui.ts'
 import { widthOf } from '../../width.ts'
@@ -54,10 +55,12 @@ export function askingCard(
   ]
 
   // Who, and from where in words; the address beside them where the words are
-  // not this machine, because a stranger's address is the thing to check.
-  const name = asking.label || 'a device'
-  const from =
-    asking.address === '' ? `from ${asking.from}` : `from ${asking.from} · ${asking.address}`
+  // not this machine, because a stranger's address is the thing to check. A
+  // device names itself, so all of it is drawn as text (`printable`).
+  const name = printable(asking.label) || 'a device'
+  const from = printable(
+    asking.address === '' ? `from ${asking.from}` : `from ${asking.from} · ${asking.address}`,
+  )
   if (widthOf(name) + 2 + widthOf(from) <= room) {
     lines.push(framed(row().text(name, skin.you).space(2).text(from, skin.hint).build()))
   } else {
@@ -126,7 +129,7 @@ export function deviceLines(
     .text(chosen ? '›' : ' ', skin.signal)
     .text(device.live ? '●' : '○', device.live ? skin.done : skin.hint)
     .space()
-    .text(device.label || 'a device', skin.you)
+    .text(printable(device.label) || 'a device', skin.you)
     .space(2)
     .text(device.live ? 'connected now' : 'not connected', device.live ? skin.done : skin.hint)
   const lines: Line[] = []
@@ -144,7 +147,7 @@ export function deviceLines(
   const kind = device.owner ? 'owner' : kindOf(device.label)
   const about = [
     kind,
-    device.owner ? device.from : `from ${device.from}`,
+    printable(device.owner ? device.from : `from ${device.from}`),
     `paired ${ctx.date(device.pairedAt)}`,
     device.passkey !== undefined
       ? `passkey used ${ctx.date(device.passkey)}`

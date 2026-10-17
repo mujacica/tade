@@ -1,3 +1,4 @@
+import { printable } from '@tade/core'
 import type { LaneScrolling } from '@tade/drivers-core'
 import type { Hit, ScrollArea, Target } from '../hits.ts'
 import { pointingIn, rowHit, shift } from '../hits.ts'
@@ -157,19 +158,23 @@ export function secondRow(
   return tabbed(width, skin, band, inner.build(), target)
 }
 
-/** What an agent is doing, in a few words, for the row under its name. */
+/**
+ * What an agent is doing, in a few words, for the row under its name. The
+ * reason, the command it wants approved and its summary are the agent's own
+ * words, so they are drawn as text (`printable`).
+ */
 export function doing(pane: AgentPane): string {
-  const reason = pane.reason ?? ''
+  const reason = printable(pane.reason ?? '')
   switch (markOf(pane)) {
     case 'working':
       return reason && reason !== 'agent running' ? `working · ${reason}` : 'working'
     case 'idle':
       return 'idle · waiting for you'
     case 'needs-you':
-      return pane.approval ? `wants you to approve ${pane.approval.summary}` : reason
+      return pane.approval ? `wants you to approve ${printable(pane.approval.summary)}` : reason
     case 'done':
       if (pane.finished) {
-        return pane.finished.summary ? `finished · ${pane.finished.summary}` : 'finished'
+        return pane.finished.summary ? `finished · ${printable(pane.finished.summary)}` : 'finished'
       }
       return reason.startsWith('agent stopped')
         ? 'stopped · its work is in the checkout'

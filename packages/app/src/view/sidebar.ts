@@ -1,4 +1,4 @@
-import { devServerUrl, inboxWaiting } from '@tade/core'
+import { devServerUrl, inboxWaiting, printable } from '@tade/core'
 import { type FileEntry, folderMark } from '../files.ts'
 import type { Change, Frame, ListSectionView, NoteShown } from '../frame.ts'
 import { type Hit, pointingIn, rowHit, sameTarget, type Target } from '../hits.ts'
@@ -505,13 +505,16 @@ function whereRows(
   ) => {
     const r = row().space(3).text(label.padEnd(9), skin.hint)
     const room = Math.max(1, r.width - r.used - 1)
-    return r.text(path ? shortPath(value, room) : tailOf(value, room), paint).build()
+    // A folder, a branch and a link are named by whoever made them, an agent
+    // as often as anybody, so every value here is drawn as text.
+    const said = printable(value)
+    return r.text(path ? shortPath(said, room) : tailOf(said, room), paint).build()
   }
   const rows = [line('repo', where.repo)]
   // The branch is its menu: switch the project's, or rename an agent's.
   const branch: Target = { kind: 'branch' }
   const pointed = sameTarget(row().pointer.hover, branch)
-  const said = where.branch || (agent ? 'named at first change' : 'unknown')
+  const said = printable(where.branch || (agent ? 'named at first change' : 'unknown'))
   const branchLine = row().space(3).text('branch'.padEnd(9), skin.hint)
   const branchRoom = Math.max(1, branchLine.width - branchLine.used - 3)
   branchLine.text(
@@ -530,7 +533,7 @@ function whereRows(
     const lit = sameTarget(row().pointer.hover, target)
     const r = row().space(3).text('about'.padEnd(9), skin.hint)
     r.text(
-      tailOf(`${link.title} ↗`, Math.max(1, r.width - r.used - 1)),
+      tailOf(`${printable(link.title)} ↗`, Math.max(1, r.width - r.used - 1)),
       lit ? skin.link : skin.signal,
     )
     rows.push({ text: r.build().text, hits: [rowHit(0, r.width, target)] })
@@ -554,7 +557,7 @@ function whereRows(
   const hovered = sameTarget(row().pointer.hover, open)
   const first = row().space(3).text('path'.padEnd(9), skin.hint)
   const room = Math.max(8, first.width - first.used - 1)
-  wrapPath(where.shownPath ?? where.path, room).forEach((piece, i) => {
+  wrapPath(printable(where.shownPath ?? where.path), room).forEach((piece, i) => {
     const r = i === 0 ? first : row().space(12)
     r.text(piece, hovered ? skin.link : skin.signal)
     rows.push({ text: r.build().text, hits: [rowHit(0, r.width, open)] })
@@ -598,8 +601,10 @@ function fileRow(
   const mark = entry.folder ? folderMark(entry.path, marks) : (marks[entry.path] ?? null)
   const tone = markTone(mark, skin)
   row.space(3 + entry.depth * 2)
-  if (entry.folder) row.text(`${entry.open ? '▾' : '▸'} ${entry.name}/`, tone ?? skin.busy)
-  else row.text(`  ${entry.name}`, tone ?? (hovered ? skin.you : (t) => t))
+  // A file is called whatever whoever made it called it: drawn as text.
+  const name = printable(entry.name)
+  if (entry.folder) row.text(`${entry.open ? '▾' : '▸'} ${name}/`, tone ?? skin.busy)
+  else row.text(`  ${name}`, tone ?? (hovered ? skin.you : (t) => t))
   row.right((r) => {
     if (hovered) r.icon('≡', menu).space()
     if (mark) r.text(entry.folder ? '•' : mark, tone ?? skin.hint).space()
@@ -686,8 +691,12 @@ function noteRow(
   const menu: Target = { kind: 'menu', subject: { kind: 'note', at: note.at, text: note.text } }
   const pointed = pointingIn(pointer.hover, [target, forget, menu])
   const band: Band | null = pointed ? 'hovered' : null
-  const said = note.text.replace(/\s+/g, ' ').trim()
-  const headline = (note.summary ?? '').replace(/\s+/g, ' ').trim()
+  // Drawn as text, and still found by its own words: the targets above carry
+  // the note as it was kept, because a note is never reworded (`printable`).
+  const said = printable(note.text).replace(/\s+/g, ' ').trim()
+  const headline = printable(note.summary ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
   const inner = new Row(Math.max(0, width - TAB_EDGES), skin, pointer).space()
   // With no headline, where the first line breaks decides what the second one
   // says — so its buttons' room is kept whether they are drawn or not, or
@@ -773,7 +782,7 @@ function changeRow(
     .space(2)
     .text(change.mark, mark)
     .space()
-    .text(shortPath(change.path, room), hovered ? skin.you : (t) => t)
+    .text(shortPath(printable(change.path), room), hovered ? skin.you : (t) => t)
   row.right((r) => {
     if (hovered) r.icon('≡', menu).space()
     if (change.added) r.text(`+${change.added}`, skin.done)

@@ -1,3 +1,4 @@
+import { printable } from '@tade/core'
 import type { Frame, McpState } from '../frame.ts'
 import { pointingIn, sameTarget, type Target } from '../hits.ts'
 import { keyCaps } from '../keys.ts'
@@ -69,9 +70,9 @@ export function toastFor(
         .build(),
       new Row(inner, skin)
         .space()
-        .text(approval.tool, skin.you)
+        .text(printable(approval.tool), skin.you)
         .space(2)
-        .text(approval.summary)
+        .text(printable(approval.summary))
         .build(),
       blank(inner),
       new Row(inner, skin, pointer)

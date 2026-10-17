@@ -1,5 +1,5 @@
 import { sliceByColumn } from '@earendil-works/pi-tui'
-import { type ConflictOn, DONE_RULE_MEANS, type QueueState } from '@tade/core'
+import { type ConflictOn, DONE_RULE_MEANS, printable, type QueueState } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, type Target } from '../hits.ts'
 import {
@@ -99,9 +99,13 @@ function queueLook(
 /**
  * Who asked, then what queued work is waiting for, for the row under its name.
  * Who asked goes first: it is short, and a long reason cut with `…` must not
- * take it with it.
+ * take it with it. As text, because why it is held is anybody's reason.
  */
 function queueSays(pane: AgentPane & { queued: QueuedView }): string {
+  return printable(queueSaid(pane))
+}
+
+function queueSaid(pane: AgentPane & { queued: QueuedView }): string {
   const mark = askedMark(pane.by)
   const from = [...mark].length === 1 ? `${mark} ` : `${mark} · `
   const state = pane.queued.state
@@ -546,7 +550,7 @@ function planBoxes(
 function clashSays(conflicts: readonly ConflictOn[]): string {
   const withs = [...new Set(conflicts.map((one) => one.with.split('/').at(-1) ?? one.with))]
   const files = [...new Set(conflicts.flatMap((one) => one.files))]
-  return `${CLASH.trim()} ${withs.join(', ')} · ${files.join(', ')}`
+  return printable(`${CLASH.trim()} ${withs.join(', ')} · ${files.join(', ')}`)
 }
 
 /** A queued task's state, in a word, for its card. */
@@ -623,7 +627,9 @@ export function renderQueued(
     rows.push(r.build())
   }
   const name = (task: string) => inProject(pane.project, task)
-  const said = (text: string) => shortened(text, Math.max(1, width - 6))
+  // Why it waits and what it will be told name other people's work and quote
+  // whoever queued it, the orchestrator among them: drawn as text.
+  const said = (text: string) => shortened(printable(text), Math.max(1, width - 6))
   switch (queued.state.kind) {
     case 'held': {
       const because = inProject(pane.project, queued.state.because)
@@ -734,7 +740,7 @@ export function renderQueued(
   if (queued.prompt.trim()) {
     rows.push(blank(width))
     line((r) => r.text('WILL BE TOLD', skin.label))
-    const told = wrapWords(queued.prompt.trim(), Math.max(10, width - 6))
+    const told = wrapWords(printable(queued.prompt).trim(), Math.max(10, width - 6))
     for (const text of told.slice(0, 6)) line((r) => r.text('│', skin.chrome).space().text(text))
     if (told.length > 6) line((r) => r.text('│', skin.chrome).space().text('…', skin.hint))
   }
