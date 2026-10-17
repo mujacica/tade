@@ -144,6 +144,9 @@ export const NO_DETAIL: MachineDetail = {
   recordsLooking: false,
   cards: null,
   cardsSaid: null,
+  connect: null,
+  connectSaid: null,
+  connectLooking: false,
 }
 
 /** One line of a machine's conversation with its orchestrator, as text. */

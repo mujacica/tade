@@ -32,7 +32,7 @@ export const INTAKE_SETUP: Readonly<Record<IntakeSource, readonly string[]>> = {
     'Then `tade intake add <id> --project <p> --from <who>` and write the request.',
   ],
   github: [
-    'A credential: `gh auth login`, or $GITHUB_TOKEN with `repo` for a private repository.',
+    'A credential: `gh auth login`, or $GITHUB_TOKEN with `repo` for a private repository — or, read-only and its own budget, a GitHub App made at http://localhost:<port>/connect on this machine (through `ssh -L` from another, or Settings › Remotes there), which also brings the webhook below.',
     'A label on the repository — `tade` is the one Tade suggests — and nothing defaults to it.',
     'surfaces.intake.enabled: true, and surfaces.intake.sources.github.accept: true.',
     'surfaces.intake.sources.github.projects: the Tade projects it may make work in.',
@@ -40,7 +40,7 @@ export const INTAKE_SETUP: Readonly<Record<IntakeSource, readonly string[]>> = {
     'A watch, told the label: Settings › Extensions, or a schedule over intake.github.',
     'Then label an issue. mode is propose, so a task is made and parked for you to approve.',
     'For a workflow rather than one task: template: bug-repro-fix-review, document: report.',
-    `Optional, where this machine has a public name: a repository webhook to https://<name>/hooks/github, content type application/json, the Issues and Issue comments events, and a secret — the same one as $${HOOK_SECRETS.github.env} or extensions.intake.${HOOK_SECRETS.github.key}. A delivery only makes the watch look now, and it polls hourly while deliveries arrive.`,
+    `Optional, where this machine has a public name and no App was made at /connect: a repository webhook to https://<name>/hooks/github, content type application/json, the Issues and Issue comments events, and a secret — the same one as $${HOOK_SECRETS.github.env} or extensions.intake.${HOOK_SECRETS.github.key}. A delivery only makes the watch look now, and it polls hourly while deliveries arrive.`,
   ],
   // Slack's own numbers, read off its documentation on 2026-10-09, because the
   // one that decides whether this is usable is not the one most people quote.

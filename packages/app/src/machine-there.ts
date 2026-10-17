@@ -7,10 +7,12 @@ import {
   type SourceState,
 } from '@tade/core'
 import type { Held } from '@tade/remotes-core'
-import type { EvaluationsAnswer, MachineAnswer, RecordsAnswer } from '@tade/web'
+import type { ConnectAnswer, EvaluationsAnswer, MachineAnswer, RecordsAnswer } from '@tade/web'
 import {
   type CardsThere,
+  type ConnectThere,
   cardsOf,
+  connectOf,
   heldSaid,
   type LookHeld,
   type RecordsThere,
@@ -236,6 +238,8 @@ export interface AboutHeld {
   records?: LookHeld<RecordsAnswer> | null
   /** Its scorecards, asked while /evals is open here on a grouping. */
   cards?: LookHeld<EvaluationsAnswer> | null
+  /** Connecting GitHub there, asked with the records while Settings › Remotes is open here. */
+  connect?: LookHeld<ConnectAnswer> | null
 }
 
 export interface MachineDetail {
@@ -258,6 +262,10 @@ export interface MachineDetail {
   /** Its scorecards when it last said, and why there are none. */
   cards: CardsThere | null
   cardsSaid: string | null
+  /** Connecting GitHub there when it last said, why there is nothing, and whether it is being asked. */
+  connect: ConnectThere | null
+  connectSaid: string | null
+  connectLooking: boolean
 }
 
 /** How long a name may be here; a sentence, a little longer. */
@@ -296,6 +304,9 @@ export function detailIn(
     recordsLooking: about?.records?.busy === true,
     cards: cardsOf(about?.cards),
     cardsSaid: heldSaid(about?.cards),
+    connect: connectOf(about?.connect),
+    connectSaid: heldSaid(about?.connect),
+    connectLooking: about?.connect?.busy === true,
   }
 }
 

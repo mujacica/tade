@@ -8,6 +8,7 @@ import {
   effortsIn,
   type Finished,
   finishedFrom,
+  type HookSource,
   historyFrom,
   pricesFrom,
   type Queued,
@@ -442,6 +443,11 @@ export class Live {
   /** What a watch schedule has done — its newest looks, everything it found, where it looks next. */
   watchedOf(schedule: string): Watched {
     return this.schedules.watchedOf(schedule)
+  }
+
+  /** When a source's delivery last verified here, and when one last did not, from the whole journal. */
+  heardFrom(source: HookSource): { verified: number | null; refused: number | null } {
+    return this.schedules.heardFrom(source)
   }
 
   /** Tasks whose own rule was met at the last look and not yet written down: the window's to write. */

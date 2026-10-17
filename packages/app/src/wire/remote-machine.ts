@@ -1,12 +1,16 @@
 import { mkdir, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { printable, printableLines, remoteDocumentPath } from '@tade/core'
 import type { Remote, RemoteLink } from '@tade/remotes-core'
 import {
   CARDS_MOST,
+  type ConnectAnswer,
+  ConnectAnswerSchema,
   DocumentAnswerSchema,
   type EvaluationsAnswer,
   EvaluationsAnswerSchema,
+  esc,
   MachineAnswerSchema,
   type RecordsAnswer,
   RecordsAnswerSchema,
@@ -45,6 +49,15 @@ import type { AboutHeld } from '../machine-there.ts'
 // is open on a grouping, and every `AGAIN_MS` while it stays open. Both are
 // kept when the page closes or the link goes down, with when they came, so a
 // page opened again says as of when until the next answer.
+//
+// **And how connecting GitHub there stands** (`/api/connect`, REMOTE-TADE
+// §6.4), asked with the records — the same openings, the same Look again — of
+// a machine that said it has a public name, because that is where GitHub can
+// send a browser here back to. A press on one of its steps asks that machine
+// for the one-time word and the form (`connectPress`): this window's browser
+// cannot reach that machine's own `/connect`, whose link ends in a socket no
+// browser opens, so the form goes in a page in this home that posts itself to
+// GitHub, and GitHub sends the browser on to that machine's public name.
 
 /** How long a linked remote goes before what it is, is asked again. */
 export const AGAIN_MS = 60_000
@@ -55,6 +68,7 @@ const DOCUMENT_DOOR = '/api/document'
 const TOOL_DOOR = '/api/tool'
 const RECORDS_DOOR = '/api/records'
 const CARDS_DOOR = '/api/evaluations'
+const CONNECT_DOOR = '/api/connect'
 
 export interface RemoteMachinesDeps {
   home: string
@@ -88,6 +102,7 @@ export class RemoteMachines {
   private readonly kept = new Map<string, Kept>()
   private readonly records = new Map<string, LookKept<RecordsAnswer>>()
   private readonly cards = new Map<string, LookKept<EvaluationsAnswer>>()
+  private readonly connects = new Map<string, LookKept<ConnectAnswer>>()
   /** The remotes whose records this opening of Settings › Remotes has not asked for yet. */
   private readonly recordsOwed = new Set<string>()
   /** What was being looked at on the last beat, so an opening is told from staying open. */
@@ -104,7 +119,8 @@ export class RemoteMachines {
     const about = this.kept.get(name)
     const records = this.records.get(name) ?? null
     const cards = this.cards.get(name) ?? null
-    if (about === undefined && records === null && cards === null) return null
+    const connect = this.connects.get(name) ?? null
+    if (about === undefined && records === null && cards === null && connect === null) return null
     return {
       answer: about?.answer ?? null,
       at: about?.at ?? null,
@@ -112,6 +128,7 @@ export class RemoteMachines {
       said: about?.said ?? null,
       records,
       cards,
+      connect,
     }
   }
 
@@ -157,6 +174,7 @@ export class RemoteMachines {
     const reach = this.deps.reach(name)
     if (reach === null || !reach.live || this.records.get(name)?.busy === true) return
     this.recordsOwed.delete(name)
+    void this.connectLook(name)
     await this.look(name, this.records, async () => {
       const answer = await reach.link.request(name, RECORDS_DOOR, {})
       if (answer.status === 404) {
@@ -170,6 +188,68 @@ export class RemoteMachines {
         ? read.data
         : `${name} said what its records are in a shape this Tade does not read`
     })
+  }
+
+  /** How connecting GitHub there stands, as that machine folds it. Never throws. */
+  private async connectLook(name: string): Promise<void> {
+    const reach = this.deps.reach(name)
+    if (reach === null || !reach.live || this.connects.get(name)?.busy === true) return
+    await this.look(name, this.connects, () => this.askConnect(name, reach.link, {}))
+  }
+
+  /** One owner's ask of `/api/connect`: its answer read for its shape, or why there is none. */
+  private async askConnect(
+    name: string,
+    link: RemoteLink,
+    press: { press?: 'make' | 'install' },
+  ): Promise<ConnectAnswer | string> {
+    const answer = await link.request(name, CONNECT_DOOR, { source: 'github', ...press })
+    if (answer.status === 404) {
+      return `${name} runs a Tade that cannot connect GitHub for another machine yet: update it there`
+    }
+    if (answer.status !== 200) return `${name} answered ${answer.status} when asked about GitHub`
+    const read = ConnectAnswerSchema.safeParse(answer.body)
+    return read.success
+      ? read.data
+      : `${name} said how GitHub is connected there in a shape this Tade does not read`
+  }
+
+  /**
+   * A press on one of connecting GitHub's steps there: what to open here —
+   * GitHub's own address for installing, or a page in this home that posts
+   * the form making the App — once that machine has minted the word for it.
+   * What it answered is held, so the page redraws from it. Throws, in that
+   * machine's words or Tade's, where nothing was made to open.
+   */
+  async connectPress(name: string, press: 'make' | 'install'): Promise<string> {
+    const reach = this.deps.reach(name)
+    if (reach === null || !reach.live) {
+      throw new Error(`${name} is not linked, so GitHub cannot be connected there now`)
+    }
+    const got = await this.askConnect(name, reach.link, { press })
+    if (typeof got === 'string') throw new Error(got)
+    this.connects.set(name, {
+      answer: got,
+      at: this.deps.now(),
+      said: null,
+      busy: false,
+      asked: this.deps.now(),
+    })
+    this.moved++
+    this.deps.draw()
+    const form = got.form
+    if (form === null) throw new Error(printable(got.cannot ?? `${name} made nothing to press`))
+    // Another machine's answer, opened in this machine's browser: GitHub's
+    // own pages and nothing else, whatever it said.
+    const url = new URL(form.url)
+    if (url.protocol !== 'https:' || url.hostname !== 'github.com') {
+      throw new Error(`${name} answered with somewhere other than GitHub to go: not opened`)
+    }
+    if (form.fields === undefined) return url.href
+    const path = connectPagePath(this.deps.home, name)
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, postingPage(name, url.href, form.fields), { mode: 0o600 })
+    return pathToFileURL(path).href
   }
 
   /** Its scorecards over all its work, as it folds them there. Never throws. */
@@ -233,7 +313,12 @@ export class RemoteMachines {
 
   /** A remote no longer in the config: what it said goes with it. */
   forget(name: string): void {
-    const went = [this.kept.delete(name), this.records.delete(name), this.cards.delete(name)]
+    const went = [
+      this.kept.delete(name),
+      this.records.delete(name),
+      this.cards.delete(name),
+      this.connects.delete(name),
+    ]
     this.recordsOwed.delete(name)
     if (went.some(Boolean)) this.moved++
   }
@@ -338,6 +423,44 @@ export class RemoteMachines {
     if (read.data.failed) throw new Error(`${tool} on ${name}: ${said}`)
     return said
   }
+}
+
+/**
+ * Where the page that posts the form making another machine's GitHub App is
+ * written: one per machine, written over by the next press, under the folder
+ * this home keeps that machine's copies in. The name is held to
+ * `remotes.<name>`'s shape again here, so no other path can be made of it.
+ */
+export function connectPagePath(home: string, machine: string): string {
+  if (!/^[a-z0-9][a-z0-9-]{0,23}$/.test(machine)) {
+    throw new Error('a connect page is kept only for a machine named by `remotes.<name>`')
+  }
+  return join(home, 'remotes', machine, 'connect-github.html')
+}
+
+/**
+ * A page that posts one form to GitHub as soon as it opens: making an App is a
+ * press at a page the person is signed in on, so this is that page, here. It
+ * carries the manifest and the one-time word and nothing else — no key, no
+ * session — and is written `0600`, gone over when the next press writes it.
+ */
+export function postingPage(
+  name: string,
+  action: string,
+  fields: Readonly<Record<string, string>>,
+): string {
+  const inputs = Object.entries(fields)
+    .map(([key, value]) => `<input type="hidden" name="${esc(key)}" value="${esc(value)}">`)
+    .join('')
+  return [
+    '<!doctype html><html lang="en"><head><meta charset="utf-8">',
+    '<meta name="referrer" content="no-referrer">',
+    `<title>Making the GitHub App for ${esc(name)}</title></head><body>`,
+    `<p>Taking you to GitHub to make the App for ${esc(name)}…</p>`,
+    `<form id="make" method="post" action="${esc(action)}">${inputs}<button>Go to GitHub</button></form>`,
+    "<script>document.getElementById('make').submit()</script>",
+    '</body></html>',
+  ].join('')
 }
 
 function why(err: unknown): string {

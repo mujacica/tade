@@ -5,6 +5,7 @@ import type { WebAsking } from './asking.ts'
 import type { WebAttaching } from './attached.ts'
 import type { WebCarrying } from './carried.ts'
 import type { WebConfiguring } from './configuring.ts'
+import type { WebConnecting } from './connected.ts'
 import type { WebDocument } from './document.ts'
 import type { WebDrafting } from './drafting.ts'
 import type { WebHooks } from './hooked.ts'
@@ -273,6 +274,12 @@ export interface ServerOptions {
    * waking them. Absent, every delivery is the `404` of a path nobody wired.
    */
   hooks?: WebHooks
+  /**
+   * What connecting a source is (`connected.ts`): each source's page as it
+   * stands, the forge's form, and keeping what the source hands back. Absent,
+   * every connect route is the `404` of a path nobody wired.
+   */
+  connecting?: WebConnecting
   /** The tickets the pairing panel minted. */
   tickets: Tickets
   /**

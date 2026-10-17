@@ -53,7 +53,10 @@ import {
 //
 // A webhook delivery (`HOOKS`) is asked the first and no other, and only on
 // the public listener: it is a source's server and not a browser, and its
-// signature is what `hooked.ts` checks.
+// signature is what `hooked.ts` checks. The pages that connect a source
+// (`CONNECTS`) are asked the first three and the fourth, and no session: on
+// this machine's own door that door is what a session would prove, and where
+// a source sends the browser back the one-time word is (`connected.ts`).
 //
 // All of them, because each fails differently and the cost of all of them is
 // this file. And **nothing here reads a forwarded header** (`NEVER_TRUSTED`,
@@ -321,6 +324,7 @@ export function allowed(asking: Asking, route: Route, guarding: Guarding): Verdi
     }
     return { ok: true, device: '', scopes: [], origin }
   }
+  if (route.connects !== undefined) return connecting(asking, route, origin)
 
   // **Not on a document navigation**, and this is the correction somebody will
   // otherwise make twice. A person who scans the pairing code is a *typed URL*,
@@ -412,6 +416,36 @@ export function allowed(asking: Asking, route: Route, guarding: Guarding): Verdi
   }
 
   return { ok: true, device: session.device, scopes: session.scopes, origin }
+}
+
+/**
+ * A connect page, a press on it, or a source sending the browser back.
+ *
+ * **No session, and every cross-site layer that can apply.** The page and its
+ * presses were already held to this machine's own door above (`here`), which
+ * from anywhere else is a person over SSH — what a session would prove — so
+ * what is left is that no *page* can drive them from a browser here: a press
+ * is a mutation, so its `Origin` must be this one exactly, its body JSON, and
+ * its `Sec-Fetch-Site` same-origin where sent. The page itself and a callback
+ * are top-level navigations — typed, or GitHub's redirect — so they are asked
+ * nothing more, as the shell is not; a callback is answered only for the
+ * one-time word a press minted for that very host, which `connected.ts` asks.
+ */
+function connecting(asking: Asking, route: Route, origin: Origin): Verdict {
+  if (route.connects === 'press') {
+    if (asking.site !== null && asking.site !== '' && asking.site !== 'same-origin') {
+      return no('bad_origin', `Sec-Fetch-Site said ${quoted(asking.site)}`)
+    }
+    if (asking.origin === null) return no('bad_origin', 'a press with no Origin header')
+    const host = hostOf(asking.host ?? '') ?? ''
+    if (!originMatches(asking.origin, asking.host ?? '', [asking.tls ? 'https' : 'http'])) {
+      return no('bad_origin', `origin offered: ${quoted(asking.origin)} for ${quoted(host)}`)
+    }
+    if (!isJson(asking.contentType)) {
+      return no('bad_origin', `content type offered: ${quoted(asking.contentType)}`)
+    }
+  }
+  return { ok: true, device: '', scopes: [], origin }
 }
 
 function no(error: ErrorKind, why: string): Verdict {

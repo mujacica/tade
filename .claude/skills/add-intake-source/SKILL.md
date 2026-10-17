@@ -31,6 +31,8 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
 | `packages/core/src/hooks.ts` | the doorbell: `HOOK_SOURCES`, `HOOK_SECRETS`, `HookAddress`, `WatchDoorbell`/`doorbellRings`, the `hook_rung` line (`HookRung`, `rungFrom`), and the hourly poll (`Bell`, `bellStands`, `bellWhen`, `bellDue`, `bellSaid`) |
 | `packages/web/src/hooks.ts` · `hooked.ts` | each source's signature over the raw body and its window, the address (`checkDelivery`); the door's order — rate, cap, signature, ring, `200`, wake (`HookDoor`) |
 | `packages/app/src/wire/doorbell.ts` | the window's half: the secret, which schedules a delivery is for (`doorbellFor`), waking them (`Schedules.wake`) |
+| `packages/core/src/connect.ts` · `forge-apps.ts` | connecting a source step by step: `CONNECT_SOURCES`, `githubPage` (a fold over `GithubLook`), `CONNECT_IS_HERE`; where a GitHub App's keys are kept (`GITHUB_APP`, `appsKept`) |
+| `packages/web/src/connected.ts` · `connect-page.ts` · `packages/app/src/wire/web-connect.ts` | the pages, the presses and the one-time words; their HTML; the window's half, which asks the forge and keeps what it hands back through `writeKey` |
 | `packages/extensions/intake/src/slack*.ts` | the Slack door: the four methods it needs (`slack-api.ts`), the pure half that reads a message as an envelope (`slack-message.ts`), and the watch |
 | `test/fixtures/slack/` | a Slack that answers from a file: `auth.test`, cursors, `has_more`, a 429 with a `Retry-After`, an edit, a deletion, metadata, a reaction already there |
 | `packages/forges/core/src/tickets.ts` | the things people *file*: `Ticket`, `Labelling`, `TicketQuery`, `capabilities.tickets` |
@@ -385,6 +387,28 @@ rather than a caution:
 - **Slack's thread blindness is not fixed by this.** The Slack watch still reads `conversations.history`;
   an `app_mention` inside a thread wakes a look that cannot see it. Reading the thread it names is
   V15's, with the Events API's own address.
+
+## Connecting a source, step by step
+
+Where a source needs an app of the person's own, the guided page makes it (REMOTE-TADE §6.4) —
+`/connect` on this machine, or Settings › Remotes for another one — and **connecting grants nobody
+anything**: it lets the forge read as the app and makes the doorbell ring, and `accept`, `from`,
+`reply` and `names` stay the person's to write, as before.
+
+- **A page is a fold over a look** (`githubPage`): what is kept in the config, what the source says
+  when asked, what the journal heard. A step is done when what it is for is true now, so an App
+  deleted on GitHub reads as not installed, and a hook that stopped arriving reads as quiet. One
+  line a step and at most one press, and the making step says **what it will ask for and why**
+  before the press — the forge's own words (`AppForm.asks`).
+- **Everything about the source is asked of the forge** (`capabilities.apps`): the manifest, the
+  code's exchange, where the App is installed. No second HTTP client.
+- **What comes back is written through the one write path** (`writeKey`, `by: connect github`),
+  the private key `0600` because the file is: the old id taken away first and the new one written
+  last, so a window that dies halfway keeps no old id beside a new key. What the source hands over
+  and Tade does not use (an OAuth client's id and secret) is not kept.
+- **GitHub's App is read-only for good**, made with the webhook and its events only where a public
+  name gives it an address; without one it is made with none and its watches poll. Slack (V15) and
+  Linear (V16) join `CONNECT_SOURCES` when they are built, never before.
 
 ## What not to build
 

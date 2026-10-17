@@ -5,6 +5,7 @@ import { carryOut, type Did } from './acted.ts'
 import { carryAsk } from './asked.ts'
 import { assetsDir, readAssets } from './assets.ts'
 import { carryChange } from './configured.ts'
+import { ConnectStates, carryConnect, connectHere } from './connected.ts'
 import { appendDevice, type Device, listing, readDevices } from './devices.ts'
 import { carrySave } from './drafted.ts'
 import { bodyOf, type Refusal, refuse } from './errors.ts'
@@ -147,6 +148,8 @@ export function webServer(opts: ServerOptions): WebServer {
   const refusals = new Window(REFUSALS_BEFORE_SAYING, REFUSAL_WINDOW_MS)
   const passkeys = new Passkeys({ home: opts.home, surface: opts.surface, now, tell })
   const hooks = new HookDoor({ hooks: opts.hooks, now, tell, answer, json })
+  // The one-time words a connect press mints, in this window's memory alone.
+  const states = new ConnectStates()
 
   async function handle(req: IncomingMessage, res: Res, listener: Listener): Promise<void> {
     const request = randomUUID()
@@ -200,7 +203,10 @@ export function webServer(opts: ServerOptions): WebServer {
     // anybody who can reach the port may ask for, repeatedly, with no
     // credential.
     const host = asking.host === null ? null : hostOf(asking.host)
-    const devices = found.route.public === true ? NO_DEVICES : await readDevices(opts.home)
+    const devices =
+      found.route.public === true || found.route.connects !== undefined
+        ? NO_DEVICES
+        : await readDevices(opts.home)
     saidSkipped(devices.skipped)
     const guarding: Guarding = {
       surface: opts.surface,
@@ -255,6 +261,17 @@ export function webServer(opts: ServerOptions): WebServer {
 
     // A webhook delivery: its own door, and nothing after the guard is asked of it.
     if (found.route.rings !== undefined) return hooks.ring(found.route.rings, req, res)
+    // A connect page, a press, or a source sending the browser back: no session.
+    if (found.route.connects !== undefined) {
+      return carryConnect(
+        found.route,
+        req,
+        res,
+        connectAt(asking.host ?? ''),
+        (body, status) => json(res, body, status),
+        (refusal) => answer(res, refusal),
+      )
+    }
     // **The one public answer that is made rather than read**: the file in the
     // folder with a line of JSON in front of it. `asset` would answer it a
     // `404`, which is deliberate — `/assets/sw.js` is not a thing to register.
@@ -353,6 +370,10 @@ export function webServer(opts: ServerOptions): WebServer {
         )
       case 'sign out':
         return signOut(res, verdict.origin, device, found.params.id ?? '')
+      case 'connect': {
+        const said = await connectHere(req, device, connectAt(asking.host ?? ''))
+        return 'refusal' in said ? answer(res, said.refusal) : json(res, said.body)
+      }
       case 'passkey challenge':
       case 'passkey answer': {
         const said = await passkeys.carry(found.route.name, at, device, asking.origin ?? '')
@@ -622,6 +643,17 @@ export function webServer(opts: ServerOptions): WebServer {
     }
   }
 
+  /** What a connect route is answered with: the half, the words, and where this request came in. */
+  function connectAt(host: string) {
+    return {
+      connecting: opts.connecting,
+      states,
+      publicName: opts.surface.publicName,
+      host,
+      now: now(),
+    }
+  }
+
   /** Signing out: this device's own credential, and only its own. */
   async function signOut(
     res: ServerResponse,
@@ -753,6 +785,7 @@ export function webServer(opts: ServerOptions): WebServer {
       unwatch = () => {}
       opts.tickets.clear()
       passkeys.clear()
+      states.clear()
       // Every open stream is told why before the listener goes, which is the
       // difference between a page that says *Tade is closing* and one that
       // says nothing and reconnects for the rest of the afternoon. Nothing is

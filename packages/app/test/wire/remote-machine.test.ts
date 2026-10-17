@@ -1,6 +1,7 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   ConfigSchema,
   evaluationsFrom,
@@ -10,12 +11,12 @@ import {
 } from '@tade/core'
 import { type FarEnd, startFarEnd } from '@tade/remotes-core/far'
 import { makeScriptedLink, type ScriptedRemote } from '@tade/remotes-scripted'
-import type { IntakeIn, MachineAnswer, RecordsAnswer } from '@tade/web'
+import type { IntakeIn, MachineAnswer, RecordsAnswer, WebConnecting } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import { evaluationsPanel } from '../../src/panels/evaluations/state.ts'
 import type { RequestTherePanel } from '../../src/panels/intake/there.ts'
 import { settingsPanel } from '../../src/panels/settings/state.ts'
-import { RemoteMachines } from '../../src/wire/remote-machine.ts'
+import { connectPagePath, RemoteMachines } from '../../src/wire/remote-machine.ts'
 import { lookingAt, Remotes } from '../../src/wire/remotes.ts'
 
 // What another machine says it is, asked as its owner over the link the window
@@ -72,8 +73,9 @@ const MACHINE: MachineAnswer = {
 async function linked(
   /** What somebody here is looking at: changed by a test as a person would open a page. */
   looking = { records: false, scorecards: false },
+  there: { publicName?: string } = {},
 ) {
-  const far = await startFarEnd({ projects: ['far'] })
+  const far = await startFarEnd({ projects: ['far'], ...there })
   made.fars.push(far)
   far.machine = MACHINE
   const home = await mkdtemp(join(tmpdir(), 'tade-remote-machine-'))
@@ -95,6 +97,7 @@ async function linked(
   const opened: string[] = []
   const said: string[] = []
   const shown: RequestTherePanel[] = []
+  const links: string[] = []
   const remotes = new Remotes({
     home,
     remotes: () => config.remotes,
@@ -105,6 +108,9 @@ async function linked(
     say: (line) => said.push(line),
     open: (path) => opened.push(path),
     show: (panel) => shown.push(panel),
+    openLink: async (url) => {
+      links.push(url)
+    },
     links: { ssh: (options) => makeScriptedLink({ ...options, remotes: table }) },
     here: 'this Mac',
     go: () => {},
@@ -146,7 +152,7 @@ async function linked(
       await new Promise((done) => setTimeout(done, 25))
     }
   }
-  return { far, home, remotes, until, beats, vpsNow, opened, said, shown }
+  return { far, home, remotes, until, beats, vpsNow, opened, said, shown, links }
 }
 
 describe('what another machine says it is', () => {
@@ -443,5 +449,129 @@ describe('what is asked of another machine only while somebody here looks', () =
     await remotes.actions()['remote-request:']?.('vps github:999')
     expect(said).toContain('vps no longer lists that request')
     expect(shown).toHaveLength(1)
+  })
+})
+
+describe('connecting GitHub on another machine', () => {
+  /** What that machine's window knows of GitHub: one App made, nothing installed. */
+  const github = (form: { url: string; fields?: Record<string, string> }): WebConnecting => ({
+    page: async () => ({
+      page: {
+        source: 'github',
+        title: 'GitHub',
+        steps: [
+          {
+            id: 'make',
+            title: 'Make a GitHub App',
+            done: true,
+            said: 'kept here: GitHub App tade-vps\u001b',
+            press: { act: 'make', label: 'Make another' },
+          },
+          {
+            id: 'install',
+            title: 'Install it on your repositories',
+            done: false,
+            said: 'installed nowhere yet',
+            press: { act: 'install', label: 'Install it on GitHub' },
+          },
+          { id: 'deliveries', title: 'Deliveries arrive', done: false, said: 'waiting' },
+        ],
+      },
+      asks: [{ what: 'Issues: read', why: 'to read a labelled issue' }],
+      events: ['issues'],
+    }),
+    form: (_source, want) => ({ ...form, url: form.url.replace('STATE', want.state) }),
+    installUrl: (_source, state) =>
+      form.fields === undefined ? form.url.replace('STATE', state) : null,
+    made: async () => ({ name: 'tade-vps' }),
+    installed: () => {},
+  })
+  const MAKE = {
+    url: 'https://github.com/settings/apps/new?state=STATE',
+    fields: { manifest: '{"name":"Tade \\"vps\\"","url":"https://tade.example.com"}' },
+  }
+
+  it('is asked with its records as Settings › Remotes opens, and drawn as that machine says each step', async () => {
+    const looking = { records: false, scorecards: false }
+    const { far, until, vpsNow } = await linked(looking)
+    far.connecting = github(MAKE)
+    await until('vps said what it is', () => vpsNow()?.detail.about !== null)
+    expect(vpsNow()?.detail.connect).toBeNull()
+    looking.records = true
+    await until('how GitHub stands there', () => vpsNow()?.detail.connect !== null)
+    const steps = vpsNow()?.detail.connect?.steps ?? []
+    expect(steps.map((one) => [one.title, one.done, one.press?.act ?? null])).toEqual([
+      ['Make a GitHub App', true, 'make'],
+      ['Install it on your repositories', false, 'install'],
+      ['Deliveries arrive', false, null],
+    ])
+    // Another machine's words, as text.
+    expect(steps[0]?.said).toBe('kept here: GitHub App tade-vps␛')
+  })
+
+  it('opens GitHub here on a press, through a page in this home that posts the form that machine made', async () => {
+    const { far, remotes, until, vpsNow, links, said, home } = await linked(
+      { records: false, scorecards: false },
+      { publicName: 'tade.example.com' },
+    )
+    far.connecting = github(MAKE)
+    await until('vps said what it is', () => vpsNow()?.detail.about !== null)
+    await remotes.action('remote:connect:vps:make')
+    expect(links).toHaveLength(1)
+    const page = fileURLToPath(links[0] ?? '')
+    expect(page).toBe(connectPagePath(home, 'vps'))
+    expect((await stat(page)).mode & 0o777).toBe(0o600)
+    const html = await readFile(page, 'utf8')
+    expect(html).toMatch(/action="https:\/\/github\.com\/settings\/apps\/new\?state=[\w-]{32}"/)
+    // The manifest goes as GitHub reads it, and as nothing a page could run.
+    expect(html).toContain('value="{&quot;name&quot;:&quot;Tade \\&quot;vps\\&quot;&quot;')
+    expect(said.at(-1)).toContain('GitHub opens in your browser to make the App for vps')
+    // What that machine said came back is held, so the page redraws from it.
+    expect(vpsNow()?.detail.connect?.steps[0]?.done).toBe(true)
+  })
+
+  it('opens GitHub’s install page itself, with nothing written here', async () => {
+    const { far, remotes, until, vpsNow, links, home } = await linked(
+      { records: false, scorecards: false },
+      { publicName: 'tade.example.com' },
+    )
+    far.connecting = github({
+      url: 'https://github.com/apps/tade-vps/installations/new?state=STATE',
+    })
+    await until('vps said what it is', () => vpsNow()?.detail.about !== null)
+    await remotes.action('remote:connect:vps:install')
+    expect(links[0]).toMatch(/^https:\/\/github\.com\/apps\/tade-vps\/installations\/new\?state=/)
+    await expect(stat(join(home, 'remotes', 'vps', 'connect-github.html'))).rejects.toThrow()
+  })
+
+  it('says why where that machine has no public name for GitHub to send a browser back to', async () => {
+    const { far, remotes, until, vpsNow, links, said } = await linked()
+    far.connecting = github(MAKE)
+    await until('vps said what it is', () => vpsNow()?.detail.about !== null)
+    await remotes.action('remote:connect:vps:make')
+    expect(links).toEqual([])
+    expect(said.at(-1)).toContain('no public name')
+  })
+
+  it('opens nothing that is not GitHub, whatever that machine answered', async () => {
+    const { far, remotes, until, vpsNow, links, said } = await linked(
+      { records: false, scorecards: false },
+      { publicName: 'tade.example.com' },
+    )
+    far.connecting = github({
+      url: 'https://evil.example/?state=STATE',
+      fields: { manifest: '{}' },
+    })
+    await until('vps said what it is', () => vpsNow()?.detail.about !== null)
+    await remotes.action('remote:connect:vps:make')
+    expect(links).toEqual([])
+    expect(said.at(-1)).toContain('somewhere other than GitHub')
+  })
+
+  it('keeps a page for a machine only under a name `remotes.<name>` can be', () => {
+    expect(() => connectPagePath('/home', '../x')).toThrow()
+    expect(connectPagePath('/home', 'vps')).toBe(
+      join('/home', 'remotes', 'vps', 'connect-github.html'),
+    )
   })
 })

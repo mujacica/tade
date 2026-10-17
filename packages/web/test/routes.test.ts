@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ACTS,
   ASKS,
+  CONNECTS,
   DRAFTS,
   HOOKS,
   LIFECYCLE,
@@ -162,8 +163,9 @@ describe('the five tables a setting turns on', () => {
 
   it('serves none of them with every setting off', () => {
     // The owner's table is not one of them: no setting turns it on, because
-    // the SSH key it stands for already reaches everything it does.
-    expect(routesFor(OFF)).toEqual([...ROUTES, ...OWNED])
+    // the SSH key it stands for already reaches everything it does. Nor is
+    // the connect table, which answers only this machine and a callback's word.
+    expect(routesFor(OFF)).toEqual([...ROUTES, ...OWNED, ...CONNECTS])
   })
 
   it('serves each of them only where its own setting is on', () => {
@@ -193,6 +195,7 @@ describe('the five tables a setting turns on', () => {
       ...ROUTES.map((route) => route.path),
       '/api/settings/change',
       ...OWNED.map((route) => route.path),
+      ...CONNECTS.map((route) => route.path),
     ])
     expect(
       on({ acting: true, talking: true, drafting: true, pushing: true, installing: true }),
@@ -354,7 +357,7 @@ describe('the doorbells', () => {
 })
 
 describe('the owner’s table', () => {
-  it('is eleven routes, at this machine’s own door only, and none of the five jobs', () => {
+  it('is twelve routes, at this machine’s own door only, and none of the five jobs', () => {
     // The one route that can write a key (`carried.ts`), and the exception to
     // "no route reaches a credential" above; the one answer that is a way
     // into a lane (`attached.ts`), which every row a phone reads promises
@@ -367,7 +370,8 @@ describe('the owner’s table', () => {
     // public name's records, looked at now, which asks the world (`records.ts`);
     // and work another machine hands this one, the one route that makes work
     // (`taken.ts`); and a project it moves here, cloned and opened
-    // (`opened.ts`) — named
+    // (`opened.ts`); and a source's guided page and a press on it, for a
+    // browser that cannot reach this machine's own door (`connected.ts`) — named
     // here, by path, so another cannot join them without this line changing.
     // What keeps them no wider than what already was is who may use them: an
     // owner, which is the SSH key, on the one door that key reaches; each
@@ -387,6 +391,7 @@ describe('the owner’s table', () => {
       'POST /api/records',
       'POST /api/take',
       'POST /api/open',
+      'POST /api/connect',
     ])
     for (const route of OWNED) {
       expect(route.here, route.path).toBe(true)
@@ -397,6 +402,54 @@ describe('the owner’s table', () => {
         jobs.filter((one) => one !== undefined),
         route.path,
       ).toEqual([])
+    }
+  })
+})
+
+describe('the connect pages', () => {
+  // REMOTE-TADE §6.4: turning a source on is the person's, so the page and its
+  // presses are this machine's alone, and where GitHub sends the browser back
+  // is answered only for a word one of those presses minted (`connected.ts`).
+  it('is a page, two presses and two callbacks a source, under /connect and never /api', () => {
+    expect(CONNECTS.map((route) => `${route.method} ${route.path}`)).toEqual([
+      'GET /connect',
+      'POST /connect/github/make',
+      'POST /connect/github/install',
+      'GET /connect/github/made',
+      'GET /connect/github/installed',
+    ])
+  })
+
+  it('answers the page and its presses on this machine alone, and the callbacks on any door', () => {
+    for (const route of CONNECTS) {
+      expect(route.needs, route.path).toBe('read')
+      expect(route.public, route.path).toBeUndefined()
+      expect(route.opens, route.path).toBeUndefined()
+      expect(route.rings, route.path).toBeUndefined()
+      const jobs = [route.verb, route.says, route.saves, route.notifies, route.configures]
+      expect(
+        jobs.filter((one) => one !== undefined),
+        route.path,
+      ).toEqual([])
+      if (route.connects === 'back') {
+        expect(route.method, route.path).toBe('GET')
+        expect(route.here, route.path).toBeUndefined()
+      } else {
+        expect(route.here, route.path).toBe(true)
+        expect(route.mutates, route.path).toBe(route.connects === 'press')
+      }
+    }
+    // And no other table has a route that connects anything.
+    for (const route of [
+      ...ROUTES,
+      ...ACTS,
+      ...ASKS,
+      ...DRAFTS,
+      ...PUSHES,
+      ...SETTINGS,
+      ...OWNED,
+    ]) {
+      expect(route.connects, route.path).toBeUndefined()
     }
   })
 })

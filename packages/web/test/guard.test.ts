@@ -18,7 +18,7 @@ import {
 } from '../src/guard.ts'
 import { NEVER_TRUSTED } from '../src/headers.ts'
 import type { Route } from '../src/routes.ts'
-import { ACTS, HOOKS, ROUTES } from '../src/routes.ts'
+import { ACTS, CONNECTS, HOOKS, ROUTES } from '../src/routes.ts'
 import { type Surface, thisMachine } from '../src/surface.ts'
 
 // What has to be true before a route runs, asked as the cross-product rather
@@ -638,8 +638,8 @@ describe('this machine is the loopback listener and a loopback Host, both', () =
 
 describe('a route for this machine alone', () => {
   // `presence` is one (`presence.test.ts` sends it), and the pages that
-  // connect a source will be, which must answer only through SSH (REMOTE-TADE
-  // §6.4). So this is the shell, marked, as the shape every one of them has.
+  // connect a source are (REMOTE-TADE §6.4, below). So this is the shell,
+  // marked, as the shape every one of them has.
   const SETUP: Route = { ...SHELL, name: 'setup', path: '/setup', here: true }
   const MINE = guarding({ bound: ['127.0.0.1', '::1'] })
 
@@ -660,6 +660,87 @@ describe('a route for this machine alone', () => {
     }
     // This machine's own names on a public listener never get as far as asking.
     expect(allowed(asking({ host: 'localhost', listener: 'public' }), SETUP, MINE).ok).toBe(false)
+  })
+})
+
+describe('the pages that connect a source', () => {
+  // REMOTE-TADE §6.4: the page and its presses are this machine's alone and
+  // ask no session — reaching that door is what a session would prove — and a
+  // press is asked every cross-site layer a mutation is; where GitHub sends
+  // the browser back is answered on any door, for the word `connected.ts` asks.
+  const by = (name: string) => CONNECTS.find((one) => one.name === name) as Route
+  const PAGE = by('connect page')
+  const PRESS = by('connect github make')
+  const BACK = by('connect github made')
+  const MINE = guarding({ bound: ['127.0.0.1', '::1'], session: null })
+  const NAME = 'tade.example.com'
+  const PUBLIC = guarding({ surface: { ...LAN, trustedHosts: [NAME] }, session: null })
+  const press = (over: Partial<Asking> = {}): Asking =>
+    asking({
+      method: 'POST',
+      path: '/connect/github/make',
+      host: 'localhost:7654',
+      origin: 'http://localhost:7654',
+      contentType: 'application/json',
+      cookie: null,
+      listener: 'loopback',
+      ...over,
+    })
+
+  it('answers the page and a press on this machine with no session at all', () => {
+    expect(
+      allowed(
+        asking({ host: 'localhost:7654', listener: 'loopback', site: 'none', cookie: null }),
+        PAGE,
+        MINE,
+      ),
+    ).toMatchObject({ ok: true, device: '' })
+    expect(allowed(press(), PRESS, MINE)).toMatchObject({ ok: true, device: '' })
+  })
+
+  it('is the 404 of a path nobody built anywhere but this machine, a phone’s session or not', () => {
+    for (const [host, listener, at] of [
+      [NAME, 'public', PUBLIC],
+      ['192.168.1.10:7654', 'public', guarding()],
+      ['studio.yak-bebop.ts.net', 'loopback', guarding()],
+    ] as const) {
+      for (const route of [PAGE, PRESS]) {
+        const verdict = allowed(press({ host, listener, origin: `https://${host}` }), route, at)
+        expect(verdict.ok, `${route.name} at ${host}`).toBe(false)
+        if (!verdict.ok) expect(verdict.refusal.error, `${route.name} at ${host}`).toBe('no_such')
+      }
+    }
+  })
+
+  it('refuses a press from any other page: no Origin, another one, a form, a cross-site fetch', () => {
+    for (const over of [
+      { origin: null },
+      { origin: 'http://localhost:7655' },
+      { origin: 'https://localhost:7654' },
+      { origin: 'https://evil.example' },
+      { contentType: 'application/x-www-form-urlencoded' },
+      { contentType: 'text/plain' },
+      { site: 'cross-site' },
+      { site: 'same-site' },
+    ]) {
+      const verdict = allowed(press(over), PRESS, MINE)
+      expect(verdict.ok, JSON.stringify(over)).toBe(false)
+      if (!verdict.ok) expect(verdict.refusal.error, JSON.stringify(over)).toBe('bad_origin')
+    }
+  })
+
+  it('lets GitHub’s redirect back in on the public name and on this machine, and asks it nothing more', () => {
+    const redirect = { method: 'GET', origin: null, site: 'cross-site', cookie: null }
+    expect(allowed(asking({ ...redirect, host: NAME }), BACK, PUBLIC)).toMatchObject({ ok: true })
+    expect(
+      allowed(asking({ ...redirect, host: 'localhost:7654', listener: 'loopback' }), BACK, MINE),
+    ).toMatchObject({ ok: true })
+  })
+
+  it('still asks every callback the Host allow-list', () => {
+    for (const host of ['evil.example', 'localhost']) {
+      expect(allowed(asking({ host, cookie: null }), BACK, PUBLIC).ok, host).toBe(false)
+    }
   })
 })
 

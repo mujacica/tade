@@ -328,6 +328,32 @@ function vpsShown(): RemoteShown {
           ],
           cannot: null,
         },
+        // Connecting GitHub there, asked with the records: made, installed
+        // nowhere yet, and the press under the step that is next.
+        connect: {
+          at: NOW - 20_000,
+          steps: [
+            {
+              title: 'Make a GitHub App',
+              done: true,
+              said: 'kept here: GitHub App tade-vps, which may read and never write',
+              press: { act: 'make', label: 'Make another' },
+            },
+            {
+              title: 'Install it on your repositories',
+              done: false,
+              said: 'installed nowhere yet: pick which repositories it may read',
+              press: { act: 'install', label: 'Install it on GitHub' },
+            },
+            {
+              title: 'Deliveries arrive',
+              done: false,
+              said: 'waiting for the first: GitHub delivers to https://tade.example.com/hooks/github, and the watches poll hourly once one arrives',
+              press: null,
+            },
+          ],
+          cannot: null,
+        },
         about: {
           at: NOW - 60_000,
           roundTrip: 41,
@@ -428,7 +454,8 @@ export const SETTINGS_SCREENS: Scenario[] = [
       'Another machine of yours on Settings › Remotes: how it stands as a machine — heard from ' +
       'and what asking it costs there and back, the Tade it runs, its public name and its ' +
       'certificate, the records that name needs as its own look found them when this page ' +
-      'opened, its own problems and warnings, its watches with their last looks — above what ' +
+      'opened, how connecting GitHub there stands step by step with the press each next step ' +
+      'offers, its own problems and warnings, its watches with their last looks — above what ' +
       'was carried there and each harness’s sign-in.',
     state: { ...base(), panel: { ...settingsPanel('remotes'), row: 0 } },
     frame: frame({

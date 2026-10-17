@@ -1,4 +1,4 @@
-import { HOOK_SOURCES, type HookSource } from '@tade/core'
+import { CONNECT_SOURCES, type ConnectSource, HOOK_SOURCES, type HookSource } from '@tade/core'
 import { SAYINGS } from './asked.ts'
 import { CHANGES } from './configured.ts'
 import { SAVINGS } from './drafted.ts'
@@ -140,11 +140,22 @@ export interface Route {
    *
    * `presence` is the first: an owner's link saying the person is at another
    * of their screens, which an owner session could only ever say through here.
-   * The pages that connect a source (REMOTE-TADE §6.4) will be the next, so
-   * that a page like that is one word in its route rather than a rule
-   * somebody remembers.
+   * The guided page that connects a source and its presses (`CONNECTS`) are
+   * the others, so that a page like that is one word in its route rather than
+   * a rule somebody remembers.
    */
   here?: true
+  /**
+   * What this route is in connecting a source (REMOTE-TADE §6.4,
+   * `connected.ts`), where it is one of `CONNECTS`: the guided `page`, one
+   * `press` on it — each answered on this machine alone and with no session,
+   * because reaching that door is what a session would prove — or where the
+   * source sends the browser `back`, answered on any door and only for the
+   * one-time word a press minted.
+   */
+  connects?: 'page' | 'press' | 'back'
+  /** The source a press or a callback is about, carried for the reason `rings` is. */
+  source?: ConnectSource
   /**
    * Whether this path is answered with the shell.
    *
@@ -202,7 +213,6 @@ export const ROUTES: readonly Route[] = [
   shellAt('/workflows', 'workflows page'),
   shellAt('/w/:name', 'workflow page'),
   shellAt('/checks', 'checks page'),
-  shellAt('/land', 'landing desk page'),
   shellAt('/evals', 'evaluations page'),
   shellAt('/reviews', 'reviews page'),
   shellAt('/spend', 'spend page'),
@@ -582,6 +592,89 @@ export const OWNED: readonly Route[] = [
   // yet, and opened through the window's own door — what `ssh` here and
   // `git clone` already allow the same key.
   { method: 'POST', path: '/api/open', name: 'open', needs: 'read', mutates: true, here: true },
+  // A source's guided page as it stands, and one press on it (`connected.ts`):
+  // for another machine of the person's whose browser cannot reach this one's
+  // own `/connect`, because its link ends in a socket no browser opens. What
+  // the SSH key could already do here: edit `config.yaml`.
+  {
+    method: 'POST',
+    path: '/api/connect',
+    name: 'connect',
+    needs: 'read',
+    mutates: true,
+    here: true,
+  },
+]
+
+/**
+ * The guided pages that connect a source (REMOTE-TADE §6.4, `connected.ts`):
+ * the page, a press per thing it does — making the app, installing it — and
+ * where the source sends the browser back after each, a path apiece and the
+ * table is `CONNECT_SOURCES`.
+ *
+ * A table of its own because none of them is anything a device asks: the page
+ * and its presses are this machine's alone (`here`) and ask no session, since
+ * turning a source on is `never`-tier and reaching that door is the person;
+ * the two callbacks are on whichever door the source was told to send the
+ * browser to — the public name, or this machine's own where it has none — and
+ * are answered only for a one-time word a press here minted, for that host.
+ * None of them grants anything: connecting makes the forge read as the app and
+ * the doorbell ring, and whose words count stay three acts in Settings ›
+ * Intake. Built always, and answered only where the window wired the half
+ * that knows the sources; anywhere else the `404` of a path nobody built.
+ *
+ * `/connect/...` and not `/api/...`, which is the page's.
+ */
+export const CONNECTS: readonly Route[] = [
+  {
+    method: 'GET',
+    path: '/connect',
+    name: 'connect page',
+    needs: 'read',
+    mutates: false,
+    here: true,
+    connects: 'page',
+  },
+  ...CONNECT_SOURCES.flatMap((source): Route[] => [
+    {
+      method: 'POST',
+      path: `/connect/${source}/make`,
+      name: `connect ${source} make`,
+      needs: 'read',
+      mutates: true,
+      here: true,
+      connects: 'press',
+      source,
+    },
+    {
+      method: 'POST',
+      path: `/connect/${source}/install`,
+      name: `connect ${source} install`,
+      needs: 'read',
+      mutates: true,
+      here: true,
+      connects: 'press',
+      source,
+    },
+    {
+      method: 'GET',
+      path: `/connect/${source}/made`,
+      name: `connect ${source} made`,
+      needs: 'read',
+      mutates: false,
+      connects: 'back',
+      source,
+    },
+    {
+      method: 'GET',
+      path: `/connect/${source}/installed`,
+      name: `connect ${source} installed`,
+      needs: 'read',
+      mutates: false,
+      connects: 'back',
+      source,
+    },
+  ]),
 ]
 
 /**
@@ -630,6 +723,7 @@ export function routesFor(surface: Surface): readonly Route[] {
     ...(surface.pushing ? PUSHES : []),
     ...(surface.configuring ? SETTINGS : []),
     ...OWNED,
+    ...CONNECTS,
     ...(surface.publicName === null ? [] : HOOKS),
   ]
 }

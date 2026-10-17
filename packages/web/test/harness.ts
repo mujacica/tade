@@ -219,6 +219,8 @@ export async function start(
     owned?: Pick<ServerOptions, 'machine' | 'document' | 'tool' | 'records' | 'taking' | 'opening'>
     /** The window's half of the doorbells, for a test of a webhook delivery. */
     hooks?: ServerOptions['hooks']
+    /** The window's half of the connect pages, for a test of connecting a source. */
+    connecting?: ServerOptions['connecting']
   } = {},
 ): Promise<Running> {
   settingRows = opts.settings ?? []
@@ -266,6 +268,7 @@ export async function start(
     ...(opts.notes === undefined ? {} : { notes: opts.notes }),
     ...(opts.repositories === undefined ? {} : { repositories: opts.repositories }),
     ...(opts.hooks === undefined ? {} : { hooks: opts.hooks }),
+    ...(opts.connecting === undefined ? {} : { connecting: opts.connecting }),
     ...opts.owned,
   })
   epoch = one.server.epoch

@@ -1,5 +1,5 @@
 import { type DomainLine, EVAL_BY, type EvalBy, printable } from '@tade/core'
-import type { CardRead, EvaluationsAnswer, RecordsAnswer } from '@tade/web'
+import type { CardRead, ConnectAnswer, EvaluationsAnswer, RecordsAnswer } from '@tade/web'
 
 // Two things another machine says only while somebody here is looking, beside
 // what it is (`machine-there.ts`): the records its public name needs, looked at
@@ -35,6 +35,24 @@ export interface RecordsThere {
   head: string | null
   lines: readonly DomainLine[]
   /** Why nothing was looked at, in that machine's words. */
+  cannot: string | null
+}
+
+/**
+ * What connecting GitHub there has come to, step by step, when it was last
+ * asked — that machine's own fold (`githubPage`), its words as text.
+ */
+export interface ConnectThere {
+  /** When the answer came, in this machine's clock. */
+  at: number
+  steps: readonly {
+    title: string
+    done: boolean
+    said: string
+    /** The one press a step offers there, which a press here asks of that machine. */
+    press: { act: 'make' | 'install'; label: string } | null
+  }[]
+  /** Why its last press made nothing, in that machine's words. */
   cannot: string | null
 }
 
@@ -88,6 +106,23 @@ export function recordsOf(held: LookHeld<RecordsAnswer> | null | undefined): Rec
       loud: one.loud,
     })),
     cannot: said(answer.cannot),
+  }
+}
+
+/** What connecting GitHub there has come to, as text, or null before any answer. */
+export function connectOf(held: LookHeld<ConnectAnswer> | null | undefined): ConnectThere | null {
+  const answer = held?.answer ?? null
+  if (answer === null || held?.at == null) return null
+  return {
+    at: held.at,
+    steps: answer.page.steps.map((one) => ({
+      title: printable(one.title),
+      done: one.done,
+      said: printable(one.said),
+      press:
+        one.press === undefined ? null : { act: one.press.act, label: printable(one.press.label) },
+    })),
+    cannot: answer.cannot === undefined ? null : printable(answer.cannot).trim() || null,
   }
 }
 

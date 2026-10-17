@@ -68,6 +68,16 @@ export function forgeFor(remote: string, choice: ForgeChoice): Forge | null {
 }
 
 /**
+ * The forge that serves a host, made for no repository in particular: for
+ * what is about the forge itself and not a project — making an App there, and
+ * asking where it is installed (`connect.ts` in `@tade/core`). The same
+ * registry and the same binding of an App by host as `forgeFor`.
+ */
+export function forgeOnHost(host: string, choice: ForgeChoice): Forge | null {
+  return forgeFor(`https://${host}/`, choice)
+}
+
+/**
  * A forge made to ask as whoever the remote says the repository belongs to.
  *
  * The project's own word beats the machine's: `accounts` in the config is

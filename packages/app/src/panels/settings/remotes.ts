@@ -117,6 +117,11 @@ export function remotePresses(
   return actions.filter((one) => (one.under ?? []).every((fold) => panel.opened.includes(fold)))
 }
 
+/** A press on one step of connecting GitHub on a remote. */
+function connectId(remote: string, act: 'make' | 'install'): string {
+  return `remote:connect:${remote}:${act}`
+}
+
 /** The account a sign-in is for, as an id carries it: empty for the harness's own. */
 function signInId(remote: string, one: { harness: string; account: string | null }): string {
   return `remote:sign-in:${remote}:${one.harness}:${one.account ?? ''}`
@@ -131,6 +136,11 @@ export function remoteActions(remotes: readonly RemoteShown[]): RemoteAction[] {
     if (remote.live && remote.machine?.detail.about?.public != null) {
       const label = remote.machine.detail.recordsLooking ? 'Looking…' : 'Look again'
       actions.push({ id: `remote:records:${at}`, label, remote: at })
+      // Each step of connecting GitHub there that offers one press, in order.
+      for (const step of remote.machine.detail.connect?.steps ?? []) {
+        if (step.press === null) continue
+        actions.push({ id: connectId(at, step.press.act), label: step.press.label, remote: at })
+      }
     }
     for (const one of list?.theirs ?? []) {
       actions.push({
@@ -381,6 +391,14 @@ export function drawRemotes(
           say(text, tone, deep + indent, lines),
         )
         buttons([`remote:records:${at}`])
+        // And connecting GitHub there, step by step, each press under its step.
+        github(
+          remote,
+          ctx,
+          line,
+          (text, tone) => say(text, tone, deep, 3),
+          (act) => buttons(remote.live ? [connectId(at, act)] : []),
+        )
       },
     )
     if (list === null) {
@@ -510,6 +528,45 @@ function publicLines(
     loud ? skin.waiting : skin.done,
   )
   for (const one of shown.health) under(one.said, one.loud ? skin.waiting : skin.hint)
+}
+
+/**
+ * Connecting GitHub on that machine, as its own page folds it (`githubPage`):
+ * a line, then each step ticked or not with what it says, and the one press a
+ * step offers under it — which asks that machine for the word and opens
+ * GitHub in this machine's browser. Always as of when that machine said it.
+ */
+function github(
+  remote: RemoteShown,
+  ctx: PanelContext,
+  line: (label: string, text: string, tone?: (text: string) => string) => void,
+  under: (text: string, tone: (text: string) => string) => void,
+  press: (act: 'make' | 'install') => void,
+): void {
+  const { skin } = ctx
+  const detail = remote.machine?.detail
+  if (detail === undefined || (detail.about?.public == null && detail.connect === null)) return
+  const seen = detail.connect
+  if (seen === null) {
+    line('GitHub', detail.connectLooking ? `asking ${remote.name}…` : 'not asked yet', skin.hint)
+    if (detail.connectSaid !== null) under(detail.connectSaid, skin.waiting)
+    return
+  }
+  const done = seen.steps.filter((one) => one.done).length
+  line(
+    'GitHub',
+    `${done} of ${seen.steps.length} done · as of ${ctx.date(seen.at)}`,
+    done === seen.steps.length ? skin.done : skin.waiting,
+  )
+  if (detail.connectSaid !== null) under(detail.connectSaid, skin.waiting)
+  if (seen.cannot !== null) under(seen.cannot, skin.waiting)
+  for (const step of seen.steps) {
+    under(
+      `${step.done ? '✓' : '○'} ${step.title} — ${step.said}`,
+      step.done ? skin.done : skin.hint,
+    )
+    if (step.press !== null) press(step.press.act)
+  }
 }
 
 /**

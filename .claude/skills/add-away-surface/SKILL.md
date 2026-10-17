@@ -78,6 +78,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | what a request *is* | `src/request.ts` — reading an `IncomingMessage`, and every bound on one |
 | what a request must satisfy | `src/guard.ts` — pure, and `test/guard.test.ts` runs the cross-product |
 | a route only this machine may reach (`presence`, and the pages that connect a source) | `Route.here` — `allowed` answers it the `404` of a path nobody built anywhere but `thisMachine` |
+| **the pages that connect a source** (`/connect`, a press per step, where the source sends the browser back), and an owner asking the same (`/api/connect`) | `CONNECTS` in `src/routes.ts` (`Route.connects`, `source`), the guard's `connecting` layer, `src/connected.ts` (`ConnectStates`, `carryConnect`, `pressed`, `connectHere`, `ConnectAnswerSchema`), `src/connect-page.ts` (the HTML and `PAGE_CSP`), the fold in `@tade/core`'s `connect.ts`, the window's half in `packages/app/src/wire/web-connect.ts`; the asking side is `RemoteMachines.connectPress` (`wire/remote-machine.ts`), drawn on Settings › Remotes |
 | another machine's Tade linked to this one as an owner (`tade remote`) | `@tade/remotes-core` (the `RemoteLink` port, the stream follower, the far end its suite links to) — the client half of everything in this table, over SSH; `add-workspace-driver` has its shape. What it posts here is `presence` (`src/presence.ts`): an owner's age of a keypress at another screen, held by the window (`Presences` in `wire/web-presence.ts`) and read as one by push, and written down once a stretch as `person_present` — the cursor of `since` below. A phone's `looking` (`src/looking.ts`) is its sibling and quiets only that phone (below) |
 | **what this machine is**, for another machine of the person's: its version, its public name's health, its problems, its schedules' looks, its documents — and one of those documents as text, and one of its extension tools that only reads | `OWNED` in `src/routes.ts` (`/api/machine`, `/api/document`, `/api/tool`, all `here`), `src/machine.ts`, `src/document.ts`, `src/tool-read.ts` (each the body, the bounds and the answer's schema), the window's half in `packages/app/src/wire/web-machine.ts` (out of what the window holds; a document only where the journal says the task wrote one by that name; a tool only where it declares `reads`); the asking side is `packages/app/src/wire/remote-machine.ts` |
 | **its public name's records, looked at now**, for another machine whose Settings › Remotes is open on it — and its scorecards, read there while /evals is | `OWNED`'s `records` (`POST /api/records`, `here`), `src/records.ts` (the body, the bounds, `RecordsAnswerSchema`), the window's half in `packages/app/src/wire/web-records.ts` (the `tade host domain` look, one in flight, held to `RECORDS_MS`, only where `AppOptions.domain` dials); the scorecards are `GET /api/evaluations` as it is, read there by `EvaluationsAnswerSchema` (`src/evaluations.ts`); the asking side is `RemoteMachines.lookAgain`/`scorecards`, asked only while `looking` says so |
@@ -213,6 +214,23 @@ a device still has none of the scopes that change anything until somebody at thi
   on Look again (`wire/remote-machine.ts`), and only of a machine that said it has a public name;
   this side adds no clock, answers every ask that lands while a look runs with that one look, and
   holds it to `RECORDS_MS` under the link's own deadline. It writes nothing.
+- **Connecting a source is the owner's tenth, and its own table besides** (`/api/connect`,
+  `CONNECTS`; REMOTE-TADE §6.4). Turning a source on is `never`-tier, so the page and its presses
+  answer on this machine's own door (`here`) **and ask no session**: reaching that door is what a
+  session would prove — the keyboard, or the SSH key that can already edit `config.yaml` — and
+  every cross-site layer that can apply is still asked of a press (exact `Origin`, JSON,
+  `Sec-Fetch-Site`), so no page in a browser here can make one for somebody. What another account
+  on this machine could do through a loopback port is replace the App with one of its own, which
+  reads nothing of the person's until somebody with admin on their repositories installs it. A press
+  mints a one-time word (`ConnectStates`, in memory, ten minutes, sixteen at most) **for the host
+  the source will send the browser back to** — the public name where there is one, else the door
+  the press came in at — and a callback (`connects: 'back'`, on any door) is answered only for that
+  word at that host, burned before the code is exchanged. The pages are drawn by the server, not
+  the away view's page: no session, no worker, no asset, and a content policy of their own that
+  names their one script and stylesheet by digest and lets a form go to GitHub alone (`PAGE_CSP`).
+  The owner's route exists because the Mac's link ends in a socket no browser opens: it presses
+  only where that machine has a public name, and the Mac writes the form into a page in its own
+  home that posts itself to GitHub.
 - **From the public listener, anything above `read` needs a passkey proved within
   `passkey_hours`** (`proven`, after the scope and the origin, so it never says more than they
   would). The **listener and never the host**, like `thisMachine`: this machine, an SSH forward and a

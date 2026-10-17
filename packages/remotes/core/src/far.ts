@@ -27,6 +27,7 @@ import {
   type TakeAnswer,
   Tickets,
   type ToolReadAnswer,
+  type WebConnecting,
   type WebServer,
   webServer,
 } from '@tade/web'
@@ -132,6 +133,11 @@ export interface FarEnd {
   records: RecordsAnswer | null
   /** How many times an owner has asked it to look at its records. */
   readonly recordsAsked: number
+  /**
+   * What its window knows of connecting GitHub there (`/api/connect`): a test
+   * sets it before anything asks; null, a window that cannot say.
+   */
+  connecting: WebConnecting | null
   /** Its scorecards, as its window folds them (`GET /api/evaluations`); null before it has read its journal. */
   evaluations: Evaluations | null
   /** The requests handed to it, as its projection carries them (`intake`). A test sets them. */
@@ -167,10 +173,18 @@ export interface FarEnd {
 const BEAT_MS = 100
 
 export async function startFarEnd(
-  opts: { projects?: readonly string[]; home?: string } = {},
+  opts: {
+    projects?: readonly string[]
+    home?: string
+    /**
+     * Its public name, for what it answers about one (`/api/connect`). Its
+     * public listener does not come up — there is no Caddy here — and says so.
+     */
+    publicName?: string
+  } = {},
 ): Promise<FarEnd> {
   const home = opts.home ?? (await mkdtemp(join(tmpdir(), 'tade-far-')))
-  const far = new Far(home, opts.projects ?? ['far'])
+  const far = new Far(home, opts.projects ?? ['far'], opts.publicName ?? null)
   await far.listen(0)
   return far
 }
@@ -205,6 +219,7 @@ class Far implements FarEnd {
   machineAsked = 0
   records: RecordsAnswer | null = null
   recordsAsked = 0
+  connecting: WebConnecting | null = null
   evaluations: Evaluations | null = null
   intake: IntakeIn[] = []
   readonly documents = new Map<string, { at: string; text: string }>()
@@ -226,9 +241,18 @@ class Far implements FarEnd {
 
   readonly home: string
 
-  constructor(home: string, projects: readonly string[]) {
+  private readonly publicName: string | null
+
+  constructor(home: string, projects: readonly string[], publicName: string | null = null) {
     this.home = home
     this.projects = projects
+    this.publicName = publicName
+  }
+
+  /** The connect half a test set, or a throw that says none was. */
+  private connected(): WebConnecting {
+    if (this.connecting === null) throw new Error('this far end was told nothing about GitHub')
+    return this.connecting
   }
 
   get epoch(): string {
@@ -246,7 +270,18 @@ class Far implements FarEnd {
       home: this.home,
       // Acting on: what an owner asks of an agent there is written down (`acted`);
       // talking on: what is said to its orchestrator is too (`talk`).
-      surface: { ...SURFACE, port, acting: true, talking: true },
+      surface: { ...SURFACE, port, acting: true, talking: true, publicName: this.publicName },
+      // No Caddy here: a public name's socket goes nowhere it could listen, and says so.
+      ...(this.publicName === null
+        ? {}
+        : { publicSocket: join(this.home, 'no-caddy-here', 'away.sock') }),
+      connecting: {
+        page: (source) => this.connected().page(source),
+        form: (source, want) => this.connected().form(source, want),
+        installUrl: (source, state) => this.connected().installUrl(source, state),
+        made: (source, code) => this.connected().made(source, code),
+        installed: (source) => this.connected().installed(source),
+      },
       acting: farActing(this.acted),
       asking: this.talk.asking(),
       since: async (device, cut) => this.talk.since(device, cut, Date.now()),

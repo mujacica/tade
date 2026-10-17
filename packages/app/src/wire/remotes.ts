@@ -18,7 +18,6 @@ import {
   remoteOf,
   wordOf,
 } from '@tade/workbench/remotes'
-import { type DeskThere, deskThere } from '../desk-there.ts'
 import type { Frame } from '../frame.ts'
 import { machineThere } from '../machine-there.ts'
 import { goElsewhere, type Machines, type Place, skewOf, unheard } from '../machines.ts'
@@ -39,7 +38,6 @@ import {
   type Subject,
   type Wiring,
 } from './context.ts'
-import type { DeskElsewhere } from './landing.ts'
 import { type Mirrors, mirrorsFor } from './mirrors.ts'
 import { Moves, type MoveTools } from './moves.ts'
 import { type SharedNotes, sharedNotesFor } from './notes-shared.ts'
@@ -81,7 +79,7 @@ export type RemoteTools = RemoteTalkTools & RemoteReads & MoveTools
 // person's notes shared with each, both ways** (`notes-shared.ts`), so both
 // orchestrators and every agent hear what they said to either. **And each
 // one's branches fetched into a mirror** of every project here that is the
-// same repository (`mirrors.ts`), for the forecast, the desk and the diffs.
+// same repository (`mirrors.ts`), for the forecast.
 // **And work moved there** (`moves.ts`): queued work started on that machine
 // instead, over the owner channel, and gone from this queue; and a running
 // task handed over from the machine's menu — its agent told to commit and
@@ -126,6 +124,8 @@ export interface RemotesDeps {
   open?: (path: string) => void
   /** Put a page in front: one of another machine's requests, read-only. */
   show?: (panel: RequestTherePanel) => void
+  /** Open an address in this machine's browser: GitHub, for connecting it on a remote. */
+  openLink?: (url: string) => Promise<void>
 }
 
 export class Remotes implements Subject {
@@ -155,8 +155,6 @@ export class Remotes implements Subject {
     about: number
     machines: Machines
   } | null = null
-  /** Every machine's desk rows as last folded, and the held values they were folded from. */
-  private desked: { helds: readonly Held[]; desk: readonly DeskThere[] } | null = null
   /** How far this clock is ahead of each remote's, as of the projection it was told with. */
   private readonly skews = new Map<string, { projection: object; skew: number }>()
   /** An agent there, looked at, typed into and acted on (`remote-agent.ts`), where the window has one. */
@@ -315,45 +313,6 @@ export class Remotes implements Subject {
     return this.mirrors
   }
 
-  /**
-   * Every machine's work on its own landing desk, as each last said it
-   * (`desk-there.ts`): the same array while no held value moved.
-   */
-  desk(): readonly DeskThere[] {
-    const helds = this.held()
-    const was = this.desked
-    if (
-      was !== null &&
-      was.helds.length === helds.length &&
-      was.helds.every((one, at) => one === helds[at])
-    ) {
-      return was.desk
-    }
-    const desk = helds.flatMap((held) =>
-      deskThere(held.remote, held.projection, this.skewFor(held.remote, held)),
-    )
-    this.desked = { helds, desk }
-    return desk
-  }
-
-  /** A sentence to an agent on another machine, as a `steer` there: what it answered, or thrown. */
-  steer(machine: string, task: string, said: string): Promise<string> {
-    if (this.agents === null)
-      return Promise.reject(new Error('this window opens no agent elsewhere'))
-    return this.agents.tell(machine, task, said)
-  }
-
-  /** What the desk reads of other machines through the links: their rows, their changes, their agents. */
-  deskElsewhere(): DeskElsewhere {
-    return {
-      desk: () => this.desk(),
-      changed: (machine, task) => this.mirrors?.changes(machine, task),
-      revision: () => this.mirrors?.revision() ?? 0,
-      go: (machine, task) =>
-        this.deps.go({ machine, project: task.split('/')[0] ?? task, agent: task }),
-    }
-  }
-
   /** The link holding one remote, the remote as opened, and whether it is up — or null. */
   reachFor(name: string): { link: RemoteLink; remote: Remote; live: boolean } | null {
     return this.reach(name)
@@ -481,7 +440,30 @@ export class Remotes implements Subject {
     if (choice.startsWith('remote:records:')) {
       return this.about?.lookAgain(choice.slice('remote:records:'.length)) ?? Promise.resolve()
     }
+    // A step of connecting GitHub there: that machine mints the word, and
+    // GitHub opens in this machine's browser to make or install the App.
+    const connect = /^remote:connect:([^:]+):(make|install)$/.exec(choice)
+    if (connect?.[1] && connect[2]) {
+      return this.connect(connect[1], connect[2] as 'make' | 'install')
+    }
     return this.carries.action(choice)
+  }
+
+  /** One press on connecting GitHub there, said where somebody is looking whatever came of it. */
+  private async connect(name: string, act: 'make' | 'install'): Promise<void> {
+    const about = this.about
+    if (about === null || about === undefined) return
+    try {
+      const open = await about.connectPress(name, act)
+      await this.deps.openLink?.(open)
+      this.deps.say(
+        act === 'make'
+          ? `GitHub opens in your browser to make the App for ${name}; it sends you to ${name} after`
+          : `GitHub opens in your browser to install the App for ${name}`,
+      )
+    } catch (err) {
+      this.deps.say(err instanceof Error ? err.message : String(err))
+    }
   }
 
   private shown(): RemoteShown[] {
@@ -685,7 +667,7 @@ export function remotesFor(
   wire: Wiring,
   subjects: {
     orchestrator: () => { onScreenWith(flow: (ui: Ui) => Promise<void>): Promise<void> }
-    files: () => { openFile(path: string): void }
+    files: () => { openFile(path: string): void; openLink(url: string): Promise<void> }
   },
 ): Remotes {
   const say = (said: string) => {
@@ -724,6 +706,7 @@ export function remotesFor(
     },
     draw: () => wire.draw(),
     open: (path) => subjects.files().openFile(path),
+    openLink: (url) => subjects.files().openLink(url),
     show: (panel) => {
       wire.put({ ...wire.state, panel })
       wire.draw()

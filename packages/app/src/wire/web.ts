@@ -38,6 +38,7 @@ import { armingFor, seenFrom } from './web-asking.ts'
 import { type AwayHeld, nothingYet, partsFrom, talkFor, upSinceOf } from './web-beat.ts'
 import { carryingFor } from './web-carry.ts'
 import { CheckRecords } from './web-checks.ts'
+import { connectingFor } from './web-connect.ts'
 import type { AwayDeps } from './web-deps.ts'
 import { builtFrom, turnTo } from './web-follow.ts'
 import { EVERYTHING, widen } from './web-grants.ts'
@@ -227,6 +228,14 @@ export class Away implements Subject {
         hooks: hooksFor(this.wire, () => this.config(), this.deps.doorbell),
       }),
       ...ownedFor(this.wire, () => this.panelFacts(), this.deps.lifecycle),
+      // The guided pages that connect GitHub (`web-connect.ts`): this machine's
+      // own door and an owner's, and the callbacks where GitHub sends a browser.
+      connecting: connectingFor({
+        config: () => this.config(),
+        settings: this.deps.settings,
+        heard: (source) => this.wire.live?.heardFrom(source) ?? { verified: null, refused: null },
+        now: () => this.wire.now(),
+      }),
       tickets: this.tickets,
       streams: this.streams,
       tell: heard(

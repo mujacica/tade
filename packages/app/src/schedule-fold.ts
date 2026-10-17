@@ -57,6 +57,8 @@ export class ScheduleFold {
   private readonly bells = new Map<string, { woke: number; source: HookSource; owed: boolean }>()
   private readonly missed = new Map<string, number>()
   private readonly refused = new Map<HookSource, number>()
+  /** When a delivery from each source last verified, whatever it woke: what a connect page says. */
+  private readonly verified = new Map<HookSource, number>()
 
   add(event: TadeEvent): void {
     if (event.type === 'hook_rung') {
@@ -101,6 +103,7 @@ export class ScheduleFold {
       this.refused.set(rung.source, at)
       return
     }
+    this.verified.set(rung.source, at)
     for (const id of rung.woke ?? [])
       this.bells.set(id, { woke: at, source: rung.source, owed: true })
   }
@@ -113,6 +116,18 @@ export class ScheduleFold {
     const fresh = event.detail.fresh
     if (!rung && saysSince(event) && Array.isArray(fresh) && fresh.length > 0) {
       this.missed.set(schedule, Date.parse(event.ts))
+    }
+  }
+
+  /**
+   * When a delivery from a source last verified here, and when one last did
+   * not — a ping or a delivery about nothing watched included, because what a
+   * connect page asks is whether the hook works at all, not what it woke.
+   */
+  heardFrom(source: HookSource): { verified: number | null; refused: number | null } {
+    return {
+      verified: this.verified.get(source) ?? null,
+      refused: this.refused.get(source) ?? null,
     }
   }
 

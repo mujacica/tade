@@ -10,9 +10,9 @@ the forge and what the agents spent, and none of it is graded by the agent that 
 - **[Collisions, forecast before they happen.](#collisions-forecast-before-they-happen)** Live work
   that would collide is marked on both agents while either can still give way, and the orchestrator
   is told which one should.
-- **[A desk of what is ready to land, sorted by trust.](#the-landing-desk)** Green, small and
-  unquestioned first; then what waits on you; then what waits on its agent — each with the one
-  sentence saying why.
+- **[The project's own checks, run before anybody else sees them.](#the-checks-before-anybody-else-sees-them)**
+  Read out of the workflows and the commit hook it already has, run here and recorded against the
+  commit they ran on; a push with nothing green behind it is held, with what is missing.
 - **[An independent judge, and its findings answered.](#jev-a-judge-whose-findings-are-answered)**
   It reads each change once it stops moving, for what nobody has time to; the agent accounts for
   each finding, and the verdict is yours or the orchestrator's, never the agent's.
@@ -30,10 +30,9 @@ onto a shared checkout under its own trailer — with billed money and a plan's 
 How long finished work then waits to land is the next figure, and is not built yet
 ([Planned](#planned)).
 
-Under all of it: the project's own checks, recorded against the commit they ran on; spend that never
-adds a subscription's turns to a dollar total; and nothing remembered — what each agent *is* comes
-back from git and the processes every time you look, so nothing drifts and closing Tade leaves
-nothing behind. One machine, one terminal. No server, no browser, no cloud, and agents are not
+Under all of it: spend that never adds a subscription's turns to a dollar total, and nothing
+remembered — what each agent *is* comes back from git and the processes every time you look, so
+nothing drifts and closing Tade leaves nothing behind. One machine, one terminal. No server, no browser, no cloud, and agents are not
 sandboxed — see [Agents run as you](#agents-run-as-you).
 
 ```sh
@@ -43,7 +42,7 @@ tade                     # the window; the first time, a short setup that sets y
 
 Needs Node ≥ 22.19 and git; [Installing](#installing) has the rest.
 
-![Tade: a project with nothing running, a request typed to the orchestrator, the orchestrator calling its tools, an agent at work asking for approval, and then the landing desk — every finished piece of work in the order it is cheapest to trust](https://raw.githubusercontent.com/mujacica/tade/main/images/tade.svg)
+![Tade: a project with nothing running, a request typed to the orchestrator, the orchestrator calling its tools, an agent at work asking for approval, and then what its work came to — its own commits, the review it is out for and the project's checks run here](https://raw.githubusercontent.com/mujacica/tade/main/images/tade.svg)
 
 ## Agents run as you
 
@@ -53,23 +52,6 @@ files, and `~/.tade/config.yaml`, where every key you paste into Tade is kept. A
 and yours to turn on; containing an agent is its harness's business, not Tade's; and a key you
 would rather Tade never wrote down can stay in an environment variable, which always wins over the
 file.
-
-## The landing desk
-
-Generating changes is the easy half; landing them is the queue, and you are it. The desk is every
-finished piece of work and every open review, in every project, **in the order it is cheapest to
-trust**: what is green at its head, has nothing open and waits on nobody first, smallest change
-first; then what waits on you — an answer, a verdict on a finding its agent accounted for, a check
-nobody ran, a draft; then what waits on its agent — a red check, a finding nobody answered, a
-collision the forecast found — each with the one sentence saying why. Beside each: its checks, the
-judge's findings, the collisions, what its own commits changed, what it cost, and how long it has
-waited. Enter opens the change to read, and a comment on a line goes to Tade or straight to the
-agent whose change it is. It is a view and nothing more — nothing on it is remembered — and it is a
-page of its own on the away view too. `/land` opens it, and so does the `land` count on the AGENTS
-heading, which is what waits to land in the project you are in. Landing is yours, on the forge: Tade
-never merges.
-
-![The landing desk: finished work across three projects, green and small first, then what waits on you, then what waits on its agent, each with the one sentence why and its figures beside it](https://raw.githubusercontent.com/mujacica/tade/main/images/landing.svg)
 
 ## Agents, together or apart
 
@@ -378,6 +360,15 @@ Every door is polled. On a server with a public name a webhook from GitHub, Slac
 now — the look still reads the source under the grant, so a delivery can only ever make Tade look
 sooner — and that watch's poll slows to hourly while deliveries keep arriving.
 
+**Connecting GitHub is a guided page**, `http://localhost:<port>/connect` on the machine itself (or
+through `ssh -L`; from your Mac, Settings › Remotes does it for the server). It makes a GitHub App
+in your account from a manifest — read-only, the webhook built in where there is a public name —
+says what it will ask GitHub for and why before you press, and ticks off making it, installing it on
+the repositories you pick, and its deliveries arriving. From then on the intake and review watches
+read a repository it is installed on as the App: an hour-long token and a budget of its own, while
+anything about you, and every write, stays your own sign-in. Connecting grants nobody anything;
+whose labels count is still yours to write.
+
 <table>
 <tr>
 <td width="25%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/intake.svg" alt="INTAKE down the side: work handed to this machine from outside it, each row saying who asked, the door it came through and how far it got"></td>
@@ -487,11 +478,9 @@ one when you ask for something there by its name — never when the words came f
 the same SSH connection, into a mirror in Tade's home that borrows your checkout's objects — so it
 costs only what the VPS added, and nothing is ever written into your checkout. Two machines are the
 same repository when their `origin` names the same one, whatever the projects are called. From it
-the landing desk lists the VPS's finished work beside this Mac's, as `fix on vps`, in one order;
-enter reads its change in the patch reader, and a comment on a line goes to Tade here or straight
-to the agent there. And the collision forecast adds the VPS's live branches: a branch here that
-would conflict with one there wears `⇄`, and the Mac's orchestrator is told once, with where to
-fetch the other branch from to merge it in — the side on the VPS is that machine's own.
+the collision forecast adds the VPS's live branches: a branch here that would conflict with one
+there wears `⇄`, and the Mac's orchestrator is told once, with where to fetch the other branch from
+to merge it in — the side on the VPS is that machine's own.
 
 **And its watches run on one of them.** A watch on GitHub, Slack, Linear, Sentry or your
 dependencies finds the same thing from either machine, so one red build would be two findings and
@@ -748,10 +737,9 @@ Tade", then "reload" — and it is the same run, checked against what you actual
 Not built yet, and named here rather than anywhere above, at the part of Tade it would be built on.
 
 - **Time from done to landed**, beside the cost per landed task on Evaluations
-  (`evaluationsFrom`, `core/src/evaluations.ts`). The desk already says how long each piece of work
-  has waited since it last moved, and Evaluations how long work took to finish; nothing yet folds
-  the stretch from `task_done` to the merge that landed it into a figure per harness, model,
-  persona and template. Work committed straight onto a shared checkout has landed by the time it is
+  (`evaluationsFrom`, `core/src/evaluations.ts`). Evaluations already says how long work took to
+  finish; nothing yet folds the stretch from `task_done` to the merge that landed it into a figure
+  per harness, model, persona and template. Work committed straight onto a shared checkout has landed by the time it is
   done, so the figure is about reviews.
 
 ## Installing
