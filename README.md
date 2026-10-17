@@ -803,9 +803,11 @@ missing program comes with its exact `apt` line, each harness signs in the way a
 Claude Code's link and pasted code, Codex's device code, pi's pasted code — with how many days a
 Claude Code login has left, and it checks `loginctl enable-linger`. Then `tade host service` prints
 the systemd user unit that keeps Tade running there, writes it when you say so and offers to start
-it; the window runs in tmux, so `tmux -L tade-window attach -t tade` over SSH shows it. Set
-`workspace.driver: tmux` there: its agents then run in a systemd scope of their own, so stopping,
-restarting or upgrading Tade never ends one.
+it; the window runs in tmux, so `tmux -L tade-window attach -t tade` over SSH shows it. `tade serve`
+is that window with no screen at all — the queue, schedules, watches and intake on its beat, and
+what it says written to its log — though the away view and the orchestrator are still the
+window's. Set `workspace.driver: tmux` there: its agents then run in a systemd scope of their own,
+so stopping, restarting or upgrading Tade never ends one.
 
 For a phone, give the server a name of your own and put Caddy in front. `tade host domain
 tade.example.com` looks at the records the name needs from the box — A, AAAA only where IPv6 answers

@@ -201,9 +201,10 @@ attached to the decision it governs. Load the matching one rather than working f
 - **A watch is a schedule that looks before it acts**: a cheap `check`, no model. Work any schedule
   makes is **parked for the orchestrator** (`decidesOf`). Keys are kept, so nothing is offered twice;
   off pauses it, never removes it.
-- **Schedules are told, like notes**, and run only while a window is open — no daemon; missed
-  runs are caught up once or skipped, never once per run missed. **They are their own section**
-  (`schedulesSection`), never listed among the queued work.
+- **Schedules are told, like notes**, and run only while a window is open — one with no screen
+  (`tade serve`, `heart.ts`) too, but Tade starts no daemon of its own; missed runs are caught up
+  once or skipped, never once per run missed. **They are their own section** (`schedulesSection`),
+  never listed among the queued work.
 
 ### Config, settings and keys
 

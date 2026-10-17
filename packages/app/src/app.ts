@@ -1,24 +1,14 @@
 import { join } from 'node:path'
 import { ProcessTerminal, type Terminal } from '@earendil-works/pi-tui'
-import { type Arming, attentionFor, closeBy, titlesOf, type Unclosed } from '@tade/core'
+import { type Arming, attentionFor, closeBy, type Unclosed } from '@tade/core'
 import type { ExtensionWorkbench } from '@tade/extensions-core'
 import { VoiceSurface } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
+import { Heart } from './heart.ts'
 import { agentEnded, eventNews } from './inbox.ts'
 import { freeViewportKeys } from './keys.ts'
-import { knownTasks, Live } from './live.ts'
-import {
-  type AppState,
-  addTurn,
-  focusTask,
-  initialState,
-  notice,
-  onEvent,
-  setQuestion,
-  withProjects,
-  withTasks,
-  withTerminals,
-} from './model.ts'
+import { knownTasks } from './live.ts'
+import { type AppState, addTurn, focusTask, setQuestion } from './model.ts'
 import { FRAME_MS } from './pace.ts'
 import { pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
 import { Router } from './wire/actions.ts'
@@ -35,7 +25,6 @@ import {
   type Thinker,
   type Wiring,
   type WorkerImageFile,
-  wiringFor,
 } from './wire/context.ts'
 import { Earlier } from './wire/earlier.ts'
 import { Evaluations } from './wire/evaluations.ts'
@@ -44,7 +33,7 @@ import { Files } from './wire/files.ts'
 import { frameOf } from './wire/frame.ts'
 import { tellNow } from './wire/handed.ts'
 import { Images } from './wire/images.ts'
-import { Intake } from './wire/intake.ts'
+import type { Intake } from './wire/intake.ts'
 import { Keyboard } from './wire/keyboard.ts'
 import { Lanes } from './wire/lanes.ts'
 import { LinearTokens, lending } from './wire/linear-tokens.ts'
@@ -55,11 +44,11 @@ import { Notes } from './wire/notes.ts'
 import { Orchestrator } from './wire/orchestrator.ts'
 import { kittyActive, Repaint, repaintScreen, type Screen, screenFor } from './wire/paint.ts'
 import { Projects, type ProjectTools } from './wire/projects.ts'
-import { Queue, type QueueTools } from './wire/queue.ts'
+import type { Queue, QueueTools } from './wire/queue.ts'
 import { Races } from './wire/race-panel.ts'
 import { type Remotes, type RemoteTools, remotesFor } from './wire/remotes.ts'
 import { Routes } from './wire/routes.ts'
-import { Schedules, type WatchTools } from './wire/schedules.ts'
+import type { Schedules, WatchTools } from './wire/schedules.ts'
 import { Search } from './wire/search.ts'
 import { Settings, type SettingTools } from './wire/settings.ts'
 import { Spend } from './wire/spend.ts'
@@ -87,12 +76,16 @@ export class App {
   private readonly opts: AppOptions
   private readonly terminal: Terminal
   private readonly tui: Screen
-  private state: AppState = initialState()
+  /**
+   * The part that runs with no screen — the beat, the queue, schedules and
+   * watches, intake — which this window is a face over (`heart.ts`). It holds
+   * the state, and the window reads and writes it through `state` below.
+   */
+  private readonly heart: Heart
   private readonly skin: Skin = skinFor(process.env, process.stdout.isTTY === true)
   private readonly pointerShapes = pointerShapes(process.env)
   /** When the lanes are looked at, one look at a time. */
   private readonly looks: Looks
-  private live: Live | null = null
   private timer: NodeJS.Timeout | null = null
   private readonly repaint = new Repaint()
   private release: (() => void) | null = null
@@ -166,17 +159,48 @@ export class App {
 
   private constructor(opts: AppOptions) {
     this.opts = opts
-    this.wire = wiringFor(opts, {
-      state: () => this.state,
-      put: (next) => {
-        this.state = next
-      },
-      live: () => this.live,
-      now: () => this.now(),
-      layout: () => this.window.layout(),
+    // The face's halves of everything the heart runs, each asked for when it
+    // is needed: every subject named here is made below, after the heart.
+    this.heart = new Heart(opts, {
       draw: () => this.draw(),
       typed: () => this.looks.typed(),
+      layout: () => this.window.layout(),
+      due: () => this.looks.soonTick(),
+      orchestrator: () => this.orchestrator,
+      twins: (project) => this.remotes.watchTwins(project),
+      asked: () => ({ elsewhere: this.remotes.mirrored()?.elsewhere() ?? {} }),
+      sawTasks: (tasks) => {
+        // Focus can only be restored once there are panes to restore it to,
+        // and only the first time: after that it is wherever you moved to.
+        this.window.restoreFocus()
+        this.orchestrator.noteTasks(tasks)
+        void this.routes.learnHarnesses(tasks)
+      },
+      beat: (tasks, moved) => {
+        void this.checks.beat()
+        void this.orchestrator.reflect(tasks)
+        this.away.beat()
+        this.remotes.beat()
+        this.updates.beat()
+        void this.settings.fold(() => this.extensions.reloadExtensions())
+        if (moved) this.draw() // a beat that found what the last did is not news
+      },
+      heard: (event) => {
+        // A document handed over, or what an agent left, is told now (or kept
+        // as news where it cannot be: `tellNow`); everything else waits as news.
+        const told = tellNow(this.wire, this.orchestrator, event)
+        const heard = told ? null : eventNews(event)
+        if (heard) this.orchestrator.note(heard)
+        // An agent that is gone, however it went: told rather than discovered
+        // by the orchestrator steering something that is not there any more.
+        const ended = agentEnded(event)
+        if (ended) this.orchestrator.noteEnded(ended)
+        if (event.type === 'run_started' && event.task) this.orchestrator.noteStarted(event.task)
+        this.tui.requestNews(event.urgency === 'blocking')
+      },
+      work: (task) => void this.agents.nameAgent(task),
     })
+    this.wire = this.heart.wire
     this.looks = new Looks({
       look: () => this.look(),
       stopped: () => this.stopped,
@@ -186,22 +210,10 @@ export class App {
     this.notes = new Notes(this.wire, {
       copy: (text) => copySaying(this.wire, text, (data) => this.terminal.write(data)),
     })
-    this.queue = new Queue(this.wire, {
-      news: (said) => this.orchestrator.note(said),
-      tell: (text) => this.orchestrator.tell(text),
-      schedules: {
-        views: () => this.schedules.views(),
-        set: (req) => this.schedules.set(req),
-        runNow: (id, asked) => this.schedules.runNow(id, asked),
-      },
-    })
-    this.schedules = new Schedules(this.wire, {
-      news: (said) => this.orchestrator.note(said),
-      orchestrator: () => this.orchestrator,
-      advanceQueue: () => void this.advanceQueue(),
-      twins: (project) => this.remotes.watchTwins(project),
-    })
-    this.intake = new Intake(this.wire, { advanceQueue: () => void this.advanceQueue() })
+    // The heart's own, which the window draws and answers presses for.
+    this.queue = this.heart.queue
+    this.schedules = this.heart.schedules
+    this.intake = this.heart.intake
     this.search = new Search(this.wire, {
       settings: () => this.settings.rows(),
       openFile: (path, line) => this.files.openFile(path, line),
@@ -503,6 +515,15 @@ export class App {
     })
   }
 
+  /** The state, which is the heart's: read and written through it, as every subject does. */
+  private get state(): AppState {
+    return this.heart.state
+  }
+
+  private set state(next: AppState) {
+    this.heart.put(next)
+  }
+
   static async start(opts: AppOptions): Promise<App> {
     const app = new App(opts)
     await app.begin()
@@ -556,7 +577,7 @@ export class App {
 
   /** Put an agent in front of you: one an extension just started, say. */
   showTask(task: string): void {
-    void this.live?.refresh().then(() => {
+    void this.heart.live?.refresh().then(() => {
       this.state = focusTask(this.state, task)
       this.draw()
     })
@@ -603,7 +624,7 @@ export class App {
         { name: 'the voice', close: () => this.voice.stop() },
         { name: 'the away view', close: () => this.away.stop() },
         { name: 'the remote links', close: () => this.remotes.stop() },
-        { name: 'the status look', close: () => this.live?.stop() },
+        { name: 'the status look', close: () => this.heart.stop() },
       ],
       Date.now() + STOP_MS,
     )
@@ -616,65 +637,10 @@ export class App {
     void this.machine.loadAccounts()
     // What the last window found about updates, so the strip says it at once.
     void this.updates.recall()
-    // Every project, before any of them has a task: an empty one is still a
-    // tab you can be standing in when you start work.
-    const config = this.opts.config
-    this.state = withProjects(this.state, Object.keys(config.projects), titlesOf(config))
-    // A local as well as a field: what the surface below closes over is never a maybe.
-    const live = await Live.start({
-      client: this.opts.client,
-      config: this.opts.config,
-      home: this.opts.home,
-      tadeHome: this.opts.home,
-      ...(this.opts.cwd ? { cwd: this.opts.cwd } : {}),
-      ...(this.opts.now ? { now: this.opts.now } : {}),
-      openedAt: this.wire.openedAt,
-      status: this.opts.status,
-      onTasks: (tasks, moved) => {
-        this.state = withTasks(this.state, tasks)
-        // Focus can only be restored once there are panes to restore it to,
-        // and only the first time: after that it is wherever you moved to.
-        this.window.restoreFocus()
-        this.orchestrator.noteTasks(tasks)
-        void this.routes.learnHarnesses(tasks)
-        void this.queue.recordRulesMet()
-        void this.checks.beat()
-        void this.schedules.runDue().then(() => this.advanceQueue())
-        void this.orchestrator.reflect(tasks)
-        this.away.beat()
-        this.remotes.beat()
-        this.updates.beat()
-        void this.settings.fold(() => this.extensions.reloadExtensions())
-        if (moved) this.draw() // a beat that found what the last did is not news
-      },
-      onEvent: (event) => {
-        this.state = onEvent(this.state, event, this.now())
-        // A document handed over, or what an agent left, is told now (or kept
-        // as news where it cannot be: `tellNow`); everything else waits as news.
-        const told = tellNow(this.wire, this.orchestrator, event)
-        const heard = told ? null : eventNews(event)
-        if (heard) this.orchestrator.note(heard)
-        // An agent that is gone, however it went: told rather than discovered
-        // by the orchestrator steering something that is not there any more.
-        const ended = agentEnded(event)
-        if (ended) this.orchestrator.noteEnded(ended)
-        if (event.type === 'run_started' && event.task) this.orchestrator.noteStarted(event.task)
-        this.tui.requestNews(event.urgency === 'blocking')
-      },
-      onWarning: (message) => {
-        this.state = notice(this.state, message, this.now())
-        this.draw()
-      },
-      onChange: () => this.draw(),
-      onDue: () => this.looks.soonTick(),
-      onWork: (task) => void this.agents.nameAgent(task),
-      onTerminals: (terminals) => {
-        this.state = withTerminals(this.state, terminals)
-        this.draw()
-      },
-      asked: () => ({ elsewhere: this.remotes.mirrored()?.elsewhere() ?? {} }),
-    })
-    this.live = live
+    // The beat, and everything the heart runs on it: the projects, then the
+    // status look on its clock, each answer handed to this face as well.
+    // A local as well as the heart's: what the surface below closes over is never a maybe.
+    const live = await this.heart.begin()
     this.extensions.readLinkers()
     this.extensions.watchExtensions()
     void live.looked.then(() => this.agents.reopenLost())
@@ -747,8 +713,7 @@ export class App {
     this.agents.reopenStopped()
     this.extensions.askExtensions()
     this.images.look()
-    this.intake.look()
-    this.live?.lookAgain()
+    this.heart.look()
     if (!this.stopped && !this.orchestrator.borrowed() && this.repaint.dueAt(this.now()))
       repaintScreen(this.tui, this.terminal)
     const at = await this.lanes.fitPane()
@@ -765,12 +730,12 @@ export class App {
 
   /** Start whatever queued work is ready, and say what is held. */
   advanceQueue(): Promise<string[]> {
-    return this.queue.advance()
+    return this.heart.advanceQueue()
   }
 
   /** What the orchestrator's queue tools do, answered from this window. */
   queueTools(): QueueTools {
-    return this.queue.tools()
+    return this.heart.queueTools()
   }
 
   /** What the orchestrator's settings and project tools do, from this window. */
@@ -780,7 +745,7 @@ export class App {
 
   /** What the orchestrator's watch tools do, answered from this window. */
   watchTools(): WatchTools {
-    return this.schedules.tools()
+    return this.heart.watchTools()
   }
 
   /** What the orchestrator's update and reload tools do, from this window. */

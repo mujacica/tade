@@ -25,6 +25,7 @@ export const COMMANDS: readonly { names: readonly string[]; load: () => Promise<
   { names: ['config'], load: async () => (await import('./commands/config.ts')).registerConfig },
   { names: ['setup'], load: async () => (await import('./commands/setup.ts')).registerSetup },
   { names: ['app'], load: async () => (await import('./commands/app.ts')).registerApp },
+  { names: ['serve'], load: async () => (await import('./commands/serve.ts')).registerServe },
   { names: ['brief'], load: async () => (await import('./commands/brief.ts')).registerBrief },
   { names: ['chat'], load: async () => (await import('./commands/chat.ts')).registerChat },
   { names: ['check'], load: async () => (await import('./commands/check.ts')).registerCheck },

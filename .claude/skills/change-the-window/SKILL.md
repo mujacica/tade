@@ -67,6 +67,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `title.ts` | What the terminal window calls itself | — |
 | `inbox.ts` | What Tade tells the orchestrator without being asked, and where you are when you ask (`whereYouAre`), and a line for every other machine (`machinesSaid`) | — |
 | `settings.ts` | Reading and writing a setting from the window, through core's one writer | a real disk |
+| `heart.ts` | The part that runs with no screen: the beat (`Live`) and, on it, the queue, schedules and watches, and intake, over the state every subject reads and writes. `App` is a face over it (`Face`); `tade serve` runs it alone (`Heart.alone`) | a terminal |
 | `app.ts` | Wiring only: pi-tui, the voice surface, the workbench, and the list of subjects | — |
 | `screen.ts` | The screen Tade asks you things on: setup, settings, any command that needs a form | a terminal (rendering is pure) |
 
@@ -78,6 +79,16 @@ configuration borrow the terminal: `App.onScreen` stops the window, runs a `runS
 starts it again — because two things drawing at once is the bug this design exists to avoid.
 Anything that goes wrong in there is shown *on that screen* and waited on (`ui.pause`): a window that
 redraws over the explanation is a window that ate it.
+
+**The work runs in the heart, and the window is a face over it** (`heart.ts`). What has to go on
+with nobody at a screen — the beat and what runs on it — is made by `Heart`, never by `App`, which
+hands it a `Face`: a frame to ask for, the orchestrator to tell, the links' answers, and its own
+halves of a beat (`sawTasks` before the queue and the schedules have the tasks, `beat` after). Every
+member of `Face` has an answer with no screen (`screenless`), so `tade serve` runs the same subjects
+over the same state, and what the window would have drawn in the conversation is written to standard
+error (`saidSince`, `saidLine`) — what was only ever for an orchestrator, which is not there, too.
+`test/heart.test.ts` holds that nothing the heart imports takes a terminal; a subject moved into it
+keeps its own file under `wire/` and is reached by the face through the heart's field.
 
 **The window opens before anything slow does.** The orchestrator is a model in another process; it is
 started after `App.start` and handed over with `attachThinker`. Never make the first frame wait on
