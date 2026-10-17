@@ -10,12 +10,17 @@ import {
 import { signInLasts } from '@tade/harnesses-core'
 import type { HarnessHere } from '@tade/workbench/machine'
 import { moshPortsSaid } from '@tade/workbench/remotes'
-import { writeFromShell } from '../config-write.ts'
+import { patchFromShell, writeFromShell } from '../config-write.ts'
 import type { Look } from './setup-facts.ts'
 
 // The half of setting up that is about this machine rather than about your
 // preferences: the binaries Tade is built on, the programs it shells out to,
-// which harness you are signed in to, and the keys the extensions asked for.
+// whether agents run in tmux, which harness you are signed in to, and the keys
+// the extensions asked for.
+//
+// Whatever a test runs in process lives here and not in `setup.ts`, which the
+// coverage gate cannot measure because its command runs in the binary
+// (`UNSEEN` and `LOADED`, `scripts/coverage-floors.ts`).
 //
 // Two rules run through all of it. Nothing is installed that was not asked
 // for, and every install shows the exact command before it runs — in a lane
@@ -122,6 +127,79 @@ export async function setUpPrograms(ui: Ui, missing: readonly MissingProgram[]):
       ui.say(`  ${program.title}${old} — ${program.why} (${installSaid(program.install)})`)
     }
   }
+}
+
+/**
+ * What this machine has, program by program and harness by harness.
+ *
+ * `--check` is the one place the whole picture is printed rather than asked
+ * about: the checklist says what is still to do, and this says what is here,
+ * which is the answer to "why is it asking me that?".
+ */
+export function report(look: Look): string[] {
+  const lines = ['', 'Programs:']
+  for (const program of look.programs) {
+    // Whether it is here is the same answer the wizard acts on, read off the
+    // one list that says so rather than worked out a second way.
+    const gap = look.missing.find((one) => one.command === program.need.command)
+    const version = program.version ? ` ${program.version}` : ''
+    const needed = program.need.inUse ? '' : ' — nothing you use needs it'
+    if (!gap) {
+      lines.push(`  ✓ ${program.need.title}${version}${needed}`)
+      continue
+    }
+    // What it is for is said where it is missing, which is where somebody has
+    // to decide whether they want it; a version is the answer where it is not.
+    // Too old is missing too, with the line that brings it up to date.
+    lines.push(
+      `  ○ ${program.need.title} ${programTrouble(gap)} (${installSaid(gap.install)}) — ${gap.why}${needed}`,
+    )
+  }
+  lines.push('', 'Agents:', ...harnessLines(look.harnesses))
+  return lines
+}
+
+/**
+ * Where agents live, which decides whether they survive you closing Tade.
+ *
+ * There is nothing to start — Tade is the window — so this is a choice rather
+ * than an installation, and it is the one choice worth interrupting somebody
+ * for: a default nobody was shown deciding whether a night's work stops when
+ * you shut your laptop is not a default, it is a surprise.
+ */
+export async function setUpWorkspace(ui: Ui, look: Look): Promise<void> {
+  const keepRunning =
+    (await ui.choose('Where should agents run?', [
+      'tmux — they keep working after you close Tade, and you can attach from anywhere',
+      'pty — nothing to install, and they stop when Tade does',
+    ])) === 0
+  if (!keepRunning) {
+    await patchConfig(ui, (config) => {
+      config.workspace = { ...(config.workspace ?? {}), driver: 'pty' }
+    })
+    ui.say('  agents will run inside Tade and stop with it')
+    return
+  }
+
+  // Whether tmux is here and new enough, and what would install it or bring
+  // it up to date, all come from what the driver declared — the same
+  // declaration the Updates page reads.
+  const missing = look.missing.find((one) => one.command === 'tmux')
+  if (missing?.tooOld) ui.say(`  tmux ${programTrouble(missing)}`)
+  const what = missing?.tooOld ? 'a newer tmux' : 'tmux'
+  if (missing && !(await offerInstall(ui, what, missing.install))) {
+    // Asked for durable agents and has no tmux: say plainly what they got
+    // rather than writing a driver that will not start.
+    ui.say('  leaving it on pty for now — agents will stop when Tade does')
+    await patchConfig(ui, (config) => {
+      config.workspace = { ...(config.workspace ?? {}), driver: 'pty' }
+    })
+    return
+  }
+  await patchConfig(ui, (config) => {
+    config.workspace = { ...(config.workspace ?? {}), driver: 'tmux', fallback: 'pty' }
+  })
+  ui.say('  agents will live in tmux and keep working when you close Tade')
 }
 
 /**
@@ -273,4 +351,15 @@ export async function setUpKeys(ui: Ui, look: Look): Promise<void> {
       ui.say(`  written into ${configPath} as ${secret.path}`)
     }
   }
+}
+
+/**
+ * Read, change and write `config.yaml`, keeping whatever else is in it, and
+ * write each key the change set or took away down (`patchFromShell`).
+ */
+export function patchConfig(
+  ui: Ui,
+  change: (config: Record<string, unknown>) => void,
+): Promise<void> {
+  return patchFromShell(defaultConfigPath(), change, (said) => ui.say(`  ${said}`))
 }

@@ -4,15 +4,16 @@ import type { Ui } from '@tade/app'
 import type { HarnessHere } from '@tade/workbench/machine'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
-import { report, setUpWorkspace } from '../src/commands/setup.ts'
 import type { Look } from '../src/commands/setup-facts.ts'
 import {
   harnessLines,
   offerInstall,
+  report,
   sayNativeTrouble,
   serverSays,
   setUpKeys,
   setUpPrograms,
+  setUpWorkspace,
   signInSomewhere,
 } from '../src/commands/setup-machine.ts'
 
