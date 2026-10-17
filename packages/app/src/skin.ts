@@ -183,6 +183,14 @@ export interface Skin {
   scrollThumb(lit: boolean): string
 
   /**
+   * A cell of the same bar that marks a change in the stretch of the file it
+   * stands for — new lines, gone lines, or a line changed — on the thumb's
+   * ground where the thumb is, so the mark never takes the thumb away. In the
+   * tones the file's own marks are drawn in. Exactly one column.
+   */
+  scrollMark(kind: 'add' | 'remove' | 'change', thumb: boolean, lit: boolean): string
+
+  /**
    * One cell of the same column beside something that scrolls *itself*: the
    * track's own ground, with a dashed rule on it rather than a thumb.
    *
@@ -456,6 +464,16 @@ const under =
 const solid = (tone: number, glyph: string) => `${bg(tone)}${fg(tone)}${glyph}${RESET}`
 
 /**
+ * A change marked down a scrollbar, in the tones the rest of the window
+ * already says it in: new is `done`'s green, gone is `bad`'s red, both is the
+ * violet FILES marks a modified file with (`markTone`).
+ */
+const MARK_TONE = { add: TONE.green, remove: TONE.red, change: TONE.violetText } as const
+
+/** The same, said in the signs the file's own lines wear, for a skin with no colour. */
+const SIGN_OF = { add: '+', remove: '−', change: '±' } as const
+
+/**
  * The one cell a marked row is marked with: the dark amber, filled edge to
  * edge. Amber because that is Tade's own colour and what the rest of the
  * chrome is lit with, and the dark step of it because a bar beside every
@@ -596,6 +614,10 @@ export const PLAIN: Skin = {
   // for the thumb.
   scrollTrack: () => '▕',
   scrollThumb: () => '█',
+  // The sign the line itself wears, where there is no colour to say which:
+  // `±` for a stretch with both in it. The thumb wins its cells, since what
+  // is under it is on screen with its own sign in front of it.
+  scrollMark: (kind, thumb) => (thumb ? '█' : SIGN_OF[kind]),
   // The same rule, dashed: what a bar looks like where there is no thumb to
   // draw and never will be.
   scrollElsewhere: () => '┆',
@@ -669,6 +691,11 @@ export const COLOUR: Skin = {
   // said out loud — a handle you have taken hold of should say so.
   scrollTrack: () => solid(GREY.raised, '▕'),
   scrollThumb: (lit) => solid(lit ? GREY.quiet : GREY.chrome, '█'),
+  // Half the cell in the change's own tone and half the ground it is on: the
+  // tones the file's lines and FILES' marks are drawn in, and on the thumb the
+  // thumb's own grey, so a change in view still leaves the thumb a thumb.
+  scrollMark: (kind, thumb, lit) =>
+    `${bg(thumb ? (lit ? GREY.quiet : GREY.chrome) : GREY.raised)}${fg(MARK_TONE[kind])}▐${RESET}`,
   // The track's own ground with a dashed rule over it: the same column,
   // visibly not a handle. The ink is the grey things are said quietly in
   // rather than the thumb's, because a thumb is a filled cell and this is a

@@ -4,6 +4,7 @@ import {
   barAcross,
   barRows,
   gutterRows,
+  marksAlong,
   offsetAt,
   type Scrolled,
   thumbOf,
@@ -180,5 +181,74 @@ describe('the same bar, lying down', () => {
     expect(new Set(barAcross(view({ total: 20, shown: 20, rows: 20 }), PLAIN, false))).toEqual(
       new Set(['▕']),
     )
+  })
+})
+
+describe('marks down the bar', () => {
+  it('puts a run as far down the track as it is down what there is', () => {
+    const marks = marksAlong([{ from: 50, to: 51, kind: 'add' }], view())
+    expect(marks.indexOf('add')).toBe(5)
+    expect(marks.filter(Boolean)).toHaveLength(1)
+  })
+
+  it('is the line beside it where everything fits', () => {
+    const marks = marksAlong([{ from: 2, to: 4, kind: 'remove' }], view({ total: 6 }))
+    expect(marks).toEqual([null, null, 'remove', 'remove', null, null, null, null, null, null])
+  })
+
+  it('says a cell two kinds of run share is a change', () => {
+    const marks = marksAlong(
+      [
+        { from: 0, to: 1, kind: 'add' },
+        { from: 3, to: 4, kind: 'remove' },
+      ],
+      view({ offset: 50 }),
+    )
+    expect(marks[0]).toBe('change')
+  })
+
+  it('never loses a one-line run in a long file', () => {
+    const marks = marksAlong(
+      [{ from: 99_999, to: 100_000, kind: 'add' }],
+      view({ total: 100_000, shown: 20, rows: 20 }),
+    )
+    expect(marks[19]).toBe('add')
+  })
+
+  it('never marks a change in view outside the thumb, nor one out of view inside it', () => {
+    // A hundred and forty-one rows, twenty-two in view from row 58: rounded,
+    // the thumb is placed a cell lower than row 61 is down the file, and the
+    // change on screen was marked just above it.
+    const one = view({ total: 141, shown: 22, offset: 58, rows: 22 })
+    const thumb = thumbOf(one)
+    const inside = (cell: number) =>
+      thumb !== null && cell >= thumb.from && cell < thumb.from + thumb.size
+    const runs = [
+      { from: 61, to: 63, kind: 'change' as const },
+      { from: 50, to: 51, kind: 'add' as const },
+      { from: 85, to: 86, kind: 'remove' as const },
+    ]
+    const marks = marksAlong(runs, one)
+    expect(inside(marks.indexOf('change'))).toBe(true)
+    expect(marks.indexOf('add')).toBeLessThan(thumb?.from ?? 0)
+    expect(marks.indexOf('remove')).toBeGreaterThanOrEqual((thumb?.from ?? 0) + (thumb?.size ?? 0))
+  })
+
+  it('is worked out once for the view it is drawn for, and again when the view moves', () => {
+    const runs = [{ from: 50, to: 51, kind: 'add' as const }]
+    expect(marksAlong(runs, view())).toBe(marksAlong(runs, view()))
+    expect(marksAlong(runs, view({ offset: 3 }))).not.toBe(marksAlong(runs, view()))
+  })
+
+  it('draws a mark in its own cell, the thumb and the track kept where there is none', () => {
+    const one = view({ total: 100, shown: 10, offset: 0, rows: 10 })
+    const marks = marksAlong([{ from: 55, to: 56, kind: 'add' }], one)
+    const cells = barRows(one, PLAIN, false, marks)
+    expect(cells[5]).toBe('+')
+    expect(cells[0]).toBe(PLAIN.scrollThumb(false))
+    expect(cells[9]).toBe(PLAIN.scrollTrack())
+    expect(barRows(one, COLOUR, false, marks)[5]).toBe(COLOUR.scrollMark('add', false, false))
+    for (const cell of barRows(one, COLOUR, true, marks))
+      expect(stripTerminalSequences(cell)).toHaveLength(1)
   })
 })

@@ -5,7 +5,7 @@ import { initialState, toggleSection, withProjects } from '../../../src/model.ts
 import type { CommentChoice } from '../../../src/panels/comment.ts'
 import { diffPanel } from '../../../src/panels/diff/state.ts'
 import { inlineRows } from '../../../src/panels/file/inline.ts'
-import { filePanel } from '../../../src/panels/file/state.ts'
+import { filePanel, firstChange } from '../../../src/panels/file/state.ts'
 import { branchPanel } from '../../../src/panels/small/state.ts'
 import {
   type Edited,
@@ -113,6 +113,59 @@ const webhooksDiff = parseDiff(
     "   if (event.type === 'charge.refunded') {",
     '     await refund(event)',
     '   }',
+  ].join('\n'),
+)
+
+/**
+ * A file long enough that its changes are screens apart: the rates the ledger
+ * charges, one a line, with one rewritten, one added and one taken out.
+ */
+const ratesBefore = [
+  '// What each corridor is charged, in basis points.',
+  'export const RATES: Record<string, number> = {',
+  ...Array.from(
+    { length: 136 },
+    (_, i) => `  corridor${String(i + 1).padStart(3, '0')}: ${(i % 9) * 5 + 20},`,
+  ),
+  '}',
+  '',
+]
+const ratesFile: ViewedFile = (() => {
+  const lines = [...ratesBefore]
+  lines[61] = '  corridor060: 15, // halved for the launch'
+  lines.splice(98, 0, '  corridor096b: 25,')
+  lines.splice(121, 1)
+  return {
+    path: '/Users/me/src/checkout/src/rates.ts',
+    size: lines.join('\n').length,
+    binary: false,
+    truncated: false,
+    language: 'typescript',
+    mtimeMs: 1_700_000_000_000,
+    error: null,
+    text: lines.join('\n'),
+  }
+})()
+
+/** What git says about it: a line changed, a line added, a line gone — on three screens. */
+const ratesDiff = parseDiff(
+  [
+    'diff --git a/src/rates.ts b/src/rates.ts',
+    '--- a/src/rates.ts',
+    '+++ b/src/rates.ts',
+    '@@ -61,3 +61,3 @@',
+    `   ${ratesBefore[60]?.trim()}`,
+    `-${ratesBefore[61]}`,
+    '+  corridor060: 15, // halved for the launch',
+    `   ${ratesBefore[62]?.trim()}`,
+    '@@ -98,2 +98,3 @@',
+    `   ${ratesBefore[97]?.trim()}`,
+    '+  corridor096b: 25,',
+    `   ${ratesBefore[98]?.trim()}`,
+    '@@ -121,3 +122,2 @@',
+    `   ${ratesBefore[120]?.trim()}`,
+    `-${ratesBefore[121]}`,
+    `   ${ratesBefore[122]?.trim()}`,
   ].join('\n'),
 )
 
@@ -345,6 +398,31 @@ export const FILE_SCREENS: Scenario[] = [
           total: 2,
         },
         commentTo: CHOICES,
+      },
+    }),
+  },
+  {
+    name: 'a-long-change-opened-on-its-first-change',
+    about:
+      'A long changed file clicked in CHANGES: opened on its first change rather than its first line, the bar marking where the other two are, and n/p to go to them.',
+    state: (() => {
+      const viewed = viewing(ratesFile, undefined, ratesDiff)
+      // Where the window puts it once git has answered (`Files.landOnChange`).
+      const landing = firstChange(viewed.inline, 30)
+      return {
+        ...base(),
+        panel: {
+          ...filePanel(ratesFile.path, null, false, true),
+          scroll: landing?.offset ?? 0,
+          atChange: landing?.atChange ?? null,
+        },
+      }
+    })(),
+    frame: frame({
+      panel: {
+        homeDir: '/Users/me',
+        diff: ratesDiff,
+        viewing: viewing(ratesFile, undefined, ratesDiff),
       },
     }),
   },

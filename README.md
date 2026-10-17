@@ -98,7 +98,9 @@ Once the work is out for review, a conflict with its base is for the review watc
 
 Every file an agent touches, marked the way git marks it. Click one and it opens in the window's own
 editor with git's answer drawn into it — added lines green, the lines that were there red — where you
-can fix it and press ctrl+s, rather than read it here and go and fix it somewhere else.
+can fix it and press ctrl+s, rather than read it here and go and fix it somewhere else. It opens on
+the first change, the bar down its side marks where the others are, and `n` and `p` go from one to
+the next.
 
 Or say something about it: press a line's number, or `c`, and write on that line. A comment goes to
 Tade as your own words, anchored at `file:line` with its hunk beside it, or — tab, on the same

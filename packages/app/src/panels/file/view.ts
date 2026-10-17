@@ -8,6 +8,7 @@ import { printable } from '@tade/core'
 import { fileText } from '../../highlight.ts'
 import type { Hit } from '../../hits.ts'
 import { onLine, type Place, placeOf } from '../../input.ts'
+import { marksAlong } from '../../scrollbar.ts'
 import type { Skin } from '../../skin.ts'
 import { blank, box, type Drawn, fit as fitRow, Row } from '../../ui.ts'
 import {
@@ -24,7 +25,16 @@ import { tildeOf } from '../cells.ts'
 import { COMMENTED, commentBar } from '../comment.ts'
 import type { PanelContext } from '../context.ts'
 import { BAR, bar, panelSize } from '../frame.ts'
-import { type FileAsk, type FilePanel, fileMatches, fileSelection, showsDiff } from './state.ts'
+import { changesIn } from './inline.ts'
+import {
+  type AtChange,
+  type FileAsk,
+  type FilePanel,
+  fileMatches,
+  fileSelection,
+  sentTo,
+  showsDiff,
+} from './state.ts'
 
 // What the file viewer looks like: the lines, the selection laid over them,
 // the bar along the bottom and what it is asking. What a key does to it is
@@ -282,8 +292,11 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
       })
     }
     // The same bar every other panel draws, from the same three numbers: how
-    // much there is, how much is in view, and where in it you are.
-    const cells = bar({ total, shown: body, offset: scroll, rows: body }, 'panel', ctx)
+    // much there is, how much is in view, and where in it you are — and, with
+    // git's answer drawn in, where down the file each change is, so a change
+    // three screens down is a mark to go to rather than a file to read for it.
+    const view = { total, shown: body, offset: scroll, rows: body }
+    const cells = bar(view, 'panel', ctx, inline ? marksAlong(changesIn(inline), view) : undefined)
     read.forEach((row, i) => {
       const cell = cells[i]
       rows.push({
@@ -316,11 +329,21 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
     (saving ? 'Save'.length + 5 : 0) +
     12 +
     3
+  // How many changes there are to go through, where git's answer is drawn in:
+  // what puts `n` and `p` on this row, and what the position among them counts.
+  const stepping = inline ? changesIn(inline).length : 0
   if (panel.said) {
     foot.text(panel.said, skin.waiting)
   } else if (total > 0) {
     const from = Math.max(0, Math.min(panel.scroll, total - body)) + 1
-    const where = `${formatted || inline ? 'rows' : 'lines'} ${from}–${shownTo} of ${total}`
+    const span = `${formatted || inline ? 'rows' : 'lines'} ${from}–${shownTo} of ${total}`
+    // Which change the view was sent to, while it is still there, before
+    // where in the rows it is: the change is what was asked for, and the rows
+    // are what gives way first.
+    const sent = stepping > 0 ? sentTo(panel) : null
+    const among = sent ? changeSaid(sent, stepping) : null
+    const fits = (said: string) => 1 + said.length + buttons + 2 <= inner
+    const where = (among ? [`${among} · ${span}`, among] : []).find(fits) ?? span
     // Longest first, and the first of them that fits: a fourth key on this row
     // used to mean the row said one key less at every width, rather than at the
     // widths where there is genuinely no room for it.
@@ -332,20 +355,28 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
           : edit
             ? selection
               ? ['  ctrl+shift+c copies · ctrl+s saves · esc leaves']
-              : ['  ctrl+s saves · ctrl+f finds · esc leaves']
+              : stepping > 0
+                ? TYPING_STEPS
+                : ['  ctrl+s saves · ctrl+f finds · esc leaves']
             : typeable
-              ? changes
-                ? // `ctrl+d` goes first where there is no room for all four,
-                  // because the chip in the heading says it and nothing says
-                  // `ctrl+g` but this row.
-                  [
-                    '  click to edit · c comment · ctrl+f find · ctrl+g line · ctrl+d changes',
-                    '  click to edit · ctrl+f find · ctrl+g line · ctrl+d changes',
-                    '  click to edit · ctrl+f find · ctrl+g line',
-                  ]
-                : ['  click to edit · ctrl+f find · ctrl+g line']
-              : ['  ↑↓ scroll · space a page · e editor']
-    if (1 + where.length + buttons + 2 <= inner) foot.text(where, skin.hint)
+              ? stepping > 0
+                ? READING_STEPS
+                : changes
+                  ? // `ctrl+d` goes first where there is no room for all four,
+                    // because the chip in the heading says it and nothing says
+                    // `ctrl+g` but this row.
+                    [
+                      '  click to edit · c comment · ctrl+f find · ctrl+g line · ctrl+d changes',
+                      '  click to edit · ctrl+f find · ctrl+g line · ctrl+d changes',
+                      '  click to edit · ctrl+f find · ctrl+g line',
+                    ]
+                  : ['  click to edit · ctrl+f find · ctrl+g line']
+              : stepping > 0
+                ? ['  n/p change · ↑↓ scroll · space a page · e editor', '  n/p change']
+                : ['  ↑↓ scroll · space a page · e editor']
+    // Gone round an end is said in the colour a panel says things in, because
+    // the press did something other than the one before it did.
+    if (fits(where)) foot.text(where, where === span || !sent?.wrapped ? skin.hint : skin.waiting)
     const keys = hints.find((one) => 1 + where.length + one.length + buttons + 2 <= inner)
     if (keys) foot.text(keys, skin.hint)
   }
@@ -365,6 +396,40 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
 
 /** What the heading says where git has looked and the file matches its base. */
 const NOTHING = 'no changes'
+
+/**
+ * The keys for going through the changes, while reading, longest first.
+ * Going through them is the first thing kept: it is what a changed file was
+ * opened for, and nothing else on the screen says the keys for it.
+ */
+const READING_STEPS = [
+  '  n/p next/previous change · click to edit · c comment · ctrl+f find · ctrl+g line · ctrl+d changes',
+  '  n/p change · click to edit · c comment · ctrl+f find · ctrl+g line · ctrl+d changes',
+  '  n/p change · click to edit · ctrl+f find · ctrl+g line · ctrl+d changes',
+  // `ctrl+d` before `ctrl+g`, as without the changes: the chip says it.
+  '  n/p change · click to edit · ctrl+f find · ctrl+g line',
+  '  n/p change · click to edit · ctrl+f find',
+  '  n/p change',
+]
+
+/** The same while typing, where every letter is a letter and the chords are the keys. */
+const TYPING_STEPS = [
+  '  ctrl+n/p next/previous change · ctrl+s saves · ctrl+f finds · esc leaves',
+  '  ctrl+n/p change · ctrl+s saves · ctrl+f finds · esc leaves',
+  '  ctrl+n/p change · ctrl+s saves · esc leaves',
+  '  ctrl+n/p change · ctrl+s saves',
+  '  ctrl+n/p change',
+]
+
+/**
+ * Which change the view is on, among how many: `change 2 of 5`, and
+ * `wrapped` where getting there went past the last to the first or before the
+ * first to the last — a press at an end that did nothing would read as a key
+ * that does not work.
+ */
+function changeSaid(at: AtChange, count: number): string {
+  return `change ${Math.min(at.index + 1, count)} of ${count}${at.wrapped ? ', wrapped' : ''}`
+}
 
 /**
  * The path, shortened from its front where the row has no room for all of it:

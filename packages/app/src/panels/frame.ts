@@ -1,5 +1,5 @@
 import type { Hit, Target } from '../hits.ts'
-import { BAR, barRows, type Scrolled } from '../scrollbar.ts'
+import { BAR, type BarMark, barRows, type Scrolled } from '../scrollbar.ts'
 import type { Skin } from '../skin.ts'
 import { blank, Row } from '../ui.ts'
 import { widthOf } from '../width.ts'
@@ -176,18 +176,20 @@ export function startOf(
  * scrollbar of its own.
  *
  * Drawn whether or not there is anything to scroll: a column that comes and
- * goes moves everything beside it every time the page changes.
+ * goes moves everything beside it every time the page changes. `marks` are
+ * what the file viewer lays down it — where the changes are (`marksAlong`).
  */
 export function bar(
   view: Scrolled,
   area: 'panel' | 'panel-side',
   ctx: PanelContext,
+  marks?: readonly (BarMark | null)[],
 ): { cell: string; target: Target }[] {
   const held =
     ctx.scrolling === area ||
     (ctx.pointer.hover?.kind === 'scrollbar' && ctx.pointer.hover.area === area)
   const target: Target = { kind: 'scrollbar', area, total: view.total, shown: view.shown }
-  return barRows(view, ctx.skin, held).map((cell) => ({ cell, target }))
+  return barRows(view, ctx.skin, held, marks).map((cell) => ({ cell, target }))
 }
 
 /** What scrolls inside a panel: the lines, where they are, and how much is in view. */

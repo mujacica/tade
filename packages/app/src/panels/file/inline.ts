@@ -91,6 +91,53 @@ function nextOrigins(from: readonly number[] | null, count: number): number[] {
 }
 
 /**
+ * A change, as the rows it is drawn in: a run of rows git says are new or gone,
+ * with nothing unchanged between them. `to` is one past its last row. A run
+ * that took lines out and put others in is a line changed rather than an
+ * addition beside a removal, which is what `change` says.
+ */
+export interface ChangeRun {
+  from: number
+  to: number
+  kind: 'add' | 'remove' | 'change'
+}
+
+/**
+ * Every change in the rows, top to bottom — what going to the next one steps
+ * through and what the bar down the side marks.
+ *
+ * A pass over the whole file, so it is kept with the rows it was made from:
+ * those are made once per edit (`Viewed.rows`), and the same rows always
+ * answer with the very same list rather than a fresh one every frame.
+ */
+export function changesIn(rows: readonly InlineRow[] | null | undefined): readonly ChangeRun[] {
+  if (!rows) return NONE
+  const kept = CHANGES.get(rows)
+  if (kept) return kept
+  const changes: ChangeRun[] = []
+  let open: ChangeRun | null = null
+  for (let at = 0; at < rows.length; at++) {
+    const kind = rows[at]?.kind ?? 'context'
+    if (kind === 'context') {
+      open = null
+      continue
+    }
+    if (open && open.to === at) {
+      open.to = at + 1
+      if (open.kind !== kind) open.kind = 'change'
+      continue
+    }
+    open = { from: at, to: at + 1, kind }
+    changes.push(open)
+  }
+  CHANGES.set(rows, changes)
+  return changes
+}
+
+const NONE: readonly ChangeRun[] = []
+const CHANGES = new WeakMap<readonly InlineRow[], readonly ChangeRun[]>()
+
+/**
  * Where a line of the file is drawn, which the gone lines above it move down.
  * A line the rows do not hold is itself: with no inline diff the two are one.
  */

@@ -83,14 +83,103 @@ export function offsetAt(view: Scrolled, row: number): number {
  * Drawn even where nothing scrolls, because a column that comes and goes
  * reflows everything beside it every time output arrives.
  */
-export function barRows(view: Scrolled, skin: Skin, lit: boolean): string[] {
+export function barRows(
+  view: Scrolled,
+  skin: Skin,
+  lit: boolean,
+  marks: readonly (BarMark | null)[] = NO_MARKS,
+): string[] {
   const thumb = thumbOf(view)
   const track = skin.scrollTrack()
   const held = skin.scrollThumb(lit)
-  return Array.from({ length: Math.max(0, view.rows) }, (_, row) =>
-    thumb && row >= thumb.from && row < thumb.from + thumb.size ? held : track,
-  )
+  return Array.from({ length: Math.max(0, view.rows) }, (_, row) => {
+    const on = thumb !== null && row >= thumb.from && row < thumb.from + thumb.size
+    const mark = marks[row] ?? null
+    if (mark) return skin.scrollMark(mark, on, lit)
+    return on ? held : track
+  })
 }
+
+/** What a cell of the bar can say is in the stretch of the file it stands for. */
+export type BarMark = 'add' | 'remove' | 'change'
+
+/** A run of lines something is to be marked on — a change, for the file viewer. */
+export interface Marked {
+  from: number
+  /** One past its last line. */
+  to: number
+  kind: BarMark
+}
+
+const NO_MARKS: readonly (BarMark | null)[] = []
+
+/**
+ * Which cells of a bar stand for some of these runs, and what they say: each
+ * run placed down the track as far as it is down what there is, so where a
+ * mark is says where in the file to look. A cell two kinds of run share says
+ * `change`, because that stretch has both in it.
+ *
+ * Where everything fits, a cell is the line beside it. A run is never too
+ * short to be marked — a one-line change in a file of a hundred thousand is a
+ * cell, because a mark too small to draw is a change nobody finds.
+ *
+ * And a mark never contradicts the thumb. The thumb is placed by how far you
+ * are through what can be scrolled and a mark by how far its line is through
+ * all of it, and rounded, the two part by a cell: a change on screen came out
+ * marked just above the thumb, which says there is a change above what you are
+ * reading. So a run in view is marked inside the thumb, one above it above,
+ * one below it below — where it falls anyway, everywhere but at the thumb's
+ * two edges.
+ *
+ * Kept with the runs it was made from, for the view it was made for: the runs
+ * are made once per diff, and every frame drawn after the first, until the
+ * view moves, is answered with the very same cells.
+ */
+export function marksAlong(runs: readonly Marked[], view: Scrolled): readonly (BarMark | null)[] {
+  const { total, shown, offset, rows } = view
+  const kept = MARKS.get(runs)
+  if (
+    kept &&
+    kept.view.total === total &&
+    kept.view.shown === shown &&
+    kept.view.offset === offset &&
+    kept.view.rows === rows
+  )
+    return kept.marks
+  const marks: (BarMark | null)[] = new Array(Math.max(0, rows)).fill(null)
+  // Lines per cell, where there are more lines than cells: one otherwise.
+  const unit = Math.max(total, rows, 1)
+  const cellOf = (line: number) => Math.max(0, Math.min(rows - 1, Math.floor((line * rows) / unit)))
+  const thumb = thumbOf(view)
+  const top = Math.max(0, Math.min(total - shown, offset))
+  for (const run of runs) {
+    if (rows <= 0 || run.to <= run.from) continue
+    let first = cellOf(run.from)
+    let last = cellOf(run.to - 1)
+    if (thumb) {
+      // The cells the run may be drawn in, by where it is against the view.
+      const [lo, hi] =
+        run.to <= top
+          ? [0, Math.max(0, thumb.from - 1)]
+          : run.from >= top + shown
+            ? [Math.min(rows - 1, thumb.from + thumb.size), rows - 1]
+            : [thumb.from, thumb.from + thumb.size - 1]
+      first = Math.max(lo, Math.min(hi, first))
+      last = Math.max(lo, Math.min(hi, last))
+    }
+    for (let cell = first; cell <= last; cell++) {
+      const there = marks[cell]
+      marks[cell] = there && there !== run.kind ? 'change' : run.kind
+    }
+  }
+  MARKS.set(runs, { view: { total, shown, offset, rows }, marks })
+  return marks
+}
+
+const MARKS = new WeakMap<
+  readonly Marked[],
+  { view: Scrolled; marks: readonly (BarMark | null)[] }
+>()
 
 /**
  * The same column beside something the window is *not* scrolling: what a

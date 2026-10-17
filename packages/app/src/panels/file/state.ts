@@ -25,7 +25,7 @@ import {
 } from '../../viewer.ts'
 import { type Composing, composeKey, composeOn, nextTo } from '../comment.ts'
 import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
-import { drawnRow, type InlineRow, lineAtRow } from './inline.ts'
+import { changesIn, drawnRow, type InlineRow, lineAtRow } from './inline.ts'
 
 // A file read inside the window, and what a key or a click does to it.
 //
@@ -75,7 +75,27 @@ export interface FilePanel {
   said: string | null
   /** Esc was pressed on unsaved work, and asked before throwing it away. */
   warned: boolean
+  /**
+   * The change the view was last sent to (`n`, `p`, or opening a changed
+   * file), while it is still there. Only good while `scroll` is still the
+   * scroll it was sent at, and the caret still where it was put: the wheel, a
+   * key or the bar moving the view is the view somewhere else, and the next
+   * change is then the next one under where it is now (`sentTo`).
+   */
+  atChange: AtChange | null
   busy: false
+}
+
+/** Which change the view was sent to, from where, and whether it went round an end to get there. */
+export interface AtChange {
+  /** Into `changesIn` of the rows it was sent along. */
+  index: number
+  /** The scroll it was sent at. */
+  scroll: number
+  /** The line the caret was put on, where one was down; null while reading. */
+  line: number | null
+  /** Past the last change to the first, or before the first to the last. */
+  wrapped: 'top' | 'bottom' | null
 }
 
 /** Finding in the file, going to a line, or writing on one: whichever bar is open. */
@@ -107,6 +127,7 @@ export function filePanel(
     anchor: null,
     said: null,
     warned: false,
+    atChange: null,
     busy: false,
   }
 }
@@ -181,6 +202,12 @@ export function fileKey(
       return stay(asking(panel, { kind: 'goto', digits: '' }))
     case 'ctrl+d':
       return stay(withInline(panel, inputs))
+    case 'n':
+    case 'ctrl+n':
+      return stay(toChange(panel, false, inputs))
+    case 'p':
+    case 'ctrl+p':
+      return stay(toChange(panel, true, inputs))
     case 'c':
     case 'ctrl+r':
       return stay(commentOn(panel, readingLine(panel, inputs), inputs))
@@ -236,6 +263,9 @@ function typingKey(
   if (key === 'ctrl+f') return stay(asking(panel, { kind: 'find', query: '', index: 0 }))
   if (key === 'ctrl+g') return stay(asking(panel, { kind: 'goto', digits: '' }))
   if (key === 'ctrl+d') return stay(withInline(panel, inputs))
+  // Every printable key is a character here, so going through the changes is
+  // the two chords that `n` and `p` are while reading.
+  if (key === 'ctrl+n' || key === 'ctrl+p') return stay(toChange(panel, key === 'ctrl+p', inputs))
   if (key === 'ctrl+r') return stay(commentOn(panel, edit.row, inputs))
   if (key === 'escape') return edit.dirty && !panel.warned ? stay(warn(panel)) : close
   const selected = fileSelection(panel)
@@ -289,6 +319,103 @@ function shownRows(panel: FilePanel, inputs: PanelInputs): readonly InlineRow[] 
 /** Whether the panel is drawing the file with git's answer in it. */
 export function showsDiff(panel: FilePanel): boolean {
   return panel.inline && !panel.formatted
+}
+
+/**
+ * Rows of what comes before a change kept above it when the view is sent to
+ * it, so the change is read in its place — and never more than the caret's own
+ * margin allows (`inView`), or the first key typed after going there would
+ * move the view again.
+ */
+function leadOf(body: number): number {
+  return Math.min(3, Math.max(0, Math.floor((body - 1) / 2)))
+}
+
+/** The scroll a change is read at: its first row a few rows down, as far as the end allows. */
+function changeScroll(row: number, body: number, total: number): number {
+  return Math.max(0, Math.min(row - leadOf(body), total - body))
+}
+
+/**
+ * Where a changed file opens: on its first change, with the change it is on
+ * written down so the next one is a press away. Nothing where git says nothing
+ * changed, and the file opens at its top as any other does.
+ *
+ * Answered as an offset rather than a panel, because putting the view there is
+ * the window's one setter for where a region is (`atOffset`).
+ */
+export function firstChange(
+  rows: readonly InlineRow[] | null,
+  body: number,
+): { offset: number; atChange: AtChange } | null {
+  const first = changesIn(rows)[0]
+  if (!rows || !first) return null
+  const offset = changeScroll(first.from, Math.max(1, body), rows.length)
+  return { offset, atChange: { index: 0, scroll: offset, line: null, wrapped: null } }
+}
+
+/** The change the view was sent to, while nothing has moved it since. */
+export function sentTo(panel: FilePanel): AtChange | null {
+  const at = panel.atChange
+  if (!at || at.scroll !== panel.scroll) return null
+  return (panel.edit?.row ?? null) === at.line ? at : null
+}
+
+/** What `n` says where the changes are not drawn, and where there are none. */
+const CHANGES_OFF = 'The changes are not drawn — ctrl+d draws them.'
+const NO_CHANGES = 'No changes to go to.'
+
+/**
+ * The next change, or the one before — from the one the view was sent to
+ * while it is still there, and otherwise from where you are: the caret while
+ * typing, and the top of the view while reading (all of it, at the very top,
+ * so a change on the first rows is not stepped over).
+ *
+ * Past the last it goes round to the first, and says it did — a press at the
+ * end that did nothing would read as a key that does not work. Typing, the
+ * caret goes with the view, onto the change's first line, because the next key
+ * typed brings the view back to wherever the caret is.
+ */
+function toChange(panel: FilePanel, back: boolean, inputs: PanelInputs): FilePanel {
+  if (!showsDiff(panel)) return { ...panel, said: CHANGES_OFF }
+  const rows = shownRows(panel, inputs)
+  const changes = changesIn(rows)
+  if (!rows || changes.length === 0) return { ...panel, said: NO_CHANGES }
+  const body = Math.max(1, inputs.body ?? 20)
+  const edit = panel.edit
+  const sent = sentTo(panel)
+  let index: number
+  if (sent) index = sent.index + (back ? -1 : 1)
+  else {
+    const here = edit
+      ? drawnRow(rows, edit.row)
+      : panel.scroll === 0
+        ? -1
+        : panel.scroll + leadOf(body)
+    index = back
+      ? changes.findLastIndex((one) => one.from < here)
+      : changes.findIndex((one) => one.from > here)
+    if (index < 0) index = back ? -1 : changes.length
+  }
+  const wrapped = index < 0 ? 'bottom' : index >= changes.length ? 'top' : null
+  index = wrapped === 'bottom' ? changes.length - 1 : wrapped === 'top' ? 0 : index
+  const from = changes[index]?.from ?? 0
+  const scroll = changeScroll(from, body, rows.length)
+  if (!edit)
+    return { ...panel, scroll, said: null, atChange: { index, scroll, line: null, wrapped } }
+  // A change that is only lines gone has no line of its own: the caret goes to
+  // the line that now stands where they were.
+  const line = Math.max(0, Math.min(lineAtRow(rows, from), edit.lines.length - 1))
+  return {
+    ...panel,
+    edit: caretAt(edit, line, 0),
+    anchor: null,
+    line: null,
+    said: null,
+    warned: false,
+    scroll,
+    atChange: { index, scroll, line, wrapped },
+  }
 }
 
 /**
@@ -391,6 +518,9 @@ function typedInto(
     line: null,
     warned: false,
     said: null,
+    // Typed into, the rows the change was counted along may not be the rows
+    // there are: the next change is the next one from the caret.
+    atChange: null,
     scroll: inView(panel.scroll, drawnRow(rows, edit.row), body),
   }
 }

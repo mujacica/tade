@@ -67,11 +67,12 @@ describe('the window, and a changed file you clicked', () => {
         return {
           mark: gutter.replace(/\d+/g, '').trim(),
           number: /\d+/.exec(gutter)?.[0] ?? '',
-          // Without the block the caret is drawn as, which is a character of
-          // the line in colour and a block of its own where there is no
-          // character — and the row is padded out, so the block is only at the
-          // end once the padding is off.
-          text: (parts[2] ?? '').replace(/▕.*$/, '').trimEnd().replace(/█$/, '').trim(),
+          // Without the bar's own cell at the end — the track, the thumb, or
+          // where a change is marked — and without the block the caret is
+          // drawn as, which is a character of the line in colour and a block of
+          // its own where there is no character: the row is padded out, so the
+          // block is only at the end once the padding is off.
+          text: (parts[2] ?? '').slice(0, -1).trimEnd().replace(/█$/, '').trim(),
         }
       })
   }
@@ -159,6 +160,61 @@ describe('the window, and a changed file you clicked', () => {
     terminal.written = ''
     terminal.press('\x04')
     await until('what git said about it', () => terminal.written.includes('no changes'))
+  })
+
+  it('opens a long one on its first change, marks the rest, and n goes through them', async () => {
+    // A hundred and twenty lines, the eightieth rewritten and the hundred and
+    // tenth taken out: two screens apart, and neither on the first one.
+    const line = (n: number) => `export const n${String(n).padStart(3, '0')} = ${n}`
+    const before = Array.from({ length: 120 }, (_, i) => line(i + 1))
+    const after = before.map((one, i) => (i === 79 ? "export const n080 = 'eighty'" : one))
+    after.splice(109, 1)
+    repo.commit('rates', { 'rates.ts': `${before.join('\n')}\n` })
+    const worktree = repo.addTask('rates', { project: 'app', intent: 'eighty is a word' })
+    writeFileSync(join(worktree, 'rates.ts'), `${after.join('\n')}\n`)
+    terminal.rows = 44
+    terminal.columns = 120
+    await start()
+    await until('its changed file in CHANGES', () =>
+      screenOf(terminal.written).some((row) => row.includes('rates.ts') && row.includes('+1 −2')),
+    )
+    const row = find('+1 −2')
+    click(row.col, row.row)
+
+    /** The numbers down the side of the body, top to bottom, gone lines as blanks. */
+    const numbers = () =>
+      screenOf(terminal.written)
+        .filter((one) => /│ export const n\d{3}/.test(one))
+        .map((one) => /(\d+) │ export/.exec(one)?.[1] ?? '')
+    // On the change, with three lines of what comes before it above: line 80's
+    // old self is the first row git marks, so the view starts three above it.
+    await until('the first change', () => numbers()[0] === '77')
+    expect(terminal.written).toContain("export const n080 = 'eighty'")
+    await until('where it is among them', () =>
+      screenOf(terminal.written).join('\n').includes('change 1 of 2'),
+    )
+    // The bar down the side says where the other one is, in the sign it wears.
+    const bar = screenOf(terminal.written)
+      .filter((one) => /│ export const n\d{3}/.test(one))
+      .map((one) => /([▕█±+−])\s*│?\s*$/.exec(one.replace(/│\s*$/, '').trimEnd())?.[1] ?? '')
+    expect(bar).toContain('−')
+    // And the keys for going through them are said where the keys are.
+    expect(screenOf(terminal.written).join('\n')).toContain('n/p')
+
+    terminal.press('n')
+    await until('the next change', () =>
+      screenOf(terminal.written).join('\n').includes('change 2 of 2'),
+    )
+    expect(terminal.written).toContain('export const n110 = 110')
+    terminal.press('n')
+    await until('round to the first again, said', () =>
+      screenOf(terminal.written).join('\n').includes('change 1 of 2, wrapped'),
+    )
+    expect(numbers()[0]).toBe('77')
+    terminal.press('p')
+    await until('back to the last', () =>
+      screenOf(terminal.written).join('\n').includes('change 2 of 2, wrapped'),
+    )
   })
 
   it('turns it on again from the chip, which is drawn whether it is on or off', async () => {

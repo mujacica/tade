@@ -12,9 +12,15 @@ import {
 } from '../editor.ts'
 import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
-import { focusTask, shownName, toggleFolder, viewLane } from '../model.ts'
+import { atOffset, focusTask, shownName, toggleFolder, viewLane } from '../model.ts'
 import { type DiffPanel, diffPanel } from '../panels/diff/state.ts'
-import { type FilePanel, filePanel, savedFile, showsDiff } from '../panels/file/state.ts'
+import {
+  type FilePanel,
+  filePanel,
+  firstChange,
+  savedFile,
+  showsDiff,
+} from '../panels/file/state.ts'
 import { fileBodySize } from '../panels/file/view.ts'
 import { branchMenuItems, changeMenuItems, fileMenuItems } from '../panels/menu/state.ts'
 import type { PanelOutcome } from '../panels/outcome.ts'
@@ -669,7 +675,30 @@ export class Files implements Subject {
    */
   async openChange(task: string | null, path: string): Promise<void> {
     this.openFile(this.resolvePath(path), null, true)
+    const opened = this.wire.state.panel
     await this.loadFileDiff(task, path)
+    this.landOnChange(opened)
+  }
+
+  /**
+   * A changed file opened on its first change rather than on its first line:
+   * it was opened to read what changed, and that may be three screens down.
+   *
+   * Only while the panel is the very one that was opened, untouched — a key,
+   * a notch or a click makes another — because git answering after you have
+   * started reading must not take the file out from under you. And only here:
+   * a save asks git again, and so does turning the changes on, and neither of
+   * those is a reason to move what you are reading.
+   */
+  private landOnChange(opened: Panel | null): void {
+    const panel = this.wire.state.panel
+    if (panel !== opened || panel?.kind !== 'file' || !showsDiff(panel)) return
+    const shown = this.body(panel).rows
+    const landing = firstChange(this.viewed.rows(panel.edit), shown)
+    if (!landing) return
+    const state = { ...this.wire.state, panel: { ...panel, atChange: landing.atChange } }
+    this.wire.put(atOffset(state, 'panel', landing.offset, { total: this.lines(), shown }))
+    this.wire.draw()
   }
 
   /**
