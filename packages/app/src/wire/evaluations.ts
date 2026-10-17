@@ -23,7 +23,7 @@ import { heldJudgeReplays, replaysHeld } from './replays.ts'
 // Merges are what status's last look said (a review's state is the forge's to
 // keep, so it is asked rather than journalled); what each task cost is the
 // window's own usage fold; what the judges raised is `heldFindings`, the same
-// answer the landing desk draws.
+// answer the races and the away view draw.
 
 /** How often the journal's lines are read again while somebody is looking. */
 export const JOURNAL_MS = 30_000

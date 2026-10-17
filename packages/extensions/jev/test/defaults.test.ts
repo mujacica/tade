@@ -482,7 +482,7 @@ describe('whose a change is, is whose commits are in it', () => {
     expect(readFileSync(join(repo.home, 'jev', 'reviews.jsonl'), 'utf8')).toBe(written)
   })
 
-  it('draws the landing desk and the Jev page by whose commits a change holds', async () => {
+  it('draws the findings hook and the Jev page by whose commits a change holds', async () => {
     const { repo, range } = filedUnderEverybody()
     const loaded = await host({
       home: repo.home,
@@ -491,7 +491,7 @@ describe('whose a change is, is whose commits are in it', () => {
       fetch: offline,
       now: NOW + 2 * 3_600_000,
     })
-    // The landing desk and the away view read the `findings` hook, and count
+    // The races and the away view read the `findings` hook, and a race counts
     // what is about a task with `findingsFor`: add-refunds has one finding of
     // its own, not tidy-receipts' as well.
     const { findings, problems } = await loaded.findings()

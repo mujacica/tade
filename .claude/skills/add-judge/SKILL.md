@@ -30,7 +30,7 @@ Everything below is one rule read at different distances: **a judge answers, it 
 | `packages/core/src/calibration.ts` | the rule itself, in core so the window's Evaluations surface reads it without importing an extension: `ENOUGH`, `Tally`, `worthOf`, `bandOf`, `calibrationOf`, `precisionSaid`, `worthSaid` |
 | `packages/extensions/jev/src/precision.ts` | whether a question earns its place over Jev's own record: `precisionOf` (the per-day table), re-exporting core's rule |
 | `packages/core/src/mistakes.ts` · `extensions/jev/src/mistakes.ts` | a mistake made twice becomes a proposed check, parked for the orchestrator to decide: `madeTwice` (out of the precision table), `checkProposal`, `seenTwiceProblem`, `CHECKABLE`, the standing `jev.mistakes` watch |
-| `packages/extensions/core/src/findings.ts` | `askFindings`: the `findings` hook on the extension port, which is how the landing desk and the away view read what any judge found, out of its own record and never by asking a model. Counted by what became of each — never ordered by a probability — and `asked: 0` is no judge here, not none found |
+| `packages/extensions/core/src/findings.ts` | `askFindings`: the `findings` hook on the extension port, which is how the races, Evaluations and the away view read what any judge found, out of its own record and never by asking a model. Counted by what became of each — never ordered by a probability — and `asked: 0` is no judge here, not none found |
 | `packages/extensions/jev/src/reviews.ts` | `reviews.jsonl` — readings, accounts and verdicts, the one thing that cannot be asked again |
 | `packages/core/src/policy.ts` | `withCaution`: the only thing a reading may do to a command |
 | `packages/app/src/meant.ts` | `isSentence`, `worthAsking`, `shortlist`, `wordsIn`: the recall a judge adds precision to |
@@ -149,7 +149,7 @@ way, and no agent could account for the answer because none of it was only their
 - **A reading's `tasks` is read back, never trusted.** Older lines filed a shared branch under every
   task in the checkout, and the record is never rewritten, so everything that says whose a finding is
   — `jev_findings`, the sweep, `jev_replay`, and the Jev page, the brief and the `findings` hook the
-  landing desk and away view read — takes a reading that is not one task's own as whose trailers are
+  races, Evaluations and the away view read — takes a reading that is not one task's own as whose trailers are
   in its range (`whose.ts`). Those last three are on the window's beat, so they read through
   `whoseInTime`: late is the filed list, on time, and the read goes on for the next beat.
 - It is also what unsticks the reading: the cursor and the settling are each agent's own, so one

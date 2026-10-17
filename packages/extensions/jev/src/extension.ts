@@ -1157,7 +1157,7 @@ export const jevExtension: TadeExtension = {
       { title: 'What it is bad at', url: 'https://docs.typesafe.ai/model-jaggedness/jev-1.13' },
     ],
   }),
-  // What the record holds, for the landing desk and a paired phone: read, never asked.
+  // What the record holds, for the races, Evaluations and a paired phone: read, never asked.
   findings: async (ctx) =>
     findingsOf((await whoseRecordOf(ctx, 10_000)).reviews).map((one) => ({
       key: one.key,

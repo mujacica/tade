@@ -10,7 +10,6 @@ import {
 } from '../src/conflicts.ts'
 import { fetchDue, liveThere, mirrorRef, sameRepository } from '../src/elsewhere.ts'
 import type { TadeEvent } from '../src/events.ts'
-import { conflictsFor } from '../src/landing.ts'
 import type { Conflict } from '../src/model.ts'
 
 const T = 1_800_000_000_000
@@ -152,8 +151,6 @@ describe('another machine’s branch on the other side', () => {
     expect(conflictsOn('app/a', [there])).toEqual([
       { kind: 'elsewhere', with: 'app/a on vps', files: ['x.ts'] },
     ])
-    // A task of the same name there is not this one: the landing desk counts it as another side.
-    expect(conflictsFor([there], 'app/a')).toEqual([{ with: 'app/a on vps', files: 1 }])
   })
 
   it('has the side here give way, since the other is that machine’s to steer', () => {

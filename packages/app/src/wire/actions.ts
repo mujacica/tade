@@ -160,11 +160,7 @@ export class Router {
     // A different file in the diff panel is a different diff to read.
     if (outcome.panel?.kind === 'diff') {
       const was = before?.kind === 'diff' ? before : null
-      const moved =
-        was?.file !== outcome.panel.file ||
-        was.task !== outcome.panel.task ||
-        was.machine !== outcome.panel.machine
-      if (moved) {
+      if (!was || was.file !== outcome.panel.file || was.task !== outcome.panel.task) {
         void this.deps.loadDiff(outcome.panel.task, outcome.panel.files[outcome.panel.file] ?? '')
       }
     }

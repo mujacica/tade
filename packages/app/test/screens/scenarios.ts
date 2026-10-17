@@ -5,7 +5,6 @@ import { EXTENSION_SCREENS } from './scenarios/extensions.ts'
 import { FILE_SCREENS } from './scenarios/files.ts'
 import type { Scenario } from './scenarios/fixtures.ts'
 import { INTAKE_SCREENS } from './scenarios/intake.ts'
-import { LANDING_SCREENS } from './scenarios/landing.ts'
 import { MACHINE_SCREENS } from './scenarios/machines.ts'
 import { MACHINE_THERE_SCREENS } from './scenarios/machines-there.ts'
 import { PANEL_SCREENS } from './scenarios/panels.ts'
@@ -44,7 +43,6 @@ export const SCENARIOS: Scenario[] = [
   ...EXTENSION_SCREENS,
   ...SETTINGS_SCREENS,
   ...SPEND_SCREENS,
-  ...LANDING_SCREENS,
   ...EVALUATION_SCREENS,
   ...RACE_SCREENS,
   ...FILE_SCREENS,

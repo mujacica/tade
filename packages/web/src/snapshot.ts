@@ -17,7 +17,6 @@ import {
   type SnapshotInput,
   type TaskIn,
 } from './input.ts'
-import { landingsFor } from './landing.ts'
 import { BUDGET, type Budget, type Page, pageOf, textOf, withheld } from './page.ts'
 import type {
   ChatRow,
@@ -27,7 +26,6 @@ import type {
   Collection,
   FindingRow,
   Freshness,
-  LandingOut,
   NoteRow,
   PlanRow,
   ProjectRow,
@@ -137,7 +135,7 @@ function queueStateOf(state: QueueStateIn): QueueStateOut {
   }
 }
 
-function taskRow(task: TaskIn, reach: Reach, budget: Budget, landing: LandingOut | null): TaskRow {
+function taskRow(task: TaskIn, reach: Reach, budget: Budget): TaskRow {
   const said = (text: string, granted: boolean): Said | null =>
     granted ? textOf(text, budget.text) : null
   return {
@@ -207,9 +205,6 @@ function taskRow(task: TaskIn, reach: Reach, budget: Budget, landing: LandingOut
       task.review === null
         ? null
         : { state: task.review.state, url: has(reach, 'reviews') ? task.review.url : null },
-    size: task.size === null ? null : { ...task.size },
-    conflicts: task.conflicts === null ? null : task.conflicts.map((one) => ({ ...one })),
-    landing,
   }
 }
 
@@ -423,11 +418,6 @@ export function snapshotOf(
   const tasks = mine(input.tasks)
   const queue = mine(input.queue)
   const findings = mine(input.findings ?? [])
-  // The landing desk, among the rows this device reads and out of the findings
-  // it may read — and only where it may read them (`landing.ts`).
-  const landings = has(reach, 'findings')
-    ? landingsFor(tasks, input.findings === null ? null : findings)
-    : new Map<string, LandingOut>()
 
   const projectPage = pageOf(projects, budget.projects, (row) => row.name, cursors.projects ?? null)
   const taskPage = pageOf(
@@ -570,7 +560,7 @@ export function snapshotOf(
         input.checks,
       ),
     ),
-    tasks: taskPage.rows.map((task) => taskRow(task, reach, budget, landings.get(task.id) ?? null)),
+    tasks: taskPage.rows.map((task) => taskRow(task, reach, budget)),
     queue: queuePage.rows.map((item) => queueRow(item, reach, budget)),
     findings: findingPage.rows.map((found) => findingRow(found, budget)),
     notes: [...notePage.rows].sort((a, b) => byText(a.id, b.id)),

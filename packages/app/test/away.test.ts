@@ -303,40 +303,8 @@ describe('the whole thing is what the wire accepts', () => {
     expect(() => SnapshotSchema.parse(built)).not.toThrow()
   })
 
-  it('carries what the landing desk reads beside a row: whether anything looked, the size, the collisions', () => {
-    // Nothing looked at it: no size and no claim about its checks, which is not *nothing ran*.
-    expect(collections().tasks[0]).toMatchObject({ looked: false, size: null, conflicts: null })
-    const looked: ActionsView = {
-      ...actions(),
-      mine: [
-        { sha: 'a', subject: 'one', at: 1, task: 'shop/refunds', files: 2, added: 12, removed: 3 },
-        {
-          sha: 'b',
-          subject: 'two',
-          at: 2,
-          task: 'shop/refunds',
-          files: 1,
-          added: 4,
-          removed: null,
-        },
-      ],
-    }
-    const extras = new Map([
-      [
-        'shop/refunds',
-        { ...nothingKnown(), work: looked, conflicts: [{ with: 'shop/other', files: 2 }] },
-      ],
-    ])
-    expect(collections({ extras }).tasks[0]).toMatchObject({
-      looked: true,
-      // git wrote no `0 deletions(-)` on the second commit: it removed nothing.
-      size: { commits: 2, added: 16, removed: 3 },
-      conflicts: [{ with: 'shop/other', files: 2 }],
-    })
-  })
-
   it('hands over what the judges said, and null where no judge reads anything', () => {
-    // Null is *not read*, which the landing desk says as such: never *no findings*.
+    // Null is *not read*, which is never *no findings*.
     expect(collections().findings).toBeNull()
     const said = {
       key: 'shop/refunds:test_missing',

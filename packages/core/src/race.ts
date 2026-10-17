@@ -1,5 +1,5 @@
+import type { ChangeSize, FindingCounts, FindingFacts } from './change-facts.ts'
 import type { TadeEvent } from './events.ts'
-import type { FindingFacts, LandingFacts, LandingFindings } from './landing.ts'
 import type { TaskState, TestSignal } from './model.ts'
 import type { Plan } from './plan.ts'
 import { joined } from './queue.ts'
@@ -222,7 +222,7 @@ export function wonFrom(events: readonly TadeEvent[]): Map<string, RaceWon> {
   return out
 }
 
-/** One finding, as much of it as a race reads: the landing desk's, and which question raised it. */
+/** One finding, as much of it as a race reads: what a count reads, and which question raised it. */
 export interface RaceFinding extends FindingFacts {
   question: string
 }
@@ -264,11 +264,11 @@ export interface RacerFacts {
   checks: TestSignal | null
   failed: readonly string[]
   /** What became of the judge's findings, or null where they could not be read. */
-  findings: LandingFindings | null
+  findings: FindingCounts | null
   /** `strayedIn`. */
   strayed: boolean | null
   /** What its own commits changed, or null where nothing has looked. */
-  size: LandingFacts['size']
+  size: ChangeSize
   /** What it has cost over every run, or null where nothing recorded money. */
   usd: number | null
 }
@@ -311,12 +311,12 @@ function strayedRank(strayed: boolean | null): number {
 }
 
 /** Findings nobody has settled: open, answered and not judged, confirmed. */
-function unsettled(findings: LandingFindings | null): number | null {
+function unsettled(findings: FindingCounts | null): number | null {
   return findings === null ? null : findings.open + findings.answered + findings.confirmed
 }
 
 /** How many lines its own commits changed, or null where nothing could say. */
-function linesIn(size: LandingFacts['size']): number | null {
+function linesIn(size: ChangeSize): number | null {
   if (!size || size.added === null || size.removed === null) return null
   return size.added + size.removed
 }

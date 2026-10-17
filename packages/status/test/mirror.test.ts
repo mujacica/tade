@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { mkrepo, runGit, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { forecastConflicts } from '../src/conflicts.ts'
 import { repositoryNamed } from '../src/forges.ts'
-import { fetchMirror, mirrorChanged, mirrorDiff, mirrorHeads, readyMirror } from '../src/mirror.ts'
+import { fetchMirror, mirrorHeads, readyMirror } from '../src/mirror.ts'
 
 // The mirror (`mirror.ts`): another machine's branches of one of this
 // machine's projects, in this home, borrowing the checkout's objects — and the
@@ -74,25 +74,6 @@ describe('the mirror', () => {
       `${join(here.root, '.git', 'objects')}\n`,
     )
     expect(untouched(here.root)).toBe(before)
-  })
-
-  it('reads what a branch there changed since it left its base, and one file’s diff, in the mirror', async () => {
-    const { here, there } = twoMachines()
-    const head = workThere(there, 'tade/fix', { 'z.ts': 'z\n', 'x.ts': 'ONE\ntwo\nthree\n' })
-    // Work that landed on its base there since is not the branch's.
-    runGit(there, 'checkout', '-q', 'main')
-    writeFileSync(join(there, 'later.ts'), 'later\n')
-    runGit(there, 'add', '-A')
-    runGit(there, 'commit', '-q', '-m', 'landed since')
-    const mirror = mirrorDir(here.home, 'app')
-    expect(await fetchMirror(mirror, here.root, 'vps', { url: there, env: {} })).toBeNull()
-    const base = mirrorRef('vps', 'main')
-    expect(await mirrorChanged(mirror, base, head)).toEqual(['x.ts', 'z.ts'])
-    const diff = await mirrorDiff(mirror, base, head, 'x.ts')
-    expect(diff).toContain('-one')
-    expect(diff).toContain('+ONE')
-    // A base the mirror has not got is a look that could not be made, never nothing changed.
-    expect(await mirrorChanged(mirror, mirrorRef('vps', 'nowhere'), head)).toBeNull()
   })
 
   it('keeps each machine’s branches apart, and lets go of one gone there', async () => {

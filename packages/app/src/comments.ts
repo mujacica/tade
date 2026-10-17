@@ -14,8 +14,8 @@ import type { ParsedDiff } from './diff.ts'
 //
 // Pure: nothing here reads a disk, a clock or git.
 
-/** Where a comment goes: Tade's orchestrator, or one agent, by its task — on another machine, by that one's. */
-export type CommentTo = 'tade' | { agent: string; machine?: string }
+/** Where a comment goes: Tade's orchestrator, or one agent, by its task. */
+export type CommentTo = 'tade' | { agent: string }
 
 /** One comment, kept until it is sent with the rest of its review's. */
 export interface LineComment {
@@ -90,7 +90,7 @@ export function withComment(comments: readonly LineComment[], comment: LineComme
 
 /** The same two destinations are one. */
 export function sameTo(a: CommentTo, b: CommentTo): boolean {
-  return a === 'tade' || b === 'tade' ? a === b : a.agent === b.agent && a.machine === b.machine
+  return a === 'tade' || b === 'tade' ? a === b : a.agent === b.agent
 }
 
 /** A review's comments, by where each goes, in the order they were written. */

@@ -31,6 +31,13 @@ function workThere(there: string, branch: string, file: string): string {
   return runGit(there, 'rev-parse', 'HEAD').trim()
 }
 
+/** The refs a mirror holds of other machines, by name. */
+function heldIn(mirror: string): string[] {
+  return runGit(mirror, 'for-each-ref', '--format=%(refname)', 'refs/remotes/')
+    .split('\n')
+    .filter(Boolean)
+}
+
 /** This machine with a checkout of `acme/app`, a far end with another, and a link up between them. */
 async function linked() {
   const here = mkrepo()
@@ -89,7 +96,7 @@ async function linked() {
 }
 
 describe('another machine’s branches, mirrored here', () => {
-  it('fetches the branches of a project that is the same repository there, for the forecast and the patch reader', async () => {
+  it('fetches the branches of a project that is the same repository there, for the forecast', async () => {
     const one = await linked()
     const before = runGit(one.here.root, 'for-each-ref')
     await one.mirrors.beat(['vps'])
@@ -101,13 +108,8 @@ describe('another machine’s branches, mirrored here', () => {
         branches: [{ machine: 'vps', task: 'app/theirs', branch: 'tade/theirs', head: one.head }],
       },
     })
-    expect(one.mirrors.workOf('vps', 'app/theirs')).toEqual({
-      project: 'app',
-      mirror,
-      head: one.head,
-      base: mirrorRef('vps', 'main'),
-    })
-    expect([...one.mirrors.readable('vps')]).toEqual(['app/theirs'])
+    // Its base is fetched beside it, which is what a merge in the mirror is measured from.
+    expect(heldIn(mirror)).toEqual([mirrorRef('vps', 'main'), mirrorRef('vps', 'tade/theirs')])
     // Nothing written into the person's checkout: not a ref, not a fetch.
     expect(runGit(one.here.root, 'for-each-ref')).toBe(before)
     await one.close()
@@ -150,7 +152,7 @@ describe('another machine’s branches, mirrored here', () => {
     ]
     await one.mirrors.beat(['vps'])
     expect(one.mirrors.elsewhere()).toEqual({})
-    expect(one.mirrors.workOf('vps', 'app/theirs')).toBeNull()
+    expect(one.mirrors.sameAs('app')).toEqual([])
     await one.close()
   })
 
@@ -174,7 +176,8 @@ describe('another machine’s branches, mirrored here', () => {
     expect(one.said).toHaveLength(1)
     expect(one.said[0]).toMatch(/vps's branches: .*not a path this machine fetches from/)
     // What was fetched before stands, and is not handed on as the moved head.
-    expect(one.mirrors.workOf('vps', 'app/theirs')?.head).toBe(one.head)
+    const mirror = mirrorDir(one.here.home, 'app')
+    expect(runGit(mirror, 'rev-parse', mirrorRef('vps', 'tade/theirs')).trim()).toBe(one.head)
     expect(one.mirrors.elsewhere()).toEqual({})
     await one.close()
   })
@@ -184,7 +187,7 @@ describe('another machine’s branches, mirrored here', () => {
     await one.mirrors.beat(['vps'])
     one.mirrors.forget('vps')
     expect(one.mirrors.elsewhere()).toEqual({})
-    expect(one.mirrors.workOf('vps', 'app/theirs')).toBeNull()
+    expect(one.mirrors.sameAs('app')).toEqual([])
     await one.close()
     await one.mirrors.beat(['vps'])
     expect(one.said).toEqual([])

@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 import type { Wiring } from '../src/wire/context.ts'
 import { FINDINGS_MS, heldFindings } from '../src/wire/findings.ts'
 
-// What the judges last said, as the window holds it for the landing desk and
-// the away view: asked on the beat, kept through a look that failed, and every
+// What the judges last said, as the window holds it for the races, Evaluations
+// and the away view: asked on the beat, kept through a look that failed, and every
 // failure said once rather than drawn as a judge with nothing to say.
 
 const one: JudgeFinding = {

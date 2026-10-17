@@ -6,7 +6,6 @@ export type { UpdatesShown }
 
 import type { LineComment } from './comments.ts'
 import type { ParsedDiff } from './diff.ts'
-import type { DeskRow } from './frame.ts'
 import { type AwayPanel, awayClick, awayKey } from './panels/away/state.ts'
 import type { CommentChoice } from './panels/comment.ts'
 import { type DiffPanel, diffClick, diffKey } from './panels/diff/state.ts'
@@ -40,7 +39,6 @@ import {
   requestThereClick,
   requestThereKey,
 } from './panels/intake/there.ts'
-import { type LandingPanel, landingClick, landingKey } from './panels/landing/state.ts'
 import { type MenuItem, type MenuPanel, menuClick, menuKey } from './panels/menu/state.ts'
 import { type ModelChoice, type ModelPanel, modelClick, modelKey } from './panels/models/state.ts'
 import { close, type PanelOutcome, stay } from './panels/outcome.ts'
@@ -132,7 +130,6 @@ export type Panel =
   | IntakePanel
   | RequestTherePanel
   | WorkflowPanel
-  | LandingPanel
 
 /** What the panel needs to know that it does not hold: the settings themselves, and lists. */
 export interface PanelInputs {
@@ -212,13 +209,6 @@ export interface PanelInputs {
   /** The tabs the extension's own page offers, and whether it is windowed. */
   viewTabs?: readonly { id: string; title: string }[]
   viewWindowed?: boolean
-  /** The landing desk, in the order its rows are drawn. */
-  desk?: readonly DeskRow[]
-  /**
-   * What each piece of work on the desk changed, by file, for the patch reader
-   * it opens on; a task missing from it has not been looked at yet.
-   */
-  deskFiles?: Readonly<Record<string, readonly string[]>>
   /** Every race, in the order the panel walks them. */
   races?: readonly Race[]
   /** What each entrant changed, by file, for the patch reader; one missing has not been looked at. */
@@ -261,7 +251,6 @@ export function panelKey(
     })
   }
   if (panel.kind === 'away') return awayKey(panel, key, inputs)
-  if (panel.kind === 'landing') return landingKey(panel, key, data, inputs)
   if (panel.kind === 'race') return raceKey(panel, key, data, inputs)
   if (panel.kind === 'quit') return quitKey(panel, key)
   if (panel.kind === 'reload') return reloadKey(panel, key)
@@ -321,7 +310,6 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
     })
   }
   if (panel.kind === 'away') return awayClick(panel, control)
-  if (panel.kind === 'landing') return landingClick(panel, control, inputs)
   if (panel.kind === 'race') return raceClick(panel, control, inputs)
   if (panel.kind === 'quit') return quitClick(panel, control)
   if (panel.kind === 'reload') return reloadClick(panel, control)

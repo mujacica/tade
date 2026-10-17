@@ -18,7 +18,6 @@ import { awayPanel } from '../src/panels/away/state.ts'
 import { diffPanel } from '../src/panels/diff/state.ts'
 import { evaluationsPanel } from '../src/panels/evaluations/state.ts'
 import { filePanel } from '../src/panels/file/state.ts'
-import { landingPanel } from '../src/panels/landing/state.ts'
 import { menuPanel } from '../src/panels/menu/state.ts'
 import { modelPanel } from '../src/panels/models/state.ts'
 import { racePanel } from '../src/panels/race/state.ts'
@@ -29,7 +28,6 @@ import { expectOnlyText, hostile, see } from './outside-text.ts'
 import { awayFixture } from './screens/scenarios/away.ts'
 import { EVALUATION_SCREENS } from './screens/scenarios/evaluations.ts'
 import { actions, base, NOW, utcClock } from './screens/scenarios/fixtures.ts'
-import { desk } from './screens/scenarios/landing.ts'
 import { RACE_SCREENS } from './screens/scenarios/races.ts'
 
 // The rest of the window, drawn with outside text in it: the foot, the side's
@@ -371,9 +369,7 @@ describe('what a project, git and its checks said', () => {
 })
 
 describe('what was weighed', () => {
-  it('draws the landing desk, a race and a replay as text', () => {
-    const landing = desk.map((row) => ({ ...row, why: hostile('notready') }))
-    expectOnlyText(see({ ...base(), panel: landingPanel() }, { landing, height: 60 }), 'notready')
+  it('draws a race and a replay as text', () => {
     const raced = RACE_SCREENS[0]?.frame.races ?? []
     const races = raced.map((race) => ({
       ...race,

@@ -31,7 +31,7 @@ export interface FarAgent {
   parked?: boolean
   /** Queued work there, waiting to start. */
   queued?: boolean
-  /** Finished there, with its agent stopped: work on that machine's landing desk. */
+  /** Finished there, with its agent stopped. */
   finished?: boolean
   /** A branch of its own there, in a worktree; absent, it works in that machine's checkout. */
   branch?: string
@@ -111,9 +111,6 @@ export function farTask(agent: FarAgent, now: number): TaskIn {
     spend: noSpend(),
     checks: { state: 'unknown', failed: [], missing: [], overridden: false },
     review: null,
-    looked: true,
-    size: null,
-    conflicts: null,
   }
 }
 

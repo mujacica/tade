@@ -10,7 +10,6 @@ import type {
   Workspace,
 } from '@tade/core'
 import {
-  conflictsFor,
   documentsIn,
   markOf,
   overridesFrom,
@@ -328,7 +327,6 @@ export function beatParts(
         // tools ask, so no surface offers what another hides.
         steering: steering(task.id),
         starts: starts.get(task.id) ?? 0,
-        conflicts: conflictsFor(project.conflicts, task.id),
       })
     }
   }

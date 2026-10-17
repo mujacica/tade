@@ -59,25 +59,27 @@ export interface Reel {
 }
 
 /**
- * The demo at the top of the README: one request, from asking to the desk.
+ * The demo at the top of the README: one request, from asking to what its work
+ * came to.
  *
- * It ends on the landing desk rather than the brief because that is what the
- * README says Tade is for — agent work becoming merged work — and a demo that
- * stops at an agent working shows the half every tool already has.
+ * It ends on the agent's ACTIONS tab — its own commits, the review it is out
+ * for and the project's checks run here — because that is what the README says
+ * Tade is for, agent work becoming merged work, and a demo that stops at an
+ * agent working shows the half every tool already has.
  */
 export const REEL: Reel = {
   file: 'tade.svg',
   title: 'tade',
   about:
     'Tade in a terminal: a project with nothing running, a request typed to the orchestrator, ' +
-    'the orchestrator calling its tools, an agent at work asking for approval, and then the ' +
-    'landing desk — every finished piece of work in the order it is cheapest to trust.',
+    'the orchestrator calling its tools, an agent at work asking for approval, and then what ' +
+    'its work came to — its own commits, the review it is out for and the project’s checks run here.',
   frames: [
     { scenario: 'first-open', hold: 3 },
     { scenario: 'typing-to-tade', hold: 3 },
     { scenario: 'orchestrator-at-work', hold: 4 },
     { scenario: 'watching-an-agent', hold: 4 },
-    { scenario: 'the-landing-desk', hold: 5 },
+    { scenario: 'what-an-agent-has-done', hold: 5 },
   ],
 }
 
@@ -158,16 +160,6 @@ export const PICTURES: readonly Picture[] = [
       'job that needs service containers, a step that needs a secret, one somebody turned off, ' +
       'and two steps the reading could not call checks at all. Each says why in a few words, and ' +
       '`run here` on any of them moves it across.',
-  },
-  {
-    file: 'landing.svg',
-    scenario: 'the-landing-desk',
-    crop: 'panel',
-    about:
-      'The landing desk: every finished piece of work and open review across three projects, in ' +
-      'the order it is cheapest to trust — green and small first, then what waits on you, then ' +
-      'what waits on its agent, each with the one sentence why — and beside each its checks, ' +
-      'findings, collisions, size, cost and how long it has waited.',
   },
   {
     file: 'collide.svg',

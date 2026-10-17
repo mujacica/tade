@@ -13,7 +13,7 @@ import { checksIn } from './away-checks.ts'
 import type { ActionsView } from './frame.ts'
 
 // The races, as the window folds them: core's rule (`racesIn`) over what the
-// window already holds — the same facts the landing desk reads.
+// window already holds.
 //
 // Pure, and asks nobody anything. Which tasks are entrants is what their task
 // files say (status's last look carries `race`); the checks and what each

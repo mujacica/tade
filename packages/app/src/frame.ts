@@ -3,8 +3,6 @@ import type {
   InboxFact,
   InboxMaterial,
   InboxRow,
-  LandingFindings,
-  LandingTier,
   OnPlan,
   PlanStanding,
   Race,
@@ -332,37 +330,6 @@ export interface NoteShown {
   retired?: { by: string; at: string; because: string }
 }
 
-/**
- * One piece of work on the landing desk, as the window draws it: where it
- * stands, the one sentence why, and every figure a person reads before trusting
- * it. Each is a query somebody else answered (`landing.ts`), and every one that
- * nothing could say is null rather than nought.
- */
-export interface DeskRow {
-  /** Its task's id, on the machine it is on. */
-  task: string
-  project: string
-  /** The other machine it is on, by its name here; absent for this one's own. */
-  machine?: string
-  tier: LandingTier
-  why: string | null
-  /** How many more reasons stand behind `why`. */
-  also: number
-  /** The required checks rolled up at its head; null where nothing has looked. */
-  checks: 'pass' | 'fail' | 'unknown' | null
-  findings: LandingFindings | null
-  /** How many collisions the forecast found; null where nobody looked. */
-  conflicts: number | null
-  /** What its own commits changed; null where nothing has looked at them. */
-  size: { commits: number; added: number | null; removed: number | null } | null
-  /** What it has cost, in dollars, over every run; null where nothing recorded money. */
-  usd: number | null
-  /** Since anything about it last moved. */
-  waitingSince: number | null
-  /** The review it is out for, by its forge's neutral word. */
-  review: 'open' | 'draft' | null
-}
-
 /** A file the task has changed, as git sees it. */
 export interface Change {
   path: string
@@ -505,11 +472,6 @@ export interface Frame {
    */
   offers?: AgentOffers | null
   /**
-   * The landing desk: every finished piece of work and every open review, in
-   * every project, in the order it is cheapest to trust (`landingDesk`).
-   */
-  landing?: readonly DeskRow[]
-  /**
    * Other machines' Tades this one is an owner of, and what each last said
    * about its projects — folded into text by `machines.ts`. Absent where none
    * is configured, which draws the window as it always was.
@@ -552,7 +514,6 @@ export interface Frame {
       | 'base'
       | 'diff'
       | 'comments'
-      | 'kept'
       | 'commentTo'
       | 'choices'
       | 'settings'

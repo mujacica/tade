@@ -110,9 +110,6 @@ function task(over: Partial<Agent> & Pick<Agent, 'id' | 'state' | 'title'>): Tas
     spend: noSpend(),
     checks: { state: 'unknown', failed: [], missing: ['tests'], overridden: false },
     review: null,
-    looked: false,
-    size: null,
-    conflicts: null,
     ...over,
   }
   const reason = made.reason.kind === 'clause' ? made.reason.said : ''

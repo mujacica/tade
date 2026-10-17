@@ -4,8 +4,8 @@ import { mirrorRef, runProgram } from '@tade/core'
 import { git } from './git.ts'
 
 // The mirror (REMOTE-TADE.md §9.3): another machine's branches in one of this
-// machine's projects, kept in this home (`mirrorDir`) and read by the forecast,
-// the landing desk and the patch reader. The rules are core's `elsewhere.ts`.
+// machine's projects, kept in this home (`mirrorDir`) and read by the forecast.
+// The rules are core's `elsewhere.ts`.
 //
 // **A bare repository that borrows the checkout's objects as alternates**, so
 // it costs only what the other machine added: everything both already have —
@@ -213,43 +213,4 @@ export async function mirrorHeads(
     if (oid && ref) heads.set(ref, oid)
   }
   return heads
-}
-
-/**
- * Where a branch's work is measured from in the mirror: where it left its
- * base, as `git merge-base` finds it — so what landed on the base since is not
- * counted as the branch's — or null where the base is not there to ask.
- */
-async function sinceBase(mirror: string, base: string, head: string): Promise<string | null> {
-  const found = await git(mirror, ['merge-base', base, head])
-  return found.ok ? found.stdout.trim() || null : null
-}
-
-/**
- * The files a branch in the mirror changed since it left its base, sorted, or
- * null where git could not say — never an empty list for that.
- */
-export async function mirrorChanged(
-  mirror: string,
-  base: string,
-  head: string,
-): Promise<string[] | null> {
-  const from = await sinceBase(mirror, base, head)
-  if (from === null) return null
-  const out = await git(mirror, ['diff', '--name-only', '-z', from, head])
-  if (!out.ok) return null
-  return out.stdout.split('\0').filter(Boolean).sort()
-}
-
-/** One file's diff on a branch in the mirror, since it left its base; null where git could not say. */
-export async function mirrorDiff(
-  mirror: string,
-  base: string,
-  head: string,
-  path: string,
-): Promise<string | null> {
-  const from = await sinceBase(mirror, base, head)
-  if (from === null) return null
-  const out = await git(mirror, ['diff', '--no-color', '-U3', from, head, '--', path])
-  return out.ok ? out.stdout : null
 }

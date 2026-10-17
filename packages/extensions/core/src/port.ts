@@ -604,8 +604,8 @@ export interface TadeExtension {
   meant?(ctx: ExtensionContext, request: MeantRequest): Promise<readonly string[]>
   /**
    * The findings a judge it runs has raised, read out of its own record — never
-   * by asking a model, because the window asks on a clock. It is how the landing
-   * desk and a paired phone read findings without knowing whose they are.
+   * by asking a model, because the window asks on a clock. It is how the races,
+   * Evaluations and a paired phone read findings without knowing whose they are.
    */
   findings?(ctx: ExtensionContext): Promise<readonly JudgeFinding[]>
   /** What candidate judges answered when asked again, out of its own record — never by asking. */

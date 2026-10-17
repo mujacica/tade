@@ -4,12 +4,11 @@ import {
   fetchDue,
   liveThere,
   mirrorDir,
-  mirrorRef,
   printable,
   sameRepository,
 } from '@tade/core'
 import type { Held, Remote, RemoteLink } from '@tade/remotes-core'
-import { fetchMirror, mirrorChanged, mirrorDiff, mirrorHeads, repositoryAt } from '@tade/status'
+import { fetchMirror, mirrorHeads, repositoryAt } from '@tade/status'
 import { RepositoriesAnswerSchema } from '@tade/web'
 
 // Other machines' work in this machine's projects, kept in a mirror of each
@@ -21,9 +20,8 @@ import { RepositoriesAnswerSchema } from '@tade/web'
 // name), the remote's branches are fetched over the link this window already
 // holds to it (`RemoteLink.repository`) into that project's mirror. Then the
 // conflict forecast merges this machine's live branches with that one's there
-// (`elsewhere()`, handed to status with every look), and the landing desk and
-// the patch reader read that machine's finished work there (`workOf`).
-// Nothing is written into the person's checkout: the mirror only reads it.
+// (`elsewhere()`, handed to status with every look). Nothing is written into
+// the person's checkout: the mirror only reads it.
 //
 // **Asking is cheap and fetching is rare.** Where a remote's work is, is one
 // small owner's request (`/api/repositories`) over the held link: when the
@@ -45,9 +43,6 @@ export const AGAIN_MS = 2 * 60_000
 /** The least time between two asks of one remote, however often its projection moves. */
 export const SOONEST_MS = 15_000
 
-/** How many branches' file lists are kept: past this, the oldest goes. */
-const CHANGES_KEPT = 256
-
 /** The far side's door for it (`@tade/web`'s `repositories.ts`). */
 const DOOR = '/api/repositories'
 
@@ -67,17 +62,6 @@ interface Mirrored {
   there: readonly There[]
   /** Every head the mirror holds, of every machine, by ref. */
   heads: ReadonlyMap<string, string>
-}
-
-/** One of another machine's tasks, as its work can be read here. */
-export interface WorkThere {
-  /** The project here whose mirror holds it. */
-  project: string
-  mirror: string
-  /** The commit its branch is on, as the mirror holds it. */
-  head: string
-  /** Where its work is measured from: a ref in the mirror, or null where there is none. */
-  base: string | null
 }
 
 export interface MirrorsDeps {
@@ -112,13 +96,6 @@ export class Mirrors {
   /** One fetch at a time into each mirror, whichever machine it is from. */
   private readonly turns = new Map<string, Promise<unknown>>()
   private handed: Readonly<Record<string, Elsewhere>> | null = null
-  /** What each branch changed, by its mirror, base commit and head: a function of commit ids, so kept. */
-  private readonly changed = new Map<string, readonly string[]>()
-  private readonly reading = new Set<string>()
-  /** The branches whose file list git would not give, by the same key: said once, not asked again. */
-  private readonly unread = new Set<string>()
-  /** Moved whenever something a reader draws arrived, so what is kept of it is folded again. */
-  private revised = 0
 
   constructor(deps: MirrorsDeps) {
     this.deps = deps
@@ -152,7 +129,6 @@ export class Mirrors {
       })
     }
     this.handed = null
-    this.revised++
   }
 
   /** The window's beat: what is due, looked at. The promise is what it started, which nothing that draws waits on. */
@@ -189,23 +165,6 @@ export class Mirrors {
     return out
   }
 
-  /** One of another machine's tasks, as its work can be read here; null where no mirror holds it. */
-  workOf(machine: string, task: string): WorkThere | null {
-    for (const [project, mirrored] of this.held) {
-      for (const one of mirrored.there) {
-        if (one.machine !== machine) continue
-        const branch = one.branches.find((b) => b.task === task)
-        const head = branch && mirrored.heads.get(mirrorRef(machine, branch.branch))
-        if (!branch || !head) continue
-        const from = branch.base ?? one.base
-        const base =
-          from && mirrored.heads.has(mirrorRef(machine, from)) ? mirrorRef(machine, from) : null
-        return { project, mirror: mirrored.mirror, head, base }
-      }
-    }
-    return null
-  }
-
   /** Whether a remote has said, since the window opened, which of its projects are which repository. */
   toldBy(name: string): boolean {
     return this.answered.has(name)
@@ -217,76 +176,6 @@ export class Mirrors {
       machine: one.machine,
       project: one.project,
     }))
-  }
-
-  /** A count that moves whenever what the readers draw did: a file list arrived, a mirror moved. */
-  revision(): number {
-    return this.revised
-  }
-
-  /**
-   * The files one of another machine's tasks changed, from the mirror: at once
-   * from what was read before, and read in the background where it was not —
-   * null meanwhile, which is never "nothing changed" — or undefined where no
-   * mirror here holds that task's work.
-   */
-  changes(machine: string, task: string): readonly string[] | null | undefined {
-    const work = this.workOf(machine, task)
-    if (work === null) return undefined
-    if (work.base === null) return undefined
-    const key = this.keyOf(work)
-    const kept = this.changed.get(key)
-    if (kept !== undefined) return kept
-    // A head or a base that moved is another key, and is read again.
-    if (this.unread.has(key)) return undefined
-    if (!this.reading.has(key)) {
-      this.reading.add(key)
-      void mirrorChanged(work.mirror, work.base, work.head)
-        .then((files) => {
-          if (files === null) {
-            this.unread.add(key)
-            this.troubles(
-              machine,
-              `what ${task} on ${machine} changed could not be read out of this machine's mirror of it`,
-            )
-            return
-          }
-          this.changed.set(key, files)
-          while (this.changed.size > CHANGES_KEPT)
-            this.changed.delete(this.changed.keys().next().value as string)
-          this.revised++
-          this.deps.draw()
-        })
-        .finally(() => this.reading.delete(key))
-    }
-    return null
-  }
-
-  /** One file's diff on one of another machine's tasks, from the mirror; null where it cannot be read. */
-  async diff(machine: string, task: string, path: string): Promise<string | null> {
-    const work = this.workOf(machine, task)
-    if (work === null || work.base === null) return null
-    return mirrorDiff(work.mirror, work.base, work.head, path)
-  }
-
-  /** What a branch's changes are kept by: its mirror, its head, and the commit its base is on. */
-  private keyOf(work: WorkThere): string {
-    const base = work.base === null ? '' : (this.held.get(work.project)?.heads.get(work.base) ?? '')
-    return `${work.mirror}\0${base}\0${work.head}`
-  }
-
-  /** Every task of a machine's whose work a mirror here holds, for the desk to know what it can read. */
-  readable(machine: string): ReadonlySet<string> {
-    const out = new Set<string>()
-    for (const mirrored of this.held.values()) {
-      for (const one of mirrored.there) {
-        if (one.machine !== machine) continue
-        for (const branch of one.branches) {
-          if (mirrored.heads.has(mirrorRef(machine, branch.branch))) out.add(branch.task)
-        }
-      }
-    }
-    return out
   }
 
   /** One remote, asked where its work is, and every project here that is the same repository fetched. Never throws. */
@@ -395,7 +284,6 @@ export class Mirrors {
       there: [...others, ...mine],
     })
     this.handed = null
-    this.revised++
   }
 
   /** The heads a mirror holds now, every machine's: kept where they could be read. */
@@ -404,7 +292,6 @@ export class Mirrors {
     const was = this.held.get(project)
     this.held.set(project, { mirror, there: was?.there ?? [], heads })
     this.handed = null
-    this.revised++
   }
 
   private inTurn<T>(mirror: string, work: () => Promise<T>): Promise<T> {

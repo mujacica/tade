@@ -46,11 +46,6 @@ export function actions(state: AppState): Action[] {
       about: state.panes.length > 0 ? 'go to an agent: /open name' : 'no agents yet',
       ready: state.panes.length > 0,
     },
-    {
-      name: '/land',
-      about: 'the landing desk: finished work, cheapest to trust first',
-      ready: true,
-    },
     { name: '/project', about: 'add a git repository Tade can work in', ready: true },
     { name: '/settings', about: 'see and change what Tade has been told', ready: true },
     { name: '/away', about: 'pair a phone, and see which devices are let in', ready: true },

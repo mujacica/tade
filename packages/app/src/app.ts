@@ -46,7 +46,6 @@ import { tellNow } from './wire/handed.ts'
 import { Images } from './wire/images.ts'
 import { Intake } from './wire/intake.ts'
 import { Keyboard } from './wire/keyboard.ts'
-import { Landing } from './wire/landing.ts'
 import { Lanes } from './wire/lanes.ts'
 import { Looks, slowLook } from './wire/looks.ts'
 import { Machine } from './wire/machine.ts'
@@ -56,6 +55,7 @@ import { Orchestrator } from './wire/orchestrator.ts'
 import { kittyActive, Repaint, repaintScreen, type Screen, screenFor } from './wire/paint.ts'
 import { Projects, type ProjectTools } from './wire/projects.ts'
 import { Queue, type QueueTools } from './wire/queue.ts'
+import { Races } from './wire/race-panel.ts'
 import { type Remotes, type RemoteTools, remotesFor } from './wire/remotes.ts'
 import { Routes } from './wire/routes.ts'
 import { Schedules, type WatchTools } from './wire/schedules.ts'
@@ -401,14 +401,12 @@ export class App {
       selectedInFile: () => this.mouse.fileSelectionText(),
       copySelection: (text) => copySpanSaying(this.wire, text, (data) => this.terminal.write(data)),
       comment: (panel, choice) => this.comments.submit(panel, choice),
-      there: (machine, task, path) => this.remotes.mirrored()?.diff(machine, task, path) ?? null,
     })
     this.comments = new Comments(this.wire, {
       shown: () => this.files.shown(),
       ask: (words, about) => this.orchestrator.ask(words, about),
       listening: () => this.orchestrator.started,
       remember: (words) => this.keyboard.remember(words),
-      steerThere: (machine, task, said) => this.remotes.steer(machine, task, said),
     })
     this.mouse = new Mouse(this.wire, {
       stopped: () => this.stopped,
@@ -455,7 +453,7 @@ export class App {
       this.routes,
       this.checks,
       new Spend(this.wire),
-      new Landing(this.wire, this.remotes),
+      new Races(this.wire),
       new Evaluations(this.wire),
       this.notes,
       this.schedules,

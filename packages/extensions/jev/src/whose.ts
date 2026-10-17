@@ -11,9 +11,9 @@ import { oneAgents } from './stuck.ts'
 // task working there, and the record is never rewritten. So everything that
 // says whose a finding is reads it through here: `jev_findings`, the sweep and
 // `jev_replay`, which may take as long as git does, and the window's own
-// readers — the Jev page, the brief and the `findings` hook the landing desk
-// and the away view read — which are on the window's beat and may not
-// (`whoseInTime`).
+// readers — the Jev page, the brief and the `findings` hook the races,
+// Evaluations and the away view read — which are on the window's beat and may
+// not (`whoseInTime`).
 
 /** Nothing read out of the record goes to git as anything but a commit id. */
 const SHA = /^[0-9a-f]{7,64}$/

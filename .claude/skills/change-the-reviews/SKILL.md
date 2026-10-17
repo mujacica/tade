@@ -267,14 +267,11 @@ anything that writes, call `forget()` so the next reader polls. `for: ['orchestr
   project. A review on a repository nothing here is a checkout of is `project: null`, which the
   window draws wherever you are rather than nowhere.
 - **Another machine's work is read here and written there.** Where one repository is a project on
-  this machine and on a remote, that machine's finished work is on this window's landing desk
-  (`desk-there.ts`, placed by that machine's own `landing` row and ordered with this one's by
-  `deskOrder`), and its change is read in the patch reader out of this home's mirror of the
-  repository (`Mirrors.changes`/`diff`, `status/src/mirror.ts`) — never fetched into the person's
-  checkout, and never offered "open in editor" or "ask the agent", because no file and no agent here
-  is it. A line comment on it goes to Tade here or, as a `steer`, to its agent there over the link
-  (`steerThere`), and its key is `<task> on <machine>` so it never mixes with a task here of the same
-  name. Landing it is still a person's, on the forge.
+  this machine and on a remote, that machine's branches are fetched into a mirror of the repository
+  in this home (`wire/mirrors.ts`, `status/src/mirror.ts`) — never into the person's checkout — and
+  the conflict forecast merges this machine's live branches with them there, naming the other side
+  `<task> on <machine>` so it never mixes with a task here of the same name. The side there is that
+  machine's own, and landing either is still a person's, on the forge.
 - **Checking a review out is its own branch, and `checkout.ts` is the only place that decides it.**
   The branch is `head.branch` — the branch the review was opened from — fetched and set tracking
   `origin/<branch>`, which is what makes a push go to the review. **Nothing may ever name a branch

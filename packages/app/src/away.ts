@@ -13,7 +13,6 @@ import {
   type Reality,
   runFactsOf,
   type Spend,
-  sizeOf,
   type TadeEvent,
   type Task,
   type TaskOrigin,
@@ -46,7 +45,6 @@ import { chatRev } from '@tade/web'
 import { checksIn } from './away-checks.ts'
 import { agentLaneOf, closedIn, type ProjectLine, projectAble } from './away-lifecycle.ts'
 import type { ActionsView, NoteShown } from './frame.ts'
-import { movedAt } from './landing.ts'
 import type { Entry, Transcript } from './transcript.ts'
 
 // What the away view is handed, built out of what the window already holds.
@@ -99,8 +97,6 @@ export interface TaskExtra {
   steering: Steering
   /** How many times an agent was started on it, out of `run_started` (`startsOf`). */
   starts: number
-  /** What the conflict forecast found about it (`conflictsFor`), or null where nobody looked. */
-  conflicts: readonly { with: string | null; files: number }[] | null
 }
 
 /**
@@ -378,11 +374,6 @@ export function taskIn(task: Task, extra: TaskExtra, pending: number): TaskIn {
     spend: extra.spend ?? noSpendAt(),
     checks: checksIn(extra.work, extra.overridden),
     review: git?.pr ?? null,
-    // What the landing desk reads beside the row: whether anything looked at
-    // its commits, what they changed, and what the forecast found — counts.
-    looked: extra.work !== null,
-    size: sizeOf(extra.work?.mine ?? null),
-    conflicts: extra.conflicts,
   }
 }
 
@@ -743,7 +734,6 @@ export function nothingKnown(): TaskExtra {
     // steer control on the strength of a default.
     steering: notSteerable('nothing here knows what its harness can do'),
     starts: 0,
-    conflicts: null,
   }
 }
 
@@ -759,6 +749,20 @@ export interface QueueParts {
 /** `UNRECORDED` and nothing said are one answer on the wire: the empty string. */
 function said(value: string): string {
   return value === UNRECORDED ? '' : value
+}
+
+/**
+ * The last time anything about this task was seen to move.
+ *
+ * The newest of what git saw and what an agent last did, because either one
+ * alone is wrong in a way somebody notices: a task whose agent has been
+ * thinking for ten minutes has an old commit, and a task somebody committed to
+ * by hand has no agent at all.
+ */
+function movedAt(task: Task): number | null {
+  const moments = [task.git?.headTime ?? null, ...task.agents.map((one) => one.lastActivityAt)]
+  const known = moments.filter((at): at is number => at !== null && Number.isFinite(at))
+  return known.length === 0 ? null : Math.max(...known)
 }
 
 /** An ISO string as a moment, or null for one that is not a date. */

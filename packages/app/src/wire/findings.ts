@@ -1,8 +1,8 @@
 import type { JudgeFinding } from '@tade/extensions-core'
 import type { Wiring } from './context.ts'
 
-// What the judges last said, held for whoever draws it: the landing desk, and
-// the away view's findings.
+// What the judges last said, held for whoever draws it: the races, a replay,
+// Evaluations and the away view's findings.
 //
 // A free function over the wiring rather than a subject or a member of it, so
 // two readers share one poll and nothing that builds a `Wiring` by hand has to
@@ -11,8 +11,8 @@ import type { Wiring } from './context.ts'
 // and the record is a file.
 //
 // **A look that failed keeps the last answer.** A judge that could not say this
-// time is not a judge that found nothing, so the desk goes on drawing what it
-// said before; only a window that has never had an answer draws `null`, which
+// time is not a judge that found nothing, so what reads it goes on drawing what
+// it said before; only a window that has never had an answer draws `null`, which
 // every reader says as *not read* rather than as none.
 
 /** How often the extensions are asked what their judges found. */
@@ -53,7 +53,7 @@ export function heldFindings(wire: Wiring): readonly JudgeFinding[] | null {
         // Nothing answered and something failed: keep what was said before.
         const now = asked === 0 ? null : findings
         // A judge that could not answer is said, once for as long as it fails the same way:
-        // the desk drawing what it said before must not look like the judge going quiet.
+        // drawing what it said before must not look like the judge going quiet.
         const trouble = problems.join('; ')
         if (trouble !== kept.said) {
           kept.said = trouble

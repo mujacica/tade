@@ -2,14 +2,7 @@ import type { Race, SettingGroup } from '@tade/core'
 import type { LineComment } from '../comments.ts'
 import type { ParsedDiff } from '../diff.ts'
 import type { EvalsView, ReplaysView } from '../evaluations.ts'
-import type {
-  Change,
-  DeskRow,
-  IntakeOpenView,
-  RowSummaryView,
-  Spend,
-  WorkflowView,
-} from '../frame.ts'
+import type { Change, IntakeOpenView, RowSummaryView, Spend, WorkflowView } from '../frame.ts'
 import type { ScrollArea } from '../hits.ts'
 import type { Machines } from '../machines.ts'
 import type { AgentPane } from '../model.ts'
@@ -31,7 +24,6 @@ import type { InlineRow } from './file/inline.ts'
 import { fileView } from './file/view.ts'
 import { requestThereView } from './intake/there.ts'
 import { intake } from './intake/view.ts'
-import { landing } from './landing/view.ts'
 import type { MenuItem } from './menu/state.ts'
 import { menu } from './menu/view.ts'
 import type { ModelChoice } from './models/state.ts'
@@ -99,16 +91,12 @@ export interface PanelContext {
   items: readonly MenuItem[]
   /** What a task has changed, for the question before removing it. */
   changes: readonly Change[]
-  /** The landing desk, in the order it is cheapest to trust (`Frame.landing`). */
-  landing: readonly DeskRow[]
   /** Every race, undecided first (`Frame.races`). */
   races: readonly Race[]
   /** The scorecards and the judge's calibration, once the journal has been read. */
   evaluations: EvalsView | null
   /** Every replay, newest first, and the judges asked again (`Frame.replays`). */
   replays: ReplaysView | null
-  /** Line comments kept and not sent, by the task whose change they are on. */
-  kept?: Readonly<Record<string, number>>
   /** The frame's moment, which every age on a panel is counted to. */
   now: number
   /** Commits the task's branch has that its base does not. */
@@ -330,8 +318,6 @@ export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
       return { panel: workflow(panel, ctx), popups: [] }
     case 'model':
       return { panel: models(panel, ctx), popups: [] }
-    case 'landing':
-      return { panel: landing(panel, ctx), popups: [] }
     case 'evaluations':
       return { panel: evaluations(panel, ctx), popups: [] }
     case 'race':

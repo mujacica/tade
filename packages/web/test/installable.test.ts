@@ -277,7 +277,8 @@ describe('the real folder', () => {
     // to 399. 402 until this device's passkey (`passkey.js`: the bar, its
     // press and the bytes an authenticator takes, and the push re-sent on
     // every visit — not a page, so every page pays for it) took it to 405.
-    expect(wire).toBeLessThan(408 * 1024)
+    // 408 until the landing desk's page went again, which took it to 400.
+    expect(wire).toBeLessThan(403 * 1024)
     // And the files as they sit, which is what a browser holds once it has
     // them: about a megabyte, with the comments every module carries. 768
     // until the pages were redrawn one at a time, each 40–90 KB as it sits.
@@ -295,8 +296,9 @@ describe('the real folder', () => {
     // most of it the reasons a press goes straight to the authenticator) took
     // it to 1299. 1304 until the command an approval asks about (a component
     // drawn above a card's presses and in an agent's lead, 2.5 KB with the
-    // reasons Allow is never blind) took it to 1306: the pages still to come
-    // spend the rest, and the next one is this conversation again.
-    expect(raw).toBeLessThan(1310 * 1024)
+    // reasons Allow is never blind) took it to 1306. 1310 until the landing
+    // desk's three files went again, which took it to 1286: the pages still to
+    // come spend the rest, and the next one is this conversation again.
+    expect(raw).toBeLessThan(1290 * 1024)
   })
 })

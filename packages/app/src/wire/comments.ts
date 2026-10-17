@@ -1,4 +1,3 @@
-import { elsewhereSaid } from '@tade/core'
 import {
   byDestination,
   forAgent,
@@ -17,7 +16,6 @@ import type { FilePanel } from '../panels/file/state.ts'
 import type { PanelInputs } from '../panels.ts'
 import { youSaid } from '../transcript.ts'
 import { flash, notify, type Subject, type Wiring, why } from './context.ts'
-import { unlessSame } from './kept.ts'
 
 // Comments on lines of a diff: kept here, by the review they are on, until
 // they are sent — together, however many files they are spread over.
@@ -33,15 +31,13 @@ import { unlessSame } from './kept.ts'
 
 /**
  * The change a diff panel is showing, for a comment on it: whose it is — a
- * task, `''` for the checkout's own, `<task> on <machine>` for another
- * machine's, with that machine and its task there beside it — the file as git
- * names it there, and git's answer (`Files.shown`).
+ * task, or `''` for the checkout's own — the file as git names it there, and
+ * git's answer (`Files.shown`).
  */
 export interface Shown {
   task: string
   path: string
   diff: ParsedDiff | null
-  there?: { machine: string; task: string }
 }
 
 /** What this subject needs of the rest of the window. */
@@ -54,8 +50,6 @@ export interface CommentsDeps {
   listening(): boolean
   /** Their words, written down as they said them (`said`). */
   remember(words: string): void
-  /** A message to an agent on another machine, as a `steer` there: its answer, or thrown. */
-  steerThere?(machine: string, task: string, said: string): Promise<string>
 }
 
 /** A review's comments as a panel is handed them, kept by identity between frames. */
@@ -73,7 +67,6 @@ export class Comments implements Subject {
   /** The last answer each fact was, so a frame that changed nothing hands over the same objects. */
   private handed: Handed | null = null
   private chosen: { panes: unknown; task: string; choices: CommentChoice[] } | null = null
-  private counts: Readonly<Record<string, number>> = {}
 
   constructor(wire: Wiring, deps: CommentsDeps) {
     this.wire = wire
@@ -81,8 +74,6 @@ export class Comments implements Subject {
   }
 
   panel(): Frame['panel'] {
-    // The landing desk says, beside each piece of work, what is written on it and not sent.
-    if (this.wire.state.panel?.kind === 'landing') return { kept: this.counted() }
     const shown = this.open() ? this.deps.shown() : null
     if (!shown) return {}
     const all = this.kept.get(shown.task) ?? NONE
@@ -101,14 +92,6 @@ export class Comments implements Subject {
       drafted: all.length,
       commentTo: this.choices(shown),
     }
-  }
-
-  /** How many are kept on every review, by its task: the same object while none changed. */
-  private counted(): Readonly<Record<string, number>> {
-    const counts: Record<string, number> = {}
-    for (const [task, kept] of this.kept) counts[task] = kept.length
-    this.counts = unlessSame(this.counts, counts)
-    return this.counts
   }
 
   /** How many are kept on a review: what its Send would send. */
@@ -181,18 +164,13 @@ export class Comments implements Subject {
         told.push(`${count} to Tade`)
         continue
       }
-      const { agent, machine } = group.to
-      // An agent on another machine is told there, as that machine's owner (`steerThere`).
-      const name = machine ? elsewhereSaid({ machine, task: agent }) : this.nameOf(agent)
+      const agent = group.to.agent
       try {
-        if (machine) {
-          if (!this.deps.steerThere) throw new Error('this window reaches no other machine')
-          await this.deps.steerThere(machine, agent, forAgent(group.comments, name))
-        } else await this.wire.opts.client.steerAgent(agent, forAgent(group.comments, agent))
-        told.push(`${count} to ${name}`)
+        await this.wire.opts.client.steerAgent(agent, forAgent(group.comments, agent))
+        told.push(`${count} to ${this.nameOf(agent)}`)
       } catch (err) {
         left.push(...group.comments)
-        notify(this.wire, `${name} was not told ${count}: ${why(err)}`)
+        notify(this.wire, `${this.nameOf(agent)} was not told ${count}: ${why(err)}`)
       }
     }
     if (left.length > 0) this.kept.set(task, left)
@@ -226,17 +204,6 @@ export class Comments implements Subject {
     const panes = this.wire.state.panes
     const last = this.chosen
     if (last && last.panes === panes && last.task === task) return last.choices
-    // Another machine's change: Tade here, or the agent there whose change it is.
-    if (shown.there) {
-      const there = shown.there
-      const name = `${there.task.split('/').at(-1) ?? there.task} on ${there.machine}`
-      const choices: CommentChoice[] = [
-        { to: 'tade', label: 'Tade' },
-        { to: { agent: there.task, machine: there.machine }, label: name },
-      ]
-      this.chosen = { panes, task, choices }
-      return choices
-    }
     const project = task ? task.split('/')[0] : this.wire.state.project
     // The change's own agent whether or not it is running: it is the one the
     // person means, and one that has stopped says so when it is sent to.

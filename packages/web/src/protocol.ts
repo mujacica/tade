@@ -1,4 +1,4 @@
-import { AGENT_MARKS, DONE_RULES, LANDING_TIERS, ReviewState, TaskState } from '@tade/core'
+import { AGENT_MARKS, DONE_RULES, ReviewState, TaskState } from '@tade/core'
 import { z } from 'zod'
 import { AGENT_LANES, HOWS } from './acting.ts'
 import {
@@ -195,29 +195,6 @@ export const CheckTreeOutSchema = z.strictObject({
 })
 export type CheckTreeOut = z.infer<typeof CheckTreeOutSchema>
 
-/**
- * Where a piece of work stands on the landing desk (`landingOf` in core), for a
- * device granted `findings` — the desk reads the judge, so it goes with it.
- *
- * `rank` is its place in the desk's order among the rows this device reads, so
- * the page sorts by it and decides nothing; `why` is core's own sentence.
- */
-export const LandingOutSchema = z.strictObject({
-  rank: z.int().nonnegative(),
-  tier: z.enum(LANDING_TIERS),
-  why: z.string().nullable(),
-  also: z.int().nonnegative(),
-  findings: z
-    .strictObject({
-      open: z.int().nonnegative(),
-      answered: z.int().nonnegative(),
-      confirmed: z.int().nonnegative(),
-      dismissed: z.int().nonnegative(),
-    })
-    .nullable(),
-})
-export type LandingOut = z.infer<typeof LandingOutSchema>
-
 export const TaskRowSchema = z.strictObject({
   /** `<project>/<task>`. The stable id. */
   id: z.string(),
@@ -323,19 +300,6 @@ export const TaskRowSchema = z.strictObject({
   spend: SpendOutSchema.nullable(),
   checks: ChecksOutSchema,
   review: z.strictObject({ state: ReviewState, url: z.string().nullable() }).nullable(),
-  /** What its own commits changed. Counts. Null where nothing has looked at them. */
-  size: z
-    .strictObject({
-      commits: z.int().nonnegative(),
-      added: z.int().nonnegative().nullable(),
-      removed: z.int().nonnegative().nullable(),
-    })
-    .nullable(),
-  /** What the forecast found it would collide with. Null where nobody looked. */
-  conflicts: z
-    .array(z.strictObject({ with: z.string().nullable(), files: z.int().nonnegative() }))
-    .nullable(),
-  landing: LandingOutSchema.nullable(),
 })
 export type TaskRow = z.infer<typeof TaskRowSchema>
 
