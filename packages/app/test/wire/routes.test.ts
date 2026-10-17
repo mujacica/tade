@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import type { AppState, TaskSnapshot } from '../../src/model.ts'
 import type { ModelPanel } from '../../src/panels/models/state.ts'
+import { emptyTranscript } from '../../src/transcript.ts'
 import { Routes } from '../../src/wire/routes.ts'
 
 // What each agent's harness lets a person ask of it, learned as the tasks
@@ -160,5 +161,57 @@ describe('the model picker, opened before its harness has answered', () => {
     answer(['gpt-5', 'gpt-5.5'])
     await opening
     expect(wire.state.panel).toBeNull()
+  })
+})
+
+describe('an agent moved to another model or thinking level, from the window', () => {
+  /** A window whose workbench switched the agent, and kept it for new agents or not. */
+  function choosing(route: { kept: true } | { kept: false; why: string }) {
+    let state = { panel: null, panes: [], transcript: emptyTranscript() } as unknown as AppState
+    const wire = {
+      opts: {
+        home: tmp('tade-routes-'),
+        config: ConfigSchema.parse({ projects: {} }),
+        client: {
+          setAgentModel: async () => ({ provider: 'openai', id: 'gpt-5', route }),
+          setAgentThinking: async () => ({ level: 'high', route }),
+        },
+      },
+      live: null,
+      get state() {
+        return state
+      },
+      put: (next: AppState) => {
+        state = next
+      },
+      draw: () => {},
+      now: () => 0,
+    }
+    const routes = new Routes(wire as never, { useConfig: () => {} } as never)
+    const panel = { kind: 'model', for: 'app/refunds' } as ModelPanel
+    return { routes, panel, notice: () => wire.state.notice }
+  }
+
+  it('says new agents start on it where it was kept', async () => {
+    const { routes, panel, notice } = choosing({ kept: true })
+    await routes.chooseModel(panel, 'openai/gpt-5')
+    expect(notice()).toBe('app/refunds is switching to gpt-5, and new agents start on it')
+    await routes.chooseThinking('app/refunds', 'high')
+    expect(notice()).toBe(
+      'app/refunds thinks at high from its next turn, and new agents start there',
+    )
+  })
+
+  it('says the agent switched and the route did not, and why, where it was not kept', async () => {
+    const why = 'the route could not be written: that would make config.yaml invalid'
+    const { routes, panel, notice } = choosing({ kept: false, why })
+    await routes.chooseModel(panel, 'openai/gpt-5')
+    expect(notice()).toBe(
+      `app/refunds is switching to gpt-5, but new agents still start where they did: ${why}`,
+    )
+    await routes.chooseThinking('app/refunds', 'high')
+    expect(notice()).toBe(
+      `app/refunds thinks at high from its next turn, but new agents still start where they did: ${why}`,
+    )
   })
 })
