@@ -54,7 +54,11 @@ describe('the window, remembering itself', () => {
     // A new window, same home: it should not dump you back on the first task.
     terminal = newTerminal()
     await start()
-    await until('the window to come back', () => terminal.written.includes('search'))
+    // The agent's row, not the word: the header says `search` too wherever
+    // there is room for its ctrl+k hint.
+    await until('the window to come back', () =>
+      screenOf(terminal.written).some((row) => row.includes('○ search')),
+    )
     expect(terminal.written).toMatch(/▌ \S search/)
   })
 

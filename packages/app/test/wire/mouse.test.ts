@@ -140,7 +140,11 @@ describe('the window, under the pointer', () => {
     terminal.columns = 100
     terminal.rows = 20
     await start()
-    await until('both agents', () => terminal.written.includes('search'))
+    // The agent's own row in the side, drawn, as the file swipe below waits
+    // for it: at this width the header says `search` beside ctrl+k.
+    await until('both agents', () =>
+      screenOf(terminal.written).some((row) => row.includes('○ search')),
+    )
     const heading = screenOf(terminal.written).findIndex((row) => row.includes('AGENTS'))
     const atTop = () => (screenOf(terminal.written)[heading] ?? '').includes('AGENTS')
     const said = terminal.written.length
