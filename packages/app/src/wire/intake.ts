@@ -7,6 +7,8 @@ import {
   intakeKey,
   type PlanSource,
   planReport,
+  type TadeEvent,
+  watchedFrom,
 } from '@tade/core'
 import type { ExtensionHost } from '@tade/extensions-core'
 import type { TemplateDeps } from '@tade/workbench'
@@ -46,9 +48,12 @@ import { Workflows } from './workflows.ts'
 // What has been handed to this machine from outside, in the window.
 //
 // **It derives, it does not remember.** The rows are a fold of the journal and
-// the task files (`inboxFrom`), refolded when the journal grows rather than on
-// every frame: the side is drawn four times a second and reading a task file
-// per request per frame is exactly the sort of poll this window does not do.
+// the task files (`inboxFrom`) — the whole journal's lines about intake
+// (`Live.inboxLines`), never the window's last 500, which a request handed
+// over before a busy afternoon is not in — refolded when the journal grows
+// rather than on every frame: the side is drawn four times a second and
+// reading a task file per request per frame is exactly the sort of poll this
+// window does not do.
 // Nothing is cached that the journal could answer — what is held is the last
 // answer, not a second copy of the truth.
 //
@@ -244,26 +249,32 @@ export class Intake implements Subject {
    *
    * An act refolds at once by setting the mark back, because a button whose
    * effect appears a second later is a button people press twice.
+   *
+   * **The tail only says what moved; the fold reads the whole journal.** So
+   * the first look, and one with the mark set back, folds whatever the tail
+   * holds: a tail of nothing but `usage` is a busy machine, not an empty
+   * inbox.
    */
   look(): void {
     if (this.folding) return
     const events = this.wire.live?.events ?? []
     const newest = events.at(-1)?.seq ?? -1
     if (newest === this.folded) return
+    const all = this.folded === -1
     const fresh = newest < this.folded ? events : linesAfter(events, this.folded)
     this.folded = newest
-    if (!fresh.some((event) => INBOX_LINES.has(event.type))) return
-    this.folding = this.fold(events)
+    if (!all && !fresh.some((event) => INBOX_LINES.has(event.type))) return
+    this.folding = this.fold(this.wire.live?.inboxLines ?? [])
       .catch((err: unknown) => this.couldNotRead(err))
       .finally(() => {
         this.folding = null
       })
   }
 
-  private async fold(events: readonly { type: string }[]): Promise<void> {
+  private async fold(events: readonly TadeEvent[]): Promise<void> {
     const rows = await inboxFrom({
       home: this.wire.opts.client.home,
-      events: events as never,
+      events,
       states: new Map(this.wire.state.panes.map((pane) => [pane.task, pane.state])),
     })
     this.rows = rows
@@ -281,10 +292,7 @@ export class Intake implements Subject {
    * fold: a read that failed leaves the sentence it failed with on the row it
    * is about (`Bodies`), and the rest of the floor is still answered.
    */
-  private async rebuild(
-    rows: readonly InboxRow[],
-    events: readonly { type: string }[],
-  ): Promise<void> {
+  private async rebuild(rows: readonly InboxRow[], events: readonly TadeEvent[]): Promise<void> {
     const home = this.wire.opts.client.home
     await this.bodies.fill(home, rows)
     await this.readWorkflows()
@@ -292,12 +300,12 @@ export class Intake implements Subject {
     this.floor = factoryHeld({
       rows,
       bodies: this.bodies.byItem(rows),
-      titles: titlesOf(events as never),
+      titles: titlesOf(events),
       efforts,
       would: await wouldOf(this.reads(), rows),
       doors: doorsOf({
         config: this.wire.opts.config,
-        events: events as never,
+        watched: (schedule) => this.wire.live?.watchedOf(schedule) ?? watchedFrom([], schedule),
         schedules: this.wire.opts.client.schedules(),
         watches: this.wire.opts.extensions?.watches() ?? null,
       }),
@@ -405,17 +413,14 @@ export class Intake implements Subject {
    * It cannot loop: posting writes `intake_replied`, which refolds, and the
    * second fold finds that saying already said. One status per saying, ever.
    */
-  private async sayDue(
-    rows: readonly InboxRow[],
-    events: readonly { type: string }[],
-  ): Promise<void> {
+  private async sayDue(rows: readonly InboxRow[], events: readonly TadeEvent[]): Promise<void> {
     const quiet = await sayDue({
       client: this.wire.opts.client,
       config: this.wire.opts.config,
       host: this.wire.opts.extensions ?? null,
       now: this.wire.now(),
       rows,
-      items: intakeFrom(events as never),
+      items: intakeFrom(events),
       schedules: this.wire.opts.client.schedules(),
       machine: intakeMachine(),
     }).catch((err: unknown) => [`nothing could be said back to a source: ${why(err)}`])
@@ -468,7 +473,8 @@ export class Intake implements Subject {
     try {
       const opened = await openIntakeRow({
         home,
-        events: this.wire.live?.events ?? [],
+        // The fold's own lines, so a row down the side always opens.
+        events: this.wire.live?.inboxLines ?? [],
         item,
       })
       this.settle(item, opened, opened ? null : 'nothing has been handed over by that name')

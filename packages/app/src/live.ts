@@ -55,7 +55,14 @@ import {
 } from './checkout-look.ts'
 import { type FileEntry, type Listed, treeOf } from './files.ts'
 import type { ActionsView, Change, NoteShown } from './frame.ts'
-import { type Histories, JOURNAL, QUEUE_READS, RUNTIME_READS, readHistories } from './histories.ts'
+import {
+  type Histories,
+  inboxReads,
+  JOURNAL,
+  QUEUE_READS,
+  RUNTIME_READS,
+  readHistories,
+} from './histories.ts'
 import type { QueuedView, TaskSnapshot } from './model.ts'
 import { notesShown } from './notes-shown.ts'
 import { branchOf } from './projects.ts'
@@ -246,6 +253,8 @@ export class Live {
   private readonly schedules = new ScheduleFold()
   /** Every line that wrote where a project lives, from the whole journal: what reopening reads. */
   private roots: TadeEvent[] = []
+  /** Every line the inbox folds, from the whole journal: a request outlives the last 500 lines. */
+  private inbox: TadeEvent[] = []
   /** Queued work, and what it waits on, as the last refresh saw. */
   private queue: Queued[] = []
   private states = new Map<string, { state: TaskState; reason: string }>()
@@ -320,6 +329,7 @@ export class Live {
       if (event.type === 'run_started' && event.task) this.started.add(event.task)
     }
     this.roots = read.roots
+    this.inbox = read.inbox
     for (const why of read.failed) this.opts.onWarning?.(why)
     this.upTo = read.upTo
     this.read = true
@@ -470,6 +480,11 @@ export class Live {
   /** Every `config_changed` about where a project lives, from the whole journal. */
   get rootLines(): readonly TadeEvent[] {
     return this.roots
+  }
+
+  /** Every line the inbox folds (`INBOX_READS`), from the whole journal, oldest first. */
+  get inboxLines(): readonly TadeEvent[] {
+    return this.inbox
   }
 
   /** Where a task lives on disk, once status has seen it. */
@@ -1129,6 +1144,7 @@ export class Live {
     if (SCHEDULE_LINES.includes(event.type)) this.schedules.add(event)
     else if ((QUEUE_READS as readonly string[]).includes(event.type)) this.queueEvents.push(event)
     if (aboutRoot(event)) this.roots.push(event)
+    if (inboxReads(event)) this.inbox.push(event)
     if (this.journal.length > JOURNAL) this.journal.splice(0, this.journal.length - JOURNAL)
     this.opts.onEvent?.(event)
   }

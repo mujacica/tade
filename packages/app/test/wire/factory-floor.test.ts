@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { watchedFrom } from '@tade/core'
 import type { WatchOffer } from '@tade/extensions-core'
 import { inboxFrom, readTaskFile } from '@tade/workbench'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -127,7 +128,7 @@ async function foldOf(one: Machine): Promise<FactoryHeld> {
     sources: sourcesIn(
       doorsOf({
         config: one.client.config,
-        events,
+        watched: (schedule) => watchedFrom(events, schedule),
         schedules: one.client.schedules(),
         watches: [CLI_WATCH],
       }),

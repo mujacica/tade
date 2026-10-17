@@ -57,6 +57,27 @@ describe('reading the journal once the window is up', () => {
     expect(read.failed).toEqual([])
   })
 
+  it('takes the inbox’s lines out of the queue’s and finishing’s, each once and in order', async () => {
+    const lines = [
+      event(1, 'intake_received'),
+      event(2, 'run_started'),
+      event(3, 'usage'),
+      event(4, 'task_done'),
+      event(5, 'turn_done'),
+      event(6, 'watch_found'),
+      event(7, 'queue_changed'),
+    ]
+    const read = await readHistories(journal(lines) as never)
+    // `run_started` is in both lists, and is still one line here.
+    expect(read.inbox.map((one) => [one.seq, one.type])).toEqual([
+      [1, 'intake_received'],
+      [2, 'run_started'],
+      [4, 'task_done'],
+      [6, 'watch_found'],
+      [7, 'queue_changed'],
+    ])
+  })
+
   it('reads a list it cannot read as nothing, and says which', async () => {
     const client = journal(
       [event(1, 'usage'), event(2, 'task_done')],

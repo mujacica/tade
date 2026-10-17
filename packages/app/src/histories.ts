@@ -69,6 +69,34 @@ export const RUNTIME_READS = RUNTIME_EVENTS
 /** Finishing, read whole: whether a task is done cannot depend on how busy the journal has been since. */
 export const TOLD_READS = ['task_done', 'run_started', 'turn_done'] as const
 
+/**
+ * What the inbox folds (`inboxFrom`, `titlesOf`, the replies it says): what
+ * was handed over, and what became of the work it made. Read whole, because a
+ * request handed over this morning is still somebody's after a busy afternoon,
+ * and out of the two lists above, which hold every one of them — so it costs
+ * no query and no copy, and the type says so.
+ */
+export const INBOX_READS = [
+  ...INTAKE_EVENTS,
+  'run_started',
+  'task_done',
+  'queue_held',
+  'queue_changed',
+  'watch_found',
+] as const satisfies readonly ((typeof QUEUE_READS)[number] | (typeof TOLD_READS)[number])[]
+
+const INBOX: ReadonlySet<string> = new Set(INBOX_READS)
+const QUEUED: ReadonlySet<string> = new Set(QUEUE_READS)
+
+/** The inbox's lines out of the queue's and finishing's, in the journal's order: `run_started` is in both. */
+function inboxOf(queue: readonly TadeEvent[], told: readonly TadeEvent[]): TadeEvent[] {
+  const lines = [...queue, ...told.filter((event) => !QUEUED.has(event.type))]
+  return lines.filter((event) => INBOX.has(event.type)).sort((a, b) => a.seq - b.seq)
+}
+
+/** Whether a line is one the inbox folds. */
+export const inboxReads = (event: Pick<TadeEvent, 'type'>): boolean => INBOX.has(event.type)
+
 /** Every list, as of one moment of the journal (`upTo`). */
 export interface Histories {
   /** The last `JOURNAL` events. */
@@ -80,6 +108,8 @@ export interface Histories {
   queue: TadeEvent[]
   /** Every line that wrote where a project lives: a project closed last month can still be opened again. */
   roots: TadeEvent[]
+  /** Every line the inbox folds (`INBOX_READS`), the same events as `queue` and `told` hold. */
+  inbox: TadeEvent[]
   /**
    * The newest event any of these may hold. Read first, with the tail, and
    * every list after it is cut to it: an event appended while the lists were
@@ -134,6 +164,7 @@ export async function readHistories(client: Pick<Workbench, 'events'>): Promise<
     runs,
     queue,
     roots,
+    inbox: inboxOf(queue, told),
     upTo: Number.isFinite(upTo) ? upTo : newest,
     failed,
   }

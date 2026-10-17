@@ -6,8 +6,10 @@ import {
   draftYaml,
   type InboxRow,
   type Schedule,
+  type TadeEvent,
   type Template,
   templateDirs,
+  watchedFrom,
 } from '@tade/core'
 import type { WatchOffer } from '@tade/extensions-core'
 import { describe, expect, it } from 'vitest'
@@ -95,11 +97,21 @@ const checked = (detail: Record<string, unknown>) => ({
   detail: { schedule: 'github-issues', ...detail },
 })
 
+/** What the watches did, as `Live.watchedOf` answers it: out of the lines given. */
+const watchedIn =
+  (lines: readonly { type: string; detail: Record<string, unknown> }[]) => (schedule: string) =>
+    watchedFrom(lines as TadeEvent[], schedule)
+
 describe('the doors, folded out of the config, the watches and the journal', () => {
   it('answers about every source there is, not only the ones with a watch', () => {
     // A door nobody looks through is still a door, and its absence from a list
     // is exactly the silence this collection exists to break.
-    const doors = doorsOf({ config: config(), events: [], schedules: [], watches: null })
+    const doors = doorsOf({
+      config: config(),
+      watched: watchedIn([]),
+      schedules: [],
+      watches: null,
+    })
     expect(doors.map((one) => one.source)).toEqual(['cli', 'github', 'slack', 'linear'])
     // And each says *its own* reason: the three nobody granted are `ungranted`
     // and the one that is granted with nothing looking is `unwatched`. One word
@@ -115,7 +127,7 @@ describe('the doors, folded out of the config, the watches and the journal', () 
   it('finds the watch by what it declares, never by matching a name', () => {
     const doors = doorsOf({
       config: config(),
-      events: [],
+      watched: watchedIn([]),
       schedules: [schedule()],
       watches: [offer()],
     })
@@ -131,7 +143,7 @@ describe('the doors, folded out of the config, the watches and the journal', () 
   it('says a watch with no schedule as unwatched, with the watch still named', () => {
     const doors = doorsOf({
       config: config(),
-      events: [],
+      watched: watchedIn([]),
       schedules: [],
       watches: [offer()],
     })
@@ -144,10 +156,10 @@ describe('the doors, folded out of the config, the watches and the journal', () 
   it('reads the looks out of the journal, and the kind of trouble with them', () => {
     const doors = doorsOf({
       config: config(),
-      events: [
+      watched: watchedIn([
         checked({ found: 2, fresh: ['a'], left: 0, since: null }),
         checked({ problem: 'github said no', trouble: 'rate-limited', until: 1_000 }),
-      ],
+      ]),
       schedules: [schedule()],
       watches: [offer()],
     })
@@ -161,7 +173,7 @@ describe('the doors, folded out of the config, the watches and the journal', () 
   it('reads a paused schedule as paused rather than as a look that never came', () => {
     const doors = doorsOf({
       config: config(),
-      events: [],
+      watched: watchedIn([]),
       schedules: [schedule({ paused: true })],
       watches: [offer()],
     })
@@ -409,7 +421,7 @@ describe('the whole fold, as the away view takes it', () => {
       titles: new Map(),
       efforts: new Map(),
       would: new Map(),
-      doors: doorsOf({ config: config(), events: [], schedules: [], watches: null }),
+      doors: doorsOf({ config: config(), watched: watchedIn([]), schedules: [], watches: null }),
       workflows: [],
     })
     expect(floor.intake).toEqual([])

@@ -16,7 +16,6 @@ import {
   type Template,
   templateProblems,
   type Watched,
-  watchedFrom,
 } from '@tade/core'
 import type { WatchOffer } from '@tade/extensions-core'
 import { BUDGET, type IntakeIn, type SourceIn, type WorkflowIn, type WouldIn } from '@tade/web'
@@ -70,17 +69,21 @@ export const TEMPLATES_EVERY = 30_000
  * gathering. A source with no watch is `unwatched` rather than missing from the
  * list — a door nobody looks through is still a door, and its absence from a
  * list is exactly the silence this collection exists to break.
+ *
+ * What a watch has done is asked of whoever holds it whole (`Live.watchedOf`),
+ * never folded here out of a window of lines: a watch whose last look was
+ * before the window's last 500 would be a door that never looked.
  */
 export function doorsOf(parts: {
   config: Config
-  events: readonly { type: string; detail: Record<string, unknown> }[]
+  watched: (schedule: string) => Watched
   schedules: readonly (Schedule & { paused?: boolean })[]
   watches: readonly WatchOffer[] | null
 }): SourceStanding[] {
-  const watched = new Map<string, Watched>()
+  const asked = new Map<string, Watched>()
   return sourcesStanding(INTAKE_SOURCES, (source) => ({
     grant: intakeGrant(parts.config, source as IntakeSource),
-    watch: watchFor(source, parts, watched),
+    watch: watchFor(source, parts, asked),
   }))
 }
 
@@ -88,11 +91,11 @@ export function doorsOf(parts: {
 function watchFor(
   source: string,
   parts: {
-    events: readonly { type: string; detail: Record<string, unknown> }[]
+    watched: (schedule: string) => Watched
     schedules: readonly (Schedule & { paused?: boolean })[]
     watches: readonly WatchOffer[] | null
   },
-  watched: Map<string, Watched>,
+  asked: Map<string, Watched>,
 ): SourceWatch | null {
   // **The watch declares which source it is** (`WatchOffer.intake`), rather
   // than a name being matched: the thing that reads a source is what knows
@@ -105,8 +108,8 @@ function watchFor(
   if (schedule === null) {
     return { id: offer.id, schedule: '', every: offer.every, paused: false, watched: null }
   }
-  const held = watched.get(schedule.id) ?? watchedFrom(parts.events as never, schedule.id)
-  watched.set(schedule.id, held)
+  const held = asked.get(schedule.id) ?? parts.watched(schedule.id)
+  asked.set(schedule.id, held)
   return {
     id: offer.id,
     schedule: schedule.id,
