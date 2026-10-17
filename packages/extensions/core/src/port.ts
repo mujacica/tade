@@ -46,10 +46,13 @@ export interface ExtensionSetting {
   means: string
   /**
    * `secret` is a credential — an API key, a token. It is a setting like any
-   * other and is written into `config.yaml`, which is `0600` and one person's;
-   * what marks it is that it is drawn in its own field, that an environment
-   * variable wins over it, and that you read it with `ctx.secret` rather than
-   * out of `ctx.settings`, so the two can never disagree about which is live.
+   * other and is written into `config.yaml`, which `0600` keeps from other
+   * people — and any agent you run can read it too: agents run as you, and
+   * nothing sandboxes them (`KEYS_AND_AGENTS`), so a key kept out of the file
+   * is one exported as its variable instead. What marks it is that it is
+   * drawn in its own field, that an environment variable wins over it, and
+   * that you read it with `ctx.secret` rather than out of `ctx.settings`, so
+   * the two can never disagree about which is live.
    */
   kind: 'string' | 'boolean' | 'number' | 'list' | 'map' | 'secret'
   /**
