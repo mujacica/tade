@@ -14,7 +14,7 @@ import { assetFor, readAssets, WORKER_FILE } from '../packages/web/src/assets.ts
 import { shellOf } from '../packages/web/src/installable.ts'
 import { changelogFor, notesFor } from '../scripts/release/changelog.ts'
 import { LIVE_RUN, liveTrouble, manifests, PUBLISHED } from '../scripts/release/repo.ts'
-import { exportsFor, rewrite, stage } from '../scripts/release/stage.ts'
+import { exportsFor, notShipped, rewrite, stage } from '../scripts/release/stage.ts'
 
 // What has to be true of the thing a stranger installs.
 //
@@ -98,6 +98,12 @@ describe('the publish directory', () => {
   it('asks for vitest nowhere: the suites that import it do not ship', () => {
     expect(manifest.dependencies.vitest).toBeUndefined()
     expect(staged.left.some((one) => one.startsWith('vitest'))).toBe(true)
+    // A suite's parts stay out with it, by their name and nothing else.
+    expect(existsSync(join(staged.out, 'packages/drivers/core/src/conformance-attaching.js'))).toBe(
+      false,
+    )
+    expect(notShipped('conformance-attaching.ts')).toBe(true)
+    expect(notShipped('attaching.ts')).toBe(false)
   })
 
   it('ships the away view’s own files, under the names the page asks for', async () => {

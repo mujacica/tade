@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import { declarationProblems, type LaneId } from '@tade/core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { testAttaching } from './attaching.ts'
+import { testAttaching } from './conformance-attaching.ts'
 import { LaneClosedError, LaneNotFoundError, type LaneSpec, type WorkspaceDriver } from './port.ts'
 import { isRunning, kill, until } from './waiting.ts'
 

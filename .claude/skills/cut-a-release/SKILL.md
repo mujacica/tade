@@ -107,8 +107,8 @@ of either cannot quietly break it. (It is also spelled out in the install advice
 `stage()` walks `git ls-files` per package and takes only what is under **`src/`** or **`skills/`**
 — the second is real and easy to forget: the extensions ship the recipes their agents read
 (`packages/extensions/*/skills/`). Anything else in a package's folder is a contributor's. `test/`
-is not shipped; `NOT_SHIPPED` drops `conformance.ts` and `echo-child.js` by name wherever they
-appear, and `AT_ROOT` adds `README.md`, `LICENSE`, `THIRD_PARTY_NOTICES.md` and `CHANGELOG.md`.
+is not shipped; `NOT_SHIPPED` drops `conformance.ts`, its parts `conformance-<part>.ts`
+(`notShipped`) and `echo-child.js` by name wherever they appear, and `AT_ROOT` adds `README.md`, `LICENSE`, `THIRD_PARTY_NOTICES.md` and `CHANGELOG.md`.
 
 **A file that is not tracked is not staged.** That is the commonest refusal in practice and it
 reads as something else: `… names ./y.js, which is not there` on a file you are looking at. `git

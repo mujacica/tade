@@ -41,10 +41,17 @@ export const DEFAULT_OUT = 'dist/package'
  *
  * A conformance suite is the shared test every implementation of a port must
  * pass; it imports vitest, and vitest is the one dependency the workspace
- * declares that a user must never be made to install. `echo-child.js` is the
- * child process only that suite spawns.
+ * declares that a user must never be made to install. A suite too long for one
+ * file keeps its parts beside it as `conformance-<part>.ts`, which are the same
+ * test and stay out with it. `echo-child.js` is the child process only that
+ * suite spawns.
  */
 const NOT_SHIPPED = new Set(['conformance.ts', 'echo-child.js'])
+
+/** Whether a file is a conformance suite's, or the child it spawns: never in the package. */
+export function notShipped(name: string): boolean {
+  return NOT_SHIPPED.has(name) || /^conformance-[a-z0-9-]+\.ts$/.test(name)
+}
 
 /** Files taken from the root of the repository as they are. */
 const AT_ROOT = ['README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'CHANGELOG.md']
@@ -86,7 +93,7 @@ export function stage(opts: { out?: string; version: string; changelog?: string 
       const under = path.slice(manifest.dir.length + 1)
       if (!under.startsWith('src/') && !under.startsWith('skills/')) continue
       const text = path.endsWith('.ts') ? readFileSync(join(ROOT, path), 'utf8') : null
-      if (NOT_SHIPPED.has(name)) {
+      if (notShipped(name)) {
         if (text !== null) held.push(...imported(text))
         continue
       }

@@ -115,11 +115,12 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
   another machine drawn as a pane of this one's window (`embedded`: nothing of the backend's own
   around it, no key kept back, the pointer the lane's). **Two terminals on two lanes each show their
   own**, which `tmux attach` does not: a session has one current window for all its clients. The
-  suite's cases are `attaching.ts`; the tmux recipe is `drivers/tmux/src/attach.ts` — a grouped
-  session per terminal, ended by a `client-detached` hook and **never `destroy-unattached`**, which
-  ended the whole tmux server three runs in eight on 3.4 (Ubuntu 24.04's), as does making a window
-  follow its clients' size while that session ends. Check a tmux change on 3.3a and 3.4 built in a
-  `node:22` container, not only on the laptop's newer one.
+  suite's cases are `conformance-attaching.ts` — a suite's part, which ships nowhere by its name;
+  the tmux recipe is `drivers/tmux/src/attach.ts` — a grouped session per terminal, ended by a
+  `client-detached` hook and **never `destroy-unattached`**, which ended the whole tmux server three
+  runs in eight on 3.4 (Ubuntu 24.04's), as does making a window follow its clients' size while
+  that session ends. Check a tmux change on 3.3a and 3.4 built in a `node:22` container, not only
+  on the laptop's newer one.
 - **`detach()` lets go, `shutdown()` ends it.** Closing Tade calls `detach`, and under a driver
   claiming `detach: true` that must leave every lane running. If lanes cannot outlive us and cannot
   be found again, `detach` ends them — leaving processes nobody can see, drive or stop is worse
