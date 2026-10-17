@@ -95,7 +95,8 @@ attached to the decision it governs. Load the matching one rather than working f
 
 ### Git, tests and fixtures
 
-- Tests use **real git repos** built by `test/fixtures/mkrepo.ts`. **Never mock git.**
+- Tests use **real git repos** built by `test/fixtures/mkrepo.ts`. **Never mock git**
+  (`test/mocked-git.test.ts`).
 - **A fixture must not be kinder than reality** — `mkrepo` puts nothing of Tade's in a checkout and
   writes no ignore rule; its task files go in `repo.home`.
 - Git is invoked directly with `--porcelain=v2` / `-z`. No git wrapper libraries.

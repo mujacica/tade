@@ -30,7 +30,7 @@
     "postinstall": "node scripts/fix-pty-permissions.mjs",
     "prepare": "node scripts/install-hooks.mjs",
     "hooks": "node scripts/install-hooks.mjs --force",
-    "test:smoke": "vitest run packages/core/test packages/app/test/pictures.test.ts test/checks-read.test.ts test/coverage-floors.test.ts test/guide.test.ts test/lint-rules.test.ts test/masked.test.ts test/notices.test.ts test/own-files.test.ts test/spawns.test.ts test/swallowed.test.ts",
+    "test:smoke": "vitest run packages/core/test packages/app/test/pictures.test.ts test/checks-read.test.ts test/coverage-floors.test.ts test/guide.test.ts test/lint-rules.test.ts test/masked.test.ts test/mocked-git.test.ts test/notices.test.ts test/own-files.test.ts test/spawns.test.ts test/swallowed.test.ts",
     "coverage": "node scripts/coverage.ts",
     "screens": "node packages/app/scripts/screens.ts",
     "bench": "node packages/app/scripts/bench.ts",
