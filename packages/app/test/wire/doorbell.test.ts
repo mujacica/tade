@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { runGit } from '../../../../test/fixtures/mkrepo.ts'
 import type { App } from '../../src/app.ts'
 import type { Wiring } from '../../src/wire/context.ts'
-import { doorbellFor, hooksFor } from '../../src/wire/doorbell.ts'
+import { hooksFor } from '../../src/wire/doorbell.ts'
 import type { Schedules } from '../../src/wire/schedules.ts'
 import { type Repo, until, windowUnderTest } from './harness.ts'
 
@@ -151,26 +151,5 @@ describe('a delivery, in this window', () => {
     await until('the window reads it', () => wire.live?.watchedOf('rain').bell !== undefined)
     const row = schedules.views().find((one) => one.id === 'rain')
     expect(row?.when).toContain('github rings it, so it polls hourly')
-  })
-
-  it('says a project it could not wake because git could not say which repository it is', async () => {
-    const extensions = await ExtensionHost.load({
-      builtin: [weather({ rain: 0, snow: 0 }, { held: Promise.resolve() })],
-      config: { extensions: {}, projects: { app: { root: repo.root } } },
-      home,
-    })
-    const window: App = await start({ extensions })
-    const schedules = (window as unknown as { schedules: Schedules }).schedules
-    const wire = (window as unknown as { wire: Wiring }).wire
-    await schedules.turnWatch('weather.rain', 'app', true, 'you')
-    const config = ConfigSchema.parse({ projects: { app: { root: repo.root } } })
-    const github = { source: 'github', event: 'issues', where: 'github.com/acme/app' } as const
-
-    const woke = await doorbellFor(wire, config, github, async () => {
-      throw new Error('git is not on this PATH')
-    })
-    expect(woke).toEqual([])
-    expect(wire.state.notice).toContain("a delivery from github did not wake app's watches")
-    expect(wire.state.notice).toContain('git is not on this PATH')
   })
 })

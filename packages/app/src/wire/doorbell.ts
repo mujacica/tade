@@ -72,13 +72,15 @@ export function secretOf(config: Config, source: HookSource): string | null {
  * A project's repository is asked of git once per delivery and with a
  * deadline (`repositoryAt`, which keeps what it read while the checkout's
  * config has not changed); one that does not answer in time is a project not
- * woken, which its own poll then covers, and one whose asking failed is said.
+ * woken, which its own poll then covers. Nothing is caught: `repositoryAt`
+ * answers null for every checkout git cannot name — not one, a broken `.git`,
+ * no remote — since its git runs with `reject: false`, so whatever else it
+ * threw would be news.
  */
 export async function doorbellFor(
   wire: Wiring,
   config: Config,
   address: HookAddress,
-  repositoryIn: (root: string) => Promise<string | null> = repositoryAt,
 ): Promise<string[]> {
   const bells = new Map<string, WatchDoorbell>()
   for (const offer of wire.opts.extensions?.watches() ?? []) {
@@ -91,18 +93,7 @@ export async function doorbellFor(
     if (configured === undefined) return Promise.resolve(null)
     let asked = repositories.get(project)
     if (asked === undefined) {
-      asked = inTime(
-        repositoryIn(expandHome(configured.root)).catch((err: unknown) => {
-          wire.note(
-            new Error(
-              `a delivery from ${address.source} did not wake ${project}'s watches, because git could not say which repository it is: ${err instanceof Error ? err.message : String(err)}`,
-            ),
-          )
-          return null
-        }),
-        REPOSITORY_MS,
-        null,
-      )
+      asked = inTime(repositoryAt(expandHome(configured.root)), REPOSITORY_MS, null)
       repositories.set(project, asked)
     }
     return asked
