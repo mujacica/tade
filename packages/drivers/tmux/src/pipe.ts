@@ -1,4 +1,6 @@
-import { statSync } from 'node:fs'
+import { mkdtempSync, rmSync, statSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 // How a lane's output gets out of tmux: `pipe-pane` hands what the pane prints
 // to `cat`, which appends it to a file of this instance's that the poller
@@ -31,6 +33,32 @@ export function piping(window: string, pipe: string): string[] {
 export function written(pipe: string): boolean {
   const file = statSync(pipe, { throwIfNoEntry: false })
   return file !== undefined && (file.mode & 0o222) === 0
+}
+
+/**
+ * The folder a driver's pipe files go in. Made when the first lane needs one,
+ * not with the driver: a driver is made just to be asked whether tmux is here
+ * (`chooseDriver`, `tade setup --check`), and one that tmux was not here for was
+ * never let go of, so it left an empty folder behind each time. Removed by
+ * `remove`, after which the next lane makes another.
+ */
+export class OutputFolder {
+  private dir: string | null = null
+  private n = 0
+
+  /** A new file for one lane's output. */
+  next(): string {
+    if (this.dir === null) this.dir = mkdtempSync(join(tmpdir(), 'tade-tmux-'))
+    return join(this.dir, `lane-${++this.n}.out`)
+  }
+
+  /** Take the folder away, retrying where tmux may still be writing to it. */
+  remove(retry: boolean): void {
+    if (this.dir === null) return
+    const retries = retry ? { maxRetries: 5, retryDelay: 20 } : {}
+    rmSync(this.dir, { recursive: true, force: true, ...retries })
+    this.dir = null
+  }
 }
 
 // And how a value gets into tmux whole, through tmux and the shell it hands

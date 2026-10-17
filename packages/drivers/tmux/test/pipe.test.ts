@@ -1,11 +1,12 @@
 import { spawnSync } from 'node:child_process'
-import { chmodSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { chmodSync, existsSync, readdirSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import type { LaneId } from '@tade/core'
 import { until } from '@tade/drivers-core/conformance'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { TmuxDriver } from '../src/index.ts'
+import { OutputFolder } from '../src/pipe.ts'
 
 // A pane tmux calls dead is not one whose output has been written down.
 //
@@ -57,6 +58,36 @@ describe('a lane whose pipe is slow to write', () => {
       expect(atExit).toContain('said-late')
     } else {
       await until(() => heard.includes('said-late'))
+    }
+  })
+})
+
+describe('the folder lanes write their output to', () => {
+  // Made by the first lane and not by the driver, because a driver is made
+  // just to be asked whether tmux is here, and one nobody let go of again left
+  // an empty folder in the temp folder each time it was asked.
+  it('is not made for a driver that is only asked, and goes when it is let go of', async () => {
+    const was = process.env.TMPDIR
+    const here = tmp('tade-tmux-ask-')
+    process.env.TMPDIR = here
+    try {
+      const outputs = new OutputFolder()
+      const asked = new TmuxDriver({ socket: `tade-ask-${process.pid}`, session: 'ask' })
+      await asked.available()
+      expect(readdirSync(here)).toEqual([])
+
+      const first = outputs.next()
+      expect(dirname(first).startsWith(join(here, 'tade-tmux-'))).toBe(true)
+      expect(dirname(outputs.next())).toBe(dirname(first))
+      outputs.remove(false)
+      expect(readdirSync(here)).toEqual([])
+      // Let go of and used again, it makes another.
+      expect(existsSync(dirname(outputs.next()))).toBe(true)
+      outputs.remove(true)
+      await asked.detach()
+      expect(readdirSync(here)).toEqual([])
+    } finally {
+      process.env.TMPDIR = was
     }
   })
 })

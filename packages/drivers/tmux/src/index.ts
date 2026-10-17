@@ -1,7 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { closeSync, mkdtempSync, openSync, readSync, rmSync, statSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { closeSync, openSync, readSync, rmSync, statSync } from 'node:fs'
 import {
   type LaneId,
   type RequiredProgram,
@@ -32,7 +30,7 @@ import {
 import { attachLine, availableAs, OLDEST, windowName } from './attach.ts'
 import { exitStatus, lookAgain, serverPid, signalNumber } from './ended.ts'
 import { drawn, PANE_FORMAT, type Pane, pointingOf, readPane, scrollingOf } from './pane.ts'
-import { literal, piping, quote, written } from './pipe.ts'
+import { literal, OutputFolder, piping, quote, written } from './pipe.ts'
 import { makeSession, sessionExists } from './session.ts'
 
 // tmux is invoked with an argument array and no shell. The one place a shell
@@ -158,12 +156,11 @@ export class TmuxDriver implements WorkspaceDriver {
 
   private readonly lanes = new Map<string, Lane>()
   private readonly opts: Required<Omit<TmuxDriverOptions, 'env'>> & { env: NodeJS.ProcessEnv }
-  private readonly dir: string
+  private readonly outputs = new OutputFolder()
   private timer: NodeJS.Timeout | null = null
   private started = false
   private making: Promise<void> | null = null
   private polling = false
-  private n = 0
 
   constructor(opts: TmuxDriverOptions = {}) {
     this.opts = {
@@ -181,7 +178,6 @@ export class TmuxDriver implements WorkspaceDriver {
       cgroup: opts.cgroup ?? '/proc/self/cgroup',
       trouble: opts.trouble ?? (() => {}),
     }
-    this.dir = mkdtempSync(join(tmpdir(), 'tade-tmux-'))
   }
 
   async available(): Promise<Availability> {
@@ -209,7 +205,7 @@ export class TmuxDriver implements WorkspaceDriver {
     const rows = spec.rows ?? DEFAULTS.rows
     await this.ensureSession(cols, rows)
 
-    const pipe = join(this.dir, `lane-${++this.n}.out`)
+    const pipe = this.outputs.next()
     // The pipe is attached in the same invocation as the window, because tmux
     // runs one invocation's commands back to back before it next reads any
     // pane: attached by a call of its own, it came after a quick command had
@@ -472,7 +468,7 @@ export class TmuxDriver implements WorkspaceDriver {
       if (hint.cwd && !under(spec.cwd, hint.cwd)) continue
       if (hint.titlePattern && !new RegExp(hint.titlePattern).test(spec.title ?? id)) continue
 
-      const pipe = join(this.dir, `lane-${++this.n}.out`)
+      const pipe = this.outputs.next()
       const handle: LaneHandle = {
         id: id as LaneId,
         spec,
@@ -561,7 +557,7 @@ export class TmuxDriver implements WorkspaceDriver {
     // Retried, where `shutdown` below need not be: tmux is still running and
     // still writing to these files, which is the point of detaching, so the
     // removal races it — and `ENOTEMPTY` thrown here is a window that won't shut.
-    rmSync(this.dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 })
+    this.outputs.remove(true)
   }
 
   async shutdown(): Promise<void> {
@@ -573,7 +569,7 @@ export class TmuxDriver implements WorkspaceDriver {
       await this.tmux(['kill-session', '-t', this.opts.session]).catch(() => {})
     }
     this.started = false
-    rmSync(this.dir, { recursive: true, force: true })
+    this.outputs.remove(false)
   }
 
   private async send(lane: Lane, data: Uint8Array): Promise<void> {

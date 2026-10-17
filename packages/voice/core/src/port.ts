@@ -1,3 +1,5 @@
+import { rm } from 'node:fs/promises'
+
 // Turning speech into text, and capturing the speech in the first place.
 //
 // Two ports, because they are two jobs with different backends: a microphone
@@ -7,11 +9,28 @@
 // Vocabulary rule, as everywhere: no method here may use one implementation's
 // words. It is `transcribe(clip)`, never `whisper(wav)`.
 
-/** A recording, as a WAV file on disk. The caller owns it and deletes it. */
+/**
+ * A recording, as a WAV file on disk. The caller owns it, and lets go of it
+ * with `discardClip` once it is done with it.
+ */
 export interface AudioClip {
   path: string
   sampleRate: number
   durationMs: number
+  /**
+   * The folder the recorder made for this clip alone, which goes with it. A
+   * recorder writes into a folder of its own so nothing else can be standing
+   * at that path, and callers that took away only the file left the folder
+   * behind, one for every time somebody spoke. Absent, the clip is its file
+   * and nothing more.
+   */
+  folder?: string
+}
+
+/** Let go of a clip: its file, and the folder its recorder made for it. Safe twice. */
+export async function discardClip(clip: AudioClip): Promise<void> {
+  await rm(clip.path, { force: true })
+  if (clip.folder) await rm(clip.folder, { recursive: true, force: true })
 }
 
 /** Whether something can run here at all, and in plain words why not. */

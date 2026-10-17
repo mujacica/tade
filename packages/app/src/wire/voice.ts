@@ -1,6 +1,11 @@
-import { rmSync } from 'node:fs'
 import { type Config, type LaneId, speakable } from '@tade/core'
-import type { AudioClip, Recording, VoiceSurface, VoiceTerminals } from '@tade/voice-core'
+import {
+  type AudioClip,
+  discardClip,
+  type Recording,
+  type VoiceSurface,
+  type VoiceTerminals,
+} from '@tade/voice-core'
 import type { Speaker } from '@tade/voice-tts'
 import type { Frame } from '../frame.ts'
 import { keyCaps } from '../keys.ts'
@@ -297,7 +302,7 @@ export class Voice implements Subject {
       })
       this.wire.draw()
     } finally {
-      if (clip) rmSync(clip.path, { force: true })
+      if (clip) await discardClip(clip)
     }
   }
 

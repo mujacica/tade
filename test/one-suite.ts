@@ -1,5 +1,6 @@
 import { type Holders, holdersSaid, insideHeldSlot, waitForMachineSlot } from '@tade/checks-core'
 import type { TestProject } from 'vitest/node'
+import { ownTmp } from './own-tmp.ts'
 
 // One suite at a time on this machine, however it was started.
 //
@@ -92,14 +93,29 @@ export async function takeTurn(opts: {
   return () => got.release()
 }
 
-/** The suite's `globalSetup`: wait for the machine, and hand it back at teardown. */
+/**
+ * The suite's `globalSetup`: wait for the machine, give the run a temp root of
+ * its own (`own-tmp.ts`), and at teardown hand both back — and fail a full run
+ * that left anything in the machine's temp folder.
+ */
 export default async function oneSuite(project: TestProject): Promise<() => Promise<void>> {
   const { vitest } = project
-  return takeTurn({
-    files: vitest.state.getPaths().length,
-    watch: vitest.config.watch,
-    root: vitest.config.root,
-    env: process.env,
-    say: (line) => process.stderr.write(line),
-  })
+  const files = vitest.state.getPaths().length
+  const watch = vitest.config.watch
+  const say = (line: string) => process.stderr.write(line)
+  const release = await takeTurn({ files, watch, root: vitest.config.root, env: process.env, say })
+  // After the turn, so what the guard remembers of the temp folder is from
+  // when this run starts and not from before the one it waited behind.
+  const tmp = await ownTmp({ env: process.env, guard: !watch && files > NARROW, say }).catch(
+    async (err: unknown) => {
+      await release()
+      throw err
+    },
+  )
+  return async () => {
+    await release()
+    // Last: vitest runs no teardown after one that throws, and this one
+    // throws when a full run left something behind.
+    await tmp.done()
+  }
 }

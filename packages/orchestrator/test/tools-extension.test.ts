@@ -369,9 +369,9 @@ describe('the extension tools Tade listed for this orchestrator', () => {
 
     expect(await names({})).not.toContain('deps_check')
     expect(await names({ TADE_EXTENSION_TOOLS: bad })).not.toContain('deps_check')
-    expect(await names({ TADE_EXTENSION_TOOLS: join(tmp('x-'), 'gone.json') })).not.toContain(
-      'deps_check',
-    )
+    expect(
+      await names({ TADE_EXTENSION_TOOLS: join(tmp('tade-tools-'), 'gone.json') }),
+    ).not.toContain('deps_check')
   })
 })
 

@@ -37,6 +37,15 @@ describe('the window, listening', () => {
     await until('what was said to reach the engine', () => transcriber.heard.length === 1)
     // And it lands in the orchestrator strip, exactly as typing it would.
     await until('the utterance on screen', () => terminal.written.includes('where are we'))
+    // Heard, the clip is let go of with the folder its recorder made for it:
+    // taking only the file away left a folder for every press.
+    const clip = transcriber.heard[0]
+    expect(clip?.folder).toBeTruthy()
+    await until(
+      'the clip and its folder to go',
+      () => !existsSync(clip?.folder ?? clip?.path ?? ''),
+    )
+    expect(existsSync(clip?.path ?? '')).toBe(false)
   })
 
   it('tells the engine the task names, which are the words it would get wrong', async () => {

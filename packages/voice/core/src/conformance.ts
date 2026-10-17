@@ -1,8 +1,8 @@
-import { existsSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import type { AudioClip, Recorder, Transcriber } from './port.ts'
+import { type AudioClip, discardClip, type Recorder, type Transcriber } from './port.ts'
 
 // The shared suites for the two ports here, `Transcriber` and `Recorder`.
 // Like the driver suite, each exists before the second implementation does.
@@ -163,7 +163,11 @@ export function testRecorder(
       // really be there and really be deletable — a recorder that hands back
       // a path nobody may unlink is a fixture being kinder than reality.
       expect(existsSync(clip.path)).toBe(true)
-      rmSync(clip.path, { force: true })
+      // And letting go of it leaves nothing of it: not the file, and not a
+      // folder the recorder made to hold it.
+      await discardClip(clip)
+      expect(existsSync(clip.path)).toBe(false)
+      if (clip.folder) expect(existsSync(clip.folder)).toBe(false)
     })
 
     it('leaves nothing behind when the caller gives up', async () => {

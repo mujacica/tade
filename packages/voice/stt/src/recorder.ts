@@ -150,7 +150,7 @@ export class FfmpegRecorder implements Recorder {
               'nothing was recorded — check that your terminal is allowed to use the microphone',
           )
         }
-        return { path, sampleRate, durationMs: Date.now() - startedAt }
+        return { path, sampleRate, durationMs: Date.now() - startedAt, folder: dir }
       },
       cancel: async (): Promise<void> => {
         child.kill('SIGKILL')

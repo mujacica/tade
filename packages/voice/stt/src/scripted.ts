@@ -101,7 +101,12 @@ export class ScriptedRecorder implements Recorder {
     return {
       stop: async (): Promise<AudioClip> => {
         writeFileSync(path, emptyWav())
-        return { path, sampleRate: opts.sampleRate ?? 16_000, durationMs: Date.now() - at }
+        return {
+          path,
+          sampleRate: opts.sampleRate ?? 16_000,
+          durationMs: Date.now() - at,
+          folder: dir,
+        }
       },
       level: () =>
         this.levels[Math.floor((Date.now() - at) / 100) % Math.max(1, this.levels.length)] ?? 0,
