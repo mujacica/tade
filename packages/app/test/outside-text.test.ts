@@ -605,7 +605,7 @@ describe('everything else another machine says, drawn here', () => {
                   on: null,
                 },
               ],
-              found: [],
+              found: [{ at, key: hostile('issuekey'), title: hostile('issuetitle'), task: null }],
             },
           },
         ],
@@ -628,6 +628,7 @@ describe('everything else another machine says, drawn here', () => {
       'suitename',
       'watchname',
       'lookfailed',
+      'issuekey',
     )
     const remotes = [
       {

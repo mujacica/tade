@@ -105,7 +105,20 @@ const DETAIL: Partial<MachineDetail> = {
           looks: [
             { at: NOW - 40 * MINUTE, found: 3, fresh: 2, problem: null, said: null, on: null },
           ],
-          found: [],
+          found: [
+            {
+              at: NOW - 40 * MINUTE,
+              key: 'TADE-1QF',
+              title: 'TypeError: held.projection is null',
+              task: 'tade/fix-held-projection',
+            },
+            {
+              at: NOW - 40 * MINUTE,
+              key: 'TADE-1QE',
+              title: 'ECONNRESET in the follower',
+              task: null,
+            },
+          ],
         },
       },
       {

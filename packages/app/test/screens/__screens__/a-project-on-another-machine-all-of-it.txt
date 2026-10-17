@@ -37,6 +37,8 @@
  ▾ SCHEDULES  2                    ▕│                                                                                                                           
  ◎ New Sentry errors · every hour  ▕│                                                                                                                           
    2 new 13:20                     ▕│                                                                                                                           
+   · TADE-1QF TypeError: held.pr…  ▕│                                                                                                                           
+   · TADE-1QE ECONNRESET in the …  ▕│                                                                                                                           
  ‖ Nightly dependency check · ev…  ▕│                                                                                                                           
                                    ▕│                                                                                                                           
  ▾ DOCUMENTS  2                    ▕│                                                                                                                           
@@ -44,8 +46,6 @@
    tade/research · press to read…  ▕│                                                                                                                           
  ▤ AUDIT.md                        ▕│                                                                                                                           
    tade/audit · gone               ▕│                                                                                                                           
-                                   ▕│                                                                                                                           
-                                   ▕│                                                                                                                           
                                    ▕│                                                                                                                           
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
                                                                                                                                                                 

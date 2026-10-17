@@ -25,6 +25,9 @@ import { clockOf, shortened } from './text.ts'
 /** How many of one list are drawn before the rest are counted. */
 const MOST = 8
 
+/** How many of what a watch found there are drawn under it. */
+const FOUND_SHOWN = 3
+
 /** INTAKE, CHECKS, SCHEDULES and DOCUMENTS for the project you stand in there. */
 export function thereSections(frame: Frame, place: Place, width: number, skin: Skin): Section[] {
   const found = placeIn(frame.machines, place)
@@ -119,7 +122,13 @@ export function thereSections(frame: Frame, place: Place, width: number, skin: S
                 const tone = look.startsWith('!') ? skin.waiting : skin.hint
                 const top = row().space().text(mark, skin.hint).space()
                 top.text(shortened(`${one.name} · ${one.when}`, room))
-                return [top.build(), ...(look === '' ? [] : said(row, look, tone))]
+                // What its looks found there — a Sentry issue, a red build — newest first:
+                // its key, what the source called it, and the work started on it.
+                const found = (one.watch?.found ?? []).slice(0, FOUND_SHOWN).flatMap((it) => {
+                  const what = [it.key, it.title, it.task === null ? null : `→ ${it.task}`]
+                  return said(row, `· ${what.filter(Boolean).join(' ')}`, (text) => text)
+                })
+                return [top.build(), ...(look === '' ? [] : said(row, look, tone)), ...found]
               })),
         ...more(row, schedules.length),
       ],
