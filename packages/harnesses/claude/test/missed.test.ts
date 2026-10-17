@@ -60,12 +60,13 @@ describe('a turn nobody heard end', () => {
     }
   })
 
-  it('is nothing where what was left is not a record, and is taken all the same', async () => {
+  it('says what was left is not a record, rather than that no turn ended, and takes it all the same', async () => {
     const at = socket()
     mkdirSync(join(at, '..'), { recursive: true })
     writeFileSync(missedPath(at), 'not json')
-    expect(await takeMissed(at)).toBeNull()
+    await expect(takeMissed(at)).rejects.toThrow(`${missedPath(at)} is not a turn that ended`)
     expect(existsSync(missedPath(at))).toBe(false)
+    expect(await takeMissed(at)).toBeNull()
     for (const text of ['[]', '{"at":"soon","event":{}}', '{"at":1,"event":[]}', '{"at":1}']) {
       expect(missedIn(text)).toBeNull()
     }

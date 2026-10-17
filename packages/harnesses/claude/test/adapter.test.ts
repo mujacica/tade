@@ -342,17 +342,19 @@ describe('ClaudeAdapter', () => {
       was: Awaited<ReturnType<typeof setUp>>,
       how: { alreadyRunning?: boolean } = { alreadyRunning: true },
     ) => {
+      const warnings: string[] = []
       const back = new ClaudeAdapter({
         runDir: was.runDir,
         configDir: was.account,
         home: tmp('tade-claude-home-'),
         type: async () => {},
+        onWarning: (message) => warnings.push(message),
       })
       adapter = back
       const signals: WorkerSignal[] = []
       back.onSignal(was.spec.run, (signal) => signals.push(signal))
       await back.supervise({ ...was.spec, ...how })
-      return { back, signals, kinds: () => signals.map((signal) => signal.type) }
+      return { back, signals, warnings, kinds: () => signals.map((signal) => signal.type) }
     }
 
     it('says a turn that ended while Tade was away once it is back, when it ended, and once', async () => {
@@ -405,6 +407,15 @@ describe('ClaudeAdapter', () => {
       expect(signals[0]?.at).toBeLessThanOrEqual(signals[1]?.at as number)
       await was.hook({ hook_event_name: 'Stop' })
       expect(kinds()).toEqual(['turn_done', 'turn_started', 'turn_done', 'idle'])
+    })
+
+    it('says it could not read what was left, rather than that no turn ended', async () => {
+      const was = await setUp()
+      await was.adapter.detach()
+      writeFileSync(missedPath(runSocket(was.runDir, was.spec.run)), '{"at":')
+      const { kinds, warnings } = await comeBack(was)
+      expect(warnings).toEqual([expect.stringContaining('is not a turn that ended')])
+      expect(kinds()).toEqual([])
     })
 
     it('says nothing of it to a launch, which is a new process, and forgets it', async () => {

@@ -61,8 +61,9 @@ export function leave(socket: string, event: Record<string, unknown>, now = Date
 /**
  * What was left for this run, taken, so it is said once: moved aside before it
  * is read, so a hook leaving one at the same moment leaves it for next time
- * rather than having it removed unsaid. Null when nothing was, or what was is
- * not a record; one that cannot be taken throws, since it would be said again.
+ * rather than having it removed unsaid. Null when nothing was. What was left
+ * and is not a record throws, because that is not no turn having ended; so does
+ * one that cannot be taken, since it would be said again.
  */
 export async function takeMissed(socket: string): Promise<Missed | null> {
   const taking = `${missedPath(socket)}.taking`
@@ -74,7 +75,9 @@ export async function takeMissed(socket: string): Promise<Missed | null> {
   }
   const text = await readFile(taking, 'utf8')
   await rm(taking, { force: true })
-  return missedIn(text)
+  const missed = missedIn(text)
+  if (!missed) throw new Error(`what was left at ${missedPath(socket)} is not a turn that ended`)
+  return missed
 }
 
 /** A kept record, or null on any other shape. */
