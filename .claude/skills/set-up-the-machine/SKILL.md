@@ -74,6 +74,8 @@ and setting up ends by actually opening a lane — because every other check is 
 Declaring **nothing** is an answer: the pty driver needs no program of its own, and says so by
 having no `programs`. What Tade itself needs whichever implementations are in use is `TADE_PROGRAMS`
 — git and node — declared in `core` because it is a fact about Tade, not about the page that shows it.
+Status is Tade too, not a port, so what one of its looks runs is declared beside that run and folded
+in under Tade by `programsNeeded`: `PORTS_PROGRAMS` (`lsof`, `status/src/ports.ts`).
 
 ## Rules
 

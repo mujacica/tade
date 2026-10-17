@@ -20,7 +20,7 @@ import {
   updateWith,
   upgradeWith,
 } from '@tade/core'
-import { FORGES, forgeExec } from '@tade/status'
+import { FORGES, forgeExec, PORTS_PROGRAMS } from '@tade/status'
 import { HARNESS_ADAPTERS } from './harnesses.ts'
 import { installersHere } from './installers.ts'
 import { drivers } from './registry.ts'
@@ -127,7 +127,11 @@ export async function programsNeeded(
   home: string,
   also: readonly Declared[] = [],
 ): Promise<ProgramNeed[]> {
-  const declarations: Declared[] = [{ what: 'Tade', inUse: true, programs: TADE_PROGRAMS }]
+  // Tade's own, and what its look at a lane's listening ports runs: status
+  // is Tade itself rather than a port, so it is folded in under Tade.
+  const declarations: Declared[] = [
+    { what: 'Tade', inUse: true, programs: [...TADE_PROGRAMS, ...PORTS_PROGRAMS] },
+  ]
 
   const workspace = config.workspace
   for (const [id, make] of Object.entries(drivers)) {

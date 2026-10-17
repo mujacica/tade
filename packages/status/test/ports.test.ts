@@ -1,11 +1,12 @@
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process'
-import { ConfigSchema, type LaneId } from '@tade/core'
+import { ConfigSchema, declarationProblems, installWith, type LaneId } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import {
   listeningPorts,
   newPortsHeld,
   PORTS_MS,
+  PORTS_PROGRAMS,
   parseListening,
   parseProcessRows,
   portsByLane,
@@ -107,6 +108,30 @@ describe('listeningPorts', () => {
     expect(looked.warnings).toEqual([
       'listening ports could not be looked at: there is no lsof on this machine',
     ])
+  })
+
+  it('declares the lsof it runs, so a box without one is told how to get it', async () => {
+    const commands: string[] = []
+    await listeningPorts([10], {
+      run: async (command) => {
+        commands.push(command)
+        return command === 'ps' ? ran({ stdout: '10 1 10\n' }) : ran({ exitCode: 1 })
+      },
+    })
+    expect(commands).toContain('lsof')
+    const [lsof] = PORTS_PROGRAMS
+    expect(lsof).toMatchObject({ command: 'lsof', optional: true })
+    expect(declarationProblems(PORTS_PROGRAMS)).toEqual([])
+    expect(installWith(lsof?.install, { platform: 'linux', managers: ['apt-get'] })).toEqual({
+      command: 'sudo apt-get update && sudo apt-get install -y lsof',
+    })
+    expect(
+      installWith(lsof?.install, { platform: 'linux', managers: ['dnf'], root: true }),
+    ).toEqual({ command: 'dnf install -y lsof' })
+    // Never a Linux line said to a Mac, which has its own.
+    expect(installWith(lsof?.install, { platform: 'darwin', managers: ['brew'] })).toEqual({
+      cannot: 'macOS ships with it',
+    })
   })
 
   it('looks at nothing when there are no lanes', async () => {

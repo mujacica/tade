@@ -1,3 +1,4 @@
+import type { RequiredProgram } from '@tade/core'
 import { problemWith, type Run, spawnProbe } from './processes.ts'
 
 // Which TCP ports each lane is listening on, derived and never assigned.
@@ -18,6 +19,23 @@ import { problemWith, type Run, spawnProbe } from './processes.ts'
 // whoever asks every beat holds the last look (`PortsHeld`), which stands for
 // `PORTS_MS`: `lsof` walks every process's descriptors, a tenth of a second on
 // a busy laptop, and a dev server is started far less often than that.
+
+/**
+ * What the look at ports runs, declared beside the run: every Mac has `lsof`,
+ * and a minimal Debian or Ubuntu box has not, which without this was a
+ * warning that it is missing and no line anywhere that installs it. Optional,
+ * because a lane with no ports is all that is lost.
+ */
+export const PORTS_PROGRAMS: readonly RequiredProgram[] = [
+  {
+    command: 'lsof',
+    title: 'lsof',
+    why: 'finding the ports each agent’s dev server listens on',
+    versionArgs: ['-v'],
+    optional: true,
+    install: { apt: 'lsof', dnf: 'lsof', instead: { darwin: 'macOS ships with it' } },
+  },
+]
 
 /** One process, as `ps` gives it. */
 export interface ProcessRow {
