@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ConfigSchema, type InstallersHere } from '@tade/core'
+import { ConfigSchema, type InstallersHere, type LaneId } from '@tade/core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -135,6 +135,36 @@ describe('accounts', () => {
       { path: 'projects.app.accounts.claude-code', was: 'home', now: 'default', by: 'window' },
       { path: 'projects.app.accounts.claude-code', was: 'default', now: '', by: 'window' },
     ])
+  })
+
+  it('brings an agent that has run back on the account its conversation is in, after a switch', async () => {
+    await client.addAccount({ name: 'work', harness: 'claude-code' })
+    await client.addAccount({ name: 'home', harness: 'claude-code' })
+    await client.useAccount('claude-code', 'work', 'app')
+    const task = await client.createTask({ project: 'app', slug: 'ran', intent: 'fix it' })
+    await client.setAgentHarness({ task: task.id, worktree: task.worktree, harness: 'claude-code' })
+    // Its agent ran as work and is gone — closed with Tade, or finished a turn
+    // — and its lane's record is what is left of where it ran.
+    await client.spawn({
+      id: `${task.id}/agent` as LaneId,
+      task: task.id,
+      kind: 'agent',
+      cwd: task.worktree,
+      command: 'true',
+      args: [],
+      harness: 'claude-code',
+      account: 'work',
+    })
+    await client.useAccount('claude-code', 'home', 'app')
+    // The switch is for new agents: this one goes back where its conversation is.
+    expect((await client.agentHarness(task.id)).account).toBe('work')
+    // A new task in the project is a new agent, and starts on the switch.
+    const next = await client.createTask({ project: 'app', slug: 'next', intent: 'fix it' })
+    await client.setAgentHarness({ task: next.id, worktree: next.worktree, harness: 'claude-code' })
+    expect((await client.agentHarness(next.id)).account).toBe('home')
+    // What somebody chose for the task itself is over both.
+    await client.setAgentAccount({ task: task.id, worktree: task.worktree, account: null })
+    expect((await client.agentHarness(task.id)).account).toBeNull()
   })
 
   it('keeps a task on its own sign-in when one is chosen for it, whatever new agents use', async () => {

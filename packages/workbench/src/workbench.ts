@@ -1602,15 +1602,26 @@ export class Workbench {
 
   /**
    * The account a task's agent runs as: its own choice — `default` being the
-   * harness's own sign-in — else the one its project's new agents use
-   * (`accountFor`). One that is not this harness's is not used: an account
-   * belongs to one harness.
+   * harness's own sign-in — else the one it last ran as in this harness, else
+   * the one its project's new agents use (`accountFor`). One that is not this
+   * harness's is not used: an account belongs to one harness.
+   *
+   * The one it last ran as is the lane's record, kept after the lane is gone,
+   * and it is what makes a switch reach only new agents: an agent reopened
+   * after Tade closed, or started again on its task, goes back to the sign-in
+   * its conversation is kept in, rather than to whichever one the project was
+   * switched to meanwhile — where its conversation is not.
    */
   private async accountOf(task: string, harness: string): Promise<string | undefined> {
     const own = await this.taskAccount(task)
-    if (!own) return this.accountUsing(harness, task.split('/')[0] ?? null)
     if (own === OWN_SIGN_IN) return undefined
-    return this.config.accounts[own]?.harness === harness ? own : undefined
+    if (own) return this.config.accounts[own]?.harness === harness ? own : undefined
+    const ran = this.registry.get(`${task}/agent` as LaneId)
+    if (ran?.harness === harness) {
+      if (!ran.account) return undefined
+      if (this.config.accounts[ran.account]?.harness === harness) return ran.account
+    }
+    return this.accountUsing(harness, task.split('/')[0] ?? null)
   }
 
   /** The account a harness's new agents run as in a project, or on the machine where there is none. */
