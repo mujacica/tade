@@ -1,4 +1,5 @@
 import { rm } from 'node:fs/promises'
+import { runProgram } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { type FarEnd, startFarEnd } from './far.ts'
 import { QUIET_MS } from './held.ts'
@@ -363,6 +364,51 @@ export function testRemoteLink(name: string, make: MakeRig, opts: { skip?: strin
       const remote = await paired(one)
       await one.close()
       await expect(link.call(remote, '/api/carry', {})).rejects.toMatchObject({
+        name: 'LinkError',
+      })
+    })
+
+    it('asks over the link it holds while it is live, and asks nothing while it is not', async () => {
+      await setUp()
+      const one = await far(['alpha'])
+      link.open(await paired(one))
+      await until('the link to come up', live('vps'))
+      // A read is a read: no token, and the far end's own answer.
+      const read = await link.request('vps', '/api/agent/alpha/fix-it')
+      expect(read.status).toBe(200)
+      expect(read.body).toMatchObject({ task: 'alpha/fix-it', here: false })
+      one.attachable.set('alpha/fix-it', 'echo attached')
+      expect(await link.request('vps', '/api/attach', { task: 'alpha/fix-it' })).toEqual({
+        status: 200,
+        body: { command: 'echo attached' },
+      })
+      await one.close()
+      await until('the link to go down', () => link.held('vps')?.link.kind === 'down')
+      // Down is asked nothing: it is said, as the link already says it.
+      await expect(
+        link.request('vps', '/api/attach', { task: 'alpha/fix-it' }),
+      ).rejects.toMatchObject({ name: 'LinkError' })
+      await expect(link.request('nowhere', '/api/snapshot')).rejects.toMatchObject({
+        name: 'LinkError',
+      })
+    })
+
+    it('opens a terminal there running the far end’s own line, only where it says it can', async () => {
+      await setUp()
+      const one = await far()
+      const remote = await paired(one)
+      const opened = await link.attach(remote, "echo 'attached here'")
+      if (!link.capabilities.terminals) {
+        expect(opened).toBeNull()
+        return
+      }
+      expect(opened?.by).not.toBe('')
+      // Run, not read: a line that looks right and does not run is found out
+      // the moment somebody presses enter on an agent.
+      const ran = await runProgram(opened?.command ?? '', opened?.args ?? [], { timeoutMs: 20_000 })
+      expect(ran.stdout, ran.stderr).toContain('attached here')
+      // A line is one line a shell reads as written, or it is not handed over.
+      await expect(link.attach(remote, 'echo one\necho two')).rejects.toMatchObject({
         name: 'LinkError',
       })
     })

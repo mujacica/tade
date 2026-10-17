@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import {
   commandOk,
   destinationOk,
+  MOSH_PROGRAM,
   makeSshLink,
   masterArgs,
   pathsFor,
@@ -91,9 +92,10 @@ describe('what it will run', () => {
     expect(pathsFor('/home/a', 'vps', 7655).control).toBe(one.control)
   })
 
-  it('says what it needs of the machine', () => {
+  it('says what it needs of the machine, and what it uses where it is there', () => {
     expect(SSH_PROGRAM.command).toBe('ssh')
-    expect(makeSshLink({ home: '/h' }).programs).toEqual([SSH_PROGRAM])
+    expect(MOSH_PROGRAM.optional).toBe(true)
+    expect(makeSshLink({ home: '/h' }).programs).toEqual([SSH_PROGRAM, MOSH_PROGRAM])
   })
 })
 

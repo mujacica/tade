@@ -13,6 +13,7 @@ import {
   taskDir,
 } from '@tade/core'
 import {
+  type AttachOptions,
   type LaneHandle,
   LaneNotFoundError,
   type LaneScreen,
@@ -405,9 +406,9 @@ export class LaneRegistry {
     return this.lanes.get(id) ?? null
   }
 
-  attachCommand(id: LaneId): string {
+  attachCommand(id: LaneId, options?: AttachOptions): string {
     this.require(id)
-    return this.driver.attachCommand(id)
+    return this.driver.attachCommand(id, options)
   }
 
   async write(id: LaneId, data: Uint8Array): Promise<void> {

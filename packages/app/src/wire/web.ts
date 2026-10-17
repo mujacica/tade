@@ -35,6 +35,7 @@ import type { Actions, Subject, Submits, Wiring } from './context.ts'
 import { evaluationsAnswer } from './evaluations.ts'
 import type { Settings } from './settings.ts'
 import { armingFor, seenFrom, type Talking } from './web-asking.ts'
+import { attachingFor } from './web-attach.ts'
 import {
   type AwayHeld,
   type FactoryHeld,
@@ -281,6 +282,7 @@ export class Away implements Subject {
         this.presentAt = Math.max(this.presentAt ?? at, at)
       },
       carrying: carryingFor(this.wire, this.deps.settings),
+      attaching: attachingFor(this.wire.opts.client),
       tickets: this.tickets,
       streams: this.streams,
       tell: heard(

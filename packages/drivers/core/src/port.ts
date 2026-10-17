@@ -60,6 +60,18 @@ export interface WorkspaceCapabilities {
   pointer: boolean
 }
 
+/** Who an attach command is for. */
+export interface AttachOptions {
+  /**
+   * A pane of another window — Tade's, on another machine — and not a person
+   * at a terminal of their own. That window draws the frame, owns the keys
+   * that leave and decides what the wheel does, so nothing of the backend's
+   * own is drawn around the lane, no key is kept back from it, and the pointer
+   * is the lane's.
+   */
+  embedded?: boolean
+}
+
 export interface AdoptHint {
   /** Only adopt lanes whose working directory is at or below this path. */
   cwd?: string
@@ -200,8 +212,13 @@ export interface WorkspaceDriver {
   resize(lane: LaneId, cols: number, rows: number): Promise<void>
   focus(lane: LaneId): Promise<void>
   setTitle(lane: LaneId, title: string): Promise<void>
-  /** A string a human can run to see this lane. Always available. */
-  attachCommand(lane: LaneId): string
+  /**
+   * A shell command that shows this lane in the terminal it runs in, and takes
+   * that terminal's typing. Always available. With `remoteAttach` it works from
+   * any terminal with no Tade in the picture, and two of them at once for two
+   * lanes each show their own.
+   */
+  attachCommand(lane: LaneId, options?: AttachOptions): string
   list(): Promise<LaneHandle[]>
   get(lane: LaneId): Promise<LaneHandle | null>
   adopt(hint: AdoptHint): Promise<LaneHandle[]>

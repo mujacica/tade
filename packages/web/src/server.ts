@@ -359,6 +359,7 @@ export function webServer(opts: ServerOptions): WebServer {
         return 'refusal' in said ? answer(res, said.refusal) : json(res, said.body)
       }
       case 'presence':
+      case 'attach':
       case 'carry': {
         const said = await carryOwned(found.route.name, req, device, now(), opts)
         return 'refusal' in said ? answer(res, said.refusal) : json(res, said.body)

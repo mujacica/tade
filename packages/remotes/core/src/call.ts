@@ -20,7 +20,11 @@ export const CALL_MS = 60_000
 /** The most of an answer that is read. A carry's answer is a few kilobytes. */
 const ANSWER_MOST = 4 * 1024 * 1024
 
-/** POST `body` to `path` there as this machine's owner session, over `connect`'s stream. */
+/**
+ * POST `body` to `path` there as this machine's owner session, over
+ * `connect`'s stream — or GET it, where there is no body: a read sends no
+ * token, as a page's reads send none.
+ */
 export function callOver(
   connect: () => Promise<Duplex>,
   remote: Remote,
@@ -28,7 +32,7 @@ export function callOver(
   body: unknown,
   ms: number = CALL_MS,
 ): Promise<Answer> {
-  const text = JSON.stringify(body)
+  const text = body === undefined ? null : JSON.stringify(body)
   const session = remote.session
   return new Promise((done, failed) => {
     let finished = false
@@ -57,14 +61,18 @@ export function callOver(
           {
             createConnection: () => opened as never,
             path,
-            method: 'POST',
+            method: text === null ? 'GET' : 'POST',
             headers: {
               host: session.host,
-              origin: `http://${session.host}`,
               cookie: `${COOKIE}=${session.cookie}`,
-              'content-type': 'application/json',
-              'content-length': String(Buffer.byteLength(text)),
-              'x-tade-csrf': session.csrf,
+              ...(text === null
+                ? {}
+                : {
+                    origin: `http://${session.host}`,
+                    'content-type': 'application/json',
+                    'content-length': String(Buffer.byteLength(text)),
+                    'x-tade-csrf': session.csrf,
+                  }),
               // One request, and the stream it came on is done with.
               connection: 'close',
             },
@@ -98,7 +106,8 @@ export function callOver(
           },
         )
         req.on('error', (err) => finish(err))
-        req.end(text)
+        if (text === null) req.end()
+        else req.end(text)
       },
       (err: unknown) => finish(err),
     )

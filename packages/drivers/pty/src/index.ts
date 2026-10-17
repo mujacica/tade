@@ -1,6 +1,7 @@
 import { type LaneId, resolveCommand, stringEnv, type Unsubscribe } from '@tade/core'
 import {
   type AdoptHint,
+  type AttachOptions,
   type Availability,
   type CaptureOptions,
   LaneClosedError,
@@ -39,7 +40,7 @@ export interface PtyDriverOptions {
   /** Bytes of raw output kept for replaying to a new subscriber. */
   replayBytes?: number
   /** How a human is told to view a lane. */
-  attachCommand?: (lane: LaneId) => string
+  attachCommand?: (lane: LaneId, options?: AttachOptions) => string
   env?: NodeJS.ProcessEnv
   /**
    * Where something that went wrong and was carried on through is said: the
@@ -414,8 +415,10 @@ export class PtyDriver implements WorkspaceDriver {
     this.live(id).handle.title = title
   }
 
-  attachCommand(id: LaneId): string {
-    return this.opts.attachCommand(id)
+  attachCommand(id: LaneId, options?: AttachOptions): string {
+    // The lane is this window's own child: what reaches it from another
+    // terminal is `tade attach`, which is the same for a pane as for a person.
+    return this.opts.attachCommand(id, options)
   }
 
   async list(): Promise<LaneHandle[]> {

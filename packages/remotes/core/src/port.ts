@@ -113,6 +113,11 @@ export interface Answer {
 export interface TerminalThere {
   command: string
   args: string[]
+  /**
+   * How it reaches there, in this link's own word — `ssh`, `mosh` — for
+   * saying beside the terminal. Drawn, never branched on.
+   */
+  by?: string
 }
 
 /**
@@ -241,6 +246,24 @@ export interface RemoteLink {
    * words are Tade's own, each one a word a remote shell reads as itself.
    */
   terminal(remote: Remote, words: readonly string[]): TerminalThere | null
+  /**
+   * What to run here for a terminal there running `line`: that machine's own
+   * answer for showing one of its agents as a pane (`/api/attach`), handed
+   * back to it — or null without `terminals`. It waits, because an
+   * implementation may ask the remote now and then how else it can be reached.
+   * Throws `LinkError` for a line it would not hand a remote shell.
+   */
+  attach(remote: Remote, line: string): Promise<TerminalThere | null>
+  /**
+   * One owner's request over the link held for this remote, while it is live:
+   * what a window reads and asks again and again while somebody looks — an
+   * agent's screen, a verb — so over the connection that is already up and
+   * never one of its own. A read (`GET`) where `body` is absent. Throws
+   * `LinkError` where the link is not live, so a remote that is down is asked
+   * nothing until it is back, and where the request could not be made; any
+   * answer is returned.
+   */
+  request(name: string, path: string, body?: unknown): Promise<Answer>
   /**
    * Hold a link to this remote from now on, dialling it on the next beat.
    * Opening one already held with another spec closes the old one first.

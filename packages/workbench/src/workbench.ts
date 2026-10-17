@@ -894,9 +894,9 @@ export class Workbench {
     return this.registry.close(lane)
   }
 
-  /** What a human would run to see this lane in their own terminal. */
-  attachCommand(lane: LaneId): string {
-    return this.registry.attachCommand(lane)
+  /** What a human would run to see this lane in their own terminal, or another window as a pane. */
+  attachCommand(lane: LaneId, options?: Parameters<WorkspaceDriver['attachCommand']>[1]): string {
+    return this.registry.attachCommand(lane, options)
   }
 
   /**

@@ -87,6 +87,11 @@ export class Follower {
     return this.remote
   }
 
+  /** The door the stream came in by, while it is live: what a request rides on. Null otherwise. */
+  get reached(): Door | null {
+    return this.held.link.kind === 'live' ? this.door : null
+  }
+
   /** The beat: a dial past its deadline or a stream gone quiet is given up on, then whatever is due. */
   beat(now: number): void {
     if (this.closed) return
@@ -276,7 +281,7 @@ function presenceSaid(status: number): string {
   return `it refused this machine’s presence (${status})`
 }
 
-function doorOf(door: Door): { socketPath: string } | { host: string; port: number } {
+export function doorOf(door: Door): { socketPath: string } | { host: string; port: number } {
   return 'socketPath' in door
     ? { socketPath: door.socketPath }
     : { host: door.host, port: door.port }

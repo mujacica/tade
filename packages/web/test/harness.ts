@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { SettingGroup } from '@tade/core'
 import { noFacts, type TaskFacts, type WebActing } from '../src/acting.ts'
+import type { WebAttaching } from '../src/attached.ts'
 import type { WebConfiguring } from '../src/configuring.ts'
 import type { Streams } from '../src/peers.ts'
 import type { Reach } from '../src/reach.ts'
@@ -200,6 +201,8 @@ export async function start(
     now?: () => number
     /** Where an owner's presence goes, for a test that reads it. */
     present?: (device: string, at: number) => void
+    /** The window's attach lines, for a test of an owner asking for one. */
+    attaching?: WebAttaching
   } = {},
 ): Promise<Running> {
   settingRows = opts.settings ?? []
@@ -241,6 +244,7 @@ export async function start(
     ...(opts.publicSocket === undefined ? {} : { publicSocket: opts.publicSocket }),
     ...(opts.now === undefined ? {} : { now: opts.now }),
     ...(opts.present === undefined ? {} : { present: opts.present }),
+    ...(opts.attaching === undefined ? {} : { attaching: opts.attaching }),
   })
   epoch = one.server.epoch
   one.epoch = epoch

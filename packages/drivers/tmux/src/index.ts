@@ -12,6 +12,7 @@ import {
 } from '@tade/core'
 import {
   type AdoptHint,
+  type AttachOptions,
   type Availability,
   type CaptureOptions,
   LaneClosedError,
@@ -28,6 +29,7 @@ import {
   type WorkspaceDriver,
   wheelBytes,
 } from '@tade/drivers-core'
+import { attachLine, windowName } from './attach.ts'
 import { exitStatus, lookAgain, serverPid, signalNumber } from './ended.ts'
 import { drawn, PANE_FORMAT, type Pane, pointingOf, readPane, scrollingOf } from './pane.ts'
 import { literal, piping, quote, written } from './pipe.ts'
@@ -59,7 +61,7 @@ export interface TmuxDriverOptions {
   replayBytes?: number
   /** How often output and dead panes are checked. */
   pollMs?: number
-  attachCommand?: (lane: LaneId) => string
+  attachCommand?: (lane: LaneId, options?: AttachOptions) => string
   env?: NodeJS.ProcessEnv
   /** Where this process's cgroup is read from (`scope.ts`): for tests. */
   cgroup?: string
@@ -171,8 +173,8 @@ export class TmuxDriver implements WorkspaceDriver {
       pollMs: opts.pollMs ?? DEFAULTS.pollMs,
       attachCommand:
         opts.attachCommand ??
-        ((lane) =>
-          `tmux -L ${opts.socket ?? DEFAULTS.socket} attach -t ${opts.session ?? DEFAULTS.session}:${windowName(lane)}`),
+        ((lane, how) =>
+          attachLine(opts.socket ?? DEFAULTS.socket, opts.session ?? DEFAULTS.session, lane, how)),
       env: opts.env ?? process.env,
       cgroup: opts.cgroup ?? '/proc/self/cgroup',
       trouble: opts.trouble ?? (() => {}),
@@ -429,8 +431,8 @@ export class TmuxDriver implements WorkspaceDriver {
     await this.tmux(['rename-window', '-t', lane.window, windowName(title)]).catch(() => {})
   }
 
-  attachCommand(id: LaneId): string {
-    return this.opts.attachCommand(id)
+  attachCommand(id: LaneId, options?: AttachOptions): string {
+    return this.opts.attachCommand(id, options)
   }
 
   async list(): Promise<LaneHandle[]> {
@@ -778,10 +780,6 @@ export class TmuxDriver implements WorkspaceDriver {
 }
 
 /** tmux window names cannot hold everything a lane id can. */
-function windowName(id: string): string {
-  return id.replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'lane'
-}
-
 function parseSpec(json: string): LaneSpec | null {
   try {
     const spec = JSON.parse(json) as LaneSpec

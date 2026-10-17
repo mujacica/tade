@@ -68,6 +68,12 @@ export interface FarEnd {
   readonly lines: CarryLine[]
   /** What its harnesses say of their sign-ins, as a carry answers them. A test sets it. */
   signIns: SignInHere[]
+  /**
+   * The line its window answers an owner asking to be shown a task's agent
+   * (`/api/attach`), by task. A test sets it; a task not in it is answered as
+   * one whose agent is not running there.
+   */
+  readonly attachable: Map<string, string>
   /** Its window closed and opened again: the same home and port, another epoch. */
   restart(): Promise<void>
   /** Nothing answers on its port any more. Safe twice. */
@@ -110,6 +116,7 @@ class Far implements FarEnd {
   presentAt: number | null = null
   readonly lines: CarryLine[] = []
   signIns: SignInHere[] = []
+  readonly attachable = new Map<string, string>()
   private server: WebServer | null = null
   private projects: readonly string[]
   private titles: Readonly<Record<string, string>> = {}
@@ -160,6 +167,12 @@ class Far implements FarEnd {
         signIns: async () => this.signIns,
         machine: 'far',
       }),
+      attaching: (task) => {
+        const line = this.attachable.get(task)
+        return line === undefined
+          ? { command: null, why: 'its agent is not running there' }
+          : { command: line }
+      },
     })
     this.server = server
     const bound = await server.listen()

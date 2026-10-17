@@ -4,7 +4,14 @@ import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Duplex } from 'node:stream'
-import { located, printable, type RequiredProgram, runProgram, runtimeDir } from '@tade/core'
+import {
+  located,
+  printable,
+  type RequiredProgram,
+  resolveCommand,
+  runProgram,
+  runtimeDir,
+} from '@tade/core'
 import {
   DIAL_MS,
   type Door,
@@ -18,7 +25,10 @@ import {
   type RemoteLink,
   type TerminalThere,
 } from '@tade/remotes-core'
+import { attachThere, lineOk, MOSH_PROGRAM, serverOk } from './attach.ts'
 import { changedSays, identify, trust } from './known.ts'
+
+export { MOSH_PROGRAM } from './attach.ts'
 
 // A RemoteLink over SSH: the one way there is to reach another machine's Tade
 // today (REMOTE-TADE.md §2.5, §4.1).
@@ -91,7 +101,7 @@ export function makeSshLink(options: SshOptions): RemoteLink {
     {
       id: 'ssh',
       capabilities: { pairs: true, identifies: true, terminals: true },
-      programs: [SSH_PROGRAM],
+      programs: [SSH_PROGRAM, MOSH_PROGRAM],
       pair: (at) => ssh.pair(at),
       unpair: (remote) => ssh.unpair(remote),
       reaching: (remote) => ssh.reaching(remote),
@@ -105,6 +115,7 @@ export function makeSshLink(options: SshOptions): RemoteLink {
         return trust((args, ms) => ssh.runArgs(args, ms), address, fingerprints)
       },
       terminal: (remote, words) => ssh.terminal(remote, words),
+      attach: (remote, line) => ssh.attach(remote, line),
     },
     options,
   )
@@ -171,8 +182,13 @@ function controlOf(home: string, remote: string): string {
   return join(runtimeDir(home), `r-${short}.ctl`)
 }
 
+/** How long what a remote answered about its mosh is kept before it is asked again. */
+const MOSH_KEPT_MS = 10 * 60_000
+
 class Ssh {
   private readonly options: SshOptions
+  /** Each remote's `mosh-server`, as it last answered, and when. */
+  private readonly moshThere = new Map<string, { at: number; path: string | null }>()
 
   constructor(options: SshOptions) {
     this.options = options
@@ -283,6 +299,57 @@ class Ssh {
         [remote.tade, ...words].join(' '),
       ],
     }
+  }
+
+  /**
+   * A terminal there running the line that machine gave for one of its agents
+   * (`attach.ts`): over mosh where both machines have it, `ssh -t` otherwise.
+   */
+  async attach(remote: Remote, line: string): Promise<TerminalThere> {
+    checked(remote.address, remote.tade)
+    if (!lineOk(line)) {
+      throw new LinkError(
+        'failed',
+        `${remote.name} answered a line this link would not hand a shell: ${JSON.stringify(printable(line).slice(0, 80))}`,
+      )
+    }
+    const env = this.options.env ?? process.env
+    const here = resolveCommand('mosh', { PATH: env.PATH ?? '' })
+    const there = here === null ? null : await this.moshServer(remote)
+    return attachThere({
+      ssh: this.options.ssh ?? 'ssh',
+      before: this.options.args ?? [],
+      control: controlOf(this.options.home, remote.name),
+      address: remote.address,
+      line,
+      mosh: here !== null && there !== null ? { here, there } : null,
+    })
+  }
+
+  /**
+   * Where `mosh-server` is there, as a command over SSH finds it — which is
+   * how mosh itself starts it — or null. Asked over the window's master and
+   * kept a while, so pressing enter on an agent is not a round trip more.
+   */
+  private async moshServer(remote: Remote): Promise<string | null> {
+    const kept = this.moshThere.get(remote.name)
+    const now = Date.now()
+    if (kept !== undefined && now - kept.at < MOSH_KEPT_MS) return kept.path
+    const ran = await this.run(
+      [
+        ...QUIET,
+        '-S',
+        controlOf(this.options.home, remote.name),
+        '--',
+        remote.address,
+        'command -v mosh-server',
+      ],
+      10_000,
+    )
+    const said = ran.code === 0 ? (ran.stdout.trim().split('\n')[0]?.trim() ?? '') : ''
+    const path = serverOk(said) ? said : null
+    this.moshThere.set(remote.name, { at: now, path })
+    return path
   }
 
   /** Run `tade web pair --owner` there, and read back what it printed once. */

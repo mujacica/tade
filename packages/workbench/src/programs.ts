@@ -21,6 +21,7 @@ import {
 import { FORGES, forgeExec } from '@tade/status'
 import { HARNESS_ADAPTERS } from './harnesses.ts'
 import { drivers } from './registry.ts'
+import { linkOf, REMOTE_LINKS } from './remotes.ts'
 
 // Keeping what Tade runs current: the programs it shells out to, and Tade
 // itself.
@@ -156,6 +157,18 @@ export async function programsNeeded(config: Config, home: string): Promise<Prog
       what: id,
       inUse: sentTo.length === 0 || sentTo.includes(id),
       programs: forge.programs ?? [],
+    })
+  }
+
+  // How this machine reaches another's Tade — in use where a remote names the
+  // link — and what that needs at both ends: mosh is one package for its
+  // client here and its server there, so a VPS lists it too.
+  const linked = new Set(Object.values(config.remotes).map(linkOf))
+  for (const [id, make] of Object.entries(REMOTE_LINKS)) {
+    declarations.push({
+      what: `the ${id} link`,
+      inUse: linked.has(id),
+      programs: make({ home }).programs,
     })
   }
 

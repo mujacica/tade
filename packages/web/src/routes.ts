@@ -465,23 +465,27 @@ export const SETTINGS: readonly Route[] = Object.keys(CHANGES).map((name) => ({
 }))
 
 /**
- * What only an owner may do, and only at this machine's own door: **one
- * route**, another machine's Tade carrying its setup here (`carried.ts`).
+ * What only an owner may do, and only at this machine's own door: another
+ * machine's Tade carrying its setup here (`carried.ts`), and asking what to run
+ * here to be shown one of its agents (`attached.ts`).
  *
- * A table of its own because it is the one route that writes the config
- * beyond `settingReach`'s `open` tier — preferences, files and, on a press,
- * keys — and so the one exception to "no route reaches a credential", which
- * `test/routes.test.ts` names rather than lets slip. What makes it no wider
- * than what already was is who may use it: an owner session, which is the SSH
- * key's (`owner.ts`), on the loopback listener for a loopback `Host` (`here`),
- * which from anywhere else is that same SSH connection — and whoever holds the
- * key can already edit `config.yaml` over it. No setting turns it on, because
- * none would add anything: it is answered where the window wired it, refused
+ * A table of its own because each is what no phone may ever be given: the
+ * carry writes the config beyond `settingReach`'s `open` tier — preferences,
+ * files and, on a press, keys — and so is the one exception to "no route
+ * reaches a credential", and the attach line is the one answer that is a way
+ * into a lane; `test/routes.test.ts` names both rather than lets one slip. What
+ * makes them no wider than what already was is who may use them: an owner
+ * session, which is the SSH key's (`owner.ts`), on the loopback listener for a
+ * loopback `Host` (`here`), which from anywhere else is that same SSH
+ * connection — and whoever holds the key can already edit `config.yaml` and
+ * attach to a lane over it. No setting turns them on, because none would add
+ * anything: each is answered where the window wired it, refused
  * (`out_of_scope`) to every session that is not an owner, and the `404` of a
  * path nobody built on every other door.
  */
 export const OWNED: readonly Route[] = [
   { method: 'POST', path: '/api/carry', name: 'carry', needs: 'read', mutates: true, here: true },
+  { method: 'POST', path: '/api/attach', name: 'attach', needs: 'read', mutates: true, here: true },
 ]
 
 /**

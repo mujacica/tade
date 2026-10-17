@@ -1,7 +1,8 @@
+import { connect } from 'node:net'
 import type { Duplex } from 'node:stream'
 import type { RequiredProgram, Unsubscribe } from '@tade/core'
 import { callOver } from './call.ts'
-import { Follower, type Reaching } from './follow.ts'
+import { type Door, doorOf, Follower, type Reaching } from './follow.ts'
 import {
   type Answer,
   type Held,
@@ -46,7 +47,12 @@ export interface Transport {
   trust?(address: string, fingerprints: readonly string[]): Promise<Identity>
   /** With `terminals`: what to run here for a terminal there. */
   terminal?(remote: Remote, words: readonly string[]): TerminalThere
+  /** With `terminals`: what to run here for a terminal there running the remote's own line. */
+  attach?(remote: Remote, line: string): Promise<TerminalThere>
 }
+
+/** How long a request over a held link may take: a read, or a verb carried out there. */
+export const REQUEST_MS = 20_000
 
 /** A whole link out of a transport. */
 export function linkOver(transport: Transport, options: LinkOptions): RemoteLink {
@@ -100,6 +106,21 @@ class Links implements RemoteLink {
   terminal(remote: Remote, words: readonly string[]): TerminalThere | null {
     if (!this.capabilities.terminals) return null
     return this.transport.terminal?.(remote, words) ?? null
+  }
+
+  async attach(remote: Remote, line: string): Promise<TerminalThere | null> {
+    if (!this.capabilities.terminals || this.transport.attach === undefined) return null
+    return this.transport.attach(remote, line)
+  }
+
+  request(name: string, path: string, body?: unknown): Promise<Answer> {
+    const follower = this.followers.get(name)
+    if (follower === undefined) {
+      return Promise.reject(new LinkError('failed', `${name} is not linked from this window`))
+    }
+    const door = follower.reached
+    if (door === null) return Promise.reject(notLive(follower.value))
+    return callOver(() => through(door), follower.spec, path, body, REQUEST_MS)
   }
 
   open(remote: Remote): void {
@@ -185,6 +206,26 @@ class Links implements RemoteLink {
       }
     }
   }
+}
+
+/** Why a link that is not live cannot be asked anything, in the words its state already has. */
+function notLive(held: Held): LinkError {
+  const link = held.link
+  if (link.kind === 'down')
+    return new LinkError(link.problem, `${held.remote} is down: ${link.said}`)
+  if (link.kind === 'ended')
+    return new LinkError('failed', `${held.remote} signed this machine out`)
+  return new LinkError('timed out', `${held.remote} is still being linked`)
+}
+
+/** A stream to the remote's listener through the door a held link came in by. */
+function through(door: Door): Promise<Duplex> {
+  return new Promise((done, failed) => {
+    const at = doorOf(door)
+    const socket = 'socketPath' in at ? connect({ path: at.socketPath }) : connect(at)
+    socket.once('connect', () => done(socket))
+    socket.once('error', (err) => failed(err))
+  })
 }
 
 function same(a: Remote, b: Remote): boolean {

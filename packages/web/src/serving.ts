@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { WebActing } from './acting.ts'
 import type { WebAsking } from './asking.ts'
+import type { WebAttaching } from './attached.ts'
 import type { WebCarrying } from './carried.ts'
 import type { WebConfiguring } from './configuring.ts'
 import type { WebDrafting } from './drafting.ts'
@@ -200,6 +201,12 @@ export interface ServerOptions {
    * Absent, the route is the `404` of a path nobody wired.
    */
   carrying?: WebCarrying
+  /**
+   * What to run here to be shown one task's agent, for an owner's window on
+   * another machine (`attached.ts`). Absent, the route is the `404` of a path
+   * nobody wired.
+   */
+  attaching?: WebAttaching
   /** The tickets the pairing panel minted. */
   tickets: Tickets
   /**

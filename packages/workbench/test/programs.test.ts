@@ -55,6 +55,30 @@ describe('what the ports say Tade needs', async () => {
     expect(commandOf('git')?.versionArgs).toEqual(['--version'])
   })
 
+  it('asks the links to other machines too, and says mosh is wanted rather than needed', async () => {
+    expect(commandOf('ssh')?.inUse).toBe(false)
+    expect(commandOf('mosh')).toMatchObject({ optional: true, inUse: false })
+    const linked = await programsNeeded(
+      ConfigSchema.parse({
+        remotes: {
+          vps: {
+            ssh: 'me@vps',
+            device: 'ab12cd34',
+            session: 'ab12cd34.0123456789abcdef',
+            csrf: '0123456789abcdef',
+            host: 'localhost:7654',
+          },
+        },
+      }),
+      HOME,
+    )
+    expect(linked.find((need) => need.command === 'ssh')?.inUse).toBe(true)
+    expect(linked.find((need) => need.command === 'mosh')).toMatchObject({
+      optional: true,
+      inUse: true,
+    })
+  })
+
   it('follows the config when the driver or harness changes', async () => {
     const onTmux = await programsNeeded(ConfigSchema.parse({ workspace: { driver: 'tmux' } }), HOME)
     expect(onTmux.find((need) => need.command === 'tmux')?.inUse).toBe(true)

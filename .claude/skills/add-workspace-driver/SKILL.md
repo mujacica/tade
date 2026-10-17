@@ -111,7 +111,15 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
   able to say which encoding was asked for (tmux `#{mouse_sgr_flag}`; the pty driver watches the
   mode go past in the output), because the two are not interchangeable.
 - **`attachCommand` must always return something that works.** It is the escape hatch that lets a
-  human see a lane whatever the backend is.
+  human see a lane whatever the backend is — and, with `remoteAttach`, the far half of a lane on
+  another machine drawn as a pane of this one's window (`embedded`: nothing of the backend's own
+  around it, no key kept back, the pointer the lane's). **Two terminals on two lanes each show their
+  own**, which `tmux attach` does not: a session has one current window for all its clients. The
+  suite's cases are `attaching.ts`; the tmux recipe is `drivers/tmux/src/attach.ts` — a grouped
+  session per terminal, ended by a `client-detached` hook and **never `destroy-unattached`**, which
+  ended the whole tmux server three runs in eight on 3.4 (Ubuntu 24.04's), as does making a window
+  follow its clients' size while that session ends. Check a tmux change on 3.3a and 3.4 built in a
+  `node:22` container, not only on the laptop's newer one.
 - **`detach()` lets go, `shutdown()` ends it.** Closing Tade calls `detach`, and under a driver
   claiming `detach: true` that must leave every lane running. If lanes cannot outlive us and cannot
   be found again, `detach` ends them — leaving processes nobody can see, drive or stop is worse
@@ -229,7 +237,14 @@ over loopback) and `ssh`.
   given*); the far end answers it as the real away view does.
 - **A terminal there is the one connection a person is at** (`terminal`, with `terminals`): what to
   run here for `tade <words>` there, each word checked — a harness's own sign-in, typed into by the
-  person, so the token goes where that harness keeps it and never through Tade.
+  person, so the token goes where that harness keeps it and never through Tade. **`attach` is the
+  same for an agent's lane**: the line is the remote's own (`/api/attach`, its driver's
+  `attachCommand` — only that machine knows its socket, session and window), handed back to it as
+  one line of printable text or not at all; how it gets there (`ssh -t`, or mosh where both
+  machines have it) is the implementation's, said in `by` and never branched on.
+- **`request` rides the held link** (its door, while live): what a window asks again and again — an
+  agent's screen, a verb — so never a connection of its own, and never anything while the link is
+  down. `call` is the one that makes its own, for the CLI with no window open.
 
 What the ssh link turned out to need, each held by its tests:
 
@@ -262,6 +277,11 @@ What the ssh link turned out to need, each held by its tests:
   (`--tade`, `remotes.<name>.tade`), and the destination and the command are refused at the schema
   for anything but their shape, because one becomes an argument to `ssh` and the other a word a
   remote shell reads.
+- **mosh only where it can work**: `mosh` on this machine and `command -v mosh-server` answered there
+  (over the master, kept ten minutes), never for an `ssh://…:port` destination mosh cannot take, and
+  declared `optional` beside `ssh` (`MOSH_PROGRAM`) — remote links' programs are folded into what
+  the machine needs (`workbench/src/programs.ts`), so a VPS lists it too. UDP 60000–61000 must be
+  open there; where it is not, mosh says so in the pane, which says it is mosh.
 - **Tested against a real `sshd`** run as the person running the suite (`test/sshd.ts`: keys made
   for the run, a client config, one real login before anything counts), and skipped with the reason
   where none will start — so its coverage moves with the machine (`MOVES`).
