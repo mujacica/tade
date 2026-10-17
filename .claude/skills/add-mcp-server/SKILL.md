@@ -88,7 +88,8 @@ not duplicate something Tade already does better through a port of its own.
   that window, not even on the one retry of a call that was in flight, and turned on again it waits
   for the next start like any server turned on. `tade mcp disable` from a terminal reaches an open
   window the same way: its `config_changed` line is folded on the beat (`Settings.fold`), and a
-  server's switch among them is taken as the page's own switch takes one (`reloadExtensions`).
+  server's switch among them is taken as the page's own switch takes one (`Heart.takeConfig`) —
+  under `tade serve` too, whose log says that one turned on connects the next time Tade starts.
 - **A catalogue name may be an extension's name as well, so which switch a row is comes from the
   row and never from the name.** `sentry` is Tade's Sentry extension and this catalogue's Sentry
   server both. A server's row is the extension the broker made of it or the stand-in drawn for one

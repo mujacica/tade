@@ -41,7 +41,7 @@ export const SERVES =
  * log is deciding whether this is enough for their machine.
  */
 export const NOT_SERVED =
-  "Not under `tade serve` yet: the batched checks, links to other machines, updating Tade from the orchestrator, and taking a change a terminal made to the extensions' config while it runs — `tade app` does them."
+  'Not under `tade serve` yet: the batched checks, links to other machines, and updating Tade from the orchestrator — `tade app` does them.'
 
 /** What the orchestrator is told of a part of the window `tade serve` does not have. */
 const WITHOUT = 'is not done by `tade serve`, which has no screen: `tade app` does it'

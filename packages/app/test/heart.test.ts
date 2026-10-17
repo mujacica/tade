@@ -2,11 +2,14 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { request } from 'node:http'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ConfigSchema } from '@tade/core'
+import { ConfigSchema, type TaskId } from '@tade/core'
+import { LINEAR_APP, LINEAR_APP_IN } from '@tade/extension-intake'
 import { ExtensionHost } from '@tade/extensions-core'
 import { AUTH_BYTES, appendPush, generateVapid, P256DH_BYTES, scriptedPusher } from '@tade/web'
 import { readTaskFile, Workbench } from '@tade/workbench'
+import { recordConfigChanges } from '@tade/workbench/config-changes'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { parse, stringify } from 'yaml'
 import { mkrepo } from '../../../test/fixtures/mkrepo.ts'
 import {
   Heart,
@@ -18,6 +21,7 @@ import {
 } from '../src/heart.ts'
 import type { Entry, ThinkerEvent } from '../src/transcript.ts'
 import type { AppOptions } from '../src/wire/context.ts'
+import { LINEAR_CONNECTED_BY } from '../src/wire/linear-tokens.ts'
 import { COOKIE, DEVICE, freePort, paired } from './wire/away-harness.ts'
 import { SPAWNING_MS, until } from './wire/harness.ts'
 
@@ -210,6 +214,210 @@ describe('the heart, with no screen', () => {
     return heart
   }
   const sayings = () => said.flatMap((line) => (line.kind === 'tool' ? [] : [line.text]))
+
+  /** The catalogue's Sentry server, on, brokered as the extension it is made into. */
+  const sentryOn = async () => {
+    const settings = {
+      projects: { app: { root: repo.root } },
+      mcp: { servers: { sentry: { enabled: true } } },
+    }
+    writeFileSync(join(home, 'config.yaml'), stringify(settings))
+    const config = ConfigSchema.parse(settings)
+    const search = {
+      name: 'mcp_sentry_search_issues',
+      description: 'Search issues.',
+      parameters: { type: 'object' as const, properties: {} },
+      for: ['agent' as const, 'orchestrator' as const],
+      run: async () => ({ text: 'two issues' }),
+    }
+    const extensions = await ExtensionHost.load({
+      brokered: [
+        { name: 'mcp-sentry', title: 'Sentry (MCP)', description: 'Sentry.', tools: [search] },
+      ],
+      config: { extensions: config.extensions, projects: config.projects },
+      home,
+      env: {},
+    })
+    return { settings, config, extensions, search }
+  }
+
+  /** A server switched from a terminal while the heart holds the journal: the line waits in the spool. */
+  const switchedThere = async (settings: object, name: string, on: boolean) => {
+    writeFileSync(
+      join(home, 'config.yaml'),
+      stringify({ ...settings, mcp: { servers: { [name]: { enabled: on } } } }),
+    )
+    const change = {
+      path: `mcp.servers.${name}.enabled`,
+      was: String(!on),
+      now: String(on),
+      by: 'cli',
+    }
+    expect(await recordConfigChanges(home, [change])).toBe('spool')
+    return change
+  }
+
+  // `tade mcp disable` on the server: the beat writes its line down and takes
+  // the server off the way the Extensions page's own switch does — then and
+  // there, not at a restart — and the orchestrator is started again on what it
+  // can still call.
+  it('turns a server off that a terminal turned off, on its next beat, with no screen', async () => {
+    const { settings, config, extensions, search } = await sentryOn()
+    const ended: (boolean | undefined)[] = []
+    let restarted = 0
+    await alone({
+      config,
+      extensions,
+      endServers: async (servers) => void ended.push(servers.sentry?.enabled),
+      restartThinker: async () => {
+        restarted++
+      },
+    })
+    expect(extensions.specs('orchestrator')).toHaveLength(1)
+    const change = await switchedThere(settings, 'sentry', false)
+    await until('the server off', () => extensions.specs('orchestrator').length === 0)
+    await expect(
+      extensions.call(search.name, {}, { caller: { kind: 'orchestrator' } }),
+    ).rejects.toThrow('Sentry (MCP) is off: turned off')
+    // Its session ended with it, rather than when Tade stops.
+    expect(ended).toContain(false)
+    await until('the orchestrator started again on what is left', () => restarted === 1)
+    const lines = (await client.events({ types: ['config_changed'] })).map(({ detail }) => detail)
+    expect(lines).toContainEqual(expect.objectContaining(change))
+  })
+
+  // `tade mcp enable` on the server: taken as the page takes it, which is to
+  // connect the next time Tade starts and never now — and the log says so,
+  // since there is no page to say it on.
+  it('says in the log that a server a terminal turned on connects the next time Tade starts', async () => {
+    const settings = {
+      projects: { app: { root: repo.root } },
+      mcp: { servers: { sentry: { enabled: false } } },
+    }
+    writeFileSync(join(home, 'config.yaml'), stringify(settings))
+    const config = ConfigSchema.parse(settings)
+    const extensions = await ExtensionHost.load({
+      config: { extensions: config.extensions, projects: config.projects },
+      home,
+      env: {},
+    })
+    const running = await alone({ config, extensions })
+    await switchedThere(settings, 'sentry', true)
+    await until('the log says when it connects', () =>
+      sayings().includes(
+        'sentry was turned on from a terminal — it connects the next time Tade starts',
+      ),
+    )
+    // Taken, and nothing connected meanwhile: turning one on is never a hot reload.
+    expect(running.wire.opts.config.mcp.servers.sentry?.enabled).toBe(true)
+    expect(extensions.list().some((one) => one.name === 'mcp-sentry')).toBe(false)
+  })
+
+  // What Connect Linear hands over (`/connect`, `web-connect.ts`) is held by
+  // the heart: a Linear source reads with that token rather than only with
+  // LINEAR_API_KEY, and the refresh token is written through the one door and
+  // taken by everything that holds the config — with no screen.
+  it('reads a Linear source with the token Connect Linear handed over, and keeps its refresh token', async () => {
+    const extensions = await ExtensionHost.load({
+      builtin: [
+        {
+          name: 'tracker',
+          title: 'Tracker',
+          description: 'Reads Linear.',
+          tools: [
+            {
+              name: 'tracker_token',
+              description: 'The Linear token it would read with.',
+              parameters: { type: 'object', properties: {} },
+              for: ['orchestrator'],
+              run: async (_input, ctx) => ({ text: String(await ctx.connected?.('linear')) }),
+            },
+          ],
+        },
+      ],
+      config: { extensions: {}, projects: { app: { root: repo.root } } },
+      home,
+      env: {},
+    })
+    const running = await alone({ extensions })
+    const asked = () => extensions.call('tracker_token', {}, { caller: { kind: 'orchestrator' } })
+    expect((await asked()).text).toBe('null')
+    expect(
+      await running.linear.took({ access: 'lin_oauth', refresh: 'lin_refresh', expiresIn: 86_400 }),
+    ).toBeNull()
+    expect((await asked()).text).toBe('lin_oauth')
+    const kept = parse(readFileSync(join(home, 'config.yaml'), 'utf8'))
+    expect(kept.extensions[LINEAR_APP_IN][LINEAR_APP.refresh.key]).toBe('lin_refresh')
+    expect(running.wire.opts.config.extensions[LINEAR_APP_IN]?.[LINEAR_APP.refresh.key]).toBe(
+      'lin_refresh',
+    )
+    expect(client.config.extensions[LINEAR_APP_IN]?.[LINEAR_APP.refresh.key]).toBe('lin_refresh')
+    // Written down as `set`, never as itself — after the write, which it never holds up.
+    await until('the change written down', async () =>
+      (await client.events({ types: ['config_changed'] })).some(
+        ({ detail }) =>
+          detail.path === `extensions.${LINEAR_APP_IN}.${LINEAR_APP.refresh.key}` &&
+          detail.now === 'set' &&
+          detail.by === LINEAR_CONNECTED_BY,
+      ),
+    )
+  })
+
+  // What a server most needs after a restart: closing let go of the lanes
+  // rather than writing them off, so the registry says alive and the driver
+  // cannot hand the lane back. That is `lost`, and the one thing opening is
+  // allowed to start.
+  it('opens again an agent that was working when it closed, where it left off', async () => {
+    const worktree = repo.addTask('refunds', { project: 'app', intent: 'refunds double-charge' })
+    await client.startAgent({ task: 'app/refunds' as TaskId, cwd: worktree, prompt: '' })
+    await client.close()
+    client = await Workbench.open({ home })
+    expect(client.lanes().find((lane) => lane.task === 'app/refunds')?.lost).toBe(true)
+    await alone()
+    const agents = () => client.lanes().filter((lane) => lane.kind === 'agent')
+    await until(
+      'it back where it left off',
+      () => agents().some((lane) => lane.task === 'app/refunds' && lane.alive),
+      SPAWNING_MS,
+    )
+    // Only that one, and nothing invented beside it.
+    expect(agents().map((lane) => lane.task)).toEqual(['app/refunds'])
+    expect(await client.events({ types: ['task_created'] })).toEqual([])
+  })
+
+  // An agent started with no words has no branch until it changes something,
+  // and then one named for what it did — whichever door started it.
+  it('gives a branch to an agent that started without one, at its first change', async () => {
+    await client.close()
+    writeFileSync(
+      join(home, 'config.yaml'),
+      `projects:\n  app:\n    root: ${repo.root}\nagents:\n  workspace: worktree\n`,
+    )
+    client = await Workbench.open({ home })
+    await alone({
+      config: ConfigSchema.parse({
+        projects: { app: { root: repo.root } },
+        agents: { workspace: 'worktree' },
+      }),
+    })
+    const task = await client.createTask({
+      project: 'app',
+      slug: 'agent-1',
+      intent: '',
+      detached: true,
+      by: 'you',
+    })
+    await client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' })
+    expect(await client.events({ types: ['task_named'] })).toEqual([])
+    writeFileSync(join(task.worktree, 'refunds.ts'), 'export const once = true\n')
+    await until(
+      'the branch named',
+      async () => (await client.events({ types: ['task_named'] })).length === 1,
+      SPAWNING_MS,
+    )
+    const [named] = await client.events({ types: ['task_named'] })
+    expect(named).toMatchObject({ task: 'app/agent-1', detail: { branch: 'tade/agent-1' } })
+  })
 
   it('starts queued work by its own rule on the beat, and says why in the log', async () => {
     const running = await alone()

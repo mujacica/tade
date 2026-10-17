@@ -1,4 +1,4 @@
-import { type Arming, printable, type TadeEvent, titlesOf } from '@tade/core'
+import { type Arming, loadConfig, printable, type TadeEvent, titlesOf } from '@tade/core'
 import type { StatusAsk } from '@tade/status'
 import { agentEnded, eventNews } from './inbox.ts'
 import type { LayoutPrefs } from './layout.ts'
@@ -12,10 +12,18 @@ import {
   withProjects,
   withTasks,
   withTerminals,
+  withTranscript,
 } from './model.ts'
-import { type Entry, REPEAT_MS } from './transcript.ts'
+import { type Entry, REPEAT_MS, tadeDid } from './transcript.ts'
 import { Agents, type AgentsDeps } from './wire/agents.ts'
-import { type AppOptions, clockOf, type Thinker, type Wiring, wiringFor } from './wire/context.ts'
+import {
+  type AppOptions,
+  clockOf,
+  configPathOf,
+  type Thinker,
+  type Wiring,
+  wiringFor,
+} from './wire/context.ts'
 import { type Tellable, tellNow, tellOrKeep } from './wire/handed.ts'
 import { Intake } from './wire/intake.ts'
 import { LinearTokens, lending } from './wire/linear-tokens.ts'
@@ -79,8 +87,11 @@ export interface Face {
   beat(tasks: readonly TaskSnapshot[], moved: boolean): void
   /** A journal line, once the state has taken it in and the orchestrator has been told it. */
   heard(event: TadeEvent): void
-  /** A terminal turned an MCP server on or off: the extensions read again (`Settings.fold`). */
-  serversMoved(): Promise<void>
+  /**
+   * A terminal turned an MCP server on or off, and the heart has taken the
+   * config again (`takeConfig`): what the face shows of the extensions, asked again.
+   */
+  serversMoved(): void
   settings: SettingsFace
   agents: AgentsFace
   projects: ProjectsFace
@@ -182,7 +193,7 @@ export function screenless(heart: () => Beating): Face {
     sawTasks: () => {},
     beat: () => heart().look(),
     heard: () => {},
-    serversMoved: nothing,
+    serversMoved: () => {},
     settings: {
       loadAccounts: () => {},
       refreshModels: nothing,
@@ -468,7 +479,7 @@ export class Heart {
         void this.schedules.runDue().then(() => this.advanceQueue())
         void this.orchestrator.reflect(tasks)
         this.away.beat()
-        void this.settings.fold(() => face.serversMoved())
+        void this.settings.fold(() => this.serversMoved())
         face.beat(tasks, moved)
       },
       onEvent: (event) => {
@@ -515,6 +526,63 @@ export class Heart {
     const ended = agentEnded(event)
     if (ended) this.orchestrator.noteEnded(ended)
     if (event.type === 'run_started' && event.task) this.orchestrator.noteStarted(event.task)
+  }
+
+  /**
+   * Read the config again and let everything that holds one take it, the
+   * extensions with it: what turning a server or an extension on or off is
+   * taken by, from the Extensions page's own switch (`reloadExtensions`) and
+   * from a terminal's, on the beat (`serversMoved`). Off is at once, and so is
+   * the end of a server's session; the orchestrator is started again where
+   * what it can call changed. Nothing that was not loaded is loaded.
+   */
+  async takeConfig(): Promise<void> {
+    const host = this.wire.opts.extensions
+    if (!host) return
+    const offered = () =>
+      host
+        .specs('orchestrator')
+        .map((one) => one.name)
+        .join()
+    const before = offered()
+    const loaded = await loadConfig(configPathOf(this.wire.opts))
+    if (!loaded.ok) throw new Error(loaded.issues[0]?.message ?? 'the config would not load')
+    this.settings.use(loaded.config)
+    await host.reconfigure(loaded.config.extensions)
+    if (offered() !== before) void this.wire.opts.restartThinker?.()
+  }
+
+  /**
+   * A terminal turned an MCP server on or off while this held the journal
+   * (`Settings.fold`): taken as the page's own switch takes it, then the
+   * face's page asked again. One turned on connects the next time Tade
+   * starts, which is the rule and never a hot reload. A window is somebody's
+   * to look at; where nothing draws, the log is the only place that is said.
+   */
+  private async serversMoved(): Promise<void> {
+    const was = this.wire.opts.config.mcp.servers
+    await this.takeConfig()
+    this.face.serversMoved()
+    if (this.said === null) return
+    const connected = new Set(
+      (this.wire.opts.extensions?.list() ?? [])
+        .filter((one) => one.state !== 'off')
+        .map((one) => one.name),
+    )
+    for (const [name, server] of Object.entries(this.wire.opts.config.mcp.servers)) {
+      if (server?.enabled !== true || was[name]?.enabled === true) continue
+      if (connected.has(`mcp-${name}`)) continue
+      this.put(
+        withTranscript(
+          this.current,
+          tadeDid(
+            this.current.transcript,
+            `${name} was turned on from a terminal — it connects the next time Tade starts`,
+            this.now(),
+          ),
+        ),
+      )
+    }
   }
 
   /** The heart's part of a look: the inbox folded where the journal grew, and what a reader found due. */

@@ -1,4 +1,4 @@
-import { type Config, expandHome, extensionEnabled, loadConfig } from '@tade/core'
+import { expandHome, extensionEnabled } from '@tade/core'
 import {
   type SetupFieldView as HostSetupField,
   type ListRow,
@@ -33,15 +33,7 @@ import { sinceOf } from '../spend.ts'
 import { fromThinker, ran, said } from '../transcript.ts'
 import { markdownLines } from '../viewer.ts'
 import { type WindowWrite, writeApplied, writeRecorded } from './config-written.ts'
-import {
-  type Actions,
-  configPathOf,
-  type Subject,
-  type Submits,
-  tilde,
-  type Wiring,
-  why,
-} from './context.ts'
+import { type Actions, type Subject, type Submits, tilde, type Wiring, why } from './context.ts'
 import { Kept, unlessSame } from './kept.ts'
 import { listsShown, Rows } from './rows.ts'
 import type { Schedules } from './schedules.ts'
@@ -73,8 +65,11 @@ export interface ExtensionsDeps {
   size(): { columns: number; rows: number }
   /** What the window looks like, for laying the page out the way it is drawn. */
   skin: Skin
-  /** The config was written by this subject's own hand: read it back. */
-  useConfig(config: Config): void
+  /**
+   * The config was written by this subject's own hand: read it back and taken
+   * everywhere it is held, the extensions with it (`Heart.takeConfig`).
+   */
+  takeConfig(): Promise<void>
   /** A moment, said the way this window says moments. */
   dateOf(at: number): string
   /** Scrolled back, what you are reading stays where it is while new lines arrive. */
@@ -526,33 +521,27 @@ export class Extensions implements Subject {
   /**
    * Read the config again and let the extensions take it. The orchestrator is
    * started again when what it can call changed, so a turned-on extension is
-   * one it can use now, not after a restart.
+   * one it can use now, not after a restart. Taking it is the heart's, so a
+   * terminal's switch is taken with no screen too; what this page shows of it
+   * is this page's (`askAgain`).
    */
   async reloadExtensions(): Promise<void> {
+    if (!this.wire.opts.extensions) return
+    await this.deps.takeConfig()
+    this.askAgain()
+  }
+
+  /**
+   * What each one can be given, and where its key is, asked again: the config
+   * was taken again, which is the one thing that changes it. The servers with
+   * them, since turning one on is a setting in the same file.
+   */
+  askAgain(): void {
     const host = this.wire.opts.extensions
     if (!host) return
-    const before = host
-      .specs('orchestrator')
-      .map((one) => one.name)
-      .join()
-    const loaded = await loadConfig(configPathOf(this.wire.opts))
-    if (!loaded.ok) throw new Error(loaded.issues[0]?.message ?? 'the config would not load')
-    this.deps.useConfig(loaded.config)
-    await host.reconfigure(loaded.config.extensions)
-    // What each one can be given, and where its key is, is asked again: this
-    // is the one thing that changes it. The servers with them, since turning
-    // one on is a setting in the same file.
     this.setupViews.clear()
     this.readServers()
     this.linkers = host.linkers()
-    if (
-      host
-        .specs('orchestrator')
-        .map((one) => one.name)
-        .join() !== before
-    ) {
-      void this.wire.opts.restartThinker?.()
-    }
   }
 
   /**

@@ -180,7 +180,7 @@ export class App {
         if (moved) this.draw() // a beat that found what the last did is not news
       },
       heard: (event) => this.tui.requestNews(event.urgency === 'blocking'),
-      serversMoved: () => this.extensions.reloadExtensions(),
+      serversMoved: () => this.extensions.askAgain(),
       settings: {
         loadAccounts: () => void this.machine.loadAccountViews(),
         refreshModels: () => this.routes.refreshModels(),
@@ -348,7 +348,7 @@ export class App {
     this.extensions = new Extensions(this.wire, {
       size: () => this.room(),
       skin: this.skin,
-      useConfig: (config) => this.settings.use(config),
+      takeConfig: () => this.heart.takeConfig(),
       dateOf: (at) => this.window.dateOf(at),
       anchored: (next) => this.screens.anchored(next),
       openPlace: (target) => this.files.openPlace(target),
