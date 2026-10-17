@@ -442,6 +442,7 @@ export class Away implements Subject {
   inputs(): PanelInputs {
     return {
       devices: this.devices.filter((one) => one.revoked === null).length,
+      asking: this.asking !== null,
       bindings: this.config().surfaces.window.keys,
     }
   }

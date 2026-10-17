@@ -12,11 +12,20 @@ import {
 import { blocksFor, codeFor, surfaceOf } from '@tade/web'
 import { describe, expect, it } from 'vitest'
 import { sameTarget, type Target } from '../src/hits.ts'
-import { AWAY_CONTROLS, awayClick, awayKey, awayPanel } from '../src/panels/away/state.ts'
+import { initialState, panelMoved, scrollBy } from '../src/model.ts'
+import {
+  ASKING_OUT_OF_VIEW,
+  AWAY_CONTROLS,
+  type AwayPanel,
+  awayClick,
+  awayKey,
+  awayPanel,
+} from '../src/panels/away/state.ts'
 import type { AwayView } from '../src/panels/away/view.ts'
 import type { PanelContext } from '../src/panels/context.ts'
 import { drawPanel } from '../src/panels/context.ts'
 import { settingsClick, settingsPanel } from '../src/panels/settings/state.ts'
+import { reachOf } from '../src/scroll.ts'
 import { COLOUR, type Skin, skinFor } from '../src/skin.ts'
 import { awayView, codeShownOn, grantsHelp } from '../src/wire/web-panel.ts'
 
@@ -86,7 +95,7 @@ interface Size {
   skin?: Skin
 }
 
-function drawn(over: Partial<AwayView> = {}, size: Size = {}) {
+function drawn(over: Partial<AwayView> = {}, size: Size = {}, panel: AwayPanel = awayPanel()) {
   const ctx = {
     width: size.width ?? 120,
     height: size.height ?? 34,
@@ -100,7 +109,7 @@ function drawn(over: Partial<AwayView> = {}, size: Size = {}) {
     bindings: {},
     away: view(over),
   } as unknown as PanelContext
-  return drawPanel(awayPanel(), ctx).panel
+  return drawPanel(panel, ctx).panel
 }
 
 /** What the panel says, its box and its lines taken away: one run of words. */
@@ -116,10 +125,28 @@ const words = (text: string) =>
     .filter((line) => line !== '')
     .join(' ')
 
-const said = (over?: Partial<AwayView>, size?: Size) =>
-  drawn(over, size)
+const said = (over?: Partial<AwayView>, size?: Size, panel?: AwayPanel) =>
+  drawn(over, size, panel)
     .rows.map((row) => stripTerminalSequences(row))
     .join('\n')
+
+/** Six paired devices, each its own: a list long enough to scroll on a short window. */
+function sixDevices(): AwayView['devices'] {
+  const one = view().devices[0]
+  if (one === undefined) throw new Error('the view has a device')
+  return Array.from({ length: 6 }, (_, at) => ({ ...one, id: `${at}`, label: `Phone ${at}` }))
+}
+
+/** The panel after the keyboard has walked down to the last of the devices. */
+function onTheLast(devices: number): AwayPanel {
+  let panel = awayPanel()
+  for (let press = 1; press < devices; press++) {
+    const next = awayKey(panel, 'down', { devices }).panel
+    if (next?.kind !== 'away') throw new Error('the panel stays open')
+    panel = next
+  }
+  return panel
+}
 
 describe('the two clauses', () => {
   it('says what a LAN bind is above the code, in the domain’s one clause', () => {
@@ -401,6 +428,28 @@ describe('what scrolls', () => {
   it('cuts nothing to fit: no `+n more` anywhere', () => {
     expect(said({}, { height: 12 })).not.toMatch(/\+\d+ more/)
   })
+
+  it('lets go of the chosen device on a notch, and moves from where it is drawn', () => {
+    const devices = sixDevices()
+    // The keyboard walked down to the last device, which pulls the region down
+    // to it: its own `scroll` is still the 0 it opened at, and is not on screen.
+    const panel = onTheLast(devices.length)
+    const reach = reachOf(drawn({ devices }, { height: 24 }, panel).hits, 'panel')
+    expect(reach.at).toBeGreaterThan(3)
+    const notch = (from: AwayPanel, at: number) => {
+      const moved = scrollBy({ ...initialState(), panel: from }, 'panel', -3, {
+        ...reach,
+        at,
+      }).panel
+      if (moved?.kind !== 'away') throw new Error('the panel stays open')
+      return { moved, at: reachOf(drawn({ devices }, { height: 24 }, moved).hits, 'panel').at }
+    }
+    // Three rows up from the rows on screen, and the next three more: the
+    // chosen device no longer pulls the region back to itself.
+    const first = notch(panel, reach.at ?? 0)
+    expect(first.at).toBe((reach.at ?? 0) - 3)
+    expect(notch(first.moved, first.at ?? 0).at).toBe((reach.at ?? 0) - 6)
+  })
 })
 
 describe('answering the device at the door', () => {
@@ -441,6 +490,60 @@ describe('answering the device at the door', () => {
     // Clamped to the list: a chosen row past the end is a row nothing draws.
     expect(awayKey({ ...panel, chosen: 2 }, 'down', { devices: 3 }).panel).toMatchObject({
       chosen: 2,
+    })
+  })
+
+  it('answers a device only from where its card was drawn, and says why not', () => {
+    const asking = {
+      label: 'iPhone',
+      from: 'your network',
+      address: '192.168.1.42',
+      secondsLeft: 47,
+      seconds: 60,
+    }
+    const over = { asking, devices: sixDevices() }
+    const size = { height: 24 }
+    // The keyboard on the last device pulls the region down to it, and the
+    // card at the top of the region out of view.
+    const panel = onTheLast(over.devices.length)
+    const reach = reachOf(drawn(over, size, panel).hits, 'panel')
+    expect(reach.at).toBeGreaterThan(0)
+    expect(said(over, size, panel)).not.toContain('A DEVICE WANTS TO PAIR')
+    const inputs = { asking: true, drawnFrom: reach.at, devices: 6, bindings: {} }
+    for (const key of ['a', 'd']) {
+      const refused = awayKey(panel, key, inputs)
+      expect(refused, key).toEqual({ panel: { ...panel, said: ASKING_OUT_OF_VIEW }, submit: false })
+    }
+    // Nor one that was never drawn at all.
+    expect(awayKey(panel, 'a', { ...inputs, drawnFrom: undefined }).submit).toBe(false)
+    // Said in the foot, which nothing scrolls: the card is what is out of view.
+    const told = awayKey(panel, 'a', inputs).panel
+    if (told?.kind !== 'away') throw new Error('the panel stays open')
+    expect(words(said(over, size, told))).toContain(ASKING_OUT_OF_VIEW)
+
+    // `home` brings the card back, through the one move, and from there the key
+    // answers it and the sentence goes.
+    const home = panelMoved(
+      { ...initialState(), panel: told },
+      awayKey(told, 'home', inputs),
+      reach,
+    )
+    if (home.panel?.kind !== 'away') throw new Error('the panel stays open')
+    const top = reachOf(drawn(over, size, home.panel).hits, 'panel').at
+    expect(top).toBe(0)
+    expect(said(over, size, home.panel)).toContain('A DEVICE WANTS TO PAIR')
+    expect(words(said(over, size, home.panel))).not.toContain(ASKING_OUT_OF_VIEW)
+    expect(awayKey(home.panel, 'a', { ...inputs, drawnFrom: top })).toMatchObject({
+      submit: true,
+      choice: AWAY_CONTROLS.allow,
+    })
+  })
+
+  it('goes on as the window’s own keys with nobody asking, wherever the list is', () => {
+    const panel = onTheLast(6)
+    expect(awayKey(panel, 'a', { asking: false, drawnFrom: 40, bindings: {} })).toMatchObject({
+      submit: true,
+      choice: AWAY_CONTROLS.allow,
     })
   })
 

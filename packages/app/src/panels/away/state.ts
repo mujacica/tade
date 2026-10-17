@@ -1,5 +1,5 @@
 import { pageBy } from '../frame.ts'
-import { close, type PanelOutcome, stay } from '../outcome.ts'
+import { close, type PanelOutcome, scrolled, stay } from '../outcome.ts'
 
 // The AWAY VIEW panel's own state: where the device list is scrolled to, and
 // which row of it is chosen.
@@ -30,12 +30,36 @@ export interface AwayPanel {
    * they did.
    */
   moved: boolean
+  /**
+   * Whether the region follows the chosen device, as every other panel's
+   * keyboard is followed: the arrows turn it on, and the wheel, the bar and
+   * `home` let go of it (`atOffset`), so they move from the rows on screen
+   * rather than from a `scroll` the chosen device was pulling past.
+   */
+  following: boolean
+  /** Why the last key did nothing: a yes or a no to a device that was out of view. */
+  said: string | null
   busy: false
 }
 
 export function awayPanel(): AwayPanel {
-  return { kind: 'away', scroll: 0, chosen: 0, moved: false, busy: false }
+  return {
+    kind: 'away',
+    scroll: 0,
+    chosen: 0,
+    moved: false,
+    following: false,
+    said: null,
+    busy: false,
+  }
 }
+
+/**
+ * Said for a yes or a no while the card asking it is out of view. Not answered
+ * is the whole of it: the key did nothing, and the way back to the card.
+ */
+export const ASKING_OUT_OF_VIEW =
+  'Not answered: the device asking is out of view — press home, or scroll up to it.'
 
 /**
  * What the away panel's own controls are, by name.
@@ -174,6 +198,14 @@ export const AWAY_LABELS = {
  * because a panel has the keyboard while it is open — a rule that was already
  * true and that a question drawn in a panel has to live with.
  *
+ * **A device is answered only from where its card was drawn.** The card is the
+ * first thing in the region that scrolls (`middleOf`), so it is on the screen
+ * only while that region was drawn from its top (`drawnFrom`); scrolled away by
+ * the wheel, or pulled away by the keyboard following a device further down,
+ * a yes would let in a device nobody could see. Then the key says so and does
+ * nothing, and `home` brings the card back — every other key here moves the
+ * chosen device. With nobody asking the keys go on as the window's own.
+ *
  * The arrows read down the device list. `escape` and `enter` close, and
  * neither answers the question: a pairing refused by accident is a code to
  * mint again, and a pairing *allowed* by accident is a device in your control
@@ -182,22 +214,31 @@ export const AWAY_LABELS = {
 export function awayKey(
   panel: AwayPanel,
   key: string | undefined,
-  inputs: { devices?: number; bindings?: Readonly<Record<string, string>> } = {},
+  inputs: {
+    devices?: number
+    asking?: boolean
+    drawnFrom?: number
+    bindings?: Readonly<Record<string, string>>
+  } = {},
 ): PanelOutcome {
   const bindings = inputs.bindings ?? {}
-  if (key !== undefined && key === (bindings.approve ?? 'a')) {
-    return { panel, submit: true, choice: AWAY_CONTROLS.allow }
-  }
-  if (key !== undefined && key === (bindings.deny ?? 'd')) {
-    return { panel, submit: true, choice: AWAY_CONTROLS.deny }
-  }
+  const answer = (choice: string): PanelOutcome =>
+    inputs.asking === true && inputs.drawnFrom !== 0
+      ? stay({ ...panel, said: ASKING_OUT_OF_VIEW })
+      : { panel: { ...panel, said: null }, submit: true, choice }
+  if (key !== undefined && key === (bindings.approve ?? 'a')) return answer(AWAY_CONTROLS.allow)
+  if (key !== undefined && key === (bindings.deny ?? 'd')) return answer(AWAY_CONTROLS.deny)
   if (key === 'escape' || key === 'enter') return close
+  const quiet = { ...panel, said: null }
+  // The top, where the card is: as far up as it goes, through the one move.
+  if (key === 'home') return scrolled(quiet, Number.NEGATIVE_INFINITY)
   const by = pageBy(key)
-  if (by === null) return stay(panel)
+  if (by === null) return stay(quiet)
   const most = Math.max(0, (inputs.devices ?? 0) - 1)
   return stay({
-    ...panel,
+    ...quiet,
     moved: true,
+    following: true,
     chosen: Math.min(most, Math.max(0, panel.chosen + by)),
   })
 }

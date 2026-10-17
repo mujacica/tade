@@ -194,6 +194,15 @@ export interface PanelInputs {
   setupFields?: readonly SetupFieldView[]
   /** How many paired devices the away panel is reading down. */
   devices?: number
+  /** Whether a device is at the away panel's door, waiting for a yes or a no. */
+  asking?: boolean
+  /**
+   * The line the open panel's body was drawn from in the last frame
+   * (`Reach.at`): what was on screen when the key was pressed, for a panel
+   * whose answer depends on it — the away panel's card is answered only from
+   * where it was drawn. Absent where nothing was drawn.
+   */
+  drawnFrom?: number
   /**
    * The window's own keys, as set.
    *

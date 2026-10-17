@@ -178,7 +178,7 @@ export function away(panel: AwayPanel, ctx: PanelContext): Drawn {
   }
 
   const head = headOf(view, ctx, inner, true)
-  const foot = footOf(view, ctx, inner)
+  const foot = footOf(view, ctx, inner, panel.said)
   const middle = middleOf(panel, view, ctx, inner, true)
   const space = Math.max(1, room - head.length - foot.length)
   const drawn =
@@ -303,8 +303,9 @@ function middleOf(
   }
   // Where the chosen device is in the whole region, so scrolling follows it:
   // an offset anchored in the rows it was drawn on would move when the code
-  // did. Null until somebody moved the keyboard into the list — see `moved`.
-  if (!panel.moved) return { lines, chosen: null }
+  // did. Null until somebody moved the keyboard into the list — see `moved` —
+  // and once the wheel has let go of it (`following`).
+  if (!panel.following) return { lines, chosen: null }
   const which = Math.min(panel.chosen, view.devices.length - 1)
   const from = starts[which] ?? lines.length - 1
   const to = (starts[which + 1] ?? lines.length + 1) - 2
@@ -397,7 +398,12 @@ function linkLines(url: string, ctx: PanelContext, inner: number): Line[] {
  * clause in `help` needs at this width: a foot that grew a row under the
  * pointer would move the box it is explaining out from under it.
  */
-function footOf(view: AwayView, ctx: PanelContext, inner: number): Line[] {
+function footOf(
+  view: AwayView,
+  ctx: PanelContext,
+  inner: number,
+  why: string | null = null,
+): Line[] {
   const { skin } = ctx
   const row = () => new Row(inner, skin, ctx.pointer)
   const lines: Line[] = []
@@ -413,6 +419,11 @@ function footOf(view: AwayView, ctx: PanelContext, inner: number): Line[] {
   }
   if (view.problem !== null) {
     lines.push(row().space().text(`▲ ${view.problem}`, skin.bad).build())
+  }
+  // Why a key did nothing, here rather than over the card: the foot is never
+  // scrolled, and the card is exactly what was out of view.
+  for (const part of why === null ? [] : wrap(`▲ ${why}`, inner - 3)) {
+    lines.push(row().space().text(part, skin.waiting).build())
   }
   const all: Target = { kind: 'control', id: AWAY_CONTROLS.all }
   lines.push(

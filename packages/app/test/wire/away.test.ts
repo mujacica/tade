@@ -8,6 +8,7 @@ import { GRANTS, readDevices, SCOPES, writeDevices } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Live } from '../../src/live.ts'
 import { type AppState, initialState } from '../../src/model.ts'
+import { awayPanel } from '../../src/panels/away/state.ts'
 import { settingsPanel } from '../../src/panels/settings/state.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 import { Away } from '../../src/wire/web.ts'
@@ -511,6 +512,14 @@ describe('letting a device in', () => {
     expect(drawn?.asking?.label).toBe('iPhone')
     expect(drawn?.asking).toMatchObject({ from: 'your network', address: '192.168.1.42' })
   })
+
+  it('tells the panel a device is asking, which is when its keys answer only the card in view', async () => {
+    const { away } = await wiring({ web: { enabled: true } })
+    await away.open()
+    expect(away.inputs()).toMatchObject({ asking: false })
+    asking(away)
+    expect(away.inputs()).toMatchObject({ asking: true })
+  })
 })
 
 describe('disconnecting', () => {
@@ -737,14 +746,7 @@ function run(away: Away, action: string): Promise<void> | void {
 }
 
 function carry(away: Away, control: string): Promise<void> | void {
-  const panel = {
-    kind: 'away' as const,
-    scroll: 0,
-    chosen: 0,
-    moved: false,
-    busy: false as const,
-  }
-  return away.submits().away?.(panel, control)
+  return away.submits().away?.(awayPanel(), control)
 }
 
 /** The command a person types, which is the one way the panel is opened. */
