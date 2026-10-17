@@ -19,6 +19,7 @@ import { makeRecorder, makeTranscriber, voiceDeclared } from '@tade/voice-stt'
 import { drivers } from '@tade/workbench'
 import {
   type HarnessHere,
+  type HostLook,
   installersHere,
   lookAtHarnesses,
   lookAtService,
@@ -117,10 +118,10 @@ export async function lookHere(home = tadeHome()): Promise<Look> {
  * runs said it is ready, which is one `systemctl` and so only ever looked at
  * here.
  */
-async function unattendedLooked(): Promise<Unattended | null> {
-  const box = unattendedHere()
+export async function unattendedLooked(look: HostLook = {}): Promise<Unattended | null> {
+  const box = unattendedHere(look)
   if (box === null || box.unit === null) return box
-  return { ...box, service: await lookAtService() }
+  return { ...box, service: await lookAtService(look.env) }
 }
 
 /**

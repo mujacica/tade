@@ -1,13 +1,13 @@
-import { readFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Ui } from '@tade/app'
 import { type InstallersHere, neededPrograms } from '@tade/core'
 import { voiceDeclared } from '@tade/voice-stt'
-import { type HarnessHere, missingFrom } from '@tade/workbench/machine'
+import { type HarnessHere, missingFrom, serviceUnitPath } from '@tade/workbench/machine'
 import type { ProgramLook } from '@tade/workbench/programs'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
-import type { Look } from '../src/commands/setup-facts.ts'
+import { type Look, unattendedLooked } from '../src/commands/setup-facts.ts'
 import {
   dictationSaid,
   harnessLines,
@@ -359,6 +359,43 @@ describe('a server', () => {
     expect(said[0]).toContain('sudo ufw allow 60000:61000/udp')
     // A Mac, or a desktop: nothing another machine types in over.
     expect(serverSays({ unattended: null })).toEqual([])
+  })
+})
+
+describe('a server, as setting up looks at it', () => {
+  /** A box under systemd that nobody sits at, linger on, whose `systemctl` says the unit is ready. */
+  function box() {
+    const root = tmp('tade-setup-box-')
+    mkdirSync(join(root, 'run', 'systemd', 'system'), { recursive: true })
+    mkdirSync(join(root, 'var', 'lib', 'systemd', 'linger'), { recursive: true })
+    writeFileSync(join(root, 'var', 'lib', 'systemd', 'linger', 'you'), '')
+    const bin = join(root, 'bin')
+    mkdirSync(bin)
+    const asked = join(root, 'asked')
+    writeFileSync(
+      join(bin, 'systemctl'),
+      `#!/bin/sh\necho "$@" >> '${asked}'\nprintf 'LoadState=loaded\\nActiveState=active\\nSubState=running\\nMainPID=77\\n'\n`,
+    )
+    chmodSync(join(bin, 'systemctl'), 0o755)
+    const home = join(root, 'home', 'you')
+    const env = { SSH_CONNECTION: '10.0.0.2 51022 10.0.0.1 22', PATH: bin }
+    const look = { root, home, user: 'you', env, platform: 'linux' as const }
+    return { look, unit: serviceUnitPath(env, home), asked: () => existsSync(asked) }
+  }
+
+  it('asks systemd nothing where no unit is written, and how it stands where one is', async () => {
+    const one = box()
+    expect(await unattendedLooked(one.look)).toMatchObject({ linger: true, unit: null })
+    expect((await unattendedLooked(one.look))?.service).toBeUndefined()
+    expect(one.asked()).toBe(false)
+
+    mkdirSync(join(one.unit, '..'), { recursive: true })
+    writeFileSync(one.unit, '[Service]\nExecStart=/usr/bin/node /x/bin.ts serve\n')
+    expect(await unattendedLooked(one.look)).toMatchObject({
+      unit: one.unit,
+      service: { kind: 'ready', pid: 77, status: '' },
+    })
+    expect(one.asked()).toBe(true)
   })
 })
 
