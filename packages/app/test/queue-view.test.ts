@@ -747,4 +747,62 @@ describe('a page where an agent’s screen would be', () => {
     expect(every(watching, /error (\d+)/g)).toEqual(upTo(KEPT + 10))
     expect(every(watching, /found (\d+),/g)).toEqual(upTo(KEPT).map((i) => i + 1))
   })
+
+  it('builds only the findings in view, however many a watch has made', () => {
+    // Every finding is kept, and a watch here has made hundreds: the page laid
+    // each one out twice per repaint — once to learn it did not fit, once a
+    // column narrower — for the room's worth drawn, so a notch of the wheel
+    // cost what the page is long. Counted by the titles read, never timed.
+    const at = { width: 100, height: 30 }
+    let read = 0
+    const watching: ScheduleView = {
+      id: 'new-errors',
+      name: 'new errors',
+      project: 'checkout',
+      said: '',
+      kind: 'watch',
+      does: 'tells the orchestrator',
+      prompt: '',
+      when: 'every ten minutes',
+      once: false,
+      next: [2_000],
+      paused: false,
+      by: 'you',
+      missed: 'once',
+      runs: [],
+      watch: {
+        id: 'sentry.new-errors',
+        turnedOnBy: 'you',
+        found: 'ask',
+        most: 1,
+        looks: [],
+        findings: Array.from({ length: 1_000 }, (_, i) => ({
+          at: 1_000 - i,
+          key: `${i}`,
+          get title() {
+            read++
+            return `error ${i}`
+          },
+          task: null,
+          told: 'orchestrator',
+          problem: null,
+        })),
+      },
+    }
+    let state: AppState = {
+      ...withProjects(initialState(), ['checkout']),
+      project: 'checkout',
+      schedule: watching.id,
+    }
+    const drawn = draw(state, frame({ ...at, schedules: [watching] }))
+    expect(drawn.rows.map(plain).some((row) => row.includes('error 0'))).toBe(true)
+    expect(read).toBeGreaterThan(0)
+    expect(read).toBeLessThanOrEqual(at.height)
+    // And the oldest is still there at the end, built when it comes into view.
+    read = 0
+    state = scrollBy(state, 'page', 10_000, reachOf(drawn.hits, 'page'))
+    const end = draw(state, frame({ ...at, schedules: [watching] })).rows.map(plain)
+    expect(end.some((row) => row.includes('error 999'))).toBe(true)
+    expect(read).toBeLessThanOrEqual(at.height)
+  })
 })

@@ -224,6 +224,11 @@ export function barBeside(
   }))
 }
 
+/** A row of a page as `paged` is handed it: drawn, or what draws it once it is in view. */
+export type Laid = { text: string; hits: Hit[] } | (() => { text: string; hits: Hit[] })
+
+const built = (row: Laid) => (typeof row === 'function' ? row() : row)
+
 /**
  * A page where an agent's screen would be — queued work, the plan, a
  * schedule, an agent's ACTIONS — in the rows under its heading. Laid out in
@@ -232,13 +237,17 @@ export function barBeside(
  * longer than its pane scrolls, rather than losing its end.
  *
  * `lay` is the page at a width, asked a second time only where the first
- * answer did not fit, because what wraps depends on how wide it is. Every row
- * carries the page's scroll hit under what is drawn on it, so the wheel moves
- * the page wherever on it the pointer is, and a control on it is still what a
- * click lands on.
+ * answer did not fit, because what wraps depends on how wide it is. A row it
+ * hands back may be one not yet built — what builds it — and is built only if
+ * it is in view: a watch's FOUND is every finding it ever made, hundreds of
+ * them, and building each one twice per repaint for the room's worth that are
+ * drawn made a notch of the wheel cost as much as the whole page is long.
+ * Every row carries the page's scroll hit under what is drawn on it, so the
+ * wheel moves the page wherever on it the pointer is, and a control on it is
+ * still what a click lands on.
  */
 export function paged(
-  lay: (width: number) => { text: string; hits: Hit[] }[],
+  lay: (width: number) => readonly Laid[],
   room: number,
   width: number,
   area: ScrollArea,
@@ -249,11 +258,11 @@ export function paged(
   const under = (rows: readonly { text: string; hits: Hit[] }[]) =>
     rows.map((row) => ({ text: row.text, hits: [rowHit(0, width, scrolls), ...row.hits] }))
   const whole = lay(width)
-  if (whole.length <= room) return under(whole)
+  if (whole.length <= room) return under(whole.map(built))
   const body = width - BAR
   const page = lay(body)
   const offset = offsetOf(state, area, page.length, room)
-  const seen = page.slice(offset, offset + room)
+  const seen = page.slice(offset, offset + room).map(built)
   while (seen.length < room) seen.push(blank(body))
   const view = { total: page.length, shown: room, offset, rows: room }
   return under(barBeside(seen, view, area, body, state, skin))

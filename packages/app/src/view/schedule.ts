@@ -8,6 +8,7 @@ import type { Band, Skin } from '../skin.ts'
 import { blank, type Drawn, type Pointer, Row, stack } from '../ui.ts'
 import { widthOf } from '../width.ts'
 import {
+  type Laid,
   type ListItem,
   paged,
   QUEUE_ICONS,
@@ -349,14 +350,16 @@ export function renderSchedule(
   // Everything under the heading is the page, laid out at the width it is
   // handed — a column narrower where it scrolls — and scrolled: what it tells
   // its agent is as long as it is. The heading stays, so Run now is never
-  // scrolled out of reach.
+  // scrolled out of reach. Each line is handed over unbuilt, so of a watch's
+  // hundreds of findings only those in view are drawn (`paged`).
   const page = (width: number) => {
-    const rows: { text: string; hits: Hit[] }[] = [blank(width)]
-    const line = (build: (r: Row) => void) => {
-      const r = new Row(width, skin, pointer).space(2)
-      build(r)
-      rows.push(r.build())
-    }
+    const rows: Laid[] = [blank(width)]
+    const line = (build: (r: Row) => void) =>
+      rows.push(() => {
+        const r = new Row(width, skin, pointer).space(2)
+        build(r)
+        return r.build()
+      })
     // What a watch found and why a look failed are a source's words — a
     // review's title, an issue's, a provider's error — so all of it is text.
     const said = (text: string) => shortened(printable(text), Math.max(1, width - 16))
@@ -415,8 +418,8 @@ export function renderSchedule(
         rows.push(blank(width))
         line((r) => r.text('FOUND', skin.label))
         for (const each of watch.findings) {
-          const found = printable(each.title)
           line((r) => {
+            const found = printable(each.title)
             r.text(clock(each.at).padEnd(18), skin.hint)
             const task = each.task ? state.panes.find((pane) => pane.task === each.task) : null
             if (task) {
