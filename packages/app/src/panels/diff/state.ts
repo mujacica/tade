@@ -83,9 +83,13 @@ export function diffKey(
   if (key === 'c' || key === 'ctrl+r') return stay(writeOn(panel, lines, panel.at, inputs))
   if (key === 's' && (inputs.drafted ?? 0) > 0) return { panel, submit: true, choice: 'send' }
   const by = pageBy(key)
-  return by === null
-    ? stay(panel)
-    : stay({ ...panel, scroll: Math.max(0, panel.scroll + by), following: false })
+  if (by === null) return stay(panel)
+  // Never past the last screen, which is as far as the drawing goes (`startOf`):
+  // a scroll kept beyond it is a page up that moves the view less than a page,
+  // or not at all — so one kept there already pages from the last screen.
+  const end = Math.max(0, lines.length - Math.max(1, inputs.body ?? lines.length))
+  const from = Math.min(panel.scroll, end)
+  return stay({ ...panel, scroll: Math.max(0, Math.min(end, from + by)), following: false })
 }
 
 export function diffClick(

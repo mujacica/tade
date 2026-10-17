@@ -121,6 +121,24 @@ describe('going through the changes in the patch reader', () => {
   })
 })
 
+describe('paging through the patch reader', () => {
+  /** The last screen: as far down as the drawing ever shows. */
+  const END = PATCH.lines.length - BODY
+
+  it('goes no further than the last screen, so a page back from the end is a whole page', () => {
+    let panel = reader()
+    for (const _ of Array(8)) panel = press(panel, 'pageDown')
+    expect(panel.scroll).toBe(END)
+    expect(press(panel, 'space').scroll).toBe(END)
+    expect(press(panel, 'pageUp').scroll).toBe(END - 10)
+  })
+
+  it('pages back from the last screen when where it was kept is past it', () => {
+    // A taller window, or a shorter patch, since it was scrolled there.
+    expect(press(reader({ scroll: END + 30 }), 'pageUp').scroll).toBe(END - 10)
+  })
+})
+
 function draw(panel: DiffPanel, skin: Skin = PLAIN, patch = PATCH): string[] {
   const ctx = {
     width: WIDTH,
