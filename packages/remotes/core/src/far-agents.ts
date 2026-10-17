@@ -28,6 +28,10 @@ export interface FarAgent {
   parked?: boolean
   /** Queued work there, waiting to start. */
   queued?: boolean
+  /** Finished there, with its agent stopped: work on that machine's landing desk. */
+  finished?: boolean
+  /** A branch of its own there, in a worktree; absent, it works in that machine's checkout. */
+  branch?: string
 }
 
 /** A verb an owner asked of the far end: its name and what the window there was handed. */
@@ -54,8 +58,14 @@ export function farTask(agent: FarAgent, now: number): TaskIn {
   return {
     id: agent.task,
     project,
-    state: agent.queued ? 'queued' : agent.approval ? 'blocked' : 'working',
-    mark: agent.mark ?? (agent.approval ? 'needs-you' : 'working'),
+    state: agent.queued
+      ? 'queued'
+      : agent.finished
+        ? 'review'
+        : agent.approval
+          ? 'blocked'
+          : 'working',
+    mark: agent.mark ?? (agent.finished ? 'done' : agent.approval ? 'needs-you' : 'working'),
     reason: agent.approval
       ? { kind: 'approval', tool: agent.approval.tool, also: 0 }
       : { kind: 'clause', said: agent.reason ?? 'agent running' },
@@ -65,12 +75,12 @@ export function farTask(agent: FarAgent, now: number): TaskIn {
     movedAt: now - 60_000,
     title: agent.title ?? '',
     intent: '',
-    branch: '',
+    branch: agent.branch ?? '',
     ahead: null,
     behind: null,
     dirty: null,
-    workspace: 'checkout',
-    shared: true,
+    workspace: agent.branch ? 'worktree' : 'checkout',
+    shared: !agent.branch,
     effort: '',
     done: 'said',
     produces: null,
@@ -82,7 +92,7 @@ export function farTask(agent: FarAgent, now: number): TaskIn {
     lanes: lane === 'none' ? 0 : 1,
     question: false,
     approval: agent.approval ? { ...agent.approval, sinceAt: now - 30_000 } : null,
-    finished: false,
+    finished: agent.finished === true,
     queue: agent.queued ? 'waiting' : '',
     lane,
     starts: lane === 'none' ? 0 : 1,

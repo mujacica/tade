@@ -5,6 +5,7 @@ import {
   type Config,
   checksFor,
   deriveState,
+  type Elsewhere,
   expandHome,
   isLive,
   type Lane,
@@ -89,6 +90,8 @@ export interface StatusOptions {
   portsHeld?: PortsHeld | undefined
   /** What merges and commits the conflict forecast has asked about. Belongs to whoever polls, as the gate does. */
   conflicts?: ConflictsHeld | undefined
+  /** Other machines' live branches in each project, by its name, in this home's mirror of it. */
+  elsewhere?: Readonly<Record<string, Elsewhere>> | undefined
   processes?: () => Promise<{
     processes: AgentProcess[]
     servers: ToolServers
@@ -206,6 +209,7 @@ async function collect(opts: StatusOptions, warnings: string[]): Promise<Workspa
       wrote: async (task) => (await liveness.wrote?.(task)) ?? [],
       pool: GIT_POOL,
       held: opts.conflicts,
+      elsewhere: opts.elsewhere?.[ref.name],
     })
     warnings.push(...forecast.warnings)
     out.push({

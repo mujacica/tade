@@ -168,6 +168,19 @@ export class RemoteAgents implements Subject {
     }
   }
 
+  /**
+   * A sentence to an agent on another machine, wherever you are standing —
+   * the comments written on its change in the patch reader — as a `steer`
+   * there: that machine's answer in its words, or thrown where it would not.
+   */
+  async tell(machine: string, task: string, said: string): Promise<string> {
+    const place = { machine, project: task.split('/')[0] ?? task, agent: task }
+    const found = placeIn(this.deps.machines(), place)
+    if (found === null) throw new Error(`${machine} is not a machine this window links to`)
+    const agent = found.project?.agents.find((one) => one.id === task) ?? null
+    return this.carry({ place, machine: found.machine, agent }, 'steer', { said })
+  }
+
   /** What is being looked at, or null: an agent on another machine, as the frame has it now. */
   private looked(): Looked | null {
     const place = elsewhereOf(this.wire.state)

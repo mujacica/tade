@@ -1,14 +1,18 @@
 import {
   conflictsFor,
+  deskOrder,
+  elsewhereSaid,
   type FindingFacts,
   findingsFor,
+  type Landing,
   type LandingFacts,
-  landingDesk,
+  landingOf,
   onTheDesk,
   sizeOf,
   type Workspace,
 } from '@tade/core'
 import { checksIn } from './away-checks.ts'
+import type { DeskThere } from './desk-there.ts'
 import type { ActionsView, DeskRow } from './frame.ts'
 
 // The landing desk, as the window folds it: core's rule (`landingDesk`) over
@@ -19,7 +23,9 @@ import type { ActionsView, DeskRow } from './frame.ts'
 // (`seenActions`), so a task nobody has looked at yet says so rather than
 // reading green; the findings are what the extensions' judges last said; and
 // the money is a fold the window keeps for its own drawing. What could not be
-// said is null all the way to the screen.
+// said is null all the way to the screen. Another machine's work is on it too,
+// where it is on that machine's own desk (`desk-there.ts`): placed by that
+// machine's answer, and ordered with this machine's by the one rule.
 
 /** What the window hands the fold. */
 export interface DeskInputs {
@@ -34,12 +40,27 @@ export interface DeskInputs {
   findings: readonly FindingFacts[] | null
   /** What a task has cost over every run, or null where nothing recorded money. */
   usd: (task: string) => number | null
+  /** Other machines' work on their own desks, as each said it. */
+  there?: readonly DeskThere[]
 }
 
-/** Every piece of work on the desk, every project's, in the order it is cheapest to trust. */
+/** One row before it is placed: its facts, where it stands, and what is drawn beside them. */
+interface Placed {
+  facts: LandingFacts
+  landing: Landing
+  project: string
+  machine?: string
+  usd: number | null
+}
+
+/** What names a row on the desk and its patch: its task, or `<task> on <machine>` for another machine's. */
+export function deskKey(row: Pick<DeskRow, 'task' | 'machine'>): string {
+  return row.machine ? elsewhereSaid({ machine: row.machine, task: row.task }) : row.task
+}
+
+/** Every piece of work on the desk, every project's on every machine, in the order it is cheapest to trust. */
 export function deskOf(inputs: DeskInputs): DeskRow[] {
-  const facts: LandingFacts[] = []
-  const project = new Map<string, string>()
+  const placed: Placed[] = []
   for (const one of inputs.world.projects) {
     for (const task of one.tasks) {
       const review = task.git?.pr?.state ?? null
@@ -47,8 +68,7 @@ export function deskOf(inputs: DeskInputs): DeskRow[] {
       if (!onTheDesk({ state: task.state, finished, review })) continue
       const work = inputs.work(task.id)
       const checks = checksIn(work, false)
-      project.set(task.id, one.name)
-      facts.push({
+      const facts: LandingFacts = {
         task: task.id,
         state: task.state,
         finished,
@@ -61,12 +81,20 @@ export function deskOf(inputs: DeskInputs): DeskRow[] {
         conflicts: conflictsFor(one.conflicts, task.id),
         size: sizeOf(work?.mine ?? null),
         waitingSince: movedAt(task),
+      }
+      placed.push({
+        facts,
+        landing: landingOf(facts),
+        project: one.name,
+        usd: inputs.usd(task.id),
       })
     }
   }
-  return landingDesk(facts).map(({ facts: one, landing }) => ({
+  placed.push(...(inputs.there ?? []))
+  return deskOrder(placed).map(({ facts: one, landing, project, machine, usd }) => ({
     task: one.task,
-    project: project.get(one.task) ?? '',
+    project,
+    ...(machine ? { machine } : {}),
     tier: landing.tier,
     why: landing.why,
     also: landing.also,
@@ -74,7 +102,7 @@ export function deskOf(inputs: DeskInputs): DeskRow[] {
     findings: one.findings,
     conflicts: one.conflicts === null ? null : one.conflicts.length,
     size: one.size,
-    usd: inputs.usd(one.task),
+    usd,
     waitingSince: one.waitingSince,
     review: one.review === 'open' || one.review === 'draft' ? one.review : null,
   }))

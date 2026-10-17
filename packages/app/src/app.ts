@@ -75,10 +75,9 @@ import { Window } from './wire/window.ts'
 // how it looks is in `view.ts`, and where the facts come from is in `live.ts`,
 // so all three can be tested without a terminal.
 
-// `Thinker`, `WorkerImageFile` and `AppOptions` live in `wire/context.ts`,
-// with the `Wiring` the subjects are handed: what the window was opened with
-// is the first thing every one of them reaches for. Re-exported here so
-// nothing outside the package has to know that they moved.
+// `Thinker`, `WorkerImageFile` and `AppOptions` live in `wire/context.ts`
+// beside the `Wiring` every subject is handed first, and are re-exported here
+// so nothing outside the package has to know that they moved.
 export type { AppOptions, Thinker, WorkerImageFile } from './wire/context.ts'
 
 /** How long the window's own closes may take, of the second quitting has (`quitting.ts`). */
@@ -100,11 +99,7 @@ export class App {
   private stopped = false
   private settle: (late: Unclosed[]) => void = () => {}
   private readonly closed: Promise<Unclosed[]>
-  /**
-   * What the subjects are handed: the five names every one of them needs, and
-   * nothing else. Built once, over `this`, so a subject reads the state as it
-   * is now rather than as it was when it was made.
-   */
+  /** What every subject is handed: built once, over `this`, so each reads the state as it is now. */
   private readonly wire: Wiring
   /** Reading a note, copying it, taking it back. */
   private readonly notes: Notes
@@ -298,6 +293,7 @@ export class App {
       sections: () => this.extensions.lists(),
       callId: () => this.extensions.callId(),
       writeKey: (key, value, was) => this.settings.writeKey(key, value, was),
+      orchestrator: () => this.orchestrator,
     })
     this.terminal = opts.terminal ?? new ProcessTerminal()
     // Mouse reporting is on by default, which is what makes the window
@@ -403,12 +399,14 @@ export class App {
       selectedInFile: () => this.mouse.fileSelectionText(),
       copySelection: (text) => copySpanSaying(this.wire, text, (data) => this.terminal.write(data)),
       comment: (panel, choice) => this.comments.submit(panel, choice),
+      there: (machine, task, path) => this.remotes.mirrored()?.diff(machine, task, path) ?? null,
     })
     this.comments = new Comments(this.wire, {
       shown: () => this.files.shown(),
       ask: (words, about) => this.orchestrator.ask(words, about),
       listening: () => this.orchestrator.started,
       remember: (words) => this.keyboard.remember(words),
+      steerThere: (machine, task, said) => this.remotes.steer(machine, task, said),
     })
     this.mouse = new Mouse(this.wire, {
       stopped: () => this.stopped,
@@ -455,7 +453,7 @@ export class App {
       this.routes,
       this.checks,
       new Spend(this.wire),
-      new Landing(this.wire),
+      new Landing(this.wire, this.remotes),
       new Evaluations(this.wire),
       this.notes,
       this.schedules,
@@ -628,6 +626,7 @@ export class App {
         this.orchestrator.noteTasks(tasks)
         void this.routes.learnHarnesses(tasks)
         void this.queue.recordRulesMet()
+        void this.checks.beat()
         void this.schedules.runDue().then(() => this.advanceQueue())
         void this.orchestrator.reflect(tasks)
         this.away.beat()
@@ -661,6 +660,7 @@ export class App {
         this.state = withTerminals(this.state, terminals)
         this.draw()
       },
+      asked: () => ({ elsewhere: this.remotes.mirrored()?.elsewhere() ?? {} }),
     })
     this.live = live
     this.extensions.readLinkers()

@@ -34,7 +34,7 @@ import {
   workspaceFor,
 } from '@tade/core'
 import type { LaneScreen } from '@tade/drivers-core'
-import { makeCollector, type StatusCollector } from '@tade/status'
+import { makeCollector, type StatusAsk, type StatusCollector } from '@tade/status'
 import type { Workbench } from '@tade/workbench'
 import { livenessTableFrom } from '@tade/workbench/lane-liveness'
 import type { PendingApproval } from '@tade/workbench/workers'
@@ -140,6 +140,8 @@ export interface LiveOptions {
    * one: the terminals, and the chats, which carry no project.
    */
   onTerminals?: (terminals: { id: string; project: string; name: string }[]) => void
+  /** What only the window's links know, handed to every look: other machines' branches here. */
+  asked?: () => Pick<StatusAsk, 'elsewhere'>
 }
 
 export class Live {
@@ -967,6 +969,7 @@ export class Live {
             ports: true,
             cwd: this.opts.cwd,
             lanes: table,
+            ...this.opts.asked?.(),
           }),
         ),
         this.opts.client.pendingApprovals(),

@@ -533,14 +533,14 @@ function cut(row: string, most: number): string {
 
 // ── Reading what another machine wrote ───────────────────────────────────────
 
-function objectIn(value: unknown): Record<string, unknown> | null {
+export function objectIn(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null
 }
 
 /** The objects in a list, and nothing else that was in it. */
-function listIn(value: unknown): Record<string, unknown>[] {
+export function listIn(value: unknown): Record<string, unknown>[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((one) => {
     const row = objectIn(one)
@@ -549,18 +549,18 @@ function listIn(value: unknown): Record<string, unknown>[] {
 }
 
 /** A string field as it was sent — for an id or a moment, which are never drawn as themselves. */
-function stringIn(value: unknown, key: string): string | null {
+export function stringIn(value: unknown, key: string): string | null {
   const field = objectIn(value)?.[key]
   return typeof field === 'string' ? field : null
 }
 
-function numberIn(value: Record<string, unknown> | null, key: string): number | null {
+export function numberIn(value: Record<string, unknown> | null, key: string): number | null {
   const field = value?.[key]
   return typeof field === 'number' && Number.isFinite(field) && field >= 0 ? field : null
 }
 
 /** A string to draw: text only, trimmed, bounded. Anything that is not a string is nothing. */
-function text(value: unknown, most: number): string {
+export function text(value: unknown, most: number): string {
   if (typeof value !== 'string') return ''
   const plain = printable(value).trim()
   const points = [...plain]

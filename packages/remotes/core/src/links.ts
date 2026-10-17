@@ -14,6 +14,7 @@ import {
   type PairAt,
   type Remote,
   type RemoteLink,
+  type RepositoryThere,
   type TerminalThere,
 } from './port.ts'
 
@@ -51,6 +52,8 @@ export interface Transport {
   attach?(remote: Remote, line: string): Promise<TerminalThere>
   /** With `terminals`: what came of a terminal it handed back with `proving`. */
   attached?(remote: Remote, by: string, through: boolean): Promise<void>
+  /** With `fetches`: how git here fetches a repository there, at a root `rootOk` passed. */
+  repository?(remote: Remote, root: string): RepositoryThere
 }
 
 /** How long a request over a held link may take: a read, or a verb carried out there. */
@@ -65,6 +68,16 @@ export const REQUEST_MS = 20_000
  */
 export function lineOk(line: string): boolean {
   return /^[\x20-\x7e]{1,4096}$/.test(line)
+}
+
+/**
+ * A root another machine named as one of its projects, as it may be handed to
+ * git there: absolute, and plain — no space, no quote, nothing a shell or a
+ * URL would read as more than a path. A root with anything else is one this
+ * machine does not fetch, and says so, rather than one it quotes and hopes.
+ */
+export function rootOk(root: string): boolean {
+  return /^\/[A-Za-z0-9_.@+~/-]{0,4095}$/.test(root) && !root.split('/').includes('..')
 }
 
 /** A whole link out of a transport. */
@@ -134,6 +147,17 @@ class Links implements RemoteLink {
 
   async attached(remote: Remote, by: string, through: boolean): Promise<void> {
     await this.transport.attached?.(remote, by, through)
+  }
+
+  repository(remote: Remote, root: string): RepositoryThere | null {
+    if (!this.capabilities.fetches || this.transport.repository === undefined) return null
+    if (!rootOk(root)) {
+      throw new LinkError(
+        'failed',
+        `${remote.name} named ${JSON.stringify(printable(root).slice(0, 120))} as where a project is, which is not a path this machine fetches from: an absolute path of letters, digits and . _ - + @ ~ /`,
+      )
+    }
+    return this.transport.repository(remote, root)
   }
 
   request(name: string, path: string, body?: unknown): Promise<Answer> {

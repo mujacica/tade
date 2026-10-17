@@ -1,3 +1,4 @@
+import { elsewhereSaid } from '@tade/core'
 import {
   byDestination,
   forAgent,
@@ -30,16 +31,31 @@ import { unlessSame } from './kept.ts'
 // Kept in memory and nowhere else, like what is half-written on the line:
 // Tade owns no state, and a comment nobody sent is a draft.
 
+/**
+ * The change a diff panel is showing, for a comment on it: whose it is — a
+ * task, `''` for the checkout's own, `<task> on <machine>` for another
+ * machine's, with that machine and its task there beside it — the file as git
+ * names it there, and git's answer (`Files.shown`).
+ */
+export interface Shown {
+  task: string
+  path: string
+  diff: ParsedDiff | null
+  there?: { machine: string; task: string }
+}
+
 /** What this subject needs of the rest of the window. */
 export interface CommentsDeps {
   /** The change the open diff panel shows: whose, which file, and what git said about it. */
-  shown(): { task: string; path: string; diff: ParsedDiff | null } | null
+  shown(): Shown | null
   /** The orchestrator asked as a turn of the person's: their words, and Tade's paragraph above them. */
   ask(words: string, about: string): Promise<string>
   /** Whether there is an orchestrator to ask yet: comments for it wait, kept, until there is. */
   listening(): boolean
   /** Their words, written down as they said them (`said`). */
   remember(words: string): void
+  /** A message to an agent on another machine, as a `steer` there: its answer, or thrown. */
+  steerThere?(machine: string, task: string, said: string): Promise<string>
 }
 
 /** A review's comments as a panel is handed them, kept by identity between frames. */
@@ -72,7 +88,7 @@ export class Comments implements Subject {
     const all = this.kept.get(shown.task) ?? NONE
     return {
       comments: { here: this.here(all, shown.path), total: all.length },
-      commentTo: this.choices(shown.task),
+      commentTo: this.choices(shown),
     }
   }
 
@@ -83,7 +99,7 @@ export class Comments implements Subject {
     return {
       comments: this.here(all, shown.path),
       drafted: all.length,
-      commentTo: this.choices(shown.task),
+      commentTo: this.choices(shown),
     }
   }
 
@@ -165,13 +181,18 @@ export class Comments implements Subject {
         told.push(`${count} to Tade`)
         continue
       }
-      const agent = group.to.agent
+      const { agent, machine } = group.to
+      // An agent on another machine is told there, as that machine's owner (`steerThere`).
+      const name = machine ? elsewhereSaid({ machine, task: agent }) : this.nameOf(agent)
       try {
-        await this.wire.opts.client.steerAgent(agent, forAgent(group.comments, agent))
-        told.push(`${count} to ${this.nameOf(agent)}`)
+        if (machine) {
+          if (!this.deps.steerThere) throw new Error('this window reaches no other machine')
+          await this.deps.steerThere(machine, agent, forAgent(group.comments, name))
+        } else await this.wire.opts.client.steerAgent(agent, forAgent(group.comments, agent))
+        told.push(`${count} to ${name}`)
       } catch (err) {
         left.push(...group.comments)
-        notify(this.wire, `${this.nameOf(agent)} was not told ${count}: ${why(err)}`)
+        notify(this.wire, `${name} was not told ${count}: ${why(err)}`)
       }
     }
     if (left.length > 0) this.kept.set(task, left)
@@ -200,10 +221,22 @@ export class Comments implements Subject {
    * where tab goes first, running or not — then every other agent running in
    * the project.
    */
-  private choices(task: string): CommentChoice[] {
+  private choices(shown: Shown): CommentChoice[] {
+    const task = shown.task
     const panes = this.wire.state.panes
     const last = this.chosen
     if (last && last.panes === panes && last.task === task) return last.choices
+    // Another machine's change: Tade here, or the agent there whose change it is.
+    if (shown.there) {
+      const there = shown.there
+      const name = `${there.task.split('/').at(-1) ?? there.task} on ${there.machine}`
+      const choices: CommentChoice[] = [
+        { to: 'tade', label: 'Tade' },
+        { to: { agent: there.task, machine: there.machine }, label: name },
+      ]
+      this.chosen = { panes, task, choices }
+      return choices
+    }
     const project = task ? task.split('/')[0] : this.wire.state.project
     // The change's own agent whether or not it is running: it is the one the
     // person means, and one that has stopped says so when it is sent to.

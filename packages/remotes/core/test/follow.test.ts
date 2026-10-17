@@ -77,7 +77,7 @@ function linkTo(port: number): RemoteLink {
   const link = linkOver(
     {
       id: 'test',
-      capabilities: { pairs: false, identifies: false, terminals: false },
+      capabilities: { pairs: false, identifies: false, terminals: false, fetches: false },
       programs: [],
       pair: () => Promise.reject(new Error('not here')),
       unpair: () => Promise.reject(new Error('not here')),

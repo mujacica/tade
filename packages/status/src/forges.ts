@@ -227,6 +227,28 @@ async function configStamp(root: string): Promise<string | null> {
 }
 
 /**
+ * What names a repository wherever it is checked out: `github.com/owner/name`,
+ * lower-cased, read out of a remote URL — the host the forge that serves it
+ * places it on, so `git@github.com-work:o/r` (an SSH alias for a second
+ * account) and `https://github.com/o/r` are one repository — or null where the
+ * URL names none. No sign-in and no credential in it, whatever the URL held,
+ * because it is what two machines compare (`sameRepository`).
+ */
+export function repositoryNamed(remote: string): string | null {
+  const repo = repoOf(remote)
+  const host = hostOf(remote)
+  if (!repo || !host) return null
+  const place = forgeFor(remote, { exec: forgeExec })?.placeOf(remote)
+  return `${place?.host ?? host}/${repo}`.toLowerCase()
+}
+
+/** What names a checkout's repository (`repositoryNamed`, of its `origin`), or null with none. */
+export async function repositoryAt(root: string): Promise<string | null> {
+  const remote = await remoteAt(forgeExec, root)
+  return remote ? repositoryNamed(remote) : null
+}
+
+/**
  * The forge a checkout's work goes to, or why there is none. Never throws: a
  * checkout with no remote is one Tade only reads git from.
  *

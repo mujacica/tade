@@ -514,6 +514,17 @@ export const OWNED: readonly Route[] = [
     mutates: true,
     here: true,
   },
+  // Where each project is checked out here and the branches its work is on
+  // (`repositories.ts`): a path on this machine, which no phone reads, for the
+  // fetch another machine of the person's makes over the same SSH. A read.
+  {
+    method: 'POST',
+    path: '/api/repositories',
+    name: 'repositories',
+    needs: 'read',
+    mutates: true,
+    here: true,
+  },
 ]
 
 /**

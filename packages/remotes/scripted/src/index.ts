@@ -15,9 +15,10 @@ import {
 // handed: what the conformance suite, the window's own tests and a demo link
 // to, and what nobody's config is ever pointed at.
 //
-// It carries nothing — a remote here is a listener on loopback — so what it
-// exercises is everything above the carrying: the stream, the cursor, the
-// deadlines, the presence, and holding several at once. Registered as
+// It carries nothing — a remote here is a listener on loopback, and a
+// repository there is a path here — so what it exercises is everything above
+// the carrying: the stream, the cursor, the deadlines, the presence, holding
+// several at once, and fetching a far end's branches. Registered as
 // `scripted` and chosen for nobody, as the scripted forge is: with no table it
 // reaches no remote at all, and says so.
 
@@ -76,7 +77,12 @@ export function makeScriptedLink(options: ScriptedOptions): RemoteLink {
       id: 'scripted',
       // A far end here is a listener, not a shell: a terminal there is one
       // here, where a test asked for one.
-      capabilities: { pairs: true, identifies: true, terminals: options.terminals === true },
+      capabilities: {
+        pairs: true,
+        identifies: true,
+        terminals: options.terminals === true,
+        fetches: true,
+      },
       // Nothing to run: the far end is a listener in this process.
       programs: [],
       pair: async (at) => find(at.address).pair(at.label),
@@ -115,6 +121,11 @@ export function makeScriptedLink(options: ScriptedOptions): RemoteLink {
             },
           }
         : {}),
+      // A repository there is a path here, because there is here.
+      repository: (remote, root) => {
+        find(remote.address)
+        return { url: root, env: {} }
+      },
       identify: async (address) => identityOf(address, find(address)),
       trust: async (address, fingerprints) => {
         const far = find(address)

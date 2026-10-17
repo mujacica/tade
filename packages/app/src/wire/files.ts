@@ -1,5 +1,5 @@
 import { basename, isAbsolute, relative, resolve } from 'node:path'
-import { expandHome, type LaneId } from '@tade/core'
+import { elsewhereSaid, expandHome, type LaneId } from '@tade/core'
 import { git } from '@tade/status'
 import { type ParsedDiff, parseDiff } from '../diff.ts'
 import {
@@ -22,6 +22,7 @@ import { type BranchRow, branchPanel, promptPanel } from '../panels/small/state.
 import type { Panel } from '../panels.ts'
 import type { Ui } from '../screen.ts'
 import type { Skin } from '../skin.ts'
+import type { Shown } from './comments.ts'
 import {
   type Actions,
   flash,
@@ -73,6 +74,8 @@ export interface FilesDeps {
   copySelection(text: string): Promise<void>
   /** A comment kept, or every comment sent: the comments' own (`wire/comments.ts`). */
   comment(panel: FilePanel | DiffPanel, choice: string): Promise<void>
+  /** One file's diff on another machine's task, out of this home's mirror of it (`wire/mirrors.ts`). */
+  there?(machine: string, task: string, path: string): Promise<string | null> | null
 }
 
 export class Files implements Subject {
@@ -711,12 +714,19 @@ export class Files implements Subject {
     this.diff = null
     this.wire.draw()
     const live = this.wire.live
-    const root = live?.worktreeOf(task)
-    const text =
-      live && root ? await live.diffAt(root, live.baseOf(task), path).catch(() => null) : null
+    const asked = this.wire.state.panel
+    // Another machine's task is read out of this home's mirror of it, never this checkout.
+    const machine = asked?.kind === 'diff' ? asked.machine : undefined
+    const root = machine ? null : live?.worktreeOf(task)
+    const text = machine
+      ? await (this.deps.there?.(machine, task, path) ?? null)
+      : live && root
+        ? await live.diffAt(root, live.baseOf(task), path).catch(() => null)
+        : null
     const panel = this.wire.state.panel
     // Only if the panel is still on that file: a slow git must not draw an old diff.
-    if (panel?.kind === 'diff' && panel.task === task && panel.files[panel.file] === path) {
+    const same = panel?.kind === 'diff' && panel.task === task && panel.machine === machine
+    if (same && panel.files[panel.file] === path) {
       this.diff = text ? parseDiff(text) : parseDiff('')
       this.wire.draw()
     }
@@ -741,13 +751,17 @@ export class Files implements Subject {
   }
   /**
    * The change a diff panel is showing, for a comment on it: whose it is (`''`
-   * for the checkout's own), the file as git names it there, and git's answer.
+   * for the checkout's own, `<task> on <machine>` for another machine's, with
+   * that machine and task beside it), the file as git names it there, and git's answer.
    */
-  shown(): { task: string; path: string; diff: ParsedDiff | null } | null {
+  shown(): Shown | null {
     const panel = this.wire.state.panel
     if (panel?.kind === 'diff') {
       const path = panel.files[panel.file]
-      return path ? { task: panel.task, path, diff: this.diff } : null
+      if (!path) return null
+      if (!panel.machine) return { task: panel.task, path, diff: this.diff }
+      const there = { machine: panel.machine, task: panel.task }
+      return { task: elsewhereSaid(there), path, diff: this.diff, there }
     }
     if (panel?.kind !== 'file') return null
     const task = this.viewed.about()

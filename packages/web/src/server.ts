@@ -70,10 +70,9 @@ import { type Listener, type Origin, reachOf, type Scope } from './surface.ts'
 // file read beyond the device list: every read answers from what the window
 // already holds, through `WebReading`. The window draws on this thread.
 //
-// **What the window hands it, and what it hands back, is `serving.ts`.** The
-// contract is its own file because it is the thing a reader checks this
-// subsystem against — nine fields and two of them optional — and because a
-// listener and the shape of what it is given are different subjects.
+// **What the window hands it, and what it hands back, is `serving.ts`**: its own
+// file, because a reader checks this subsystem against it, and a listener and
+// the shape of what it is given are different subjects.
 
 // Re-exported, so everything that already said `from './server.ts'` still
 // does: a file split for size may not be a rename of everybody's imports.
@@ -360,6 +359,7 @@ export function webServer(opts: ServerOptions): WebServer {
       case 'attach':
       case 'since':
       case 'share notes':
+      case 'repositories':
       case 'carry': {
         const said = await carryOwned(found.route.name, req, device, now(), opts, res)
         return 'refusal' in said ? answer(res, said.refusal) : json(res, said.body)

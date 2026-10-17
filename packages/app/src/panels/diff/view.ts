@@ -20,7 +20,8 @@ export function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
   const inner = width - 2 - BAR
   const row = () => new Row(inner, skin, ctx.pointer)
   const path = panel.files[panel.file] ?? ''
-  const name = panel.task.split('/').at(-1) ?? panel.task
+  const short = panel.task.split('/').at(-1) ?? panel.task
+  const name = panel.machine ? `${short} on ${panel.machine}` : short
   const rows: Line[] = []
   const parsed = ctx.diff
   const here = ctx.comments?.here ?? []
@@ -84,13 +85,15 @@ export function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
   // The keys in whatever room the buttons and the file stepper leave: which
   // line you are on and that `c` writes on it are what this row says first.
   const stepper = ` ${panel.file + 1}/${panel.files.length} `
+  // Another machine's change is read here and edited there: nothing on this
+  // machine is that file, and no agent here is the one that wrote it.
+  const there = panel.machine ? `read from this machine's mirror of ${panel.machine}` : null
   const buttons =
     1 +
     (drafted > 0 ? `Send ${drafted}`.length + 5 : 0) +
-    'Open in editor'.length +
-    5 +
-    'Ask the agent about this'.length +
-    4
+    (there === null
+      ? 'Open in editor'.length + 5 + 'Ask the agent about this'.length + 4
+      : there.length + 1)
   const room = inner - buttons - (panel.files.length > 1 ? stepper.length + 4 : 0) - 2
   const keys = KEYS.find((one) => one.length <= room) ?? ''
   const drawn = column(
@@ -103,10 +106,7 @@ export function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
       },
       foot: [
         said,
-        sendFirst(row().space(), drafted)
-          .button('Open in editor', { kind: 'control', id: 'editor' })
-          .space()
-          .button('Ask the agent about this', { kind: 'control', id: 'ask' })
+        localOnly(sendFirst(row().space(), drafted), there, skin)
           .right((r) => {
             if (panel.files.length > 1) {
               r.text('‹', skin.signal, { kind: 'control', id: 'prev-file' })
@@ -127,6 +127,15 @@ export function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
       ? `${skin.done(`+${parsed.added}`)} ${skin.bad(`−${parsed.removed}`)} `
       : ''
   return box(`${printable(path)} · ${name}`, drawn.rows, width, skin, { corner: `${counts}esc` })
+}
+
+/** The two buttons that act on this machine, or where the change was read from where it is another's. */
+function localOnly(row: Row, there: string | null, skin: PanelContext['skin']): Row {
+  if (there !== null) return row.text(printable(there), skin.hint)
+  return row
+    .button('Open in editor', { kind: 'control', id: 'editor' })
+    .space()
+    .button('Ask the agent about this', { kind: 'control', id: 'ask' })
 }
 
 /** What the foot says of the keys, longest first: the first that fits is drawn. */

@@ -242,9 +242,14 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   beat where no branch moved spawns nothing; in a shared checkout, two agents whose harness said they
   wrote one changed file (`writes` on `tool_call`, kept by `Doings`, carried on the liveness table)
   and neither write older than the last commit of it (`hunksFrom`). Every `Project.conflicts`, marked
-  `⇄` on both agents and in the plan. The queue's pass tells it (`wire/forecast.ts`): a
-  `conflict_forecast` line first, so it is said once per collision and again only for a new file,
-  and a `gone` line when it heals. It goes by `tell()`, not news, because the person asked for the
+  `⇄` on both agents and in the plan. **Across machines** too, where one repository is a project
+  here and on a remote: this machine's live branches against that one's, merged in this home's
+  mirror (`elsewhere`, `wire/mirrors.ts`), the other side named `<task> on <machine>` and never a
+  task id the tools take — the side here is the one told (`whoYields`), with where to fetch the
+  other branch from, because the side there is that machine's and reached only through its own
+  orchestrator. Nothing is held or said on the other machine. The queue's pass tells it
+  (`wire/forecast.ts`): a `conflict_forecast` line first, so it is said once per collision and
+  again only for a new file, and a `gone` line when it heals. It goes by `tell()`, not news, because the person asked for the
   orchestrator to resolve it without them, and news waits for them to speak; `conflictSays` names
   the one call (`whoYields` picks who gives way, by rule) and whose it is to make is `queue.holds`.
   **It never holds, starts or stops anything**: a forecast is evidence, and what to do about two

@@ -112,6 +112,17 @@ export function taskDocumentsDir(home: string, id: string): string {
 }
 
 /**
+ * Where another machine's work in one of this machine's projects is kept: a
+ * bare repository borrowing the project's own objects as alternates, holding
+ * what the other machines added (`core/src/elsewhere.ts`). In the home and
+ * never in the checkout, which it only ever reads; derived, and always safe to
+ * delete — the next fetch makes it again.
+ */
+export function mirrorDir(home: string, project: string): string {
+  return join(projectDir(home, project), 'mirror.git')
+}
+
+/**
  * The spool the local intake door writes into, and the `intake.cli` watch
  * reads: one file per request, named by the id the door gave it.
  *

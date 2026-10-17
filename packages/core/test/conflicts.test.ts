@@ -4,10 +4,13 @@ import {
   conflictsToTell,
   contested,
   hunksFrom,
+  liveBranchOf,
   type Wrote,
   whoYields,
 } from '../src/conflicts.ts'
+import { fetchDue, liveThere, mirrorRef, sameRepository } from '../src/elsewhere.ts'
 import type { TadeEvent } from '../src/events.ts'
+import { conflictsFor } from '../src/landing.ts'
 import type { Conflict } from '../src/model.ts'
 
 const T = 1_800_000_000_000
@@ -134,5 +137,78 @@ describe('what is told', () => {
   it('is nothing at all where the look could not be made', () => {
     const events = [told({ kind: 'branches', tasks: ['app/a', 'app/b'], files: ['x.ts'] })]
     expect(conflictsToTell('app', undefined, events)).toEqual({ tell: [], gone: [] })
+  })
+})
+
+describe('another machine’s branch on the other side', () => {
+  const there: Conflict = {
+    kind: 'elsewhere',
+    tasks: ['app/a'],
+    elsewhere: { machine: 'vps', task: 'app/a', branch: 'tade/a' },
+    files: ['x.ts'],
+  }
+
+  it('is named as that machine’s task, never as one of this machine’s', () => {
+    expect(conflictsOn('app/a', [there])).toEqual([
+      { kind: 'elsewhere', with: 'app/a on vps', files: ['x.ts'] },
+    ])
+    // A task of the same name there is not this one: the landing desk counts it as another side.
+    expect(conflictsFor([there], 'app/a')).toEqual([{ with: 'app/a on vps', files: 1 }])
+  })
+
+  it('has the side here give way, since the other is that machine’s to steer', () => {
+    expect(whoYields(there, new Map())).toEqual({ yields: 'app/a', keeps: null })
+  })
+
+  it('is told once, and again for another machine’s task of the same name', () => {
+    const events = [told({ ...there })]
+    expect(conflictsToTell('app', [there], events)).toEqual({ tell: [], gone: [] })
+    const lab = { ...there, elsewhere: { machine: 'lab', task: 'app/a', branch: 'tade/a' } }
+    expect(conflictsToTell('app', [lab], events)).toEqual({ tell: [lab], gone: [there] })
+  })
+})
+
+describe('what another machine’s branches are, here', () => {
+  const head = 'c'.repeat(40)
+  const branch = { task: 'app/fix', branch: 'tade/fix', base: 'main', head, live: true }
+
+  it('is one repository only where both machines name one, and the same one', () => {
+    expect(sameRepository('github.com/acme/app', 'github.com/acme/app')).toBe(true)
+    expect(sameRepository('github.com/acme/app', 'github.com/acme/api')).toBe(false)
+    expect(sameRepository(null, null)).toBe(false)
+  })
+
+  it('fetches only where a head there is not what the mirror holds', () => {
+    const held = new Map([[mirrorRef('vps', 'tade/fix'), head]])
+    expect(fetchDue('vps', [branch], held)).toBe(false)
+    expect(fetchDue('vps', [branch], new Map())).toBe(true)
+    expect(fetchDue('lab', [branch], held)).toBe(true)
+    expect(fetchDue('vps', [{ ...branch, head: null }], new Map())).toBe(false)
+  })
+
+  it('hands the forecast only live branches on the commit the mirror holds', () => {
+    const held = new Map([
+      [mirrorRef('vps', 'tade/fix'), head],
+      [mirrorRef('vps', 'tade/old'), 'd'.repeat(40)],
+    ])
+    expect(
+      liveThere(
+        'vps',
+        [
+          branch,
+          { ...branch, task: 'app/idle', branch: 'tade/idle', live: false },
+          { ...branch, task: 'app/old', branch: 'tade/old' },
+          { ...branch, task: 'app/new', branch: 'tade/new' },
+        ],
+        held,
+      ),
+    ).toEqual([{ machine: 'vps', task: 'app/fix', branch: 'tade/fix', head }])
+  })
+
+  it('is live work by the same rule on every machine', () => {
+    const git = { head, mergedIntoBase: false, ahead: 1 } as never
+    expect(liveBranchOf({ workspace: 'worktree', state: 'working', git })).toBe(true)
+    expect(liveBranchOf({ workspace: 'checkout', state: 'working', git })).toBe(false)
+    expect(liveBranchOf({ workspace: 'worktree', state: 'merged', git })).toBe(false)
   })
 })

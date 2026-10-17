@@ -9,6 +9,7 @@ import type { WebConfiguring } from '../src/configuring.ts'
 import type { Streams } from '../src/peers.ts'
 import type { Reach } from '../src/reach.ts'
 import { type Projector, projector, type WebReading } from '../src/reading.ts'
+import type { WebRepositories } from '../src/repositories.ts'
 import {
   type Confirmed,
   type PairingAsk,
@@ -211,6 +212,8 @@ export async function start(
     since?: WebSince
     /** The window's half of sharing notes, for a test of an owner sharing them. */
     notes?: WebNotes
+    /** The window's projects and branches, for a test of an owner asking where they are. */
+    repositories?: WebRepositories
   } = {},
 ): Promise<Running> {
   settingRows = opts.settings ?? []
@@ -256,6 +259,7 @@ export async function start(
     ...(opts.attaching === undefined ? {} : { attaching: opts.attaching }),
     ...(opts.since === undefined ? {} : { since: opts.since }),
     ...(opts.notes === undefined ? {} : { notes: opts.notes }),
+    ...(opts.repositories === undefined ? {} : { repositories: opts.repositories }),
   })
   epoch = one.server.epoch
   one.epoch = epoch

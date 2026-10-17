@@ -1,4 +1,5 @@
-import { rm } from 'node:fs/promises'
+import { mkdir, rm } from 'node:fs/promises'
+import { join } from 'node:path'
 import { runProgram } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { type FarEnd, startFarEnd } from './far.ts'
@@ -432,6 +433,28 @@ export function testRemoteLink(name: string, make: MakeRig, opts: { skip?: strin
       expect((await link.attach(remote, "echo 'attached here'"))?.by).toBe(opened.by)
     })
 
+    it('hands git a way to a repository there only where it says it can, and refuses a root it would not fetch', async () => {
+      await setUp()
+      const one = await far()
+      const remote = await paired(one)
+      const made = await repositoryIn(one.home)
+      const there = link.repository(remote, made.root)
+      if (!link.capabilities.fetches) {
+        expect(there).toBeNull()
+        return
+      }
+      // Run, not read: git here, as the mirror runs it, listing the branch there.
+      const listed = await runProgram('git', ['ls-remote', there?.url ?? '', 'refs/heads/main'], {
+        timeoutMs: 20_000,
+        env: { ...process.env, ...there?.env },
+      })
+      expect(listed.stdout, listed.stderr).toContain(`${made.head}\trefs/heads/main`)
+      // A root is an absolute path git and a shell there read as one path, or it is refused.
+      for (const root of ['relative/path', "/tmp/it's here", '/tmp/a b', '/tmp/../etc']) {
+        expect(() => link.repository(remote, root), root).toThrow(/not a path this machine fetches/)
+      }
+    })
+
     it('offers a terminal there only where it says it can', async () => {
       await setUp()
       const one = await far()
@@ -445,6 +468,28 @@ export function testRemoteLink(name: string, make: MakeRig, opts: { skip?: strin
       expect(opened?.args.join(' ')).toContain('accounts sign-in claude-code')
     })
   })
+}
+
+/** A repository with one commit on `main`, in the far end's home: what a project there is. */
+async function repositoryIn(home: string): Promise<{ root: string; head: string }> {
+  const root = join(home, 'checkout')
+  const git = (args: readonly string[]) =>
+    runProgram('git', ['-C', root, ...args], { timeoutMs: 20_000 })
+  await mkdir(root, { recursive: true })
+  await git(['init', '-q', '-b', 'main'])
+  await git([
+    '-c',
+    'user.name=far',
+    '-c',
+    'user.email=far@example.com',
+    'commit',
+    '-q',
+    '--allow-empty',
+    '-m',
+    'one',
+  ])
+  const head = (await git(['rev-parse', 'HEAD'])).stdout.trim()
+  return { root, head }
 }
 
 /** What a held value is, in a line a failure can print: never the projection. */

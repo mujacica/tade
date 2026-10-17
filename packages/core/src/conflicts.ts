@@ -1,5 +1,5 @@
 import type { TadeEvent } from './events.ts'
-import type { Conflict, TaskState } from './model.ts'
+import type { Conflict, Task, TaskState } from './model.ts'
 
 // The conflict forecast: which pieces of live work would collide, said before
 // they do.
@@ -10,7 +10,10 @@ import type { Conflict, TaskState } from './model.ts'
 // and the look is `status/src/conflicts.ts`. In a shared checkout nothing is a
 // merge yet — it is two agents with uncommitted hunks in one file, which git
 // cannot attribute and so is read off what each agent's harness said it wrote
-// (`Wrote`), kept only while no commit has touched the file since.
+// (`Wrote`), kept only while no commit has touched the file since. And where
+// one repository is a project on two machines, it is a merge again: this
+// machine's live branches against the other's, fetched into this home's mirror
+// (`elsewhere.ts`) — told here, and never anything held or said there.
 //
 // A forecast is evidence, and evidence may only ever hold or tell: nothing here
 // starts, stops or changes work. What is done about one is the orchestrator's
@@ -28,12 +31,42 @@ export interface Wrote {
 /** The states whose work is still going somewhere: a branch that will be merged, hunks that will be committed. */
 export const LIVE_STATES: ReadonlySet<TaskState> = new Set(['working', 'blocked', 'review'])
 
+/**
+ * Whether a task's branch is live work a merge could collide over: a branch of
+ * its own, still going somewhere, not landed, with something on it. The same
+ * question on every machine, so the one that answers another machine's mirror
+ * (`web`'s repositories) and this one's forecast never disagree about it.
+ */
+export function liveBranchOf(task: Pick<Task, 'workspace' | 'state' | 'git'>): boolean {
+  return (
+    task.workspace !== 'checkout' &&
+    LIVE_STATES.has(task.state) &&
+    !!task.git?.head &&
+    !task.git.mergedIntoBase &&
+    (task.git.ahead ?? 1) > 0
+  )
+}
+
 /** One side's view of a conflict: who or what is on the other side, and over which files. */
 export interface ConflictOn {
   kind: Conflict['kind']
-  /** The other task, or the base branch for `base`. */
+  /** The other task, the base branch for `base`, or `<task> on <machine>` for `elsewhere`. */
   with: string
   files: readonly string[]
+}
+
+/** Another machine's task, in the words every line about it uses: `tade/fix on vps`. */
+export function elsewhereSaid(other: { machine: string; task: string }): string {
+  return `${other.task} on ${other.machine}`
+}
+
+/** Who or what is on the other side of a conflict from `task`, in words; null where nothing is. */
+export function otherSide(conflict: Conflict, task: string): string | null {
+  if (conflict.kind === 'base') return conflict.base ?? 'its base'
+  if (conflict.kind === 'elsewhere') {
+    return conflict.elsewhere ? elsewhereSaid(conflict.elsewhere) : 'another machine'
+  }
+  return conflict.tasks.find((t) => t !== task) ?? null
 }
 
 /** The conflicts one task is in, as it would say them. */
@@ -44,7 +77,7 @@ export function conflictsOn(
   const out: ConflictOn[] = []
   for (const one of conflicts ?? []) {
     if (!one.tasks.includes(task)) continue
-    const other = one.kind === 'base' ? (one.base ?? 'its base') : one.tasks.find((t) => t !== task)
+    const other = otherSide(one, task)
     if (other) out.push({ kind: one.kind, with: other, files: one.files })
   }
   return out
@@ -128,8 +161,11 @@ export function sortConflicts(conflicts: readonly Conflict[]): Conflict[] {
 }
 
 /** Which collision this is, whatever files it is over now. */
-export function conflictKey(conflict: Pick<Conflict, 'kind' | 'tasks' | 'base'>): string {
-  return [conflict.kind, ...conflict.tasks, conflict.base ?? ''].join('\0')
+export function conflictKey(
+  conflict: Pick<Conflict, 'kind' | 'tasks' | 'base' | 'elsewhere'>,
+): string {
+  const there = conflict.elsewhere ? `${conflict.elsewhere.machine}:${conflict.elsewhere.task}` : ''
+  return [conflict.kind, ...conflict.tasks, conflict.base ?? '', there].join('\0')
 }
 
 /**
@@ -146,7 +182,9 @@ export function whoYields(
   tasks: ReadonlyMap<string, { state: TaskState; created: string }>,
 ): { yields: string; keeps: string | null } {
   const [one = '', other] = conflict.tasks
-  if (conflict.kind === 'base' || other === undefined) return { yields: one, keeps: null }
+  // The other machine's agent is that machine's to steer: the side here gives way.
+  if (conflict.kind !== 'branches' && conflict.kind !== 'hunks') return { yields: one, keeps: null }
+  if (other === undefined) return { yields: one, keeps: null }
   const a = tasks.get(one)
   const b = tasks.get(other)
   const reviewing = (t: typeof a) => t?.state === 'review'
@@ -157,6 +195,16 @@ export function whoYields(
   return { yields: later, keeps: later === one ? other : one }
 }
 
+const KINDS = ['branches', 'base', 'hunks', 'elsewhere'] as const
+
+/** The other machine's side of an `elsewhere` line, as it was written, or null. */
+function elsewhereIn(value: unknown): Conflict['elsewhere'] | null {
+  if (typeof value !== 'object' || value === null) return null
+  const { machine, task, branch } = value as Record<string, unknown>
+  if (typeof machine !== 'string' || typeof task !== 'string') return null
+  return { machine, task, branch: typeof branch === 'string' ? branch : '' }
+}
+
 /** What the last `conflict_forecast` line said about each collision, by key. */
 function toldOf(project: string, events: readonly TadeEvent[]): Map<string, Conflict | null> {
   const told = new Map<string, Conflict | null>()
@@ -164,12 +212,14 @@ function toldOf(project: string, events: readonly TadeEvent[]): Map<string, Conf
     if (event.type !== 'conflict_forecast' || event.detail.project !== project) continue
     const detail = event.detail
     const tasks = Array.isArray(detail.tasks) ? detail.tasks.map(String) : []
-    const kind = detail.kind === 'base' || detail.kind === 'hunks' ? detail.kind : 'branches'
+    const kind = KINDS.find((one) => one === detail.kind) ?? 'branches'
     const base = typeof detail.base === 'string' ? detail.base : undefined
+    const there = elsewhereIn(detail.elsewhere)
     const one: Conflict = {
       kind,
       tasks,
       ...(base ? { base } : {}),
+      ...(there ? { elsewhere: there } : {}),
       files: Array.isArray(detail.files) ? detail.files.map(String) : [],
     }
     told.set(conflictKey(one), detail.gone === true ? null : one)

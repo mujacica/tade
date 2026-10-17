@@ -102,8 +102,9 @@ one's harness said it wrote. Work that would collide wears `⇄` on both agents 
 what it runs into and over which files, and the orchestrator is told once — naming the side that
 should give way, by merging the other in or, in a shared checkout, by going second — and settles it
 without asking unless you keep that decision for yourself (`queue.holds: ask`). A collision is said
-again only for a new file. The forecast only tells, never stops or holds anything, and when it
-cannot tell it says that rather than nothing.
+again only for a new file. Where the same repository is a project on another machine of yours,
+that machine's live branches are in it too ([below](#many-projects-many-tasks)). The forecast
+only tells, never stops or holds anything, and when it cannot tell it says that rather than nothing.
 
 ![Two agents the forecast says would collide in one file, each marked ⇄ down the side and in the plan, with the work queued after both waiting for them](https://raw.githubusercontent.com/mujacica/tade/main/images/collide.svg)
 
@@ -476,6 +477,16 @@ machine with everything you say to it (`vps: 3 working, 1 wants you`), and passe
 one when you ask for something there by its name — never when the words came from a phone.
 
 ![The VPS's orchestrator on a tab beside the Mac's, with what happened there since you were last here](https://raw.githubusercontent.com/mujacica/tade/main/images/remote-orchestrator.svg)
+
+**Where one repository is a project on both machines**, the VPS's branches come to the Mac over
+the same SSH connection, into a mirror in Tade's home that borrows your checkout's objects — so it
+costs only what the VPS added, and nothing is ever written into your checkout. Two machines are the
+same repository when their `origin` names the same one, whatever the projects are called. From it
+the landing desk lists the VPS's finished work beside this Mac's, as `fix on vps`, in one order;
+enter reads its change in the patch reader, and a comment on a line goes to Tade here or straight
+to the agent there. And the collision forecast adds the VPS's live branches: a branch here that
+would conflict with one there wears `⇄`, and the Mac's orchestrator is told once, with where to
+fetch the other branch from to merge it in — the side on the VPS is that machine's own.
 
 ## An IDE in the terminal
 

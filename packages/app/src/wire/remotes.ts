@@ -18,6 +18,7 @@ import {
   remoteOf,
   wordOf,
 } from '@tade/workbench/remotes'
+import { type DeskThere, deskThere } from '../desk-there.ts'
 import type { Frame } from '../frame.ts'
 import { goElsewhere, type Machines, machineOf, type Place, skewOf, unheard } from '../machines.ts'
 import { notice } from '../model.ts'
@@ -35,6 +36,8 @@ import {
   type Subject,
   type Wiring,
 } from './context.ts'
+import type { DeskElsewhere } from './landing.ts'
+import { type Mirrors, mirrorsFor } from './mirrors.ts'
 import { type SharedNotes, sharedNotesFor } from './notes-shared.ts'
 import { RemoteAgents } from './remote-agent.ts'
 import { RemoteTalks, type RemoteTools } from './remote-talk.ts'
@@ -67,7 +70,9 @@ export type { RemoteTools } from './remote-talk.ts'
 // when a link comes up, when the config moves, and hourly, and the presses on
 // Settings › Remotes — which is the page this subject draws. **And the
 // person's notes shared with each, both ways** (`notes-shared.ts`), so both
-// orchestrators and every agent hear what they said to either.
+// orchestrators and every agent hear what they said to either. **And each
+// one's branches fetched into a mirror** of every project here that is the
+// same repository (`mirrors.ts`), for the forecast, the desk and the diffs.
 //
 // **What each remote holds is drawn as its projects** (`facts`, folded by
 // `machines.ts`, which is where everything another machine wrote is reduced
@@ -132,6 +137,8 @@ export class Remotes implements Subject {
     helds: readonly (Held | null)[]
     machines: Machines
   } | null = null
+  /** Every machine's desk rows as last folded, and the held values they were folded from. */
+  private desked: { helds: readonly Held[]; desk: readonly DeskThere[] } | null = null
   /** How far this clock is ahead of each remote's, as of the projection it was told with. */
   private readonly skews = new Map<string, { projection: object; skew: number }>()
   /** An agent there, looked at, typed into and acted on (`remote-agent.ts`), where the window has one. */
@@ -140,6 +147,8 @@ export class Remotes implements Subject {
   private talks: RemoteTalks | null = null
   /** The person's notes, shared with each machine (`notes-shared.ts`), where the window has them. */
   private notes: SharedNotes | null = null
+  /** Each machine's branches, mirrored here (`mirrors.ts`), where the window has them. */
+  private mirrors: Mirrors | null = null
 
   constructor(deps: RemotesDeps) {
     this.deps = deps
@@ -207,6 +216,56 @@ export class Remotes implements Subject {
   withNotes(make: (remotes: Remotes) => SharedNotes): this {
     this.notes = make(this)
     return this
+  }
+
+  /** Hand it what mirrors each machine's branches here, which reaches the links through it. */
+  withMirrors(make: (remotes: Remotes) => Mirrors): this {
+    this.mirrors = make(this)
+    return this
+  }
+
+  /** Each machine's branches as mirrored here, or null where the window keeps no mirrors. */
+  mirrored(): Mirrors | null {
+    return this.mirrors
+  }
+
+  /**
+   * Every machine's work on its own landing desk, as each last said it
+   * (`desk-there.ts`): the same array while no held value moved.
+   */
+  desk(): readonly DeskThere[] {
+    const helds = this.held()
+    const was = this.desked
+    if (
+      was !== null &&
+      was.helds.length === helds.length &&
+      was.helds.every((one, at) => one === helds[at])
+    ) {
+      return was.desk
+    }
+    const desk = helds.flatMap((held) =>
+      deskThere(held.remote, held.projection, this.skewFor(held.remote, held)),
+    )
+    this.desked = { helds, desk }
+    return desk
+  }
+
+  /** A sentence to an agent on another machine, as a `steer` there: what it answered, or thrown. */
+  steer(machine: string, task: string, said: string): Promise<string> {
+    if (this.agents === null)
+      return Promise.reject(new Error('this window opens no agent elsewhere'))
+    return this.agents.tell(machine, task, said)
+  }
+
+  /** What the desk reads of other machines through the links: their rows, their changes, their agents. */
+  deskElsewhere(): DeskElsewhere {
+    return {
+      desk: () => this.desk(),
+      changed: (machine, task) => this.mirrors?.changes(machine, task),
+      revision: () => this.mirrors?.revision() ?? 0,
+      go: (machine, task) =>
+        this.deps.go({ machine, project: task.split('/')[0] ?? task, agent: task }),
+    }
   }
 
   /** The link holding one remote, the remote as opened, and whether it is up — or null. */
@@ -342,6 +401,7 @@ export class Remotes implements Subject {
     }
     this.carries.beat([...this.holder.keys()])
     void this.notes?.beat([...this.holder.keys()])
+    void this.mirrors?.beat([...this.holder.keys()])
     this.agents?.beat()
     void this.reread()
   }
@@ -375,6 +435,7 @@ export class Remotes implements Subject {
       this.carries.forget(name)
       this.talks?.forget(name)
       this.notes?.forget(name)
+      this.mirrors?.forget(name)
       void this.links.get(kind)?.close(name)
     }
     for (const [name, config] of Object.entries(remotes)) {
@@ -409,6 +470,7 @@ export class Remotes implements Subject {
     if (held !== null) this.talks?.moved(name, held)
     if (held !== null) this.agents?.moved(name, held)
     if (held !== null) this.notes?.moved(name, held)
+    if (held !== null) this.mirrors?.moved(name, held)
     this.deps.draw()
     if (held !== null) {
       const word = wordOf(held)
@@ -424,6 +486,7 @@ export class Remotes implements Subject {
         }
         if (word === 'up') this.carries.up(name)
         if (word === 'up') this.notes?.up(name)
+        if (word === 'up') this.mirrors?.up(name)
       }
     }
   }
@@ -526,6 +589,7 @@ export function remotesFor(
     .withAgents((remotes) => new RemoteAgents(wire, reachingOf(remotes)))
     .withTalks((remotes) => new RemoteTalks(wire, reachingOf(remotes)))
     .withNotes((remotes) => sharedNotesFor(wire, (name) => remotes.reachFor(name), say))
+    .withMirrors((remotes) => mirrorsFor(wire, (name) => remotes.reachFor(name), say))
 }
 
 /** What a subject of the remotes reaches them through: the link, the fold, the clocks. */

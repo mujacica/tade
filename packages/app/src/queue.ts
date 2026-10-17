@@ -4,8 +4,11 @@ import {
   describeLook,
   describeQueueState,
   describeWhen,
+  elsewhereSaid,
   joined,
+  mirrorRef,
   ONLY_TELLS,
+  otherSide,
   type PlanBusy,
   type Queued,
   type QueueFacts,
@@ -400,6 +403,8 @@ export interface ConflictTold {
   branches: ReadonlyMap<string, string>
   /** Queued work planned to change these files that does not wait on `keeps` yet. */
   queued: readonly string[]
+  /** For `elsewhere`: this home's mirror of the repository, which holds the other machine's branch. */
+  mirror?: string
 }
 
 /**
@@ -419,6 +424,7 @@ export function conflictSays(conflict: Conflict, told: ConflictTold): string {
   const branchOf = (task: string) => told.branches.get(task) || task
   const steer = (message: string) => `tade_steer with task: ${told.yields}, message: "${message}"`
   const keeps = told.keeps ?? ''
+  if (conflict.kind === 'elsewhere') return elsewhereSays(conflict, told, files, them, steer)
   const said =
     conflict.kind === 'base'
       ? [
@@ -450,16 +456,56 @@ export function conflictSays(conflict: Conflict, told: ConflictTold): string {
   ].join(' ')
 }
 
+/**
+ * The same, for this machine's branch and another machine's in one repository:
+ * the side here is the one told, because the other is that machine's to steer
+ * — reached only through its own orchestrator, and only where the person names
+ * it (`tade_remote_tell`) — and it is told where the other branch can be
+ * fetched from, because "merge the other one in" is not something an agent
+ * can do with a branch that is not on this machine.
+ */
+function elsewhereSays(
+  conflict: Conflict,
+  told: ConflictTold,
+  files: string,
+  them: string,
+  steer: (message: string) => string,
+): string {
+  const here = conflict.tasks[0] ?? ''
+  const there = conflict.elsewhere ?? { machine: 'another machine', task: '', branch: '' }
+  const from = told.mirror
+    ? `git fetch ${told.mirror} ${mirrorRef(there.machine, there.branch)}, then git merge FETCH_HEAD`
+    : `fetch it from ${there.machine}`
+  const who =
+    told.holds === 'orchestrator'
+      ? `Resolving it is yours (queue.holds), without asking them: make that call, or another on this side — retell queued work, stop ${here} — if you judge it better. Then tell them what you did and why, in a sentence.`
+      : `The person decides, as they set it (queue.holds): tell them what collides and what you would do — that call — and do what they choose.`
+  return [
+    `${here} and ${elsewhereSaid(there)} would conflict in ${files} if both were merged: git merge-tree says so of ${here}'s branch and ${there.machine}'s branch ${there.branch} as this machine last fetched it.`,
+    `The other side is ${there.machine}'s to steer: nothing there has been told or held, and it is reached only through its own orchestrator where the person names that machine (tade_remote_tell).`,
+    `The one call here: ${steer(`${elsewhereSaid(there)} (its branch ${there.branch} there) changes ${files} too, and merging the two would conflict: merge it into your branch now — ${from} — and resolve ${them}, keeping what both meant, then carry on.`)}.`,
+    who,
+    'It is a forecast: nothing has been held or stopped on either machine, and the next look says whether it is still true.',
+  ].join(' ')
+}
+
 /** That a collision told before is no longer there, for the next thing said. */
 export function conflictGoneSays(conflict: Conflict): string {
-  const between =
-    conflict.kind === 'base' ? `${conflict.tasks[0]} and ${conflict.base}` : joined(conflict.tasks)
-  return `${between} no longer collide over ${joined(conflict.files)}`
+  return `${goneBetween(conflict)} no longer collide over ${joined(conflict.files)}`
+}
+
+function goneBetween(conflict: Conflict): string {
+  if (conflict.kind === 'base') return `${conflict.tasks[0]} and ${conflict.base}`
+  if (conflict.kind === 'elsewhere') return `${conflict.tasks[0]} and ${otherSide(conflict, '')}`
+  return joined(conflict.tasks)
 }
 
 /** One line in the conversation: who would collide with whom, over what. */
 export function conflictLine(conflict: Conflict): string {
-  const other = conflict.kind === 'base' ? (conflict.base ?? 'its base') : conflict.tasks[1]
+  const other =
+    conflict.kind === 'base' || conflict.kind === 'elsewhere'
+      ? otherSide(conflict, conflict.tasks[0] ?? '')
+      : conflict.tasks[1]
   const how = conflict.kind === 'hunks' ? 'both have uncommitted changes in' : 'would conflict in'
   return `⇄ ${conflict.tasks[0]} and ${other} ${how} ${joined(conflict.files)}`
 }

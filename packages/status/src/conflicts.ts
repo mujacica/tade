@@ -2,8 +2,10 @@ import { isAbsolute, relative } from 'node:path'
 import {
   type Conflict,
   contested,
+  type Elsewhere,
   hunksFrom,
   LIVE_STATES,
+  liveBranchOf,
   sortConflicts,
   type Task,
   type Wrote,
@@ -28,6 +30,13 @@ import { pooled } from './pool.ts'
 // from the window on the liveness table), and only where two of them claim one
 // changed file is git asked anything — when each such file was last committed,
 // because a commit of that file took whatever was in it (`hunksFrom`).
+//
+// Where the same repository is a project on another machine too, its live
+// branches are in this home's mirror (`mirror.ts`, `core/src/elsewhere.ts`),
+// and each of this project's live branches is merged with each of them there,
+// in the same pass and out of the same keep: a pair of commit ids is the same
+// merge in any repository that holds both. The mirror is where it runs, since
+// only it holds the other machine's commits; the checkout is never asked to.
 //
 // Never throws, and every spawn has a deadline: a pair that could not be asked
 // is named in a warning and left out, never answered as clean.
@@ -60,11 +69,13 @@ export function newConflictsHeld(): ConflictsHeld {
   return { merges: new Map(), commits: new Map() }
 }
 
-/** One merge to ask about, and the conflict it is if it does. */
+/** One merge to ask about, where it is asked, and the conflict it is if it does. */
 interface Ask {
   conflict: Omit<Conflict, 'files'>
   ours: string
   theirs: string
+  /** The repository that holds both commits: the project's, or its mirror for another machine's. */
+  root: string
 }
 
 /** What one project's live work would collide over, and what could not be asked. */
@@ -75,6 +86,8 @@ export async function forecastConflicts(req: {
   wrote: (task: string) => Promise<Wrote[]>
   pool: number
   held?: ConflictsHeld | undefined
+  /** Other machines' live branches in this repository, in this home's mirror of it. */
+  elsewhere?: Elsewhere | undefined
 }): Promise<{ conflicts: Conflict[]; warnings: string[] }> {
   const held = req.held ?? newConflictsHeld()
   const warnings: string[] = []
@@ -95,14 +108,7 @@ async function branchConflicts(
   held: ConflictsHeld,
   warnings: string[],
 ): Promise<Conflict[]> {
-  const live = req.tasks.filter(
-    (task) =>
-      task.workspace !== 'checkout' &&
-      LIVE_STATES.has(task.state) &&
-      task.git?.head &&
-      !task.git.mergedIntoBase &&
-      (task.git.ahead ?? 1) > 0,
-  )
+  const live = req.tasks.filter(liveBranchOf)
   const asks: Ask[] = []
   for (const [i, one] of live.entries()) {
     for (const other of live.slice(i + 1)) {
@@ -111,6 +117,20 @@ async function branchConflicts(
         conflict: { kind: 'branches', tasks: [a.id, b.id] },
         ours: a.git?.head ?? '',
         theirs: b.git?.head ?? '',
+        root: req.root,
+      })
+    }
+    // Each branch another machine is working on in this repository: merged in the mirror.
+    for (const there of req.elsewhere?.branches ?? []) {
+      asks.push({
+        conflict: {
+          kind: 'elsewhere',
+          tasks: [one.id],
+          elsewhere: { machine: there.machine, task: there.task, branch: there.branch },
+        },
+        ours: one.git?.head ?? '',
+        theirs: there.head,
+        root: req.elsewhere?.mirror ?? req.root,
       })
     }
     // A base that has not moved since the branch left it merges by fast-forward;
@@ -121,16 +141,17 @@ async function branchConflicts(
         conflict: { kind: 'base', tasks: [one.id], base: req.base.ref },
         ours: req.base.oid,
         theirs: one.git?.head ?? '',
+        root: req.root,
       })
     }
   }
   const unasked = asks.filter((ask) => !held.merges.has(keyOf(ask))).slice(0, MERGES_PER_LOOK)
-  const answers = await pooled(unasked, req.pool, (ask) => mergeTree(req.root, ask))
+  const answers = await pooled(unasked, req.pool, (ask) => mergeTree(ask.root, ask))
   for (const [i, ask] of unasked.entries()) {
     const answer = answers[i]
     if (!answer || 'problem' in answer) {
       warnings.push(
-        `${ask.conflict.tasks.join(' and ')}: could not ask git whether ${ask.conflict.kind === 'base' ? `it would merge into ${ask.conflict.base}` : 'they would merge'}: ${answer && 'problem' in answer ? answer.problem : 'no answer'}`,
+        `${ask.conflict.tasks.join(' and ')}: could not ask git whether ${unaskedSays(ask.conflict)}: ${answer && 'problem' in answer ? answer.problem : 'no answer'}`,
       )
       continue
     }
@@ -146,6 +167,14 @@ async function branchConflicts(
 
 function keyOf(ask: Ask): string {
   return `${ask.ours}\0${ask.theirs}`
+}
+
+/** What a merge that could not be asked was to answer, in the words of its warning. */
+function unaskedSays(conflict: Ask['conflict']): string {
+  if (conflict.kind === 'base') return `it would merge into ${conflict.base}`
+  const there = conflict.elsewhere
+  if (there) return `it would merge with ${there.task} on ${there.machine}`
+  return 'they would merge'
 }
 
 /**

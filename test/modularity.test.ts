@@ -387,6 +387,9 @@ const PURE = [
   'packages/web/src/stream.ts',
   'packages/web/src/surface.ts',
   'packages/app/src/commands.ts',
+  // Another machine's work on the landing desk, out of its projection: read for
+  // its shape, like everything else a remote wrote.
+  'packages/app/src/desk-there.ts',
   // What a comment on a line of a diff becomes: the hunk, and the two messages.
   'packages/app/src/comments.ts',
   'packages/app/src/flash.ts',

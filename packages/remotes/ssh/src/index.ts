@@ -23,6 +23,7 @@ import {
   type Reaching,
   type Remote,
   type RemoteLink,
+  type RepositoryThere,
   type TerminalThere,
 } from '@tade/remotes-core'
 import { attachThere, lineOk, MOSH_AGAIN_MS, MOSH_PROGRAM, serverOk } from './attach.ts'
@@ -100,7 +101,7 @@ export function makeSshLink(options: SshOptions): RemoteLink {
   return linkOver(
     {
       id: 'ssh',
-      capabilities: { pairs: true, identifies: true, terminals: true },
+      capabilities: { pairs: true, identifies: true, terminals: true, fetches: true },
       programs: [SSH_PROGRAM, MOSH_PROGRAM],
       pair: (at) => ssh.pair(at),
       unpair: (remote) => ssh.unpair(remote),
@@ -117,6 +118,7 @@ export function makeSshLink(options: SshOptions): RemoteLink {
       terminal: (remote, words) => ssh.terminal(remote, words),
       attach: (remote, line) => ssh.attach(remote, line),
       attached: (remote, by, through) => ssh.attached(remote, by, through),
+      repository: (remote, root) => ssh.repository(remote, root),
     },
     options,
   )
@@ -309,6 +311,37 @@ class Ssh {
         remote.address,
         [remote.tade, ...words].join(' '),
       ],
+    }
+  }
+
+  /**
+   * How git here fetches a repository there: `ssh://<address><root>`, with
+   * git's ssh made this link's — the same options, `BatchMode`, and the
+   * window's master where there is one (`-S`), which it never becomes itself
+   * (`ControlMaster=no`): a fetch from a shell must not start a master nobody
+   * ends. Every word is quoted, because git hands `GIT_SSH_COMMAND` to a shell.
+   */
+  repository(remote: Remote, root: string): RepositoryThere {
+    checked(remote.address, remote.tade)
+    const words = [
+      this.options.ssh ?? 'ssh',
+      ...(this.options.args ?? []),
+      ...QUIET,
+      '-o',
+      'ControlMaster=no',
+      '-S',
+      controlOf(this.options.home, remote.name),
+    ]
+    const destination = remote.address.startsWith('ssh://')
+      ? remote.address
+      : `ssh://${remote.address}`
+    return {
+      url: `${destination}${root}`,
+      env: {
+        GIT_SSH_COMMAND: words.map(quoted).join(' '),
+        GIT_SSH_VARIANT: 'ssh',
+        GIT_TERMINAL_PROMPT: '0',
+      },
     }
   }
 

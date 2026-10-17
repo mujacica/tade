@@ -11,6 +11,7 @@ import {
   type Projector,
   projector,
   type Reach,
+  type RepositoryHere,
   reachOf,
   readDevices,
   type SignInHere,
@@ -96,6 +97,12 @@ export interface FarEnd {
    * one whose agent is not running there.
    */
   readonly attachable: Map<string, string>
+  /**
+   * Where its projects are checked out and the branches their work is on, as
+   * its window answers an owner (`/api/repositories`). A test sets it; empty,
+   * it has no project anybody could fetch.
+   */
+  repositories: RepositoryHere[]
   /** Its window closed and opened again: the same home and port, another epoch. */
   restart(): Promise<void>
   /** Nothing answers on its port any more. Safe twice. */
@@ -140,6 +147,7 @@ class Far implements FarEnd {
   signIns: SignInHere[] = []
   talking = true
   readonly attachable = new Map<string, string>()
+  repositories: RepositoryHere[] = []
   readonly acted: FarAct[] = []
   readonly talk = new FarTalk()
   private agents: readonly FarAgent[] = []
@@ -222,6 +230,7 @@ class Far implements FarEnd {
           ? { command: null, why: 'its agent is not running there' }
           : { command: line }
       },
+      repositories: async () => this.repositories,
     })
     this.server = server
     const bound = await server.listen()

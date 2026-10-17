@@ -2,6 +2,7 @@ import {
   type Conflict,
   conflictKey,
   conflictsToTell,
+  mirrorDir,
   type Queued,
   sameOrInside,
   type Task,
@@ -22,7 +23,8 @@ import type { Wiring } from './context.ts'
 // `conflict_forecast` line before it is told, so a window opened again does not
 // tell it again; a collision that has gone is written down too, so the next
 // time it appears it is news. Evidence may only ever tell or hold: nothing here
-// starts, stops or changes any work.
+// starts, stops or changes any work — and a collision with another machine's
+// branch (`elsewhere`) is told here and never there: that side is its own.
 
 /** What telling needs from the rest of the window. */
 export interface ForecastDeps {
@@ -79,14 +81,19 @@ export class Forecast {
         if (!(await this.write(project.name, conflict, false))) continue
         this.deps.said(conflictLine(conflict))
         void this.deps
-          .tell(this.says(conflict, project.tasks, live.queued))
+          .tell(this.says(conflict, project.name, project.tasks, live.queued))
           .catch((err) => this.troubled(err))
       }
     }
   }
 
   /** The message, with what only the window knows: who it is to, their branches, the queue. */
-  private says(conflict: Conflict, tasks: readonly Task[], queued: readonly Queued[]): string {
+  private says(
+    conflict: Conflict,
+    project: string,
+    tasks: readonly Task[],
+    queued: readonly Queued[],
+  ): string {
     const byId = new Map(tasks.map((task) => [task.id, task]))
     const { yields, keeps } = whoYields(conflict, byId)
     const touches = (item: Queued) =>
@@ -105,6 +112,7 @@ export class Forecast {
         )
         .map((item) => item.task)
         .sort(),
+      ...(conflict.kind === 'elsewhere' ? { mirror: mirrorDir(this.wire.opts.home, project) } : {}),
     })
   }
 
@@ -121,6 +129,7 @@ export class Forecast {
         kind: conflict.kind,
         tasks: conflict.tasks,
         ...(conflict.base ? { base: conflict.base } : {}),
+        ...(conflict.elsewhere ? { elsewhere: conflict.elsewhere } : {}),
         files: conflict.files,
         ...(gone ? { gone: true } : {}),
       },

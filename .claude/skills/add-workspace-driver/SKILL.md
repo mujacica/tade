@@ -203,7 +203,7 @@ node-pty's `spawn-helper` loses its executable bit during extraction, which is w
 another machine's, as an owner device of its away view (REMOTE-TADE.md §2.5). One object holds any
 number of remotes the way a driver holds any number of lanes; the registry is `REMOTE_LINKS` in
 `@tade/workbench/remotes` (the lowest package both the window and the CLI depend on); capabilities
-are declared (`pairs`, `identifies`, `terminals`); and `@tade/remotes-core/conformance` is the suite, run against **far ends
+are declared (`pairs`, `identifies`, `terminals`, `fetches`); and `@tade/remotes-core/conformance` is the suite, run against **far ends
 that are real away views** (`@tade/remotes-core/far`: `@tade/web`'s own listener in a home of its
 own, owners minted into its device list), so a link is held to the protocol a VPS speaks and not to
 a stand-in kinder than it. The two implementations are `scripted` (far ends by name out of a table,
@@ -260,6 +260,13 @@ over loopback) and `ssh`.
 - **`request` rides the held link** (its door, while live): what a window asks again and again — an
   agent's screen, a verb — so never a connection of its own, and never anything while the link is
   down. `call` is the one that makes its own, for the CLI with no window open.
+- **Git rides the link too** (`repository`, with `fetches`): how git here fetches a repository there,
+  as a URL and the environment git is run with — `ssh://<address><root>` with `GIT_SSH_COMMAND`
+  made this link's own ssh (`BatchMode`, the window's master by `-S`, `ControlMaster=no` so a fetch
+  never becomes one), a path for `scripted`. The root is the remote's own answer
+  (`/api/repositories`, an owner's) and is refused unless `rootOk` — absolute, plain, no `..` —
+  because a shell there reads it. It is what this home's mirror of another machine's branches is
+  fetched by (`app/src/wire/mirrors.ts`); the conformance case runs `git ls-remote` through it.
 
 What the ssh link turned out to need, each held by its tests:
 

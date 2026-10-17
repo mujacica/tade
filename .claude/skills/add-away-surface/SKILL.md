@@ -78,6 +78,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | what a request must satisfy | `src/guard.ts` — pure, and `test/guard.test.ts` runs the cross-product |
 | a route only this machine may reach (`presence`, and the pages that connect a source) | `Route.here` — `allowed` answers it the `404` of a path nobody built anywhere but `thisMachine` |
 | another machine's Tade linked to this one as an owner (`tade remote`) | `@tade/remotes-core` (the `RemoteLink` port, the stream follower, the far end its suite links to) — the client half of everything in this table, over SSH; `add-workspace-driver` has its shape. What it posts here is `presence` (`src/presence.ts`): an owner's age of a keypress at another screen, held by the window (`Presences` in `wire/web-presence.ts`) and read as one by push, and written down once a stretch as `person_present` — the cursor of `since` below. A phone's `looking` (`src/looking.ts`) is its sibling and quiets only that phone (below) |
+| **where each project's work is**, for another machine's mirror of it | `OWNED` in `src/routes.ts` (`POST /api/repositories`, `here`), `src/repositories.ts` (the answer, read for its shape there), the window's half in `packages/app/src/wire/web-repositories.ts`; the asking side is `packages/app/src/wire/mirrors.ts` |
 | the person's **notes shared** with another machine of theirs | `OWNED` in `src/routes.ts` (`POST /api/notes/share`, `here`), `src/shared-notes.ts` (the body), the window's half in `packages/app/src/wire/notes-shared.ts` (`notesFor` answers, `SharedNotes` asks from the window that holds the link); the exchange is `@tade/workbench`'s `notes-shared.ts`, and `add-workbench-operation` has the rules |
 | another machine's **setup carried here** (`tade remote add`, Settings › Remotes) | `OWNED` in `src/routes.ts` (`POST /api/carry`, `here`; beside it `POST /api/attach`, an agent's attach line, `src/attached.ts`), `src/carried.ts` (the body, `applyCarry`, `carryingAt`, the folds of `config_changed` and `carried_in`), `src/owned.ts` (the one door in `server.ts` for every owner route), the window's half in `packages/app/src/wire/web-carry.ts` (through `Settings.writeKey`, and `signInsOf`); every decision is `@tade/core`'s `carry.ts`, and `add-config-key` has the table |
 | the public listener: Caddy's socket, its directory, the PROXY header | `src/listeners.ts` (every socket one server listens on, `dirSeen`, `answering`), `src/proxied.ts` (the header read before HTTP, `peerOf`), `src/proxy-protocol.ts` (pure: what the bytes are), and `public-listener.ts` in `@tade/core` (the directory, the socket, `caddySite`, what a health look says); `test/public.test.ts` is all of it over a real socket |
@@ -182,6 +183,15 @@ a device still has none of the scopes that change anything until somebody at thi
   drawn) and a digest as sixteen hex digits; the window's half refuses a line that is not one of
   the file's kinds. A body is the server's 64 KB, so the asking side gives in rounds. It writes
   `notes_shared` where it took anything — counts and the device, never a note's words.
+- **Where each project is checked out is the owner's fifth** (`OWNED`'s `repositories`, `POST
+  /api/repositories`, `src/repositories.ts`): each open project's **root** — a path on this machine,
+  which no row a phone reads ever holds — what names its repository (`repositoryNamed`, never the
+  remote URL, which may hold a credential), its base and each task's own branch with its head and
+  whether it is live, out of status's last look (`wire/web-repositories.ts`). It is what another
+  machine of the person's fetches this one's work into its mirror by, over the same SSH, which is
+  why it is no wider than that key. Within what the device reads; a value the other machine would
+  refuse the whole answer over is sent as null rather than sent; the body is `{}` and nothing else.
+  It writes nothing.
 - **From the public listener, anything above `read` needs a passkey proved within
   `passkey_hours`** (`proven`, after the scope and the origin, so it never says more than they
   would). The **listener and never the host**, like `thisMachine`: this machine, an SSH forward and a

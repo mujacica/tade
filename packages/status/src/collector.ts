@@ -1,4 +1,10 @@
-import { type Config, type LivenessTable, livenessOf, type Workspace } from '@tade/core'
+import {
+  type Config,
+  type Elsewhere,
+  type LivenessTable,
+  livenessOf,
+  type Workspace,
+} from '@tade/core'
 import { newTranscriptReads, type TranscriptReads } from './adoption.ts'
 import { type ConflictsHeld, newConflictsHeld } from './conflicts.ts'
 import { newProbeGate, type ProbeGate } from './gate.ts'
@@ -36,6 +42,8 @@ export interface StatusAsk {
   lanes: LivenessTable
   /** Look at which ports each live lane listens on: two spawns, so asked for. */
   ports?: boolean
+  /** Other machines' live branches in each project, by its name: what only the window's links know. */
+  elsewhere?: Readonly<Record<string, Elsewhere>>
 }
 
 /** What one look cost the process that made it. */

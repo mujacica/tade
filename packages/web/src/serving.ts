@@ -9,6 +9,7 @@ import type { Streams } from './peers.ts'
 import type { WebPushing } from './pushing.ts'
 import type { Grant, Reach } from './reach.ts'
 import type { WebReading } from './reading.ts'
+import type { WebRepositories } from './repositories.ts'
 import type { WebNotes } from './shared-notes.ts'
 import type { WebSince } from './since.ts'
 import type { Listener, Scope, Surface } from './surface.ts'
@@ -225,6 +226,12 @@ export interface ServerOptions {
    * (`shared-notes.ts`). Absent, the route is the `404` of a path nobody wired.
    */
   notes?: WebNotes
+  /**
+   * Where each project is checked out here and the branches its work is on,
+   * for an owner's window on another machine to fetch (`repositories.ts`).
+   * Absent, the route is the `404` of a path nobody wired.
+   */
+  repositories?: WebRepositories
   /** The tickets the pairing panel minted. */
   tickets: Tickets
   /**

@@ -79,6 +79,23 @@ export interface LinkCapabilities {
    * what a harness's own sign-in runs in. Without it, `terminal` is null.
    */
   terminals: boolean
+  /**
+   * It can hand git here a way to fetch a repository there (`repository`),
+   * over whatever reaches that machine: how this machine reads another's
+   * branches into its own mirror (REMOTE-TADE.md §9.3). Without it,
+   * `repository` is null and another machine's work is drawn but never read.
+   */
+  fetches: boolean
+}
+
+/**
+ * How git here reaches a repository there: what `git fetch` is given as where
+ * to fetch from, and what git is run with, besides this machine's own
+ * environment, so that it goes by the link rather than by a way of its own.
+ */
+export interface RepositoryThere {
+  url: string
+  env: Readonly<Record<string, string>>
 }
 
 /**
@@ -277,6 +294,14 @@ export interface RemoteLink {
    * it could not write that down, which leaves the way to be tried again.
    */
   attached(remote: Remote, by: string, through: boolean): Promise<void>
+  /**
+   * How git here fetches the repository at `root` there — that machine's own
+   * path for one of its projects, as its owner answer gave it — or null
+   * without `fetches`. Rides the connection a window holds where there is one,
+   * and reaches it by itself where none is. Asks nobody anything. Throws
+   * `LinkError` for a root it would not hand that machine.
+   */
+  repository(remote: Remote, root: string): RepositoryThere | null
   /**
    * One owner's request over the link held for this remote, while it is live:
    * what a window reads and asks again and again while somebody looks — an

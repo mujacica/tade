@@ -394,14 +394,18 @@ export type Task = z.infer<typeof Task>
  * `branches`: merging both branches would conflict in `files` (`git merge-tree`).
  * `base`: one branch would no longer merge into its base cleanly. `hunks`: in a
  * shared checkout, both agents wrote `files` and neither write has been
- * committed since. A forecast, and only ever a reason to tell somebody.
+ * committed since. `elsewhere`: this machine's branch and another machine's
+ * in the same repository, merged in this home's mirror of it (`elsewhere.ts`).
+ * A forecast, and only ever a reason to tell somebody.
  */
 export const Conflict = z.object({
-  kind: z.enum(['branches', 'base', 'hunks']),
-  /** The tasks on either side, sorted: two, or the one for `base`. */
+  kind: z.enum(['branches', 'base', 'hunks', 'elsewhere']),
+  /** This machine's tasks on either side, sorted: two, or the one for `base` and `elsewhere`. */
   tasks: z.array(z.string()),
   /** The base branch, for `base`. */
   base: z.string().optional(),
+  /** The other side, for `elsewhere`: the machine, its task's id there, and its branch there. */
+  elsewhere: z.object({ machine: z.string(), task: z.string(), branch: z.string() }).optional(),
   files: z.array(z.string()),
 })
 export type Conflict = z.infer<typeof Conflict>

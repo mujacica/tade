@@ -248,6 +248,34 @@ describe('what the orchestrator is told about work that would collide', () => {
     expect(said).not.toContain('without asking them')
   })
 
+  it('tells this machine’s side of a collision with another machine’s branch, and where to fetch that branch', () => {
+    const there = {
+      kind: 'elsewhere' as const,
+      tasks: ['shop/refunds'],
+      elsewhere: { machine: 'vps', task: 'shop/search', branch: 'tade/search' },
+      files: ['a.ts'],
+    }
+    const said = conflictSays(there, {
+      ...told,
+      yields: 'shop/refunds',
+      keeps: null,
+      mirror: '/home/me/.tade/projects/shop/mirror.git',
+    })
+    expect(said).toContain('shop/refunds and shop/search on vps would conflict in a.ts')
+    expect(said).toContain("The other side is vps's to steer")
+    expect(said).toContain(
+      'tade_steer with task: shop/refunds, message: "shop/search on vps (its branch tade/search there) changes a.ts too',
+    )
+    expect(said).toContain(
+      'git fetch /home/me/.tade/projects/shop/mirror.git refs/remotes/vps/tade/search, then git merge FETCH_HEAD',
+    )
+    expect(said).toContain('nothing has been held or stopped on either machine')
+    expect(conflictLine(there)).toBe('⇄ shop/refunds and shop/search on vps would conflict in a.ts')
+    expect(conflictGoneSays(there)).toBe(
+      'shop/refunds and shop/search on vps no longer collide over a.ts',
+    )
+  })
+
   it('says it in a line, and says when it has gone', () => {
     const pair = { kind: 'hunks' as const, tasks: ['shop/a', 'shop/b'], files: ['x.ts'] }
     expect(conflictLine(pair)).toBe('⇄ shop/a and shop/b both have uncommitted changes in x.ts')

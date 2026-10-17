@@ -5,6 +5,7 @@ import type { Device } from './devices.ts'
 import type { Refusal } from './errors.ts'
 import { carryLooking } from './looking.ts'
 import { carryPresence } from './presence.ts'
+import { type RepositoriesAnswer, repositoriesHere } from './repositories.ts'
 import type { ServerOptions } from './serving.ts'
 import { type NotesShareAnswer, shareHere } from './shared-notes.ts'
 import { type SinceAnswer, sinceHereFor } from './since.ts'
@@ -13,8 +14,9 @@ import { type SinceAnswer, sinceHereFor } from './since.ts'
 // (`here` in `routes.ts`): that the person is at another of their screens
 // (`presence.ts`), another machine's setup carried here (`carried.ts`), what
 // to run here to be shown one of its agents (`attached.ts`), what they missed
-// while they were away (`since.ts`), and their notes shared with another of
-// their machines (`shared-notes.ts`). One door in `server.ts` for all five,
+// while they were away (`since.ts`), their notes shared with another of their
+// machines (`shared-notes.ts`), and where each project's work is, for a fetch
+// over the same SSH (`repositories.ts`). One door in `server.ts` for all six,
 // because each is the SSH key's word and nothing a phone's session is ever
 // answered.
 //
@@ -28,16 +30,28 @@ export async function carryOwned(
   req: IncomingMessage,
   device: Device,
   now: number,
-  opts: Pick<ServerOptions, 'present' | 'looking' | 'carrying' | 'attaching' | 'since' | 'notes'>,
+  opts: Pick<
+    ServerOptions,
+    'present' | 'looking' | 'carrying' | 'attaching' | 'since' | 'notes' | 'repositories'
+  >,
   res: Answering,
 ): Promise<
-  | { body: { at: string } | CarryAnswer | AttachAnswer | SinceAnswer | NotesShareAnswer }
+  | {
+      body:
+        | { at: string }
+        | CarryAnswer
+        | AttachAnswer
+        | SinceAnswer
+        | NotesShareAnswer
+        | RepositoriesAnswer
+    }
   | { refusal: Refusal }
 > {
   if (route === 'carry') return carryHere(req, device, opts.carrying, res)
   if (route === 'attach') return attachHere(req, device, opts.attaching)
   if (route === 'since') return sinceHereFor(req, device, now, opts.since)
   if (route === 'share notes') return shareHere(req, device, opts.notes)
+  if (route === 'repositories') return repositoriesHere(req, device, opts.repositories)
   if (route === 'looking') return carryLooking(req, device, now, opts.looking)
   return carryPresence(req, device, now, opts.present)
 }

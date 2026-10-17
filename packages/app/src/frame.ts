@@ -288,6 +288,12 @@ export interface ActionsView {
    * class answer: a check nobody ran is not a check that passed.
    */
   rollup: 'pass' | 'fail' | 'unknown'
+  /**
+   * What the related tests say beside an `unknown` rollup — "related tests
+   * passed, full run pending" (`pendingWords`) — and never a green. Null where
+   * they add nothing.
+   */
+  pending?: string | null
   /** Where the checks were read from, or what to do when there are none. */
   source: string
   /**
@@ -333,8 +339,11 @@ export interface NoteShown {
  * nothing could say is null rather than nought.
  */
 export interface DeskRow {
+  /** Its task's id, on the machine it is on. */
   task: string
   project: string
+  /** The other machine it is on, by its name here; absent for this one's own. */
+  machine?: string
   tier: LandingTier
   why: string | null
   /** How many more reasons stand behind `why`. */

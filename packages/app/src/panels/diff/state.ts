@@ -16,6 +16,8 @@ import { close, type PanelOutcome, stay } from '../outcome.ts'
 export interface DiffPanel {
   kind: 'diff'
   task: string
+  /** The other machine the task is on, read out of this home's mirror of it; absent for this one. */
+  machine?: string
   /** The changed files, and which one is shown. */
   files: string[]
   file: number
@@ -30,10 +32,16 @@ export interface DiffPanel {
   busy: false
 }
 
-export function diffPanel(task: string, files: readonly string[], file = 0): DiffPanel {
+export function diffPanel(
+  task: string,
+  files: readonly string[],
+  file = 0,
+  machine?: string,
+): DiffPanel {
   return {
     kind: 'diff',
     task,
+    ...(machine ? { machine } : {}),
     files: [...files],
     file: Math.max(0, file),
     scroll: 0,
@@ -95,7 +103,10 @@ export function diffClick(
   if (control === 'send') return { panel, submit: true, choice: 'send' }
   if (control === 'prev-file') return stay(stepFile(panel, -1))
   if (control === 'next-file') return stay(stepFile(panel, 1))
-  if (control === 'editor' || control === 'ask') return { panel, submit: true, choice: control }
+  // Another machine's change has no file here to open and no agent here to ask.
+  if ((control === 'editor' || control === 'ask') && !panel.machine) {
+    return { panel, submit: true, choice: control }
+  }
   return stay(panel)
 }
 

@@ -33,10 +33,8 @@ import type { AwayView } from '../panels/away/view.ts'
 import type { PanelInputs } from '../panels.ts'
 import type { Actions, Subject, Submits, Wiring } from './context.ts'
 import { evaluationsAnswer } from './evaluations.ts'
-import { notesFor } from './notes-shared.ts'
 import type { Settings } from './settings.ts'
 import { armingFor, seenFrom, type Talking } from './web-asking.ts'
-import { attachingFor } from './web-attach.ts'
 import {
   type AwayHeld,
   type FactoryHeld,
@@ -53,6 +51,7 @@ import { halvesFor } from './web-halves.ts'
 import { knownHere, Lanes } from './web-lanes.ts'
 import type { Lifecycle } from './web-lifecycle.ts'
 import { carryLink, isLink } from './web-link.ts'
+import { ownedFor } from './web-owned.ts'
 import { awayView, codeShownOn, keepCode, mintPairing } from './web-panel.ts'
 import { Presences } from './web-presence.ts'
 import { PublicHealth } from './web-public.ts'
@@ -289,8 +288,7 @@ export class Away implements Subject {
       looking: (device, at) => this.push.looking(device, at),
       since: this.presences.since(),
       carrying: carryingFor(this.wire, this.deps.settings),
-      attaching: attachingFor(this.wire.opts.client),
-      notes: notesFor(this.wire),
+      ...ownedFor(this.wire),
       tickets: this.tickets,
       streams: this.streams,
       tell: heard(

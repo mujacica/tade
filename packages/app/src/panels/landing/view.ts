@@ -8,6 +8,7 @@ import {
 } from '@tade/core'
 import type { DeskRow } from '../../frame.ts'
 import { sameTarget, type Target } from '../../hits.ts'
+import { deskKey } from '../../landing.ts'
 import type { Skin } from '../../skin.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
 import { dollars } from '../../view/text.ts'
@@ -39,7 +40,7 @@ export function landing(panel: LandingPanel, ctx: PanelContext): Drawn {
   const { width, rows: tall } = panelSize(ctx, { max: 112 })
   const inner = width - 2 - BAR
   const desk = ctx.landing
-  const projects = new Set(desk.map((row) => row.project)).size
+  const projects = new Set(desk.map((row) => `${row.machine ?? ''}\0${row.project}`)).size
   const head: Line[] = [
     new Row(inner, skin)
       .space()
@@ -154,7 +155,7 @@ function item(
   const because = [
     row.why ?? readySaid(row),
     row.also > 0 ? `and ${row.also} more` : null,
-    keptSaid(ctx.kept?.[row.task] ?? 0),
+    keptSaid(ctx.kept?.[deskKey(row)] ?? 0),
   ]
     .filter((part): part is string => part !== null)
     .join(' · ')
@@ -192,9 +193,11 @@ interface Figure {
 /** The columns of figures, most important first. Short of room the last ones go. */
 const SLOTS = ['checks', 'findings', 'collisions', 'size', 'cost', 'waited'] as const
 
-/** What a row is called: its project too, where the desk holds more than one. */
+/** What a row is called: its project too, where the desk holds more than one, and the machine it is on. */
 function nameFor(row: DeskRow, named: boolean): string {
-  return named ? row.task : (row.task.split('/')[1] ?? row.task)
+  const name = named ? row.task : (row.task.split('/')[1] ?? row.task)
+  // Another machine wrote the name, so it is drawn as text like everything it wrote.
+  return row.machine ? printable(`${name} on ${row.machine}`) : name
 }
 
 /**

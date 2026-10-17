@@ -76,6 +76,17 @@ description: Add a new signal to `tade status` (e.g. test results, context usage
   collector's `Held` beside the gate, and asks at most `MERGES_PER_LOOK` new ones a beat — the rest
   come on the next. The heads come off the gated git look, so nothing new is stat'ed for it. What the
   window alone knows (which files each agent wrote) crosses on the liveness table as data (`wrote`).
+- **Another machine's branches are merged in the mirror, never in the checkout.** Where one
+  repository is a project here and on a remote, the window's links fetch that machine's branches
+  into `<home>/projects/<p>/mirror.git` (`src/mirror.ts`: a bare repository borrowing the checkout's
+  objects as alternates, a namespace per machine) and hand the live ones to every look as data
+  (`StatusAsk.elsewhere`, core's `elsewhere.ts`); `forecastConflicts` merges each local live branch
+  with each of them **there**, in the same budget and the same keep by commit pair, as an
+  `elsewhere` conflict. Only a head the mirror holds is handed over (`liveThere`), so no merge asks
+  git about an object it has not got. A fetch git finds a hole under — the checkout gc'd an object a
+  mirror's branch leaned on — makes the mirror again from nothing, once (`whole`), because it is
+  derived and safe to delete. `test/mirror.test.ts` holds the checkout's refs, config and objects
+  byte-identical across a fetch and a merge.
 - **A probe that costs a spawn every beat is asked for, and held by whoever asks.** Which ports
   each lane listens on (`src/ports.ts`, `lsof` plus `ps`) is `StatusOptions.ports` /
   `StatusAsk.ports`: `tade status` asks once, and the window asks every beat while `PortsHeld` (in

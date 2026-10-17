@@ -1,3 +1,4 @@
+import { otherSide } from './conflicts.ts'
 import type { Conflict, ReviewState, TaskState, TestSignal } from './model.ts'
 
 // The landing desk: every piece of finished work, and every review still open,
@@ -148,7 +149,7 @@ export function conflictsFor(
   return conflicts
     .filter((one) => one.tasks.includes(task))
     .map((one) => ({
-      with: one.kind === 'base' ? null : (one.tasks.find((other) => other !== task) ?? null),
+      with: one.kind === 'base' ? null : otherSide(one, task),
       files: one.files.length,
     }))
 }

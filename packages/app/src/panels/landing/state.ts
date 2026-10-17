@@ -1,4 +1,5 @@
 import type { DeskRow } from '../../frame.ts'
+import { deskKey } from '../../landing.ts'
 import type { PanelInputs } from '../../panels.ts'
 import { diffPanel } from '../diff/state.ts'
 import { close, type PanelOutcome, stay } from '../outcome.ts'
@@ -10,7 +11,8 @@ import { close, type PanelOutcome, stay } from '../outcome.ts'
 // Looking at the desk lands nothing. What a row leads to is reading its change
 // — the patch reader, where a line is written on and the comments go to Tade or
 // to the agent whose change it is — or going to its agent. Merging is a
-// person's, on the forge.
+// person's, on the forge. Another machine's row reads its change out of this
+// home's mirror of it, and goes to its agent there.
 
 export interface LandingPanel {
   kind: 'landing'
@@ -83,18 +85,27 @@ export function landingClick(
  */
 function read(panel: LandingPanel, row: DeskRow | undefined, inputs: PanelInputs): PanelOutcome {
   if (!row) return stay(panel)
-  const files = inputs.deskFiles?.[row.task]
+  const files = inputs.deskFiles?.[deskKey(row)]
   if (files === undefined) {
-    return stay({ ...panel, said: `what ${nameOf(row)} changed has not been looked at yet` })
+    const where = row.machine
+      ? ` — another machine's change is read here only where its repository is a project on this one too`
+      : ''
+    return stay({
+      ...panel,
+      said: `what ${nameOf(row)} changed has not been looked at yet${where}`,
+    })
   }
   if (files.length === 0) return stay({ ...panel, said: `${nameOf(row)} has nothing to read` })
-  return { panel: diffPanel(row.task, files, 0), submit: false }
+  return { panel: diffPanel(row.task, files, 0, row.machine), submit: false }
 }
 
 function toAgent(panel: LandingPanel, row: DeskRow | undefined): PanelOutcome {
-  return row ? { panel, submit: true, choice: `agent:${row.task}` } : stay(panel)
+  if (!row) return stay(panel)
+  const to = row.machine ? `there:${row.machine}:${row.task}` : `agent:${row.task}`
+  return { panel, submit: true, choice: to }
 }
 
 function nameOf(row: DeskRow): string {
-  return row.task.split('/')[1] ?? row.task
+  const name = row.task.split('/')[1] ?? row.task
+  return row.machine ? `${name} on ${row.machine}` : name
 }
