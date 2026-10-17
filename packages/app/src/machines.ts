@@ -691,3 +691,25 @@ export function placeIn(
   if (machine === undefined) return null
   return { machine, project: machine.projects.find((one) => one.name === place.project) ?? null }
 }
+
+/**
+ * The machines one piece of queued work here may be started on instead: those
+ * the frame says hold its project's repository and are linked now
+ * (`startsOn`), and only for work that can leave — not parked, which is a
+ * decision still to be made here; waiting on nothing, and nothing here waiting
+ * on it, because no wait crosses machines (REMOTE-TADE.md §9.4). The window
+ * asks all of it again at the press (`wire/moves.ts`), with a sentence for each.
+ */
+export function startsOnFor(
+  state: AppState,
+  startsOn: Readonly<Record<string, readonly string[]>> | undefined,
+  task: string,
+): readonly string[] {
+  const pane = state.panes.find((one) => one.task === task)
+  const queued = pane?.queued
+  if (pane === undefined || !queued) return []
+  if (queued.state.kind === 'paused' && queued.state.parked) return []
+  if (queued.after.length > 0) return []
+  if (state.panes.some((one) => one.queued?.after.some((dep) => dep.task === task))) return []
+  return startsOn?.[pane.project] ?? []
+}

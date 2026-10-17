@@ -2,7 +2,8 @@ import type { OrchestratorTool } from './tools-extension.ts'
 
 // Another machine's orchestrator, reached from this one's (REMOTE-TADE.md
 // §9.4): one tool that passes a sentence on, over the owner channel this
-// machine holds there, and no other door to that machine's work.
+// machine holds there, and one that moves work from here to there (§9.2) —
+// and no other door to that machine's work.
 //
 // Beside `tools-extension.ts` rather than in it, for `tools-machine.ts`'s
 // reasons: that file is at its budget, and this is the one tool whose effect is
@@ -60,6 +61,28 @@ export function remoteTools(
         rpc('remote/tell', {
           machine: String(p.machine ?? ''),
           said: String(p.said ?? ''),
+          asked: String(p.asked ?? ''),
+        }),
+    },
+    {
+      name: 'tade_task_move',
+      label: 'tade: task move',
+      description:
+        'Move work from this machine to another one it is linked to (named under "Other machines"): queued work here starts there instead, in that machine’s project that is the same repository, with the person’s words, what its agent will be told, its context file, links and done rule, and is removed from this queue once that machine has it. Use it when they ask for work here to go there — "start that on the vps", "move the queued docs work to the vps". Only work that can leave moves: not parked, not waiting on anything and nothing waiting on it, because no wait crosses machines — the refusal says which. Nothing of the conversation moves: the agent there starts fresh, from the task’s words and context. Refused unless a line of theirs names that machine — pass that line, word for word, in `asked` — and while its link is down. For work already running there, or anything else to be done there, use tade_remote_tell.',
+      parameters: object(
+        {
+          task: string('the task here, like docs/landing-page'),
+          machine: string('the machine, by the name it has here: `vps`'),
+          asked: string(
+            'what the person said that asked for this, word for word. Tade checks it against what they actually said and that it names the machine, so pass their sentence and never your own summary of it',
+          ),
+        },
+        ['task', 'machine', 'asked'],
+      ),
+      run: async (p) =>
+        rpc('remote/move', {
+          task: String(p.task ?? ''),
+          machine: String(p.machine ?? ''),
           asked: String(p.asked ?? ''),
         }),
     },

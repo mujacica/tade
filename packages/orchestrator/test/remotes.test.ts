@@ -9,6 +9,10 @@ import { remoteTools } from '../src/tools-remotes.ts'
 /** A window's reads of another machine that write down what each was asked. */
 function reading(asked: unknown[]): Omit<RemoteHost, 'tell'> {
   return {
+    move: async (req) => {
+      asked.push({ move: req })
+      return 'moved'
+    },
     status: async (machine) => {
       asked.push({ status: machine })
       return '{}'
@@ -78,6 +82,42 @@ describe('passing a sentence to another machine', () => {
     await expect(methods['remote/tell']?.({ machine: 'vps', said: 'x' })).resolves.toBe('passed on')
     expect(told).toEqual([{ machine: 'vps', said: 'x', asked: '' }])
     await expect(remoteMethods(() => undefined)['remote/tell']?.({})).rejects.toThrow(
+      'no window is open',
+    )
+  })
+})
+
+describe('moving work to another machine', () => {
+  it('carries the task, the machine and their line, and nothing else', async () => {
+    const asked: { method: string; params: Record<string, unknown> }[] = []
+    const tool = remoteTools(async (method, params) => {
+      asked.push({ method, params })
+      return 'moved'
+    }).find((one) => one.name === 'tade_task_move')
+    expect(tool?.parameters).toMatchObject({ required: ['task', 'machine', 'asked'] })
+    // What a model reads says the conversation does not go with it.
+    expect(tool?.description).toContain('Nothing of the conversation moves')
+    const answer = await tool?.run(
+      { task: 'docs/landing', machine: 'vps', asked: 'start the landing page on the vps', x: 1 },
+      'call-1',
+      {} as never,
+    )
+    expect(answer).toBe('moved')
+    expect(asked).toEqual([
+      {
+        method: 'remote/move',
+        params: {
+          task: 'docs/landing',
+          machine: 'vps',
+          asked: 'start the landing page on the vps',
+        },
+      },
+    ])
+    const moved: unknown[] = []
+    const methods = remoteMethods(() => ({ ...reading(moved), tell: async () => '' }))
+    await methods['remote/move']?.({ task: 'docs/landing', machine: 'vps' })
+    expect(moved).toEqual([{ move: { task: 'docs/landing', machine: 'vps', asked: '' } }])
+    await expect(remoteMethods(() => undefined)['remote/move']?.({})).rejects.toThrow(
       'no window is open',
     )
   })

@@ -2,6 +2,7 @@ import { sliceByColumn } from '@earendil-works/pi-tui'
 import { type ConflictOn, DONE_RULE_MEANS, printable, type QueueState } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, type Target } from '../hits.ts'
+import { startsOnFor } from '../machines.ts'
 import {
   type AgentPane,
   type AppState,
@@ -680,6 +681,18 @@ export function renderQueued(
     case 'paused':
       line((r) => r.text('‖', skin.faded).space().text(said('Paused.')))
       break
+  }
+  // Started on another machine instead (REMOTE-TADE.md §9.2): there, in its
+  // project that is this repository, and gone from this queue.
+  const elsewhere = startsOnFor(state, frame.startsOn, pane.task)
+  if (elsewhere.length > 0) {
+    rows.push(blank(width))
+    line((r) => {
+      for (const machine of elsewhere) {
+        const there: Target = { kind: 'action', name: `queue-there:${machine} ${pane.task}` }
+        r.button(`Start on ${machine}`, there).space()
+      }
+    })
   }
 
   // The whole path it is on, drawn: everything it waits on however far back,

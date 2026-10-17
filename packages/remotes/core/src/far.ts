@@ -19,6 +19,8 @@ import {
   type SnapshotInput,
   Streams,
   type Surface,
+  type Take,
+  type TakeAnswer,
   Tickets,
   type ToolReadAnswer,
   type WebServer,
@@ -123,6 +125,14 @@ export interface FarEnd {
   readonly documents: Map<string, { at: string; text: string }>
   /** Its extension tools that only read, by name, as its window runs them for an owner (`/api/tool`). */
   readonly tools: Map<string, (input: Record<string, unknown>) => ToolReadAnswer>
+  /** Work an owner handed it (`/api/take`), oldest first, as its window was handed each, with the device. */
+  readonly taken: { take: Take; device: string }[]
+  /**
+   * What its window answers work handed to it. A test sets it; unset, it takes
+   * anything into a project it has, as `<project>/<name>`, and refuses a
+   * project it has not got — in the real window's own words for that.
+   */
+  taking: ((take: Take) => TakeAnswer) | null
   /** Its window closed and opened again: the same home and port, another epoch. */
   restart(): Promise<void>
   /** Nothing answers on its port any more. Safe twice. */
@@ -173,6 +183,8 @@ class Far implements FarEnd {
   machineAsked = 0
   readonly documents = new Map<string, { at: string; text: string }>()
   readonly tools = new Map<string, (input: Record<string, unknown>) => ToolReadAnswer>()
+  readonly taken: { take: Take; device: string }[] = []
+  taking: ((take: Take) => TakeAnswer) | null = null
   readonly acted: FarAct[] = []
   readonly talk = new FarTalk()
   private agents: readonly FarAgent[] = []
@@ -265,6 +277,22 @@ class Far implements FarEnd {
         return one === undefined ? null : { ...one, bytes: Buffer.byteLength(one.text) }
       },
       tool: async ({ tool, input }) => this.tools.get(tool)?.(input) ?? null,
+      taking: async (take, device) => {
+        this.taken.push({ take, device })
+        if (this.taking !== null) return this.taking(take)
+        if (!this.projects.includes(take.project)) {
+          return { took: false, said: `There is no project called ${take.project} here.` }
+        }
+        const task = `${take.project}/${take.name}`
+        return take.check
+          ? { took: true, task, said: `${task} can be taken here.`, pushes: null }
+          : {
+              took: true,
+              task,
+              said: `${task} is queued and starts here as soon as there is room.`,
+              pushes: take.begins ? true : null,
+            }
+      },
     })
     this.server = server
     const bound = await server.listen()

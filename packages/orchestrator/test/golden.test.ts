@@ -104,6 +104,7 @@ describe('the tools the orchestrator has', () => {
       'tade_status',
       'tade_steer',
       'tade_task_create',
+      'tade_task_move',
       'tade_template_dry_run',
       'tade_template_use',
       'tade_templates',

@@ -419,6 +419,25 @@ export const REMOTE_TELL_REACH: Reaches = {
     'it puts words to another machine’s Tade as its owner, where they reach what its keyboard does, so it happens when they name that machine',
 }
 
+/**
+ * How far the orchestrator reaches into moving work to another machine of the
+ * person's (REMOTE-TADE.md §9.2, `tade_task_move`): queued work started there
+ * instead of here, or a running task handed over — its agent told to commit
+ * and push, the work made there, the agent here stopped.
+ *
+ * `asked`, and what is asked for is **that machine, by its name**
+ * (`remoteNamedBy`), for `REMOTE_TELL_REACH`'s reason and one more: the work
+ * it makes there runs as the person's, with that machine's keyboard's reach,
+ * and moving a running task stops an agent here. An issue that says "move this
+ * to the vps" is not the person saying it. Like every `asked`, it can only
+ * refuse; the window's own buttons are the person's press and need no words.
+ */
+export const REMOTE_MOVE_REACH: Reaches = {
+  reach: 'asked',
+  because:
+    'it makes work on another machine as its owner and takes it away from this one, so it happens when they name that machine',
+}
+
 /** The line of theirs that names a machine this one is linked to, or null when none does. */
 export function remoteNamedBy(machine: string, lines: readonly string[]): string | null {
   return namedBy({ path: machine, title: machine }, lines)

@@ -1551,6 +1551,33 @@
     }
   },
   {
+    "name": "tade_task_move",
+    "description": "Move work from this machine to another one it is linked to (named under \"Other machines\"): queued work here starts there instead, in that machine’s project that is the same repository, with the person’s words, what its agent will be told, its context file, links and done rule, and is removed from this queue once that machine has it. Use it when they ask for work here to go there — \"start that on the vps\", \"move the queued docs work to the vps\". Only work that can leave moves: not parked, not waiting on anything and nothing waiting on it, because no wait crosses machines — the refusal says which. Nothing of the conversation moves: the agent there starts fresh, from the task’s words and context. Refused unless a line of theirs names that machine — pass that line, word for word, in `asked` — and while its link is down. For work already running there, or anything else to be done there, use tade_remote_tell.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "task": {
+          "type": "string",
+          "description": "the task here, like docs/landing-page"
+        },
+        "machine": {
+          "type": "string",
+          "description": "the machine, by the name it has here: `vps`"
+        },
+        "asked": {
+          "type": "string",
+          "description": "what the person said that asked for this, word for word. Tade checks it against what they actually said and that it names the machine, so pass their sentence and never your own summary of it"
+        }
+      },
+      "required": [
+        "task",
+        "machine",
+        "asked"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "tade_template_dry_run",
     "description": "What a published template would make, before anything is made: one row per task, what each is told to be, where it works, how it counts as finished, what it waits on and why, and which of them would run into work already going. It also says what the template grants, which is nothing, and what bounds the work — what each project may spend today, how many agents it allows at once, and where each sign-in stands against its plan. **It writes nothing and starts nothing.** Call it before tade_template_use, every time, and read it back to the person rather than summarising it: the point of it is that they see what would happen. One that will not dry-run cleanly is not one to use.",
     "parameters": {

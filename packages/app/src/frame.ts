@@ -520,6 +520,12 @@ export interface Frame {
    * away view last answered — read only while you look (`wire/remote-agent.ts`).
    */
   remoteScreen?: RemoteScreen
+  /**
+   * The other machines each project's queued work can be started on instead,
+   * by project here: linked now, and with a project that is the same
+   * repository (`wire/moves.ts`). Absent or empty, its card offers none.
+   */
+  startsOn?: Readonly<Record<string, readonly string[]>>
   /** Each other machine's orchestrator, a tab beside this one's (`talk-tab.ts`). */
   talkTabs?: readonly TalkTab[]
   /** That machine's conversation, while its orchestrator's tab is in front (`wire/remote-talk.ts`). */

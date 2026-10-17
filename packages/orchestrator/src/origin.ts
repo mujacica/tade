@@ -213,6 +213,8 @@ export const REMOTE_TOOLS: Readonly<Record<string, Reaching>> = {
   // A phone's words, passed on through an owner session, would arrive on the
   // other machine with the keyboard's reach.
   tade_remote_tell: { kind: 'local', because: OWNS_ELSEWHERE },
+  // Makes work there as its owner, and takes it away from here.
+  tade_task_move: { kind: 'local', because: OWNS_ELSEWHERE },
 
   // Grants, credentials, and who is asked.
   tade_setting_change: { kind: 'local', because: GRANTS },
@@ -475,6 +477,7 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
   'updates/run': never(EXECUTES),
   'window/reload': never(EXECUTES),
   'remote/tell': never(OWNS_ELSEWHERE),
+  'remote/move': never(OWNS_ELSEWHERE),
   'remote/status': never(READS_ELSEWHERE),
   'remote/documents': never(READS_ELSEWHERE),
   'remote/intake': never(READS_ELSEWHERE),

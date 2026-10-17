@@ -116,6 +116,9 @@ an unnamed one is refused.
   phone's words passed on would arrive with the keyboard's reach. The window holds it to a line of the
   person's naming that machine (`REMOTE_TELL_REACH`, `remoteNamedBy`), and says it there as this
   machine's orchestrator's words, never the person's. `origin.test.ts` holds both refusals.
+  `tade_task_move` is the same shape for work rather than words (`REMOTE_MOVE_REACH`): it goes
+  through the window's one door for moving work (`wire/moves.ts`), the door the queued card's
+  "Start on <machine>" presses too, so the gate is in front of the act and not of the tool.
 - **A tool that reads can name another machine; a tool that acts never does.** `tade_status`,
   `tade_documents`, `tade_intake`, `tade_intake_show` and every extension tool that declares `reads`
   (`tools-listed.ts` adds the parameter) take `machine` (`ON_MACHINE`, `tools-remotes.ts`) and then

@@ -125,6 +125,7 @@ describe('orchestrator tools', () => {
       path: join(home, 'tools.sock'),
       remotes: {
         tell: async () => 'passed on',
+        move: async () => 'moved',
         status: async (machine) => {
           asked.push(machine)
           return JSON.stringify({ machine, link: 'live', tade: { version: '0.2.3' } })

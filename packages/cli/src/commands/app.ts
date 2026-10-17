@@ -364,6 +364,11 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
             if (!remotes) throw opening()
             return remotes.tell(req)
           },
+          // Work moved there, held to the same line of theirs.
+          move: async (req) => {
+            if (!remotes) throw opening()
+            return remotes.move(req)
+          },
           // What another machine says of itself and its work, read the same way.
           status: async (machine) => {
             if (!remotes) throw opening()

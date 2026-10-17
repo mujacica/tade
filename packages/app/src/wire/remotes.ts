@@ -40,6 +40,7 @@ import {
 } from './context.ts'
 import type { DeskElsewhere } from './landing.ts'
 import { type Mirrors, mirrorsFor } from './mirrors.ts'
+import { Moves, type MoveTools } from './moves.ts'
 import { type SharedNotes, sharedNotesFor } from './notes-shared.ts'
 import { RemoteAgents } from './remote-agent.ts'
 import { RemoteMachines } from './remote-machine.ts'
@@ -48,8 +49,8 @@ import { RemoteTalks, type RemoteTalkTools } from './remote-talk.ts'
 import type { WatchTwinsHere } from './watch-where.ts'
 import { MACHINE } from './web-panel.ts'
 
-/** What the orchestrator's tools ask of other machines: a sentence passed on, and what each says. */
-export type RemoteTools = RemoteTalkTools & RemoteReads
+/** What the orchestrator's tools ask of other machines: a sentence passed on, work moved, and what each says. */
+export type RemoteTools = RemoteTalkTools & RemoteReads & MoveTools
 
 // The window's links to other machines' Tades it is an owner of: one link per
 // `remotes.<name>`, held while the window is open (REMOTE-TADE.md §2.5, §5.4).
@@ -79,6 +80,8 @@ export type RemoteTools = RemoteTalkTools & RemoteReads
 // orchestrators and every agent hear what they said to either. **And each
 // one's branches fetched into a mirror** of every project here that is the
 // same repository (`mirrors.ts`), for the forecast, the desk and the diffs.
+// **And work moved there** (`moves.ts`): queued work started on that machine
+// instead, over the owner channel, and gone from this queue.
 //
 // **What each remote holds is drawn as its projects** (`facts`, folded by
 // `machines.ts`, which is where everything another machine wrote is reduced
@@ -160,6 +163,8 @@ export class Remotes implements Subject {
   private mirrors: Mirrors | null = null
   /** What each machine says it is, asked as its owner (`remote-machine.ts`), where the window asks. */
   private about: RemoteMachines | null = null
+  /** Work moved to another machine (`moves.ts`), where the window moves any. */
+  private moves: Moves | null = null
 
   constructor(deps: RemotesDeps) {
     this.deps = deps
@@ -179,7 +184,8 @@ export class Remotes implements Subject {
     const machines = this.machines()
     // Asked with none too: the tab of a remote just taken out hands its line back.
     const talks = this.talks?.facts() ?? {}
-    return machines.remotes.length === 0 ? {} : { machines, ...this.agents?.facts(), ...talks }
+    if (machines.remotes.length === 0) return {}
+    return { machines, ...this.agents?.facts(), ...talks, ...this.moves?.facts() }
   }
 
   /** What was typed, sent to the machine whose orchestrator's tab is in front: false where none is. */
@@ -202,6 +208,10 @@ export class Remotes implements Subject {
         if (this.talks === null) throw new Error('this window talks to no other machine')
         return this.talks.tell(req)
       },
+      move: async (req) => {
+        if (this.moves === null) throw new Error('this window moves no work to another machine')
+        return this.moves.tools().move(req)
+      },
       ...remoteReads(this, (at) => clockOf(at)),
     }
   }
@@ -211,7 +221,11 @@ export class Remotes implements Subject {
    * stopped, parked — and one of a machine's documents read here.
    */
   actions(): Actions {
-    return { ...this.agents?.actions(), 'remote-document': (rest) => this.readDocument(rest) }
+    return {
+      ...this.agents?.actions(),
+      ...this.moves?.actions(),
+      'remote-document': (rest) => this.readDocument(rest),
+    }
   }
 
   /**
@@ -261,6 +275,12 @@ export class Remotes implements Subject {
   /** Hand it what asks each machine what it is, which reaches the links through it. */
   withMachines(make: (remotes: Remotes) => RemoteMachines): this {
     this.about = make(this)
+    return this
+  }
+
+  /** Hand it what moves work to another machine, which reaches the links through it. */
+  withMoves(make: (remotes: Remotes) => Moves): this {
+    this.moves = make(this)
     return this
   }
 
@@ -671,6 +691,13 @@ export function remotesFor(
     .withTalks((remotes) => new RemoteTalks(wire, reachingOf(remotes)))
     .withNotes((remotes) => sharedNotesFor(wire, (name) => remotes.reachFor(name), say))
     .withMirrors((remotes) => mirrorsFor(wire, (name) => remotes.reachFor(name), say))
+    .withMoves(
+      (remotes) =>
+        new Moves(wire, {
+          ...reachingOf(remotes),
+          sameAs: (project) => remotes.mirrored()?.sameAs(project) ?? [],
+        }),
+    )
     .withMachines(
       (remotes) =>
         new RemoteMachines({

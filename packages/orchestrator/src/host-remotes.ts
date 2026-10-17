@@ -1,5 +1,5 @@
 // The `ToolHost` methods that reach another machine: passing a sentence to its
-// orchestrator (`tools-remotes.ts`), and what the reading tools answer when
+// orchestrator and moving work to it (`tools-remotes.ts`), and what the reading tools answer when
 // they name it — its status, its documents, the requests handed to it, and one
 // of its extension tools that only reads (`machine` on `tade_status`,
 // `tade_documents`, `tade_intake`, `tade_intake_show` and every extension tool
@@ -22,6 +22,8 @@ type Handler = (params: Record<string, unknown>) => Promise<string>
 /** What the window answers for it. Without a window, there is no link to pass anything over. */
 export interface RemoteHost {
   tell(req: { machine: string; said: string; asked: string }): Promise<string>
+  /** Work moved to it: queued work started there instead of here (`tade_task_move`). */
+  move(req: { task: string; machine: string; asked: string }): Promise<string>
   /** What one machine last said of itself and its work, as of when: `tade_status` there. */
   status(machine: string): Promise<string>
   /** Its documents, or — with a task and a name — one read into a copy here, by its path. */
@@ -52,6 +54,12 @@ export function remoteMethods(host: () => RemoteHost | undefined): Record<string
       window().tell({
         machine: String(p.machine ?? ''),
         said: String(p.said ?? ''),
+        asked: String(p.asked ?? ''),
+      }),
+    'remote/move': async (p) =>
+      window().move({
+        task: String(p.task ?? ''),
+        machine: String(p.machine ?? ''),
         asked: String(p.asked ?? ''),
       }),
     'remote/status': async (p) => window().status(String(p.machine ?? '')),
