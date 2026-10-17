@@ -44,8 +44,8 @@ function worldOf(tasks: readonly Task[]): Workspace {
 /** A window whose recent journal has nothing in it and whose whole-journal folds say `finished`. */
 function held(finished: readonly string[], marks?: ReadonlyMap<string, AgentMark>): Beatable {
   return {
-    events: [],
     rootLines: [],
+    overrideLines: [],
     pending: [],
     seenActions: () => null,
     spendToday: () => ({ byTask: {} }),

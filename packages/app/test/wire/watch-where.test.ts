@@ -287,8 +287,8 @@ describe('what this machine’s projection says it watches', () => {
     warnings: [],
   } as unknown as Workspace
   const live: Beatable = {
-    events: [],
     rootLines: [],
+    overrideLines: [],
     pending: [],
     seenActions: () => null,
     spendToday: () => ({ byTask: {} }),

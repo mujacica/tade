@@ -2,6 +2,7 @@ import {
   AT_WORK_READS,
   DOCUMENT_EVENTS,
   INTAKE_EVENTS,
+  OVERRIDE_TOOL,
   REPLAY_EVENTS,
   RUNTIME_EVENTS,
   type TadeEvent,
@@ -97,6 +98,15 @@ function inboxOf(queue: readonly TadeEvent[], told: readonly TadeEvent[]): TadeE
 /** Whether a line is one the inbox folds. */
 export const inboxReads = (event: Pick<TadeEvent, 'type'>): boolean => INBOX.has(event.type)
 
+/**
+ * Whether a line overrules the checks (`overridesFrom`): the `tool_call` that
+ * recorded a `checks_override`. Kept whole, because a check overruled this
+ * morning is still overruled after a busy afternoon — and only these, because
+ * every other tool call is thousands of lines nothing here folds.
+ */
+export const overrideLine = (event: Pick<TadeEvent, 'type' | 'detail'>): boolean =>
+  event.type === 'tool_call' && event.detail.tool === OVERRIDE_TOOL
+
 /** Every list, as of one moment of the journal (`upTo`). */
 export interface Histories {
   /** The last `JOURNAL` events. */
@@ -110,6 +120,8 @@ export interface Histories {
   roots: TadeEvent[]
   /** Every line the inbox folds (`INBOX_READS`), the same events as `queue` and `told` hold. */
   inbox: TadeEvent[]
+  /** Every line that overruled the checks (`overrideLine`), out of every tool call. */
+  overrides: TadeEvent[]
   /**
    * The newest event any of these may hold. Read first, with the tail, and
    * every list after it is cut to it: an event appended while the lists were
@@ -152,10 +164,13 @@ export async function readHistories(client: Pick<Workbench, 'events'>): Promise<
   const roots = cut(await read('where projects live', { types: ['config_changed'] })).filter(
     aboutRoot,
   )
+  const overrides = cut(await read('which checks were overruled', { types: ['tool_call'] })).filter(
+    overrideLine,
+  )
   const recent = tail ?? []
   const newest = Math.max(
     0,
-    ...[usage, told, runs, queue, roots].map((one) => one.at(-1)?.seq ?? 0),
+    ...[usage, told, runs, queue, roots, overrides].map((one) => one.at(-1)?.seq ?? 0),
   )
   return {
     recent,
@@ -165,6 +180,7 @@ export async function readHistories(client: Pick<Workbench, 'events'>): Promise<
     queue,
     roots,
     inbox: inboxOf(queue, told),
+    overrides,
     upTo: Number.isFinite(upTo) ? upTo : newest,
     failed,
   }

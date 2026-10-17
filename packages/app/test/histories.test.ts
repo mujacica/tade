@@ -78,6 +78,16 @@ describe('reading the journal once the window is up', () => {
     ])
   })
 
+  it('keeps the tool calls that overruled the checks, and no other tool call', async () => {
+    const call = (seq: number, tool: string): TadeEvent => ({
+      ...event(seq, 'tool_call'),
+      detail: { tool },
+    })
+    const lines = [call(1, 'status'), call(2, 'checks_override'), call(3, 'checks_run')]
+    const read = await readHistories(journal(lines) as never)
+    expect(read.overrides.map((one) => one.seq)).toEqual([2])
+  })
+
   it('reads a list it cannot read as nothing, and says which', async () => {
     const client = journal(
       [event(1, 'usage'), event(2, 'task_done')],

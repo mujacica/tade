@@ -47,8 +47,8 @@ function world(): Workspace {
 
 function held(commandOf?: Beatable['commandOf']): Beatable {
   return {
-    events: [],
     rootLines: [],
+    overrideLines: [],
     pending: [
       { requestId: 'req_31', task: 'checkout/stripe', tool: 'Bash', summary: SUMMARY, at: NOW },
     ],

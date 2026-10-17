@@ -72,6 +72,10 @@ function heldState(over: { tasks?: number } = {}) {
       reads.push('rootLines')
       return []
     },
+    get overrideLines() {
+      reads.push('overrideLines')
+      return []
+    },
     get pending() {
       reads.push('pending')
       return []

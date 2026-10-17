@@ -282,6 +282,9 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     get rootLines() {
       return events
     },
+    get overrideLines() {
+      return events
+    },
     get pending() {
       return pending
     },

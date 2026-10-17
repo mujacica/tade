@@ -187,8 +187,8 @@ export function partsFrom(
 ): AwayBeat {
   return beatParts(
     {
-      events: live.events,
       rootLines: live.rootLines,
+      overrideLines: live.overrideLines,
       pending: live.pending,
       seenActions: (task) => live.seenActions(task),
       spendToday: () => live.spendToday(),
@@ -260,7 +260,9 @@ export function beatParts(
   // Before the journal's lists are read nothing is known about money, which
   // is every task's `null` — never a figure of nought.
   const spend = live.spendToday() ?? { byTask: {} }
-  const overrides = overridesFrom(live.events)
+  // Every check ever overruled for a task, out of the **whole** journal's
+  // override lines: an override written this morning is still one tonight.
+  const overrides = overridesFrom(live.overrideLines)
   const queueFacts = live.queueFacts()
   // **Every `run_started`, not the last five hundred lines**: what an agent
   // runs on is written once, when it starts, and an agent started this morning
@@ -270,10 +272,12 @@ export function beatParts(
   // agent is waiting on a question, and whether a task's document is actually
   // there. The state and not the triage — a document somebody has already
   // decided about is still a document that exists, and the phone is saying
-  // whether there is one to read, never whether anybody has read it.
+  // whether there is one to read, never whether anybody has read it. Every
+  // `DOCUMENT_EVENTS` line is in the queue's whole-journal list, which is what
+  // `approvedFrom` reads too: a document handed over this morning is still there.
   const waiting = new Set(live.tasks.filter((one) => one.waiting === true).map((one) => one.task))
   const written = new Set(
-    documentsIn(live.events)
+    documentsIn(queueFacts.events)
       .filter((one) => one.state === 'written')
       .map((one) => one.task),
   )
@@ -342,14 +346,15 @@ export function beatParts(
     // the two halves come from different places: which tasks name one effort
     // is the world's answer (`world.projects[].tasks`, with `start.after` for
     // the edges), and which request a run came from is the inbox's. Neither
-    // half starts anything: both are values this beat already has.
-    runs: runsIn(
-      runTasks(world, { finished, starts: startsOf(live.events), checks: live, spend }),
-      factory.runFrom,
-    ),
+    // half starts anything: both are values this beat already has. A step's
+    // runs are the task's own `starts`, so the two counts can never differ.
+    runs: runsIn(runTasks(world, { finished, starts, checks: live, spend }), factory.runFrom),
     queued: live.queued,
     queueFacts,
-    order: writtenOrder(live.events),
+    // Out of the **whole** journal, which is what the window's own pass starts
+    // work in (`inWrittenOrder`) and what a `first` from a phone builds on: an
+    // order written five hundred lines ago is still the one the queue honours.
+    order: writtenOrder(queueFacts.events),
     notes: live.notes(null),
     plans: live.plans,
     machineUpSince: live.machineUpSince,
@@ -372,9 +377,10 @@ export function beatParts(
  * against a thousand-line class — and so a tenth cannot arrive by accident.
  */
 export interface Held {
-  events: readonly TadeEvent[]
   /** Every line that wrote where a project lives, from the whole journal. */
   rootLines: readonly TadeEvent[]
+  /** Every line that overruled the checks, from the whole journal (`overrideLine`). */
+  overrideLines: readonly TadeEvent[]
   /** The approvals waiting. `summary` is the raw command, read only by `commandOut`. */
   pending: readonly { requestId: string; task: string; tool: string; summary: string; at: number }[]
   world: Workspace | null
@@ -388,10 +394,16 @@ export interface Held {
   watchedOf(schedule: string): Watched
 }
 
-/** What `beatParts` needs, so it can be tested without a window. */
+/**
+ * What `beatParts` needs, so it can be tested without a window.
+ *
+ * **No `events`**: the window's last five hundred lines are not here, so
+ * nothing on a beat can fold a fact out of them that the whole journal would
+ * answer differently — every list below is the whole journal's.
+ */
 export interface Beatable {
-  events: readonly TadeEvent[]
   rootLines: readonly TadeEvent[]
+  overrideLines: readonly TadeEvent[]
   pending: readonly { requestId: string; task: string; tool: string; summary: string; at: number }[]
   seenActions(task: string): ActionsView | null
   spendToday(): { byTask: Record<string, Spend> } | null

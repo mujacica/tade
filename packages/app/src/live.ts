@@ -59,6 +59,7 @@ import {
   type Histories,
   inboxReads,
   JOURNAL,
+  overrideLine,
   QUEUE_READS,
   RUNTIME_READS,
   readHistories,
@@ -255,6 +256,8 @@ export class Live {
   private roots: TadeEvent[] = []
   /** Every line the inbox folds, from the whole journal: a request outlives the last 500 lines. */
   private inbox: TadeEvent[] = []
+  /** Every check overruled, from the whole journal: an override outlives the last 500 lines. */
+  private overrides: TadeEvent[] = []
   /** Queued work, and what it waits on, as the last refresh saw. */
   private queue: Queued[] = []
   private states = new Map<string, { state: TaskState; reason: string }>()
@@ -330,6 +333,7 @@ export class Live {
     }
     this.roots = read.roots
     this.inbox = read.inbox
+    this.overrides = read.overrides
     for (const why of read.failed) this.opts.onWarning?.(why)
     this.upTo = read.upTo
     this.read = true
@@ -485,6 +489,11 @@ export class Live {
   /** Every line the inbox folds (`INBOX_READS`), from the whole journal, oldest first. */
   get inboxLines(): readonly TadeEvent[] {
     return this.inbox
+  }
+
+  /** Every line that overruled the checks (`overrideLine`), from the whole journal, oldest first. */
+  get overrideLines(): readonly TadeEvent[] {
+    return this.overrides
   }
 
   /** Where a task lives on disk, once status has seen it. */
@@ -1145,6 +1154,7 @@ export class Live {
     else if ((QUEUE_READS as readonly string[]).includes(event.type)) this.queueEvents.push(event)
     if (aboutRoot(event)) this.roots.push(event)
     if (inboxReads(event)) this.inbox.push(event)
+    if (overrideLine(event)) this.overrides.push(event)
     if (this.journal.length > JOURNAL) this.journal.splice(0, this.journal.length - JOURNAL)
     this.opts.onEvent?.(event)
   }
