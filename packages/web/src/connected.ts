@@ -1,14 +1,24 @@
 import { randomBytes } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import {
+  CONNECT_FIELDS,
+  CONNECT_FLOWS,
   CONNECT_SOURCES,
   CONNECT_STATE_MS,
+  type ConnectFieldName,
   type ConnectPage,
   type ConnectPress,
   type ConnectSource,
 } from '@tade/core'
 import { z } from 'zod'
-import { connectHome, installedPage, madePage, nothingPage, PAGE_CSP } from './connect-page.ts'
+import {
+  connectHome,
+  installedPage,
+  madePage,
+  nothingPage,
+  notInstalledPage,
+  PAGE_CSP,
+} from './connect-page.ts'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { headersFor } from './headers.ts'
@@ -36,7 +46,17 @@ import type { Route } from './routes.ts'
 // make one for somebody. What an account of another person on this machine
 // could do through a loopback port is replace the App with one of its own,
 // which reads nothing of yours until somebody with admin on your repositories
-// installs it there.
+// installs it there — and, for Slack, keep a signing secret or a token of its
+// own choosing: deliveries it signs then only make the watch look sooner, and
+// a token of another workspace's reads that workspace, where nobody on your
+// `from` list asks anything. What it costs you is your own app's working,
+// which the page then says is broken.
+//
+// **What Slack's page shows the person and hands over no other way** — the
+// signing secret, the client's id and secret, or with no public name the bot
+// token — is pasted into the page and kept by its `keep` press: shape-checked
+// here (`KeepSchema`), written by the window's one write path, never answered
+// back and never drawn again.
 //
 // **The callbacks are on the public name** (GitHub sends the browser there, and
 // Slack's and Linear's must be public HTTPS), and nothing but the word answers
@@ -119,12 +139,23 @@ export interface ConnectWant {
   hook: string | null
   made: string
   installed: string
+  /** The one-time word the source brings back, or '' where it brings nothing back. */
   state: string
   name: string
   organisation?: string
 }
 
-/** The window's half: what is true of a source now, and the two things only it can do. */
+/** What a source sending the browser back after an install brought with it. */
+export interface ConnectReturn {
+  /** The code to exchange, where the source sends one (Slack's OAuth); null where none came. */
+  code: string | null
+  /** The source's own word for why it did not install, where it said one (`access_denied`). */
+  error: string | null
+  /** The address the browser came back to: what the code's exchange must name again. */
+  home: string
+}
+
+/** The window's half: what is true of a source now, and the things only it can do. */
 export interface WebConnecting {
   /**
    * A source's page as it stands now, with what making its app asks for and
@@ -136,18 +167,36 @@ export interface WebConnecting {
     asks: readonly { what: string; why: string }[]
     events: readonly string[]
   }>
-  /** What the browser posts to make the app, through the forge. Pure. */
+  /** Where the browser goes to make the app, and what it posts there where it posts anything. Pure. */
   form(source: ConnectSource, want: ConnectWant): ConnectForm
-  /** Where the browser goes to install it, carrying `state`; null where no app is kept to install. */
-  installUrl(source: ConnectSource, state: string): string | null
+  /**
+   * Where the browser goes to install it, carrying `state`, coming back to
+   * `home`; null where no app is kept to install.
+   */
+  installUrl(source: ConnectSource, state: string, home: string): string | null
   /**
    * The code the source sent the browser back with, exchanged and kept through
    * the one write path: what was made, or why not — in Tade's words, never a
    * secret.
    */
   made(source: ConnectSource, code: string): Promise<{ name: string } | { problem: string }>
-  /** The source said it was installed: whatever holds what the page reads, reads again. */
-  installed(source: ConnectSource): void
+  /**
+   * The source said it was installed: whatever holds what the page reads,
+   * reads again — and where it sent a code (Slack), the code exchanged for the
+   * token and kept. Where it is installed now (a workspace), or why not.
+   */
+  installed(
+    source: ConnectSource,
+    back: ConnectReturn,
+  ): Promise<{ where: string | null } | { problem: string }>
+  /**
+   * What the person pasted from the source's own page, kept through the one
+   * write path: the names of what was kept, or why nothing was.
+   */
+  keep(
+    source: ConnectSource,
+    fields: Partial<Record<ConnectFieldName, string>>,
+  ): Promise<{ kept: readonly string[] } | { problem: string }>
 }
 
 /** What a request to these routes is answered by, from the server. */
@@ -174,29 +223,45 @@ export async function carryConnect(
   if (connecting === undefined) return answer(refuse('no_such'))
   if (route.connects === 'page') {
     const pages = await Promise.all(CONNECT_SOURCES.map((one) => connecting.page(one)))
-    return html(res, 200, connectHome(pages, at.publicName))
+    return html(res, 200, connectHome(pages))
   }
   const source = route.source
   if (source === undefined) return answer(refuse('no_such'))
   if (route.connects === 'press') {
     const got = await readBody(req)
     if (!got.read) return answer(got.refusal)
-    const press = pressOf(route)
+    const press = route.press
+    if (press === undefined) return answer(refuse('malformed'))
+    if (press === 'keep') {
+      const kept = await keptFrom(connecting, source, got.body)
+      return 'refusal' in kept ? json(kept.said, kept.refusal.status) : json(kept)
+    }
     const asked = PressSchema.safeParse(got.body)
-    if (press === null || !asked.success) return answer(refuse('malformed'))
+    if (!asked.success) return answer(refuse('malformed'))
     const made = pressed(connecting, at, source, press, asked.data)
     return 'refusal' in made ? json(made.said, made.refusal.status) : json(made.form)
   }
   // The source sending the browser back: the word, and nothing else, decides.
   const query = queryOf(req.url ?? '/')
   const state = query.get('state') ?? ''
-  const press: ConnectPress = route.name.endsWith(' made') ? 'make' : 'install'
+  const press: ConnectPress = route.back === 'made' ? 'make' : 'install'
   if (!at.states.take(state, { source, press, host: at.host }, at.now)) {
     return html(res, 404, nothingPage())
   }
   if (press === 'install') {
-    connecting.installed(source)
-    return html(res, 200, installedPage())
+    // Where the browser came back to is where the code's exchange says it was
+    // sent, which Slack holds to the redirect its install was asked with.
+    const home =
+      at.publicName !== null && at.publicName.toLowerCase() === at.host.toLowerCase()
+        ? `https://${at.publicName}`
+        : `http://${at.host}`
+    const installed = await connecting.installed(source, {
+      code: query.get('code'),
+      error: query.get('error'),
+      home,
+    })
+    if ('problem' in installed) return html(res, 502, notInstalledPage(source, installed.problem))
+    return html(res, 200, installedPage(source, installed.where))
   }
   // What was kept is written down where it was written: a `config_changed`
   // line a key, by the window's one write path, each said as `set`.
@@ -206,7 +271,7 @@ export async function carryConnect(
   // browser that just made the app is the one that installs it, and the page
   // it came from is on a door it may not be at now (`here`).
   const next = at.states.mint({ source, press: 'install', host: at.host }, at.now)
-  const install = connecting.installUrl(source, next)
+  const install = connecting.installUrl(source, next, `https://${at.host}`)
   return html(res, 200, madePage({ name: kept.name, install }))
 }
 
@@ -222,10 +287,84 @@ export const PressSchema = z.strictObject({
     .optional(),
 })
 
-function pressOf(route: Route): ConnectPress | null {
-  if (route.name.endsWith(' make')) return 'make'
-  if (route.name.endsWith(' install')) return 'install'
-  return null
+/**
+ * What a `keep` press may carry, each held to its shape here so a paste into
+ * the wrong box is said before anything is written: Slack's signing secret and
+ * client secret are letters and digits, its client id two numbers with a dot,
+ * a bot token `xoxb-`. Only these, and none of them answered back.
+ */
+export const KeepSchema = z.strictObject({
+  signing_secret: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9]{16,128}$/)
+    .optional(),
+  client_id: z
+    .string()
+    .trim()
+    .regex(/^\d{1,20}\.\d{1,20}$/)
+    .optional(),
+  client_secret: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9]{16,128}$/)
+    .optional(),
+  token: z
+    .string()
+    .trim()
+    .regex(/^xoxb-[A-Za-z0-9-]{10,250}$/)
+    .optional(),
+}) satisfies z.ZodType<Partial<Record<ConnectFieldName, string>>>
+
+/** What each box should have held, said where a paste was not that. */
+const KEEP_SHAPES: Readonly<Record<ConnectFieldName, string>> = {
+  name: 'a name',
+  organisation: 'an organisation',
+  signing_secret: 'the Signing Secret is the letters and digits under App Credentials',
+  client_id: 'the Client ID is two numbers with a dot between, under App Credentials',
+  client_secret: 'the Client Secret is the letters and digits under App Credentials',
+  token: 'the Bot User OAuth Token starts xoxb-, on the app’s Install App page',
+}
+
+/**
+ * One `keep` press: what was pasted, held to its shape and kept by the
+ * window's one write path — or why not, naming the box. A box left empty is
+ * left as it is; all of them empty keeps nothing and says so.
+ */
+async function keptFrom(
+  connecting: WebConnecting,
+  source: ConnectSource,
+  body: unknown,
+): Promise<{ said: string } | { refusal: Refusal; said: { error: string; said: string } }> {
+  const no = (said: string) => {
+    const refusal = refuse('malformed')
+    return { refusal, said: { error: refusal.error, said } }
+  }
+  if (!CONNECT_FLOWS[source].presses.includes('keep')) return no('there is nothing to keep here')
+  const read = KeepSchema.safeParse(dropEmpty(body))
+  if (!read.success) {
+    const box = read.error.issues[0]?.path[0]
+    return no(
+      typeof box === 'string' && (CONNECT_FIELDS as readonly string[]).includes(box)
+        ? `that is not it: ${KEEP_SHAPES[box as ConnectFieldName]}`
+        : 'only what the page asks for may be kept',
+    )
+  }
+  const fields = read.data
+  if (Object.values(fields).every((one) => one === undefined)) return no('nothing was pasted')
+  const kept = await connecting.keep(source, fields)
+  if ('problem' in kept) return no(kept.problem)
+  return { said: `kept: ${kept.kept.join(', ')}` }
+}
+
+/** A body's empty boxes left out, so an untouched one is not a malformed one. */
+function dropEmpty(body: unknown): unknown {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return body
+  return Object.fromEntries(
+    Object.entries(body as Record<string, unknown>).filter(
+      ([, value]) => !(typeof value === 'string' && value.trim() === ''),
+    ),
+  )
 }
 
 /**
@@ -234,7 +373,9 @@ function pressOf(route: Route): ConnectPress | null {
  * public name where it has one**; without one it is the door the press came
  * in at — `localhost:<port>`, which a browser here, or at the end of an
  * `ssh -L`, reaches and GitHub then cannot deliver to, so the app is made with
- * no webhook.
+ * no webhook. A source that sends a browser back only to a public name
+ * (`publicBack`, Slack) is refused that press without one, and a press nothing
+ * comes back from (Slack's making) mints no word at all.
  */
 export function pressed(
   connecting: WebConnecting,
@@ -243,16 +384,28 @@ export function pressed(
   press: ConnectPress,
   asked: z.infer<typeof PressSchema>,
 ): { form: ConnectForm } | { refusal: Refusal; said: { error: string; said: string } } {
+  const flow = CONNECT_FLOWS[source]
   const back = at.publicName ?? at.host
   const home = at.publicName === null ? `http://${at.host}` : `https://${at.publicName}`
-  const state = at.states.mint({ source, press, host: back }, at.now)
+  const returns = flow.backs.includes(press === 'make' ? 'made' : 'installed')
+  if (press === 'install' && flow.publicBack && at.publicName === null) {
+    const refusal = refuse('no_such')
+    return {
+      refusal,
+      said: {
+        error: refusal.error,
+        said: 'this machine has no public name, so Slack cannot send the browser back to it: install the app from its own page and keep its token here',
+      },
+    }
+  }
+  const state = returns ? at.states.mint({ source, press, host: back }, at.now) : ''
   if (press === 'install') {
-    const url = connecting.installUrl(source, state)
+    const url = connecting.installUrl(source, state, home)
     if (url === null) {
       const refusal = refuse('no_such')
       return {
         refusal,
-        said: { error: refusal.error, said: 'there is no App kept here to install yet' },
+        said: { error: refusal.error, said: 'there is no app kept here to install yet' },
       }
     }
     return { form: { url } }
@@ -316,8 +469,7 @@ export async function connectHere(
         ...seen,
         publicName: null,
         form: null,
-        cannot:
-          'this machine has no public name, so GitHub cannot send a browser elsewhere back to it: give it one with `tade host domain`, or open /connect here through `ssh -L`',
+        cannot: `this machine has no public name, so ${seen.page.title} cannot send a browser elsewhere back to it: give it one with \`tade host domain\`, or open /connect here through \`ssh -L\``,
       },
     }
   }
@@ -327,7 +479,12 @@ export async function connectHere(
   return { body: { ...seen, publicName: at.publicName, form: made.form } }
 }
 
-/** What an owner may ask: one source's page, and one press on it. */
+/**
+ * What an owner may ask: one source's page, and one press on it that opens a
+ * browser. **Not `keep`**: what Slack's own page shows the person is pasted
+ * into this machine's own page, never carried here from another machine's
+ * window, which has nowhere to type it but a terminal it would echo in.
+ */
 export const OwnerAskSchema = PressSchema.extend({
   source: z.enum(CONNECT_SOURCES),
   press: z.enum(['make', 'install']).optional(),
@@ -335,11 +492,28 @@ export const OwnerAskSchema = PressSchema.extend({
 
 const Said = z.string().max(600)
 const StepSchema = z.object({
-  id: z.enum(['make', 'install', 'deliveries']),
+  id: z.enum(['make', 'keep', 'install', 'deliveries']),
   title: z.string().max(80),
   done: z.boolean(),
   said: Said,
-  press: z.object({ act: z.enum(['make', 'install']), label: z.string().max(40) }).optional(),
+  press: z
+    .object({
+      act: z.enum(['make', 'keep', 'install']),
+      label: z.string().max(40),
+      fields: z
+        .array(
+          z.object({
+            name: z.enum(CONNECT_FIELDS),
+            label: z.string().max(80),
+            secret: z.boolean(),
+            placeholder: z.string().max(80).optional(),
+          }),
+        )
+        .max(8)
+        .optional(),
+      replaces: Said.optional(),
+    })
+    .optional(),
 })
 
 /** The answer, as this machine gives it and another reads it: for its shape, every value bounded. */
@@ -348,6 +522,8 @@ export const ConnectAnswerSchema = z.object({
     source: z.enum(CONNECT_SOURCES),
     title: z.string().max(40),
     steps: z.array(StepSchema).max(8),
+    // An older Tade's answer says nothing of what its app may write.
+    writes: Said.default(''),
   }),
   asks: z.array(z.object({ what: z.string().max(80), why: Said })).max(16),
   events: z.array(z.string().max(64)).max(32),
@@ -355,7 +531,8 @@ export const ConnectAnswerSchema = z.object({
   /** The form a press made: where the browser goes, and what it posts there. */
   form: z
     .object({
-      url: z.string().max(2048),
+      // Slack's carries the whole manifest in its query.
+      url: z.string().max(8192),
       fields: z.record(z.string(), z.string().max(16_384)).optional(),
     })
     .nullable(),

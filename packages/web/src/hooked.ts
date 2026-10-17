@@ -43,8 +43,13 @@ export interface WebHooks {
   secret(source: HookSource): string | null
   /** Which schedules one delivery is for, by id. Asked after the source has been answered. */
   match(address: HookAddress): Promise<readonly string[]>
-  /** Make each look now, or once more after the look under way. Asked after the line is written. */
-  wake(schedules: readonly string[]): void
+  /**
+   * Make each look now, or once more after the look under way, handed what the
+   * delivery named that a poll cannot see (`HookAddress.item`). Asked after
+   * the line is written — which is appended, not yet read back, so the item
+   * comes with the wake as well as in the line.
+   */
+  wake(schedules: readonly string[], item?: string): void
 }
 
 /** How many deliveries one source gets a minute before it is told to slow down. */
@@ -147,9 +152,11 @@ export class HookDoor {
       return this.line({ ...said, woke: [], why: 'no watch could be named for it in time' })
     }
     // The line first, then the looks: the window reads which looks a doorbell
-    // made by what came first in the journal (`schedule-fold.ts`).
-    this.line({ ...said, woke })
-    if (woke.length > 0) this.asked(() => hooks.wake(woke), undefined)
+    // made by what came first in the journal (`schedule-fold.ts`). What it
+    // named goes on the line only where it woke something to read it.
+    const item = woke.length > 0 ? address.item : undefined
+    this.line({ ...said, woke, ...(item === undefined ? {} : { item }) })
+    if (woke.length > 0) this.asked(() => hooks.wake(woke, item), undefined)
   }
 
   /** Whether this delivery was seen before, remembering it if not. */

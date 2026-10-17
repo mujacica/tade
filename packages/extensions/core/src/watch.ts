@@ -195,6 +195,14 @@ export interface WatchContext extends ExtensionContext {
   since: string | null
   /** When it was turned on, as an ISO time: what was already there then is not new. */
   turnedOn: string
+  /**
+   * What deliveries that rang its doorbell named and no look has read yet
+   * (`HookAddress.item`), oldest first: things this look cannot see by
+   * looking the way its clock does — a Slack message inside a thread. Ids,
+   * never a word of the delivery, and read like anything else this look
+   * reads: from the source, with its own credentials. Unsaid, there are none.
+   */
+  rang?: readonly string[]
   signal: AbortSignal
 }
 
@@ -361,6 +369,12 @@ export interface ExtensionWatch {
      * said every look.
      */
     said?: string
+    /**
+     * Which of `ctx.rang` it read to the end, so its next look is not handed
+     * them again. What it could not read — a thread past its ceiling, a rate
+     * limit — it leaves out, and is handed it again.
+     */
+    read?: readonly string[]
   }>
   /**
    * What an agent starting on one finding is told. Asked only for what work is

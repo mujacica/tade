@@ -140,6 +140,12 @@ const RULES: readonly Rule[] = [
     because:
       'the GitHub App was made for this machine’s public name: its deliveries and its callbacks come here',
   },
+  {
+    at: /^extensions\.intake\.slack_client_(id|secret)$/,
+    carry: 'here',
+    because:
+      'the Slack app was made for this machine’s public name: its events and its install come back here',
+  },
   // ── on a press ──
   {
     at: 'telemetry.dsn',

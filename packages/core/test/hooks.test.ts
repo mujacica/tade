@@ -11,6 +11,8 @@ import {
   type HookAddress,
   INTAKE_SOURCES,
   rungFrom,
+  slackItem,
+  slackItemOf,
   type WatchDoorbell,
 } from '@tade/core'
 import { describe, expect, it } from 'vitest'
@@ -110,6 +112,42 @@ describe('a delivery’s line, read back', () => {
         detail: { source: 'github', delivery: 'abc', verified: true, woke: ['intake', 7] },
       }),
     ).toEqual({ source: 'github', delivery: 'abc', verified: true, woke: ['intake'] })
+  })
+
+  it('reads what a Slack delivery named for the look, only where it verified and only as the door spells it', () => {
+    const line = (detail: Record<string, unknown>) =>
+      rungFrom({
+        type: 'hook_rung',
+        detail: { source: 'slack', verified: true, woke: ['s'], ...detail },
+      })
+    expect(line({ item: '1727445000.000200/1727442000.000100' })?.item).toBe(
+      '1727445000.000200/1727442000.000100',
+    )
+    for (const item of ['../../etc', '1727445000.000200', 'a/b', 7, '1.2/1.2']) {
+      expect(line({ item })).not.toHaveProperty('item')
+    }
+    expect(line({ verified: false, item: '1.2/3.4' })).not.toHaveProperty('item')
+    expect(
+      rungFrom({
+        type: 'hook_rung',
+        detail: { source: 'github', verified: true, item: '1.2/3.4' },
+      }),
+    ).not.toHaveProperty('item')
+  })
+
+  it('spells a message inside a thread one way, and reads only that spelling back', () => {
+    expect(slackItem('1727445000.000200', '1727442000.000100')).toBe(
+      '1727445000.000200/1727442000.000100',
+    )
+    // A parent is its own thread, which a poll already sees.
+    expect(slackItem('1727442000.000100', '1727442000.000100')).toBeNull()
+    expect(slackItem('now', '1727442000.000100')).toBeNull()
+    expect(slackItemOf('1727445000.000200/1727442000.000100')).toEqual({
+      ts: '1727445000.000200',
+      thread: '1727442000.000100',
+    })
+    expect(slackItemOf('1.2/3.4/5.6')).toBeNull()
+    expect(slackItemOf('1.2')).toBeNull()
   })
 
   it('reads a line it cannot place as no line at all', () => {

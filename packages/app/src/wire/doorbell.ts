@@ -31,9 +31,12 @@ import type { Wiring } from './context.ts'
 /** How long git may take to say which repository a project is, before that project is left unwoken. */
 const REPOSITORY_MS = 3_000
 
-/** What the doorbell needs of the schedules subject: one look now, by id. */
+/**
+ * What the doorbell needs of the schedules subject: one look now, by id, and
+ * the one thing the delivery named that a poll cannot see, for that look.
+ */
 export interface Waking {
-  wake(id: string): void
+  wake(id: string, item?: string): void
 }
 
 /** The window's `WebHooks`, over its config, its schedules and the watches its extensions declare. */
@@ -41,8 +44,8 @@ export function hooksFor(wire: Wiring, config: () => Config, schedules: Waking):
   return {
     secret: (source) => secretOf(config(), source),
     match: (address) => doorbellFor(wire, config(), address),
-    wake: (ids) => {
-      for (const id of ids) schedules.wake(id)
+    wake: (ids, item) => {
+      for (const id of ids) schedules.wake(id, item)
     },
   }
 }

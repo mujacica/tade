@@ -152,4 +152,97 @@ describe('a delivery, in this window', () => {
     const row = schedules.views().find((one) => one.id === 'rain')
     expect(row?.when).toContain('github rings it, so it polls hourly')
   })
+
+  it('hands the look what a delivery named that a poll cannot see, until a look has read it', async () => {
+    // A Slack mention inside a thread: the wake carries it, since its line is
+    // appended and not yet read back; after that the journal does, so a look
+    // that could not finish it — or a window closed before one — is handed it
+    // again, and one that read it lets go of it.
+    const handed: (readonly string[] | undefined)[] = []
+    const reads = { read: true }
+    const chat: TadeExtension = {
+      name: 'chat',
+      title: 'Chat',
+      description: 'One channel.',
+      watches: [
+        {
+          id: 'mentions',
+          title: 'Mentions',
+          means: 'Asks the channel somebody named.',
+          every: '10m',
+          network: true,
+          about: 'repository',
+          offers: 'ask',
+          input: {
+            type: 'object',
+            properties: { channel: { type: 'string', description: 'the channel' } },
+            required: ['channel'],
+          },
+          doorbell: { source: 'slack', events: ['app_mention'], input: 'channel' },
+          check: async (ctx) => {
+            handed.push(ctx.rang)
+            return { found: [], since: 'c', ...(reads.read ? { read: ctx.rang ?? [] } : {}) }
+          },
+        },
+      ],
+    }
+    const extensions = await ExtensionHost.load({
+      builtin: [chat],
+      config: { extensions: {}, projects: { app: { root: repo.root } } },
+      home,
+    })
+    const window: App = await start({ extensions })
+    const schedules = (window as unknown as { schedules: Schedules }).schedules
+    const wire = (window as unknown as { wire: Wiring }).wire
+    await schedules.set({
+      name: 'Mentions',
+      project: 'app',
+      said: 'watch the channel',
+      watch: 'chat.mentions',
+      input: { channel: 'C0ABCDEF' },
+      by: 'you',
+    })
+    const config = ConfigSchema.parse({ projects: { app: { root: repo.root } } })
+    const hooks = hooksFor(wire, () => config, schedules)
+    const item = '1727445000.000200/1727442000.000100'
+    const checked = async () =>
+      (await client.events({ types: ['watch_checked'] })).filter(
+        (event) => event.detail.schedule === 'mentions',
+      )
+    const busy = schedules as unknown as { lookingWith: Map<string, unknown> }
+    const looked = async (n: number) => {
+      await until(`look ${n}`, async () => (await checked()).length === n)
+      await until('nothing looking', () => busy.lookingWith.size === 0)
+    }
+
+    // Before its line is read back, the wake is what carries it.
+    hooks.wake(['mentions'], item)
+    await looked(1)
+    expect(handed).toEqual([[item]])
+    expect((await checked())[0]?.detail.read).toEqual([item])
+
+    // Out of the line, to a look nothing named it to, until one reads it.
+    reads.read = false
+    await client.log.append({
+      type: 'hook_rung',
+      detail: { source: 'slack', delivery: 'd2', verified: true, woke: ['mentions'], item },
+    })
+    await until(
+      'the window reads the line',
+      () => wire.live?.watchedOf('mentions').rang !== undefined,
+    )
+    hooks.wake(['mentions'])
+    await looked(2)
+    hooks.wake(['mentions'])
+    await looked(3)
+    expect(handed.slice(1)).toEqual([[item], [item]])
+    expect((await checked())[2]?.detail).not.toHaveProperty('read')
+    reads.read = true
+    hooks.wake(['mentions'])
+    await looked(4)
+    await until('let go of', () => wire.live?.watchedOf('mentions').rang === undefined)
+    hooks.wake(['mentions'])
+    await looked(5)
+    expect(handed.at(-1)).toBeUndefined()
+  })
 })

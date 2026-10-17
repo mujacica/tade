@@ -1,8 +1,8 @@
-import { duration, KEYS_TO_REMOTE, TALK_TO_REMOTE } from '@tade/core'
+import { type ConnectSource, duration, KEYS_TO_REMOTE, TALK_TO_REMOTE } from '@tade/core'
 // Type-only, so the pure panel model never loads what makes a checklist.
 import type { Checklist } from '@tade/workbench/carry'
 import type { Hit } from '../../hits.ts'
-import { lookSaid, type MachineAbout } from '../../machine-there.ts'
+import { type ConnectShown, lookSaid, type MachineAbout } from '../../machine-there.ts'
 import type { Machine } from '../../machines.ts'
 import type { Look } from '../../skin.ts'
 import { blank, Row } from '../../ui.ts'
@@ -117,9 +117,9 @@ export function remotePresses(
   return actions.filter((one) => (one.under ?? []).every((fold) => panel.opened.includes(fold)))
 }
 
-/** A press on one step of connecting GitHub on a remote. */
-function connectId(remote: string, act: 'make' | 'install'): string {
-  return `remote:connect:${remote}:${act}`
+/** A press on one step of connecting a source on a remote. */
+function connectId(remote: string, source: ConnectSource, act: 'make' | 'install'): string {
+  return `remote:connect:${remote}:${source}:${act}`
 }
 
 /** The account a sign-in is for, as an id carries it: empty for the harness's own. */
@@ -136,10 +136,16 @@ export function remoteActions(remotes: readonly RemoteShown[]): RemoteAction[] {
     if (remote.live && remote.machine?.detail.about?.public != null) {
       const label = remote.machine.detail.recordsLooking ? 'Looking…' : 'Look again'
       actions.push({ id: `remote:records:${at}`, label, remote: at })
-      // Each step of connecting GitHub there that offers one press, in order.
-      for (const step of remote.machine.detail.connect?.steps ?? []) {
-        if (step.press === null) continue
-        actions.push({ id: connectId(at, step.press.act), label: step.press.label, remote: at })
+      // Each step of connecting each source there that offers one press, in order.
+      for (const one of remote.machine.detail.connects) {
+        for (const step of one.seen?.steps ?? []) {
+          if (step.press === null) continue
+          actions.push({
+            id: connectId(at, one.source, step.press.act),
+            label: step.press.label,
+            remote: at,
+          })
+        }
       }
     }
     for (const one of list?.theirs ?? []) {
@@ -391,14 +397,17 @@ export function drawRemotes(
           say(text, tone, deep + indent, lines),
         )
         buttons([`remote:records:${at}`])
-        // And connecting GitHub there, step by step, each press under its step.
-        github(
-          remote,
-          ctx,
-          line,
-          (text, tone) => say(text, tone, deep, 3),
-          (act) => buttons(remote.live ? [connectId(at, act)] : []),
-        )
+        // And connecting each source there, step by step, each press under its step.
+        for (const one of remote.machine?.detail.connects ?? []) {
+          connecting(
+            remote,
+            one,
+            ctx,
+            line,
+            (text, tone) => say(text, tone, deep, 3),
+            (act) => buttons(remote.live ? [connectId(at, one.source, act)] : []),
+          )
+        }
       },
     )
     if (list === null) {
@@ -531,13 +540,16 @@ function publicLines(
 }
 
 /**
- * Connecting GitHub on that machine, as its own page folds it (`githubPage`):
- * a line, then each step ticked or not with what it says, and the one press a
- * step offers under it — which asks that machine for the word and opens
- * GitHub in this machine's browser. Always as of when that machine said it.
+ * Connecting one source on that machine, as its own page folds it
+ * (`githubPage`, `slackPage`): a line, then each step ticked or not with what
+ * it says, and the one press a step offers under it — which asks that machine
+ * for the word and opens the source in this machine's browser. A step whose
+ * press takes what the source's own page shows the person says where that
+ * goes in instead: that machine's own page. Always as of when it said it.
  */
-function github(
+function connecting(
   remote: RemoteShown,
+  one: ConnectShown,
   ctx: PanelContext,
   line: (label: string, text: string, tone?: (text: string) => string) => void,
   under: (text: string, tone: (text: string) => string) => void,
@@ -545,26 +557,32 @@ function github(
 ): void {
   const { skin } = ctx
   const detail = remote.machine?.detail
-  if (detail === undefined || (detail.about?.public == null && detail.connect === null)) return
-  const seen = detail.connect
+  if (detail === undefined || (detail.about?.public == null && one.seen === null)) return
+  const seen = one.seen
   if (seen === null) {
-    line('GitHub', detail.connectLooking ? `asking ${remote.name}…` : 'not asked yet', skin.hint)
-    if (detail.connectSaid !== null) under(detail.connectSaid, skin.waiting)
+    line(one.title, one.looking ? `asking ${remote.name}…` : 'not asked yet', skin.hint)
+    if (one.said !== null) under(one.said, skin.waiting)
     return
   }
-  const done = seen.steps.filter((one) => one.done).length
+  const done = seen.steps.filter((step) => step.done).length
   line(
-    'GitHub',
+    one.title,
     `${done} of ${seen.steps.length} done · as of ${ctx.date(seen.at)}`,
     done === seen.steps.length ? skin.done : skin.waiting,
   )
-  if (detail.connectSaid !== null) under(detail.connectSaid, skin.waiting)
+  if (one.said !== null) under(one.said, skin.waiting)
   if (seen.cannot !== null) under(seen.cannot, skin.waiting)
   for (const step of seen.steps) {
     under(
       `${step.done ? '✓' : '○'} ${step.title} — ${step.said}`,
       step.done ? skin.done : skin.hint,
     )
+    if (step.pasted && !step.done) {
+      under(
+        `  pasted at ${remote.name}'s own /connect, through ssh -L — never carried from here`,
+        skin.hint,
+      )
+    }
     if (step.press !== null) press(step.press.act)
   }
 }

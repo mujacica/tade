@@ -31,9 +31,9 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
 | `packages/core/src/hooks.ts` | the doorbell: `HOOK_SOURCES`, `HOOK_SECRETS`, `HookAddress`, `WatchDoorbell`/`doorbellRings`, the `hook_rung` line (`HookRung`, `rungFrom`), and the hourly poll (`Bell`, `bellStands`, `bellWhen`, `bellDue`, `bellSaid`) |
 | `packages/web/src/hooks.ts` · `hooked.ts` | each source's signature over the raw body and its window, the address (`checkDelivery`); the door's order — rate, cap, signature, ring, `200`, wake (`HookDoor`) |
 | `packages/app/src/wire/doorbell.ts` | the window's half: the secret, which schedules a delivery is for (`doorbellFor`), waking them (`Schedules.wake`) |
-| `packages/core/src/connect.ts` · `forge-apps.ts` | connecting a source step by step: `CONNECT_SOURCES`, `githubPage` (a fold over `GithubLook`), `CONNECT_IS_HERE`; where a GitHub App's keys are kept (`GITHUB_APP`, `appsKept`) |
-| `packages/web/src/connected.ts` · `connect-page.ts` · `packages/app/src/wire/web-connect.ts` | the pages, the presses and the one-time words; their HTML; the window's half, which asks the forge and keeps what it hands back through `writeKey` |
-| `packages/extensions/intake/src/slack*.ts` | the Slack door: the four methods it needs (`slack-api.ts`), the pure half that reads a message as an envelope (`slack-message.ts`), and the watch |
+| `packages/core/src/connect.ts` · `forge-apps.ts` | connecting a source step by step: `CONNECT_SOURCES`, `CONNECT_FLOWS` (each source's presses and callbacks), `githubPage` and `slackPage` (folds over `GithubLook`, `SlackLook`), `CONNECT_IS_HERE`; where a GitHub App's keys are kept (`GITHUB_APP`, `appsKept`) |
+| `packages/web/src/connected.ts` · `connect-page.ts` · `packages/app/src/wire/web-connect.ts` | the pages, the presses (`keep` and `KeepSchema` for what a source's own page shows the person) and the one-time words; their HTML; the window's half, which asks the forge or the Slack door and keeps what comes back through `writeKey` |
+| `packages/extensions/intake/src/slack*.ts` | the Slack door: the methods it needs (`slack-api.ts`, `oauth.v2.access` among them), the pure half that reads a message as an envelope (`slack-message.ts`), the watch, and the app Connect Slack makes (`slack-app.ts`: `SLACK_APP`, the manifest, `slackInstallUrl`, `slackInstalled`) |
 | `test/fixtures/slack/` | a Slack that answers from a file: `auth.test`, cursors, `has_more`, a 429 with a `Retry-After`, an edit, a deletion, metadata, a reaction already there |
 | `packages/forges/core/src/tickets.ts` | the things people *file*: `Ticket`, `Labelling`, `TicketQuery`, `capabilities.tickets` |
 | `packages/status/src/forges.ts` | `forgeAt`/`remoteAt`: which forge serves a checkout and as whom, for anybody |
@@ -291,7 +291,8 @@ deliberately has none, so nothing Tade reads there can be something it wrote.
 ## A chat source, and a source you can say something back to
 
 `slack` is the second one off this machine and the first with a way back. Seven things
-about it are the pattern rather than its own:
+about it are the pattern rather than its own (and an eighth, what a delivery names that a poll
+cannot see, is under the doorbell below):
 
 - **The generous tier is not the tier your app gets, and the number to write the bounds against
   is the small one.** Slack's `conversations.history` and `conversations.replies` are Tier 3 —
@@ -307,7 +308,7 @@ about it are the pattern rather than its own:
   plain `@tade` inside a thread is invisible to any amount of care in the selector, and
   reading every thread to find one is a request per thread per look. What *is* visible —
   a reply somebody also sent to the channel — is taken in with its whole thread, and the rest
-  is named in the setup as needing the Events API. **Never describe a polled source as chat**:
+  is what a delivery to a public name names (below), said in the setup. **Never describe a polled source as chat**:
   it notices a message, it does not answer one, and there is no three-second clock anywhere in
   it.
 - **A revision is the request's own version, never the conversation's.** GitHub's `updated_at`
@@ -384,9 +385,19 @@ rather than a caution:
   delivery from its source that did not verify, not a look nothing rang for that found something new
   — it polls hourly (`bellDue`), and the moments that skipped are never counted as missed runs. The
   row in SCHEDULES says which way it went and why (`bellSaid`).
-- **Slack's thread blindness is not fixed by this.** The Slack watch still reads `conversations.history`;
-  an `app_mention` inside a thread wakes a look that cannot see it. Reading the thread it names is
-  V15's, with the Events API's own address.
+- **One address goes further: what a poll cannot see.** `conversations.history` never returns a
+  reply inside its thread alone, so the doorbell reads the message's `ts` and its thread's out of a
+  Slack `app_mention` (`HookAddress.item`, spelt by `slackItem`) and hands them to the look
+  (`ctx.rang`), which reads that one thread with `conversations.replies` and says which it read to
+  the end (`read`). Ids only, matched to the channel the schedule reads: a forged one could make Tade
+  read a thread of a channel it already reads, sooner. It rides the wake (`Schedules.wake(id,
+  item)`), because the line is appended and not yet folded when the look starts, **and** the line
+  (`HookRung.item`), so the first look after a window opens is handed what one before it could not
+  finish (`ScheduleFold`, `Watched.rang`, `OWED` at most); a look lets go of one only where it left
+  nothing for the next (`left === 0`), as `since` moves. Such a request's id carries its thread after
+  its `ts` (`slack:C…/<ts>/<thread>`, `externalIdOf`), so the re-check reads it out of its thread and
+  the reply threads under the parent — and a reply also sent to the channel keeps the id history
+  gives it, so both ways of finding it find one request.
 
 ## Connecting a source, step by step
 
@@ -407,15 +418,35 @@ anything**: it lets the forge read as the app and makes the doorbell ring, and `
   last, so a window that dies halfway keeps no old id beside a new key. What the source hands over
   and Tade does not use (an OAuth client's id and secret) is not kept.
 - **GitHub's App is read-only for good**, made with the webhook and its events only where a public
-  name gives it an address; without one it is made with none and its watches poll. Slack (V15) and
-  Linear (V16) join `CONNECT_SOURCES` when they are built, never before.
+  name gives it an address; without one it is made with none and its watches poll. Linear (V16)
+  joins `CONNECT_SOURCES` when it is built, never before.
+- **A source says what its page may be asked** (`CONNECT_FLOWS`): its presses, each a route; its
+  callbacks, each answered only for a word a press minted — and a press nothing comes back from
+  mints none; whether the source sends a browser back only to a public name (`publicBack`); and the
+  hosts a press may open, which another machine's answer is held to before this one opens it.
+- **Slack's app is the person's internal one**, made from a manifest (`slack-app.ts`), because an
+  internal app keeps Slack's generous tier. **Its signing secret goes in first**: the doorbell
+  answers `url_verification` only once it verifies, so the page asks for it before Slack checks the
+  address and then says to press Retry. What Slack's Basic Information shows the person and hands over
+  no other way — signing secret, client id and secret — is pasted into the page's `keep` press, held
+  to its shape there (`KeepSchema`, naming the box a wrong paste went in), written through `writeKey`
+  as `connect slack`, and never answered back or drawn again; the install is OAuth v2 back to
+  `/connect/slack/installed` on the public name, its code exchanged once over the one Slack client.
+  **With no public name** Slack has nowhere to send the browser (its redirect must be HTTPS), so the
+  app is made with no address and installed from its own page, its token kept by `keep`, and the
+  watch polls. **Socket Mode is not built** — it would be a socket the window holds open — so a
+  laptop sees an in-thread mention only where it was also sent to the channel.
+- **Another machine's window never carries what is pasted.** `/api/connect` takes `make` and
+  `install`, never `keep`: Settings › Remotes draws Slack's steps and opens Slack's own pages, and
+  says the secrets go in at that machine's own page, through `ssh -L`.
 
 ## What not to build
 
 A second scheduler · an `IntakeSource` port before a second source needs one · a second HTTP client
 for a forge Tade already talks to · a listener, a webhook endpoint, a public hostname or a socket
 held open inside a watch — the doorbell is the away view's public listener's (`HOOKS`) and only ever
-wakes a watch · work, a grant, a `from` or a word of an agent's prompt out of a delivery's payload ·
+wakes a watch, handing it at most an address · a secret carried from another machine's window into a
+connect page · work, a grant, a `from` or a word of an agent's prompt out of a delivery's payload ·
 a caller-chosen template, grant, repository or channel · an allowlist of
 display names · a confidence threshold that starts work · attachment downloading · a reply that
 carries an agent's prose · a table of pending replies beside the journal · a status that closes,

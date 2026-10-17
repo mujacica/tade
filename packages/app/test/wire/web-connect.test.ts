@@ -3,7 +3,8 @@ import { type Config, ConfigSchema } from '@tade/core'
 import { forgeOnHost } from '@tade/status'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { githubReplay, type ReplayOptions } from '../../../../test/fixtures/forge/github.ts'
-import { CONNECTED_BY, connectingFor } from '../../src/wire/web-connect.ts'
+import { type SlackScript, slackScript } from '../../../../test/fixtures/slack/slack.ts'
+import { CONNECTED_BY, connectingFor, SLACK_CONNECTED_BY } from '../../src/wire/web-connect.ts'
 
 // The window's half of connecting GitHub (REMOTE-TADE §6.4): what the page
 // reads — the App kept, where GitHub says it is installed, what the journal
@@ -49,6 +50,8 @@ function window(
     publicName?: string | null
     replay?: ReplayOptions
     heard?: { verified: number | null; refused: number | null }
+    slack?: SlackScript
+    env?: Record<string, string>
   } = {},
 ) {
   const replay = githubReplay({
@@ -86,7 +89,8 @@ function window(
     },
     heard: () => over.heard ?? { verified: null, refused: null },
     now: () => NOW,
-    env: {},
+    env: over.env ?? {},
+    ...(over.slack === undefined ? {} : { fetch: over.slack.fetch }),
     forge: (apps) =>
       forgeOnHost('github.com', { exec: replay.exec, fetch: replay.fetch, env: {}, apps }),
   })
@@ -120,7 +124,9 @@ describe('the page, as the window reads it', () => {
     })
     expect(replay.calls.filter((one) => one.includes('/app/installations?')).length).toBe(1)
     // Told an install came back, it asks again.
-    half.installed('github')
+    expect(await half.installed('github', { code: null, error: null, home: 'x' })).toEqual({
+      where: null,
+    })
     await half.page('github')
     expect(replay.calls.filter((one) => one.includes('/app/installations?')).length).toBe(2)
   })
@@ -203,10 +209,154 @@ describe('keeping what GitHub made', () => {
   })
 
   it('says where the browser goes to install it, carrying the word, once a slug is kept', () => {
-    expect(window().half.installUrl('github', 's')).toBeNull()
+    expect(window().half.installUrl('github', 's', 'https://x')).toBeNull()
     const { half } = window({ intake: { github_app_slug: 'tade-vps' } })
-    expect(half.installUrl('github', 's-1')).toBe(
+    expect(half.installUrl('github', 's-1', 'https://x')).toBe(
       'https://github.com/apps/tade-vps/installations/new?state=s-1',
     )
+  })
+})
+
+describe('connecting Slack, as the window does it', () => {
+  // Everything about Slack is asked of the Slack door over its one client
+  // (`@tade/extension-intake`'s `slack-app.ts`), against a Slack that answers
+  // from a file and checks the install's client, code and redirect as Slack does.
+  const SIGNING = 's'.repeat(32)
+  const SECRET = 'c'.repeat(32)
+  const install = {
+    clientId: '1234.5678',
+    clientSecret: SECRET,
+    code: 'c0de',
+    redirect: 'https://tade.example.com/connect/slack/installed',
+    token: 'xoxb-1-2-made',
+  }
+  const kept = { slack_client_id: '1234.5678', slack_client_secret: SECRET }
+
+  it('starts at making the app, says what it asks Slack for, and asks Slack nothing', async () => {
+    const slack = slackScript({ base: 0, install })
+    const { half } = window({ slack })
+    const { page, asks, events } = await half.page('slack')
+    expect(page.steps.map((one) => [one.id, one.done])).toEqual([
+      ['make', false],
+      ['keep', false],
+      ['deliveries', false],
+      ['install', false],
+    ])
+    expect(asks.map((one) => one.what)).toContain('app_mentions:read')
+    expect(events).toEqual(['app_mention'])
+    expect(slack.calls).toEqual([])
+  })
+
+  it('makes the app from a manifest with the doorbell’s address, or with none', () => {
+    const { half } = window({ slack: slackScript({ base: 0 }) })
+    const want = {
+      home: 'https://tade.example.com',
+      hook: 'https://tade.example.com/hooks/slack',
+      made: '',
+      installed: '',
+      state: '',
+      name: 'Tade vps',
+    }
+    const made = new URL(half.form('slack', want).url)
+    const manifest = JSON.parse(made.searchParams.get('manifest_json') ?? '{}')
+    expect(manifest.settings.event_subscriptions.request_url).toBe(want.hook)
+    const none = new URL(
+      half.form('slack', { ...want, hook: null, home: 'http://localhost:1' }).url,
+    )
+    expect(JSON.parse(none.searchParams.get('manifest_json') ?? '{}').settings).not.toHaveProperty(
+      'event_subscriptions',
+    )
+  })
+
+  it('keeps what was pasted through the one write path, each as connecting Slack, a secret said as set', async () => {
+    const { half, wrote, config } = window({ slack: slackScript({ base: 0 }) })
+    const answer = await half.keep('slack', {
+      signing_secret: SIGNING,
+      client_id: '1234.5678',
+      client_secret: SECRET,
+    })
+    expect(answer).toEqual({ kept: ['the signing secret', 'the client id', 'the client secret'] })
+    expect(wrote.map((one) => [one.key, one.was, one.by])).toEqual([
+      ['extensions.intake.slack_signing_secret', 'not set', SLACK_CONNECTED_BY],
+      ['extensions.intake.slack_client_id', '', SLACK_CONNECTED_BY],
+      ['extensions.intake.slack_client_secret', 'not set', SLACK_CONNECTED_BY],
+    ])
+    expect(config().extensions.intake).toMatchObject({
+      slack_signing_secret: SIGNING,
+      slack_client_id: '1234.5678',
+      slack_client_secret: SECRET,
+    })
+    // Kept again, a credential that was there is said as set, never as itself.
+    await half.keep('slack', { signing_secret: 't'.repeat(32) })
+    expect(wrote.at(-1)?.was).toBe('set')
+  })
+
+  it('says where a variable here wins over what was kept', async () => {
+    const { half } = window({
+      slack: slackScript({ base: 0 }),
+      env: { SLACK_BOT_TOKEN: 'xoxb-env' },
+    })
+    expect(await half.keep('slack', { token: 'xoxb-pasted-here-1' })).toEqual({
+      kept: ['the bot token (though $SLACK_BOT_TOKEN wins over it here)'],
+    })
+  })
+
+  it('installs with OAuth to the public name only once the client is kept', () => {
+    expect(window().half.installUrl('slack', 's', 'https://tade.example.com')).toBeNull()
+    const { half } = window({ intake: kept })
+    const url = new URL(half.installUrl('slack', 's-1', 'https://tade.example.com') ?? '')
+    expect(url.searchParams.get('client_id')).toBe('1234.5678')
+    expect(url.searchParams.get('redirect_uri')).toBe(install.redirect)
+    expect(url.searchParams.get('state')).toBe('s-1')
+  })
+
+  it('exchanges the code that came back for the token, keeps it, and then reads as installed', async () => {
+    const slack = slackScript({ base: 0, install })
+    const { half, wrote, config } = window({
+      intake: { ...kept, slack_signing_secret: SIGNING },
+      slack,
+    })
+    const back = { code: 'c0de', error: null, home: 'https://tade.example.com' }
+    expect(await half.installed('slack', back)).toEqual({ where: 'Acme' })
+    expect(wrote).toEqual([
+      {
+        key: 'extensions.intake.slack_token',
+        value: install.token,
+        was: 'not set',
+        by: SLACK_CONNECTED_BY,
+      },
+    ])
+    expect(config().extensions.intake?.slack_token).toBe(install.token)
+    const { page } = await half.page('slack')
+    const step = page.steps.find((one) => one.id === 'install')
+    expect(step?.done).toBe(true)
+    expect(step?.said).toContain('installed in Acme as @tade')
+  })
+
+  it('keeps nothing where Slack said no, or would not take the code, and says which', async () => {
+    const slack = slackScript({ base: 0, install })
+    const { half, wrote } = window({ intake: kept, slack })
+    const home = 'https://tade.example.com'
+    expect(await half.installed('slack', { code: null, error: 'access_denied', home })).toEqual({
+      problem: expect.stringContaining('access_denied'),
+    })
+    expect(await half.installed('slack', { code: 'guessed', error: null, home })).toEqual({
+      problem: expect.stringContaining('invalid_code'),
+    })
+    expect(await half.installed('slack', { code: null, error: null, home })).toEqual({
+      problem: expect.stringContaining('no code'),
+    })
+    // An error that is not one of Slack's words is never drawn.
+    expect(
+      await half.installed('slack', { code: null, error: '<script>alert(1)</script>', home }),
+    ).toEqual({ problem: expect.not.stringContaining('<script>') })
+    expect(wrote).toEqual([])
+  })
+
+  it('says a token Slack no longer takes is to be installed again', async () => {
+    const slack = slackScript({ base: 0, install })
+    const { half } = window({ intake: { ...kept, slack_token: 'xoxb-revoked-long' }, slack })
+    const { page } = await half.page('slack')
+    expect(page.steps.find((one) => one.id === 'install')?.said).toContain('no longer good')
   })
 })

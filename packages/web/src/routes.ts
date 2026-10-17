@@ -1,4 +1,12 @@
-import { CONNECT_SOURCES, type ConnectSource, HOOK_SOURCES, type HookSource } from '@tade/core'
+import {
+  CONNECT_FLOWS,
+  CONNECT_SOURCES,
+  type ConnectBack,
+  type ConnectPress,
+  type ConnectSource,
+  HOOK_SOURCES,
+  type HookSource,
+} from '@tade/core'
 import { SAYINGS } from './asked.ts'
 import { CHANGES } from './configured.ts'
 import { SAVINGS } from './drafted.ts'
@@ -156,6 +164,10 @@ export interface Route {
   connects?: 'page' | 'press' | 'back'
   /** The source a press or a callback is about, carried for the reason `rings` is. */
   source?: ConnectSource
+  /** Which press it is, where it is one: carried, so nothing reads it back out of the name. */
+  press?: ConnectPress
+  /** Which callback it is, where the source sends the browser back. */
+  back?: ConnectBack
   /**
    * Whether this path is answered with the shell.
    *
@@ -608,9 +620,10 @@ export const OWNED: readonly Route[] = [
 
 /**
  * The guided pages that connect a source (REMOTE-TADE §6.4, `connected.ts`):
- * the page, a press per thing it does — making the app, installing it — and
- * where the source sends the browser back after each, a path apiece and the
- * table is `CONNECT_SOURCES`.
+ * the page, a press per thing it does — making the app, keeping what the
+ * source's own page showed the person, installing it — and where the source
+ * sends the browser back, a path apiece, and the table is each source's
+ * `CONNECT_FLOWS`.
  *
  * A table of its own because none of them is anything a device asks: the page
  * and its presses are this machine's alone (`here`) and ask no session, since
@@ -635,45 +648,35 @@ export const CONNECTS: readonly Route[] = [
     here: true,
     connects: 'page',
   },
+  // Each source's presses and callbacks, as its flow says (`CONNECT_FLOWS`):
+  // GitHub makes and installs and comes back after each, Slack makes, keeps
+  // what its own page shows the person, and comes back once it is installed.
   ...CONNECT_SOURCES.flatMap((source): Route[] => [
-    {
-      method: 'POST',
-      path: `/connect/${source}/make`,
-      name: `connect ${source} make`,
-      needs: 'read',
-      mutates: true,
-      here: true,
-      connects: 'press',
-      source,
-    },
-    {
-      method: 'POST',
-      path: `/connect/${source}/install`,
-      name: `connect ${source} install`,
-      needs: 'read',
-      mutates: true,
-      here: true,
-      connects: 'press',
-      source,
-    },
-    {
-      method: 'GET',
-      path: `/connect/${source}/made`,
-      name: `connect ${source} made`,
-      needs: 'read',
-      mutates: false,
-      connects: 'back',
-      source,
-    },
-    {
-      method: 'GET',
-      path: `/connect/${source}/installed`,
-      name: `connect ${source} installed`,
-      needs: 'read',
-      mutates: false,
-      connects: 'back',
-      source,
-    },
+    ...CONNECT_FLOWS[source].presses.map(
+      (press): Route => ({
+        method: 'POST',
+        path: `/connect/${source}/${press}`,
+        name: `connect ${source} ${press}`,
+        needs: 'read',
+        mutates: true,
+        here: true,
+        connects: 'press',
+        source,
+        press,
+      }),
+    ),
+    ...CONNECT_FLOWS[source].backs.map(
+      (back): Route => ({
+        method: 'GET',
+        path: `/connect/${source}/${back}`,
+        name: `connect ${source} ${back}`,
+        needs: 'read',
+        mutates: false,
+        connects: 'back',
+        source,
+        back,
+      }),
+    ),
   ]),
 ]
 

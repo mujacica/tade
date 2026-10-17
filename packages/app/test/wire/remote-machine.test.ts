@@ -454,38 +454,79 @@ describe('what is asked of another machine only while somebody here looks', () =
 
 describe('connecting GitHub on another machine', () => {
   /** What that machine's window knows of GitHub: one App made, nothing installed. */
-  const github = (form: { url: string; fields?: Record<string, string> }): WebConnecting => ({
-    page: async () => ({
-      page: {
-        source: 'github',
-        title: 'GitHub',
-        steps: [
-          {
-            id: 'make',
-            title: 'Make a GitHub App',
-            done: true,
-            said: 'kept here: GitHub App tade-vps\u001b',
-            press: { act: 'make', label: 'Make another' },
+  const github = (
+    form: { url: string; fields?: Record<string, string> },
+    slack = { url: 'https://api.slack.com/apps?new_app=1&manifest_json=%7B%7D' },
+  ): WebConnecting => ({
+    page: async (source) =>
+      source === 'slack'
+        ? {
+            page: {
+              source: 'slack',
+              title: 'Slack',
+              steps: [
+                {
+                  id: 'make',
+                  title: 'Make a Slack app',
+                  done: false,
+                  said: 'one app in your own workspace',
+                  press: { act: 'make', label: 'Make it on Slack' },
+                },
+                {
+                  id: 'keep',
+                  title: 'Give this machine its signing secret',
+                  done: false,
+                  said: 'from the app’s Basic Information',
+                  press: {
+                    act: 'keep',
+                    label: 'Keep them',
+                    fields: [{ name: 'signing_secret', label: 'Signing Secret', secret: true }],
+                  },
+                },
+              ],
+              writes: 'It writes nothing unless you turn reply on.',
+            },
+            asks: [],
+            events: ['app_mention'],
+          }
+        : {
+            page: {
+              source: 'github',
+              title: 'GitHub',
+              steps: [
+                {
+                  id: 'make',
+                  title: 'Make a GitHub App',
+                  done: true,
+                  said: 'kept here: GitHub App tade-vps\u001b',
+                  press: { act: 'make', label: 'Make another' },
+                },
+                {
+                  id: 'install',
+                  title: 'Install it on your repositories',
+                  done: false,
+                  said: 'installed nowhere yet',
+                  press: { act: 'install', label: 'Install it on GitHub' },
+                },
+                { id: 'deliveries', title: 'Deliveries arrive', done: false, said: 'waiting' },
+              ],
+              writes: 'Nothing it may do writes anything.',
+            },
+            asks: [{ what: 'Issues: read', why: 'to read a labelled issue' }],
+            events: ['issues'],
           },
-          {
-            id: 'install',
-            title: 'Install it on your repositories',
-            done: false,
-            said: 'installed nowhere yet',
-            press: { act: 'install', label: 'Install it on GitHub' },
-          },
-          { id: 'deliveries', title: 'Deliveries arrive', done: false, said: 'waiting' },
-        ],
-      },
-      asks: [{ what: 'Issues: read', why: 'to read a labelled issue' }],
-      events: ['issues'],
-    }),
-    form: (_source, want) => ({ ...form, url: form.url.replace('STATE', want.state) }),
+    form: (source, want) =>
+      source === 'slack' ? slack : { ...form, url: form.url.replace('STATE', want.state) },
     installUrl: (_source, state) =>
       form.fields === undefined ? form.url.replace('STATE', state) : null,
     made: async () => ({ name: 'tade-vps' }),
-    installed: () => {},
+    installed: async () => ({ where: null }),
+    keep: async () => ({ kept: ['the signing secret'] }),
   })
+  const there = (
+    machine: ReturnType<Awaited<ReturnType<typeof linked>>['vpsNow']>,
+    source: string,
+  ) => machine?.detail.connects.find((one) => one.source === source)?.seen ?? null
   const MAKE = {
     url: 'https://github.com/settings/apps/new?state=STATE',
     fields: { manifest: '{"name":"Tade \\"vps\\"","url":"https://tade.example.com"}' },
@@ -496,10 +537,10 @@ describe('connecting GitHub on another machine', () => {
     const { far, until, vpsNow } = await linked(looking)
     far.connecting = github(MAKE)
     await until('vps said what it is', () => vpsNow()?.detail.about !== null)
-    expect(vpsNow()?.detail.connect).toBeNull()
+    expect(there(vpsNow(), 'github')).toBeNull()
     looking.records = true
-    await until('how GitHub stands there', () => vpsNow()?.detail.connect !== null)
-    const steps = vpsNow()?.detail.connect?.steps ?? []
+    await until('how GitHub stands there', () => there(vpsNow(), 'github') !== null)
+    const steps = there(vpsNow(), 'github')?.steps ?? []
     expect(steps.map((one) => [one.title, one.done, one.press?.act ?? null])).toEqual([
       ['Make a GitHub App', true, 'make'],
       ['Install it on your repositories', false, 'install'],
@@ -516,7 +557,7 @@ describe('connecting GitHub on another machine', () => {
     )
     far.connecting = github(MAKE)
     await until('vps said what it is', () => vpsNow()?.detail.about !== null)
-    await remotes.action('remote:connect:vps:make')
+    await remotes.action('remote:connect:vps:github:make')
     expect(links).toHaveLength(1)
     const page = fileURLToPath(links[0] ?? '')
     expect(page).toBe(connectPagePath(home, 'vps'))
@@ -527,7 +568,7 @@ describe('connecting GitHub on another machine', () => {
     expect(html).toContain('value="{&quot;name&quot;:&quot;Tade \\&quot;vps\\&quot;&quot;')
     expect(said.at(-1)).toContain('GitHub opens in your browser to make the App for vps')
     // What that machine said came back is held, so the page redraws from it.
-    expect(vpsNow()?.detail.connect?.steps[0]?.done).toBe(true)
+    expect(there(vpsNow(), 'github')?.steps[0]?.done).toBe(true)
   })
 
   it('opens GitHub’s install page itself, with nothing written here', async () => {
@@ -539,7 +580,7 @@ describe('connecting GitHub on another machine', () => {
       url: 'https://github.com/apps/tade-vps/installations/new?state=STATE',
     })
     await until('vps said what it is', () => vpsNow()?.detail.about !== null)
-    await remotes.action('remote:connect:vps:install')
+    await remotes.action('remote:connect:vps:github:install')
     expect(links[0]).toMatch(/^https:\/\/github\.com\/apps\/tade-vps\/installations\/new\?state=/)
     await expect(stat(join(home, 'remotes', 'vps', 'connect-github.html'))).rejects.toThrow()
   })
@@ -548,7 +589,7 @@ describe('connecting GitHub on another machine', () => {
     const { far, remotes, until, vpsNow, links, said } = await linked()
     far.connecting = github(MAKE)
     await until('vps said what it is', () => vpsNow()?.detail.about !== null)
-    await remotes.action('remote:connect:vps:make')
+    await remotes.action('remote:connect:vps:github:make')
     expect(links).toEqual([])
     expect(said.at(-1)).toContain('no public name')
   })
@@ -563,9 +604,51 @@ describe('connecting GitHub on another machine', () => {
       fields: { manifest: '{}' },
     })
     await until('vps said what it is', () => vpsNow()?.detail.about !== null)
-    await remotes.action('remote:connect:vps:make')
+    await remotes.action('remote:connect:vps:github:make')
     expect(links).toEqual([])
     expect(said.at(-1)).toContain('somewhere other than GitHub')
+  })
+
+  it('draws Slack’s steps there too, and never offers here the one its own page takes', async () => {
+    const looking = { records: true, scorecards: false }
+    const { far, until, vpsNow } = await linked(looking, { publicName: 'tade.example.com' })
+    far.connecting = github(MAKE)
+    await until('how Slack stands there', () => there(vpsNow(), 'slack') !== null)
+    const steps = there(vpsNow(), 'slack')?.steps ?? []
+    expect(steps.map((one) => [one.title, one.press?.act ?? null, one.pasted])).toEqual([
+      ['Make a Slack app', 'make', false],
+      ['Give this machine its signing secret', null, true],
+    ])
+  })
+
+  it('opens Slack’s own page here on a press, with nothing written in this home', async () => {
+    const { far, remotes, until, vpsNow, links, said, home } = await linked(
+      { records: false, scorecards: false },
+      { publicName: 'tade.example.com' },
+    )
+    far.connecting = github(MAKE)
+    await until('vps said what it is', () => vpsNow()?.detail.about !== null)
+    await remotes.action('remote:connect:vps:slack:make')
+    expect(links).toEqual(['https://api.slack.com/apps?new_app=1&manifest_json=%7B%7D'])
+    expect(said.at(-1)).toContain('its secrets go in at vps')
+    await expect(stat(join(home, 'remotes', 'vps', 'connect-github.html'))).rejects.toThrow()
+  })
+
+  it('opens nothing that is not Slack’s, nor a form Slack never asks to be posted', async () => {
+    for (const slack of [
+      { url: 'https://slack.com.evil.example/apps' },
+      { url: 'https://api.slack.com/apps', fields: { manifest: '{}' } },
+    ]) {
+      const { far, remotes, until, vpsNow, links, said } = await linked(
+        { records: false, scorecards: false },
+        { publicName: 'tade.example.com' },
+      )
+      far.connecting = github(MAKE, slack)
+      await until('vps said what it is', () => vpsNow()?.detail.about !== null)
+      await remotes.action('remote:connect:vps:slack:make')
+      expect(links).toEqual([])
+      expect(said.at(-1)).toMatch(/somewhere other than Slack|never asks/)
+    }
   })
 
   it('keeps a page for a machine only under a name `remotes.<name>` can be', () => {

@@ -1,8 +1,14 @@
+import { chmod, chown, mkdtemp } from 'node:fs/promises'
+import { request } from 'node:http'
+import { connect } from 'node:net'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { CONNECT_STATE_MS, type ConnectPage } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { PAGE_CSP } from '../src/connect-page.ts'
 import {
   ConnectAnswerSchema,
+  type ConnectReturn,
   ConnectStates,
   type ConnectWant,
   defaultName,
@@ -42,40 +48,99 @@ const PAGE: ConnectPage = {
     },
     { id: 'deliveries', title: 'Deliveries arrive', done: false, said: 'no public name' },
   ],
+  writes: 'Nothing it may do writes anything.',
+}
+
+const SLACK: ConnectPage = {
+  source: 'slack',
+  title: 'Slack',
+  steps: [
+    {
+      id: 'make',
+      title: 'Make a Slack app',
+      done: false,
+      said: 'one app in your own workspace',
+      press: { act: 'make', label: 'Make it on Slack' },
+    },
+    {
+      id: 'keep',
+      title: 'Give this machine its signing secret',
+      done: false,
+      said: 'from the app’s Basic Information',
+      press: {
+        act: 'keep',
+        label: 'Keep them',
+        fields: [
+          { name: 'signing_secret', label: 'Signing Secret', secret: true },
+          { name: 'client_id', label: 'Client ID', secret: false },
+        ],
+      },
+    },
+    { id: 'install', title: 'Install it in your workspace', done: false, said: 'once kept' },
+  ],
+  writes: 'It writes nothing unless you turn reply on.',
 }
 
 /** A window's half that records what it was asked and makes what a test says. */
-function connecting(over: { made?: WebConnecting['made']; slug?: string | null } = {}) {
+function connecting(
+  over: {
+    made?: WebConnecting['made']
+    slug?: string | null
+    installed?: WebConnecting['installed']
+  } = {},
+) {
   const asked = {
     wants: [] as ConnectWant[],
     codes: [] as string[],
     installed: 0,
+    backs: [] as ConnectReturn[],
+    kept: [] as Record<string, string | undefined>[],
+    homes: [] as string[],
   }
   const half: WebConnecting = {
-    page: async () => ({
-      page: PAGE,
-      asks: [{ what: 'Issues: read', why: 'to read an issue somebody labelled' }],
-      events: ['issues'],
-    }),
-    form: (_source, want) => {
+    page: async (source) =>
+      source === 'slack'
+        ? {
+            page: SLACK,
+            asks: [{ what: 'channels:history', why: 'to read a channel you invite it to' }],
+            events: ['app_mention'],
+          }
+        : {
+            page: PAGE,
+            asks: [{ what: 'Issues: read', why: 'to read an issue somebody labelled' }],
+            events: ['issues'],
+          },
+    form: (source, want) => {
       asked.wants.push(want)
+      if (source === 'slack') return { url: 'https://api.slack.com/apps?new_app=1' }
       return {
         url: `https://github.com/settings/apps/new?state=${want.state}`,
         fields: { manifest: '{}' },
       }
     },
-    installUrl: (_source, state) =>
-      over.slug === null
-        ? null
-        : `https://github.com/apps/${over.slug ?? 'tade-vps'}/installations/new?state=${state}`,
+    installUrl: (source, state, home) => {
+      asked.homes.push(home)
+      if (over.slug === null) return null
+      return source === 'slack'
+        ? `https://slack.com/oauth/v2/authorize?state=${state}`
+        : `https://github.com/apps/${over.slug ?? 'tade-vps'}/installations/new?state=${state}`
+    },
     made:
       over.made ??
       (async (_source, code) => {
         asked.codes.push(code)
         return { name: 'tade-vps <b>' }
       }),
-    installed: () => {
-      asked.installed++
+    installed:
+      over.installed ??
+      (async (source, back) => {
+        asked.installed++
+        asked.backs.push(back)
+        return { where: source === 'slack' ? 'Acme <Inc>' : null }
+      }),
+    keep: async (_source, fields) => {
+      asked.kept.push(fields)
+      return { kept: Object.keys(fields).map((one) => one.replace('_', ' ')) }
     },
   }
   return { half, asked }
@@ -200,7 +265,7 @@ describe('a press', () => {
     const one = await start({}, { connecting: half })
     const install = await press(one, '/connect/github/install')
     expect(install.status).toBe(404)
-    expect(JSON.parse(install.text).said).toContain('no App kept here')
+    expect(JSON.parse(install.text).said).toContain('no app kept here')
   })
 })
 
@@ -274,6 +339,191 @@ describe('where GitHub sends the browser back', () => {
     expect(done.status).toBe(200)
     expect(done.text).toContain('Installed')
     expect(asked.installed).toBe(1)
+  })
+})
+
+describe('Slack, on the same pages', () => {
+  const SECRET = 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6'
+  const NAME = 'tade.example.com'
+
+  /** A listener with a public name and the socket Caddy would reach it through. */
+  async function withPublic(half: WebConnecting): Promise<{ one: Running; socket: string }> {
+    const dir = await mkdtemp(join(tmpdir(), 'tade-connect-'))
+    // This user's own group first: a folder in `/tmp` is `wheel`'s, and a
+    // setgid bit on a group its owner is not in is dropped without a word.
+    await chown(dir, process.getuid?.() ?? 0, process.getgid?.() ?? 0)
+    await chmod(dir, 0o2750)
+    const socket = join(dir, 'away.sock')
+    const one = await start(
+      { publicName: NAME, trustedHosts: [NAME] },
+      { connecting: half, publicSocket: socket },
+    )
+    return { one, socket }
+  }
+
+  /** Where Slack sends the browser back: the public name, through Caddy's socket. */
+  function viaPublic(socket: string, path: string): Promise<Answer> {
+    return new Promise((done, failed) => {
+      const req = request(
+        { path, headers: { host: NAME }, createConnection: () => connect(socket) },
+        (res) => {
+          const chunks: Buffer[] = []
+          res.on('data', (chunk: Buffer) => chunks.push(chunk))
+          res.on('end', () =>
+            done({
+              status: res.statusCode ?? 0,
+              headers: {},
+              text: Buffer.concat(chunks).toString('utf8'),
+            }),
+          )
+        },
+      )
+      req.on('error', failed)
+      req.end()
+    })
+  }
+
+  it('draws its steps beside GitHub’s, its secrets as boxes that hide what is typed', async () => {
+    const { half } = connecting()
+    const one = await start({}, { connecting: half })
+    const page = await ask(one, '/connect', { headers: { host: here(one) } })
+    expect(page.text).toContain('Make a Slack app')
+    expect(page.text).toContain('data-press="/connect/slack/keep"')
+    expect(page.text).toContain('What it asks Slack for, and why')
+    expect(page.text).toContain('channels:history')
+    expect(page.text).toMatch(/<input name="signing_secret" type="password" autocomplete="off"/)
+    expect(page.text).toMatch(/<input name="client_id" type="text"/)
+    expect(page.text).toContain('It writes nothing unless you turn reply on.')
+  })
+
+  it('makes the app from Slack’s own page and mints no word, since nothing comes back from it', async () => {
+    const { half, asked } = connecting()
+    const one = await start({ publicName: 'tade.example.com' }, { connecting: half })
+    const made = await press(one, '/connect/slack/make')
+    expect(made.status).toBe(200)
+    expect(JSON.parse(made.text)).toEqual({ url: 'https://api.slack.com/apps?new_app=1' })
+    expect(asked.wants[0]).toMatchObject({
+      home: 'https://tade.example.com',
+      hook: 'https://tade.example.com/hooks/slack',
+      state: '',
+    })
+  })
+
+  it('keeps what was pasted, in its shape, and never answers it back', async () => {
+    const { half, asked } = connecting()
+    const one = await start({}, { connecting: half })
+    const kept = await press(one, '/connect/slack/keep', {
+      signing_secret: ` ${SECRET} `,
+      client_id: '1234.5678',
+      client_secret: '',
+    })
+    expect(kept.status, kept.text).toBe(200)
+    // Trimmed, and an empty box left alone rather than refused or written.
+    expect(asked.kept).toEqual([{ signing_secret: SECRET, client_id: '1234.5678' }])
+    expect(JSON.parse(kept.text).said).toBe('kept: signing secret, client id')
+    expect(kept.text).not.toContain(SECRET)
+  })
+
+  it('says which box was not what it should have held, and keeps nothing', async () => {
+    const { half, asked } = connecting()
+    const one = await start({}, { connecting: half })
+    const wrong = await press(one, '/connect/slack/keep', { client_id: 'xoxb-not-an-id' })
+    expect(wrong.status).toBe(400)
+    expect(JSON.parse(wrong.text).said).toContain('the Client ID is two numbers')
+    for (const body of [{}, { client_secret: '   ' }, { path: '/etc' }, { name: 'Tade' }]) {
+      expect((await press(one, '/connect/slack/keep', body)).status).toBe(400)
+    }
+    expect(asked.kept).toEqual([])
+  })
+
+  it('keeps nothing a page elsewhere asked for: the keep press has every layer a press has', async () => {
+    const { half, asked } = connecting()
+    const one = await start({}, { connecting: half })
+    const elsewhere: Record<string, string>[] = [
+      { origin: 'https://evil.example' },
+      { 'sec-fetch-site': 'cross-site' },
+      { 'content-type': 'text/plain' },
+    ]
+    for (const headers of elsewhere) {
+      const answer = await press(one, '/connect/slack/keep', { signing_secret: SECRET }, headers)
+      expect(answer.status).toBe(403)
+    }
+    expect(asked.kept).toEqual([])
+  })
+
+  it('has no keep for GitHub, which hands its App over itself', async () => {
+    const { half } = connecting()
+    const one = await start({}, { connecting: half })
+    expect((await press(one, '/connect/github/keep', { token: 'x' })).status).toBe(404)
+  })
+
+  it('installs only where Slack can send the browser back: a public name, never this door', async () => {
+    const { half, asked } = connecting()
+    const one = await start({}, { connecting: half })
+    const refused = await press(one, '/connect/slack/install')
+    expect(refused.status).toBe(404)
+    expect(JSON.parse(refused.text).said).toContain('keep its token here')
+    expect(asked.homes).toEqual([])
+  })
+
+  it('exchanges the code the word came back with, at the public name, once', async () => {
+    const { half, asked } = connecting()
+    const { one, socket } = await withPublic(half)
+    const pressed = await press(one, '/connect/slack/install')
+    expect(asked.homes).toEqual([`https://${NAME}`])
+    const state = stateOf(pressed)
+    const path = `/connect/slack/installed?code=c0de&state=${state}`
+    // Minted for the public name: this machine's own door finds nothing, and
+    // the word is burned by the try.
+    expect((await back(one, path)).status).toBe(404)
+    const again = stateOf(await press(one, '/connect/slack/install'))
+    const done = await viaPublic(socket, `/connect/slack/installed?code=c0de&state=${again}`)
+    expect(done.status, done.text).toBe(200)
+    expect(asked.backs).toEqual([{ code: 'c0de', error: null, home: `https://${NAME}` }])
+    expect(done.text).toContain('Installed in Acme &lt;Inc&gt;')
+    const replay = await viaPublic(socket, `/connect/slack/installed?code=c0de&state=${again}`)
+    expect(replay.status).toBe(404)
+    expect(asked.installed).toBe(1)
+  })
+
+  it('says why nothing was kept where Slack said no', async () => {
+    const { half, asked } = connecting({
+      installed: async (_source, back) => ({ problem: `Slack did not install it (${back.error})` }),
+    })
+    const { one, socket } = await withPublic(half)
+    const state = stateOf(await press(one, '/connect/slack/install'))
+    const failed = await viaPublic(
+      socket,
+      `/connect/slack/installed?error=access_denied&state=${state}`,
+    )
+    expect(failed.status).toBe(502)
+    expect(failed.text).toContain('Slack did not install it (access_denied)')
+    expect(asked.installed).toBe(0)
+  })
+
+  it('reads for an owner elsewhere, and never takes what is pasted from one', async () => {
+    const port = (one: Running) => Number(one.host.split(':')[1])
+    const { half, asked } = connecting()
+    const one = await start({ publicName: 'tade.example.com' }, { connecting: half })
+    const made = await mintOwner(one.home, { port: port(one), label: 'mac', from: '' }, Date.now())
+    const asOwner = (body: unknown) =>
+      ask(one, '/api/connect', {
+        method: 'POST',
+        headers: {
+          host: made.host,
+          origin: `http://${made.host}`,
+          cookie: `tade_away=${made.cookie}`,
+          'content-type': 'application/json',
+          [CSRF_HEADER]: made.csrf,
+        },
+        body: JSON.stringify(body),
+      })
+    const read = ConnectAnswerSchema.parse(JSON.parse((await asOwner({ source: 'slack' })).text))
+    expect(read.page.steps.map((step) => step.id)).toEqual(['make', 'keep', 'install'])
+    expect(read.page.writes).toBe('It writes nothing unless you turn reply on.')
+    const pressed = await asOwner({ source: 'slack', press: 'keep', signing_secret: SECRET })
+    expect(pressed.status).toBe(400)
+    expect(asked.kept).toEqual([])
   })
 })
 

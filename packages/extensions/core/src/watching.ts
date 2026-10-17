@@ -155,6 +155,8 @@ export interface Looked {
   since: string | null
   /** Why it found nothing, where the watch had something to say about that. */
   said: string | null
+  /** Which of what it was handed (`WatchContext.rang`) it read: never anything it was not handed. */
+  read: string[]
   agent: (finding: Finding) => Promise<WatchAgent>
 }
 
@@ -190,6 +192,7 @@ export async function askLook(one: Watching, id: string): Promise<Looked> {
     // itself, and a sentence beside a finding would be a second wording of the
     // same thing for nobody to read.
     said: found.length === 0 && looked.said ? looked.said : null,
+    read: (ctx.rang ?? []).filter((item) => looked.read?.includes(item) === true),
     agent: async (finding) => {
       // A watch with nothing to start is not a broken one: it is told to
       // somebody, which is what it said it was for.

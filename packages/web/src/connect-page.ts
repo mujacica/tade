@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { CONNECT_IS_HERE, type ConnectPage } from '@tade/core'
+import { CONNECT_IS_HERE, CONNECT_TITLES, type ConnectPage, type ConnectSource } from '@tade/core'
 
 // The connect pages' HTML, drawn here rather than by the away view's page.
 //
@@ -10,7 +10,10 @@ import { CONNECT_IS_HERE, type ConnectPage } from '@tade/core'
 // document, whole, carrying nothing the projection holds and no secret, with a
 // content policy of its own (`PAGE_CSP`): its one script and its one stylesheet
 // named by their digests, nothing fetched but this origin, and the one place a
-// form may post being GitHub, which is where making an App happens.
+// form may post being GitHub, which is where making an App happens. Slack's
+// presses are addresses the browser goes to, and its `keep` a `fetch` to this
+// origin carrying what the person pasted, which the page clears and never
+// draws back.
 //
 // Every word that is not Tade's — an App's name, an account, a sentence a step
 // carries — goes through `esc`.
@@ -41,22 +44,22 @@ input { font: inherit; padding: .3rem .5rem; border: 1px solid var(--line); bord
 
 /**
  * The page's one script: a press asks this machine for its one-time word, then
- * posts the form GitHub makes the App from, or goes to where it is installed.
- * The answer's `said` is this machine's own sentence; nothing else is written
- * into the page.
+ * posts the form GitHub makes the App from, or goes to where it is made or
+ * installed — or, for a `keep`, hands this machine what was typed into the
+ * step's boxes, clears them, and reads the page again. The answer's `said` is
+ * this machine's own sentence; nothing else is written into the page.
  */
 const SCRIPT = `
 document.addEventListener('click', async (event) => {
   const button = event.target.closest('button[data-press]')
   if (!button) return
   const section = button.closest('section')
+  const step = button.closest('li')
   const said = section.querySelector('[role=status]')
   const body = {}
-  if (button.dataset.act === 'make') {
-    for (const name of ['organisation', 'name']) {
-      const input = section.querySelector('input[name=' + name + ']')
-      if (input && input.value.trim() !== '') body[name] = input.value.trim()
-    }
+  const boxes = step.querySelectorAll('input[name]')
+  for (const input of boxes) {
+    if (input.value.trim() !== '') body[input.name] = input.value.trim()
   }
   button.disabled = true
   said.textContent = 'Asking this machine…'
@@ -72,7 +75,13 @@ document.addEventListener('click', async (event) => {
       button.disabled = false
       return
     }
-    said.textContent = 'Off to GitHub…'
+    if (button.dataset.act === 'keep') {
+      for (const input of boxes) input.value = ''
+      said.textContent = got.said || 'Kept.'
+      setTimeout(() => location.reload(), 800)
+      return
+    }
+    said.textContent = 'Off to ' + section.dataset.title + '…'
     if (got.fields) {
       const form = document.createElement('form')
       form.method = 'post'
@@ -144,7 +153,6 @@ export function connectHome(
     asks: readonly { what: string; why: string }[]
     events: readonly string[]
   }[],
-  publicName: string | null,
 ): string {
   const sections = pages.map(({ page, asks, events }) => {
     const steps = page.steps.map((step) => {
@@ -154,24 +162,29 @@ export function connectHome(
       const asking =
         step.id === 'make'
           ? [
-              '<details><summary>What it asks GitHub for, and why</summary><dl>',
+              `<details><summary>What it asks ${esc(page.title)} for, and why</summary><dl>`,
               ...asks.map((one) => `<dt>${esc(one.what)}</dt><dd>${esc(one.why)}</dd>`),
               '</dl>',
               events.length > 0
                 ? `<small>And it is sent: ${events.map(esc).join(', ')} — each only makes a watch look now.</small>`
                 : '<small>With no public name it is sent nothing: the watches poll.</small>',
-              '<small> Nothing it may do writes anything; replies and pushes stay yours.</small>',
+              `<small> ${esc(page.writes)}</small>`,
               '</details>',
-              `<label>Name on GitHub <input name="name" maxlength="34" placeholder="Tade${publicName ? ` ${esc(publicName.split('.')[0] ?? '')}` : ''}"></label>`,
-              '<label>Under an organisation <input name="organisation" maxlength="39" placeholder="your own account"></label>',
-              step.done
-                ? '<small class="what">Making another replaces the App kept here; the old one stays on GitHub until you delete it there.</small>'
-                : '',
             ].join('')
           : ''
-      return `<li class="${step.done ? 'done' : 'todo'}"><span class="tick">${step.done ? '✓' : '○'}</span><strong>${esc(step.title)}</strong><span class="what">${esc(step.said)}</span>${asking}${press}</li>`
+      const boxes = (step.press?.fields ?? [])
+        .map(
+          (field) =>
+            `<label>${esc(field.label)} <input name="${field.name}" ${field.secret ? 'type="password" autocomplete="off"' : 'type="text"'} spellcheck="false" maxlength="256"${field.placeholder ? ` placeholder="${esc(field.placeholder)}"` : ''}></label>`,
+        )
+        .join('')
+      const replaces =
+        step.done && step.press?.replaces
+          ? `<small class="what">${esc(step.press.replaces)}</small>`
+          : ''
+      return `<li class="${step.done ? 'done' : 'todo'}"><span class="tick">${step.done ? '✓' : '○'}</span><strong>${esc(step.title)}</strong><span class="what">${esc(step.said)}</span>${asking}${boxes}${replaces}${press}</li>`
     })
-    return `<section><h2>${esc(page.title)}</h2><ol>${steps.join('')}</ol><p role="status"></p></section>`
+    return `<section data-title="${esc(page.title)}"><h2>${esc(page.title)}</h2><ol>${steps.join('')}</ol><p role="status"></p></section>`
   })
   return document(
     'Connect — Tade',
@@ -200,11 +213,29 @@ export function madePage(
   )
 }
 
-/** Where GitHub sent the browser back once the App was installed. */
-export function installedPage(): string {
+/**
+ * Where a source sent the browser back once its app was installed: GitHub's
+ * App on the repositories picked, Slack's in a workspace, named.
+ */
+export function installedPage(source: ConnectSource, where: string | null): string {
+  if (source === 'slack') {
+    return document(
+      'Installed — Tade',
+      `<h1>Installed${where ? ` in ${esc(where)}` : ''}</h1><p class="lead">Its token is kept on this machine. Invite it to the channel it should read, and turn on intake.slack with that channel’s id. Nobody’s words count until your list in Settings › Intake names them, and under <code>propose</code>, the default, each request then waits for you to approve it. You can close this page.</p>`,
+    )
+  }
   return document(
     'Installed — Tade',
     '<h1>Installed</h1><p class="lead">This machine reads the repositories you picked as the App from its next look, and its watches look as soon as GitHub delivers. You can close this page.</p>',
+  )
+}
+
+/** Where a source sent the browser back and nothing could be kept: why, in Tade's words. */
+export function notInstalledPage(source: ConnectSource, problem: string): string {
+  const name = CONNECT_TITLES[source]
+  return document(
+    'Not installed — Tade',
+    `<h1>Nothing was kept</h1><p>${esc(problem)}</p><p class="lead">Install it again from the Connect page on this machine; ${name} keeps nothing of a try that did not finish.</p>`,
   )
 }
 

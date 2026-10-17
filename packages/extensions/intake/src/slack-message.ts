@@ -25,15 +25,17 @@ import type { SlackMessage } from './slack-api.ts'
 //    it is addressing. A channel the app is in that is *not* a dedicated one
 //    therefore costs nothing: what is not addressed to Tade is not read as a
 //    request.
-// 2. **Top-level, or a reply that was also sent to the channel.** This is the
-//    one place polling is visibly worse than a socket, and it is written here
-//    rather than apologised for: **`conversations.history` does not return
-//    thread replies**, so a plain `@tade` inside a thread is invisible to a
-//    poll — no amount of care here can see it, and reading every thread in the
-//    channel to find one is a request per thread per look. What *is* visible is
-//    a reply somebody ticked "also send to channel" on (`thread_broadcast`), and
+// 2. **Top-level, or a reply that was also sent to the channel — or one a
+//    delivery named.** **`conversations.history` does not return thread
+//    replies**, so a plain `@tade` inside a thread is invisible to a poll — no
+//    amount of care here can see it, and reading every thread in the channel
+//    to find one is a request per thread per look. What *is* visible is a
+//    reply somebody ticked "also send to channel" on (`thread_broadcast`), and
 //    that is taken in with the whole thread as its material. A mention in an
-//    ordinary thread reply needs the Events API, which needs a socket.
+//    ordinary thread reply is visible only where Slack's Events API delivers
+//    to this machine's public name: its `app_mention` names the message and
+//    its thread, and the look reads that one thread (`inThread`). A machine
+//    with no public name still cannot see one, and says so.
 // 3. **Somebody wrote it.** A join, a leave, a topic change and an app's
 //    channel-wide post are not asks. An **allowlist of subtypes**, so a subtype
 //    this was not written knowing about is read as a channel event: the safe
@@ -91,10 +93,21 @@ export interface SlackSelf {
   url: string
 }
 
-/** `slack:C0ACME/1727442000.123456:1727445000.000100`, pulled apart again. */
-export function slackRefOf(
-  key: string,
-): { channel: string; ts: string; revision: string; externalId: string } | null {
+/**
+ * `slack:C0ACME/1727442000.123456:1727445000.000100`, pulled apart again — or
+ * `slack:C0ACME/1727445000.123456/1727442000.000100:…` for a message inside a
+ * thread that only a delivery could name (`inThread`), whose thread is the
+ * third part: `conversations.history` cannot read it back, so the re-check and
+ * the reply have to know which thread to ask.
+ */
+export function slackRefOf(key: string): {
+  channel: string
+  ts: string
+  /** The thread it is inside, where only a thread read can find it; null for one history returns. */
+  thread: string | null
+  revision: string
+  externalId: string
+} | null {
   // By the first and last colon, never `split(':')`: the external id has a
   // channel and a `ts` in it and the revision is a `ts` of its own, so a split
   // on every colon gives back the channel as the whole of it.
@@ -104,12 +117,10 @@ export function slackRefOf(
   if (last <= 0) return null
   const externalId = rest.slice(0, last)
   const revision = rest.slice(last + 1)
-  const slash = externalId.indexOf('/')
-  if (slash <= 0) return null
-  const channel = externalId.slice(0, slash)
-  const ts = externalId.slice(slash + 1)
-  if (!slackTs(ts) || !slackTs(revision)) return null
-  return { channel, ts, revision, externalId }
+  const [channel, ts, thread, ...more] = externalId.split('/')
+  if (!channel || !ts || more.length > 0 || !slackTs(ts) || !slackTs(revision)) return null
+  if (thread !== undefined && (!slackTs(thread) || thread === ts)) return null
+  return { channel, ts, thread: thread ?? null, revision, externalId }
 }
 
 /**
@@ -141,16 +152,25 @@ export function mentions(text: string, me: Pick<SlackSelf, 'userId'>): boolean {
   return me.userId !== '' && text.includes(`<@${me.userId}`)
 }
 
-/** Whether one history item is somebody asking this app for something. */
-export function isRequest(message: SlackMessage, me: Pick<SlackSelf, 'userId'>): boolean {
+/**
+ * Whether one history item is somebody asking this app for something — or,
+ * read out of a thread a delivery named (`threaded`), one reply in it.
+ */
+export function isRequest(
+  message: SlackMessage,
+  me: Pick<SlackSelf, 'userId'>,
+  threaded = false,
+): boolean {
   if (message.type !== undefined && message.type !== 'message') return false
   if (!message.ts || !slackTs(message.ts)) return false
   if (message.subtype !== undefined && !WRITTEN.has(message.subtype)) return false
   // A thread reply is only ever visible to a poll where somebody also sent it to
-  // the channel; one that is in the thread alone is not here to be read at all.
-  if (message.thread_ts && message.thread_ts !== message.ts) {
-    if (message.subtype !== 'thread_broadcast') return false
-  }
+  // the channel; one that is in the thread alone is not here to be read at all,
+  // unless a delivery named it and its thread was read for it.
+  if (inThread(message) && !threaded) return false
+  // A thread read answers with its parent first, which is not a reply in it:
+  // the parent is history's to find, as the request it is, or not at all.
+  if (threaded && !inThread(message) && message.subtype !== 'thread_broadcast') return false
   const text = message.text ?? ''
   if (!mentions(text, me)) return false
   // A mention with nothing else in it asks for nothing, and a request whose
@@ -162,6 +182,30 @@ export function isRequest(message: SlackMessage, me: Pick<SlackSelf, 'userId'>):
 /** The thread one message belongs to: its own, or the one it was a reply in. */
 export function threadOf(message: SlackMessage): string {
   return message.thread_ts || String(message.ts)
+}
+
+/**
+ * Whether a message is a reply that is inside its thread alone — the one
+ * `conversations.history` never returns — rather than a parent, a message
+ * with no thread, or a reply also sent to the channel.
+ */
+export function inThread(message: SlackMessage): boolean {
+  return (
+    Boolean(message.thread_ts) &&
+    message.thread_ts !== message.ts &&
+    message.subtype !== 'thread_broadcast'
+  )
+}
+
+/**
+ * The request's id: its channel and `ts`, and for a reply inside its thread
+ * alone the thread too, after the `ts` (`slackRefOf`). A reply also sent to
+ * the channel keeps the id history gives it, so a thread read and a poll that
+ * find the same message find one request, not two.
+ */
+export function externalIdOf(channel: string, message: SlackMessage): string {
+  const ts = String(message.ts)
+  return inThread(message) ? `${channel}/${ts}/${message.thread_ts}` : `${channel}/${ts}`
 }
 
 /** Whether a thread has to be read to know what a request's material is. */
@@ -245,10 +289,17 @@ export function tsOf(when: string, now: number): string {
 }
 
 /** Where the exact bytes are, built from the workspace's own address. */
-export function permalinkOf(me: Pick<SlackSelf, 'url'>, channel: string, ts: string): string {
+export function permalinkOf(
+  me: Pick<SlackSelf, 'url'>,
+  channel: string,
+  ts: string,
+  /** The thread a reply is inside, which is how Slack's own links to one find it. */
+  thread?: string,
+): string {
   const root = me.url.replace(/\/+$/, '')
   if (!/^https:\/\/[a-z0-9.-]+$/i.test(root)) return ''
-  return `${root}/archives/${channel}/p${ts.replace('.', '')}`
+  const link = `${root}/archives/${channel}/p${ts.replace('.', '')}`
+  return thread === undefined ? link : `${link}?thread_ts=${thread}&cid=${channel}`
 }
 
 /** What was read of one thread, and whether that was the whole of it. */
@@ -323,10 +374,16 @@ export function candidateOf(
   const ts = String(request.ts)
   // The channel and the `ts` together, with a slash: neither has a colon in it,
   // so `intakeKey`'s `<source>:<id>:<revision>` stays something a reader can
-  // pull apart again (`slackRefOf`).
-  const externalId = `${where.channel}/${ts}`
+  // pull apart again (`slackRefOf`). A reply inside its thread alone carries
+  // the thread too, after the `ts`, so a name cut short keeps what is unique.
+  const externalId = externalIdOf(where.channel, request)
   const revision = revisionOf(request)
-  const url = permalinkOf(where.me, where.channel, ts)
+  const url = permalinkOf(
+    where.me,
+    where.channel,
+    ts,
+    inThread(request) ? request.thread_ts : undefined,
+  )
   const verbatim = verbatimOf(request, thread)
   return {
     source: 'slack',

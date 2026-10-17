@@ -59,6 +59,12 @@ export class ScheduleFold {
   private readonly refused = new Map<HookSource, number>()
   /** When a delivery from each source last verified, whatever it woke: what a connect page says. */
   private readonly verified = new Map<HookSource, number>()
+  /**
+   * What deliveries that woke each schedule named (`HookRung.item`) and no
+   * look has said it read, oldest first: what its next look is handed, so a
+   * Slack mention inside a thread a window closed on is read when it opens.
+   */
+  private readonly owed = new Map<string, string[]>()
 
   add(event: TadeEvent): void {
     if (event.type === 'hook_rung') {
@@ -87,6 +93,7 @@ export class ScheduleFold {
       // still where the next one starts until another that worked says so.
       if (saysSince(event)) kept.since = event
       this.counted(schedule, event)
+      this.readOff(schedule, event)
     } else if (event.type === 'watch_found') {
       const kept = this.found.get(schedule) ?? []
       this.found.set(schedule, kept)
@@ -104,8 +111,23 @@ export class ScheduleFold {
       return
     }
     this.verified.set(rung.source, at)
-    for (const id of rung.woke ?? [])
+    for (const id of rung.woke ?? []) {
       this.bells.set(id, { woke: at, source: rung.source, owed: true })
+      if (rung.item === undefined) continue
+      const owed = this.owed.get(id) ?? []
+      this.owed.set(id, owed)
+      if (!owed.includes(rung.item)) keep(owed, rung.item, OWED)
+    }
+  }
+
+  /** A look that worked, letting go of what it read of what deliveries named. */
+  private readOff(schedule: string, event: TadeEvent): void {
+    const read = event.detail.read
+    const owed = this.owed.get(schedule)
+    if (owed === undefined || !saysSince(event) || !Array.isArray(read)) return
+    const left = owed.filter((item) => !read.includes(item))
+    if (left.length > 0) this.owed.set(schedule, left)
+    else this.owed.delete(schedule)
   }
 
   /** A look: the one a doorbell made, where one was owed, or the poll's. */
@@ -153,6 +175,7 @@ export class ScheduleFold {
   private belled(watched: Watched, schedule: string): Watched {
     const bell = this.bells.get(schedule)
     if (bell === undefined) return watched
+    const owed = this.owed.get(schedule)
     return {
       ...watched,
       bell: {
@@ -161,6 +184,7 @@ export class ScheduleFold {
         refused: this.refused.get(bell.source) ?? null,
         missed: this.missed.get(schedule) ?? null,
       },
+      ...(owed === undefined ? {} : { rang: [...owed] }),
     }
   }
 }
@@ -174,8 +198,15 @@ function saysSince(event: TadeEvent): boolean {
   return !(typeof problem === 'string' && problem !== '') && 'since' in event.detail
 }
 
-/** One more at the end, and the oldest let go of past `KEPT`. */
-function keep<T>(list: T[], one: T): void {
+/**
+ * How many things deliveries named are held for one schedule's next look:
+ * more than one look reads (`SLACK_MOST_RUNG`), and past it the oldest is let
+ * go of, because a delivery storm must not become a look that never ends.
+ */
+export const OWED = 16
+
+/** One more at the end, and the oldest let go of past `most`. */
+function keep<T>(list: T[], one: T, most = KEPT): void {
   list.push(one)
-  if (list.length > KEPT) list.splice(0, list.length - KEPT)
+  if (list.length > most) list.splice(0, list.length - most)
 }

@@ -25,22 +25,22 @@
     │                            ▕│                     add tade.example.com. CAA 0 issue "letsencrypt.org;       █│    
     │  Journal                   ▕│                     accounturi=https://acme-v02.api.letsencrypt.org/acme/acct █│    
  ▸ N│                            ▕│                     /2104831; validationmethods=tls-alpn-01,http-01"          █│    
- ▾ G│  Telemetry                 ▕│                     Look again                                                █│    
-   r│                            ▕│   GitHub          1 of 3 done · as of Sun 13 Sep 13:59                        █│    
-   b│  Shortcuts                 ▕│                   ✓ Make a GitHub App — kept here: GitHub App tade-vps, which █│    
-   f│                            ▕│                   may read and never write                                    █│    
-   w│  Accounts              ● 3 ▕│                     Make another                                              █│    
-   p│                            ▕│                   ○ Install it on your repositories — installed nowhere yet:  █│    
-    │▌ Remotes                   ▕│                   pick which repositories it may read                         █│    
+ ▾ G│  Telemetry                 ▕│                     Look again                                                ▕│    
+   r│                            ▕│   GitHub          1 of 3 done · as of Sun 13 Sep 13:59                        ▕│    
+   b│  Shortcuts                 ▕│                   ✓ Make a GitHub App — kept here: GitHub App tade-vps, which ▕│    
+   f│                            ▕│                   may read and never write                                    ▕│    
+   w│  Accounts              ● 3 ▕│                     Make another                                              ▕│    
+   p│                            ▕│                   ○ Install it on your repositories — installed nowhere yet:  ▕│    
+    │▌ Remotes                   ▕│                   pick which repositories it may read                         ▕│    
     │▌                           ▕│                     Install it on GitHub                                      ▕│    
     │  Updates                   ▕│                   ○ Deliveries arrive — waiting for the first: GitHub         ▕│    
     │                            ▕│                   delivers to https://tade.example.com/hooks/github, and the  ▕│    
     │                            ▕│                   watches poll hourly once one arrives                        ▕│    
-    │                            ▕│   Problems        2                                                           ▕│    
-━   │                            ▕│                   · Sentry needs setting up: no token                         ▕│   ━
-    │                            ▕│                   · checkout: git could not read the base: it is being        ▕│    
-    │                            ▕│                   rewritten                                                   ▕│   ▕
-    │                            ▕│   Schedules       2                                                           ▕│   ▕
+    │                            ▕│   Slack           0 of 4 done · as of Sun 13 Sep 13:59                        ▕│    
+━   │                            ▕│                   ○ Make a Slack app — one app in your own workspace, made    ▕│   ━
+    │                            ▕│                   from a manifest: it reads the channels you invite it to,    ▕│    
+    │                            ▕│                   and Slack tells this machine when somebody mentions it      ▕│   ▕
+    │                            ▕│                     Make it on Slack                                          ▕│   ▕
     │                            ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕

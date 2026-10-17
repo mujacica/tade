@@ -369,6 +369,14 @@ read a repository it is installed on as the App: an hour-long token and a budget
 anything about you, and every write, stays your own sign-in. Connecting grants nobody anything;
 whose labels count is still yours to write.
 
+**Connecting Slack is on the same page.** It makes an internal Slack app in your own workspace from
+a manifest, keeps its signing secret *before* Slack checks the address, and installs it with OAuth,
+coming back to the server's public name, where its token is kept. Its `app_mention` events then
+make the channel watch look at once — and because an event names the thread it was in, an `@tade`
+inside a thread is read out of that thread, which no poll of the channel could ever see. Without a
+public name the app is made with no address, you install it from its own page and paste its token,
+and the watch polls; Socket Mode is not built.
+
 <table>
 <tr>
 <td width="25%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/intake.svg" alt="INTAKE down the side: work handed to this machine from outside it, each row saying who asked, the door it came through and how far it got"></td>

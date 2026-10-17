@@ -53,18 +53,18 @@ export const INTAKE_SETUP: Readonly<Record<IntakeSource, readonly string[]>> = {
   // for this is the internal one in your own workspace, and the step says so
   // rather than leaving somebody to find out from a 429.
   slack: [
-    'A Slack app in your own workspace — an internal one, created from scratch, not distributed.',
-    'Bot scopes: channels:history for a public channel, or groups:history for a private one.',
+    'A Slack app in your own workspace — an internal one, not distributed: made at http://localhost:<port>/connect on this machine (through `ssh -L` from another), which writes its manifest, keeps its signing secret first and its token after, and installs it with OAuth where this machine has a public name. Or by hand, as below.',
+    'Bot scopes: channels:history for a public channel, or groups:history for a private one — and app_mentions:read where it delivers to a public name.',
     'chat:write and reactions:write too, and surfaces.intake.sources.slack.reply: true, only if Tade may say a status back.',
     'Install it, then INVITE the bot to the channel: without that every look answers not_in_channel.',
-    'The bot token (xoxb-…) as $SLACK_BOT_TOKEN, or extensions.intake.slack_token in config.yaml.',
+    'The bot token (xoxb-…) as $SLACK_BOT_TOKEN, or extensions.intake.slack_token in config.yaml — which /connect writes.',
     'surfaces.intake.enabled: true, and surfaces.intake.sources.slack.accept: true.',
     'surfaces.intake.sources.slack.projects: the Tade projects it may make work in.',
     'surfaces.intake.sources.slack.from: Slack USER IDS (U…), not display names, which people change.',
     'A watch, told the channel id (C…): Settings › Extensions, or a schedule over intake.slack.',
-    'Then @-mention the app in that channel. It is polled every two minutes: Tade notices a mention, it does not answer one.',
-    'A mention inside a thread is invisible to a poll unless you also send it to the channel. Instant replies need Socket Mode, which is not built.',
-    `Optional, where this machine has a public name: the signing secret (Basic Information) as $${HOOK_SECRETS.slack.env} or extensions.intake.${HOOK_SECRETS.slack.key} FIRST, then Event Subscriptions on with the Request URL https://<name>/hooks/slack and the app_mention bot event. An event only makes the watch look now; it still reads the channel, so a mention only inside a thread stays invisible.`,
+    'Then @-mention the app in that channel. It is looked at every two minutes, or at once where Slack delivers here: Tade notices a mention, it does not answer one.',
+    'A mention inside a thread is seen only where Slack delivers its app_mention to this machine’s public name, or where it was also sent to the channel. Socket Mode, which would need no public name, is not built.',
+    `By hand, where this machine has a public name: the signing secret (Basic Information) as $${HOOK_SECRETS.slack.env} or extensions.intake.${HOOK_SECRETS.slack.key} FIRST, then Event Subscriptions on with the Request URL https://<name>/hooks/slack and the app_mention bot event. An event makes the watch look now, and reads the one thread it names.`,
   ],
   // Linear's own numbers, read off its documentation and its own published
   // GraphQL schema on 2026-10-09. Two of them decide the shape rather than

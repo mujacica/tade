@@ -27,7 +27,7 @@ import {
   tsAt,
 } from '../../../../test/fixtures/slack/slack.ts'
 import { intakeExtension } from '../src/extension.ts'
-import { SLACK_MOST_MESSAGES, slackMessages } from '../src/slack.ts'
+import { SLACK_MOST_MESSAGES, SLACK_MOST_RUNG, slackMessages } from '../src/slack.ts'
 import {
   advanceTo,
   attachmentsOf,
@@ -133,9 +133,25 @@ describe('what a Slack revision is', () => {
     expect(slackRefOf(key)).toEqual({
       channel: CHANNEL,
       ts: ts(300),
+      thread: null,
       revision: ts(900),
       externalId: `${CHANNEL}/${ts(300)}`,
     })
+    // A reply inside its thread alone carries the thread, after the `ts`.
+    expect(slackRefOf(`slack:${CHANNEL}/${ts(300)}/${ts(200)}:${ts(300)}`)).toEqual({
+      channel: CHANNEL,
+      ts: ts(300),
+      thread: ts(200),
+      revision: ts(300),
+      externalId: `${CHANNEL}/${ts(300)}/${ts(200)}`,
+    })
+    for (const odd of [
+      `slack:${CHANNEL}/${ts(300)}/${ts(300)}:${ts(300)}`,
+      `slack:${CHANNEL}/${ts(300)}/x:${ts(300)}`,
+      `slack:${CHANNEL}/${ts(300)}/${ts(200)}/${ts(100)}:${ts(300)}`,
+    ]) {
+      expect(slackRefOf(odd), odd).toBeNull()
+    }
     // The conformance suite's own key, and the shapes a hand-written one takes.
     expect(slackRefOf('nothing:no-such-thing:0')).toBeNull()
     expect(slackRefOf(`slack:${CHANNEL}:${ts(300)}`)).toBeNull()
@@ -478,6 +494,157 @@ describe('the look', () => {
   })
 })
 
+describe('a mention inside a thread, which only a delivery can name', () => {
+  // `conversations.history` never returns a reply that is inside its thread
+  // alone, so a poll cannot see `@tade` there however careful it is. Slack's
+  // `app_mention` names the message and its thread; the doorbell hands both to
+  // the look (`ctx.rang`), which reads that one thread and nothing else.
+  const PARENT = 1000
+  const parent = msg(PARENT, {
+    user: 'U0SAM',
+    text: 'the nightly job has been failing since Tuesday',
+    thread_ts: ts(PARENT),
+    reply_count: 2,
+  })
+  const reply = msg(1100, {
+    user: 'U0ROB',
+    text: 'it is the retention sweep',
+    thread_ts: ts(PARENT),
+  })
+  const asked: Record<string, unknown> = msg(1180, {
+    user: 'U0KIM',
+    text: `<@${SLACK_ME.userId}> can you fix the sweep`,
+    thread_ts: ts(PARENT),
+  })
+  const item = (at: number, thread = PARENT) => `${ts(at)}/${ts(thread)}`
+  const inThread = (over: Partial<SlackOptions> = {}) =>
+    slack({ messages: [parent], threads: { [ts(PARENT)]: [parent, reply, asked] }, ...over })
+  const lookRung = async (script: SlackScript, rang: readonly string[]) =>
+    (await host(script)).look('intake.slack', { ...looking(), rang })
+
+  it('is not seen by a look nobody handed it to', async () => {
+    const looked = await look(inThread())
+    expect(looked.found).toEqual([])
+    expect(looked.read).toEqual([])
+  })
+
+  it('is read out of the one thread it was named in, with that thread as its material', async () => {
+    const script = inThread()
+    const looked = await lookRung(script, [item(1180)])
+    expect(looked.found).toHaveLength(1)
+    const [finding] = looked.found
+    const candidate = intakeOf(finding as { intake?: IntakeCandidate })
+    // Its id carries its thread, after its `ts`: history cannot read it back.
+    expect(finding?.key).toBe(`slack:${CHANNEL}/${ts(1180)}/${ts(PARENT)}:${ts(1180)}`)
+    expect(candidate.requester.id).toBe('U0KIM')
+    expect(candidate.verbatim).toContain('can you fix the sweep')
+    expect(candidate.verbatim).toContain('@U0SAM: the nightly job')
+    expect(candidate.verbatim).toContain('@U0ROB: it is the retention sweep')
+    expect(candidate.url).toBe(
+      `https://acme.slack.com/archives/${CHANNEL}/p${ts(1180).replace('.', '')}?thread_ts=${ts(PARENT)}&cid=${CHANNEL}`,
+    )
+    expect(looked.read).toEqual([item(1180)])
+    // One thread read, for the one message named: never a sweep of threads.
+    const threads = script.calls.filter((one) => one.method === 'conversations.replies')
+    expect(threads.map((one) => one.form.ts)).toEqual([ts(PARENT)])
+    // And the cursor is the channel's, unmoved by a thread read.
+    expect(looked.since).toBe(advanceTo([parent], [], tsOf(TURNED_ON, Date.now()), true))
+  })
+
+  it('reads one named that is no request, and hands nothing over for it', async () => {
+    const looked = await lookRung(inThread(), [item(1100), item(PARENT, PARENT + 1)])
+    expect(looked.found).toEqual([])
+    // Not a request, and not a thread there is: both read, so neither comes back.
+    expect(looked.read).toEqual([item(1100), item(PARENT, PARENT + 1)])
+  })
+
+  it('reads the one message where it is past the first page of its thread', async () => {
+    const script = inThread({ pageSize: 2 })
+    const looked = await lookRung(script, [item(1180)])
+    expect(looked.found).toHaveLength(1)
+    const asks = script.calls.filter((one) => one.method === 'conversations.replies')
+    expect(asks).toHaveLength(2)
+    expect(asks[1]?.form).toMatchObject({ oldest: ts(1180), latest: ts(1180), inclusive: 'true' })
+    // Said, rather than passed over: the material stopped at the first page.
+    expect(intakeOf(looked.found[0] as { intake?: IntakeCandidate }).verbatim).toContain(
+      'Slack says there are more',
+    )
+  })
+
+  it('leaves what a rate limit stopped for the next look, and keeps what the sweep read', async () => {
+    // auth.test, then history, then the thread: the third call is limited.
+    const looked = await lookRung(inThread({ messages: [parent, msg(300)], limitFrom: 3 }), [
+      item(1180),
+    ])
+    expect(looked.found.map((one) => one.key)).toEqual([`slack:${CHANNEL}/${ts(300)}:${ts(300)}`])
+    expect(looked.read).toEqual([])
+  })
+
+  it('lets go of a thread that is gone, and of anything it would never have written', async () => {
+    const looked = await lookRung(inThread(), [item(1180, 777), 'not-a-ts/1.2', '1.2/1.2'])
+    expect(looked.found).toEqual([])
+    expect(looked.read).toEqual([item(1180, 777), 'not-a-ts/1.2', '1.2/1.2'])
+  })
+
+  it('reads no more threads a look than it was built to, and hands the rest on', async () => {
+    const many = Array.from({ length: SLACK_MOST_RUNG + 2 }, (_, n) => item(2000 + n))
+    const script = inThread()
+    const looked = await lookRung(script, many)
+    expect(script.calls.filter((one) => one.method === 'conversations.replies')).toHaveLength(
+      SLACK_MOST_RUNG,
+    )
+    expect(looked.read).toEqual(many.slice(0, SLACK_MOST_RUNG))
+  })
+
+  it('finds a reply also sent to the channel once, whichever way it is found', async () => {
+    const broadcast = msg(1180, { thread_ts: ts(PARENT), subtype: 'thread_broadcast' })
+    const looked = await lookRung(
+      slack({ messages: [parent, broadcast], threads: { [ts(PARENT)]: [parent, broadcast] } }),
+      [item(1180)],
+    )
+    expect(looked.found.map((one) => one.key)).toEqual([`slack:${CHANNEL}/${ts(1180)}:${ts(1180)}`])
+  })
+
+  it('stands at the start door while it is the message it was, and holds once it is not', async () => {
+    const script = inThread()
+    const one = await host(script)
+    const looked = await one.look('intake.slack', { ...looking(), rang: [item(1180)] })
+    const key = looked.found[0]?.key ?? ''
+    const check = () =>
+      one.recheck('intake.slack', { project: 'app', input: { channel: CHANNEL }, key })
+    expect(await check()).toEqual({ still: true })
+    // Read back out of its thread, since history cannot return it.
+    const last = script.calls.at(-1)
+    expect(last?.method).toBe('conversations.replies')
+    expect(last?.form).toMatchObject({ ts: ts(PARENT), oldest: ts(1180), latest: ts(1180) })
+    asked.edited = { user: 'U0KIM', ts: ts(1300) }
+    try {
+      expect(await check()).toMatchObject({ still: false })
+    } finally {
+      delete asked.edited
+    }
+  })
+
+  it('says a status back on the request and in its thread, never under the reply itself', async () => {
+    const script = inThread()
+    const one = await host(script)
+    const looked = await one.look('intake.slack', { ...looking(), rang: [item(1180)] })
+    const key = looked.found[0]?.key ?? ''
+    const said = await one.reply('intake.slack', {
+      project: 'app',
+      input: { channel: CHANNEL },
+      key,
+      say: 'Tade has noticed this.',
+      mark: `tade:slack:${key}:noticed`,
+    })
+    expect(said.posted).toBeTruthy()
+    const react = script.calls.find((call) => call.method === 'reactions.add')
+    expect(react?.form.timestamp).toBe(ts(1180))
+    const post = script.calls.find((call) => call.method === 'chat.postMessage')
+    expect(post?.form.thread_ts).toBe(ts(PARENT))
+  })
+})
+
 describe('the grant, the setup and the shape', () => {
   it('is a source the host will offer, and one it will not start without a channel', async () => {
     expect(intakeProblem(slackMessages)).toBeNull()
@@ -547,10 +714,12 @@ describe('the grant, the setup and the shape', () => {
     expect(steps).toContain('channels:history')
     expect(steps).toContain('INVITE')
     expect(steps).toContain('USER IDS')
-    // The two honest sentences: it is polled, and an in-thread mention needs
-    // Socket Mode, which is not built.
+    // The honest sentences: it notices rather than answers, an in-thread
+    // mention needs a delivery to a public name, and Socket Mode is not built.
     expect(steps).toContain('does not answer one')
-    expect(steps).toContain('Socket Mode')
+    expect(steps).toContain('app_mention to this machine’s public name')
+    expect(steps).toContain('Socket Mode, which would need no public name, is not built')
+    expect(steps).toContain('/connect')
     expect(intakeUnfinished(grant())).toBeNull()
     expect(intakeUnfinished(grant({ from: [] }))).toBe('nobody is on its list')
   })

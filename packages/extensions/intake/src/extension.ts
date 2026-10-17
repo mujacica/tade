@@ -11,7 +11,8 @@ import {
 import type { TadeExtension } from '@tade/extensions-core'
 import { githubIssues } from './github.ts'
 import { LINEAR_KEY, linearIssues } from './linear.ts'
-import { SLACK_TOKEN, slackMessages } from './slack.ts'
+import { SLACK_TOKEN, SLACK_TOKEN_ENV, slackMessages } from './slack.ts'
+import { SLACK_APP } from './slack-app.ts'
 import { candidateOf, keepReply, newestOf, readSpool, type SpoolEntry } from './spool.ts'
 
 // Intake: work that arrives from outside this machine, and the local door that
@@ -87,7 +88,7 @@ export const intakeExtension: TadeExtension = {
     'Or somebody on your list puts the label you named on an issue in the project’s own repository.',
     'Or somebody on your list @-mentions the app in the one Slack channel you named, and the thread it was asked in comes with it as material.',
     'Or somebody on your list puts the label you named on an issue in the one Linear team you named.',
-    'Slack is polled, not chat: Tade notices a mention within a couple of minutes rather than answering one, and a mention inside a thread is only visible if it was also sent to the channel.',
+    'Slack is looked at, not chat: Tade notices a mention within a couple of minutes, or at once where the app delivers to this machine’s public name, rather than answering one — and a mention inside a thread is visible only through such a delivery, or where it was also sent to the channel.',
     'The watch finds it on its next look, and the owner’s own grant decides whether it may become work (surfaces.intake).',
     'With `mode: propose`, which is the default, a task is made and parked: a person approves it and the queue starts it.',
     'At the moment of starting it is checked again — closed, relabelled, deleted or rewritten holds the work.',
@@ -99,9 +100,9 @@ export const intakeExtension: TadeExtension = {
     {
       key: SLACK_TOKEN,
       kind: 'secret',
-      env: ['SLACK_BOT_TOKEN'],
+      env: [SLACK_TOKEN_ENV],
       means:
-        'a Slack bot token (xoxb-…) for the channel watch: channels:history for a public channel or groups:history for a private one, plus chat:write and reactions:write only if Tade may say a status back',
+        'a Slack bot token (xoxb-…) for the channel watch: channels:history for a public channel or groups:history for a private one, plus chat:write and reactions:write only if Tade may say a status back — kept by Connect Slack (/connect), which makes the app with all of them',
     },
     {
       key: LINEAR_KEY,
@@ -131,6 +132,15 @@ export const intakeExtension: TadeExtension = {
       means: GITHUB_APP.key.means,
     },
     { key: GITHUB_APP.slug.key, kind: 'string', means: GITHUB_APP.slug.means },
+    // The Slack app Connect Slack keeps (`slack-app.ts`): the client that
+    // installs it with OAuth, beside its token and its signing secret.
+    { key: SLACK_APP.clientId.key, kind: 'string', means: SLACK_APP.clientId.means },
+    {
+      key: SLACK_APP.clientSecret.key,
+      kind: 'secret',
+      env: [SLACK_APP.clientSecret.env],
+      means: SLACK_APP.clientSecret.means,
+    },
   ],
   // Nothing to set up for the local door: no key, no endpoint, no account.
   // Being ready is having a home to read, which every window has — so there is

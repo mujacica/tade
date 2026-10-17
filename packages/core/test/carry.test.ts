@@ -88,6 +88,14 @@ describe('what is carried', () => {
     expect(carryOf('extensions.intake.github_webhook_secret').carry).toBe('pressed')
   })
 
+  it('keeps the Slack app’s client on the machine it was made for', () => {
+    // Its redirect and its Request URL are this machine's public name.
+    for (const leaf of ['slack_client_id', 'slack_client_secret']) {
+      expect(carryOf(`extensions.intake.${leaf}`).carry, leaf).toBe('here')
+    }
+    expect(carryOf('extensions.intake.slack_signing_secret').carry).toBe('pressed')
+  })
+
   it('never carries a key by itself, wherever it is', () => {
     for (const path of [
       'extensions.jev.key',

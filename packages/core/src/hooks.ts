@@ -1,5 +1,6 @@
 import type { TadeEvent } from './events.ts'
 import type { IntakeSource } from './intake.ts'
+import { slackTs } from './intake-revisions.ts'
 import { type Due, dueNow, intervalOf, type When } from './schedule.ts'
 
 // Webhooks as a doorbell (REMOTE-TADE.md §6.1, §6.2): what a delivery from a
@@ -20,8 +21,18 @@ import { type Due, dueNow, intervalOf, type When } from './schedule.ts'
 //
 // **What a delivery carries here is an address** — which repository, channel
 // or team it is about, and what kind of thing happened there. That is enough
-// to pick the schedule to wake, and it is never written down or handed on: the
-// look reads the real thing.
+// to pick the schedule to wake, and nothing else of a payload is written down
+// or handed on: the look reads the real thing.
+//
+// **One address goes further, because a poll cannot see what it names**: a
+// Slack message inside a thread (`HookAddress.item`), which
+// `conversations.history` never returns. Its ids — the message's `ts` and its
+// thread's — are handed to the next look, which reads that one thread with
+// `conversations.replies` under the grant like anything else it reads, and are
+// written on the delivery's line, so a window closed before a look could read
+// them hands them to the first look after it opens (`ScheduleFold`). Ids, never
+// a word of the message: a forged one could only make Tade read a thread of the
+// channel it already reads, sooner.
 //
 // Pure: no I/O and no clock. The door that reads a delivery is `@tade/web`'s
 // `hooked.ts`, over the checks in `hooks.ts` beside it; the window's half that
@@ -86,6 +97,29 @@ export interface HookAddress {
    * that could be read out of it.
    */
   where: string | null
+  /**
+   * The one thing there it names, where a look cannot see it by looking the
+   * way its clock does: a Slack message inside a thread, as `slackItem`
+   * spells it. Ids and nothing else; absent for everything a poll finds.
+   */
+  item?: string
+}
+
+/**
+ * A Slack message inside a thread, as a delivery names it to the look:
+ * `<ts>/<thread_ts>`, the message first, because it alone says which one.
+ * Null for a message that is its own thread or either `ts` Slack never writes.
+ */
+export function slackItem(ts: string, thread: string): string | null {
+  if (!slackTs(ts) || !slackTs(thread) || ts === thread) return null
+  return `${ts}/${thread}`
+}
+
+/** `slackItem` pulled apart again, or null for anything it would not have written. */
+export function slackItemOf(item: string): { ts: string; thread: string } | null {
+  const [ts, thread, ...rest] = item.split('/')
+  if (ts === undefined || thread === undefined || rest.length > 0) return null
+  return slackItem(ts, thread) === null ? null : { ts, thread }
 }
 
 /**
@@ -152,20 +186,30 @@ export type HookRung = {
   why?: string
   /** How many deliveries this line stands for, where refusals were counted rather than each written. */
   found?: number
+  /**
+   * The one thing it named that a poll cannot see (`HookAddress.item`), where
+   * it verified and woke something: written down so a look the window closed
+   * before still reads it.
+   */
+  item?: string
 }
 
 /** A `hook_rung` line read back, or null for a line that is not one. A line is a line somebody wrote. */
 export function rungFrom(event: Pick<TadeEvent, 'type' | 'detail'>): HookRung | null {
   if (event.type !== 'hook_rung') return null
-  const { source, verified, woke } = event.detail
+  const { source, verified, woke, item } = event.detail
   if (!(HOOK_SOURCES as readonly unknown[]).includes(source) || typeof verified !== 'boolean') {
     return null
   }
+  // Only a spelling the door writes: a line is a line somebody wrote, and an
+  // item is handed to a look.
+  const named = source === 'slack' && typeof item === 'string' ? slackItemOf(item) : null
   return {
     source: source as HookSource,
     delivery: typeof event.detail.delivery === 'string' ? event.detail.delivery : '',
     verified,
     woke: Array.isArray(woke) ? woke.filter((one): one is string => typeof one === 'string') : [],
+    ...(verified && named !== null ? { item: `${named.ts}/${named.thread}` } : {}),
   }
 }
 

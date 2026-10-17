@@ -1,7 +1,15 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { printable, printableLines, remoteDocumentPath } from '@tade/core'
+import {
+  CONNECT_FLOWS,
+  CONNECT_SOURCES,
+  CONNECT_TITLES,
+  type ConnectSource,
+  printable,
+  printableLines,
+  remoteDocumentPath,
+} from '@tade/core'
 import type { Remote, RemoteLink } from '@tade/remotes-core'
 import {
   CARDS_MOST,
@@ -50,14 +58,17 @@ import type { AboutHeld } from '../machine-there.ts'
 // kept when the page closes or the link goes down, with when they came, so a
 // page opened again says as of when until the next answer.
 //
-// **And how connecting GitHub there stands** (`/api/connect`, REMOTE-TADE
-// §6.4), asked with the records — the same openings, the same Look again — of
-// a machine that said it has a public name, because that is where GitHub can
-// send a browser here back to. A press on one of its steps asks that machine
-// for the one-time word and the form (`connectPress`): this window's browser
-// cannot reach that machine's own `/connect`, whose link ends in a socket no
-// browser opens, so the form goes in a page in this home that posts itself to
-// GitHub, and GitHub sends the browser on to that machine's public name.
+// **And how connecting each source there stands** (`/api/connect`,
+// REMOTE-TADE §6.4), asked with the records — the same openings, the same Look
+// again — of a machine that said it has a public name, because that is where
+// GitHub and Slack can send a browser here back to. A press on one of its steps
+// asks that machine for the one-time word and the form (`connectPress`): this
+// window's browser cannot reach that machine's own `/connect`, whose link ends
+// in a socket no browser opens, so GitHub's form goes in a page in this home
+// that posts itself to GitHub, and Slack's address is opened as it is; either
+// sends the browser on to that machine's public name. What Slack's own page
+// shows the person — its secrets — is pasted at that machine's own page, never
+// carried here.
 
 /** How long a linked remote goes before what it is, is asked again. */
 export const AGAIN_MS = 60_000
@@ -102,7 +113,9 @@ export class RemoteMachines {
   private readonly kept = new Map<string, Kept>()
   private readonly records = new Map<string, LookKept<RecordsAnswer>>()
   private readonly cards = new Map<string, LookKept<EvaluationsAnswer>>()
-  private readonly connects = new Map<string, LookKept<ConnectAnswer>>()
+  private readonly connects = Object.fromEntries(
+    CONNECT_SOURCES.map((source) => [source, new Map<string, LookKept<ConnectAnswer>>()]),
+  ) as Record<ConnectSource, Map<string, LookKept<ConnectAnswer>>>
   /** The remotes whose records this opening of Settings › Remotes has not asked for yet. */
   private readonly recordsOwed = new Set<string>()
   /** What was being looked at on the last beat, so an opening is told from staying open. */
@@ -119,8 +132,14 @@ export class RemoteMachines {
     const about = this.kept.get(name)
     const records = this.records.get(name) ?? null
     const cards = this.cards.get(name) ?? null
-    const connect = this.connects.get(name) ?? null
-    if (about === undefined && records === null && cards === null && connect === null) return null
+    const connects = Object.fromEntries(
+      CONNECT_SOURCES.flatMap((source) => {
+        const one = this.connects[source].get(name)
+        return one === undefined ? [] : [[source, one]]
+      }),
+    ) as Partial<Record<ConnectSource, LookKept<ConnectAnswer>>>
+    const asked = Object.keys(connects).length > 0
+    if (about === undefined && records === null && cards === null && !asked) return null
     return {
       answer: about?.answer ?? null,
       at: about?.at ?? null,
@@ -128,7 +147,7 @@ export class RemoteMachines {
       said: about?.said ?? null,
       records,
       cards,
-      connect,
+      connects,
     }
   }
 
@@ -174,7 +193,7 @@ export class RemoteMachines {
     const reach = this.deps.reach(name)
     if (reach === null || !reach.live || this.records.get(name)?.busy === true) return
     this.recordsOwed.delete(name)
-    void this.connectLook(name)
+    for (const source of CONNECT_SOURCES) void this.connectLook(name, source)
     await this.look(name, this.records, async () => {
       const answer = await reach.link.request(name, RECORDS_DOOR, {})
       if (answer.status === 404) {
@@ -190,45 +209,55 @@ export class RemoteMachines {
     })
   }
 
-  /** How connecting GitHub there stands, as that machine folds it. Never throws. */
-  private async connectLook(name: string): Promise<void> {
+  /** How connecting one source there stands, as that machine folds it. Never throws. */
+  private async connectLook(name: string, source: ConnectSource): Promise<void> {
     const reach = this.deps.reach(name)
-    if (reach === null || !reach.live || this.connects.get(name)?.busy === true) return
-    await this.look(name, this.connects, () => this.askConnect(name, reach.link, {}))
+    const held = this.connects[source]
+    if (reach === null || !reach.live || held.get(name)?.busy === true) return
+    await this.look(name, held, () => this.askConnect(name, reach.link, source, {}))
   }
 
   /** One owner's ask of `/api/connect`: its answer read for its shape, or why there is none. */
   private async askConnect(
     name: string,
     link: RemoteLink,
+    source: ConnectSource,
     press: { press?: 'make' | 'install' },
   ): Promise<ConnectAnswer | string> {
-    const answer = await link.request(name, CONNECT_DOOR, { source: 'github', ...press })
-    if (answer.status === 404) {
-      return `${name} runs a Tade that cannot connect GitHub for another machine yet: update it there`
+    const title = CONNECT_TITLES[source]
+    const answer = await link.request(name, CONNECT_DOOR, { source, ...press })
+    // A Tade from before a source could be connected refuses its name as a
+    // shape it does not know, which is the same answer as no door at all.
+    if (answer.status === 404 || (answer.status === 400 && source !== 'github')) {
+      return `${name} runs a Tade that cannot connect ${title} for another machine yet: update it there`
     }
-    if (answer.status !== 200) return `${name} answered ${answer.status} when asked about GitHub`
+    if (answer.status !== 200) return `${name} answered ${answer.status} when asked about ${title}`
     const read = ConnectAnswerSchema.safeParse(answer.body)
-    return read.success
+    return read.success && read.data.page.source === source
       ? read.data
-      : `${name} said how GitHub is connected there in a shape this Tade does not read`
+      : `${name} said how ${title} is connected there in a shape this Tade does not read`
   }
 
   /**
-   * A press on one of connecting GitHub's steps there: what to open here —
-   * GitHub's own address for installing, or a page in this home that posts
-   * the form making the App — once that machine has minted the word for it.
-   * What it answered is held, so the page redraws from it. Throws, in that
+   * A press on one of connecting a source's steps there: what to open here —
+   * that source's own address, or a page in this home that posts GitHub the
+   * form making the App — once that machine has minted the word for it. What
+   * it answered is held, so the page redraws from it. Throws, in that
    * machine's words or Tade's, where nothing was made to open.
    */
-  async connectPress(name: string, press: 'make' | 'install'): Promise<string> {
+  async connectPress(
+    name: string,
+    source: ConnectSource,
+    press: 'make' | 'install',
+  ): Promise<string> {
+    const title = CONNECT_TITLES[source]
     const reach = this.deps.reach(name)
     if (reach === null || !reach.live) {
-      throw new Error(`${name} is not linked, so GitHub cannot be connected there now`)
+      throw new Error(`${name} is not linked, so ${title} cannot be connected there now`)
     }
-    const got = await this.askConnect(name, reach.link, { press })
+    const got = await this.askConnect(name, reach.link, source, { press })
     if (typeof got === 'string') throw new Error(got)
-    this.connects.set(name, {
+    this.connects[source].set(name, {
       answer: got,
       at: this.deps.now(),
       said: null,
@@ -239,13 +268,18 @@ export class RemoteMachines {
     this.deps.draw()
     const form = got.form
     if (form === null) throw new Error(printable(got.cannot ?? `${name} made nothing to press`))
-    // Another machine's answer, opened in this machine's browser: GitHub's
-    // own pages and nothing else, whatever it said.
+    // Another machine's answer, opened in this machine's browser: the
+    // source's own pages and nothing else, whatever it said.
     const url = new URL(form.url)
-    if (url.protocol !== 'https:' || url.hostname !== 'github.com') {
-      throw new Error(`${name} answered with somewhere other than GitHub to go: not opened`)
+    if (url.protocol !== 'https:' || !CONNECT_FLOWS[source].goes.includes(url.hostname)) {
+      throw new Error(`${name} answered with somewhere other than ${title} to go: not opened`)
     }
     if (form.fields === undefined) return url.href
+    if (source !== 'github') {
+      throw new Error(
+        `${name} answered ${title} with a form to post, which it never asks: not opened`,
+      )
+    }
     const path = connectPagePath(this.deps.home, name)
     await mkdir(dirname(path), { recursive: true })
     await writeFile(path, postingPage(name, url.href, form.fields), { mode: 0o600 })
@@ -317,7 +351,7 @@ export class RemoteMachines {
       this.kept.delete(name),
       this.records.delete(name),
       this.cards.delete(name),
-      this.connects.delete(name),
+      ...CONNECT_SOURCES.map((source) => this.connects[source].delete(name)),
     ]
     this.recordsOwed.delete(name)
     if (went.some(Boolean)) this.moved++

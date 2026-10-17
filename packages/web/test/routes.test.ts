@@ -410,14 +410,23 @@ describe('the connect pages', () => {
   // REMOTE-TADE §6.4: turning a source on is the person's, so the page and its
   // presses are this machine's alone, and where GitHub sends the browser back
   // is answered only for a word one of those presses minted (`connected.ts`).
-  it('is a page, two presses and two callbacks a source, under /connect and never /api', () => {
+  it('is a page, and each source’s presses and callbacks as its flow says, under /connect and never /api', () => {
     expect(CONNECTS.map((route) => `${route.method} ${route.path}`)).toEqual([
       'GET /connect',
       'POST /connect/github/make',
       'POST /connect/github/install',
       'GET /connect/github/made',
       'GET /connect/github/installed',
+      // Slack keeps what its own page shows the person, and comes back once.
+      'POST /connect/slack/make',
+      'POST /connect/slack/keep',
+      'POST /connect/slack/install',
+      'GET /connect/slack/installed',
     ])
+    // Each carries which press or callback it is, so nothing reads it out of a name.
+    for (const route of CONNECTS.slice(1)) {
+      expect(route.press ?? route.back, route.path).toBe(route.path.split('/').at(-1))
+    }
   })
 
   it('answers the page and its presses on this machine alone, and the callbacks on any door', () => {

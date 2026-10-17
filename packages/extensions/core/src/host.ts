@@ -946,13 +946,14 @@ export class ExtensionHost {
       timeoutMs?: number
       /** The window, for a watch that looks at what Tade is running. */
       tade?: ExtensionWorkbench | null
+      /** What deliveries named that no look has read yet (`WatchContext.rang`). */
+      rang?: readonly string[]
     },
   ): Promise<Looked> {
     const one = this.watchingWith(id, request)
-    return askLook(
-      { ...one, ctx: { ...one.ctx, since: request.since, turnedOn: request.turnedOn } },
-      id,
-    )
+    const { since, turnedOn } = request
+    const rang = request.rang === undefined ? {} : { rang: request.rang }
+    return askLook({ ...one, ctx: { ...one.ctx, since, turnedOn, ...rang } }, id)
   }
 
   /** A watch by its `<extension>.<id>`, or why there is none. */

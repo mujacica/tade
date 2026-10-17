@@ -116,6 +116,12 @@ export class Schedules implements Subject {
   private readonly lookingWith = new Map<string, Promise<string>>()
   /** Watches a doorbell rang for while they were looking: one more look each, after (`wake`). */
   private readonly owed = new Set<string>()
+  /**
+   * What a delivery named for a look, per schedule, until a look has been
+   * handed it: its line is appended when the wake comes and read back into the
+   * fold a moment later, so the look the wake starts would otherwise miss it.
+   */
+  private readonly rung = new Map<string, Set<string>>()
   /** Whether this machine can reach a network: one answer, for every watch. */
   private readonly network: Network
   /** What `views` last made, kept: the fold asks for it every frame. */
@@ -504,10 +510,18 @@ export class Schedules implements Subject {
    * thing the delivery was about. At most one owed, however many ring, which
    * is what bounds a burst of deliveries to a look and the next. Read again at
    * the wake, so a schedule paused or removed since is left alone.
+   *
+   * What a delivery named that a poll cannot see (`item`) is held for the
+   * next look to be handed, beside the fold's own reading of the line.
    */
-  wake(id: string): void {
+  wake(id: string, item?: string): void {
     const one = this.wire.opts.client.schedules().find((each) => each.id === id)
     if (!one || one.paused || one.does.kind !== 'watch') return
+    if (item !== undefined) {
+      const held = this.rung.get(id) ?? new Set<string>()
+      this.rung.set(id, held)
+      held.add(item)
+    }
     if (this.lookingWith.has(id)) {
       this.owed.add(id)
       return
@@ -540,6 +554,13 @@ export class Schedules implements Subject {
     const quiet = await notLooking(this.wire, one, watched, where, asked)
     if (quiet) return quiet.news ? say(quiet.said) : quiet.said
     let looked: Awaited<ReturnType<ExtensionHost['look']>>
+    // What deliveries named that no look has read: the fold's, out of the
+    // journal, and what came with a wake whose line it may not have read yet.
+    // The ones handed over now are let go of when this look ends, by which
+    // time their lines are in the fold whatever came of it.
+    const handed = this.rung.get(one.id) ?? new Set<string>()
+    const rang = [...new Set([...(watched.rang ?? []), ...handed])]
+    const given = [...handed]
     try {
       const host = this.wire.opts.extensions
       if (!host) throw new Error('this window runs no extensions')
@@ -552,8 +573,10 @@ export class Schedules implements Subject {
         // A watch that looks at what Tade is running needs the window it is
         // running in; one that does not never asks for it.
         tade: this.wire.opts.extensionWorkbench ?? null,
+        ...(rang.length > 0 ? { rang } : {}),
       })
     } catch (err) {
+      for (const item of given) handed.delete(item)
       // No network is not a failed look: nothing written, nothing said beyond
       // the one line the reach has already said about being offline.
       if (await wasOffline(this.network, err, this.wire.now())) {
@@ -573,6 +596,7 @@ export class Schedules implements Subject {
     // It looked. Whatever was hushed about it was hushed about trouble that is
     // over, so the same words coming back later are news again.
     this.wire.put(unhush(this.wire.state, one.id))
+    for (const item of given) handed.delete(item)
     const { fresh, acting, left } = newFindings(looked.found, watched.seen, does.most)
     await client.watchChecked(one.id, {
       found: looked.found.length,
@@ -580,6 +604,9 @@ export class Schedules implements Subject {
       left,
       since: left > 0 ? watched.since : looked.since,
       ...(looked.said ? { said: looked.said } : {}),
+      // What it read of what deliveries named, let go of as `since` moves:
+      // only by a look that left nothing for the next, which must find it again.
+      ...(left === 0 && looked.read.length > 0 ? { read: looked.read } : {}),
     })
     // A look with nothing to look at may say so, and it is not a failure: a
     // branch nobody has pushed is a quiet fact about that branch, so it is said

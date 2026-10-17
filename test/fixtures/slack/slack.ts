@@ -135,6 +135,18 @@ export interface SlackOptions {
   status?: number
   /** What `auth.test` says this app is. The default is `SLACK_ME`. */
   me?: Partial<typeof SLACK_ME>
+  /**
+   * The install `oauth.v2.access` exchanges a code for: the client and the
+   * one code it answers, the redirect it was asked with, and the token it
+   * hands over. Anything else is Slack's own refusal.
+   */
+  install?: {
+    clientId: string
+    clientSecret: string
+    code: string
+    redirect: string
+    token: string
+  }
 }
 
 export interface SlackScript {
@@ -214,10 +226,30 @@ export function slackScript(options: SlackOptions): SlackScript {
     return paged(within, form, form.include_all_metadata === 'true')
   }
 
-  /** `conversations.replies`: the parent first, then its replies oldest first. */
+  /**
+   * `conversations.replies`: the parent first, then its replies oldest first —
+   * with `oldest` and `latest`, the parent and the replies between them, which
+   * is the shape that makes reading one reply back ask for two.
+   */
   function thread(form: Record<string, string>): Record<string, unknown> {
     const asked = form.ts ?? ''
     const whole = threads[asked]
+    if (whole && (form.oldest || form.latest)) {
+      const inclusive = form.inclusive === 'true' || form.inclusive === '1'
+      const [parent, ...replies] = whole
+      const within = replies.filter((one) => {
+        const ts = Number(one.ts)
+        if (form.oldest && (inclusive ? ts < Number(form.oldest) : ts <= Number(form.oldest))) {
+          return false
+        }
+        return !(form.latest && (inclusive ? ts > Number(form.latest) : ts >= Number(form.latest)))
+      })
+      return paged(
+        [...(parent ? [parent] : []), ...within],
+        form,
+        form.include_all_metadata === 'true',
+      )
+    }
     if (whole) return paged(whole, form, form.include_all_metadata === 'true')
     const alone = messages.find((one) => one.ts === asked)
     if (!alone) return { ok: false, error: 'thread_not_found' }
@@ -228,7 +260,8 @@ export function slackScript(options: SlackOptions): SlackScript {
   function react(form: Record<string, string>): Record<string, unknown> {
     const key = `${form.timestamp}:${form.name}`
     if (script.reactions.has(key)) return { ok: false, error: 'already_reacted' }
-    if (!messages.some((one) => one.ts === form.timestamp)) {
+    const anywhere = [...messages, ...Object.values(threads).flat()]
+    if (!anywhere.some((one) => one.ts === form.timestamp)) {
       return { ok: false, error: 'message_not_found' }
     }
     script.reactions.add(key)
@@ -318,7 +351,42 @@ export function slackScript(options: SlackOptions): SlackScript {
         return answer(200, { ok: false, error: options.refuse.error })
       }
       if (method === 'auth.test') {
-        return answer(200, { ok: true, user_id: me.userId, bot_id: me.botId, url: me.url })
+        const authorised = new Headers(init?.headers).get('authorization')
+        if (options.install && authorised !== `Bearer ${options.install.token}`) {
+          return answer(200, { ok: false, error: 'invalid_auth' })
+        }
+        return answer(200, {
+          ok: true,
+          user_id: me.userId,
+          bot_id: me.botId,
+          url: me.url,
+          team: 'Acme',
+          user: 'tade',
+        })
+      }
+      if (method === 'oauth.v2.access') {
+        // Made with the client's id and secret, never a token.
+        if (new Headers(init?.headers).has('authorization')) {
+          return answer(200, { ok: false, error: 'invalid_auth' })
+        }
+        const install = options.install
+        if (!install || form.client_id !== install.clientId) {
+          return answer(200, { ok: false, error: 'invalid_client_id' })
+        }
+        if (form.client_secret !== install.clientSecret) {
+          return answer(200, { ok: false, error: 'bad_client_secret' })
+        }
+        if (form.code !== install.code) return answer(200, { ok: false, error: 'invalid_code' })
+        if (form.redirect_uri !== install.redirect) {
+          return answer(200, { ok: false, error: 'bad_redirect_uri' })
+        }
+        return answer(200, {
+          ok: true,
+          access_token: install.token,
+          token_type: 'bot',
+          bot_user_id: me.userId,
+          team: { id: 'T0ACME', name: 'Acme' },
+        })
       }
       if (form.channel !== channel) return answer(200, { ok: false, error: 'channel_not_found' })
       if (method === 'conversations.history') return answer(200, history(form))

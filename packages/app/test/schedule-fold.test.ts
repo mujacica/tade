@@ -1,6 +1,6 @@
 import { type TadeEvent, watchedFrom } from '@tade/core'
 import { describe, expect, it } from 'vitest'
-import { KEPT, ScheduleFold } from '../src/schedule-fold.ts'
+import { KEPT, OWED, ScheduleFold } from '../src/schedule-fold.ts'
 
 // What a window keeps of each schedule in place of every line it wrote. The
 // claim is that what is read off it is what the whole journal says, except
@@ -149,5 +149,48 @@ describe('a watch’s doorbell, folded', () => {
       line('hook_rung', 1, { source: 'jira', verified: true, woke: ['review'] }),
     ])
     expect(fold.watchedOf('review').bell).toBeUndefined()
+  })
+})
+
+describe('what deliveries named for a look, folded', () => {
+  // A Slack mention inside a thread, which no poll of the channel can see: a
+  // delivery names it (`HookRung.item`), its next look is handed it, and a look
+  // that read it to the end lets go of it — so a window closed before a look
+  // could read one hands it to the first look after it opens.
+  const mention = (minutes: number, item: string, woke = ['mentions']) =>
+    line('hook_rung', minutes, { source: 'slack', delivery: 'd', verified: true, woke, item })
+  const A = '1727445000.000200/1727442000.000100'
+  const B = '1727445100.000300/1727442000.000100'
+
+  it('hands every look what was named until one says it read it', () => {
+    const fold = folded([
+      mention(1, A),
+      mention(2, B),
+      mention(3, A),
+      looked(4, { since: 'x', read: [A] }, 'mentions'),
+    ])
+    expect(fold.watchedOf('mentions').rang).toEqual([B])
+    expect(folded([mention(1, A)]).watchedOf('mentions').rang).toEqual([A])
+  })
+
+  it('is let go of by no look that could not look, and by none that said nothing of it', () => {
+    const fold = folded([
+      mention(1, A),
+      looked(2, { problem: 'Slack rate limited the look', read: [A] }, 'mentions'),
+      looked(3, { since: 'x' }, 'mentions'),
+    ])
+    expect(fold.watchedOf('mentions').rang).toEqual([A])
+    const done = folded([mention(1, A), looked(2, { since: 'x', read: [A] }, 'mentions')])
+    expect(done.watchedOf('mentions').rang).toBeUndefined()
+  })
+
+  it('is held for the schedules it woke and no other, and only so many', () => {
+    const lines = Array.from({ length: OWED + 4 }, (_, n) =>
+      mention(n, `${1727445000 + n}.000100/1727442000.000100`),
+    )
+    const rang = folded([...lines, mention(99, A, ['other'])]).watchedOf('mentions').rang
+    expect(rang).toHaveLength(OWED)
+    expect(rang?.[0]).toBe(`${1727445000 + 4}.000100/1727442000.000100`)
+    expect(rang).not.toContain(A)
   })
 })

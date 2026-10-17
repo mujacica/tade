@@ -104,6 +104,12 @@ export interface Watched {
   findings: WatchFinding[]
   /** Its doorbell, once a delivery has rung for it (`hooks.ts`): folded by the window, not here. */
   bell?: Bell
+  /**
+   * What deliveries that woke it named and no look has read yet, oldest first
+   * (`HookAddress.item`): handed to its next look, which reads each. Folded by
+   * the window, not here.
+   */
+  rang?: readonly string[]
 }
 
 /** What a watch schedule has done, from the journal. Pure: events in, facts out. */

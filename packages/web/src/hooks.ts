@@ -1,5 +1,5 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
-import type { HookAddress, HookSource } from '@tade/core'
+import { type HookAddress, type HookSource, slackItem } from '@tade/core'
 
 // What one webhook delivery is, checked before anything in it is believed: the
 // signature over its raw bytes, the window its source allows, and the address
@@ -136,15 +136,19 @@ const CHECKS: Readonly<Record<HookSource, (delivery: HookDelivery) => HookChecke
     const inner = objectOf(body.event) ?? {}
     const event = wordOf(body.type === 'event_callback' ? inner.type : body.type)
     const channel = typeof inner.channel === 'string' ? inner.channel.trim().toUpperCase() : ''
+    const where = /^[CGD][A-Z0-9]{2,40}$/.test(channel) ? channel : null
+    // A mention inside a thread, which no poll of the channel can see: the
+    // message's `ts` and its thread's, so the look reads that one thread.
+    // Only where the channel was named, since that is what picks the look.
+    const item =
+      where !== null && typeof inner.ts === 'string' && typeof inner.thread_ts === 'string'
+        ? slackItem(inner.ts, inner.thread_ts)
+        : null
     return {
       ok: true,
       delivery: typeof body.event_id === 'string' ? body.event_id : '',
       event,
-      address: {
-        source: 'slack',
-        event,
-        where: /^[CGD][A-Z0-9]{2,40}$/.test(channel) ? channel : null,
-      },
+      address: { source: 'slack', event, where, ...(item === null ? {} : { item }) },
       answer: {},
     }
   },

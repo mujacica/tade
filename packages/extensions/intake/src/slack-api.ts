@@ -1,10 +1,12 @@
 import { Unreachable } from '@tade/extensions-core'
 
-// The four Slack methods this door needs, and nothing else.
+// The Slack methods this door needs, and nothing else: the five a look and a
+// reply ask, and `oauth.v2.access`, which Connect Slack exchanges an install's
+// code with (`slack-app.ts`) — so there is one Slack client in Tade, not two.
 //
 // **Not a port and not a client library.** A port earns its place when two
 // implementations must pass one suite, and there is one Slack; a library earns
-// its place when the surface is wide, and this is four methods with a handful
+// its place when the surface is wide, and this is six methods with a handful
 // of arguments between them. What is here is the part that is actually worth
 // writing down: which error Slack means, which of them is "nothing came back",
 // and the one it answers when a reaction is already there.
@@ -196,6 +198,44 @@ export class SlackApi {
     this.signal = from.signal
   }
 
+  /**
+   * The code Slack sent a browser back with after installing the app, exchanged
+   * once for its bot token (`oauth.v2.access`) — the one call here that is made
+   * with the app's client id and secret rather than a token, which is why it
+   * is not a method of a door that has one. Slack's code lasts ten minutes and
+   * is good once.
+   */
+  static async access(
+    from: { fetch: typeof fetch; signal: AbortSignal },
+    req: { clientId: string; clientSecret: string; code: string; redirect: string },
+  ): Promise<{ token: string; team: string }> {
+    const body = await new SlackApi('', from).call('oauth.v2.access', {
+      client_id: req.clientId,
+      client_secret: req.clientSecret,
+      code: req.code,
+      redirect_uri: req.redirect,
+    })
+    const token = typeof body.access_token === 'string' ? body.access_token : ''
+    if (body.token_type !== 'bot' || !token.startsWith('xoxb-')) {
+      throw new SlackError('slack', 'oauth.v2.access answered with no bot token')
+    }
+    const team = body.team as { name?: unknown } | undefined
+    return { token, team: typeof team?.name === 'string' ? team.name : '' }
+  }
+
+  /**
+   * Which workspace this token is installed in, and as which user — asked
+   * fresh rather than out of `me`, because it is what a connect page says is
+   * true now.
+   */
+  async installed(): Promise<{ team: string; user: string }> {
+    const body = await this.call('auth.test', {})
+    return {
+      team: typeof body.team === 'string' ? body.team : '',
+      user: typeof body.user === 'string' ? body.user : '',
+    }
+  }
+
   /** A page of a channel's top-level messages, newest first, as Slack returns them. */
   async history(req: {
     channel: string
@@ -216,12 +256,19 @@ export class SlackApi {
     })
   }
 
-  /** A thread: the parent first, then its replies oldest first. */
+  /**
+   * A thread: the parent first, then its replies oldest first — or, with
+   * `oldest` and `latest` both one reply's `ts` and `inclusive`, that reply,
+   * which is how one message inside a thread is read back.
+   */
   async replies(req: {
     channel: string
     ts: string
     limit: number
     cursor?: string | null
+    oldest?: string
+    latest?: string
+    inclusive?: boolean
     /** Ask for what apps attached to their own messages, which is where Tade's marker is. */
     metadata?: boolean
   }): Promise<SlackPage> {
@@ -230,6 +277,9 @@ export class SlackApi {
       ts: req.ts,
       limit: String(req.limit),
       ...(req.cursor ? { cursor: req.cursor } : {}),
+      ...(req.oldest ? { oldest: req.oldest } : {}),
+      ...(req.latest ? { latest: req.latest } : {}),
+      ...(req.inclusive ? { inclusive: 'true' } : {}),
       ...(req.metadata ? { include_all_metadata: 'true' } : {}),
     })
   }
@@ -343,7 +393,8 @@ export class SlackApi {
       answer = await this.fetch(`${SLACK}/${method}`, {
         method: 'POST',
         headers: {
-          authorization: `Bearer ${this.token}`,
+          // None for the one call made with a client's id and secret instead.
+          ...(this.token === '' ? {} : { authorization: `Bearer ${this.token}` }),
           'content-type': 'application/x-www-form-urlencoded; charset=utf-8',
         },
         body: new URLSearchParams(form).toString(),

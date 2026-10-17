@@ -41,6 +41,9 @@ importers:
       '@tade/drivers-pty':
         specifier: workspace:*
         version: link:../drivers/pty
+      '@tade/extension-intake':
+        specifier: workspace:*
+        version: link:../extensions/intake
       '@tade/extensions-core':
         specifier: workspace:*
         version: link:../extensions/core

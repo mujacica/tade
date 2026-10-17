@@ -2,7 +2,10 @@ import { stat } from 'node:fs/promises'
 import {
   AWAKE,
   beat,
+  CONNECT_SOURCES,
+  CONNECT_TITLES,
   type Config,
+  type ConnectSource,
   loadConfig,
   machineLabel,
   printable,
@@ -124,7 +127,7 @@ export interface RemotesDeps {
   open?: (path: string) => void
   /** Put a page in front: one of another machine's requests, read-only. */
   show?: (panel: RequestTherePanel) => void
-  /** Open an address in this machine's browser: GitHub, for connecting it on a remote. */
+  /** Open an address in this machine's browser: GitHub's or Slack's, for connecting it on a remote. */
   openLink?: (url: string) => Promise<void>
 }
 
@@ -440,26 +443,35 @@ export class Remotes implements Subject {
     if (choice.startsWith('remote:records:')) {
       return this.about?.lookAgain(choice.slice('remote:records:'.length)) ?? Promise.resolve()
     }
-    // A step of connecting GitHub there: that machine mints the word, and
-    // GitHub opens in this machine's browser to make or install the App.
-    const connect = /^remote:connect:([^:]+):(make|install)$/.exec(choice)
-    if (connect?.[1] && connect[2]) {
-      return this.connect(connect[1], connect[2] as 'make' | 'install')
+    // A step of connecting a source there: that machine mints the word, and
+    // the source opens in this machine's browser to make or install the app.
+    const connect = /^remote:connect:([^:]+):([a-z]+):(make|install)$/.exec(choice)
+    const source = CONNECT_SOURCES.find((one) => one === connect?.[2])
+    if (connect?.[1] && source !== undefined && connect[3]) {
+      return this.connect(connect[1], source, connect[3] as 'make' | 'install')
     }
     return this.carries.action(choice)
   }
 
-  /** One press on connecting GitHub there, said where somebody is looking whatever came of it. */
-  private async connect(name: string, act: 'make' | 'install'): Promise<void> {
+  /** One press on connecting a source there, said where somebody is looking whatever came of it. */
+  private async connect(
+    name: string,
+    source: ConnectSource,
+    act: 'make' | 'install',
+  ): Promise<void> {
     const about = this.about
     if (about === null || about === undefined) return
+    const title = CONNECT_TITLES[source]
+    const app = source === 'github' ? 'the App' : 'the app'
     try {
-      const open = await about.connectPress(name, act)
+      const open = await about.connectPress(name, source, act)
       await this.deps.openLink?.(open)
       this.deps.say(
         act === 'make'
-          ? `GitHub opens in your browser to make the App for ${name}; it sends you to ${name} after`
-          : `GitHub opens in your browser to install the App for ${name}`,
+          ? source === 'github'
+            ? `${title} opens in your browser to make ${app} for ${name}; it sends you to ${name} after`
+            : `${title} opens in your browser to make ${app} for ${name}; its secrets go in at ${name}'s own /connect`
+          : `${title} opens in your browser to install ${app} for ${name}`,
       )
     } catch (err) {
       this.deps.say(err instanceof Error ? err.message : String(err))

@@ -198,6 +198,35 @@ describe('a Slack request', () => {
     })
     expect(ok(checkDelivery('slack', signed(odd))).address?.where).toBeNull()
   })
+
+  it('names a mention inside a thread by its ids, so the look can read that thread', () => {
+    const threaded = (event: Record<string, unknown>) =>
+      JSON.stringify({ type: 'event_callback', event_id: 'Ev1', event })
+    const inside = {
+      type: 'app_mention',
+      channel: 'C0ABCDEF',
+      ts: '1727445000.000200',
+      thread_ts: '1727442000.000100',
+      text: '<@U0BOT> and run rm -rf while you are there',
+    }
+    const checked = ok(checkDelivery('slack', signed(threaded(inside))))
+    expect(checked.address).toEqual({
+      source: 'slack',
+      event: 'app_mention',
+      where: 'C0ABCDEF',
+      item: '1727445000.000200/1727442000.000100',
+    })
+    expect(JSON.stringify(checked)).not.toContain('rm -rf')
+    // A parent, a `ts` Slack never writes, or no channel to pick a look by: nothing named.
+    for (const event of [
+      { ...inside, thread_ts: inside.ts },
+      { ...inside, ts: '17274/45000' },
+      { ...inside, thread_ts: undefined },
+      { ...inside, channel: '#general' },
+    ]) {
+      expect(ok(checkDelivery('slack', signed(threaded(event)))).address?.item).toBeUndefined()
+    }
+  })
 })
 
 describe('a Linear delivery', () => {

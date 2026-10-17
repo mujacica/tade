@@ -39,8 +39,9 @@ export interface RecordsThere {
 }
 
 /**
- * What connecting GitHub there has come to, step by step, when it was last
- * asked — that machine's own fold (`githubPage`), its words as text.
+ * What connecting one source there has come to, step by step, when it was
+ * last asked — that machine's own fold (`githubPage`, `slackPage`), its words
+ * as text.
  */
 export interface ConnectThere {
   /** When the answer came, in this machine's clock. */
@@ -49,8 +50,13 @@ export interface ConnectThere {
     title: string
     done: boolean
     said: string
-    /** The one press a step offers there, which a press here asks of that machine. */
+    /** The one press a step offers there that a press here can ask of that machine. */
     press: { act: 'make' | 'install'; label: string } | null
+    /**
+     * That its press takes what the source's own page showed the person —
+     * Slack's secrets — which only that machine's own page is given.
+     */
+    pasted: boolean
   }[]
   /** Why its last press made nothing, in that machine's words. */
   cannot: string | null
@@ -109,7 +115,7 @@ export function recordsOf(held: LookHeld<RecordsAnswer> | null | undefined): Rec
   }
 }
 
-/** What connecting GitHub there has come to, as text, or null before any answer. */
+/** What connecting one source there has come to, as text, or null before any answer. */
 export function connectOf(held: LookHeld<ConnectAnswer> | null | undefined): ConnectThere | null {
   const answer = held?.answer ?? null
   if (answer === null || held?.at == null) return null
@@ -120,7 +126,10 @@ export function connectOf(held: LookHeld<ConnectAnswer> | null | undefined): Con
       done: one.done,
       said: printable(one.said),
       press:
-        one.press === undefined ? null : { act: one.press.act, label: printable(one.press.label) },
+        one.press === undefined || one.press.act === 'keep'
+          ? null
+          : { act: one.press.act, label: printable(one.press.label) },
+      pasted: one.press?.act === 'keep',
     })),
     cannot: answer.cannot === undefined ? null : printable(answer.cannot).trim() || null,
   }

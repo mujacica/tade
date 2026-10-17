@@ -5,6 +5,7 @@ import {
   intakePrompt,
   intakeTitle,
   newerRevision,
+  slackItemOf,
   slackTs,
 } from '@tade/core'
 import type { ExtensionWatch, WatchContext } from '@tade/extensions-core'
@@ -28,20 +29,24 @@ import {
 
 // `@tade` in one Slack channel, as work that arrives from outside this machine.
 //
-// **It is polled, and nothing anywhere may call it chat.** There is no listener,
-// no Socket Mode, no public URL and no three-second clock: Tade asks the channel
-// what has been said every couple of minutes. Three consequences, all of them
-// the kind a connector's README usually leaves out:
+// **It is a look, and nothing anywhere may call it chat.** There is no listener
+// inside it, no Socket Mode and no three-second clock: Tade asks the channel
+// what has been said every couple of minutes — and, where this machine has a
+// public name and the Slack app delivers its events there, a delivery makes it
+// ask at once (`doorbell`, REMOTE-TADE §6.1), which is still asking. Three
+// consequences, all of them the kind a connector's README usually leaves out:
 //
-// 1. A mention is **noticed** up to one poll interval after it was written, and
-//    never answered on the spot. If what somebody wants is `@tade` replying in
-//    seconds, that is the Events API over a socket an extension can hold open,
-//    and it is a different slice.
-// 2. **A mention inside a thread is invisible**, because
-//    `conversations.history` does not return thread replies. What is visible is
-//    a reply somebody also sent to the channel, and that is taken in with its
-//    whole thread. `slack-message.ts` says why reading every thread instead is
-//    not an option at these rate limits.
+// 1. A mention is **noticed** — within a poll interval, or seconds after a
+//    delivery — and never answered on the spot: the reply path says a status,
+//    never an answer.
+// 2. **A mention inside a thread is visible only where a delivery names it**,
+//    because `conversations.history` does not return thread replies. An
+//    `app_mention` event names the message and its thread, the look is handed
+//    both (`ctx.rang`) and reads that one thread with `conversations.replies`
+//    — a request per mention, never one per thread in the channel. With no
+//    public name, what is visible is a reply somebody also sent to the
+//    channel, taken in with its whole thread; `slack-message.ts` says why
+//    reading every thread instead is not an option at these rate limits.
 // 3. A sleeping laptop reads nothing and promises nothing, which is why the
 //    statuses Tade can say back do not include "we will get to it".
 //
@@ -83,6 +88,9 @@ import {
 /** Where the bot token is read from. `ctx.secret`, so the environment wins. */
 export const SLACK_TOKEN = 'slack_token'
 
+/** The variable that wins over it, as every key's does. */
+export const SLACK_TOKEN_ENV = 'SLACK_BOT_TOKEN'
+
 /**
  * How many requests one look hands over.
  *
@@ -107,6 +115,13 @@ export const SLACK_PAGE = 200
 
 /** How much of a thread is read as material. One request, and what it missed is said. */
 export const SLACK_MOST_THREAD = 50
+
+/**
+ * How many threads deliveries named one look reads (`ctx.rang`): a request
+ * each, two where the mention is past the first page of its thread. The rest
+ * are handed to the next look, which a delivery storm then cannot stretch.
+ */
+export const SLACK_MOST_RUNG = 3
 
 /** A Slack channel id, as Slack writes one. Not a channel name, which is the usual mistake. */
 const CHANNEL = /^[CGD][A-Z0-9]{2,}$/
@@ -181,7 +196,7 @@ export const slackMessages: ExtensionWatch = {
   id: 'slack',
   title: 'Messages that mention Tade in a channel you named',
   means:
-    'reads one Slack channel every couple of minutes and takes in each message that mentions the app, from somebody on the list in surfaces.intake, with the thread it was asked in as material — as far as that grant allows it. It notices a mention rather than answering one: there is no slash command, no instant reply, and a mention inside a thread is only visible where it was also sent to the channel',
+    'reads one Slack channel every couple of minutes and takes in each message that mentions the app, from somebody on the list in surfaces.intake, with the thread it was asked in as material — as far as that grant allows it. It notices a mention rather than answering one: there is no slash command and no instant reply. Where this machine has a public name and the app delivers its events there (/connect), a mention makes it look at once, and a mention inside a thread is read out of that thread; without one, a mention inside a thread is only visible where it was also sent to the channel',
   // Two minutes, which is as close to "a person is waiting" as a poll gets. Two
   // requests a look is 60 an hour, which an internal app does not notice and a
   // throttled one survives as a 429 that ends one sweep.
@@ -190,8 +205,8 @@ export const slackMessages: ExtensionWatch = {
   intake: 'slack',
   network: true,
   // Rung by the app's Events API subscription, for the channel it was turned
-  // on with. The look still reads the channel's history, so this makes a
-  // mention noticed sooner and not a mention in a thread visible.
+  // on with. The look still reads the channel's history; a mention inside a
+  // thread comes as the message and its thread (`ctx.rang`), read from there.
   doorbell: { source: 'slack', events: ['app_mention', 'message'], input: 'channel' },
   // One a look. The schedule's two is a ceiling on agents started, and this one
   // starts work on somebody else's words: three proposals from one poll is three
@@ -312,18 +327,45 @@ export const slackMessages: ExtensionWatch = {
       })
       found.push({ key: intakeKey(candidate), title: intakeTitle(candidate), intake: candidate })
     }
+    // What deliveries named that the history above cannot return: a mention
+    // inside a thread, read out of that one thread. Never moves the cursor,
+    // which is about the channel; the keys Tade keeps are what stop a mention
+    // read twice from becoming two requests.
+    const rung = await rungFor(api, ctx, channel, me)
+    if (rung.limited > 0) limited = rung.limited
+    for (const { message, thread } of rung.found) {
+      const requester = requesterOf(message)
+      if (!requester) {
+        unnamed.push(String(message.ts))
+        continue
+      }
+      const candidate = candidateOf(message, thread, {
+        channel,
+        me,
+        project: ctx.watching.name,
+        requester,
+        seenAt,
+      })
+      found.push({ key: intakeKey(candidate), title: intakeTitle(candidate), intake: candidate })
+    }
+    // Still in the order people asked, wherever each was found.
+    found.sort(
+      (a, b) =>
+        newerRevision('slack', slackRefOf(a.key)?.ts ?? '', slackRefOf(b.key)?.ts ?? '') ?? 0,
+    )
     return {
       found,
       since: advanceTo(read, held, oldest, drained),
+      ...(rung.read.length > 0 ? { read: rung.read } : {}),
       ...(found.length === 0
         ? {
             said: whyNothing(channel, {
               unnamed,
-              unread,
-              more,
+              unread: [...unread, ...rung.unread],
+              more: more + rung.waiting,
               drained,
               limited,
-              looked: read.length,
+              looked: read.length + rung.looked,
             }),
           }
         : {}),
@@ -388,15 +430,15 @@ export const slackMessages: ExtensionWatch = {
     try {
       me = await api.me()
       // The documented way to read one message: the window that is exactly its
-      // own `ts`. `conversations.replies` is not asked at all.
-      const page = await api.history({
-        channel,
-        oldest: ref.ts,
-        latest: ref.ts,
-        inclusive: true,
-        limit: 1,
-      })
-      message = page.messages.find((one) => one.ts === ref.ts)
+      // own `ts` — of the channel, or for a reply inside a thread alone, of that
+      // thread, which history cannot return. Two asked of the thread, since
+      // Slack may answer with its parent first.
+      const one = { oldest: ref.ts, latest: ref.ts, inclusive: true } as const
+      const page =
+        ref.thread === null
+          ? await api.history({ channel, ...one, limit: 1 })
+          : await api.replies({ channel, ts: ref.thread, ...one, limit: 2 })
+      message = page.messages.find((found) => found.ts === ref.ts)
     } catch (err) {
       if (err instanceof SlackError && (err.trouble === 'missing' || err.trouble === 'scope')) {
         // Gone, or this app can no longer read the channel. Nothing was
@@ -417,7 +459,7 @@ export const slackMessages: ExtensionWatch = {
         because: `${ref.externalId} is not there to read any more: it was deleted, or this app can no longer see it`,
       }
     }
-    if (!isRequest(message, me)) {
+    if (!isRequest(message, me, ref.thread !== null)) {
       return {
         still: false,
         because: `${ref.externalId} no longer mentions this app, or is no longer a message this watch would take in`,
@@ -487,9 +529,13 @@ export const slackMessages: ExtensionWatch = {
     }
     const api = apiFor(ctx)
     const name = SLACK_REACTIONS[saying]
+    // The reaction on the request itself, and the words in its thread: its own
+    // where it is a parent, the one it was asked inside where it is a reply —
+    // Slack threads a reply under a parent, never under another reply.
+    const thread = ref.thread ?? ref.ts
     const claimed = await api.react({ channel, ts: ref.ts, name })
     if (claimed.already) {
-      const mine = await saidAlready(api, channel, ref.ts, request.mark, await api.me())
+      const mine = await saidAlready(api, channel, thread, request.mark, await api.me())
       if (mine) return { posted: mine, already: true }
       // The reaction is there and the words are not: a window died between the
       // two halves, so this is the half that has not happened rather than a
@@ -497,7 +543,7 @@ export const slackMessages: ExtensionWatch = {
     }
     const posted = await api.post({
       channel,
-      thread: ref.ts,
+      thread,
       text: request.say,
       mark: request.mark,
     })
@@ -537,6 +583,105 @@ async function threadFor(
     messages: page.messages.filter((one) => one.ts !== request.ts && !isMine(one, me)),
     more: page.more,
   }
+}
+
+/** What one look made of the threads deliveries named (`ctx.rang`). */
+interface Rung {
+  /** The requests found in them, each with the thread it was asked in. */
+  found: { message: SlackMessage; thread: SlackThread }[]
+  /** What was read to the end — a request, nothing that is one, or gone — so it is not handed again. */
+  read: string[]
+  /** Messages whose thread could not be read this look, by `ts`. */
+  unread: string[]
+  /** How many were left for the next look, past the ceiling or after a rate limit. */
+  waiting: number
+  /** How many messages were read, for the sentence a look that found nothing says. */
+  looked: number
+  /** Slack's `Retry-After`, where it rate limited one. */
+  limited: number
+}
+
+/**
+ * The mentions inside threads a delivery named, each read out of its own
+ * thread: one `conversations.replies` with the thread as material, and a
+ * second asking for the one message only where it is past the first page.
+ *
+ * **The delivery is a claim and this is the record.** What it named is only
+ * where to look: the message is read back from Slack with this app's own
+ * token, in the channel this watch reads, and becomes a request only by the
+ * rule a polled one is (`isRequest`) — so a forged delivery could only make
+ * Tade read a thread of a channel it already reads, sooner. What a thread
+ * read cannot finish, it leaves out of `read`, and the next look is handed it
+ * again; **a half-read thread is not handed over**, as for a polled one.
+ */
+async function rungFor(
+  api: SlackApi,
+  ctx: WatchContext,
+  channel: string,
+  me: SlackSelf,
+): Promise<Rung> {
+  const rung: Rung = { found: [], read: [], unread: [], waiting: 0, looked: 0, limited: 0 }
+  const named: { item: string; ts: string; thread: string }[] = []
+  for (const item of ctx.rang ?? []) {
+    const one = slackItemOf(item)
+    // Not a spelling this door's doorbell writes: nothing to read, and read,
+    // so it is not handed to every look after this one.
+    if (one === null) rung.read.push(item)
+    else named.push({ item, ...one })
+  }
+  for (const [at, one] of named.entries()) {
+    if (at >= SLACK_MOST_RUNG) {
+      rung.waiting = named.length - at
+      break
+    }
+    stopped(ctx)
+    try {
+      const page = await api.replies({
+        channel,
+        ts: one.thread,
+        limit: SLACK_MOST_THREAD,
+        metadata: true,
+      })
+      let message = page.messages.find((found) => found.ts === one.ts)
+      if (message === undefined && page.more) {
+        const exact = await api.replies({
+          channel,
+          ts: one.thread,
+          oldest: one.ts,
+          latest: one.ts,
+          inclusive: true,
+          limit: 2,
+        })
+        message = exact.messages.find((found) => found.ts === one.ts)
+      }
+      rung.read.push(one.item)
+      rung.looked += page.messages.length
+      if (message === undefined || !isRequest(message, me, true)) continue
+      const request = message
+      rung.found.push({
+        message: request,
+        thread: {
+          messages: page.messages.filter((found) => found.ts !== request.ts && !isMine(found, me)),
+          more: page.more,
+        },
+      })
+    } catch (err) {
+      // Gone: the thread, or the whole of it, was deleted. Read, and nothing.
+      if (err instanceof SlackError && err.trouble === 'missing') {
+        rung.read.push(one.item)
+        continue
+      }
+      // A rate limit ends what this look reads of them; the rest are handed on.
+      if (err instanceof SlackError && err.trouble === 'ratelimited') {
+        rung.limited = err.retryAfter
+        rung.unread.push(one.ts)
+        rung.waiting = named.length - at - 1
+        break
+      }
+      throw asLookFailed(err, channel)
+    }
+  }
+  return rung
 }
 
 /**

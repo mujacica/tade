@@ -328,32 +328,85 @@ function vpsShown(): RemoteShown {
           ],
           cannot: null,
         },
-        // Connecting GitHub there, asked with the records: made, installed
-        // nowhere yet, and the press under the step that is next.
-        connect: {
-          at: NOW - 20_000,
-          steps: [
-            {
-              title: 'Make a GitHub App',
-              done: true,
-              said: 'kept here: GitHub App tade-vps, which may read and never write',
-              press: { act: 'make', label: 'Make another' },
+        // Connecting GitHub and Slack there, asked with the records: the App
+        // made and installed nowhere yet, the Slack app not made, each press
+        // under the step that offers it — and Slack's secrets said to go in
+        // at that machine's own page.
+        connects: [
+          {
+            source: 'github',
+            title: 'GitHub',
+            said: null,
+            looking: false,
+            seen: {
+              at: NOW - 20_000,
+              steps: [
+                {
+                  title: 'Make a GitHub App',
+                  done: true,
+                  said: 'kept here: GitHub App tade-vps, which may read and never write',
+                  press: { act: 'make', label: 'Make another' },
+                  pasted: false,
+                },
+                {
+                  title: 'Install it on your repositories',
+                  done: false,
+                  said: 'installed nowhere yet: pick which repositories it may read',
+                  press: { act: 'install', label: 'Install it on GitHub' },
+                  pasted: false,
+                },
+                {
+                  title: 'Deliveries arrive',
+                  done: false,
+                  said: 'waiting for the first: GitHub delivers to https://tade.example.com/hooks/github, and the watches poll hourly once one arrives',
+                  press: null,
+                  pasted: false,
+                },
+              ],
+              cannot: null,
             },
-            {
-              title: 'Install it on your repositories',
-              done: false,
-              said: 'installed nowhere yet: pick which repositories it may read',
-              press: { act: 'install', label: 'Install it on GitHub' },
+          },
+          {
+            source: 'slack',
+            title: 'Slack',
+            said: null,
+            looking: false,
+            seen: {
+              at: NOW - 20_000,
+              steps: [
+                {
+                  title: 'Make a Slack app',
+                  done: false,
+                  said: 'one app in your own workspace, made from a manifest: it reads the channels you invite it to, and Slack tells this machine when somebody mentions it',
+                  press: { act: 'make', label: 'Make it on Slack' },
+                  pasted: false,
+                },
+                {
+                  title: 'Give this machine its signing secret',
+                  done: false,
+                  said: 'from the app’s Basic Information on Slack, before anything else: its signing secret, so this machine can answer Slack’s check of its address, and the client id and secret, which installing it takes',
+                  press: null,
+                  pasted: true,
+                },
+                {
+                  title: 'Slack checks the address',
+                  done: false,
+                  said: 'once its signing secret is kept: Slack delivers to https://tade.example.com/hooks/slack, and its check is answered only with the secret here',
+                  press: null,
+                  pasted: false,
+                },
+                {
+                  title: 'Install it in your workspace',
+                  done: false,
+                  said: 'once its client id and secret are kept: Slack asks you to allow it, then sends the browser back here',
+                  press: null,
+                  pasted: false,
+                },
+              ],
+              cannot: null,
             },
-            {
-              title: 'Deliveries arrive',
-              done: false,
-              said: 'waiting for the first: GitHub delivers to https://tade.example.com/hooks/github, and the watches poll hourly once one arrives',
-              press: null,
-            },
-          ],
-          cannot: null,
-        },
+          },
+        ],
         about: {
           at: NOW - 60_000,
           roundTrip: 41,
