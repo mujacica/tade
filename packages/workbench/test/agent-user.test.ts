@@ -1,18 +1,28 @@
 import { chmodSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { agentShare, ConfigSchema, type LaneId, shareTask, taskDir, taskFolder } from '@tade/core'
+import {
+  agentShare,
+  ConfigSchema,
+  type LaneId,
+  producesPath,
+  shareTask,
+  taskDir,
+  taskFolder,
+} from '@tade/core'
 import { until } from '@tade/drivers-core/conformance'
 import { PtyDriver } from '@tade/drivers-pty'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { mkrepo, runGit, tmp } from '../../../test/fixtures/mkrepo.ts'
 import {
   type AgentUser,
+  bringDocumentHome,
   closeHome,
   contextFor,
   homeOf,
   rootsOf,
   sandboxProofs,
   sandboxWrites,
+  sharedDocument,
   shareReady,
 } from '../src/agent-user.ts'
 import { EventLog } from '../src/events.ts'
@@ -21,10 +31,12 @@ import { LaneRegistry } from '../src/registry.ts'
 import { Workbench } from '../src/workbench.ts'
 
 // Agents run as a user of their own (`agents.user`). Becoming another user
-// needs root to set up, so `sudo` here is a stand-in that becomes nobody new:
-// it drops its own flags up to `--` and runs the rest as whoever ran it. What
-// is left to see is everything Tade does — the line it builds, what it keeps,
-// the proof — and the container proof in `set-up-the-machine` is the rest.
+// needs root to set up, so `sudo` here is a stand-in that becomes nobody new
+// but is otherwise as strict as the real one: it resets the environment to
+// what `--preserve-env` names and nothing else, and runs the rest as whoever
+// ran it. What is left to see is everything Tade does — the line it builds,
+// what crosses, what it keeps, the proof — and the container proof in
+// `set-up-the-machine` is the rest.
 
 const PATH = process.env.PATH
 const UMASK = process.umask()
@@ -34,7 +46,18 @@ beforeAll(() => {
   bin = tmp('tade-agent-bin-')
   writeFileSync(
     join(bin, 'sudo'),
-    '#!/bin/sh\nwhile [ "$1" != "--" ]; do shift; done\nshift\nexec "$@"\n',
+    `#!${process.execPath}
+const { spawnSync } = require('node:child_process')
+const args = process.argv.slice(2)
+const at = args.indexOf('--')
+const said = args.slice(0, at).find((a) => a.startsWith('--preserve-env=')) ?? '--preserve-env='
+const env = { PATH: '/usr/bin:/bin', HOME: process.env.HOME ?? '/', TERM: process.env.TERM ?? 'dumb' }
+for (const name of said.slice('--preserve-env='.length).split(',').filter(Boolean)) {
+  if (process.env[name] !== undefined) env[name] = process.env[name]
+}
+const [command, ...rest] = args.slice(at + 1)
+process.exit(spawnSync(command, rest, { stdio: 'inherit', env }).status ?? 1)
+`,
   )
   chmodSync(join(bin, 'sudo'), 0o755)
   process.env.PATH = `${bin}:${PATH}`
@@ -129,6 +152,23 @@ describe('what an agent of its own user is handed', () => {
     ).toBeNull()
   })
 
+  it('brings the document it wrote in its share home, and only a name Tade would have written', async () => {
+    const home = tmp('tade-agent-home-')
+    const user: AgentUser = {
+      name: 'tade-agent',
+      home: '/home/x',
+      share: agentShare(tmp('tade-agent-user-')),
+    }
+    const task = 'app/plan'
+    expect(await bringDocumentHome(home, task, user, 'PLAN.md')).toBe(false)
+    const there = sharedDocument(task, user, 'PLAN.md')
+    mkdirSync(join(there, '..'), { recursive: true })
+    writeFileSync(there, '# the plan\n')
+    expect(await bringDocumentHome(home, task, user, 'PLAN.md')).toBe(true)
+    expect(readFileSync(producesPath(home, task, 'PLAN.md'), 'utf8')).toBe('# the plan\n')
+    expect(await bringDocumentHome(home, task, user, '../../escape.md')).toBe(false)
+  })
+
   it('lets its sandbox write the repository’s git folder where the worktree’s is elsewhere', async () => {
     const repo = mkrepo()
     const user: AgentUser = { name: 'tade-agent', home: '/home/tade-agent', share: '/s' }
@@ -159,7 +199,8 @@ describe('a lane run as another user', () => {
     await log.close().catch(() => {})
   })
 
-  it('goes through sudo at every launch, keeps the agent’s own line, and remembers whose it is', async () => {
+  it('goes through sudo at every launch, carries what the launch named and no key from Tade’s shell, keeps the agent’s own line, and remembers whose it is', async () => {
+    process.env.TADE_TEST_EXPORTED_KEY = 'sk-from-the-shell'
     const task = 'app/refunds'
     mkdirSync(taskDir(home, task), { recursive: true })
     writeFileSync(join(taskDir(home, task), 'task.yaml'), `id: ${task}\n`)
@@ -178,14 +219,20 @@ describe('a lane run as another user', () => {
       command: process.execPath,
       args: [
         '-e',
-        "process.stdout.write('umask=' + process.umask().toString(8)); setTimeout(() => {}, 60000)",
+        "process.stdout.write(['umask=' + process.umask().toString(8), 'run=' + process.env.TADE_RUN_ID, 'key=' + (process.env.TADE_TEST_EXPORTED_KEY ?? 'none')].join(' ')); setTimeout(() => {}, 60000)",
       ],
       env: { TADE_RUN_ID: lane },
       user: 'tade-agent',
     })
     await until(async () => (await registry!.capture(lane, 20)).includes('umask='))
+    delete process.env.TADE_TEST_EXPORTED_KEY
     // Its group's to write, nobody else's: what the agent makes, Tade can change.
-    expect(await registry.capture(lane, 20)).toContain('umask=7')
+    const said = await registry.capture(lane, 20)
+    expect(said).toContain('umask=7')
+    expect(said).toContain(`run=${lane}`)
+    // A key exported where Tade runs is the way out `KEYS_AND_AGENTS` offers,
+    // and it must not reach an agent kept apart from Tade's keys.
+    expect(said).toContain('key=none')
     expect(record.user).toBe('tade-agent')
     expect(record.spec.command).toBe(process.execPath)
     const opened = (await log.read({ types: ['lane_opened'] })).at(-1)

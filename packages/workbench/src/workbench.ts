@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
-import { copyFile, mkdir, readFile, rm } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { mkdir, readFile, rm } from 'node:fs/promises'
+import { join } from 'node:path'
 import { readRuns } from '@tade/checks-core'
 import {
   AccountName,
@@ -42,7 +42,6 @@ import {
   type StartCondition,
   shareRuns,
   shareSockets,
-  shareTask,
   sinceLastLook,
   spendFrom,
   startingModel,
@@ -50,7 +49,6 @@ import {
   type TaskId,
   THINKING_LEVELS,
   type ThinkingLevel,
-  taskFolder,
   type Unsubscribe,
   workspaceFor,
 } from '@tade/core'
@@ -90,11 +88,13 @@ import { answerAgentTool, DOCUMENT_READY } from './agent-tools.ts'
 import {
   type AgentUser,
   agentUserFor,
+  bringDocumentHome,
   closeHome,
   contextFor,
   homeOf,
   ownUser,
   sandboxWrites,
+  sharedDocument,
   shareReady,
   shareSetupLog,
 } from './agent-user.ts'
@@ -1618,7 +1618,7 @@ export class Workbench {
           context: await contextFor(this.home, task, as),
           documents: null,
           setupLog: shareSetupLog(task, as),
-          produced: (name: string) => join(shareTask(as.share, taskFolder(task)), name.trim()),
+          produced: (name: string) => sharedDocument(task, as, name),
         }
       : {
           context: existsSync(context) ? context : null,
@@ -1665,12 +1665,7 @@ export class Workbench {
     const as = await agentUserFor(this.config, task.split('/')[0] ?? '', ownUser())
     if (!as) return
     const { produces } = await taskSaid(this.home, task)
-    if (!produces || producesProblem(produces)) return
-    const from = join(shareTask(as.share, taskFolder(task)), produces.trim())
-    if (!existsSync(from)) return
-    const to = producesPath(this.home, task, produces)
-    await mkdir(dirname(to), { recursive: true })
-    await copyFile(from, to)
+    if (produces) await bringDocumentHome(this.home, task, as, produces)
   }
 
   /**

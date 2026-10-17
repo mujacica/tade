@@ -63,6 +63,29 @@ describe('setting it up', () => {
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).not.toContain(AGENT_USER)
   })
 
+  it('shows every command before running any, runs them on a press, and only then names the user', async () => {
+    writeFileSync(join(home, 'config.yaml'), 'projects: {}\n')
+    const ui = recorder([true, true])
+    await setUpAgents(ui, { self: 'tade', seen: [] }, home, 'pty')
+    expect(ui.ran[0]).toContain(
+      `useradd --create-home --user-group --shell /bin/bash ${AGENT_USER}`,
+    )
+    // Every line was said before the first of them ran.
+    expect(ui.ran.every((line) => ui.said.some((said) => said.includes(line)))).toBe(true)
+    expect(ui.ran.some((line) => line.includes('visudo -cf'))).toBe(true)
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain(`user: ${AGENT_USER}`)
+    expect(ui.said.join('\n')).toContain('pushes with its own credentials, never yours')
+  })
+
+  it('names no user when a command fails', async () => {
+    writeFileSync(join(home, 'config.yaml'), 'projects: {}\n')
+    const ui = recorder([true, true])
+    ui.run = async () => 1
+    await setUpAgents(ui, { self: 'tade', seen: [] }, home, 'pty')
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).not.toContain(AGENT_USER)
+    expect(ui.said.join('\n')).toContain('that did not work')
+  })
+
   it('says a group that is not held yet as a login away, rather than proving a lane that would fail', async () => {
     writeFileSync(join(home, 'config.yaml'), `agents:\n  user: ${AGENT_USER}\n`)
     const done: AgentUserSeen = {

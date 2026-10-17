@@ -1,13 +1,15 @@
 import { constants } from 'node:fs'
-import { access, chmod, cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { access, chmod, copyFile, cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { userInfo } from 'node:os'
-import { isAbsolute, join, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import {
   type AgentUserSeen,
   agentShare,
   agentUserOf,
   type Config,
   expandHome,
+  producesPath,
+  producesProblem,
   runProgram,
   shareTask,
   taskDir,
@@ -146,6 +148,35 @@ export async function contextFor(
   const copy = join(to, 'context.md')
   await writeFile(copy, text.replaceAll(from, to), { mode: 0o640 })
   return copy
+}
+
+/**
+ * Where a task's agent writes the document it produces, as a user Tade's home
+ * is closed to: its folder in the share, under the name the task gives it.
+ */
+export function sharedDocument(task: string, user: AgentUser, produces: string): string {
+  return join(shareTask(user.share, taskFolder(task)), produces.trim())
+}
+
+/**
+ * Bring the document an agent of its own user wrote in its share into Tade's
+ * home, where every other document is read from — copied, never moved, since
+ * the agent may go on writing it — and say whether there was one. A name Tade
+ * would not have written is never joined onto a path (`producesProblem`).
+ */
+export async function bringDocumentHome(
+  home: string,
+  task: string,
+  user: AgentUser,
+  produces: string,
+): Promise<boolean> {
+  if (producesProblem(produces)) return false
+  const from = sharedDocument(task, user, produces)
+  if (!(await exists(from))) return false
+  const to = producesPath(home, task, produces)
+  await mkdir(dirname(to), { recursive: true })
+  await copyFile(from, to)
+  return true
 }
 
 /**
