@@ -53,6 +53,29 @@ describe('what would run for a commit', () => {
   })
 })
 
+describe('the full run and the related run', () => {
+  const checks = [
+    check('pre-commit'),
+    check('format'),
+    check('tests'),
+    check('related', { required: false, related: true }),
+  ]
+  const ids = (plan: { id: string }[]) => plan.map((one) => one.id)
+
+  it('leaves the related check out of the full run, which runs every test it would', () => {
+    expect(ids(planFor(checks))).toEqual(['pre-commit', 'format', 'tests'])
+  })
+
+  it('is the commit hook and the related check, and nothing else, when the related run is asked for', () => {
+    expect(ids(planFor(checks, { related: true }))).toEqual(['pre-commit', 'related'])
+  })
+
+  it('runs a check somebody named, whichever run it belongs to', () => {
+    expect(ids(planFor(checks, { only: ['related'] }))).toEqual(['related'])
+    expect(ids(planFor(checks, { only: ['tests'], related: true }))).toEqual(['tests'])
+  })
+})
+
 describe('globs', () => {
   it('matches the way people expect', () => {
     expect(matches('docs/**', 'docs/a/b.md')).toBe(true)

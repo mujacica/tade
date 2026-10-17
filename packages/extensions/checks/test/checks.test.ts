@@ -158,6 +158,68 @@ describe('running them', () => {
   })
 })
 
+describe('the related run', () => {
+  /** A project with a commit hook and a `test:related` script that says what it was handed. */
+  function related() {
+    const where = project()
+    mkdirSync(join(where.root, '.githooks'), { recursive: true })
+    writeFileSync(join(where.root, '.githooks', 'pre-commit'), 'echo the hook ran\n')
+    writeFileSync(join(where.root, 'related.sh'), 'echo "related to: $*"\n')
+    writeFileSync(
+      join(where.root, 'package.json'),
+      JSON.stringify({ scripts: { 'test:related': 'sh related.sh' } }),
+    )
+    writeFileSync(join(where.root, 'pnpm-lock.yaml'), '')
+    return where
+  }
+
+  it('runs the commit hook and the related tests, handed the paths, and never the full checks', async () => {
+    const where = related()
+    const host = await load(where)
+    const caller = { kind: 'agent' as const, task: 'demo/one', project: 'demo', cwd: where.root }
+    const answer = await host.call(
+      'checks_run',
+      { related: true, paths: ['src/a file.ts', 'src/b.ts'] },
+      { caller },
+    )
+    expect(answer.text).toContain('the related run')
+    expect(answer.text).toContain('✓ `pre-commit` passed')
+    expect(answer.text).toContain('✓ `related` passed')
+    expect(answer.text).not.toContain('hello')
+    expect(answer.text).toContain('This is the quick look, not the full checks')
+    expect(answer.said).toContain('the full checks are still to run')
+    const log = await host.call('checks_log', { check: 'related' }, { caller })
+    expect(log.text).toContain('related to: src/a file.ts src/b.ts')
+  })
+
+  it('leaves the rollup unknown and says so beside it, never green', async () => {
+    const where = related()
+    const host = await load(where)
+    await host.call('checks_run', { related: true }, { caller: { kind: 'orchestrator' } })
+    const answer = await host.call('checks_list', {}, { caller: { kind: 'orchestrator' } })
+    expect(answer.text).toContain('**unknown** — related tests passed, full run pending')
+    expect(answer.text).toContain('✓ `related` passed')
+    // Nobody set `checks.full`, and the project says how to run related tests.
+    expect(answer.text).toContain('The full run is batched')
+  })
+
+  it('refuses paths that are not paths, and paths without a related run', async () => {
+    const where = related()
+    const host = await load(where)
+    const caller = { caller: { kind: 'orchestrator' as const } }
+    await expect(host.call('checks_run', { paths: ['src/a.ts'] }, caller)).rejects.toThrow(
+      /pass related: true/,
+    )
+    await expect(
+      host.call('checks_run', { related: true, paths: ['--coverage'] }, caller),
+    ).rejects.toThrow(/not a path from the repository root/)
+    const many = Array.from({ length: 201 }, (_, i) => `src/${i}.ts`)
+    await expect(host.call('checks_run', { related: true, paths: many }, caller)).rejects.toThrow(
+      /run the full checks instead/,
+    )
+  })
+})
+
 describe('overruling the rule', () => {
   it('is an act with a reason, and says what it covers', async () => {
     const where = project()

@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
 import { draw } from '../src/view.ts'
-import { benchFrames, benchSteady, REGIONS, SIZES, STEADY_FRAMES } from './bench.ts'
+import { benchFrames, benchSteady, REGIONS, SIZES } from './bench.ts'
 import { SCENARIOS } from './screens/scenarios.ts'
 
 // The frame-cost bench, held to the three things that would make it lie.
@@ -25,8 +25,20 @@ import { SCENARIOS } from './screens/scenarios.ts'
 // property would be two numbers to argue with, and the second one would be
 // the one nobody maintained. This file is about the instrument.
 
-/** Rounds here: enough samples per region to have a p99 at all, few enough to be free. */
-const ROUNDS = 3
+/**
+ * Rounds here: two, because the property is that every round is counted — one
+ * would hold just as well with the rounds loop ignored. How many samples make
+ * a p99 is the bench script's question (`pnpm bench`), not this file's.
+ */
+const ROUNDS = 2
+
+/**
+ * Frames of each screen in the steady run here: the first drawn whole, and two
+ * after it that may keep what did not move. Enough for every region to be kept
+ * somewhere and for drawn plus kept to add up; `STEADY_FRAMES` is the bench's
+ * own run, a figure about the machine, and this file is about the instrument.
+ */
+const FEW = 3
 
 describe('the frame-cost bench', () => {
   it('measures every region the drawing composes', () => {
@@ -78,9 +90,9 @@ describe('the frame-cost bench', () => {
     // bought nothing, when it was never asked. The smallest size, once: what
     // is held here is the instrument, not the machine.
     const size = SIZES[0]
-    const { timings, tally } = benchSteady(size, 1)
+    const { timings, tally } = benchSteady(size, 1, SCENARIOS, FEW)
     const spans = timings.spans()
-    const frames = SCENARIOS.length * STEADY_FRAMES
+    const frames = SCENARIOS.length * FEW
     expect(spans['steady:drawn']?.count).toBe(frames)
     expect(spans['steady:kept']?.count).toBe(frames)
     for (const region of REGIONS)

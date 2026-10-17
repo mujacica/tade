@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { type CheckLog, coverageOf, writeRun } from '@tade/checks-core'
-import { ConfigSchema, type TadeEvent, taskDir } from '@tade/core'
+import { ConfigSchema, recordsDir, type TadeEvent, taskDir } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { CI_WORKFLOW, ciWorkflow } from '../../../test/fixtures/workflow.ts'
@@ -231,6 +231,57 @@ describe('the checks gate', () => {
     const answer = await ask(push(repo.root))
     expect(answer.allow).toBe(false)
     if (!answer.allow) expect(answer.reason).toContain('have not run at this commit')
+  })
+})
+
+describe('the gate where the full checks are batched', () => {
+  /** A shared checkout with a commit hook and a related script, and these runs at COMMIT. */
+  async function batchedCheckout(runs: { check: string; state: 'passed' | 'failed' }[]) {
+    const root = worktreeWith()
+    mkdirSync(join(root, '.githooks'), { recursive: true })
+    writeFileSync(join(root, '.githooks', 'pre-commit'), '#!/bin/sh\n')
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { 'test:related': 'x' } }))
+    // The checkout's own records: the worktree *is* the project's root here.
+    for (const run of runs) {
+      await writeRun(recordsDir(root, 'shop', null), {
+        ...green(run.check, COMMIT),
+        state: run.state,
+        required: run.check !== 'related',
+      })
+    }
+    const rule = (full: 'batched' | 'per-task') => ({
+      projects: { shop: { root, checks: { before: 'commit and push', full } } },
+    })
+    const call = (command: string) => ({ ...push(root), input: { command } })
+    return { root, rule, call }
+  }
+
+  it('holds a commit to the hook and the related tests, and a push to the full checks', async () => {
+    const { root, rule, call } = await batchedCheckout([
+      { check: 'pre-commit', state: 'passed' },
+      { check: 'related', state: 'passed' },
+    ])
+    expect(await gate(root, rule('batched'))(call('git commit -m done'))).toEqual({ allow: true })
+    // A push leaves the machine: the full checks, at this very tree, every time.
+    const pushed = await gate(root, rule('batched'))(call('git push origin HEAD'))
+    expect(pushed.allow).toBe(false)
+    if (!pushed.allow) expect(pushed.reason).toContain('format, tests have not run at this commit')
+    // And per task, the same commit is held to the full checks.
+    expect((await gate(root, rule('per-task'))(call('git commit -m done'))).allow).toBe(false)
+  })
+
+  it('holds a batched commit whose related tests failed, or never ran', async () => {
+    const red = await batchedCheckout([
+      { check: 'pre-commit', state: 'passed' },
+      { check: 'related', state: 'failed' },
+    ])
+    const answer = await gate(red.root, red.rule('batched'))(red.call('git commit -m done'))
+    expect(answer.allow).toBe(false)
+    if (!answer.allow) expect(answer.reason).toContain('related failed at this commit')
+    const none = await batchedCheckout([{ check: 'pre-commit', state: 'passed' }])
+    const unrun = await gate(none.root, none.rule('batched'))(none.call('git commit -m done'))
+    expect(unrun.allow).toBe(false)
+    if (!unrun.allow) expect(unrun.reason).toContain('related has not run at this commit')
   })
 })
 

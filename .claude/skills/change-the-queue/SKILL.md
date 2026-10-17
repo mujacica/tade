@@ -36,6 +36,7 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 | `packages/app/src/wire/schedules.ts` | the one door: `Schedules.set`, `mayWatch`, `turnWatch`, `writeStanding` |
 | `packages/app/src/wire/proposals.ts` | what a look's findings become, and a decision carried out: `actOnFound`, `offerProposals`, `putToOrchestrator`, `workNow`, `decideProposal` |
 | `packages/app/src/wire/leftovers.ts` | what an agent left, told to the orchestrator the moment it is written down: `offerLeftovers` (from `tellNow`, `wire/handed.ts`) |
+| `packages/app/src/wire/batches.ts`, `core/src/batches.ts` | the full checks once a batch, and a red batch made one proposal (`change-the-checks`) |
 | `packages/app/src/queue.ts` | what is said: the schedule card's facts, what the orchestrator is told, why an empty list is empty (`queueEmptySays`) |
 | `packages/app/src/queue-view.ts` | what the SMART QUEUE shows: the scope, `shownBy` |
 | `packages/app/src/schedules-view.ts` | a watch's trouble and when it may stop being drawn: `hush`, `unhush`, `wasHushed` |
@@ -485,6 +486,13 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   offers **one bump per look** so two agents never install in one tree. A config nobody could read
   counts as the checkout, because that is the machine's own default and guessing the safe-looking
   answer here would be guessing the one that lets a clock rewrite a shared tree.
+- **A batch of full checks is a pass of the window's, never queued work** (`wire/batches.ts`, on the
+  task beat, paced to `BATCH_LOOK_MS`, single-flight): it starts a run, never an agent, under the
+  pure rule `batchDue` (core's `batches.ts`), and the next batch starts when HEAD has moved past the
+  last. **A red one is a proposal like a watch's finding** — one parked task `by: extension:checks`,
+  told now through `putToOrchestrator`, narrowed by rule to the commit that broke it and the task its
+  trailer names, and steering that task's agent is offered first; never one agent per covered task.
+  `change-the-checks` has the rest.
 - **A replay is paced by the queue, never beside it** (`core/src/replay.ts`, `wire/replays.ts`): its
   entrants wait on the one `atOnce` places before them (`after`), `at` puts it off, and the queue's
   own pass first runs `replaysLook` — the ceiling, entrants whose agent stopped (finished so the

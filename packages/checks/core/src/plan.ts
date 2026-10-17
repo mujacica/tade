@@ -1,3 +1,4 @@
+import { HOOK_ID } from './hooks.ts'
 import type { Check } from './port.ts'
 import { RunnerError } from './port.ts'
 
@@ -7,10 +8,19 @@ import { RunnerError } from './port.ts'
 // here reads a file, so the window can ask it on every look and the CLI can
 // ask it with no workbench open.
 
-/** What would run for a commit: what applies, in an order that respects `needs`. */
+/**
+ * What would run for a commit: what applies, in an order that respects `needs`.
+ *
+ * Two runs, and they never mix. The **full** one is every check but the
+ * related one (`Check.related`), which would only run a few of the tests the
+ * suite beside it runs anyway. The **related** one (`related: true`) is the
+ * commit hook and the related check and nothing else: an agent's quick look,
+ * which no rollup counts as the full run. Naming a check in `only` is asking
+ * for it, whichever run it belongs to.
+ */
 export function planFor(
   checks: readonly Check[],
-  at: { changed?: readonly string[]; only?: readonly string[] } = {},
+  at: { changed?: readonly string[]; only?: readonly string[]; related?: boolean } = {},
 ): Check[] {
   const only = at.only?.filter((id) => id.trim() !== '') ?? []
   if (only.length > 0) {
@@ -25,6 +35,10 @@ export function planFor(
   const changed = at.changed
   const applies = (check: Check): boolean => {
     if (only.length > 0 && !only.includes(check.id)) return false
+    if (only.length === 0 && check.related !== true && at.related && check.id !== HOOK_ID) {
+      return false
+    }
+    if (only.length === 0 && check.related === true && !at.related) return false
     // No list of changed paths means we cannot narrow: run it. Narrowing on an
     // unknown is how a check silently stops running.
     if (!check.when || check.when.length === 0 || changed === undefined) return true

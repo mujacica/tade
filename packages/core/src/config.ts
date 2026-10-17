@@ -109,6 +109,11 @@ export const ChecksConfigSchema = z.strictObject({
   /** What a failed required check does: hold it and hand back the tail, say so, or only write it down. */
   on_red: z.enum(['hold', 'tell', 'note']).default('hold'),
   /**
+   * Who runs the full checks in a shared checkout: every agent, or the window once a batch on HEAD;
+   * unset, batched where the project says how to run related tests (`batchedFor`).
+   */
+  full: z.enum(['per-task', 'batched']).optional(),
+  /**
    * Run only these check ids; everything the project defines when empty. A
    * blunt narrowing, and not where the ACTIONS page writes what somebody said
    * about one check — that is `run_here`, which says the opposite of the

@@ -2,7 +2,8 @@ import { appendFileSync, readFileSync, statSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import type { Check, CheckLog } from '../src/port.ts'
-import { readRuns, recordsPath, rollup, writeRun } from '../src/records.ts'
+import { readRuns, recordsPath, relatedAt, rollup, writeRun } from '../src/records.ts'
+import { pendingWords } from '../src/say.ts'
 
 const run = (over: Partial<CheckLog> = {}): CheckLog => ({
   id: `a1b2c3d:${over.check ?? 'tests'}:here:1`,
@@ -131,5 +132,34 @@ describe('what the required checks add up to', () => {
       }),
     ]
     expect(rollup(checks, runs, 'a1b2c3d').state).toBe('unknown')
+  })
+})
+
+describe('the related tests beside the rollup', () => {
+  const checks = [check('format'), check('tests'), { ...check('related', false), related: true }]
+
+  it('never make the rollup green: a related run passing leaves the full checks unknown', () => {
+    const runs = [run({ check: 'format' }), run({ check: 'related' })]
+    expect(rollup(checks, runs, 'a1b2c3d')).toMatchObject({ state: 'unknown', missing: ['tests'] })
+    expect(relatedAt(checks, runs, 'a1b2c3d')).toBe('passed')
+    expect(pendingWords('unknown', 'passed')).toBe('related tests passed, full run pending')
+  })
+
+  it('add nothing to a rollup that has an answer of its own', () => {
+    const runs = [run({ check: 'format' }), run({ check: 'tests' }), run({ check: 'related' })]
+    expect(rollup(checks, runs, 'a1b2c3d').state).toBe('pass')
+    expect(pendingWords('pass', relatedAt(checks, runs, 'a1b2c3d'))).toBeNull()
+    expect(pendingWords('fail', 'passed')).toBeNull()
+  })
+
+  it('say a failed or stopped related run, and nothing for one that never finished', () => {
+    expect(relatedAt(checks, [run({ check: 'related', state: 'timed out' })], 'a1b2c3d')).toBe(
+      'failed',
+    )
+    expect(pendingWords('unknown', 'failed')).toBe('related tests failed')
+    expect(relatedAt(checks, [run({ check: 'related', state: 'cancelled' })], 'a1b2c3d')).toBeNull()
+    expect(relatedAt(checks, [run({ check: 'related' })], 'ffffff')).toBeNull()
+    // A project with no related check has nothing to say beside its rollup.
+    expect(relatedAt([check('tests')], [run({ check: 'related' })], 'a1b2c3d')).toBeNull()
   })
 })

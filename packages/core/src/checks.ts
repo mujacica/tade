@@ -144,6 +144,24 @@ export function overrideFor(
   return null
 }
 
+/**
+ * Whether the full checks are batched for an agent working here: in a shared
+ * checkout, where one full run at HEAD covers every task committed before it,
+ * and asked for — or, where nobody said, where the project says how to run
+ * the tests a change touches (`related`), which is what an agent finishing
+ * there runs instead. A worktree of its own is one task's branch, so the full
+ * run there is that task's.
+ */
+export function batchedFor(
+  checks: ChecksConfig,
+  workspace: 'checkout' | 'worktree',
+  related: boolean,
+): boolean {
+  return (
+    workspace === 'checkout' && (checks.full ?? (related ? 'batched' : 'per-task')) === 'batched'
+  )
+}
+
 /** Whether the rule says Tade runs the checks itself before this. */
 export function runsBefore(checks: ChecksConfig, what: 'commit' | 'push'): boolean {
   if (checks.before === 'off') return false
@@ -177,9 +195,11 @@ export function checksTold(
   checks: ChecksConfig | null,
   ids: readonly string[],
   hold: boolean,
+  batch?: { related: string | null },
 ): string | null {
   if (!checks) return null
   if (ids.length === 0) return CHECK_IT_YOURSELF
+  if (batch) return batchedTold(ids, batch.related, hold)
   const when =
     checks.before === 'off'
       ? 'before you push'
@@ -196,4 +216,30 @@ export function checksTold(
       : 'If you push with something red, call checks_override first with the reason: it is written down, and the person is told what you said.',
   )
   return said.join(' ')
+}
+
+/**
+ * The rule as an agent is told it where the full checks are batched: what
+ * "passes its checks" means before it commits and calls its work done, that
+ * the full suite is not its to run, and that a push still needs one.
+ *
+ * The related check is named where the project has one; without one, the
+ * commit hook is the whole of the look before a commit, and the batch is
+ * where everything else is caught.
+ */
+function batchedTold(ids: readonly string[], related: string | null, hold: boolean): string {
+  const full = ids.filter((id) => id !== related)
+  const quick = related
+    ? `run checks_run with related: true — the commit hook and \`${related}\`, the tests your change touches — and pass paths: the files you changed, so somebody else's half-done work is not in it`
+    : 'run checks_run with related: true — the commit hook'
+  return [
+    `This project's checks are ${full.map((id) => `\`${id}\``).join(', ')}, and the full run of them is batched.`,
+    `Before you commit and call your work done, ${quick}. That is what passing its checks means here: do not run the full suite yourself.`,
+    'Tade runs the full checks once for every batch of commits, on HEAD, and a red one is put to the orchestrator with the commit that broke it.',
+    `Before you push, the full checks have to be green on the exact tree: checks_run without related, and with wait, since it takes minutes and one suite runs at a time on this machine. Run them through checks_run, not in a shell, so what ran is recorded.`,
+    'A red check is something to fix, not something to mention.',
+    hold
+      ? 'If you are certain a failure is not yours, call checks_override with the reason; the person is told what you said.'
+      : 'If you push with something red, call checks_override first with the reason: it is written down, and the person is told what you said.',
+  ].join(' ')
 }

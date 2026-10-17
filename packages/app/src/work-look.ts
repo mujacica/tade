@@ -1,4 +1,4 @@
-import { readOutcome, settled } from '@tade/checks-core'
+import { pendingWords, readOutcome, settled } from '@tade/checks-core'
 import type { Config } from '@tade/core'
 import { git } from '@tade/status'
 import { checksAt } from '@tade/workbench/checks'
@@ -60,7 +60,10 @@ export async function lookAtWork(at: WorkAt): Promise<ActionsView> {
     commit,
   })
   const going = stood.running
-  const checks: CheckView[] = stood.plan.map((check) => {
+  // The full run's checks, then the related one: drawn as a row of its own
+  // and never part of what the full run adds up to.
+  const related = stood.read.checks.filter((check) => check.related)
+  const checks: CheckView[] = [...stood.plan, ...related].map((check) => {
     const run = stood.at.find((one) => one.check === check.id)
     const inFlight = going?.checks.find((one) => one.check === check.id)
     // A run in flight is the truth about now; the record is the truth about
@@ -121,6 +124,7 @@ export async function lookAtWork(at: WorkAt): Promise<ActionsView> {
     review: null,
     checks,
     rollup: stood.rollup.state,
+    pending: pendingWords(stood.rollup.state, stood.related),
     unread: stood.read.problems,
     // Read, not configured: so it says which file said so, and where nothing
     // did, that nothing did — which is the answer, not a gap in the page.

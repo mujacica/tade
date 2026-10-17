@@ -156,6 +156,21 @@ describe('what an agent is told about them', () => {
     expect(told).toContain('checks_override')
   })
 
+  it('tells an agent where the full run is batched that the related run is what finishing needs', () => {
+    const told = checksTold(rule, ['pre-commit', 'format', 'tests', 'related'], false, {
+      related: 'related',
+    })
+    expect(told).toContain('`pre-commit`, `format`, `tests`, and the full run of them is batched')
+    expect(told).toContain('checks_run with related: true')
+    expect(told).toContain('do not run the full suite yourself')
+    // Leaving the machine is never batched.
+    expect(told).toContain('Before you push, the full checks have to be green on the exact tree')
+    // A project with no related check still has the commit hook to run.
+    expect(checksTold(rule, ['pre-commit', 'tests'], false, { related: null })).toContain(
+      'related: true — the commit hook.',
+    )
+  })
+
   it('tells a project that says nothing that nothing here invents a gate', () => {
     // Silence is the one thing this cannot convey: an agent told nothing reads
     // it as nothing to do. Tade reads a project's checks out of its own CI and

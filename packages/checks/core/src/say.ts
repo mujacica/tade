@@ -32,3 +32,20 @@ export function carriedNote(run: CheckRun, carried: boolean): string {
 export function whereOf(run: CheckRun): string {
   return run.where.kind === 'here' ? 'here' : run.where.forge
 }
+
+/** What an `unknown` rollup with green related tests beside it is called, wherever it is said. */
+export const FULL_PENDING = 'related tests passed, full run pending'
+
+/**
+ * The few words for where a commit stands, with the related tests beside the
+ * rollup: null where they add nothing, so the rollup's own word stands. Never
+ * a green — the related run is a look at a few tests, and the full checks are
+ * what pass or fail a tree.
+ */
+export function pendingWords(
+  rollup: 'pass' | 'fail' | 'unknown',
+  related: 'passed' | 'failed' | null,
+): string | null {
+  if (rollup !== 'unknown' || related === null) return null
+  return related === 'passed' ? FULL_PENDING : 'related tests failed'
+}

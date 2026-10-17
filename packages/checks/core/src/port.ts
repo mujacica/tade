@@ -70,6 +70,12 @@ export interface Check {
   skip?: string
   /** Where it was read: a workflow's job and step, or the hook's path. For the row that says so. */
   from?: string
+  /**
+   * It runs only the tests a change touches (`related.ts`): an agent's quick
+   * look before it commits, never a part of the full run and never required,
+   * so no rollup can read one passing as the suite passing.
+   */
+  related?: boolean
 }
 
 export type CheckState =

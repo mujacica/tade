@@ -407,15 +407,22 @@ export function settingsOf(
         {
           path: 'checks.before',
           title: 'Needed before',
-          // Honest about what it can hold where somebody chooses it, and not
-          // only in the code that enforces it: read as a gate it is one a
-          // person has to turn on, and a setting that reads like a promise
-          // Tade does not keep is worse than one it does not have.
+          // Honest about what it can hold where somebody chooses it: a setting
+          // that reads like a promise Tade does not keep is worse than none.
           means:
             'when a push or commit needs a green run behind it — held only under approvals.mode policy, otherwise told and recorded',
           value: config.checks.before,
           fallback: 'push',
           type: { kind: 'choice', options: ['off', 'commit', 'push', 'commit and push'] },
+          live: true,
+        },
+        {
+          path: 'checks.full',
+          title: 'Full run',
+          means: 'every agent, or the window once a batch on HEAD; a push needs a green full run',
+          value: config.checks.full ?? '',
+          fallback: 'batched where the project has test:related',
+          type: { kind: 'choice', options: ['', 'per-task', 'batched'] },
           live: true,
         },
         {

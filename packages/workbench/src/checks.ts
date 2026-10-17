@@ -13,11 +13,13 @@ import {
   type RunningNow,
   readChecks,
   readRuns,
+  relatedAt,
   rollup,
   runChecks,
   runningIn,
 } from '@tade/checks-core'
 import {
+  batchedFor,
   type ChecksConfig,
   type Config,
   checksFor,
@@ -25,6 +27,7 @@ import {
   overrideFor,
   recordsDir,
   runsBefore,
+  shellQuote,
   type TadeEvent,
 } from '@tade/core'
 import { makeRunner } from './runners.ts'
@@ -82,6 +85,13 @@ export interface ProjectChecks {
    */
   carried: ReadonlySet<string>
   rollup: ReturnType<typeof rollup>
+  /**
+   * How the related tests stand at this commit, beside the rollup and never in
+   * it (`relatedAt`): what "related tests passed, full run pending" is said from.
+   */
+  related: ReturnType<typeof relatedAt>
+  /** The full checks are batched for whoever works in this directory (`batchedFor`). */
+  batched: boolean
   rule: ChecksConfig
   /**
    * A run going on in this worktree now, whoever started it — this window's
@@ -129,6 +139,12 @@ export async function checksAt(opts: {
     at: latestAt(runs, at),
     carried: at.carried ?? new Set(),
     rollup: rollup(plan, runs, at),
+    related: relatedAt(read.checks, runs, at),
+    batched: batchedFor(
+      rule,
+      sharesCheckout(opts.config, opts.project, opts.worktree) ? 'checkout' : 'worktree',
+      read.checks.some((check) => check.related),
+    ),
     rule,
     running: await runningIn(records),
   }
@@ -148,7 +164,9 @@ export async function checksTold(
   project: string,
   cwd: string,
   task: string,
-): Promise<{ checks?: { ids: string[]; rule: ChecksConfig; hold: boolean } }> {
+): Promise<{
+  checks?: { ids: string[]; rule: ChecksConfig; hold: boolean; batch?: { related: string | null } }
+}> {
   try {
     const stood = await checksAt({
       config: at.config,
@@ -165,6 +183,9 @@ export async function checksTold(
         // Only under `policy` can a push actually be held; anywhere else
         // the rule is something the agent keeps, and Tade writes down.
         hold: at.config.approvals.mode === 'policy' && stood.rule.on_red === 'hold',
+        ...(stood.batched
+          ? { batch: { related: stood.read.checks.find((check) => check.related)?.id ?? null } }
+          : {}),
       },
     }
   } catch {
@@ -189,6 +210,18 @@ export async function runProjectChecks(opts: {
   tadeHome: string
   only?: readonly string[]
   changed?: readonly string[]
+  /**
+   * The related run (`planFor`): the commit hook and the related check, which
+   * is handed `paths` — the files the change is about — where there are any.
+   */
+  related?: boolean
+  paths?: readonly string[]
+  /**
+   * Where the commands run, where that is not `worktree`: a batch's own tree
+   * at the commit (`batch.ts`). What is read, locked and recorded is still
+   * `worktree`'s, so a run there speaks for this checkout's commit.
+   */
+  runIn?: string
   runner?: Runner
   signal?: AbortSignal
   waitMs?: number
@@ -198,17 +231,23 @@ export async function runProjectChecks(opts: {
   onOutput?: (check: string, chunk: string) => void
 }): Promise<CheckLog[]> {
   const rule = checksFor(opts.config, opts.project)
+  // What the commit being run says it checks: a batch's tree holds exactly
+  // that commit, where the checkout may hold somebody's edit to its CI.
   const read = await readChecks({
     name: opts.project,
-    root: opts.worktree,
+    root: opts.runIn ?? opts.worktree,
     test: opts.config.projects[opts.project]?.test_command,
     chosen: rule.run_here,
   })
   const only = opts.only?.length ? opts.only : rule.only
-  const plan = planFor(read.checks, {
-    ...(opts.changed ? { changed: opts.changed } : {}),
-    only,
-  })
+  const plan = withPaths(
+    planFor(read.checks, {
+      ...(opts.changed ? { changed: opts.changed } : {}),
+      only,
+      ...(opts.related ? { related: true } : {}),
+    }),
+    opts.paths ?? [],
+  )
   // One door, so a check run started from the CLI, the window or an agent's
   // `checks_run` all give way by the same amount — and the kind is `checks`
   // whichever of them asked, because what decides is what the work is.
@@ -217,7 +256,7 @@ export async function runProjectChecks(opts: {
     makeRunner('local', { parallel: rule.parallel, giveWay: opts.config.agents.give_way })
   return runChecks({
     runner,
-    project: { name: opts.project, root: opts.worktree },
+    project: { name: opts.project, root: opts.runIn ?? opts.worktree },
     records: recordsDir(opts.tadeHome, opts.project, whose(opts)),
     checks: plan,
     commit: opts.commit,
@@ -233,6 +272,18 @@ export async function runProjectChecks(opts: {
     ...(opts.onRun ? { onRun: opts.onRun } : {}),
     ...(opts.onOutput ? { onOutput: opts.onOutput } : {}),
   })
+}
+
+/**
+ * The related check handed the paths a change is about, each quoted for the
+ * shell its command runs in. Every other check is left as it is: the paths
+ * narrow the one check that is about a change, never the gate.
+ */
+function withPaths(plan: Check[], paths: readonly string[]): Check[] {
+  if (paths.length === 0) return plan
+  return plan.map((check) =>
+    check.related ? { ...check, run: `${check.run} ${paths.map(shellQuote).join(' ')}` } : check,
+  )
 }
 
 /** What a tool call is, as far as this rule cares. */
@@ -293,15 +344,16 @@ export function checksGate(options: GateOptions): (call: GateCall) => Promise<Ga
       task: call.task,
       commit,
     })
+    // Batched, a commit needs the quick look and a push the full checks: the
+    // full run is the batch's, and a push is where it leaves the machine.
+    const standing = what === 'commit' && stood.batched ? quickLook(stood) : stood.rollup
     if (stood.plan.length === 0) return { allow: true }
-    if (stood.rollup.state === 'pass') return { allow: true }
+    if (standing.state === 'pass') return { allow: true }
 
     const said = [
-      stood.rollup.failed.length > 0
-        ? `${stood.rollup.failed.join(', ')} failed at this commit`
-        : '',
-      stood.rollup.missing.length > 0
-        ? `${stood.rollup.missing.join(', ')} ${stood.rollup.missing.length === 1 ? 'has' : 'have'} not run at this commit`
+      standing.failed.length > 0 ? `${standing.failed.join(', ')} failed at this commit` : '',
+      standing.missing.length > 0
+        ? `${standing.missing.join(', ')} ${standing.missing.length === 1 ? 'has' : 'have'} not run at this commit`
         : '',
     ]
       .filter(Boolean)
@@ -321,7 +373,7 @@ export function checksGate(options: GateOptions): (call: GateCall) => Promise<Ga
       }
     }
     if (rule.on_red !== 'hold') return { allow: true, note: said }
-    const failing = stood.at.find((run) => stood.rollup.failed.includes(run.check))
+    const failing = stood.at.find((run) => standing.failed.includes(run.check))
     const tail = failing ? tailOf(stood.runs, failing) : ''
     return {
       allow: false,
@@ -332,6 +384,24 @@ export function checksGate(options: GateOptions): (call: GateCall) => Promise<Ga
       ].join(''),
     }
   }
+}
+
+/**
+ * The related run at this commit as a rollup: the commit hook and the related
+ * check, each run here and passed. What a commit needs where the full checks
+ * are batched — and only that: nothing else reads it as the tree passing.
+ */
+export function quickLook(stood: ProjectChecks): ReturnType<typeof rollup> {
+  const failed: string[] = []
+  const missing: string[] = []
+  for (const check of planFor(stood.read.checks, { related: true })) {
+    if (check.skip) continue
+    const run = stood.at.find((one) => one.check === check.id && one.where.kind === 'here')
+    if (run?.state === 'failed' || run?.state === 'timed out') failed.push(check.id)
+    else if (run?.state !== 'passed') missing.push(check.id)
+  }
+  const state = failed.length > 0 ? 'fail' : missing.length > 0 ? 'unknown' : 'pass'
+  return { state, failed, missing }
 }
 
 function tailOf(runs: readonly CheckLog[], run: CheckRun): string {

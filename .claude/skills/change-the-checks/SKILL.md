@@ -18,24 +18,29 @@ and that record.
 | `packages/checks/core/src/conformance.ts` | `testRunner`: the suite every runner imports and passes |
 | `packages/checks/core/src/read.ts` | `readChecks` — hook, then CI, then `test_command`, then nothing; `ChecksRead`, `ChecksSource` |
 | `packages/checks/core/src/hooks.ts` | `readHooks`, `HOOK_ID`: the commit hook, as one check whose command is the hook |
+| `packages/checks/core/src/related.ts` | `readRelated`, `RELATED_ID`: `test:related` in `package.json`, as the `related` check (`Check.related`) |
 | `packages/checks/core/src/ci.ts` | `readWorkflows`, `gateTrigger`, `Reading` (`checks`, `from`, `unread`): what the workflow files *state* about themselves |
 | `packages/checks/core/src/choice.ts` | `withChoices`, `chosenAfter`, `Chosen`, `TURNED_OFF`: which of them run on this machine |
 | `packages/checks/core/src/identity.ts` | `idFor`, `slug`, `calledAfter`, `normaliseCommand`, `sameCommand`, `followRenames` |
-| `packages/checks/core/src/plan.ts` | `planFor`, `inOrder`, `matches`: what applies to a commit, and in what order |
+| `packages/checks/core/src/plan.ts` | `planFor`, `inOrder`, `matches`: what applies to a commit, and in what order — the full run, or the related one (`related: true`) |
 | `packages/checks/core/src/run.ts` | `runChecks`: the one way a run happens — the lock, the record, the row |
 | `packages/checks/core/src/lock.ts` | `takeRunLock`, `waitForRunLock`, `heldBy`, `claim`: one run at a time per worktree |
 | `packages/checks/core/src/machine.ts` | `takeMachineSlot`, `waitForMachineSlot`, `SLOT_ENV`, `insideHeldSlot`: `checks.suites` runs at a time on the machine |
 | `test/one-suite.ts` | the suite's `globalSetup`: a full vitest run from a shell takes the same machine slot |
 | `packages/checks/core/src/running.ts` | `writeRunning`, `clearRunning`, `runningIn`: what is going on *now*, in `checks.running.json` |
-| `packages/checks/core/src/records.ts` | `checks.jsonl`: `writeRun`, `readRuns`, `latestAt`, `rollup`, `At` |
+| `packages/checks/core/src/records.ts` | `checks.jsonl`: `writeRun`, `readRuns`, `latestAt`, `rollup`, `relatedAt`, `At` |
 | `packages/checks/core/src/coverage.ts` | `coverageOf`, `coversCommit`, `carryOver`: a run is about a tree |
 | `packages/checks/core/src/outcome.ts` | `readOutcome`: what a run *printed*, read back — `CheckCount`, `CheckPlace` |
-| `packages/checks/core/src/say.ts` | `checkLine`, `glyphOf`, `carriedNote`, `whereOf`: one wording, wherever a run is read |
+| `packages/checks/core/src/say.ts` | `checkLine`, `glyphOf`, `carriedNote`, `whereOf`, `pendingWords`: one wording, wherever a run is read |
 | `packages/checks/{local,scripted}` | `makeLocalRunner` (the commands, here) · `makeScriptedRunner` (a table, for tests and demos) |
 | `packages/workbench/src/runners.ts` | `RUNNERS`, `makeRunner`: the one registry |
-| `packages/workbench/src/checks.ts` | `checksAt`, `runProjectChecks`, `checksGate`, `pushOrCommit` |
-| `packages/core/src/checks.ts` | `checksFor`, `runsBefore`, `checksTold`, `CHECK_IT_YOURSELF`, `overrideFor`, `overridesFrom`, `overrideProblem` |
-| `packages/core/src/config.ts` | `ChecksConfigSchema`: `before`, `on_red`, `only`, `run_here`, `parallel`, `keep`, `ci`; `test_command` on a project |
+| `packages/workbench/src/checks.ts` | `checksAt`, `runProjectChecks`, `checksGate`, `quickLook`, `pushOrCommit` |
+| `packages/core/src/batches.ts` | `batchDue`, `nextToTry`, `culpritOf`: when a batch runs, and whose commit broke a red one — pure |
+| `packages/workbench/src/batch.ts` | `treeAt`, `runBatch`, `coveredBy`, `narrowingCommand`, `narrowRed`: the batch's own tree, and narrowing in it |
+| `packages/app/src/wire/batches.ts` | `Batches`: the window's pass, and a red batch made one proposal |
+| `scripts/related.ts` | Tade's own `pnpm test:related`: vitest's import graph over the changed paths |
+| `packages/core/src/checks.ts` | `checksFor`, `batchedFor`, `runsBefore`, `checksTold`, `CHECK_IT_YOURSELF`, `overrideFor`, `overridesFrom`, `overrideProblem` |
+| `packages/core/src/config.ts` | `ChecksConfigSchema`: `before`, `on_red`, `full`, `only`, `run_here`, `parallel`, `keep`, `ci`; `test_command` on a project |
 | `packages/core/src/gone.ts` | `CHECKS_ARE_READ`: `checks.from_ci` is ignored and said |
 | `packages/status/src/tests.ts` | `verifiedAt`, `readTests`: the `tests` signal `deriveState` reads |
 | `packages/extensions/checks/src/extension.ts` | `checks_list`, `checks_run`, `checks_log`, `checks_override`, `rollupWord` |
@@ -135,6 +140,41 @@ and that record.
   pid is gone), so a window killed mid-suite leaves nothing claiming anything is running. What a run
   *printed* is read back the same way (`readOutcome`): the counts and the files are in the tail
   already, and a shape nothing recognises reads as **no** counts rather than as an invented one.
+- **A related run is a quicker look, never the suite.** A project that says how to run the tests a
+  change touches (`test:related`, read by `readRelated` as a fact the manifest states) gets a
+  `related` check: never required, never in a full run (`planFor` leaves it out unless asked for by
+  name), and the related run is the commit hook and it and nothing else (`planFor(…, { related:
+  true })`). Which tests is the project's import graph — Tade's own is vitest's (`scripts/related.ts`)
+  — and **never a model's or a judge's**: choosing what not to run is the opposite of adding caution.
+  It passing leaves the rollup `unknown`; what is said beside it is `pendingWords` — "related tests
+  passed, full run pending" — on the ACTIONS heading, in `checks_list` and in `tade checks`, never a
+  green. `paths` narrow the related check alone, each `shellQuote`d, and nothing that starts with `-`.
+- **Batched, the full checks run once for every batch of commits** (`checks.full: batched`, and unset
+  where the project has a `related` check — `batchedFor`, only ever in a shared checkout, where one
+  full run at HEAD covers every task committed before it). The agent is told the related run is what
+  "passes its checks" means (`checksTold`'s batch wording); a commit under `checks.before` is held
+  to the hook and `related` (`quickLook`), and **a push to the full checks, always** — leaving the
+  machine is never batched, and CI and `release.yml` stay full. The window's pass (`wire/batches.ts`,
+  paced to `BATCH_LOOK_MS`) asks the pure rule (`batchDue`): HEAD settled (`SETTLE_MS`), not green,
+  no batch answered it yet, nothing running, a run that could not start tried again only after
+  `RETRY_MS`. Never a second batch beside one, never again at a HEAD a batch answered — red
+  included, because the same tree asks the same question.
+- **A batch runs in a tree of its own, never in the shared checkout** (`treeAt`): a `git clone
+  --shared` under `<home>/projects/<name>/batch`, checked out at exactly the commit, cleaned of what
+  a run left, and prepared the way a new worktree is (`readingOf`), the setup only again when a
+  manifest or lockfile changed. The checkout holds other agents' half-written files, and a run there
+  reads them — most of a night's red runs were exactly that. What is run is what *the commit* says it
+  checks (`runIn`), recorded as the checkout's, with `covered` the clean tree, so it carries. The
+  same tree is the only place the next rule can happen: the checkout is never moved to another
+  commit.
+- **A red batch is narrowed by rule, and is one proposal.** The failing tests (`readOutcome`'s files,
+  handed to the related check) or a cheap failing check run again at the covered commits, HEAD first
+  — a failure that does not come back on its own is a flake and nobody's — then the base, then
+  halving (`nextToTry`, `culpritOf`), under one machine slot. A suite that named no failing test (a
+  coverage floor) cannot be narrowed and says so rather than running whole again. Whose commit it is
+  is its `Tade-Task:` trailer (`coveredBy`), never a guess. It becomes **one** parked task `by:
+  extension:checks`, put to the orchestrator now (`putToOrchestrator`) naming the commit, the task and
+  every step, with steering that task's agent offered first — **never one agent per covered task**.
 - **`checks.before` is honest about what it can hold.** Under `approvals.mode: 'policy'` an agent's
   push with nothing green behind it comes back refused with what is missing (`checksGate`);
   anywhere else the agent is told the rule (`checksTold`) and what happened is written down. The

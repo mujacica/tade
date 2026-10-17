@@ -136,6 +136,25 @@ export function rollup(
   return { state: 'unknown', failed, missing }
 }
 
+/**
+ * How the related tests stand at a commit, beside the rollup and never inside
+ * it: `passed` or `failed` for a run here that finished, null for none. What a
+ * window says with it is "related tests passed, full run pending" — never a
+ * green, because a few tests passing is not the suite passing.
+ */
+export function relatedAt(
+  checks: readonly Check[],
+  runs: readonly CheckRun[],
+  at: AtCommit,
+): 'passed' | 'failed' | null {
+  const related = new Set(checks.filter((check) => check.related).map((check) => check.id))
+  if (related.size === 0) return null
+  const run = latestAt(runs, at).find((one) => one.where.kind === 'here' && related.has(one.check))
+  if (run?.state === 'passed') return 'passed'
+  if (run?.state === 'failed' || run?.state === 'timed out') return 'failed'
+  return null
+}
+
 function safeParse(line: string): unknown {
   try {
     return JSON.parse(line)

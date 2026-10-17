@@ -159,3 +159,74 @@ describe('what a project checks', () => {
     expect(read.source).toBe('CI')
   })
 })
+
+describe('the tests a change touches', () => {
+  const related = (manifest: object, extra: Record<string, string> = {}) =>
+    repoWith({
+      '.github/workflows/ci.yml': GATE,
+      'package.json': JSON.stringify(manifest),
+      ...extra,
+    })
+
+  it('are read from a test:related script, run by the program its lockfile names', async () => {
+    const read = await readChecks({
+      name: 'p',
+      root: related({ scripts: { 'test:related': 'node related.js' } }, { 'pnpm-lock.yaml': '' }),
+    })
+    expect(read.checks.map((check) => check.id)).toEqual(['format', 'tests', 'related'])
+    expect(read.checks.at(-1)).toMatchObject({
+      run: 'pnpm run test:related',
+      required: false,
+      related: true,
+      from: 'package.json › test:related',
+    })
+  })
+
+  it('believe a declared packageManager over a lockfile, and npm where nothing says', async () => {
+    const declared = await readChecks({
+      name: 'p',
+      root: related(
+        { packageManager: 'yarn@4.1.0', scripts: { 'test:related': 'x' } },
+        { 'package-lock.json': '{}' },
+      ),
+    })
+    expect(declared.checks.at(-1)?.run).toBe('yarn run test:related')
+    const plain = await readChecks({
+      name: 'p',
+      root: related({ scripts: { 'test:related': 'x' } }),
+    })
+    expect(plain.checks.at(-1)?.run).toBe('npm run test:related')
+  })
+
+  it('are nothing without the script, and nothing in a project that checks nothing else', async () => {
+    const without = await readChecks({ name: 'p', root: related({ scripts: { test: 'x' } }) })
+    expect(without.checks.map((check) => check.id)).toEqual(['format', 'tests'])
+    const alone = await readChecks({
+      name: 'p',
+      root: repoWith({ 'package.json': JSON.stringify({ scripts: { 'test:related': 'x' } }) }),
+    })
+    expect(alone.checks).toEqual([])
+  })
+
+  it('name a manifest that will not parse rather than reading it as one without the script', async () => {
+    const read = await readChecks({
+      name: 'p',
+      root: repoWith({ '.github/workflows/ci.yml': GATE, 'package.json': '{ not json' }),
+    })
+    expect(read.checks.map((check) => check.id)).toEqual(['format', 'tests'])
+    expect(read.problems.join('\n')).toMatch(/package\.json is not readable JSON/)
+  })
+
+  it('keep an id of their own beside a CI step that is already called related', async () => {
+    const gate = GATE.replace('name: tests', 'name: related')
+    const read = await readChecks({
+      name: 'p',
+      root: repoWith({
+        '.github/workflows/ci.yml': gate,
+        'package.json': JSON.stringify({ scripts: { 'test:related': 'x' } }),
+      }),
+    })
+    expect(read.checks.map((check) => check.id)).toEqual(['format', 'related', 'related-2'])
+    expect(read.checks.find((check) => check.related)?.id).toBe('related-2')
+  })
+})

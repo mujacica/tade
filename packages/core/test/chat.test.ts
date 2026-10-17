@@ -104,6 +104,7 @@ describe('what a chat is told', () => {
       rule: {
         before: 'push',
         on_red: 'hold',
+        full: 'per-task',
         only: [],
         run_here: {},
         parallel: 1,

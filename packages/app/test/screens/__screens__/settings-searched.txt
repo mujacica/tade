@@ -9,22 +9,22 @@
     │                            █│▌                                 when a push or commit needs a green run      █│    
     │  Orchestrator              █│▌                                 behind it — held only under approvals.mode … █│    
  ▸ S│                            █│▌                                                                              █│    
- ▸ S│  Queue                     █│ Push to talk                        ctrl   +   space       Change…            █│    
- ▸ I│                            █│                                                                               █│    
- ▾ C│  Checks                    █│ Notification signing key          generated when it is first needed           █│    
-  M │                            █│                                                                               █│    
-  A │  Voice                     █│ A PAIRED DEVICE MAY                                                           █│    
-  M │                            █│ Act                              ────████ on                                  █│    
+ ▸ S│  Queue                     █│ Full run                                                                      █│    
+ ▸ I│                            █│     ◉ as it comes (batched where the project has test:related)                █│    
+ ▾ C│  Checks                    █│     ○ per-task                                                                █│    
+  M │                            █│     ○ batched                                                                 █│    
+  A │  Voice                     █│                                                                               █│    
+  M │                            █│ Push to talk                        ctrl   +   space       Change…            █│    
     │  Window                    █│                                                                               █│    
- ▾ F│                            █│ Talk to Tade                     ────████ on                                  █│    
-   ▾│  Away view                 █│                                                                               █│    
-    │                            █│ Change settings                  ────████ on                                  ▕│    
-    │  Intake                    █│                                                                               ▕│    
-   ▸│                            █│ Get notifications                ────████ on                                  ▕│    
-━   │  Projects              ● 1 █│                                                                               ▕│   ━
-    │                            ▕│ Get work names in them           ────████ on                                  ▕│    
-    │  Journal                   ▕│                                                                               ▕│   ▕
-    │                            ▕│ checkout — What is pushed         never                                ▾      ▕│   ▕
+ ▾ F│                            █│ Notification signing key          generated when it is first needed           ▕│    
+   ▾│  Away view                 █│                                                                               ▕│    
+    │                            █│ A PAIRED DEVICE MAY                                                           ▕│    
+    │  Intake                    █│ Act                              ────████ on                                  ▕│    
+   ▸│                            █│                                                                               ▕│    
+━   │  Projects              ● 1 █│ Talk to Tade                     ────████ on                                  ▕│   ━
+    │                            ▕│                                                                               ▕│    
+    │  Journal                   ▕│ Change settings                  ────████ on                                  ▕│   ▕
+    │                            ▕│                                                                               ▕│   ▕
     │  Telemetry                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕

@@ -15,10 +15,12 @@ export default defineConfig({
     // should take; it is the point at which a test is not slow but stuck, and
     // only a test that is going to fail anyway ever waits it out.
     testTimeout: 180_000,
-    // A test may never reach the desktop of the machine it runs on: refused at
-    // the spawn, and reported against the test that tried. `test/no-gui.ts`
-    // says why this is loaded for every file rather than asked for per package.
-    setupFiles: ['./test/no-gui.ts'],
+    // A test runs in an empty home of its own, never the person's
+    // (`test/own-home.ts`, first so nothing reads the real one before it), and
+    // may never reach the desktop of the machine it runs on: refused at the
+    // spawn, and reported against the test that tried. `test/no-gui.ts` says
+    // why these are loaded for every file rather than asked for per package.
+    setupFiles: ['./test/own-home.ts', './test/no-gui.ts'],
     // A full suite waits for this machine's turn, however it was started —
     // `test/one-suite.ts` says why it is here rather than in a script.
     globalSetup: ['./test/one-suite.ts'],

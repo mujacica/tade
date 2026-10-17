@@ -133,6 +133,37 @@ function nothingYet(): ActionsView {
 }
 
 /**
+ * Where the full checks are batched: the agent ran the commit hook and the
+ * tests its change touches, and the full checks wait for the batch.
+ */
+function relatedOnly(): ActionsView {
+  return {
+    ...green(),
+    checks: [
+      check('pre-commit', {
+        run: 'sh .githooks/pre-commit',
+        state: 'passed',
+        seconds: 5.2,
+        at: NOW - 70_000,
+      }),
+      check('format', { run: 'pnpm exec biome ci .' }),
+      check('types', { run: 'pnpm exec tsc --noEmit' }),
+      check('tests', { run: 'node scripts/coverage.ts' }),
+      check('related', {
+        run: 'pnpm run test:related',
+        state: 'passed',
+        required: false,
+        seconds: 41,
+        at: NOW - 60_000,
+        counts: [{ label: 'passed', count: 412, tone: 'good' }],
+      }),
+    ],
+    rollup: 'unknown',
+    pending: 'related tests passed, full run pending',
+  }
+}
+
+/**
  * A project whose CI is mostly things this machine is not: two steps that run
  * here, three that do not, and two the reading could not place as checks at all.
  *
@@ -437,6 +468,13 @@ export const AGENT_SCREENS: Scenario[] = [
       'An agent that has not committed anything yet: no commits of its own, nothing changed, and checks nobody has run — said as unknown, which is not the same as fine.',
     state: viewActions(base(), 'checkout/stripe-v15'),
     frame: frame({ actions: nothingYet() }),
+  },
+  {
+    name: 'checks-related-passed-full-pending',
+    about:
+      'Where the full checks are batched, an agent runs the commit hook and the tests its change touches before it commits, and the window runs the full checks once a batch, on HEAD. The related run is a look at a few tests and never the suite, so the heading says so in as many words — related tests passed, full run pending — and is not green until the full checks have run at this tree.',
+    state: viewActions(base(), 'checkout/stripe-v15'),
+    frame: frame({ actions: relatedOnly() }),
   },
   {
     name: 'checks-read-from-ci',

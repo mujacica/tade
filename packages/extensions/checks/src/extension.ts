@@ -7,6 +7,7 @@ import {
   checkLine,
   holdersSaid,
   latestAt,
+  pendingWords,
   RunnerError,
 } from '@tade/checks-core'
 import {
@@ -18,6 +19,7 @@ import {
   overrideProblem,
 } from '@tade/core'
 import {
+  boolean,
   type ExtensionContext,
   list,
   number,
@@ -67,7 +69,7 @@ export const checksExtension: TadeExtension = {
   orchestrator() {
     return [
       'For "is this green" and "what is red", call checks_list — it reads files and asks nothing of the network.',
-      'To have them run, checks_run: it takes minutes, runs one suite at a time on this machine, and answers with what failed.',
+      'To have them run, checks_run: it takes minutes, runs one suite at a time on this machine, and answers with what failed. Where the full checks are batched, the window runs them once for each batch of commits on HEAD and puts a red one to you with the commit that broke it; an agent runs checks_run with related: true before it commits, which is never the full checks passing.',
       'A red check is not a reason to start an agent on your own: tell the person, or hand it to the agent whose commit it is.',
       'What a project checks is read from its own CI workflows and its commit hook, so there is nothing to configure and no file to write. Where checks_list says a project says nothing, the answer is not a gate Tade invents: say what CI it is missing, and that its agents are told to work out what checking it means and run that themselves.',
     ].join(' ')
@@ -108,13 +110,15 @@ export const checksExtension: TadeExtension = {
             said: `${where.project} says nothing about what it checks.`,
           }
         }
+        const pending = pendingWords(stood.rollup.state, stood.related)
         const lines = [
           `## ${where.project} — ${stood.read.checks.length} checks (read from ${stood.read.from ?? stood.read.source})`,
           '',
-          `At ${where.commit ? where.commit.slice(0, 8) : 'no commit'}: **${stood.rollup.state}**.`,
+          `At ${where.commit ? where.commit.slice(0, 8) : 'no commit'}: **${stood.rollup.state}**${pending ? ` — ${pending}` : ''}.`,
           '',
         ]
-        for (const check of stood.plan) {
+        const related = stood.read.checks.filter((check) => check.related)
+        for (const check of [...stood.plan, ...related]) {
           const run = stood.at.find((one) => one.check === check.id)
           lines.push(
             run
@@ -133,6 +137,11 @@ export const checksExtension: TadeExtension = {
         lines.push(
           '',
           `The rule here: checks run before ${stood.rule.before}, and a red one ${meansRed(stood.rule)}.`,
+          ...(stood.batched
+            ? [
+                'The full run is batched: an agent runs checks_run with related: true before it commits, and the window runs the full checks once for every batch of commits, on HEAD. A push needs them green on the exact tree.',
+              ]
+            : []),
         )
         return {
           text: lines.join('\n'),
@@ -144,12 +153,19 @@ export const checksExtension: TadeExtension = {
     {
       name: 'checks_run',
       description:
-        'Run this project’s checks here, now, and answer with what passed, what failed and the failing tail. Takes minutes. Tade runs one set at a time per checkout and as many suites as checks.suites allows on the whole machine (one unless somebody changed it), so pass `wait` and this queues for its turn rather than starting a second suite beside somebody else’s. Use this rather than typing the suite into a shell: a full suite from a shell waits for the same turn, and nothing records what it found.',
+        'Run this project’s checks here, now, and answer with what passed, what failed and the failing tail. Takes minutes. Tade runs one set at a time per checkout and as many suites as checks.suites allows on the whole machine (one unless somebody changed it), so pass `wait` and this queues for its turn rather than starting a second suite beside somebody else’s. Use this rather than typing the suite into a shell: a full suite from a shell waits for the same turn, and nothing records what it found. With related: true it runs the quick look instead — the commit hook and the tests your change touches, picked from the import graph — which is what a commit needs where the full run is batched, and is never recorded as the full checks passing.',
       parameters: object({
         project: projectInput,
         only: list(string('a check id'), 'run only these checks; all of them when empty'),
         wait: number(
           'seconds to wait for a run in this checkout, or another suite on this machine, to finish (0, at most 600)',
+        ),
+        related: boolean(
+          'the quick look instead of the full run: the commit hook and the tests your change touches',
+        ),
+        paths: list(
+          string('a file, as a path from the repository root'),
+          'with related: the files your change is about, so somebody else’s uncommitted work is not in it; every uncommitted file when empty',
         ),
       }),
       for: ['orchestrator', 'agent'],
@@ -160,6 +176,8 @@ export const checksExtension: TadeExtension = {
         }
         const only = Array.isArray(input.only) ? input.only.map(String) : []
         const wait = Number(input.wait) > 0 ? Math.min(600, Number(input.wait)) * 1_000 : 0
+        const related = input.related === true
+        const paths = pathsOf(input.paths, related)
         let ran: CheckLog[]
         try {
           ran = await runProjectChecks({
@@ -172,6 +190,8 @@ export const checksExtension: TadeExtension = {
             home: ctx.home,
             tadeHome: ctx.home,
             only,
+            related,
+            paths,
             signal: ctx.signal,
             waitMs: wait,
             onWait: (ahead) =>
@@ -196,9 +216,17 @@ export const checksExtension: TadeExtension = {
         }
         const failed = ran.filter((run) => run.state === 'failed' || run.state === 'timed out')
         const lines = [
-          `## ${where.project} at ${where.commit.slice(0, 8)}`,
+          `## ${where.project} at ${where.commit.slice(0, 8)}${related ? ' — the related run' : ''}`,
           '',
           ...ran.map(checkLine),
+          // Said with every related answer, because a green one reads like the
+          // tree passing and is not.
+          ...(related && failed.length === 0
+            ? [
+                '',
+                'This is the quick look, not the full checks: they are still to run at this tree.',
+              ]
+            : []),
         ]
         for (const run of failed) {
           lines.push(
@@ -213,9 +241,11 @@ export const checksExtension: TadeExtension = {
         return {
           text: lines.join('\n'),
           said:
-            failed.length === 0
-              ? `Everything passed in ${where.project}.`
-              : `${failed.map((run) => run.check).join(', ')} failed.`,
+            failed.length > 0
+              ? `${failed.map((run) => run.check).join(', ')} failed.`
+              : related
+                ? `The related run passed in ${where.project}; the full checks are still to run.`
+                : `Everything passed in ${where.project}.`,
           data: ran,
         }
       },
@@ -376,6 +406,26 @@ async function workingIn(input: Record<string, unknown>, ctx: ToolContext): Prom
 async function configOf(ctx: ExtensionContext): Promise<Config> {
   const loaded = await loadConfig(join(ctx.home, 'config.yaml')).catch(() => null)
   return loaded?.ok ? loaded.config : ConfigSchema.parse({})
+}
+
+/** The most paths one related run is handed: past this, the change is not a small one. */
+const MOST_PATHS = 200
+
+/**
+ * The paths a related run is handed, checked: each a path from the repository
+ * root, never something the command could read as an option of its own.
+ */
+function pathsOf(given: unknown, related: boolean): string[] {
+  const paths = Array.isArray(given) ? given.map(String).filter((path) => path.trim() !== '') : []
+  if (paths.length === 0) return []
+  if (!related) throw new Error('paths are for a related run: pass related: true with them')
+  if (paths.length > MOST_PATHS) {
+    throw new Error(`${paths.length} paths is not a related run; run the full checks instead`)
+  }
+  const bad = paths.find((path) => path.startsWith('-') || /[\0\n\r]/.test(path))
+  if (bad !== undefined)
+    throw new Error(`${JSON.stringify(bad)} is not a path from the repository root`)
+  return paths
 }
 
 function meansRed(rule: ChecksConfig): string {

@@ -215,7 +215,11 @@ export function actionRows(
     if (here.length === 0) return void g.text('nothing runs here', skin.waiting)
     if (!view.commit) return void g.text('no commit to check yet', skin.waiting)
     const word =
-      view.rollup === 'pass' ? 'green' : view.rollup === 'fail' ? 'red' : 'nobody has run these'
+      view.rollup === 'pass'
+        ? 'green'
+        : view.rollup === 'fail'
+          ? 'red'
+          : (view.pending ?? 'nobody has run these')
     const tone =
       view.rollup === 'pass' ? skin.done : view.rollup === 'fail' ? skin.bad : skin.waiting
     g.text(word, tone).text(` at ${at}`, skin.hint)

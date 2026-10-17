@@ -417,7 +417,13 @@ export interface AgentPromptInput {
    * that knows the rule keeps it in every case, including the ones where
    * nothing could hold it.
    */
-  checks?: { ids: readonly string[]; rule: ChecksConfig; hold: boolean }
+  checks?: {
+    ids: readonly string[]
+    rule: ChecksConfig
+    hold: boolean
+    /** The full run is batched for this agent (`batchedFor`), and its related check, if any. */
+    batch?: { related: string | null }
+  }
   /** Its harness gives it a way to say its task is finished (`tade_done`). */
   canSayDone?: boolean
   /**
@@ -491,8 +497,12 @@ export function composeAgentPrompt(input: AgentPromptInput): string {
     // happens in: commit, check, push, and then CI has something to say.
     pushTold(input.push ?? 'never', input.workspace ?? 'worktree'),
     (input.push ?? 'never') === 'never' ? null : CI_AFTER_PUSH,
-    checksTold(input.checks?.rule ?? null, input.checks?.ids ?? [], input.checks?.hold ?? false) ??
-      (input.testCommand ? `This project checks its work with \`${input.testCommand}\`.` : null),
+    checksTold(
+      input.checks?.rule ?? null,
+      input.checks?.ids ?? [],
+      input.checks?.hold ?? false,
+      input.checks?.batch,
+    ) ?? (input.testCommand ? `This project checks its work with \`${input.testCommand}\`.` : null),
     input.context
       ? `Whoever started this task left what you need to know in ${input.context}, with links to where the work came from. Read it before anything else.`
       : null,

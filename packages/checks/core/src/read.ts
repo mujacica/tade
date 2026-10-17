@@ -3,6 +3,7 @@ import type { Reading } from './ci.ts'
 import { readWorkflows } from './ci.ts'
 import { readHooks } from './hooks.ts'
 import type { Check, ProjectRef } from './port.ts'
+import { type RelatedReading, readRelated } from './related.ts'
 
 // What a project checks, read out of what it already says.
 //
@@ -20,6 +21,11 @@ import type { Check, ProjectRef } from './port.ts'
 //   3. `projects.<name>.test_command` — one line in Tade's own config, for a
 //      project that has neither
 //   4. nothing, and `unknown` stands, which is true
+//
+// Beside any of the first three, the tests a change touches where the project
+// says how to run them (related.ts): `related`, never required and never part
+// of a full run, so it can only ever add a quicker look and never stand in for
+// the suite.
 //
 // And then what somebody said about running each of them *here* (choice.ts),
 // which is the one thing the reading cannot know: it reads a repository, and
@@ -56,13 +62,36 @@ const NONE: ChecksRead = { checks: [], source: 'none', from: null, problems: [] 
  * CLI with the window closed.
  */
 export async function readChecks(project: ProjectRef): Promise<ChecksRead> {
-  const [hook, ci] = await Promise.all([readHooks(project.root), readWorkflows(project.root)])
-  const read = joined(hook, ci) ?? (project.test ? fromCommand(project.test) : NONE)
+  const [hook, ci, related] = await Promise.all([
+    readHooks(project.root),
+    readWorkflows(project.root),
+    readRelated(project.root),
+  ])
+  const read = withRelated(
+    joined(hook, ci) ?? (project.test ? fromCommand(project.test) : NONE),
+    related,
+  )
   const chosen = project.chosen ?? {}
   // Nothing to apply is the common case and is handed straight back, so a
   // project nobody has answered about is byte-for-byte what it always was.
   if (Object.keys(chosen).length === 0) return read
   return { ...read, checks: withChoices(read.checks, chosen) }
+}
+
+/**
+ * The related check after the rest, under an id of its own. Only beside checks
+ * it is a quicker look at: a project that checks nothing has no suite for it
+ * to be the short end of.
+ */
+function withRelated(read: ChecksRead, related: RelatedReading): ChecksRead {
+  const { check } = related
+  if (read.checks.length === 0) return read
+  const problems = [...read.problems, ...related.unread]
+  if (!check) return related.unread.length > 0 ? { ...read, problems } : read
+  const taken = new Set(read.checks.map((one) => one.id))
+  let id = check.id
+  for (let n = 2; taken.has(id); n++) id = `${check.id}-${n}`
+  return { ...read, checks: [...read.checks, { ...check, id }], problems }
 }
 
 /** The one line in Tade's own config, for a project whose CI and hook say nothing. */

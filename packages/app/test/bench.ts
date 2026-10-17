@@ -177,6 +177,7 @@ export function benchSteady(
   size: Size,
   rounds: number,
   scenarios: readonly Scenario[] = SCENARIOS,
+  frames: number = STEADY_FRAMES,
 ): { timings: Timings; tally: Record<Region, Tally> } {
   const timings = new Timings(true)
   const tally = Object.fromEntries(
@@ -186,7 +187,7 @@ export function benchSteady(
     for (const scenario of scenarios) {
       const last = new LastFrame()
       const base = { ...scenario.frame, width: size.width, height: size.height }
-      for (let at = 0; at < STEADY_FRAMES; at++) {
+      for (let at = 0; at < frames; at++) {
         const frame = {
           ...base,
           now: (base.now ?? 0) + at * LOOK_FLOOR_MS,

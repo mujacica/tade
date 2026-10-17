@@ -12,36 +12,33 @@ in its `.claude/skills/` recipe, or in a test. **Finishing work does not mean ap
 
 ## Commands
 
-- `pnpm check` — the full gate (biome ci, tsc, then the suite with its coverage floors). Run it
-  before calling work done.
-- `pnpm test` — vitest. Must stay under 30s with zero network calls.
-- `pnpm coverage` — the suite plus the floors in `scripts/coverage.ts` (`--table` prints every
-  package). This is what the `tests` check runs.
+- `pnpm check` — the full gate: biome ci, tsc, then `pnpm coverage` (the suite and its floors,
+  `scripts/coverage.ts`, `--table` for each package), which is the `tests` check. No network.
+- `pnpm test:related [paths]` — the tests a change touches, by the import graph; where the full
+  checks are batched, what a commit needs (`checks_run related`).
 - `pnpm exec biome check --write .` formats and fixes; `pnpm tade <args>` runs the CLI from source.
-- `pnpm test:smoke` — the domain, and the tests that hold this repository to its own word. A second or
-  two.
-- `TADE_LIVE=1 pnpm vitest run packages/orchestrator/test/live.test.ts` — the only test that uses a
-  real model, and the only evidence a model can pick the right tool from the descriptions we wrote.
-  Costs money, skipped by default; `pnpm release` refuses without a green receipt for HEAD.
+- `pnpm test:smoke` — the domain, and the tests that hold this repository to its own word. Seconds.
+- `TADE_LIVE=1 pnpm vitest run packages/orchestrator/test/live.test.ts` — the only test with a real
+  model: the only evidence one picks the right tool from our descriptions. Costs money, skipped by
+  default; `pnpm release` refuses without a green receipt for HEAD.
 
 **The commit hook is the fast gate, and CI is the real one.** `.githooks/pre-commit` runs biome,
-`tsc` and `test:smoke` in four or five seconds, because a hook people wait on is a hook people pass
-`--no-verify` to. A green hook is not a green `pnpm check` and never stands in for one.
+`tsc` and `test:smoke` in seconds, because a hook people wait on is one they pass `--no-verify` to.
+A green hook never stands in for a green `pnpm check`.
 
-**Run the suite on its own.** It spawns real git and PTY processes with short timeouts, so anything
-CPU-heavy alongside it starves them and they time out — which looks exactly like a regression and is
-not one. Never conclude the suite is broken from a run that shared the machine.
+**Run the suite on its own.** Its real git and PTY processes have short timeouts, so anything
+CPU-heavy beside it times them out in a way that reads exactly like a regression. Never conclude the
+suite is broken from a run that shared the machine.
 
-**A test never counts what the machine did in a fixed sleep.** A number over a stretch of wall clock
-is a number about the runner. Pace by the thing being counted; the safe shapes are a rate with a
-ceiling and a "said once" over a wait (`packages/app/test/wire/frame.probe.test.ts`).
+**A test never counts what the machine did in a fixed sleep**: pace by the thing being counted. The
+safe shapes are a rate with a ceiling and a "said once" over a wait (`wire/frame.probe.test.ts`).
 
 **Agents share this checkout.** Read a file again immediately before editing it. Commit only files
 you changed yourself, each added by path — never `git add -A`, `git add .` or `git commit -a` — and
 never run what throws others' work away: `git stash`, `git checkout`/`restore` of files,
 `git reset --hard`, `git clean`.
 
-There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). Consequences:
+**No build step**: Node ≥22.18 runs `.ts` directly (type stripping), so:
 - Relative imports use the `.ts` extension: `import { x } from './x.ts'`.
 - Erasable syntax only: no `enum`, `namespace`, or constructor parameter properties.
 - Type-only imports use `import type`.
@@ -160,10 +157,10 @@ attached to the decision it governs. Load the matching one rather than working f
 
 - **A check that nobody ran is not a check that passed.** The rollup of the required checks at HEAD is
   what `deriveState` reads as `tests`, and `unknown` is first-class: absent is not fine.
-- **What a project checks is read out of what it already says** — its commit hook and its workflows.
-  There is no `.tade/checks.yaml` and nothing writes one, and **reading may only ever narrow what Tade
-  claims**: what it cannot place is *named* (`Reading.unread`) rather than run, so the failure mode is
-  "Tade checked less than CI does, and said so".
+- **What a project checks is read out of what it already says** — its commit hook, its workflows, its
+  `test:related` — and **reading may only ever narrow what Tade claims**: what it cannot place is
+  *named* (`Reading.unread`) rather than run, so the failure mode is "Tade checked less than CI does,
+  and said so".
 - **A check that cannot run *here* keeps its row with a `skip` and is `required: false`** — a rollup is
   what a run *here* adds up to. Where a project says **nothing**, Tade invents no gate: `unknown` stands
   and the agent works out what checking means, runs it, and says what it ran (`CHECK_IT_YOURSELF`).
@@ -171,6 +168,9 @@ attached to the decision it governs. Load the matching one rather than working f
   come free: four agents, one checkout or four, never start four suites.
 - Overruling `checks.before` is an act, not a setting — `checks_override`, with a reason — and a red
   run that was overruled is still recorded red.
+- **Batched** (`checks.full`, `batchedFor`), agents run the hook and `related`, and the window runs the
+  full checks once a batch on HEAD in its own tree (`wire/batches.ts`); a red batch is one proposal
+  naming whose commit broke it. Related is never the full run; a push needs the full one.
 
 ### Judges
 
@@ -382,9 +382,8 @@ Recipes: `set-up-the-machine` and `cut-a-release`.
   in the commit and the review, then in whatever fails when it stops being true.
   `test/guide.test.ts` fails if one comes back, and prints where the reasoning goes instead.
 - **`.claude/skills/` holds the recipes** (the table above). Add or update one when you create a new
-  extension point, or when a change teaches you something a recipe should have said — that, and a
-  comment beside the code, is where reasoning goes now. Not `<TADE_HOME>/skills`, which is what Tade
-  itself has learned.
+  extension point, or when a change teaches you something a recipe should have said. Not
+  `<TADE_HOME>/skills`, which is what Tade itself has learned.
 - **Third-party notices are generated**: after changing dependencies run `pnpm notices`, or a test
   fails while the file is behind the lockfile and the script it is made from.
 

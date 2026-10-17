@@ -5,10 +5,12 @@ import {
   followRenames,
   glyphOf,
   latestAt,
+  pendingWords,
   planFor,
   RunnerError,
   readChecks,
   readRuns,
+  relatedAt,
   rollup,
   whereOf,
 } from '@tade/checks-core'
@@ -76,6 +78,9 @@ export function registerChecks(program: Command, io: Io, setExit: (code: number)
       const covering = await carryOver(where.root, runs, head)
       const at = latestAt(runs, covering)
       const said = rollup(plan, runs, covering)
+      // Beside the rollup and never in it: a related run passing is not green.
+      const related = relatedAt(read.checks, runs, covering)
+      const pending = pendingWords(said.state, related)
       if (opts.json) {
         io.out(
           JSON.stringify(
@@ -88,6 +93,7 @@ export function registerChecks(program: Command, io: Io, setExit: (code: number)
               checks: plan,
               at,
               rollup: said,
+              related,
             },
             null,
             2,
@@ -103,7 +109,7 @@ export function registerChecks(program: Command, io: Io, setExit: (code: number)
         return
       }
       io.out(
-        `${where.project} — read from ${read.from ?? read.source} · ${said.state} at ${short(head)}`,
+        `${where.project} — read from ${read.from ?? read.source} · ${said.state}${pending ? ` (${pending})` : ''} at ${short(head)}`,
       )
       for (const check of plan) {
         const run = at.find((one) => one.check === check.id)

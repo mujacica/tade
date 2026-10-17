@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { readChecks } from '@tade/checks-core'
+import { planFor, readChecks } from '@tade/checks-core'
 import { describe, expect, it } from 'vitest'
 
 // Tade's own checks, and the two things that would make them a lie.
@@ -33,7 +33,33 @@ describe("Tade's own checks", () => {
 
   it('are called what every run of them is recorded under', async () => {
     const read = await readChecks({ name: 'tade', root })
-    expect(read.checks.map((check) => check.id)).toEqual(['pre-commit', 'format', 'types', 'tests'])
+    expect(read.checks.map((check) => check.id)).toEqual([
+      'pre-commit',
+      'format',
+      'types',
+      'tests',
+      'related',
+    ])
+  })
+
+  it('have a related run that is the quick look and never the full one', async () => {
+    // `pnpm test:related` is what an agent runs before it commits where the
+    // full checks are batched. It is read out of package.json like everything
+    // else here, never required, and never in the full run — so no rollup can
+    // read it passing as the suite passing.
+    const read = await readChecks({ name: 'tade', root })
+    const related = read.checks.find((check) => check.related)
+    expect(related).toMatchObject({ id: 'related', run: 'pnpm run test:related', required: false })
+    expect(planFor(read.checks).map((check) => check.id)).toEqual([
+      'pre-commit',
+      'format',
+      'types',
+      'tests',
+    ])
+    expect(planFor(read.checks, { related: true }).map((check) => check.id)).toEqual([
+      'pre-commit',
+      'related',
+    ])
   })
 
   it('are exactly what `pnpm check` runs, in that order', async () => {
