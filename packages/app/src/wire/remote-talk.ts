@@ -313,8 +313,15 @@ export class RemoteTalks {
       // Said on its tab, and asked again the next time it comes back.
       return this.note(name, `what was missed on ${name} could not be asked: ${why(err)}`)
     }
-    // An older Tade there has no card to give, and that is not worth a word.
-    if (answer.status !== 200) return
+    // An older Tade there has no card to give, and that is not worth a word;
+    // anything else it answered is said on its tab.
+    if (answer.status === 404) return
+    if (answer.status !== 200) {
+      return this.note(
+        name,
+        `what was missed on ${name} could not be asked: ${refusedSaid(answer, name)}`,
+      )
+    }
     const missed = missedOf(name, answer.body, this.deps.skew(name))
     if (missed === null) {
       this.missed.delete(name)
