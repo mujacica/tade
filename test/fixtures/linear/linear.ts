@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -23,6 +24,14 @@ import { fileURLToPath } from 'node:url'
 // document.** The one document the connector sends is a constant, so what a
 // test is about is always what it asked *for* — and a fixture that parsed
 // GraphQL would be a second implementation of Linear to get wrong.
+//
+// **OAuth, where a test asks for it** (`oauth`): the token endpoint as Linear
+// documents it — a code exchanged once, only with the verifier its PKCE
+// challenge was made from and only to the redirect it was asked for; a refresh
+// token spent by its refresh and answered the same again while its grace
+// lasts; `invalid_grant` for anything else — and every GraphQL call made with
+// `Bearer` checked against the access tokens it handed out. A key (no
+// `Bearer`) is never looked at, as before.
 //
 // There is no evidence here that the real Linear still looks like this. What
 // there is instead is `linear-api.ts`, which writes down the date its numbers
@@ -126,6 +135,41 @@ export interface LinearOptions {
   status?: number
   /** Answer something that is not a GraphQL response at all. */
   nonsense?: 'text' | 'array' | 'empty'
+  /** An OAuth app this Linear knows, its token endpoint, and the tokens it handed out. */
+  oauth?: LinearOAuthOptions
+}
+
+export interface LinearOAuthOptions {
+  clientId: string
+  /** The codes it will exchange, each for the PKCE challenge and the redirect it was asked with. */
+  codes?: Record<string, { challenge: string; redirect: string }>
+  /** The refresh token it holds now: what a refresh must present. */
+  refresh?: string
+  /** How long an access token lasts, in seconds: Linear's 86399 unless a test says. */
+  expiresIn?: number
+  /** Who its tokens are. */
+  workspace?: string
+  user?: string
+}
+
+/** One answer the token endpoint gave, for a test to read. */
+export interface LinearTokenCall {
+  form: Record<string, string>
+  status: number
+}
+
+/** The OAuth half of a scripted Linear: what it holds, and what a test does to it. */
+export interface LinearOAuth {
+  /** Every form the token endpoint was sent, in order. */
+  calls: LinearTokenCall[]
+  /** The access tokens it would take now. */
+  access: Set<string>
+  /** The refresh token it would take now. */
+  refresh: string | null
+  /** Somebody revoking the app: every token it handed out is no good. */
+  revoke(): void
+  /** The grace a spent refresh token has is over. */
+  graceOver(): void
 }
 
 export interface LinearScript {
@@ -142,6 +186,13 @@ export interface LinearScript {
   close(identifier: string, state?: string): void
   /** Somebody deleting one, which is an issue that is simply not there any more. */
   remove(identifier: string): void
+  /** The OAuth half, where `oauth` was given. */
+  oauth: LinearOAuth | null
+}
+
+/** The PKCE `S256` challenge for a verifier, as a browser would have sent it. */
+export function challengeOf(verifier: string): string {
+  return createHash('sha256').update(verifier).digest('base64url')
 }
 
 /** A Linear whose answers are this file's, and whose state a test can change under Tade. */
@@ -217,9 +268,12 @@ export function linearScript(options: LinearOptions): LinearScript {
     }
   }
 
+  const oauth = options.oauth === undefined ? null : oauthOf(options.oauth)
+
   const script: LinearScript = {
     calls: [],
     issues,
+    oauth: oauth?.held ?? null,
     touch(identifier, at) {
       const found = find(identifier)
       if (found) found.updatedAt = atOf(options.base, at)
@@ -241,14 +295,43 @@ export function linearScript(options: LinearOptions): LinearScript {
       const at = script.issues.findIndex((one) => one.identifier === identifier)
       if (at >= 0) script.issues.splice(at, 1)
     },
-    fetch: (async (_input: unknown, init?: RequestInit) => {
+    fetch: (async (input: unknown, init?: RequestInit) => {
+      if (String(input) === 'https://api.linear.app/oauth/token') {
+        if (options.offline) throw new TypeError('fetch failed')
+        if (oauth === null) return answer(404, {})
+        return oauth.token(new URLSearchParams(String(init?.body ?? '')))
+      }
       const body = JSON.parse(String(init?.body ?? '{}')) as {
+        operationName?: string
         query?: string
         variables?: Record<string, unknown>
       }
       script.calls.push({ query: body.query ?? '', variables: body.variables ?? {} })
       if (options.offline) throw new TypeError('fetch failed')
       if (init?.signal?.aborted) throw new Error('aborted')
+      const authorization = new Headers(init?.headers).get('authorization') ?? ''
+      if (authorization.startsWith('Bearer ')) {
+        // Linear's own answer to a token it does not take: an authentication
+        // error, by `type` the way its SDK reads it.
+        if (oauth === null || !oauth.held.access.has(authorization.slice('Bearer '.length))) {
+          return answer(401, {
+            errors: [
+              {
+                message: 'Authentication required, not authenticated',
+                extensions: { type: 'authentication error', code: 'AUTHENTICATION_ERROR' },
+              },
+            ],
+          })
+        }
+        if (body.operationName === 'TadeWho') {
+          return answer(200, {
+            data: {
+              viewer: { name: oauth.user, displayName: oauth.user },
+              organization: { name: oauth.workspace },
+            },
+          })
+        }
+      }
       if (options.hang) {
         return new Promise<Response>((_, reject) => {
           init?.signal?.addEventListener('abort', () => reject(new Error('aborted')), {
@@ -304,6 +387,92 @@ export function linearScript(options: LinearOptions): LinearScript {
     }) as typeof fetch,
   }
   return script
+}
+
+/**
+ * Linear's token endpoint, as its documentation describes it: an
+ * authorization code exchanged once, with its verifier, to its redirect; a
+ * refresh token traded for the next one and spent, answered the same again
+ * while its grace lasts. The client secret is optional with PKCE and this
+ * never asks for one.
+ */
+function oauthOf(options: LinearOAuthOptions) {
+  const codes = new Map(Object.entries(options.codes ?? {}))
+  const expiresIn = options.expiresIn ?? 86399
+  let issued = 0
+  let grace = true
+  /** What each spent refresh token was answered with, for its grace. */
+  const spent = new Map<string, Record<string, unknown>>()
+  const held: LinearOAuth = {
+    calls: [],
+    access: new Set(),
+    refresh: options.refresh ?? null,
+    revoke() {
+      held.access.clear()
+      held.refresh = null
+      spent.clear()
+    },
+    graceOver() {
+      grace = false
+    },
+  }
+  const grant = (): Record<string, unknown> => {
+    issued += 1
+    const access = `lin_oauth_access_${issued}`
+    const refresh = `lin_refresh_${issued}`
+    held.access.add(access)
+    held.refresh = refresh
+    return {
+      access_token: access,
+      token_type: 'Bearer',
+      expires_in: expiresIn,
+      scope: 'read',
+      refresh_token: refresh,
+    }
+  }
+  const refused = (form: Record<string, string>, word: string) => {
+    held.calls.push({ form, status: 400 })
+    return answer(400, { error: word, error_description: `Linear says ${word}` })
+  }
+  return {
+    held,
+    workspace: options.workspace ?? 'Acme',
+    user: options.user ?? 'kim',
+    token(sent: URLSearchParams): Response {
+      const form = Object.fromEntries(sent.entries())
+      if (form.client_id !== options.clientId) return refused(form, 'invalid_client')
+      if (form.grant_type === 'authorization_code') {
+        const code = codes.get(form.code ?? '')
+        // A code is good once, whatever happens to the try.
+        codes.delete(form.code ?? '')
+        if (
+          code === undefined ||
+          code.redirect !== form.redirect_uri ||
+          challengeOf(form.code_verifier ?? '') !== code.challenge
+        ) {
+          return refused(form, 'invalid_grant')
+        }
+        held.calls.push({ form, status: 200 })
+        return answer(200, grant())
+      }
+      if (form.grant_type === 'refresh_token') {
+        const presented = form.refresh_token ?? ''
+        const again = spent.get(presented)
+        if (again !== undefined && grace) {
+          held.calls.push({ form, status: 200 })
+          return answer(200, again)
+        }
+        if (held.refresh === null || presented !== held.refresh) {
+          return refused(form, 'invalid_grant')
+        }
+        const next = grant()
+        spent.set(presented, next)
+        held.calls.push({ form, status: 200 })
+        return answer(200, next)
+      }
+      return refused(form, 'unsupported_grant_type')
+    },
+  }
 }
 
 /** An issue with its connections cut to what the query asked for, the way Linear would. */

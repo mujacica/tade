@@ -45,17 +45,14 @@ export function carryingFor(
     lines: () => wire.opts.client.events({ types: ['config_changed', 'carried_in'] }),
     write: async (path, value, carry, by) => {
       const was = carriedSays(carry, writtenAt(await carrying.written(), path))
+      // An extension's own setting is handed to the extensions by `writeKey`,
+      // as from the Settings page; which extensions are on still waits for the
+      // next start, as it does wherever it is changed.
       await settings.writeKey(path, value as Parameters<Settings['writeKey']>[1], was, {
         by: `device ${by.device}`,
         now: carriedSays(carry, value),
         carried: by.from,
       })
-      // An extension's own setting means nothing until the extension has it,
-      // as from the Settings page; which extensions are on still waits for the
-      // next start, as it does wherever it is changed.
-      if (path.startsWith('extensions.')) {
-        await wire.opts.extensions?.reconfigure(wire.opts.config.extensions)
-      }
     },
     log: async (line) => {
       await wire.opts.client.log.append(line)

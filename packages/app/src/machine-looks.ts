@@ -40,8 +40,8 @@ export interface RecordsThere {
 
 /**
  * What connecting one source there has come to, step by step, when it was
- * last asked — that machine's own fold (`githubPage`, `slackPage`), its words
- * as text.
+ * last asked — that machine's own fold (`githubPage`, `slackPage`,
+ * `linearPage`), its words as text.
  */
 export interface ConnectThere {
   /** When the answer came, in this machine's clock. */

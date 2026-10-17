@@ -96,6 +96,15 @@ describe('what is carried', () => {
     expect(carryOf('extensions.intake.slack_signing_secret').carry).toBe('pressed')
   })
 
+  it('keeps the Linear app and its refresh token on the machine it was made for', () => {
+    // A refresh token is spent by its first refresh, so a copy on another
+    // machine would break this one's connection the first time it was used.
+    for (const leaf of ['linear_client_id', 'linear_refresh_token']) {
+      expect(carryOf(`extensions.intake.${leaf}`).carry, leaf).toBe('here')
+    }
+    expect(carryOf('extensions.intake.linear_webhook_secret').carry).toBe('pressed')
+  })
+
   it('never carries a key by itself, wherever it is', () => {
     for (const path of [
       'extensions.jev.key',

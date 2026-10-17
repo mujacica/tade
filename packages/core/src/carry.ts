@@ -146,6 +146,12 @@ const RULES: readonly Rule[] = [
     because:
       'the Slack app was made for this machine’s public name: its events and its install come back here',
   },
+  {
+    at: /^extensions\.intake\.linear_(client_id|refresh_token)$/,
+    carry: 'here',
+    because:
+      'the Linear app was made for this machine’s address, and its refresh token is good once: two machines refreshing one would each spend the other’s',
+  },
   // ── on a press ──
   {
     at: 'telemetry.dsn',

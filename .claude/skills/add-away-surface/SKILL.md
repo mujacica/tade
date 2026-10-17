@@ -231,10 +231,14 @@ a device still has none of the scopes that change anything until somebody at thi
   only where that machine has a public name, and the Mac writes the form into a page in its own
   home that posts itself to GitHub, or opens Slack's address as it is — each held to its source's
   hosts (`CONNECT_FLOWS.goes`). **What a source's own page shows the person** — Slack's signing
-  secret and client — goes in through a `keep` press on this machine's own door alone, shape-checked
-  (`KeepSchema`) and never answered back; the owner's route takes no `keep`, so no secret crosses
-  the link. A press nothing comes back from (Slack's making) mints no word, and a source that sends a
-  browser back only over HTTPS (`publicBack`) refuses its install with no public name.
+  secret and client, Linear's client id and webhook secret — goes in through a `keep` press on this
+  machine's own door alone, shape-checked per source (`KEEP_SCHEMAS`) and never answered back; the
+  owner's route takes no `keep`, so no secret crosses the link. A press nothing comes back from
+  (Slack's and Linear's making) mints no word, and a source that sends a browser back only over HTTPS
+  (`publicBack`) refuses its install with no public name. **Where a source installs with a proof key**
+  (`CONNECT_FLOWS.pkce`, Linear), the install press mints a verifier beside its word (`mintInstall`)
+  and sends only its `S256` digest; `take` hands the verifier back with the word, and nothing else
+  ever sees it — so a code read off a browser's history is worth nothing to anybody else.
 - **From the public listener, anything above `read` needs a passkey proved within
   `passkey_hours`** (`proven`, after the scope and the origin, so it never says more than they
   would). The **listener and never the host**, like `thisMachine`: this machine, an SSH forward and a

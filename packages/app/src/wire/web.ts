@@ -228,13 +228,15 @@ export class Away implements Subject {
         hooks: hooksFor(this.wire, () => this.config(), this.deps.doorbell),
       }),
       ...ownedFor(this.wire, () => this.panelFacts(), this.deps.lifecycle),
-      // The guided pages that connect GitHub and Slack (`web-connect.ts`): this
-      // machine's own door and an owner's, and the callbacks where each sends a browser.
+      // The guided pages that connect GitHub, Slack and Linear (`web-connect.ts`):
+      // this machine's own door and an owner's, and the callbacks where each
+      // sends a browser — Linear's tokens handed to the window's holder.
       connecting: connectingFor({
         config: () => this.config(),
         settings: this.deps.settings,
         heard: (source) => this.wire.live?.heardFrom(source) ?? { verified: null, refused: null },
         now: () => this.wire.now(),
+        ...(this.deps.linear && { linear: this.deps.linear }),
       }),
       tickets: this.tickets,
       streams: this.streams,

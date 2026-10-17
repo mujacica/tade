@@ -14,7 +14,7 @@ import { Settings } from '../../src/wire/settings.ts'
 // window would answer that with a real workbench and three harnesses behind
 // it. `settings.test.ts` is where a keystroke reaches this subject.
 
-function world() {
+function world(over: { extensions?: boolean } = {}) {
   const home = tmp('tade-harness-')
   mkdirSync(home, { recursive: true })
   writeFileSync(join(home, 'config.yaml'), 'orchestrator:\n  harness: pi\n  model: kimi-k2.6\n')
@@ -33,7 +33,15 @@ function world() {
         // makes one findable and undoable; the test only has to not swallow it.
         log: { append: async () => {} },
       },
-      extensions: null,
+      // What the extensions are handed, for a key with no field.
+      extensions: over.extensions
+        ? {
+            reconfigure: async (extensions: Record<string, unknown>) =>
+              void asked.push(`reconfigure ${Object.keys(extensions).join(',')}`),
+            useProjects: () => {},
+            useServers: () => {},
+          }
+        : null,
     },
     get state() {
       return state
@@ -53,7 +61,7 @@ function world() {
     refreshModels: async () => void asked.push('refreshModels'),
     lookAtWhatIsInstalled: () => {},
     tellThinking: async () => null,
-    setupChanged: () => {},
+    setupChanged: () => void asked.push('setupChanged'),
     silence: () => {},
     holdSleep: () => {},
     away: () => ({ follow: () => {}, carry: async () => {} }),
@@ -92,5 +100,22 @@ describe('changing which harness the orchestrator talks through', () => {
     await it_.settings.write('orchestrator.reflect', 'false')
     expect(it_.config()).toContain('kimi-k2.6')
     expect(it_.asked).toEqual([])
+  })
+})
+
+describe('a key with no field, written by the one door', () => {
+  // Connect Slack keeping a token, Connect GitHub keeping an App: an
+  // extension's own key means nothing until the extension has it, so the door
+  // hands the extensions the config as the Settings page does — and a key that
+  // is not an extension's asks nothing of them.
+  it('hands an extension’s key to the extensions, and nothing else to them', async () => {
+    const it_ = world({ extensions: true })
+    await it_.settings.writeKey('extensions.intake.slack_token', 'xoxb-kept', 'not set', {
+      by: 'connect slack',
+    })
+    expect(it_.config()).toContain('slack_token: xoxb-kept')
+    expect(it_.asked).toEqual(['reconfigure intake', 'setupChanged'])
+    await it_.settings.writeKey('agents.keep_awake', true, 'false')
+    expect(it_.asked).toHaveLength(2)
   })
 })

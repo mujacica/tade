@@ -75,17 +75,17 @@ export const INTAKE_SETUP: Readonly<Record<IntakeSource, readonly string[]>> = {
   // the one query this sends carries an explicit `first`, and a connector that
   // left the default on would cost fifty times what it needed to.
   linear: [
-    'A personal API key: Linear › Settings › Security & access › Personal API keys.',
+    'A private Linear app in your own workspace, made at http://localhost:<port>/connect on this machine (through `ssh -L` from another, or Settings › Remotes there): it may only read, keeps its client id and a refresh token this machine renews itself — never its client secret, which connecting with PKCE does not need — and brings the webhook below where there is a public name. It gets 5,000 requests an hour of its own.',
+    'Or, by hand, a personal API key (Linear › Settings › Security & access › Personal API keys) as $LINEAR_API_KEY, or extensions.intake.linear_key in config.yaml — read only where no app is connected.',
     'A label on the team — `tade` is the one Tade suggests — and nothing defaults to it.',
-    'The key as $LINEAR_API_KEY, or extensions.intake.linear_key in config.yaml.',
     'surfaces.intake.enabled: true, and surfaces.intake.sources.linear.accept: true.',
     'surfaces.intake.sources.linear.projects: the Tade projects it may make work in.',
     'surfaces.intake.sources.linear.from: Linear USER IDS, not display names, which somebody else can take over once their owner gives one up. The look names the ids it saw.',
     'A watch, told the team key (ENG) and the label: Settings › Extensions, or a schedule over intake.linear.',
     'Then label an issue in that team. mode is propose, so a task is made and parked for you to approve.',
-    'It is polled every ten minutes: Tade notices a labelled issue, it does not answer one.',
+    'It is looked at every ten minutes, or at once where Linear delivers here: Tade notices a labelled issue, it does not answer one.',
     'Nothing is ever posted back to Linear: this watch has no reply at all, so reply: true would turn nothing on.',
-    `Optional, where this machine has a public name: a webhook (Linear › Settings › API) to https://<name>/hooks/linear for Issues and Comments, its signing secret as $${HOOK_SECRETS.linear.env} or extensions.intake.${HOOK_SECRETS.linear.key}. A delivery only makes the watch look now, and it polls hourly while deliveries arrive.`,
+    `Where this machine has a public name, the app made at /connect delivers to https://<name>/hooks/linear, its signing secret kept there. By hand instead: a webhook (Linear › Settings › API) to that address for Issues and Comments, its signing secret as $${HOOK_SECRETS.linear.env} or extensions.intake.${HOOK_SECRETS.linear.key}. A delivery only makes the watch look now, and it polls hourly while deliveries arrive.`,
   ],
 }
 
@@ -94,22 +94,24 @@ export const INTAKE_SETUP: Readonly<Record<IntakeSource, readonly string[]>> = {
  * on — because the failure this avoids is somebody reading a roadmap as a
  * switch they have not found yet.
  *
- * Both of these were looked at properly and both come down to the same thing,
- * which is why they are one sentence each rather than a table: **a laptop
- * cannot promise to be awake.** Linear's realtime path (Agent Interaction) and
- * every Jira webhook need a publicly reachable HTTPS endpoint that answers
- * inside seconds, and a machine that is asleep misses the delivery, misses the
- * retries, and has its webhook switched off at the far end. Nothing in Tade is
- * half-built towards either: there is no name in `INTAKE_SOURCES`, no grant, no
- * setting, no input and no code path — which is the only honest way to say
- * "not supported", because a disabled switch is a promise.
+ * Both of these were looked at properly, which is why they are one sentence
+ * each rather than a table. What used to stop Linear's was **a laptop cannot
+ * promise to be awake**, and a server with a public name now can: Connect
+ * Linear's app delivers its webhook there (REMOTE-TADE §6.3, V16). What still
+ * stops Linear's agents is their own — a first activity inside ten seconds of
+ * every session, a Developer Preview, and a subscription that shows the agent
+ * to the whole workspace at once — so they are a later stage and their own
+ * switch (V17). Jira's is an obligation Tade has no daemon to meet. Nothing
+ * in Tade is half-built towards either: there is no name in `INTAKE_SOURCES`,
+ * no grant, no setting, no input and no code path — which is the only honest
+ * way to say "not supported", because a disabled switch is a promise.
  *
  * Read in full by `tade intake status`, which is where somebody asks. The
  * Settings page gets the short clause below instead, because a surface is
  * options and values and a paragraph under a heading is not one.
  */
 export const INTAKE_NOT_SUPPORTED = [
-  'Linear in realtime — @-mentioning or assigning Tade as a Linear agent — is not supported and is not polled-with-a-delay either: it is a different thing. It needs a publicly accessible HTTPS, non-localhost URL that answers a webhook within 5 seconds and sends a first activity within 10, and Linear retries a failed delivery after 1 minute, 1 hour and 6 hours and may then disable the webhook. A laptop cannot promise any of that, so what Tade does instead is poll one team’s labelled issues.',
+  'Linear agents — @-mentioning or assigning Tade as an app user in Linear — are not supported and are not a labelled issue with a delay either: they are a different thing. Each session must be answered within 5 seconds and sent a first activity within 10, Linear’s Agents API is still a Developer Preview, and turning it on shows the agent to everyone in the workspace at once. What Tade does instead is read one team’s labelled issues: on a clock, and at once where this machine has a publicly accessible HTTPS name the Linear app made at /connect delivers to — a laptop with none is polled.',
   'Jira is not supported at all, and there is no Jira source to switch on. Only Connect and OAuth apps may register a Jira webhook, 5 per app per user per tenant all to the same URL, and they expire 30 days from creation unless something keeps calling "Extend webhook life" — an operational obligation Tade has no daemon to meet. Polling by JQL would be this file’s shape with a different query, and is deferred on demand rather than started and left half-done.',
 ] as const
 
@@ -142,4 +144,4 @@ export function intakeUnfinished(grant: {
  * second, friendlier claim.
  */
 export const INTAKE_NO_REALTIME =
-  'Linear in realtime and Jira are not sources: there is nothing here to switch on for either, and `tade intake status` says why.'
+  'Linear agents and Jira are not sources: there is nothing here to switch on for either, and `tade intake status` says why.'

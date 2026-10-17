@@ -1,5 +1,6 @@
 import type { InboxRow } from '@tade/core'
 import type { Waking } from './doorbell.ts'
+import type { LinearTokens } from './linear-tokens.ts'
 import type { Settings } from './settings.ts'
 import type { Talking } from './web-asking.ts'
 import type { FactoryHeld } from './web-beat.ts'
@@ -73,4 +74,10 @@ export interface AwayDeps {
    * Absent, every delivery is the `404` of a path nobody wired.
    */
   doorbell?: Waking
+  /**
+   * The Linear app's tokens as the window holds them (`linear-tokens.ts`), for
+   * connecting Linear to hand a new one to. Absent, the connect page holds one
+   * of its own, which nothing else reads with.
+   */
+  linear?: LinearTokens
 }

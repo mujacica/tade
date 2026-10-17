@@ -422,6 +422,11 @@ describe('the connect pages', () => {
       'POST /connect/slack/keep',
       'POST /connect/slack/install',
       'GET /connect/slack/installed',
+      // Linear keeps its client id the same way, and comes back to any door.
+      'POST /connect/linear/make',
+      'POST /connect/linear/keep',
+      'POST /connect/linear/install',
+      'GET /connect/linear/installed',
     ])
     // Each carries which press or callback it is, so nothing reads it out of a name.
     for (const route of CONNECTS.slice(1)) {

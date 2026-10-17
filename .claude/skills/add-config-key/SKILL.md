@@ -307,6 +307,17 @@ still never in the journal and never in anything telemetry would send. Nothing i
 else: there is no keychain, no `secrets.json` and no vault to choose between — a key pasted into an
 older Tade has to be pasted again.
 
+**A key that replaces itself declares no variable** — the one kind that does not: Linear's refresh
+token (`LINEAR_APP.refresh`) is spent by every refresh and the next one handed over, so one exported
+would be good exactly once and then win over the live one in the file for ever. It is written by
+the window through `writeKey` each time it turns over (`wire/linear-tokens.ts`, `by: linear
+refresh`), said as `set` like any key, and kept on its machine (`carryOf`: two machines refreshing
+one token would each spend the other's). Its `means` says why it has no variable, where somebody
+would look for one. The access token it buys is never written at all.
+
+**`writeKey` hands an extension's key to the extensions** (`reconfigure`) as `write` does from the
+page, so a key a connect page keeps is read on the next look rather than after a restart.
+
 ## `0600` keeps the file from other people, and an agent is not another person
 
 That is the whole of what the mode buys, and there is no second user on the machine to buy it from:

@@ -470,6 +470,82 @@ describe('what the Linear door does when Linear will not answer', () => {
   })
 })
 
+describe('reading as the app Connect Linear made', () => {
+  // Where an app is connected, the window lends its day-long token
+  // (`ExtensionContext.connected`, `wire/linear-tokens.ts`) and the look reads
+  // with it as `Bearer` — the key, where there is one too, is not read. The
+  // fixture refuses any `Bearer` token it did not hand out.
+  const TOKEN = 'lin_oauth_pretend'
+  const app = (over: Partial<LinearOptions> = {}) => {
+    const script = linear({ oauth: { clientId: 'a'.repeat(32) }, ...over })
+    script.oauth?.access.add(TOKEN)
+    return script
+  }
+  const lent = async (
+    script: LinearScript,
+    lend: (source: string) => Promise<string | null>,
+    over: { key?: string | undefined } = {},
+  ) => {
+    const loaded = await host(script, over)
+    loaded.useConnected(lend)
+    return loaded
+  }
+
+  it('reads with the app’s token where one is lent, and finds what the key would', async () => {
+    const script = app()
+    const withApp = await (await lent(script, async () => TOKEN)).look('intake.linear', looking())
+    const withKey = await look(linear())
+    expect(withApp.found.map((one) => one.key)).toEqual(withKey.found.map((one) => one.key))
+    expect(withApp.found.length).toBeGreaterThan(0)
+  })
+
+  it('needs no key at all once an app is connected', async () => {
+    const script = app()
+    const loaded = await lent(script, async () => TOKEN, { key: undefined })
+    await expect(loaded.look('intake.linear', looking())).resolves.toBeDefined()
+  })
+
+  it('reads with the key where nothing is connected', async () => {
+    const script = linear()
+    const loaded = await lent(script, async () => null)
+    await expect(loaded.look('intake.linear', looking())).resolves.toBeDefined()
+  })
+
+  it('says to connect it again where Linear no longer takes the app’s token, never the key’s fix', async () => {
+    const script = app()
+    script.oauth?.revoke()
+    const loaded = await lent(script, async () => TOKEN)
+    const failed = loaded.look('intake.linear', looking())
+    await expect(failed).rejects.toThrow(/connect Linear again at \/connect/)
+    await expect(loaded.look('intake.linear', looking())).rejects.not.toThrow(/Bearer/)
+  })
+
+  it('says what the window said where it could not lend a token, rather than reading with the key', async () => {
+    const loaded = await lent(app(), async () => {
+      throw new Error('Linear no longer takes the refresh token kept here')
+    })
+    await expect(loaded.look('intake.linear', looking())).rejects.toThrow(/refresh token kept here/)
+  })
+
+  it('names both ways in when there is neither', async () => {
+    const loaded = await lent(linear(), async () => null, { key: undefined })
+    const failed = loaded.look('intake.linear', looking())
+    await expect(failed).rejects.toThrow(/\/connect/)
+    await expect(loaded.look('intake.linear', looking())).rejects.toThrow(/LINEAR_API_KEY/)
+  })
+
+  it('re-checks with the app’s token too', async () => {
+    const script = app()
+    const loaded = await lent(script, async () => TOKEN, { key: undefined })
+    const { found } = await loaded.look('intake.linear', looking())
+    const [first] = found
+    if (first === undefined) throw new Error('the fixture found nothing to re-check')
+    expect(await loaded.recheck('intake.linear', { ...looking(), key: first.key })).toEqual({
+      still: true,
+    })
+  })
+})
+
 describe('whether a Linear request still stands', () => {
   const stands = async (script: LinearScript, over: Parameters<typeof looking>[0] = {}) =>
     (await host(script)).recheck('intake.linear', {
@@ -683,6 +759,9 @@ describe('what somebody is told about turning it on, and about what is not there
   it('has setup steps of its own, and says the key goes nowhere near a write', () => {
     const steps = INTAKE_SETUP.linear.join(' ')
     expect(steps).toContain('LINEAR_API_KEY')
+    // The app made at /connect first, and never its client secret.
+    expect(INTAKE_SETUP.linear[0]).toContain('/connect')
+    expect(steps).toContain('never its client secret')
     expect(steps).toContain('USER IDS')
     expect(steps).toContain('team key')
     expect(steps).toContain('no reply at all')
@@ -700,6 +779,10 @@ describe('what somebody is told about turning it on, and about what is not there
     // Not a disabled switch and not a roadmap: a sentence saying what each
     // would need and that nothing here is half-built towards it.
     expect(said).toContain('Jira is not supported')
+    // What a public name changed: the app's deliveries make the look happen
+    // at once there. What it did not: Linear's agents, a stage of their own.
+    expect(said).toContain('Linear agents')
+    expect(said).toContain('Developer Preview')
     expect(said).toContain('publicly accessible HTTPS')
     expect(said).toContain('5 seconds')
     expect(said).toContain('30 days')

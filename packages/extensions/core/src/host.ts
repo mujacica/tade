@@ -1,7 +1,14 @@
 import { existsSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { appsKept, extensionEnabled, findSecret, runProgram, secretPath } from '@tade/core'
+import {
+  appsKept,
+  type ConnectSource,
+  extensionEnabled,
+  findSecret,
+  runProgram,
+  secretPath,
+} from '@tade/core'
 import { askFindings, askJudgeReplays } from './findings.ts'
 import { firstComment, yourFolders } from './folders.ts'
 import type { WatchOffer } from './offer.ts'
@@ -279,6 +286,8 @@ export class ExtensionHost {
   private readonly listed = new Map<string, ListSection>()
   /** Brokered ones whose server was turned off since the window opened, and what each is now. */
   private readonly serversOff = new Map<string, string>()
+  /** What lends a connected source's token (`useConnected`), or null where nothing does. */
+  private lent: ((source: ConnectSource) => Promise<string | null>) | null = null
   private counter = 0
 
   private constructor(entries: Entry[], opts: HostOptions) {
@@ -486,6 +495,9 @@ export class ExtensionHost {
   async reconfigure(
     extensions: Readonly<Record<string, Readonly<Record<string, unknown>>>>,
   ): Promise<void> {
+    // Kept for what every extension reads across them — the apps kept — so an
+    // app connected while the window is open is read with on the next look.
+    this.opts.config = { ...this.opts.config, extensions }
     for (const entry of this.entries) {
       if (entry.loaded.state === 'broken') continue
       const settings = extensions[entry.extension.name] ?? {}
@@ -513,6 +525,16 @@ export class ExtensionHost {
    */
   useProjects(projects: HostOptions['config']['projects']): void {
     this.opts.config = { ...this.opts.config, projects }
+  }
+
+  /**
+   * Take what lends a connected source's token to every extension
+   * (`ExtensionContext.connected`), from whoever holds the connections — the
+   * window, which refreshes them and keeps what replaces itself. Unsaid, every
+   * extension is told nothing is connected and reads with its key.
+   */
+  useConnected(lend: (source: ConnectSource) => Promise<string | null>): void {
+    this.lent = lend
   }
 
   /**
@@ -1330,6 +1352,9 @@ export class ExtensionHost {
       // Asked of the config at every read, like the projects: an app connected
       // while the window is open is read with on the next look.
       apps: () => appsKept(opts.config.extensions, opts.env ?? process.env),
+      // Asked of whoever holds the connection at every call, never held here:
+      // a token that replaces itself is the holder's to keep.
+      connected: (source) => this.lent?.(source) ?? Promise.resolve(null),
       fetch: opts.fetch ?? globalThis.fetch.bind(globalThis),
       exec: opts.exec ?? run,
       home: opts.home,

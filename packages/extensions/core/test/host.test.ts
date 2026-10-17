@@ -630,6 +630,45 @@ describe('what extensions tell everyone else', () => {
 })
 
 describe('changing extensions while the window is open', () => {
+  it('reads an app kept and a token lent as they are at each ask, not as they were at load', async () => {
+    const loaded = await host(
+      { city: 'Vienna' },
+      {
+        tools: [
+          ...(weather().tools ?? []),
+          {
+            name: 'weather_handed',
+            description: 'What it was handed.',
+            parameters: object({}),
+            for: ['orchestrator'],
+            run: async (_input, ctx) => ({
+              text: JSON.stringify({
+                apps: ctx.apps?.() ?? [],
+                lent: (await ctx.connected?.('linear')) ?? null,
+              }),
+            }),
+          },
+        ],
+      },
+    )
+    const handed = async () =>
+      JSON.parse(
+        (await loaded.call('weather_handed', {}, { caller: { kind: 'orchestrator' } })).text,
+      )
+    expect(await handed()).toEqual({ apps: [], lent: null })
+    // An App connected while the window is open (`writeKey` hands the host the
+    // config), and a window lending the Linear app's token.
+    await loaded.reconfigure({
+      weather: { city: 'Vienna' },
+      intake: { github_app_id: '4242', github_app_key: 'pem' },
+    })
+    loaded.useConnected(async (source) => (source === 'linear' ? 'lin_oauth_lent' : null))
+    expect(await handed()).toEqual({
+      apps: [{ host: 'github.com', id: '4242', key: 'pem' }],
+      lent: 'lin_oauth_lent',
+    })
+  })
+
   it('turns one off and on again, and says what it needs when it comes back', async () => {
     const loaded = await host({ city: 'Vienna' })
     await loaded.reconfigure({ weather: { city: 'Vienna', enabled: false } })

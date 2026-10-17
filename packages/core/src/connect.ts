@@ -13,18 +13,18 @@
 // template work is stamped from, and whether Tade may say anything back stay
 // the person's to write in Settings › Intake, three separate acts, as before.
 //
-// GitHub and Slack are the sources this builds; Linear (V16) is connected from
-// here once it is, which is why the page is per source and each source says
-// what its page may be asked (`CONNECT_FLOWS`).
+// GitHub, Slack and Linear are the sources this builds — each a page of its
+// own, and each saying what its page may be asked (`CONNECT_FLOWS`).
 
 /** The sources a page here connects. Only what is built: a row is a promise. */
-export const CONNECT_SOURCES = ['github', 'slack'] as const
+export const CONNECT_SOURCES = ['github', 'slack', 'linear'] as const
 export type ConnectSource = (typeof CONNECT_SOURCES)[number]
 
 /** Each source as a heading says it. */
 export const CONNECT_TITLES: Readonly<Record<ConnectSource, string>> = {
   github: 'GitHub',
   slack: 'Slack',
+  linear: 'Linear',
 }
 
 /** How long a one-time word the owner minted is good for. GitHub gives its code an hour, Slack ten minutes. */
@@ -53,6 +53,11 @@ export type ConnectBack = 'made' | 'installed'
  *   door the press came in at.
  * - `goes`: the hosts a press may send a browser to, which another machine's
  *   answer is held to before this one opens anything.
+ * - `pkce`: whether installing is OAuth with a proof key (`S256`): the press
+ *   mints a verifier beside its word, sends only its digest, and the code that
+ *   comes back is exchanged with the verifier — so a code read off a browser's
+ *   history is worth nothing to anybody else. Linear's: with it, Linear needs
+ *   no client secret, and none is kept.
  */
 export const CONNECT_FLOWS: Readonly<
   Record<
@@ -62,6 +67,7 @@ export const CONNECT_FLOWS: Readonly<
       backs: readonly ConnectBack[]
       publicBack: boolean
       goes: readonly string[]
+      pkce: boolean
     }
   >
 > = {
@@ -70,12 +76,24 @@ export const CONNECT_FLOWS: Readonly<
     backs: ['made', 'installed'],
     publicBack: false,
     goes: ['github.com'],
+    pkce: false,
   },
   slack: {
     presses: ['make', 'keep', 'install'],
     backs: ['installed'],
     publicBack: true,
     goes: ['api.slack.com', 'slack.com'],
+    pkce: false,
+  },
+  // Linear allows `http://localhost` for a redirect, so with no public name
+  // connecting comes back to the door the press came in at, as GitHub's does;
+  // only its webhook needs the public name.
+  linear: {
+    presses: ['make', 'keep', 'install'],
+    backs: ['installed'],
+    publicBack: false,
+    goes: ['linear.app'],
+    pkce: true,
   },
 }
 
@@ -88,7 +106,8 @@ export function pressBefore(back: ConnectBack): ConnectPress {
  * What a press may carry, by name: an App's name and organisation for
  * GitHub's making, and for Slack what its Basic Information shows the person
  * and nothing hands over — the signing secret, the client's id and secret —
- * or, with no public name, the bot token its own install page shows.
+ * or, with no public name, the bot token its own install page shows; for
+ * Linear, its app's client id and its webhook's signing secret.
  */
 export const CONNECT_FIELDS = [
   'name',
@@ -489,6 +508,193 @@ function slackInstall(look: SlackLook, credentials: boolean, said: string | null
       ? 'Slack asks you to allow it in your workspace, then sends the browser back here and its token is kept'
       : 'once its client id and secret are kept: Slack asks you to allow it, then sends the browser back here',
     ...press,
+  }
+}
+
+/** What the page knows of Linear now. */
+export interface LinearLook {
+  /** This machine's public name, where it has one: where Linear can deliver. */
+  publicName: string | null
+  /**
+   * What of the app is kept in the config: its client id (a name, drawn), and
+   * whether the secret its webhook signs with and a refresh token are — and
+   * whether a personal API key is, which the watch reads with until an app is.
+   */
+  kept: { clientId: string | null; signingSecret: boolean; connected: boolean; key: boolean }
+  /**
+   * Who the app's token is, as Linear answers — the workspace and the person
+   * who allowed it — or why that could not be asked, `refused` where Linear
+   * said the token is no good; null where nothing is connected to ask with.
+   */
+  installed: { workspace: string; user: string } | { problem: string; refused: boolean } | null
+  /** When a delivery from Linear last verified here, and last did not. */
+  heard: { verified: number | null; refused: number | null }
+}
+
+/**
+ * Linear's page (REMOTE-TADE §6.3): make the app from a manifest, give this
+ * machine its client id — and its webhook's signing secret, where Linear can
+ * deliver — then connect it with OAuth and PKCE, and hear its deliveries.
+ *
+ * **Linear hands nothing back when the app is made**, so what its own page
+ * shows is pasted in (`keep`); **never the client secret**, which PKCE makes
+ * unneeded. Its deliveries are created for a workspace when somebody allows
+ * the app there, so they come after connecting, and only to a public name:
+ * Linear's webhook must be public HTTPS, while its redirect may be this
+ * machine's own door — so a laptop connects it too, and its watch polls.
+ */
+export function linearPage(look: LinearLook): ConnectPage {
+  const { kept } = look
+  const made = kept.clientId !== null || kept.connected
+  const delivers = look.publicName !== null
+  const working = look.installed !== null && 'workspace' in look.installed ? look.installed : null
+  const make: ConnectStep = {
+    id: 'make',
+    title: 'Make a Linear app',
+    done: made,
+    said: made
+      ? `made${kept.clientId === null ? '' : `: client ${kept.clientId} is kept here`} — a private app of your own workspace’s, which may only read`
+      : `one private app in your own workspace, made from a manifest: it may only read${
+          delivers
+            ? ', and Linear tells this machine when an issue changes'
+            : ', and with no public name here it is sent nothing, so its watch polls'
+        }${kept.key ? ' — until it is connected, the watch reads with the personal API key kept here' : ''}`,
+    press: {
+      act: 'make',
+      label: made ? 'Make another' : 'Make it on Linear',
+      replaces:
+        'Making another means keeping its client id here and connecting it again; the old app stays in your workspace until you delete it there.',
+    },
+  }
+  const pasted = kept.clientId !== null && (!delivers || kept.signingSecret)
+  const keep: ConnectStep = {
+    id: 'keep',
+    title: delivers
+      ? 'Give this machine its client id and signing secret'
+      : 'Give this machine its client id',
+    done: pasted,
+    said: pasted
+      ? `kept here: the client id connecting it takes${delivers ? ', and the secret Linear signs each delivery with' : ''}`
+      : `from the app’s page on Linear: its client ID, which connecting it takes${
+          delivers
+            ? ', and its webhook’s signing secret, so this machine can tell Linear’s deliveries from anybody else’s'
+            : ''
+        } — never its client secret, which connecting with a proof key does not need`,
+    press: {
+      act: 'keep',
+      label: `${kept.clientId !== null ? 'Replace' : 'Keep'} ${delivers ? 'them' : 'it'}`,
+      fields: [
+        { name: 'client_id', label: 'Client ID', secret: false, placeholder: kept.clientId ?? '' },
+        ...(delivers
+          ? [{ name: 'signing_secret' as const, label: 'Webhook signing secret', secret: true }]
+          : []),
+      ],
+    },
+  }
+  return {
+    source: 'linear',
+    title: CONNECT_TITLES.linear,
+    writes: 'Nothing it may do writes anything: Linear has no way back from Tade at all.',
+    steps: [make, keep, linearConnect(look, working), linearDeliveries(look, working !== null)],
+  }
+}
+
+/** Connecting it with OAuth and a proof key, which comes back to this machine and keeps a token it refreshes. */
+function linearConnect(
+  look: LinearLook,
+  working: { workspace: string; user: string } | null,
+): ConnectStep {
+  const title = 'Connect it to your workspace'
+  const press =
+    look.kept.clientId === null
+      ? {}
+      : {
+          press: {
+            act: 'install' as const,
+            label: look.kept.connected ? 'Connect it again' : 'Connect it on Linear',
+          },
+        }
+  if (working !== null) {
+    return {
+      id: 'install',
+      title,
+      done: true,
+      said: `connected to ${working.workspace || 'your workspace'}${working.user ? ` as ${working.user}` : ''}: turn on intake.linear with a team’s key and the label to read — this machine refreshes its token itself`,
+      ...press,
+    }
+  }
+  if (look.installed !== null && 'problem' in look.installed) {
+    return {
+      id: 'install',
+      title,
+      done: false,
+      said: look.installed.refused
+        ? `Linear no longer takes the token kept here (${look.installed.problem}): connect it again`
+        : `Linear could not be asked whether it is connected: ${look.installed.problem}`,
+      ...press,
+    }
+  }
+  return {
+    id: 'install',
+    title,
+    done: false,
+    said:
+      look.kept.clientId === null
+        ? 'once its client id is kept: Linear asks you to allow it, then sends the browser back here'
+        : 'Linear asks you to allow it to read your workspace, then sends the browser back here, and this machine keeps a token it refreshes itself',
+    ...press,
+  }
+}
+
+/**
+ * Whether Linear's deliveries verify here. **No quiet after a day**, as for
+ * Slack: Linear sends what changed in the teams the app can see, and a
+ * workspace nobody touched over a weekend is quiet, not broken — the poll
+ * beside it is what finds a delivery that was lost.
+ */
+function linearDeliveries(look: LinearLook, connected: boolean): ConnectStep {
+  const title = 'Deliveries arrive'
+  if (look.publicName === null) {
+    return {
+      id: 'deliveries',
+      title,
+      done: false,
+      said: 'this machine has no public name, so Linear cannot reach it — it delivers only to public HTTPS — and the watch polls every ten minutes: `tade host domain <name>` gives it one',
+    }
+  }
+  const address = `https://${look.publicName}/hooks/linear`
+  if (!look.kept.signingSecret) {
+    return {
+      id: 'deliveries',
+      title,
+      done: false,
+      said: `once its signing secret is kept: Linear delivers to ${address}, and each delivery is refused without it`,
+    }
+  }
+  const { verified, refused } = look.heard
+  if (refused !== null && (verified === null || refused > verified)) {
+    return {
+      id: 'deliveries',
+      title,
+      done: false,
+      said: 'the newest delivery did not verify: the signing secret kept here is not the app’s — keep it again from its page on Linear',
+    }
+  }
+  if (verified === null) {
+    return {
+      id: 'deliveries',
+      title,
+      done: false,
+      said: connected
+        ? `waiting for the first: Linear delivers to ${address} when an issue changes, and the watch polls hourly once one arrives`
+        : `once it is connected: Linear delivers to ${address} for the workspace that allowed it`,
+    }
+  }
+  return {
+    id: 'deliveries',
+    title,
+    done: true,
+    said: `verified, the last at ${new Date(verified).toISOString().slice(0, 16).replace('T', ' ')} UTC: a change makes the Linear watch look at once, and it polls hourly`,
   }
 }
 

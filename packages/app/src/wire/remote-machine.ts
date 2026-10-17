@@ -61,14 +61,15 @@ import type { AboutHeld } from '../machine-there.ts'
 // **And how connecting each source there stands** (`/api/connect`,
 // REMOTE-TADE §6.4), asked with the records — the same openings, the same Look
 // again — of a machine that said it has a public name, because that is where
-// GitHub and Slack can send a browser here back to. A press on one of its steps
+// each source can send a browser here back to. A press on one of its steps
 // asks that machine for the one-time word and the form (`connectPress`): this
 // window's browser cannot reach that machine's own `/connect`, whose link ends
 // in a socket no browser opens, so GitHub's form goes in a page in this home
-// that posts itself to GitHub, and Slack's address is opened as it is; either
-// sends the browser on to that machine's public name. What Slack's own page
-// shows the person — its secrets — is pasted at that machine's own page, never
-// carried here.
+// that posts itself to GitHub, and Slack's and Linear's addresses are opened as
+// they are; each sends the browser on to that machine's public name, and
+// Linear's proof key stays with the word on that machine. What Slack's and
+// Linear's own pages show the person — their secrets and ids — is pasted at
+// that machine's own page, never carried here.
 
 /** How long a linked remote goes before what it is, is asked again. */
 export const AGAIN_MS = 60_000

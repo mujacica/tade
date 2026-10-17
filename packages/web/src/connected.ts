@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import {
   CONNECT_FIELDS,
@@ -52,20 +52,27 @@ import type { Route } from './routes.ts'
 // `from` list asks anything. What it costs you is your own app's working,
 // which the page then says is broken.
 //
-// **What Slack's page shows the person and hands over no other way** — the
-// signing secret, the client's id and secret, or with no public name the bot
-// token — is pasted into the page and kept by its `keep` press: shape-checked
-// here (`KeepSchema`), written by the window's one write path, never answered
-// back and never drawn again.
+// **What a source's own page shows the person and hands over no other way** —
+// Slack's signing secret, its client's id and secret, or with no public name
+// its bot token; Linear's client id and its webhook's signing secret — is
+// pasted into the page and kept by its `keep` press: shape-checked here, per
+// source (`KEEP_SCHEMAS`), written by the window's one write path, never
+// answered back and never drawn again.
 //
-// **The callbacks are on the public name** (GitHub sends the browser there, and
-// Slack's and Linear's must be public HTTPS), and nothing but the word answers
-// them: one this machine minted at a press, for the host it is answered at,
-// within ten minutes, and burned at the first use — before the code is
-// exchanged, so a replay, a race and a failure all find nothing. A stranger who
-// reaches one has nothing to present, and is told there is nothing here. The
-// page that answers never shows a secret: it says what was made and what is
-// next.
+// **Where a source installs with a proof key** (`CONNECT_FLOWS.pkce`, Linear),
+// the press mints a verifier beside its word and sends the source only its
+// digest; the verifier stays in this window's memory with the word, and the
+// code that comes back is exchanged with it. A code that leaked — a browser's
+// history, a proxy's log — is worth nothing without it.
+//
+// **The callbacks are on the public name** where there is one (GitHub and
+// Linear send the browser there, and Slack's must be public HTTPS), and
+// nothing but the word answers them: one this machine minted at a press, for
+// the host it is answered at, within ten minutes, and burned at the first use
+// — before the code is exchanged, so a replay, a race and a failure all find
+// nothing. A stranger who reaches one has nothing to present, and is told
+// there is nothing here. The page that answers never shows a secret: it says
+// what was made and what is next.
 
 /** How many words may be outstanding at once: a page pressed again and again forgets its oldest. */
 export const STATES_HELD = 16
@@ -77,6 +84,8 @@ interface Minted {
   /** The `Host` the source will send the browser back to, exactly. */
   host: string
   until: number
+  /** The proof key's verifier, where the source installs with one: never sent anywhere but its exchange. */
+  verifier?: string
 }
 
 /**
@@ -104,18 +113,23 @@ export class ConnectStates {
 
   /**
    * Whether this word was minted for this source, press and host, and is still
-   * good — and it is burned whatever the answer, **before** anything is done
-   * with it, so a second try with the same word finds nothing.
+   * good — what it was minted with where it is, else null — and it is burned
+   * whatever the answer, **before** anything is done with it, so a second try
+   * with the same word finds nothing.
    */
-  take(state: string, what: Omit<Minted, 'until'>, now: number): boolean {
+  take(
+    state: string,
+    what: Omit<Minted, 'until' | 'verifier'>,
+    now: number,
+  ): { verifier: string | null } | null {
     const found = this.held.get(state)
     this.held.delete(state)
-    if (found === undefined || found.until <= now) return false
-    return (
+    if (found === undefined || found.until <= now) return null
+    const same =
       found.source === what.source &&
       found.press === what.press &&
       found.host.toLowerCase() === what.host.toLowerCase()
-    )
+    return same ? { verifier: found.verifier ?? null } : null
   }
 
   clear(): void {
@@ -147,12 +161,14 @@ export interface ConnectWant {
 
 /** What a source sending the browser back after an install brought with it. */
 export interface ConnectReturn {
-  /** The code to exchange, where the source sends one (Slack's OAuth); null where none came. */
+  /** The code to exchange, where the source sends one (Slack's OAuth, Linear's); null where none came. */
   code: string | null
   /** The source's own word for why it did not install, where it said one (`access_denied`). */
   error: string | null
   /** The address the browser came back to: what the code's exchange must name again. */
   home: string
+  /** The proof key's verifier the press minted with its word, where the source installs with one. */
+  verifier?: string | null
 }
 
 /** The window's half: what is true of a source now, and the things only it can do. */
@@ -171,9 +187,15 @@ export interface WebConnecting {
   form(source: ConnectSource, want: ConnectWant): ConnectForm
   /**
    * Where the browser goes to install it, carrying `state`, coming back to
-   * `home`; null where no app is kept to install.
+   * `home` — and, where the source installs with a proof key, the verifier's
+   * digest (`challenge`); null where no app is kept to install.
    */
-  installUrl(source: ConnectSource, state: string, home: string): string | null
+  installUrl(
+    source: ConnectSource,
+    state: string,
+    home: string,
+    challenge: string | null,
+  ): string | null
   /**
    * The code the source sent the browser back with, exchanged and kept through
    * the one write path: what was made, or why not — in Tade's words, never a
@@ -182,8 +204,8 @@ export interface WebConnecting {
   made(source: ConnectSource, code: string): Promise<{ name: string } | { problem: string }>
   /**
    * The source said it was installed: whatever holds what the page reads,
-   * reads again — and where it sent a code (Slack), the code exchanged for the
-   * token and kept. Where it is installed now (a workspace), or why not.
+   * reads again — and where it sent a code (Slack, Linear), the code exchanged
+   * for the token and kept. Where it is installed now (a workspace), or why not.
    */
   installed(
     source: ConnectSource,
@@ -245,12 +267,11 @@ export async function carryConnect(
   const query = queryOf(req.url ?? '/')
   const state = query.get('state') ?? ''
   const press: ConnectPress = route.back === 'made' ? 'make' : 'install'
-  if (!at.states.take(state, { source, press, host: at.host }, at.now)) {
-    return html(res, 404, nothingPage())
-  }
+  const minted = at.states.take(state, { source, press, host: at.host }, at.now)
+  if (minted === null) return html(res, 404, nothingPage())
   if (press === 'install') {
     // Where the browser came back to is where the code's exchange says it was
-    // sent, which Slack holds to the redirect its install was asked with.
+    // sent, which Slack and Linear hold to the redirect the install was asked with.
     const home =
       at.publicName !== null && at.publicName.toLowerCase() === at.host.toLowerCase()
         ? `https://${at.publicName}`
@@ -259,6 +280,7 @@ export async function carryConnect(
       code: query.get('code'),
       error: query.get('error'),
       home,
+      verifier: minted.verifier,
     })
     if ('problem' in installed) return html(res, 502, notInstalledPage(source, installed.problem))
     return html(res, 200, installedPage(source, installed.where))
@@ -270,9 +292,29 @@ export async function carryConnect(
   // The next press is offered on the same page, with a word of its own: the
   // browser that just made the app is the one that installs it, and the page
   // it came from is on a door it may not be at now (`here`).
-  const next = at.states.mint({ source, press: 'install', host: at.host }, at.now)
-  const install = connecting.installUrl(source, next, `https://${at.host}`)
+  const next = mintInstall(at, source, at.host)
+  const install = connecting.installUrl(source, next.state, `https://${at.host}`, next.challenge)
   return html(res, 200, madePage({ name: kept.name, install }))
+}
+
+/**
+ * A word for an install, for the host the source will send the browser back
+ * to — with a proof key's verifier beside it where the source installs with
+ * one (`CONNECT_FLOWS.pkce`), of which only the digest leaves this window.
+ */
+function mintInstall(
+  at: Pick<Connecting, 'states' | 'now'>,
+  source: ConnectSource,
+  host: string,
+): { state: string; challenge: string | null } {
+  if (!CONNECT_FLOWS[source].pkce) {
+    return { state: at.states.mint({ source, press: 'install', host }, at.now), challenge: null }
+  }
+  // 32 random bytes are 43 characters of base64url: the verifier OAuth's
+  // proof key asks for, from its unreserved alphabet.
+  const verifier = randomBytes(32).toString('base64url')
+  const state = at.states.mint({ source, press: 'install', host, verifier }, at.now)
+  return { state, challenge: createHash('sha256').update(verifier).digest('base64url') }
 }
 
 /** What a press may carry: making an app under an organisation, and its name. Nothing else. */
@@ -287,13 +329,8 @@ export const PressSchema = z.strictObject({
     .optional(),
 })
 
-/**
- * What a `keep` press may carry, each held to its shape here so a paste into
- * the wrong box is said before anything is written: Slack's signing secret and
- * client secret are letters and digits, its client id two numbers with a dot,
- * a bot token `xoxb-`. Only these, and none of them answered back.
- */
-export const KeepSchema = z.strictObject({
+/** What Slack's `keep` may carry: see `KEEP_SCHEMAS`. */
+const SlackKeepSchema = z.strictObject({
   signing_secret: z
     .string()
     .trim()
@@ -316,14 +353,50 @@ export const KeepSchema = z.strictObject({
     .optional(),
 }) satisfies z.ZodType<Partial<Record<ConnectFieldName, string>>>
 
-/** What each box should have held, said where a paste was not that. */
-const KEEP_SHAPES: Readonly<Record<ConnectFieldName, string>> = {
-  name: 'a name',
-  organisation: 'an organisation',
-  signing_secret: 'the Signing Secret is the letters and digits under App Credentials',
-  client_id: 'the Client ID is two numbers with a dot between, under App Credentials',
-  client_secret: 'the Client Secret is the letters and digits under App Credentials',
-  token: 'the Bot User OAuth Token starts xoxb-, on the app’s Install App page',
+/** What Linear's `keep` may carry: see `KEEP_SCHEMAS`. Never a client secret, which it does not need. */
+const LinearKeepSchema = z.strictObject({
+  client_id: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9]{16,128}$/)
+    .optional(),
+  signing_secret: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9_-]{16,256}$/)
+    .optional(),
+}) satisfies z.ZodType<Partial<Record<ConnectFieldName, string>>>
+
+/**
+ * What a `keep` press may carry, per source, each held to its shape here so a
+ * paste into the wrong box is said before anything is written. Slack's signing
+ * secret and client secret are letters and digits, its client id two numbers
+ * with a dot, a bot token `xoxb-`; Linear's client id is letters and digits,
+ * and its webhook's signing secret may carry Linear's own `_` and `-` — so a
+ * `lin_…` key pasted as the client id is refused. Only these, and none of
+ * them answered back; a source that hands its app over itself takes nothing.
+ */
+export const KEEP_SCHEMAS: Readonly<
+  Record<ConnectSource, z.ZodType<Partial<Record<ConnectFieldName, string>>> | null>
+> = {
+  github: null,
+  slack: SlackKeepSchema,
+  linear: LinearKeepSchema,
+}
+
+/** What each box should have held, per source, said where a paste was not that. */
+const KEEP_SHAPES: Readonly<Record<ConnectSource, Partial<Record<ConnectFieldName, string>>>> = {
+  github: {},
+  slack: {
+    signing_secret: 'the Signing Secret is the letters and digits under App Credentials',
+    client_id: 'the Client ID is two numbers with a dot between, under App Credentials',
+    client_secret: 'the Client Secret is the letters and digits under App Credentials',
+    token: 'the Bot User OAuth Token starts xoxb-, on the app’s Install App page',
+  },
+  linear: {
+    client_id: 'the Client ID is the letters and digits on the app’s page in Linear’s API settings',
+    signing_secret: 'the webhook’s signing secret is on the same page, under Webhooks',
+  },
 }
 
 /**
@@ -340,14 +413,19 @@ async function keptFrom(
     const refusal = refuse('malformed')
     return { refusal, said: { error: refusal.error, said } }
   }
-  if (!CONNECT_FLOWS[source].presses.includes('keep')) return no('there is nothing to keep here')
-  const read = KeepSchema.safeParse(dropEmpty(body))
+  const schema = KEEP_SCHEMAS[source]
+  if (!CONNECT_FLOWS[source].presses.includes('keep') || schema === null) {
+    return no('there is nothing to keep here')
+  }
+  const read = schema.safeParse(dropEmpty(body))
   if (!read.success) {
     const box = read.error.issues[0]?.path[0]
-    return no(
+    const shape =
       typeof box === 'string' && (CONNECT_FIELDS as readonly string[]).includes(box)
-        ? `that is not it: ${KEEP_SHAPES[box as ConnectFieldName]}`
-        : 'only what the page asks for may be kept',
+        ? KEEP_SHAPES[source][box as ConnectFieldName]
+        : undefined
+    return no(
+      shape === undefined ? 'only what the page asks for may be kept' : `that is not it: ${shape}`,
     )
   }
   const fields = read.data
@@ -398,9 +476,9 @@ export function pressed(
       },
     }
   }
-  const state = returns ? at.states.mint({ source, press, host: back }, at.now) : ''
   if (press === 'install') {
-    const url = connecting.installUrl(source, state, home)
+    const minted = mintInstall(at, source, back)
+    const url = connecting.installUrl(source, minted.state, home, minted.challenge)
     if (url === null) {
       const refusal = refuse('no_such')
       return {
@@ -410,6 +488,7 @@ export function pressed(
     }
     return { form: { url } }
   }
+  const state = returns ? at.states.mint({ source, press, host: back }, at.now) : ''
   const form = connecting.form(source, {
     home,
     hook: at.publicName === null ? null : `${home}/hooks/${source}`,

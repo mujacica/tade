@@ -31,8 +31,9 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
 | `packages/core/src/hooks.ts` | the doorbell: `HOOK_SOURCES`, `HOOK_SECRETS`, `HookAddress`, `WatchDoorbell`/`doorbellRings`, the `hook_rung` line (`HookRung`, `rungFrom`), and the hourly poll (`Bell`, `bellStands`, `bellWhen`, `bellDue`, `bellSaid`) |
 | `packages/web/src/hooks.ts` · `hooked.ts` | each source's signature over the raw body and its window, the address (`checkDelivery`); the door's order — rate, cap, signature, ring, `200`, wake (`HookDoor`) |
 | `packages/app/src/wire/doorbell.ts` | the window's half: the secret, which schedules a delivery is for (`doorbellFor`), waking them (`Schedules.wake`) |
-| `packages/core/src/connect.ts` · `forge-apps.ts` | connecting a source step by step: `CONNECT_SOURCES`, `CONNECT_FLOWS` (each source's presses and callbacks), `githubPage` and `slackPage` (folds over `GithubLook`, `SlackLook`), `CONNECT_IS_HERE`; where a GitHub App's keys are kept (`GITHUB_APP`, `appsKept`) |
-| `packages/web/src/connected.ts` · `connect-page.ts` · `packages/app/src/wire/web-connect.ts` | the pages, the presses (`keep` and `KeepSchema` for what a source's own page shows the person) and the one-time words; their HTML; the window's half, which asks the forge or the Slack door and keeps what comes back through `writeKey` |
+| `packages/core/src/connect.ts` · `forge-apps.ts` | connecting a source step by step: `CONNECT_SOURCES`, `CONNECT_FLOWS` (each source's presses and callbacks, and whether it installs with a proof key), `githubPage`, `slackPage` and `linearPage` (folds over `GithubLook`, `SlackLook`, `LinearLook`), `CONNECT_IS_HERE`; where a GitHub App's keys are kept (`GITHUB_APP`, `appsKept`) |
+| `packages/web/src/connected.ts` · `connect-page.ts` · `packages/app/src/wire/web-connect.ts` | the pages, the presses (`keep` and `KEEP_SCHEMAS` for what a source's own page shows the person) and the one-time words with their PKCE verifiers (`mintInstall`); their HTML; the window's half, which asks the forge or the source's door and keeps what comes back through `writeKey` |
+| `packages/extensions/intake/src/linear-app.ts` · `packages/app/src/wire/linear-tokens.ts` | the app Connect Linear makes (`LINEAR_APP`, the manifest, `linearAuthorizeUrl`, `linearInstalled`, `linearRefreshed`, `linearWho`); the window holding its tokens (`LinearTokens`), lent to every extension as `ctx.connected` (`useConnected`) |
 | `packages/extensions/intake/src/slack*.ts` | the Slack door: the methods it needs (`slack-api.ts`, `oauth.v2.access` among them), the pure half that reads a message as an envelope (`slack-message.ts`), the watch, and the app Connect Slack makes (`slack-app.ts`: `SLACK_APP`, the manifest, `slackInstallUrl`, `slackInstalled`) |
 | `test/fixtures/slack/` | a Slack that answers from a file: `auth.test`, cursors, `has_more`, a 429 with a `Retry-After`, an edit, a deletion, metadata, a reaction already there |
 | `packages/forges/core/src/tickets.ts` | the things people *file*: `Ticket`, `Labelling`, `TicketQuery`, `capabilities.tickets` |
@@ -418,8 +419,7 @@ anything**: it lets the forge read as the app and makes the doorbell ring, and `
   last, so a window that dies halfway keeps no old id beside a new key. What the source hands over
   and Tade does not use (an OAuth client's id and secret) is not kept.
 - **GitHub's App is read-only for good**, made with the webhook and its events only where a public
-  name gives it an address; without one it is made with none and its watches poll. Linear (V16)
-  joins `CONNECT_SOURCES` when it is built, never before.
+  name gives it an address; without one it is made with none and its watches poll.
 - **A source says what its page may be asked** (`CONNECT_FLOWS`): its presses, each a route; its
   callbacks, each answered only for a word a press minted — and a press nothing comes back from
   mints none; whether the source sends a browser back only to a public name (`publicBack`); and the
@@ -436,9 +436,30 @@ anything**: it lets the forge read as the app and makes the doorbell ring, and `
   app is made with no address and installed from its own page, its token kept by `keep`, and the
   watch polls. **Socket Mode is not built** — it would be a socket the window holds open — so a
   laptop sees an in-thread mention only where it was also sent to the channel.
+- **Linear's app is a private OAuth app of the person's workspace**, made from a manifest
+  (`linear-app.ts`, schema `1.0.0`) that may only `read` and, where a public name gives it one,
+  subscribes its webhook to what rings the watch (`linearEvents`, read off `doorbell`). **Linear
+  hands nothing back when it is made**, so its client id — and with a public name its webhook's
+  signing secret — is pasted into `keep`. **Never its client secret**: connecting is OAuth with a
+  proof key (`CONNECT_FLOWS.pkce`), and with PKCE Linear takes neither the code's exchange nor a
+  refresh with one, so it is never asked for or kept. Its redirect may be `http://localhost`, so a
+  machine with no public name connects it too (`publicBack: false`) and its watch polls.
+- **A token that replaces itself is the window's to hold** (`LinearTokens`): Linear's access
+  token lasts a day and each refresh spends the refresh token for the next, so whatever refreshes
+  must write, and only the window writes. The watch asks `ctx.connected('linear')`, the host asks
+  the window (`useConnected`, `lending`), and the window refreshes near the end — **one refresh at
+  a time** (two would spend one token twice), the new refresh token written through `writeKey` as
+  `linear refresh`, the access token never written anywhere. A connection made again drops a
+  refresh in flight (`generation`); a write that failed is said once and retried at the next ask,
+  and Linear's thirty-minute grace saves a window that died in between. With a connected app the
+  watch reads with it and not the personal key; a connected app Linear refused is said, never
+  papered over with the key. A command with no window lends nothing, so it reads with the key.
+- **What `writeKey` keeps for an extension, the extensions have at once**: a key under
+  `extensions.` is handed to the host (`reconfigure`, which also moves what `ctx.apps` reads), so a
+  token or an App kept by a connect page is read with on the next look, not after a restart.
 - **Another machine's window never carries what is pasted.** `/api/connect` takes `make` and
-  `install`, never `keep`: Settings › Remotes draws Slack's steps and opens Slack's own pages, and
-  says the secrets go in at that machine's own page, through `ssh -L`.
+  `install`, never `keep`: Settings › Remotes draws Slack's and Linear's steps and opens their own
+  pages, and says the secrets go in at that machine's own page, through `ssh -L`.
 
 ## What not to build
 

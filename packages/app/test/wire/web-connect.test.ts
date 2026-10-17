@@ -3,7 +3,13 @@ import { type Config, ConfigSchema } from '@tade/core'
 import { forgeOnHost } from '@tade/status'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { githubReplay, type ReplayOptions } from '../../../../test/fixtures/forge/github.ts'
+import {
+  challengeOf,
+  type LinearScript,
+  linearScript,
+} from '../../../../test/fixtures/linear/linear.ts'
 import { type SlackScript, slackScript } from '../../../../test/fixtures/slack/slack.ts'
+import { LINEAR_CONNECTED_BY } from '../../src/wire/linear-tokens.ts'
 import { CONNECTED_BY, connectingFor, SLACK_CONNECTED_BY } from '../../src/wire/web-connect.ts'
 
 // The window's half of connecting GitHub (REMOTE-TADE §6.4): what the page
@@ -51,6 +57,7 @@ function window(
     replay?: ReplayOptions
     heard?: { verified: number | null; refused: number | null }
     slack?: SlackScript
+    linear?: LinearScript
     env?: Record<string, string>
   } = {},
 ) {
@@ -91,6 +98,7 @@ function window(
     now: () => NOW,
     env: over.env ?? {},
     ...(over.slack === undefined ? {} : { fetch: over.slack.fetch }),
+    ...(over.linear === undefined ? {} : { fetch: over.linear.fetch }),
     forge: (apps) =>
       forgeOnHost('github.com', { exec: replay.exec, fetch: replay.fetch, env: {}, apps }),
   })
@@ -209,9 +217,9 @@ describe('keeping what GitHub made', () => {
   })
 
   it('says where the browser goes to install it, carrying the word, once a slug is kept', () => {
-    expect(window().half.installUrl('github', 's', 'https://x')).toBeNull()
+    expect(window().half.installUrl('github', 's', 'https://x', null)).toBeNull()
     const { half } = window({ intake: { github_app_slug: 'tade-vps' } })
-    expect(half.installUrl('github', 's-1', 'https://x')).toBe(
+    expect(half.installUrl('github', 's-1', 'https://x', null)).toBe(
       'https://github.com/apps/tade-vps/installations/new?state=s-1',
     )
   })
@@ -302,9 +310,9 @@ describe('connecting Slack, as the window does it', () => {
   })
 
   it('installs with OAuth to the public name only once the client is kept', () => {
-    expect(window().half.installUrl('slack', 's', 'https://tade.example.com')).toBeNull()
+    expect(window().half.installUrl('slack', 's', 'https://tade.example.com', null)).toBeNull()
     const { half } = window({ intake: kept })
-    const url = new URL(half.installUrl('slack', 's-1', 'https://tade.example.com') ?? '')
+    const url = new URL(half.installUrl('slack', 's-1', 'https://tade.example.com', null) ?? '')
     expect(url.searchParams.get('client_id')).toBe('1234.5678')
     expect(url.searchParams.get('redirect_uri')).toBe(install.redirect)
     expect(url.searchParams.get('state')).toBe('s-1')
@@ -358,5 +366,160 @@ describe('connecting Slack, as the window does it', () => {
     const { half } = window({ intake: { ...kept, slack_token: 'xoxb-revoked-long' }, slack })
     const { page } = await half.page('slack')
     expect(page.steps.find((one) => one.id === 'install')?.said).toContain('no longer good')
+  })
+})
+
+describe('connecting Linear, as the window does it', () => {
+  // Everything about Linear is asked of the Linear door over its one client
+  // (`@tade/extension-intake`'s `linear-app.ts`), against a Linear that answers
+  // from a file and checks a code's verifier and redirect, and every `Bearer`
+  // token, as Linear does; its tokens are the window's holder's
+  // (`linear-tokens.ts`), one of its own here.
+  const CLIENT = 'a1b2c3d4e5f6a7b8c9d0a1b2c3d4e5f6'
+  const SIGNING = 'lin_wh_abcdefghijklmnopqrstuvwxyz0123456789'
+  const VERIFIER = 'v'.repeat(43)
+  const HOME = 'https://tade.example.com'
+  const oauth = (over: Record<string, { challenge: string; redirect: string }> = {}) =>
+    linearScript({
+      base: 0,
+      oauth: {
+        clientId: CLIENT,
+        codes: {
+          c0de: { challenge: challengeOf(VERIFIER), redirect: `${HOME}/connect/linear/installed` },
+          ...over,
+        },
+        workspace: 'Acme',
+        user: 'kim',
+      },
+    })
+
+  it('starts at making the app, says what it asks Linear for, and asks Linear nothing', async () => {
+    const linear = oauth()
+    const { half } = window({ linear })
+    const { page, asks, events } = await half.page('linear')
+    expect(page.steps.map((one) => [one.id, one.done])).toEqual([
+      ['make', false],
+      ['keep', false],
+      ['install', false],
+      ['deliveries', false],
+    ])
+    expect(asks.map((one) => one.what)).toEqual(['read'])
+    expect(events).toEqual(['Issue', 'Comment'])
+    expect(linear.calls).toEqual([])
+    expect(linear.oauth?.calls).toEqual([])
+  })
+
+  it('makes the app from a manifest with the doorbell’s address, or with none', () => {
+    const { half } = window({ linear: oauth() })
+    const want = {
+      home: HOME,
+      hook: `${HOME}/hooks/linear`,
+      made: '',
+      installed: '',
+      state: '',
+      name: 'Tade vps',
+    }
+    const manifest = (url: string) =>
+      JSON.parse(new URL(url).searchParams.get('manifest') ?? '{}') as {
+        webhook?: { url: string }
+        oauth: { redirect_uris: string[] }
+      }
+    expect(manifest(half.form('linear', want).url).webhook?.url).toBe(want.hook)
+    const none = manifest(
+      half.form('linear', { ...want, hook: null, home: 'http://localhost:1' }).url,
+    )
+    expect(none).not.toHaveProperty('webhook')
+    expect(none.oauth.redirect_uris).toEqual(['http://localhost:1/connect/linear/installed'])
+  })
+
+  it('keeps the client id and the signing secret, each as connecting Linear, the secret said as set', async () => {
+    const { half, wrote, config } = window({ linear: oauth() })
+    expect(await half.keep('linear', { client_id: CLIENT, signing_secret: SIGNING })).toEqual({
+      kept: ['the client id', 'the webhook’s signing secret'],
+    })
+    expect(wrote.map((one) => [one.key, one.was, one.by])).toEqual([
+      ['extensions.intake.linear_client_id', '', LINEAR_CONNECTED_BY],
+      ['extensions.intake.linear_webhook_secret', 'not set', LINEAR_CONNECTED_BY],
+    ])
+    expect(config().extensions.intake).toMatchObject({
+      linear_client_id: CLIENT,
+      linear_webhook_secret: SIGNING,
+    })
+    // What Slack's page takes is not Linear's to keep.
+    expect(await half.keep('linear', { token: 'xoxb-1-2-3' })).toEqual({
+      problem: 'nothing was pasted that Linear’s page asks for',
+    })
+  })
+
+  it('connects only with a proof key, once the client id is kept', () => {
+    expect(window().half.installUrl('linear', 's', HOME, 'c')).toBeNull()
+    const { half } = window({ intake: { linear_client_id: CLIENT } })
+    expect(half.installUrl('linear', 's', HOME, null)).toBeNull()
+    const url = new URL(half.installUrl('linear', 's-1', HOME, 'chal') ?? '')
+    expect(url.searchParams.get('client_id')).toBe(CLIENT)
+    expect(url.searchParams.get('code_challenge')).toBe('chal')
+    expect(url.searchParams.get('redirect_uri')).toBe(`${HOME}/connect/linear/installed`)
+  })
+
+  it('exchanges the code with its verifier, keeps the refresh token, and then reads as connected', async () => {
+    const linear = oauth()
+    const { half, wrote, config } = window({ intake: { linear_client_id: CLIENT }, linear })
+    const back = { code: 'c0de', error: null, home: HOME, verifier: VERIFIER }
+    expect(await half.installed('linear', back)).toEqual({ where: 'Acme' })
+    expect(wrote).toEqual([
+      {
+        key: 'extensions.intake.linear_refresh_token',
+        value: 'lin_refresh_1',
+        was: 'not set',
+        by: LINEAR_CONNECTED_BY,
+      },
+    ])
+    // The access token is held in this window, never written.
+    expect(JSON.stringify(config())).not.toContain('lin_oauth_access')
+    const { page } = await half.page('linear')
+    const step = page.steps.find((one) => one.id === 'install')
+    expect(step?.done).toBe(true)
+    expect(step?.said).toContain('connected to Acme as kim')
+    // Read with the token it was just handed: no refresh.
+    expect(linear.oauth?.calls.map((one) => one.form.grant_type)).toEqual(['authorization_code'])
+  })
+
+  it('keeps nothing where Linear said no, a code came with no verifier, or Linear would not take it', async () => {
+    const linear = oauth()
+    const { half, wrote } = window({ intake: { linear_client_id: CLIENT }, linear })
+    const at = { home: HOME, verifier: VERIFIER }
+    expect(await half.installed('linear', { ...at, code: null, error: 'access_denied' })).toEqual({
+      problem: expect.stringContaining('access_denied'),
+    })
+    expect(
+      await half.installed('linear', { ...at, code: 'c0de', error: null, verifier: null }),
+    ).toEqual({ problem: expect.stringContaining('no proof key') })
+    expect(
+      await half.installed('linear', {
+        ...at,
+        code: 'c0de',
+        error: null,
+        verifier: 'w'.repeat(43),
+      }),
+    ).toEqual({ problem: expect.stringContaining('invalid_grant') })
+    expect(await half.installed('linear', { ...at, code: null, error: null })).toEqual({
+      problem: expect.stringContaining('no code'),
+    })
+    expect(
+      await half.installed('linear', { ...at, code: null, error: '<script>alert(1)</script>' }),
+    ).toEqual({ problem: expect.not.stringContaining('<script>') })
+    expect(wrote).toEqual([])
+  })
+
+  it('says a refresh token Linear no longer takes is to be connected again', async () => {
+    const linear = oauth()
+    const { half } = window({
+      intake: { linear_client_id: CLIENT, linear_refresh_token: 'lin_refresh_spent' },
+      linear,
+    })
+    const { page } = await half.page('linear')
+    const step = page.steps.find((one) => one.id === 'install')
+    expect(step?.done).toBe(false)
+    expect(step?.said).toContain('connect it again')
   })
 })

@@ -47,9 +47,10 @@ import type { Template } from './templates.ts'
  * command and not a chat: there is no listener and no socket, so Tade notices a
  * mention on its own clock rather than answering one, and nothing anywhere may
  * describe it as the other thing. `linear` is **one team's labelled issues,
- * polled over GraphQL** — not Linear's Agent Interaction, which needs a public
- * HTTPS endpoint answering inside five seconds and is therefore a thing a
- * laptop cannot promise (`INTAKE_NOT_SUPPORTED`).
+ * read over GraphQL** on a clock, or at once where the Linear app delivers to
+ * a public name — not Linear's agents, which must answer every session inside
+ * seconds, are a Developer Preview, and are a later stage of their own
+ * (`INTAKE_NOT_SUPPORTED`).
  *
  * **Jira is not in this list and is not a source that exists.** That is the
  * list's whole job: a name here with nothing implementing it would be a grant

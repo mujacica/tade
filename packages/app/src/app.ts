@@ -47,6 +47,7 @@ import { Images } from './wire/images.ts'
 import { Intake } from './wire/intake.ts'
 import { Keyboard } from './wire/keyboard.ts'
 import { Lanes } from './wire/lanes.ts'
+import { LinearTokens, lending } from './wire/linear-tokens.ts'
 import { Looks, slowLook } from './wire/looks.ts'
 import { Machine } from './wire/machine.ts'
 import { Mouse } from './wire/mouse.ts'
@@ -116,6 +117,8 @@ export class App {
   private readonly images: Images
   /** The Settings page, and the one path a setting is written by. */
   private readonly settings: Settings
+  /** The Linear app's tokens, refreshed when a look or the connect page asks. */
+  private readonly linear: LinearTokens
   /** Who the agents run as, and the terminal a command is watched in. */
   private readonly machine: Machine
   /** What Tade runs and whether it is current: the Updates page, the check, the chip, the run. */
@@ -251,6 +254,15 @@ export class App {
       holdSleep: () => this.awake.apply(),
       away: () => this.away,
     })
+    // Held here rather than by the away view, which may be off: the watches
+    // read with it whether or not anything serves /connect.
+    this.linear = new LinearTokens({
+      config: () => this.wire.opts.config,
+      settings: this.settings,
+      now: () => this.now(),
+      told: (said) => this.orchestrator.note(said),
+    })
+    this.wire.opts.extensions?.useConnected(lending(this.linear))
     this.awake = new Awake(
       this.wire,
       { keep: (on) => this.settings.writeKey('agents.keep_awake', on || undefined, String(!on)) },
@@ -279,6 +291,7 @@ export class App {
       lifecycle: { agents: () => this.agents, projects: () => this.projects },
       copy: (text) => copyText(text, (data) => this.terminal.write(data)),
       doorbell: { wake: (id, item) => this.schedules.wake(id, item) },
+      linear: this.linear,
     })
     this.remotes = remotesFor(this.wire, {
       orchestrator: () => this.orchestrator,

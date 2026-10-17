@@ -22,18 +22,22 @@ import {
 // One Linear team's labelled issues, as work that arrives from outside this
 // machine.
 //
-// **It is polled, and nothing anywhere may call it an agent.** Linear has a
+// **It is a look, and nothing anywhere may call it an agent.** Linear has a
 // genuinely nicer intake than this — an app user you @-mention or assign, which
 // answers in a thread — and it is **not what this is**, is not a slower version
-// of it, and is not half-built here. It needs a publicly accessible HTTPS,
-// non-localhost URL that answers a webhook inside 5 seconds and sends a first
-// activity inside 10, with retries after 1 minute, 1 hour and 6 hours and the
-// webhook disabled after that. Three of those are promises about a machine
-// being awake, and a laptop cannot make them. So there is no listener, no
-// webhook, no public hostname and no signature verification in this file, and
-// `INTAKE_NOT_SUPPORTED` says so where somebody is deciding. **Jira is not here
-// at all** for the same reason plus one of its own, and is likewise not a
-// switch somebody has to find.
+// of it, and is not half-built here: it must send a first activity inside 10
+// seconds of every session, its API is a Developer Preview, and subscribing
+// shows the agent to the whole workspace at once, so it is a later stage and a
+// switch of its own (REMOTE-TADE §6.3, V17), and `INTAKE_NOT_SUPPORTED` says
+// so where somebody is deciding. **Jira is not here at all**, and is likewise
+// not a switch somebody has to find.
+//
+// What a public name changes is how soon it looks, never what it reads: where
+// the app Connect Linear makes (`linear-app.ts`) delivers to this machine, a
+// delivery to `/hooks/linear` is a doorbell (`doorbell` below) that makes this
+// watch look now, and the poll slows to hourly. There is still no listener, no
+// webhook and no signature in this file — those are the away view's — and the
+// look reads Linear exactly as it does on a clock.
 //
 // What is here is the two things a connector has to answer for itself: asking
 // Linear, and saying what came back. What selects an issue, who asked, and what
@@ -86,7 +90,11 @@ import {
 // the sweep and is said; it is never slept through, because a look has the
 // window's deadline and Linear reports a reset rather than a delay.
 
-/** Where the key is read from. `ctx.secret`, so the environment wins. */
+/**
+ * Where the personal API key is read from. `ctx.secret`, so the environment
+ * wins — and read only where no app Connect Linear made is connected, which
+ * reads with its own token (`apiFor`).
+ */
 export const LINEAR_KEY = 'linear_key'
 
 /**
@@ -159,36 +167,56 @@ function selectorOf(ctx: WatchContext): { team: string; label: string } {
   return { team, label }
 }
 
-function apiFor(ctx: WatchContext): LinearApi {
+/** What a look reads with, and which of the two it is: the connected app's token, or a key. */
+interface Reading {
+  api: LinearApi
+  as: 'app' | 'key'
+}
+
+/**
+ * What this look reads Linear with: **the app Connect Linear made, where one
+ * is connected** — its day-long token, which the window refreshes and whose
+ * rotated refresh token it keeps (`ctx.connected`) — else the personal API
+ * key. A connected app Linear refused is said, never papered over with the
+ * key: it is a connection somebody made, and is broken.
+ */
+async function apiFor(ctx: WatchContext): Promise<Reading> {
+  const from = { fetch: ctx.fetch, signal: ctx.signal }
+  const token = (await ctx.connected?.('linear')) ?? null
+  if (token !== null) return { api: new LinearApi({ token }, from), as: 'app' }
   const key = ctx.secret(LINEAR_KEY)?.value.trim() ?? ''
   if (!key) {
     throw new Error(
-      `intake.linear needs a Linear personal API key: $LINEAR_API_KEY, or extensions.intake.${LINEAR_KEY} in config.yaml`,
+      `intake.linear needs Linear connected — the app made at /connect on this machine — or a personal API key: $LINEAR_API_KEY, or extensions.intake.${LINEAR_KEY} in config.yaml`,
     )
   }
-  return new LinearApi(key, { fetch: ctx.fetch, signal: ctx.signal })
+  return { api: new LinearApi({ key }, from), as: 'key' }
 }
 
 /**
  * A failure said in words somebody can act on.
  *
  * `Unreachable` is the api's own and is already thrown where nothing came back.
- * These three are the setup mistakes a Linear key makes once each, and each
- * carries its own fix rather than Linear's one-line message.
+ * These three are the setup mistakes a Linear key or app makes once each, and
+ * each carries its own fix rather than Linear's one-line message.
  */
-function asLookFailed(err: unknown, team: string): unknown {
+function asLookFailed(err: unknown, team: string, as: Reading['as']): unknown {
   if (!(err instanceof LinearError)) return err
   if (err.trouble === 'auth') {
     return new Error(
-      `${err.message}: check the key is a personal API key and is sent as it is — Linear takes a key in Authorization with no "Bearer", which is the opposite of its OAuth tokens`,
+      as === 'app'
+        ? `${err.message}: Linear no longer takes the app's token — connect Linear again at /connect`
+        : `${err.message}: check the key is a personal API key and is sent as it is — Linear takes a key in Authorization with no "Bearer", which is the opposite of its OAuth tokens`,
     )
   }
   if (err.trouble === 'forbidden') {
-    return new Error(`${err.message}: this key may not read ${team}, or it is another workspace's`)
+    return new Error(
+      `${err.message}: this ${as === 'app' ? 'app' : 'key'} may not read ${team}, or it is another workspace's`,
+    )
   }
   if (err.trouble === 'ratelimited') {
     return new Error(
-      `${err.message}: a personal API key gets 2,500 requests and 3,000,000 complexity points an hour${resetIn(err.resetsAt)}`,
+      `${err.message}: ${as === 'app' ? 'an OAuth app gets 5,000 requests and 2,000,000' : 'a personal API key gets 2,500 requests and 3,000,000'} complexity points an hour${resetIn(err.resetsAt)}`,
     )
   }
   return err
@@ -210,7 +238,7 @@ export const linearIssues: ExtensionWatch = {
   id: 'linear',
   title: 'Linear issues somebody labelled for Tade',
   means:
-    'reads one Linear team every ten minutes and takes in each open issue carrying the label you name, where somebody on the list in surfaces.intake applied that label — as far as that grant allows it. It notices a labelled issue rather than answering one: there is no @-mention, no assignment and no agent session, and nothing is ever posted back',
+    'reads one Linear team every ten minutes — or at once, where the app Connect Linear makes delivers to this machine’s public name — and takes in each open issue carrying the label you name, where somebody on the list in surfaces.intake applied that label — as far as that grant allows it. It notices a labelled issue rather than answering one: there is no @-mention, no assignment and no agent session, and nothing is ever posted back',
   // Ten minutes, the same as the GitHub door, and for the same reason: this is
   // about how soon somebody wants an answer rather than about a budget. Two
   // requests a look is nothing against 2,500 an hour.
@@ -229,7 +257,7 @@ export const linearIssues: ExtensionWatch = {
 
   async check(ctx) {
     const select = selectorOf(ctx)
-    const api = apiFor(ctx)
+    const { api, as } = await apiFor(ctx)
     const seenAt = new Date(ctx.now()).toISOString()
     // Where the last look left off, as an ISO instant, which the filter uses
     // **inclusively** (`gte`): the issue a look ended on is read again rather
@@ -271,7 +299,7 @@ export const linearIssues: ExtensionWatch = {
           limited = { resetsAt: err.resetsAt }
           break
         }
-        throw asLookFailed(err, select.team)
+        throw asLookFailed(err, select.team, as)
       }
       pages += 1
       read.push(...page.issues)
@@ -411,7 +439,7 @@ export const linearIssues: ExtensionWatch = {
       }
     }
     const select = selectorOf(ctx)
-    const api = apiFor(ctx)
+    const { api, as } = await apiFor(ctx)
     let issue: LinearIssue | null
     try {
       issue = await api.issue({
@@ -430,7 +458,7 @@ export const linearIssues: ExtensionWatch = {
       // Everything else throws: a rate limit, a 500 and an outage are not "no
       // longer stands", and the start door turns a throw into a hold that says
       // the source could not be asked.
-      throw asLookFailed(err, team)
+      throw asLookFailed(err, team, as)
     }
     if (!issue) {
       // The filter asks for an open, labelled issue in this team, so an empty

@@ -278,7 +278,8 @@ class Far implements FarEnd {
       connecting: {
         page: (source) => this.connected().page(source),
         form: (source, want) => this.connected().form(source, want),
-        installUrl: (source, state, home) => this.connected().installUrl(source, state, home),
+        installUrl: (source, state, home, challenge) =>
+          this.connected().installUrl(source, state, home, challenge),
         made: (source, code) => this.connected().made(source, code),
         installed: (source, back) => this.connected().installed(source, back),
         keep: (source, fields) => this.connected().keep(source, fields),

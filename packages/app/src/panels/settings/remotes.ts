@@ -541,11 +541,12 @@ function publicLines(
 
 /**
  * Connecting one source on that machine, as its own page folds it
- * (`githubPage`, `slackPage`): a line, then each step ticked or not with what
- * it says, and the one press a step offers under it — which asks that machine
- * for the word and opens the source in this machine's browser. A step whose
- * press takes what the source's own page shows the person says where that
- * goes in instead: that machine's own page. Always as of when it said it.
+ * (`githubPage`, `slackPage`, `linearPage`): a line, then each step ticked or
+ * not with what it says, and the one press a step offers under it — which
+ * asks that machine for the word and opens the source in this machine's
+ * browser. A step whose press takes what the source's own page shows the
+ * person says where that goes in instead: that machine's own page. Always as
+ * of when it said it.
  */
 function connecting(
   remote: RemoteShown,

@@ -11,9 +11,9 @@ import { CONNECT_IS_HERE, CONNECT_TITLES, type ConnectPage, type ConnectSource }
 // content policy of its own (`PAGE_CSP`): its one script and its one stylesheet
 // named by their digests, nothing fetched but this origin, and the one place a
 // form may post being GitHub, which is where making an App happens. Slack's
-// presses are addresses the browser goes to, and its `keep` a `fetch` to this
-// origin carrying what the person pasted, which the page clears and never
-// draws back.
+// and Linear's presses are addresses the browser goes to, and their `keep` a
+// `fetch` to this origin carrying what the person pasted, which the page
+// clears and never draws back.
 //
 // Every word that is not Tade's — an App's name, an account, a sentence a step
 // carries — goes through `esc`.
@@ -213,21 +213,27 @@ export function madePage(
   )
 }
 
+/** What comes next once a grant counts, said on every source's installed page. */
+const WHO_COUNTS =
+  'Nobody’s words count until your list in Settings › Intake names them, and under <code>propose</code>, the default, each request then waits for you to approve it. You can close this page.'
+
 /**
- * Where a source sent the browser back once its app was installed: GitHub's
- * App on the repositories picked, Slack's in a workspace, named.
+ * What each source's installed page says, keyed by source so one added with
+ * none is a type error: GitHub's App on the repositories picked, Slack's and
+ * Linear's in a workspace, named.
  */
-export function installedPage(source: ConnectSource, where: string | null): string {
-  if (source === 'slack') {
-    return document(
-      'Installed — Tade',
-      `<h1>Installed${where ? ` in ${esc(where)}` : ''}</h1><p class="lead">Its token is kept on this machine. Invite it to the channel it should read, and turn on intake.slack with that channel’s id. Nobody’s words count until your list in Settings › Intake names them, and under <code>propose</code>, the default, each request then waits for you to approve it. You can close this page.</p>`,
-    )
-  }
-  return document(
-    'Installed — Tade',
+const INSTALLED: Readonly<Record<ConnectSource, (where: string | null) => string>> = {
+  github: () =>
     '<h1>Installed</h1><p class="lead">This machine reads the repositories you picked as the App from its next look, and its watches look as soon as GitHub delivers. You can close this page.</p>',
-  )
+  slack: (where) =>
+    `<h1>Installed${where ? ` in ${esc(where)}` : ''}</h1><p class="lead">Its token is kept on this machine. Invite it to the channel it should read, and turn on intake.slack with that channel’s id. ${WHO_COUNTS}</p>`,
+  linear: (where) =>
+    `<h1>Connected${where ? ` to ${esc(where)}` : ''}</h1><p class="lead">Its token is kept on this machine, which refreshes it itself. Turn on intake.linear with a team’s key and the label to read. ${WHO_COUNTS}</p>`,
+}
+
+/** Where a source sent the browser back once its app was installed. */
+export function installedPage(source: ConnectSource, where: string | null): string {
+  return document('Installed — Tade', INSTALLED[source](where))
 }
 
 /** Where a source sent the browser back and nothing could be kept: why, in Tade's words. */

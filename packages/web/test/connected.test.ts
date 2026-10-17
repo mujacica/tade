@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { chmod, chown, mkdtemp } from 'node:fs/promises'
 import { request } from 'node:http'
 import { connect } from 'node:net'
@@ -81,6 +82,33 @@ const SLACK: ConnectPage = {
   writes: 'It writes nothing unless you turn reply on.',
 }
 
+const LINEAR: ConnectPage = {
+  source: 'linear',
+  title: 'Linear',
+  steps: [
+    {
+      id: 'make',
+      title: 'Make a Linear app',
+      done: false,
+      said: 'one private app in your own workspace',
+      press: { act: 'make', label: 'Make it on Linear' },
+    },
+    {
+      id: 'keep',
+      title: 'Give this machine its client id',
+      done: false,
+      said: 'from the app’s page on Linear',
+      press: {
+        act: 'keep',
+        label: 'Keep it',
+        fields: [{ name: 'client_id', label: 'Client ID', secret: false }],
+      },
+    },
+    { id: 'install', title: 'Connect it to your workspace', done: false, said: 'once kept' },
+  ],
+  writes: 'Nothing it may do writes anything.',
+}
+
 /** A window's half that records what it was asked and makes what a test says. */
 function connecting(
   over: {
@@ -96,34 +124,45 @@ function connecting(
     backs: [] as ConnectReturn[],
     kept: [] as Record<string, string | undefined>[],
     homes: [] as string[],
+    challenges: [] as (string | null)[],
   }
   const half: WebConnecting = {
     page: async (source) =>
-      source === 'slack'
-        ? {
-            page: SLACK,
-            asks: [{ what: 'channels:history', why: 'to read a channel you invite it to' }],
-            events: ['app_mention'],
-          }
-        : {
-            page: PAGE,
-            asks: [{ what: 'Issues: read', why: 'to read an issue somebody labelled' }],
-            events: ['issues'],
-          },
+      ({
+        github: {
+          page: PAGE,
+          asks: [{ what: 'Issues: read', why: 'to read an issue somebody labelled' }],
+          events: ['issues'],
+        },
+        slack: {
+          page: SLACK,
+          asks: [{ what: 'channels:history', why: 'to read a channel you invite it to' }],
+          events: ['app_mention'],
+        },
+        linear: {
+          page: LINEAR,
+          asks: [{ what: 'read', why: 'to read the team you name' }],
+          events: [] as string[],
+        },
+      })[source],
     form: (source, want) => {
       asked.wants.push(want)
       if (source === 'slack') return { url: 'https://api.slack.com/apps?new_app=1' }
+      if (source === 'linear') return { url: 'https://linear.app/settings/api/applications/new' }
       return {
         url: `https://github.com/settings/apps/new?state=${want.state}`,
         fields: { manifest: '{}' },
       }
     },
-    installUrl: (source, state, home) => {
+    installUrl: (source, state, home, challenge) => {
       asked.homes.push(home)
+      asked.challenges.push(challenge)
       if (over.slug === null) return null
-      return source === 'slack'
-        ? `https://slack.com/oauth/v2/authorize?state=${state}`
-        : `https://github.com/apps/${over.slug ?? 'tade-vps'}/installations/new?state=${state}`
+      return {
+        github: `https://github.com/apps/${over.slug ?? 'tade-vps'}/installations/new?state=${state}`,
+        slack: `https://slack.com/oauth/v2/authorize?state=${state}`,
+        linear: `https://linear.app/oauth/authorize?state=${state}&code_challenge=${challenge}`,
+      }[source]
     },
     made:
       over.made ??
@@ -136,7 +175,7 @@ function connecting(
       (async (source, back) => {
         asked.installed++
         asked.backs.push(back)
-        return { where: source === 'slack' ? 'Acme <Inc>' : null }
+        return { where: source === 'github' ? null : 'Acme <Inc>' }
       }),
     keep: async (_source, fields) => {
       asked.kept.push(fields)
@@ -479,7 +518,11 @@ describe('Slack, on the same pages', () => {
     const again = stateOf(await press(one, '/connect/slack/install'))
     const done = await viaPublic(socket, `/connect/slack/installed?code=c0de&state=${again}`)
     expect(done.status, done.text).toBe(200)
-    expect(asked.backs).toEqual([{ code: 'c0de', error: null, home: `https://${NAME}` }])
+    expect(asked.backs).toEqual([
+      { code: 'c0de', error: null, home: `https://${NAME}`, verifier: null },
+    ])
+    // Slack installs with no proof key, so none was minted or sent.
+    expect(asked.challenges).toEqual([null, null])
     expect(done.text).toContain('Installed in Acme &lt;Inc&gt;')
     const replay = await viaPublic(socket, `/connect/slack/installed?code=c0de&state=${again}`)
     expect(replay.status).toBe(404)
@@ -524,6 +567,88 @@ describe('Slack, on the same pages', () => {
     const pressed = await asOwner({ source: 'slack', press: 'keep', signing_secret: SECRET })
     expect(pressed.status).toBe(400)
     expect(asked.kept).toEqual([])
+  })
+})
+
+describe('Linear, on the same pages', () => {
+  const CLIENT = 'a1b2c3d4e5f6a7b8c9d0a1b2c3d4e5f6'
+
+  it('draws its steps beside the others, asking for its client id and never a client secret', async () => {
+    const { half } = connecting()
+    const one = await start({}, { connecting: half })
+    const page = await ask(one, '/connect', { headers: { host: here(one) } })
+    expect(page.text).toContain('Make a Linear app')
+    expect(page.text).toContain('data-press="/connect/linear/keep"')
+    expect(page.text).toContain('data-press="/connect/linear/make"')
+    expect(page.text).not.toContain('name="client_secret"')
+  })
+
+  it('makes the app from Linear’s own page and mints no word, since nothing comes back from it', async () => {
+    const { half, asked } = connecting()
+    const one = await start({ publicName: 'tade.example.com' }, { connecting: half })
+    const made = await press(one, '/connect/linear/make')
+    expect(JSON.parse(made.text)).toEqual({
+      url: 'https://linear.app/settings/api/applications/new',
+    })
+    expect(asked.wants[0]).toMatchObject({
+      hook: 'https://tade.example.com/hooks/linear',
+      state: '',
+    })
+  })
+
+  it('connects with a proof key: only the digest leaves, and the verifier comes back with the word, once', async () => {
+    const { half, asked } = connecting()
+    // No public name: Linear sends the browser back to this door, which it allows.
+    const one = await start({}, { connecting: half })
+    const pressed = await press(one, '/connect/linear/install')
+    expect(pressed.status, pressed.text).toBe(200)
+    const url = new URL(String(JSON.parse(pressed.text).url))
+    const challenge = url.searchParams.get('code_challenge') ?? ''
+    expect(challenge).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(asked.homes).toEqual([`http://${here(one)}`])
+    const state = stateOf(pressed)
+    const done = await back(one, `/connect/linear/installed?code=c0de&state=${state}`)
+    expect(done.status, done.text).toBe(200)
+    expect(done.text).toContain('Connected to Acme &lt;Inc&gt;')
+    const [came] = asked.backs
+    expect(came).toMatchObject({ code: 'c0de', error: null, home: `http://${here(one)}` })
+    // The verifier is the one the challenge was made from, and it never left.
+    const verifier = String(came?.verifier)
+    expect(createHash('sha256').update(verifier).digest('base64url')).toBe(challenge)
+    expect(pressed.text).not.toContain(verifier)
+    expect(done.text).not.toContain(verifier)
+    // Burned by its first use.
+    expect((await back(one, `/connect/linear/installed?code=c0de&state=${state}`)).status).toBe(404)
+    // Two presses, two verifiers.
+    const again = await press(one, '/connect/linear/install')
+    expect(new URL(String(JSON.parse(again.text).url)).searchParams.get('code_challenge')).not.toBe(
+      challenge,
+    )
+  })
+
+  it('keeps the client id and the signing secret in Linear’s shapes, and nothing else', async () => {
+    const { half, asked } = connecting()
+    const one = await start({}, { connecting: half })
+    const kept = await press(one, '/connect/linear/keep', {
+      client_id: CLIENT,
+      signing_secret: 'lin_wh_abcdefghijklmnopqrstuvwxyz0123456789',
+    })
+    expect(kept.status, kept.text).toBe(200)
+    expect(asked.kept).toEqual([
+      { client_id: CLIENT, signing_secret: 'lin_wh_abcdefghijklmnopqrstuvwxyz0123456789' },
+    ])
+    expect(kept.text).not.toContain('lin_wh_')
+    // A personal key pasted as the client id is said, naming the box.
+    const wrong = await press(one, '/connect/linear/keep', {
+      client_id: 'lin_api_0123456789abcdef',
+    })
+    expect(wrong.status).toBe(400)
+    expect(JSON.parse(wrong.text).said).toContain('the Client ID is the letters and digits')
+    // A client secret is never taken: Linear needs none, and the box is not Linear's.
+    const secret = await press(one, '/connect/linear/keep', { client_secret: 'c'.repeat(32) })
+    expect(secret.status).toBe(400)
+    expect(JSON.parse(secret.text).said).toContain('only what the page asks for')
+    expect(asked.kept).toHaveLength(1)
   })
 })
 
@@ -603,10 +728,19 @@ describe('the one-time words', () => {
     const states = new ConnectStates()
     const what = { source: 'github' as const, press: 'make' as const, host: 'tade.example.com' }
     const one = states.mint(what, 0)
-    expect(states.take(one, { ...what, press: 'install' }, 1)).toBe(false)
-    expect(states.take(one, what, 1)).toBe(false)
+    expect(states.take(one, { ...what, press: 'install' }, 1)).toBeNull()
+    expect(states.take(one, what, 1)).toBeNull()
     const two = states.mint(what, 0)
-    expect(states.take(two, { ...what, host: 'TADE.example.com' }, 1)).toBe(true)
+    expect(states.take(two, { ...what, host: 'TADE.example.com' }, 1)).toEqual({ verifier: null })
+  })
+
+  it('hands back the proof key’s verifier with its word, and only with it', () => {
+    const states = new ConnectStates()
+    const what = { source: 'linear' as const, press: 'install' as const, host: 'h' }
+    const one = states.mint({ ...what, verifier: 'v-1' }, 0)
+    expect(states.take(one, { ...what, source: 'github' }, 1)).toBeNull()
+    const two = states.mint({ ...what, verifier: 'v-2' }, 0)
+    expect(states.take(two, what, 1)).toEqual({ verifier: 'v-2' })
   })
 
   it('keeps no more than it was built to, the oldest going first', () => {
@@ -614,7 +748,7 @@ describe('the one-time words', () => {
     const what = { source: 'github' as const, press: 'make' as const, host: 'h' }
     const first = states.mint(what, 0)
     for (let n = 0; n < STATES_HELD; n++) states.mint(what, 0)
-    expect(states.take(first, what, 1)).toBe(false)
+    expect(states.take(first, what, 1)).toBeNull()
   })
 
   it('suggests a name GitHub will take: short, and the machine’s', () => {

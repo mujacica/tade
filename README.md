@@ -377,6 +377,15 @@ inside a thread is read out of that thread, which no poll of the channel could e
 public name the app is made with no address, you install it from its own page and paste its token,
 and the watch polls; Socket Mode is not built.
 
+**Connecting Linear is on the same page.** It makes a private Linear app in your own workspace from
+a manifest — it may only read — and asks for what Linear's own page shows: its client id and, on a
+server with a public name, its webhook's signing secret, never its client secret. Connecting is
+OAuth with a proof key, so the code Linear sends back is worth nothing to anybody but the machine
+that asked; the window then renews the day-long token itself, keeping each new refresh token in
+`config.yaml` as it turns over. The team watch reads with the app — a budget of its own instead of
+your personal key's — and Linear's webhook makes it look at once. A laptop connects it too, and
+polls.
+
 <table>
 <tr>
 <td width="25%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/intake.svg" alt="INTAKE down the side: work handed to this machine from outside it, each row saying who asked, the door it came through and how far it got"></td>

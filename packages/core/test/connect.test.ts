@@ -4,6 +4,8 @@ import {
   CONNECT_SOURCES,
   type GithubLook,
   githubPage,
+  type LinearLook,
+  linearPage,
   QUIET_MS,
   type SlackLook,
   slackPage,
@@ -238,6 +240,110 @@ describe('Slack’s page', () => {
   })
 })
 
+describe('Linear’s page', () => {
+  const linear = (over: Partial<LinearLook> = {}): LinearLook => ({
+    publicName: 'tade.example.com',
+    kept: { clientId: null, signingSecret: false, connected: false, key: false },
+    installed: null,
+    heard: { verified: null, refused: null },
+    ...over,
+  })
+  const CLIENT = 'a1b2c3d4e5f6a7b8c9d0a1b2c3d4e5f6'
+  const ids = (page: ReturnType<typeof linearPage>) => page.steps.map((one) => [one.id, one.done])
+
+  it('makes the app, keeps its client id and signing secret, connects it, then hears it', () => {
+    const page = linearPage(linear())
+    expect(ids(page)).toEqual([
+      ['make', false],
+      ['keep', false],
+      ['install', false],
+      ['deliveries', false],
+    ])
+    expect(page.steps[0]?.press).toMatchObject({ act: 'make', label: 'Make it on Linear' })
+    expect(page.steps[1]?.press?.fields?.map((one) => [one.name, one.secret])).toEqual([
+      ['client_id', false],
+      ['signing_secret', true],
+    ])
+    // Never its client secret: connecting with a proof key does not need one.
+    expect(page.steps[1]?.said).toContain('never its client secret')
+    expect(page.steps[1]?.press?.fields?.map((one) => one.name)).not.toContain('client_secret')
+    // Nothing to connect with until the client id is kept.
+    expect(page.steps[2]?.press).toBeUndefined()
+    expect(page.writes).toContain('no way back')
+  })
+
+  it('offers connecting once the client id is kept, and says what it keeps', () => {
+    const page = linearPage(
+      linear({ kept: { clientId: CLIENT, signingSecret: true, connected: false, key: false } }),
+    )
+    expect(ids(page).slice(0, 3)).toEqual([
+      ['make', true],
+      ['keep', true],
+      ['install', false],
+    ])
+    expect(page.steps[2]?.press).toMatchObject({ act: 'install', label: 'Connect it on Linear' })
+    expect(page.steps[2]?.said).toContain('refreshes itself')
+    expect(page.steps[3]?.said).toContain('once it is connected')
+  })
+
+  it('ticks every step where it is connected and a delivery verified', () => {
+    const page = linearPage(
+      linear({
+        kept: { clientId: CLIENT, signingSecret: true, connected: true, key: false },
+        installed: { workspace: 'Acme', user: 'kim' },
+        heard: { verified: Date.parse('2026-10-17T13:00:00Z'), refused: null },
+      }),
+    )
+    expect(page.steps.every((one) => one.done)).toBe(true)
+    expect(page.steps[2]?.said).toContain('connected to Acme as kim')
+    expect(page.steps[2]?.press?.label).toBe('Connect it again')
+    expect(page.steps[3]?.said).toContain('13:00 UTC')
+  })
+
+  it('says a token Linear no longer takes is to be connected again, and one it could not be asked about is not', () => {
+    const kept = { clientId: CLIENT, signingSecret: true, connected: true, key: false }
+    const refused = linearPage(
+      linear({ kept, installed: { problem: 'invalid_grant', refused: true } }),
+    )
+    expect(refused.steps[2]).toMatchObject({ done: false })
+    expect(refused.steps[2]?.said).toContain('connect it again')
+    const unasked = linearPage(
+      linear({ kept, installed: { problem: 'did not answer', refused: false } }),
+    )
+    expect(unasked.steps[2]?.said).toContain('could not be asked')
+  })
+
+  it('says a delivery that did not verify is the wrong secret, and never goes quiet', () => {
+    const kept = { clientId: CLIENT, signingSecret: true, connected: true, key: false }
+    const wrong = linearPage(linear({ kept, heard: { verified: 1, refused: 2 } }))
+    expect(wrong.steps[3]?.said).toContain('did not verify')
+    const old = linearPage(linear({ kept, heard: { verified: 1, refused: null } }))
+    expect(old.steps[3]?.done).toBe(true)
+  })
+
+  it('with no public name asks only for the client id, connects all the same, and polls', () => {
+    const page = linearPage(
+      linear({
+        publicName: null,
+        kept: { clientId: CLIENT, signingSecret: false, connected: false, key: true },
+      }),
+    )
+    expect(page.steps[1]).toMatchObject({ done: true, title: 'Give this machine its client id' })
+    expect(page.steps[1]?.press?.fields?.map((one) => one.name)).toEqual(['client_id'])
+    expect(page.steps[1]?.press?.label).toBe('Replace it')
+    expect(page.steps[2]?.press?.act).toBe('install')
+    expect(page.steps[3]?.said).toContain('no public name')
+    expect(page.steps[3]?.said).toContain('polls')
+  })
+
+  it('says the watch reads with the personal key until an app is connected', () => {
+    const page = linearPage(
+      linear({ kept: { clientId: null, signingSecret: false, connected: false, key: true } }),
+    )
+    expect(page.steps[0]?.said).toContain('personal API key')
+  })
+})
+
 describe('what each source’s page may be asked', () => {
   it('has a back only after a press that has one, and Slack’s only to a public name', () => {
     for (const source of CONNECT_SOURCES) {
@@ -248,5 +354,12 @@ describe('what each source’s page may be asked', () => {
     }
     expect(CONNECT_FLOWS.slack).toMatchObject({ backs: ['installed'], publicBack: true })
     expect(CONNECT_FLOWS.github.presses).not.toContain('keep')
+    // Linear comes back to any door, and installs with a proof key alone.
+    expect(CONNECT_FLOWS.linear).toMatchObject({
+      backs: ['installed'],
+      publicBack: false,
+      pkce: true,
+    })
+    expect(CONNECT_SOURCES.filter((source) => CONNECT_FLOWS[source].pkce)).toEqual(['linear'])
   })
 })

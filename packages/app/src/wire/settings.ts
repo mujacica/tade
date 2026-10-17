@@ -359,6 +359,10 @@ export class Settings implements Subject {
    * device it came from, `now` as the carry may say it (never a key), and
    * `carried` naming the machine it came from, which is what tells it apart
    * from a change somebody here made (`changedThere`).
+   *
+   * An extension's own key is handed to the extensions here too, as `write`
+   * does from the page: a key Connect Slack kept, or a GitHub App it made, is
+   * read with on the next look rather than after Tade is started again.
    */
   async writeKey(
     key: string,
@@ -379,6 +383,10 @@ export class Settings implements Subject {
       throw new Error(loaded.issues[0]?.message ?? 'the config would not load with that')
     }
     this.use(loaded.config)
+    if (key.startsWith('extensions.')) {
+      await this.wire.opts.extensions?.reconfigure(loaded.config.extensions)
+      this.deps.setupChanged()
+    }
     const written = this.recorded({
       path: key,
       was,

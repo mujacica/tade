@@ -1,4 +1,4 @@
-import type { JudgeReplayScore } from '@tade/core'
+import type { ConnectSource, JudgeReplayScore } from '@tade/core'
 import type { ExtensionWatch } from './watch.ts'
 
 // The TadeExtension port: something Tade can do that it was not built
@@ -531,6 +531,16 @@ export interface ExtensionContext {
    * context made by hand for a test asks as the person, as it always did.
    */
   apps?(): readonly { host: string; id: string; key: string }[]
+  /**
+   * The access token of a source connected at `/connect` whose tokens run out
+   * — today the Linear app Connect Linear makes (`@tade/extension-intake`'s
+   * `linear-app.ts`) — refreshed where it is near its end by whoever holds the
+   * connection (the window), which keeps the refresh token that replaces
+   * itself. Null where none is connected or nothing here can refresh one (a
+   * command with no window); throws, in words, where the source refused it.
+   * Optional, so a context made by hand asks with its key, as it always did.
+   */
+  connected?(source: ConnectSource): Promise<string | null>
   fetch: typeof fetch
   /** Run a program. Never throws: a failure is its code and what it said. */
   exec(

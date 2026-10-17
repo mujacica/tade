@@ -12,7 +12,9 @@ import { Unreachable } from '@tade/extensions-core'
 // ## The numbers, read off Linear's own documentation on 2026-10-09
 //
 // - **Requests:** 2,500 an hour per user on a personal API key; 5,000 for an
-//   OAuth app; 600 an hour per IP unauthenticated. This door is the key case.
+//   OAuth app; 600 an hour per IP unauthenticated. This door reads with
+//   either: the app Connect Linear makes where one is connected
+//   (`linear-app.ts`), else a key.
 // - **Complexity:** 3,000,000 points an hour on a key, 2,000,000 for OAuth —
 //   and this is the one that decides the shape, because of how it is counted:
 //   *"Each property is 0.1 point, each object is 1 point and any connection
@@ -25,7 +27,8 @@ import { Unreachable } from '@tade/extensions-core'
 // - What one look costs, at `linear.ts`'s bounds (25 issues a page, 25 history
 //   entries each): about 130 points an issue, so ~3,250 a page, ~9,750 for a
 //   look that walks its three pages, ~58,500 an hour at a look every ten
-//   minutes — **2% of the complexity budget and 18 of the 2,500 requests.**
+//   minutes — **2% of the complexity budget and 18 of the 2,500 requests**
+//   (3% of an app's 2,000,000, and 18 of its 5,000).
 // - **Over a limit, Linear answers HTTP 400** with `RATELIMITED` among the
 //   errors — *not* 429 — so a connector written against "429 means slow down"
 //   sails past it and reads a rate limit as a query that failed. The reset is
@@ -45,6 +48,9 @@ import { Unreachable } from '@tade/extensions-core'
 
 /** Where Linear's API is. Not configurable: there is one Linear. */
 const LINEAR = 'https://api.linear.app/graphql'
+
+/** Where an OAuth app's code and refresh token are exchanged for a token. */
+const TOKEN = 'https://api.linear.app/oauth/token'
 
 /** The host a failed look names, for the one thing allowed an opinion about connectivity. */
 export const LINEAR_HOST = 'api.linear.app'
@@ -242,29 +248,62 @@ const ISSUES = `query TadeIntake($filter: IssueFilter!, $first: Int!, $after: St
 }`
 
 /**
+ * Who the connect page asks a token is: the person who allowed the app, and
+ * the workspace they allowed it in. A constant like `ISSUES`, with nothing to
+ * interpolate; asked by the page and never by a look.
+ */
+const WHO = `query TadeWho {
+  viewer { name displayName }
+  organization { name }
+}`
+
+/**
+ * What a call is made with: a personal API key, sent as it is, or an OAuth
+ * access token (`Bearer`), which is what the app Connect Linear makes reads
+ * with (`linear-app.ts`).
+ */
+export type LinearAuth = { key: string } | { token: string }
+
+/** What Linear's token endpoint hands over: a day-long access token, and the refresh token that replaces itself. */
+export interface LinearGrant {
+  access: string
+  /** Good once: each refresh hands over the next one, and this one is spent. */
+  refresh: string
+  /** How long the access token lasts, in seconds, as Linear said it. */
+  expiresIn: number
+}
+
+/**
  * Linear, over the `fetch` the extension was given.
  *
- * **One method and one query**, which is as small as a tracker's client gets:
- * the look and the re-check ask the same question with a different filter, so
- * there is one shape of answer to parse and one place a change to it shows up.
+ * **One method and one query for the look**, which is as small as a tracker's
+ * client gets: the look and the re-check ask the same question with a
+ * different filter, so there is one shape of answer to parse and one place a
+ * change to it shows up.
  *
- * **Nothing here asks who the key is.** There is no mention to look for, no
- * reply path and nothing to exclude by identity, so a `viewer` call would buy a
- * nicer error message and cost a request a look — and reading the key's own
- * workspace, team or user would be exactly the hard-coded account assumption
- * this must not have. What authorises is the owner's `from` list; what selects
- * is the team and the label somebody typed.
+ * **Nothing a look asks is who the key is.** There is no mention to look for,
+ * no reply path and nothing to exclude by identity, so a `viewer` call would
+ * buy a nicer error message and cost a request a look — and reading the key's
+ * own workspace, team or user would be exactly the hard-coded account
+ * assumption this must not have. What authorises is the owner's `from` list;
+ * what selects is the team and the label somebody typed. The connect page asks
+ * (`who`), once a minute at most, to say which workspace the app was allowed
+ * in — and nothing it answers selects or authorises anything.
  *
  * Nothing retries: a look has a deadline, a schedule is the thing that comes
  * back, and a retry inside a method is a second clock nobody asked for.
  */
 export class LinearApi {
-  private readonly key: string
+  private readonly authorization: string
   private readonly fetch: typeof fetch
   private readonly signal: AbortSignal
 
-  constructor(key: string, from: { fetch: typeof fetch; signal: AbortSignal }) {
-    this.key = key
+  constructor(auth: LinearAuth, from: { fetch: typeof fetch; signal: AbortSignal }) {
+    // A personal API key goes in `Authorization` **without** `Bearer`, which
+    // is Linear's own documented spelling and the opposite of its OAuth
+    // tokens: with `Bearer` on a key, or without it on a token, every call is
+    // an auth error.
+    this.authorization = 'key' in auth ? auth.key : `Bearer ${auth.token}`
     this.fetch = from.fetch
     this.signal = from.signal
   }
@@ -276,7 +315,7 @@ export class LinearApi {
     history: number
     cursor?: string | null
   }): Promise<LinearPage> {
-    const body = await this.call({
+    const body = await this.call('TadeIntake', ISSUES, {
       filter: filterOf(req.select),
       first: req.first,
       after: req.cursor ?? null,
@@ -326,6 +365,85 @@ export class LinearApi {
   }
 
   /**
+   * Who this token is: the workspace and the person, as Linear names them,
+   * for the connect page to say. Bounded, because it is drawn; an answer with
+   * neither is `LinearError`, never two empty names.
+   */
+  async who(): Promise<{ workspace: string; user: string }> {
+    const data = await this.call('TadeWho', WHO, {})
+    const viewer = objectOf(data.viewer)
+    const organization = objectOf(data.organization)
+    const name = (value: unknown) => (typeof value === 'string' ? value.trim().slice(0, 80) : '')
+    const workspace = name(organization?.name)
+    const user = name(viewer?.displayName) || name(viewer?.name)
+    if (!workspace && !user) {
+      throw new LinearError('linear', 'Linear did not say who the token is')
+    }
+    return { workspace, user }
+  }
+
+  /**
+   * One exchange at Linear's token endpoint: an install's code, or a refresh
+   * token for the next one (`linear-app.ts` says which). The form is OAuth's,
+   * `application/x-www-form-urlencoded`, and so is a refusal — `error` with
+   * OAuth's own word — which is read before anything else: `invalid_grant`
+   * (a code used, expired or not this verifier's; a refresh token spent or
+   * revoked) and `invalid_client` are `auth`, which is "connect it again".
+   *
+   * Nothing came back at all is `Unreachable`, as for a look.
+   */
+  static async token(
+    from: { fetch: typeof fetch; signal: AbortSignal },
+    form: Readonly<Record<string, string>>,
+  ): Promise<LinearGrant> {
+    let answer: Response
+    try {
+      answer = await from.fetch(TOKEN, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(form).toString(),
+        signal: from.signal,
+      })
+    } catch (err) {
+      if (from.signal.aborted) throw err
+      throw new Unreachable(LINEAR_HOST, `${LINEAR_HOST} did not answer: ${said(err)}`)
+    }
+    let body: unknown
+    try {
+      body = await answer.json()
+    } catch (err) {
+      throw new LinearError(
+        tokenTrouble('', answer.status),
+        `Linear would not hand over a token: it answered ${answer.status} with something that is not JSON (${said(err)})`,
+        resetOf(answer.headers),
+      )
+    }
+    const read = objectOf(body) ?? {}
+    // OAuth's own word for what went wrong, and only a word: it is drawn.
+    const word =
+      typeof read.error === 'string' && /^[a-z_]{1,64}$/.test(read.error) ? read.error : ''
+    if (word || !answer.ok) {
+      throw new LinearError(
+        tokenTrouble(word, answer.status),
+        `Linear would not hand over a token: ${word || `it answered ${answer.status}`}`,
+        resetOf(answer.headers),
+      )
+    }
+    const access = typeof read.access_token === 'string' ? read.access_token.trim() : ''
+    const refresh = typeof read.refresh_token === 'string' ? read.refresh_token.trim() : ''
+    const expiresIn = typeof read.expires_in === 'number' ? read.expires_in : Number.NaN
+    // Every Linear OAuth app hands over a refresh token since 2026-04-01; one
+    // without it could not be kept working past a day, so it is not kept at all.
+    if (!access || !refresh || !Number.isFinite(expiresIn) || expiresIn <= 0) {
+      throw new LinearError(
+        'linear',
+        'Linear answered without an access token, a refresh token and how long it lasts',
+      )
+    }
+    return { access, refresh, expiresIn }
+  }
+
+  /**
    * One POST, and the three answers it can have: data, an answer that is a
    * refusal, or nothing at all.
    *
@@ -337,19 +455,17 @@ export class LinearApi {
    * routinely and Linear's rate limit answers 400, so neither the status nor the
    * presence of `data` decides this on its own: errors are read first.
    */
-  private async call(variables: Record<string, unknown>): Promise<Record<string, unknown>> {
+  private async call(
+    operationName: string,
+    query: string,
+    variables: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
     let answer: Response
     try {
       answer = await this.fetch(LINEAR, {
         method: 'POST',
-        headers: {
-          // A personal API key goes in `Authorization` **without** `Bearer`,
-          // which is Linear's own documented spelling and the opposite of its
-          // OAuth tokens. With `Bearer` on a key every call is an auth error.
-          authorization: this.key,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({ query: ISSUES, variables }),
+        headers: { authorization: this.authorization, 'content-type': 'application/json' },
+        body: JSON.stringify({ operationName, query, variables }),
         signal: this.signal,
       })
     } catch (err) {
@@ -479,6 +595,24 @@ function resetOf(headers: Headers): number {
   return at.length === 0 ? 0 : Math.max(...at)
 }
 
+/**
+ * Which trouble a refusal at the token endpoint is: OAuth's words for a code
+ * or a refresh token that is no good, and for a client it does not know, are
+ * `auth` — connect it again — and so is a 401; a 429 is a budget.
+ */
+function tokenTrouble(word: string, status: number): LinearTrouble {
+  if (word === 'invalid_grant' || word === 'invalid_client' || word === 'unauthorized_client') {
+    return 'auth'
+  }
+  return status === 429 ? 'ratelimited' : status === 401 ? 'auth' : 'linear'
+}
+
 function said(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
+}
+
+function objectOf(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null
 }

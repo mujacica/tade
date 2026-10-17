@@ -11,6 +11,7 @@ import {
 import type { TadeExtension } from '@tade/extensions-core'
 import { githubIssues } from './github.ts'
 import { LINEAR_KEY, linearIssues } from './linear.ts'
+import { LINEAR_APP } from './linear-app.ts'
 import { SLACK_TOKEN, SLACK_TOKEN_ENV, slackMessages } from './slack.ts'
 import { SLACK_APP } from './slack-app.ts'
 import { candidateOf, keepReply, newestOf, readSpool, type SpoolEntry } from './spool.ts'
@@ -93,7 +94,7 @@ export const intakeExtension: TadeExtension = {
     'With `mode: propose`, which is the default, a task is made and parked: a person approves it and the queue starts it.',
     'At the moment of starting it is checked again — closed, relabelled, deleted or rewritten holds the work.',
     'Nothing is posted anywhere unless `reply` is on. GitHub and Linear have no way back at all; Slack gets a reaction and one of Tade’s own seven sentences in the request’s own thread — never a word an agent wrote.',
-    'Linear in realtime — Tade as a Linear agent you @-mention — and Jira are not supported and are not switches somebody has to find: `tade intake status` says what each would need.',
+    'Linear agents — Tade as an app user you @-mention or assign in Linear — and Jira are not supported and are not switches somebody has to find: `tade intake status` says what each would need.',
     'Where this machine has a public name, a webhook delivery to /hooks/github, /hooks/slack or /hooks/linear is a doorbell: once its signature verifies it makes the matching watch look now, which still reads the source under the grant — and the poll slows to hourly while deliveries arrive.',
   ],
   settings: [
@@ -109,7 +110,7 @@ export const intakeExtension: TadeExtension = {
       kind: 'secret',
       env: ['LINEAR_API_KEY'],
       means:
-        'a Linear personal API key for the team watch, which only ever reads: there is no reply path to Linear at all, so nothing Tade does needs a scope to write',
+        'a Linear personal API key for the team watch, which only ever reads: there is no reply path to Linear at all, so nothing Tade does needs a scope to write — read only where no app made by Connect Linear (/connect) is connected',
     },
     // The doorbells' secrets (REMOTE-TADE §6.2), one per source, declared here
     // so they are settings like any key; the away view's door reads them
@@ -141,6 +142,11 @@ export const intakeExtension: TadeExtension = {
       env: [SLACK_APP.clientSecret.env],
       means: SLACK_APP.clientSecret.means,
     },
+    { key: LINEAR_APP.clientId.key, kind: 'string', means: LINEAR_APP.clientId.means },
+    // A credential with no variable that wins over it, the one such key: it
+    // replaces itself at every refresh, so one exported would be spent by the
+    // first and never good again (`linear-app.ts`).
+    { key: LINEAR_APP.refresh.key, kind: 'secret', means: LINEAR_APP.refresh.means },
   ],
   // Nothing to set up for the local door: no key, no endpoint, no account.
   // Being ready is having a home to read, which every window has — so there is
