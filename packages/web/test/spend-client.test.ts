@@ -9,6 +9,7 @@ import {
   plansShape,
   pressureSaid,
   spentAny,
+  usesSaid,
   wentOf,
 } from '../src/assets/pages/spend-shape.js'
 import { spendFold } from '../src/assets/store.js'
@@ -310,5 +311,30 @@ describe('the plans', () => {
     const [only] = plansShape(plans, NOW)
     expect(only?.account).toBeNull()
     expect(only?.name).toBe('claude-code')
+  })
+
+  it('says who runs as each, in the Accounts page’s words', () => {
+    // The fixture's sign-in: new agents run as it, and both projects name it.
+    expect(cards().map((one) => one.uses)).toEqual([
+      'new agents · in sentry, tade',
+      'new agents · in sentry, tade',
+      'new agents · in sentry, tade',
+      'new agents · in sentry, tade',
+    ])
+    expect(usesSaid({ newAgents: true, projects: [], notShown: 0 })).toBe('new agents')
+    expect(usesSaid({ newAgents: false, projects: ['search'], notShown: 0 })).toBe(
+      'new agents in search',
+    )
+    expect(usesSaid({ newAgents: false, projects: ['a', 'b'], notShown: 3 })).toBe(
+      'new agents in a, b, 3 more',
+    )
+    // Nobody runs as it: nothing to say, and nothing said.
+    expect(usesSaid({ newAgents: false, projects: [], notShown: 0 })).toBe('')
+  })
+
+  it('says nothing of who runs as one to a device not granted the accounts', () => {
+    const plans = snapshotOf(input({ reach: reach(['spend']) }), NOW).plans
+    expect(plans[0]?.uses).toBeNull()
+    expect(plansShape(plans, NOW)[0]?.uses).toBe('')
   })
 })

@@ -294,6 +294,7 @@ export function plan(over: Partial<PlanStanding> = {}): PlanStanding {
     windows: [{ label: '5h', used: 42, resetsAt: Date.parse('2026-10-08T18:00:00.000Z') }],
     at: Date.parse('2026-10-08T14:00:00.000Z'),
     cannotTell: null,
+    uses: { newAgents: true, projects: ['sentry', 'tade'] },
     ...over,
   }
 }

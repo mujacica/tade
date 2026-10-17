@@ -328,7 +328,20 @@ function planRow(plan: PlanStanding, reach: Reach, budget: Budget): PlanRow {
     })),
     at: ISO_OR(plan.at),
     cannotTell: plan.cannotTell,
+    uses: has(reach, 'accounts') ? usesOf(plan.uses, reach, budget) : null,
   }
+}
+
+/**
+ * Who runs as a sign-in, as one device may read it: a project it may not read
+ * is not named, and is not counted either — a count is still a fact about
+ * work it cannot see. What is left over the projects' own budget is counted.
+ */
+function usesOf(uses: PlanStanding['uses'], reach: Reach, budget: Budget): PlanRow['uses'] {
+  if (uses === undefined) return null
+  const seen = uses.projects.filter((project) => sees(reach, project))
+  const projects = seen.slice(0, budget.projects)
+  return { newAgents: uses.newAgents, projects, notShown: seen.length - projects.length }
 }
 
 function freshnessOf(input: SnapshotInput, now: number, budget: Budget): Freshness {

@@ -366,7 +366,10 @@ const RUNS: RunIn[] = [
   },
 ]
 
-/** Which harnesses' plans say how much is used: the window's spend picture's three. */
+/**
+ * Which harnesses' plans say how much is used: the window's spend picture's
+ * three, and as there, new agents run as each harness's own sign-in.
+ */
 const PLANS: PlanSource[] = [
   {
     harness: 'claude-code',
@@ -381,6 +384,7 @@ const PLANS: PlanSource[] = [
         { label: '7d', used: 31, resetsAt: NOW + 3 * 86_400_000 },
       ],
     },
+    uses: { newAgents: true, projects: [] },
   },
   {
     harness: 'codex',
@@ -392,6 +396,7 @@ const PLANS: PlanSource[] = [
       at: NOW - 41 * 60_000,
       windows: [{ label: '5h', used: 12, resetsAt: NOW + 7_200_000 }],
     },
+    uses: { newAgents: true, projects: [] },
   },
   {
     harness: 'pi',
@@ -400,6 +405,7 @@ const PLANS: PlanSource[] = [
     pays: 'per-token',
     why: 'is never told what a plan has left; it prices each turn instead',
     said: null,
+    uses: { newAgents: true, projects: [] },
   },
 ]
 

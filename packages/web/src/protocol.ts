@@ -456,6 +456,21 @@ export const PlanRowSchema = z.strictObject({
   at: z.string().nullable(),
   /** Why there is nothing to show, in words. Null when there is something. */
   cannotTell: z.string().nullable(),
+  /**
+   * Who runs as it, as the window's Accounts page says: whether new agents do,
+   * and which of the projects this device reads name it as theirs. Null where
+   * the device was not granted `accounts` — which sign-in a project's agents
+   * run as is the same fact `account` is on a task — or where whoever gathered
+   * the sign-ins could not say; the page tells the two apart by its reads.
+   */
+  uses: z
+    .strictObject({
+      newAgents: z.boolean(),
+      projects: z.array(z.string()),
+      /** How many more projects name it than `projects` carries. */
+      notShown: z.int().nonnegative(),
+    })
+    .nullable(),
 })
 export type PlanRow = z.infer<typeof PlanRowSchema>
 

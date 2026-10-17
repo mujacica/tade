@@ -157,7 +157,7 @@ export const WITHHOLDS: Readonly<Record<Grant, readonly string[]>> = {
     'evaluations.races.usd',
   ],
   reviews: ['tasks.review.url'],
-  accounts: ['tasks.account', 'plans.account'],
+  accounts: ['tasks.account', 'plans.account', 'plans.uses'],
   talk: ['chat'],
   requests: ['intake.title', 'intake.who', 'intake.url'],
   material: ['intake.material', 'intake.materialSays', 'intake.materialLabel'],

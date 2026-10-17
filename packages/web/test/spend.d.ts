@@ -55,6 +55,7 @@ declare module '*/assets/pages/spend-shape.js' {
     tightest: number | null
     pressure: 'fine' | 'warm' | 'tight' | null
     line: string
+    uses: string
   }
 
   export const MARKS: Record<string, string>
@@ -70,4 +71,7 @@ declare module '*/assets/pages/spend-shape.js' {
   export function wentOf(tasks: readonly any[], by: string, opts?: { partial?: boolean }): Went
   export function plansShape(rows: readonly any[], now: number): Card[]
   export function pressureSaid(card: Card): string
+  export function usesSaid(
+    uses: { newAgents: boolean; projects: string[]; notShown: number } | null | undefined,
+  ): string
 }

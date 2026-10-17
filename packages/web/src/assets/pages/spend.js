@@ -219,17 +219,25 @@ function createOther() {
     el('li', { class: 'spend-other' }),
     el('strong', { class: 'spend-plan-name' }),
     el('span', { class: 'spend-plan-harness' }),
+    el('span', { class: 'spend-plan-uses' }),
     el('span', { class: 'spend-plan-line' }),
   )
 }
 
-/** An account with no window to draw: its name, its harness, and the line for why. */
+/** An account with no window to draw: its name, its harness, who runs as it, and the line for why. */
 function fillOther(item, card) {
-  const [name, harness, line] = item.children
+  const [name, harness, uses, line] = item.children
   textIn(name, card.name)
   textIn(harness, card.account === null ? '' : card.harness)
   harness.hidden = card.account === null
+  usesIn(uses, card)
   textIn(line, card.line)
+}
+
+/** Who runs as it, under its name: the words where something was said, and nothing where not. */
+function usesIn(node, card) {
+  textIn(node, card.uses)
+  node.hidden = card.uses === ''
 }
 
 function createPlan() {
@@ -240,6 +248,7 @@ function createPlan() {
     el('strong', { class: 'spend-plan-name' }),
     el('span', { class: 'spend-plan-harness' }),
     el('span', { class: 'ui-pill spend-plan-pill' }),
+    el('span', { class: 'spend-plan-uses' }),
   )
   into(item, head, el('div', { class: 'spend-gauges' }))
   return item
@@ -248,10 +257,11 @@ function createPlan() {
 /** One account's windows, a gauge each. Red is never alone: the card says *nearly out*. */
 function fillPlan(item, card) {
   const [head, gauges] = item.children
-  const [name, harness, pill] = head.children
+  const [name, harness, pill, uses] = head.children
   textIn(name, card.name)
   textIn(harness, card.account === null ? '' : card.harness)
   harness.hidden = card.account === null
+  usesIn(uses, card)
   const word = pressureSaid(card)
   textIn(pill, word)
   pill.hidden = word === ''

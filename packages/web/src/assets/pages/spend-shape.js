@@ -235,6 +235,21 @@ const LINES = {
 }
 
 /**
+ * Who runs as a sign-in, in the window's Accounts page's words: `new agents`
+ * where the machine's do, and `in` with the projects that name it as theirs —
+ * `new agents in search` where only they do. Empty where nobody runs as it,
+ * and where it was not sent: not granted, or not said, which the page draws
+ * as nothing, as the window does, rather than as nobody.
+ */
+export function usesSaid(uses) {
+  if (uses === null || uses === undefined) return ''
+  const names = [...uses.projects, ...(uses.notShown > 0 ? [`${uses.notShown} more`] : [])]
+  const where = names.length === 0 ? '' : `in ${names.join(', ')}`
+  if (uses.newAgents) return where === '' ? 'new agents' : `new agents · ${where}`
+  return where === '' ? '' : `new agents ${where}`
+}
+
+/**
  * Every account as a card, a gauge per window: the fullest first — what runs
  * out first stops the work — then those that cannot say, in the harness's own
  * sentence (`cannotTell`), then those billed per token, with no window at all.
@@ -268,6 +283,7 @@ export function plansShape(rows, now) {
       tightest,
       pressure: tightest === null ? null : planPressure(tightest),
       line: kind === 'cannot' ? row.cannotTell : LINES[kind],
+      uses: usesSaid(row.uses),
     }
   })
   return cards.sort(

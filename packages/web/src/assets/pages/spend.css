@@ -129,7 +129,7 @@
   border-color: color-mix(in srgb, var(--red) 45%, var(--line));
 }
 
-/* The name and, at its end, *nearly out*; the harness under the name. */
+/* The name and, at its end, *nearly out*; the harness and who runs as it under the name. */
 .spend-plan-head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -152,6 +152,15 @@
 
 .spend-plan-pill {
   grid-area: 1 / 2;
+}
+
+/* Who runs as it, under the harness: a second line, a step brighter than a label. */
+.spend-plan-uses {
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--body);
+  font-size: var(--step--1);
 }
 
 /* Gauges in the middle of whatever room a taller neighbour gives the card. */

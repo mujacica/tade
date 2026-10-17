@@ -1,6 +1,7 @@
-import { IDLE_REASON } from '@tade/core'
+import { IDLE_REASON, type PlanStanding } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { BUDGET, type Budget, pageOf, textOf } from '../src/page.ts'
+import type { Grant } from '../src/reach.ts'
 import { reasonOf, snapshotOf, wantsYou } from '../src/snapshot.ts'
 import { EVERY, finding, input, NOW, note, plan, project, reach, task } from './fixtures.ts'
 
@@ -255,6 +256,46 @@ describe('the projection', () => {
     expect(snapshot.plans[0]?.windows[0]?.resetsAt).toBeNull()
     expect(snapshot.plans[0]?.at).toBeNull()
     expect(snapshot.plans[0]?.id).toBe('pi/')
+  })
+
+  it('says who runs as a sign-in to a device granted the accounts, as the window says it', () => {
+    const uses = (granted: Grant[], over: Partial<PlanStanding> = {}, projects?: string[]) =>
+      snapshotOf(input({ reach: reach(granted, projects), plans: [plan(over)] }), NOW, {}).plans[0]
+        ?.uses
+    expect(uses(['spend', 'accounts'])).toEqual({
+      newAgents: true,
+      projects: ['sentry', 'tade'],
+      notShown: 0,
+    })
+    // Which sign-in a project's agents run as is `tasks.account`'s fact.
+    expect(uses(['spend'])).toBeNull()
+    // A project the device may not read is neither named nor counted.
+    expect(uses(['spend', 'accounts'], {}, ['tade'])).toEqual({
+      newAgents: true,
+      projects: ['tade'],
+      notShown: 0,
+    })
+    // Nobody said: null, never nobody.
+    expect(uses(['spend', 'accounts'], { uses: undefined })).toBeNull()
+    expect(uses(['spend', 'accounts'], { uses: { newAgents: false, projects: [] } })).toEqual({
+      newAgents: false,
+      projects: [],
+      notShown: 0,
+    })
+  })
+
+  it('counts the projects past the budget rather than cutting them in silence', () => {
+    const names = ['a', 'b', 'c']
+    const snapshot = snapshotOf(
+      input({
+        reach: reach(['spend', 'accounts']),
+        plans: [plan({ uses: { newAgents: false, projects: names } })],
+      }),
+      NOW,
+      {},
+      budget({ projects: 2 }),
+    )
+    expect(snapshot.plans[0]?.uses).toEqual({ newAgents: false, projects: ['a', 'b'], notShown: 1 })
   })
 })
 
