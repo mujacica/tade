@@ -42,10 +42,23 @@ export interface ScriptedOptions extends LinkOptions {
   /**
    * Open terminals there by running them in a shell here: the far ends are
    * this machine, so a line one gives for showing an agent is a line this
-   * machine can run. Off, there is nothing to open a terminal in.
+   * machine can run. Off, there is nothing to open a terminal in. A line that
+   * exits 255 is a connection lost, as ssh's own exit is (`lost`).
    */
   terminals?: boolean
+  /**
+   * Where a test says, a way there tried before the plain one that may sit
+   * waiting rather than get through, as mosh does with its UDP closed: the
+   * line it runs instead of the far end's, what it is called, how long it is
+   * given and the words that say it is still waiting. Told it did not get
+   * through to a remote (`attached`), the plain way is answered for that
+   * remote until it is told one did.
+   */
+  hesitant?: { by: string; line: string; within: number; waiting: string }
 }
+
+/** The exit a line run here gives to say its connection was lost: ssh's own. */
+const LOST = 255
 
 export function makeScriptedLink(options: ScriptedOptions): RemoteLink {
   const remotes = options.remotes ?? new Map<string, ScriptedRemote>()
@@ -55,6 +68,9 @@ export function makeScriptedLink(options: ScriptedOptions): RemoteLink {
       throw new LinkError('missing', `there is no scripted remote called ${address}`)
     return found
   }
+  // The remotes a hesitant way did not get through to, by name.
+  const refused = new Set<string>()
+  const hesitant = options.hesitant
   return linkOver(
     {
       id: 'scripted',
@@ -79,7 +95,24 @@ export function makeScriptedLink(options: ScriptedOptions): RemoteLink {
         ? {
             terminal: (remote: Remote, words: readonly string[]) =>
               here(`${remote.tade} ${words.join(' ')}`),
-            attach: async (_remote: Remote, line: string) => here(line),
+            attach: async (remote: Remote, line: string): Promise<TerminalThere> => {
+              if (hesitant === undefined || refused.has(remote.name)) return here(line)
+              const waiting = hesitant.waiting
+              return {
+                command: '/bin/sh',
+                args: ['-c', hesitant.line],
+                by: hesitant.by,
+                proving: {
+                  within: hesitant.within,
+                  waiting: (rows) => rows.some((row) => row.includes(waiting)),
+                },
+              }
+            },
+            attached: async (remote: Remote, by: string, through: boolean) => {
+              if (by !== hesitant?.by) return
+              if (through) refused.delete(remote.name)
+              else refused.add(remote.name)
+            },
           }
         : {}),
       identify: async (address) => identityOf(address, find(address)),
@@ -102,7 +135,7 @@ export function makeScriptedLink(options: ScriptedOptions): RemoteLink {
 
 /** A terminal here running a line, which is a terminal there when there is here. */
 function here(line: string): TerminalThere {
-  return { command: '/bin/sh', args: ['-c', line], by: 'scripted' }
+  return { command: '/bin/sh', args: ['-c', line], by: 'scripted', lost: LOST }
 }
 
 function identityOf(address: string, far: ScriptedRemote): Identity {

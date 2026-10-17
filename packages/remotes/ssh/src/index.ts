@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Duplex } from 'node:stream'
 import {
@@ -25,10 +25,10 @@ import {
   type RemoteLink,
   type TerminalThere,
 } from '@tade/remotes-core'
-import { attachThere, lineOk, MOSH_PROGRAM, serverOk } from './attach.ts'
+import { attachThere, lineOk, MOSH_AGAIN_MS, MOSH_PROGRAM, serverOk } from './attach.ts'
 import { changedSays, identify, trust } from './known.ts'
 
-export { MOSH_PROGRAM } from './attach.ts'
+export { MOSH_PORTS, MOSH_PROGRAM, moshPortsSaid } from './attach.ts'
 
 // A RemoteLink over SSH: the one way there is to reach another machine's Tade
 // today (REMOTE-TADE.md §2.5, §4.1).
@@ -116,6 +116,7 @@ export function makeSshLink(options: SshOptions): RemoteLink {
       },
       terminal: (remote, words) => ssh.terminal(remote, words),
       attach: (remote, line) => ssh.attach(remote, line),
+      attached: (remote, by, through) => ssh.attached(remote, by, through),
     },
     options,
   )
@@ -180,6 +181,16 @@ export function pathsFor(home: string, remote: string, port: number): Paths {
 function controlOf(home: string, remote: string): string {
   const short = createHash('sha1').update(remote).digest('hex').slice(0, 8)
   return join(runtimeDir(home), `r-${short}.ctl`)
+}
+
+/**
+ * Where it is written down that mosh did not get through to one remote: an
+ * empty file, as old as the try. Beside the master's socket, so a window
+ * opened again remembers it and a machine started again does not — another
+ * boot is as likely another network.
+ */
+export function moshRefusedAt(home: string, remote: string): string {
+  return controlOf(home, remote).replace(/\.ctl$/, '.nomosh')
 }
 
 /** How long what a remote answered about its mosh is kept before it is asked again. */
@@ -314,7 +325,9 @@ class Ssh {
       )
     }
     const env = this.options.env ?? process.env
-    const here = resolveCommand('mosh', { PATH: env.PATH ?? '' })
+    const here = (await this.moshRefused(remote))
+      ? null
+      : resolveCommand('mosh', { PATH: env.PATH ?? '' })
     const there = here === null ? null : await this.moshServer(remote)
     return attachThere({
       ssh: this.options.ssh ?? 'ssh',
@@ -324,6 +337,35 @@ class Ssh {
       line,
       mosh: here !== null && there !== null ? { here, there } : null,
     })
+  }
+
+  /**
+   * What came of a mosh terminal: one that did not get through is written
+   * down, so the next terminal to that remote goes over ssh at once rather
+   * than waiting on mosh's banner again; one that did takes that back. ssh is
+   * proved by nothing, so nothing is said of it.
+   */
+  async attached(remote: Remote, by: string, through: boolean): Promise<void> {
+    if (by !== 'mosh') return
+    const at = moshRefusedAt(this.options.home, remote.name)
+    if (through) {
+      await rm(at, { force: true })
+      return
+    }
+    await mkdir(join(at, '..'), { recursive: true, mode: 0o700 })
+    await writeFile(at, '')
+  }
+
+  /** Whether mosh did not get through to this remote within the last `MOSH_AGAIN_MS`. */
+  private async moshRefused(remote: Remote): Promise<boolean> {
+    try {
+      const at = await stat(moshRefusedAt(this.options.home, remote.name))
+      return Date.now() - at.mtimeMs < MOSH_AGAIN_MS
+    } catch (err) {
+      // Nothing written down is the usual answer, and means mosh is tried.
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false
+      throw err
+    }
   }
 
   /**

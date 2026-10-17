@@ -1,8 +1,7 @@
 import { randomBytes } from 'node:crypto'
-import { homedir } from 'node:os'
-import { type LaneId, printable, TaskId } from '@tade/core'
-import type { Answer, Remote, RemoteLink } from '@tade/remotes-core'
-import { ATTACHED, attachedTo, nextAttached } from '@tade/workbench/attached'
+import { printable, TaskId } from '@tade/core'
+import type { Answer, Held, Remote, RemoteLink } from '@tade/remotes-core'
+import { attachedTo } from '@tade/workbench/attached'
 import type { Frame } from '../frame.ts'
 import {
   elsewhereOf,
@@ -14,7 +13,6 @@ import {
   type RemoteScreen,
   screenOf,
 } from '../machines.ts'
-import { showTerminal } from '../model.ts'
 import { promptPanel } from '../panels/small/state.ts'
 import {
   type Actions,
@@ -25,6 +23,7 @@ import {
   type Wiring,
   why,
 } from './context.ts'
+import { RemoteTerminals } from './remote-terminals.ts'
 
 // An agent on another machine, opened from this window (REMOTE-TADE.md §3.4,
 // §9.4): looked at, typed into, told something, and stopped, parked, answered
@@ -44,7 +43,9 @@ import {
 // the lower pane, which is the one place a lane is typed into — the window's
 // whole pacing, scrolling and selection come with it. The SSH key is the
 // authority, so nothing types into a lane from away: this never goes through
-// the away view's verbs at all.
+// the away view's verbs at all. Opening one, running it again once its
+// connection is back and moving it off a way that does not get through are
+// `remote-terminals.ts`'s.
 //
 // **Everything else is a verb** (`/api/act/<verb>`), with the target and
 // what this window last saw of it (`was`, `rev`), so a press against a screen
@@ -80,10 +81,13 @@ export class RemoteAgents implements Subject {
   /** The look on its way, by machine and task, so a late answer about another is dropped. */
   private asking: string | null = null
   private askedAt = 0
+  /** The terminals here that are agents there. */
+  private readonly terminals: RemoteTerminals
 
   constructor(wire: Wiring, deps: RemoteAgentDeps) {
     this.wire = wire
     this.deps = deps
+    this.terminals = new RemoteTerminals(wire, { reach: (machine) => deps.reach(machine) })
   }
 
   facts(): Partial<Frame> {
@@ -92,8 +96,14 @@ export class RemoteAgents implements Subject {
     return { remoteScreen: this.screen.screen }
   }
 
+  /** What a link holds moved: a terminal there that lost its connection may be run again. */
+  moved(name: string, held: Held): void {
+    this.terminals.moved(name, held)
+  }
+
   /** The window's beat: the screen asked for again, while somebody looks at one. */
   beat(): void {
+    this.terminals.beat()
     const looked = this.looked()
     if (looked === null || this.asking !== null) return
     if (this.wire.now() - this.askedAt < LOOK_MS && this.screen?.of === keyOf(looked.place)) return
@@ -204,62 +214,16 @@ export class RemoteAgents implements Subject {
 
   /**
    * Enter: a terminal here that is the agent there. The one already open to
-   * it is put in front; otherwise that machine is asked for its line, and the
-   * link for how to run it there.
+   * it is put in front; otherwise one is opened (`remote-terminals.ts`).
    */
   private async attach(): Promise<void> {
     const looked = this.looked()
     if (looked === null) return
     const machine = looked.machine.name
     const task = looked.place.agent
-    const client = this.wire.opts.client
-    const open = attachedTo(client.lanes(), machine, task)
-    if (open !== null) return this.front(open.id)
-    const reach = this.deps.reach(machine)
-    if (reach === null || !reach.live) {
-      return this.say(`${machine} is not linked right now, so no terminal to it can be opened`)
-    }
-    let terminal: Awaited<ReturnType<RemoteLink['attach']>>
-    try {
-      const asked = await reach.link.request(machine, '/api/attach', { task })
-      const line = lineIn(asked, machine)
-      if (line.why !== null) return this.say(line.why)
-      terminal = await reach.link.attach(reach.remote, line.command)
-    } catch (err) {
-      return this.say(`${machine}: ${printable(why(err))}`)
-    }
-    if (terminal === null) {
-      return this.say(`the link to ${machine} cannot open a terminal there`)
-    }
-    const id = nextAttached(machine, client.lanes()) as LaneId
-    try {
-      await client.spawn({
-        id,
-        task: `${ATTACHED}/${machine}`,
-        kind: 'terminal',
-        cwd: homedir(),
-        command: '/bin/sh',
-        args: ['-c', HOLD, 'tade', terminal.command, ...terminal.args],
-        title: task,
-      })
-    } catch (err) {
-      return this.say(`a terminal to ${machine} could not start here: ${why(err)}`)
-    }
-    this.front(id)
-    if (terminal.by) flash(this.wire, `${task} on ${machine}, over ${terminal.by}`)
-    this.wire.draw()
-  }
-
-  /**
-   * A terminal in front of the lower pane, with the keyboard in it and the
-   * window's room to read it: an agent's own screen is a whole screen, which
-   * the pane's third of the window cuts to its last few rows. The pane's own
-   * control puts it back.
-   */
-  private front(id: string): void {
-    this.wire.live?.tabsNow()
-    this.wire.put({ ...showTerminal(this.wire.state, id), bottomMode: 'max' })
-    this.wire.draw()
+    const open = attachedTo(this.wire.opts.client.lanes(), machine, task)
+    if (open !== null) return this.terminals.front(open.id)
+    await this.terminals.open(machine, task)
   }
 
   /** Allow or deny what the agent there is held on, by the approval's own id. */
@@ -315,18 +279,6 @@ export class RemoteAgents implements Subject {
   }
 }
 
-/**
- * What a terminal there is run inside: the link's command as it was handed
- * over (`"$@"`, never through a shell's reading of it), and where it ends with
- * a failure — ssh refused, tmux there found no session, the connection dropped
- * — the terminal stays with what it printed and says so until enter is
- * pressed. A lane gone is a tab gone, and a tab that vanished says nothing.
- * One that ends cleanly, let go there, closes as it ends.
- */
-export const HOLD =
-  '"$@"; ended=$?; [ "$ended" -eq 0 ] && exit 0; ' +
-  'printf \'\\r\\n[it ended (%s): press enter to close]\' "$ended"; read -r _; exit "$ended"'
-
 /** Machine and task, as one key, or empty for nothing looked at. */
 function keyOf(place: Place | undefined | null): string {
   return place?.agent === undefined ? '' : `${place.machine}\0${place.agent}`
@@ -350,26 +302,4 @@ export function saidOf(answer: Answer, machine: string, verb: string): string {
     )
   }
   throw new Error(`${machine}: ${said || `it answered ${answer.status}`}`)
-}
-
-/** That machine's line for the agent, or why there is none, from what `/api/attach` answered. */
-export function lineIn(
-  answer: Answer,
-  machine: string,
-): { command: string; why: null } | { command: null; why: string } {
-  const body = typeof answer.body === 'object' && answer.body !== null ? answer.body : {}
-  if (answer.status === 404) {
-    return {
-      command: null,
-      why: `${machine}'s Tade cannot be asked for a terminal to its agents — update it there`,
-    }
-  }
-  if (answer.status !== 200) {
-    const said = 'said' in body && typeof body.said === 'string' ? printable(body.said) : ''
-    return { command: null, why: `${machine}: ${said || `it answered ${answer.status}`}` }
-  }
-  const command = 'command' in body ? body.command : null
-  if (typeof command === 'string') return { command, why: null }
-  const said = 'why' in body && typeof body.why === 'string' ? printable(body.why) : ''
-  return { command: null, why: `${machine}: ${said || 'it gave no terminal for that agent'}` }
 }

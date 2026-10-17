@@ -118,6 +118,21 @@ export interface TerminalThere {
    * saying beside the terminal. Drawn, never branched on.
    */
   by?: string
+  /**
+   * The exit status by which this way says the connection there was lost —
+   * ssh's own 255 — rather than the terminal ending there: a terminal that
+   * ended by it is run again when the link comes back. Absent where this way
+   * outlives a lost connection, or cannot tell one from an ending.
+   */
+  lost?: number
+  /**
+   * Where this way can wait on the far end without ever ending — on its own
+   * words, while nothing gets through — how long it is given, and how its
+   * screen says it is still waiting. Past `within`, one that ended or whose
+   * rows `waiting` reads as still waiting did not get through, and the link is
+   * told so (`attached`) before it is asked again.
+   */
+  proving?: { within: number; waiting: (rows: readonly string[]) => boolean }
 }
 
 /**
@@ -254,6 +269,14 @@ export interface RemoteLink {
    * Throws `LinkError` for a line it would not hand a remote shell.
    */
   attach(remote: Remote, line: string): Promise<TerminalThere | null>
+  /**
+   * What came of a terminal `attach` handed back with `proving`: whether it
+   * got through to the remote by that way. A way that did not is remembered
+   * for that remote, and `attach` answers another until a later try of it
+   * works — how much later is the implementation's to say. Throws only where
+   * it could not write that down, which leaves the way to be tried again.
+   */
+  attached(remote: Remote, by: string, through: boolean): Promise<void>
   /**
    * One owner's request over the link held for this remote, while it is live:
    * what a window reads and asks again and again while somebody looks — an

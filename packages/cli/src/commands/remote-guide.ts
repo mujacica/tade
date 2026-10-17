@@ -28,7 +28,7 @@ import {
   withShellJournal,
 } from '@tade/workbench/carry'
 import { HomeBusyError, heldBy } from '@tade/workbench/lock'
-import { linkOf, remoteOf } from '@tade/workbench/remotes'
+import { linkOf, moshPortsSaid, remoteOf } from '@tade/workbench/remotes'
 import { heldIn, recordFromShell } from '../config-write.ts'
 import { Exit, type Io } from '../io.ts'
 
@@ -408,6 +408,7 @@ export async function addRemote(place: Place, name: string, opts: AddOpts): Prom
     return
   }
   sayChecklist(io, list, { address: opts.ssh, tade: opts.tade })
+  if (link.capabilities.terminals) io.out(moshPortsSaid(opts.ssh))
   io.out(
     window
       ? 'the window open on this home links it within a few seconds and keeps it in step: `tade remote status` says how it stands'

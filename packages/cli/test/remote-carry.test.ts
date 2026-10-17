@@ -192,6 +192,8 @@ describe('tade remote add, carrying this machine’s setup', () => {
     expect(out.join('\n')).toContain(
       "each machine's own, never carried: agents.workspace, workspace, projects, remotes",
     )
+    // No terminal there through this link, so nothing about mosh.
+    expect(out.join('\n')).not.toContain('for mosh')
     // The lines there say each was carried, and from where.
     expect(far.lines.find((one) => one.detail?.path === 'agents.commit')?.detail).toMatchObject({
       carried: 'mac',
@@ -321,6 +323,10 @@ describe('tade remote add, carrying this machine’s setup', () => {
     expect(err.join('\n')).toContain('what you type goes there and nowhere else')
     expect(out.join('\n')).toContain('claude-code is signed in there: 20 days left')
     expect(out.join('\n')).not.toContain('needs you to sign in')
+    // A link that opens terminals there names what mosh needs open, as a step nothing requires.
+    expect(out.join('\n')).toContain(
+      'optional, for mosh: open UDP 60000–61000 on far — `sudo ufw allow 60000:61000/udp`',
+    )
   })
 
   it('goes on where it cannot look at a host first, because ssh still refuses one it does not know', async () => {

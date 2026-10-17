@@ -246,6 +246,13 @@ over loopback) and `ssh`.
   `attachCommand` — only that machine knows its socket, session and window), handed back to it as
   one line of printable text or not at all; how it gets there (`ssh -t`, or mosh where both
   machines have it) is the implementation's, said in `by` and never branched on.
+- **A terminal there says how it ends and whether it got there, never the window by guessing.**
+  `lost` is the exit by which a way says its connection went (ssh's 255), so the window runs
+  again, on the link coming back, only a terminal that ended by it — never one closed, or ended
+  there (`wire/remote-terminals.ts`). `proving` is for a way that can wait without ending (mosh
+  with its UDP closed): how long it is given and the words on its screen that say it is still
+  waiting; past that the window tells the link (`attached`), which answers another way for that
+  remote until a later try of it works.
 - **`request` rides the held link** (its door, while live): what a window asks again and again — an
   agent's screen, a verb — so never a connection of its own, and never anything while the link is
   down. `call` is the one that makes its own, for the CLI with no window open.
@@ -285,7 +292,11 @@ What the ssh link turned out to need, each held by its tests:
   (over the master, kept ten minutes), never for an `ssh://…:port` destination mosh cannot take, and
   declared `optional` beside `ssh` (`MOSH_PROGRAM`) — remote links' programs are folded into what
   the machine needs (`workbench/src/programs.ts`), so a VPS lists it too. UDP 60000–61000 must be
-  open there; where it is not, mosh says so in the pane, which says it is mosh.
+  open there, which `tade remote add` and `tade setup` on a server name as an optional step
+  (`moshPortsSaid`). Where it is not, mosh sits on `Nothing received from server on UDP port …`
+  for fifteen seconds (mosh 1.4), so it is handed back with `proving` (`MOSH_WITHIN_MS`, read by
+  `moshWaiting`), and a remote it did not get through to is written down beside the master's socket
+  (`moshRefusedAt`) and goes over ssh for an hour (`MOSH_AGAIN_MS`), or until a try works.
 - **Tested against a real `sshd`** run as the person running the suite (`test/sshd.ts`: keys made
   for the run, a client config, one real login before anything counts), and skipped with the reason
   where none will start — so its coverage moves with the machine (`MOVES`).

@@ -68,3 +68,41 @@ describe('meeting a scripted remote', () => {
     )
   })
 })
+
+describe('a scripted way there that may not get through', () => {
+  const vps: ScriptedRemote = {
+    port: 1,
+    pair: () => Promise.reject(new Error('not here')),
+    revoke: () => Promise.resolve(),
+  }
+  const remote = {
+    name: 'vps',
+    address: 'vps',
+    tade: 'tade',
+    session: { device: 'ab12cd34', cookie: 'ab12cd34.s', csrf: 't', host: 'localhost:1' },
+  }
+
+  it('is answered first and proves itself by its words, until told it did not get through', async () => {
+    const link = makeScriptedLink({
+      home: '/nonexistent/home',
+      remotes: new Map([['vps', vps]]),
+      terminals: true,
+      hesitant: { by: 'slow', line: 'echo waiting', within: 100, waiting: 'still waiting' },
+    })
+    const first = await link.attach(remote, 'echo hi')
+    expect(first).toMatchObject({ by: 'slow', args: ['-c', 'echo waiting'] })
+    expect(first?.proving?.within).toBe(100)
+    expect(first?.proving?.waiting(['', 'mosh: still waiting'])).toBe(true)
+    expect(first?.proving?.waiting(['hi'])).toBe(false)
+    // Told it did not: the plain way, which says how it loses its connection.
+    await link.attached(remote, 'slow', false)
+    expect(await link.attach(remote, 'echo hi')).toMatchObject({
+      by: 'scripted',
+      lost: 255,
+      args: ['-c', 'echo hi'],
+    })
+    // Told a later try worked: the first way again.
+    await link.attached(remote, 'slow', true)
+    expect((await link.attach(remote, 'echo hi'))?.by).toBe('slow')
+  })
+})

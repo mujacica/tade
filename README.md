@@ -458,8 +458,10 @@ held on — each one that machine's own act, over the link this Mac holds as its
 
 **Enter types into it**: a terminal on the Mac that is the agent on the VPS, in front of the lower
 pane — that machine's own tmux, in a view of its own so two agents side by side stay two agents,
-over the SSH connection the link already holds, or over mosh where both machines have it. Closing
-the tab ends the terminal and never the agent.
+over the SSH connection the link already holds, or over mosh where both machines have it and its
+UDP gets through (otherwise `ssh -t`, said, and remembered for that machine). Closing the tab ends
+the terminal and never the agent; a lid closed or a network dropped ends only the connection, and
+the terminal comes back in the same tab when the link does.
 
 ![Typing into an agent on the VPS, in a terminal on the Mac](https://raw.githubusercontent.com/mujacica/tade/main/images/remote-terminal.svg)
 

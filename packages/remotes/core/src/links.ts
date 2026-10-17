@@ -49,6 +49,8 @@ export interface Transport {
   terminal?(remote: Remote, words: readonly string[]): TerminalThere
   /** With `terminals`: what to run here for a terminal there running the remote's own line. */
   attach?(remote: Remote, line: string): Promise<TerminalThere>
+  /** With `terminals`: what came of a terminal it handed back with `proving`. */
+  attached?(remote: Remote, by: string, through: boolean): Promise<void>
 }
 
 /** How long a request over a held link may take: a read, or a verb carried out there. */
@@ -128,6 +130,10 @@ class Links implements RemoteLink {
       )
     }
     return this.transport.attach(remote, line)
+  }
+
+  async attached(remote: Remote, by: string, through: boolean): Promise<void> {
+    await this.transport.attached?.(remote, by, through)
   }
 
   request(name: string, path: string, body?: unknown): Promise<Answer> {

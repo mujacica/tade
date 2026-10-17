@@ -7,6 +7,7 @@ import {
 } from '@tade/core'
 import { signInLasts } from '@tade/harnesses-core'
 import type { HarnessHere } from '@tade/workbench/machine'
+import { moshPortsSaid } from '@tade/workbench/remotes'
 import { writeFromShell } from '../config-write.ts'
 import type { Look } from './setup-facts.ts'
 
@@ -78,6 +79,15 @@ export async function sayNativeTrouble(ui: Ui, troubles: readonly NativeTrouble[
   ui.say('Tade cannot do this for itself: the command that fixes it has to run in a terminal,')
   ui.say('and opening one is the part that is broken.')
   await ui.pause('Run it in another terminal, then `tade setup` again.')
+}
+
+/**
+ * What a server is told under its checklist, whatever was asked: the one step
+ * nothing on this machine can look at — whether its firewall lets mosh in for
+ * another machine's window — said as the optional step it is.
+ */
+export function serverSays(look: Pick<Look, 'unattended'>): string[] {
+  return look.unattended ? [moshPortsSaid('this machine')] : []
 }
 
 /**

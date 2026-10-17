@@ -413,6 +413,25 @@ export function testRemoteLink(name: string, make: MakeRig, opts: { skip?: strin
       })
     })
 
+    it('is told what came of a terminal, and answers another way where one did not get through', async () => {
+      await setUp()
+      const one = await far()
+      const remote = await paired(one)
+      const opened = await link.attach(remote, "echo 'attached here'")
+      if (opened === null) return
+      const by = opened.by ?? ''
+      // Through is nothing to remember, and saying so never throws.
+      await link.attached(remote, by, true)
+      expect((await link.attach(remote, "echo 'attached here'"))?.by).toBe(opened.by)
+      // A way that has to prove itself and did not is not the way answered
+      // next, until a try of it works: otherwise the window waits on it again.
+      if (opened.proving === undefined) return
+      await link.attached(remote, by, false)
+      expect((await link.attach(remote, "echo 'attached here'"))?.by).not.toBe(opened.by)
+      await link.attached(remote, by, true)
+      expect((await link.attach(remote, "echo 'attached here'"))?.by).toBe(opened.by)
+    })
+
     it('offers a terminal there only where it says it can', async () => {
       await setUp()
       const one = await far()

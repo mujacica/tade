@@ -3,6 +3,10 @@ import type { Held, MakeRemoteLink, Remote } from '@tade/remotes-core'
 import { makeScriptedLink } from '@tade/remotes-scripted'
 import { makeSshLink } from '@tade/remotes-ssh'
 
+// What a machine reached over SSH has to let through for mosh, said as an
+// optional step by `tade remote add` and by `tade setup` on the machine itself.
+export { moshPortsSaid } from '@tade/remotes-ssh'
+
 // The remote links there are, by name: the one registry every call site goes
 // through (R1), so another way of reaching a machine — a relay, a tailnet name
 // with no shell behind it — is an implementation and a line here, never a

@@ -32,6 +32,7 @@ import {
   harnessLines,
   offerInstall,
   sayNativeTrouble,
+  serverSays,
   setUpKeys,
   setUpPrograms,
   signInSomewhere,
@@ -160,6 +161,7 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
         } else {
           for (const line of render(steps)) io.out(line)
           for (const line of report(look)) io.out(line)
+          for (const line of serverSays(look)) io.out(line)
         }
         if (!isReady(steps)) setExit(Exit.error)
         return
@@ -240,6 +242,7 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
       for (const problem of stuck) io.err(`  ${problem}`)
       const after = [...readiness(await gather(cwd, look)), worksStep(proof)]
       for (const line of render(after)) io.out(line)
+      for (const line of serverSays(look)) io.out(line)
       io.out('')
       if (isReady(after)) io.out(todo ? 'Ready. Run `tade`.' : 'Everything is set up. Run `tade`.')
       else io.out('Still missing something — see above.')

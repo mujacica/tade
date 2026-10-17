@@ -394,6 +394,7 @@ export class Remotes implements Subject {
   private changed(link: RemoteLink, name: string): void {
     const held = link.held(name)
     if (held !== null) this.talks?.moved(name, held)
+    if (held !== null) this.agents?.moved(name, held)
     this.deps.draw()
     if (held !== null) {
       const word = wordOf(held)

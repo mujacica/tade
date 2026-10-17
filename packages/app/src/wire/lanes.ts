@@ -103,7 +103,7 @@ export class Lanes implements Subject {
   /** The lines the pane and the terminal were last read as, which the wheel cuts a screen out of. */
   private readonly held: Held
   /** The lanes in front — both halves of each, where split — watched so they redraw as they print. */
-  private readonly watching = new Map<Area, { lane: string; stop: () => void }>()
+  private readonly watching = new Map<Area, { lane: string; born: string; stop: () => void }>()
   /** How each lane was last sized — once per size, and once it holds still; its height, what may be rewritten. */
   private readonly fitting: Fitting
   /** A terminal's scrollback, read for finding in it. */
@@ -685,11 +685,17 @@ export class Lanes implements Subject {
    * of a split are watched: either can be the one being typed into.
    */
   private watch(lane: string | null, slot: Area = 'pane'): void {
-    if (this.watching.get(slot)?.lane === lane) return
-    this.watching.get(slot)?.stop()
+    // Which lane under that name: a terminal to another machine run again in
+    // the lane it lost its connection in (`remote-terminals.ts`) is another
+    // lane, and one watched as the old would print without being looked at.
+    const record = lane ? this.wire.opts.client.lane(lane as LaneId) : null
+    const born = record ? `${record.startedAt}:${record.pid}` : ''
+    const was = this.watching.get(slot)
+    if (was?.lane === lane && (lane === null || was.born === born)) return
+    was?.stop()
     this.watching.delete(slot)
     if (!lane) return
-    const watching = { lane, stop: () => {} }
+    const watching = { lane, born, stop: () => {} }
     this.watching.set(slot, watching)
     const printed = () => {
       if (slot === 'pane' || slot === 'terminal') this.held.printed(slot)

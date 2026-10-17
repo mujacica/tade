@@ -1001,6 +1001,14 @@ drawn from what its away view sends — the projection the link holds (REMOTE-TA
   so the pacing, scrolling, selection and find a terminal has come with it, and the one already open
   is put in front rather than a second. It is no project's terminal: `terminalsFrom` never lists
   one, its menu is Find and Close (`attachedMenuItems`), and nothing types a command into it.
+- **It is kept up by `wire/remote-terminals.ts`**: its `sh` wrapper (`HOLD`) writes how it ended
+  beside the home's runtime files (`endedAt`) — `lost` for the link's own exit for a connection
+  that went — and a link live again runs every such terminal to that machine again in the same lane,
+  at its old size, in front if it was, said once in the lane and the flash; one closed, one that
+  ended there and one whose agent that machine no longer has a line for are left. A way handed back
+  with `proving` (mosh) that has not got through by then is run another way in the same lane, and
+  said. **A lane run again under the same id is another lane**, so `Lanes.watch` keys what it
+  watches by when the lane started, not by its id.
 - **Its orchestrator is a tab of the lower pane** (`talk-tab.ts`, the subject `wire/remote-talk.ts`,
   owned by `Remotes` like the agents): that machine's conversation out of its projection (`talk`,
   read by `machines.ts` a line at a time, paragraphs kept), turned into this window's `Transcript`

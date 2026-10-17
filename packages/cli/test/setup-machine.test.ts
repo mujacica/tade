@@ -9,6 +9,7 @@ import {
   harnessLines,
   offerInstall,
   sayNativeTrouble,
+  serverSays,
   setUpKeys,
   setUpPrograms,
   signInSomewhere,
@@ -180,6 +181,18 @@ describe('the programs Tade runs', () => {
     const ui = recorder({ confirm: [false] })
     await setUpPrograms(ui, [git])
     expect(ui.said.join('\n')).toContain('every commit an agent makes')
+  })
+})
+
+describe('a server', () => {
+  it('is told what to open for mosh as a step nothing requires, and nothing else is', () => {
+    const box = { unattended: { user: 'you', linger: true, unit: '/u/tade.service' } }
+    const said = serverSays(box)
+    expect(said).toHaveLength(1)
+    expect(said[0]).toMatch(/^optional, for mosh: open UDP 60000–61000 on this machine/)
+    expect(said[0]).toContain('sudo ufw allow 60000:61000/udp')
+    // A Mac, or a desktop: nothing another machine types in over.
+    expect(serverSays({ unattended: null })).toEqual([])
   })
 })
 
