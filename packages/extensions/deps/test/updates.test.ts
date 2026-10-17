@@ -123,48 +123,76 @@ function windowWith(
   }
 }
 
-/** A schedule of this watch, so what it once found can be read back under its id. */
-function schedule(home: string): void {
+/** A schedule of this watch in each project, so what it once found can be read back under its id. */
+function schedule(home: string, projects: readonly string[] = ['shop']): void {
   writeFileSync(
     join(home, 'schedules.jsonl'),
-    `${JSON.stringify({
-      op: 'set',
-      by: 'you',
-      at: '2026-09-01T00:00:00.000Z',
-      schedule: {
-        id: 'dependency-updates-shop',
-        name: 'Dependency updates',
-        project: 'shop',
-        said: '',
-        when: { every: '1d' },
-        does: { kind: 'watch', watch: 'deps.updates', input: {}, found: 'agent', most: 2 },
-        missed: 'once',
-        by: 'you',
-        created: '2026-09-01T00:00:00.000Z',
-      },
-    })}\n`,
-    'utf8',
-  )
-}
-
-/** Findings this watch is recorded as having started work on, an hour ago. */
-function alreadyBumped(home: string, keys: readonly string[]): void {
-  writeFileSync(
-    join(home, 'events.jsonl'),
-    `${keys
-      .map((key, i) =>
+    `${projects
+      .map((project) =>
         JSON.stringify({
-          seq: i + 1,
-          ts: new Date(Date.now() - 60 * 60_000).toISOString(),
-          type: 'watch_found',
-          urgency: 'notable',
-          task: `shop/bump-${i}`,
-          detail: { schedule: 'dependency-updates-shop', key, title: key },
+          op: 'set',
+          by: 'you',
+          at: '2026-09-01T00:00:00.000Z',
+          schedule: {
+            id: `dependency-updates-${project}`,
+            name: 'Dependency updates',
+            project,
+            said: '',
+            when: { every: '1d' },
+            does: { kind: 'watch', watch: 'deps.updates', input: {}, found: 'agent', most: 2 },
+            missed: 'once',
+            by: 'you',
+            created: '2026-09-01T00:00:00.000Z',
+          },
         }),
       )
       .join('\n')}\n`,
     'utf8',
   )
+}
+
+/** A bump this watch started: its finding's key, in which project, and whether its task is over. */
+interface Tried {
+  key: string
+  project?: string
+  over?: boolean
+}
+
+/**
+ * Bumps this watch is recorded as having started an hour ago, as tasks
+ * `<project>/bump-<n>`. Each is over unless it says otherwise — which, with
+ * nothing of it committed anywhere, is a try that failed.
+ */
+function alreadyBumped(home: string, tries: readonly (string | Tried)[]): void {
+  const ts = new Date(Date.now() - 60 * 60_000).toISOString()
+  const events = tries.flatMap((one, i) => {
+    const { key, project = 'shop', over = true } = typeof one === 'string' ? { key: one } : one
+    const task = `${project}/bump-${i}`
+    return [
+      {
+        ts,
+        type: 'watch_found',
+        task,
+        detail: { schedule: `dependency-updates-${project}`, key, title: key },
+      },
+      ...(over ? [{ ts, type: 'task_done', task, detail: { by: 'agent', summary: '' } }] : []),
+    ]
+  })
+  writeFileSync(
+    join(home, 'events.jsonl'),
+    `${events
+      .map((event, i) => JSON.stringify({ seq: i + 1, urgency: 'notable', ...event }))
+      .join('\n')}\n`,
+    'utf8',
+  )
+}
+
+/** A commit made by a task, on a branch of its own that the checkout does not have. */
+function waitingOn(repo: ReturnType<typeof project>, task: string): void {
+  const sha = repo
+    .git('commit-tree', 'HEAD^{tree}', '-p', 'HEAD', '-m', `bump\n\nTade-Task: ${task}`)
+    .trim()
+  repo.git('branch', `tade/${task.split('/')[1]}`, sha)
 }
 
 describe('the key a bump is known by', () => {
@@ -174,7 +202,13 @@ describe('the key a bump is known by', () => {
       { name: '@types/node', to: '22.1.3' },
     ])
     expect(key).toBe('patch:@types/node@22.1.3,left-pad@1.3.1')
-    expect(readKey(key)).toEqual({ shape: 'patch', names: ['@types/node', 'left-pad'] })
+    expect(readKey(key)).toEqual({
+      shape: 'patch',
+      bumps: [
+        { name: '@types/node', to: '22.1.3' },
+        { name: 'left-pad', to: '1.3.1' },
+      ],
+    })
     // Written the same way whatever order they came in: the set is the identity.
     expect(
       keyOf('patch', [
@@ -182,7 +216,10 @@ describe('the key a bump is known by', () => {
         { name: 'left-pad', to: '1.3.1' },
       ]),
     ).toBe(key)
-    expect(readKey('minor:vitest@4.1.0')).toEqual({ shape: 'minor', names: ['vitest'] })
+    expect(readKey('minor:vitest@4.1.0')).toEqual({
+      shape: 'minor',
+      bumps: [{ name: 'vitest', to: '4.1.0' }],
+    })
     expect(readKey('github.com/acme/api@abc')).toBeNull()
     expect(readKey('patch')).toBeNull()
     expect(readKey('patch:')).toBeNull()
@@ -336,7 +373,8 @@ describe('a package it has already tried', () => {
   it('is told about rather than bumped again, and is not in the batch', async () => {
     const { repo, home } = place()
     schedule(home)
-    // Two bumps of lodash in the last fortnight, and it is still behind.
+    // Two bumps of lodash to this release here in the last fortnight, both
+    // over with nothing committed, and it is still behind.
     alreadyBumped(home, ['patch:lodash@4.17.21', 'patch:left-pad@1.3.0,lodash@4.17.21'])
     const looked = await look(await host(repo.root, home))
 
@@ -350,7 +388,12 @@ describe('a package it has already tried', () => {
     ])
     const held = looked.found[3]
     if (!held) throw new Error('lodash was not held')
-    expect(held.title).toBe('lodash is still behind 4.17.21 after 2 automatic bumps')
+    // Naming the tries that held it, so the sentence can be checked.
+    expect(held.title).toBe(
+      'lodash is still behind 4.17.21 after 2 failed automatic bumps to it (shop/bump-0 and shop/bump-1)',
+    )
+    expect(held.detail).toContain('- shop/bump-0, started ')
+    expect(held.detail).toContain('- shop/bump-1, started ')
     // Told, and told without a lane: nothing is started on it, and the sentence
     // is what reaches the orchestrator.
     await expect(looked.agent(held)).rejects.toThrow(
@@ -364,8 +407,8 @@ describe('a package it has already tried', () => {
     writeFileSync(
       join(home, 'events.jsonl'),
       `${[
-        // Started work, but four weeks ago: a bad week last month is not a
-        // reason never to bump a package again.
+        // Started work and failed, but four weeks ago: a bad week last month
+        // is not a reason never to bump a package again.
         {
           seq: 1,
           ts: new Date(Date.now() - 28 * 24 * 60 * 60_000).toISOString(),
@@ -374,9 +417,17 @@ describe('a package it has already tried', () => {
           task: 'shop/bump-old',
           detail: { schedule: 'dependency-updates-shop', key: 'patch:lodash@4.17.21', title: 'x' },
         },
-        // Found an hour ago, but nothing was started on it, so nothing was tried.
         {
           seq: 2,
+          ts: new Date(Date.now() - 27 * 24 * 60 * 60_000).toISOString(),
+          type: 'task_done',
+          urgency: 'notable',
+          task: 'shop/bump-old',
+          detail: { by: 'agent', summary: '' },
+        },
+        // Found an hour ago, but nothing was started on it, so nothing was tried.
+        {
+          seq: 3,
           ts: new Date(Date.now() - 60 * 60_000).toISOString(),
           type: 'watch_found',
           urgency: 'notable',
@@ -387,7 +438,8 @@ describe('a package it has already tried', () => {
         .join('\n')}\n`,
       'utf8',
     )
-    const looked = await look(await host(repo.root, home))
+    // An allowance of one, so either of them counted would hold it.
+    const looked = await look(await host(repo.root, home, registry(ANSWERS), { attempts: 1 }))
     expect(looked.found[0]?.key).toBe('patch:@types/node@22.1.3,left-pad@1.3.1,lodash@4.17.21')
   })
 
@@ -395,6 +447,56 @@ describe('a package it has already tried', () => {
     const { repo, home } = place()
     schedule(home)
     alreadyBumped(home, ['patch:lodash@4.17.21'])
+    const looked = await look(await host(repo.root, home, registry(ANSWERS), { attempts: 1 }))
+    expect(looked.found.map((one) => one.key)).toContain('held:lodash@4.17.21')
+  })
+
+  // What held zod 4.6.7 and @sentry/node 11.8.0 for no reason: tries counted
+  // by name, across every project and every version, landed or not.
+  it('is not held by bumps to another release of it, failed or landed', async () => {
+    const { repo, home } = place()
+    schedule(home)
+    alreadyBumped(home, ['patch:lodash@4.17.19', 'patch:left-pad@1.3.0,lodash@4.17.20'])
+    const looked = await look(await host(repo.root, home))
+    expect(looked.found[0]?.key).toBe('patch:@types/node@22.1.3,left-pad@1.3.1,lodash@4.17.21')
+    expect(looked.found.map((one) => one.key)).not.toContain('held:lodash@4.17.21')
+  })
+
+  it('is not held by bumps of the same release in another project', async () => {
+    const { repo, home } = place()
+    schedule(home, ['shop', 'cruxed'])
+    alreadyBumped(home, [
+      { key: 'patch:lodash@4.17.21', project: 'cruxed' },
+      { key: 'patch:left-pad@1.3.0,lodash@4.17.21', project: 'cruxed' },
+    ])
+    const looked = await look(await host(repo.root, home))
+    expect(looked.found[0]?.key).toBe('patch:@types/node@22.1.3,left-pad@1.3.1,lodash@4.17.21')
+    expect(looked.found.map((one) => one.key)).not.toContain('held:lodash@4.17.21')
+  })
+
+  it('is not held by a try still at work, nor by one whose bump waits on its own branch', async () => {
+    const { repo, home } = place()
+    schedule(home)
+    alreadyBumped(home, [
+      // Not over: it has not failed yet.
+      { key: 'patch:lodash@4.17.21', over: false },
+      // Over, and committed on a branch the checkout does not have yet: a bump
+      // that landed, waiting for somebody to take it.
+      'patch:left-pad@1.3.0,lodash@4.17.21',
+    ])
+    waitingOn(repo, 'shop/bump-1')
+    const looked = await look(await host(repo.root, home, registry(ANSWERS), { attempts: 1 }))
+    expect(looked.found[0]?.key).toBe('patch:@types/node@22.1.3,left-pad@1.3.1,lodash@4.17.21')
+    expect(looked.found.map((one) => one.key)).not.toContain('held:lodash@4.17.21')
+  })
+
+  it('is held by a try whose commit reached the checkout without it', async () => {
+    const { repo, home } = place()
+    schedule(home)
+    // The batch left lodash behind and committed the rest: in the checkout,
+    // and lodash is still behind the release it tried.
+    alreadyBumped(home, ['patch:left-pad@1.3.0,lodash@4.17.21'])
+    repo.commit('left-pad alone\n\nTade-Task: shop/bump-0')
     const looked = await look(await host(repo.root, home, registry(ANSWERS), { attempts: 1 }))
     expect(looked.found.map((one) => one.key)).toContain('held:lodash@4.17.21')
   })
@@ -428,7 +530,7 @@ describe('the bound on one commit', () => {
       ),
     )
     expect(looked.found.length).toBe(1)
-    expect(readKey(looked.found[0]?.key ?? '')?.names.length).toBe(20)
+    expect(readKey(looked.found[0]?.key ?? '')?.bumps.length).toBe(20)
     expect(looked.found[0]?.detail).toContain('2 more patch releases wait for the next look')
   })
 

@@ -100,7 +100,7 @@ export const depsExtension: TadeExtension = {
       key: 'attempts',
       kind: 'number',
       means:
-        'how many times a watch may bump one package automatically in a fortnight before it only says what is wrong (2)',
+        'how many automatic bumps of one package to one release may fail in a project in a fortnight before the watch only says what is wrong (2)',
     },
   ],
   ready: async (ctx) => {

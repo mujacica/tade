@@ -45,9 +45,11 @@ import { files, report } from './look.ts'
 //     project's own checks through `checks_run`, and where it cannot make them
 //     green it puts the manifests back and says so. A dependency bot that
 //     lands broken code is worse than none.
-//   · **A package it has already tried twice is told about, not tried again.**
-//     The same rule the review watches keep, counted over a fortnight so a bad
-//     week does not stop it for good.
+//   · **A release it has already failed to bump twice here is told about,
+//     not tried again.** The same rule the review watches keep, counted over a
+//     fortnight so a bad week does not stop it for good, and counted per
+//     version and per project (`failedTries`) so a release after a bad one,
+//     and another project's trouble, start clean.
 //   · **A tree of its own, whatever the project says.** A bump is one set of
 //     manifests, one install and one lockfile, which is the one shape of work
 //     that cannot be shared — so it asks for a worktree and a branch of its
@@ -104,52 +106,128 @@ export function keyOf(shape: Shape, bumps: readonly { name: string; to: string }
     .join(',')}`
 }
 
-/** What packages a finding of this watch was about, read back out of its key. */
-export function readKey(key: string): { shape: Shape; names: string[] } | null {
+/** What packages a finding of this watch was about, each at the version it moves to, read back out of its key. */
+export function readKey(
+  key: string,
+): { shape: Shape; bumps: { name: string; to: string }[] } | null {
   const at = key.indexOf(':')
   if (at < 0) return null
   const shape = key.slice(0, at)
   if (shape !== 'patch' && shape !== 'minor' && shape !== 'held') return null
-  const names = key
+  const bumps = key
     .slice(at + 1)
     .split(',')
     // A scoped npm name has an `@` of its own, so the version is after the last one.
-    .map((one) => one.slice(0, one.lastIndexOf('@')))
-    .filter((one) => one !== '')
-  return names.length > 0 ? { shape, names } : null
+    .map((one) => ({
+      name: one.slice(0, one.lastIndexOf('@')),
+      to: one.slice(one.lastIndexOf('@') + 1),
+    }))
+    .filter((one) => one.name !== '')
+  return bumps.length > 0 ? { shape, bumps } : null
 }
 
-/** How many automatic bumps this watch has already started on each package, in a window. */
-export async function bumpsAlready(
-  ctx: ExtensionContext,
-  since: number,
-): Promise<Map<string, number>> {
-  const events = await readJournal(ctx.home, { types: ['watch_found'] }).catch(() => [])
+/** An automatic bump this watch started that is over, and did not land. */
+export interface Try {
+  task: string
+  at: number
+}
+
+/**
+ * The automatic bumps of each package at one version that failed, in this
+ * project, in a window: `name@version` → the tries, oldest first.
+ *
+ * **One version, in one project, and only what failed.** Counted by name
+ * alone, as this once was, every bump anywhere counted against every later
+ * release: zod 4.6.7 was held on tade's bump to 4.6.6 and cruxed's, and
+ * @sentry/node 11.8.0 on its bumps to 11.6.0 and 11.7.0, both of which landed.
+ * A release after a failed one is new information, and another project's
+ * checks say nothing about this one's.
+ *
+ * Only ever asked about a package that is still behind that version here, so a
+ * try of it that is over put nothing in the checkout: it failed, or a batch
+ * left this package out of what it committed. Two kinds of try are not that.
+ * One still running has not failed yet. One whose commit waits on a branch
+ * that has not reached the checkout — a worktree's, a review's, or a remote's
+ * the checkout has not pulled — is a bump that landed, waiting for somebody to
+ * take it. A commit is the try's by its `Tade-Task:` trailer, never by a branch
+ * name. Where git cannot say what waits, nothing is counted as waiting: the
+ * hold is the safe way to be wrong, and a third agent on a release that broke
+ * twice is not.
+ */
+export async function failedTries(ctx: WatchContext, since: number): Promise<Map<string, Try[]>> {
+  const events = await readJournal(ctx.home, {
+    types: ['watch_found', 'task_done', 'task_removed'],
+  }).catch(() => [])
   let ids: string[] = []
   try {
     ids = readSchedules(ctx.home)
       .filter(
         (schedule) =>
-          schedule.does.kind === 'watch' && schedule.does.watch === `${ctx.extension}.${ID}`,
+          schedule.project === ctx.watching.name &&
+          schedule.does.kind === 'watch' &&
+          schedule.does.watch === `${ctx.extension}.${ID}`,
       )
       .map((schedule) => schedule.id)
   } catch {
     // No schedules file is the normal case, not an error.
   }
-  const counted = new Map<string, number>()
-  for (const id of ids) {
-    for (const finding of watchedFrom(events, id).findings) {
-      // A finding nothing was started on was not an attempt at anything.
-      if (finding.task === null || finding.at < since) continue
-      for (const name of readKey(finding.key)?.names ?? []) {
-        counted.set(name, (counted.get(name) ?? 0) + 1)
-      }
+  const over = new Set<string>()
+  for (const event of events) {
+    if ((event.type === 'task_done' || event.type === 'task_removed') && event.task) {
+      over.add(event.task)
     }
   }
-  return counted
+  const tries: { task: string; at: number; key: string }[] = []
+  for (const id of ids) {
+    // Oldest first, as the journal has them, so two at one moment keep its order.
+    for (const finding of watchedFrom(events, id).findings.reverse()) {
+      // A finding nothing was started on was not an attempt at anything.
+      if (finding.task === null || finding.at < since || !over.has(finding.task)) continue
+      tries.push({ task: finding.task, at: finding.at, key: finding.key })
+    }
+  }
+  if (tries.length === 0) return new Map()
+  const waiting = await waitingOnABranch(ctx, since)
+  const failed = new Map<string, Try[]>()
+  for (const one of tries.sort((a, b) => a.at - b.at)) {
+    if (waiting.has(one.task)) continue
+    for (const bump of readKey(one.key)?.bumps ?? []) {
+      const at = `${bump.name}@${bump.to}`
+      failed.set(at, [...(failed.get(at) ?? []), { task: one.task, at: one.at }])
+    }
+  }
+  return failed
 }
 
-/** How many automatic bumps one package may have before it is only reported. */
+/**
+ * The tasks with a commit on a ref of this project that its checkout does not
+ * have, made since a moment, read out of each commit's `Tade-Task:` trailer.
+ */
+async function waitingOnABranch(ctx: WatchContext, since: number): Promise<Set<string>> {
+  const log = await ctx.exec(
+    'git',
+    [
+      '-C',
+      ctx.watching.root,
+      'log',
+      '--all',
+      '--not',
+      'HEAD',
+      `--since=${new Date(since).toISOString()}`,
+      '--format=%(trailers:key=Tade-Task,valueonly)',
+    ],
+    { timeoutMs: 20_000 },
+  )
+  if (log.code !== 0) return new Set()
+  return new Set(
+    log.stdout
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line !== ''),
+  )
+}
+
+/** How many failed automatic bumps of one release a package may have here before it is only reported. */
 function allowed(ctx: ExtensionContext): number {
   const said = ctx.settings.attempts
   return typeof said === 'number' && said > 0 ? said : 2
@@ -342,10 +420,10 @@ export const dependencyUpdates: ExtensionWatch = {
     }
 
     const limit = allowed(ctx)
-    const counted = await bumpsAlready(ctx, ctx.now() - TRYING_DAYS * 24 * 60 * 60_000)
-    const tried = (one: Bump) => counted.get(one.name) ?? 0
-    const under = [...byName.values()].filter((one) => tried(one) < limit)
-    const held = [...byName.values()].filter((one) => tried(one) >= limit)
+    const failed = await failedTries(ctx, ctx.now() - TRYING_DAYS * 24 * 60 * 60_000)
+    const tries = (one: Bump) => failed.get(`${one.name}@${one.to}`) ?? []
+    const under = [...byName.values()].filter((one) => tries(one).length < limit)
+    const held = [...byName.values()].filter((one) => tries(one).length >= limit)
     const patches = under.filter((one) => one.behind === 'patch')
     const minors = under.filter((one) => one.behind === 'minor')
     const batch = patches.slice(0, BATCH)
@@ -394,17 +472,24 @@ export const dependencyUpdates: ExtensionWatch = {
         ].join('\n'),
       })
     }
-    // A package this watch has already moved its allowance of times and that
-    // is still behind. Said rather than tried again, and said again only when
-    // a release after it makes the key new.
+    // A release this watch has failed to bump its allowance of times here.
+    // Said rather than tried again, and said again only when a release after
+    // it makes the key new — naming the tries, because "held" with nothing
+    // behind it is a sentence nobody can check.
     for (const one of held) {
+      const these = tries(one)
+      const bumps = `${these.length} failed automatic bump${these.length === 1 ? '' : 's'}`
       told.push({
         key: keyOf('held', [one]),
-        title: `${one.name} is still behind ${one.to} after ${tried(one)} automatic bump${tried(one) === 1 ? '' : 's'}`,
+        title: `${one.name} is still behind ${one.to} after ${bumps} to it (${said(these.map((at) => at.task))})`,
         detail: [
           `# ${one.name} → ${one.to}`,
           '',
-          `This watch has started ${tried(one)} automatic bump${tried(one) === 1 ? '' : 's'} of ${one.name} in the last ${TRYING_DAYS} days and it is still behind.`,
+          `In the last ${TRYING_DAYS} days this watch started ${bumps} of ${one.name} to ${one.to} in ${ctx.watching.name}. Each is over with nothing of it waiting on a branch, and ${one.name} is still behind:`,
+          '',
+          ...these.map(
+            (at) => `- ${at.task}, started ${new Date(at.at).toISOString().slice(0, 10)}`,
+          ),
           ...requirementLines([one]),
         ].join('\n'),
       })
@@ -451,6 +536,7 @@ export const dependencyUpdates: ExtensionWatch = {
         `${finding.title} — somebody should move it by hand, or put it in extensions.deps.ignore, before a clock tries it again`,
       )
     }
+    const names = part.bumps.map((one) => one.name)
     const install = installCommands(await files(ctx, ctx.watching.root).catch(() => []))
     const patches = part.shape === 'patch'
     // Where this work goes, asked of the one reader the look asked. Said in the
@@ -459,13 +545,13 @@ export const dependencyUpdates: ExtensionWatch = {
     // project's own checkout is a tree whose other files are somebody else's.
     const shared = await inTheSharedCheckout(ctx)
     return {
-      title: patches ? `bump ${part.names.length} patch releases` : `bump ${part.names[0]}`,
+      title: patches ? `bump ${names.length} patch releases` : `bump ${names[0]}`,
       ...(shared ? {} : { alone: true as const }),
       prompt: [
         patches
-          ? `The ${part.names.length} patch release${part.names.length === 1 ? '' : 's'} in your task’s context file are behind in this project.`
-          : `${part.names[0]} has a new minor release, in your task’s context file with what is required now and what it would be.`,
-        `Call deps_update with level ${part.shape} and packages ${JSON.stringify(part.names)}: it moves those requirements ${shared ? 'where you work' : 'in your own worktree'} and nothing else, and leaves ranges and ceilings exactly as somebody wrote them.`,
+          ? `The ${names.length} patch release${names.length === 1 ? '' : 's'} in your task’s context file are behind in this project.`
+          : `${names[0]} has a new minor release, in your task’s context file with what is required now and what it would be.`,
+        `Call deps_update with level ${part.shape} and packages ${JSON.stringify(names)}: it moves those requirements ${shared ? 'where you work' : 'in your own worktree'} and nothing else, and leaves ranges and ceilings exactly as somebody wrote them.`,
         shared
           ? `You are working in ${ctx.watching.name}’s own checkout, which every other agent here shares: commit the manifests and lockfiles you moved and nothing else, each added by its path — never \`git add -A\`, \`git add .\` or \`git commit -a\`. If somebody else’s uncommitted work is in the tree when you get there, leave it exactly as it is and say so rather than bumping around it.`
           : '',
