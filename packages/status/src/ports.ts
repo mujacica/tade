@@ -1,5 +1,5 @@
 import type { RequiredProgram } from '@tade/core'
-import { problemWith, type Run, spawnProbe } from './processes.ts'
+import { PS_PROGRAM, problemWith, type Run, spawnProbe } from './processes.ts'
 
 // Which TCP ports each lane is listening on, derived and never assigned.
 //
@@ -21,10 +21,11 @@ import { problemWith, type Run, spawnProbe } from './processes.ts'
 // a busy laptop, and a dev server is started far less often than that.
 
 /**
- * What the look at ports runs, declared beside the run: every Mac has `lsof`,
- * and a minimal Debian or Ubuntu box has not, which without this was a
- * warning that it is missing and no line anywhere that installs it. Optional,
- * because a lane with no ports is all that is lost.
+ * What the look at ports runs, declared beside the run: every Mac has `lsof`
+ * and `ps`, and a minimal Debian or Ubuntu box has neither, which without this
+ * was a warning that one is missing and no line anywhere that installs it.
+ * Optional, because a lane with no ports is all that is lost. `ps` is the one
+ * agent detection declares, with this look's own reason: one row, two reasons.
  */
 export const PORTS_PROGRAMS: readonly RequiredProgram[] = [
   {
@@ -35,6 +36,7 @@ export const PORTS_PROGRAMS: readonly RequiredProgram[] = [
     optional: true,
     install: { apt: 'lsof', dnf: 'lsof', instead: { darwin: 'macOS ships with it' } },
   },
+  { ...PS_PROGRAM, why: 'telling which lane each listening process belongs to' },
 ]
 
 /** One process, as `ps` gives it. */

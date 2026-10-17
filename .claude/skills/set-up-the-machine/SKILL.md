@@ -75,7 +75,8 @@ Declaring **nothing** is an answer: the pty driver needs no program of its own, 
 having no `programs`. What Tade itself needs whichever implementations are in use is `TADE_PROGRAMS`
 — git and node — declared in `core` because it is a fact about Tade, not about the page that shows it.
 Status is Tade too, not a port, so what one of its looks runs is declared beside that run and folded
-in under Tade by `programsNeeded`: `PORTS_PROGRAMS` (`lsof`, `status/src/ports.ts`).
+in under Tade by `programsNeeded`: `PROCESSES_PROGRAMS` (`ps`, `status/src/processes.ts`) and
+`PORTS_PROGRAMS` (`lsof`, and the same `ps` with its own reason, `status/src/ports.ts`).
 
 ## Rules
 

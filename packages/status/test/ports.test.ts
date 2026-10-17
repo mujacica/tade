@@ -13,7 +13,7 @@ import {
   portsFor,
   processesOf,
 } from '../src/ports.ts'
-import type { Ran } from '../src/processes.ts'
+import { PS_PROGRAM, type Ran } from '../src/processes.ts'
 import { collectStatus } from '../src/status.ts'
 
 describe('reading ps and lsof', () => {
@@ -110,7 +110,7 @@ describe('listeningPorts', () => {
     ])
   })
 
-  it('declares the lsof it runs, so a box without one is told how to get it', async () => {
+  it('declares the lsof and ps it runs, so a box without one is told how to get it', async () => {
     const commands: string[] = []
     await listeningPorts([10], {
       run: async (command) => {
@@ -118,7 +118,12 @@ describe('listeningPorts', () => {
         return command === 'ps' ? ran({ stdout: '10 1 10\n' }) : ran({ exitCode: 1 })
       },
     })
-    expect(commands).toContain('lsof')
+    // Everything the look ran is declared, and nothing it did not.
+    expect(new Set(commands)).toEqual(new Set(PORTS_PROGRAMS.map((program) => program.command)))
+    // The ps agent detection declares, with this look's own reason beside it.
+    const ps = PORTS_PROGRAMS.find((program) => program.command === 'ps')
+    expect(ps).toMatchObject({ optional: true, install: PS_PROGRAM.install })
+    expect(ps?.why).not.toBe(PS_PROGRAM.why)
     const [lsof] = PORTS_PROGRAMS
     expect(lsof).toMatchObject({ command: 'lsof', optional: true })
     expect(declarationProblems(PORTS_PROGRAMS)).toEqual([])

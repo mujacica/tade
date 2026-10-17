@@ -1,5 +1,5 @@
 import { readlink } from 'node:fs/promises'
-import { located } from '@tade/core'
+import { located, type RequiredProgram } from '@tade/core'
 import { execa } from 'execa'
 
 // Which agent CLIs are running right now, and in which directory.
@@ -168,6 +168,26 @@ function staleServers(): ToolServers {
   lastServers = lastServers.filter((pid) => alive(pid))
   return { looked: true, alive: lastServers.length }
 }
+
+/**
+ * The `ps` this look runs, declared beside the run: every Mac has it, and a
+ * slim Debian or Ubuntu image has no procps, which without this was a warning
+ * that it is missing and no line anywhere that installs it. Optional, because
+ * what is lost is an adopted agent gone quiet still counting as alive, and the
+ * count of Tade's tool servers. A Mac's `ps` says no version to any argument,
+ * so there its version is one nobody can tell.
+ */
+export const PS_PROGRAM: RequiredProgram = {
+  command: 'ps',
+  title: 'ps',
+  why: 'telling which agents are running, and whether Tade’s tool server is beside each',
+  versionArgs: ['--version'],
+  optional: true,
+  install: { apt: 'procps', dnf: 'procps-ng', instead: { darwin: 'macOS ships with it' } },
+}
+
+/** What the look at agent processes runs. */
+export const PROCESSES_PROGRAMS: readonly RequiredProgram[] = [PS_PROGRAM]
 
 export async function listAgentProcesses(
   options: { run?: Run } = {},

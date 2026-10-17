@@ -29,7 +29,7 @@ describe('what the ports say Tade needs', async () => {
   it('asks every driver, harness and forge rather than holding a list', () => {
     // Each of these is declared by something — none of them is written down
     // here — and every one of them must arrive with a reason attached.
-    for (const command of ['git', 'node', 'lsof', 'tmux', 'pi', 'claude', 'gh']) {
+    for (const command of ['git', 'node', 'ps', 'lsof', 'tmux', 'pi', 'claude', 'gh']) {
       const need = commandOf(command)
       expect(need, `nothing declared ${command}`).toBeTruthy()
       expect(need?.needed.length ?? 0).toBeGreaterThan(0)
@@ -51,6 +51,10 @@ describe('what the ports say Tade needs', async () => {
     // What status runs to find a lane's ports is Tade's own, and a lane with
     // no ports drawn is all that is lost without it.
     expect(commandOf('lsof')).toMatchObject({ inUse: true, optional: true })
+    // And ps, which both that look and the one for agents run: one row, with
+    // each look's reason under it.
+    expect(commandOf('ps')).toMatchObject({ inUse: true, optional: true })
+    expect(commandOf('ps')?.needed).toHaveLength(2)
   })
 
   it('carries the arguments that make each say its version', () => {

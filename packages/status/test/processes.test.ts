@@ -1,7 +1,14 @@
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
+import { declarationProblems, installWith } from '@tade/core'
 import { describe, expect, it } from 'vitest'
-import { listAgentProcesses, matchProvider, problemWith, type Ran } from '../src/processes.ts'
+import {
+  listAgentProcesses,
+  matchProvider,
+  PROCESSES_PROGRAMS,
+  problemWith,
+  type Ran,
+} from '../src/processes.ts'
 
 // The process scan, with the programs it shells out to answered by a table.
 //
@@ -112,6 +119,32 @@ describe('scanning for agents', () => {
     expect(missing.warnings).toEqual([
       'process scan could not look: there is no ps on this machine',
     ])
+  })
+
+  it('declares the ps it runs, so a box without procps is told how to get it', async () => {
+    const commands: string[] = []
+    await listAgentProcesses({
+      run: async (command) => {
+        commands.push(command)
+        return answered('')
+      },
+    })
+    expect(commands).toEqual(['ps'])
+    expect(PROCESSES_PROGRAMS.map((program) => program.command)).toEqual(['ps'])
+    const [ps] = PROCESSES_PROGRAMS
+    expect(ps).toMatchObject({ optional: true })
+    expect(declarationProblems(PROCESSES_PROGRAMS)).toEqual([])
+    // Debian and Ubuntu call the package procps, Fedora procps-ng.
+    expect(installWith(ps?.install, { platform: 'linux', managers: ['apt-get'] })).toEqual({
+      command: 'sudo apt-get update && sudo apt-get install -y procps',
+    })
+    expect(installWith(ps?.install, { platform: 'linux', managers: ['dnf'], root: true })).toEqual({
+      command: 'dnf install -y procps-ng',
+    })
+    // Never a Linux line said to a Mac, which has its own.
+    expect(installWith(ps?.install, { platform: 'darwin', managers: ['brew'] })).toEqual({
+      cannot: 'macOS ships with it',
+    })
   })
 
   it('reads a provider out of a command line, and nothing else as one', () => {
