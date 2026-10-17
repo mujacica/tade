@@ -139,10 +139,19 @@ export default function tadeExtension(pi: PiApi): void {
   let buffer = ''
   let latest: PiContext | null = null
   let counter = 0
+  /**
+   * The last turn that ended while Tade was away, said when it is back. Under
+   * a driver whose agents outlive the window that is an ordinary afternoon,
+   * and a turn nobody heard end is one a hand-over or a done rule waits on for
+   * ever. One, however many ended: it says a turn ended since, not how many.
+   */
+  let missed: Json | null = null
 
+  /** A line to Tade, stamped now unless it says when it happened. */
   const send = (message: Json): void => {
     if (!socket || !connected) return
-    socket.write(`${JSON.stringify({ ...message, run: RUN, at: Date.now() })}\n`)
+    const at = typeof message.at === 'number' ? message.at : Date.now()
+    socket.write(`${JSON.stringify({ ...message, run: RUN, at })}\n`)
   }
 
   /**
@@ -251,6 +260,10 @@ export default function tadeExtension(pi: PiApi): void {
         model: latest ? modelOf(latest) : null,
         thinking: thinkingNow(),
       })
+      // What ended while nobody listened, before where it is now: a turn after
+      // it may already have begun.
+      if (missed) send(missed)
+      missed = null
       // Whether it is in the middle of something: a window that opened while
       // it worked would otherwise take it for idle, or idle for working.
       if (latest) send({ type: latest.isIdle() ? 'idle' : 'turn_started' })
@@ -510,13 +523,15 @@ export default function tadeExtension(pi: PiApi): void {
   ) => {
     latest = ctx
     const stop = event?.message?.stopReason
-    send({
+    const ended: Json = {
       type: 'turn_done',
       status: stop === 'error' ? 'error' : stop === 'aborted' ? 'aborted' : 'ok',
       ...(stop === 'error' && event.message?.errorMessage
         ? { reason: event.message.errorMessage }
         : {}),
-    })
+    }
+    if (connected) send(ended)
+    else missed = { ...ended, at: Date.now() }
     const usage = ctx.getContextUsage?.()
     if (usage) send({ type: 'context', tokens: usage.tokens, percent: usage.percent })
     reportSpend(ctx)

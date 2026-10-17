@@ -104,6 +104,8 @@ export interface HandOverAsked {
   at: number
   /** Its id, which the machine there knows it by once taken; null where an older window wrote none. */
   id: string | null
+  /** The commit its agent was told at (`pushedPast`); null where an older window wrote none. */
+  head: string | null
 }
 
 /**
@@ -124,7 +126,8 @@ export function handOversOpen(lines: readonly TadeEvent[]): HandOverAsked[] {
     if (typeof to !== 'string' || typeof there !== 'string' || typeof branch !== 'string') continue
     if ((by !== 'you' && by !== 'orchestrator') || Number.isNaN(at)) continue
     const id = typeof line.detail.id === 'string' ? line.detail.id : null
-    open.set(task, { task, machine: to, there, branch, by, at, id })
+    const head = typeof line.detail.head === 'string' ? line.detail.head : null
+    open.set(task, { task, machine: to, there, branch, by, at, id, head })
   }
   return [...open.values()]
 }
@@ -200,6 +203,20 @@ export async function pushedTo(from: HandedFrom): Promise<{ head: string } | { n
     }
   }
   return { head }
+}
+
+/**
+ * Whether what origin has (`head`, from `pushedTo`, so it is here to read) is
+ * past the commit the agent was told at: something pushed since it was told,
+ * which answers it whether or not a turn ending was heard. Not where nothing
+ * was written down (`told` null), nor at that commit itself — already pushed
+ * before it was told, which says nothing about whether it has heard — nor
+ * where origin's is not after it, as a rebase is not: those wait for a turn to
+ * end instead.
+ */
+export async function pushedPast(cwd: string, told: string | null, head: string): Promise<boolean> {
+  if (told === null || told === head) return false
+  return (await git(cwd, ['merge-base', '--is-ancestor', told, head])).code === 0
 }
 
 /** The branch a worktree is on, or null where it is on none. */

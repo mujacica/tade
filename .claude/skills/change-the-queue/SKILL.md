@@ -492,8 +492,10 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   file made there — words, prompt, context, links, done rule, `at` — and removed here once taken,
   **parked meanwhile** so this queue cannot start it in the gap. A running task is handed over:
   asked there first (`check`), its agent told to commit what is its own and push, the window looking
-  on its beat until origin has it and a turn has ended since — never on a guess that it is done —
-  then made there with `start.from` on that branch (in a worktree there, whatever that project's
+  on its beat until origin has it and the agent has answered — a push past the commit it was told
+  at (`task_handing`'s `head`, `pushedPast`), or a turn ended since, the quicker word and the only
+  one when there was nothing new to push; a turn that ended under tmux with Tade closed may never be
+  journalled — never on a guess that it is done — then made there with `start.from` on that branch (in a worktree there, whatever that project's
   workspace, because `start.from` means nothing in a shared checkout) and stopped and parked here,
   with `task_moved` here and `task_taken` there. **A hand-over in flight is a journal line**
   (`task_handing`, asked and then `ended` or `task_moved`), because it is asked just before a lid

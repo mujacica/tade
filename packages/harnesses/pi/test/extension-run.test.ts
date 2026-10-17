@@ -747,4 +747,38 @@ describe('a window that closes and opens again', () => {
     await vi.waitFor(() => expect(of(at, 'turn_started')).toHaveLength(2), { timeout: 10_000 })
     expect(at.connections).toBe(2)
   })
+
+  it('says a turn that ended while Tade was away once it is back, when it ended, and once', async () => {
+    const at = await tadeListening()
+    const { pi } = await running(at)
+    await pi.fire('turn_start', {}, ctx({ isIdle: () => false }))
+    await waitFor(at, 'turn_started')
+    // Something asked of Tade, whose giving up is the moment the agent knows
+    // it has gone — so the turn below ends with nobody listening.
+    const asked = pi.tools.get('tade_document_ready')?.execute('c1', {})
+    await waitFor(at, 'extension_call')
+    at.hangUp()
+    await expect(asked).rejects.toThrow('Tade closed before it answered')
+    await pi.fire(
+      'turn_end',
+      { message: { stopReason: 'error', errorMessage: 'overloaded' } },
+      ctx(),
+    )
+    expect(of(at, 'turn_done')).toEqual([])
+
+    // Back: what ended while it was away, then where it is now.
+    await vi.waitFor(() => expect(of(at, 'started')).toHaveLength(2), { timeout: 10_000 })
+    await waitFor(at, 'idle')
+    const back = at.heard.slice(at.heard.indexOf(of(at, 'started')[1] ?? {}))
+    expect(back.map((line) => line.type)).toEqual(['started', 'turn_done', 'idle'])
+    expect(back[1]).toMatchObject({ status: 'error', reason: 'overloaded', run: 'run-1' })
+    // Stamped when it ended, not when it was said.
+    expect(back[1]?.at).toBeLessThan(back[0]?.at as number)
+
+    // Said once: the next time the window comes back it has nothing to add.
+    at.hangUp()
+    await vi.waitFor(() => expect(of(at, 'started')).toHaveLength(3), { timeout: 10_000 })
+    await waitFor(at, 'idle', 2)
+    expect(of(at, 'turn_done')).toHaveLength(1)
+  })
 })

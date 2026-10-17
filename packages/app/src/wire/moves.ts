@@ -25,6 +25,7 @@ import {
   handOversOpen,
   handSays,
   projectOf,
+  pushedPast,
   pushedTo,
 } from './hand-over.ts'
 import { ProjectMoves } from './project-moves.ts'
@@ -58,12 +59,12 @@ import { askHanding, askThere, beginsOf, contextOf, removeHere } from './take-pa
 // git and the words): asked there first (`check`), so an agent is never
 // stopped for a name already used there; its agent told to commit what is its
 // own and push its branch; the window looking on its beat — never waiting —
-// until origin has the work and the agent has finished a turn since it was
-// told; then made there beginning on that branch (`start.from`), with the same
-// words, its context file and a note of where things stood, and the agent here
-// stopped and its task parked. Nothing of the conversation moves, and every
-// sentence about it says so. Not done within `HAND_MS`, nothing changes and
-// that is said.
+// until origin has the work and the agent has answered: pushed past the commit
+// it was told at, or finished a turn since; then made there beginning on that
+// branch (`start.from`), with the same words, its context file and a note of
+// where things stood, and the agent here stopped and its task parked. Nothing
+// of the conversation moves, and every sentence about it says so. Not done
+// within `HAND_MS`, nothing changes and that is said.
 //
 // **A hand-over in flight is written down**, because it is asked just before
 // a lid closes: `task_handing` when its agent is told — who to, its project
@@ -77,11 +78,14 @@ import { askHanding, askThere, beginsOf, contextOf, removeHere } from './take-pa
 // (`reopenAgent`), part way through what it was asked: one with no turn
 // ended since and opened since it was told is told again once, in the same
 // words (`retell`) — finishing a request, never starting one; an agent that
-// went on running is never opened again, so never told twice. Each hand-over
-// has an id (`task_handing`'s `id`, the take's `handOver`), so a window asking
-// again after one that closed before it heard the answer is told `already`
-// and finishes it; a no from a machine too old to read the id, to a hand-over
-// an earlier window may have asked, is said as not known, never as handed.
+// went on running is never opened again, so never told twice, and a turn it
+// ended with nobody listening may never be heard, which is why its push past
+// the commit it was told at (`task_handing`'s `head`) answers on its own. Each
+// hand-over has an id (`task_handing`'s `id`, the take's `handOver`), so a
+// window asking again after one that closed before it heard the answer is told
+// `already` and finishes it; a no from a machine too old to read the id, to a
+// hand-over an earlier window may have asked, is said as not known, never as
+// handed.
 //
 // **The Mac finishes it; the machine there never takes it unasked.** Whether
 // the work is all on origin is only answerable here — its worktree's
@@ -132,6 +136,8 @@ interface Handing extends HandedFrom {
   waiting: string
   /** What the machine there knows it by once taken; null where an older window wrote none. */
   id: string | null
+  /** The commit its agent was told at, which a push past answers it; null where an older window wrote none. */
+  toldAt: string | null
   /** Picked up from the journal, so an earlier window may have asked there already. */
   resumed: boolean
   /** Told again since it was opened part way through (`retell`). */
@@ -340,6 +346,7 @@ export class Moves {
           looking: false,
           waiting: 'it has not pushed yet',
           id: one.id,
+          toldAt: one.head,
           resumed: true,
           retold: false,
         })
@@ -432,8 +439,9 @@ export class Moves {
     const slug = task.slice(task.indexOf('/') + 1)
     const own = `${TASK_BRANCH_PREFIX}${slug}`
     const branch = workspace === 'worktree' ? ((await branchAt(cwd)) ?? own) : own
-    const head = await runProgram('git', ['-C', cwd, 'rev-parse', 'HEAD'], { timeoutMs: 10_000 })
-    if (head.code !== 0) throw new Error(`${task}'s work has no commit to begin from.`)
+    const at = await runProgram('git', ['-C', cwd, 'rev-parse', 'HEAD'], { timeoutMs: 10_000 })
+    if (at.code !== 0) throw new Error(`${task}'s work has no commit to begin from.`)
+    const head = at.stdout.trim()
     // Asked first, so an agent is never stopped for a name already used there.
     const asked = await askThere(reach, machine, {
       from: machineLabel(),
@@ -444,7 +452,7 @@ export class Moves {
       prompt: '',
       context: '',
       links: [],
-      begins: { branch, head: head.stdout.trim() },
+      begins: { branch, head },
       check: true,
     })
     if (!asked.took) throw new Error(`${machine} would not take ${task}: ${printable(asked.said)}`)
@@ -460,7 +468,7 @@ export class Moves {
       await client.log.append({
         type: 'task_handing',
         task,
-        detail: { to: machine, there, branch, by, id },
+        detail: { to: machine, there, branch, by, id, head },
       })
     } catch (err) {
       kept = ` It could not be written down (${why(err)}), so if Tade closes before then, nothing finishes it.`
@@ -476,6 +484,7 @@ export class Moves {
       looking: false,
       waiting: 'it has not pushed yet',
       id,
+      toldAt: head,
       resumed: false,
       retold: false,
     })
@@ -498,27 +507,37 @@ export class Moves {
       }
       const client = this.wire.opts.client
       const run = client.runs().find((one) => one.task === task)
-      if (run !== undefined) {
-        // Not part way through a turn, which may be part way through the push;
-        // and not before it has finished one since it was told.
-        if (client.turnOf(run.run) === 'running') {
-          handing.waiting = 'it is still in its turn'
-          return
-        }
-        const since = (await client.log.read({ task, types: ['turn_done', 'lane_opened'] })).filter(
-          (line) => Date.parse(line.ts) >= handing.since,
-        )
-        if (!since.some((line) => line.type === 'turn_done')) {
-          handing.waiting = 'it has not finished a turn since it was told'
-          // Opened again since, and idle — said so by pi, so it is up to be told.
-          const opened = since.some(
-            (line) => line.type === 'lane_opened' && line.lane === `${task}/agent`,
-          )
-          if (opened && client.turnOf(run.run) === 'idle') await this.retell(handing)
-          return
-        }
+      // Not part way through a turn, which may be part way through the push.
+      if (run !== undefined && client.turnOf(run.run) === 'running') {
+        handing.waiting = 'it is still in its turn'
+        return
       }
+      const since =
+        run === undefined
+          ? []
+          : (await client.log.read({ task, types: ['turn_done', 'lane_opened'] })).filter(
+              (line) => Date.parse(line.ts) >= handing.since,
+            )
       const pushed = await pushedTo(handing)
+      // And not before it has answered: a push past the commit it was told at,
+      // heard or not — a turn that ended while Tade was closed, under a driver
+      // whose agents outlive it, may never be journalled. A turn ended since is
+      // the quicker word, and the only one where it had nothing new to push.
+      const answered =
+        since.some((line) => line.type === 'turn_done') ||
+        ('head' in pushed && (await pushedPast(handing.cwd, handing.toldAt, pushed.head)))
+      if (run !== undefined && !answered) {
+        handing.waiting =
+          'not' in pushed
+            ? pushed.not
+            : 'it has pushed nothing since it was told, and no turn of its has ended since'
+        // Opened again since, and idle — said so by pi, so it is up to be told.
+        const opened = since.some(
+          (line) => line.type === 'lane_opened' && line.lane === `${task}/agent`,
+        )
+        if (opened && client.turnOf(run.run) === 'idle') await this.retell(handing)
+        return
+      }
       if ('not' in pushed) {
         handing.waiting = pushed.not
         return

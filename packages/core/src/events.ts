@@ -70,7 +70,8 @@ export const EventType = z.enum([
    * A running task is being handed to another machine (`app/src/wire/moves.ts`),
    * written on the task here, because nothing else remembers a hand-over in
    * flight once the window that asked is gone: asked — `to` (the machine),
-   * `there` (its project there), `branch` and `by` — once its agent is told to
+   * `there` (its project there), `branch`, `head` (the commit its agent was
+   * told at, which a push past answers) and `by` — once its agent is told to
    * commit and push; or let go of without moving, with `ended` saying why.
    * `task_moved` is the other way one ends.
    */

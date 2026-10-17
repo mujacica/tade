@@ -465,6 +465,49 @@ describe('a running task, handed to another machine', () => {
     expect(one.said.join('\n')).not.toContain('told it again')
   }, 60_000)
 
+  it('is finished on the next look by a push made while Tade was closed, though no turn of it was heard to end', async () => {
+    const one = await handing()
+    const told = runGit(one.made.worktree, 'rev-parse', 'HEAD').trim()
+    await one.moves.handOver('app/refunds', 'vps', 'you')
+    const [asked] = await one.client.log.read({ types: ['task_handing'] })
+    expect(asked?.detail.head).toBe(told)
+    one.setTurn('running')
+    await one.reopen()
+    // Under tmux it went on while nothing listened: it committed and pushed,
+    // and the turn that did it ended with nobody there to hear it.
+    const head = commitIn(one.made.worktree, 'fix.txt')
+    runGit(one.made.worktree, 'push', '-q', 'origin', 'HEAD:refs/heads/tade/refunds')
+    await one.laneLine('lane_adopted')
+    one.setTurn('idle')
+    await one.beat()
+    expect(one.said.at(-1)).toContain('when Tade last closed, so I am looking again')
+    await one.beat()
+    await until(() => one.stopped.length > 0)
+    expect(await one.client.log.read({ types: ['turn_done'] })).toEqual([])
+    expect(one.far.taken[1]?.take.begins).toEqual({ branch: 'tade/refunds', head })
+    expect(one.stopped).toEqual(['app/refunds'])
+    expect(one.told).toHaveLength(1)
+    expect(one.said.at(-1)).toContain('went to vps as tade/refunds')
+  }, 60_000)
+
+  it('takes origin already at the commit it was told at as no answer, until a turn of it ends', async () => {
+    const one = await handing()
+    // Pushed before it was told, which says nothing about whether it has heard.
+    const head = commitIn(one.made.worktree, 'early.txt')
+    runGit(one.made.worktree, 'push', '-q', 'origin', 'HEAD:refs/heads/tade/refunds')
+    await one.moves.handOver('app/refunds', 'vps', 'you')
+    await one.beat()
+    await one.beat()
+    expect(one.far.taken).toHaveLength(1)
+    expect(one.stopped).toEqual([])
+    // Nothing new to push, and its turn ending says it has done as it was told.
+    await one.finishTurn()
+    await one.beat()
+    await until(() => one.stopped.length > 0)
+    expect(one.far.taken[1]?.take.begins).toEqual({ branch: 'tade/refunds', head })
+    expect(one.stopped).toEqual(['app/refunds'])
+  }, 60_000)
+
   it('is finished as handed where the machine there took it before Tade closed, asked again by its id', async () => {
     const one = await handing()
     remembers(one.far)

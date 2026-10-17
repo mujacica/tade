@@ -368,7 +368,10 @@ through Tade, so a `/compact` is not theirs to send. Two declarations and one me
   unsupervised is worse than one that stalls. Under `bypass` — the default — nothing was ever going
   to be held, and under a driver whose lanes outlive the window losing Tade is ordinary rather than
   a fault, so the agent carries on and the journal catches up later. Deciding this at the moment of
-  disconnection instead of at launch is how a gate turns itself off without anyone noticing.
+  disconnection instead of at launch is how a gate turns itself off without anyone noticing. **A
+  turn that ended while Tade was away is said when it is back**, stamped when it ended, once: pi's
+  extension keeps the last one (`missed`) and sends it after `started` — dropped, a hand-over and a
+  done rule waited on a `turn_done` that never came.
 - **Whatever the harness records for itself is the ledger.** Tade reads pi's own session files to
   account for turns that happened while nothing was listening, so an adapter should prefer the
   harness's durable record over anything it reports live.
