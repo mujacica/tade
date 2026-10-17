@@ -544,6 +544,36 @@ describe('the Updates page', () => {
     expect(shown).toContain('not installed')
   })
 
+  it('says a program older than its floor is too old, never current, with the line that brings it up to date', () => {
+    // The Debian box this was found on: tmux 3.1 ticked here while the
+    // workspace step said its driver could not use it.
+    const apt = 'sudo apt-get update && sudo apt-get install -y tmux'
+    const [git, tmux, pi] = LOOK.programs
+    if (!git || !tmux || !pi) throw new Error('the fixture has three programs')
+    const old = {
+      ...tmux,
+      need: { ...tmux.need, oldest: '3.2', inUse: true },
+      install: {
+        manager: 'system' as const,
+        name: 'tmux',
+        where: '/usr/bin/tmux',
+        said: 'the system’s own',
+      },
+      version: '3.1',
+      latest: '3.1',
+      cannotTell: null,
+      update: { command: apt },
+      tooOld: true,
+    }
+    const shown = shownAt(
+      { updates: { ...LOOK, programs: [git, old, pi] } },
+      panelFor('updates', { focus: 'form', row: 4 }),
+    )
+    expect(shown).toContain('too old · needs 3.2')
+    expect(shown).toContain(apt)
+    expect(shown).not.toContain('✓ current')
+  })
+
   it('offers a button only where there is an exact command behind it', () => {
     const drawn = drawPanel(
       panelFor('updates', { focus: 'form', row: 5 }),

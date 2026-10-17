@@ -62,8 +62,27 @@ export interface MissingProgram {
   why: string
   /** Nothing Tade is set up to use needs it, so it never blocks. */
   optional: boolean
-  /** The exact command that would install it here, or why there is none. */
+  /**
+   * It is here, and older than the oldest that works: what it said, and the
+   * floor. Absent where it is not here at all.
+   */
+  tooOld?: { have: string; needs: string }
+  /**
+   * The exact command that would install it here — or, for one too old, bring
+   * it up to date — or why there is none.
+   */
   install: InstallCommand
+}
+
+/** What is the matter with a program, after its title: `is not here`, `is too old: 3.1, needs 3.2`. */
+export function programTrouble(program: Pick<MissingProgram, 'tooOld'>): string {
+  const old = program.tooOld
+  return old ? `is too old: ${old.have}, needs ${old.needs}` : 'is not here'
+}
+
+/** An install as it is said in a line: the command, or why there is none. */
+export function installSaid(install: InstallCommand): string {
+  return 'command' in install ? install.command : install.cannot
 }
 
 /** A credential an extension that is on says it still needs. */
@@ -155,6 +174,13 @@ export interface ReadinessFacts {
    * wrong sentence for a helper whose permission bit is wrong.
    */
   driverReason?: string | null
+  /**
+   * The programs the configured driver declares, as they are run. A driver
+   * says what is wrong and never how to install anything — it cannot know
+   * whether this is a Mac with Homebrew or a server with apt — so the line
+   * after its reason is the one `missing` holds for these.
+   */
+  driverNeeds?: readonly string[]
   /** Keys the extensions that are on say they still need. Absent where nobody looked. */
   keysWanted?: readonly WantedKey[]
   /**
@@ -326,7 +352,9 @@ function programs(facts: ReadinessFacts): Step {
     id: 'programs',
     title: 'The programs Tade runs',
     done: needed.length === 0,
-    detail: needed.map((one) => `${one.title} — ${one.why}`).join('; '),
+    detail: needed
+      .map((one) => `${one.title}${one.tooOld ? ` ${programTrouble(one)}` : ''} — ${one.why}`)
+      .join('; '),
     required: true,
   }
 }
@@ -405,13 +433,19 @@ function model(facts: ReadinessFacts): Step {
  */
 function workspace(facts: ReadinessFacts): Step {
   if (!facts.driverOk) {
+    // The driver's own reason where there is one: “not installed” is the
+    // wrong sentence for a driver that is installed and cannot spawn.
+    const reason =
+      facts.driverReason ?? `workspace.driver is ${facts.driver}, which is not installed`
+    // And what would fix it here, which is the Programs list's line for the
+    // same program — `apt-get` on a server, `brew` on a Mac — never a second
+    // opinion of the driver's.
+    const gap = (facts.missing ?? []).find((one) => facts.driverNeeds?.includes(one.command))
     return {
       id: 'workspace',
       title: 'Somewhere to run agents',
       done: false,
-      // The driver's own reason where there is one: “not installed” is the
-      // wrong sentence for a driver that is installed and cannot spawn.
-      detail: facts.driverReason ?? `workspace.driver is ${facts.driver}, which is not installed`,
+      detail: gap ? `${reason} (${installSaid(gap.install)})` : reason,
       required: true,
     }
   }

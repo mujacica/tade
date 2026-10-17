@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  belowOldest,
   compareVersions,
   declarationProblems,
   installOf,
@@ -10,6 +11,7 @@ import {
   type RequiredProgram,
   TADE_PROGRAMS,
   updateWith,
+  upgradeWith,
 } from '../src/programs.ts'
 
 // What Tade runs, and what it takes to keep it current.
@@ -345,5 +347,71 @@ describe('what would install a program that is not here', () => {
         },
       ]),
     ).toHaveLength(2)
+  })
+})
+
+describe('a program that is here and too old', () => {
+  // The same program, the same floor, on two machines: what is too old is
+  // read off the declaration, and what brings it up to date off the machine.
+  const how = { brew: 'tmux', apt: 'tmux', dnf: 'tmux' }
+  const linux = { platform: 'linux', managers: ['apt-get'] }
+  const mac = { platform: 'darwin', managers: ['brew', 'npm'] }
+  const debian = { manager: 'system' as const, name: 'tmux', where: '/usr/bin/tmux', said: '' }
+  const brewed = {
+    manager: 'homebrew' as const,
+    name: 'tmux',
+    brew: 'formula' as const,
+    where: '/opt/homebrew/Cellar/tmux/3.1c/bin/tmux',
+    said: 'Homebrew',
+  }
+
+  it('is below the floor whoever needs it declared, and never where either cannot be read', () => {
+    expect(belowOldest('3.1c', '3.2')).toBe(true)
+    expect(belowOldest('3.2a', '3.2')).toBe(false)
+    expect(belowOldest('3.4', '3.2')).toBe(false)
+    // `tmux master` names no version, and nothing declared no floor.
+    expect(belowOldest(null, '3.2')).toBe(false)
+    expect(belowOldest('3.1c', undefined)).toBe(false)
+  })
+
+  it('is brought up to date by the system’s package manager on a server, and by Homebrew on a Mac', () => {
+    // The system's own copy has no update of its own; installing over it
+    // moves it to the newest the manager has — never the macOS line.
+    expect(upgradeWith(debian, how, linux)).toEqual({
+      command: 'sudo apt-get update && sudo apt-get install -y tmux',
+    })
+    expect(upgradeWith(debian, how, { ...linux, root: true })).toEqual({
+      command: 'apt-get update && apt-get install -y tmux',
+    })
+    expect(upgradeWith(brewed, how, mac)).toEqual({ command: 'brew upgrade tmux' })
+  })
+
+  it('says why there is no command where this machine has nothing that could run one', () => {
+    expect(upgradeWith(debian, how, { platform: 'linux', managers: [] })).toEqual({
+      cannot: 'it installs with Homebrew, apt, dnf, and this machine has none of them',
+    })
+    // Nothing anybody claims is offered nothing, however many managers there are.
+    const dropped = { manager: 'path' as const, name: 'tmux', where: '/home/me/bin/tmux', said: '' }
+    expect(upgradeWith(dropped, how, linux)).toEqual(updateWith(dropped))
+  })
+
+  it('folds every floor into the highest, because one version has to satisfy them all', () => {
+    const tmux = { command: 'tmux', title: 'tmux', why: 'lanes', versionArgs: ['-V'] }
+    const [row] = neededPrograms([
+      { what: 'one', inUse: true, programs: [{ ...tmux, oldest: '3.0' }] },
+      { what: 'two', inUse: true, programs: [{ ...tmux, oldest: '3.2' }] },
+      { what: 'three', inUse: true, programs: [tmux] },
+    ])
+    expect(row?.oldest).toBe('3.2')
+    expect(neededPrograms([{ what: 'one', inUse: true, programs: [tmux] }])[0]).not.toHaveProperty(
+      'oldest',
+    )
+  })
+
+  it('refuses a floor that is not a version', () => {
+    const tmux = { command: 'tmux', title: 'tmux', why: 'lanes', versionArgs: ['-V'] }
+    expect(declarationProblems([{ ...tmux, oldest: '3.2' }])).toEqual([])
+    expect(declarationProblems([{ ...tmux, oldest: 'three' }])).toHaveLength(1)
+    expect(declarationProblems([{ ...tmux, oldest: 'v3.2' }])).toHaveLength(1)
   })
 })

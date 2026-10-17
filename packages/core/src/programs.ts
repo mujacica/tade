@@ -25,6 +25,13 @@ export interface RequiredProgram {
   /** Whether Tade works without it. */
   optional?: boolean
   /**
+   * The oldest version that works, where an older one does not: `3.2`. The
+   * floor whoever needs it already holds itself to — the tmux driver's
+   * `available()` refuses below the same one — said here too, so a list of
+   * programs never ticks one that the step beside it calls too old.
+   */
+  oldest?: string
+  /**
    * Where it actually is, for something that is not looked up on PATH: a
    * harness that ships with Tade runs the copy in Tade's own node_modules,
    * and reporting it missing because nothing on PATH answers to its name
@@ -111,6 +118,8 @@ export interface ProgramNeed {
   versionArgs: readonly string[]
   /** Only when nothing that needs it needs it to work. */
   optional: boolean
+  /** The oldest that works for everything that needs it: the latest of their floors. */
+  oldest?: string
   /** Where it is, for what is not looked up on PATH. */
   at?: string
   /** How to install it, as whoever needs it declared. */
@@ -151,6 +160,7 @@ export function neededPrograms(declarations: readonly Declared[]): ProgramNeed[]
           title: program.title,
           versionArgs: program.versionArgs,
           optional: program.optional === true,
+          ...(program.oldest ? { oldest: program.oldest } : {}),
           ...(program.at ? { at: program.at } : {}),
           ...(program.install ? { install: program.install } : {}),
           needed: [reason],
@@ -158,6 +168,7 @@ export function neededPrograms(declarations: readonly Declared[]): ProgramNeed[]
         })
         continue
       }
+      const floor = later(had.oldest, program.oldest)
       byCommand.set(program.command, {
         ...had,
         // Whoever declared one first says how it installs, and anybody
@@ -165,6 +176,9 @@ export function neededPrograms(declarations: readonly Declared[]): ProgramNeed[]
         // the same program is one row, and a row with no way to install it is
         // the one thing this fold could lose.
         ...((had.install ?? program.install) ? { install: had.install ?? program.install } : {}),
+        // One version has to satisfy everything that needs it, so the floor
+        // is the highest any of them declared.
+        ...(floor ? { oldest: floor } : {}),
         // What actually asks it its version is whichever declaration wins the
         // row, and they must agree: two ports asking `git` two different ways
         // would be two versions of one program.
@@ -175,6 +189,12 @@ export function neededPrograms(declarations: readonly Declared[]): ProgramNeed[]
     }
   }
   return [...byCommand.values()]
+}
+
+/** The later of two floors, either of which may be missing. */
+function later(one: string | undefined, other: string | undefined): string | undefined {
+  if (!one || !other) return one ?? other
+  return compareVersions(one, other) >= 0 ? one : other
 }
 
 /** How a program got onto this machine, which is what decides how it moves forward. */
@@ -423,6 +443,35 @@ export function installWith(
 }
 
 /**
+ * Whether a program here is older than the oldest that works. False whenever
+ * nothing declared a floor or its version could not be read: a version
+ * nobody can read is one nobody can call too old.
+ */
+export function belowOldest(have: string | null | undefined, oldest: string | undefined): boolean {
+  return oldest !== undefined && isBehind(have ?? null, oldest)
+}
+
+/**
+ * The exact command that would bring a program that is here but too old up
+ * to date, or why there is none.
+ *
+ * Its own manager's update wherever it has one — `brew upgrade tmux`. The
+ * system's own copy has none of its own, and there the machine's package
+ * manager is the answer, because installing a package that is already there
+ * moves it to the newest that manager has: the same line, per platform, that
+ * `installWith` offers where it is missing.
+ */
+export function upgradeWith(
+  install: Install,
+  how: HowToInstall | undefined,
+  machine: InstallersHere,
+): InstallCommand {
+  const update = updateWith(install)
+  if ('command' in update || install.manager !== 'system' || !how) return update
+  return installWith(how, machine)
+}
+
+/**
  * A version out of whatever a program prints: `git version 2.39.5 (Apple
  * Git-154)`, `v22.18.0`, `tmux 3.4`. Null when there is no version in it,
  * which is an answer — never a guess at one.
@@ -482,6 +531,10 @@ export function declarationProblems(programs: readonly RequiredProgram[] | undef
     if (!program.why.trim()) problems.push(`${said}: no reason it is needed`)
     if (program.versionArgs.length === 0) {
       problems.push(`${said}: no arguments that make it say its version`)
+    }
+    // A floor that reads as half a version would compare as something else.
+    if (program.oldest !== undefined && parseVersion(program.oldest) !== program.oldest) {
+      problems.push(`${said}: an oldest version that is not a version (${program.oldest})`)
     }
     // An install nobody can run and that says nothing instead is the one
     // shape that reads as an offer and is not one.

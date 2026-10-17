@@ -27,13 +27,15 @@ function line(look: ProgramLook, asked: boolean): string {
     ? look.need.optional
       ? 'not installed, and optional'
       : 'not installed'
-    : !asked
-      ? ''
-      : look.behind && look.latest
-        ? `${look.latest} is out`
-        : look.latest
-          ? 'current'
-          : 'cannot tell'
+    : look.tooOld && look.need.oldest
+      ? `too old, needs ${look.need.oldest}`
+      : !asked
+        ? ''
+        : look.behind && look.latest
+          ? `${look.latest} is out`
+          : look.latest
+            ? 'current'
+            : 'cannot tell'
   const said = look.install ? look.install.said : (look.need.needed[0]?.what ?? '')
   return `${look.need.command.padEnd(10)} ${(look.version ?? '—').padEnd(12)} ${mark.padEnd(30)} ${said}`
 }

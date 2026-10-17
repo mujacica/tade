@@ -304,8 +304,10 @@ export class ClaudeAdapter implements WorkerAdapter {
         ok: false,
         version: null,
         problems: [
+          // What is wrong, never how to install it: setup says this machine's
+          // line beside it, out of the `install` in `programs` above.
           said.missing
-            ? `Claude Code is not installed (no ${this.opts.bin} on the PATH): brew install --cask claude-code`
+            ? `Claude Code is not installed (no ${this.opts.bin} on the PATH)`
             : `Claude Code would not say its version: ${said.stderr.trim() || `it exited ${said.code}`}`,
         ],
       }
@@ -427,7 +429,7 @@ export class ClaudeAdapter implements WorkerAdapter {
       env: this.accountEnv(),
     })
     if (ran.missing) {
-      return { ...none, problem: 'Claude Code is not installed: brew install --cask claude-code' }
+      return { ...none, problem: 'Claude Code is not installed' }
     }
     try {
       if (!ran.stdout.trim()) throw new Error(ran.stderr.trim() || `it exited ${ran.code}`)

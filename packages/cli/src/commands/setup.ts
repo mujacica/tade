@@ -7,9 +7,11 @@ import {
   askAboutWatches,
   defaultConfigPath,
   type InstallersHere,
+  installSaid,
   isReady,
   type LaneProof,
   loadConfig,
+  programTrouble,
   type ReadinessFacts,
   readiness,
   resolveCommand,
@@ -101,7 +103,7 @@ function render(steps: readonly Step[]): string[] {
  * about: the checklist says what is still to do, and this says what is here,
  * which is the answer to "why is it asking me that?".
  */
-function report(look: Look): string[] {
+export function report(look: Look): string[] {
   const lines = ['', 'Programs:']
   for (const program of look.programs) {
     // Whether it is here is the same answer the wizard acts on, read off the
@@ -113,10 +115,12 @@ function report(look: Look): string[] {
       lines.push(`  ✓ ${program.need.title}${version}${needed}`)
       continue
     }
-    const how = 'command' in gap.install ? gap.install.command : gap.install.cannot
     // What it is for is said where it is missing, which is where somebody has
     // to decide whether they want it; a version is the answer where it is not.
-    lines.push(`  ○ ${program.need.title} is not here (${how}) — ${gap.why}${needed}`)
+    // Too old is missing too, with the line that brings it up to date.
+    lines.push(
+      `  ○ ${program.need.title} ${programTrouble(gap)} (${installSaid(gap.install)}) — ${gap.why}${needed}`,
+    )
   }
   lines.push('', 'Agents:', ...harnessLines(look.harnesses))
   return lines
@@ -378,7 +382,7 @@ async function pickModel(ui: Ui): Promise<string> {
  * for: a default nobody was shown deciding whether a night's work stops when
  * you shut your laptop is not a default, it is a surprise.
  */
-async function setUpWorkspace(ui: Ui, look: Look): Promise<void> {
+export async function setUpWorkspace(ui: Ui, look: Look): Promise<void> {
   const keepRunning =
     (await ui.choose('Where should agents run?', [
       'tmux — they keep working after you close Tade, and you can attach from anywhere',
@@ -392,10 +396,13 @@ async function setUpWorkspace(ui: Ui, look: Look): Promise<void> {
     return
   }
 
-  // Whether tmux is here, and what would install it, both come from what the
-  // driver declared — the same declaration the Updates page reads.
+  // Whether tmux is here and new enough, and what would install it or bring
+  // it up to date, all come from what the driver declared — the same
+  // declaration the Updates page reads.
   const missing = look.missing.find((one) => one.command === 'tmux')
-  if (missing && !(await offerInstall(ui, 'tmux', missing.install))) {
+  if (missing?.tooOld) ui.say(`  tmux ${programTrouble(missing)}`)
+  const what = missing?.tooOld ? 'a newer tmux' : 'tmux'
+  if (missing && !(await offerInstall(ui, what, missing.install))) {
     // Asked for durable agents and has no tmux: say plainly what they got
     // rather than writing a driver that will not start.
     ui.say('  leaving it on pty for now — agents will stop when Tade does')

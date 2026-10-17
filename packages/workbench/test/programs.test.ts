@@ -172,6 +172,29 @@ describe('looking at what is here', () => {
     expect(look?.latest).toBeNull()
     expect(look?.cannotTell).toContain('nobody has been asked')
   })
+
+  it('calls one older than its floor too old, with the line that brings it up to date', async () => {
+    // A Homebrew tmux, as Homebrew lays one out: the link on PATH points into
+    // the Cellar, which is what says who moves it forward.
+    const root = mkdtempSync(join(tmpdir(), 'tade-floor-'))
+    const cellar = join(root, 'Cellar', 'tmux', '3.1c', 'bin')
+    mkdirSync(cellar, { recursive: true })
+    mkdirSync(join(root, 'bin'))
+    writeFileSync(join(cellar, 'tmux'), '#!/bin/sh\n', { mode: 0o755 })
+    symlinkSync(join(cellar, 'tmux'), join(root, 'bin', 'tmux'))
+    const tmux = { ...need, command: 'tmux', title: 'tmux', versionArgs: ['-V'], oldest: '3.2' }
+    const env = { PATH: join(root, 'bin') }
+
+    const [old] = await lookAtPrograms([tmux], { env, exec: exec({ tmux: 'tmux 3.1c' }) })
+    expect(old).toMatchObject({ version: '3.1', tooOld: true })
+    expect(old?.update).toEqual({ command: 'brew upgrade tmux' })
+
+    const [fine] = await lookAtPrograms([tmux], { env, exec: exec({ tmux: 'tmux 3.4' }) })
+    expect(fine?.tooOld).toBe(false)
+    // One that names no version is one nobody can call too old.
+    const [master] = await lookAtPrograms([tmux], { env, exec: exec({ tmux: 'tmux master' }) })
+    expect(master?.tooOld).toBe(false)
+  })
 })
 
 describe('asking what is current', () => {

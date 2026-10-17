@@ -2,8 +2,10 @@ import type { Ui } from '@tade/app'
 import {
   defaultConfigPath,
   type InstallCommand,
+  installSaid,
   type MissingProgram,
   type NativeTrouble,
+  programTrouble,
 } from '@tade/core'
 import { signInLasts } from '@tade/harnesses-core'
 import type { HarnessHere } from '@tade/workbench/machine'
@@ -106,15 +108,18 @@ export async function setUpPrograms(ui: Ui, missing: readonly MissingProgram[]):
   ui.say('so this list is what your drivers, harnesses and forges asked for.')
   ui.say('')
   for (const program of needed) {
-    ui.say(`${program.title} is not here — ${program.why}`)
-    await offerInstall(ui, program.title, program.install)
+    ui.say(`${program.title} ${programTrouble(program)} — ${program.why}`)
+    // One too old is brought up to date by the line beside it, which installs
+    // a newer one over it: what is offered is a newer one, not a second one.
+    const what = program.tooOld ? `a newer ${program.title}` : program.title
+    await offerInstall(ui, what, program.install)
   }
   if (spare.length > 0) {
     ui.say('')
     ui.say('Not needed by anything you are set up to use, and there if you want them:')
     for (const program of spare) {
-      const how = 'command' in program.install ? program.install.command : program.install.cannot
-      ui.say(`  ${program.title} — ${program.why} (${how})`)
+      const old = program.tooOld ? ` ${programTrouble(program)}` : ''
+      ui.say(`  ${program.title}${old} — ${program.why} (${installSaid(program.install)})`)
     }
   }
 }

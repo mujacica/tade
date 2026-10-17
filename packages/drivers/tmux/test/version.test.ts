@@ -29,18 +29,24 @@ describe('which tmux can hold lanes', () => {
     })
   }
 
-  it('says what is here, what is needed, and how to get it', () => {
+  // What is wrong and never how to install anything: `brew install tmux` was
+  // said on a Debian server beside setup's own apt line. Setup puts this
+  // machine's line after the reason, out of the driver's declaration.
+  it('says what is here and what is needed, and no installer', () => {
     expect(availableAs('tmux 3.1c\n')).toEqual({
       ok: false,
-      reason: `tmux 3.1c is older than ${OLDEST}, the first that can show a lane in a terminal of its own (brew install tmux, or the tmux of Ubuntu 22.04, Debian 12 or later)`,
+      reason: `tmux 3.1c is older than ${OLDEST}, the first that can show a lane in a terminal of its own`,
     })
   })
 
   it('says a tmux that never answered is not installed', () => {
-    expect(availableAs(null)).toEqual({
-      ok: false,
-      reason: 'tmux is not installed (brew install tmux)',
-    })
+    expect(availableAs(null)).toEqual({ ok: false, reason: 'tmux is not installed' })
+  })
+
+  it('declares the same floor it refuses below, so no list of programs ticks one it refuses', async () => {
+    const driver = new TmuxDriver({ socket: `tade-floor-${process.pid}` })
+    expect(driver.programs.find((one) => one.command === 'tmux')?.oldest).toBe(OLDEST)
+    await driver.detach()
   })
 })
 
@@ -68,7 +74,7 @@ describe('the driver asks the tmux it would run', () => {
   it('and says so where there is none', async () => {
     expect(await on(tmp('tade-tmux-none-')).available()).toEqual({
       ok: false,
-      reason: 'tmux is not installed (brew install tmux)',
+      reason: 'tmux is not installed',
     })
   })
 })

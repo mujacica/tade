@@ -197,6 +197,15 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
         if (!probe.ok) expect(probe.problems.length).toBeGreaterThan(0)
       })
 
+      it('says what is wrong and never which installer fixes it', async () => {
+        // A harness cannot know whether this is a Mac with Homebrew or a server
+        // with apt: `brew install --cask` was said on Linux. The line for this
+        // machine is setup's, out of the `install` in `programs`.
+        const one = await adapter()
+        const said = [...(await one.probe()).problems, (await one.account()).problem ?? '']
+        expect(said.join('\n')).not.toMatch(/\b(?:brew|apt|apt-get|dnf) install\b/)
+      })
+
       it('says what any tool does, including one it has never heard of', async () => {
         const one = await adapter()
         for (const tool of ['', 'nonsense_tool_x', 'Bash', 'bash', 'Edit', 'read']) {

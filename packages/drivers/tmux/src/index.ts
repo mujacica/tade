@@ -29,7 +29,7 @@ import {
   type WorkspaceDriver,
   wheelBytes,
 } from '@tade/drivers-core'
-import { attachLine, availableAs, windowName } from './attach.ts'
+import { attachLine, availableAs, OLDEST, windowName } from './attach.ts'
 import { exitStatus, lookAgain, serverPid, signalNumber } from './ended.ts'
 import { drawn, PANE_FORMAT, type Pane, pointingOf, readPane, scrollingOf } from './pane.ts'
 import { literal, piping, quote, written } from './pipe.ts'
@@ -151,6 +151,7 @@ export class TmuxDriver implements WorkspaceDriver {
       title: 'tmux',
       why: 'holding every lane, so agents go on working after Tade closes',
       versionArgs: ['-V'],
+      oldest: OLDEST,
       install: { brew: 'tmux', apt: 'tmux', dnf: 'tmux' },
     },
   ]

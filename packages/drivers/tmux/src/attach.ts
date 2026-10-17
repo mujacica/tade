@@ -90,6 +90,10 @@ export function windowName(id: string): string {
  * was always a floor; nothing said it. Built in a `node:22` container, the
  * conformance suite passes whole on 3.2a and fails only its attach cases on
  * 3.1c and 3.0a — Debian 11's and Ubuntu 20.04's, both past their support.
+ *
+ * The driver's `programs` declares the same floor as tmux's `oldest`, so the
+ * Programs list in setup and Settings › Updates never tick a tmux that
+ * `available()` refuses.
  */
 export const OLDEST = '3.2'
 
@@ -97,13 +101,18 @@ export const OLDEST = '3.2'
  * Whether the tmux that answered `-V` with `said` can hold lanes. Nothing
  * answered is not installed. A tmux that names no version (`tmux master`) is
  * one nobody can tell is too old, and is let be.
+ *
+ * What is wrong, and never how to install anything: a driver cannot know
+ * whether this is a Mac with Homebrew or a server with apt, and setup puts
+ * its own line for this machine after the reason — the same one its Programs
+ * list offers, out of the `install` this driver declares.
  */
 export function availableAs(said: string | null): Availability {
-  if (said === null) return { ok: false, reason: 'tmux is not installed (brew install tmux)' }
+  if (said === null) return { ok: false, reason: 'tmux is not installed' }
   const version = parseVersion(said)
   if (version === null || compareVersions(version, OLDEST) >= 0) return { ok: true }
   return {
     ok: false,
-    reason: `${said.trim()} is older than ${OLDEST}, the first that can show a lane in a terminal of its own (brew install tmux, or the tmux of Ubuntu 22.04, Debian 12 or later)`,
+    reason: `${said.trim()} is older than ${OLDEST}, the first that can show a lane in a terminal of its own`,
   }
 }

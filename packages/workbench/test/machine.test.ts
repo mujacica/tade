@@ -125,6 +125,71 @@ describe('what is missing, and what would install it', () => {
     )
     expect(gh?.install).toEqual({ cannot: 'cli.github.com has the package for your system' })
   })
+
+  describe('a tmux older than its driver can use', () => {
+    // The VPS this was found on: tmux 3.1 from the distribution, ticked in the
+    // Programs list beside a workspace step calling it too old.
+    const need = {
+      command: 'tmux',
+      title: 'tmux',
+      versionArgs: ['-V'],
+      optional: false,
+      inUse: true,
+      oldest: '3.2',
+      needed: [{ what: 'the tmux driver', why: 'holding every lane', inUse: true }],
+      install: { brew: 'tmux', apt: 'tmux', dnf: 'tmux' },
+    }
+    const debian = look({
+      command: 'tmux',
+      need,
+      version: '3.1',
+      tooOld: true,
+      install: { manager: 'system', name: 'tmux', where: '/usr/bin/tmux', said: '' },
+    })
+    const brewed = look({
+      command: 'tmux',
+      need,
+      version: '3.1c',
+      tooOld: true,
+      install: {
+        manager: 'homebrew',
+        name: 'tmux',
+        brew: 'formula',
+        where: '/opt/homebrew/Cellar/tmux/3.1c/bin/tmux',
+        said: 'Homebrew',
+      },
+    })
+
+    it('is missing on a server, with the apt line that brings it up to date', () => {
+      const [tmux] = missingFrom([debian], { platform: 'linux', managers: ['apt-get'] })
+      expect(tmux).toMatchObject({
+        command: 'tmux',
+        optional: false,
+        tooOld: { have: '3.1', needs: '3.2' },
+        install: { command: 'sudo apt-get update && sudo apt-get install -y tmux' },
+      })
+    })
+
+    it('is missing on a Mac, with Homebrew’s upgrade', () => {
+      const [tmux] = missingFrom([brewed], machine)
+      expect(tmux).toMatchObject({
+        tooOld: { have: '3.1c', needs: '3.2' },
+        install: { command: 'brew upgrade tmux' },
+      })
+    })
+
+    it('is optional where nothing in use needs it, and absent where it is new enough', () => {
+      const spare = { ...need, inUse: false }
+      expect(missingFrom([{ ...debian, need: spare }], machine)[0]).toMatchObject({
+        optional: true,
+        tooOld: { have: '3.1', needs: '3.2' },
+      })
+      expect(missingFrom([{ ...debian, version: '3.4', tooOld: false }], machine)).toEqual([])
+      // A kept answer from before there were floors says nothing either way.
+      const { tooOld: _, ...kept } = debian
+      expect(missingFrom([kept as ProgramLook], machine)).toEqual([])
+    })
+  })
 })
 
 describe('what this machine installs with', () => {

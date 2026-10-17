@@ -12,6 +12,7 @@ import {
   SERVICE,
   stringEnv,
   type Unattended,
+  upgradeWith,
 } from '@tade/core'
 import { type AccountStatus, type LaunchSpec, signInHere } from '@tade/harnesses-core'
 import { HARNESS_ADAPTERS } from './harnesses.ts'
@@ -98,7 +99,8 @@ export function unattendedHere(look: HostLook = {}): Unattended | null {
 }
 
 /**
- * What is needed here and not installed, with the exact command for each.
+ * What is needed here and not installed, or installed and older than the
+ * oldest that works, with the exact command for each.
  *
  * A program only something unused needs is still listed, marked optional: a
  * person switching to tmux wants to know whether tmux is there before they
@@ -110,15 +112,31 @@ export function missingFrom(
   looks: readonly ProgramLook[],
   machine: InstallersHere,
 ): MissingProgram[] {
-  return looks
-    .filter((look) => look.install === null)
-    .map((look) => ({
+  return looks.flatMap((look): MissingProgram[] => {
+    const about = {
       command: look.need.command,
       title: look.need.title,
       why: look.need.needed.map((one) => one.why).join('; '),
       optional: look.need.optional || !look.need.inUse,
-      install: installWith(look.need.install, machine),
-    }))
+    }
+    if (look.install === null) {
+      return [{ ...about, install: installWith(look.need.install, machine) }]
+    }
+    // Here and older than whatever needs it can use is as missing as not here
+    // at all — ticking it beside a step that says it is too old is the
+    // contradiction — and its line is the one that brings it up to date.
+    const have = look.version ?? look.install.version
+    if (look.tooOld && have && look.need.oldest) {
+      return [
+        {
+          ...about,
+          tooOld: { have, needs: look.need.oldest },
+          install: upgradeWith(look.install, look.need.install, machine),
+        },
+      ]
+    }
+    return []
+  })
 }
 
 /**

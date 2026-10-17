@@ -61,7 +61,10 @@ and setting up ends by actually opening a lane — because every other check is 
 4. Add `at` only where it is **not** looked up on PATH: something that ships with Tade runs the copy
    in Tade's own `node_modules`, and reporting it missing because nothing on PATH answers to its name
    is a lie about the one actually running (pi does this).
-5. Run that implementation's conformance suite. `declarationProblems` is asserted by all three
+5. Add `oldest` where an older version does not work, and make it **the same constant** the
+   implementation refuses below — the tmux driver declares `OLDEST`, which its `available()` reads.
+   Without it the Programs list ticked `✓ tmux 3.1` beside a workspace step calling it too old.
+6. Run that implementation's conformance suite. `declarationProblems` is asserted by all three
    (`drivers/core`, `harnesses/core`, `forges/core`), so a program nobody can look up or ask is
    caught there.
 
@@ -153,6 +156,16 @@ having no `programs`. What Tade itself needs whichever implementations are in us
   GitHub's own repository on most releases, and git says `xcode-select --install`, which is where a
   Mac's git comes from. `declarationProblems` refuses an `install` that names nothing to install and
   a `cask` with no `brew` name — the two shapes that read as an offer and are not one.
+- **Too old is missing, and is said where missing is.** `missingFrom` lists one below `oldest`
+  with `tooOld` beside the one not here, so the checklist, `--check`, the wizard, Settings › Updates
+  and `tade update` all say `too old: 3.1, needs 3.2`, never a tick. Its line is `upgradeWith`: the
+  manager's own update, and for the system's own copy the line `installWith` offers, because
+  installing a package that is there moves it to the newest the manager has.
+- **A port says what is wrong and never which installer fixes it.** Its `available()`, `probe()`
+  and `account()` cannot know whether this is a Mac with Homebrew or a server with apt — `brew
+  install tmux` was said on Debian beside setup's apt line. Setup follows the configured driver's
+  reason with the Programs list's line for what it declares (`driverNeeds`), harness lines carry
+  `HarnessHere.install`, and the harness conformance suite refuses a reason naming an installer.
 - **Reloading into a new Tade says what it costs, in the driver's own words.** `wouldStop` reads
   `capabilities.detach` — never the driver's name — and only asks where lanes would not survive;
   the Updates page is handed the same fact as `lanesSurvive`. A reload counts the terminals as well

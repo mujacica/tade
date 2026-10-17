@@ -4,6 +4,7 @@ import type { Ui } from '@tade/app'
 import type { HarnessHere } from '@tade/workbench/machine'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
+import { report, setUpWorkspace } from '../src/commands/setup.ts'
 import type { Look } from '../src/commands/setup-facts.ts'
 import {
   harnessLines,
@@ -181,6 +182,100 @@ describe('the programs Tade runs', () => {
     const ui = recorder({ confirm: [false] })
     await setUpPrograms(ui, [git])
     expect(ui.said.join('\n')).toContain('every commit an agent makes')
+  })
+})
+
+describe('a tmux older than its driver can use', () => {
+  // Found on a Linux VPS: `✓ tmux 3.1` in the Programs list, beside a
+  // workspace step saying it was too old, which offered `brew install tmux`.
+  const apt = 'sudo apt-get update && sudo apt-get install -y tmux'
+  const old = (install: string, optional = false) => ({
+    command: 'tmux',
+    title: 'tmux',
+    why: 'holding every lane',
+    optional,
+    tooOld: { have: '3.1', needs: '3.2' },
+    install: { command: install },
+  })
+  const look = (install: string, managers: string[], platform: string): Look => ({
+    ...emptyLook,
+    installers: { platform, managers },
+    programs: [
+      {
+        need: {
+          command: 'tmux',
+          title: 'tmux',
+          versionArgs: ['-V'],
+          optional: false,
+          oldest: '3.2',
+          needed: [{ what: 'the tmux driver', why: 'holding every lane', inUse: true }],
+          inUse: true,
+        },
+        install: { manager: 'system', name: 'tmux', where: '/usr/bin/tmux', said: '' },
+        version: '3.1',
+        latest: null,
+        cannotTell: null,
+        update: { command: install },
+        behind: false,
+        tooOld: true,
+      },
+    ],
+    missing: [old(install)],
+  })
+
+  it('is offered as a newer one on a server, with the apt line', async () => {
+    const ui = recorder({ confirm: [true] })
+    await setUpPrograms(ui, [old(apt)])
+    expect(ui.said.join('\n')).toContain('tmux is too old: 3.1, needs 3.2 — holding every lane')
+    expect(ui.asked).toEqual(['install a newer tmux?'])
+    expect(ui.ran).toEqual([apt])
+  })
+
+  it('is said too old where nothing in use needs it, and asked about nowhere', async () => {
+    const ui = recorder({})
+    await setUpPrograms(ui, [old('brew upgrade tmux', true)])
+    expect(ui.asked).toEqual([])
+    expect(ui.said.join('\n')).toContain(
+      'tmux is too old: 3.1, needs 3.2 — holding every lane (brew upgrade tmux)',
+    )
+  })
+
+  describe('where agents run', () => {
+    let was: string | undefined
+    const home = tmp('tade-setup-workspace-')
+    beforeEach(() => {
+      was = process.env.TADE_HOME
+      process.env.TADE_HOME = home
+    })
+    afterEach(() => {
+      if (was === undefined) delete process.env.TADE_HOME
+      else process.env.TADE_HOME = was
+    })
+    const config = () => readFileSync(join(home, 'config.yaml'), 'utf8')
+
+    it('offers the line that brings it up to date before choosing tmux', async () => {
+      const ui = recorder({ choose: [0], confirm: [true] })
+      await setUpWorkspace(ui, look(apt, ['apt-get'], 'linux'))
+      expect(ui.said).toContain('  tmux is too old: 3.1, needs 3.2')
+      expect(ui.asked).toContain('install a newer tmux?')
+      expect(ui.ran).toEqual([apt])
+      expect(config()).toMatch(/driver: tmux/)
+    })
+
+    it('leaves it on pty when the newer one is declined, rather than a driver that will not start', async () => {
+      const ui = recorder({ choose: [0], confirm: [false] })
+      await setUpWorkspace(ui, look(apt, ['apt-get'], 'linux'))
+      expect(ui.ran).toEqual([])
+      expect(config()).toMatch(/driver: pty/)
+    })
+  })
+
+  it('is never ticked by --check, on a server or on a Mac', () => {
+    const server = report(look(apt, ['apt-get'], 'linux')).join('\n')
+    expect(server).not.toContain('✓ tmux')
+    expect(server).toContain(`○ tmux is too old: 3.1, needs 3.2 (${apt}) — holding every lane`)
+    const mac = report(look('brew upgrade tmux', ['brew'], 'darwin')).join('\n')
+    expect(mac).toContain('○ tmux is too old: 3.1, needs 3.2 (brew upgrade tmux)')
   })
 })
 

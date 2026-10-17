@@ -313,8 +313,10 @@ export class CodexAdapter implements WorkerAdapter {
         ok: false,
         version: null,
         problems: [
+          // What is wrong, never how to install it: setup says this machine's
+          // line beside it, out of the `install` in `programs` above.
           said.missing
-            ? `Codex is not installed (no ${this.opts.bin} on the PATH): brew install --cask codex`
+            ? `Codex is not installed (no ${this.opts.bin} on the PATH)`
             : `Codex would not say its version: ${said.stderr.trim() || `it exited ${said.code}`}`,
         ],
       }
@@ -460,8 +462,7 @@ export class CodexAdapter implements WorkerAdapter {
       timeoutMs: 10_000,
       env: this.accountEnv(),
     })
-    if (ran.missing)
-      return { ...none, problem: 'Codex is not installed: brew install --cask codex' }
+    if (ran.missing) return { ...none, problem: 'Codex is not installed' }
     try {
       if (!ran.stdout.trim()) throw new Error(ran.stderr.trim() || `it exited ${ran.code}`)
       const method = methodIn(ran.stdout)

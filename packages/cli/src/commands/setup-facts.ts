@@ -176,6 +176,9 @@ export async function gather(
     // own answer to this is a paragraph with two commands in it, which the
     // native step says whole.
     driverReason: workspace.ok ? null : firstLine(workspace.reason),
+    // So the step can follow the driver's reason with this machine's line for
+    // what it needs, read off `missing` like the Programs list's.
+    driverNeeds: workspace.needs,
     // Read from the file rather than the parsed config, which supplies a
     // default: the question is whether a person chose, not what is in effect.
     driverChosen: /^\s*driver:/m.test(text),
@@ -222,16 +225,19 @@ function readConfigText(): string {
 
 /**
  * Whether this machine can provide the configured driver, in the driver's own
- * words. Asked of the driver itself, so `tade setup --check` cannot drift from
- * what opening the workbench will actually do.
+ * words, and the programs it declares. Asked of the driver itself, so `tade
+ * setup --check` cannot drift from what opening the workbench will actually do.
  */
-async function driverAvailability(driver: string): Promise<{ ok: boolean; reason: string }> {
+async function driverAvailability(
+  driver: string,
+): Promise<{ ok: boolean; reason: string; needs: string[] }> {
   const make = drivers[driver]
-  if (!make) return { ok: false, reason: `there is no driver called ${driver}` }
+  if (!make) return { ok: false, reason: `there is no driver called ${driver}`, needs: [] }
   const made = make(tadeHome())
+  const needs = (made.programs ?? []).map((one) => one.command)
   try {
     const can = await made.available()
-    return can.ok ? { ok: true, reason: '' } : { ok: false, reason: can.reason }
+    return can.ok ? { ok: true, reason: '', needs } : { ok: false, reason: can.reason, needs }
   } finally {
     // Made only to be asked, so it is let go of again.
     await made.detach().catch(() => {})

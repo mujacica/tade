@@ -41,7 +41,9 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
   before it runs comes from here, never from a table in the wizard. Only declare an install you are
   sure of: a command that installs something else under the same name is worse than `instead`, which
   says where to get it. A driver that needs nothing declares nothing, which is an answer; the
-  conformance suite refuses one nobody could look up or ask.
+  conformance suite refuses one nobody could look up or ask. A version floor is `oldest`, the same
+  constant `available()` refuses below; and `available()`'s reason says what is wrong, never an
+  install command — setup follows it with this machine's line out of `install`.
 - **No implementation vocabulary in the port.** If you want to add `sendKeys`, `newWindow` or
   `selectPane` to the interface, the answer is no: find the neutral name, or it belongs in the
   driver's own module.
@@ -122,7 +124,7 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
   ended by a `client-detached` hook and **never `destroy-unattached`**, which ended the whole tmux
   server three runs in eight on 3.4 (Ubuntu 24.04's), as does making a window follow its clients'
   size while that session ends. It needs `run-shell -C`, so **tmux 3.2 is the floor**, and
-  `available()` says so (`OLDEST`), which is what setup shows. Check a tmux change on 3.2a, 3.3a
+  `available()` says so (`OLDEST`, declared as tmux's `oldest` too), which is what setup shows. Check a tmux change on 3.2a, 3.3a
   and 3.4 built in a `node:22` container, not only on the laptop's newer one.
 - **`detach()` lets go, `shutdown()` ends it.** Closing Tade calls `detach`, and under a driver
   claiming `detach: true` that must leave every lane running. If lanes cannot outlive us and cannot

@@ -252,6 +252,64 @@ describe('readiness', () => {
     ).toContain('not installed')
   })
 
+  describe('a tmux the driver cannot use, on a server and on a Mac', () => {
+    // The driver says what is wrong; what fixes it is the Programs list's own
+    // line for this machine, so the two steps never give two answers.
+    const tmux = (install: string, tooOld?: { have: string; needs: string }) => ({
+      command: 'tmux',
+      title: 'tmux',
+      why: 'holding every lane',
+      optional: false,
+      ...(tooOld ? { tooOld } : {}),
+      install: { command: install },
+    })
+    const apt = 'sudo apt-get update && sudo apt-get install -y tmux'
+    const under = (missing: ReturnType<typeof tmux>, reason: string) =>
+      readiness(
+        facts({
+          driver: 'tmux',
+          driverOk: false,
+          driverReason: reason,
+          driverNeeds: ['tmux'],
+          missing: [missing],
+        }),
+      )
+    const step = (steps: ReturnType<typeof readiness>, id: string) =>
+      steps.find((one) => one.id === id)
+
+    it('follows the driver’s reason with this machine’s install line', () => {
+      expect(step(under(tmux(apt), 'tmux is not installed'), 'workspace')?.detail).toBe(
+        `tmux is not installed (${apt})`,
+      )
+      expect(
+        step(under(tmux('brew install tmux'), 'tmux is not installed'), 'workspace')?.detail,
+      ).toBe('tmux is not installed (brew install tmux)')
+    })
+
+    it('says too old in the Programs list too, with the line that brings it up to date', () => {
+      const old = { have: '3.1c', needs: '3.2' }
+      const steps = under(tmux(apt, old), 'tmux 3.1c is older than 3.2')
+      expect(step(steps, 'programs')).toMatchObject({ done: false, required: true })
+      expect(step(steps, 'programs')?.detail).toBe(
+        'tmux is too old: 3.1c, needs 3.2 — holding every lane',
+      )
+      expect(step(steps, 'workspace')?.detail).toBe(`tmux 3.1c is older than 3.2 (${apt})`)
+      const mac = under(tmux('brew upgrade tmux', old), 'tmux 3.1c is older than 3.2')
+      expect(step(mac, 'workspace')?.detail).toBe('tmux 3.1c is older than 3.2 (brew upgrade tmux)')
+    })
+
+    it('adds nothing for a program the driver does not need, or where nobody looked', () => {
+      const git = { ...tmux('brew install git'), command: 'git', title: 'git' }
+      const steps = readiness(
+        facts({ driverOk: false, driverReason: 'it cannot', driverNeeds: [], missing: [git] }),
+      )
+      expect(step(steps, 'workspace')?.detail).toBe('it cannot')
+      expect(
+        step(readiness(facts({ driverOk: false, driverReason: 'it cannot' })), 'workspace')?.detail,
+      ).toBe('it cannot')
+    })
+  })
+
   it('asks for a key only where something that is on wants one', () => {
     const steps = readiness(
       facts({ keysWanted: [{ extension: 'jev', title: 'Jev', problem: 'it needs a key' }] }),

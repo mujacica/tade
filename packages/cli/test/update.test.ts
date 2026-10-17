@@ -1,4 +1,6 @@
 import { spawn } from 'node:child_process'
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -9,10 +11,10 @@ const bin = fileURLToPath(new URL('../src/bin.ts', import.meta.url))
 // never installs anything, and without `--check` it asks nobody anything —
 // which is what makes it safe to run in a test.
 
-const run = (args: string[], home: string) =>
+const run = (args: string[], home: string, env: NodeJS.ProcessEnv = {}) =>
   new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve) => {
     const child = spawn(process.execPath, [bin, ...args], {
-      env: { ...process.env, TADE_HOME: home, HOME: home },
+      env: { ...process.env, TADE_HOME: home, HOME: home, ...env },
     })
     let stdout = ''
     let stderr = ''
@@ -55,4 +57,15 @@ it('says what it would run, and runs none of it', async () => {
   expect(result.stdout).toContain('run with --check')
   // Whatever it offers for git, it is a command written out, never one run.
   expect(result.stdout).not.toContain('installing')
+}, 60_000)
+
+it('says a tmux older than its driver’s floor is too old, read off the driver', async () => {
+  // Debian 11's tmux, first on PATH: the floor is the tmux driver's own
+  // declaration, and nothing in the CLI knows there is such a thing as tmux.
+  const home = tmp('tade-cli-update-old-')
+  const fake = tmp('tade-cli-update-bin-')
+  writeFileSync(join(fake, 'tmux'), '#!/bin/sh\necho "tmux 3.1c"\n', { mode: 0o755 })
+  const result = await run(['update'], home, { PATH: `${fake}:${process.env.PATH ?? ''}` })
+  expect(result.code).toBe(0)
+  expect(result.stdout).toMatch(/^tmux\s+3\.1\s+too old, needs 3\.2/m)
 }, 60_000)

@@ -3,6 +3,7 @@ import { readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  belowOldest,
   type Config,
   type Declared,
   type Install,
@@ -17,9 +18,11 @@ import {
   TADE_PROGRAMS,
   type UpdateCommand,
   updateWith,
+  upgradeWith,
 } from '@tade/core'
 import { FORGES, forgeExec } from '@tade/status'
 import { HARNESS_ADAPTERS } from './harnesses.ts'
+import { installersHere } from './machine.ts'
 import { drivers } from './registry.ts'
 import { linkOf, REMOTE_LINKS } from './remotes.ts'
 
@@ -68,6 +71,12 @@ export interface ProgramLook {
   /** What to run to bring it forward, or why there is nothing to run. */
   update: UpdateCommand
   behind: boolean
+  /**
+   * Older than the oldest that works (`need.oldest`). Optional because an
+   * answer kept in `updates.json` by an older Tade has no such field, and
+   * absent there reads as nobody having looked.
+   */
+  tooOld?: boolean
 }
 
 /** Tade itself: which one is running, whether there is a newer, and how to get it. */
@@ -279,14 +288,20 @@ export async function lookAtPrograms(
       // Some say it on stdout, some on stderr, and one that failed may still
       // have said it before it did.
       const version = parseVersion(`${said.stdout}\n${said.stderr}`)
+      const tooOld = belowOldest(version ?? install.version, need.oldest)
       return {
         need,
         install,
         version,
         latest: null,
         cannotTell: 'nobody has been asked what is current',
-        update: updateWith(install),
+        // Too old is the one case the system's own copy has a command: its
+        // package manager's, the line setup offers for the same program.
+        update: tooOld
+          ? upgradeWith(install, need.install, installersHere(env))
+          : updateWith(install),
         behind: false,
+        tooOld,
       }
     }),
   )
