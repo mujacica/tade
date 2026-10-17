@@ -81,6 +81,7 @@ export const GUARDED = [
   'mcp-standing-',
   'pi-agent-',
   'pi-cwd-',
+  'pi-flat-',
   'pi-home-',
   'pi-link-',
   'pi-sessions-',
