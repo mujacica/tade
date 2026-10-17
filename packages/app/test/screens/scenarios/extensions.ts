@@ -168,6 +168,31 @@ function manyExtensionFacts() {
   return { ...facts, extensions: [...facts.extensions, ...mine] }
 }
 
+/**
+ * The dependency watches where the repository is a project on the VPS too,
+ * and the VPS looks with the first of them there (`watchWhere`).
+ */
+function depsOnVps() {
+  const facts = extensionFacts()
+  const vps = {
+    on: 'vps',
+    said: 'vps looks with it on the same repository (checkout there), so this machine does not',
+  }
+  return {
+    ...facts,
+    extensions: facts.extensions.map((one) =>
+      one.name !== 'deps'
+        ? one
+        : {
+            ...one,
+            watches: one.watches.map((watch, at) =>
+              at === 0 ? { ...watch, elsewhere: vps } : watch,
+            ),
+          },
+    ),
+  }
+}
+
 function extensionFacts() {
   return {
     extensions: [
@@ -521,6 +546,18 @@ export const EXTENSION_SCREENS: Scenario[] = [
       panel: { ...extensionsPanel('jev'), focus: 'body', following: false, scroll: 24 },
     },
     frame: frame({ panel: extensionFacts() }),
+  },
+  {
+    name: 'a-watch-another-machine-runs',
+    about:
+      'A watch another machine of yours looks with on the same repository: the row says which ' +
+      'machine where its button was, and why beneath it \u2014 nothing to press that would only ' +
+      'be refused.',
+    state: {
+      ...base(),
+      panel: { ...extensionsPanel('deps'), focus: 'body', following: false, scroll: 14 },
+    },
+    frame: frame({ panel: depsOnVps() }),
   },
   {
     name: 'an-extension-that-needs-setting-up',

@@ -322,26 +322,31 @@ export function extensionBody(
     lines.push(blank(form))
     // What the heading says has to be true of these watches: some turn
     // themselves on once their extension can look, and the rows say where.
-    const on = watches.filter((watch) => watchOn(watch)).length
+    const on = watches.filter((watch) => watchOn(watch) && !watch.elsewhere).length
     heading('WATCHES', on === 0 ? 'none on until you turn one on' : `${on} of ${watches.length} on`)
     for (const watch of watches) {
       const running = watchOn(watch)
       const every = `  every ${watch.every}`
+      // Another machine looks with it on the same repository (`watchWhere`):
+      // said where the button was, as SCHEDULES says it, because a press here
+      // could only be refused with the sentence drawn under the row.
+      const there = watch.elsewhere ? `on ${watch.elsewhere.on}` : ''
       // What pressing it does and what the state is, in the words the rest of
       // this page uses for the same act. `Watch tade` said neither: it read as
       // a noun phrase about a project.
-      const press = watch.project ? (running ? 'Turn off' : 'Turn on') : ''
+      const press = watch.project && !there ? (running ? 'Turn off' : 'Turn on') : ''
       const show = watch.on ? 'Show' : ''
+      const instead = there || 'open a project to watch it'
       // What is pinned at the right, measured before the name is cut: a row
       // that does not fit drops its right-hand group, and the button that
       // turns a watch on is not something to lose to a long title.
       const pinned =
         (show ? visibleWidth(show) + 5 : 0) +
-        (press ? visibleWidth(press) + 4 : visibleWidth('open a project to watch it')) +
+        (press ? visibleWidth(press) + 4 : visibleWidth(instead)) +
         2
       const title = row()
         .space()
-        .text('◎', running ? skin.done : skin.hint)
+        .text('◎', there ? skin.faded : running ? skin.done : skin.hint)
         .space()
         .text(
           cap(printable(watch.title), Math.max(8, form - 3 - visibleWidth(every) - pinned)),
@@ -357,13 +362,14 @@ export function extensionBody(
             running ? undefined : 'primary',
           )
         } else {
-          r.text('open a project to watch it', skin.hint)
+          r.text(instead, skin.hint)
         }
         r.space()
       })
       const mine = [`watching:${watch.on ?? ''}`, `watch:${view.name}:${watch.id}`]
       lines.push({ ...title.build(), on: focused !== null && mine.includes(focused) })
       wrap(watch.means, 3)
+      if (watch.elsewhere) wrap(`Runs on ${watch.elsewhere.on}: ${watch.elsewhere.said}.`, 3)
     }
   }
 

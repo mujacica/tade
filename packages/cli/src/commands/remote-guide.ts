@@ -6,11 +6,11 @@ import {
   loadConfig,
   located,
   machineLabel,
+  NewRemoteName,
   OWNER_IS_YOUR_SSH_KEY,
   REMOTE_KEPT_HERE,
   RemoteCommand,
   type RemoteConfig,
-  RemoteName,
   SshDestination,
   TALK_TO_REMOTE,
   writeSetting,
@@ -343,7 +343,7 @@ export async function addRemote(place: Place, name: string, opts: AddOpts): Prom
   // Each refused for its shape before anything runs: the destination becomes
   // an argument to ssh and the command a word a remote shell reads.
   for (const [what, schema, value] of [
-    ['a remote’s name', RemoteName, name],
+    ['a remote’s name', NewRemoteName, name],
     ['--ssh', SshDestination, opts.ssh],
     ['--tade', RemoteCommand, opts.tade],
   ] as const) {

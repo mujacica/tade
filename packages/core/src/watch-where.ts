@@ -1,4 +1,4 @@
-import { RemoteName } from './remotes.ts'
+import { NOT_A_REMOTE, RemoteName } from './remotes.ts'
 import type { ScheduleDoes } from './schedule.ts'
 
 // Which machine looks with a project's watches on outside sources
@@ -37,7 +37,7 @@ import type { ScheduleDoes } from './schedule.ts'
 export const WatchesOn = RemoteName
 
 /** What `here` means wherever it is written: this machine, whatever a remote is called. */
-export const WATCHES_HERE = 'here'
+export const WATCHES_HERE = NOT_A_REMOTE
 
 /** A remote's project that is this project's repository, and what it says it watches there. */
 export interface WatchTwin {

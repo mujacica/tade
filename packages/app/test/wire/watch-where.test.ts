@@ -10,6 +10,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { runGit, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import type { App } from '../../src/app.ts'
 import { awayCollections } from '../../src/away.ts'
+import { watchControls } from '../../src/panels/extensions/state.ts'
+import type { Extensions } from '../../src/wire/extensions.ts'
 import { type Beatable, beatParts } from '../../src/wire/web-beat.ts'
 import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
 
@@ -164,6 +166,15 @@ describe('one machine per repository, in this window', () => {
     expect(await listed(window, 'rain')).toBe(
       '  app: on vps, not here — vps looks with it on the same repository (tade there), so this machine does not',
     )
+    // The Extensions page says so where its button was, and offers no press.
+    const page = (window as unknown as { extensions: Extensions }).extensions.extensionViews()
+    const rain = page
+      .find((one) => one.name === 'weather')
+      ?.watches.find((one) => one.id === 'rain')
+    expect(rain?.elsewhere?.on).toBe('vps')
+    expect(watchControls('weather', rain!)).toEqual([])
+    // A schedule of it here stays one press away; only the turning is gone.
+    expect(watchControls('weather', { ...rain!, on: 'rain' })).toEqual(['watching:rain'])
     const tools = window.queueTools()
     await expect(
       tools.schedule({

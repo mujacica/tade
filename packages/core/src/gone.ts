@@ -9,6 +9,8 @@
 // out of it, and a line about each. No filesystem, no clock — the file itself
 // is never touched, because the file is the person's to edit.
 
+import { HERE_IS_NOT_A_REMOTE, NOT_A_REMOTE } from './remotes.ts'
+
 /**
  * The short of it, for the one line a whole list of servers gets: `and
  * nothing here holds it`. A clause of the sentence below, and never a second
@@ -73,6 +75,12 @@ const GONE: readonly (readonly [pattern: string, said: string])[] = [
   ['mcp.servers.*.sandbox', `sandboxes are gone from Tade. ${SERVER_RUNS_AS_YOU}`],
   ['checks.from_ci', CHECKS_ARE_READ],
   ['projects.*.checks.from_ci', CHECKS_ARE_READ],
+  // Not a key that went, but a name that never was one: a remote called what
+  // `watches` calls this machine, from before `tade remote add` refused it.
+  [
+    `remotes.${NOT_A_REMOTE}`,
+    `${HERE_IS_NOT_A_REMOTE} — rename the block, its session and all, to link to that machine again`,
+  ],
 ]
 
 /**

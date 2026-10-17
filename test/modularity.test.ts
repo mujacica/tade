@@ -49,7 +49,7 @@ const BUDGET: Record<string, number> = {
   // added to.
   'packages/app/src/model.ts': 1_950,
   // 880 when the setup panel's write, put-back and record became `writeApplied`.
-  'packages/app/src/wire/extensions.ts': 880,
+  'packages/app/src/wire/extensions.ts': 878,
   // Both lost their SMART QUEUE corner to `packages/app/test/queue-view.test.ts`:
   // what the queue shows and how the side draws it are one subject, and they
   // were being tested as two halves that could disagree.

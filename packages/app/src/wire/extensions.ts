@@ -44,6 +44,7 @@ import {
 } from './context.ts'
 import { Kept, unlessSame } from './kept.ts'
 import { listsShown, Rows } from './rows.ts'
+import type { Schedules } from './schedules.ts'
 
 // Extensions, the servers brokered as extensions, and the page that says what
 // each is for.
@@ -85,11 +86,11 @@ export interface ExtensionsDeps {
   /** Installing something an extension needs, in a terminal you can watch. */
   watchCommand(kind: 'install', line: string): Promise<void>
   /**
-   * Turn a watch the other way in a project. A watch is a schedule, so which
-   * way that is, and what it takes, are both the schedules' — this page only
-   * says which button was pressed.
+   * The watches, which are schedules: which way a press turns one, what it
+   * takes, and which machine looks with it are all theirs to say — this page
+   * only says which button was pressed.
    */
-  toggleWatch(watch: string, project: string): Promise<string>
+  watches: Pick<Schedules, 'toggleWatch' | 'watching' | 'where'>
   /** A line as a voice would say it, for an answer that had no said form of its own. */
   spoken(text: string): string
 }
@@ -390,7 +391,7 @@ export class Extensions implements Subject {
   extensionViews(): ExtensionView[] {
     const offers = this.wire.opts.extensions?.watches() ?? []
     const project = this.wire.state.project
-    const schedules = this.wire.opts.client.schedules()
+    const watches = this.deps.watches
     const servers = this.servers
     const loaded = this.wire.opts.extensions?.list() ?? []
     return [
@@ -408,12 +409,8 @@ export class Extensions implements Subject {
           watches: offers
             .filter((offer) => offer.extension === one.name)
             .map((offer) => {
-              const watching = schedules.find(
-                (each) =>
-                  each.project === project &&
-                  each.does.kind === 'watch' &&
-                  each.does.watch === offer.id,
-              )
+              const watching = project ? watches.watching(offer.id, project) : null
+              const where = project && watches.where(project, offer.id, watching?.id ?? '')
               return {
                 id: offer.id.slice(one.name.length + 1),
                 title: offer.title,
@@ -422,6 +419,7 @@ export class Extensions implements Subject {
                 project,
                 on: watching?.id ?? null,
                 paused: watching?.paused === true,
+                elsewhere: where && !where.here ? { on: where.on, said: where.said } : null,
               }
             }),
           server: servers.find((each) => `mcp-${each.name}` === one.name),
@@ -460,7 +458,7 @@ export class Extensions implements Subject {
         case 'watch': {
           const project = this.wire.state.project
           if (!project) return stay('Open a project to watch it')
-          return stay(await this.deps.toggleWatch(`${name}.${rest[1] ?? ''}`, project))
+          return stay(await this.deps.watches.toggleWatch(`${name}.${rest[1] ?? ''}`, project))
         }
         case 'watching':
           this.wire.put(openSchedule({ ...this.wire.state, panel: null }, name))

@@ -149,6 +149,11 @@ export interface WatchOfferView {
   on: string | null
   /** Whether that schedule is paused, which is what turning a watch off leaves behind. */
   paused: boolean
+  /**
+   * The machine that looks with it in that project instead of this one, and
+   * the sentence why (`watchWhere`). Absent or null: it is this machine's.
+   */
+  elsewhere?: { on: string; said: string } | null
 }
 
 /** A tool Tade wrote for itself: one file, for you to read and turn on. */
@@ -436,7 +441,8 @@ export function watchOn(watch: WatchOfferView): boolean {
  * What a watch's row offers, in the order they are drawn and the keyboard
  * walks them: showing the schedule, where there is one, and the button that
  * turns it on or off — which is only there where you are in a project,
- * because a watch is a schedule in one.
+ * because a watch is a schedule in one, and that project's watch is this
+ * machine's to look with.
  *
  * The button used to say `Watch tade`, which reads as a noun phrase about a
  * project rather than as an act with a state — so it says what pressing it
@@ -446,7 +452,7 @@ export function watchOn(watch: WatchOfferView): boolean {
 export function watchControls(extension: string, watch: WatchOfferView): string[] {
   return [
     ...(watch.on ? [`watching:${watch.on}`] : []),
-    ...(watch.project ? [`watch:${extension}:${watch.id}`] : []),
+    ...(watch.project && !watch.elsewhere ? [`watch:${extension}:${watch.id}`] : []),
   ]
 }
 

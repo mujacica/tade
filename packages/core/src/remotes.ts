@@ -35,6 +35,23 @@ export const RemoteName = z
   )
 
 /**
+ * The one name no remote may have: what `projects.<name>.watches` calls this
+ * machine (`WATCHES_HERE`), so a remote called it would make that setting name
+ * two machines. `tade remote add` refuses it (`NewRemoteName`); a config that
+ * already has one is not refused for it — the block is ignored and said, the
+ * way a gone key is (`gone.ts`), and `here` stays this machine.
+ */
+export const NOT_A_REMOTE = 'here'
+
+export const HERE_IS_NOT_A_REMOTE = `\`${NOT_A_REMOTE}\` is what projects.<name>.watches calls this machine, so no remote may be called it`
+
+/** A name for a remote being added: any `RemoteName` but `here`. */
+export const NewRemoteName = RemoteName.refine(
+  (name) => name !== NOT_A_REMOTE,
+  HERE_IS_NOT_A_REMOTE,
+)
+
+/**
  * Where `ssh` reaches it: a `Host` from `~/.ssh/config`, `user@host`, or
  * `ssh://user@host:port` for a port of its own.
  *

@@ -1,0 +1,34 @@
+ ▄▀   T A D E      checkout !⠋    search ✓    infra      +          ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ A╭─ Extensions ─────────────────────────────────────────────────────────────────────────────────────────── esc ─╮×   
+    │  search extensions          │ Dependencies  built-in                                                  ready  │────
+ ▌ !│                             │ 2 tools · 2 watches · 2 settings                                               │    
+ ▌  │ ● Checks                   ▕│                                                                                │    
+    │                            ▕│ · A major is reported and never bumped on a clock; nothing red is committed.  ▕│    
+   ⠋│ ● Dependencies             ▕│ · Ranges you wrote stay as written; anything under `ignore` is left alone.    ▕│    
+    │                            ▕│                                                                               ▕│    
+    │ ● Jev                      ▕│ TOOLS                                                                         ▕│    
+ ▸ S│                            ▕│ deps_check  Check a project's dependencies against their registries           ▕│    
+ ▸ S│ ◐ Sentry                 ! ▕│ deps_update Update a project's dependencies to their newest releases, up to a…▕│    
+ ▸ I│                            ▕│                                                                               ▕│    
+ ▾ C│ ✗ standup                ! ▕│ WATCHES  none on until you turn one on                                        ▕│    
+  M │                            ▕│ ◎ Vulnerable dependencies  every 1d                                    on vps █│    
+  A │ ● GitHub                   ▕│   checks against OSV, and starts an agent per vulnerable package              █│    
+  M │                            ▕│   Runs on vps: vps looks with it on the same repository (checkout there), so  █│    
+    │ ○ release-notes            ▕│   this machine does not.                                                      █│    
+ ▾ F│                            ▕│ ◎ Dependency updates  every 1d                                      Turn on   █│    
+   ▾│ · Written by Tade        1 ▕│   looks daily for patch and minor releases and puts an agent on them in a     █│    
+    │                            ▕│   worktree of its own, whatever the project says — the patches in one commit, █│    
+    │ · MCP servers            4 ▕│   each minor on its own — which installs, runs the project’s own checks and   █│    
+   ▸│                            ▕│   commits only if they pass; majors are reported and never bumped             █│    
+━   │ · Harnesses' own         2 ▕│                                                                               █│   ━
+    │                            ▕│ OPTIONS  Settings…                                                            █│    
+    │                            ▕│ Registry            not set                                                   █│   ▕
+    │                            ▕│ Never touch         typescript                                                █│   ▕
+    │                            ▕│                                                                                │   ▕
+    │                            ▕│ tab moves · ↑↓ reads · enter presses                                   Done    │   ▕
+ ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

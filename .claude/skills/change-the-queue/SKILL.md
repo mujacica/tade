@@ -468,7 +468,11 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   machine's. A remote that starts looking is written down on the next pass (`handedOver`), not at
   the watch's next turn; `Schedules.set` and `turnWatch` refuse to turn on what another machine looks
   with, and `writeStanding` does not write it, so it is written the day it is this machine's. The
-  row says `on vps` and the card `RUNS ON`; `tade_watches` says it per project.
+  row says `on vps` and the card `RUNS ON`; `tade_watches` says it per project; the Extensions page
+  says `on vps` where its button was, and why beneath it (`WatchOfferView.elsewhere`, asked of
+  `Schedules.where`), because a press there could only be refused. **No remote is called `here`**,
+  the word `watches` uses for this machine: `tade remote add` refuses it (`NewRemoteName`), and a
+  config that has one keeps working without it, the block ignored and said (`gone.ts`).
 - **Which projects there are is asked at every look, and a project that is not open is nothing to
   watch.** A watch names its project and resolves it when it looks, so the list it is resolved
   against is read from the config each time (`projectsOf`; the window hands the host each new config

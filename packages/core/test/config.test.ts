@@ -13,6 +13,7 @@ import {
   pushProblems,
   workspaceFor,
 } from '../src/project.ts'
+import { WATCHES_HERE } from '../src/watch-where.ts'
 
 describe('parseConfig', () => {
   it('fills defaults for an empty file', () => {
@@ -118,6 +119,25 @@ projects:
     expect(r.warnings.join('\n')).toContain('projects.demo.checks.from_ci is ignored')
     expect(r.warnings.join('\n')).toContain('read from its CI workflows and its commit hook')
     expect('from_ci' in r.config.checks).toBe(false)
+  })
+
+  it('ignores a remote called here and says so, rather than refusing the file', () => {
+    // `here` is what `projects.<name>.watches` calls this machine, so a remote
+    // by that name would make the setting name two. `tade remote add` refuses
+    // it now; one written before is dropped and said, and the rest stands.
+    const remote =
+      '    ssh: vps\n    device: 0123abcd\n    session: 0123abcd.abcdefghijklmnop\n' +
+      '    csrf: abcdefghijklmnop\n    host: localhost:7654\n'
+    const r = parseConfig(
+      `remotes:\n  here:\n${remote}  vps:\n${remote}projects:\n  demo:\n    root: /tmp/demo\n    watches: here\n`,
+    )
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.warnings).toHaveLength(1)
+    expect(r.warnings[0]).toContain('remotes.here is ignored')
+    expect(r.warnings[0]).toContain('what projects.<name>.watches calls this machine')
+    expect(Object.keys(r.config.remotes)).toEqual(['vps'])
+    expect(r.config.projects.demo?.watches).toBe(WATCHES_HERE)
   })
 
   it('lets one project answer the checks rules for itself', () => {

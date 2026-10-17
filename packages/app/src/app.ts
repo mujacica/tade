@@ -346,7 +346,7 @@ export class App {
       openLink: (url) => this.files.openLink(url),
       reveal: (path, folder) => this.files.reveal(path, folder),
       watchCommand: (kind, line) => this.machine.watchCommand(kind, line),
-      toggleWatch: (watch, project) => this.schedules.toggleWatch(watch, project),
+      watches: this.schedules,
       spoken: (text) => spokenLine(text),
     })
     this.orchestrator = new Orchestrator(this.wire, {

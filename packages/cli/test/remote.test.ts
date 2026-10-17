@@ -102,6 +102,11 @@ describe('tade remote', () => {
     const command = await tade('remote', 'add', 'vps', '--ssh', 'vps', '--tade', 'tade; reboot')
     expect(command.code).toBe(2)
     expect(command.stderr).toContain('--tade')
+    // The one name of the right shape that is never a remote's: what
+    // `projects.<name>.watches` calls this machine.
+    const here = await tade('remote', 'add', 'here', '--ssh', 'vps')
+    expect(here.code).toBe(2)
+    expect(here.stderr).toContain('what projects.<name>.watches calls this machine')
     expect(config()).toBe('')
   })
 
