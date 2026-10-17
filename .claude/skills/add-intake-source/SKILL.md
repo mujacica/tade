@@ -87,9 +87,12 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
   adds a **declared optional capability** with a conformance section (`capabilities.tickets`), never
   a second HTTP client and never a port of its own.
 - **There is no credential of intake's own.** The forge finds one (`gh auth token`, `$GITHUB_TOKEN`),
-  so there is no second place to paste a token and nothing here to leak. Readiness stays the
-  extension's: the local door always works, so a missing GitHub token must never report the whole
-  extension as not ready.
+  so there is no second place to paste a token and nothing here to leak — and where the person
+  connected a GitHub App, the forge reads a repository it is installed on as that App
+  (`ctx.apps`, `forgeAt`'s `apps`, `change-the-reviews`): the App's keys sit in this extension's
+  block because connecting GitHub is one act, and every forge reads them through the host, not
+  through intake. Readiness stays the extension's: the local door always works, so a missing
+  GitHub token must never report the whole extension as not ready.
 - **What selects work is said, not defaulted.** The label is a **required input**, which is also what
   makes "no live connector activation" a shape rather than a promise: a watch that has to be told
   something cannot be turned on by a wizard or by a person pressing enter (`WatchOffered.needs`,

@@ -144,6 +144,10 @@ async function forgeFor(ctx: WatchContext): Promise<ForgePlace> {
     // nothing here to leak: `gh auth token` and $GITHUB_TOKEN, exactly as the
     // reviews already read them.
     env: ctx.env,
+    // And the GitHub App the person connected, where there is one: the same
+    // reader the reviews are handed (`ctx.apps`), so a repository it is
+    // installed on is read with its own hour-long token and budget.
+    apps: ctx.apps?.() ?? [],
     now: ctx.now,
   })
   if ('problem' in place) {

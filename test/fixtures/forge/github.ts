@@ -1,3 +1,4 @@
+import { createPublicKey, verify } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -60,6 +61,30 @@ export interface GithubReplay {
   pulls: Record<string, unknown>[]
   /** A branch rewritten under a review: a new head, and checks that never ran on it. */
   forcePush(number: number, sha: string): void
+  /**
+   * Who asked, by call, in the order of `calls`: a login for the person's
+   * token, `app <id>` for a token the App signed, `installation <id>` for an
+   * installation's, and `nobody` for none.
+   */
+  as: string[]
+}
+
+/** A GitHub App this GitHub knows, and where it is installed. */
+export interface ReplayApp {
+  id: string
+  /** The public half of its key: every token it signs is checked against it, as GitHub checks one. */
+  publicKey: string
+  installations: readonly {
+    id: number
+    account: string
+    /** `all` of the account's repositories, or the ones chosen, as `owner/name`. */
+    repositories: 'all' | readonly string[]
+  }[]
+  /**
+   * Paths an installation's token is refused at, by a fragment of the URL:
+   * a permission the App was not given, answered `403` as GitHub answers it.
+   */
+  refuses?: readonly string[]
 }
 
 export interface ReplayOptions {
@@ -161,6 +186,15 @@ export interface ReplayOptions {
    * that never gets a `304`, which is every other host and must keep working.
    */
   etags?: boolean
+  /** The GitHub App this GitHub knows (`ForgeOptions.app`). */
+  app?: ReplayApp
+  /**
+   * The codes a manifest's redirect could have carried, each exchanged once
+   * for what GitHub made: `POST /app-manifests/<code>/conversions`.
+   */
+  made?: Record<string, Record<string, unknown>>
+  /** The moment an App's token is checked against: now unless a test's clock is another. */
+  clock?: () => number
 }
 
 export function githubReplay(options: ReplayOptions = {}): GithubReplay {
@@ -180,6 +214,8 @@ export function githubReplay(options: ReplayOptions = {}): GithubReplay {
     options.issueEvents ??
     (read('issue-events.json') as unknown as Record<string, Record<string, unknown>[]>)
   const calls: string[] = []
+  const as: string[] = []
+  const exchanged = new Set<string>()
   const bodies: unknown[] = []
   let lastHeadSha = ''
   const me = options.me ?? 'mujacica'
@@ -207,6 +243,11 @@ export function githubReplay(options: ReplayOptions = {}): GithubReplay {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
     const method = (init?.method ?? 'GET').toUpperCase()
     calls.push(`${method} ${url}`)
+    const bearer =
+      /^Bearer (.+)$/.exec(
+        String((init?.headers as Record<string, string> | undefined)?.authorization ?? ''),
+      )?.[1] ?? ''
+    as.push(whoIs(bearer, options.app, me))
     // GitHub's jobs and logs are addressed by run id, not by commit, so the
     // replay keeps the commit the walk started at rather than inventing an
     // id-to-commit table nothing here would ever read back.
@@ -232,11 +273,84 @@ export function githubReplay(options: ReplayOptions = {}): GithubReplay {
     if (options.refused) {
       return answer({ message: 'Bad credentials' }, 401)
     }
+    // A manifest's code, exchanged once and with no credential at all, which
+    // is what GitHub documents: the code is the whole of what names the app.
+    const conversion = /\/app-manifests\/([^/]+)\/conversions$/.exec(url)
+    if (conversion && method === 'POST') {
+      const code = decodeURIComponent(conversion[1] ?? '')
+      const made = options.made?.[code]
+      if (!made || exchanged.has(code)) return answer({ message: 'Not Found' }, 404)
+      exchanged.add(code)
+      return answer(made, 201)
+    }
+    const app = options.app
+    if (app && bearer.split('.').length === 3) {
+      // The App's own token: checked as GitHub checks one, signature and
+      // claims both, so a forge that signed wrong is refused rather than
+      // answered by a fixture that took anything.
+      if (!signedBy(bearer, app, (options.clock ?? Date.now)())) {
+        return answer({ message: 'A JSON web token could not be decoded' }, 401)
+      }
+      const where = /\/repos\/([^/]+)\/([^/]+)\/installation$/.exec(url)
+      if (where) {
+        const repo = `${where[1]}/${where[2]}`
+        const found = app.installations.find((one) =>
+          one.repositories === 'all'
+            ? one.account.toLowerCase() === (where[1] ?? '').toLowerCase()
+            : one.repositories.some((named) => named.toLowerCase() === repo.toLowerCase()),
+        )
+        return found
+          ? answer({ id: found.id, account: { login: found.account } })
+          : answer({ message: 'Not Found' }, 404)
+      }
+      const token = /\/app\/installations\/(\d+)\/access_tokens$/.exec(url)
+      if (token && method === 'POST') {
+        const found = app.installations.find((one) => String(one.id) === token[1])
+        if (!found) return answer({ message: 'Not Found' }, 404)
+        return answer(
+          { token: `ghs_installation${found.id}`, expires_at: '2099-01-01T00:00:00Z' },
+          201,
+        )
+      }
+      if (/\/app\/installations(\?|$)/.test(url)) {
+        return answer(
+          app.installations.map((one) => ({
+            id: one.id,
+            account: { login: one.account },
+            repository_selection: one.repositories === 'all' ? 'all' : 'selected',
+          })),
+        )
+      }
+      return answer({ message: 'Not Found' }, 404)
+    }
+    const installation = /^ghs_installation(\d+)$/.exec(bearer)?.[1]
+    if (installation !== undefined) {
+      // An installation's token reads what it was installed on and was
+      // allowed, and nothing about anybody: there is no `/user` for one.
+      const found = app?.installations.find((one) => String(one.id) === installation)
+      if (!found) return answer({ message: 'Bad credentials' }, 401)
+      if (/\/installation\/repositories/.test(url)) {
+        return answer({
+          total_count: found.repositories === 'all' ? 99 : found.repositories.length,
+          repositories: [],
+        })
+      }
+      if (url.endsWith('/user') || app?.refuses?.some((one) => url.includes(one))) {
+        return answer({ message: 'Resource not accessible by integration' }, 403)
+      }
+      if (url.endsWith('/graphql')) {
+        const sent = JSON.parse(String(init?.body ?? '{}')) as {
+          query: string
+          variables: Record<string, unknown>
+        }
+        return answer(graphql(sent, nodes, me))
+      }
+    }
     // Which account is asking, read back out of the token `gh` handed over.
     // A real GitHub knows this because the token is the account; the replay
     // has to be told, and the token is where it is written.
     const auth = String((init?.headers as Record<string, string> | undefined)?.authorization ?? '')
-    const asking = /^Bearer gho_(.+)token$/.exec(auth)?.[1] ?? me
+    const asking = /^Bearer gho_(.+)token$/.exec(auth)?.[1] ?? (installation ? '' : me)
     if (url.endsWith('/user')) {
       return answer(
         { login: asking },
@@ -246,7 +360,7 @@ export function githubReplay(options: ReplayOptions = {}): GithubReplay {
     }
     // GitHub hides what you may not see rather than refusing it, so the wrong
     // account gets the same 404 as a repository that does not exist.
-    if (options.seenBy !== undefined && asking !== options.seenBy) {
+    if (options.seenBy !== undefined && installation === undefined && asking !== options.seenBy) {
       return answer({ message: 'Not Found' }, 404)
     }
     if (readOnly && method !== 'GET' && !url.endsWith('/graphql')) {
@@ -435,6 +549,7 @@ export function githubReplay(options: ReplayOptions = {}): GithubReplay {
 
   const exec = async (command: string, args: readonly string[]) => {
     calls.push(`${command} ${args.join(' ')}`)
+    as.push(command)
     if (options.signedOut) {
       return { code: 1, stdout: '', stderr: 'gh: not logged in to github.com' }
     }
@@ -456,7 +571,49 @@ export function githubReplay(options: ReplayOptions = {}): GithubReplay {
     node.updatedAt = '2026-09-19T09:00:00Z'
   }
 
-  return { fetch: replayFetch, exec, calls, bodies, pulls: nodes, forcePush }
+  return { fetch: replayFetch, exec, calls, as, bodies, pulls: nodes, forcePush }
+}
+
+/** Whose token this is, for `as`. */
+function whoIs(bearer: string, app: ReplayApp | undefined, me: string): string {
+  if (bearer === '') return 'nobody'
+  const installation = /^ghs_installation(\d+)$/.exec(bearer)?.[1]
+  if (installation !== undefined) return `installation ${installation}`
+  if (bearer.split('.').length === 3) return `app ${app?.id ?? '?'}`
+  return /^gho_(.+)token$/.exec(bearer)?.[1] ?? me
+}
+
+/**
+ * Whether a token was signed by this App, as GitHub checks one: RS256 over the
+ * first two parts with the App's key, issued by its id, issued no later than
+ * now and running out no more than ten minutes ahead.
+ */
+function signedBy(token: string, app: ReplayApp, at: number): boolean {
+  const [head, body, signature] = token.split('.')
+  if (!head || !body || !signature) return false
+  const header = JSON.parse(Buffer.from(head, 'base64url').toString('utf8')) as { alg?: string }
+  if (header.alg !== 'RS256') return false
+  const ok = verify(
+    'RSA-SHA256',
+    Buffer.from(`${head}.${body}`),
+    createPublicKey(app.publicKey),
+    Buffer.from(signature, 'base64url'),
+  )
+  if (!ok) return false
+  const claims = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as {
+    iss?: unknown
+    iat?: unknown
+    exp?: unknown
+  }
+  const now = Math.floor(at / 1000)
+  return (
+    String(claims.iss) === app.id &&
+    typeof claims.iat === 'number' &&
+    typeof claims.exp === 'number' &&
+    claims.iat <= now &&
+    claims.exp > now &&
+    claims.exp - now <= 600
+  )
 }
 
 /** The bit of GitHub's GraphQL Tade actually asks for, played back. */

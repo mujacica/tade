@@ -1,6 +1,6 @@
 import type { ExtensionContext, ExtensionWatch, Finding, WatchAgent } from '@tade/extensions-core'
 import type { Forge, Review, ReviewDetail, ReviewRef } from '@tade/forges-core'
-import { asLookFailed, settingsOf, whereOf } from './forge.ts'
+import { asLookFailed, RINGS, settingsOf, whereOf } from './forge.ts'
 import { attemptsUnder, FIXING_HOURS, FIXING_WINDOW_MS } from './record.ts'
 
 // Conflicts on the reviews Tade opened, and one agent to merge the base in.
@@ -113,6 +113,7 @@ export const reviewConflicts: ExtensionWatch = {
   // It asks a forge, so an offline machine holds it rather than letting it
   // find that out with a request that times out once every ten minutes.
   network: true,
+  doorbell: RINGS.conflicts,
 
   async check(ctx) {
     const where = await whereOf(ctx, ctx.watching)

@@ -134,6 +134,12 @@ const RULES: readonly Rule[] = [
     carry: 'here',
     because: 'how many run at once is this machine’s capacity',
   },
+  {
+    at: /^extensions\.intake\.github_app_(id|key|slug)$/,
+    carry: 'here',
+    because:
+      'the GitHub App was made for this machine’s public name: its deliveries and its callbacks come here',
+  },
   // ── on a press ──
   {
     at: 'telemetry.dsn',

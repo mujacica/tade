@@ -18,6 +18,8 @@ by what the code cannot express, not by being careful at the call site.
 | `packages/forges/scripted/src/index.ts` | a forge that answers from a table: `ScriptedReview`, `Wrote` |
 | `packages/status/src/forges.ts` | `FORGES`, `forgeFor`, `forgeExec`: the one registry every call site goes through, and what it keeps between looks — `remoteAt`, the credential cache per way of running programs |
 | `packages/forges/core/src/credentials.ts` | `credentialCache`, `CREDENTIAL_KEEP_MS`: a credential a forge ran a program for, kept for the next forge made for the same sign-in |
+| `packages/forges/core/src/apps.ts` · `forges/github/src/app.ts` | an App the person owns: `ForgeApp`, `AppWant`/`AppForm`/`AppAsk`, `MadeApp`, `AppInstallation`, `capabilities.apps`; GitHub's manifest (`appFormAt`, `APP_PERMISSIONS`, `APP_EVENTS`), the App's own token (`appToken`), what the code is exchanged for (`madeFrom`) |
+| `packages/core/src/forge-apps.ts` | where the App's keys are kept (`GITHUB_APP`, under `extensions.intake`), `appsKept` — what `ExtensionContext.apps` answers every extension |
 | `packages/status/src/git.ts` | `probeReview`: the one narrow question status asks, with the window closed |
 | `packages/extensions/review/src/forge.ts` | finding the forge and asking it as little as possible: `whereOf`, `everywhere`, `snapshot`, `POLL_MS`, `forget`, `settingsOf`, `refFrom`, `credentialProblem` |
 | `packages/extensions/review/src/extension.ts` | `TASK_TRAILER`, the settings, the surfaces, the `review_*` tools, the three review watches |
@@ -352,6 +354,24 @@ anything that writes, call `forget()` so the next reader polls. `for: ['orchestr
   status never throws and a task whose review state could not be read is one Tade says nothing
   about rather than one it calls merged; `snapshot` keeps `problem` so it is said once rather than at
   every look.
+- **An App reads, the person does everything else** (`capabilities.apps`, `ForgeOptions.app`).
+  Where the person connected one (REMOTE-TADE §6.3), a read **about a repository it is installed
+  on** is asked with that installation's hour-long token and its own budget — said at each call
+  with `about`, never worked out from a URL, because whether this sign-in can see a repository
+  (`access`), whose a review is (`login`) and every search by `@me` are questions about the person.
+  Every write is the person's: the App is read-only for good (§14 decision 10). `forgeFor` binds
+  the App made on the host the remote places it on (`asItsAccount`), so an App on github.com never
+  answers for an enterprise host. Not installed is an answer kept for ten minutes in the same
+  `credentialCache`; what the App may not read (a `403`) is asked again as the person once; a key
+  that is not one, an App deleted, or a count that could not be read is a throw naming the App —
+  never a quiet fall back, because somebody connected it and needs to hear it stopped working.
+  Every watch here and intake's GitHub watch are handed it through `ctx.apps`, which the host
+  answers out of the config at each ask (`appsKept`).
+- **What rings a review watch is declared on it** (`RINGS` in `forge.ts`): CI finishing for
+  `branch-checks` and `checks-failed`, review conversations for `comments`, a review pushed to for
+  `conflicts` — matched on the project's own repository. A delivery only makes it look now; the
+  poll stays, hourly while deliveries arrive, and mergeability has no event at all, so a conflict
+  the base moving made is still the poll's.
 - **Credentials are held in memory and never written.** `gh` is how the token is found, a pasted
   token reaches the forge as the variable it already reads, and **the environment always wins** over
   what was pasted. Nothing writes a token anywhere. `credentialProblem` answers from files and the

@@ -1,4 +1,5 @@
 import {
+  GITHUB_APP,
   HOOK_SECRETS,
   HOOK_SOURCES,
   type IntakeCandidate,
@@ -118,6 +119,18 @@ export const intakeExtension: TadeExtension = {
       env: [HOOK_SECRETS[source].env],
       means: HOOK_SECRETS[source].means,
     })),
+    // The GitHub App Connect GitHub makes (`@tade/core`'s `forge-apps.ts`),
+    // which every forge here reads a repository it is installed on as — the
+    // review watches' too, through `ctx.apps`. Here, beside the secret its
+    // deliveries are signed with, because connecting GitHub is one act.
+    { key: GITHUB_APP.id.key, kind: 'string', means: GITHUB_APP.id.means },
+    {
+      key: GITHUB_APP.key.key,
+      kind: 'secret',
+      env: [GITHUB_APP.key.env],
+      means: GITHUB_APP.key.means,
+    },
+    { key: GITHUB_APP.slug.key, kind: 'string', means: GITHUB_APP.slug.means },
   ],
   // Nothing to set up for the local door: no key, no endpoint, no account.
   // Being ready is having a home to read, which every window has — so there is

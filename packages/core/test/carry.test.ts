@@ -79,6 +79,15 @@ describe('what is carried', () => {
     }
   })
 
+  it('keeps the GitHub App on the machine it was made for, key and all', () => {
+    // Its webhook and callbacks are this machine's public name, so another
+    // machine given it would be reading as an App whose deliveries go here.
+    for (const leaf of ['github_app_id', 'github_app_key', 'github_app_slug']) {
+      expect(carryOf(`extensions.intake.${leaf}`).carry, leaf).toBe('here')
+    }
+    expect(carryOf('extensions.intake.github_webhook_secret').carry).toBe('pressed')
+  })
+
   it('never carries a key by itself, wherever it is', () => {
     for (const path of [
       'extensions.jev.key',

@@ -24,6 +24,27 @@ import { ACT_SETTINGS, type Bounds, DEFAULT_BOUNDS, type Grants } from './review
 export const POLL_MS = 60_000
 
 /**
+ * What rings each review watch, where a GitHub App's webhook — or one somebody
+ * pointed here by hand — delivers to this machine (`ExtensionWatch.doorbell`,
+ * REMOTE-TADE §6.1): the kinds of delivery that can change what its look
+ * finds, matched on the project's own repository. A delivery only makes the
+ * watch look now, which still reads the forge; the poll stays as the safety
+ * net and slows to hourly while deliveries arrive. Mergeability has no event
+ * at all, so a conflict that the base moving made is still the poll's.
+ */
+export const RINGS = {
+  /** CI finishing: a check suite, a workflow run, a commit status. */
+  checks: { source: 'github', events: ['check_suite', 'workflow_run', 'status'] },
+  /** Somebody said something on a review, on its lines or as a review. */
+  comments: {
+    source: 'github',
+    events: ['pull_request_review', 'pull_request_review_comment', 'issue_comment'],
+  },
+  /** A review opened, pushed to or retargeted, which is when its own head can start to conflict. */
+  conflicts: { source: 'github', events: ['pull_request'] },
+} as const
+
+/**
  * A project's forge: `forgeAt`'s answer with the project on it.
  *
  * The resolution itself is `@tade/status`'s (`forgeAt`), because intake needs
@@ -145,6 +166,9 @@ function forgeOptions(ctx: ExtensionContext, cwd?: string) {
     env: withPastedToken(ctx, settings),
     accounts: settings.accounts,
     hostForges: settings.hostForges,
+    // The GitHub App the person connected, where there is one: the reads about
+    // a repository it is installed on are asked as it, and the rest as before.
+    apps: ctx.apps?.() ?? [],
     ...(settings.tokenEnv ? { tokenEnv: settings.tokenEnv } : {}),
     ...(cwd ? { cwd } : {}),
     now: ctx.now,

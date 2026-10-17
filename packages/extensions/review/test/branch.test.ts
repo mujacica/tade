@@ -1,3 +1,4 @@
+import { generateKeyPairSync } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { newFindings } from '@tade/core'
@@ -38,12 +39,14 @@ const checkRuns = (...each: [string, string, string | null][]) => ({
 function load(
   options: ReplayOptions & {
     settings?: Record<string, unknown>
+    /** What `extensions.intake` says: where a connected GitHub App's keys are kept. */
+    intake?: Record<string, unknown>
     root?: string
     home?: string
     env?: Record<string, string>
   } = {},
 ) {
-  const replay = githubReplay(options)
+  const replay = githubReplay({ clock: () => NOW, ...options })
   const home = options.home ?? tmp('tade-branch-home-')
   return {
     replay,
@@ -51,7 +54,7 @@ function load(
     host: ExtensionHost.load({
       builtin: [reviewExtension],
       config: {
-        extensions: { review: options.settings ?? {} },
+        extensions: { review: options.settings ?? {}, intake: options.intake ?? {} },
         projects: { api: { root: options.root ?? tmp('tade-branch-empty-') } },
       },
       home,
@@ -606,5 +609,73 @@ describe('what the agent on a red branch is told', () => {
     const started = await looked.agent(finding)
     expect(started.prompt).toContain('2 automatic fixes in the last 6 hours')
     expect(started.prompt).toContain('Change nothing and push nothing')
+  })
+})
+
+describe('reading CI as the GitHub App the person connected', () => {
+  // PKCS#1, as GitHub hands a key over; the replay checks every token the App
+  // signs against the public half, as GitHub does.
+  const keys = generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+  })
+  const app = (repositories: readonly string[]) => ({
+    id: '4242',
+    publicKey: keys.publicKey,
+    installations: [{ id: 7, account: 'acme', repositories }],
+  })
+  const intake = { github_app_id: '4242', github_app_key: keys.privateKey }
+
+  it('asks a repository the App is installed on as its installation, and finds the same', async () => {
+    const { repo, commit } = project()
+    const { host, replay } = load({
+      root: repo.root,
+      intake,
+      app: app(['acme/api']),
+      runs: { [commit]: checkRuns(['tests', 'completed', 'failure']) },
+    })
+    const looked = await look(await host)
+    expect(looked.found.map((one) => one.key)).toEqual([`github.com/acme/api@${commit}`])
+    const asked = replay.calls.flatMap((call, at) =>
+      call.includes('/check-runs') ? [replay.as[at]] : [],
+    )
+    expect(asked).toEqual(['installation 7'])
+  })
+
+  it('asks as the person where the App is not installed, exactly as before it existed', async () => {
+    const { repo, commit } = project()
+    const { host, replay } = load({
+      root: repo.root,
+      intake,
+      app: app(['acme/web']),
+      runs: { [commit]: checkRuns(['tests', 'completed', 'failure']) },
+    })
+    const looked = await look(await host)
+    expect(looked.found).toHaveLength(1)
+    const asked = replay.calls.flatMap((call, at) =>
+      call.includes('/check-runs') ? [replay.as[at]] : [],
+    )
+    expect(asked).toEqual(['mujacica'])
+  })
+
+  it('rings for CI finishing, on the project’s own repository', () => {
+    const watches = Object.fromEntries(
+      (reviewExtension.watches ?? []).map((one) => [one.id, one.doorbell]),
+    )
+    expect(watches['branch-checks']).toEqual({
+      source: 'github',
+      events: ['check_suite', 'workflow_run', 'status'],
+    })
+    expect(watches['checks-failed']).toEqual(watches['branch-checks'])
+    expect(watches.comments?.events).toEqual([
+      'pull_request_review',
+      'pull_request_review_comment',
+      'issue_comment',
+    ])
+    expect(watches.conflicts?.events).toEqual(['pull_request'])
+    for (const id of ['branch-checks', 'checks-failed', 'comments', 'conflicts']) {
+      expect(watches[id]?.input).toBeUndefined()
+    }
   })
 })

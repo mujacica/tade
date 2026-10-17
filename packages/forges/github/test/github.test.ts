@@ -1,3 +1,4 @@
+import { generateKeyPairSync } from 'node:crypto'
 import { testForge } from '@tade/forges-core/conformance'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { githubReplay, type ReplayOptions } from '../../../../test/fixtures/forge/github.ts'
@@ -20,6 +21,13 @@ beforeAll(() => {
 })
 afterAll(() => {
   globalThis.fetch = globally
+})
+
+/** A GitHub App's key, for the suite's App section: PKCS#1, as GitHub hands one over. */
+const appKeys = generateKeyPairSync('rsa', {
+  modulusLength: 2048,
+  publicKeyEncoding: { type: 'spki', format: 'pem' },
+  privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
 })
 
 const make = (options: ReplayOptions & { accounts?: Record<string, string> } = {}) => {
@@ -52,6 +60,25 @@ testForge('github', () => make().forge, {
   // 504 in the fixture is a pull request that the issues endpoint answers
   // about, which is the filtering the suite checks; 9999 is nothing at all.
   tickets: { repo: 'acme/api', label: 'tade', unknown: 9999 },
+  apps: {
+    asApp: () => {
+      const replay = githubReplay({
+        app: {
+          id: '4242',
+          publicKey: appKeys.publicKey,
+          installations: [{ id: 7, account: 'acme', repositories: ['acme/api'] }],
+        },
+      })
+      return makeGithubForge({
+        exec: replay.exec,
+        fetch: replay.fetch,
+        env: {},
+        app: { host: 'github.com', id: '4242', key: appKeys.privateKey },
+      })
+    },
+    installed: { repo: 'acme/api', commit: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678' },
+    unknownCode: 'never-handed-out',
+  },
 })
 
 describe('GitHub, in the port\u2019s words', () => {

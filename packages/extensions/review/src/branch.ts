@@ -6,7 +6,7 @@ import {
   type WatchAgent,
 } from '@tade/extensions-core'
 import { type CommitCi, cannotLook, ciOn, saidOf, standingEverywhere } from './commit.ts'
-import { settingsOf, whereOf } from './forge.ts'
+import { RINGS, settingsOf, whereOf } from './forge.ts'
 import { attemptsUnder, FIXING_HOURS, FIXING_WINDOW_MS, watchIsOn } from './record.ts'
 
 // CI on the branches this project actually has checked out, which is the half
@@ -83,6 +83,7 @@ export const branchChecks: ExtensionWatch = {
   // extension is not ready, so there is no schedule at all rather than one
   // failing all day.
   standing: true,
+  doorbell: RINGS.checks,
 
   async check(ctx) {
     const since = new Date(ctx.now()).toISOString()

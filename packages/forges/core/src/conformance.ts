@@ -49,6 +49,28 @@ export interface ForgeConformanceOptions {
    * throwing, and that one saying it has none refuses.
    */
   tickets?: { repo: string; label: string; unknown: number }
+  /**
+   * For a forge that declares `apps`: the same forge made with an app the
+   * fixture knows (`ForgeOptions.app`), a repository and a commit on it the
+   * app is installed on, and a code the fixture never handed out. Left out,
+   * the section asserts only what needs no fixture — that a forge saying it
+   * makes none refuses, and that a form says what it asks for.
+   */
+  apps?: {
+    asApp(): Forge | Promise<Forge>
+    installed: { repo: string; commit: string }
+    unknownCode: string
+  }
+}
+
+/** What a form is asked for in the suite: a public name, and one without. */
+const WANT = {
+  home: 'https://tade.example.com',
+  hook: 'https://tade.example.com/hooks/github',
+  made: 'https://tade.example.com/connect/github/made',
+  installed: 'https://tade.example.com/connect/github/installed',
+  state: 'conformance-state-0123456789',
+  name: 'tade-conformance',
 }
 
 export function testForge(
@@ -583,6 +605,73 @@ export function testForge(
       })
       const seen = new Set(page.items.map((one) => one.ref.number))
       for (const one of next.items) expect(seen.has(one.ref.number)).toBe(false)
+    })
+
+    // ── apps ────────────────────────────────────────────────────────────
+
+    it('refuses to make an app at all when it says it makes none', async () => {
+      const forge = await make()
+      if (forge.capabilities.apps) return
+      expect(() => forge.appForm(WANT)).toThrow(ForgeError)
+      await expect(forge.appMade('any')).rejects.toMatchObject({ trouble: 'unsupported' })
+      await expect(forge.appInstallations()).rejects.toMatchObject({ trouble: 'unsupported' })
+    })
+
+    it('says what an app will be allowed and why before anybody presses anything', async () => {
+      const forge = await make()
+      if (!forge.capabilities.apps) return
+      const form = forge.appForm(WANT)
+      expect(form.url.startsWith('https://')).toBe(true)
+      // The one-time word goes there and comes back, wherever the forge
+      // carries it: a form that dropped it is a callback nobody can match.
+      expect(`${form.url} ${Object.values(form.fields).join(' ')}`).toContain(WANT.state)
+      expect(form.asks.length).toBeGreaterThan(0)
+      for (const ask of form.asks) {
+        expect(ask.what).toBeTruthy()
+        expect(ask.why).toBeTruthy()
+      }
+      expect(form.events.length).toBeGreaterThan(0)
+      // No public name, no webhook: nothing can reach a laptop, and a form
+      // that still asked for deliveries would make an app that fails them.
+      expect(forge.appForm({ ...WANT, hook: null }).events).toEqual([])
+      expect(forge.appInstallUrl('tade-conformance', WANT.state)).toContain(WANT.state)
+    })
+
+    it('says a code it never handed out is missing, never an app', async () => {
+      const forge = await make()
+      if (!forge.capabilities.apps || !options.apps) return
+      await expect(forge.appMade(options.apps.unknownCode)).rejects.toMatchObject({
+        trouble: 'missing',
+      })
+    })
+
+    it('reads a repository the app is installed on as it did without one', async () => {
+      if (!options.apps) return
+      const plain = await make()
+      const app = await options.apps.asApp()
+      const { repo, commit } = options.apps.installed
+      const names = (runs: readonly { check: string }[]) => runs.map((one) => one.check).sort()
+      expect(names(await app.checksOn(repo, commit))).toEqual(
+        names(await plain.checksOn(repo, commit)),
+      )
+    })
+
+    it('is still the person wherever the question is about the person', async () => {
+      if (!options.apps) return
+      const plain = await make()
+      const app = await options.apps.asApp()
+      expect(await app.whoami()).toEqual(await plain.whoami())
+    })
+
+    it('says where the app is installed, as the app', async () => {
+      if (!options.apps) return
+      const app = await options.apps.asApp()
+      const where = await app.appInstallations()
+      expect(where.length).toBeGreaterThan(0)
+      for (const one of where) {
+        expect(one.id).toBeTruthy()
+        expect(one.repositories === 'all' || one.repositories >= 0).toBe(true)
+      }
     })
   })
 }

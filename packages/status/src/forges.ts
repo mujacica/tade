@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path'
 import { located } from '@tade/core'
 import { makeGithubForge } from '@tade/forge-github'
 import { makeScriptedForge } from '@tade/forge-scripted'
-import type { CredentialCache, ExecResult, Forge, ForgeOptions } from '@tade/forges-core'
+import type { CredentialCache, ExecResult, Forge, ForgeApp, ForgeOptions } from '@tade/forges-core'
 import { CREDENTIAL_KEEP_MS, credentialCache, hostOf, repoOf } from '@tade/forges-core'
 import { execa } from 'execa'
 
@@ -28,6 +28,12 @@ export const FORGES: Readonly<Record<string, (opts: ForgeOptions) => Forge>> = {
 export interface ForgeChoice extends ForgeOptions {
   /** Which forge serves a host, for an enterprise install: `git.acme.com=github`. */
   hostForges?: Readonly<Record<string, string>>
+  /**
+   * The apps the person connected (`ExtensionContext.apps`): the forge is made
+   * with the one made on the host the remote places it on, and none for any
+   * other — so an app made on github.com never answers for an enterprise host.
+   */
+  apps?: readonly ForgeApp[]
 }
 
 /**
@@ -77,8 +83,19 @@ function asItsAccount(
   const forge = make(options)
   const place = forge.placeOf(remote)
   if (!place) return null
-  if (!place.account || options.accounts?.[place.host] === place.account) return forge
-  return make({ ...options, accounts: { ...options.accounts, [place.host]: place.account } })
+  // The app made where the remote goes, found here once for every caller —
+  // this is the one place a forge is bound to what a remote says, its account
+  // and now its app with it.
+  const app = options.app ?? options.apps?.find((one) => one.host === place.host)
+  const named = place.account && options.accounts?.[place.host] !== place.account
+  if (!named && app === options.app) return forge
+  return make({
+    ...options,
+    ...(app ? { app } : {}),
+    ...(named && place.account
+      ? { accounts: { ...options.accounts, [place.host]: place.account } }
+      : {}),
+  })
 }
 
 /**

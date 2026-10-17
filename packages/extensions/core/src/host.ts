@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { extensionEnabled, findSecret, runProgram, secretPath } from '@tade/core'
+import { appsKept, extensionEnabled, findSecret, runProgram, secretPath } from '@tade/core'
 import { askFindings, askJudgeReplays } from './findings.ts'
 import { firstComment, yourFolders } from './folders.ts'
 import type { WatchOffer } from './offer.ts'
@@ -1326,6 +1326,9 @@ export class ExtensionHost {
           variables: variablesFor(found, settings),
         })
       },
+      // Asked of the config at every read, like the projects: an app connected
+      // while the window is open is read with on the next look.
+      apps: () => appsKept(opts.config.extensions, opts.env ?? process.env),
       fetch: opts.fetch ?? globalThis.fetch.bind(globalThis),
       exec: opts.exec ?? run,
       home: opts.home,

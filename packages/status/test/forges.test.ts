@@ -84,6 +84,24 @@ describe('which forge serves a remote', () => {
     expect(asked.at(-1)?.at(-1)).toBe('ammujacic')
   })
 
+  it('hands a forge the App made on the host its remote goes to, and none for another', async () => {
+    const app = { host: 'github.com', id: '4242', key: 'not a key' }
+    // A forge made with the App signs for itself before it reads, so a key
+    // that is not one is how the test sees which forge was given it.
+    const asked = (remote: string, hostForges: Record<string, string> = {}) =>
+      forgeFor(remote, { exec, apps: [app], hostForges, fetch: async () => new Response('[]') })
+        ?.checksOn('acme/api', 'a'.repeat(40))
+        .then(
+          () => 'as the person',
+          (err: unknown) => (String(err).includes('GitHub App 4242') ? 'as the App' : String(err)),
+        )
+    expect(await asked('git@github.com:acme/api.git')).toBe('as the App')
+    expect(await asked('git@github.com-work:acme/api.git')).toBe('as the App')
+    expect(await asked('git@git.acme.com:acme/api.git', { 'git.acme.com': 'github' })).not.toBe(
+      'as the App',
+    )
+  })
+
   it('refuses a host pointed at a forge nobody registered rather than guessing', () => {
     expect(
       forgeFor('git@git.acme.com:acme/api.git', { exec, hostForges: { 'git.acme.com': 'gitlab' } }),

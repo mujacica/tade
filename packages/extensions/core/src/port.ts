@@ -521,6 +521,16 @@ export interface ExtensionContext {
    * is the one place that knows the environment wins.
    */
   secret(key: string): SecretFound | null
+  /**
+   * The apps the person made on a forge and connected here — today the GitHub
+   * App that Connect GitHub makes (`@tade/core`'s `forge-apps.ts`) — each its
+   * host, id and private key, for a forge to read the repositories it is
+   * installed on as (`ForgeOptions.app`, through `forgeAt`'s `apps`). The same
+   * for every extension, read out of the config at each ask with the
+   * environment winning; empty where none is connected. Optional, so a
+   * context made by hand for a test asks as the person, as it always did.
+   */
+  apps?(): readonly { host: string; id: string; key: string }[]
   fetch: typeof fetch
   /** Run a program. Never throws: a failure is its code and what it said. */
   exec(

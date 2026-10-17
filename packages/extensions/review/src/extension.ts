@@ -22,6 +22,7 @@ import {
   forget,
   located,
   POLL_MS,
+  RINGS,
   settingsOf,
   snapshot,
   type Where,
@@ -811,6 +812,7 @@ export const reviewExtension: TadeExtension = {
       // It asks a forge, so an offline machine holds it rather than letting it
       // find that out with a request that times out once every ten minutes.
       network: true,
+      doorbell: RINGS.checks,
       async check(ctx) {
         const where = await whereOf(ctx, ctx.watching)
         if ('problem' in where) throw new Error(where.problem)
@@ -881,6 +883,7 @@ export const reviewExtension: TadeExtension = {
       every: '15m',
       about: 'repository',
       network: true,
+      doorbell: RINGS.comments,
       async check(ctx) {
         const where = await whereOf(ctx, ctx.watching)
         if ('problem' in where) throw new Error(where.problem)
