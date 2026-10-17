@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readOutcome } from '../src/outcome.ts'
+import { readOutcome, summaryOf } from '../src/outcome.ts'
 
 // Real tails, colour and all: what these commands actually print here, taken
 // from `.tade/checks.jsonl`. A fixture that is tidier than the output is a
@@ -118,5 +118,30 @@ describe('what a run printed, read back', () => {
       { label: 'failed', count: 3, tone: 'bad' },
       { label: 'passed', count: 40, tone: 'good' },
     ])
+  })
+})
+
+describe('the one line a run is recorded with', () => {
+  it('is what a vitest tail counted, not the isolate hint it ends on', () => {
+    const tail = [
+      '\x1b[31m\x1b[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯\x1b[22m\x1b[39m',
+      '',
+      '',
+      '\x1b[2m Test Files \x1b[22m \x1b[1m\x1b[31m2 failed\x1b[39m\x1b[22m\x1b[2m | \x1b[22m\x1b[1m\x1b[32m660 passed\x1b[39m\x1b[22m\x1b[2m | \x1b[22m\x1b[33m1 skipped\x1b[39m\x1b[90m (663)\x1b[39m',
+      '\x1b[2m      Tests \x1b[22m \x1b[1m\x1b[31m1 failed\x1b[39m\x1b[22m\x1b[2m | \x1b[22m\x1b[1m\x1b[32m10698 passed\x1b[39m\x1b[22m\x1b[2m | \x1b[22m\x1b[33m18 skipped\x1b[39m\x1b[90m (10717)\x1b[39m',
+      '\x1b[2m   Start at \x1b[22m 10:47:48',
+      '\x1b[2m   Duration \x1b[22m 337.51s\x1b[2m (tests 93%, import 7%)\x1b[22m',
+      '',
+      '\x1b[2m    Isolate \x1b[22m \x1b[33m663 workers spawned\x1b[39m\x1b[2m · ~202ms startup each (spawn + environment, per file)\x1b[22m',
+      '\x1b[2m            \x1b[22m \x1b[2mat least ~18.90s faster with \x1b[22m\x1b[33misolate: false\x1b[39m\x1b[2m — reuses workers across files instead of one per file\x1b[22m',
+      '',
+      '',
+    ].join('\n')
+    expect(summaryOf(tail)).toBe('1 failed · 10698 passed · 18 skipped · 2 files failed')
+  })
+
+  it('is the last thing said, without its colour, where nothing was counted', () => {
+    expect(summaryOf('one\n\x1b[31m8 failed\x1b[39m\n\x1b[0m\n')).toBe('8 failed')
+    expect(summaryOf('\x1b[0m\n\n')).toBeNull()
   })
 })

@@ -161,8 +161,8 @@ export function registerChecks(program: Command, io: Io, setExit: (code: number)
           onOutput: (_check, chunk) => io.err(chunk.trimEnd()),
         })
         for (const run of ran) {
-          // A summary is that output's last line, or what a forge said, and
-          // it lands among Tade's own words: printed as text.
+          // A summary is what that output counted or its last line, or what a
+          // forge said, and it lands among Tade's own words: printed as text.
           io.out(
             `${glyphOf(run.state)} ${run.check} ${run.state}${run.summary ? ` — ${printable(run.summary)}` : ''}`,
           )

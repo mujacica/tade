@@ -1,10 +1,9 @@
 // What a run's output says, read back out of what it printed.
 //
-// A run already carries a `summary` — one line, the last thing the command
-// said — and that is all the record ever claimed. But "8 failed" is not what a
-// person wants from a red suite: they want how many passed, which files the
-// formatter would change, where the type errors are. All of that was printed;
-// nothing here asks anything again.
+// A run already carries a `summary` — one line, read here too (`summaryOf`).
+// But "8 failed" is not what a person wants from a red suite: they want how
+// many passed, which files the formatter would change, where the type errors
+// are. All of that was printed; nothing here asks anything again.
 //
 // So this is a reader of other people's output, and it obeys the rule every
 // other one in Tade does: **nothing is invented**. A number appears here only
@@ -71,6 +70,26 @@ export function readOutcome(tail: string, opts: { places?: number } = {}): Check
     more: Math.max(0, unique.length - kept),
     read: true,
   }
+}
+
+/**
+ * A run's one line, read the way the ACTIONS page reads its tail: the counts
+ * it printed, as the page says them — `1 failed · 10698 passed · 18 skipped` —
+ * and only where it printed none, the last thing it said. Never the last line
+ * by itself: vitest ends on a hint that `isolate: false` would be faster, and
+ * biome on a colour reset, and each was recorded as the summary.
+ */
+export function summaryOf(tail: string): string | null {
+  const { counts } = readOutcome(tail)
+  const line =
+    counts.length > 0
+      ? counts.map((one) => `${one.count} ${one.label}`).join(' · ')
+      : plain(tail)
+          .split('\n')
+          .map((part) => part.replace(/\s+$/, ''))
+          .filter((part) => part.trim() !== '')
+          .at(-1)
+  return line ? line.slice(0, 200) : null
 }
 
 /** Every reader, tried in turn: an output can be two tools' at once (`pnpm check`). */

@@ -12,6 +12,7 @@ import {
   RunnerError,
   type RunnerOptions,
   readChecks,
+  summaryOf,
 } from '@tade/checks-core'
 import { givesWay, nicedLine } from '@tade/core'
 
@@ -262,7 +263,7 @@ async function one(
     state,
     finishedAt: new Date(opts.now()).toISOString(),
     code: outcome ? null : code,
-    summary: state === 'passed' ? null : lastLine(tail),
+    summary: state === 'passed' ? null : summaryOf(tail),
     tail: tail.slice(-opts.tailKept),
   }
   ctx.onRun(run)
@@ -281,14 +282,4 @@ function stop(pid: number | null, signal: NodeJS.Signals): void {
       // Already gone, which is the outcome we wanted.
     }
   }
-}
-
-/** What it said last, as its one line. Never a summary we invented. */
-function lastLine(tail: string): string | null {
-  const line = tail
-    .split('\n')
-    .map((part) => part.replace(/\s+$/, ''))
-    .filter((part) => part.trim() !== '')
-    .at(-1)
-  return line ? line.slice(0, 200) : null
 }

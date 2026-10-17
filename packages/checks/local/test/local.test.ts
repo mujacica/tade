@@ -68,6 +68,23 @@ describe('the local runner', () => {
     expect(run?.summary).toBe('8 failed')
   })
 
+  it('records what a vitest run counted as its summary, not the hint it ends on', async () => {
+    const root = tmp('tade-local-')
+    const [run] = await runIn(root, [
+      check(
+        'tests',
+        [
+          'echo " Test Files  1 failed | 41 passed (42)"',
+          'echo "      Tests  2 failed | 400 passed (402)"',
+          'echo "    Isolate  42 workers spawned"',
+          'echo "             at least ~3.10s faster with isolate: false — reuses workers"',
+          'exit 1',
+        ].join('; '),
+      ),
+    ])
+    expect(run?.summary).toBe('2 failed · 400 passed · 1 files failed')
+  })
+
   it('kills the whole process group when a check runs past its limit', async () => {
     const root = tmp('tade-local-')
     const pidFile = join(root, 'pid')
