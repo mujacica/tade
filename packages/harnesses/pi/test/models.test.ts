@@ -2,8 +2,16 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { exitReason } from '../src/adapter.ts'
-import { type AvailableModel, availableModels, chooseModel, findModel } from '../src/models.ts'
+import { exitReason, PiAdapter } from '../src/adapter.ts'
+import {
+  type AvailableModel,
+  availableModels,
+  chooseModel,
+  credentials,
+  findModel,
+  loggedInProviders,
+  usableModels,
+} from '../src/models.ts'
 
 // Which model a configured name means. A bare name the harness would find in
 // four catalogs made it exit before reading a word, and no name at all took
@@ -99,6 +107,35 @@ describe('the catalog', () => {
       },
       { id: 'openrouter/auto', provider: 'openrouter', name: 'Auto Router' },
     ])
+  })
+
+  it('and the sign-ins are read wherever PI_CODING_AGENT_DIR puts pi’s agent directory', async () => {
+    // pi keeps both there and never in the home, and so does an adapter
+    // whose pi is launched with it.
+    const home = tmp('pi-home-')
+    const moved = tmp('pi-agent-')
+    writeFileSync(
+      join(moved, 'models-store.json'),
+      JSON.stringify({
+        openrouter: { models: [{ id: 'moonshotai/kimi-k2.6', name: 'Kimi K2.6' }] },
+        anthropic: { models: [{ id: 'claude-opus-5', name: 'Claude Opus 5' }] },
+      }),
+    )
+    writeFileSync(join(moved, 'auth.json'), JSON.stringify({ openrouter: { type: 'api_key' } }))
+    const env = { PI_CODING_AGENT_DIR: moved }
+    expect((await usableModels(home, env)).map((model) => model.id)).toEqual([
+      'openrouter/moonshotai/kimi-k2.6',
+    ])
+    expect(await loggedInProviders(home, env)).toEqual(['openrouter'])
+    expect(await credentials(home, env)).toEqual({ openrouter: 'api-key' })
+    const adapter = new PiAdapter({ runDir: tmp('tade-pi-'), env })
+    expect(await adapter.account()).toMatchObject({ signedIn: true, who: 'openrouter' })
+    expect((await adapter.models()).map((model) => model.id)).toEqual([
+      'openrouter/moonshotai/kimi-k2.6',
+    ])
+    // Launched without it, pi reads the home's, which has neither.
+    expect(await usableModels(home, {})).toEqual([])
+    expect(await credentials(home, {})).toEqual({})
   })
 })
 

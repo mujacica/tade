@@ -9,6 +9,7 @@ import {
   momentOf,
 } from '@tade/harnesses-core'
 import { sessionIdFor } from './adapter.ts'
+import { agentDir } from './agent-dir.ts'
 import { modelOfMessage, spentBy } from './usage.ts'
 
 // Reading what an agent did out of pi's own session, rather than out of what
@@ -26,19 +27,11 @@ import { modelOfMessage, spentBy } from './usage.ts'
 // an error.
 
 /**
- * Where pi keeps sessions: under its agent directory, which is `~/.pi/agent`
- * unless `PI_CODING_AGENT_DIR` moves it (pi's `getAgentDir`, a leading `~`
- * expanded). `env` is the environment pi is launched with, since that is the
- * one it reads; a test holds this to pi's own.
+ * Where pi keeps sessions: under its agent directory (`agentDir`), wherever
+ * `PI_CODING_AGENT_DIR` in the environment pi is launched with puts it.
  */
 export function sessionsRoot(env: NodeJS.ProcessEnv = process.env, home = homedir()): string {
-  const moved = env.PI_CODING_AGENT_DIR
-  const agent = !moved
-    ? join(home, '.pi', 'agent')
-    : moved === '~' || moved.startsWith('~/')
-      ? join(home, moved.slice(1))
-      : moved
-  return join(agent, 'sessions')
+  return join(agentDir(env, home), 'sessions')
 }
 
 export interface SessionUsage {

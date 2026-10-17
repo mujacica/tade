@@ -89,6 +89,28 @@ describe('the extensions and skills pi loads by itself', () => {
     expect(installedPieces(home).map((piece) => piece.name)).toEqual(['mine'])
   })
 
+  it('lists yours wherever PI_CODING_AGENT_DIR puts pi’s agent directory, and says where', () => {
+    // pi reads them from there and never from the home, so neither does this.
+    const home = tree({
+      '.pi/agent/extensions/left-behind.ts': '',
+      'elsewhere/extensions/notes.js': '',
+    })
+    const moved = tree({
+      'extensions/linear.ts': '',
+      'skills/cut-a-release/SKILL.md': '',
+      'settings.json': JSON.stringify({ packages: ['acme/tools'] }),
+    })
+    expect(installedPieces(home, undefined, { PI_CODING_AGENT_DIR: moved })).toEqual([
+      { name: 'linear', where: `${moved}/extensions` },
+      { name: 'cut-a-release', where: `${moved}/skills` },
+      { name: 'acme/tools', where: 'pi install' },
+    ])
+    expect(installedPieces(home, undefined, { PI_CODING_AGENT_DIR: '~/elsewhere' })).toEqual([
+      { name: 'notes', where: '~/elsewhere/extensions' },
+    ])
+    expect(installedPieces(home, undefined, {}).map((piece) => piece.name)).toEqual(['left-behind'])
+  })
+
   it('leaves out what it does not recognise, rather than throwing', () => {
     // Each of these is a real shape somebody's machine can be in, and every
     // one of them used to be a question nobody had asked.

@@ -1,6 +1,7 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -371,7 +372,7 @@ export class PiAdapter implements WorkerAdapter {
 
   async account(): Promise<AccountStatus> {
     try {
-      const providers = await loggedInProviders()
+      const providers = await loggedInProviders(homedir(), this.opts.env)
       return {
         signedIn: providers.length > 0,
         who: providers.length > 0 ? providers.join(', ') : null,
@@ -433,7 +434,7 @@ export class PiAdapter implements WorkerAdapter {
 
   /** What pi can run on: its catalog, narrowed to what you are signed in to. */
   async models(): Promise<HarnessModel[]> {
-    return usableModels().catch(() => [])
+    return usableModels(homedir(), this.opts.env).catch(() => [])
   }
 
   async resolveModel(said: string): Promise<ModelFound> {

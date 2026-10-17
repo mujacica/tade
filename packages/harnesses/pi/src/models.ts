@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { ModelPrice } from '@tade/harnesses-core'
+import { agentDir } from './agent-dir.ts'
 
 // Which models this machine can actually reach.
 //
@@ -28,13 +29,15 @@ export interface AvailableModel {
 
 export type { ModelPrice }
 
-function piHome(home = homedir()): string {
-  return join(home, '.pi', 'agent')
-}
+// Each reader takes the environment pi is launched with, because that is what
+// says where pi's agent directory is (`agentDir`).
 
 /** Every model the harness knows about, newest catalogs first. */
-export async function availableModels(home = homedir()): Promise<AvailableModel[]> {
-  const raw = await readJson(join(piHome(home), 'models-store.json'))
+export async function availableModels(
+  home = homedir(),
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<AvailableModel[]> {
+  const raw = await readJson(join(agentDir(env, home), 'models-store.json'))
   if (!raw || typeof raw !== 'object') return []
   const out: AvailableModel[] = []
   for (const [provider, value] of Object.entries(raw as Record<string, unknown>)) {
@@ -74,8 +77,11 @@ function priceOf(cost: Record<string, unknown> | undefined): ModelPrice | null {
 }
 
 /** The providers with credentials on this machine. */
-export async function loggedInProviders(home = homedir()): Promise<string[]> {
-  const raw = await readJson(join(piHome(home), 'auth.json'))
+export async function loggedInProviders(
+  home = homedir(),
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<string[]> {
+  const raw = await readJson(join(agentDir(env, home), 'auth.json'))
   if (!raw || typeof raw !== 'object') return []
   return Object.keys(raw as Record<string, unknown>)
 }
@@ -124,7 +130,7 @@ export async function credentials(
   for (const [provider, keys] of Object.entries(ENV_KEYS)) {
     if (keys.some((key) => (env[key] ?? '') !== '')) out[provider] = 'env-key'
   }
-  const raw = await readJson(join(piHome(home), 'auth.json'))
+  const raw = await readJson(join(agentDir(env, home), 'auth.json'))
   if (raw && typeof raw === 'object') {
     for (const [provider, value] of Object.entries(raw as Record<string, unknown>)) {
       const type = (value as { type?: unknown })?.type
@@ -139,8 +145,14 @@ export async function credentials(
  * a catalog entry for a provider you have no credentials for is a name that
  * will fail the first time an agent tries to use it.
  */
-export async function usableModels(home = homedir()): Promise<AvailableModel[]> {
-  const [models, providers] = await Promise.all([availableModels(home), loggedInProviders(home)])
+export async function usableModels(
+  home = homedir(),
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<AvailableModel[]> {
+  const [models, providers] = await Promise.all([
+    availableModels(home, env),
+    loggedInProviders(home, env),
+  ])
   if (providers.length === 0) return models
   const usable = models.filter((model) => providers.includes(model.provider))
   return usable.length > 0 ? usable : models

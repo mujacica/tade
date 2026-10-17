@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
+import { agentDir } from './agent-dir.ts'
 
 // What pi loads by itself, whoever runs it: extensions and skills in its own
 // folders, and packages installed with `pi install`. Tade does not run these
@@ -23,14 +24,24 @@ function entries(dir: string): string[] {
   }
 }
 
-/** pi's own extensions, skills and packages: yours everywhere, and the project's. */
-export function installedPieces(home = homedir(), project?: string): HarnessPiece[] {
+/**
+ * pi's own extensions, skills and packages: yours everywhere, and the project's.
+ * Yours are in pi's agent directory, wherever the environment pi is launched
+ * with puts it (`agentDir`).
+ */
+export function installedPieces(
+  home = homedir(),
+  project?: string,
+  env: NodeJS.ProcessEnv = process.env,
+): HarnessPiece[] {
   const out: HarnessPiece[] = []
-  const agent = join(home, '.pi', 'agent')
+  const agent = agentDir(env, home)
+  const shown =
+    agent === home || agent.startsWith(`${home}${sep}`) ? `~${agent.slice(home.length)}` : agent
   for (const name of entries(join(agent, 'extensions'))) {
-    out.push({ name: name.replace(/\.(ts|js|mjs)$/, ''), where: '~/.pi/agent/extensions' })
+    out.push({ name: name.replace(/\.(ts|js|mjs)$/, ''), where: `${shown}/extensions` })
   }
-  for (const name of entries(join(agent, 'skills'))) out.push({ name, where: '~/.pi/agent/skills' })
+  for (const name of entries(join(agent, 'skills'))) out.push({ name, where: `${shown}/skills` })
   try {
     const settings = JSON.parse(readFileSync(join(agent, 'settings.json'), 'utf8')) as {
       packages?: unknown
