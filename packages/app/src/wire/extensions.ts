@@ -31,7 +31,6 @@ import { extensionsScrollable } from '../panels/extensions/view.ts'
 import type { Skin } from '../skin.ts'
 import { sinceOf } from '../spend.ts'
 import { fromThinker, ran, said } from '../transcript.ts'
-import { markdownLines } from '../viewer.ts'
 import { type WindowWrite, writeApplied, writeRecorded } from './config-written.ts'
 import { type Actions, type Subject, type Submits, tilde, type Wiring, why } from './context.ts'
 import { Kept, unlessSame } from './kept.ts'
@@ -207,7 +206,6 @@ export class Extensions implements Subject {
       setupFields: panel?.kind === 'extension-setup' ? (this.setupFacts(panel)?.fields ?? []) : [],
       ...(panel?.kind === 'extension-view'
         ? {
-            lines: this.extensionViewLines(),
             // What the page declared about itself, so `tab` and ← → do nothing
             // at all on a page that offers neither rather than something
             // invisible.
@@ -855,13 +853,5 @@ export class Extensions implements Subject {
       this.deps.size().columns,
       this.deps.size().rows,
     )
-  }
-
-  /** How many lines an extension's view has, as wide as its panel draws it. */
-  extensionViewLines(): number {
-    const shown = this.extensionShown
-    if (!shown) return 0
-    const inner = Math.min(110, this.deps.size().columns - 4) - 4
-    return markdownLines(shown.markdown, inner, !this.deps.skin.colour).length
   }
 }

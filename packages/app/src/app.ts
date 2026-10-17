@@ -403,8 +403,6 @@ export class App {
       selectTo: (line, x, extend, drag) => this.keyboard.selectTo(line, x, extend, drag),
       selectedOnLine: () => this.keyboard.selectedText(),
       clickedOn: (line, x, clicks) => this.keyboard.clickedOn(line, x, clicks),
-      fileLines: () => this.files.lines(),
-      fileBody: (panel) => this.files.body(panel),
       copySelection: (text) => copySpanSaying(this.wire, text, (data) => this.terminal.write(data)),
       resolvePath: (path) => this.files.resolvePath(path),
       openFile: (path, line) => this.files.openFile(path, line),

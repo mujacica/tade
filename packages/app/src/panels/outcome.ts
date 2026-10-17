@@ -13,9 +13,23 @@ export interface PanelOutcome {
   submit: boolean
   /** For a menu: which item was chosen. */
   choice?: string
+  /**
+   * Lines to move the panel's body by, made by the window through `scrollBy`
+   * against what the body's bar was last drawn as. A panel never sums its own
+   * `scroll`: it does not know how many rows it drew, and eleven that guessed
+   * counted on past the last screen, so the way back spent presses that moved
+   * nothing — and one following its keyboard does not know where it is drawn.
+   */
+  scroll?: number
 }
 
 export const stay = (panel: Panel): PanelOutcome => ({ panel, submit: false })
+/** The body moved by `by` lines — or as far as it goes, for an infinite one. */
+export const scrolled = (panel: Panel, by: number): PanelOutcome => ({
+  panel,
+  submit: false,
+  scroll: by,
+})
 export const close: PanelOutcome = { panel: null, submit: false }
 
 /** A control character: never something a person meant to type. */

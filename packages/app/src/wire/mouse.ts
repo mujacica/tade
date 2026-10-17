@@ -15,6 +15,7 @@ import { goElsewhere } from '../machines.ts'
 import {
   type AppState,
   dragAgent,
+  dragFileBy,
   dropAgent,
   focusTask,
   grabBar,
@@ -34,7 +35,7 @@ import {
   viewActions,
   viewLane,
 } from '../model.ts'
-import { type FilePanel, fileSelection, scrollFile } from '../panels/file/state.ts'
+import { fileSelection } from '../panels/file/state.ts'
 import type { MenuSubject } from '../panels/menu/state.ts'
 import type { PanelOutcome } from '../panels/outcome.ts'
 import { type PanelInputs, panelClick, panelDismiss } from '../panels.ts'
@@ -141,9 +142,6 @@ export interface MouseDeps {
   selectTo(line: number, cell: number, extend: boolean, drag: boolean): void
   selectedOnLine(): string | null
   clickedOn(line: number, cell: number, clicks: number): void
-  /** How long the file you have open is, and how much of it a screen holds. */
-  fileLines(): number
-  fileBody(panel: FilePanel): { rows: number; columns: number }
   /** What a drag let go of puts on the clipboard, said in the strip. */
   copySelection(text: string): void
   /** Where the things you click on lead. */
@@ -510,22 +508,19 @@ export class Mouse {
 
   /** One step of that: the file scrolled, and the selection reaching the new edge. */
   private dragFile(rows: number, cell: number): void {
-    const panel = this.wire.state.panel
-    if (this.deps.stopped() || panel?.kind !== 'file' || !panel.edit) {
+    // Through the one move, against the rows the file drew (`dragFileBy`).
+    const step = this.deps.stopped() ? null : dragFileBy(this.wire.state, rows, this.reach('panel'))
+    if (!step) {
       this.draggingFile.letGo()
       return
     }
-    const scrolled = scrollFile(panel, rows, this.deps.fileLines())
-    const body = this.deps.fileBody(panel).rows
-    const line =
-      rows < 0 ? scrolled.scroll : Math.min(scrolled.scroll + body - 1, panel.edit.lines.length - 1)
     this.deps.applyPanel(
-      panelClick(scrolled, `caret:${line}:${cell}:drag`, this.deps.panelInputs()),
+      panelClick(step.panel, `caret:${step.line}:${cell}:drag`, this.deps.panelInputs()),
     )
     // The end of the file: the selection has reached as far as it goes, and a
     // timer that redraws the same screen twelve times a second for the rest
     // of the drag is a window working for nothing.
-    if (scrolled.scroll === panel.scroll) this.draggingFile.letGo()
+    if (!step.moved) this.draggingFile.letGo()
   }
 
   /** What is selected in the file, as its text, or nothing when nothing is. */

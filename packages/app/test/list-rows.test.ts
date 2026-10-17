@@ -295,8 +295,8 @@ describe('the window a row opens in', () => {
   it('reads, closes and carries out its two acts', () => {
     const panel = rowSummaryPanel('review.open', 'x', '#412', 'https://example.com/412')
     expect(panelKey(panel, 'escape', '').panel).toBeNull()
-    const down = panelKey(panel, 'down', '').panel
-    expect(down && 'scroll' in down ? down.scroll : null).toBe(1)
+    // A line down it, which the window moves it by against the rows it drew.
+    expect(panelKey(panel, 'down', '')).toEqual({ panel, submit: false, scroll: 1 })
     // Nothing is thrown away by reading it, so the arrows are all it answers.
     expect(panelKey(panel, 'a', 'a').panel).toBe(panel)
     expect(panelClick(panel, 'close').panel).toBeNull()

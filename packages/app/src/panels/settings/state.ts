@@ -3,7 +3,7 @@ import { type Setting, type SettingGroup, settingFound, stepped } from '@tade/co
 import type { UpdateLook as UpdatesShown } from '@tade/workbench/programs'
 import { normalKey } from '../../keys.ts'
 import type { PanelInputs } from '../../panels.ts'
-import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
+import { close, type PanelOutcome, scrolled, stay, typed } from '../outcome.ts'
 import { accountChoice } from './accounts.ts'
 import { LOOK_AGAIN } from './domain.ts'
 import { REMOTES, remoteChoice, remotePresses } from './remotes.ts'
@@ -528,10 +528,8 @@ function settingsPress(
   // the keyboard stays where it was, which is the wheel's half of the move
   // said with a key. Space is not one of them here — on a page of switches it
   // is what throws the one you are on.
-  if (key === 'pageDown' || key === 'pageUp') {
-    const page = key === 'pageDown' ? PAGE : -PAGE
-    return stay({ ...panel, scroll: Math.max(0, panel.scroll + page), following: false })
-  }
+  if (key === 'pageDown' || key === 'pageUp')
+    return scrolled(panel, key === 'pageDown' ? PAGE : -PAGE)
   if (key === 'down')
     return stay({ ...panel, row: Math.min(Math.max(0, count - 1), panel.row + 1) })
   if (key === 'up') {

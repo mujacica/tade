@@ -189,7 +189,15 @@ export function bar(
   const held =
     ctx.scrolling === area ||
     (ctx.pointer.hover?.kind === 'scrollbar' && ctx.pointer.hover.area === area)
-  const target: Target = { kind: 'scrollbar', area, total: view.total, shown: view.shown }
+  // Where it was drawn from, too: a body following its keyboard is drawn where
+  // that row is, so a move made from its own `scroll` would start off the screen.
+  const target: Target = {
+    kind: 'scrollbar',
+    area,
+    total: view.total,
+    shown: view.shown,
+    at: view.offset,
+  }
   return barRows(view, ctx.skin, held, marks).map((cell) => ({ cell, target }))
 }
 
@@ -344,11 +352,6 @@ export function searchRow(
 }
 
 /**
- * How far a key moves a page that scrolls, or nothing where the key is not one
- * of them. The keyboard's half of the one move: a panel answers it through the
- * same clamp the wheel and the bar go through.
- */
-/**
  * A row of tabs under the word that introduces it: `for` the ranges a page is
  * read over, `by` the way it is grouped.
  *
@@ -383,6 +386,12 @@ export function tabRow(
 /** The lead word's column: `by` and `for` padded to one width, so the tabs line up. */
 const LEAD_WORD = 4
 
+/**
+ * How far a key moves a page that scrolls, or nothing where the key is not one
+ * of them. The keyboard's half of the one move: a panel answers it with
+ * `scrolled`, and the window makes it through the same clamp the wheel and the
+ * bar go through.
+ */
 export function pageBy(key: string | undefined, page = 10): number | null {
   if (key === 'down') return 1
   if (key === 'up') return -1

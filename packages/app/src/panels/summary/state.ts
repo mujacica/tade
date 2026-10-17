@@ -1,5 +1,5 @@
 import { pageBy } from '../frame.ts'
-import { close, type PanelOutcome, stay } from '../outcome.ts'
+import { close, type PanelOutcome, scrolled, stay } from '../outcome.ts'
 
 // One row of a list, in front of you.
 //
@@ -52,7 +52,7 @@ export function rowSummaryPanel(
 export function rowSummaryKey(panel: RowSummaryPanel, key: string | undefined): PanelOutcome {
   if (key === 'escape') return close
   const by = pageBy(key)
-  return by === null ? stay(panel) : stay({ ...panel, scroll: Math.max(0, panel.scroll + by) })
+  return by === null ? stay(panel) : scrolled(panel, by)
 }
 
 export function rowSummaryClick(panel: RowSummaryPanel, control: string): PanelOutcome {

@@ -46,9 +46,17 @@ export type Target =
    * and a handle to move. It carries what it was drawn from, because a drag
    * has to be turned back into a line to scroll to and the drawing is the only
    * thing that knows the sums. `across` is the one lying down, whose numbers
-   * are columns rather than lines.
+   * are columns rather than lines. `at` is the line a panel's body was drawn
+   * from, which is not the one it keeps while it follows its keyboard.
    */
-  | { kind: 'scrollbar'; area: ScrollArea; total: number; shown: number; across?: true }
+  | {
+      kind: 'scrollbar'
+      area: ScrollArea
+      total: number
+      shown: number
+      across?: true
+      at?: number
+    }
   /**
    * A line of the orchestrator's input, by the visual line the editor drew:
    * clicking one puts the caret where the click was, as any text box does.

@@ -1,6 +1,7 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
 import type { Frame } from '../src/frame.ts'
+import { initialState, panelMoved } from '../src/model.ts'
 import { drawPanel } from '../src/panels/context.ts'
 import { type IntakePanel, intakePanel } from '../src/panels/intake/state.ts'
 import { type WorkflowPanel, workflowPanel } from '../src/panels/workflow/state.ts'
@@ -23,12 +24,17 @@ const open = (over: Partial<IntakePanel> = {}): IntakePanel => ({
 
 const press = (panel: IntakePanel, key: string | undefined, data = '') => panelKey(panel, key, data)
 
+/** A page of forty lines drawn ten at a time. */
+const REACH = { total: 40, shown: 10 }
+
 describe('one request in front of you', () => {
   it('reads with the arrows and closes with escape', () => {
-    expect(press(open(), 'down').panel).toMatchObject({ scroll: 1 })
-    expect(press(open({ scroll: 4 }), 'up').panel).toMatchObject({ scroll: 3 })
+    // A line, which the window moves the page by against the rows it drew.
+    expect(press(open(), 'down')).toMatchObject({ scroll: 1 })
+    expect(press(open({ scroll: 4 }), 'up')).toMatchObject({ scroll: -1 })
     // Never past the top: a page is read from its first row.
-    expect(press(open(), 'up').panel).toMatchObject({ scroll: 0 })
+    const up = panelMoved({ ...initialState(), panel: open() }, press(open(), 'up'), REACH)
+    expect(up.panel).toMatchObject({ scroll: 0 })
     expect(press(open(), 'escape').panel).toBeNull()
   })
 

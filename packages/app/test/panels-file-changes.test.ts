@@ -54,7 +54,6 @@ const BODY = 20
 
 const inputs = (over: PanelInputs = {}): PanelInputs => ({
   text: AFTER,
-  lines: ROWS.length,
   body: BODY,
   columns: 80,
   diffRows: ROWS,
@@ -160,7 +159,7 @@ describe('going through the changes', () => {
       null,
       200,
     ) as InlineRow[]
-    const panel = press(changed(), 'n', inputs({ diffRows: early, lines: early.length }))
+    const panel = press(changed(), 'n', inputs({ diffRows: early }))
     expect(panel.atChange).toMatchObject({ index: 0, wrapped: null })
   })
 
@@ -185,7 +184,7 @@ describe('going through the changes', () => {
       null,
       200,
     ) as InlineRow[]
-    const given = inputs({ diffRows: end, lines: end.length })
+    const given = inputs({ diffRows: end })
     let panel = press(changed(), 'n', given)
     const scroll = top(panel)
     expect(scroll).toBe(end.length - BODY)

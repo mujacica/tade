@@ -1,6 +1,6 @@
 import type { WorkflowField } from '@tade/core'
 import { pageBy } from '../frame.ts'
-import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
+import { close, type PanelOutcome, scrolled, stay, typed } from '../outcome.ts'
 
 // Writing a stored workflow: a list of templates and their steps down the
 // left, a form for whichever one you are on down the right.
@@ -114,9 +114,7 @@ export function workflowKey(
   if (key === 'shift+tab' || key === 'up') return walk(panel, controls, -1)
   if (key === 'pageUp' || key === 'pageDown') {
     const by = pageBy(key)
-    if (by !== null) {
-      return stay({ ...panel, scroll: Math.max(0, panel.scroll + by), following: false })
-    }
+    if (by !== null) return scrolled(panel, by)
   }
   if (key === 'enter' || (key === 'space' && !at.startsWith('field:'))) {
     return workflowPress(panel, at, fields)

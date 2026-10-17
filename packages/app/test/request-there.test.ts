@@ -60,7 +60,7 @@ describe('a request on another machine', () => {
     const panel = requestTherePanel('vps', 'github:412', 'its row')
     expect(panelKey(panel, 'escape', '')).toEqual(close)
     expect(panelKey(panel, 'enter', '\r')).toEqual(close)
-    expect(panelKey(panel, 'down', '')).toEqual({ panel: { ...panel, scroll: 1 }, submit: false })
+    expect(panelKey(panel, 'down', '')).toEqual({ panel, submit: false, scroll: 1 })
     for (const letter of ['a', 's', 'r', 't', 'y']) {
       expect(panelKey(panel, undefined, letter)).toEqual({ panel, submit: false })
     }

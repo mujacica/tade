@@ -1,12 +1,17 @@
 import { stripTerminalSequences } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
 import { parseDiff } from '../src/diff.ts'
+import { grabBar, initialState, panelMoved, scrollBy } from '../src/model.ts'
 import type { PanelContext } from '../src/panels/context.ts'
 import { type DiffPanel, diffPanel } from '../src/panels/diff/state.ts'
 import { diff, diffBody } from '../src/panels/diff/view.ts'
 import { changesIn } from '../src/panels/file/inline.ts'
+import { startOf } from '../src/panels/frame.ts'
 import { type PanelInputs, panelKey } from '../src/panels.ts'
+import { reachOf } from '../src/scroll.ts'
+import { thumbOf } from '../src/scrollbar.ts'
 import { COLOUR, PLAIN, type Skin } from '../src/skin.ts'
+import type { Drawn } from '../src/ui.ts'
 
 // The patch reader, read for what changed: the bar down its side says where
 // each change is, and `n` and `p` take the line the keyboard is on from one to
@@ -50,9 +55,16 @@ const reader = (over: Partial<DiffPanel> = {}): DiffPanel => ({
   ...over,
 })
 
-/** A key pressed while the reader has the keyboard, as the window hands it over. */
-const press = (panel: DiffPanel, key: string, given: PanelInputs = inputs()): DiffPanel =>
-  panelKey(panel, key, key.length === 1 ? key : '', given).panel as DiffPanel
+/**
+ * A key pressed while the reader has the keyboard, as the window hands it over
+ * — and the move it asks for made as the window makes it: against the bar the
+ * reader was drawn with, from where it was drawn (`panelMoved`).
+ */
+const press = (panel: DiffPanel, key: string, given: PanelInputs = inputs()): DiffPanel => {
+  const answer = panelKey(panel, key, key.length === 1 ? key : '', given)
+  const reach = reachOf(drawing(panel, PLAIN, given.patch ?? PATCH).hits, 'panel')
+  return panelMoved({ ...initialState(), panel }, answer, reach).panel as DiffPanel
+}
 
 describe('the changes in git’s answer', () => {
   it('are the runs of lines added or taken out, a hunk’s own line ending one', () => {
@@ -137,9 +149,69 @@ describe('paging through the patch reader', () => {
     // A taller window, or a shorter patch, since it was scrolled there.
     expect(press(reader({ scroll: END + 30 }), 'pageUp').scroll).toBe(END - 10)
   })
+
+  /**
+   * The keyboard's line past the foot of the view: the drawing brings it into
+   * view, and the scroll the reader was left at is above all of it.
+   */
+  const followed = (): DiffPanel => {
+    const panel = reader({ at: BODY + 10, following: true })
+    expect(inView(panel)[0]).not.toBe(inView(reader())[0])
+    return panel
+  }
+
+  it('follows the line down a press at a time, from where the view is drawn', () => {
+    let panel = reader()
+    for (const _ of Array(BODY + 10)) panel = press(panel, 'down')
+    // The view went down with the line, and the reader's own scroll did not.
+    expect(inView(panel)[0]).not.toBe(inView(reader())[0])
+    expect(panel.scroll).toBe(0)
+    expect(inView(press(panel, 'pageDown'))[0]).toBe(inView(panel)[10])
+  })
+
+  it('pages from where the view is drawn while it follows the line the keyboard is on', () => {
+    const panel = followed()
+    const shown = inView(panel)
+    // A page on puts the row ten down at the top — not the top of where it was left.
+    expect(inView(press(panel, 'pageDown'))[0]).toBe(shown[10])
+    // And a page back puts the top ten rows down.
+    expect(inView(press(panel, 'pageUp'))[10]).toBe(shown[0])
+  })
+
+  it('moves under the wheel from where it is drawn, as a page key does', () => {
+    const panel = followed()
+    const shown = inView(panel)
+    const reach = reachOf(drawing(panel).hits, 'panel')
+    const notched = scrollBy({ ...initialState(), panel }, 'panel', 3, reach).panel as DiffPanel
+    expect(inView(notched)[0]).toBe(shown[3])
+  })
+
+  it('keeps the thumb under the pointer that takes hold of it where it is drawn', () => {
+    const panel = followed()
+    const reach = reachOf(drawing(panel).hits, 'panel')
+    // Where the drawing put the view, and so the thumb, by the drawing's own rule.
+    const top = startOf(panel.scroll, PATCH.lines.length, BODY, { from: BODY + 10, to: BODY + 10 })
+    expect(inView(panel)[0]).toBe(inView(reader({ scroll: top }))[0])
+    const thumb = thumbOf({ ...reach, offset: top, rows: BODY })
+    const bar = { area: 'panel' as const, ...reach }
+    const held = grabBar(
+      { ...initialState(), panel },
+      bar,
+      { top: 0, rows: BODY },
+      thumb?.from ?? 0,
+    )
+    const now = held.panel as DiffPanel
+    const at = thumbOf({ ...reach, offset: now.scroll, rows: BODY })
+    // Taken on the thumb, it stays where it was taken: the grab is not the track's.
+    expect(at?.from).toBe(thumb?.from)
+  })
 })
 
 function draw(panel: DiffPanel, skin: Skin = PLAIN, patch = PATCH): string[] {
+  return drawing(panel, skin, patch).rows
+}
+
+function drawing(panel: DiffPanel, skin: Skin = PLAIN, patch = PATCH): Drawn {
   const ctx = {
     width: WIDTH,
     height: HEIGHT,
@@ -148,7 +220,18 @@ function draw(panel: DiffPanel, skin: Skin = PLAIN, patch = PATCH): string[] {
     homeDir: '/home/me',
     diff: patch,
   } as unknown as PanelContext
-  return diff(panel, ctx).rows
+  return diff(panel, ctx)
+}
+
+/**
+ * The lines the reader has in view, top to bottom, in words: its border, the
+ * bar and the mark on the keyboard's line left off, so a row reads the same
+ * wherever the view is.
+ */
+function inView(panel: DiffPanel): string[] {
+  return draw(panel)
+    .slice(1, 1 + BODY)
+    .map((row) => stripTerminalSequences(row).slice(1, -2).replace('▶', ' ').trimEnd())
 }
 
 /** The bar down the right of the body, top to bottom, one glyph a row. */

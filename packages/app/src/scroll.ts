@@ -72,6 +72,12 @@ export function wheelRows(lines: number, since: number): number {
 export interface Reach {
   total: number
   shown: number
+  /**
+   * The line at the top of it as the last frame drew it — said by a panel's
+   * bar, because a panel following its keyboard is drawn where that row is
+   * (`startOf`) rather than where its own `scroll` says.
+   */
+  at?: number
 }
 
 /** Nowhere to go: a region that has no bar, or none that would move. */
@@ -96,7 +102,8 @@ export function reachOf(hits: readonly Hit[], area: ScrollArea, across = false):
     const target = hit.target
     if (target.kind !== 'scrollbar' || target.area !== area) continue
     if ((target.across === true) !== across) continue
-    return { total: target.total, shown: target.shown }
+    const reach = { total: target.total, shown: target.shown }
+    return target.at === undefined ? reach : { ...reach, at: target.at }
   }
   return NOWHERE
 }

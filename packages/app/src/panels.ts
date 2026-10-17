@@ -148,8 +148,6 @@ export interface PanelInputs {
   rows?: readonly OpenRow[]
   /** What search shows for the query as it stands. */
   entries?: readonly SearchEntry[]
-  /** How many lines the file panel has to scroll through. */
-  lines?: number
   /** The file's own lines, uncoloured: what a find looks through and an edit starts from. */
   text?: readonly string[]
   /** How many lines the file panel (or the patch reader) shows at once, and how wide they are drawn. */
@@ -240,7 +238,7 @@ export function panelKey(
   if (panel.kind === 'chats') return chatsKey(panel, key, inputs.chatRows ?? [])
   if (panel.kind === 'extension-setup') return setupKey(panel, key, data, inputs.setupFields ?? [])
   if (panel.kind === 'extension-view') {
-    return extensionViewKey(panel, key, inputs.lines ?? 0, {
+    return extensionViewKey(panel, key, {
       tabs: inputs.viewTabs ?? [],
       windowed: inputs.viewWindowed === true,
     })

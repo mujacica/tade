@@ -1,6 +1,7 @@
 import type { PlanSource, TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { textOf } from '../src/input.ts'
+import { dragFileBy, initialState, panelMoved } from '../src/model.ts'
 import {
   extensionSetupPanel,
   extensionViewPanel,
@@ -18,13 +19,7 @@ import {
   WRITTEN,
   watchControls,
 } from '../src/panels/extensions/state.ts'
-import {
-  type FilePanel,
-  filePanel,
-  fileSelection,
-  savedFile,
-  scrollFile,
-} from '../src/panels/file/state.ts'
+import { type FilePanel, filePanel, fileSelection, savedFile } from '../src/panels/file/state.ts'
 import {
   accountMenuItems,
   agentOffers,
@@ -57,6 +52,19 @@ import type { SearchEntry } from '../src/search.ts'
 import { spendView } from '../src/spend.ts'
 
 // What a key or a click does to a panel, without a terminal.
+
+/**
+ * A key, and the move it asks for made as the window makes it: against a
+ * body whose bar said it drew `reach.shown` of `reach.total` lines.
+ */
+function moved(
+  panel: Panel,
+  key: string,
+  reach: { total: number; shown: number },
+  inputs: Parameters<typeof panelKey>[3] = {},
+): Panel | null {
+  return panelMoved({ ...initialState(), panel }, panelKey(panel, key, '', inputs), reach).panel
+}
 
 describe('the Spend panel', () => {
   it('opens on today, by agent', () => {
@@ -376,11 +384,16 @@ describe('the file viewer', () => {
     expect(filePanel('/r/README.md', 3, true).formatted).toBe(false)
   })
 
-  it('scrolls within the file, and not past it', () => {
+  it('scrolls within the file, and not past its last screen', () => {
     const at = filePanel('/r/a.ts')
-    expect(panelKey(at, 'up', '', { lines: 50 }).panel).toMatchObject({ scroll: 0 })
-    expect(panelKey(at, 'pageDown', '', { lines: 50 }).panel).toMatchObject({ scroll: 20 })
-    expect(panelKey(at, 'end', '', { lines: 50 }).panel).toMatchObject({ scroll: 49 })
+    // Twenty of fifty lines drawn: the last screen starts at the thirtieth.
+    const reach = { total: 50, shown: 20 }
+    expect(moved(at, 'up', reach)).toMatchObject({ scroll: 0 })
+    expect(moved(at, 'pageDown', reach)).toMatchObject({ scroll: 20 })
+    const end = moved(at, 'end', reach) as Panel
+    expect(end).toMatchObject({ scroll: 30 })
+    // So a page back from the end is a whole page, not one spent getting back to it.
+    expect(moved(end, 'pageUp', reach)).toMatchObject({ scroll: 10 })
   })
 
   it('goes to the editor on e, enter or its button', () => {
@@ -393,7 +406,7 @@ describe('the file viewer', () => {
 
 describe('finding in a file, and going to a line', () => {
   const text = ['const event = 1', '', 'if (event) return', 'const other = 2', 'done(event)']
-  const inputs = { text, lines: text.length, body: 3, columns: 60 }
+  const inputs = { text, body: 3, columns: 60 }
   const type = (panel: Panel, word: string) => {
     let out = panel
     for (const char of word) out = panelKey(out, char, char, inputs).panel as Panel
@@ -445,7 +458,7 @@ describe('finding in a file, and going to a line', () => {
 
 describe('typing into a file', () => {
   const text = ['const a = 1', 'const b = 2', 'done()']
-  const inputs = { text, lines: text.length, body: 3, columns: 60 }
+  const inputs = { text, body: 3, columns: 60 }
   const clicked = (panel: Panel, line: number, cell: number) =>
     panelClick(panel, `caret:${line}:${cell}`, inputs).panel as FilePanel
 
@@ -499,18 +512,30 @@ describe('typing into a file', () => {
     expect(pasted.edit?.lines).toEqual(['const a = 1 // one', '// two', 'const b = 2', 'done()'])
   })
 
-  it('is scrolled by the wheel without the caret moving', () => {
-    const typed = clicked(filePanel('/r/a.ts'), 0, 0)
-    const wheeled = scrollFile(typed, 2, 3)
-    expect(wheeled.scroll).toBe(2)
-    expect(wheeled.edit).toMatchObject({ row: 0, column: 0 })
-    expect(scrollFile(wheeled, 9, 3).scroll).toBe(2)
-    expect(scrollFile(wheeled, -9, 3).scroll).toBe(0)
+  it('is scrolled by a selection dragged past its edge, as far as its last screen', () => {
+    const many = Array.from({ length: 40 }, (_, i) => `line ${i}`)
+    const wide = { text: many, body: 10, columns: 60 }
+    const typed = panelClick(filePanel('/r/a.ts'), 'caret:0:0', wide).panel as FilePanel
+    // Ten of forty lines drawn: the last screen starts at the thirtieth.
+    const reach = { total: 40, shown: 10 }
+    const step = (panel: Panel, rows: number) =>
+      dragFileBy({ ...initialState(), panel }, rows, reach)
+    // Down, the selection reaches the foot of the view, and the caret is the click's to move.
+    const down = step(typed, 25)
+    expect(down).toMatchObject({ line: 34, moved: true })
+    expect(down?.panel).toMatchObject({ scroll: 25, edit: { row: 0, column: 0 } })
+    const end = step(down?.panel ?? typed, 25)
+    expect(end).toMatchObject({ line: 39, moved: true, panel: { scroll: 30 } })
+    // Nowhere further: the clock is let go of, the selection still at the last line.
+    const still = step(end?.panel ?? typed, 3)
+    expect(still).toMatchObject({ line: 39, moved: false, panel: { scroll: 30 } })
+    // So the way back up moves the view at once, the selection at its top.
+    expect(step(still?.panel ?? typed, -1)).toMatchObject({ line: 29, moved: true })
   })
 
   it('keeps the caret in view as it moves', () => {
     const many = Array.from({ length: 40 }, (_, i) => `line ${i}`)
-    const wide = { text: many, lines: many.length, body: 5, columns: 60 }
+    const wide = { text: many, body: 5, columns: 60 }
     let panel = panelClick(filePanel('/r/a.ts'), 'caret:0:0', wide).panel as FilePanel
     for (let i = 0; i < 6; i++) panel = panelKey(panel, 'down', '', wide).panel as FilePanel
     expect(panel.edit?.row).toBe(6)
@@ -543,7 +568,7 @@ describe('typing into a file', () => {
 
 describe('selecting in a file', () => {
   const text = ['const a = 1', 'const b = 2', '', 'done()']
-  const inputs = { text, lines: text.length, body: 4, columns: 60 }
+  const inputs = { text, body: 4, columns: 60 }
   const at = (panel: Panel, line: number, cell: number, how = 'put') =>
     panelClick(panel, `caret:${line}:${cell}:${how}`, inputs).panel as FilePanel
   const press = (panel: Panel, key: string) => panelKey(panel, key, '', inputs).panel as FilePanel
@@ -645,7 +670,7 @@ describe('selecting in a file', () => {
 
   it('counts tabs and wide characters as the cells they are drawn in', () => {
     const wide = ['\tこんにちは x', 'done()']
-    const cells = { text: wide, lines: wide.length, body: 4, columns: 60 }
+    const cells = { text: wide, body: 4, columns: 60 }
     // The tab is two cells, then five wide characters at two each.
     const put = panelClick(filePanel('/r/a.ts'), 'caret:0:2:put', cells).panel as FilePanel
     const to = panelClick(put, 'caret:0:12:drag', cells).panel as FilePanel
@@ -1122,14 +1147,17 @@ describe('the Extensions panel', () => {
 })
 
 describe("an extension's view", () => {
-  it('scrolls as far as it has lines, and closes', () => {
+  it('scrolls as far as its last screen, and closes', () => {
+    // Three of fourteen lines drawn: the last screen starts at the eleventh.
+    const reach = { total: 14, shown: 3 }
     let panel = extensionViewPanel('resources')
-    panel = panelKey(panel, 'pageDown', '', { lines: 14 }).panel as typeof panel
+    panel = moved(panel, 'pageDown', reach) as typeof panel
     expect(panel.scroll).toBe(10)
-    panel = panelKey(panel, 'pageDown', '', { lines: 14 }).panel as typeof panel
-    expect(panel.scroll).toBe(13)
-    panel = panelKey(panel, 'home', '', { lines: 14 }).panel as typeof panel
+    panel = moved(panel, 'pageDown', reach) as typeof panel
+    expect(panel.scroll).toBe(11)
+    panel = moved(panel, 'home', reach) as typeof panel
     expect(panel.scroll).toBe(0)
+    expect((moved(panel, 'end', reach) as typeof panel).scroll).toBe(11)
     expect(panelKey(panel, 'escape', '', {}).panel).toBeNull()
     expect(panelClick(panel, 'close', {}).panel).toBeNull()
   })
@@ -1142,7 +1170,7 @@ describe("an extension's view", () => {
     { id: 'findings', title: 'Findings' },
     { id: 'looks', title: 'Looks' },
   ]
-  const offering = { viewTabs: tabs, viewWindowed: true, lines: 40 }
+  const offering = { viewTabs: tabs, viewWindowed: true }
 
   it('opens on today, on the tab it is given, and starts at the top', () => {
     const panel = extensionViewPanel('jev', 'findings')
@@ -1167,7 +1195,7 @@ describe("an extension's view", () => {
 
   it('goes back to the top on a different tab or a different window', () => {
     let panel = extensionViewPanel('jev', 'overview')
-    panel = panelKey(panel, 'pageDown', '', offering).panel as typeof panel
+    panel = moved(panel, 'pageDown', { total: 40, shown: 10 }, offering) as typeof panel
     expect(panel.scroll).toBe(10)
     expect((panelKey(panel, 'tab', '', offering).panel as typeof panel).scroll).toBe(0)
     expect((panelKey(panel, 'right', '', offering).panel as typeof panel).scroll).toBe(0)
@@ -1177,8 +1205,8 @@ describe("an extension's view", () => {
 
   it('leaves a page that offers neither exactly as it was', () => {
     const panel = extensionViewPanel('resources')
-    expect(panelKey(panel, 'tab', '', { lines: 40 }).panel).toEqual(panel)
-    expect(panelKey(panel, 'right', '', { lines: 40 }).panel).toEqual(panel)
+    expect(panelKey(panel, 'tab', '', {}).panel).toEqual(panel)
+    expect(panelKey(panel, 'right', '', {}).panel).toEqual(panel)
     expect(panelClick(panel, 'window:week', {}).panel).toEqual(panel)
   })
 })

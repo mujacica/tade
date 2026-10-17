@@ -1,6 +1,6 @@
 import { SPEND_BY, SPEND_WINDOWS, type SpendBy, type SpendWindow } from '../../spend.ts'
 import { pageBy } from '../frame.ts'
-import { close, type PanelOutcome, stay } from '../outcome.ts'
+import { close, type PanelOutcome, scrolled, stay } from '../outcome.ts'
 
 // The Spend panel's own state: which window and which grouping its tabs are
 // on. What the money was is `spend.ts`; the drawing is beside this in
@@ -38,7 +38,7 @@ export function spendKey(panel: SpendPanel, key: string | undefined): PanelOutco
     return stay({ ...panel, by: cycle(SPEND_BY, panel.by, key === 'tab' ? 1 : -1), scroll: 0 })
   }
   const by = pageBy(key)
-  if (by !== null) return stay({ ...panel, scroll: Math.max(0, panel.scroll + by) })
+  if (by !== null) return scrolled(panel, by)
   return stay(panel)
 }
 

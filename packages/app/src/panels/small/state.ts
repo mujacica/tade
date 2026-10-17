@@ -1,5 +1,5 @@
 import { pageBy } from '../frame.ts'
-import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
+import { close, type PanelOutcome, scrolled, stay, typed } from '../outcome.ts'
 
 // The panels that are one question each.
 //
@@ -449,7 +449,7 @@ export function confirmKey(
 export function keysKey(panel: KeysPanel, key: string | undefined): PanelOutcome {
   if (key === 'escape' || key === 'enter') return close
   const by = pageBy(key)
-  return by === null ? stay(panel) : stay({ ...panel, scroll: Math.max(0, panel.scroll + by) })
+  return by === null ? stay(panel) : scrolled(panel, by)
 }
 
 export function keysClick(panel: KeysPanel, control: string): PanelOutcome {

@@ -1,5 +1,5 @@
 import { pageBy } from '../frame.ts'
-import { close, type PanelOutcome, stay } from '../outcome.ts'
+import { close, type PanelOutcome, scrolled, stay } from '../outcome.ts'
 
 // One request from outside this machine, in front of you.
 //
@@ -94,7 +94,7 @@ export function intakeKey(panel: IntakePanel, key: string | undefined, data: str
   if (act === 'retry') return { panel: { ...panel, busy: true }, submit: true, choice: 'retry' }
   if (act) return stay({ ...panel, asking: act, said: null, problem: null })
   const by = pageBy(key)
-  return by === null ? stay(panel) : stay({ ...panel, scroll: Math.max(0, panel.scroll + by) })
+  return by === null ? stay(panel) : scrolled(panel, by)
 }
 
 export function intakeClick(panel: IntakePanel, control: string): PanelOutcome {

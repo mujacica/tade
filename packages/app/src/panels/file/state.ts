@@ -24,7 +24,7 @@ import {
   typeIn,
 } from '../../viewer.ts'
 import { type Composing, composeKey, composeOn, nextTo } from '../comment.ts'
-import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
+import { close, type PanelOutcome, scrolled, stay, typed } from '../outcome.ts'
 import { changesIn, drawnRow, type InlineRow, lineAtRow } from './inline.ts'
 
 // A file read inside the window, and what a key or a click does to it.
@@ -152,15 +152,6 @@ export function fileMatches(panel: FilePanel, text: readonly string[]): Match[] 
 }
 
 /**
- * The wheel over a file: it scrolls what is shown, and never moves the caret.
- * Down is further into the file, as it is everywhere else.
- */
-export function scrollFile(panel: FilePanel, by: number, lines: number): FilePanel {
-  const last = Math.max(0, lines - 1)
-  return { ...panel, scroll: Math.max(0, Math.min(last, panel.scroll + by)) }
-}
-
-/**
  * The file saved: what is on screen is what is on disk again, so nothing is
  * unsaved and every line comes from the file once more — the caret stays where
  * it was typing.
@@ -186,12 +177,11 @@ export function fileKey(
   data: string,
   inputs: PanelInputs,
 ): PanelOutcome {
-  const lines = inputs.lines ?? 0
   const body = Math.max(1, inputs.body ?? 20)
   if (panel.asking) return askKey(panel, panel.asking, key, data, inputs)
   if (panel.edit) return typingKey(panel, panel.edit, key, data, body, inputs)
-  const last = Math.max(0, lines - 1)
-  const to = (scroll: number) => stay({ ...panel, scroll: Math.max(0, Math.min(last, scroll)) })
+  // Reading moves the view the wheel's way, through the window's one move:
+  // stopped at its last line, it was a screen past the last one drawn.
   switch (key) {
     case 'escape':
     case 'q':
@@ -214,18 +204,18 @@ export function fileKey(
     case 's':
       return (inputs.drafted ?? 0) > 0 ? { panel, submit: true, choice: 'send' } : stay(panel)
     case 'down':
-      return to(panel.scroll + 1)
+      return scrolled(panel, 1)
     case 'up':
-      return to(panel.scroll - 1)
+      return scrolled(panel, -1)
     case 'pageDown':
     case 'space':
-      return to(panel.scroll + 20)
+      return scrolled(panel, 20)
     case 'pageUp':
-      return to(panel.scroll - 20)
+      return scrolled(panel, -20)
     case 'home':
-      return to(0)
+      return scrolled(panel, Number.NEGATIVE_INFINITY)
     case 'end':
-      return to(last)
+      return scrolled(panel, Number.POSITIVE_INFINITY)
     case 'enter':
     case 'e':
       return { panel, submit: true, choice: 'editor' }

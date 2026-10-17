@@ -575,9 +575,14 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   the foot pinned under it — and the body keeps `scroll` in the panel's own state plus `following`
   wherever it has a selection to follow, because `atOffset` turns that off when the wheel or the bar
   moves it: the keyboard moving brings the body back to the row it is on, and scrolling yourself leaves
-  the keyboard where it was. The two rows at the foot are what it last said, then the keys with its
-  buttons. Two panels side by side is `beside`. How a row looks is `rowLook`: the marker says where
-  the keyboard is, the lighter ground says what the mouse is over, and they are never the same thing —
+  the keyboard where it was. A page key or an arrow reading down it answers `scrolled(panel, by)` and
+  never sums `scroll` itself — the window makes the move (`panelMoved`) against the bar it drew, and a
+  body following its keyboard moves from where the bar says it was drawn (`Reach.at`), not from its
+  `scroll`: eleven panels counted on past their last screen, and the patch reader paged from where it
+  had been left rather than from what was on the screen. The two rows at the foot are what it last
+  said, then the keys with its buttons. Two panels side by side is `beside`. How a row looks is
+  `rowLook`: the marker says where the keyboard is, the lighter ground says what the mouse is over,
+  and they are never the same thing —
   a menu drawing the pointed item as *chosen* made the keyboard appear to move when only the mouse had.
   How tall a row of its list is, is `listRow` — `ITEM` rows, all of
   them that row, all of them pressing it: a list of one-row items is a column of targets the height

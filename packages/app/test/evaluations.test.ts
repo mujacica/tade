@@ -28,7 +28,8 @@ describe('the Evaluations panel', () => {
     expect(evaluationsKey(panel, 'shift+tab').panel).toMatchObject({ tab: 'replays' })
     expect(evaluationsKey(panel, 'left').panel).toMatchObject({ window: 'month' })
     expect(evaluationsKey(panel, 'right').panel).toMatchObject({ window: 'today' })
-    expect(evaluationsKey({ ...panel, scroll: 3 }, 'up').panel).toMatchObject({ scroll: 2 })
+    // A line up the table, which the window moves it by (`panelMoved`).
+    expect(evaluationsKey({ ...panel, scroll: 3 }, 'up')).toMatchObject({ scroll: -1 })
     expect(evaluationsKey(panel, 'escape').panel).toBeNull()
   })
 

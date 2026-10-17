@@ -38,6 +38,7 @@ import {
   leaveLine,
   ORCHESTRATOR_TAB,
   openLine,
+  panelMoved,
   projectNumber,
   scrollBy,
   searchKey,
@@ -202,7 +203,10 @@ export class Keyboard implements Subject {
       // Releases are protocol noise to a form — except while choosing a key,
       // where the key is all that matters and a release is not a key.
       if (isKeyRelease(data)) return { consume: true }
-      this.deps.applyPanel(panelKey(this.wire.state.panel, key, data, this.deps.panelInputs()))
+      const answer = panelKey(this.wire.state.panel, key, data, this.deps.panelInputs())
+      // A page key or an arrow reading down it is the wheel's own move, made
+      // the wheel's way: against the rows the body drew, from where it drew them.
+      this.deps.applyPanel(panelMoved(this.wire.state, answer, this.deps.reach('panel')))
       return { consume: true }
     }
     // A picture dropped on the window arrives as its path, pasted. Where it

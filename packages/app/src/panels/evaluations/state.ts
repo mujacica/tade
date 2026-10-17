@@ -1,7 +1,7 @@
 import { EVAL_TABS, type EvalTab } from '../../evaluations.ts'
 import { SPEND_WINDOWS, type SpendWindow } from '../../spend.ts'
 import { pageBy } from '../frame.ts'
-import { close, type PanelOutcome, stay } from '../outcome.ts'
+import { close, type PanelOutcome, scrolled, stay } from '../outcome.ts'
 
 // The Evaluations panel's own state: which tab and which range it is on. What
 // the work came to is core's (`evaluationsFrom`); the drawing is beside this in
@@ -37,7 +37,7 @@ export function evaluationsKey(panel: EvaluationsPanel, key: string | undefined)
     return stay({ ...panel, tab, scroll: 0 })
   }
   const by = pageBy(key)
-  if (by !== null) return stay({ ...panel, scroll: Math.max(0, panel.scroll + by) })
+  if (by !== null) return scrolled(panel, by)
   return stay(panel)
 }
 

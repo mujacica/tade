@@ -1,6 +1,6 @@
 import { SPEND_WINDOWS, type SpendWindow } from '../../spend.ts'
 import { pageBy } from '../frame.ts'
-import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
+import { close, type PanelOutcome, scrolled, stay, typed } from '../outcome.ts'
 
 // The two panels that open out of the Extensions page: setting an extension
 // up — the guide and the fields — and the page an extension writes about
@@ -118,8 +118,7 @@ export function setupKey(
   // said with a key. Not space: in a field it types one.
   if (key === 'pageUp' || key === 'pageDown') {
     const by = pageBy(key)
-    if (by !== null)
-      return stay({ ...panel, scroll: Math.max(0, panel.scroll + by), following: false })
+    if (by !== null) return scrolled(panel, by)
   }
   if (key === 'enter' || (key === 'space' && !at.startsWith('field:')))
     return setupPress(panel, at, fields)
@@ -189,15 +188,15 @@ export interface ViewOffers {
  * with tabs and a window is the same thing twice and nobody should have to
  * learn it in two places.
  *
- * A tab or a window changed is a different page, so it starts at the top.
+ * A tab or a window changed is a different page, so it starts at the top. Home
+ * and end are as far as it goes either way, which the window knows and the
+ * page does not: it went to its last line, a screen past where it is drawn.
  */
 export function extensionViewKey(
   panel: ExtensionViewPanel,
   key: string | undefined,
-  lines: number,
   at: ViewOffers = { tabs: [], windowed: false },
 ): PanelOutcome {
-  const most = Math.max(0, lines - 1)
   if (key === 'escape' || key === 'enter') return close
   if ((key === 'tab' || key === 'shift+tab') && at.tabs.length > 1) {
     return stay({ ...panel, tab: cycle(at.tabs, panel.tab, key === 'tab' ? 1 : -1), scroll: 0 })
@@ -209,12 +208,10 @@ export function extensionViewKey(
       scroll: 0,
     })
   }
-  if (key === 'home') return stay({ ...panel, scroll: 0 })
-  if (key === 'end') return stay({ ...panel, scroll: most })
+  if (key === 'home') return scrolled(panel, Number.NEGATIVE_INFINITY)
+  if (key === 'end') return scrolled(panel, Number.POSITIVE_INFINITY)
   const by = pageBy(key)
-  return by === null
-    ? stay(panel)
-    : stay({ ...panel, scroll: Math.max(0, Math.min(most, panel.scroll + by)) })
+  return by === null ? stay(panel) : scrolled(panel, by)
 }
 
 /**

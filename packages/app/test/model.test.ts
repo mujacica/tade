@@ -27,6 +27,7 @@ import {
   onEvent,
   openLine,
   openSchedule,
+  panelMoved,
   projectNumber,
   projects,
   removeAttachment,
@@ -56,7 +57,9 @@ import {
   withTasks,
   withTerminals,
 } from '../src/model.ts'
+import { diffPanel } from '../src/panels/diff/state.ts'
 import { extensionsPanel } from '../src/panels/extensions/state.ts'
+import { scrolled } from '../src/panels/outcome.ts'
 import {
   splitPane,
   splitRatio,
@@ -947,6 +950,31 @@ describe('the one move', () => {
       expect(scrollBy(state(), 'terminal', -3, fits)).toEqual(state())
     }
     expect(scrollBy(state(), 'sidebar', 0, deep)).toEqual(state())
+  })
+
+  it('moves a panel following its keyboard from where it was drawn, and any other from where it was left', () => {
+    // Drawn from line 40, where the drawing brought the keyboard's row into
+    // view: the panel's own scroll is still the 0 it was left at.
+    const drawn = { ...deep, at: 40 }
+    const reader = { ...diffPanel('app/one', ['a.ts']), at: 45, following: true }
+    const paged = scrollBy(state({ panel: reader }), 'panel', 10, drawn).panel
+    expect(paged).toMatchObject({ scroll: 50, following: false })
+    // Not following, what it was left at is newer than the frame: a key read
+    // in the same batch as the one before it goes on from where that one left it.
+    const left = { ...reader, scroll: 20, following: false }
+    expect(scrollBy(state({ panel: left }), 'panel', 10, drawn).panel).toMatchObject({ scroll: 30 })
+  })
+
+  it('makes the move a panel’s key asks for, and nothing where it asks for none', () => {
+    const reader = diffPanel('app/one', ['a.ts'])
+    const on = state({ panel: reader })
+    // As far as it goes, and never past its last screen.
+    expect(panelMoved(on, scrolled(reader, 500), deep)).toEqual({
+      panel: { ...reader, scroll: 90 },
+      submit: false,
+    })
+    expect(panelMoved(on, { panel: reader, submit: false }, deep).panel).toBe(reader)
+    expect(panelMoved(on, { panel: null, submit: false, scroll: 3 }, deep).panel).toBeNull()
   })
 
   it('keeps a page’s place on that page, and every other page starts at its top', () => {

@@ -17,6 +17,7 @@ import { parseCommand } from './commands.ts'
 import type { ScrollArea, Target } from './hits.ts'
 import { type Spot, standingIn, whereYouWere } from './layout.ts'
 import type { Place } from './machines.ts'
+import type { PanelOutcome } from './panels/outcome.ts'
 import type { Panel } from './panels.ts'
 import { stillAnswered } from './pending.ts'
 import { type QueueView, shownBy, WHOLE_QUEUE } from './queue-view.ts'
@@ -1259,8 +1260,21 @@ export function acrossOf(state: AppState, area: ScrollArea, total: number, shown
  * its own way — a sidebar counts down from the top, a screen counts back from
  * the newest line — and a scrollbar is drawn from the one number they have in
  * common.
+ *
+ * `drawn` is where the last frame drew it (`Reach.at`), which is where a panel
+ * following its keyboard is: the drawing brings the row into view from its
+ * `scroll`, so the `scroll` is not on the screen, and a page key, a notch or
+ * a grab on the thumb made from it started from somewhere nobody could see.
+ * Everywhere else what is kept is what is drawn, and newer — a key read in the
+ * same batch as the one before it lands where that one left it.
  */
-export function offsetOf(state: AppState, area: ScrollArea, total: number, shown: number): number {
+export function offsetOf(
+  state: AppState,
+  area: ScrollArea,
+  total: number,
+  shown: number,
+  drawn?: number,
+): number {
   const back = (lines: number) => Math.max(0, total - shown - lines)
   switch (area) {
     case 'sidebar':
@@ -1275,10 +1289,12 @@ export function offsetOf(state: AppState, area: ScrollArea, total: number, shown
       return back(state.terminalScroll)
     case 'transcript':
       return back(state.transcriptScroll)
-    case 'panel':
-      return state.panel && 'scroll' in state.panel
-        ? Math.max(0, Math.min(state.panel.scroll, Math.max(0, total - shown)))
-        : 0
+    case 'panel': {
+      const panel = state.panel
+      if (!panel || !('scroll' in panel)) return 0
+      const follows = 'following' in panel && panel.following && drawn !== undefined
+      return Math.max(0, Math.min(follows ? drawn : panel.scroll, Math.max(0, total - shown)))
+    }
     case 'panel-side':
       return state.panel && 'listScroll' in state.panel
         ? Math.max(0, Math.min(state.panel.listScroll, Math.max(0, total - shown)))
@@ -1314,7 +1330,7 @@ export function pageOf(state: AppState): string {
  */
 export function grabBar(
   state: AppState,
-  bar: { area: ScrollArea; total: number; shown: number; across?: boolean },
+  bar: { area: ScrollArea; total: number; shown: number; across?: boolean; at?: number },
   track: { top: number; rows: number },
   y: number,
 ): AppState {
@@ -1325,7 +1341,7 @@ export function grabBar(
     offset:
       bar.across === true
         ? acrossOf(state, bar.area, bar.total, bar.shown)
-        : offsetOf(state, bar.area, bar.total, bar.shown),
+        : offsetOf(state, bar.area, bar.total, bar.shown, bar.at),
   }
   const thumb = thumbOf(view)
   const at = y - track.top
@@ -1374,9 +1390,46 @@ export function scrollBy(
   const most = endOf(reach)
   const from = across
     ? acrossOf(state, area, reach.total, reach.shown)
-    : offsetOf(state, area, reach.total, reach.shown)
+    : offsetOf(state, area, reach.total, reach.shown, reach.at)
   const to = Math.max(0, Math.min(most, from + by))
   return to === from ? state : atOffset(state, area, to, reach, across)
+}
+
+/**
+ * A panel's answer to a key, with the move it asked for made (`scrolled`):
+ * through the one move, against what the body's bar was last drawn as, so a
+ * page key and the wheel agree about where the end is and where the view is.
+ */
+export function panelMoved(state: AppState, outcome: PanelOutcome, reach: Reach): PanelOutcome {
+  if (outcome.scroll === undefined || outcome.panel === null) return outcome
+  const moved = scrollBy({ ...state, panel: outcome.panel }, 'panel', outcome.scroll, reach)
+  const { scroll: _, ...rest } = outcome
+  return { ...rest, panel: moved.panel }
+}
+
+/**
+ * One step of a selection dragged past the top or the foot of a file being
+ * typed in, on the edge's clock: the view moved through the one move, and the
+ * line at the edge of the view it went towards, which the selection reaches.
+ * `moved` is whether the view went anywhere. It once went on to the file's
+ * last line, a screen past the last one drawn, so a drag back up spent steps
+ * crawling the selection up a view that stood still.
+ */
+export function dragFileBy(
+  state: AppState,
+  rows: number,
+  reach: Reach,
+): { panel: Panel; line: number; moved: boolean } | null {
+  const panel = state.panel
+  if (panel?.kind !== 'file' || !panel.edit) return null
+  const next = scrollBy(state, 'panel', rows, reach)
+  const top = offsetOf(next, 'panel', reach.total, reach.shown)
+  const foot = Math.min(top + reach.shown - 1, panel.edit.lines.length - 1)
+  return {
+    panel: next.panel ?? panel,
+    line: Math.max(0, rows < 0 ? top : foot),
+    moved: next !== state,
+  }
 }
 
 /**

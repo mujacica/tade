@@ -8,7 +8,7 @@ import { wrapWords } from '../../view/text.ts'
 import { cap, padTo } from '../cells.ts'
 import type { PanelContext } from '../context.ts'
 import { BAR, column, type Line, pageBy, panelSize } from '../frame.ts'
-import { close, type PanelOutcome, stay } from '../outcome.ts'
+import { close, type PanelOutcome, scrolled, stay } from '../outcome.ts'
 import { heading, quoted, starts } from './view.ts'
 
 // One request handed to **another** machine, in front of you: the page this
@@ -52,7 +52,7 @@ export function requestTherePanel(machine: string, item: string, title: string):
 export function requestThereKey(panel: RequestTherePanel, key: string | undefined): PanelOutcome {
   if (key === 'escape' || key === 'enter') return close
   const by = pageBy(key)
-  return by === null ? stay(panel) : stay({ ...panel, scroll: Math.max(0, panel.scroll + by) })
+  return by === null ? stay(panel) : scrolled(panel, by)
 }
 
 export function requestThereClick(panel: RequestTherePanel, control: string): PanelOutcome {

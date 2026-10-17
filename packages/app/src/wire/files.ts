@@ -134,7 +134,7 @@ export class Files implements Subject {
       ...(panel?.kind === 'diff'
         ? { patch: this.diff, body: diffBody(this.deps.size().columns, this.deps.size().rows) }
         : {}),
-      ...(file ? { lines: this.lines(), body: file.rows, columns: file.columns } : {}),
+      ...(file ? { body: file.rows, columns: file.columns } : {}),
     }
   }
 

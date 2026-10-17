@@ -1,5 +1,6 @@
 import { ConfigSchema, settingsOf } from '@tade/core'
 import { describe, expect, it } from 'vitest'
+import { initialState, panelMoved } from '../src/model.ts'
 import { ITEM, itemSpan, panelSize, startOf } from '../src/panels/frame.ts'
 import { modelPanel } from '../src/panels/models/state.ts'
 import { openProjectPanel } from '../src/panels/project/state.ts'
@@ -122,10 +123,11 @@ describe('walking a list and scrolling it', () => {
   })
 
   it('reads on without following, for the key that is the wheel said with a key', () => {
-    const page = panelKey(settingsPanel('voice'), 'pageDown', '', { settings }).panel as {
-      following: boolean
-      scroll: number
-    }
+    // As the window makes it: the one move, against the rows the form drew.
+    const panel = settingsPanel('voice')
+    const answer = panelKey(panel, 'pageDown', '', { settings })
+    const page = panelMoved({ ...initialState(), panel }, answer, { total: 100, shown: 20 })
+      .panel as { following: boolean; scroll: number }
     expect(page.following).toBe(false)
     expect(page.scroll).toBeGreaterThan(0)
   })
