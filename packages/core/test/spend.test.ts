@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { checkBudget } from '../src/budget.ts'
 import type { TadeEvent } from '../src/events.ts'
 import { estimateUsd, type ModelPrice, PRICES_TAKEN, priceFor, pricesFrom } from '../src/prices.ts'
 import {
-  checkBudget,
   modelDetail,
   modelIdentity,
   modelIn,
@@ -84,46 +84,6 @@ describe('spendFrom', () => {
     expect(subscription.total.hasCost).toBe(false)
     expect(subscription.total.tokens).toBe(900)
     expect(spendFrom([usage()], { since: 0 }).total.hasCost).toBe(true)
-  })
-})
-
-describe('checkBudget', () => {
-  const spend = (over: Partial<ReturnType<typeof noSpend>> = {}) => ({ ...noSpend(), ...over })
-
-  it('says nothing when no budget was set', () => {
-    expect(checkBudget(spend({ usd: 999 }), undefined)).toEqual({ verdict: 'ok', reason: '' })
-    expect(checkBudget(spend({ usd: 999 }), {})).toEqual({ verdict: 'ok', reason: '' })
-  })
-
-  it('warns before it stops you', () => {
-    // A long run dying at 100% with no warning is how people lose work.
-    expect(checkBudget(spend({ usd: 7.9 }), { usd_per_day: 10 }).verdict).toBe('ok')
-    expect(checkBudget(spend({ usd: 8 }), { usd_per_day: 10 }).verdict).toBe('warn')
-    expect(checkBudget(spend({ usd: 10 }), { usd_per_day: 10 }).verdict).toBe('over')
-  })
-
-  it('says what the number actually is', () => {
-    const state = checkBudget(spend({ usd: 8.5 }), { usd_per_day: 10 })
-    expect(state.reason).toBe('$8.50 of $10.00 today')
-  })
-
-  it('polices tokens for providers that report no money', () => {
-    const state = checkBudget(spend({ tokens: 1_000_000 }), { tokens_per_day: 1_000_000 })
-    expect(state.verdict).toBe('over')
-    expect(state.reason).toContain('tokens today')
-  })
-
-  it('takes the strictest of the two', () => {
-    const state = checkBudget(spend({ usd: 1, tokens: 999 }), {
-      usd_per_day: 100,
-      tokens_per_day: 1000,
-    })
-    // Nowhere near the money, but at the token ceiling.
-    expect(state.verdict).toBe('warn')
-  })
-
-  it('ignores a limit of zero rather than refusing everything', () => {
-    expect(checkBudget(spend({ usd: 1 }), { usd_per_day: 0 }).verdict).toBe('ok')
   })
 })
 

@@ -52,7 +52,7 @@ import { workflowScreen, workflowsScreen } from './pages/workflows.js'
 import { pairScreen } from './pair.js'
 import { palette } from './palette.js'
 import { passkeys } from './passkey.js'
-import { resend } from './push.js'
+import { looking, resend } from './push.js'
 import { movedFrom, PAGE_OF, viewOf } from './routes.js'
 import {
   barsFor,
@@ -918,8 +918,12 @@ async function install() {
   refused = offering && (how === 'insecure' || how === 'cannot') ? how : null
   paint()
   // The subscription this browser already holds, told again on every visit —
-  // never a new one and never a prompt (`push.js`'s `resend`).
-  if (outside === null) void resend(held.shell, ask)
+  // never a new one and never a prompt (`push.js`'s `resend`) — and, while
+  // somebody has this page in front of them, that this phone need not buzz.
+  if (outside === null) {
+    void resend(held.shell, ask)
+    looking(held.shell, ask)
+  }
 }
 
 start().catch(() => {

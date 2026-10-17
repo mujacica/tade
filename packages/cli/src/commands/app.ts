@@ -12,6 +12,7 @@ import {
   finishedFrom,
   historyFrom,
   isReady,
+  keptByService,
   LOCAL,
   loadConfig,
   modelDetail,
@@ -434,6 +435,8 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           config: cfg.config,
           home,
           cwd: process.cwd(),
+          // Read here, once: the window never reads the environment for it.
+          keptBy: keptByService(process.env, process.platform),
           status: looking,
           ...(canHear ? { recorder, transcriber } : {}),
           report,

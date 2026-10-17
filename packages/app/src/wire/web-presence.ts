@@ -1,6 +1,7 @@
 import {
   type EventType,
   markOf,
+  nobodyHere,
   presenceLineDue,
   presentBefore,
   type SinceItem,
@@ -59,6 +60,22 @@ export class Presences {
   /** When an owner's link last said somebody pressed a key at another of their screens. */
   presentAt(): number | null {
     return this.at
+  }
+
+  /**
+   * "Nobody is here", for a turn Tade starts — or null where somebody has been
+   * lately (`nobodyHere`): a key in this window or at another screen of
+   * theirs, and this window's opening where a person opened it.
+   */
+  nobodyHere(): string | null {
+    const here = this.wire.state.lastInputAt
+    return nobodyHere({
+      seen: here === null ? this.at : this.at === null ? here : Math.max(here, this.at),
+      opened: this.wire.openedAt,
+      keptBy: this.wire.opts.keptBy ?? null,
+      holds: this.wire.opts.config.queue.holds,
+      now: this.wire.now(),
+    })
   }
 
   /** An owner's link said a key was pressed there at `at`, in this clock. */

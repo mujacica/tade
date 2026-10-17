@@ -29,6 +29,8 @@ export interface Queued {
    */
   parked: boolean
   start: StartCondition
+  /** Who made it, as its task file says (`taskOrigin`): what tells a schedule's work from yours. */
+  by?: string
 }
 
 export interface QueueFacts {

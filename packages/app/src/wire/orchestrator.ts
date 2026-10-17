@@ -5,7 +5,6 @@ import {
   type Arm,
   type Config,
   composeBrief,
-  describeWork,
   type LaneId,
   loadConfig,
   needsReflection,
@@ -32,7 +31,6 @@ import type { Machines } from '../machines.ts'
 import {
   type AppState,
   focusTask,
-  markOf,
   notice,
   ORCHESTRATOR_TAB,
   setQuestion,
@@ -67,6 +65,7 @@ import {
 } from './context.ts'
 import { Keeping } from './keeping.ts'
 import { armOfThinker, cannotTalk, stopTurn, whoseTurn } from './orchestrator-away.ts'
+import { describeLive } from './orchestrator-status.ts'
 
 // The thing you talk to, seen from the window.
 //
@@ -114,6 +113,8 @@ export interface OrchestratorDeps {
   credentialProblem(provider: string | null): string | null
   /** Other machines this window links to, as each last said: a line said with every message. */
   machines?: () => Machines | undefined
+  /** "Nobody is here", said above Tade's own words on a turn it starts (`nobodyHere`), or null. */
+  nobodyHere?: () => string | null
 }
 
 export class Orchestrator implements Subject {
@@ -749,7 +750,10 @@ export class Orchestrator implements Subject {
   async tell(text: string): Promise<void> {
     const thinker = this.thinker
     if (!thinker) return
-    const message = withNews(text, this.newsWaiting, clockOf, TADE_WORDS)
+    // Whether anybody is here goes above Tade's words as where they stand goes
+    // above theirs: a fact of this turn, derived now and never remembered.
+    const above = this.deps.nobodyHere?.() ?? null
+    const message = withNews(text, this.newsWaiting, clockOf, TADE_WORDS, above)
     this.newsWaiting = []
     if (thinker.tell) await thinker.tell(message)
     else await thinker.ask(message)
@@ -775,25 +779,8 @@ export class Orchestrator implements Subject {
     }
   }
 
+  /** What `status` answers: one agent's work, or the shape of everything (`orchestrator-status.ts`). */
   describe(scope: string | null): string {
-    const live = this.wire.live
-    const tasks = live?.tasks ?? []
-    // Asked about one agent, answer with what it has been doing. Asked about
-    // everything, answer with the shape of it: an account of nine tasks at
-    // once is unusable, spoken or read.
-    if (live && scope && tasks.some((task) => task.task === scope)) {
-      return describeWork(live.workOn(scope), this.wire.now())
-    }
-    const wanted = scope
-      ? tasks.filter((t) => t.task === scope || t.task.startsWith(`${scope}/`))
-      : tasks
-    if (wanted.length === 0) return scope ? `nothing going on in ${scope}.` : 'nothing going on.'
-    // Waiting on you is a decision to make: an agent idle at its prompt is not one.
-    const blocked = wanted.filter((t) => markOf(t) === 'needs-you').length
-    const working = wanted.filter((t) => markOf(t) === 'working').length
-    const parts = [`${wanted.length} task${wanted.length === 1 ? '' : 's'}`]
-    if (working > 0) parts.push(`${working} working`)
-    parts.push(blocked > 0 ? `${blocked} waiting on you` : 'nothing blocked')
-    return `${parts.join(', ')}.`
+    return describeLive(this.wire, scope)
   }
 }

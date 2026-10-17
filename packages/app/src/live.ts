@@ -1026,6 +1026,7 @@ export class Live {
               project: project.name,
               parked: task.parked === true,
               start: task.start,
+              ...(task.by ? { by: task.by } : {}),
             })
           }
           const rule = task.done

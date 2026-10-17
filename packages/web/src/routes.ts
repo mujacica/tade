@@ -325,15 +325,23 @@ export const ROUTES: readonly Route[] = [
     mutates: true,
     here: true,
   },
+
+  // **This device's own page is in front of somebody** (`looking.ts`): any
+  // paired device, from any listener, and only ever about what *it* is sent —
+  // the push sender reads it for that device and no other. Lifecycle for the
+  // reason `presence` is: the device's word about the person holding it,
+  // written to no file and touching no project.
+  { method: 'POST', path: '/api/looking', name: 'looking', needs: 'read', mutates: true },
 ]
 
 /**
  * The routes that are not `GET` in `ROUTES`, by name.
  *
  * Written out here rather than computed in the test, so that adding one is a
- * line in this file next to the argument for it. All four are session
- * lifecycle — minting one, ending one, its passkey, and an owner saying the
- * person is at another of their screens — and none touches a project or a task.
+ * line in this file next to the argument for it. All are session lifecycle —
+ * minting one, ending one, its passkey, an owner saying the person is at
+ * another of their screens, and a device saying its own page is being looked
+ * at — and none touches a project or a task.
  */
 export const LIFECYCLE = [
   'pair',
@@ -341,6 +349,7 @@ export const LIFECYCLE = [
   'passkey challenge',
   'passkey answer',
   'presence',
+  'looking',
 ] as const
 
 /**

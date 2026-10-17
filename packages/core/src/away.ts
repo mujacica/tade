@@ -357,6 +357,19 @@ export const PUSH_IS_WHILE_OPEN_SHORT =
   'only while this window is open and awake, and never caught up'
 
 /**
+ * The half `AWAY_IS_WHILE_OPEN` and `PUSH_IS_WHILE_OPEN` leave unsaid on a box
+ * whose service manager keeps the window open (`keptByService`). Both stay
+ * true word for word — "this window" — and there that window is always open,
+ * which is what somebody deciding on that machine needs said plainly
+ * (REMOTE-TADE.md §5.3): the away view answers and the phone is told through
+ * the night, and the quiet hours are what stand between it and three in the
+ * morning.
+ */
+export function alwaysOpenHere(by: string): string {
+  return `On this machine that window is always open: ${by} runs it and starts it again if it fails, so the away view answers and notifications go out day and night — the quiet hours are what keep one from waking anybody.`
+}
+
+/**
  * Why turning this on sends nothing yet, said where it is turned on.
  *
  * **Two switches, deliberately, and this is the sentence that says so.** This

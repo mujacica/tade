@@ -197,9 +197,21 @@ export class WebPush {
    * sits there is not.
    */
   private readonly forgetting = new Set<string>()
+  /**
+   * When each device last said its page was in front of somebody
+   * (`@tade/web`'s `looking.ts`): held, never written down, and read only when
+   * deciding about that one device — so it quiets what that phone is sent and
+   * nothing any other device is.
+   */
+  private readonly lookedAt = new Map<string, number>()
 
   constructor(deps: Pushes) {
     this.deps = deps
+  }
+
+  /** A device's own page is in front of somebody, at `at` in this clock. */
+  looking(device: string, at: number): void {
+    this.lookedAt.set(device, Math.max(this.lookedAt.get(device) ?? at, at))
   }
 
   /** Read what is subscribed. Called once, when the listener comes up. */
@@ -316,7 +328,9 @@ export class WebPush {
       now,
       settings: this.deps.attention(),
       sentInLastHour: this.inLastHour(standing, now),
-      lastInputAt: this.deps.lastInputAt(),
+      // A keypress at a screen of theirs quiets every device; this device's
+      // own page in front of somebody quiets this one alone.
+      lastInputAt: newest(this.deps.lastInputAt(), this.lookedAt.get(device) ?? null),
       localHour: this.deps.localHour?.() ?? new Date(now).getHours(),
       // **Both halves, and the narrower one is the device's.** The setting is
       // the ceiling and the grant is the floor: a phone that may not read what
@@ -667,7 +681,7 @@ export function pushFor(
     state: { lastInputAt: number | null }
     now: () => number
   },
-  deps: { writeKey: Pushes['writeKey'] },
+  deps: Pick<Pushes, 'writeKey' | 'pusher'>,
   away: Pushed,
 ): WebPush {
   const config = (): Config => wire.opts.config
@@ -696,6 +710,7 @@ export function pushFor(
     // `presence.ts`): either is somebody at a keyboard of theirs.
     lastInputAt: () => newest(wire.state.lastInputAt, away.presentAt()),
     writeKey: deps.writeKey,
+    ...(deps.pusher ? { pusher: deps.pusher } : {}),
     tell: away.tell,
     now: () => wire.now(),
   })

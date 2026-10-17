@@ -1,11 +1,13 @@
 import { PUSH_NEEDS_A_GESTURE } from '@tade/core'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   bodyOf,
   CANNOT,
   DENIED,
   INSECURE,
   keyBytes,
+  LOOKING_MS,
+  looking,
   NEEDS_HOME_SCREEN,
   NOT_OFFERED,
   OFF,
@@ -377,6 +379,66 @@ describe('telling the machine again, on every visit', () => {
     expect(await resend(shell(), asking(404).ask)).toBe(false)
     expect(fake.isSubscribed()).toBe(true)
     expect(fake.asked).toEqual([])
+  })
+})
+
+describe('saying this page is in front of somebody', () => {
+  // `looking.ts`: only ever this device's own notifications, quieted for the
+  // machine's two minutes — so the page says it while somebody is there and
+  // stops the moment nobody is, without a press and without asking anything.
+  function page() {
+    const on = new Map<string, (() => void)[]>()
+    return {
+      visibilityState: 'visible',
+      addEventListener: (kind: string, run: () => void) => {
+        on.set(kind, [...(on.get(kind) ?? []), run])
+      },
+      fire: (kind: string) => {
+        for (const run of on.get(kind) ?? []) run()
+      },
+    }
+  }
+
+  it('says so while the page is visible and touched, and stops when it is neither', () => {
+    vi.useFakeTimers()
+    try {
+      const fake = browser({ notification: 'granted', subscribed: true })
+      const asks = asking()
+      const doc = page()
+      looking(shell(), asks.ask, doc)
+      const once = { method: 'POST', path: '/api/looking', body: {} }
+      expect(asks.sent).toEqual([once])
+      vi.advanceTimersByTime(LOOKING_MS)
+      expect(asks.sent).toHaveLength(2)
+      // A tab left visible on a desk is not a person: untouched, it goes quiet.
+      vi.advanceTimersByTime(LOOKING_MS)
+      expect(asks.sent).toHaveLength(2)
+      doc.fire('touchstart')
+      vi.advanceTimersByTime(LOOKING_MS)
+      expect(asks.sent).toHaveLength(3)
+      // Hidden — locked, or another app — says nothing, touched or not.
+      doc.visibilityState = 'hidden'
+      doc.fire('pointerdown')
+      doc.fire('visibilitychange')
+      vi.advanceTimersByTime(LOOKING_MS)
+      expect(asks.sent).toHaveLength(3)
+      // And it never asked the browser for anything on the way.
+      expect(fake.asked).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('says nothing where this device could not be sent one to quiet', () => {
+    const asks = asking()
+    browser({ notification: 'default', subscribed: true })
+    looking(shell(), asks.ask, page())
+    browser({ notification: 'granted', subscribed: true })
+    looking(shell({ offered: false }), asks.ask, page())
+    looking(null, asks.ask, page())
+    browser({ notification: 'granted', subscribed: true, secure: false })
+    looking(shell(), asks.ask, page())
+    expect(asks.sent).toEqual([])
   })
 })
 

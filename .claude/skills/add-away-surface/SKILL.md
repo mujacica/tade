@@ -77,7 +77,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | what a request *is* | `src/request.ts` — reading an `IncomingMessage`, and every bound on one |
 | what a request must satisfy | `src/guard.ts` — pure, and `test/guard.test.ts` runs the cross-product |
 | a route only this machine may reach (`presence`, and the pages that connect a source) | `Route.here` — `allowed` answers it the `404` of a path nobody built anywhere but `thisMachine` |
-| another machine's Tade linked to this one as an owner (`tade remote`) | `@tade/remotes-core` (the `RemoteLink` port, the stream follower, the far end its suite links to) — the client half of everything in this table, over SSH; `add-workspace-driver` has its shape. What it posts here is `presence` (`src/presence.ts`): an owner's age of a keypress at another screen, held by the window (`Presences` in `wire/web-presence.ts`) and read as one by push, and written down once a stretch as `person_present` — the cursor of `since` below |
+| another machine's Tade linked to this one as an owner (`tade remote`) | `@tade/remotes-core` (the `RemoteLink` port, the stream follower, the far end its suite links to) — the client half of everything in this table, over SSH; `add-workspace-driver` has its shape. What it posts here is `presence` (`src/presence.ts`): an owner's age of a keypress at another screen, held by the window (`Presences` in `wire/web-presence.ts`) and read as one by push, and written down once a stretch as `person_present` — the cursor of `since` below. A phone's `looking` (`src/looking.ts`) is its sibling and quiets only that phone (below) |
 | another machine's **setup carried here** (`tade remote add`, Settings › Remotes) | `OWNED` in `src/routes.ts` (`POST /api/carry`, `here`; beside it `POST /api/attach`, an agent's attach line, `src/attached.ts`), `src/carried.ts` (the body, `applyCarry`, `carryingAt`, the folds of `config_changed` and `carried_in`), `src/owned.ts` (the one door in `server.ts` for every owner route), the window's half in `packages/app/src/wire/web-carry.ts` (through `Settings.writeKey`, and `signInsOf`); every decision is `@tade/core`'s `carry.ts`, and `add-config-key` has the table |
 | the public listener: Caddy's socket, its directory, the PROXY header | `src/listeners.ts` (every socket one server listens on, `dirSeen`, `answering`), `src/proxied.ts` (the header read before HTTP, `peerOf`), `src/proxy-protocol.ts` (pure: what the bytes are), and `public-listener.ts` in `@tade/core` (the directory, the socket, `caddySite`, what a health look says); `test/public.test.ts` is all of it over a real socket |
 | the public listener's health: the certificate, Tade behind | `packages/app/src/wire/web-public.ts` (`PublicHealth`, on clocks of its own), `@tade/workbench/certificate` (one handshake), `tade host caddy --check` (`packages/cli/src/commands/host-caddy.ts`) |
@@ -126,10 +126,27 @@ a device still has none of the scopes that change anything until somebody at thi
   is laid out in quirks mode and `document.scrollingElement` is the body. Where each part lands is
   `scripts/browser-frame.ts`'s.
 - **No route in `ROUTES` mutates a project or a task.** The non-`GET` routes there are session
-  lifecycle — this browser's own credential, created, destroyed and proved with its passkey, and an
-  owner saying the person is at another of their screens (`presence`, `here`) — and
-  `test/routes.test.ts` asserts that set is exactly `LIFECYCLE` **by name**. Another fails the test
-  until somebody puts it there deliberately, which is the conversation the rule is for.
+  lifecycle — this browser's own credential, created, destroyed and proved with its passkey, an
+  owner saying the person is at another of their screens (`presence`, `here`), and a device saying its
+  own page is being looked at (`looking`) — and `test/routes.test.ts` asserts that set is exactly
+  `LIFECYCLE` **by name**. Another fails the test until somebody puts it there deliberately, which is
+  the conversation the rule is for.
+- **A phone's word about the person counts for that phone and nothing else** (`looking.ts`, which
+  carries the argument). Any device, any listener, a body of nothing: its page visible and touched in
+  the last minute (`push.js`'s `looking`) quiets what *that device* is sent for the two minutes a
+  keypress counts — held in the push sender per device (`WebPush.looking`), never written down, never
+  read for another device, never "somebody is here". Machine-wide presence is an owner's alone
+  (`presence.ts`), because a copied phone session saying it would silence every device; this is no
+  more than that session's own `forget`, which is why it asks no passkey and no trusted origin.
+- **"Nobody is here" is said to the orchestrator, from the keyboards** (`nobodyHere`, `core/src/since.ts`;
+  `Presences.nobodyHere`): above Tade's words on a turn Tade starts (`tell`), after fifteen minutes
+  with no key in this window and none an owner's link carried — and a window a service manager opened
+  (`keptBy`) is no sign of anybody. It carries its own rule (decide what `queue.holds` makes yours,
+  park the rest, say what you parked), so it needs no line in the prompt.
+- **On an always-on box the Settings line says the window always is** (`alwaysOpenHere`, after
+  `AWAY_IS_WHILE_OPEN` and `PUSH_IS_WHILE_OPEN`, which stay true word for word): `keptByService`
+  (`core/src/service.ts`) reads systemd's `INVOCATION_ID`, which the unit's tmux hands to the window,
+  once, where the window is started (`AppOptions.keptBy`) — never out of the environment by what needs it.
 - **The one route that writes a key is the owner's carry, and it is in no setting's table**
   (`OWNED`): only an owner device — the SSH key's session — only on this machine's own door
   (`here`), refused `out_of_scope` to a phone however much it was granted. That is what keeps it no

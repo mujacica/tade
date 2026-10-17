@@ -1,6 +1,7 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
+  type BudgetState,
   type Config,
   checkBudget,
   checkPlan,
@@ -142,12 +143,16 @@ export async function busyFrom(
   return busy
 }
 
-/** What each project has spent today against what it may, for whoever is about to start work. */
+/**
+ * What each project has spent today against what it may, and the machine
+ * against what it may — every project together (`budget.ts`) — for whoever is
+ * about to start work. `machine` is null where no machine budget is set.
+ */
 export async function budgetFrom(
   deps: TemplateDeps,
   projects: readonly string[],
   unread: Unread,
-): Promise<{ project: string; said: string }[]> {
+): Promise<{ budget: { project: string; said: string }[]; machine: string | null }> {
   // Not caught to an empty list: with no usage read, `checkBudget` answers
   // `ok` and the dry run would say "inside its budget for today" about a
   // journal nobody could open. The projects with a budget are dropped from the
@@ -159,23 +164,23 @@ export async function budgetFrom(
     unread(
       `Could not read the journal (${String((err as Error)?.message ?? err)}), so what has been spent today is unknown — not nought, and nothing here says a budget is clear.`,
     )
-    return []
+    return { budget: [], machine: null }
   }
   const prices = pricesFrom(deps.config.prices)
   const spend = spendFrom(usage, { since: startOfToday(Date.now()), prices })
+  const said = (state: BudgetState): string =>
+    state.reason
+      ? `${state.reason}${state.verdict === 'over' ? ' — a start would be refused' : state.verdict === 'warn' ? ' — near its budget' : ''}`
+      : 'inside its budget for today'
   const out: { project: string; said: string }[] = []
   for (const project of projects) {
     const budget = deps.config.projects[project]?.budget
     if (!budget) continue
-    const state = checkBudget(spend.byProject[project] ?? noSpend(), budget)
-    out.push({
-      project,
-      said: state.reason
-        ? `${state.reason}${state.verdict === 'over' ? ' — a start would be refused' : state.verdict === 'warn' ? ' — near its budget' : ''}`
-        : 'inside its budget for today',
-    })
+    out.push({ project, said: said(checkBudget(spend.byProject[project] ?? noSpend(), budget)) })
   }
-  return out
+  const machine = deps.config.budget
+  const set = machine.usd_per_day !== undefined || machine.tokens_per_day !== undefined
+  return { budget: out, machine: set ? said(checkBudget(spend.total, machine)) : null }
 }
 
 export interface TemplateRequest {
@@ -260,7 +265,7 @@ export async function dryRunTemplate(
     check,
     config: deps.config,
     personas,
-    limits: { budget: await budgetFrom(deps, reaches, unread), plans, unread: missed },
+    limits: { ...(await budgetFrom(deps, reaches, unread)), plans, unread: missed },
   })
 }
 

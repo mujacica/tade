@@ -1,6 +1,8 @@
+import type { QueueHolds } from './config.ts'
 import type { TadeEvent } from './events.ts'
 import { documentsIn, waitingDocuments } from './produces.ts'
 import { undecidedProposals } from './proposals.ts'
+import { duration } from './runtime.ts'
 import { type Spend, spendFrom } from './spend.ts'
 
 // "Since you were here" (REMOTE-TADE.md §5.4): what a machine's own journal
@@ -37,6 +39,56 @@ export const PRESENCE_LINE_MS = 5 * 60_000
  * here: the stretch push reads a keypress as somebody at the keyboard for.
  */
 export const PRESENT_MS = 2 * 60_000
+
+/**
+ * How long without a sign of the person before the orchestrator is told nobody
+ * is here: past it, a question put to them waits on nobody.
+ */
+export const AWAY_MS = 15 * 60_000
+
+/**
+ * "Nobody is here", told to the orchestrator as a fact on a turn Tade starts
+ * itself (REMOTE-TADE.md §5.2) — or null where somebody has been, lately.
+ *
+ * **From the person's keyboards, and never the box's alone.** A key pressed in
+ * this window, or at another screen of theirs as an owner's link carries it
+ * (`@tade/web`'s `presence.ts`). On a machine nobody types into, its own
+ * keyboard alone would say nobody is ever here while the person sits at the
+ * Mac, so it is read beside the links and can only ever add a sign. A phone
+ * with the page open is not one (`looking.ts` says why): it quiets that phone
+ * and nothing else.
+ *
+ * **A window a person opened is a sign; one a service manager opened is not.**
+ * Somebody typed `tade app`, so the opening counts as a key; on an always-on
+ * box (`keptByService`) the window came up at three in the morning with nobody
+ * there, and counting that would say somebody was.
+ *
+ * **It carries its own rule**, because it is said every time it is true and
+ * remembered never: decide what `queue.holds` makes yours, park the rest, and
+ * say what was parked — they read it when they are back.
+ */
+export function nobodyHere(req: {
+  /** The newest sign of the person, in this machine's clock, or null for none. */
+  seen: number | null
+  /** When this window opened. */
+  opened: number
+  /** What keeps the window open, or null where a person opened it. */
+  keptBy: string | null
+  holds: QueueHolds
+  now: number
+}): string | null {
+  const since = req.seen ?? (req.keptBy === null ? req.opened : null)
+  if (since !== null && req.now - since < AWAY_MS) return null
+  const gone =
+    since !== null
+      ? `for ${duration(req.now - since)}`
+      : `since ${req.keptBy} started this window, ${duration(req.now - req.opened)} ago`
+  const yours =
+    req.holds === 'orchestrator'
+      ? 'what was held is yours to decide (queue.holds: orchestrator)'
+      : 'what was held is theirs to decide (queue.holds: ask), so park it rather than wait on an answer nobody is there to give'
+  return `Nobody has been at a keyboard of theirs ${gone} — not this window, and no other machine of theirs says so. Decide only what is yours: ${yours}. Park the rest, and say in a sentence what you parked and why: they read it when they are back.`
+}
 
 /**
  * Whether a presence carried now is worth a line: it says a key was pressed

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { WebSurface } from './away.ts'
+import { BudgetSchema } from './budget.ts'
 import { IntakeSurface } from './intake.ts'
 import { NotesConfigSchema } from './memory.ts'
 import { PrepareConfigSchema } from './prepare.ts'
@@ -183,17 +184,8 @@ export const ProjectConfigSchema = z.strictObject({
    * somebody's repository.
    */
   test_command: z.string().min(1).optional(),
-  /**
-   * What this project may spend in a day. Checked before a run starts, with a
-   * warning at 80%. Tokens are there for subscription providers, which report
-   * no money at all.
-   */
-  budget: z
-    .strictObject({
-      usd_per_day: z.number().positive().optional(),
-      tokens_per_day: z.int().positive().optional(),
-    })
-    .optional(),
+  /** What this project may spend in a day, beside what the machine may (`budget.ts`). */
+  budget: BudgetSchema.optional(),
   /** This project's own answer to any of the `checks` settings but `suites`, which is the machine's. */
   checks: ChecksConfigSchema.omit({ suites: true }).partial().optional(),
   /** What a new worktree is given before its agent starts, over what the project says (`prepare.ts`). */
@@ -710,8 +702,12 @@ export const ConfigSchema = z
     queue: z
       .strictObject({
         holds: z.enum(QUEUE_HOLDS).default('orchestrator'),
+        /** Whether work a schedule or a watch made waits on a nearly full plan, as outside work does (`planTooTight`). */
+        hold_scheduled: z.boolean().default(true),
       })
       .prefault({}),
+    /** What this machine may spend in a day, every project together (`budget.ts`): no amount until somebody writes one. */
+    budget: BudgetSchema.prefault({}),
     /** When a project's own checks run, and what a red one does. */
     checks: ChecksConfigSchema.prefault({}),
     /**

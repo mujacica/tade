@@ -2,6 +2,7 @@ import {
   ACTING_IS_NOT_YOU,
   ACTING_IS_NOT_YOU_SHORT,
   AWAY_IS_WHILE_OPEN,
+  alwaysOpenHere,
   DEVICES_SEEN_BY_AGENTS,
   DRAFTS_ARE_NOT_PUBLISHED,
   DRAFTS_ARE_NOT_PUBLISHED_SHORT,
@@ -64,12 +65,14 @@ export const DEVICE_MAY = 'A paired device may'
 // out of the config it holds, so there was never anything for them to wait
 // behind.
 
-export function awayGroup(config: Config): SettingGroup {
+export function awayGroup(config: Config, keptBy: string | null = null): SettingGroup {
   const web = config.surfaces.web
+  // Said after each "while this window is open", where that window always is (`keptByService`).
+  const always = keptBy === null ? '' : ` ${alwaysOpenHere(keptBy)}`
   return {
     id: 'away',
     title: 'Away view',
-    about: `One page, served from this machine, to a device you pair by scanning the code this page shows once it is on, or by opening its link. It shows what is working, what is queued, what is stopped and what it cost; anything a device may change beyond that is granted per device, at this machine. ${AWAY_IS_WHILE_OPEN} Off by default and everything under it on, so turning it on is the one click — and ${DEVICES_SEEN_BY_AGENTS}, which is why the device list shows every device there is.`,
+    about: `One page, served from this machine, to a device you pair by scanning the code this page shows once it is on, or by opening its link. It shows what is working, what is queued, what is stopped and what it cost; anything a device may change beyond that is granted per device, at this machine. ${AWAY_IS_WHILE_OPEN}${always} Off by default and everything under it on, so turning it on is the one click — and ${DEVICES_SEEN_BY_AGENTS}, which is why the device list shows every device there is.`,
     keywords: [
       'away',
       'web',
@@ -341,7 +344,7 @@ export function awayGroup(config: Config): SettingGroup {
         title: 'Get notifications',
         section: DEVICE_MAY,
         short: `${PUSH_GOES_THROUGH_A_STRANGER_SHORT}; ${PUSH_NEEDS_A_GESTURE_SHORT}`,
-        means: `on: a device that installed this and allowed notifications is sent one when work wants you, gets stuck, goes red or finishes — ${PUSH_SAYS_NOTHING_SHORT}; off: nothing is sent. ${PUSH_NEEDS_A_GESTURE} ${PUSH_GOES_THROUGH_A_STRANGER} ${PUSH_IS_WHILE_OPEN}`,
+        means: `on: a device that installed this and allowed notifications is sent one when work wants you, gets stuck, goes red or finishes — ${PUSH_SAYS_NOTHING_SHORT}; off: nothing is sent. ${PUSH_NEEDS_A_GESTURE} ${PUSH_GOES_THROUGH_A_STRANGER} ${PUSH_IS_WHILE_OPEN}${always}`,
         value: String(web.push),
         fallback: 'true',
         type: { kind: 'flag' },

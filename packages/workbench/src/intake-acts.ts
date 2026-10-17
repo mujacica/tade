@@ -526,9 +526,10 @@ export async function intakeWouldRun(
       }
     }
   }
-  const budget = await budgetFrom(deps, [row.project], unread)
+  const { budget, machine } = await budgetFrom(deps, [row.project], unread)
   const limits = [
     ...budget.map((one) => `${one.project}: ${one.said}`),
+    ...(machine === null ? [] : [`This machine, every project together: ${machine}`]),
     ...(plans === null
       ? [
           'Plan windows: cannot tell from here — only the window supervising the agents can read one, and unknown is not room.',

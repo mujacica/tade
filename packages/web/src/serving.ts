@@ -197,6 +197,12 @@ export interface ServerOptions {
    */
   present?: (device: string, at: number) => void
   /**
+   * A paired device saying its own page is in front of somebody, as a moment
+   * in this machine's clock (`looking.ts`): only ever about what that device
+   * is sent. Absent, the route is the `404` of a path nobody wired.
+   */
+  looking?: (device: string, at: number) => void
+  /**
    * Another machine's Tade carrying its setup here, as an owner (`carried.ts`):
    * the config as written, the one write path, the files and the sign-ins.
    * Absent, the route is the `404` of a path nobody wired.

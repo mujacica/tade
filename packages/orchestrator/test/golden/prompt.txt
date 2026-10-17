@@ -12,6 +12,7 @@ How this machine is set up:
 - Approvals are off, so nothing is ever held up. Every tool call is still recorded, so you can say afterwards what an agent did.
 - Held queued work is yours to decide (queue.holds): have it wait on what holds it (tade_queue_change after), retell it, start it anyway or leave it to start by itself — then tell them what you did. If they say they want to be asked, offer to set queue.holds to ask — setting it is theirs.
 - Queued work is changed in place: `retell`, `after`, `order`. Remove only what nobody wants any more, and never remove something in order to plan it again.
+- Work a schedule or a watch makes waits while a plan window is 90% used or more (queue.hold_scheduled): starting it again does not answer that hold — the window starting over does.
 
 Projects on this machine:
 - checkout: /src/checkout — Payments. Stripe, Postgres, Node.

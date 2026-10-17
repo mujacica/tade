@@ -297,6 +297,8 @@ export interface HoldTold {
   changed?: readonly string[]
   /** Whose commits those were, where git says whose. */
   by?: readonly string[]
+  /** A plan window held it (`planTooTight`), which a start does not answer while the window is full. */
+  plan?: boolean
 }
 
 /** Each way of answering a hold that went wrong, as the call that does it. */
@@ -305,6 +307,10 @@ const ANSWERS = {
     `start it anyway (start), change what it waits on (after, with replace: true to drop ${on}), or remove it (remove)`,
   failed: 'try it again (wait), start it anyway (start), or remove it (remove)',
   tree: 'leave it to start by itself, have it wait on one of them (after), change what its agent is told or will touch (retell), or start it anyway (start)',
+  // A start while that window is this full is held again and told again, so
+  // offering one would be offering a loop: what answers it is the window
+  // starting over, and only then a start.
+  plan: 'leave it until that window has started over and then start it (start), or remove it (remove) — a start while the window is this full holds it again, and turning queue.hold_scheduled off is the person’s to say',
 }
 
 /**
@@ -367,7 +373,10 @@ export function heldMessage(
   const on = held.on ?? null
   return [
     `${task} is held, and will not start by itself: ${held.because}.`,
-    whoDecides(told.holds, on !== null ? ANSWERS.trouble(on) : ANSWERS.failed),
+    whoDecides(
+      told.holds,
+      held.plan ? ANSWERS.plan : on !== null ? ANSWERS.trouble(on) : ANSWERS.failed,
+    ),
     `Each is tade_queue_change with task: ${task} and the change named.`,
   ].join(' ')
 }

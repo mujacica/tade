@@ -261,7 +261,7 @@ export class Settings implements Subject {
       const can = this.wire.opts.client.capabilitiesOf(harness.id)
       if (can) levels[harness.id] = can.thinkingLevels
     }
-    return settingsOf(this.wire.opts.config, secrets, levels)
+    return settingsOf(this.wire.opts.config, secrets, levels, this.wire.opts.keptBy ?? null)
   }
 
   /**

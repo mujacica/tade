@@ -161,6 +161,15 @@ describe('a dry run', () => {
     ).toContain('$7.90 of $8.00 today — near its budget')
   })
 
+  it('says the machine’s budget, and never that nothing holds a start while it does', () => {
+    const said = dry({
+      limits: { budget: [], machine: '$19.00 of $20.00 today — near its budget' },
+    }).limits.join('\n')
+    expect(said).toContain('This machine, every project together: $19.00 of $20.00 today')
+    expect(said).not.toContain('nothing holds a start')
+    expect(said).toContain('no daily budget of its own')
+  })
+
   it('guesses nothing about what it would cost, because nothing can know that', () => {
     const said = dry().limits.join('\n')
     expect(said).toContain('not knowable before it runs')

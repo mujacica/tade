@@ -1,4 +1,5 @@
 import { type Config, QUEUE_HOLDS } from './config.ts'
+import { PLAN_TIGHT } from './limits.ts'
 import type { SettingGroup } from './settings.ts'
 
 // Queued work, and who decides about it once it is held. Its own file because
@@ -24,6 +25,26 @@ export function queueGroup(config: Config): SettingGroup {
         fallback: 'orchestrator',
         type: { kind: 'choice', options: [...QUEUE_HOLDS] },
         keywords: ['held', 'hold', 'on hold', 'overlaps', 'collisions'],
+        live: true,
+      },
+      {
+        // Read by the queue's pass at the moment of each start (`planHold`),
+        // from the config the window holds, so it applies at once.
+        path: 'queue.hold_scheduled',
+        title: 'Scheduled work on a full plan',
+        means: `on: work a schedule or a watch made waits, as a request from outside does, while a plan window it would spend is ${PLAN_TIGHT}% used or more — until somebody answers its hold; off: it starts whatever the plan says`,
+        value: String(config.queue.hold_scheduled),
+        fallback: 'true',
+        type: { kind: 'flag' },
+        keywords: [
+          'plan',
+          'plan window',
+          'subscription',
+          'limit',
+          'schedule',
+          'watch',
+          'overnight',
+        ],
         live: true,
       },
     ],

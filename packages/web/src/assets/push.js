@@ -7,8 +7,9 @@
 // screen — so this is a control somebody taps and never something the page
 // does on load. That is not only a browser rule: a prompt nobody asked for is
 // the thing people answer *no* to for ever, and a *no* on this origin cannot
-// be asked again from here. The one thing that runs on its own is `resend`,
-// which asks nothing: it tells the machine again what the browser holds.
+// be asked again from here. The two things that run on their own are `resend`,
+// which asks nothing: it tells the machine again what the browser holds — and
+// `looking`, which tells it this page is in front of somebody.
 //
 // **Two switches, and this is the second one.** The machine decides whether it
 // will send anything (`surfaces.web.push`, and the public key it answers
@@ -173,6 +174,39 @@ export async function resend(shell, ask) {
   if (held === null) return false
   const sent = await ask('POST', '/api/notify/subscribe', bodyOf(held))
   return sent.status === 200
+}
+
+/** How often a page in front of somebody says so: inside the machine's two minutes, with one to spare. */
+export const LOOKING_MS = 50_000
+
+/**
+ * Say this page is in front of somebody, while it is, so the machine does not
+ * buzz this phone about what is already on its screen (`looking.ts`). Only
+ * ever this device's own notifications, and only where it could be sent one.
+ *
+ * **Somebody, not a tab**: visible *and* touched within the last
+ * `LOOKING_MS` — a phone in a hand locks itself and goes hidden, but a tab left
+ * visible on a desk does not, and quieting that one would be the buzz somebody
+ * came back to and never got. Like `resend`, it asks for nothing.
+ */
+export function looking(shell, ask, page = document) {
+  if (shell === null || shell.notifying?.offered !== true) return
+  if (!pushable() || Notification.permission !== 'granted') return
+  let touched = Date.now()
+  const say = () => {
+    if (page.visibilityState !== 'visible') return
+    if (Date.now() - touched > LOOKING_MS) return
+    void ask('POST', '/api/looking', {})
+  }
+  const touch = () => {
+    touched = Date.now()
+  }
+  for (const kind of ['pointerdown', 'keydown', 'wheel', 'touchstart']) {
+    page.addEventListener(kind, touch, { passive: true })
+  }
+  page.addEventListener('visibilitychange', say)
+  setInterval(say, LOOKING_MS)
+  say()
 }
 
 /**

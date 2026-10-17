@@ -242,24 +242,6 @@ export function onPlanOf(spend: Spend): OnPlan {
   return spend.tokensOnPlanUnrated > 0 ? 'partly' : 'listed'
 }
 
-export interface Budget {
-  /** Dollars per day, across the project. */
-  usd_per_day?: number
-  /** Tokens per day, for providers that report no money. */
-  tokens_per_day?: number
-}
-
-export type BudgetVerdict = 'ok' | 'warn' | 'over'
-
-export interface BudgetState {
-  verdict: BudgetVerdict
-  /** What to say about it. Empty when there is nothing to say. */
-  reason: string
-}
-
-/** Warn before it stops you, so a long run does not die at 100% unannounced. */
-const WARN_AT = 0.8
-
 /**
  * What a run was, beyond its task: which harness ran it, which sign-in it ran
  * as, and which provider the model was reached through.
@@ -659,45 +641,6 @@ function add(spend: Spend, event: TadeEvent, charge: Charged): void {
   if (charge.kind === 'exact') spend.usdExact += charge.usd
   else if (charge.kind === 'estimate') spend.usdEstimated += charge.usd
   else if (charge.kind === 'listed') spend.usdListed += charge.usd
-}
-
-/** Whether this is within what you said, and what to say if it is not. */
-export function checkBudget(spend: Spend, budget: Budget | undefined): BudgetState {
-  if (!budget || (budget.usd_per_day === undefined && budget.tokens_per_day === undefined)) {
-    return { verdict: 'ok', reason: '' }
-  }
-
-  const checks: Array<{ used: number; limit: number; say: (n: number) => string }> = []
-  if (budget.usd_per_day !== undefined) {
-    checks.push({
-      used: spend.usd,
-      limit: budget.usd_per_day,
-      say: (n) => `$${spend.usd.toFixed(2)} of $${n.toFixed(2)} today`,
-    })
-  }
-  if (budget.tokens_per_day !== undefined) {
-    checks.push({
-      used: spend.tokens,
-      limit: budget.tokens_per_day,
-      say: (n) => `${spend.tokens.toLocaleString()} of ${n.toLocaleString()} tokens today`,
-    })
-  }
-
-  // The strictest one decides: a project that is over on either is over.
-  let worst: BudgetState = { verdict: 'ok', reason: '' }
-  for (const check of checks) {
-    if (check.limit <= 0) continue
-    const ratio = check.used / check.limit
-    const verdict: BudgetVerdict = ratio >= 1 ? 'over' : ratio >= WARN_AT ? 'warn' : 'ok'
-    if (rank(verdict) > rank(worst.verdict)) {
-      worst = { verdict, reason: verdict === 'ok' ? '' : check.say(check.limit) }
-    }
-  }
-  return worst
-}
-
-function rank(verdict: BudgetVerdict): number {
-  return verdict === 'over' ? 2 : verdict === 'warn' ? 1 : 0
 }
 
 /** Midnight local time, which is what "today" means to a person. */

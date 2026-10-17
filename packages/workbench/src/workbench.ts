@@ -8,7 +8,6 @@ import {
   type Caution,
   type Config,
   ConfigSchema,
-  checkBudget,
   composeAgentPrompt,
   type DoneRule,
   type EventFilter,
@@ -26,7 +25,6 @@ import {
   type Plan,
   type PlanBusy,
   type PlanSource,
-  pricesFrom,
   producesPath,
   producesProblem,
   pushFor,
@@ -39,7 +37,6 @@ import {
   type StartCondition,
   sinceLastLook,
   spendFrom,
-  startOfToday,
   type TadeEvent,
   type TaskId,
   THINKING_LEVELS,
@@ -77,6 +74,7 @@ import { parse as parseYaml } from 'yaml'
 import { type AccountView, harnessAccount, listAccounts, planSources } from './accounts.ts'
 import { answerAgentTool } from './agent-tools.ts'
 import { recordAuthored } from './authored.ts'
+import { guardBudget } from './budget.ts'
 import { checksGate, checksTold, sharesCheckout } from './checks.ts'
 import {
   type KeptWrite,
@@ -1381,7 +1379,7 @@ export class Workbench {
    */
   async startAgent(req: StartRunRequest): Promise<LaneRecord> {
     this.guardParallel(req.task)
-    await this.guardBudget(req.task)
+    await guardBudget(this, req.task, Date.now())
     const lane = `${req.task}/agent` as LaneId
     if (this.registry.get(lane)?.alive) {
       // Two agents in one worktree is two agents editing the same files.
@@ -2132,33 +2130,6 @@ export class Workbench {
       throw new Error(
         `${project} already has ${running} agent${running === 1 ? '' : 's'} running, and max_parallel is ${limit}`,
       )
-    }
-  }
-
-  /**
-   * Refuse to start a run that would take a project past what it may spend in
-   * a day, and say so before it gets close: a long run that dies at 100% with
-   * no warning is how people lose work. Priced as the Spend page prices it.
-   */
-  private async guardBudget(task: string): Promise<void> {
-    const project = task.split('/')[0] ?? ''
-    const budget = this.config.projects[project]?.budget
-    if (!budget) return
-    const events = await this.log.read({ types: ['usage'] }).catch(() => [])
-    const prices = pricesFrom(this.config.prices)
-    const spent = spendFrom(events, { since: startOfToday(Date.now()), prices }).byProject[project]
-    const state = checkBudget(spent ?? noSpend(), budget)
-    if (state.verdict === 'over') {
-      throw new Error(`${project} has spent its budget for today: ${state.reason}`)
-    }
-    if (state.verdict === 'warn') {
-      await this.log.append({
-        type: 'warning',
-        task,
-        // Said out loud, not just journalled: by the time an earcon sends you
-        // to look, the budget is spent.
-        detail: { message: `${project} is near its budget: ${state.reason}` },
-      })
     }
   }
 

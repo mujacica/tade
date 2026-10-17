@@ -334,7 +334,16 @@ describe('how long a note about gone work is still told', () => {
 describe('who decides about held queued work', () => {
   it('leaves it to the orchestrator unless the person said to ask them', () => {
     const r = parseConfig('')
-    expect(r.ok && r.config.queue).toEqual({ holds: 'orchestrator' })
+    expect(r.ok && r.config.queue).toEqual({ holds: 'orchestrator', hold_scheduled: true })
+  })
+
+  it('holds scheduled work on a full plan unless somebody turns that off', () => {
+    // On by default (REMOTE-TADE.md decision 15): it only ever holds.
+    const off = parseConfig('queue:\n  hold_scheduled: false\n')
+    expect(off.ok && off.config.queue.hold_scheduled).toBe(false)
+    const bad = parseConfig('queue:\n  hold_scheduled: sometimes\n')
+    expect(bad.ok).toBe(false)
+    expect(!bad.ok && bad.issues[0]?.path).toBe('queue.hold_scheduled')
   })
 
   it('takes asking the person, and refuses anybody else', () => {

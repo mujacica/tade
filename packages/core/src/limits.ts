@@ -281,18 +281,31 @@ export function planPressure(used: number): PlanPressure {
 /**
  * Why a subscription is too full for work nobody here asked for, or null.
  *
- * **Scoped to intake-originated starts, deliberately.** It would hold *any*
- * queued work on a tight plan, which is probably right and is a wider decision
- * than the one this answers — so what gates on it today is a start whose
- * request came from outside, where the trade is plainest: spending what is left
- * of a five-hour window on somebody else's ticket at three in the morning is a
- * person's call, not a rule's.
+ * **Two kinds of work, asked separately.** A start whose request came from
+ * outside (`outside`, always), where the trade is plainest: spending what is
+ * left of a five-hour window on somebody else's ticket at three in the morning
+ * is a person's call, not a rule's. And work a schedule or a watch made
+ * (`scheduled`), where `queue.hold_scheduled` says so — on by default
+ * (REMOTE-TADE.md §5.2, decision 15): a night of `deps` and `sentry` watches on
+ * a machine with nobody there stops before the morning's window is gone,
+ * rather than being found to have spent it. Work somebody asked for here is
+ * never held by this: it is theirs to spend on.
  *
  * **`unknown` is not zero**, which is the whole of why this reads `PlanStanding`
  * rather than a number. An account on a plan that cannot say how full it is, or
  * has not said yet, or whose every window has started over since it last said,
  * is *unknown* — and treating unknown as 0% used is how a backlog burns a
- * window that was already full. It holds, and says which account and why.
+ * window that was already full. For outside work it holds, and says which
+ * account and why.
+ *
+ * **For scheduled work, unknown does not hold, and that is deliberate.** Both
+ * subscription harnesses say how full a plan is only as their agents run
+ * (`while-working`), so after every restart nobody can say — and on a machine
+ * whose only work is what its schedules make, a rule that held on unknown
+ * would hold the very start that would make it known, every time, for good.
+ * That is a setting accepted and ignored, which is worse than none. A window
+ * that has been seen nearly full is what holds it; the first agent after a
+ * restart is the price of being able to see one.
  *
  * **An account that is not on a plan is not pressure.** `pays: 'per-token'` is
  * money with a bill and no window to fill, and money is `checkBudget`'s. No
@@ -302,10 +315,13 @@ export function planPressure(used: number): PlanPressure {
  * person's decision, and a rule that moved work to a less full plan would be
  * that decision taken by a rule.
  */
-export function planTooTight(standings: readonly PlanStanding[]): { because: string } | null {
+export function planTooTight(
+  standings: readonly PlanStanding[],
+  of: 'outside' | 'scheduled' = 'outside',
+): { because: string } | null {
   const plans = standings.filter((standing) => standing.pays === 'plan')
   if (plans.length === 0) return null
-  for (const standing of plans) {
+  for (const standing of of === 'outside' ? plans : []) {
     if (standing.cannotTell === null) continue
     return {
       because: `${planLabel(standing)} ${standing.cannotTell}, and what is unknown about a plan is not nothing: a request from outside waits until somebody says to spend it`,
@@ -313,8 +329,12 @@ export function planTooTight(standings: readonly PlanStanding[]): { because: str
   }
   const worst = tightestPlan(plans)
   if (worst && planPressure(worst.tightest.used) === 'tight') {
+    const used = `${planLabel(worst)} has used ${Math.round(worst.tightest.used)}% of its ${worst.tightest.label} window`
     return {
-      because: `${planLabel(worst)} has used ${Math.round(worst.tightest.used)}% of its ${worst.tightest.label} window, and what is left of it is not a rule's to spend on a request from outside`,
+      because:
+        of === 'outside'
+          ? `${used}, and what is left of it is not a rule's to spend on a request from outside`
+          : `${used}, and what is left of it is not a schedule's to spend while queue.hold_scheduled is on`,
     }
   }
   return null

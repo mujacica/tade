@@ -26,13 +26,16 @@ describe('the shape of the table', () => {
   it('has exactly the lifecycle routes as its non-GET routes, by name', () => {
     const changing = ROUTES.filter((route) => route.method !== 'GET')
     expect(changing.map((route) => route.name).sort()).toEqual([...LIFECYCLE].sort())
-    // All five are session lifecycle: this browser's own credential, created,
-    // destroyed and proved with its passkey, and an owner's word that the
-    // person is at another of their screens (`presence.ts`, which writes no
-    // file and touches no project). A sixth fails this test until somebody puts
-    // it in `LIFECYCLE` deliberately, which is the conversation the claim is for.
+    // All six are session lifecycle: this browser's own credential, created,
+    // destroyed and proved with its passkey, an owner's word that the person
+    // is at another of their screens (`presence.ts`), and a device's word that
+    // its own page is being looked at (`looking.ts`) — neither of which writes
+    // a file or touches a project. A seventh fails this test until somebody
+    // puts it in `LIFECYCLE` deliberately, which is the conversation the claim
+    // is for.
     expect(changing.map((route) => `${route.method} ${route.path}`).sort()).toEqual([
       'DELETE /api/devices/:id',
+      'POST /api/looking',
       'POST /api/pair',
       'POST /api/passkey/answer',
       'POST /api/passkey/challenge',

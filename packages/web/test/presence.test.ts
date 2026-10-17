@@ -118,3 +118,60 @@ describe('reading one', () => {
     if (!read.ok) expect(read.refusal.error).toBe('out_of_scope')
   })
 })
+
+describe('a device saying its own page is in front of somebody', () => {
+  // `looking.ts`: any paired device, about itself alone, held by the window
+  // and never written down — the moment this machine's, at the request.
+  const posted = (
+    one: Awaited<ReturnType<typeof start>>,
+    phone: Awaited<ReturnType<typeof pair>>,
+    body: unknown,
+  ) =>
+    ask(one, '/api/looking', {
+      method: 'POST',
+      headers: {
+        origin: one.origin,
+        cookie: phone.cookie,
+        'content-type': 'application/json',
+        [CSRF_HEADER]: phone.csrf,
+      },
+      body: JSON.stringify(body),
+    })
+
+  it('is handed to the window as this device and this machine’s moment, and written nowhere', async () => {
+    const heard: { device: string; at: number }[] = []
+    const one = await start({}, { looking: (device, at) => heard.push({ device, at }) })
+    const phone = await pair(one)
+    const before = Date.now()
+    const said = await posted(one, phone, {})
+    expect(said.status, said.text).toBe(200)
+    expect(heard).toHaveLength(1)
+    expect(heard[0]?.device).toBe(phone.device)
+    expect(heard[0]?.at).toBeGreaterThanOrEqual(before)
+    expect(
+      one.told.filter((line) => line.type !== 'warning' && line.type !== 'web_paired'),
+    ).toEqual([])
+  })
+
+  it('carries nothing — a device to speak for, or a moment, is refused', async () => {
+    const heard: number[] = []
+    const one = await start({}, { looking: (_device, at) => heard.push(at) })
+    const phone = await pair(one)
+    for (const body of [{ device: 'another' }, { at: 5 }, { ago: 0 }, null]) {
+      expect((await posted(one, phone, body)).status, JSON.stringify(body)).toBe(400)
+    }
+    expect(heard).toEqual([])
+  })
+
+  it('is the 404 of a path nobody wired where the window did not hand a place for it', async () => {
+    const one = await start()
+    const phone = await pair(one)
+    expect((await posted(one, phone, {})).status).toBe(404)
+  })
+
+  it('answers any listener, a phone’s through Caddy included', () => {
+    const route = ROUTES.find((one) => one.name === 'looking')
+    expect(route).toMatchObject({ method: 'POST', mutates: true, needs: 'read' })
+    expect(route?.here).toBeUndefined()
+  })
+})

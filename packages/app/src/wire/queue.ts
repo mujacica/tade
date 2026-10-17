@@ -11,11 +11,14 @@ import {
   orderFirst,
   type Plan,
   planStandings,
+  planTooTight,
   projectsIn,
   QUEUE_CHANGES,
+  type Queued,
   queueStateOf,
   readyToStart,
   startFrom,
+  taskOrigin,
 } from '@tade/core'
 import { type HandedOn, handOnWaits, intakeStands } from '@tade/workbench'
 import { acknowledge } from '../flash.ts'
@@ -255,7 +258,11 @@ export class Queue implements Subject {
       const item = items.find((one) => one.task === task)
       const worktree = live.worktreeOf(task)
       if (!item || !worktree) continue
-      const hold = await this.intakeHold(intakeOf(intake, task), task)
+      // And what a schedule or a watch made, asked about the plan at the same
+      // moment for the same reason (`planHold`).
+      const outside = intakeOf(intake, task)
+      const plan = outside ? null : this.planHold(item)
+      const hold = plan ?? (await this.intakeHold(outside, task))
       if (hold) {
         // Through the one hold path there is, so what the window draws, what
         // the orchestrator is told and what `queueStateOf` reads are one fact.
@@ -263,7 +270,8 @@ export class Queue implements Subject {
           await this.wire.opts.client.holdQueued(task, hold, { start: 'failed' }).catch(() => {})
           this.said(`${task} is held: ${hold}`)
           const told = { holds: this.wire.opts.config.queue.holds }
-          void this.deps.tell(heldMessage(task, { because: hold }, told)).catch(() => {})
+          const held = { because: hold, ...(plan ? { plan: true } : {}) }
+          void this.deps.tell(heldMessage(task, held, told)).catch(() => {})
         }
         continue
       }
@@ -334,6 +342,19 @@ export class Queue implements Subject {
       return `has no record on this machine that Tade can check: approve it at the machine`
     }
     return this.intakeHold(one, row.tasks[0] ?? '')
+  }
+
+  /**
+   * Why queued work a schedule or a watch made does not start now, or null:
+   * a plan window it would spend is nearly full and `queue.hold_scheduled` is
+   * on (`planTooTight`'s rule, which argues both). Read from the config and the
+   * plan standings as they are at this start, like the trees.
+   */
+  private planHold(item: Queued): string | null {
+    if (!this.wire.opts.config.queue.hold_scheduled) return null
+    if (taskOrigin(item.by).kind !== 'schedule') return null
+    const standings = planStandings(this.wire.opts.client.planUsage(), this.wire.now())
+    return planTooTight(standings, 'scheduled')?.because ?? null
   }
 
   private async intakeHold(one: IntakeItem | null, task: string): Promise<string | null> {

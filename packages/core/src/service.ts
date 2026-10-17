@@ -123,6 +123,26 @@ export function serviceUnit(facts: ServiceFacts): string {
 }
 
 /**
+ * The service manager keeping this window open, or null where a person opened
+ * it — the always-on box, where "while this window is open" means always.
+ *
+ * systemd sets `INVOCATION_ID` in every unit it starts, and the unit's tmux
+ * hands the environment it was started with to the window in its pane. Linux
+ * with no screen, as `unattendedHere` asks, because a desktop's own terminal
+ * may be started by systemd too and is not a window that never closes. Read
+ * once, as the window opens, and handed down (`keptBy`), never read out of the
+ * environment by whatever needs it.
+ */
+export function keptByService(
+  env: Readonly<Record<string, string | undefined>>,
+  platform: string,
+): 'systemd' | null {
+  if (platform !== 'linux' || !env.INVOCATION_ID) return null
+  if (env.DISPLAY || env.WAYLAND_DISPLAY) return null
+  return 'systemd'
+}
+
+/**
  * A word as systemd reads it back: quoted where it has to be, `%` doubled so
  * it is not a specifier, and — on an `Exec` line — `$` doubled so it is not a
  * variable.

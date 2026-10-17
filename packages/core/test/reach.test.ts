@@ -169,6 +169,20 @@ describe('what an ordinary request reaches', () => {
     expect(settingReach('journal.max_mb').reach).toBe('asked')
   })
 
+  it('does not include what the machine may spend, though raising it lets the night run longer', () => {
+    // `asked`, decided rather than defaulted into, like a project's own budget
+    // beside it. Not `never`: a cap widens nothing an agent may do, hands nobody
+    // tools or a credential, changes who is asked about nothing and moves
+    // nowhere Tade sends anything. Not `open`: it is the person's own money,
+    // and on a machine with nobody there no `said` line names it — so with
+    // nobody to ask, nothing a page says can raise it.
+    expect(settingReach('budget.usd_per_day').reach).toBe('asked')
+    expect(settingReach('budget.tokens_per_day').reach).toBe('asked')
+    // And holding scheduled work on a full plan is the queue's, which only
+    // ever holds: turning it off is somebody's word about their plan.
+    expect(settingReach('queue.hold_scheduled').reach).toBe('asked')
+  })
+
   it('does not include how much a lane keeps to scroll back through', () => {
     // `asked`, decided: the drivers' section widens nothing an agent may do,
     // hands nobody anything and sends nothing anywhere. The worst a sentence
@@ -295,6 +309,7 @@ describe('the shape of the rule', () => {
       'accounts',
       'agents',
       'approvals',
+      'budget',
       'checks',
       'documents',
       'drivers',

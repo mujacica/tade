@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { EventType, TadeEvent } from '../src/events.ts'
 import {
+  AWAY_MS,
+  nobodyHere,
   PRESENCE_LINE_MS,
   PRESENT_MS,
   presenceLineDue,
@@ -159,5 +161,40 @@ describe('what happened since', () => {
     expect(got.spend.usd).toBeCloseTo(0.75)
     expect(got.spend.tokens).toBe(200)
     expect(got.spend.hasCost).toBe(true)
+  })
+})
+
+describe('nobody is here, told to the orchestrator', () => {
+  const asked = {
+    seen: null as number | null,
+    opened: NOW - 2 * 60 * MINUTE,
+    keptBy: null as string | null,
+    holds: 'orchestrator' as const,
+    now: NOW,
+  }
+
+  it('says nothing while a sign of the person is recent', () => {
+    expect(nobodyHere({ ...asked, seen: NOW - AWAY_MS + MINUTE })).toBeNull()
+  })
+
+  it('says how long, and the rule that goes with it, once there has been none for a while', () => {
+    const said = nobodyHere({ ...asked, seen: NOW - 134 * MINUTE })
+    expect(said).toBe(
+      'Nobody has been at a keyboard of theirs for 2h 14m — not this window, and no other machine of theirs says so. Decide only what is yours: what was held is yours to decide (queue.holds: orchestrator). Park the rest, and say in a sentence what you parked and why: they read it when they are back.',
+    )
+    // Where held work is theirs, waiting on an answer is waiting on nobody.
+    expect(nobodyHere({ ...asked, seen: NOW - 134 * MINUTE, holds: 'ask' })).toContain(
+      'theirs to decide (queue.holds: ask), so park it',
+    )
+  })
+
+  it('counts a window a person opened as a sign, and one a service manager opened as none', () => {
+    // Somebody typed `tade app` a minute ago: they are here.
+    expect(nobodyHere({ ...asked, opened: NOW - MINUTE })).toBeNull()
+    // systemd brought it up a minute ago at three in the morning: nobody is.
+    const kept = nobodyHere({ ...asked, opened: NOW - MINUTE, keptBy: 'systemd' })
+    expect(kept).toContain('since systemd started this window, 1m ago')
+    // And a key pressed since is a sign either way.
+    expect(nobodyHere({ ...asked, keptBy: 'systemd', seen: NOW - MINUTE })).toBeNull()
   })
 })

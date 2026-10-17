@@ -1,4 +1,5 @@
 import {
+  type Budget,
   checkBudget,
   defaultConfigPath,
   duration,
@@ -122,14 +123,20 @@ export function registerSpend(program: Command, io: Io): void {
         ...names(report.byProvider, ran.byProvider).map((n) => shown(n).length),
         7,
       )
+      // A budget is a day's, so it is held against today alone: against a
+      // week's spend every project with one would read as over.
+      const against = (spend: Spend | undefined, budget: Budget | undefined): string => {
+        const state = days === 1 ? checkBudget(spend ?? noSpend(), budget) : null
+        return !state || state.verdict === 'ok' ? '' : `  ← ${state.verdict}: ${state.reason}`
+      }
       for (const name of projects) {
         const spend = report.byProject[name]
-        const budget = cfg.ok ? cfg.config.projects[name]?.budget : undefined
-        const state = checkBudget(spend ?? noSpend(), budget)
-        const note = state.verdict === 'ok' ? '' : `  ← ${state.verdict}: ${state.reason}`
+        const note = against(spend, cfg.ok ? cfg.config.projects[name]?.budget : undefined)
         io.out(`  ${line(name, width, spend, ran.byProject[name])}${note}`)
       }
-      io.out(`  ${line('total', width, report.total, ran.total)}`)
+      // The machine's own budget is the total's, every project together (`budget.ts`).
+      const machine = against(report.total, cfg.ok ? cfg.config.budget : undefined)
+      io.out(`  ${line('total', width, report.total, ran.total)}${machine}`)
 
       if (models.length > 1) {
         io.out('')

@@ -202,6 +202,8 @@ export async function start(
     now?: () => number
     /** Where an owner's presence goes, for a test that reads it. */
     present?: (device: string, at: number) => void
+    /** Where a device saying its page is being looked at goes (`looking.ts`). */
+    looking?: (device: string, at: number) => void
     /** The window's attach lines, for a test of an owner asking for one. */
     attaching?: WebAttaching
     /** The window's catch-up card, for a test of an owner asking what it missed. */
@@ -247,6 +249,7 @@ export async function start(
     ...(opts.publicSocket === undefined ? {} : { publicSocket: opts.publicSocket }),
     ...(opts.now === undefined ? {} : { now: opts.now }),
     ...(opts.present === undefined ? {} : { present: opts.present }),
+    ...(opts.looking === undefined ? {} : { looking: opts.looking }),
     ...(opts.attaching === undefined ? {} : { attaching: opts.attaching }),
     ...(opts.since === undefined ? {} : { since: opts.since }),
   })

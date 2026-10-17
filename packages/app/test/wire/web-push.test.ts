@@ -12,7 +12,7 @@ import {
   type TaskNow,
 } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
-import { TRIES, WebPush } from '../../src/wire/web-push.ts'
+import { pushFor, TRIES, WebPush } from '../../src/wire/web-push.ts'
 
 // The window's half of notifications, driven against a push service that is
 // not one.
@@ -395,6 +395,97 @@ describe('what stops one', () => {
     expect(it_.pusher.sent).toEqual([])
     const { pushes } = await readPushes(it_.home)
     expect(pushes[0]?.forgotten).toBe('signed out')
+  })
+})
+
+describe('who is in front of which screen', () => {
+  const both = [
+    { id: DEVICE, revoked: null },
+    { id: OTHER, revoked: null },
+  ]
+  /** Two phones, each told through its own push service, and one thing that wants you. */
+  async function two() {
+    const it_ = await made({ devices: both, asked: [DEVICE] })
+    await appendPush(it_.home, {
+      kind: 'subscribed',
+      device: OTHER,
+      at: new Date(1_000).toISOString(),
+      endpoint: `${ENDPOINT}-other`,
+      ...KEYS,
+    })
+    await it_.push.open()
+    it_.sees([task()])
+    await it_.beat()
+    return it_
+  }
+
+  it('sends nothing to the phone whose own page is in front of somebody, and as ever to the other', async () => {
+    // `looking.ts`: about that device and nothing else — so a copied session
+    // saying it can quiet only what its own device is sent.
+    const it_ = await two()
+    it_.push.looking(DEVICE, 1_000_000 - 1_000)
+    it_.sees([task({ waiting: true })])
+    await it_.beat(() => it_.pusher.sent.length === 1)
+    await it_.beat()
+    expect(it_.pusher.sent.map((one) => one.to.endpoint)).toEqual([`${ENDPOINT}-other`])
+  })
+
+  it('stops quieting it once nobody has touched that page for the window a keypress counts', async () => {
+    const it_ = await two()
+    it_.push.looking(DEVICE, 1_000_000 - 3 * 60_000)
+    it_.sees([task({ waiting: true })])
+    await it_.beat(() => it_.pusher.sent.length === 2)
+    expect(it_.pusher.sent).toHaveLength(2)
+  })
+
+  it('counts the person at another of their screens for every device, through the window’s own door', async () => {
+    // REMOTE-TADE.md §5.3: a VPS whose window nobody types into is told by the
+    // Mac's link when a key was pressed there, and does not buzz the phone.
+    const home = await mkdtemp(join(tmpdir(), 'tade-push-'))
+    await subscribed(home)
+    const config = ConfigSchema.parse({
+      surfaces: { web: { enabled: true, push: true, push_key: generateVapid().privateKey } },
+    })
+    const pusher = scriptedPusher([])
+    // As the projection has a task: an approval rather than `waiting`.
+    const row = (over: Record<string, unknown> = {}) => {
+      const { waiting: _, ...one } = task()
+      return { ...one, approval: null, ...over }
+    }
+    let tasks: readonly unknown[] = [row()]
+    // Midday here, outside the quiet hours a push reads by the local hour.
+    const now = new Date(2026, 9, 17, 12).getTime()
+    let presentAt: number | null = now - 1_000
+    const phone = {
+      id: DEVICE,
+      revoked: null,
+      projects: null,
+      granted: [],
+      host: 'tade.example.com',
+    }
+    const push = pushFor(
+      { opts: { home, config }, state: { lastInputAt: null }, now: () => now },
+      { writeKey: async () => {}, pusher: () => pusher },
+      {
+        tasks: () => tasks as never,
+        devices: () => [phone as never],
+        tell: () => {},
+        presentAt: () => presentAt,
+      },
+    )
+    await push.open()
+    push.beat()
+    await settle()
+    tasks = [row({ approval: { tool: 'bash' } })]
+    push.beat()
+    await settle()
+    expect(pusher.sent).toEqual([])
+    // Gone from the Mac for longer than a keypress counts: the phone is told.
+    presentAt = now - 3 * 60_000
+    tasks = [row({ approval: { tool: 'bash' }, state: 'failed' })]
+    push.beat()
+    await settle(() => pusher.sent.length === 1)
+    expect(pusher.sent).toHaveLength(1)
   })
 })
 

@@ -357,6 +357,7 @@ export function webServer(opts: ServerOptions): WebServer {
         return 'refusal' in said ? answer(res, said.refusal) : json(res, said.body)
       }
       case 'presence':
+      case 'looking':
       case 'attach':
       case 'since':
       case 'carry': {

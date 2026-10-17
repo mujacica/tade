@@ -72,6 +72,8 @@ export interface DryRun {
 export interface LimitFacts {
   /** What a project has spent today against what it may, per project. */
   budget: readonly { project: string; said: string }[]
+  /** What the machine has spent today against what it may (`budget.ts`); absent or null where none is set. */
+  machine?: string | null
   /**
    * What could not be read, and what each one means for this answer.
    *
@@ -186,10 +188,16 @@ function limitsOf(plan: Plan | null, config: Config, limits: LimitFacts): string
   for (const project of plan ? projectsIn(plan) : []) {
     const most = config.projects[project]?.max_parallel
     const spend = limits.budget.find((one) => one.project === project)
+    // With a machine budget, a project with none of its own is still held on
+    // money, and "nothing holds a start" would be the one false thing here.
+    const none = limits.machine
+      ? 'no daily budget of its own — the machine’s, below, holds every start'
+      : 'no daily budget is set, so nothing holds a start on money'
     said.push(
-      `${project}: ${most ? `at most ${most} agent${most === 1 ? '' : 's'} at once` : 'no limit on agents at once'}; ${spend ? spend.said : 'no daily budget is set, so nothing holds a start on money'}.`,
+      `${project}: ${most ? `at most ${most} agent${most === 1 ? '' : 's'} at once` : 'no limit on agents at once'}; ${spend ? spend.said : none}.`,
     )
   }
+  if (limits.machine) said.push(`This machine, every project together: ${limits.machine}.`)
   // The honest answer, and the reason it has to be said: only the process
   // supervising the agents can read a plan window, so reading one from a
   // command line is "cannot tell" and never "there is room".

@@ -326,6 +326,18 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   pause or exceed `max_parallel`, and nothing recomputes it: the last line written wins, so nothing
   can be starved by something newer looking better. A model may suggest one; a person or the
   orchestrator writes it down, with a reason of their own.
+- **Work nobody here asked for waits on a nearly full plan** (`planTooTight`, `core/src/limits.ts`),
+  asked at the moment of starting like the trees and through the one hold path: a request from outside
+  always (`intakeStands`), and work a schedule or a watch made — `by: schedule:<id>` in its task file,
+  carried on `Queued.by` and never looked up in a journal fold that forgets — where
+  `queue.hold_scheduled` says so, on by default (`planHold`, `wire/queue.ts`). It is what stops a night
+  of watches on a box with nobody there from spending the morning's window. Two differences, each argued
+  where it is written: for scheduled work **an unknown plan does not hold**, because both subscription
+  harnesses only say how full a plan is as their agents run, so holding on unknown would hold the one
+  start that could make it known, for good; and the hold is told with **its own answer**
+  (`HoldTold.plan`, `ANSWERS.plan`), never "start it anyway" — a start while the window is that full is
+  held and told again, which offered to the orchestrator is a loop. Work somebody asked for here is
+  never held by it.
 - **What a schedule or a watch would start is the orchestrator's to decide** (`decidesOf`,
   `core/src/proposals.ts`, `wire/proposals.ts`). A watch only knows its keys, and one red commit is one
   key — so `review.branch-checks` put an agent on red CI on main, and ten minutes later put a second

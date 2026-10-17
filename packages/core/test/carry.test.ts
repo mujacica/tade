@@ -43,6 +43,7 @@ describe('what is carried', () => {
       'approvals.mode',
       'checks.before',
       'queue.holds',
+      'queue.hold_scheduled',
       'notes.keep_days',
       'documents.keep_days',
       'surfaces.voice.attention.quiet',
@@ -72,6 +73,7 @@ describe('what is carried', () => {
       'telemetry.environment',
       'checks.run_here',
       'journal.max_mb',
+      'budget.usd_per_day',
     ]) {
       expect(decided(path), path).toBe('here')
     }

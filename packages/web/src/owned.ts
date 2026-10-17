@@ -3,6 +3,7 @@ import { type AttachAnswer, attachHere } from './attached.ts'
 import { type Answering, type CarryAnswer, carryHere } from './carried.ts'
 import type { Device } from './devices.ts'
 import type { Refusal } from './errors.ts'
+import { carryLooking } from './looking.ts'
 import { carryPresence } from './presence.ts'
 import type { ServerOptions } from './serving.ts'
 import { type SinceAnswer, sinceHereFor } from './since.ts'
@@ -14,13 +15,18 @@ import { type SinceAnswer, sinceHereFor } from './since.ts'
 // missed while they were away (`since.ts`). One door in `server.ts` for all
 // four, because each is the SSH key's word and nothing a phone's session is
 // ever answered.
+//
+// And through the same door, one word **any** device may say, because it is
+// the same kind of word as the first — a device's own about the person holding
+// it — and asks nothing an owner has: that its page is being looked at
+// (`looking.ts`), which only ever quiets what that one device is sent.
 
 export async function carryOwned(
   route: string,
   req: IncomingMessage,
   device: Device,
   now: number,
-  opts: Pick<ServerOptions, 'present' | 'carrying' | 'attaching' | 'since'>,
+  opts: Pick<ServerOptions, 'present' | 'looking' | 'carrying' | 'attaching' | 'since'>,
   res: Answering,
 ): Promise<
   { body: { at: string } | CarryAnswer | AttachAnswer | SinceAnswer } | { refusal: Refusal }
@@ -28,5 +34,6 @@ export async function carryOwned(
   if (route === 'carry') return carryHere(req, device, opts.carrying, res)
   if (route === 'attach') return attachHere(req, device, opts.attaching)
   if (route === 'since') return sinceHereFor(req, device, now, opts.since)
+  if (route === 'looking') return carryLooking(req, device, now, opts.looking)
   return carryPresence(req, device, now, opts.present)
 }

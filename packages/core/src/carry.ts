@@ -114,6 +114,12 @@ const RULES: readonly Rule[] = [
   },
   { at: 'journal', carry: 'here', because: 'what the journal may weigh is this machine’s disk' },
   {
+    at: 'budget',
+    carry: 'here',
+    because:
+      'what a machine may spend in a day is a cap on that machine’s night, set where it runs',
+  },
+  {
     at: 'checks.run_here',
     carry: 'here',
     because: 'which checks can run is a fact about this machine',

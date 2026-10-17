@@ -285,6 +285,12 @@ export interface AppOptions {
    * test links to far ends on this machine and never dials anybody's host.
    */
   remoteLinks?: Readonly<Record<string, MakeRemoteLink>>
+  /**
+   * What keeps this window open, where a service manager does (`keptByService`,
+   * read once by whoever starts the window): the always-on box, said in
+   * Settings and in whether anybody is here. Absent is a window a person opened.
+   */
+  keptBy?: string | null
   now?: () => number
   frameMs?: number
   /**

@@ -218,6 +218,11 @@ export class Away implements Subject {
     )
   }
 
+  /** "Nobody is here", for a turn Tade starts, or null where somebody has been (`web-presence.ts`). */
+  nobodyHere(): string | null {
+    return this.presences.nobodyHere()
+  }
+
   /** The listener made to match the config as a setting changes (`Settings.use`, `web-follow.ts`). */
   follow(): void {
     const want = builtFrom(surfaceOf(this.config().surfaces.web))
@@ -281,6 +286,7 @@ export class Away implements Subject {
         now: () => this.wire.now(),
       }),
       present: (device, at) => this.presences.seen(device, at),
+      looking: (device, at) => this.push.looking(device, at),
       since: this.presences.since(),
       carrying: carryingFor(this.wire, this.deps.settings),
       attaching: attachingFor(this.wire.opts.client),

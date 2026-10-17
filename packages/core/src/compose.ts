@@ -1,6 +1,7 @@
 import { isChatTask } from './chat.ts'
 import { checksTold } from './checks.ts'
 import type { AgentWorkspace, ChecksConfig, Config, QueueHolds } from './config.ts'
+import { PLAN_TIGHT } from './limits.ts'
 import { type Note, scopesOf } from './memory.ts'
 import type { PushMode } from './project.ts'
 import { NEVER_GO_QUIET } from './quiet.ts'
@@ -132,6 +133,12 @@ export function composePrompt(input: ComposeInput): string {
 }
 
 /**
+ * Why work a schedule made has not started on a full plan, said once so a hold
+ * is not met with a start that only holds it again (`planTooTight`).
+ */
+const SCHEDULED_ON_A_FULL_PLAN = `Work a schedule or a watch makes waits while a plan window is ${PLAN_TIGHT}% used or more (queue.hold_scheduled): starting it again does not answer that hold — the window starting over does.`
+
+/**
  * How this machine is set up, in the terms that change an answer.
  *
  * Not a recital of the config: these are the few settings that make the same
@@ -173,6 +180,16 @@ function describePosture(config: Config): string {
     ].filter(Boolean)
     if (limits.length > 0) lines.push(`${name} may spend ${limits.join(' or ')} a day.`)
   }
+  // The machine's own, beside each project's (`budget.ts`): the one a night
+  // that fans out across projects runs into.
+  const machine = [
+    config.budget.usd_per_day === undefined ? '' : `$${config.budget.usd_per_day.toFixed(2)}`,
+    config.budget.tokens_per_day === undefined ? '' : `${config.budget.tokens_per_day} tokens`,
+  ].filter(Boolean)
+  if (machine.length > 0) {
+    lines.push(`This machine may spend ${machine.join(' or ')} a day, every project together.`)
+  }
+  if (config.queue.hold_scheduled) lines.push(SCHEDULED_ON_A_FULL_PLAN)
   return ['How this machine is set up:', ...lines.map((line) => `- ${line}`)].join('\n')
 }
 

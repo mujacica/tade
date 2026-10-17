@@ -369,6 +369,7 @@ export class App {
       useConfig: (config) => this.settings.use(config),
       credentialProblem: (provider) => this.machine.credentialProblem(provider),
       machines: () => this.remotes.machines(),
+      nobodyHere: () => this.away.nobodyHere(),
     })
     this.agents = new Agents(this.wire, {
       useConfig: (config) => this.settings.use(config),

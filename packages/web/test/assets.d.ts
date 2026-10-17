@@ -515,6 +515,15 @@ declare module '*/assets/push.js' {
     shell: { notifying?: { offered?: boolean; key?: string } } | null,
     ask: (method: string, path: string, body: unknown) => Promise<{ status: number }>,
   ): Promise<boolean>
+  export const LOOKING_MS: number
+  export function looking(
+    shell: { notifying?: { offered?: boolean; key?: string } } | null,
+    ask: (method: string, path: string, body: unknown) => Promise<{ status: number }>,
+    page?: {
+      visibilityState: string
+      addEventListener(kind: string, run: () => void, options?: unknown): void
+    },
+  ): void
   export function bodyOf(made: {
     toJSON(): { endpoint?: string; keys?: Record<string, string> }
   }): {

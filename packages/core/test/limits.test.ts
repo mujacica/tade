@@ -9,6 +9,7 @@ import {
   planReport,
   planShown,
   planStandings,
+  planTooTight,
   resetsIn,
   tightestPlan,
 } from '../src/limits.ts'
@@ -374,5 +375,41 @@ describe('where every sign-in stands', () => {
 
   it('has nothing pressed and nothing to offer when there are no sign-ins', () => {
     expect(planReport([], NOW)).toEqual({ signIns: [], pressed: [], instead: [] })
+  })
+})
+
+describe('work nobody here asked for, on a full plan', () => {
+  const full = source({
+    said: { at: NOW, windows: [{ label: '5h', used: 93, resetsAt: NOW + HOUR }] },
+  })
+  const silent = source({ said: null })
+
+  it('holds scheduled work on a window seen nearly full, and names the setting that does it', () => {
+    const held = planTooTight(planStandings([full], NOW), 'scheduled')
+    expect(held?.because).toBe(
+      "claude-code has used 93% of its 5h window, and what is left of it is not a schedule's to spend while queue.hold_scheduled is on",
+    )
+    // Outside work is held by the same window, in its own words.
+    expect(planTooTight(planStandings([full], NOW))?.because).toContain('a request from outside')
+  })
+
+  it('does not hold scheduled work where nobody can say yet, or it would never start again', () => {
+    // After a restart a plan says nothing until an agent has run on it: held
+    // on unknown, the only work a quiet machine makes could never start.
+    expect(planTooTight(planStandings([silent], NOW), 'scheduled')).toBeNull()
+    // Outside work keeps the stricter rule: unknown is not zero.
+    expect(planTooTight(planStandings([silent], NOW))?.because).toContain('unknown about a plan')
+    // And a full window beside a silent one still holds.
+    expect(planTooTight(planStandings([silent, full], NOW), 'scheduled')).not.toBeNull()
+  })
+
+  it('does not hold below the line, nor on a sign-in billed per token', () => {
+    const warm = source({
+      said: { at: NOW, windows: [{ label: '5h', used: PLAN_TIGHT - 1, resetsAt: NOW + HOUR }] },
+    })
+    expect(planTooTight(planStandings([warm], NOW), 'scheduled')).toBeNull()
+    expect(
+      planTooTight(planStandings([{ ...full, pays: 'per-token' }], NOW), 'scheduled'),
+    ).toBeNull()
   })
 })

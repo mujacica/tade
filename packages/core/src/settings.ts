@@ -172,6 +172,8 @@ export function settingsOf(
   config: Config,
   secrets: readonly SecretRow[] = [],
   levels: Readonly<Record<string, readonly ThinkingLevel[]>> = {},
+  /** What keeps this window open where something does (`keptByService`): said where it matters. */
+  keptBy: string | null = null,
 ): SettingGroup[] {
   const voice = config.surfaces.voice
   // `…/ggml-base.en.bin` is the base.en model: the name people know it by.
@@ -197,7 +199,7 @@ export function settingsOf(
       id: 'agents',
       title: 'Agents',
       about:
-        'Where agents work, what they commit, what they push, when they have to ask before they act, and what happens to them when Tade closes.',
+        'Where agents work, what they commit, what they push, when they have to ask before they act, what this machine may spend on them in a day, and what happens to them when Tade closes.',
       keywords: ['approval', 'approvals', 'ask', 'permission', 'policy', 'bypass'],
       settings: [
         {
@@ -300,6 +302,32 @@ export function settingsOf(
             'slow',
             'laggy',
           ],
+        },
+        {
+          // The machine's, beside each project's on its own tab: every
+          // project's agents together and the orchestrator's turns, held at
+          // each start (`budget.ts`). Empty until somebody writes an amount.
+          path: 'budget.usd_per_day',
+          title: 'Budget a day, this machine',
+          means:
+            'dollars a day across every project, the orchestrator included; agents are warned at 80% and refused past it',
+          value: config.budget.usd_per_day === undefined ? '' : String(config.budget.usd_per_day),
+          fallback: 'no budget',
+          type: { kind: 'number' },
+          live: true,
+          keywords: ['budget', 'spend', 'money', 'dollars', 'cap', 'machine', 'overnight'],
+        },
+        {
+          path: 'budget.tokens_per_day',
+          title: 'Tokens a day, this machine',
+          means:
+            'tokens a day across every project — the cap that holds on a plan, where nobody is billed; warned at 80%, refused past it',
+          value:
+            config.budget.tokens_per_day === undefined ? '' : String(config.budget.tokens_per_day),
+          fallback: 'no budget',
+          type: { kind: 'number' },
+          live: true,
+          keywords: ['budget', 'tokens', 'cap', 'plan', 'subscription', 'machine', 'overnight'],
         },
         {
           path: 'workspace.driver',
@@ -533,7 +561,7 @@ export function settingsOf(
       ],
     },
     windowGroup(config),
-    awayGroup(config),
+    awayGroup(config, keptBy),
     intakeGroup(config),
     ...projectGroups(config),
     keepGroup(config),

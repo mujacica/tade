@@ -18,7 +18,8 @@ arithmetic over the same tokens, in no total of money and no budget, and nobody'
 
 | Path | What |
 |---|---|
-| `packages/core/src/spend.ts` | the fold: `spendFrom`, `Spend`, `noSpend`, `usdExact` / `usdEstimated` / `usdListed`, `usdOnPlan` / `tokensOnPlanUnrated` / `onPlanOf`, `hasCost`, `pricedOf`, `checkBudget`, `modelIdentity`, `modelIn`, `modelDetail`, `modelsSaid`, `modelLastRunOn`, `UNRECORDED`, `HARNESS_FACTS`, `isMoney`, `runFactsOf`, `runFactsFrom`, `accountBucket` |
+| `packages/core/src/spend.ts` | the fold: `spendFrom`, `Spend`, `noSpend`, `usdExact` / `usdEstimated` / `usdListed`, `usdOnPlan` / `tokensOnPlanUnrated` / `onPlanOf`, `hasCost`, `pricedOf`, `modelIdentity`, `modelIn`, `modelDetail`, `modelsSaid`, `modelLastRunOn`, `UNRECORDED`, `HARNESS_FACTS`, `isMoney`, `runFactsOf`, `runFactsFrom`, `accountBucket` |
+| `packages/core/src/budget.ts` | what may be spent in a day: `BudgetSchema` (a project's and the machine's), `checkBudget`, `startBudget` — the two a start is held to — and `packages/workbench/src/budget.ts`'s `guardBudget`, which asks it before every agent starts |
 | `packages/core/src/prices.ts` | what a model costs where nobody will say: `PRICES`, `PRICES_TAKEN`, `priceFor`, `priceKey`, `estimateUsd`, `pricesFrom` — and `config.prices`, the override |
 | `packages/core/src/runtime.ts` | how long: `runtimeFrom`, `RUNTIME_EVENTS`, `Runtime`, `workedOf`, `runtimeSays`, `workedSays`, `duration` |
 | `packages/core/src/limits.ts` | a plan: `LimitsSupport`, `PlanPays`, `PlanWindow`, `PlanStanding`, `planStandings`, `tightestPlan`, `planShown`, `nextPlan`, `PLAN_WARM`/`PLAN_TIGHT`/`planPressure`, `planReport`, `resetsIn`, `planLabel`, `cannotTell` |
@@ -370,6 +371,31 @@ unreadable row, which is how this was reported.
 
 Nothing on this page cuts its own rows to fit and nothing caps a list with `+7 more`: the panel body
 is a scroll region like any other, through `scrollBy` and `atOffset`.
+
+## Two daily budgets, and a start is held to both
+
+A project's (`projects.<name>.budget`) and the machine's (`budget`, every project together and the
+orchestrator's own turns), each `usd_per_day` and `tokens_per_day`. `startBudget` (`core/src/budget.ts`)
+is the rule and `guardBudget` (`workbench/src/budget.ts`) asks it before any agent starts: refused past
+either, warned at 80%, never a run cut off half way.
+
+- **The machine's exists for the night that fans out** (REMOTE-TADE.md §5.2): six projects each inside
+  their own budget are one machine with no line anywhere, and on a box that runs with nobody there that
+  is the money nobody watched. **It has no amount until somebody writes one** — any figure Tade chose is
+  a cap that stops a wanted day at noon or one that never caps.
+- **The worse verdict decides, and every budget at it is named** — a start refused by the machine's while
+  its project's was spent too is two numbers somebody might raise, and naming one sends them to the wrong
+  one.
+- **Billed money and tokens, never `usdOnPlan`.** On a plan the dollars stay nought, so a plan is held by
+  its own window (`planTooTight`, `change-the-queue`) and by `tokens_per_day`, which is why Settings
+  offers the machine both rows.
+- **A journal that would not open is said, not read as nothing spent**: the start goes ahead and a
+  `warning` says no budget was checked for it.
+- It is **each machine's own** (`carryOf`: `here`) and `asked` to the orchestrator, like a project's: on
+  a machine with nobody there no `said` line names it, so nothing a page says can raise it. Every
+  surface that says a project's budget says the machine's beside it — the orchestrator's posture
+  (`describePosture`), `tade spend`'s total (today only: a day's budget against a week reads as over),
+  and the dry run (`budgetFrom`), which must never say "nothing holds a start" while the machine's does.
 
 ## A replay's ceiling
 
