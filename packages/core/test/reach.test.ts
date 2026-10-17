@@ -703,6 +703,48 @@ describe('whether the person themselves named it', () => {
     expect(namedBy({ path: 'app', title: 'app' }, ['close the app project'])).not.toBeNull()
   })
 
+  it('names a route’s row by its route or its harness with the setting, never by one word of its path', () => {
+    // Every route has a model and a thinking, and so does every harness under
+    // one, so `model` named all of them and `default` every row of the
+    // default route: "switch the model" authorised every default new agents
+    // start on. What is left is what says which, beside what it is.
+    const models = (over: Record<string, unknown> = {}) =>
+      settingsOf(ConfigSchema.parse(over)).find((group) => group.id === 'models')?.settings ?? []
+    const named = (line: string, over: Record<string, unknown> = {}) =>
+      models(over)
+        .filter((one) => namedBy(one, [line]) !== null)
+        .map((one) => one.path)
+    expect(named('make opus the default')).toEqual(['workers.routes.default.model'])
+    expect(named('switch the model')).toEqual([])
+    expect(named('think harder, and use another harness')).toEqual([])
+    expect(named('set codex thinking to high')).toEqual([
+      'workers.routes.default.harnesses.codex.thinking',
+    ])
+    expect(named('start new ones in claude code on sonnet: the claude code model')).toEqual([
+      'workers.routes.default.harnesses.claude-code.model',
+    ])
+    expect(named('make the default thinking high')).toEqual(['workers.routes.default.thinking'])
+    // Another route takes its own name, and the default's words never reach it.
+    const two = { workers: { routes: { default: {}, fast: { harness: 'pi' } } } }
+    expect(named('put the fast route on a cheaper model', two)).toEqual([
+      'workers.routes.fast.model',
+    ])
+    expect(named('make opus the default', two)).toEqual(['workers.routes.default.model'])
+    expect(named('let the fast route think at high thinking', two)).toEqual([
+      'workers.routes.fast.thinking',
+    ])
+    expect(named('set the fast codex thinking to high', two)).toContain(
+      'workers.routes.fast.harnesses.codex.thinking',
+    )
+    expect(named('set codex thinking to high', two)).not.toContain(
+      'workers.routes.fast.harnesses.codex.thinking',
+    )
+    // The path itself still names a row, as it names everything else.
+    expect(named('set workers.routes.fast.harness to codex', two)).toEqual([
+      'workers.routes.fast.harness',
+    ])
+  })
+
   it('is empty-handed with nothing to look at', () => {
     expect(namedBy(setting, [])).toBeNull()
   })

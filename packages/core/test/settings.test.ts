@@ -156,6 +156,23 @@ describe('a model and a level belong to a harness', () => {
     })
   })
 
+  it('says a route’s model with its provider once, however the two were written', () => {
+    // A route given a provider beside its model, as switching an agent once
+    // kept it, then its model row written as the row offers it: pi takes the
+    // pair as one model, and the row says it as one.
+    const route = (one: Record<string, string>) =>
+      find('workers.routes.default.model', { workers: { routes: { default: one } } }).value
+    expect(route({ provider: 'anthropic', model: 'claude-opus-5' })).toBe('anthropic/claude-opus-5')
+    expect(route({ provider: 'anthropic', model: 'anthropic/claude-sonnet-5' })).toBe(
+      'anthropic/claude-sonnet-5',
+    )
+    expect(route({ model: 'openrouter/anthropic/claude-opus-4.5' })).toBe(
+      'openrouter/anthropic/claude-opus-4.5',
+    )
+    // A provider that only begins the same way is another provider.
+    expect(route({ provider: 'open', model: 'openrouter/x' })).toBe('open/openrouter/x')
+  })
+
   it('offers the levels the harness thinks at, and every level where nobody said', () => {
     const levels = { pi: ['off', 'low', 'high'], 'claude-code': ['low', 'max'] } as const
     const of = (path: string, over: Record<string, unknown>) => {

@@ -25,7 +25,8 @@ orchestrator's arm reaches into it, and whether a person can read back what they
 | `packages/core/src/project.ts` | what one project answers for itself: `workspaceFor`, `pushFor`, `PUSH_MODES`, `pushProblems` |
 | `packages/core/src/secrets.ts` | a credential: `findSecret`, `secretPath`, `secretCommand`, `IN_CONFIG`, `KEYS_AND_AGENTS`, `SEEN_BY_AGENTS` |
 | `packages/core/src/gone.ts` | keys that are gone: the `GONE` table, `dropGone`, `SERVER_RUNS_AS_YOU`, `SERVER_HELD_BY_NOTHING`, `CHECKS_ARE_READ` |
-| `packages/app/src/wire/settings.ts` | where reach is *enforced*, `config_changed`, `held` (a credential said as `set` / `not set`) |
+| `packages/app/src/wire/settings.ts` | the page's one write, `config_changed`, `held` (a credential said as `set` / `not set`) |
+| `packages/app/src/wire/setting-tools.ts` | where reach is *enforced*: `tade_settings`' listing and `askedSetting`, the boundary asked before the row |
 | `packages/app/src/panels/settings/state.ts` | the page: `settingsClick`, `leavingField`, `visibleSettings`, `writeOf` |
 | `packages/app/src/wire/projects.ts` | `openAt` — the one door a project is opened through |
 | `packages/orchestrator/src/tools-config.ts` | `tade_settings`, `tade_setting_change`, `tade_project_open`, `tade_project_close` |
@@ -108,7 +109,7 @@ What differs from the page is that the orchestrator is ungated and reads attacke
 all day — a review comment, a CI log, a dependency's changelog. So the question is never whether it
 can be trusted but **what the worst a sentence it read can do is**, which is a property of the
 setting rather than of the model. It is decided in one pure function (`settingReach`,
-`core/src/reach.ts`) and **enforced in the window** (`packages/app/src/wire/settings.ts`), never in
+`core/src/reach.ts`) and **enforced in the window** (`packages/app/src/wire/setting-tools.ts`), never in
 the tool: a rule that lives where the model lives is a rule the model can be talked out of.
 
 Three answers and no fourth:
@@ -158,7 +159,10 @@ Two consequences when you add a key:
   is `namedBy`, which reads the setting's path, its title as a phrase, its `keywords` and its path
   segments (`wordsFor`) — so `keywords` that are the words somebody would actually say is what keeps
   a legitimate request from being refused. It is the same list the panel's search reads, so this
-  costs nothing extra.
+  costs nothing extra. A segment every row of its kind shares names none of them: a section, a
+  project's name, a scope, and every word of a route's row, which a line names only by the route's
+  or the harness's name *with* the setting's (`wordsTogether`) — "switch the model" names no
+  route's model, "make the default thinking high" names one row.
 - Every change writes `config_changed` — the path, what it was, what it is now, who asked, and their
   words — because a change nobody watched has to be one somebody can find and undo. A credential is
   said there as `set` or `not set` (`held` in `wire/settings.ts`) and is never read back by any tool,

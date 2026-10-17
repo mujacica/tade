@@ -112,8 +112,15 @@ function routeRows(
   return rows
 }
 
-/** A model as its row shows it: `provider/id` where a provider is kept beside it. */
+/**
+ * A model as its row shows it: `provider/id` where a provider is kept beside
+ * it, and the provider said once. A route with a `provider` whose model row was
+ * written as the row offers it — `anthropic/claude-…` — holds the provider
+ * twice, which pi takes as one model (`--provider p --model p/id`), and the row
+ * read back as `anthropic/anthropic/claude-…`.
+ */
 function shown(at: { provider?: string | undefined; model?: string | undefined } | undefined) {
   if (!at?.model) return ''
-  return at.provider ? `${at.provider}/${at.model}` : at.model
+  if (!at.provider || at.model.startsWith(`${at.provider}/`)) return at.model
+  return `${at.provider}/${at.model}`
 }

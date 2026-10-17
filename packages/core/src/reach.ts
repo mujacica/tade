@@ -521,6 +521,28 @@ export function watchNamedBy(
  * and never by `intake`, `sources` or `github`, each of which names all eight
  * of that source's settings and six of them no words reach.
  *
+ * **And a route's row counts no word of its path on its own**, for the same
+ * reason a third time. Every route has a `model`, a `thinking` and a
+ * `harness`, and every harness kept under one (`harnesses.<h>`) a model and a
+ * thinking, so each of those words named that row under every route, and
+ * `default` named every row of the default route — "switch the model" named
+ * every default a new agent starts on. A line names one by saying what is its
+ * own together with what it is (`wordsTogether`): the route's name and the
+ * setting — `default thinking`, `fast model` — or a harness's name and the
+ * setting — `codex thinking` — with the route's name as well under any route
+ * but the default. The one word that may stand alone is `default`, for the
+ * default route's model, because that is how a default is asked for — "make
+ * opus the default" — and only in a line that does not say which other of the
+ * route's settings it means: "make the default thinking high" is not about
+ * its model.
+ *
+ * The default route is the one called `default`, which is what Tade makes:
+ * this reads the path and not `workers.default`, so one renamed in
+ * `config.yaml` is named by its own name and its title and never by `default`
+ * — refused more, never less. And a line about another route's harness, "the
+ * fast route's codex thinking", names the default route's codex thinking too,
+ * which takes no route word: the same harness and the same setting they named.
+ *
  * The title always counts however short it is: it is the name the setting
  * actually has, and somebody who says it has named it. Which is also the shape
  * of the ordinary conversation here — the orchestrator says the setting back
@@ -544,11 +566,56 @@ export function wordsFor(
       .filter((part) => part !== '')
       .map((part) => part.toLowerCase()),
   )
-  const segments = parts.slice(1).filter((part) => part.length >= 5)
+  // A route's row is named by its words together, never one of them (`wordsTogether`).
+  const segments = ROUTE_ROW.test(setting.path.toLowerCase())
+    ? []
+    : parts.slice(1).filter((part) => part.length >= 5)
   const rest = [setting.title, ...(setting.keywords ?? []), ...segments]
     .map((word) => word.trim().toLowerCase())
     .filter((word) => word !== '' && !sections.has(word))
   return [setting.path.trim().toLowerCase(), ...rest]
+}
+
+/** The route Tade makes, and the default one unless `workers.default` was renamed. */
+const DEFAULT_ROUTE = 'default'
+
+/**
+ * One of a route's rows: `workers.routes.<route>.<setting>`, or
+ * `workers.routes.<route>.harnesses.<harness>.<setting>` for what new agents
+ * start on in another harness under it.
+ */
+const ROUTE_ROW = /^workers\.routes\.([^.]+)\.(?:harnesses\.([^.]+)\.)?([^.]+)$/
+
+/** What every route has a row of: a line saying one of the others is not about its model. */
+const ROUTE_SETTINGS = ['model', 'thinking', 'harness']
+
+/** Words a line names something by: every one of `all`, and none of `unless`. */
+interface Together {
+  all: readonly string[]
+  unless?: readonly string[]
+}
+
+/**
+ * What a line has to say to name a route's row (`wordsFor` says why), each
+ * word on its own and in any order: the route's name and the setting's, and
+ * under a harness that harness's name as well — in place of the route's on
+ * the default route. A harness is said as its id or with spaces for its
+ * hyphens, as `watchNamedBy` says a watch: `claude-code`, `claude code`. And
+ * the default route's model by `default` alone, where the line says none of
+ * the route's other settings.
+ */
+function wordsTogether(path: string): Together[] {
+  const row = ROUTE_ROW.exec(path.trim().toLowerCase())
+  if (!row) return []
+  const [, route = '', harness, setting = ''] = row
+  if (harness === undefined) {
+    const own = { all: [route, setting] }
+    if (route !== DEFAULT_ROUTE || setting !== 'model') return [own]
+    return [own, { all: [route], unless: ROUTE_SETTINGS.filter((one) => one !== setting) }]
+  }
+  return [...new Set([harness, harness.replace(/-/g, ' ')])].map((said) => ({
+    all: route === DEFAULT_ROUTE ? [said, setting] : [route, said, setting],
+  }))
 }
 
 /** Whether `phrase` appears in `line` on its own, rather than inside a longer word. */
@@ -584,9 +651,12 @@ export function namedBy(
   lines: readonly string[],
 ): string | null {
   const words = wordsFor(setting)
+  const together = wordsTogether(setting.path)
   for (const line of lines) {
     const said = line.toLowerCase()
-    if (words.some((word) => saidIn(said, word))) return line
+    const says = (word: string) => saidIn(said, word)
+    const saysAll = ({ all, unless = [] }: Together) => all.every(says) && !unless.some(says)
+    if (words.some(says) || together.some(saysAll)) return line
   }
   return null
 }

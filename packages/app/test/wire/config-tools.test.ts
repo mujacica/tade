@@ -219,6 +219,9 @@ describe('the orchestrator, configuring Tade', () => {
   it('refuses a default nobody named, and where a route sends work however it is asked', async () => {
     const config = await tools()
     await theySaid('how is refunds getting on?')
+    // Words every route's rows share name none of them: which route or
+    // harness has to be said too (`wordsFor`).
+    await theySaid('switch the model, and have it use more thinking')
     for (const path of [
       'workers.routes.default.model',
       'workers.routes.default.harnesses.claude-code.model',
@@ -230,16 +233,19 @@ describe('the orchestrator, configuring Tade', () => {
       ).rejects.toThrow(/Nothing they have said names/)
     }
     // Which provider a route sends work to is no default: their words are not
-    // enough, and there is no row of it to write.
+    // enough, and there is no row of it to write — which is said as why it is
+    // not mine, never as a setting that does not exist and might be found.
     await theySaid('send the default route to openrouter, change its provider')
     for (const path of [
       'workers.routes.default.provider',
       'workers.routes.default.harnesses.claude-code.provider',
     ]) {
-      await expect(
-        config.change({ path, value: 'openrouter', said: 'change its provider' }),
-        path,
-      ).rejects.toThrow(/no setting called/)
+      const refused = config.change({ path, value: 'openrouter', said: 'change its provider' })
+      await expect(refused, path).rejects.toThrow(
+        `${path} is not mine to change: a route carries the provider`,
+      )
+      await expect(refused, path).rejects.toThrow(/config\.yaml themselves/)
+      await expect(refused, path).rejects.not.toThrow(/no setting called/)
     }
     expect(client.config.workers.routes.default).toEqual({ harness: 'pi' })
     expect(await changes()).toHaveLength(0)
