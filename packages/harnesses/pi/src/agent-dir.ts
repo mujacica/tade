@@ -11,9 +11,10 @@ import { join } from 'node:path'
  */
 export function agentDir(env: NodeJS.ProcessEnv = process.env, home = homedir()): string {
   const moved = env.PI_CODING_AGENT_DIR
-  return !moved
-    ? join(home, '.pi', 'agent')
-    : moved === '~' || moved.startsWith('~/')
-      ? join(home, moved.slice(1))
-      : moved
+  return moved ? homeExpanded(moved, home) : join(home, '.pi', 'agent')
+}
+
+/** A path as pi reads one it is told: a leading `~` is the home (pi's `normalizePath`). */
+export function homeExpanded(path: string, home = homedir()): string {
+  return path === '~' || path.startsWith('~/') ? join(home, path.slice(1)) : path
 }

@@ -1,4 +1,4 @@
-import { readdir, readFile, realpath } from 'node:fs/promises'
+import { open, readdir, readFile, realpath } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import {
@@ -9,7 +9,7 @@ import {
   momentOf,
 } from '@tade/harnesses-core'
 import { sessionIdFor } from './adapter.ts'
-import { agentDir } from './agent-dir.ts'
+import { agentDir, homeExpanded } from './agent-dir.ts'
 import { modelOfMessage, spentBy } from './usage.ts'
 
 // Reading what an agent did out of pi's own session, rather than out of what
@@ -27,7 +27,8 @@ import { modelOfMessage, spentBy } from './usage.ts'
 // an error.
 
 /**
- * Where pi keeps sessions: under its agent directory (`agentDir`), wherever
+ * Where pi keeps sessions when nothing names it a directory for them
+ * (`sessionsOf`): under its agent directory (`agentDir`), wherever
  * `PI_CODING_AGENT_DIR` in the environment pi is launched with puts it.
  */
 export function sessionsRoot(env: NodeJS.ProcessEnv = process.env, home = homedir()): string {
@@ -76,28 +77,149 @@ export function sessionDirFor(cwd: string, root = sessionsRoot()): string {
 }
 
 /**
+ * Where pi files the sessions it starts in `cwd`, launched with `env` and no
+ * `--session-dir`, which a lane is never given: the directory
+ * `PI_CODING_AGENT_SESSION_DIR` names, or else the one a `sessionDir` in its
+ * settings names — the project's `.pi/settings.json` over the agent
+ * directory's, as pi merges them — or else its own for `cwd` (`sessionDirFor`).
+ * The order is pi's `main`, which exports none of it; a test holds the
+ * settings half to pi's `SettingsManager`. A directory named either way holds
+ * every working directory's sessions together, which `shared` says, and is read
+ * as pi reads it: a leading `~` is the home, and a relative one is from `cwd`.
+ */
+export async function sessionsOf(
+  cwd: string,
+  env: NodeJS.ProcessEnv = process.env,
+  home = homedir(),
+): Promise<{ dir: string; shared: boolean }> {
+  const own = sessionDirFor(cwd, sessionsRoot(env, home))
+  const named = env.PI_CODING_AGENT_SESSION_DIR || (await sessionDirSetting(cwd, env, home))
+  const dir = named ? resolve(cwd, homeExpanded(named, home)) : own
+  return { dir, shared: dir !== own }
+}
+
+/** The `sessionDir` pi's settings name: the project's over the agent directory's, key by key. */
+async function sessionDirSetting(
+  cwd: string,
+  env: NodeJS.ProcessEnv,
+  home: string,
+): Promise<string | undefined> {
+  const [mine, project] = await Promise.all([
+    settingsIn(join(resolve(cwd, agentDir(env, home)), 'settings.json')),
+    settingsIn(join(cwd, '.pi', 'settings.json')),
+  ])
+  const named = project.sessionDir !== undefined ? project.sessionDir : mine.sessionDir
+  return typeof named === 'string' && named ? named : undefined
+}
+
+/**
+ * A pi settings file, or nothing for one that is not there or not JSON, which
+ * pi reads as no settings. One that is there and cannot be read throws: pi
+ * would have read it, so Tade cannot say where it files sessions.
+ */
+async function settingsIn(file: string): Promise<Record<string, unknown>> {
+  const text = await readFile(file, 'utf8').catch((err: NodeJS.ErrnoException) => {
+    if (err.code === 'ENOENT' || err.code === 'ENOTDIR') return null
+    throw new Error(`could not read pi's settings at ${file}: ${err.message}`)
+  })
+  if (text === null) return {}
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text)
+  } catch (err) {
+    if (err instanceof SyntaxError) return {}
+    throw err
+  }
+  return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : {}
+}
+
+/**
+ * Where to look for a task's session: `root` is a test's own sessions root,
+ * looked in the way pi looks in its own (`sessionDirFor`) with nothing else
+ * read; without it, wherever pi launched with `env` files them (`sessionsOf`).
+ */
+export interface SessionsAt {
+  root?: string
+  env?: NodeJS.ProcessEnv
+}
+
+/**
  * Find a task's session file: the one pi carries on when it is started in
  * `cwd` with the task's session id.
  *
- * Only that directory is looked in, because it is the only one pi looks in
+ * Only the directory pi files that working directory's sessions in is looked
+ * in (`sessionsOf`), because it is the only one pi looks in
  * (`SessionManager.findById(cwd, …)`): a session the task left under another
  * working directory is not the one pi would continue. Reading every directory
  * instead cost a tenth of a millisecond for each — every working directory pi
  * was ever run in, one more per worktree — once per agent when Tade opens and
- * again each time one starts.
+ * again each time one starts. In a directory they all share, pi carries on
+ * only a session whose header says it was started in this one, and so here.
  */
 export async function sessionFileFor(
   task: string,
   cwd: string,
-  opts: { root?: string } = {},
+  opts: SessionsAt = {},
 ): Promise<string | null> {
-  const dir = sessionDirFor(await realpath(cwd).catch(() => cwd), opts.root)
-  const suffix = `_${sessionIdFor(task)}.jsonl`
+  const real = await realpath(cwd).catch(() => cwd)
+  const { dir, shared } = opts.root
+    ? { dir: sessionDirFor(real, opts.root), shared: false }
+    : await sessionsOf(real, opts.env)
+  const id = sessionIdFor(task)
   const entries = await readdir(dir).catch(() => [] as string[])
-  // The name starts with a timestamp, so the newest sorts last.
-  const found = entries.filter((entry) => entry.endsWith(suffix)).sort()
-  const newest = found.at(-1)
-  return newest ? join(dir, newest) : null
+  // The name starts with a timestamp, so the newest sorts first here.
+  const found = entries
+    .filter((entry) => entry.endsWith(`_${id}.jsonl`))
+    .sort()
+    .reverse()
+  for (const name of found) {
+    const file = join(dir, name)
+    if (!shared) return file
+    const header = await headerOf(file)
+    if (header?.id === id && header.cwd === real) return file
+  }
+  return null
+}
+
+/** How far into a session pi reads for its header (`MAX_SESSION_HEADER_SCAN_BYTES`). */
+const HEADER_BYTES = 1024 * 1024
+
+/**
+ * A session's header as pi reads it — the first line that parses, which must
+ * be the session's own — with the working directory resolved, or null.
+ */
+async function headerOf(file: string): Promise<{ id: string; cwd: string | null } | null> {
+  const handle = await open(file, 'r').catch((err: NodeJS.ErrnoException) => {
+    // Gone since it was listed, so not a session pi would find either.
+    if (err.code === 'ENOENT') return null
+    throw new Error(`could not read ${file}: ${err.message}`)
+  })
+  if (!handle) return null
+  try {
+    const { buffer, bytesRead } = await handle.read(
+      Buffer.allocUnsafe(HEADER_BYTES),
+      0,
+      HEADER_BYTES,
+      0,
+    )
+    for (const line of buffer.toString('utf8', 0, bytesRead).split('\n')) {
+      let entry: unknown
+      try {
+        entry = JSON.parse(line)
+      } catch (err) {
+        // pi skips a line that does not parse on its way to the header.
+        if (err instanceof SyntaxError) continue
+        throw err
+      }
+      if (!entry) continue
+      const { type, id, cwd } = entry as Record<string, unknown>
+      if (type !== 'session' || typeof id !== 'string') return null
+      return { id, cwd: typeof cwd === 'string' && cwd ? resolve(cwd) : null }
+    }
+    return null
+  } finally {
+    await handle.close()
+  }
 }
 
 /** What a session has cost so far: every entry pi priced, as its own totals count them. */
@@ -131,7 +253,7 @@ export async function usageOf(file: string): Promise<SessionUsage> {
 export async function usageOfTask(
   task: string,
   cwd: string,
-  opts: { root?: string } = {},
+  opts: SessionsAt = {},
 ): Promise<SessionUsage> {
   const file = await sessionFileFor(task, cwd, opts)
   return file ? usageOf(file) : noUsage()
@@ -141,13 +263,13 @@ export async function usageOfTask(
  * A page of a task's conversation, out of pi's own session (`historyIn`).
  *
  * A headless run keeps its session flat in `headless` (`--session-dir`), and
- * one in a lane where pi files it by working directory; the first found is it.
+ * one in a lane where pi files it (`sessionsOf`); the first found is it.
  */
 export async function historyOfTask(
   task: string,
   cwd: string,
   ask: HistoryAsk,
-  opts: { root?: string; headless?: string } = {},
+  opts: SessionsAt & { headless?: string } = {},
 ): Promise<HistoryPage> {
   const suffix = `_${sessionIdFor(task)}.jsonl`
   const flat = opts.headless

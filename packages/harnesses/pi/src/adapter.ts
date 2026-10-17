@@ -42,7 +42,7 @@ import {
   type WorkerSpec,
 } from '@tade/harnesses-core'
 import { findModel, loggedInProviders, usableModels } from './models.ts'
-import { historyOfTask, sessionFileFor, sessionsRoot, usageOfTask } from './sessions.ts'
+import { historyOfTask, type SessionsAt, sessionFileFor, usageOfTask } from './sessions.ts'
 import { type Spent, spentBy, spentByMessage } from './usage.ts'
 
 // Drives pi as a Tade worker: pi runs the agent, Tade supervises it through
@@ -442,8 +442,8 @@ export class PiAdapter implements WorkerAdapter {
   }
 
   /** Where this adapter's pi files sessions: read from the environment `runEnv` launches it with. */
-  private recordsAt(): { root?: string } {
-    return { root: this.opts.sessionsRoot || sessionsRoot(this.opts.env) }
+  private recordsAt(): SessionsAt {
+    return this.opts.sessionsRoot ? { root: this.opts.sessionsRoot } : { env: this.opts.env }
   }
 
   /**

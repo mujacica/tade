@@ -1,5 +1,6 @@
-import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { PiAdapter, sessionIdFor } from '../src/adapter.ts'
@@ -8,6 +9,7 @@ import {
   historyOfTask,
   sessionDirFor,
   sessionFileFor,
+  sessionsOf,
   sessionsRoot,
   usageOf,
   usageOfTask,
@@ -133,6 +135,98 @@ describe('reading a task’s session', () => {
     // Launched without it, pi files them in the home, and so that is where it looks.
     const home = new PiAdapter({ runDir: tmp('tade-pi-'), env: {} })
     expect(await home.hasConversation('app/moved', cwd)).toBe(false)
+  })
+
+  it('looks in the one directory a sessionDir in pi’s settings names, the project’s over its own', async () => {
+    const { SettingsManager } = await import('@earendil-works/pi-coding-agent')
+    const agentDir = tmp('pi-agent-')
+    const cwd = tmp('pi-cwd-')
+    mkdirSync(join(cwd, '.pi'))
+    const own = sessionDirFor(cwd, join(agentDir, 'sessions'))
+    const cases: [mine: string | null, project: string | null][] = [
+      [null, null],
+      [JSON.stringify({ sessionDir: tmp('pi-flat-') }), null],
+      [JSON.stringify({ sessionDir: '~/flat' }), null],
+      [`\ufeff${JSON.stringify({ sessionDir: '~' })}`, null],
+      [JSON.stringify({ sessionDir: tmp('pi-flat-') }), JSON.stringify({ sessionDir: 'own/flat' })],
+      // A project may turn its owner's off, and one pi cannot read is no settings at all.
+      [JSON.stringify({ sessionDir: tmp('pi-flat-') }), JSON.stringify({ sessionDir: '' })],
+      [JSON.stringify({ sessionDir: tmp('pi-flat-') }), '{ not json'],
+      [JSON.stringify({ theme: 'dark' }), JSON.stringify({ sessionDir: null })],
+    ]
+    for (const [mine, project] of cases) {
+      for (const [file, text] of [
+        [join(agentDir, 'settings.json'), mine],
+        [join(cwd, '.pi', 'settings.json'), project],
+      ] as const) {
+        if (text === null) rmSync(file, { force: true })
+        else writeFileSync(file, text)
+      }
+      // pi's own merge, asked rather than copied; a relative one is read from where pi runs.
+      const named = SettingsManager.create(cwd, agentDir).getSessionDir()
+      const dir = named ? resolve(cwd, named) : own
+      expect(await sessionsOf(cwd, { PI_CODING_AGENT_DIR: agentDir })).toEqual({
+        dir,
+        shared: dir !== own,
+      })
+    }
+    // PI_CODING_AGENT_SESSION_DIR comes before any setting (pi's `main`), read the same way.
+    expect(
+      await sessionsOf(cwd, { PI_CODING_AGENT_DIR: agentDir, PI_CODING_AGENT_SESSION_DIR: '~/s' }),
+    ).toEqual({ dir: join(homedir(), 's'), shared: true })
+    expect(
+      await sessionsOf(cwd, { PI_CODING_AGENT_DIR: agentDir, PI_CODING_AGENT_SESSION_DIR: 'here' }),
+    ).toEqual({ dir: join(cwd, 'here'), shared: true })
+    // Settings that are there and cannot be read are not settings that say nothing.
+    rmSync(join(agentDir, 'settings.json'), { force: true })
+    mkdirSync(join(agentDir, 'settings.json'))
+    await expect(sessionsOf(cwd, { PI_CODING_AGENT_DIR: agentDir })).rejects.toThrow(
+      /could not read pi's settings/,
+    )
+  })
+
+  it('finds a session where pi keeps every working directory’s together, only in the one it was started in', async () => {
+    const { SessionManager } = await import('@earendil-works/pi-coding-agent')
+    const flat = tmp('pi-flat-')
+    const cwd = tmp('pi-cwd-')
+    const other = tmp('pi-cwd-')
+    const id = sessionIdFor('app/flat')
+    // pi writes this one itself, header and all, as it does under a sessionDir.
+    const session = SessionManager.create(cwd, flat, { id })
+    session.appendMessage({ role: 'user', content: 'go', timestamp: 1 })
+    session.appendMessage(
+      priced(10, 5, 0.01).message as Parameters<typeof session.appendMessage>[0],
+    )
+    const written = session.getSessionFile()
+    // The same task started somewhere else, later, so it is the newest by name.
+    const elsewhere = join(flat, `2099-01-01T00-00-00-000Z_${id}.jsonl`)
+    writeFileSync(
+      elsewhere,
+      `${JSON.stringify({ type: 'session', version: 3, id, timestamp: '2099-01-01T00:00:00.000Z', cwd: other })}\n${JSON.stringify(priced(1, 1, 0.5))}\n`,
+    )
+    const env = { PI_CODING_AGENT_SESSION_DIR: flat }
+    // Held to pi's own lookup: it continues only a session its header says began here.
+    for (const [where, found] of [
+      [cwd, written],
+      [other, elsewhere],
+      [tmp('pi-cwd-'), undefined],
+    ] as const) {
+      expect(SessionManager.findById(where, id, flat)).toBe(found)
+      expect(await sessionFileFor('app/flat', where, { env })).toBe(found ?? null)
+    }
+
+    const moved = new PiAdapter({ runDir: tmp('tade-pi-'), env })
+    expect(await moved.hasConversation('app/flat', cwd)).toBe(true)
+    expect(await moved.spent('app/flat', cwd)).toMatchObject({ tokens: 15, messages: 1 })
+    expect((await moved.history('app/flat', cwd, { limit: 50 })).items).toHaveLength(2)
+    // Named in its settings rather than its environment, it is the same directory.
+    const agentDir = tmp('pi-agent-')
+    writeFileSync(join(agentDir, 'settings.json'), JSON.stringify({ sessionDir: flat }))
+    const set = new PiAdapter({ runDir: tmp('tade-pi-'), env: { PI_CODING_AGENT_DIR: agentDir } })
+    expect(await set.spent('app/flat', cwd)).toMatchObject({ tokens: 15, messages: 1 })
+    // Told neither, pi files them by working directory, and so that is where it looks.
+    const home = new PiAdapter({ runDir: tmp('tade-pi-'), env: {} })
+    expect(await home.hasConversation('app/flat', cwd)).toBe(false)
   })
 
   it('has nothing to say about a task that has never run', async () => {
