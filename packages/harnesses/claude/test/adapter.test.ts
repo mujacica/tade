@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { ClaudeAdapter, HOOK_PATH, MCP_PATH, runSocket, writesOf } from '../src/adapter.ts'
 import { BACKGROUNDED } from '../src/background.ts'
+import { missedPath } from '../src/missed.ts'
 import { sessionIdFor } from '../src/transcript.ts'
 
 // The adapter without Claude Code: its hooks, status line and tool server are
@@ -330,6 +331,100 @@ describe('ClaudeAdapter', () => {
       await hook({ hook_event_name: 'UserPromptSubmit', prompt: 'go' })
       await hook({ hook_event_name: 'Notification', notification_type: 'idle_prompt' })
       expect(signals.find((s) => s.type === 'turn_done')).toMatchObject({ status: 'aborted' })
+    })
+  })
+
+  describe('a window that closes and opens again', () => {
+    // Under tmux the agent goes on while Tade is closed, and every hook it runs
+    // then finds nobody listening. The window that comes back is another
+    // adapter on the same folders, taking the run back as the workbench does.
+    const comeBack = async (
+      was: Awaited<ReturnType<typeof setUp>>,
+      how: { alreadyRunning?: boolean } = { alreadyRunning: true },
+    ) => {
+      const back = new ClaudeAdapter({
+        runDir: was.runDir,
+        configDir: was.account,
+        home: tmp('tade-claude-home-'),
+        type: async () => {},
+      })
+      adapter = back
+      const signals: WorkerSignal[] = []
+      back.onSignal(was.spec.run, (signal) => signals.push(signal))
+      await back.supervise({ ...was.spec, ...how })
+      return { back, signals, kinds: () => signals.map((signal) => signal.type) }
+    }
+
+    it('says a turn that ended while Tade was away once it is back, when it ended, and once', async () => {
+      const was = await setUp()
+      await was.hook({ hook_event_name: 'SessionStart', session_id: 's' })
+      await was.hook({ hook_event_name: 'UserPromptSubmit', prompt: 'commit and push' })
+      await was.adapter.detach()
+      // Nobody listening: each hook carries on as ever. Two turns end, and one
+      // is said — a turn ended since, not how many.
+      expect(
+        await was.hook({ hook_event_name: 'Stop', last_assistant_message: 'Done.' }),
+      ).toBeNull()
+      await was.hook({ hook_event_name: 'UserPromptSubmit', prompt: '<task-notification>' })
+      const before = Date.now()
+      await was.hook({ hook_event_name: 'Stop', last_assistant_message: 'Pushed.' })
+      const after = Date.now()
+      expect(was.kinds()).not.toContain('turn_done')
+
+      const { back, signals, kinds } = await comeBack(was)
+      await until(() => kinds().includes('idle'))
+      expect(kinds()).toEqual(['turn_done', 'idle'])
+      expect(signals[0]).toMatchObject({ status: 'ok', run: was.spec.run })
+      // Stamped when it ended, not when it was said.
+      expect(signals[0]?.at).toBeGreaterThanOrEqual(before)
+      expect(signals[0]?.at).toBeLessThanOrEqual(after)
+
+      // Said once: taken, so the next window back has nothing to add.
+      expect(existsSync(missedPath(runSocket(was.runDir, was.spec.run)))).toBe(false)
+      await back.detach()
+      const again = await comeBack(was)
+      await was.hook({ hook_event_name: 'UserPromptSubmit', prompt: '<task-notification>' })
+      expect(again.kinds()).toEqual(['turn_started'])
+    })
+
+    it('says a turn begun since as under way, and its end when Tade is there to hear it', async () => {
+      const was = await setUp()
+      await was.hook({ hook_event_name: 'SessionStart', session_id: 's' })
+      await was.adapter.detach()
+      await was.hook({
+        hook_event_name: 'StopFailure',
+        error: 'rate_limit',
+        last_assistant_message: 'Slow down.',
+      })
+      await was.hook({ hook_event_name: 'UserPromptSubmit', prompt: '<task-notification>' })
+
+      const { signals, kinds } = await comeBack(was)
+      await until(() => kinds().includes('turn_started'))
+      expect(kinds()).toEqual(['turn_done', 'turn_started'])
+      expect(signals[0]).toMatchObject({ status: 'error', reason: 'rate_limit: Slow down.' })
+      expect(signals[0]?.at).toBeLessThanOrEqual(signals[1]?.at as number)
+      await was.hook({ hook_event_name: 'Stop' })
+      expect(kinds()).toEqual(['turn_done', 'turn_started', 'turn_done', 'idle'])
+    })
+
+    it('says nothing of it to a launch, which is a new process, and forgets it', async () => {
+      const was = await setUp()
+      await was.adapter.detach()
+      await was.hook({ hook_event_name: 'Stop' })
+      const kept = missedPath(runSocket(was.runDir, was.spec.run))
+      expect(existsSync(kept)).toBe(true)
+
+      const launched = await comeBack(was, {})
+      expect(existsSync(kept)).toBe(false)
+      await was.hook({ hook_event_name: 'SessionStart', session_id: 's' })
+      expect(launched.kinds()).toEqual(['started'])
+    })
+
+    it('leaves nothing where Tade heard it', async () => {
+      const was = await setUp()
+      await was.hook({ hook_event_name: 'Stop' })
+      expect(was.kinds()).toContain('turn_done')
+      expect(existsSync(missedPath(runSocket(was.runDir, was.spec.run)))).toBe(false)
     })
   })
 

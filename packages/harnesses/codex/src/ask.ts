@@ -15,22 +15,38 @@ export const SOCKET = process.env.TADE_RUN_SOCKET
  * closed, an answer that never came. `wait` is how long an answer may take:
  * a tool call held for a person waits for as long as they take.
  */
-export function ask(request: unknown, wait = 5_000): Promise<unknown> {
+export async function ask(request: unknown, wait = 5_000): Promise<unknown> {
+  return (await reach(request, wait)).reply
+}
+
+/**
+ * The same, and whether the question reached Tade at all. Only nobody
+ * listening says it was never heard: a window that took it and then said
+ * nothing, or nothing readable, may have heard every word.
+ */
+export function reach(
+  request: unknown,
+  wait = 5_000,
+): Promise<{ reply: unknown; reached: boolean }> {
   const path = SOCKET
-  if (!path) return Promise.resolve(null)
+  if (!path) return Promise.resolve({ reply: null, reached: false })
   return new Promise((resolve) => {
     let settled = false
+    let reached = false
     let buffer = ''
     const done = (value: unknown) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
       socket.destroy()
-      resolve(value)
+      resolve({ reply: value, reached })
     }
     const socket = connect(path)
     const timer = setTimeout(() => done(null), wait)
-    socket.on('connect', () => socket.write(`${JSON.stringify(request)}\n`))
+    socket.on('connect', () => {
+      reached = true
+      socket.write(`${JSON.stringify(request)}\n`)
+    })
     socket.on('data', (chunk: Buffer) => {
       buffer += chunk.toString('utf8')
       const end = buffer.indexOf('\n')

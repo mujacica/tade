@@ -14,7 +14,7 @@ The port is `packages/harnesses/core/src/port.ts`. The reference implementation 
 | Method | What it is for |
 |---|---|
 | `launchSpec(spec)` | what to run, so Tade can put the agent in a lane. Placing the process is the driver's job, not the adapter's. |
-| `supervise(spec)` | open the channel that launch reports back over. Called *before* the lane starts, so the first signal has somewhere to land. |
+| `supervise(spec)` | open the channel that launch reports back over. Called *before* the lane starts, so the first signal has somewhere to land — and again when a window opens on an agent that kept working (`spec.alreadyRunning`), which is told what it missed. |
 | `start(spec)` | run the agent headless under our own protocol, as our child. Only for an agent whose interface Tade draws itself — the orchestrator. Declare `capabilities.headless` when you implement it, and take Tade's own tools as modules (`nativeExtensions`) or an MCP server (`mcp`), because that is how the orchestrator is given them. |
 
 Workers use the first two: an agent is pi in a terminal, visible, surviving the window under a
@@ -370,8 +370,11 @@ through Tade, so a `/compact` is not theirs to send. Two declarations and one me
   a fault, so the agent carries on and the journal catches up later. Deciding this at the moment of
   disconnection instead of at launch is how a gate turns itself off without anyone noticing. **A
   turn that ended while Tade was away is said when it is back**, stamped when it ended, once: pi's
-  extension keeps the last one (`missed`) and sends it after `started` — dropped, a hand-over and a
-  done rule waited on a `turn_done` that never came.
+  extension keeps the last one (`missed`) and sends it after `started`; Claude Code's and Codex's
+  hooks are processes that ask once and exit, so the one that found nobody listening (`reach`)
+  leaves it beside the run's socket (`missed.ts`) for `supervise` to take — said only to a run taken
+  back (`alreadyRunning`), because a launch is a new process. Dropped, a hand-over and a done rule
+  waited on a `turn_done` that never came.
 - **Whatever the harness records for itself is the ledger.** Tade reads pi's own session files to
   account for turns that happened while nothing was listening, so an adapter should prefer the
   harness's durable record over anything it reports live.

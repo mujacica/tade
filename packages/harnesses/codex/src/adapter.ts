@@ -47,6 +47,7 @@ import {
 } from '@tade/harnesses-core'
 import { type ChannelRequest, CodexChannel } from './channel.ts'
 import { carryThread, threadsIn } from './folder.ts'
+import { type Missed, takeMissed } from './missed.ts'
 import { askPlan } from './plan.ts'
 import {
   contextIn,
@@ -621,13 +622,26 @@ export class CodexAdapter implements WorkerAdapter {
 
   async supervise(spec: WorkerSpec): Promise<WorkerHandle> {
     if (this.runs.has(spec.run)) throw new Error(`run already started: ${spec.run}`)
+    const socket = runSocket(this.opts.socketDir, spec.run)
     const channel = await CodexChannel.listen({
-      path: runSocket(this.opts.socketDir, spec.run),
+      path: socket,
       onRequest: (request) => this.onRequest(spec.run, request),
       onWarning: this.opts.onWarning,
     })
-    this.runs.set(spec.run, await this.newRun(spec, { channel }))
-    return { ...(this.runs.get(spec.run) as Run).handle }
+    // What its hooks could not tell while Tade was away (`missed.ts`), once it
+    // can be told: taken either way, since a launch is a new process and what
+    // an old one left is not about it.
+    const missed = await takeMissed(socket).catch((err: unknown) => {
+      this.opts.onWarning(
+        `could not read the turn a Codex agent ended while Tade was away, so it is not said: ${(err as Error).message}`,
+      )
+      return null
+    })
+    const run = await this.newRun(spec, { channel })
+    this.runs.set(spec.run, run)
+    // On the next turn of the loop, once whoever took it back has the run.
+    if (missed && spec.alreadyRunning) setTimeout(() => this.sayMissed(run, missed), 0)
+    return { ...run.handle }
   }
 
   /**
@@ -988,6 +1002,27 @@ export class CodexAdapter implements WorkerAdapter {
     })
   }
 
+  /**
+   * The turn that ended while Tade was away, said now it is back: when it
+   * ended, then where it is — idle, or in a turn begun since — unless a hook
+   * has already said that since it was taken back. Said once, because what
+   * said it was taken (`missed.ts`).
+   */
+  private sayMissed(entry: Run, missed: Missed): void {
+    if (this.runs.get(entry.handle.run) !== entry) return
+    const cut = missed.event.hook_event_name === 'Interrupt'
+    this.say(entry, { type: 'turn_done', status: cut ? 'aborted' : 'ok' }, missed.at)
+    if (entry.turn !== 'starting') return
+    if (missed.began !== undefined) {
+      entry.turn = 'running'
+      this.say(entry, { type: 'turn_started' }, missed.began)
+      return
+    }
+    entry.turn = 'idle'
+    this.say(entry, { type: 'idle' })
+    setTimeout(() => void this.flush(entry), 300).unref?.()
+  }
+
   /** A turn is over: say how, then say whatever was waiting for it to be. */
   private settle(entry: Run, status: 'ok' | 'error' | 'aborted', reason?: string): void {
     if (entry.turn !== 'running') return
@@ -1281,8 +1316,13 @@ export class CodexAdapter implements WorkerAdapter {
 
   // --- bookkeeping ----------------------------------------------------------------
 
-  private say(entry: Run, signal: DistributiveOmit<WorkerSignal, 'run' | 'at'>): void {
-    const full = { ...signal, run: entry.handle.run, at: Date.now() } as WorkerSignal
+  /** Tell whoever listens, stamped now unless it happened earlier. */
+  private say(
+    entry: Run,
+    signal: DistributiveOmit<WorkerSignal, 'run' | 'at'>,
+    at = Date.now(),
+  ): void {
+    const full = { ...signal, run: entry.handle.run, at } as WorkerSignal
     for (const listener of this.listeners.get(entry.handle.run) ?? []) {
       try {
         listener(full)

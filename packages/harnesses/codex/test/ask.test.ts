@@ -29,6 +29,7 @@ import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 interface Ask {
   SOCKET: string | undefined
   ask: (request: unknown, wait?: number) => Promise<unknown>
+  reach: (request: unknown, wait?: number) => Promise<{ reply: unknown; reached: boolean }>
   readInput: () => Promise<Record<string, unknown> | null>
 }
 
@@ -126,6 +127,17 @@ describe('asking Tade', () => {
     // Not a throw: a hook that throws is Codex telling somebody Tade broke
     // their agent, when all that happened is that Tade was closed.
     expect(await ask({ kind: 'hook' })).toBeNull()
+  })
+
+  it('says a question never reached Tade only where nothing was listening', async () => {
+    // What a hook nobody heard leaves for the window that comes back
+    // (`missed.ts`) is decided here: a window that took the question and then
+    // hung up may have heard every word of it.
+    const gone = await launchedWith(nowhere())
+    expect(await gone.reach({ kind: 'hook' })).toEqual({ reply: null, reached: false })
+    const at = await listening((_line, _say, hangUp) => hangUp())
+    const there = await launchedWith(at.path)
+    expect(await there.reach({ kind: 'hook' })).toEqual({ reply: null, reached: true })
   })
 
   it('is null where the answer is not JSON', async () => {

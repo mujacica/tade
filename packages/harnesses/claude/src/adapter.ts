@@ -52,6 +52,7 @@ import { COMPACT_LINE, compactionIn, percentOf, tokensIn, windowIn } from './com
 import { headlessArgs, headlessEnv, SNAPSHOT_OPTION } from './headless.ts'
 import { optionsOf } from './installed.ts'
 import { signedInUntil } from './login.ts'
+import { type Missed, takeMissed } from './missed.ts'
 import { carryInto, sessionsIn } from './sessions.ts'
 import {
   defaultConfigDir,
@@ -609,10 +610,20 @@ export class ClaudeAdapter implements WorkerAdapter {
         `could not mark ${spec.cwd} as trusted for Claude Code, so it will ask in its lane: ${(err as Error).message}`,
       ),
     )
+    const socket = runSocket(this.opts.socketDir, spec.run)
     const channel = await ClaudeChannel.listen({
-      path: runSocket(this.opts.socketDir, spec.run),
+      path: socket,
       onRequest: (request) => this.onRequest(spec.run, request),
       onWarning: this.opts.onWarning,
+    })
+    // What its hooks could not tell while Tade was away (`missed.ts`), once it
+    // can be told: taken either way, since a launch is a new process and what
+    // an old one left is not about it.
+    const missed = await takeMissed(socket).catch((err: unknown) => {
+      this.opts.onWarning(
+        `could not read the turn a Claude Code agent ended while Tade was away, so it is not said: ${(err as Error).message}`,
+      )
+      return null
     })
     const run: Run = {
       handle: {
@@ -644,6 +655,8 @@ export class ClaudeAdapter implements WorkerAdapter {
       counting: null,
     }
     this.runs.set(spec.run, run)
+    // On the next turn of the loop, once whoever took it back has the run.
+    if (missed && spec.alreadyRunning) setTimeout(() => this.sayMissed(run, missed), 0)
     return { ...run.handle }
   }
 
@@ -1137,9 +1150,7 @@ export class ClaudeAdapter implements WorkerAdapter {
         return null
       }
       case 'StopFailure': {
-        const error = str('error')
-        const said = str('last_assistant_message')
-        this.settle(entry, 'error', [error, said].filter(Boolean).join(': ') || undefined)
+        this.settle(entry, 'error', failureIn(event))
         return null
       }
       case 'Notification': {
@@ -1251,6 +1262,32 @@ export class ClaudeAdapter implements WorkerAdapter {
     })
   }
 
+  /**
+   * The turn that ended while Tade was away, said now it is back: when it
+   * ended, then where it is — idle, or in a turn begun since — unless a hook
+   * has already said that since it was taken back. Said once, because what
+   * said it was taken (`missed.ts`).
+   */
+  private sayMissed(entry: Run, missed: Missed): void {
+    if (this.runs.get(entry.handle.run) !== entry) return
+    const failed = missed.event.hook_event_name === 'StopFailure'
+    const reason = failed ? failureIn(missed.event) : undefined
+    this.say(
+      entry,
+      { type: 'turn_done', status: failed ? 'error' : 'ok', ...(reason ? { reason } : {}) },
+      missed.at,
+    )
+    if (entry.turn !== 'starting') return
+    if (missed.began !== undefined) {
+      entry.turn = 'running'
+      this.say(entry, { type: 'turn_started' }, missed.began)
+      return
+    }
+    entry.turn = 'idle'
+    this.say(entry, { type: 'idle' })
+    setTimeout(() => void this.flush(entry), 300).unref?.()
+  }
+
   /** A turn is over: say how, then say whatever was waiting for it to be. */
   private settle(entry: Run, status: 'ok' | 'error' | 'aborted', reason?: string): void {
     entry.turn = 'idle'
@@ -1331,8 +1368,13 @@ export class ClaudeAdapter implements WorkerAdapter {
 
   // --- bookkeeping ----------------------------------------------------------------
 
-  private say(entry: Run, signal: DistributiveOmit<WorkerSignal, 'run' | 'at'>): void {
-    const full = { ...signal, run: entry.handle.run, at: Date.now() } as WorkerSignal
+  /** Tell whoever listens, stamped now unless it happened earlier. */
+  private say(
+    entry: Run,
+    signal: DistributiveOmit<WorkerSignal, 'run' | 'at'>,
+    at = Date.now(),
+  ): void {
+    const full = { ...signal, run: entry.handle.run, at } as WorkerSignal
     for (const listener of this.listeners.get(entry.handle.run) ?? []) {
       try {
         listener(full)
@@ -1525,6 +1567,14 @@ function shellWord(text: string): string {
 /** Where a run's supervision socket lives: hashed, because a long path fails to bind. */
 export function runSocket(dir: string, run: string): string {
   return join(dir, `c-${createHash('sha1').update(run).digest('hex').slice(0, 12)}.sock`)
+}
+
+/** Why a turn failed, as its StopFailure hook said. */
+function failureIn(event: Record<string, unknown>): string | undefined {
+  const said = [event.error, event.last_assistant_message].filter(
+    (part): part is string => typeof part === 'string' && part !== '',
+  )
+  return said.join(': ') || undefined
 }
 
 /** A model as Claude Code takes it: an alias or a full name, never a provider's prefix. */

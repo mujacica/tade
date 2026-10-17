@@ -50,6 +50,13 @@ export interface WorkerSpec {
   title?: string
   /** Pictures to send with the opening prompt. */
   images?: readonly WorkerImage[]
+  /**
+   * It was already working when this window opened, and is being taken back
+   * rather than launched (`supervise`): what it could not tell while nobody
+   * listened is said now. A launch is a new process, and what an old one left
+   * unsaid is not about it.
+   */
+  alreadyRunning?: boolean
 }
 
 /**
@@ -742,7 +749,8 @@ export interface WorkerAdapter {
   /**
    * Be ready for an agent that is about to be launched: open whatever channel
    * it reports back over, so signals and approvals work from the first turn.
-   * Pairs with `launchSpec`.
+   * Pairs with `launchSpec`. Or take back one that was already running when
+   * the window opened (`alreadyRunning`), and say what it missed.
    */
   supervise(spec: WorkerSpec): Promise<WorkerHandle>
   /**

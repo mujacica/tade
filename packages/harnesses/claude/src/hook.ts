@@ -1,4 +1,5 @@
-import { ask, readInput, SOCKET } from './ask.ts'
+import { reach, readInput, SOCKET } from './ask.ts'
+import { leave } from './missed.ts'
 
 // Every hook Tade gives a Claude Code agent: it tells Tade what happened and,
 // for a tool call Tade holds, waits for the answer and says it back.
@@ -11,7 +12,9 @@ import { ask, readInput, SOCKET } from './ask.ts'
 // (`TADE_APPROVALS`), never at the moment it went away: under `policy` a tool
 // call nobody can approve is refused, because an agent running unsupervised is
 // worse than one that stalls; otherwise nothing was ever going to be held, and
-// the agent carries on while the journal catches up from the transcript.
+// the agent carries on while the journal catches up from the transcript. A turn
+// that ends meanwhile is left beside the socket for the window that comes back
+// (`missed.ts`), since nothing else of ours is running to remember it.
 
 const GATED = process.env.TADE_APPROVALS === 'policy'
 /** How long a held tool call waits for a person: as long as Claude Code lets the hook run. */
@@ -21,7 +24,8 @@ const event = await readInput()
 if (event && SOCKET) {
   const name = event.hook_event_name
   const held = name === 'PreToolUse' && GATED
-  const reply = await ask({ kind: 'hook', event }, held ? HELD_MS : 5_000)
+  const { reply, reached } = await reach({ kind: 'hook', event }, held ? HELD_MS : 5_000)
+  if (!reached) leave(SOCKET, event)
   const output =
     reply && typeof reply === 'object' ? (reply as { output?: unknown }).output : undefined
   if (output && typeof output === 'object') {

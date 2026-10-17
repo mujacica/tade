@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { PermissionNotPendingError } from '@tade/harnesses-core'
+import { PermissionNotPendingError, type WorkerSpec } from '@tade/harnesses-core'
 import type { Reporter, Span, Work } from '@tade/telemetry'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -437,6 +437,33 @@ describe('WorkerSupervisor', () => {
     expect(supervisor.turnOf('r1')).toBe('running')
     const [first] = await logged(log, 'turn_started')
     expect(first).toMatchObject({ run: 'r1', task: 'app/refunds' })
+  })
+
+  it('takes an agent that kept working back as that, and hears what it missed about its task', async () => {
+    // A Claude Code or Codex agent under tmux whose turn ended while Tade was
+    // closed says so as it is taken back, once supervising it has returned —
+    // which only means anything if the run is the supervisor's by then.
+    const { log, adapter, supervisor } = await setup('bypass')
+    close = () => log.close()
+    const supervised: WorkerSpec[] = []
+    const supervise = adapter.supervise.bind(adapter)
+    adapter.supervise = async (spec) => {
+      supervised.push(spec)
+      const handle = await supervise(spec)
+      if (spec.alreadyRunning) {
+        setTimeout(() => adapter.emit(spec.run, { type: 'turn_done', status: 'ok' }), 0)
+      }
+      return handle
+    }
+    await supervisor.resume({ run: 'r2', task: 'app/other', cwd: WORKTREE, prompt: '' })
+    await until(async () => (await logged(log, 'turn_done')).length === 1)
+    expect((await logged(log, 'turn_done'))[0]).toMatchObject({ run: 'r2', task: 'app/other' })
+    // A launch is a new process, with nothing of an old one's to say.
+    await supervisor.start({ run: 'r3', task: 'app/third', cwd: WORKTREE, prompt: 'go' })
+    expect(supervised.map((spec) => [spec.run, spec.alreadyRunning])).toEqual([
+      ['r2', true],
+      ['r3', undefined],
+    ])
   })
 
   describe('which provider a run was on', () => {

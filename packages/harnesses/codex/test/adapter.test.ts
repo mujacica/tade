@@ -17,6 +17,7 @@ import {
   toolName,
   writesOf,
 } from '../src/adapter.ts'
+import { missedPath } from '../src/missed.ts'
 import { rememberThread, threadOf } from '../src/sessions.ts'
 import { toml } from '../src/toml.ts'
 
@@ -339,6 +340,84 @@ describe('CodexAdapter', () => {
       })
       expect(one.limits()?.windows).toEqual([{ minutes: 300, used: 5, resetsAt: 7_000 }])
       expect(await threadOf('app/refunds', runDir)).toBe('thread-1')
+    })
+  })
+
+  describe('a window that closes and opens again', () => {
+    // Under tmux the agent goes on while Tade is closed, and every hook it runs
+    // then finds nobody listening. The window that comes back is another
+    // adapter on the same folders, taking the run back as the workbench does.
+    const comeBack = async (
+      was: Awaited<ReturnType<typeof setUp>>,
+      how: { alreadyRunning?: boolean } = { alreadyRunning: true },
+    ) => {
+      const back = new CodexAdapter({
+        runDir: was.runDir,
+        codexHome: was.codexHome,
+        home: tmp('tade-codex-home-'),
+        bin: '/nonexistent/codex',
+        type: async () => {},
+      })
+      adapter = back
+      const signals: WorkerSignal[] = []
+      back.onSignal(was.spec.run, (signal) => signals.push(signal))
+      await back.supervise({ ...was.spec, ...how })
+      return { back, signals, kinds: () => signals.map((signal) => signal.type) }
+    }
+
+    it('says a turn cut short while Tade was away once it is back, when it ended, and once', async () => {
+      const was = await setUp()
+      await was.hook(started())
+      await was.hook({ hook_event_name: 'UserPromptSubmit', prompt: 'commit and push' })
+      await was.adapter.detach()
+      const before = Date.now()
+      // Nobody listening: the hook carries on as ever.
+      expect(await was.hook({ hook_event_name: 'Interrupt' })).toBeNull()
+      const after = Date.now()
+
+      const { back, signals, kinds } = await comeBack(was)
+      await until(() => kinds().includes('idle'))
+      expect(kinds()).toEqual(['turn_done', 'idle'])
+      expect(signals[0]).toMatchObject({ status: 'aborted', run: was.spec.run })
+      // Stamped when it ended, not when it was said.
+      expect(signals[0]?.at).toBeGreaterThanOrEqual(before)
+      expect(signals[0]?.at).toBeLessThanOrEqual(after)
+
+      // Said once: taken, so the next window back has nothing to add.
+      expect(existsSync(missedPath(runSocket(was.runDir, was.spec.run)))).toBe(false)
+      await back.detach()
+      const again = await comeBack(was)
+      await was.hook({ hook_event_name: 'UserPromptSubmit', prompt: '<task-notification>' })
+      expect(again.kinds()).toEqual(['turn_started'])
+    })
+
+    it('says a turn begun since as under way, so its end is heard when it comes', async () => {
+      const was = await setUp()
+      await was.hook(started())
+      await was.adapter.detach()
+      await was.hook({ hook_event_name: 'Stop', last_assistant_message: 'Done.' })
+      await was.hook({ hook_event_name: 'UserPromptSubmit', prompt: '<task-notification>' })
+
+      const { signals, kinds } = await comeBack(was)
+      await until(() => kinds().includes('turn_started'))
+      expect(kinds()).toEqual(['turn_done', 'turn_started'])
+      expect(signals[0]).toMatchObject({ status: 'ok' })
+      // A turn this adapter never saw begin, ending with Tade there to hear it.
+      await was.hook({ hook_event_name: 'Stop', last_assistant_message: 'Pushed.' })
+      expect(kinds()).toEqual(['turn_done', 'turn_started', 'message', 'turn_done', 'idle'])
+    })
+
+    it('says nothing of it to a launch, which is a new process, and forgets it', async () => {
+      const was = await setUp()
+      await was.adapter.detach()
+      await was.hook({ hook_event_name: 'Stop' })
+      const kept = missedPath(runSocket(was.runDir, was.spec.run))
+      expect(existsSync(kept)).toBe(true)
+
+      const launched = await comeBack(was, {})
+      expect(existsSync(kept)).toBe(false)
+      await was.hook(started())
+      expect(launched.kinds()).toEqual(['started'])
     })
   })
 

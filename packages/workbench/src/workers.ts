@@ -269,7 +269,10 @@ export class WorkerSupervisor {
         task: request.task,
         cwd: request.cwd,
         prompt: '',
+        alreadyRunning: true,
       })
+      // Before anything else is awaited: what it missed is said once this
+      // returns, and has to find the run's task here when it is.
       this.runs.set(run, {
         handle,
         adapter,
