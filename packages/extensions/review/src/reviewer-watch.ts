@@ -1,6 +1,6 @@
 import type { ExtensionWatch, Finding as Found, WatchContext } from '@tade/extensions-core'
 import type { Review, ReviewDetail, ReviewRef, Thread } from '@tade/forges-core'
-import { asLookFailed, settingsOf, type Where, whereOf } from './forge.ts'
+import { asLookFailed, RINGS, settingsOf, type Where, whereOf } from './forge.ts'
 import { COMMENTS_ARE_MATERIAL, threadLines } from './format.ts'
 import { found } from './record.ts'
 import { REVIEWER_RUBRIC, reviewPack } from './reviewer.ts'
@@ -207,6 +207,7 @@ export const toReview: ExtensionWatch = {
   every: '15m',
   about: 'repository',
   network: true,
+  doorbell: RINGS.toReview,
   offers: 'agent',
 
   async check(ctx) {
@@ -295,6 +296,7 @@ export const reviewFix: ExtensionWatch = {
   every: '15m',
   about: 'repository',
   network: true,
+  doorbell: RINGS.reviewFix,
   offers: 'agent',
 
   async check(ctx) {

@@ -938,6 +938,7 @@ export const reviewExtension: TadeExtension = {
       every: '15m',
       about: 'repository',
       network: true,
+      doorbell: RINGS.requested,
       async check(ctx) {
         const where = await whereOf(ctx, ctx.watching)
         if ('problem' in where) throw new Error(where.problem)
@@ -978,6 +979,7 @@ export const reviewExtension: TadeExtension = {
       every: '10m',
       about: 'repository',
       network: true,
+      doorbell: RINGS.pushed,
       async check(ctx) {
         const where = await whereOf(ctx, ctx.watching)
         if ('problem' in where) throw new Error(where.problem)

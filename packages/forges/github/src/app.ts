@@ -63,8 +63,11 @@ export const APP_PERMISSIONS: readonly (AppAsk & { permission: string })[] = [
 /**
  * The deliveries the app is sent, each one a doorbell some watch declares:
  * an issue labelled or commented on (intake), a review opened, pushed to,
- * reviewed or commented on (the comment and conflict watches), and CI
- * finishing (the check watches). Nothing else rings anything here.
+ * asked of somebody, reviewed or commented on (the comment, conflict,
+ * reviewer, fix and requested watches), and CI finishing (the check watches).
+ * Not `push`, which GitHub sends an app only with Contents to read, and this
+ * one reads no code: the pushed-branch watch hears one through a webhook
+ * somebody pointed here by hand, and polls otherwise.
  */
 export const APP_EVENTS: readonly string[] = [
   'issues',

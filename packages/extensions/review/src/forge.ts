@@ -42,6 +42,27 @@ export const RINGS = {
   },
   /** A review opened, pushed to or retargeted, which is when its own head can start to conflict. */
   conflicts: { source: 'github', events: ['pull_request'] },
+  /** A review opened, pushed to, reopened or marked ready: a head nothing has reviewed yet. */
+  toReview: { source: 'github', events: ['pull_request'] },
+  /**
+   * A Tade review landing: its notes go up one at a time as line comments
+   * (`Forge.note`), which GitHub delivers as `pull_request_review_comment`, and
+   * a review submitted whole is `pull_request_review`.
+   */
+  reviewFix: { source: 'github', events: ['pull_request_review', 'pull_request_review_comment'] },
+  /**
+   * You asked for, or let off, a review. GitHub has no `review_requested`
+   * event: it is an action of `pull_request` (with `review_request_removed`),
+   * and a doorbell matches the event's name alone, so that is what rings.
+   */
+  requested: { source: 'github', events: ['pull_request'] },
+  /**
+   * A branch pushed. GitHub sends an App `push` only where it may read the
+   * code, which the App `/connect` makes does not ask for, so this rings
+   * through a webhook somebody pointed here by hand, and with the App alone a
+   * push is still the poll's.
+   */
+  pushed: { source: 'github', events: ['push'] },
 } as const
 
 /**

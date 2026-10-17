@@ -365,10 +365,14 @@ anything that writes, call `forget()` so the next reader polls. `for: ['orchestr
   Every watch here and intake's GitHub watch are handed it through `ctx.apps`, which the host
   answers out of the config at each ask (`appsKept`).
 - **What rings a review watch is declared on it** (`RINGS` in `forge.ts`): CI finishing for
-  `branch-checks` and `checks-failed`, review conversations for `comments`, a review pushed to for
-  `conflicts` — matched on the project's own repository. A delivery only makes it look now; the
-  poll stays, hourly while deliveries arrive, and mergeability has no event at all, so a conflict
-  the base moving made is still the poll's.
+  `branch-checks` and `checks-failed`, review conversations for `comments`, a review opened or
+  pushed to for `conflicts`, `to-review` and `requested`, a review landing for `review-fix`, and a
+  push for `pushed` — matched on the project's own repository. A doorbell matches GitHub's event
+  name alone, never its action, so a review asked of you is a `pull_request` and `review_requested`
+  would be a bell that never rang. A delivery only makes it look now; the poll stays, hourly while
+  deliveries arrive, and mergeability has no event at all, so a conflict the base moving made is
+  still the poll's — as is a push where the App is the only hook, since GitHub sends an App `push`
+  only with Contents to read and this one reads no code.
 - **Credentials are held in memory and never written.** `gh` is how the token is found, a pasted
   token reaches the forge as the variable it already reads, and **the environment always wins** over
   what was pasted. Nothing writes a token anywhere. `credentialProblem` answers from files and the
