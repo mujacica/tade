@@ -8,6 +8,7 @@ import {
   type Reaching,
   type Remote,
   type RemoteLink,
+  type TerminalThere,
 } from '@tade/remotes-core'
 
 // A RemoteLink to remotes on this machine, by name out of a table it is
@@ -38,6 +39,12 @@ export interface ScriptedRemote {
 export interface ScriptedOptions extends LinkOptions {
   /** The remotes it reaches, by the address a `Remote` names. Read at every dial. */
   remotes?: ReadonlyMap<string, ScriptedRemote>
+  /**
+   * Open terminals there by running them in a shell here: the far ends are
+   * this machine, so a line one gives for showing an agent is a line this
+   * machine can run. Off, there is nothing to open a terminal in.
+   */
+  terminals?: boolean
 }
 
 export function makeScriptedLink(options: ScriptedOptions): RemoteLink {
@@ -51,8 +58,9 @@ export function makeScriptedLink(options: ScriptedOptions): RemoteLink {
   return linkOver(
     {
       id: 'scripted',
-      // Nothing to open a terminal in: a far end here is a listener, not a shell.
-      capabilities: { pairs: true, identifies: true, terminals: false },
+      // A far end here is a listener, not a shell: a terminal there is one
+      // here, where a test asked for one.
+      capabilities: { pairs: true, identifies: true, terminals: options.terminals === true },
       // Nothing to run: the far end is a listener in this process.
       programs: [],
       pair: async (at) => find(at.address).pair(at.label),
@@ -67,6 +75,13 @@ export function makeScriptedLink(options: ScriptedOptions): RemoteLink {
           socket.once('connect', () => done(socket))
           socket.once('error', (err) => failed(new LinkError('failed', err.message)))
         }),
+      ...(options.terminals === true
+        ? {
+            terminal: (remote: Remote, words: readonly string[]) =>
+              here(`${remote.tade} ${words.join(' ')}`),
+            attach: async (_remote: Remote, line: string) => here(line),
+          }
+        : {}),
       identify: async (address) => identityOf(address, find(address)),
       trust: async (address, fingerprints) => {
         const far = find(address)
@@ -83,6 +98,11 @@ export function makeScriptedLink(options: ScriptedOptions): RemoteLink {
     },
     options,
   )
+}
+
+/** A terminal here running a line, which is a terminal there when there is here. */
+function here(line: string): TerminalThere {
+  return { command: '/bin/sh', args: ['-c', line], by: 'scripted' }
 }
 
 function identityOf(address: string, far: ScriptedRemote): Identity {

@@ -6,6 +6,7 @@ import {
   printable,
   type Workspace,
 } from '@tade/core'
+import { attachedFrom } from '@tade/workbench/attached'
 import { chatsFrom } from '@tade/workbench/chats'
 import type { LaneRecord } from '@tade/workbench/registry'
 import { terminalsFrom } from '@tade/workbench/terminals'
@@ -145,11 +146,20 @@ export function approvalId(approval: Pick<PendingApproval, 'run' | 'requestId'>)
  * moment it opens one, so a new tab is where the next look will put it.
  */
 export function tabsFrom(lanes: readonly LaneRecord[]): TerminalTab[] {
-  return [...chatsFrom(lanes), ...terminalsFrom(lanes)].map(({ id, project, name }) => ({
-    id,
-    project,
-    name,
-  }))
+  return [
+    ...[...chatsFrom(lanes), ...terminalsFrom(lanes)].map(({ id, project, name }) => ({
+      id,
+      project,
+      name,
+    })),
+    // An agent on another machine, typed into here: under every project, as a
+    // chat is, called by its machine and its name there — which that machine wrote.
+    ...attachedFrom(lanes).map((one) => ({
+      id: one.id,
+      project: '',
+      name: `${one.machine} · ${printable(one.task.slice(one.task.indexOf('/') + 1))}`,
+    })),
+  ]
 }
 
 /**

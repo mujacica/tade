@@ -9,7 +9,7 @@ import {
   type RemoteConfig,
   type Waking,
 } from '@tade/core'
-import type { Held, MakeRemoteLink, RemoteLink } from '@tade/remotes-core'
+import type { Held, MakeRemoteLink, Remote, RemoteLink } from '@tade/remotes-core'
 import {
   type LinkWord,
   lineFor,
@@ -27,7 +27,15 @@ import type { Ui } from '../screen.ts'
 import { remoteStanding } from '../view/standing.ts'
 import { projectSays } from '../view/top.ts'
 import { Carries, type CarriesDeps } from './carry.ts'
-import { configPathOf, type Menus, type Subject, type Wiring } from './context.ts'
+import {
+  type Actions,
+  configPathOf,
+  type Menus,
+  type Prompts,
+  type Subject,
+  type Wiring,
+} from './context.ts'
+import { RemoteAgents } from './remote-agent.ts'
 import { MACHINE } from './web-panel.ts'
 
 // The window's links to other machines' Tades it is an owner of: one link per
@@ -120,6 +128,8 @@ export class Remotes implements Subject {
   } | null = null
   /** How far this clock is ahead of each remote's, as of the projection it was told with. */
   private readonly skews = new Map<string, { projection: object; skew: number }>()
+  /** An agent there, looked at, typed into and acted on (`remote-agent.ts`), where the window has one. */
+  private agents: RemoteAgents | null = null
 
   constructor(deps: RemotesDeps) {
     this.deps = deps
@@ -137,7 +147,32 @@ export class Remotes implements Subject {
   /** Every remote's projects, for the top row, the side and Spend — and nothing where there are none. */
   facts(): Partial<Frame> {
     const machines = this.machines()
-    return machines.remotes.length === 0 ? {} : { machines }
+    return machines.remotes.length === 0 ? {} : { machines, ...this.agents?.facts() }
+  }
+
+  /** What an agent there may be asked from here: looked at, typed into, told, stopped, parked. */
+  actions(): Actions {
+    return this.agents?.actions() ?? {}
+  }
+
+  prompts(): Prompts {
+    return this.agents?.prompts() ?? {}
+  }
+
+  /** Hand it what opens an agent there, which reaches the links through it. */
+  withAgents(make: (remotes: Remotes) => RemoteAgents): this {
+    this.agents = make(this)
+    return this
+  }
+
+  /** The link holding one remote, the remote as opened, and whether it is up — or null. */
+  reachFor(name: string): { link: RemoteLink; remote: Remote; live: boolean } | null {
+    return this.reach(name)
+  }
+
+  /** How far this clock is ahead of a remote's, as its last projection said: 0 where unknown. */
+  skewOf(name: string): number {
+    return this.skews.get(name)?.skew ?? 0
   }
 
   /** A machine's name along the top opens its projects; choosing one stands in it. */
@@ -262,6 +297,7 @@ export class Remotes implements Subject {
       link.beat(now)
     }
     this.carries.beat([...this.holder.keys()])
+    this.agents?.beat()
     void this.reread()
   }
 
@@ -422,6 +458,7 @@ export function remotesFor(
     },
     draw: () => wire.draw(),
     home: wire.opts.home,
+    ...(wire.opts.remoteLinks ? { links: wire.opts.remoteLinks } : {}),
     remotes: () => wire.opts.config.remotes,
     configPath: configPathOf(wire.opts),
     lastInputAt: () => wire.state.lastInputAt,
@@ -433,5 +470,12 @@ export function remotesFor(
       wire.put(notice(wire.state, said, wire.now()))
       wire.draw()
     },
-  })
+  }).withAgents(
+    (remotes) =>
+      new RemoteAgents(wire, {
+        reach: (name) => remotes.reachFor(name),
+        machines: () => remotes.machines(),
+        skew: (name) => remotes.skewOf(name),
+      }),
+  )
 }

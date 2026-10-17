@@ -54,7 +54,7 @@ export function renderMain(
   pointer: Pointer,
 ): Drawn {
   const away = elsewhereOf(state)
-  if (away !== null) return renderElsewhere(frame, away, width, height, skin)
+  if (away !== null) return renderElsewhere(frame, away, width, height, skin, pointer)
   const pane = state.panes.find((p) => p.task === state.focused)
   if (!pane && state.showingPlan) return renderPlan(state, frame, width, height, skin, pointer)
   const schedule = frame.schedules?.find((one) => one.id === state.schedule)

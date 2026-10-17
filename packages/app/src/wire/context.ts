@@ -4,6 +4,7 @@ import type { Terminal } from '@earendil-works/pi-tui'
 import type { Arm, CertificateLook, Config, DomainSeen, Holding, ToldPrint } from '@tade/core'
 import type { ExtensionHost, ExtensionWorkbench } from '@tade/extensions-core'
 import type { HarnessModels, HistoryAsk, HistoryPage } from '@tade/harnesses-core'
+import type { MakeRemoteLink } from '@tade/remotes-core'
 import type { StatusCollector } from '@tade/status'
 import type { Reporter } from '@tade/telemetry'
 import type { Recorder, Transcriber } from '@tade/voice-core'
@@ -278,6 +279,12 @@ export interface AppOptions {
    * network it runs on.
    */
   network?: MachineNetwork
+  /**
+   * How other machines are reached, by the name a remote's link is: the
+   * registry's (`REMOTE_LINKS`) unless given, for the reason `network` is — a
+   * test links to far ends on this machine and never dials anybody's host.
+   */
+  remoteLinks?: Readonly<Record<string, MakeRemoteLink>>
   now?: () => number
   frameMs?: number
   /**

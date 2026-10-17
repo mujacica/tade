@@ -280,10 +280,14 @@ export function whereYouAre(here: {
    * front: said as that machine's, because a project here may have its name
    * and nothing done here reaches it.
    */
-  elsewhere?: { machine: string; project: string } | null
+  elsewhere?: { machine: string; project: string; agent?: string } | null
 }): string | null {
   if (here.elsewhere && !here.agent) {
-    const { machine, project } = here.elsewhere
+    const { machine, project, agent } = here.elsewhere
+    // The agent there they opened, by its task there: "this one" means it, and it is not one here.
+    if (agent !== undefined) {
+      return `You are looking at ${agent} on ${machine}, an agent of another machine's Tade — not one here.`
+    }
     return `You are looking at ${project} on ${machine}, another machine's Tade — not a project here.`
   }
   const many = here.projects.length > 1

@@ -21,10 +21,15 @@ import {
   type WebServer,
   webServer,
 } from '@tade/web'
+import { type FarAct, type FarAgent, farActing, farLane, farTask } from './far-agents.ts'
+
+export type { FarAct, FarAgent } from './far-agents.ts'
+
 import type { OwnerSession } from './port.ts'
 
 // The far end: another machine's Tade, as a link sees one — for the
-// conformance suite and nothing else.
+// conformance suite, and for the window's tests of what it draws and asks of
+// another machine.
 //
 // **A real away view, not a stand-in for one.** It is `@tade/web`'s own
 // listener over a home of its own, with owners minted into that home's device
@@ -51,10 +56,17 @@ export interface FarEnd {
   revoke(device: string): Promise<void>
   /**
    * The projects it has from now on, and what any of them is called there —
-   * whatever somebody there wrote, as its away view sends it; the next beat
-   * sends what moved.
+   * whatever somebody there wrote, as its away view sends it — and the agents
+   * in them, with their screens (`far-agents.ts`); the next beat sends what
+   * moved.
    */
-  show(projects: readonly string[], titles?: Readonly<Record<string, string>>): void
+  show(
+    projects: readonly string[],
+    titles?: Readonly<Record<string, string>>,
+    agents?: readonly FarAgent[],
+  ): void
+  /** Every verb an owner asked of it, oldest first, as its window was handed each. */
+  readonly acted: FarAct[]
   /** The newest presence any owner carried, in its clock, or null. */
   readonly presentAt: number | null
   /** How many streams are open to it. */
@@ -117,6 +129,10 @@ class Far implements FarEnd {
   readonly lines: CarryLine[] = []
   signIns: SignInHere[] = []
   readonly attachable = new Map<string, string>()
+  readonly acted: FarAct[] = []
+  private agents: readonly FarAgent[] = []
+  /** When the agents were last shown: their moments, fixed, so a beat finds nothing moved. */
+  private shownAt = Date.now()
   private server: WebServer | null = null
   private projects: readonly string[]
   private titles: Readonly<Record<string, string>> = {}
@@ -143,7 +159,9 @@ class Far implements FarEnd {
     const streams = new Streams()
     const server = webServer({
       home: this.home,
-      surface: { ...SURFACE, port },
+      // Acting on: what an owner asks of an agent there is written down (`acted`).
+      surface: { ...SURFACE, port, acting: true },
+      acting: farActing(this.acted),
       readingFor: (reach) => this.projectorFor(reach),
       tickets: new Tickets(),
       streams,
@@ -204,9 +222,15 @@ class Far implements FarEnd {
     this.server?.streams.revoke(device, 'signed out')
   }
 
-  show(projects: readonly string[], titles: Readonly<Record<string, string>> = {}): void {
+  show(
+    projects: readonly string[],
+    titles: Readonly<Record<string, string>> = {},
+    agents: readonly FarAgent[] = [],
+  ): void {
     this.projects = projects
     this.titles = titles
+    this.agents = agents
+    this.shownAt = Date.now()
   }
 
   async restart(): Promise<void> {
@@ -250,7 +274,12 @@ class Far implements FarEnd {
   private projectorFor(reach: Reach): Projector {
     const held = this.projectors.get(reach.device)
     if (held !== undefined) return held
-    const made = projector(this.inputFor(reach), Date.now())
+    const made = projector(this.inputFor(reach), Date.now(), {
+      agent: (task) => {
+        const one = this.agents.find((agent) => agent.task === task)
+        return one === undefined ? null : farLane(one, this.shownAt)
+      },
+    })
     this.projectors.set(reach.device, made)
     return made
   }
@@ -260,7 +289,7 @@ class Far implements FarEnd {
       lifetime: { epoch: this.epoch, rev: this.projectorRev(reach), openedAt: 0 },
       reach,
       projects: this.projects.map((name) => projectIn(name, this.titles[name] ?? '')),
-      tasks: [],
+      tasks: this.agents.map((agent) => farTask(agent, this.shownAt)),
       queue: [],
       findings: null,
       notes: [],

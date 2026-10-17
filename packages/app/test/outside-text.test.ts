@@ -1,6 +1,8 @@
 import { type InboxRow, inboxProvenance } from '@tade/core'
+import { heldFor } from '@tade/remotes-core'
 import { describe, expect, it } from 'vitest'
 import type { Frame, IntakeOpenView } from '../src/frame.ts'
+import { goElsewhere, machineOf, screenOf } from '../src/machines.ts'
 import {
   focusTask,
   initialState,
@@ -416,6 +418,54 @@ describe('notes, which are kept word for word', () => {
       'Staging key',
       'rotates on the first',
       'nosave',
+    )
+  })
+})
+
+describe('an agent on another machine, opened here', () => {
+  it('draws its title, what it is doing, what it waits on and its screen there as text', () => {
+    const held = {
+      ...heldFor('vps'),
+      link: { kind: 'live' as const, since: NOW },
+      heardAt: NOW,
+      projection: {
+        v: 1,
+        fresh: { at: new Date(NOW).toISOString(), epoch: 'e1', rev: 3 },
+        projects: [{ name: 'tade', open: true }],
+        tasks: [
+          {
+            id: 'tade/door',
+            project: 'tade',
+            name: 'door',
+            mark: 'needs-you',
+            reason: hostile('waitsthere'),
+            title: { words: hostile('doortitle'), more: false },
+            rev: 'r1',
+            lane: 'running',
+            approval: { id: 'call-1', tool: hostile('ghapi') },
+            can: [{ verb: 'answer' }],
+          },
+        ],
+        queue: [],
+      } as never,
+    }
+    const machines = { here: 'this Mac', remotes: [machineOf(held, 0)] }
+    const remoteScreen = screenOf(
+      'tade/door',
+      { screen: { lines: [hostile('screenrow')], at: new Date(NOW).toISOString(), above: 0 } },
+      0,
+    )
+    const looking = goElsewhere(withProjects(initialState(), ['checkout']), {
+      machine: 'vps',
+      project: 'tade',
+      agent: 'tade/door',
+    })
+    expectOnlyText(
+      see(looking, { machines, remoteScreen }),
+      'doortitle',
+      'waitsthere',
+      'ghapi',
+      'screenrow',
     )
   })
 })

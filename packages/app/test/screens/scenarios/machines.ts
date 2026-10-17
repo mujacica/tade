@@ -6,7 +6,13 @@ import {
   type Machines,
   type RemoteAgent,
 } from '../../../src/machines.ts'
-import { focusTask, initialState, withProjects, withTasks } from '../../../src/model.ts'
+import {
+  focusTask,
+  initialState,
+  withProjects,
+  withTasks,
+  withTerminals,
+} from '../../../src/model.ts'
 import { menuPanel, projectsMenuItems } from '../../../src/panels/menu/state.ts'
 import { frame, NOW, type Scenario, tasks } from './fixtures.ts'
 
@@ -29,6 +35,11 @@ const agent = (over: Partial<RemoteAgent> & Pick<RemoteAgent, 'name' | 'mark'>):
   queued: false,
   reason: '',
   movedAt: NOW - 4 * MINUTE,
+  rev: 'r1',
+  approval: null,
+  parked: false,
+  lane: over.mark === 'done' || over.mark === 'stopped' ? 'stopped' : 'running',
+  can: [],
   ...over,
 })
 
@@ -36,6 +47,7 @@ const agent = (over: Partial<RemoteAgent> & Pick<RemoteAgent, 'name' | 'mark'>):
 const vps = (over: Partial<Machine> = {}): Machine => ({
   name: 'vps',
   link: 'live',
+  rev: 12,
   said: null,
   asOf: NOW - 3_000,
   heard: true,
@@ -51,12 +63,15 @@ const vps = (over: Partial<Machine> = {}): Machine => ({
           mark: 'needs-you',
           reason: 'wants approval: gh api',
           movedAt: NOW - 12 * MINUTE,
+          approval: { id: 'call-1', tool: 'gh api' },
+          can: ['park', 'answer', 'steer', 'stop'],
         }),
         agent({
           name: 'remote-link',
           mark: 'working',
           reason: 'running the suite',
           movedAt: NOW - 2 * MINUTE,
+          can: ['park', 'steer', 'stop'],
         }),
         agent({
           name: 'mirror-branches',
@@ -104,6 +119,7 @@ const vps = (over: Partial<Machine> = {}): Machine => ({
 const lab: Machine = {
   name: 'lab',
   link: 'live',
+  rev: 3,
   said: null,
   asOf: NOW - 9_000,
   heard: true,
@@ -147,6 +163,24 @@ const onThisMac = () =>
 
 const wide = (over: Partial<Frame> = {}): Frame => frame({ width: 160, height: 34, ...over })
 
+/** What the agent waiting on you there shows on its own screen, as the VPS read it. */
+const DOORBELL = [
+  '> wire the GitHub webhook to the doorbell, then prove a delivery wakes the watch',
+  '',
+  '● I will register the hook on acme/checkout and send a test delivery.',
+  '',
+  '● Bash(gh api repos/acme/checkout/hooks --method POST -f name=web …)',
+  '',
+  '  Do you want to proceed?',
+  '  ❯ 1. Yes',
+  '    2. Yes, and don’t ask again for gh api commands',
+  '    3. No, and tell Claude what to do differently',
+]
+
+/** Looking at that agent there: its screen, read a few seconds ago. */
+const looking = () =>
+  goElsewhere(onThisMac(), { machine: 'vps', project: 'tade', agent: 'tade/intake-webhooks' })
+
 export const MACHINE_SCREENS: Scenario[] = [
   {
     name: 'projects-on-two-machines',
@@ -184,6 +218,45 @@ export const MACHINE_SCREENS: Scenario[] = [
       'and the project you are standing in keeps its tab wherever it is.',
     state: goElsewhere(onThisMac(), { machine: 'vps', project: 'web' }),
     frame: frame({ width: 100, height: 28, machines: machines(vps(), lab) }),
+  },
+  {
+    name: 'an-agent-on-another-machine',
+    about:
+      'An agent on the VPS pressed down the side: the pane says what it is and how it stands there, ' +
+      'offers what the VPS says may be asked of it — type into it, steer it, park it, stop it, and ' +
+      'allow or deny the `gh api` call it is held on — and shows its screen there, read-only, as ' +
+      'the VPS last read it.',
+    state: looking(),
+    frame: wide({
+      machines: machines(vps(), lab),
+      remoteScreen: {
+        task: 'tade/intake-webhooks',
+        lines: DOORBELL,
+        at: NOW - 4_000,
+        above: 0,
+        why: null,
+      },
+    }),
+  },
+  {
+    name: 'typing-into-an-agent-on-another-machine',
+    about:
+      'Enter on it: a terminal here that is the agent there, in front of the lower pane with the ' +
+      'room to read it — the VPS’s own tmux, a view of its own so two agents side by side stay two ' +
+      'agents, over ssh, or mosh where both machines have it. Closing the tab ends the terminal, ' +
+      'never the agent.',
+    state: {
+      ...withTerminals(looking(), [
+        { id: 'remotes/vps/1', project: '', name: 'vps · intake-webhooks' },
+      ]),
+      bottom: 'remotes/vps/1',
+      keyboard: 'terminal',
+      bottomMode: 'max',
+    },
+    frame: wide({
+      machines: machines(vps(), lab),
+      terminal: { screen: ['', ...DOORBELL, '', '1'].join('\n') },
+    }),
   },
   {
     name: 'a-machines-projects',

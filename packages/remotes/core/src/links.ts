@@ -1,6 +1,6 @@
 import { connect } from 'node:net'
 import type { Duplex } from 'node:stream'
-import type { RequiredProgram, Unsubscribe } from '@tade/core'
+import { printable, type RequiredProgram, type Unsubscribe } from '@tade/core'
 import { callOver } from './call.ts'
 import { type Door, doorOf, Follower, type Reaching } from './follow.ts'
 import {
@@ -53,6 +53,17 @@ export interface Transport {
 
 /** How long a request over a held link may take: a read, or a verb carried out there. */
 export const REQUEST_MS = 20_000
+
+/**
+ * A remote's line for a terminal there, as it may be handed back to it: one
+ * line of printable text, bounded. It is that machine's own words run by that
+ * machine's shell, so this is not what keeps it safe — it is what keeps a
+ * second command, or an escape this terminal would act on, out of an argument
+ * nobody reads.
+ */
+export function lineOk(line: string): boolean {
+  return /^[\x20-\x7e]{1,4096}$/.test(line)
+}
 
 /** A whole link out of a transport. */
 export function linkOver(transport: Transport, options: LinkOptions): RemoteLink {
@@ -110,6 +121,12 @@ class Links implements RemoteLink {
 
   async attach(remote: Remote, line: string): Promise<TerminalThere | null> {
     if (!this.capabilities.terminals || this.transport.attach === undefined) return null
+    if (!lineOk(line)) {
+      throw new LinkError(
+        'failed',
+        `${remote.name} answered a line no link hands a shell: ${JSON.stringify(printable(line).slice(0, 80))}`,
+      )
+    }
     return this.transport.attach(remote, line)
   }
 

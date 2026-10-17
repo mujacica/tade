@@ -536,6 +536,23 @@ export const PICTURES: readonly Picture[] = [
       'the heading says `○ vps · as of 13:52` — never an empty list.',
   },
   {
+    file: 'remote-agent.svg',
+    scenario: 'an-agent-on-another-machine',
+    crop: { top: 0, height: 21 },
+    about:
+      'An agent on the VPS, opened from the Mac: what it is and how it stands there, the controls ' +
+      'the VPS says may be used on it — type into it, steer it, park it, stop it, allow or deny ' +
+      'the gh api call it is held on — and its screen there, read-only, as the VPS last read it.',
+  },
+  {
+    file: 'remote-terminal.svg',
+    scenario: 'typing-into-an-agent-on-another-machine',
+    crop: { top: 0, height: 20 },
+    about:
+      'Enter on that agent: a terminal on the Mac that is the agent on the VPS, in front of the ' +
+      'lower pane with the room to read it, its tab saying which machine and which agent.',
+  },
+  {
     file: 'project-menu.svg',
     scenario: 'a-projects-menu',
     crop: 'panel',

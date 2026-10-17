@@ -11,6 +11,7 @@ import {
   titlesOf,
   writeSetting,
 } from '@tade/core'
+import { ATTACHED } from '@tade/workbench/attached'
 import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
 import {
@@ -563,11 +564,12 @@ export class Projects implements Subject {
       throw new Error('A name is lowercase letters, digits and dashes.')
     if (this.wire.opts.config.projects[name])
       throw new Error(`There is already a project called ${name}. Choose another name.`)
-    // The one name that is Tade's own: every chat's task begins with it, which
-    // is how a chat's spend and its runtime find a bucket of their own. A
-    // project called the same thing would share it (`core/src/chat.ts`).
-    if (name === CHATS)
-      throw new Error(`${CHATS} is Tade's own name for its chats. Choose another name.`)
+    // The names that are Tade's own: every chat's task begins with one, which is
+    // how a chat's spend and runtime find a bucket of their own, and every
+    // terminal to another machine's agent with the other — a project called
+    // either would share it (`core/src/chat.ts`, `workbench/src/attached.ts`).
+    if (name === CHATS || name === ATTACHED)
+      throw new Error(`${name} is a name Tade keeps for itself. Choose another name.`)
     const there = whatIsAt(full)
     if (there === 'something') throw new Error(`${tilde(full)} is not a folder.`)
     if (there === 'nothing') {

@@ -44,6 +44,20 @@ export interface RemoteAgent {
   reason: string
   /** When it last moved, in **this** machine's clock. Null where the remote did not say. */
   movedAt: number | null
+  /**
+   * What an act on it must still find true there (the row's `rev`), echoed as
+   * `was` and never read. Null where the remote sent none, which no act can
+   * be made without.
+   */
+  rev: string | null
+  /** The approval it is held on: the harness's id for it, which an answer names, and the tool's name. */
+  approval: { id: string; tool: string } | null
+  /** Whether somebody set it aside there. */
+  parked: boolean
+  /** Its own agent's lane, in the remote's one word: running, stopped and kept, or none. */
+  lane: 'running' | 'stopped' | 'none'
+  /** The verbs that machine says may be asked of it now (its `can`); nothing else is offered. */
+  can: readonly string[]
 }
 
 export interface RemoteProject {
@@ -74,6 +88,8 @@ export interface Machine {
   /** What it is called here: its `remotes.<name>`, which this machine's config gave it. */
   name: string
   link: MachineLink
+  /** The revision of its projection what is held is of, which an act echoes. Null before one. */
+  rev: number | null
   /** Why it is down or signed out, as text. Null while it is up. */
   said: string | null
   /** When what is held was last known to be current, in this machine's clock. Null before anything. */
@@ -95,6 +111,8 @@ export interface Machines {
 export interface Place {
   machine: string
   project: string
+  /** The agent there you are looking at, by its task id there, or none. */
+  agent?: string
 }
 
 /** How long a name may be here; a title or a reason, a little longer. */
@@ -126,6 +144,7 @@ export function machineOf(held: Held, skew: number): Machine {
   return {
     name: held.remote,
     link: word,
+    rev: numberIn(objectIn(projection?.fresh), 'rev'),
     said: said === '' ? null : said,
     asOf: held.heardAt,
     heard: projection !== null,
@@ -139,6 +158,7 @@ export function unheard(name: string, said: string | null): Machine {
   return {
     name,
     link: said === null ? 'linking' : 'down',
+    rev: null,
     said,
     asOf: null,
     heard: false,
@@ -208,7 +228,35 @@ function agentOf(
     queued,
     reason: text(row.reason, SAID_MOST),
     movedAt: Number.isFinite(moved) ? moved + skew : null,
+    // Echoed and compared there, never drawn: kept only where it is the short
+    // token the protocol says it is, so an act carries nothing else back.
+    rev: tokenIn(row, 'rev'),
+    approval: approvalIn(row.approval),
+    parked: row.parked === true,
+    lane: LANES.find((one) => one === row.lane) ?? 'none',
+    can: listIn(row.can).flatMap((one) => {
+      const verb = tokenIn(one, 'verb')
+      return verb === null ? [] : [verb]
+    }),
   }
+}
+
+/** Its own agent's lane, in the words the protocol has for one. */
+const LANES = ['running', 'stopped', 'none'] as const
+
+/** An approval as a row carries one: an id to echo, and a tool's name to draw as text. */
+function approvalIn(value: unknown): RemoteAgent['approval'] {
+  const approval = objectIn(value)
+  const id = stringIn(approval, 'id')
+  const tool = text(approval?.tool, NAME_MOST)
+  if (id === null || id === '' || id.length > 200 || !/^[\x21-\x7e]+$/.test(id)) return null
+  return { id, tool: tool === '' ? 'a tool' : tool }
+}
+
+/** A short token the protocol echoes or names a verb by: printable, no spaces, bounded. Null otherwise. */
+function tokenIn(value: unknown, key: string): string | null {
+  const field = stringIn(value, key)
+  return field !== null && /^[\x21-\x7e]{1,64}$/.test(field) ? field : null
 }
 
 function spendIn(projection: Record<string, unknown>): MachineSpend {
@@ -234,6 +282,77 @@ function spendIn(projection: Record<string, unknown>): MachineSpend {
     total.hasCost ||= spend.hasCost === true
   }
   return total
+}
+
+// ── An agent's screen there ──────────────────────────────────────────────────
+
+/**
+ * The screen of an agent on another machine, as its away view last answered
+ * (`/api/agent/<project>/<task>`): read only while somebody here looks at it.
+ */
+export interface RemoteScreen {
+  /** Its task there: what the answer was asked about. */
+  task: string
+  /** Its newest rows, oldest first, as text. Empty where `why` says. */
+  lines: readonly string[]
+  /** When that machine read them, in **this** machine's clock. Null where it did not say. */
+  at: number | null
+  /** Rows above these it did not send: a screen is sent, never its scrollback. */
+  above: number
+  /** Why there are no rows, in this window's words. Null where there are. */
+  why: string | null
+}
+
+/** The most rows of one screen kept, and the widest a row is kept: the protocol's own bound, again. */
+const SCREEN_MOST = { lines: 60, width: 240 }
+
+/** What the away view says for having no rows to send (`SCREEN_WHY`), as this window says it. */
+const SCREEN_SAYS: Readonly<Record<string, string>> = {
+  'not granted': 'this machine may not read its screen there',
+  'no agent': 'no agent is running there',
+  'not read yet': 'reading its screen…',
+  'could not read': 'its screen could not be read there',
+  'not here': 'it is not on that machine any more',
+}
+
+/**
+ * One answer about an agent there, read as a screen: every row reduced to
+ * text (`printable` — an agent prints whatever it printed, escapes and all,
+ * and that machine's cleaning is that machine's), bounded, and moved into
+ * this clock by `skew`. Anything not shaped like an answer is a screen
+ * that says so, never a throw.
+ */
+export function screenOf(task: string, answer: unknown, skew: number): RemoteScreen {
+  const body = objectIn(answer)
+  const screen = objectIn(body?.screen)
+  if (screen === null) {
+    const why = stringIn(body, 'why')
+    return {
+      task,
+      lines: [],
+      at: null,
+      above: 0,
+      why: (why === null ? null : SCREEN_SAYS[why]) ?? 'that machine answered with no screen',
+    }
+  }
+  const rows = Array.isArray(screen.lines) ? screen.lines : []
+  const lines = rows
+    .slice(-SCREEN_MOST.lines)
+    .map((row) => (typeof row === 'string' ? cut(printable(row), SCREEN_MOST.width) : ''))
+  const at = Date.parse(stringIn(screen, 'at') ?? '')
+  return {
+    task,
+    lines,
+    at: Number.isFinite(at) ? at + skew : null,
+    above: (numberIn(screen, 'above') ?? 0) + Math.max(0, rows.length - SCREEN_MOST.lines),
+    why: null,
+  }
+}
+
+/** A row cut to so many code points, its trailing blanks gone and its indent kept. */
+function cut(row: string, most: number): string {
+  const points = [...row]
+  return (points.length <= most ? row : points.slice(0, most).join('')).trimEnd()
 }
 
 // ── Reading what another machine wrote ───────────────────────────────────────

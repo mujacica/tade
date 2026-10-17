@@ -18,7 +18,7 @@ import type { EvalsView, ReplaysView } from './evaluations.ts'
 import type { FileEntry } from './files.ts'
 import type { LayoutPrefs } from './layout.ts'
 import type { Linker } from './links.ts'
-import type { Machines } from './machines.ts'
+import type { Machines, RemoteScreen } from './machines.ts'
 import type { ScheduleView } from './model.ts'
 import type { PanelContext } from './panels/context.ts'
 import type { AgentOffers, ThinkerOffers } from './panels/menu/state.ts'
@@ -505,6 +505,11 @@ export interface Frame {
    * is configured, which draws the window as it always was.
    */
   machines?: Machines
+  /**
+   * The screen of the agent on another machine you are looking at, as its
+   * away view last answered — read only while you look (`wire/remote-agent.ts`).
+   */
+  remoteScreen?: RemoteScreen
   /**
    * Every race the window can see: the entrants given one request, in the
    * order the facts put them, undecided races first (`racesIn`).

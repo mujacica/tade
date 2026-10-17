@@ -84,6 +84,11 @@ export interface PromptPanel {
     | 'account-name'
     /** An API-key account's key: `target` is the account. Never drawn as typed. */
     | 'account-key'
+    /**
+     * A sentence for an agent on another machine, sent as its `steer`:
+     * `target` is the machine and its task there, joined by a NUL.
+     */
+    | 'remote-steer'
   /**
    * The terminal or agent it is about, for renaming one or running a command
    * in it; for a note being changed, when it was said and what it said, joined

@@ -1,5 +1,6 @@
 import { chatTaskOf, HARNESS_CHOICES, isChatLane, type LaneId } from '@tade/core'
 import { openChat } from '@tade/workbench'
+import { isAttachedLane } from '@tade/workbench/attached'
 import { acknowledge } from '../flash.ts'
 import type { Frame, LaneView } from '../frame.ts'
 import { halvesOf } from '../layout.ts'
@@ -12,6 +13,7 @@ import {
   showTerminal,
 } from '../model.ts'
 import {
+  attachedMenuItems,
   bottomNewItems,
   chatMenuItems,
   laneMenuItems,
@@ -226,6 +228,7 @@ export class Lanes implements Subject {
           this.wire.state.terminals.find((one) => one.id === subject.id)?.name ?? 'terminal',
         items: (subject) => {
           const split = terminalSplitShown(this.wire.state) !== null
+          if (isAttachedLane(subject.id)) return attachedMenuItems()
           return isChatLane(subject.id) ? chatMenuItems(split) : terminalMenuItems(split)
         },
         choose: (subject, item) => this.fromTerminalMenu(subject.id, item),
@@ -286,7 +289,12 @@ export class Lanes implements Subject {
    */
   private async closeTerminal(id: string): Promise<void> {
     const client = this.wire.opts.client
-    const closing = isChatLane(id) ? client.stopAgent(chatTaskOf(id)) : client.closeTerminal(id)
+    // A terminal to another machine's agent is a lane and no terminal of a project's.
+    const closing = isChatLane(id)
+      ? client.stopAgent(chatTaskOf(id))
+      : isAttachedLane(id)
+        ? client.closeLane(id as LaneId)
+        : client.closeTerminal(id)
     await closing.catch((err) => this.wire.note(err))
     await this.wire.live?.refresh()
     this.wire.draw()

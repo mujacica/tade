@@ -977,8 +977,20 @@ drawn from what its away view sends — the projection the link holds (REMOTE-TA
   every subject acts on. It is in front only while no agent here is (`elsewhereOf`); `goElsewhere`
   keeps where you were, `whereYouWere` and `refocus` leave the spot and the focus alone while it
   is, and a beat with an agent here in front lets go of it. The side is `elsewhereSections` and the
-  pane `renderElsewhere` (`view/elsewhere.ts`); nothing there is a control until a remote agent
-  can be opened.
+  pane `renderElsewhere` (`view/elsewhere.ts`).
+- **A remote agent is opened by its row** (`remote-look:<task>`, `Place.agent`), and the pane is
+  `view/remote-agent.ts`: its screen there, read-only (`/api/agent`, asked every `LOOK_MS` while
+  you look and only then, read through `screenOf`), and a control only for what that machine's row
+  says it `can` — a verb each (`/api/act/<verb>`, with `was` and `rev` echoed, so a stale press is
+  that machine's to refuse), `steer…` a prompt (`remote-steer`), nothing at all while the link is
+  down. `wire/remote-agent.ts` is the subject, owned by `Remotes` so `app.ts` never heard of it;
+  everything rides `link.request`, the held connection, never one of its own.
+- **Typing into one is a terminal in the lower pane, never a second pane**: enter (or the first
+  control) asks that machine for its line (`/api/attach`), the link for how to run it there, and
+  opens a lane `remotes/<machine>/<n>` titled with the task there (`workbench/src/attached.ts`) —
+  so the pacing, scrolling, selection and find a terminal has come with it, and the one already open
+  is put in front rather than a second. It is no project's terminal: `terminalsFrom` never lists
+  one, its menu is Find and Close (`attachedMenuItems`), and nothing types a command into it.
 - **Down is drawn from what it last said**: the chip wears `○` (`machineMark`), the rows stay with
   their ages as of `asOf` (`ageThere`, the remote's moments moved by `skewOf` into this clock), and
   the heading says `as of 14:02` — never an empty list.

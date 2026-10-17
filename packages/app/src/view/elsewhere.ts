@@ -1,5 +1,6 @@
 import { type AgentMark, duration } from '@tade/core'
 import type { Frame } from '../frame.ts'
+import { rowHit, type Target } from '../hits.ts'
 import {
   ageThere,
   linkWords,
@@ -11,7 +12,8 @@ import {
 } from '../machines.ts'
 import { MARK_TONES, markGlyph } from '../model.ts'
 import type { Skin } from '../skin.ts'
-import { blank, type Drawn, fit, Row, stack } from '../ui.ts'
+import { blank, type Drawn, fit, NO_POINTER, type Pointer, Row, stack } from '../ui.ts'
+import { renderRemoteAgent } from './remote-agent.ts'
 import { type ListItem, type Section, TAB_EDGES, tabList } from './rows.ts'
 import { type ProjectMark, remoteStanding } from './standing.ts'
 import { clockOf, shortened } from './text.ts'
@@ -27,9 +29,9 @@ import { clockOf, shortened } from './text.ts'
 // is down the rows stay, their ages as of the last time it answered, and the
 // heading says so: `○ vps · as of 14:02`.
 //
-// Nothing here is a control yet. Opening a remote agent's screen is the next
-// piece of work, and a row that looked pressable and did nothing would be a
-// promise the window cannot keep.
+// **A row is the agent**: pressing one looks at it — its screen there, and
+// what may be asked of it from here (`view/remote-agent.ts`) — and pressing it
+// again lets go. The one looked at is lit as the agent in front is here.
 
 /** The sections the side draws while you stand in a project on another machine. */
 export function elsewhereSections(
@@ -47,7 +49,9 @@ export function elsewhereSections(
   const line = (row: () => Row, said: string) => [row().space(3).text(said, skin.hint).build()]
   const items = (list: readonly RemoteAgent[]) =>
     tabList(
-      list.map((agent) => remoteItem(width, skin, agent, found?.machine ?? null, now)),
+      list.map((agent) =>
+        remoteItem(width, skin, agent, found?.machine ?? null, now, place.agent === agent.id),
+      ),
       width,
     )
   return [
@@ -101,7 +105,8 @@ const MARK_WORDS: Readonly<Record<AgentMark, string>> = {
 
 /**
  * An agent there, as two rows of the side: its mark and its name, then its age
- * and the remote's clause. Drawn as a tab is drawn, with no ground and no hit.
+ * and the remote's clause. Drawn as a tab is drawn, lit while it is the one in
+ * the pane, and pressing either row looks at it.
  */
 function remoteItem(
   width: number,
@@ -109,6 +114,7 @@ function remoteItem(
   agent: RemoteAgent,
   machine: Machine | null,
   now: number,
+  looked: boolean,
 ): ListItem {
   const queued = agent.queued && agent.mark !== 'needs-you'
   const tone = queued ? skin.hint : skin[MARK_TONES[agent.mark]]
@@ -119,8 +125,13 @@ function remoteItem(
   const said = [age === null ? '' : duration(age), agent.reason || MARK_WORDS[agent.mark]]
   const under = new Row(Math.max(0, width - TAB_EDGES), skin).space(3)
   under.text(shortened(said.filter(Boolean).join(' · '), Math.max(1, under.width - 4)), skin.hint)
-  const tab = (built: { text: string }) => ({ text: ` ${skin.item(built.text, null)} `, hits: [] })
-  return { rows: [tab(inner.build()), tab(under.build())], band: null }
+  const band = looked ? 'selected' : null
+  const press: Target = { kind: 'action', name: `remote-look:${agent.id}` }
+  const tab = (built: { text: string }) => ({
+    text: ` ${skin.item(built.text, band)} `,
+    hits: [rowHit(0, width, press)],
+  })
+  return { rows: [tab(inner.build()), tab(under.build())], band }
 }
 
 /** What a project's tab counts, in words: `1 wants you · 2 working`. */
@@ -170,9 +181,14 @@ export function renderElsewhere(
   width: number,
   height: number,
   skin: Skin,
+  pointer: Pointer = NO_POINTER,
 ): Drawn {
   const found = placeIn(frame.machines, place)
   const machine = found?.machine ?? null
+  const agent = found?.project?.agents.find((one) => one.id === place.agent)
+  if (machine !== null && agent !== undefined) {
+    return renderRemoteAgent(frame, machine, agent, width, height, skin, pointer)
+  }
   const lines: { text: string; tone: (text: string) => string }[] = [
     { text: found?.project?.title ?? place.project, tone: skin.you },
     { text: whereSaid(machine, place, clockOf(frame)), tone: skin.hint },

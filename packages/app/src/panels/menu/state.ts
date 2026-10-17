@@ -133,6 +133,18 @@ export function chatMenuItems(split = false): MenuItem[] {
   ]
 }
 
+/**
+ * What can be done with a terminal to another machine's agent, from its tab:
+ * read back through it, and close it. Nothing types a command into it — that
+ * is a person's, at the keys — and closing ends this terminal, never the agent.
+ */
+export function attachedMenuItems(): MenuItem[] {
+  return [
+    { id: 'find', label: 'Find…' },
+    { id: 'close', label: 'Close', note: 'its agent goes on there', danger: true, divider: true },
+  ]
+}
+
 /** What can be done with a terminal, from its tab. */
 export function terminalMenuItems(split = false): MenuItem[] {
   return [

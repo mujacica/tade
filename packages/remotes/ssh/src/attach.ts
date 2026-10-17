@@ -30,10 +30,7 @@ export const MOSH_PROGRAM: RequiredProgram = {
   install: { brew: 'mosh', apt: 'mosh', dnf: 'mosh' },
 }
 
-/** A line a remote shell is handed as it came: one line of printable ASCII, bounded. */
-export function lineOk(line: string): boolean {
-  return /^[\x20-\x7e]{1,4096}$/.test(line)
-}
+export { lineOk } from '@tade/remotes-core'
 
 /** A path `command -v` answered that mosh may be told to run there: one word, nothing a shell expands. */
 export function serverOk(path: string): boolean {

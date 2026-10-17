@@ -1,3 +1,4 @@
+import { isAttachedLane } from './attached.ts'
 import type { LaneRecord } from './registry.ts'
 
 // Terminals: shells that belong to a project rather than to an agent, opened
@@ -22,8 +23,9 @@ export interface TerminalInfo {
 
 /** The terminals among a registry's lanes, oldest first: the order their tabs were opened in. */
 export function terminalsFrom(lanes: readonly LaneRecord[], project?: string): TerminalInfo[] {
+  // Another machine's agent is not a shell here: nothing types into one but a person (`attached.ts`).
   return lanes
-    .filter((lane) => lane.kind === 'terminal' && lane.alive)
+    .filter((lane) => lane.kind === 'terminal' && lane.alive && !isAttachedLane(lane.id))
     .map((lane) => ({
       id: lane.id,
       project: lane.id.split('/')[0] ?? '',

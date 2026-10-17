@@ -29,6 +29,7 @@ import {
 } from '../input.ts'
 import { appKey, forLane, normalKey, pasteKey } from '../keys.ts'
 import {
+  type AppState,
   activeTerminal,
   focusBy,
   focusNumber,
@@ -40,6 +41,7 @@ import {
   searchKey,
   setDictation,
   setListening,
+  somethingTyped,
   startHistorySearch,
 } from '../model.ts'
 import type { PanelOutcome } from '../panels/outcome.ts'
@@ -328,6 +330,11 @@ export class Keyboard implements Subject {
       // (`Looks.printed`); one asked for here found nothing and held the echo a
       // floor behind it. Only a terminal scrolled back is owed one, to its end.
       if (scrolled) this.deps.soonTick()
+      return { consume: true }
+    }
+    // Enter on an agent on another machine, with nothing on the line: a terminal that is it.
+    if (parseKey(data) === 'enter' && opensRemote(this.wire.state)) {
+      this.deps.run('remote-attach')
       return { consume: true }
     }
     // Dictating: the line is being typed, not the agent.
@@ -784,4 +791,9 @@ export function sessionPrompts(dir: string, most = 1_000): string[] {
     }
   }
   return out.slice(-most)
+}
+
+/** Whether enter opens a terminal to the agent on another machine in front, rather than sending the line. */
+function opensRemote(state: AppState): boolean {
+  return state.focused === null && state.elsewhere?.agent !== undefined && !somethingTyped(state)
 }

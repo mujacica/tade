@@ -449,6 +449,20 @@ them with their ages as of then, and the side says `as of 13:52`.
 
 ![A remote whose link is down, its agents as it last said them](https://raw.githubusercontent.com/mujacica/tade/main/images/machines-down.svg)
 
+**An agent there opens here.** Press its row and the pane shows its screen on that machine,
+read-only and kept current while you look, with what that machine says may be asked of it: steer
+it with a sentence, park it, stop it, open it again, start queued work, allow or deny what it is
+held on — each one that machine's own act, over the link this Mac holds as its owner.
+
+![An agent on the VPS opened from the Mac: its screen there, and what may be asked of it](https://raw.githubusercontent.com/mujacica/tade/main/images/remote-agent.svg)
+
+**Enter types into it**: a terminal on the Mac that is the agent on the VPS, in front of the lower
+pane — that machine's own tmux, in a view of its own so two agents side by side stay two agents,
+over the SSH connection the link already holds, or over mosh where both machines have it. Closing
+the tab ends the terminal and never the agent.
+
+![Typing into an agent on the VPS, in a terminal on the Mac](https://raw.githubusercontent.com/mujacica/tade/main/images/remote-terminal.svg)
+
 ## An IDE in the terminal
 
 The repository is right there while the agents work it: the file tree, the diffs, the branch, a
@@ -692,9 +706,9 @@ Tade", then "reload" — and it is the same run, checked against what you actual
 
 Not built yet, and named here rather than anywhere above, at the part of Tade it would be built on.
 
-- **A remote agent's screen, and that machine's orchestrator, in this window.** Its projects and
-  agents are drawn here (`packages/app/src/machines.ts`, `view/elsewhere.ts`); a row of one opens
-  nothing yet, and only that machine's own orchestrator and window act on its work.
+- **That machine's orchestrator, in this window.** Its projects and agents are drawn and opened
+  here (`packages/app/src/machines.ts`, `wire/remote-agent.ts`), and its agents take a verb over
+  the owner channel; talking to the orchestrator that runs there is still done on that machine.
 
 - **Time from done to landed**, beside the cost per landed task on Evaluations
   (`evaluationsFrom`, `core/src/evaluations.ts`). The desk already says how long each piece of work
