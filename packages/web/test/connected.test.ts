@@ -700,6 +700,8 @@ describe('an owner asking from another machine', () => {
     )
     expect(answer.form).toBeNull()
     expect(answer.cannot).toContain('no public name')
+    // And the way in that is one step from the machine asking, not a forward written by hand.
+    expect(answer.cannot).toContain('open /connect here with `tade remote connect`')
     expect(asked.wants).toEqual([])
   })
 

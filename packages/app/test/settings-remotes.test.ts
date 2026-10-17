@@ -461,6 +461,43 @@ describe('Settings › Remotes', () => {
     expect(drawn).toContain('Look again')
   })
 
+  it('says where what Slack’s own page shows you goes: that machine’s page, opened here by a command', () => {
+    const slack = (done: boolean) =>
+      vpsMachine({
+        detail: {
+          ...vpsMachine().detail,
+          connects: [
+            {
+              source: 'slack' as const,
+              title: 'Slack',
+              said: null,
+              looking: false,
+              seen: {
+                at: NOW - 20_000,
+                cannot: null,
+                steps: [
+                  {
+                    title: 'Give this machine its signing secret',
+                    done,
+                    said: 'from the app’s Basic Information',
+                    press: null,
+                    pasted: true,
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      })
+    const said = form({ ...VPS, machine: slack(false) }, 140, {}).replace(/\s+/g, ' ')
+    expect(said).toContain(
+      "pasted into vps's own page, which `tade remote connect vps` opens here — never carried from here",
+    )
+    expect(said).not.toContain('ssh -L')
+    // Kept already: nothing left to paste, so nothing said of where.
+    expect(form({ ...VPS, machine: slack(true) }, 140, {})).not.toContain('tade remote connect')
+  })
+
   it('says it is looking, why there are none, and offers no look where it has no public name or no link', () => {
     const looking = vpsMachine({ detail: { ...vpsMachine().detail, recordsLooking: true } })
     expect(at([{ ...VPS, machine: looking }])).toContain('Records looking at them on vps…')
