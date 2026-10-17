@@ -128,6 +128,27 @@ describe('the window, taking a picture', () => {
     expect(readdirSync(tmpdir()).filter((name) => name.startsWith('tade-clipboard-'))).toEqual([])
   })
 
+  it('says so when a pasted screenshot cannot be kept, and pastes no text in its place', async () => {
+    await start({
+      clipboard: {
+        watch: () => ({ stop: () => {} }),
+        image: async () => {
+          throw new Error('EACCES: permission denied')
+        },
+        text: async () => 'never typed',
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\x00')
+    terminal.press('\x1b[118;5u')
+    await until('said', () =>
+      screenOf(terminal.written).some((row) =>
+        row.includes('could not save the picture on the clipboard: EACCES'),
+      ),
+    )
+    expect(screenOf(terminal.written).some((row) => row.includes('never typed'))).toBe(false)
+  })
+
   it('watches the clipboard only while the line is open, and never after the window', async () => {
     let started = 0
     let watching = 0
