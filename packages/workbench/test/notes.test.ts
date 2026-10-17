@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { projectDir } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { Memory } from '../src/memory.ts'
@@ -149,6 +150,7 @@ describe('the cleanup, on open', () => {
 
   it('retires a note about a task long gone, and the journal says so without its words', async () => {
     const home = tmp('tade-notes-')
+    worked(home, 'tade')
     const memory = Memory.open(home)
     // Taken ten days ago, about a task that has no task file: gone.
     memory.remember('hover the purple too', 'tade/purple', 'orchestrator', Date.now() - 10 * DAY)
@@ -179,6 +181,7 @@ describe('the cleanup, on open', () => {
 
   it('says what it would retire without retiring it, when only asked', async () => {
     const home = tmp('tade-notes-')
+    worked(home, 'tade')
     Memory.open(home).remember('x', 'tade/gone', 'cli', NOW - 10 * DAY)
     const memory = Memory.open(home)
     const log = { read: async () => [], append: async () => undefined }
@@ -188,7 +191,25 @@ describe('the cleanup, on open', () => {
     ])
     expect(Memory.open(home).all()).toHaveLength(1)
   })
+
+  it('keeps a note about a task in a project this home has never had: that is another machine’s', async () => {
+    // Notes are shared between homes and projects are not, so a task in a
+    // project nothing here was ever about is work this home cannot see.
+    const home = tmp('tade-notes-')
+    worked(home, 'tade')
+    const memory = Memory.open(home)
+    memory.remember('run it at two', 'nightly/backup', 'orchestrator', NOW - 10 * DAY)
+    memory.remember('hover too', 'tade/purple', 'orchestrator', NOW - 10 * DAY)
+    const log = { read: async () => [], append: async () => undefined }
+    const would = await cleanupNotes({ home, memory, log }, 3, false, NOW)
+    expect(would.map((one) => one.note.text)).toEqual(['hover too'])
+  })
 })
+
+/** A home that has had work in this project: its folder, as a task file there leaves it. */
+function worked(home: string, project: string): void {
+  mkdirSync(projectDir(home, project), { recursive: true })
+}
 
 describe('retiring on somebody’s say-so', () => {
   let client: Workbench | null = null

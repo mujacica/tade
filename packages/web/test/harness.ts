@@ -16,6 +16,7 @@ import {
   type WebServer,
   webServer,
 } from '../src/server.ts'
+import type { WebNotes } from '../src/shared-notes.ts'
 import type { WebSince } from '../src/since.ts'
 import type { Surface } from '../src/surface.ts'
 import { Tickets } from '../src/tickets.ts'
@@ -208,6 +209,8 @@ export async function start(
     attaching?: WebAttaching
     /** The window's catch-up card, for a test of an owner asking what it missed. */
     since?: WebSince
+    /** The window's half of sharing notes, for a test of an owner sharing them. */
+    notes?: WebNotes
   } = {},
 ): Promise<Running> {
   settingRows = opts.settings ?? []
@@ -252,6 +255,7 @@ export async function start(
     ...(opts.looking === undefined ? {} : { looking: opts.looking }),
     ...(opts.attaching === undefined ? {} : { attaching: opts.attaching }),
     ...(opts.since === undefined ? {} : { since: opts.since }),
+    ...(opts.notes === undefined ? {} : { notes: opts.notes }),
   })
   epoch = one.server.epoch
   one.epoch = epoch

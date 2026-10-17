@@ -35,6 +35,7 @@ import {
   type Subject,
   type Wiring,
 } from './context.ts'
+import { type SharedNotes, sharedNotesFor } from './notes-shared.ts'
 import { RemoteAgents } from './remote-agent.ts'
 import { RemoteTalks, type RemoteTools } from './remote-talk.ts'
 import { MACHINE } from './web-panel.ts'
@@ -64,7 +65,9 @@ export type { RemoteTools } from './remote-talk.ts'
 //
 // **And it keeps this machine's setup in step there** (`carry.ts`): a carry
 // when a link comes up, when the config moves, and hourly, and the presses on
-// Settings › Remotes — which is the page this subject draws.
+// Settings › Remotes — which is the page this subject draws. **And the
+// person's notes shared with each, both ways** (`notes-shared.ts`), so both
+// orchestrators and every agent hear what they said to either.
 //
 // **What each remote holds is drawn as its projects** (`facts`, folded by
 // `machines.ts`, which is where everything another machine wrote is reduced
@@ -135,6 +138,8 @@ export class Remotes implements Subject {
   private agents: RemoteAgents | null = null
   /** Each machine's orchestrator, talked to on its tab (`remote-talk.ts`), where the window has one. */
   private talks: RemoteTalks | null = null
+  /** The person's notes, shared with each machine (`notes-shared.ts`), where the window has them. */
+  private notes: SharedNotes | null = null
 
   constructor(deps: RemotesDeps) {
     this.deps = deps
@@ -195,6 +200,12 @@ export class Remotes implements Subject {
   /** Hand it what talks to each machine's orchestrator, which reaches the links through it. */
   withTalks(make: (remotes: Remotes) => RemoteTalks): this {
     this.talks = make(this)
+    return this
+  }
+
+  /** Hand it what shares the person's notes with each machine, which reaches the links through it. */
+  withNotes(make: (remotes: Remotes) => SharedNotes): this {
+    this.notes = make(this)
     return this
   }
 
@@ -330,6 +341,7 @@ export class Remotes implements Subject {
       link.beat(now)
     }
     this.carries.beat([...this.holder.keys()])
+    void this.notes?.beat([...this.holder.keys()])
     this.agents?.beat()
     void this.reread()
   }
@@ -362,6 +374,7 @@ export class Remotes implements Subject {
       this.skews.delete(name)
       this.carries.forget(name)
       this.talks?.forget(name)
+      this.notes?.forget(name)
       void this.links.get(kind)?.close(name)
     }
     for (const [name, config] of Object.entries(remotes)) {
@@ -395,6 +408,7 @@ export class Remotes implements Subject {
     const held = link.held(name)
     if (held !== null) this.talks?.moved(name, held)
     if (held !== null) this.agents?.moved(name, held)
+    if (held !== null) this.notes?.moved(name, held)
     this.deps.draw()
     if (held !== null) {
       const word = wordOf(held)
@@ -409,6 +423,7 @@ export class Remotes implements Subject {
           this.deps.say(`${name} signed this machine out: ${printable(held.link.said)}`)
         }
         if (word === 'up') this.carries.up(name)
+        if (word === 'up') this.notes?.up(name)
       }
     }
   }
@@ -471,6 +486,10 @@ export function remotesFor(
   wire: Wiring,
   onScreenWith: (flow: (ui: Ui) => Promise<void>) => Promise<void>,
 ): Remotes {
+  const say = (said: string) => {
+    wire.put(notice(wire.state, said, wire.now()))
+    wire.draw()
+  }
   return new Remotes({
     carrying: {
       config: (): Config => wire.opts.config,
@@ -502,13 +521,11 @@ export function remotesFor(
     log: async (told) => {
       await wire.opts.client.log.append(told)
     },
-    say: (said) => {
-      wire.put(notice(wire.state, said, wire.now()))
-      wire.draw()
-    },
+    say,
   })
     .withAgents((remotes) => new RemoteAgents(wire, reachingOf(remotes)))
     .withTalks((remotes) => new RemoteTalks(wire, reachingOf(remotes)))
+    .withNotes((remotes) => sharedNotesFor(wire, (name) => remotes.reachFor(name), say))
 }
 
 /** What a subject of the remotes reaches them through: the link, the fold, the clocks. */

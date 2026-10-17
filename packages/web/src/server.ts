@@ -285,11 +285,10 @@ export function webServer(opts: ServerOptions): WebServer {
     const device = devices.devices.find((one) => one.id === verdict.device)
     if (device === undefined) return answer(res, refuse('no_session'))
 
-    // The sliding expiry, written down. Bounded to once a day by `renewal`, so
-    // this is a file append on one request out of thousands and not one per
-    // request — which is what the bound is for. Awaited before the answer so a
-    // phone that comes back after thirty days of daily use is never signed out
-    // by a write that had not landed yet.
+    // The sliding expiry, written down. Bounded to once a day by `renewal`, so this is a file
+    // append on one request out of thousands and not one per request — which is what the bound is
+    // for. Awaited before the answer so a phone that comes back after thirty days of daily use is
+    // never signed out by a write that had not landed yet.
     const until = renewal(device, now())
     if (until !== null) {
       await appendDevice(opts.home, {
@@ -360,6 +359,7 @@ export function webServer(opts: ServerOptions): WebServer {
       case 'looking':
       case 'attach':
       case 'since':
+      case 'share notes':
       case 'carry': {
         const said = await carryOwned(found.route.name, req, device, now(), opts, res)
         return 'refusal' in said ? answer(res, said.refusal) : json(res, said.body)

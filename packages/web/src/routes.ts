@@ -476,8 +476,9 @@ export const SETTINGS: readonly Route[] = Object.keys(CHANGES).map((name) => ({
 /**
  * What only an owner may do, and only at this machine's own door: another
  * machine's Tade carrying its setup here (`carried.ts`), asking what to run
- * here to be shown one of its agents (`attached.ts`), and asking what the
- * person missed while away (`since.ts`).
+ * here to be shown one of its agents (`attached.ts`), asking what the person
+ * missed while away (`since.ts`), and sharing the person's notes
+ * (`shared-notes.ts`).
  *
  * A table of its own because each is what no phone may ever be given: the
  * carry writes the config beyond `settingReach`'s `open` tier — preferences,
@@ -502,6 +503,17 @@ export const OWNED: readonly Route[] = [
   // changes nothing; it is here rather than in `ROUTES` because it is read
   // from the cursor an owner's presence wrote, which no phone carries.
   { method: 'POST', path: '/api/since', name: 'since', needs: 'read', mutates: true, here: true },
+  // The person's notes shared with the machine that asks (`shared-notes.ts`):
+  // what it gives is written into this home's `memory.jsonl`, which every
+  // agent here is told — so an owner's, as an edit to that file over SSH is.
+  {
+    method: 'POST',
+    path: '/api/notes/share',
+    name: 'share notes',
+    needs: 'read',
+    mutates: true,
+    here: true,
+  },
 ]
 
 /**

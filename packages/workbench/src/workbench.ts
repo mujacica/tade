@@ -273,7 +273,7 @@ export class Workbench {
   readonly workers: WorkerSupervisor
   /** The config as it was opened, and as the window has changed it since. */
   config: Config
-  private readonly memory: Memory
+  readonly memory: Memory
   /** The schedules as told: `kept` rather than `schedules`, which is the method that lists them. */
   private readonly kept: Schedules
   private readonly lock: HomeLock

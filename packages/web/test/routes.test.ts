@@ -310,20 +310,23 @@ describe('the five tables a setting turns on', () => {
 })
 
 describe('the owner’s table', () => {
-  it('is three routes, at this machine’s own door only, and none of the five jobs', () => {
+  it('is four routes, at this machine’s own door only, and none of the five jobs', () => {
     // The one route that can write a key (`carried.ts`), and the exception to
     // "no route reaches a credential" above; the one answer that is a way
     // into a lane (`attached.ts`), which every row a phone reads promises
-    // never to be; and the catch-up read from the cursor an owner's presence
-    // wrote (`since.ts`) — named here, by path, so another cannot join them
-    // without this line changing. What keeps them no wider than what already
-    // was is who may use them: an owner, which is the SSH key, on the one door
-    // that key reaches; each handler refuses every other session
-    // (`test/carried.test.ts`, `test/attached.test.ts`, `test/since.test.ts`).
+    // never to be; the catch-up read from the cursor an owner's presence
+    // wrote (`since.ts`); and the person's notes shared, written into what
+    // every agent here is told (`shared-notes.ts`) — named here, by path, so
+    // another cannot join them without this line changing. What keeps them no
+    // wider than what already was is who may use them: an owner, which is the
+    // SSH key, on the one door that key reaches; each handler refuses every
+    // other session (`test/carried.test.ts`, `test/attached.test.ts`,
+    // `test/since.test.ts`, `test/shared-notes.test.ts`).
     expect(OWNED.map((route) => `${route.method} ${route.path}`)).toEqual([
       'POST /api/carry',
       'POST /api/attach',
       'POST /api/since',
+      'POST /api/notes/share',
     ])
     for (const route of OWNED) {
       expect(route.here, route.path).toBe(true)

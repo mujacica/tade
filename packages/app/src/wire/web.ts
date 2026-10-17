@@ -33,6 +33,7 @@ import type { AwayView } from '../panels/away/view.ts'
 import type { PanelInputs } from '../panels.ts'
 import type { Actions, Subject, Submits, Wiring } from './context.ts'
 import { evaluationsAnswer } from './evaluations.ts'
+import { notesFor } from './notes-shared.ts'
 import type { Settings } from './settings.ts'
 import { armingFor, seenFrom, type Talking } from './web-asking.ts'
 import { attachingFor } from './web-attach.ts'
@@ -79,11 +80,10 @@ import { heard, toldTo } from './web-told.ts'
 // Pairing, granting and revoking are not settings at all: they are a keypress
 // at this machine, which is the one authorisation nothing remote can obtain.
 //
-// **Idle costs nothing.** With `enabled: false` there is no server and `beat`
-// returns on its first line. With it on and nobody connected, `beat` builds
-// **no projection**: `streams.listening()` is empty, so there is nothing to
-// project for. `test/away.test.ts` asserts that as a count of calls rather
-// than as a sentence.
+// **Idle costs nothing.** With `enabled: false` there is no server and `beat` returns on its first
+// line. With it on and nobody connected, `beat` builds **no projection**: `streams.listening()` is
+// empty, so there is nothing to project for. `test/away.test.ts` asserts that as a count of calls
+// rather than as a sentence.
 
 /** What the away subject needs of the rest of the window. */
 export interface AwayDeps {
@@ -290,6 +290,7 @@ export class Away implements Subject {
       since: this.presences.since(),
       carrying: carryingFor(this.wire, this.deps.settings),
       attaching: attachingFor(this.wire.opts.client),
+      notes: notesFor(this.wire),
       tickets: this.tickets,
       streams: this.streams,
       tell: heard(

@@ -238,7 +238,9 @@ over loopback) and `ssh`.
   and a bound on what is read, over a stream the implementation opens for that call alone
   (`Transport.connect`) — so the CLI with no window open can make one, and one made beside a held
   link never disturbs it. It is what the carry rides on (`add-config-key`'s *What a remote is
-  given*); the far end answers it as the real away view does.
+  given*); the far end answers it as the real away view does. **Sharing notes rides the held link
+  instead** (`request`, `app/src/wire/notes-shared.ts`): it happens only while one is up, again and
+  again, so it asks over the connection that is already there.
 - **A terminal there is the one connection a person is at** (`terminal`, with `terminals`): what to
   run here for `tade <words>` there, each word checked — a harness's own sign-in, typed into by the
   person, so the token goes where that harness keeps it and never through Tade. **`attach` is the

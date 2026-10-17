@@ -164,6 +164,7 @@ export class Notes implements Subject {
           scope: kept?.scope ?? null,
           ...(kept?.also ? { also: kept.also } : {}),
           by: kept?.by ?? 'unknown',
+          ...(kept?.from ? { from: kept.from } : {}),
           ...(kept?.retired ? { retired: kept.retired } : {}),
         },
         note.text,

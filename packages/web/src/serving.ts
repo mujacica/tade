@@ -9,6 +9,7 @@ import type { Streams } from './peers.ts'
 import type { WebPushing } from './pushing.ts'
 import type { Grant, Reach } from './reach.ts'
 import type { WebReading } from './reading.ts'
+import type { WebNotes } from './shared-notes.ts'
 import type { WebSince } from './since.ts'
 import type { Listener, Scope, Surface } from './surface.ts'
 import type { Tickets } from './tickets.ts'
@@ -219,6 +220,11 @@ export interface ServerOptions {
    * (`since.ts`). Absent, the route is the `404` of a path nobody wired.
    */
   since?: WebSince
+  /**
+   * The person's notes shared with an owner's window on another machine
+   * (`shared-notes.ts`). Absent, the route is the `404` of a path nobody wired.
+   */
+  notes?: WebNotes
   /** The tickets the pairing panel minted. */
   tickets: Tickets
   /**

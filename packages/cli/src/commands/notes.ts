@@ -67,10 +67,15 @@ export function registerNotes(program: Command, io: Io, _setExit: (code: number)
         // The words, always — a headline is said after them, never instead of
         // them, because the words are the only part nothing can recover.
         const headline = note.summary ? `  (${note.summary})` : ''
+        // Where it was taken, only where that was another of their machines:
+        // what is shared is the words, and this is the one place it is asked.
+        const from = note.from ? `  [taken on ${note.from}]` : ''
         const retired = note.retired
           ? `  [retired ${note.retired.at.slice(0, 10)} by ${note.retired.by}: ${note.retired.because}]`
           : ''
-        io.out(`${about(note).padEnd(width)}  ${printable(`${note.text}${headline}${retired}`)}`)
+        io.out(
+          `${about(note).padEnd(width)}  ${printable(`${note.text}${headline}${from}${retired}`)}`,
+        )
       }
     })
 }

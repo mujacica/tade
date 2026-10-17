@@ -84,7 +84,7 @@ export function noteTools(
 
   tool(
     'tade_notes',
-    'What the human has told you, in the words they said it, newest first — the notes tade_remember writes. Use it whenever they ask what they told you, what you know about something, or what was said about a project or a task, and before saying there is nothing: notes are the one thing Tade is told rather than works out, so no other tool holds them and neither tade_status nor tade_logs can see one. Naming a task or project asks for what applies to it, which is what was said about it, about its project and about everything. Pass all for the retired ones too — each with who retired it, when and why — when they ask what they used to have noted, or before you retire one.',
+    'What the human has told you, in the words they said it, newest first — the notes tade_remember writes. Use it whenever they ask what they told you, what you know about something, or what was said about a project or a task, and before saying there is nothing: notes are the one thing Tade is told rather than works out, so no other tool holds them and neither tade_status nor tade_logs can see one. Naming a task or project asks for what applies to it, which is what was said about it, about its project and about everything. Pass all for the retired ones too — each with who retired it, when and why — when they ask what they used to have noted, or before you retire one. Notes are shared with every other machine of theirs Tade is linked to; one taken on another says which in from.',
     object({
       about: string('task or project to ask about; leave it off for everything'),
       all: {

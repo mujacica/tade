@@ -714,6 +714,14 @@ export function carried(
   return send(port, '/api/carry', body)
 }
 
+/** One owner's share of the person's notes, as its link sends it. */
+export function shared(
+  port: number,
+  body: Record<string, unknown>,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  return send(port, '/api/notes/share', body)
+}
+
 /** One save of a draft field, as a browser would send it. */
 export function save(
   port: number,

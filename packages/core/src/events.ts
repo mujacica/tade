@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { type ReadableEventType, typeNow } from './event-names.ts'
 
 // The event log is the system's memory: append-only, and the journal that
 // answers "what was I doing last Tuesday". Every event carries an urgency,
@@ -525,6 +526,14 @@ export const EventType = z.enum([
    * what tells a file somebody here edited since from the one carried.
    */
   'carried_in',
+  /**
+   * The person's notes shared with another machine (`notes-shared.ts`), both
+   * ways: which machine (`with`), how many lines were taken here and of those
+   * how many were notes, how many that machine took (on the side that asked),
+   * and how many were refused. Counts only — **never a note's words**, for
+   * `note_retired`'s reason. Written only where something moved.
+   */
+  'notes_shared',
   /** Counted present here through an owner's link (`device`): the cursor `since.ts` folds from. */
   'person_present',
   // you
@@ -694,6 +703,9 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // and the person who did not make the change is the one who needs to see it.
   remote_carried: 'notable',
   carried_in: 'notable',
+  // Routine: notes arriving from the person's other machine is what linking
+  // one is for, and the notes say themselves where they are read.
+  notes_shared: 'routine',
   // Never trace: it is read back as a cursor, and trace is dropped first.
   person_present: 'routine',
   said: 'routine',
@@ -702,47 +714,14 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   warning: 'notable',
 }
 
-/**
- * Names events were written under before the project was renamed. Tade never
- * writes one — it only reads them, because events.jsonl is append-only and is
- * the truth: a journal from before the rename still says when the window
- * opened and closed, and a reader that does not know the old word silently
- * loses those facts. That is not hypothetical — it is how runs from days
- * earlier stayed open and went on counting to now: nothing closed them,
- * because the closings were called something else, and a week of runtime
- * landed in a morning's total.
- *
- * An alias read rather than another `EventType`: what Tade writes stays one
- * list nobody can add an old name back to, and what it can read is the longer
- * one. Filters are widened for the same reason — asking for `tade_opened`
- * asks about window openings, whatever they were called when they happened.
- */
-export const RENAMED_TYPES = {
-  wilco_opened: 'tade_opened',
-  wilco_closing: 'tade_closing',
-} as const satisfies Record<string, EventType>
-
-/** A name in the journal that Tade no longer writes. */
-export type LegacyEventType = keyof typeof RENAMED_TYPES
-
-/** Anything a reader may ask for: what is written now, and what once was. */
-export type ReadableEventType = EventType | LegacyEventType
-
-/** What a name in the journal means now. Anything current is itself. */
-export function typeNow(type: string): EventType {
-  return (RENAMED_TYPES as Record<string, EventType>)[type] ?? (type as EventType)
-}
-
-/**
- * Every name in the journal that reads as one of these types — for a filter
- * that matches on the stored word, like the index's `type IN (...)`.
- */
-export function typeNames(types: readonly ReadableEventType[]): string[] {
-  const wanted = new Set(types.map(typeNow))
-  const names = new Set<string>(types)
-  for (const [was, now] of Object.entries(RENAMED_TYPES)) if (wanted.has(now)) names.add(was)
-  return [...names]
-}
+// The names events were written under before the rename: read, never written.
+export {
+  type LegacyEventType,
+  RENAMED_TYPES,
+  type ReadableEventType,
+  typeNames,
+  typeNow,
+} from './event-names.ts'
 
 export const TadeEvent = z.object({
   /** Monotonic per log file, assigned on append. */

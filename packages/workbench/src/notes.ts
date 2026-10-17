@@ -5,6 +5,7 @@ import {
   type EventInput,
   type Note,
   notesToRetire,
+  projectDir,
   type Retiring,
   scopesOf,
   type TadeEvent,
@@ -111,11 +112,16 @@ export function lastOfTasks(events: readonly TadeEvent[]): Map<string, TaskLast>
  * Whether a task's file is there. Anything this cannot answer is a task: an
  * id `taskDir` refuses, a path `existsSync` cannot reach — a look that failed
  * never reads as work that is over, which is `forgettable`'s rule too.
+ *
+ * So is a task in a project this home has never written anything about:
+ * notes are shared between homes and projects are not, so that is another
+ * machine's work, and this one cannot see whether it is gone.
  */
 function present(home: string): (task: string) => boolean {
   return (task) => {
     try {
-      return existsSync(join(taskDir(home, task), 'task.yaml'))
+      if (existsSync(join(taskDir(home, task), 'task.yaml'))) return true
+      return !existsSync(projectDir(home, task.split('/')[0] ?? ''))
     } catch {
       return true
     }

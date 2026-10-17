@@ -144,4 +144,15 @@ describe('tade remember and notes', () => {
     const json = JSON.parse((await tade('notes', '--json', '--all')).stdout)
     expect(json[0].retired).toMatchObject({ by: 'you', because: 'they let the queue run' })
   })
+
+  it('says which machine a note was taken on, where that was another of theirs', async () => {
+    await tade('remember', 'taken', 'here')
+    const far = { text: 'taken on the box', scope: null, by: 'voice', at: new Date().toISOString() }
+    Memory.open(home).take([{ line: JSON.stringify(far) }], 'vps')
+    const lines = (await tade('notes')).stdout.split('\n')
+    expect(lines.find((line) => line.includes('taken on the box'))).toMatch(/\[taken on vps\]$/)
+    expect(lines.find((line) => line.includes('taken here'))).not.toContain('[taken on')
+    const json = JSON.parse((await tade('notes', '--json')).stdout)
+    expect(json.find((one: { text: string }) => one.text === 'taken on the box').from).toBe('vps')
+  })
 })

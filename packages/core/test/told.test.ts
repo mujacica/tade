@@ -121,6 +121,11 @@ describe('the notes a running conversation has not heard', () => {
       'you at 3000',
     ])
   })
+
+  it('never leaves out one another machine’s orchestrator wrote: this one has not heard it', () => {
+    const far: Note = { ...note('orchestrator', 3_000), from: 'vps' }
+    expect(unheardNotes([far], 2_000)).toEqual([far])
+  })
 })
 
 describe('when Tade does something to the conversation', () => {

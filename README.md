@@ -515,7 +515,9 @@ else, letters and all; `Answer search` off on Jev's own page stops the question 
 
 Notes are the one thing Tade is told rather than derives, so they are kept word for word, in a file
 you own. Say *"remember the staging key rotates on the 1st"*, or press `+`. Agents are given the
-notes that concern their work.
+notes that concern their work. On a Mac linked to a server ([below](#installing)) the notes are
+shared both ways, so both orchestrators and every agent hear what you said to either, and a note's
+own page says which machine it was taken on.
 
 ![A note being written: about this project or about everything, kept word for word](https://raw.githubusercontent.com/mujacica/tade/main/images/notes.svg)
 

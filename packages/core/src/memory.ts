@@ -52,7 +52,24 @@ export interface Retired {
   because: string
 }
 
-export type Note = z.infer<typeof NoteSchema> & { retired?: Retired }
+export type Note = z.infer<typeof NoteSchema> & {
+  retired?: Retired
+  /**
+   * The machine it was taken on, where that is another one: what the machine
+   * it came from here called it (`came` in `memory.jsonl`). Absent for a note
+   * taken here. Folded out of the file like `retired`, and said only where
+   * somebody asks about a note — never in what anybody is told.
+   */
+  from?: string
+}
+
+/**
+ * What a machine may be called where a note says it was taken there: a
+ * remote's name here, or what a machine calls itself (`machineLabel`). It is
+ * another machine's word and it is drawn, so it is checked wherever one
+ * arrives, and anything else is not taken.
+ */
+export const MACHINE_NAMED = /^[A-Za-z0-9._-][A-Za-z0-9 ._-]{0,119}$/
 
 /** What a note is about: one task or project, several, or null for everything. */
 export type Scopes = string | null | readonly (string | null)[]
@@ -213,6 +230,12 @@ export const NotesConfigSchema = z
  * the note alone, and a task file that is there is a task — `present` is the
  * caller's look, and a look that failed must answer `true`.
  *
+ * **A note taken on another machine is that machine's to call gone** where this
+ * journal has never heard of the task: notes are shared between homes and
+ * tasks are not, so a task nothing here knows is most likely running there.
+ * It is kept here, and when that machine retires it the line comes back over
+ * the link (`notes-shared.ts`).
+ *
  * Pure, and takes `now`: the clock is the caller's.
  */
 export function notesToRetire(
@@ -262,6 +285,7 @@ function goneFor(
     const last = facts.last.get(scope)
     const there = facts.present(scope)
     if (there && last?.type !== 'task_done') return null
+    if (last === undefined && entry.from !== undefined) return null
     const from = Math.max(Date.parse(entry.at) || 0, last?.at ?? 0)
     if (now - from >= since) continue
     since = now - from

@@ -174,6 +174,8 @@ export interface NoteKnown {
   also?: readonly string[]
   /** Where it came from: `voice`, `window`, `cli`, `orchestrator`. */
   by: string
+  /** The machine it was taken on, where that is another one: said here, where somebody asked. */
+  from?: string
   /** Told to nobody any more: who said so, when, and why. */
   retired?: { by: string; at: string; because: string }
 }
@@ -202,8 +204,10 @@ export function notePanel(note: NoteKnown, said: string): PromptPanel {
 
 /**
  * What is known about a note, in the words a page says it in: what it is
- * about, and who said it when. `when` is the moment as the window says
- * moments, since only the window knows which clock a person is reading.
+ * about, and who said it when — and on which machine, where that was another
+ * one, which a note's own page is the one place in the window to say. `when`
+ * is the moment as the window says moments, since only the window knows which
+ * clock a person is reading.
  */
 export function noteFacts(
   note: NoteKnown,
@@ -223,7 +227,7 @@ export function noteFacts(
       note.scope === null
         ? 'About everything'
         : `About ${[note.scope, ...(note.also ?? [])].join(', ')}`,
-    said: `Said by ${who} · ${when}`,
+    said: `Said by ${who}${note.from ? ` on ${note.from}` : ''} · ${when}`,
     // Why nobody is told it any more, in the sentence it was retired with.
     ...(note.retired
       ? {

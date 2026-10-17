@@ -79,9 +79,15 @@ export function heldIn(events: readonly TadeEvent[]): ToldPrint | null {
  * it wrote itself since it was told. Those are in its conversation already —
  * it wrote them — so starting it again for one would be a turn spent telling
  * it what it said; it reads them at its next start like any other.
+ *
+ * Never one taken on another machine (`from`): notes are shared between homes,
+ * and that one was another orchestrator's, which this one has not heard.
  */
 export function unheardNotes(notes: readonly Note[], since: number): Note[] {
-  return notes.filter((note) => !(note.by === 'orchestrator' && Date.parse(note.at) > since))
+  return notes.filter(
+    (note) =>
+      !(note.by === 'orchestrator' && note.from === undefined && Date.parse(note.at) > since),
+  )
 }
 
 /**

@@ -770,6 +770,9 @@ describe('a note', () => {
     expect(noteFacts({ at: 'x', summary: null, scope: null, by: 'unknown' }, 'then').said).toBe(
       'Said by somebody · then',
     )
+    // One taken on another of their machines says which, here where it is asked about.
+    const far = { at: 'x', summary: null, scope: null, by: 'cli', from: 'vps' }
+    expect(noteFacts(far, 'then').said).toBe('Said by you on vps · then')
   })
 
   it('is given the headline it is read by from its own page, and nowhere else', () => {

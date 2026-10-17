@@ -341,6 +341,22 @@ describe('what the cleanup retires', () => {
     ).toEqual([])
   })
 
+  it('leaves a note taken on another machine about a task nothing here has heard of to that machine', () => {
+    // Shared between homes, tasks not: the task is most likely running there,
+    // and that machine's retirement comes back over the link.
+    const far: Note = { ...said(daysAgo(30), 'vps/nightly', 'run it at two'), from: 'vps' }
+    const gone = { last: new Map<string, TaskLast>(), present: () => false }
+    expect(notesToRetire([far], gone, TODAY, keep)).toEqual([])
+    // What this journal does know, it still judges: finished here is finished.
+    const done = { last: last({ 'vps/nightly': ['task_done', 10] }), present: () => false }
+    expect(notesToRetire([far], done, TODAY, keep).map((t) => t.because)).toEqual([
+      'vps/nightly finished 10 days ago',
+    ])
+    // And one taken here about a task nothing knows is aged as it always was.
+    const here = said(daysAgo(30), 'vps/nightly', 'run it at two')
+    expect(notesToRetire([here], gone, TODAY, keep).map((t) => t.rule)).toEqual(['gone'])
+  })
+
   it('leaves alone what is already retired', () => {
     const done: Note = {
       ...said(daysAgo(30), 'tade/purple', 'hover too'),
