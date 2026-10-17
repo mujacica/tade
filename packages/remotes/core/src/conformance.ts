@@ -1,6 +1,7 @@
 import { mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { runProgram } from '@tade/core'
+import { CONNECT_TITLES, runProgram } from '@tade/core'
+import type { WebConnecting } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import { type FarEnd, startFarEnd } from './far.ts'
 import { QUIET_MS } from './held.ts'
@@ -369,6 +370,39 @@ export function testRemoteLink(name: string, make: MakeRig, opts: { skip?: strin
       })
     })
 
+    it('serves the far end’s own connect pages here, and nothing else of it, until they are closed', async () => {
+      await setUp()
+      const one = await far()
+      const kept: unknown[] = []
+      one.connecting = slackToKeep(kept)
+      const remote = await paired(one)
+      const pages = await link.pages(remote)
+      const here = new URL(pages.url).origin
+      try {
+        expect(pages.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/connect$/)
+        // The far end's own page, as a browser here gets it, with no link held.
+        const page = await fetch(pages.url)
+        expect(page.status).toBe(200)
+        expect(await page.text()).toContain('Signing Secret')
+        expect(link.names()).toEqual([])
+        // What Slack's own page showed the person, pasted there and kept there.
+        const secret = 'a1B2c3D4e5F6g7H8i9J0k1L2'
+        const keep = await fetch(`${here}/connect/slack/keep`, {
+          method: 'POST',
+          headers: { origin: here, 'content-type': 'application/json' },
+          body: JSON.stringify({ signing_secret: secret }),
+        })
+        expect(keep.status).toBe(200)
+        expect(kept).toEqual([{ signing_secret: secret }])
+        // Nothing of its away view but those pages.
+        expect((await fetch(`${here}/api/snapshot`)).status).toBe(404)
+      } finally {
+        await pages.close()
+      }
+      await expect(fetch(pages.url)).rejects.toThrow()
+      await pages.close()
+    })
+
     it('asks over the link it holds while it is live, and asks nothing while it is not', async () => {
       await setUp()
       const one = await far(['alpha'])
@@ -500,5 +534,47 @@ function brief(held: Held | null): unknown {
     link: held.link,
     cursor: held.cursor,
     projected: held.projection !== null,
+  }
+}
+
+/**
+ * What a far end's window knows of connecting a source: Slack with its signing
+ * secret to keep, written into `kept` as it is kept, and nothing else made.
+ */
+function slackToKeep(kept: unknown[]): WebConnecting {
+  return {
+    page: async (source) => ({
+      page: {
+        source,
+        title: CONNECT_TITLES[source],
+        steps:
+          source === 'slack'
+            ? [
+                {
+                  id: 'keep',
+                  title: 'Give this machine its signing secret',
+                  done: false,
+                  said: 'from the app’s Basic Information',
+                  press: {
+                    act: 'keep',
+                    label: 'Keep it',
+                    fields: [{ name: 'signing_secret', label: 'Signing Secret', secret: true }],
+                  },
+                },
+              ]
+            : [],
+        writes: 'It writes nothing.',
+      },
+      asks: [],
+      events: [],
+    }),
+    form: () => ({ url: 'https://example.com/nothing-is-made' }),
+    installUrl: () => null,
+    made: async () => ({ problem: 'nothing is made here' }),
+    installed: async () => ({ problem: 'nothing is installed here' }),
+    keep: async (_source, fields) => {
+      kept.push(fields)
+      return { kept: ['the signing secret'] }
+    },
   }
 }

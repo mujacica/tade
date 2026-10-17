@@ -243,6 +243,11 @@ over loopback) and `ssh`.
   given*); the far end answers it as the real away view does. **Sharing notes rides the held link
   instead** (`request`, `app/src/wire/notes-shared.ts`): it happens only while one is up, again and
   again, so it asks over the connection that is already there.
+- **A browser here reaches that machine's own `/connect` through `pages`** (`pages.ts`, `tade remote
+  connect`): what a source's own page shows the person is pasted into that machine's page and never
+  carried by an owner's ask, so a loopback port here passes `GET`/`POST` on `/connect` and below,
+  a `Transport.connect` stream per request, with no cookie either way, and only while held open.
+  Its `Host` and `Origin` are the browser's, which that machine answers as its own loopback door.
 - **A terminal there is the one connection a person is at** (`terminal`, with `terminals`): what to
   run here for `tade <words>` there, each word checked — a harness's own sign-in, typed into by the
   person, so the token goes where that harness keeps it and never through Tade. **`attach` is the

@@ -524,8 +524,9 @@ function html(res: ServerResponse, status: number, page: string): void {
  * pressed — the form that carries a word minted here, for another machine of
  * the person's whose browser cannot reach this one's loopback door. **Only
  * where this machine has a public name**, because that is where GitHub will
- * send that browser back to; without one the way in is `ssh -L` to this
- * machine's own `/connect`, and the answer says so.
+ * send that browser back to; without one the way in is this machine's own
+ * `/connect`, which `tade remote connect` there serves to its browser over the
+ * link (`RemoteLink.pages`), and the answer says so.
  */
 export async function connectHere(
   req: IncomingMessage,
@@ -548,7 +549,7 @@ export async function connectHere(
         ...seen,
         publicName: null,
         form: null,
-        cannot: `this machine has no public name, so ${seen.page.title} cannot send a browser elsewhere back to it: give it one with \`tade host domain\`, or open /connect here through \`ssh -L\``,
+        cannot: `this machine has no public name, so ${seen.page.title} cannot send a browser elsewhere back to it: give it one with \`tade host domain\`, or open /connect here with \`tade remote connect\` on the machine asking`,
       },
     }
   }

@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import { createInterface } from 'node:readline/promises'
+import { type Open, openerForLink } from '@tade/app/editor'
 import {
   type Config,
   KEYS_TO_REMOTE,
@@ -15,7 +16,7 @@ import {
   TALK_TO_REMOTE,
   writeSetting,
 } from '@tade/core'
-import { LinkError, type Remote, type RemoteLink } from '@tade/remotes-core'
+import { LinkError, type PagesHere, type Remote, type RemoteLink } from '@tade/remotes-core'
 import {
   type CarryPress,
   type Checklist,
@@ -38,7 +39,9 @@ import { Exit, type Io } from '../io.ts'
 // machine never met, carrying this one's setup there, offering the keys and
 // talking to Tade from here on a press, walking each harness's sign-in, and the
 // checklist at the end
-// (`@tade/workbench/carry`; `@tade/core`'s `carry.ts` decides every key).
+// (`@tade/workbench/carry`; `@tade/core`'s `carry.ts` decides every key). And
+// `tade remote connect`, which serves that machine's own pages that connect a
+// source here, for what is pasted into them (`connectRemote`).
 //
 // **Every question is a person's.** With nobody at the terminal — `--json`, a
 // pipe, an agent's shell — nothing is asked and nothing that needs a press
@@ -466,30 +469,13 @@ export async function carryRemote(
   opts: { keys?: boolean; talk?: boolean; yes?: boolean; ours?: string[]; json?: boolean },
 ): Promise<void> {
   const { io, setExit } = place
-  const loaded = await loadConfig(place.configPath)
-  if (!loaded.ok) {
-    io.err(
-      `${place.configPath} could not be read: \`tade config --check\` says what is wrong with it`,
-    )
-    setExit(Exit.error)
-    return
-  }
-  const one = loaded.config.remotes[name]
-  if (one === undefined) {
-    io.err(`there is no remote called ${name}`)
-    setExit(Exit.invalidInput)
-    return
-  }
-  const link = place.linkFor(linkOf(one))
-  if (link === undefined) {
-    io.err(`there is no link here that reaches ${name}`)
-    setExit(Exit.error)
-    return
-  }
+  const found = await configuredRemote(place, name)
+  if (found === null) return
+  const { config, one, link } = found
   const c: Carrying = {
     home: place.home,
     configPath: place.configPath,
-    config: loaded.config,
+    config,
     link,
     remote: remoteOf(name, one),
     from: machineLabel(),
@@ -505,4 +491,89 @@ export async function carryRemote(
   if (opts.json) io.out(JSON.stringify(list, null, 2))
   else sayChecklist(io, list, { address: one.ssh, tade: one.tade })
   if (list.unreached !== null) setExit(Exit.error)
+}
+
+/** A remote in the config and the link that reaches it, or null having said why not. */
+async function configuredRemote(
+  place: Place,
+  name: string,
+): Promise<{ config: Config; one: RemoteConfig; link: RemoteLink } | null> {
+  const { io, setExit } = place
+  const loaded = await loadConfig(place.configPath)
+  if (!loaded.ok) {
+    io.err(
+      `${place.configPath} could not be read: \`tade config --check\` says what is wrong with it`,
+    )
+    setExit(Exit.error)
+    return null
+  }
+  const one = loaded.config.remotes[name]
+  if (one === undefined) {
+    io.err(`there is no remote called ${name}`)
+    setExit(Exit.invalidInput)
+    return null
+  }
+  const link = place.linkFor(linkOf(one))
+  if (link === undefined) {
+    io.err(`there is no link here that reaches ${name}`)
+    setExit(Exit.error)
+    return null
+  }
+  return { config: loaded.config, one, link }
+}
+
+/** What holding a remote's pages open does with this machine: a test opens nothing and ends it. */
+export interface Holding {
+  /** Hands the address to this machine's browser. */
+  open: Open
+  /** Settles when they should stop being served: ctrl+c, from a terminal. */
+  until: () => Promise<void>
+}
+
+/** Said beside the address, because it is still a port on this machine while it is open. */
+export const PAGES_ARE_OPEN_HERE =
+  'while this runs, anybody with an account on this machine can open them too, as through `ssh -L`: ctrl+c stops serving them'
+
+/**
+ * `tade remote connect`: that machine's own pages that connect a source,
+ * served here and opened in this machine's browser until ctrl+c
+ * (`RemoteLink.pages`) — where what a source's own page shows the person is
+ * pasted, because it is never carried there from here (Settings › Remotes).
+ * The address goes to standard output, everything said to standard error.
+ */
+export async function connectRemote(
+  place: Place,
+  name: string,
+  opts: { open?: boolean },
+  holding: Holding,
+): Promise<void> {
+  const { io, setExit } = place
+  const found = await configuredRemote(place, name)
+  if (found === null) return
+  let pages: PagesHere
+  try {
+    pages = await found.link.pages(remoteOf(name, found.one))
+  } catch (err) {
+    io.err(`${name}'s pages could not be served here: ${err instanceof Error ? err.message : err}`)
+    setExit(Exit.error)
+    return
+  }
+  try {
+    io.out(pages.url)
+    io.err(
+      `${name}'s own pages that connect a source, served here: what a source's page shows you is pasted into them`,
+    )
+    io.err(PAGES_ARE_OPEN_HERE)
+    const opener = opts.open === false ? null : openerForLink(pages.url)
+    if (opener?.kind === 'detached') {
+      await holding.open(opener).catch((err: unknown) => {
+        io.err(
+          `no browser opened here (${err instanceof Error ? err.message : err}): open ${pages.url}`,
+        )
+      })
+    }
+    await holding.until()
+  } finally {
+    await pages.close()
+  }
 }

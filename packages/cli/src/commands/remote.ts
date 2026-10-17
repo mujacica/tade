@@ -1,4 +1,12 @@
-import { defaultConfigPath, loadConfig, type RemoteConfig, tadeHome } from '@tade/core'
+import { launch } from '@tade/app/editor'
+import {
+  CONNECT_SOURCES,
+  CONNECT_TITLES,
+  defaultConfigPath,
+  loadConfig,
+  type RemoteConfig,
+  tadeHome,
+} from '@tade/core'
 import { readJournal } from '@tade/workbench/events'
 import { heldBy } from '@tade/workbench/lock'
 import { type LinkSeen, linkOf, linksSeen, REMOTE_LINKS, remoteOf } from '@tade/workbench/remotes'
@@ -9,6 +17,7 @@ import {
   type AddOpts,
   addRemote,
   carryRemote,
+  connectRemote,
   listed,
   type Place,
   ttyAsking,
@@ -39,6 +48,11 @@ import {
 // window, which is the one thing holding them; a window open on this home
 // picks up a remote added here within a beat (`wire/remotes.ts`).
 //
+// **`connect` serves that machine's own pages that connect a source here**,
+// opened in this machine's browser until ctrl+c (`RemoteLink.pages`): what a
+// source's own page shows the person — Slack's secrets — is pasted into them,
+// and is never carried there from this machine (Settings › Remotes).
+//
 // **`remove` signs this machine out there first**, and takes the remote out of
 // the config whatever came of that, saying how to finish by hand where the
 // remote could not be reached: a session left behind there is one nobody here
@@ -48,7 +62,7 @@ export function registerRemote(program: Command, io: Io, setExit: (code: number)
   const remote = program
     .command('remote')
     .description(
-      'Other machines’ Tades this one drives over SSH: add one, see how each is linked, remove one',
+      'Other machines’ Tades this one drives over SSH: add one, see how each is linked, open its connect pages here, remove one',
     )
 
   remote
@@ -155,6 +169,23 @@ export function registerRemote(program: Command, io: Io, setExit: (code: number)
         await carryRemote(shellPlace(io, setExit, opts.json === true), name, opts)
       },
     )
+
+  remote
+    .command('connect <name>')
+    .description(
+      `Open a remote’s own pages that connect ${CONNECT_SOURCES.map((one) => CONNECT_TITLES[one]).join(', ')} in this machine’s browser, served here until ctrl+c`,
+    )
+    .option('--no-open', 'print the address rather than opening a browser')
+    .action(async (name: string, opts: { open: boolean }) => {
+      await connectRemote(shellPlace(io, setExit, false), name, opts, {
+        open: launch,
+        until: () =>
+          new Promise<void>((done) => {
+            process.once('SIGINT', () => done())
+            process.once('SIGTERM', () => done())
+          }),
+      })
+    })
 
   remote
     .command('remove <name>')

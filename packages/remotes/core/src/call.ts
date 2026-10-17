@@ -115,7 +115,7 @@ export function callOver(
 }
 
 /** A call that failed below HTTP, in words: what did not answer. */
-function saidOf(err: unknown, remote: Remote): string {
+export function saidOf(err: unknown, remote: Remote): string {
   const message = err instanceof Error ? err.message : String(err)
   if (/hang up|ECONNRESET|EPIPE|ECONNREFUSED|ENOENT/.test(message)) {
     return `nothing answers on ${remote.session.host} there: its Tade is not open, or its away view is off`

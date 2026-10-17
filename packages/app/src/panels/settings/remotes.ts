@@ -545,8 +545,9 @@ function publicLines(
  * not with what it says, and the one press a step offers under it — which
  * asks that machine for the word and opens the source in this machine's
  * browser. A step whose press takes what the source's own page shows the
- * person says where that goes in instead: that machine's own page. Always as
- * of when it said it.
+ * person says where that goes in instead: that machine's own page, and the
+ * command that serves it here (`RemoteLink.pages`). Always as of when it said
+ * it.
  */
 function connecting(
   remote: RemoteShown,
@@ -580,7 +581,7 @@ function connecting(
     )
     if (step.pasted && !step.done) {
       under(
-        `  pasted at ${remote.name}'s own /connect, through ssh -L — never carried from here`,
+        `  pasted into ${remote.name}'s own page, which \`tade remote connect ${remote.name}\` opens here — never carried from here`,
         skin.hint,
       )
     }

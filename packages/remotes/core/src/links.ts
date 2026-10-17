@@ -3,6 +3,7 @@ import type { Duplex } from 'node:stream'
 import { printable, type RequiredProgram, type Unsubscribe } from '@tade/core'
 import { callOver } from './call.ts'
 import { type Door, doorOf, Follower, type Reaching } from './follow.ts'
+import { pagesOver } from './pages.ts'
 import {
   type Answer,
   type Held,
@@ -11,6 +12,7 @@ import {
   LinkError,
   type LinkOptions,
   type OwnerSession,
+  type PagesHere,
   type PairAt,
   type Remote,
   type RemoteLink,
@@ -127,6 +129,10 @@ class Links implements RemoteLink {
 
   call(remote: Remote, path: string, body: unknown): Promise<Answer> {
     return callOver(() => this.transport.connect(remote), remote, path, body)
+  }
+
+  pages(remote: Remote): Promise<PagesHere> {
+    return pagesOver(() => this.transport.connect(remote), remote)
   }
 
   terminal(remote: Remote, words: readonly string[]): TerminalThere | null {

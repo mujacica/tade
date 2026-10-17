@@ -126,6 +126,14 @@ export interface Answer {
   body: unknown
 }
 
+/** A remote's guided pages, served here (`RemoteLink.pages`). */
+export interface PagesHere {
+  /** Where a browser here opens them: `http://127.0.0.1:<port>/connect`. */
+  readonly url: string
+  /** Stop serving them, ending what is open. Safe twice. */
+  close(): Promise<void>
+}
+
 /** A command to run here, in a terminal a person can see, that is a terminal there. */
 export interface TerminalThere {
   command: string
@@ -272,6 +280,16 @@ export interface RemoteLink {
    * Throws `LinkError` where it could not be reached; any answer is returned.
    */
   call(remote: Remote, path: string, body: unknown): Promise<Answer>
+  /**
+   * That machine's guided pages that connect a source (`/connect`), served on
+   * this machine's loopback for a browser here until closed (`pages.ts`):
+   * what a source's own page shows the person is pasted into that machine's
+   * own page, and the link ends in nothing a browser opens. Only those pages
+   * pass, a stream each, so no link need be held. Throws `LinkError` where
+   * nothing could listen here; a far end that does not answer is said to the
+   * browser, request by request.
+   */
+  pages(remote: Remote): Promise<PagesHere>
   /**
    * What to run here for a terminal there running Tade with these words —
    * `tade accounts sign-in claude-code` — or null without `terminals`. The
