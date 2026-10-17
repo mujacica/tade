@@ -8,15 +8,14 @@ import {
   type InstallersHere,
   installWith,
   type MissingProgram,
-  resolveCommand,
   runProgram,
   SERVICE,
-  stringEnv,
   type Unattended,
   upgradeWith,
 } from '@tade/core'
 import { type AccountStatus, type LaunchSpec, signInHere } from '@tade/harnesses-core'
 import { HARNESS_ADAPTERS } from './harnesses.ts'
+import { harnessProgram, installersHere } from './installers.ts'
 import type { ProgramLook } from './programs.ts'
 import { drivers } from './registry.ts'
 
@@ -31,24 +30,8 @@ import { drivers } from './registry.ts'
 // as, and what to run to sign in. So a new harness arrives with its own
 // sign-in and its own install and this file does not change.
 
-/** The package managers Tade knows how to offer, in the order `installWith` prefers them. */
-const MANAGERS = ['brew', 'apt-get', 'dnf', 'npm']
-
-/**
- * What this machine can install with.
- *
- * One PATH lookup per manager, which is what makes the offer honest: a `brew
- * install` on a machine with no Homebrew is a command that fails in a terminal
- * somebody is watching.
- */
-export function installersHere(env: NodeJS.ProcessEnv = process.env): InstallersHere {
-  const strings = stringEnv(env)
-  return {
-    platform: process.platform,
-    managers: MANAGERS.filter((command) => resolveCommand(command, strings) !== null),
-    root: process.getuid?.() === 0,
-  }
-}
+// Where it always was, for everything that asks it here.
+export { installersHere } from './installers.ts'
 
 /** Where the user unit that runs Tade goes: the user's own systemd folder. */
 export function serviceUnitPath(
@@ -304,14 +287,8 @@ export async function lookAtHarnesses(
         ),
       ])
       // Its own declaration, so the install offered is the one whoever wrote
-      // the harness vouches for. An id is Tade's name for a harness
-      // (`claude-code`) and a command is the program's own (`claude`), so the
-      // two need not match: where a harness declares exactly one program,
-      // that program is the harness.
-      const declarations = adapter.programs ?? []
-      const declared =
-        declarations.find((one) => one.command === id) ??
-        (declarations.length === 1 ? declarations[0] : undefined)
+      // the harness vouches for.
+      const declared = harnessProgram(adapter, id)
       const installed = probe.version !== null || probe.ok
       return {
         id,

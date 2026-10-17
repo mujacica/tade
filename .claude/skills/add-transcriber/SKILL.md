@@ -26,8 +26,13 @@ different sentences, and the same recorder feeds every engine.
    ```ts
    testTranscriber('my-engine', () => new MyTranscriber())
    ```
-5. Make sure `tade voice` says what the engine needs when it is not ready.
-6. `pnpm check`.
+5. Declare what it runs on this machine as `programs` (a `RequiredProgram` each, `optional: true`
+   — typing works without speech), with an `install` for every platform: Homebrew, the apt or dnf
+   package that really is the program, or a `PerPlatform` `instead` — whisper.cpp tells Linux the
+   upstream build, since Fedora packages only its library. `set-up-the-machine` has the rules.
+   Setup's speech step, `tade voice`, the Programs list and Settings › Updates all read it.
+6. Make sure `tade voice` says what the engine needs when it is not ready.
+7. `pnpm check`.
 
 ## Rules
 
@@ -35,6 +40,10 @@ different sentences, and the same recorder feeds every engine.
   an unset API key is a sentence the user can act on — returning `{ ok: false, reason }` is how
   `tade voice` explains itself and how the window knows to fall back to a typed line. Discovering
   it *after* someone has spoken means losing what they said.
+- **`available()` says what is missing and never which installer fixes it.** It cannot know
+  whether this is a Mac with Homebrew or Fedora: `brew install whisper-cpp` was said on Debian and
+  `apt install ffmpeg` on Fedora. The line is read out of `programs` by whoever has the machine;
+  the conformance suite refuses a reason that names an installer.
 - **Never make a network call in `available()`.** It runs on every push-to-talk, and the test suite
   makes no network calls at all. Check for a key, a binary, a model file — not for a live service.
 - **Declare `capabilities.local` honestly.** It is what tells the user whether their voice leaves

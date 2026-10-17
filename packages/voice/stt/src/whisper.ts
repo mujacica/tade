@@ -1,7 +1,13 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { resolveCommand, runProgram, stringEnv } from '@tade/core'
+import {
+  type HowToInstall,
+  type RequiredProgram,
+  resolveCommand,
+  runProgram,
+  stringEnv,
+} from '@tade/core'
 import {
   type AudioClip,
   type Availability,
@@ -45,6 +51,27 @@ export type WhisperRun = (
 /** Homebrew renamed the binary; older installs still have the old names. */
 const BINARIES = ['whisper-cli', 'whisper-cpp', 'whisper', 'main']
 
+/**
+ * How whisper.cpp's program gets onto a machine. Homebrew has it, on a Mac and
+ * on Linux alike, as `whisper.cpp` — `whisper-cpp` is the name it had, which
+ * the Cellar no longer uses. No distribution's stable release does: Debian packages
+ * `whisper-cli` only in testing and unstable (`whisper.cpp-tools`), and
+ * Fedora's `whisper-cpp` is the library alone — a `dnf install whisper-cpp`
+ * would install something else under the same name. So Linux is told the
+ * upstream build, with static libraries so the one file can be put anywhere.
+ */
+const INSTALL: HowToInstall = {
+  brew: 'whisper.cpp',
+  instead: {
+    linux:
+      'no stable distribution packages whisper-cli, so build it (git, cmake and a C++ compiler): ' +
+      '`git clone https://github.com/ggml-org/whisper.cpp && ' +
+      'cmake -S whisper.cpp -B whisper.cpp/build -DBUILD_SHARED_LIBS=OFF && ' +
+      'cmake --build whisper.cpp/build -j --config Release`, ' +
+      'then put whisper.cpp/build/bin/whisper-cli on your PATH',
+  },
+}
+
 export interface WhisperOptions {
   /** Path to a ggml model. */
   model?: string
@@ -78,6 +105,28 @@ export class WhisperCppTranscriber implements Transcriber {
   private readonly env: Record<string, string>
   private readonly run: WhisperRun
 
+  /**
+   * whisper.cpp's program, wherever this engine would run it from: an older
+   * install answers to an older name, and calling that one missing because
+   * nothing answers to `whisper-cli` would be a lie about the one that runs.
+   * A PATH lookup, and only when somebody asks.
+   */
+  get programs(): readonly RequiredProgram[] {
+    const found = this.binary()
+    return [
+      {
+        command: 'whisper-cli',
+        title: 'whisper.cpp',
+        why: 'hearing you on this machine, so nothing you say leaves it',
+        versionArgs: ['--version'],
+        // Typing works without it: speech is never a reason to stop.
+        optional: true,
+        ...(found ? { at: found } : {}),
+        install: INSTALL,
+      },
+    ]
+  }
+
   constructor(opts: WhisperOptions = {}) {
     this.opts = opts
     this.env = stringEnv(opts.env ?? process.env)
@@ -98,8 +147,11 @@ export class WhisperCppTranscriber implements Transcriber {
   }
 
   async available(): Promise<Availability> {
+    // What is missing, never which installer fixes it: that is this
+    // machine's line, which setup and `tade voice` read out of `programs`.
     if (!this.binary()) {
-      return { ok: false, reason: 'whisper.cpp is not installed (brew install whisper-cpp)' }
+      const looked = this.opts.binary ?? 'whisper-cli'
+      return { ok: false, reason: `whisper.cpp is not installed (no ${looked} on the PATH)` }
     }
     const model = this.model()
     if (!existsSync(model)) {

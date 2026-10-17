@@ -1,9 +1,11 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { ConfigSchema, type InstallersHere } from '@tade/core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
-import { harnessAccount } from '../src/accounts.ts'
+import { harnessAccount, listAccounts } from '../src/accounts.ts'
+import { HARNESS_ADAPTERS } from '../src/harnesses.ts'
 import { Workbench } from '../src/workbench.ts'
 
 // Accounts over a real workbench: named, made ready, chosen for new agents and
@@ -209,5 +211,54 @@ describe('accounts', () => {
     expect(config().workers?.accounts?.['claude-code']).toBeUndefined()
     expect(existsSync(join(home, 'accounts', 'work'))).toBe(false)
     await expect(client.removeAccount('work')).rejects.toThrow(/no account called work/)
+  })
+})
+
+describe('a harness that is not installed, on the Accounts page', () => {
+  // "Claude Code is not installed" with nothing beside it was what Settings ›
+  // Accounts and `tade accounts` said: setup's harness lines had the install
+  // line, and the Accounts surfaces did not. Asked on a PATH with nothing on
+  // it, against each kind of machine.
+  const own = tmp('tade-accounts-install-')
+  const env = { PATH: tmp('tade-empty-path-'), HOME: own }
+  const config = ConfigSchema.parse({ accounts: { work: { harness: 'claude-code' } } })
+  const views = (machine: InstallersHere) =>
+    listAccounts(config, {
+      adapterFor: (harness) => {
+        const make = HARNESS_ADAPTERS[harness]
+        if (!make) throw new Error(`no harness called ${harness}`)
+        return make({ runDir: own, socketDir: own, approvals: 'bypass', home: own, env })
+      },
+      env,
+      machine,
+    })
+  const claude = async (machine: InstallersHere) =>
+    (await views(machine)).filter((one) => one.harness === 'claude-code')
+
+  it('says this machine’s line on a Mac, and on a server', async () => {
+    for (const machine of [
+      { platform: 'darwin', managers: ['brew', 'npm'] },
+      { platform: 'linux', managers: ['apt-get', 'npm'] },
+    ]) {
+      const [mine] = await claude(machine)
+      expect(mine?.status.signedIn).toBe(false)
+      expect(mine?.install).toEqual({ command: 'npm install --global @anthropic-ai/claude-code' })
+    }
+  })
+
+  it('says plainly why there is nothing to run where this machine cannot', async () => {
+    const [mine] = await claude({ platform: 'linux', managers: ['dnf'] })
+    expect(mine?.install).toEqual({
+      cannot: 'it installs with npm, and this machine has not got it',
+    })
+  })
+
+  it('says it once, on the harness’s own row, and never where the program is here', async () => {
+    const all = await views({ platform: 'darwin', managers: ['brew', 'npm'] })
+    // An added account is the same program, already said on its harness's row.
+    expect(all.find((one) => one.name === 'work')?.install).toBeNull()
+    // pi ships with Tade, so it is here; acp is several programs and none of them is it.
+    expect(all.find((one) => one.harness === 'pi')?.install).toBeNull()
+    expect(all.find((one) => one.harness === 'acp')?.install).toBeNull()
   })
 })

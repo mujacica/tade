@@ -1,6 +1,7 @@
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { installWith, namesAnInstaller } from '@tade/core'
 import { silentClip } from '@tade/voice-core/conformance'
 import { afterEach, describe, expect, it } from 'vitest'
 import { defaultModelPath, WhisperCppTranscriber } from '../src/whisper.ts'
@@ -53,7 +54,12 @@ describe('the local engine', () => {
     const transcriber = new WhisperCppTranscriber({ binary: '/nonexistent/whisper' })
     const availability = await transcriber.available()
     expect(availability.ok).toBe(false)
-    if (!availability.ok) expect(availability.reason).toMatch(/not installed/)
+    if (!availability.ok) {
+      expect(availability.reason).toMatch(/not installed/)
+      // What is missing, never which installer: `brew install whisper-cpp`
+      // was said on Debian.
+      expect(namesAnInstaller(availability.reason)).toBe(false)
+    }
   })
 
   it('looks for its model where Tade keeps them', async () => {
@@ -79,6 +85,44 @@ describe('the local engine', () => {
 
   it('says nothing local was sent anywhere', () => {
     expect(new WhisperCppTranscriber().capabilities.local).toBe(true)
+  })
+})
+
+describe('how whisper.cpp gets onto a machine', () => {
+  const [program] = new WhisperCppTranscriber({ binary: '/nonexistent/whisper' }).programs
+  const on = (platform: string, managers: string[]) =>
+    installWith(program?.install, { platform, managers })
+
+  it('is Homebrew on a Mac, and on Linux where Homebrew is what it has', () => {
+    expect(on('darwin', ['brew', 'npm'])).toEqual({ command: 'brew install whisper.cpp' })
+    expect(on('linux', ['brew', 'apt-get'])).toEqual({ command: 'brew install whisper.cpp' })
+  })
+
+  it('is the upstream build on Linux, because no stable distribution packages the program', () => {
+    // Fedora's `whisper-cpp` is the library alone and Debian's is only in
+    // testing: an apt or dnf line would install nothing that runs, or fail.
+    for (const managers of [['apt-get'], ['dnf'], []]) {
+      const answer = on('linux', managers)
+      expect(answer).toMatchObject({ cannot: expect.stringContaining('cmake --build') })
+      expect(JSON.stringify(answer)).not.toMatch(/brew|apt-get install|dnf install/)
+    }
+  })
+
+  it('says so on a Mac with no Homebrew, rather than a line that would fail', () => {
+    expect(on('darwin', [])).toEqual({
+      cannot: 'it installs with Homebrew, and this machine has not got it',
+    })
+  })
+
+  it('is the program the engine would run, whatever it answers to', () => {
+    // An older Homebrew named it `whisper-cpp`: calling that one missing
+    // because nothing answers to `whisper-cli` is a lie about the one running.
+    const found = new WhisperCppTranscriber({ binary: process.execPath }).programs[0]
+    expect(found?.command).toBe('whisper-cli')
+    expect(found?.at).toBe(process.execPath)
+    expect(program?.at).toBeUndefined()
+    // Speech is never a reason to stop: typing works without it.
+    expect(program?.optional).toBe(true)
   })
 })
 

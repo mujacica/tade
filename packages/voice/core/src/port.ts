@@ -1,4 +1,5 @@
 import { rm } from 'node:fs/promises'
+import type { RequiredProgram } from '@tade/core'
 
 // Turning speech into text, and capturing the speech in the first place.
 //
@@ -69,6 +70,14 @@ export interface Transcriber {
   readonly id: string
   readonly capabilities: TranscriberCapabilities
   /**
+   * The programs it runs on this machine, declared the way every driver,
+   * harness and forge declares its own: what each is, how to see its version
+   * and how to install it per platform. Setup and `tade voice` say this
+   * machine's line out of it, and `available()` only says what is missing.
+   * Absent where it runs nothing here — an API needs a key, not a program.
+   */
+  readonly programs?: readonly RequiredProgram[]
+  /**
    * Whether this machine can actually run it. Checked before anything is
    * recorded, so a missing model is a sentence rather than a failure after
    * you have already spoken.
@@ -102,6 +111,8 @@ export interface RecorderOptions {
 
 export interface Recorder {
   readonly id: string
+  /** The programs it runs on this machine, as `Transcriber.programs` declares an engine's. */
+  readonly programs?: readonly RequiredProgram[]
   available(): Promise<Availability>
   start(opts?: RecorderOptions): Promise<Recording>
 }

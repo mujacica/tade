@@ -1,4 +1,5 @@
 import { defaultConfigPath, loadConfig, tadeHome } from '@tade/core'
+import { voiceDeclared } from '@tade/voice-stt'
 import {
   lookAtUpdates,
   type ProgramLook,
@@ -81,7 +82,10 @@ export function registerUpdate(program: Command, io: Io, setExit: (code: number)
         return
       }
       const home = tadeHome()
-      const look = await lookAtUpdates(cfg.config, home, { ask: opts.check === true })
+      const look = await lookAtUpdates(cfg.config, home, {
+        ask: opts.check === true,
+        also: voiceDeclared(cfg.config.surfaces.voice),
+      })
       // Kept for the window's chip; one that could not be written is asked again there.
       await rememberUpdates(home, look).catch(() => {})
       if (opts.json) {

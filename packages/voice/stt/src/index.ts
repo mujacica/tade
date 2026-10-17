@@ -1,3 +1,4 @@
+import type { Declared } from '@tade/core'
 import type { Recorder, Transcriber } from '@tade/voice-core'
 import { OpenAiTranscriber } from './openai.ts'
 import { FfmpegRecorder } from './recorder.ts'
@@ -53,6 +54,33 @@ export function makeRecorder(config: RecorderConfig = {}): Recorder {
   const make = recorders[name]
   if (!make) throw new Error(`unknown recorder: ${name}`)
   return make(config)
+}
+
+/**
+ * What every engine and microphone here says it runs, in the shape the other
+ * ports' declarations are folded in (`programsNeeded`): the configured ones in
+ * use, the rest listed as something Tade could use. Constructing one to read
+ * its declaration runs nothing — a PATH lookup at most.
+ */
+export function voiceDeclared(
+  voice: { stt?: TranscriberConfig; mic?: RecorderConfig } = {},
+): Declared[] {
+  const stt = voice.stt?.driver ?? 'whisper-cpp'
+  const mic = voice.mic?.driver ?? 'ffmpeg'
+  return [
+    ...Object.entries(transcribers).map(([id, make]) => ({
+      what: `the ${id} engine`,
+      inUse: id === stt,
+      // Its own settings only where it is the one configured: a binary
+      // somebody named for whisper is where whisper is.
+      programs: make(id === stt ? (voice.stt ?? {}) : {}).programs ?? [],
+    })),
+    ...Object.entries(recorders).map(([id, make]) => ({
+      what: `the ${id} recorder`,
+      inUse: id === mic,
+      programs: make(id === mic ? (voice.mic ?? {}) : {}).programs ?? [],
+    })),
+  ]
 }
 
 /** Config keys are snake_case and optional; constructors want neither. */

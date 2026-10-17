@@ -36,6 +36,11 @@ export interface AccountShown {
   agents: number
   forNewAgents: boolean
   canSignIn: boolean
+  /**
+   * What would put its harness on this machine, where it is not here: the
+   * line setup offers, or why nothing here can. Absent or null where it is.
+   */
+  install?: { command: string } | { cannot: string } | null
 }
 
 /**

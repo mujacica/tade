@@ -613,3 +613,50 @@ describe('the Updates page', () => {
     expect(unasked).not.toContain('● 2')
   })
 })
+
+describe('a harness that is not installed, on the Accounts page', () => {
+  // It said "Claude Code is not installed" with nothing beside it, while
+  // setup's own line for the same harness said what to run.
+  const missing = (install: { command: string } | { cannot: string }) => ({
+    harness: 'claude-code',
+    name: null,
+    kind: 'subscription' as const,
+    canAdd: true,
+    why: null,
+    status: {
+      signedIn: false,
+      who: null,
+      plan: null,
+      method: null,
+      problem: 'Claude Code is not installed',
+    },
+    limits: null,
+    agents: 0,
+    forNewAgents: true,
+    canSignIn: true,
+    provider: 'anthropic',
+    install,
+  })
+  const shown = (install: { command: string } | { cannot: string }) =>
+    plainRows(drawnAt('accounts', { accounts: [missing(install)] })).join('\n')
+
+  it('says this machine’s line under it', () => {
+    const page = shown({ command: 'npm install --global @anthropic-ai/claude-code' })
+    expect(page).toContain('Claude Code is not installed')
+    expect(page).toContain('npm install --global @anthropic-ai/claude-code')
+  })
+
+  it('says why there is nothing to run, where this machine has nothing that could', () => {
+    // Wrapped under the status, so read a line at a time.
+    const page = shown({ cannot: 'it installs with npm, and this machine has not got it' })
+    expect(page).toContain('it installs with npm')
+    expect(page).toContain('this machine has not got')
+  })
+
+  it('says nothing more where it is installed', () => {
+    const page = plainRows(
+      drawnAt('accounts', { accounts: [{ ...missing({ command: 'x' }), install: null }] }),
+    ).join('\n')
+    expect(page).not.toContain('npm install')
+  })
+})

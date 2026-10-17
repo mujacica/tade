@@ -1,6 +1,7 @@
 import { existsSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { declarationProblems, namesAnInstaller } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { type AudioClip, discardClip, type Recorder, type Transcriber } from './port.ts'
 
@@ -87,6 +88,18 @@ export function testTranscriber(
       if (!availability.ok) expect(availability.reason).toBeTruthy()
     })
 
+    it('declares what it runs, and how each installs on every platform', async () => {
+      expect(declarationProblems((await make()).programs)).toEqual([])
+    })
+
+    it('says what is wrong and never which installer fixes it', async () => {
+      // An engine cannot know whether this is a Mac with Homebrew or a server
+      // with apt: `brew install whisper-cpp` was said on Debian. The line for
+      // this machine is the one setup and `tade voice` read out of `programs`.
+      const availability = await (await make()).available()
+      if (!availability.ok) expect(namesAnInstaller(availability.reason)).toBe(false)
+    })
+
     it('refuses clearly when it cannot run', async () => {
       const transcriber = await make()
       if ((await transcriber.available()).ok) return
@@ -144,6 +157,15 @@ export function testRecorder(
       const availability = await (await make()).available()
       expect(typeof availability.ok).toBe('boolean')
       if (!availability.ok) expect(availability.reason).toBeTruthy()
+    })
+
+    it('declares what it runs, and how each installs on every platform', async () => {
+      expect(declarationProblems((await make()).programs)).toEqual([])
+    })
+
+    it('says what is wrong and never which installer fixes it', async () => {
+      const availability = await (await make()).available()
+      if (!availability.ok) expect(namesAnInstaller(availability.reason)).toBe(false)
     })
 
     it('refuses clearly when it cannot run', async () => {

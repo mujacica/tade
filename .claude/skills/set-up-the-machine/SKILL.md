@@ -52,8 +52,11 @@ and setting up ends by actually opening a lane — because every other check is 
 ## Declaring that something needs a program
 
 1. Put a `RequiredProgram` on the implementation that shells out to it — `programs` on
-   `WorkspaceDriver`, `WorkerAdapter` or `Forge`. Not in a list anywhere else: the point of the
-   declaration is that a new harness arrives with its own requirement and **no other file changes**.
+   `WorkspaceDriver`, `WorkerAdapter`, `Forge`, `RemoteLink`, `Transcriber` or `Recorder`. Not in a
+   list anywhere else: the point of the declaration is that a new harness arrives with its own
+   requirement and **no other file changes**. The speech ports are folded in by whoever has them
+   (`voiceDeclared`, handed to `programsNeeded`/`lookAtUpdates` as `also` by the CLI), because
+   `@tade/voice-core`'s manifest names the workbench and walking them from there is a cycle.
 2. Say all five things. `command` as it is run (`tmux`, `gh`), `title` as a person reads it (`GitHub
    CLI`), `why` as a clause that finishes "it is needed for…", `versionArgs` that make it print its
    version and nothing else, and `optional` where Tade works without it.
@@ -64,9 +67,9 @@ and setting up ends by actually opening a lane — because every other check is 
 5. Add `oldest` where an older version does not work, and make it **the same constant** the
    implementation refuses below — the tmux driver declares `OLDEST`, which its `available()` reads.
    Without it the Programs list ticked `✓ tmux 3.1` beside a workspace step calling it too old.
-6. Run that implementation's conformance suite. `declarationProblems` is asserted by all three
-   (`drivers/core`, `harnesses/core`, `forges/core`), so a program nobody can look up or ask is
-   caught there.
+6. Run that implementation's conformance suite. `declarationProblems` is asserted by every port's
+   (`drivers/core`, `harnesses/core`, `forges/core`, `voice/core`), so a program nobody can look up
+   or ask — or one with a Homebrew line and nothing for Linux — is caught there.
 
 Declaring **nothing** is an answer: the pty driver needs no program of its own, and says so by
 having no `programs`. What Tade itself needs whichever implementations are in use is `TADE_PROGRAMS`
@@ -153,19 +156,34 @@ having no `programs`. What Tade itself needs whichever implementations are in us
 - **A program whose package nobody can vouch for declares `instead`.** A command that installs
   something else under the same name is worse than no command at all: `gh` says
   `cli.github.com has the package for your system` rather than offering an apt package that is in
-  GitHub's own repository on most releases, and git says `xcode-select --install`, which is where a
-  Mac's git comes from. `declarationProblems` refuses an `install` that names nothing to install and
-  a `cask` with no `brew` name — the two shapes that read as an offer and are not one.
+  GitHub's own repository on most releases. Fedora's `whisper-cpp` is the library alone and
+  Debian's `whisper-cli` is in testing only, so whisper.cpp offers Homebrew and tells Linux the
+  upstream build. `declarationProblems` refuses an `install` that names nothing to install and a
+  `cask` with no `brew` name — the two shapes that read as an offer and are not one.
+- **Every platform gets its own answer, never another's** (`PerPlatform`). `instead` is one clause
+  where it is true everywhere, or one per `process.platform` where it is not: git's
+  `xcode-select --install` is `{ darwin }` only, because it was said to Linux. `installWith` names
+  only managers of this platform in its refusal, never a cask on Linux, and where nothing answers
+  for it says `cannot be installed here: nothing says how on Linux`. A `brew` with nothing for
+  Linux — no apt, dnf, npm or Linux clause — is refused: a lone brew line is a Mac's answer said
+  to every machine.
 - **Too old is missing, and is said where missing is.** `missingFrom` lists one below `oldest`
   with `tooOld` beside the one not here, so the checklist, `--check`, the wizard, Settings › Updates
   and `tade update` all say `too old: 3.1, needs 3.2`, never a tick. Its line is `upgradeWith`: the
-  manager's own update, and for the system's own copy the line `installWith` offers, because
-  installing a package that is there moves it to the newest the manager has.
+  manager's own update; on a Mac, for macOS's own copy, the line `installWith` offers beside it.
+- **The system's own copy moves the platform's way** (`updateWith(install, how, machine)`): on a
+  Mac with macOS and its command line tools (`Software Update`, a `cannot`), on Linux with the
+  distribution's manager — apt's install line, which moves a package that is there to the newest the
+  lists have, and `dnf upgrade`, because `dnf install` leaves one that is there alone. Every system
+  program on Debian was told `xcode-select --install` before this.
 - **A port says what is wrong and never which installer fixes it.** Its `available()`, `probe()`
   and `account()` cannot know whether this is a Mac with Homebrew or a server with apt — `brew
   install tmux` was said on Debian beside setup's apt line. Setup follows the configured driver's
   reason with the Programs list's line for what it declares (`driverNeeds`), harness lines carry
-  `HarnessHere.install`, and the harness conformance suite refuses a reason naming an installer.
+  `HarnessHere.install`, the Accounts surfaces carry `AccountView.install` (the same line, on the
+  harness's own row where its program is not here), the speech step and `tade voice` read the voice
+  ports' `programs`, and the harness and voice conformance suites refuse a reason naming an
+  installer (`namesAnInstaller`).
 - **Reloading into a new Tade says what it costs, in the driver's own words.** `wouldStop` reads
   `capabilities.detach` — never the driver's name — and only asks where lanes would not survive;
   the Updates page is handed the same fact as `lanesSurvive`. A reload counts the terminals as well

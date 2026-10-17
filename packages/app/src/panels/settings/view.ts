@@ -347,6 +347,19 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
             .text(cap(status, form - named - 5), one.status.signedIn ? skin.done : skin.hint)
             .build(),
         )
+        // Not installed comes with what would install it here — this
+        // machine's line, the one setup offers — or why nothing here can.
+        if (one.install) {
+          const how = 'command' in one.install ? one.install.command : one.install.cannot
+          for (const line of wrapTo(how, form - named - 5, 3)) {
+            body.push(
+              new Row(form, skin)
+                .space(named + 3)
+                .text(line, skin.hint)
+                .build(),
+            )
+          }
+        }
         buttons(harness, one.name)
       }
       buttons(harness, undefined)

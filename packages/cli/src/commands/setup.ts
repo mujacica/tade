@@ -6,17 +6,14 @@ import { runScreen, ScreenCancelled, type Ui } from '@tade/app'
 import {
   askAboutWatches,
   defaultConfigPath,
-  type InstallersHere,
   isReady,
   type LaneProof,
   loadConfig,
   type ReadinessFacts,
   readiness,
-  resolveCommand,
   type Step,
   type StepId,
   secretPath,
-  stringEnv,
   tadeHome,
   worksStep,
 } from '@tade/core'
@@ -29,14 +26,15 @@ import { Exit, type Io } from '../io.ts'
 import { setUpUnattended } from './host-service.ts'
 import { gather, type Look, lookHere } from './setup-facts.ts'
 import {
+  dictationSaid,
   harnessLines,
-  offerInstall,
   patchConfig,
   report,
   sayNativeTrouble,
   serverSays,
   setUpKeys,
   setUpPrograms,
+  setUpSpeechPrograms,
   setUpWorkspace,
   signInSomewhere,
 } from './setup-machine.ts'
@@ -255,11 +253,6 @@ function stillBlocked(facts: ReadinessFacts): boolean {
 
 function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
-}
-
-/** On the PATH and executable. The same lookup a lane does before spawning. */
-function which(command: string): boolean {
-  return resolveCommand(command, stringEnv(process.env)) !== null
 }
 
 async function setUpProject(ui: Ui, facts: ReadinessFacts): Promise<void> {
@@ -527,7 +520,7 @@ async function setUpVoice(ui: Ui, facts: ReadinessFacts, look: Look): Promise<vo
     'whisper.cpp — runs here, nothing leaves this machine',
     'OpenAI — sends your audio to them, nothing to install',
     'Groq — sends your audio to them, nothing to install',
-    'a dictation app I already use (Wispr Flow, macOS dictation)',
+    dictationSaid(process.platform),
     'nothing for now',
   ] as const
   const picked = await ui.choose('How should Tade hear you?', engines)
@@ -555,28 +548,12 @@ async function setUpVoice(ui: Ui, facts: ReadinessFacts, look: Look): Promise<vo
     return
   }
 
-  await setUpWhisper(ui, look.installers)
+  await setUpWhisper(ui, look)
 }
 
-/** Local speech: the binary, then a model, then which one to use. */
-async function setUpWhisper(ui: Ui, machine: InstallersHere): Promise<void> {
-  const missing = ['whisper-cli', 'ffmpeg'].filter((tool) => !which(tool))
-  if (missing.length > 0) {
-    const packages = missing.map((tool) => (tool === 'whisper-cli' ? 'whisper-cpp' : tool))
-    // Composed here rather than by `installWith`, which answers about one
-    // declared program: these two are installed together, because a
-    // transcriber with only one of them fails on the first recording — and
-    // neither is declared by a port, since nothing in the voice ports says
-    // what it shells out to yet. That is what to fix if this grows a third.
-    // What this machine installs with is still the one answer everything else
-    // reads, so an offer here cannot differ from an offer anywhere else.
-    const how = machine.managers.includes('brew')
-      ? { command: `brew install ${packages.join(' ')}` }
-      : machine.managers.includes('apt-get')
-        ? { command: `sudo apt-get install -y ${packages.join(' ')}` }
-        : { cannot: `install ${packages.join(' and ')} with whatever this machine uses` }
-    if (!(await offerInstall(ui, 'speech', how))) return
-  }
+/** Local speech: the programs, then a model, then which one to use. */
+async function setUpWhisper(ui: Ui, look: Look): Promise<void> {
+  if (!(await setUpSpeechPrograms(ui, look))) return
 
   // English-only models are better at English for their size; the rest
   // understand about a hundred languages. That is the actual choice, so it is

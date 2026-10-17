@@ -2,7 +2,7 @@ import { type ChildProcess, spawn } from 'node:child_process'
 import { closeSync, mkdtempSync, openSync, readSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { resolveCommand, stringEnv } from '@tade/core'
+import { type RequiredProgram, resolveCommand, stringEnv } from '@tade/core'
 import {
   type AudioClip,
   type Availability,
@@ -48,6 +48,19 @@ interface Input {
 
 export class FfmpegRecorder implements Recorder {
   readonly id = 'ffmpeg'
+  readonly programs: readonly RequiredProgram[] = [
+    {
+      command: 'ffmpeg',
+      title: 'ffmpeg',
+      why: 'recording the microphone while you hold the key to talk',
+      versionArgs: ['-version'],
+      // Typing works without it: speech is never a reason to stop.
+      optional: true,
+      // Fedora's own is `ffmpeg-free`, built with PulseAudio — the input this
+      // records from on Linux. The full build is RPM Fusion's, not Fedora's.
+      install: { brew: 'ffmpeg', apt: 'ffmpeg', dnf: 'ffmpeg-free' },
+    },
+  ]
   private readonly opts: FfmpegOptions
   private readonly env: Record<string, string>
   private readonly platform: NodeJS.Platform
@@ -79,15 +92,12 @@ export class FfmpegRecorder implements Recorder {
     if (!this.input()) {
       return { ok: false, reason: `no known audio input for ${this.platform}` }
     }
+    // What is missing, never which installer fixes it: `apt install` was no
+    // answer on Fedora, and this machine's line is read out of `programs`.
     if (!this.binary()) {
-      return { ok: false, reason: `ffmpeg is not installed (${this.howToInstall()})` }
+      return { ok: false, reason: 'ffmpeg is not installed (no ffmpeg on the PATH)' }
     }
     return { ok: true }
-  }
-
-  /** Said in the terms of the machine it is said on: `brew` is not an answer on Linux. */
-  private howToInstall(): string {
-    return this.platform === 'darwin' ? 'brew install ffmpeg' : 'apt install ffmpeg'
   }
 
   async start(opts: RecorderOptions = {}): Promise<Recording> {

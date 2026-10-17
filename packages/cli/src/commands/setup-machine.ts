@@ -8,6 +8,7 @@ import {
   programTrouble,
 } from '@tade/core'
 import { signInLasts } from '@tade/harnesses-core'
+import { makeRecorder, makeTranscriber } from '@tade/voice-stt'
 import type { HarnessHere } from '@tade/workbench/machine'
 import { moshPortsSaid } from '@tade/workbench/remotes'
 import { patchFromShell, writeFromShell } from '../config-write.ts'
@@ -251,6 +252,35 @@ export async function signInSomewhere(
 /** Whether there is anything Tade could do for this harness at all. */
 function couldOffer(harness: HarnessHere): boolean {
   return harness.signIn !== null || 'command' in harness.install
+}
+
+/**
+ * Offer what local speech runs and this machine has not got — the
+ * microphone's program and whisper.cpp's, as each declares it — one at a
+ * time, each with this machine's line. Read off the one list the Programs
+ * step reads, so the line here cannot differ from the line there: `brew
+ * install whisper-cpp` was offered on Debian, where no package has it. Both
+ * before anything else is asked, because a transcriber with only one of them
+ * fails on the first recording. True when everything is here.
+ */
+export async function setUpSpeechPrograms(ui: Ui, look: Pick<Look, 'missing'>): Promise<boolean> {
+  const ports = [makeRecorder({ driver: 'ffmpeg' }), makeTranscriber({ driver: 'whisper-cpp' })]
+  const runs = new Set(ports.flatMap((port) => (port.programs ?? []).map((one) => one.command)))
+  for (const program of look.missing.filter((one) => runs.has(one.command))) {
+    const what = program.tooOld ? `a newer ${program.title}` : program.title
+    if (!(await offerInstall(ui, what, program.install))) return false
+  }
+  return true
+}
+
+/**
+ * The dictation apps a person might already use, for the platform they would
+ * use them on: Wispr Flow and macOS's own are no answer on Linux.
+ */
+export function dictationSaid(platform: string): string {
+  return platform === 'darwin'
+    ? 'a dictation app I already use (Wispr Flow, macOS dictation)'
+    : 'a dictation app I already use, one that types into whatever is focused'
 }
 
 /**

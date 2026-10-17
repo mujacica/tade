@@ -37,6 +37,7 @@ const CLAUDE: AccountView = {
   forNewAgents: true,
   canSignIn: true,
   provider: 'anthropic',
+  install: null,
 }
 
 /** An owner device in the file, as `tade web pair --owner` writes one, for the harness's cookie. */

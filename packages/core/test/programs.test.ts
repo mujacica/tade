@@ -60,6 +60,9 @@ describe('reading a version out of whatever a program prints', () => {
   })
 })
 
+/** A Mac with Homebrew, which is no part of any manager-owned answer. */
+const MAC = { platform: 'darwin', managers: ['brew', 'npm'] }
+
 describe('how a program got onto this machine', () => {
   it('reads Homebrew off the Cellar the link points into', () => {
     const install = installOf({
@@ -68,7 +71,7 @@ describe('how a program got onto this machine', () => {
     })
     expect(install.manager).toBe('homebrew')
     expect(install.name).toBe('gh')
-    expect(updateWith(install)).toEqual({ command: 'brew upgrade gh' })
+    expect(updateWith(install, undefined, MAC)).toEqual({ command: 'brew upgrade gh' })
   })
 
   it('tells a cask from a formula, because they are two different namespaces', () => {
@@ -82,7 +85,9 @@ describe('how a program got onto this machine', () => {
     expect(install.manager).toBe('homebrew')
     expect(install.brew).toBe('cask')
     expect(install.name).toBe('claude-code')
-    expect(updateWith(install)).toEqual({ command: 'brew upgrade --cask claude-code' })
+    expect(updateWith(install, undefined, MAC)).toEqual({
+      command: 'brew upgrade --cask claude-code',
+    })
   })
 
   it('says what ships with Tade is Tade’s, whatever package it looks like', () => {
@@ -97,7 +102,9 @@ describe('how a program got onto this machine', () => {
     })
     expect(install.manager).toBe('tade')
     expect(install.version).toBe('0.85.1')
-    expect(updateWith(install)).toMatchObject({ cannot: expect.stringContaining('updating Tade') })
+    expect(updateWith(install, undefined, MAC)).toMatchObject({
+      cannot: expect.stringContaining('updating Tade'),
+    })
   })
 
   it('reads an Intel-Mac Homebrew, whose bin is /usr/local', () => {
@@ -118,7 +125,7 @@ describe('how a program got onto this machine', () => {
     expect(install.manager).toBe('npm')
     expect(install.name).toBe('@anthropic-ai/claude-code')
     expect(install.version).toBe('2.0.5')
-    expect(updateWith(install)).toEqual({
+    expect(updateWith(install, undefined, MAC)).toEqual({
       command: 'npm install --global @anthropic-ai/claude-code@latest',
     })
   })
@@ -130,7 +137,9 @@ describe('how a program got onto this machine', () => {
       package: { name: '@pi/cli', version: '0.9.1', dir: '/y' },
     })
     expect(install.manager).toBe('pnpm')
-    expect(updateWith(install)).toEqual({ command: 'pnpm add --global @pi/cli@latest' })
+    expect(updateWith(install, undefined, MAC)).toEqual({
+      command: 'pnpm add --global @pi/cli@latest',
+    })
   })
 
   it('tells Volta, which owns the package rather than merely holding it', () => {
@@ -140,19 +149,38 @@ describe('how a program got onto this machine', () => {
       package: { name: 'pi', version: '0.9.1', dir: '/y' },
     })
     expect(install.manager).toBe('volta')
-    expect(updateWith(install)).toEqual({ command: 'volta install pi@latest' })
+    expect(updateWith(install, undefined, MAC)).toEqual({ command: 'volta install pi@latest' })
   })
 
-  it('calls what came with the system the system’s, and says who updates it', () => {
+  it('calls what came with the system the system’s, and says who updates it there', () => {
     const install = installOf({ path: '/usr/bin/git', realPath: '/usr/bin/git' })
     expect(install.manager).toBe('system')
-    expect(updateWith(install)).toMatchObject({ cannot: expect.stringContaining('xcode-select') })
+    const how = { brew: 'git', apt: 'git', dnf: 'git' }
+    // A Mac's came with macOS, and moves with it.
+    expect(updateWith(install, how, MAC)).toEqual({
+      cannot: 'macOS updates it with its command line tools, in Software Update',
+    })
+    // A Linux box's is the distribution's package, and its own manager moves
+    // it — never the macOS line, which is what Debian was told.
+    expect(updateWith(install, how, { platform: 'linux', managers: ['apt-get'] })).toEqual({
+      command: 'sudo apt-get update && sudo apt-get install -y git',
+    })
+    expect(updateWith(install, how, { platform: 'linux', managers: ['dnf'], root: true })).toEqual({
+      command: 'dnf upgrade -y git',
+    })
+    // Where nothing declared is a package this machine's manager has, it says
+    // whose it is and offers nothing.
+    const whose = 'the distribution’s package manager updates it, with everything else it installed'
+    expect(updateWith(install, how, { platform: 'linux', managers: [] })).toEqual({ cannot: whose })
+    expect(
+      updateWith(install, { dnf: 'git' }, { platform: 'linux', managers: ['apt-get'] }),
+    ).toEqual({ cannot: whose })
   })
 
   it('says it cannot tell for a binary somebody dropped on their PATH', () => {
     const install = installOf({ path: '/Users/x/bin/tmux', realPath: '/Users/x/bin/tmux' })
     expect(install.manager).toBe('path')
-    const update = updateWith(install)
+    const update = updateWith(install, undefined, MAC)
     expect(update).toMatchObject({ cannot: expect.stringContaining('nothing here claims') })
   })
 
@@ -178,10 +206,17 @@ describe('how a program got onto this machine', () => {
   })
 
   it('never offers a command it is not sure of', () => {
-    for (const manager of ['asdf', 'nvm', 'system', 'path'] as const) {
-      const update = updateWith({ manager, name: 'node', where: '/x', said: 'x' })
-      expect(update).not.toHaveProperty('command')
-      expect((update as { cannot: string }).cannot.length).toBeGreaterThan(20)
+    for (const machine of [MAC, { platform: 'linux', managers: ['apt-get', 'dnf'] }]) {
+      for (const manager of ['asdf', 'nvm', 'system', 'path'] as const) {
+        // node declares no package, so not even the system's manager is guessed at.
+        const update = updateWith(
+          { manager, name: 'node', where: '/x', said: 'x' },
+          undefined,
+          machine,
+        )
+        expect(update).not.toHaveProperty('command')
+        expect((update as { cannot: string }).cannot.length).toBeGreaterThan(20)
+      }
     }
   })
 })
@@ -247,6 +282,30 @@ describe('what a port may declare', () => {
     ).toHaveLength(1)
   })
 
+  it('refuses a Homebrew line with nothing for Linux, and an install that names nothing', () => {
+    const gh = { command: 'gh', title: 'gh', why: 'because', versionArgs: ['--version'] }
+    expect(declarationProblems([{ ...gh, install: { brew: 'gh' } }])).toEqual([
+      'gh: says how to install it with Homebrew and nothing for Linux',
+    ])
+    // Its own line, its own steps, or a plain word: each is an answer for Linux.
+    for (const linux of [
+      { apt: 'gh' },
+      { dnf: 'gh' },
+      { npm: 'gh' },
+      { instead: 'cli.github.com has the package for your system' },
+      { instead: { linux: 'build it' } },
+    ]) {
+      expect(declarationProblems([{ ...gh, install: { brew: 'gh', ...linux } }])).toEqual([])
+    }
+    // A sentence for a Mac alone is no answer for Linux.
+    expect(
+      declarationProblems([{ ...gh, install: { brew: 'gh', instead: { darwin: 'xcode' } } }]),
+    ).toHaveLength(1)
+    expect(declarationProblems([{ ...gh, install: { instead: {} } }])).toEqual([
+      'gh: says how to install it and names nothing to install',
+    ])
+  })
+
   it('holds Tade’s own declarations to the same rule', () => {
     expect(declarationProblems(TADE_PROGRAMS)).toEqual([])
   })
@@ -295,18 +354,60 @@ describe('what would install a program that is not here', () => {
   it('offers only a manager this machine actually has', () => {
     // A `brew install` on a machine with no Homebrew is a command that fails
     // in a terminal somebody is watching, which is worse than a sentence.
-    const answer = installWith({ brew: 'gh' }, machine([], 'linux'))
-    expect(answer).toEqual({
-      cannot: 'it installs with Homebrew, and this machine has none of them',
+    expect(installWith({ brew: 'gh', npm: 'gh' }, machine([]))).toEqual({
+      cannot: 'it installs with Homebrew or npm, and this machine has none of them',
+    })
+    expect(installWith({ brew: 'gh' }, machine([]))).toEqual({
+      cannot: 'it installs with Homebrew, and this machine has not got it',
     })
   })
 
-  it('says what to do instead where there is nothing to run', () => {
+  it('never says a Mac’s line to a Linux box: where nothing installs it there, it says so plainly', () => {
+    expect(installWith({ brew: 'gh' }, machine([], 'linux'))).toEqual({
+      cannot: 'cannot be installed here: nothing says how on Linux',
+    })
+    expect(installWith({ apt: 'tmux' }, machine(['brew']))).toEqual({
+      cannot: 'cannot be installed here: nothing says how on macOS',
+    })
+    // A cask is a macOS application: Homebrew on Linux has none to install.
+    expect(
+      installWith(
+        { brew: 'claude-code', cask: true, npm: 'claude' },
+        machine(['brew', 'npm'], 'linux'),
+      ),
+    ).toEqual({ command: 'npm install --global claude' })
+    // Homebrew on Linux is still Homebrew, where it is what the machine has.
+    expect(
+      installWith({ brew: 'tmux', apt: 'tmux' }, machine(['brew', 'apt-get'], 'linux')),
+    ).toEqual({ command: 'brew install tmux' })
+  })
+
+  it('says what to do instead where there is nothing to run, on the platform it is true on', () => {
     expect(installWith({ brew: 'git', instead: 'xcode-select --install' }, machine([]))).toEqual({
       cannot: 'xcode-select --install',
     })
+    const how = { brew: 'whisper-cpp', instead: { linux: 'build it from source' } }
+    expect(installWith(how, machine([], 'linux'))).toEqual({ cannot: 'build it from source' })
+    expect(installWith(how, machine([]))).toEqual({
+      cannot: 'it installs with Homebrew, and this machine has not got it',
+    })
     expect(installWith(undefined, machine(['brew']))).toEqual({
       cannot: 'nothing here says how to install it',
+    })
+  })
+
+  it('installs git per platform: the package manager, or a Mac’s command line tools', () => {
+    const [git] = TADE_PROGRAMS
+    expect(installWith(git?.install, machine(['brew']))).toEqual({ command: 'brew install git' })
+    expect(installWith(git?.install, machine([]))).toEqual({
+      cannot: '`xcode-select --install`, which is where a Mac’s git comes from',
+    })
+    expect(installWith(git?.install, machine(['dnf'], 'linux'))).toEqual({
+      command: 'sudo dnf install -y git',
+    })
+    // A Linux box with neither apt nor dnf is never told about xcode-select.
+    expect(installWith(git?.install, machine([], 'linux'))).toEqual({
+      cannot: 'it installs with apt or dnf, and this machine has none of them',
     })
   })
 
@@ -384,15 +485,24 @@ describe('a program that is here and too old', () => {
       command: 'apt-get update && apt-get install -y tmux',
     })
     expect(upgradeWith(brewed, how, mac)).toEqual({ command: 'brew upgrade tmux' })
+    // dnf's install leaves an installed package alone, so its line is upgrade.
+    expect(upgradeWith(debian, how, { platform: 'linux', managers: ['dnf'] })).toEqual({
+      command: 'sudo dnf upgrade -y tmux',
+    })
+    // A Mac's own copy moves only with macOS, so a newer one goes beside it.
+    expect(upgradeWith({ ...debian, where: '/usr/bin/git' }, { brew: 'git' }, mac)).toEqual({
+      command: 'brew install git',
+    })
   })
 
   it('says why there is no command where this machine has nothing that could run one', () => {
+    // Only what installs on Linux is named there: Homebrew is a Mac's answer.
     expect(upgradeWith(debian, how, { platform: 'linux', managers: [] })).toEqual({
-      cannot: 'it installs with Homebrew, apt, dnf, and this machine has none of them',
+      cannot: 'it installs with apt or dnf, and this machine has none of them',
     })
     // Nothing anybody claims is offered nothing, however many managers there are.
     const dropped = { manager: 'path' as const, name: 'tmux', where: '/home/me/bin/tmux', said: '' }
-    expect(upgradeWith(dropped, how, linux)).toEqual(updateWith(dropped))
+    expect(upgradeWith(dropped, how, linux)).toEqual(updateWith(dropped, how, linux))
   })
 
   it('folds every floor into the highest, because one version has to satisfy them all', () => {

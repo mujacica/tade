@@ -72,8 +72,43 @@ export interface HowToInstall {
   dnf?: string
   /** A package installed globally with npm, which is the same on every platform. */
   npm?: string
-  /** Where there is nothing to run: what to do instead, as a clause. */
-  instead?: string
+  /**
+   * Where there is nothing to run: what to do instead, as a clause. One clause
+   * where it is true everywhere (`cli.github.com has the package for your
+   * system`), one per platform where it is not: a Mac's git comes from
+   * `xcode-select --install`, which is no answer on Linux, and whisper.cpp is
+   * built from source there. A platform nothing answers for is told plainly
+   * that it cannot be installed here, never another platform's line.
+   */
+  instead?: string | PerPlatform
+}
+
+/** A clause for each platform it is true on, named as `process.platform` names them. */
+export interface PerPlatform {
+  darwin?: string
+  linux?: string
+}
+
+/** A platform as a person calls it: `macOS`, `Linux`. */
+export function platformSaid(platform: string): string {
+  return platform === 'darwin' ? 'macOS' : platform === 'linux' ? 'Linux' : platform
+}
+
+/** What `instead` says on this platform, where it says anything. */
+function insteadOn(how: HowToInstall, platform: string): string | undefined {
+  const instead = how.instead
+  if (typeof instead === 'string') return instead.trim() ? instead : undefined
+  return instead?.[platform as keyof PerPlatform]?.trim() || undefined
+}
+
+/**
+ * Whether a sentence names an installer — `brew install`, `apt-get install`.
+ * A port says what is wrong and never which installer fixes it: it cannot know
+ * whether this is a Mac with Homebrew or a server with apt, and setup says
+ * this machine's line out of the port's `install` beside it.
+ */
+export function namesAnInstaller(text: string): boolean {
+  return /\b(?:brew|apt|apt-get|dnf|yum|pacman) (?:install|upgrade)\b/.test(text)
 }
 
 /**
@@ -94,8 +129,9 @@ export const TADE_PROGRAMS: readonly RequiredProgram[] = [
       apt: 'git',
       dnf: 'git',
       // Every Mac has one behind the command line tools, which is a download
-      // Apple runs rather than a package anybody installs.
-      instead: 'macOS: `xcode-select --install`, which is where its git comes from',
+      // Apple runs rather than a package anybody installs — and a sentence
+      // that is no answer anywhere else.
+      instead: { darwin: '`xcode-select --install`, which is where a Mac’s git comes from' },
     },
   },
   {
@@ -344,8 +380,17 @@ export type UpdateCommand = { command: string } | { cannot: string }
  * Where Tade cannot tell, it says so rather than guessing: a wrong `brew
  * upgrade` on something Homebrew does not own is a confusing failure, and a
  * right-looking one on something two managers both have is worse.
+ *
+ * The system's own copy is the one answer that depends on the machine rather
+ * than on the program, so the declaration (`how`) and the machine are asked
+ * for it: on a Mac it came with macOS, and on Linux it is the distribution's
+ * package, which that distribution's package manager moves forward.
  */
-export function updateWith(install: Install): UpdateCommand {
+export function updateWith(
+  install: Install,
+  how: HowToInstall | undefined,
+  machine: InstallersHere,
+): UpdateCommand {
   switch (install.manager) {
     case 'tade':
       return { cannot: 'it comes with Tade, so updating Tade is what moves it forward' }
@@ -374,9 +419,17 @@ export function updateWith(install: Install): UpdateCommand {
         cannot: `nvm installed it — \`nvm install --lts\` moves it and everything with it`,
       }
     case 'system':
-      return {
-        cannot: `the system updates it — macOS: \`xcode-select --install\``,
+      if (machine.platform === 'darwin') {
+        return { cannot: 'macOS updates it with its command line tools, in Software Update' }
       }
+      return (
+        (how && systemUpgrade(how, machine)) ?? {
+          cannot:
+            machine.platform === 'linux'
+              ? 'the distribution’s package manager updates it, with everything else it installed'
+              : `${platformSaid(machine.platform)} updates it`,
+        }
+      )
     default:
       return {
         cannot: `a binary on PATH that nothing here claims`,
@@ -418,28 +471,58 @@ export function installWith(
 ): InstallCommand {
   if (!how) return { cannot: 'nothing here says how to install it' }
   const has = (command: string) => machine.managers.includes(command)
-  if (how.brew && has('brew')) {
+  const mac = machine.platform === 'darwin'
+  // A cask is a macOS application, and Homebrew on Linux has none to install.
+  if (how.brew && has('brew') && (mac || !how.cask)) {
     return { command: `brew install ${how.cask ? '--cask ' : ''}${how.brew}` }
   }
   const sudo = machine.root ? '' : 'sudo '
-  // The package lists first: a fresh server's are stale or, in a container,
-  // absent, and `apt-get install` then fails to find a package that is there.
-  // dnf refreshes its own.
-  if (how.apt && has('apt-get')) {
-    return { command: `${sudo}apt-get update && ${sudo}apt-get install -y ${how.apt}` }
-  }
+  if (how.apt && has('apt-get')) return { command: aptInstall(how.apt, sudo) }
   if (how.dnf && has('dnf')) return { command: `${sudo}dnf install -y ${how.dnf}` }
   if (how.npm && has('npm')) return { command: `npm install --global ${how.npm}` }
-  if (how.instead) return { cannot: how.instead }
+  const instead = insteadOn(how, machine.platform)
+  if (instead) return { cannot: instead }
+  // Only what installs on this platform is named: Homebrew is no answer to a
+  // Linux box that has not got it, and apt none to a Mac.
+  const linux = machine.platform === 'linux'
   const offered = [
-    how.brew ? 'Homebrew' : '',
-    how.apt ? 'apt' : '',
-    how.dnf ? 'dnf' : '',
+    how.brew && mac ? 'Homebrew' : '',
+    how.apt && linux ? 'apt' : '',
+    how.dnf && linux ? 'dnf' : '',
     how.npm ? 'npm' : '',
   ].filter(Boolean)
-  return offered.length === 0
-    ? { cannot: 'nothing here says how to install it' }
-    : { cannot: `it installs with ${offered.join(', ')}, and this machine has none of them` }
+  if (offered.length === 0) {
+    return {
+      cannot: `cannot be installed here: nothing says how on ${platformSaid(machine.platform)}`,
+    }
+  }
+  return {
+    cannot: `it installs with ${offered.join(' or ')}, and this machine has ${offered.length === 1 ? 'not got it' : 'none of them'}`,
+  }
+}
+
+/**
+ * The line that brings the distribution's own copy of a package up to date,
+ * where the declaration names one for a manager this machine has. apt's is
+ * its install line, since installing a package that is there moves it to the
+ * newest the lists have; dnf's install leaves one that is there alone, so its
+ * is `upgrade`.
+ */
+function systemUpgrade(how: HowToInstall, machine: InstallersHere): InstallCommand | null {
+  const has = (command: string) => machine.managers.includes(command)
+  const sudo = machine.root ? '' : 'sudo '
+  if (how.apt && has('apt-get')) return { command: aptInstall(how.apt, sudo) }
+  if (how.dnf && has('dnf')) return { command: `${sudo}dnf upgrade -y ${how.dnf}` }
+  return null
+}
+
+/**
+ * The package lists first: a fresh server's are stale or, in a container,
+ * absent, and `apt-get install` then fails to find a package that is there.
+ * dnf refreshes its own.
+ */
+function aptInstall(name: string, sudo: string): string {
+  return `${sudo}apt-get update && ${sudo}apt-get install -y ${name}`
 }
 
 /**
@@ -455,10 +538,9 @@ export function belowOldest(have: string | null | undefined, oldest: string | un
  * The exact command that would bring a program that is here but too old up
  * to date, or why there is none.
  *
- * Its own manager's update wherever it has one — `brew upgrade tmux`. The
- * system's own copy has none of its own, and there the machine's package
- * manager is the answer, because installing a package that is already there
- * moves it to the newest that manager has: the same line, per platform, that
+ * Its own manager's update wherever it has one — `brew upgrade tmux`, and on
+ * Linux the distribution's for the system's own copy. A Mac's own copy moves
+ * only with macOS, so there a newer one is installed beside it: the same line
  * `installWith` offers where it is missing.
  */
 export function upgradeWith(
@@ -466,7 +548,7 @@ export function upgradeWith(
   how: HowToInstall | undefined,
   machine: InstallersHere,
 ): InstallCommand {
-  const update = updateWith(install)
+  const update = updateWith(install, how, machine)
   if ('command' in update || install.manager !== 'system' || !how) return update
   return installWith(how, machine)
 }
@@ -539,11 +621,18 @@ export function declarationProblems(programs: readonly RequiredProgram[] | undef
     // An install nobody can run and that says nothing instead is the one
     // shape that reads as an offer and is not one.
     const how = program.install
-    if (how && !(how.brew || how.apt || how.dnf || how.npm || how.instead)) {
+    const instead = how && (insteadOn(how, 'darwin') ?? insteadOn(how, 'linux'))
+    if (how && !(how.brew || how.apt || how.dnf || how.npm || instead)) {
       problems.push(`${said}: says how to install it and names nothing to install`)
     }
     if (how?.cask && !how.brew) {
       problems.push(`${said}: a Homebrew cask with no name`)
+    }
+    // A Homebrew line and nothing else is a Mac's answer said to every
+    // machine: a Linux box is owed its own line, its own steps, or a plain
+    // word that there is none.
+    if (how?.brew && !(how.apt || how.dnf || how.npm || insteadOn(how, 'linux'))) {
+      problems.push(`${said}: says how to install it with Homebrew and nothing for Linux`)
     }
   }
   return problems

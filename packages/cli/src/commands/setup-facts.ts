@@ -15,7 +15,7 @@ import {
 import type { DeclaredSecret } from '@tade/extensions-core'
 import { loggedInProviders } from '@tade/harnesses-pi'
 import { loadExtensions } from '@tade/orchestrator'
-import { makeRecorder, makeTranscriber } from '@tade/voice-stt'
+import { makeRecorder, makeTranscriber, voiceDeclared } from '@tade/voice-stt'
 import { drivers } from '@tade/workbench'
 import {
   type HarnessHere,
@@ -89,7 +89,7 @@ export async function lookHere(home = tadeHome()): Promise<Look> {
   const installers = installersHere()
   const [programs, native, harnesses, extensions] = await Promise.all([
     config
-      ? programsNeeded(config, home)
+      ? programsNeeded(config, home, voiceDeclared(config.surfaces.voice))
           .then((needs) => lookAtPrograms(needs))
           .catch(() => [])
       : Promise.resolve([]),

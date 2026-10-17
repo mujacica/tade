@@ -1,11 +1,15 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Ui } from '@tade/app'
-import type { HarnessHere } from '@tade/workbench/machine'
+import { type InstallersHere, neededPrograms } from '@tade/core'
+import { voiceDeclared } from '@tade/voice-stt'
+import { type HarnessHere, missingFrom } from '@tade/workbench/machine'
+import type { ProgramLook } from '@tade/workbench/programs'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import type { Look } from '../src/commands/setup-facts.ts'
 import {
+  dictationSaid,
   harnessLines,
   offerInstall,
   report,
@@ -13,6 +17,7 @@ import {
   serverSays,
   setUpKeys,
   setUpPrograms,
+  setUpSpeechPrograms,
   setUpWorkspace,
   signInSomewhere,
 } from '../src/commands/setup-machine.ts'
@@ -277,6 +282,71 @@ describe('a tmux older than its driver can use', () => {
     expect(server).toContain(`○ tmux is too old: 3.1, needs 3.2 (${apt}) — holding every lane`)
     const mac = report(look('brew upgrade tmux', ['brew'], 'darwin')).join('\n')
     expect(mac).toContain('○ tmux is too old: 3.1, needs 3.2 (brew upgrade tmux)')
+  })
+})
+
+describe('local speech, on each kind of machine', () => {
+  // What the speech ports declare, folded the way `lookHere` folds them, on a
+  // machine with neither program: the speech step reads the same list the
+  // Programs step does, so its line is this machine's.
+  const missingOn = (machine: InstallersHere) => {
+    const looks: ProgramLook[] = neededPrograms(voiceDeclared()).map((need) => ({
+      need,
+      install: null,
+      version: null,
+      latest: null,
+      cannotTell: null,
+      update: { cannot: 'not here' },
+      behind: false,
+    }))
+    return { missing: missingFrom(looks, machine) }
+  }
+
+  it('offers Homebrew on a Mac, one program at a time', async () => {
+    const ui = recorder({ confirm: [true, true] })
+    expect(
+      await setUpSpeechPrograms(ui, missingOn({ platform: 'darwin', managers: ['brew'] })),
+    ).toBe(true)
+    expect(ui.ran).toEqual(['brew install whisper.cpp', 'brew install ffmpeg'])
+  })
+
+  it('never offers brew on Debian: whisper.cpp is built, and nothing else is asked until it is', async () => {
+    // Found there: the speech step said `brew install whisper-cpp`.
+    const ui = recorder({ confirm: [true] })
+    const done = await setUpSpeechPrograms(
+      ui,
+      missingOn({ platform: 'linux', managers: ['apt-get'] }),
+    )
+    expect(done).toBe(false)
+    expect(ui.ran).toEqual([])
+    const said = ui.said.join('\n')
+    expect(said).toContain('whisper.cpp: no stable distribution packages whisper-cli, so build it')
+    expect(said).not.toMatch(/brew/)
+  })
+
+  it('offers Fedora’s own ffmpeg once whisper.cpp is there', async () => {
+    const ui = recorder({ confirm: [true] })
+    const look = missingOn({ platform: 'linux', managers: ['dnf'] })
+    const withWhisper = { missing: look.missing.filter((one) => one.command !== 'whisper-cli') }
+    expect(await setUpSpeechPrograms(ui, withWhisper)).toBe(true)
+    expect(ui.ran).toEqual(['sudo dnf install -y ffmpeg-free'])
+  })
+
+  it('asks about nothing when both are here', async () => {
+    const ui = recorder({})
+    expect(await setUpSpeechPrograms(ui, { missing: [] })).toBe(true)
+    expect(ui.asked).toEqual([])
+  })
+
+  it('lists them in the Programs step as optional, and never as a reason to stop', () => {
+    for (const one of missingOn({ platform: 'linux', managers: ['apt-get'] }).missing) {
+      expect(one.optional).toBe(true)
+    }
+  })
+
+  it('names the dictation apps a person on that platform could have', () => {
+    expect(dictationSaid('darwin')).toContain('macOS dictation')
+    expect(dictationSaid('linux')).not.toMatch(/macOS|Wispr/)
   })
 })
 

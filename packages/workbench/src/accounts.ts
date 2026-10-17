@@ -2,6 +2,9 @@ import { join } from 'node:path'
 import {
   type Config,
   type HarnessId,
+  type InstallCommand,
+  type InstallersHere,
+  installWith,
   type PlanChoice,
   type PlanSource,
   type PlanWindow,
@@ -11,6 +14,7 @@ import {
 } from '@tade/core'
 import type { AccountStatus, HarnessAccount, PlanLimits, WorkerAdapter } from '@tade/harnesses-core'
 import { accountKey, HARNESS_ADAPTERS } from './harnesses.ts'
+import { harnessProgram, installersHere, programHere } from './installers.ts'
 
 // The accounts agents can run as: each harness's own sign-in, and the ones a
 // person added beside it. Read by the window and by `tade accounts`, which
@@ -46,6 +50,14 @@ export interface AccountView {
    * so an orchestrator on a live Claude subscription said it had no account.
    */
   provider: string | null
+  /**
+   * What would put its harness on this machine, where its program is not
+   * here — on the harness's own row, and null everywhere else. The line setup
+   * offers, out of the harness's own declaration and this machine's
+   * installers, so "Claude Code is not installed" comes with what to run, and
+   * says plainly where nothing here can.
+   */
+  install: InstallCommand | null
 }
 
 /**
@@ -206,8 +218,14 @@ export async function listAccounts(
   opts: {
     adapterFor: (harness: string, name: string | null) => WorkerAdapter
     agentsOn?: (adapter: WorkerAdapter) => number
+    /** Where each harness's program is looked for: this process's unless a test says. */
+    env?: NodeJS.ProcessEnv
+    /** What this machine installs with: looked at here unless a test says. */
+    machine?: InstallersHere
   },
 ): Promise<AccountView[]> {
+  const env = opts.env ?? process.env
+  const machine = opts.machine ?? installersHere(env)
   const views: AccountView[] = []
   for (const { harness, name } of signIns(config)) {
     const chosen = config.workers.accounts[harness as HarnessId] ?? null
@@ -219,6 +237,9 @@ export async function listAccounts(
       method: null,
       problem: (err as Error).message,
     }))
+    // A PATH lookup, and only on the harness's own row: an added account is
+    // the same program, said once where the harness is.
+    const program = name === null ? harnessProgram(adapter, harness) : undefined
     views.push({
       harness,
       name,
@@ -231,6 +252,7 @@ export async function listAccounts(
       forNewAgents: chosen === name,
       canSignIn: adapter.signIn() !== null,
       provider: adapter.provider,
+      install: program && !programHere(program, env) ? installWith(program.install, machine) : null,
     })
   }
   return views

@@ -81,6 +81,11 @@ export function registerAccounts(program: Command, io: Io, setExit: (code: numbe
         const shortest = view.limits?.windows[0]
         const used = shortest ? ` · ${windowUsed(shortest)}` : ''
         io.out(`${view.forNewAgents ? '▸' : ' '} ${name.padEnd(24)} ${who}${used}`)
+        // This machine's line for a harness that is not here, as setup says it.
+        if (view.install) {
+          const how = 'command' in view.install ? view.install.command : view.install.cannot
+          io.out(`  ${''.padEnd(24)} ${how}`)
+        }
       }
     })
 

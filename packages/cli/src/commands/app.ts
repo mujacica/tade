@@ -47,7 +47,7 @@ import {
 } from '@tade/orchestrator'
 import { makeCollector } from '@tade/status'
 import { watchProcess } from '@tade/telemetry'
-import { makeRecorder, makeTranscriber } from '@tade/voice-stt'
+import { makeRecorder, makeTranscriber, voiceDeclared } from '@tade/voice-stt'
 import { HomeBusyError, Workbench } from '@tade/workbench'
 import { lookAtCertificate } from '@tade/workbench/certificate'
 import { lookAtDomain } from '@tade/workbench/domain'
@@ -502,7 +502,8 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           },
           // Asked on a clock too, which only a real window is handed: a test's
           // never reaches the network it runs on.
-          updates: (config, at, ask) => lookAtUpdates(config, at, { ask }),
+          updates: (config, at, ask) =>
+            lookAtUpdates(config, at, { ask, also: voiceDeclared(config.surfaces.voice) }),
           // The public name's certificate, the same way: only a real window dials.
           certificate: (name) => lookAtCertificate(name),
           // And the records it needs, looked at when Settings shows its row.

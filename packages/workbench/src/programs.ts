@@ -22,7 +22,7 @@ import {
 } from '@tade/core'
 import { FORGES, forgeExec } from '@tade/status'
 import { HARNESS_ADAPTERS } from './harnesses.ts'
-import { installersHere } from './machine.ts'
+import { installersHere } from './installers.ts'
 import { drivers } from './registry.ts'
 import { linkOf, REMOTE_LINKS } from './remotes.ts'
 
@@ -116,8 +116,17 @@ export interface UpdateLook {
  * no row. Constructing one to ask is what the registries are for — the
  * alternative is a list of names at this call site, which is the thing the
  * ports were given a declaration to avoid.
+ *
+ * `also` is what the speech ports declare (`voiceDeclared`, in
+ * `@tade/voice-stt`), handed in by whoever has them: `@tade/voice-core`'s
+ * manifest names this package, so walking the voice registries from here
+ * would make the two depend on each other.
  */
-export async function programsNeeded(config: Config, home: string): Promise<ProgramNeed[]> {
+export async function programsNeeded(
+  config: Config,
+  home: string,
+  also: readonly Declared[] = [],
+): Promise<ProgramNeed[]> {
   const declarations: Declared[] = [{ what: 'Tade', inUse: true, programs: TADE_PROGRAMS }]
 
   const workspace = config.workspace
@@ -181,7 +190,7 @@ export async function programsNeeded(config: Config, home: string): Promise<Prog
     })
   }
 
-  return neededPrograms(declarations)
+  return neededPrograms([...declarations, ...also])
 }
 
 /** A path with every link followed, or the path itself where it cannot be. */
@@ -295,11 +304,10 @@ export async function lookAtPrograms(
         version,
         latest: null,
         cannotTell: 'nobody has been asked what is current',
-        // Too old is the one case the system's own copy has a command: its
-        // package manager's, the line setup offers for the same program.
-        update: tooOld
-          ? upgradeWith(install, need.install, installersHere(env))
-          : updateWith(install),
+        // The same program moves forward differently per platform: the
+        // system's own copy is macOS's on a Mac and the distribution's
+        // package on Linux, which is why the machine is asked.
+        update: (tooOld ? upgradeWith : updateWith)(install, need.install, installersHere(env)),
         behind: false,
         tooOld,
       }
@@ -490,7 +498,9 @@ export async function lookAtTade(options: AskOptions & { ask?: boolean } = {}): 
       cannotTell: install
         ? 'nobody has been asked what is current'
         : 'Tade is not on your PATH, so Tade cannot tell how it was installed',
-      update: install ? updateWith(install) : { cannot: 'Tade cannot tell how it was installed' },
+      update: install
+        ? updateWith(install, undefined, installersHere(env))
+        : { cannot: 'Tade cannot tell how it was installed' },
     }
     if (!options.ask || !install) return base
     const answer =
@@ -564,9 +574,9 @@ export async function lookAtTade(options: AskOptions & { ask?: boolean } = {}): 
 export async function lookAtUpdates(
   config: Config,
   home: string,
-  options: AskOptions & { ask?: boolean } = {},
+  options: AskOptions & { ask?: boolean; also?: readonly Declared[] } = {},
 ): Promise<UpdateLook> {
-  const needs = await programsNeeded(config, home)
+  const needs = await programsNeeded(config, home, options.also)
   const here = await lookAtPrograms(needs, options)
   const [programs, tade] = await Promise.all([
     options.ask ? askWhatIsCurrent(here, options) : Promise.resolve(here),

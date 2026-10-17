@@ -2,8 +2,16 @@ import { createWriteStream, existsSync, mkdirSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
-import { defaultConfigPath, loadConfig, tadeHome } from '@tade/core'
+import {
+  defaultConfigPath,
+  type InstallersHere,
+  installWith,
+  loadConfig,
+  type RequiredProgram,
+  tadeHome,
+} from '@tade/core'
 import { makeRecorder, makeTranscriber } from '@tade/voice-stt'
+import { installersHere, programHere } from '@tade/workbench/installers'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 
@@ -137,8 +145,15 @@ export function registerVoice(program: Command, io: Io, setExit: (code: number) 
         return
       }
       io.out('')
+      // This machine's line for each program that is not here, out of what
+      // the engine and the microphone declare — never one platform's line
+      // said to every machine, which told Debian to `brew install`.
+      const absent = [...(recorder.programs ?? []), ...(transcriber.programs ?? [])].filter(
+        (one) => !programHere(one),
+      )
+      for (const line of installLines(absent, installersHere())) io.out(line)
       if (!engine.ok && transcriber.id === 'whisper-cpp') {
-        io.out('to set up local speech:  brew install whisper-cpp && tade voice setup')
+        io.out('then, for a model:  tade voice setup')
       }
       if (!engine.ok && !transcriber.capabilities.local) {
         io.out('set the API key in your environment, or switch to a local engine:')
@@ -197,6 +212,19 @@ export function registerVoice(program: Command, io: Io, setExit: (code: number) 
         setExit(Exit.error)
       }
     })
+}
+
+/** What a person runs to put each program here, or why there is nothing to run. */
+export function installLines(
+  programs: readonly RequiredProgram[],
+  machine: InstallersHere,
+): string[] {
+  return programs.map((program) => {
+    const how = installWith(program.install, machine)
+    return 'command' in how
+      ? `to install ${program.title}:  ${how.command}`
+      : `${program.title}: ${how.cannot}`
+  })
 }
 
 function mb(bytes: number): string {

@@ -1,4 +1,5 @@
 import { existsSync, writeFileSync } from 'node:fs'
+import { installWith, namesAnInstaller } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { FfmpegRecorder, levelOf } from '../src/recorder.ts'
 import { fakeCapture, wavOf } from './fake-audio.ts'
@@ -44,17 +45,36 @@ describe('whether it can record at all', () => {
     if (!availability.ok) expect(availability.reason).toMatch(/win32/)
   })
 
-  it('says how to install it, in the terms of the machine it is said on', async () => {
-    const mac = await new FfmpegRecorder({
-      binary: '/nonexistent/ffmpeg',
-      platform: 'darwin',
-    }).available()
-    if (!mac.ok) expect(mac.reason).toMatch(/brew install ffmpeg/)
-    const linux = await new FfmpegRecorder({
-      binary: '/nonexistent/ffmpeg',
-      platform: 'linux',
-    }).available()
-    if (!linux.ok) expect(linux.reason).toMatch(/apt install ffmpeg/)
+  it('says what is missing, and never which installer fixes it', async () => {
+    // `apt install ffmpeg` was said on Fedora: the line for this machine is
+    // read out of `programs`, by whoever has the machine to read it against.
+    for (const platform of ['darwin', 'linux'] as const) {
+      const said = await new FfmpegRecorder({ binary: '/nonexistent/ffmpeg', platform }).available()
+      expect(said).toEqual({
+        ok: false,
+        reason: expect.stringContaining('ffmpeg is not installed'),
+      })
+      if (!said.ok) expect(namesAnInstaller(said.reason)).toBe(false)
+    }
+  })
+
+  it('declares the install each machine runs: Homebrew, apt, or Fedora’s own build', () => {
+    const [program] = new FfmpegRecorder().programs
+    const on = (platform: string, managers: string[]) =>
+      installWith(program?.install, { platform, managers })
+    expect(on('darwin', ['brew'])).toEqual({ command: 'brew install ffmpeg' })
+    expect(on('linux', ['apt-get'])).toEqual({
+      command: 'sudo apt-get update && sudo apt-get install -y ffmpeg',
+    })
+    // Fedora's is `ffmpeg-free`, built with PulseAudio, which is what it records from.
+    expect(on('linux', ['dnf'])).toEqual({ command: 'sudo dnf install -y ffmpeg-free' })
+    expect(on('linux', [])).toEqual({
+      cannot: 'it installs with apt or dnf, and this machine has none of them',
+    })
+    expect(on('darwin', [])).toEqual({
+      cannot: 'it installs with Homebrew, and this machine has not got it',
+    })
+    expect(program?.optional).toBe(true)
   })
 
   it('refuses to start rather than pretending to record', async () => {

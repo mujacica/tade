@@ -1,5 +1,6 @@
+import { FfmpegRecorder, WhisperCppTranscriber } from '@tade/voice-stt'
 import { describe, expect, it } from 'vitest'
-import { progressLine, WHISPER_MODELS } from '../src/commands/voice.ts'
+import { installLines, progressLine, WHISPER_MODELS } from '../src/commands/voice.ts'
 
 // Speech setup: what is on offer, and what a long download looks like while
 // you are waiting for it.
@@ -61,5 +62,45 @@ describe('the download progress line', () => {
 
   it('reads slow as slow rather than as stopped', () => {
     expect(progressLine(500_000, 142_000_000, 90_000)).toContain('90 KB/s')
+  })
+})
+
+describe('what `tade voice` says to put speech on a machine', () => {
+  // What the engine and the microphone declare, said in this machine's terms:
+  // `brew install whisper-cpp` was said on Debian, where there is no brew.
+  const programs = [
+    ...new FfmpegRecorder().programs,
+    ...new WhisperCppTranscriber({ binary: '/nonexistent/whisper' }).programs,
+  ]
+
+  it('is Homebrew on a Mac', () => {
+    expect(installLines(programs, { platform: 'darwin', managers: ['brew', 'npm'] })).toEqual([
+      'to install ffmpeg:  brew install ffmpeg',
+      'to install whisper.cpp:  brew install whisper.cpp',
+    ])
+  })
+
+  it('is apt and the upstream build on Debian, and never brew', () => {
+    const said = installLines(programs, { platform: 'linux', managers: ['apt-get', 'npm'] })
+    expect(said[0]).toBe(
+      'to install ffmpeg:  sudo apt-get update && sudo apt-get install -y ffmpeg',
+    )
+    expect(said[1]).toMatch(
+      /^whisper\.cpp: no stable distribution packages whisper-cli, so build it/,
+    )
+    expect(said.join('\n')).not.toMatch(/brew/)
+  })
+
+  it('is Fedora’s own ffmpeg build on Fedora', () => {
+    const said = installLines(programs, { platform: 'linux', managers: ['dnf'], root: true })
+    expect(said[0]).toBe('to install ffmpeg:  dnf install -y ffmpeg-free')
+    expect(said[1]).toContain('cmake --build whisper.cpp/build')
+  })
+
+  it('says plainly where nothing here can install it', () => {
+    expect(installLines(programs, { platform: 'darwin', managers: [] })).toEqual([
+      'ffmpeg: it installs with Homebrew, and this machine has not got it',
+      'whisper.cpp: it installs with Homebrew, and this machine has not got it',
+    ])
   })
 })

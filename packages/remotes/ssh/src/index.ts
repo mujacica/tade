@@ -77,8 +77,13 @@ export const SSH_PROGRAM: RequiredProgram = {
   title: 'OpenSSH',
   why: 'reaching another machine’s Tade, and pairing with one',
   versionArgs: ['-V'],
-  // Every Mac has one, and so does nearly every Linux with a shell on it.
-  install: { apt: 'openssh-client', dnf: 'openssh-clients', instead: 'macOS ships with it' },
+  // Every Mac has one, and so does nearly every Linux with a shell on it —
+  // but "macOS ships with it" is no answer to an Arch box without it.
+  install: {
+    apt: 'openssh-client',
+    dnf: 'openssh-clients',
+    instead: { darwin: 'macOS ships with it' },
+  },
 }
 
 /**
