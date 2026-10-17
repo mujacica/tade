@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { promptWithImages } from '../src/pictures.ts'
@@ -35,6 +35,25 @@ describe('a picture a harness is pointed at', () => {
     expect(second).not.toBe(first)
     expect(readFileSync(first ?? '', 'utf8')).toBe('first')
     expect(readFileSync(second ?? '', 'utf8')).toBe('second')
+  })
+
+  it('is written in its folder whatever type it says it is', () => {
+    const dir = tmp('tade-pictures-')
+    const said = promptWithImages(
+      'look',
+      [
+        { data: Buffer.from('jpeg').toString('base64'), mimeType: 'image/jpeg' },
+        { data: Buffer.from('odd').toString('base64'), mimeType: 'image/../../../escaped' },
+      ],
+      dir,
+    )
+    const [jpeg, odd] = pathsIn(said)
+    expect(jpeg).toMatch(/\.jpg$/)
+    expect(odd).toMatch(/\.png$/)
+    expect(readdirSync(join(dir, 'attachments')).sort()).toEqual(
+      [basename(jpeg ?? ''), basename(odd ?? '')].sort(),
+    )
+    expect(readFileSync(odd ?? '', 'utf8')).toBe('odd')
   })
 
   it('takes one older than a week away as the next is written, whatever it is called', () => {

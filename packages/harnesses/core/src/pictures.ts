@@ -29,10 +29,19 @@ export function promptWithImages(
   mkdirSync(folder, { recursive: true, mode: 0o700 })
   forgetOldPictures(folder, Date.now())
   const paths = images.map((image) => {
-    const extension = image.mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'png'
-    const path = join(folder, `${randomUUID()}.${extension}`)
+    const path = join(folder, `${randomUUID()}.${extensionOf(image.mimeType)}`)
     writeFileSync(path, Buffer.from(image.data, 'base64'), { mode: 0o600, flag: 'wx' })
     return path
   })
   return `${message}\n\n${paths.map((path) => `[picture: ${path}]`).join('\n')}`
+}
+
+/**
+ * `png` for `image/png`, `jpg` for `image/jpeg`: a word and nothing else, so
+ * a type that is not one — `image/../../x` — is never part of a path, and is
+ * `png`.
+ */
+function extensionOf(mimeType: string): string {
+  const said = mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? ''
+  return /^[a-z0-9]{1,8}$/.test(said) ? said : 'png'
 }
