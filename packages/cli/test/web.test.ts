@@ -2,7 +2,9 @@ import { spawn } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { PUSH_IS_WHILE_OPEN } from '@tade/core'
 import { appendDevice, writeDevices } from '@tade/web'
+import { lockHome } from '@tade/workbench/lock'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 
@@ -364,6 +366,32 @@ describe('tade web', () => {
       notifies: boolean
     }
     expect(json.notifies).toBe(false)
+  })
+
+  it('says the window is always open only where a service it can see keeps it so', async () => {
+    // Settings says so after PUSH_IS_WHILE_OPEN on a box systemd keeps the
+    // window open on. A shell over SSH has no INVOCATION_ID to tell it, so
+    // this asks linger and the unit `tade host service` wrote
+    // (`keptByServiceHere`) — and with no unit in this home, no machine this
+    // runs on may claim it, whatever a window open here says.
+    writeFileSync(
+      join(home, 'config.yaml'),
+      'surfaces:\n  web:\n    enabled: true\n    push: true\n',
+    )
+    env.XDG_CONFIG_HOME = join(home, '.config')
+    const held = await lockHome(home)
+    try {
+      const json = JSON.parse((await tade('web', 'status', '--json')).stdout) as {
+        windowOpen: boolean
+        keptBy: string | null
+      }
+      expect(json).toMatchObject({ windowOpen: true, keptBy: null })
+      const said = await tade('web', 'status')
+      expect(said.stdout).toContain(PUSH_IS_WHILE_OPEN)
+      expect(said.stdout).not.toContain('always open')
+    } finally {
+      await held.release()
+    }
   })
 
   it('skips a damaged line of the device list rather than throwing it over', async () => {

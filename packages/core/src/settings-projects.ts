@@ -187,6 +187,8 @@ export function projectGroups(config: Config): SettingGroup[] {
           // at the top: a title is what a refusal tells somebody to say back,
           // and a project's own name no longer names anything inside that
           // project (`wordsFor`), so "say app" was advice that did nothing.
+          // Live: the workbench holds an agent to it at every start, out of
+          // the config the window last handed it (`guardBudget`).
           path: `projects.${name}.budget.usd_per_day`,
           title: 'Budget a day',
           means: 'dollars a day; agents are warned at 80% and refused past it',
@@ -194,7 +196,7 @@ export function projectGroups(config: Config): SettingGroup[] {
             project.budget?.usd_per_day === undefined ? '' : String(project.budget.usd_per_day),
           fallback: 'no budget',
           type: { kind: 'number' } as const,
-          live: false,
+          live: true,
           keywords: ['budget', 'spend', 'money', 'dollars', 'cap'],
           scope: name,
         },

@@ -73,7 +73,8 @@ orchestrator's arm reaches into it, and whether a person can read back what they
    changes, which is what makes a setting apply at once.
 4. If people will want to change it, add it to `settingsOf` in `packages/core/src/settings.ts`, in
    the group they would look for it in: a `title`, a `means` sentence saying what changing it does,
-   a `kind` (`choice`, `flag`, `number` with a `unit` — `fraction` for a share of something —
+   a `kind` (`choice`, `flag`, `number` with a `unit` — `fraction` for a share of something, and
+   whether it takes decimals is read from its schema (`withDecimals`, `settings-numbers.ts`) —
    `text` (`pairs` for `a=b, c=d`, `list` for a key the schema holds as a list — without it every
    save is refused, `expected array, received string`), `hours`, `key`, `model`), and
    `live: false` if it is only read when Tade starts — the panel labels it *on restart*.

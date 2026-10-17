@@ -1,4 +1,4 @@
-import { ConfigSchema, type TadeEvent } from '@tade/core'
+import { type Config, ConfigSchema, type TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { guardBudget } from '../src/budget.ts'
 
@@ -63,6 +63,20 @@ describe('the budget a start is held to', () => {
     ])
     await expect(guardBudget(tade, 'app/two', NOW)).rejects.toThrow(
       'app has spent its budget for today: $6.00 of $5.00 today',
+    )
+  })
+
+  it('holds the next start to a project’s budget written since the window opened', async () => {
+    // Which is why its row in Settings applies now rather than on restart:
+    // Settings hands the workbench the config as it is (`Settings.use`), and
+    // every start reads its budget out of that.
+    const { tade } = bench({ projects: { app: { root: '/a' } } }, [spent('app/one', 6)])
+    await guardBudget(tade, 'app/two', NOW)
+    ;(tade as { config: Config }).config = ConfigSchema.parse({
+      projects: { app: { root: '/a', budget: { usd_per_day: 5.5 } } },
+    })
+    await expect(guardBudget(tade, 'app/three', NOW)).rejects.toThrow(
+      'app has spent its budget for today: $6.00 of $5.50 today',
     )
   })
 

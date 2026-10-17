@@ -1,10 +1,11 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ConfigSchema } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import {
   installersHere,
+  keptByServiceHere,
   lookAtHarnesses,
   missingFrom,
   nativeProblems,
@@ -289,5 +290,60 @@ describe('a server, read off three files', () => {
   it('counts a service on a server, with nobody logged in, as a server', () => {
     const box = machine({ systemd: true, linger: true })
     expect(unattendedHere({ ...box, env: {}, platform: 'linux' })).toMatchObject({ linger: true })
+  })
+
+  describe('whether its service keeps a window open, asked from a shell it did not start', () => {
+    /**
+     * A box whose `systemctl` answers `is-active` with `code`, and writes down
+     * what it was asked; `unit` is whether `tade host service` wrote one.
+     */
+    function served(opts: { linger: boolean; unit: boolean; code: number | null }) {
+      const box = machine({ systemd: true, linger: opts.linger })
+      const bin = join(box.root, 'bin')
+      mkdirSync(bin)
+      const asked = join(box.root, 'asked')
+      if (opts.code !== null) {
+        const systemctl = join(bin, 'systemctl')
+        writeFileSync(systemctl, `#!/bin/sh\necho "$@" > '${asked}'\nexit ${opts.code}\n`)
+        chmodSync(systemctl, 0o755)
+      }
+      const env = { ...ssh, PATH: bin }
+      if (opts.unit) {
+        const unit = serviceUnitPath(env, box.home)
+        mkdirSync(join(unit, '..'), { recursive: true })
+        writeFileSync(unit, '[Service]\n')
+      }
+      const said = (): string | null =>
+        existsSync(asked) ? readFileSync(asked, 'utf8').trim() : null
+      return { look: { ...box, env, platform: 'linux' as const }, said }
+    }
+
+    it('is systemd where linger is on and the unit it wrote is active', async () => {
+      const box = served({ linger: true, unit: true, code: 0 })
+      expect(await keptByServiceHere(box.look)).toBe('systemd')
+      expect(box.said()).toBe('--user is-active --quiet tade.service')
+    })
+
+    it('claims nothing where the unit is not running, or systemctl is not there', async () => {
+      expect(await keptByServiceHere(served({ linger: true, unit: true, code: 3 }).look)).toBeNull()
+      expect(
+        await keptByServiceHere(served({ linger: true, unit: true, code: null }).look),
+      ).toBeNull()
+    })
+
+    it('asks nothing where either half is missing, or on a Mac', async () => {
+      // Without linger the unit stops at the last logout, and with no unit
+      // written there is nothing of Tade's for it to keep.
+      for (const box of [
+        served({ linger: false, unit: true, code: 0 }),
+        served({ linger: true, unit: false, code: 0 }),
+      ]) {
+        expect(await keptByServiceHere(box.look)).toBeNull()
+        expect(box.said()).toBeNull()
+      }
+      const mac = served({ linger: true, unit: true, code: 0 })
+      expect(await keptByServiceHere({ ...mac.look, platform: 'darwin' })).toBeNull()
+      expect(mac.said()).toBeNull()
+    })
   })
 })

@@ -1,4 +1,5 @@
 import {
+  alwaysOpenHere,
   DEVICES_AND_AGENTS,
   defaultConfigPath,
   INSTALLED_IS_NOT_REVOCABLE,
@@ -34,6 +35,7 @@ import {
   writeCode,
 } from '@tade/web'
 import { heldBy } from '@tade/workbench/lock'
+import { keptByServiceHere } from '@tade/workbench/machine'
 import type { Command } from 'commander'
 import { writeFromShell } from '../config-write.ts'
 import { Exit, type Io } from '../io.ts'
@@ -285,6 +287,12 @@ export interface Looked {
   /** Whether a window is open on this home, which is what makes it answer. */
   windowOpen: boolean
   /**
+   * What keeps that window open, where a service manager does — linger on
+   * and the unit `tade host service` wrote active (`keptByServiceHere`) — or
+   * null. The window knows it of itself; a shell over SSH has to ask.
+   */
+  keptBy: 'systemd' | null
+  /**
    * Whether `config.yaml` could be read at all.
    *
    * `false` means every setting below is this command's **default** and not
@@ -323,6 +331,7 @@ async function look(): Promise<Looked> {
       }
   const read = await readDevices(home)
   const trusted = surface.trustedHosts.map((host) => `https://${host}/`)
+  const windowOpen = (await heldBy(home)) !== null
   return {
     enabled: surface.enabled,
     bind: surface.bind,
@@ -332,7 +341,10 @@ async function look(): Promise<Looked> {
     installs: surface.installing,
     keepsView: surface.keepsView,
     notifies: surface.pushing,
-    windowOpen: (await heldBy(home)) !== null,
+    windowOpen,
+    // Asked only of an open window: a unit running while none holds this
+    // home is restarting it, or keeping some other home's.
+    keptBy: windowOpen ? await keptByServiceHere() : null,
     read: loaded.ok,
     urls: surface.enabled
       ? [...trusted, ...(surface.bind === 'loopback' ? [`http://localhost:${surface.port}/`] : [])]
@@ -402,6 +414,8 @@ function lines(said: Looked): string[] {
     out.push('a device that allowed notifications is told when work wants you')
     out.push(PUSH_NEEDS_A_GESTURE)
     out.push(PUSH_IS_WHILE_OPEN)
+    // What Settings says after it on that machine, where that window always is.
+    if (said.keptBy !== null) out.push(alwaysOpenHere(said.keptBy))
   }
   out.push(
     said.devices.length === 0

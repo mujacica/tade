@@ -12,6 +12,7 @@ import {
   settingLabel,
   settingsOf,
   stepped,
+  wantedInstead,
 } from '../src/settings.ts'
 import { DEVICE_MAY } from '../src/settings-away.ts'
 
@@ -449,6 +450,52 @@ describe('reading what was typed', () => {
     expect(parseSetting(budget, '-3')).toBeUndefined()
   })
 
+  it('takes dollars and cents where the schema does, and whole ones where it does not', () => {
+    // Every number was read as a count, so a budget of 12.50 was refused with
+    // "needs a whole number" by a schema that takes it.
+    const over = { projects: { app: { root: '/src/app' } } }
+    for (const path of ['budget.usd_per_day', 'projects.app.budget.usd_per_day']) {
+      const budget = find(path, over)
+      expect(parseSetting(budget, '12.50')).toBe(12.5)
+      expect(wantedInstead(budget)).toBe('a number above zero')
+      expect(parseSetting(budget, '0')).toBeUndefined()
+    }
+    const tokens = find('budget.tokens_per_day')
+    expect(parseSetting(tokens, '12.50')).toBeUndefined()
+    expect(wantedInstead(tokens)).toBe('a whole number above zero')
+  })
+
+  it('takes a fraction at every number row whose schema takes one, and at no other', () => {
+    // Asked of the schema by parsing, not of how a row came to say it: a row
+    // that refuses what its key accepts, or offers what it refuses, is wrong.
+    const file = { projects: { app: { root: '/src/app' } } }
+    const numbers = settingsOf(config(file))
+      .flatMap((group) => group.settings)
+      .filter((setting) => setting.type.kind === 'number')
+    expect(numbers.length).toBeGreaterThan(15)
+    const wrong: string[] = []
+    for (const setting of numbers) {
+      const typed = setting.type.kind === 'number' && setting.type.fraction ? 0.5 : 1.5
+      const written = structuredClone(file) as Record<string, unknown>
+      applySetting(written, setting.path, typed)
+      const parsed = ConfigSchema.safeParse(written)
+      const schema =
+        parsed.success || parsed.error.issues.every((one) => one.path.join('.') !== setting.path)
+      const row = parseSetting(setting, String(typed)) !== undefined
+      if (schema !== row)
+        wrong.push(`${setting.path}: the schema ${schema ? 'takes' : 'refuses'} ${typed}`)
+    }
+    expect(wrong).toEqual([])
+  })
+
+  it('keeps the cents a budget was written with when the arrows move it', () => {
+    const budget = (usd_per_day?: number) => find('budget.usd_per_day', { budget: { usd_per_day } })
+    // 2.3 less one is 1.2999999999999998 in floating point.
+    expect(stepped(budget(2.3), -1)).toBe('1.3')
+    expect(stepped(budget(12.5), 1)).toBe('13.5')
+    expect(stepped(budget(), 1)).toBe('1')
+  })
+
   it('treats an empty answer as clearing it', () => {
     expect(parseSetting(find('orchestrator.model'), '   ')).toBeUndefined()
   })
@@ -545,6 +592,23 @@ describe('how many of a project\u2019s agents work at once', () => {
     const file: Record<string, unknown> = { projects: { shop: { root: '~/src/shop' } } }
     applySetting(file, 'projects.shop.max_parallel', 1)
     expect(config(file).projects.shop?.max_parallel).toBe(1)
+  })
+})
+
+describe('a budget', () => {
+  it('applies now, at every row, because every start is held to the config as it is', () => {
+    // The workbench reads a budget each time an agent starts, out of the
+    // config the window last handed it (`guardBudget`): a row that said
+    // "on restart" sent somebody to restart Tade for nothing.
+    const budgets = settingsOf(config({ projects: { app: { root: '/src/app' } } }))
+      .flatMap((group) => group.settings)
+      .filter((setting) => /(^|\.)budget\.(usd|tokens)_per_day$/.test(setting.path))
+    expect(budgets.map((one) => one.path)).toEqual([
+      'budget.usd_per_day',
+      'budget.tokens_per_day',
+      'projects.app.budget.usd_per_day',
+    ])
+    expect(budgets.filter((one) => !one.live).map((one) => one.path)).toEqual([])
   })
 })
 

@@ -9,6 +9,7 @@ import {
   installWith,
   type MissingProgram,
   resolveCommand,
+  runProgram,
   SERVICE,
   stringEnv,
   type Unattended,
@@ -96,6 +97,25 @@ export function unattendedHere(look: HostLook = {}): Unattended | null {
     unit: existsSync(unit) ? unit : null,
     root: process.getuid?.() === 0,
   }
+}
+
+/**
+ * The service manager keeping a window open on this machine, asked from a
+ * shell it did not start — `tade web status` over SSH, which has no
+ * `INVOCATION_ID` for `keptByService` to read. Only where both halves hold:
+ * linger on, so the user's manager runs with nobody logged in, and the unit
+ * `tade host service` wrote active now. Anything less, a `systemctl` that
+ * would not answer included, claims nothing, which is the safe direction.
+ */
+export async function keptByServiceHere(look: HostLook = {}): Promise<'systemd' | null> {
+  const box = unattendedHere(look)
+  if (!box?.linger || box.unit === null) return null
+  const env = look.env ?? process.env
+  const active = await runProgram('systemctl', ['--user', 'is-active', '--quiet', SERVICE], {
+    env,
+    timeoutMs: 5_000,
+  })
+  return active.code === 0 ? 'systemd' : null
 }
 
 /**

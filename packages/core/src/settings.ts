@@ -12,6 +12,7 @@ import { KEYS_AND_AGENTS, SEEN_BY_AGENTS } from './secrets.ts'
 import { awayGroup } from './settings-away.ts'
 import { intakeGroup } from './settings-intake.ts'
 import { keepGroup } from './settings-keep.ts'
+import { numberFrom, numberStepped, numberWanted, withDecimals } from './settings-numbers.ts'
 import { orchestratorGroup } from './settings-orchestrator.ts'
 import { projectGroups } from './settings-projects.ts'
 import { queueGroup } from './settings-queue.ts'
@@ -60,6 +61,8 @@ export type SettingKind =
       unit?: string
       /** A share of something, 0 to 1, rather than a whole number above zero. */
       fraction?: boolean
+      /** Takes a fraction of its unit — $12.50 — as its schema says (`withDecimals`). */
+      decimals?: boolean
       /**
        * The lowest the arrows go, which is 1 unless said: for most counts
        * nought is not a value. Where it is the default and means "off" —
@@ -194,7 +197,7 @@ export function settingsOf(
   const sentry: Readonly<Record<string, unknown>> = config.extensions.sentry ?? {}
   const sentryText = (key: string): string =>
     typeof sentry[key] === 'string' ? (sentry[key] as string) : ''
-  return [
+  return withDecimals([
     {
       id: 'agents',
       title: 'Agents',
@@ -862,7 +865,7 @@ export function settingsOf(
         ),
       ],
     },
-  ]
+  ])
 }
 
 /** Every key the window keeps, by what it does: Shortcuts settings and the sheet both read this. */
@@ -985,8 +988,7 @@ export function findableBy(group: SettingGroup, setting: Setting): string {
 /** What a setting wanted instead, when what was typed could not be read as one. */
 export function wantedInstead(setting: Setting): string {
   const type = setting.type
-  if (type.kind === 'number')
-    return type.fraction ? 'a number from 0 to 1' : 'a whole number above zero'
+  if (type.kind === 'number') return numberWanted(type)
   if (type.kind === 'text' && type.pairs) return `pairs, like ${type.placeholder}`
   return 'a usable value'
 }
@@ -1034,17 +1036,10 @@ export function pairsFrom(text: string): Record<string, string | string[]> {
   )
 }
 
-/**
- * What the arrows on a number make of it, kept inside what the setting allows.
- * A share of something moves a tenth at a time and never leaves 0 to 1; a
- * count moves by one and never goes below it.
- */
+/** What the arrows on a number make of it, inside what the setting allows (`numberStepped`). */
 export function stepped(setting: Setting, delta: number): string {
   if (setting.type.kind !== 'number') return setting.value
-  const now = Number(setting.value || setting.fallback) || 0
-  if (!setting.type.fraction) return String(Math.max(setting.type.from ?? 1, now + delta))
-  // A tenth at a time, rounded: 0.1 + 0.1 is 0.30000000000000004 otherwise.
-  return String(Math.min(1, Math.max(0, Math.round((now + delta * 0.1) * 10) / 10)))
+  return numberStepped(setting.type, setting.value || setting.fallback, delta)
 }
 
 /**
@@ -1086,12 +1081,8 @@ export function parseSetting(setting: Setting, said: string): SettingValue {
   switch (setting.type.kind) {
     case 'flag':
       return /^(y|yes|true|on)$/i.test(text)
-    case 'number': {
-      const value = Number(text)
-      if (setting.type.fraction)
-        return Number.isFinite(value) && value >= 0 && value <= 1 ? value : undefined
-      return Number.isInteger(value) && value > 0 ? value : undefined
-    }
+    case 'number':
+      return numberFrom(setting.type, text)
     case 'text': {
       if (setting.type.list) {
         // Nothing on the list is the list's default, which is empty: the key goes away.

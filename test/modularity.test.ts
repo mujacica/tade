@@ -63,7 +63,7 @@ const BUDGET: Record<string, number> = {
   // exporting one `SettingGroup` and `settingsOf` composing them — mechanical,
   // and the payoff is that `.claude/skills/add-config-key` gets to say "add a
   // row to *this* file" instead of naming a line number in a thousand.
-  'packages/core/src/settings.ts': 1_110,
+  'packages/core/src/settings.ts': 1_101,
   // What tmux says about a pane — `readPane`, `scrollingOf`, `pointingOf`,
   // `drawn` — is now `pane.ts`: the part of driving tmux that asks nothing of
   // the world, and the part every question about a pane goes through. How a
