@@ -125,8 +125,9 @@ describe('a remote’s projection, read for the window', () => {
     const machine = machineOf(held(), 0)
     expect(notText(machine)).toEqual([])
     const agent = machine.projects[0]?.agents[0]
-    expect(agent?.title).toBe('fix the build')
-    expect(machine.projects[0]?.agents[1]?.reason).toBe('wants approval fix the build')
+    // What was taken out is marked where it was, never dropped in silence.
+    expect(agent?.title).toBe('␛fix the build␛')
+    expect(machine.projects[0]?.agents[1]?.reason).toBe('wants approval ␛fix the build␛')
   })
 
   it('draws a title full of escapes without one escape byte, wherever it is drawn', () => {
@@ -253,7 +254,7 @@ describe('ages, from the remote’s own moments', () => {
       0,
     )
     expect(down.link).toBe('down')
-    expect(down.said).toBe('gone fix the build')
+    expect(down.said).toBe('gone ␛fix the build␛')
     expect(down.projects[0]?.agents).toHaveLength(3)
     const agent = down.projects[0]?.agents[0]
     // Moved four minutes before NOW, which is after it was last heard from: no age below nought.

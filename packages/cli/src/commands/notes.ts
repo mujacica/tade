@@ -1,4 +1,4 @@
-import { appliesTo, type Note, scopesOf, tadeHome } from '@tade/core'
+import { appliesTo, type Note, printable, scopesOf, tadeHome } from '@tade/core'
 import { Memory } from '@tade/workbench/memory'
 import type { Command } from 'commander'
 import type { Io } from '../io.ts'
@@ -58,7 +58,10 @@ export function registerNotes(program: Command, io: Io, _setExit: (code: number)
         io.out(scope ? `nothing about ${scope}` : 'nothing yet')
         return
       }
-      const about = (note: Note) => (note.scope === null ? '—' : scopesOf(note).join(', '))
+      // Drawn as text (`printable`), as the window draws them: the orchestrator
+      // writes notes too, and its words are a model's. The note is not changed.
+      const about = (note: Note) =>
+        note.scope === null ? '—' : printable(scopesOf(note).join(', '))
       const width = Math.max(...notes.map((note) => about(note).length))
       for (const note of notes) {
         // The words, always — a headline is said after them, never instead of
@@ -67,7 +70,7 @@ export function registerNotes(program: Command, io: Io, _setExit: (code: number)
         const retired = note.retired
           ? `  [retired ${note.retired.at.slice(0, 10)} by ${note.retired.by}: ${note.retired.because}]`
           : ''
-        io.out(`${about(note).padEnd(width)}  ${note.text}${headline}${retired}`)
+        io.out(`${about(note).padEnd(width)}  ${printable(`${note.text}${headline}${retired}`)}`)
       }
     })
 }

@@ -2,6 +2,7 @@ import {
   defaultClock,
   describeLook,
   describeWhen,
+  printable,
   runsOf,
   scheduleEnded,
   tadeHome,
@@ -96,7 +97,8 @@ export function registerSchedules(program: Command, io: Io): void {
         if (watched && look) {
           const started = watched.findings.filter((finding) => finding.task).length
           io.out(
-            `  last looked ${clock(look.at)}: ${describeLook(look)} · found ${watched.findings.length} in all, work started on ${started}`,
+            // What a look found, or a source's own error: printed as text.
+            `  last looked ${clock(look.at)}: ${printable(describeLook(look))} · found ${watched.findings.length} in all, work started on ${started}`,
           )
         }
       }

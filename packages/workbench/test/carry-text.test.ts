@@ -46,8 +46,9 @@ describe('a carry answered with escapes', () => {
       { from: 'mac', keys: false },
     )
     expect(notText(answer)).toEqual([])
-    expect(answer.machine).toBe('vps')
-    expect(answer.unsaid).toBe('nothing said')
+    // What was taken out is marked where it was, never dropped in silence.
+    expect(answer.machine).toBe('vps␛')
+    expect(answer.unsaid).toBe('nothing said␛')
     expect(JSON.stringify(answer)).not.toContain('pwned')
   })
 
@@ -60,6 +61,6 @@ describe('a carry answered with escapes', () => {
     ).catch((err: unknown) => err)
     expect(refused).toBeInstanceOf(CarryRefused)
     const said = (refused as Error).message
-    expect(said).toBe('vps would not take it (400): no')
+    expect(said).toBe('vps would not take it (400): no␛')
   })
 })

@@ -1,6 +1,14 @@
 import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
-import { activityFrom, defaultConfigPath, historyFrom, loadConfig, tadeHome } from '@tade/core'
+import {
+  activityFrom,
+  defaultConfigPath,
+  historyFrom,
+  loadConfig,
+  printable,
+  printableLines,
+  tadeHome,
+} from '@tade/core'
 import type { ExtensionWorkbench } from '@tade/extensions-core'
 import {
   extensionWorkbench,
@@ -83,9 +91,10 @@ export function registerChat(program: Command, io: Io, setExit: (code: number) =
         extensions: orchestratorExtensions(extensions, home, cfg.config.orchestrator.harness),
       })
 
-      chat.onMessage((text) => io.out(text))
+      // A model's words, which quote what its tools read: printed as text.
+      chat.onMessage((text) => io.out(printableLines(text)))
       // Its working, on stderr so `tade chat > transcript` keeps just the words.
-      chat.onTool((tool) => io.err(`· ${tool.replace(/^tade_/, '')}`))
+      chat.onTool((tool) => io.err(`· ${printable(tool.replace(/^tade_/, ''))}`))
 
       let settled = () => {}
       chat.onIdle(() => settled())

@@ -1,5 +1,13 @@
 import { homedir } from 'node:os'
-import { defaultConfigPath, type LaneId, loadConfig, type TaskId, tadeHome } from '@tade/core'
+import {
+  defaultConfigPath,
+  type LaneId,
+  loadConfig,
+  printable,
+  printableLines,
+  type TaskId,
+  tadeHome,
+} from '@tade/core'
 import type { RunId } from '@tade/harnesses-core'
 import { collectStatus } from '@tade/status'
 import type { Command } from 'commander'
@@ -191,7 +199,13 @@ export function registerTasks(program: Command, io: Io, setExit: (code: number) 
           return
         }
         for (const p of pending) {
-          io.out(`${p.run}  ${p.requestId}  ${p.tier.padEnd(4)}  ${p.summary}`)
+          // The whole command, as an approval card draws it: every character
+          // that is not text a mark (`printable`'s `'whole'`), and each of its
+          // own lines a line, under the first — this is what is approved.
+          const head = `${p.run}  ${printable(p.requestId)}  ${p.tier.padEnd(4)}  `
+          const [first = '', ...more] = printableLines(p.summary, 'whole').split('\n')
+          io.out(`${head}${first}`)
+          for (const line of more) io.out(`${' '.repeat(head.length)}${line}`)
         }
       })
     })

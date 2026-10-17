@@ -331,10 +331,11 @@ describe('how far back a lane is read', () => {
 // How far a region goes is read off its bar, so the bar has to be measured
 // against the rows the region actually drew. A pane is the one place those two
 // differ: an approval card sits at the bottom of the agent's own screen and
-// takes five rows off it, and the bar was being drawn from the pane's height
-// — so a screen with more lines in it than fit said everything was in view and
-// the wheel over it did nothing at all. It is only wrong while the agent is
-// waiting on you, which is what made it look intermittent.
+// takes five rows off it, more for a longer command, and the bar was being
+// drawn from the pane's height — so a screen with more lines in it than fit
+// said everything was in view and the wheel over it did nothing at all. It is
+// only wrong while the agent is waiting on you, which is what made it look
+// intermittent.
 describe('a pane with an approval card over it', () => {
   const carded = SCENARIOS.find((one) => one.name === 'watching-an-agent')
   if (!carded) throw new Error('the scenario is gone')
@@ -361,8 +362,28 @@ describe('a pane with an approval card over it', () => {
     // the wheel lands on, and is five fewer than the pane has to give.
     expect(withCard.reach.shown).toBe(withCard.rows)
     expect(without.reach.shown).toBe(without.rows)
-    expect(withCard.reach.shown).toBe(rowsRead(without.reach.shown, true))
+    // A card with a command of one line: its border, that line, its buttons
+    // and the row under it.
+    expect(withCard.reach.shown).toBe(rowsRead(without.reach.shown, 5))
     expect(withCard.reach.shown).toBeLessThan(without.reach.shown)
+  })
+
+  it('takes a row more off the screen for each row more of the command it shows', () => {
+    const long = {
+      ...carded.state,
+      panes: carded.state.panes.map((pane) =>
+        pane.task === carded.state.focused && pane.approval
+          ? {
+              ...pane,
+              approval: { ...pane.approval, summary: 'cd /tmp\nnpm ci\nnpm test\nrm -rf x' },
+            }
+          : pane,
+      ),
+    }
+    const withLong = at(long, 1_000)
+    const withCard = at(carded.state, 1_000)
+    expect(withLong.reach.shown).toBe(withLong.rows)
+    expect(withLong.reach.shown).toBe(withCard.reach.shown - 3)
   })
 
   it('counts the row that says how far back it is as a row of the pane', () => {

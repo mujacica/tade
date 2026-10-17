@@ -20,6 +20,7 @@ import { splitShown } from '../split.ts'
 import { blank, box, type Drawn, fit, overlay, type Pointer, Row, stack } from '../ui.ts'
 import { widthOf } from '../width.ts'
 import { actionRows } from './actions.ts'
+import { type Approval, approvalRows, cardWidth, mostOver } from './approval.ts'
 import { renderElsewhere } from './elsewhere.ts'
 import { renderEmpty } from './empty.ts'
 import {
@@ -195,10 +196,21 @@ export function renderMain(
   // measured against the lane sizes the window asked the driver for.
   const lane = shown && !split ? (frame.paneScreen ?? null) : null
   const body = lane ? width - BAR : width
+  // The agent's own screen: where an approval card has to fit, and sit at the
+  // bottom of. In a split it stays inside the agent's own half rather than
+  // laying itself over the shell beside it — the divider is the edge of the
+  // agent's screen, not a line drawn on top of one wide one.
+  const half =
+    split === null
+      ? { width, height }
+      : split.direction === 'beside'
+        ? { width: width >= 24 ? besideFirst(width, split.ratio) : width, height }
+        : { width, height: height - room + belowFirst(room, split.ratio) }
   // An approval card sits at the bottom of the agent's own screen, so the
-  // screen is drawn in fewer rows than the pane has. Asked once, because the
-  // drawing and the bar beside it have to be counting the same rows.
-  const carding = carded(pane, shown)
+  // screen is drawn in fewer rows than the pane has — as many fewer as the
+  // command it shows is long. Asked once, because the drawing and the bar
+  // beside it have to be counting the same rows.
+  const carding = carded(pane, shown, half.width, Math.min(half.height, height) - 2)
   // Scrolled away from its newest line, the screen's last row says so and is a
   // way back to it — a row of the pane, not a line of the lane.
   const back = state.paneScroll > 0 && shown !== null && !split && !work
@@ -407,17 +419,8 @@ export function renderMain(
   }
   const drawn = { ...stack(rows.slice(0, height)), regions }
   // The approval card belongs to the agent's screen: over the ACTIONS tab it
-  // would cover what somebody opened the tab to read, and in a split it stays
-  // inside the agent's own half rather than laying itself over the shell
-  // beside it — the divider is the edge of the agent's screen, not a line
-  // drawn on top of one wide one.
+  // would cover what somebody opened the tab to read.
   if (pane.approval && !work) {
-    const half =
-      split === null
-        ? { width, height }
-        : split.direction === 'beside'
-          ? { width: width >= 24 ? besideFirst(width, split.ratio) : width, height }
-          : { width, height: rows.length - room + belowFirst(room, split.ratio) }
     // The region goes through unchanged: the card's rows were taken off the
     // screen before it was drawn (`rowsRead`), so none of them is a row the
     // region says holds a line of the lane.
@@ -524,10 +527,13 @@ function underTargets(
   )
 }
 
-/** A waiting approval, where the agent asked for it, answerable by click. */
+/**
+ * A waiting approval, where the agent asked for it, answerable by click — and
+ * the whole of what it wants to run, every character of it (`approvalRows`).
+ */
 function withApproval(
   pane: Drawn,
-  approval: { tool: string; summary: string },
+  approval: Approval,
   /** The agent's own screen: where the card has to fit, and sit at the bottom of. */
   half: { width: number; height: number },
   width: number,
@@ -535,18 +541,14 @@ function withApproval(
   skin: Skin,
   pointer: Pointer,
 ): Drawn {
-  const cardWidth = Math.min(half.width - 4, 64)
-  if (cardWidth < 30) return pane
-  const inner = cardWidth - 2
+  const across = cardWidth(half.width)
+  if (across === null) return pane
+  const inner = across - 2
+  const most = mostOver(Math.min(half.height, height) - 2)
   const card = box(
     'wants approval',
     [
-      new Row(inner, skin)
-        .space()
-        .text(printable(approval.tool), skin.you)
-        .space(2)
-        .text(printable(approval.summary))
-        .build(),
+      ...approvalRows(approval, inner, most, skin),
       new Row(inner, skin, pointer)
         .space()
         .button('Allow once', { kind: 'action', name: 'approve' }, 'attention')
@@ -554,7 +556,7 @@ function withApproval(
         .button('Deny', { kind: 'action', name: 'deny' })
         .build(),
     ],
-    cardWidth,
+    across,
     skin,
     { tone: skin.chrome, title: skin.waiting, surface: false },
   )

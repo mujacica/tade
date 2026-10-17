@@ -17,6 +17,7 @@ import {
   defaultConfigPath,
   expandHome,
   loadConfig,
+  printable,
   recordsDir,
   tadeHome,
 } from '@tade/core'
@@ -98,7 +99,7 @@ export function registerChecks(program: Command, io: Io, setExit: (code: number)
         io.out(`${where.project} says nothing about what checking it means.`)
         io.out('  A workflow that runs on a change, or a pre-commit hook, is what would be read.')
         io.out('  Failing both, set projects.<name>.test_command.')
-        for (const problem of read.problems) io.err(`  ${problem}`)
+        for (const problem of read.problems) io.err(`  ${printable(problem)}`)
         return
       }
       io.out(
@@ -108,7 +109,7 @@ export function registerChecks(program: Command, io: Io, setExit: (code: number)
         const run = at.find((one) => one.check === check.id)
         io.out(
           run
-            ? `  ${glyphOf(run.state)} ${check.id.padEnd(10)} ${run.state.padEnd(10)} ${whereOf(run)}${run.summary ? ` — ${run.summary}` : ''}${carriedNote(run, covering.carried?.has(run.id) ?? false)}`
+            ? `  ${glyphOf(run.state)} ${check.id.padEnd(10)} ${run.state.padEnd(10)} ${whereOf(run)}${run.summary ? ` — ${printable(run.summary)}` : ''}${carriedNote(run, covering.carried?.has(run.id) ?? false)}`
             : `  ◦ ${check.id.padEnd(10)} has not run at this commit`,
         )
       }
@@ -116,7 +117,7 @@ export function registerChecks(program: Command, io: Io, setExit: (code: number)
       // holds less than CI does is how a green tick here comes to be read as a
       // green tick there.
       if (read.problems.length > 0) io.err('  not read here:')
-      for (const problem of read.problems) io.err(`    ${problem}`)
+      for (const problem of read.problems) io.err(`    ${printable(problem)}`)
     })
 
   checks
@@ -150,11 +151,14 @@ export function registerChecks(program: Command, io: Io, setExit: (code: number)
           onRun: (run) => {
             if (run.state === 'running') io.err(`$ ${run.check}`)
           },
+          // The check's own output, as it would be in a shell: passed through.
           onOutput: (_check, chunk) => io.err(chunk.trimEnd()),
         })
         for (const run of ran) {
+          // A summary is that output's last line, or what a forge said, and
+          // it lands among Tade's own words: printed as text.
           io.out(
-            `${glyphOf(run.state)} ${run.check} ${run.state}${run.summary ? ` — ${run.summary}` : ''}`,
+            `${glyphOf(run.state)} ${run.check} ${run.state}${run.summary ? ` — ${printable(run.summary)}` : ''}`,
           )
         }
         if (ran.some((run) => run.state === 'failed' || run.state === 'timed out')) {

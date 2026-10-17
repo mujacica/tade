@@ -9,6 +9,7 @@ import {
   OWNER_IS_YOUR_SSH_KEY,
   PUSH_IS_WHILE_OPEN,
   PUSH_NEEDS_A_GESTURE,
+  printable,
   publicSocket,
   tadeHome,
 } from '@tade/core'
@@ -186,11 +187,14 @@ export function registerWeb(program: Command, io: Io, setExit: (code: number) =>
       }
       const codes = read.pending.filter((code) => code.until > Date.now())
       if (live.length === 0) io.out('no device is paired')
-      const width = Math.max(0, ...live.map((one) => (one.label || 'a device').length))
+      // A device names itself when it pairs, so its label is a stranger's
+      // words until somebody renames it: printed as text.
+      const label = (one: (typeof live)[number]) => printable(one.label || 'a device')
+      const width = Math.max(0, ...live.map((one) => label(one).length))
       for (const one of live) {
         const reads = readsOf(reachOf(one))
         io.out(
-          `${(one.label || 'a device').padEnd(width)}  ${one.id}  paired ${when(one.pairedAt)}  ${
+          `${label(one).padEnd(width)}  ${one.id}  paired ${when(one.pairedAt)}  ${
             // An owner reads everything and its reach is the keyboard's, so
             // the word that matters is that one, said first.
             one.owner
@@ -255,7 +259,7 @@ export function registerWeb(program: Command, io: Io, setExit: (code: number) =>
         at: new Date().toISOString(),
         why: 'revoked at the machine',
       })
-      io.out(`${found.label || found.id} disconnected`)
+      io.out(`${printable(found.label || found.id)} disconnected`)
       io.out(`if it installed this page, ${INSTALLED_IS_NOT_REVOCABLE_SHORT}`)
       // Said rather than assumed: a window holding a stream for that device
       // closes it on its next beat, which is two seconds away — and with no

@@ -97,8 +97,8 @@ describe('its conversation, read out of its projection', () => {
       ['l0004', 'tool'],
     ])
     const reply = talk?.lines[1]?.text ?? ''
-    expect(reply).toBe('first line fix the build\nsecond line')
-    expect(talk?.lines[2]?.tool).toBe('tade_statusfix the build')
+    expect(reply).toBe('first line ␛fix the build␛\nsecond line')
+    expect(talk?.lines[2]?.tool).toBe('tade_status␛fix the build␛')
     expect(talk).toMatchObject({ rev: 'b0', busy: false, whose: null, mine: true, more: 2 })
   })
 
@@ -223,9 +223,9 @@ describe('what was missed there', () => {
     expect(missed?.finished.rows[0]).toEqual({
       task: 'tade/fix-login',
       at: NOW - 3_600_000 + 5_000,
-      said: 'its agent said sofix the build',
+      said: 'its agent said so␛fix the build␛',
     })
-    expect(missed?.proposed.rows[0]).toMatchObject({ task: 'tade/redfix the build', at: null })
+    expect(missed?.proposed.rows[0]).toMatchObject({ task: 'tade/red␛fix the build␛', at: null })
   })
 
   it('is nothing where there is nothing to catch up on, or no answer at all', () => {
@@ -242,8 +242,8 @@ describe('what was missed there', () => {
     expect(missedLines(missed, () => '14:02')).toEqual([
       'Since you were here at 14:02 — on vps:',
       '  waiting on you: tade/deploy wants an answer about Bash',
-      '  finished: tade/fix-login — its agent said sofix the build · 2 more',
-      '  put to its orchestrator: tade/redfix the build — main is red',
+      '  finished: tade/fix-login — its agent said so␛fix the build␛ · 2 more',
+      '  put to its orchestrator: tade/red␛fix the build␛ — main is red',
       '  spent: $3.20 over 1.2M tok',
     ])
   })

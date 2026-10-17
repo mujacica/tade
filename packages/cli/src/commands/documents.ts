@@ -6,6 +6,8 @@ import {
   documentsIn,
   documentsToCompact,
   loadConfig,
+  printable,
+  printableLines,
   producedClause,
   tadeHome,
   waitingDocuments,
@@ -56,10 +58,12 @@ export function registerDocuments(program: Command, io: Io, setExit: (n: number)
         return
       }
       for (const one of shown) {
-        io.out(`${one.task} ${producedClause(one)}`)
+        // What an agent wrote and asked is drawn as text (`printable`), as
+        // the window draws it.
+        io.out(printable(`${one.task} ${producedClause(one)}`))
         // The agent's own line after the facts, never instead of them: it is
         // what the document is about and not what the document says.
-        if (one.summary) io.out(`  its agent said: ${one.summary}`)
+        if (one.summary) io.out(`  its agent said: ${printable(one.summary)}`)
       }
     })
 
@@ -81,7 +85,7 @@ export function registerDocuments(program: Command, io: Io, setExit: (n: number)
         return
       }
       if (latest && (latest.state === 'deleted' || latest.state === 'gone')) {
-        io.err(`${task} ${producedClause(latest)}`)
+        io.err(printable(`${task} ${producedClause(latest)}`))
         setExit(Exit.error)
         return
       }
@@ -91,7 +95,10 @@ export function registerDocuments(program: Command, io: Io, setExit: (n: number)
         setExit(Exit.error)
         return
       }
-      io.out(text.trimEnd())
+      // An agent wrote it, so it is printed as text, a line at a time — its
+      // tabs the spaces the window's viewer gives them, which `printable`
+      // would otherwise make one.
+      io.out(printableLines(text.trimEnd().replace(/\t/g, '   ')))
     })
 
   documents

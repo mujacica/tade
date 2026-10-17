@@ -186,7 +186,12 @@ const RESET = '\x1b[0m'
  * because how wide one is drawn is the viewer's own rule (`TAB`).
  */
 export function fileText(line: string): string {
-  return line.includes('\t') ? line.split('\t').map(printable).join('\t') : printable(line)
+  return line.includes('\t')
+    ? line
+        .split('\t')
+        .map((part) => printable(part))
+        .join('\t')
+    : printable(line)
 }
 
 /**

@@ -1,6 +1,8 @@
 import {
   defaultConfigPath,
   loadConfig,
+  printable,
+  printableLines,
   type ReplayCandidate,
   replaySays,
   tadeHome,
@@ -145,7 +147,7 @@ export function registerEval(program: Command, io: Io, setExit: (code: number) =
               `${name}: ${ran.length} task${ran.length === 1 ? '' : 's'} to replay, queued with a $${ceiling.toFixed(2)} ceiling. A window starts them${at ? ` from ${at.toISOString()}` : ''}; \`tade eval show ${name}\` reads where it stands.`,
             )
             for (const one of made.cases.filter((c) => c.task === null)) {
-              io.out(`  could not replay ${one.of}: ${one.couldNot}`)
+              io.out(`  could not replay ${one.of}: ${printable(one.couldNot ?? '')}`)
             }
           },
           'Ask the orchestrator there to run the eval (tade_replay)',
@@ -196,7 +198,7 @@ export function registerEval(program: Command, io: Io, setExit: (code: number) =
           if (replay) setExit(Exit.error)
           return
         }
-        io.out(shown.map((one) => replaySays(one).join('\n')).join('\n\n'))
+        io.out(printableLines(shown.map((one) => replaySays(one).join('\n')).join('\n\n')))
         io.out('(the judge is not read from here: straying is said in the window, /evals)')
       },
     )
@@ -246,9 +248,10 @@ export function registerEval(program: Command, io: Io, setExit: (code: number) =
             },
             { caller: { kind: 'you' } },
           )
-          io.out(answer.text)
+          // A judge's answer, and what a runner said: printed as text.
+          io.out(printableLines(answer.text))
         } catch (err) {
-          io.err(err instanceof Error ? err.message : String(err))
+          io.err(printable(err instanceof Error ? err.message : String(err)))
           setExit(Exit.error)
         }
       },

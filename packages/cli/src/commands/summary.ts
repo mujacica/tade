@@ -1,4 +1,4 @@
-import { describeWork, summariseWork, tadeHome } from '@tade/core'
+import { describeWork, printable, summariseWork, tadeHome } from '@tade/core'
 import { readJournal } from '@tade/workbench/events'
 import type { Command } from 'commander'
 import type { Io } from '../io.ts'
@@ -25,6 +25,7 @@ export function registerSummary(program: Command, io: Io, _setExit: (code: numbe
         io.out(JSON.stringify(summary, null, 2))
         return
       }
-      io.out(describeWork(summary, now))
+      // As text: it says what an agent is waiting on and how a run failed.
+      io.out(printable(describeWork(summary, now)))
     })
 }

@@ -1,4 +1,3 @@
-import { printable } from '@tade/core'
 import type { Frame, McpState } from '../frame.ts'
 import { pointingIn, sameTarget, type Target } from '../hits.ts'
 import { keyCaps } from '../keys.ts'
@@ -15,6 +14,7 @@ import {
 } from '../model.ts'
 import { MARK, type Skin } from '../skin.ts'
 import { blank, box, type Drawn, type Pointer, Row, stack } from '../ui.ts'
+import { approvalRows } from './approval.ts'
 import {
   MARKS,
   noneYet,
@@ -36,6 +36,9 @@ import { clock } from './text.ts'
 // them, and a spinner at the right belongs to neither as far as anyone can
 // tell. So each tab carries the same marks the agent list does, counted, and
 // the figures at the right say whose they are.
+
+/** The most rows of a command a toast draws before it says how much is not shown. */
+const TOAST_ROWS = 6
 
 /**
  * An agent you are not looking at needs you: a card under the tabs, answerable
@@ -68,12 +71,9 @@ export function toastFor(
         .text('wants approval', skin.waiting)
         .right((r) => r.text(`${seconds}s`, skin.hint).space())
         .build(),
-      new Row(inner, skin)
-        .space()
-        .text(printable(approval.tool), skin.you)
-        .space(2)
-        .text(printable(approval.summary))
-        .build(),
+      // The whole command, as the pane's card draws it, in fewer rows: what
+      // does not fit is counted, and Show is the card that has the room.
+      ...approvalRows(approval, inner, TOAST_ROWS, skin),
       blank(inner),
       new Row(inner, skin, pointer)
         .space()

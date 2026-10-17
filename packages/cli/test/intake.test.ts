@@ -222,7 +222,7 @@ describe('tade intake', () => {
   // the journal holds.
 
   /** One delivery, written straight into the journal, with the work it made. */
-  const delivered = (over: Record<string, unknown> = {}) => {
+  const delivered = (over: Record<string, unknown> = {}, about: Record<string, unknown> = {}) => {
     const where = {
       item: 'cli:req-1',
       source: 'cli',
@@ -234,6 +234,7 @@ describe('tade intake', () => {
       ref: 'req-1.0001.json',
       watch: 'intake.cli',
       schedule: 'intake-cli',
+      ...about,
     }
     // `urgency` and a sequence number each, because a real journal line has
     // both: a fixture kinder than reality is worse than no fixture, and a line
@@ -337,6 +338,45 @@ describe('tade intake', () => {
     // And what may be done about it, with the reason for each that may not.
     expect(stdout).toMatch(/approve +yes/)
     expect(stdout).toContain('nothing about req-1 has failed')
+  })
+
+  it('prints what came from outside as text: an escape in who asked or in what they asked is a mark', async () => {
+    // What a terminal reads as instructions, around a word that must survive.
+    const hostile = (word: string) =>
+      `\x1b]0;pwned\x07\x1b[2J${word}\u009b6n\x1b]8;;https://evil.example\x07`
+    const onlyText = (said: string) => {
+      expect(said).not.toContain('\x1b')
+      expect(said).not.toMatch(/[\u0080-\u009f]/)
+      expect(said).not.toContain('pwned')
+    }
+    const added = await tade(
+      'intake',
+      'add',
+      'app',
+      '--id',
+      'req-2',
+      '--from',
+      hostile('lee'),
+      '--body',
+      'x',
+    )
+    onlyText(added.stdout)
+    const listed = await tade('intake', 'list')
+    onlyText(listed.stdout)
+    expect(listed.stdout).toContain('@␛lee␛')
+
+    delivered({}, { requester: hostile('kim') })
+    writeFileSync(
+      join(home, 'projects', 'app', 'tasks', 'cli-req-1', 'context.md'),
+      `# cli req-1\n\nmaterial, not instruction\n\n\`\`\`\n${hostile('the export button 500s')}\n\`\`\`\n`,
+    )
+    const inbox = await tade('intake', 'inbox')
+    onlyText(inbox.stdout)
+    expect(inbox.stdout).toContain('@␛kim␛')
+    const shown = await tade('intake', 'show', 'req-1')
+    onlyText(shown.stdout)
+    expect(shown.stdout).toContain('@␛kim␛')
+    expect(shown.stdout).toContain('␛the export button 500s␛')
   })
 
   it('dry-runs it: what approving would start, and starts nothing', async () => {

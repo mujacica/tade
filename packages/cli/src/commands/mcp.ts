@@ -4,6 +4,7 @@ import {
   expandHome,
   loadConfig,
   MCP_TRANSPORT_NAMES,
+  printable,
   SERVER_RUNS_AS_YOU,
   tadeHome,
 } from '@tade/core'
@@ -253,7 +254,7 @@ export function registerMcp(program: Command, io: Io, setExit: (code: number) =>
           mcp: { servers: { [name]: { ...config.mcp.servers[name], enabled: true } } },
         },
         home,
-        onWarning: (message) => io.err(message),
+        onWarning: (message) => io.err(printable(message)),
       })
       const server = mcp.servers.find((one) => one.declaration.name === name)
       if (!server) {
@@ -278,9 +279,10 @@ export function registerMcp(program: Command, io: Io, setExit: (code: number) =>
         setExit(Exit.error)
         return
       }
-      io.out(`${cache.about.title} ${cache.about.version}`.trim())
+      // The server's own words for itself and its tools: printed as text.
+      io.out(printable(`${cache.about.title} ${cache.about.version}`).trim())
       io.out(`asked ${cache.asked}`)
-      for (const tool of cache.tools) io.out(`  ${tool.name}`)
+      for (const tool of cache.tools) io.out(`  ${printable(tool.name)}`)
       if (cache.tools.length === 0) io.out('  it offers no tools Tade can hand on')
     })
 }

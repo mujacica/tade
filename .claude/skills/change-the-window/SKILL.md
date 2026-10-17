@@ -109,7 +109,10 @@ regions in a cycle now.
   somebody's id (a note is found by its words, a hush by its reason) — and *before* it is cut or
   measured. Never in `Row.text`: it is handed painted text, and the resets a cut leaves. A lane's
   screen is the emulator's own drawing and is not scrubbed. `test/outside-text.test.ts` draws
-  every such surface with escapes in it; a new one gets a case there.
+  every such surface with escapes in it; a new one gets a case there. What it takes out is marked
+  `␛` (`TAKEN_OUT`), never dropped in silence, and text somebody is about to say yes to — an
+  approval's command — is read `'whole'`: every character kept, wrapped and never cut without
+  saying how much (`view/approval.ts`).
 - **Tail, don't clip.** A pi-tui stack allocates height and then cuts children off *at the bottom*,
   which would show the top of an agent's screen and hide its newest output. The window composes its
   own rows and keeps the last N itself. Do the same for anything that grows.
@@ -300,7 +303,8 @@ regions in a cycle now.
   Counting a conversation instead cost two milliseconds a notch.
 - **How much is in view is the rows the region drew, never the room it was given.** A pane is the one
   place the two differ — an approval card sits at the bottom of the agent's own screen and takes five
-  rows off it (`rowsRead` and `carded` in `view/lane.ts`, read by the drawing *and* by the look). Sized
+  rows off it, more for a longer command (`rowsRead` and `carded` in `view/lane.ts`, `cardRows` in
+  `view/approval.ts`, read by the drawing *and* by the look). Sized
   from the pane instead, a screen with more lines in it than fit reported everything in view and
   answered the wheel with nothing at all, and only while the agent was waiting on you — which is what
   made it look intermittent.

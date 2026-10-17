@@ -5,6 +5,7 @@ import {
   composeBrief,
   defaultConfigPath,
   loadConfig,
+  printable,
   tadeHome,
   waitingOn,
 } from '@tade/core'
@@ -79,13 +80,15 @@ export function registerBrief(program: Command, io: Io, setExit: (code: number) 
               { proposal: `I wrote down a lesson called ${waitingSkill.name}, worth a look` }
             : {}),
         })
-        io.out(brief.spoken)
+        // Printed as text (`printable`): it carries what an agent asked to run,
+        // and what an extension's source answered.
+        io.out(printable(brief.spoken))
         const asks = found.items.filter((item) => item.ask)
         if (asks.length > 0) {
           io.out('')
-          for (const item of asks) io.out(`→ ${item.ask}`)
+          for (const item of asks) io.out(`→ ${printable(item.ask ?? '')}`)
         }
-        for (const problem of found.problems) io.err(`(could not ask ${problem})`)
+        for (const problem of found.problems) io.err(`(could not ask ${printable(problem)})`)
         if (opts.speak) {
           const speaker = await Speaker.create({ soundDir: join(tadeHome(), 'sounds') })
           await speaker.speak(brief.spoken)

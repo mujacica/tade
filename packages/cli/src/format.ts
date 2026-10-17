@@ -1,8 +1,9 @@
 import { homedir } from 'node:os'
-import type { AgentSignal, Workspace } from '@tade/core'
+import { type AgentSignal, printable, type Workspace } from '@tade/core'
 
 // Human-readable `tade status`. Terse on purpose: one line per task, one
-// summary line per group of untracked sessions.
+// summary line per group of untracked sessions. A reason can be what an agent
+// asked to run, read out of its transcript, so it is printed as text.
 
 export function formatStatus(ws: Workspace): string[] {
   const lines: string[] = []
@@ -15,12 +16,14 @@ export function formatStatus(ws: Workspace): string[] {
     for (const t of p.tasks) {
       const name = t.id.slice(p.name.length + 1).padEnd(width)
       const flag = t.stalled ? ' ⚠' : ''
-      lines.push(`  ${name}  ${t.state.padEnd(7)}  ${t.reason}${flag}`)
+      lines.push(`  ${name}  ${t.state.padEnd(7)}  ${printable(t.reason)}${flag}`)
     }
     if (p.untracked.length > 0) lines.push(`  + ${sessions(p.untracked)} outside Tade`)
   }
   if (ws.elsewhere.length > 0) {
-    const where = [...new Set(ws.elsewhere.map((s) => tilde(s.cwd)))].slice(0, 3).join(', ')
+    const where = [...new Set(ws.elsewhere.map((s) => printable(tilde(s.cwd))))]
+      .slice(0, 3)
+      .join(', ')
     lines.push(`elsewhere: ${sessions(ws.elsewhere)} (${where})`)
   }
   if (lines.length === 0) lines.push('no projects')

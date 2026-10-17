@@ -5,6 +5,7 @@ import {
   type LaneId,
   type LaneKind,
   loadConfig,
+  printable,
   type TadeEvent,
   tadeHome,
 } from '@tade/core'
@@ -224,12 +225,19 @@ function formatLane(lane: LaneRecord, width: number): string {
   return `${lane.id.padEnd(width)}  ${lane.kind.padEnd(6)}  ${state.padEnd(9)}${age}`
 }
 
+/**
+ * One event as a line. Its detail is whatever was written down — a request's
+ * id and who asked, a command an agent wanted, a Sentry title, a reviewer's
+ * error — so the line is printed as text (`printable`).
+ */
 function formatEvent(e: TadeEvent): string {
   const where = e.lane ?? e.task ?? '-'
   const detail = Object.entries(e.detail)
     .map(([k, v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`)
     .join(' ')
-  return `${e.ts}  ${e.urgency.padEnd(8)}  ${e.type.padEnd(18)}  ${where}  ${detail}`.trimEnd()
+  return printable(
+    `${e.ts}  ${e.urgency.padEnd(8)}  ${e.type.padEnd(18)}  ${where}  ${detail}`,
+  ).trimEnd()
 }
 
 function duration(ms: number): string {

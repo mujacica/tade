@@ -17,6 +17,8 @@ import {
   MATERIAL_LABEL,
   METADATA_IS_DISCLOSURE,
   NEVER_REPLIED_TO,
+  printable,
+  printableLines,
   tadeHome,
   WAITING_STATES,
   watchedFrom,
@@ -56,6 +58,11 @@ import { withWorkbench } from '../with-workbench.ts'
 // because somebody with an account on this machine wrote it, and the grant
 // still decides, because a door that trusted whoever could write a file would
 // be a door with no rule behind it.
+//
+// **What a request says is somebody else's text**, and a terminal reads text
+// as instructions as well as words: an id, a handle, a reason, a body or a
+// source's own error is put through `printable` before it is printed, as the
+// window draws them. `--json` is data, and is left to whoever reads it.
 
 /** The body, from a flag, a file, or standard input. */
 async function bodyOf(opts: { body?: string; bodyFile?: string }): Promise<string> {
@@ -167,7 +174,8 @@ export function registerIntake(program: Command, io: Io, setExit: (code: number)
         io.out(
           `${opts.close ? 'withdrew' : 'wrote'} ${written.entry.id} at revision ${written.entry.revision} for ${project}`,
         )
-        io.out(would)
+        // The rule's reason names who asked, in their own spelling.
+        io.out(printable(would))
         io.out('Nothing starts from here: the watch looks on its own clock, and the grant decides.')
       },
     )
@@ -190,13 +198,17 @@ export function registerIntake(program: Command, io: Io, setExit: (code: number)
         return
       }
       for (const one of rows) {
+        const item = intakeItem({ source: 'cli', externalId: one.id })
         io.out(
-          `${intakeItem({ source: 'cli', externalId: one.id })}  r${one.revision}  ${one.project}  @${one.requester.id}${one.closed ? '  withdrawn' : ''}`,
+          printable(
+            `${item}  r${one.revision}  ${one.project}  @${one.requester.id}${one.closed ? '  withdrawn' : ''}`,
+          ),
         )
       }
       // Named, never passed over: a file somebody hand-edited is a request that
       // would otherwise have vanished without a word.
-      for (const one of read.broken) io.err(`${one.file} could not be read: ${one.problem}`)
+      for (const one of read.broken)
+        io.err(printable(`${one.file} could not be read: ${one.problem}`))
     })
 
   intake
@@ -300,7 +312,7 @@ export function registerIntake(program: Command, io: Io, setExit: (code: number)
         ]
         io.out(`${one.source}  ${bits.join('  ')}`)
         io.out(
-          `  ${one.schedule ? `${one.schedule}: ${one.look ?? 'has not looked yet'}` : 'nothing is watching it'}`,
+          `  ${one.schedule ? `${one.schedule}: ${printable(one.look ?? 'has not looked yet')}` : 'nothing is watching it'}`,
         )
         io.out(
           `  ${one.handed} handed over, ${one.waiting} waiting for you${one.unfinished ? `, and ${one.unfinished}` : ''}`,
@@ -350,13 +362,15 @@ export function registerIntake(program: Command, io: Io, setExit: (code: number)
         )
         return
       }
-      const width = Math.max(0, ...rows.map((row) => row.item.length))
+      const width = Math.max(0, ...rows.map((row) => printable(row.item).length))
       for (const row of rows) {
         const what = row.template ? `${row.template.name}@${row.template.version}` : '—'
+        // Each made text before it is padded, so a column is as wide as it is drawn.
+        const item = printable(row.item).padEnd(width)
         io.out(
-          `${row.item.padEnd(width)}  ${row.state.padEnd(8)}  ${row.project}  @${row.requester || '—'}  ${what}`,
+          `${item}  ${row.state.padEnd(8)}  ${printable(`${row.project}  @${row.requester || '—'}  ${what}`)}`,
         )
-        io.out(`${' '.repeat(width)}  ${row.because}`)
+        io.out(`${' '.repeat(width)}  ${printable(row.because)}`)
       }
     })
 
@@ -396,15 +410,17 @@ export function registerIntake(program: Command, io: Io, setExit: (code: number)
         return
       }
       const width = Math.max(0, ...opened.facts.map((fact) => fact.label.length))
-      for (const fact of opened.facts) io.out(`${fact.label.padEnd(width)}  ${fact.value}`)
+      for (const fact of opened.facts) {
+        io.out(`${fact.label.padEnd(width)}  ${printable(fact.value)}`)
+      }
       io.out('')
-      io.out(`state     ${opened.row.state}: ${opened.row.because}`)
+      io.out(`state     ${opened.row.state}: ${printable(opened.row.because)}`)
       for (const { act, off } of inboxActs(opened.row)) {
-        io.out(`  ${act.padEnd(8)}${off ? `not now: ${off}` : 'yes'}`)
+        io.out(`  ${act.padEnd(8)}${off ? `not now: ${printable(off)}` : 'yes'}`)
       }
       if (would) {
         io.out('')
-        for (const line of wouldRunSays(would)) io.out(line)
+        for (const line of wouldRunSays(would)) io.out(printable(line))
       }
       io.out('')
       // The label over the region, then what Tade wrote down — which carries
@@ -412,12 +428,12 @@ export function registerIntake(program: Command, io: Io, setExit: (code: number)
       // the agent on this work reads.
       io.out(MATERIAL_LABEL)
       if (opened.material.body === null) {
-        io.out(`  ${opened.material.problem ?? 'there is nothing to read'}`)
+        io.out(`  ${printable(opened.material.problem ?? 'there is nothing to read')}`)
         return
       }
       io.out(`  (${opened.material.where})`)
       io.out('')
-      io.out(opened.material.body.trimEnd())
+      io.out(printableLines(opened.material.body.trimEnd()))
     })
 
   intake
@@ -431,7 +447,7 @@ export function registerIntake(program: Command, io: Io, setExit: (code: number)
           ...(opts.start ? { start: true } : {}),
           by: 'you',
         })
-        io.out(acted.said)
+        io.out(printable(acted.said))
       })
     })
 
@@ -446,7 +462,7 @@ export function registerIntake(program: Command, io: Io, setExit: (code: number)
           ...(opts.why ? { why: opts.why } : {}),
           by: 'you',
         })
-        io.out(acted.said)
+        io.out(printable(acted.said))
       })
     })
 
@@ -460,7 +476,7 @@ export function registerIntake(program: Command, io: Io, setExit: (code: number)
         // `retryIntake` says that in its own words rather than this command
         // guessing at a second way in.
         const acted = await retryIntake(tade, { item: id, by: 'you' })
-        io.out(acted.said)
+        io.out(printable(acted.said))
       })
     })
 }

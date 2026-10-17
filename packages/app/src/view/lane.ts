@@ -7,6 +7,7 @@ import type { Region } from '../selection.ts'
 import type { Skin } from '../skin.ts'
 import { type Pointer, Row } from '../ui.ts'
 import { widthOf } from '../width.ts'
+import { cardRows } from './approval.ts'
 
 // A lane's screen, wherever it is drawn.
 //
@@ -67,15 +68,14 @@ export function scrolledBar(
     .build()
 }
 
-/** How tall the approval card is: its border and two rows. */
-export const APPROVAL_ROWS = 4
-
 /**
  * How many rows of a lane's screen a pane actually shows.
  *
  * Not the pane's height, which is what everything used to count: an approval
- * card sits at the bottom of the agent's own screen and takes five rows off
- * it, and a screen drawn in twenty-five rows was being measured against
+ * card sits at the bottom of the agent's own screen and takes its rows off
+ * it (`card`, from `carded`: five for a command of one line, and as many more
+ * as the command it shows is long), and a screen drawn in twenty-five rows was
+ * being measured against
  * thirty. Everything downstream is that number — the bar says how much is in
  * view, the wheel reads the end off the bar, and the look clamps how far back
  * it may read — so all three were out by the height of the card, in the same
@@ -93,22 +93,28 @@ export const APPROVAL_ROWS = 4
  * One function, because two readings of one layout drift — and this one is
  * read in two files, the drawing and the look.
  */
-export function rowsRead(body: number, carded: boolean, back = false): number {
-  const room = carded ? body - APPROVAL_ROWS - 1 : body
-  return Math.max(1, room - (back ? 1 : 0))
+export function rowsRead(body: number, card: number, back = false): number {
+  return Math.max(1, body - card - (back ? 1 : 0))
 }
 
 /**
- * Whether an approval card is over the agent's screen, which is what takes
- * rows off it.
+ * How many rows of an agent's screen `width` wide and `body` tall an approval
+ * card takes off it, or none where there is no card over it.
  *
  * One reading, because the drawing and the look both need it and a second one
  * would drift: the card belongs to an agent's own lane, never to a shell
- * opened beside it, and it is there only while the agent is waiting on you.
+ * opened beside it, it is there only while the agent is waiting on you, and it
+ * is as tall as the command it shows (`cardRows`).
  */
-export function carded(pane: AgentPane | undefined, lane: string | null): boolean {
-  if (!pane?.approval) return false
-  return pane.lanes.find((one) => one.id === lane)?.kind === 'agent'
+export function carded(
+  pane: AgentPane | undefined,
+  lane: string | null,
+  width: number,
+  body: number,
+): number {
+  if (!pane?.approval) return 0
+  if (pane.lanes.find((one) => one.id === lane)?.kind !== 'agent') return 0
+  return cardRows(pane.approval, width, body)
 }
 
 /**
@@ -139,8 +145,8 @@ export function pointedIn(view: LaneView | null | undefined, typing: boolean): b
  * them is, and how many of them hold a row of it at all.
  *
  * A lane is made the size of the pane and then read back in however many rows
- * are left for it — an approval card takes five — so what is on show is the
- * *bottom* of its screen and the top of it is behind the card. A report is
+ * are left for it — an approval card takes five or more — so what is on show
+ * is the *bottom* of its screen and the top of it is behind the card. A report is
  * about the program's screen, so the rows are counted there: drawn row 0
  * under a card is row five of the lane, and a click told otherwise lands five
  * rows above what was pressed.

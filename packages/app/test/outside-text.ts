@@ -48,10 +48,18 @@ export const notText = (said: string): number[] =>
  * — never one with an address. Anything else came from outside.
  */
 export function expectOnlyText(drawn: { rows: readonly string[] }, ...words: string[]): void {
+  expectNoEscapes(drawn, ...words)
+  expect(drawn.rows.join('\n')).not.toContain('pwned')
+}
+
+/**
+ * The same, for a screen that may draw a sequence's own words as text: the
+ * command on an approval card, which is drawn whole (`printable`'s `'whole'`).
+ */
+export function expectNoEscapes(drawn: { rows: readonly string[] }, ...words: string[]): void {
   const screen = drawn.rows.join('\n')
   const text = screen.replaceAll('\x1b[0m', '').replaceAll('\x1b]8;;\x07', '')
   expect(text).not.toContain('\x1b')
-  expect(text).not.toContain('pwned')
   expect(notText(text.replaceAll('\n', ''))).toEqual([])
   for (const word of words) expect(screen).toContain(word)
 }

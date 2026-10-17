@@ -316,9 +316,9 @@ describe('what the window draws of them', () => {
       ['vps', 'live', ['api', 'web']],
       ['box', 'live', ['infra']],
     ])
-    // What the far end sent carries the escapes; what the window draws does not.
+    // What the far end sent carries the escapes; what the window draws has a mark for them.
     expect(JSON.stringify(one.remotes.held()[0]?.projection)).toContain('pwned')
-    expect(titled()).toBe('The API')
+    expect(titled()).toBe('␛The API␛')
     expect(draws).toBeGreaterThan(0)
     // Folded once and kept while nothing a link holds has moved: the frame asks four times a second.
     expect(one.remotes.facts().machines).toBe(one.remotes.facts().machines)

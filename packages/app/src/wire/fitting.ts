@@ -156,7 +156,10 @@ export class Fitting {
     // the lane keeps its size and the newest of its rows are what show.
     const rows = halvesOf(this.paneSize(split !== null, true), split).first.rows
     const lane = pane ? laneShown(state, pane) : null
-    return rowsRead(rows, !split && carded(pane, lane), !split && state.paneScroll > 0)
+    // The card is measured against the pane it is drawn over, the column the
+    // window's bar takes included, exactly as the drawing measures it.
+    const card = split ? 0 : carded(pane, lane, this.resolved(true).mainWidth, rows)
+    return rowsRead(rows, card, !split && state.paneScroll > 0)
   }
 
   /**

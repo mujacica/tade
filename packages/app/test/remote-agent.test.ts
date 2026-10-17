@@ -108,7 +108,7 @@ describe('what is kept of a row there, for acting on it', () => {
     expect(agent?.can).toEqual(['stop'])
     const named = machineOf(held([row({ approval: { id: 'c1', tool: `Bash${ESCAPES}` } })]), 0)
       .projects[0]?.agents[0]?.approval
-    expect(named?.tool).toBe('Bashred')
+    expect(named?.tool).toBe('Bash␛red␛')
   })
 })
 
@@ -126,7 +126,7 @@ describe('an agent’s screen there, read as text', () => {
       },
       -1_000,
     )
-    expect(read.lines).toEqual(['  redindented', 'plain', ''])
+    expect(read.lines).toEqual(['  ␛red␛indented', 'plain', ''])
     expect(read.at).toBe(NOW - 6_000)
     expect(read.above).toBe(3)
     expect(read.why).toBeNull()

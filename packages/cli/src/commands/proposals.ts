@@ -10,6 +10,8 @@ import {
   isExtensionName,
   loadableSkills,
   loadConfig,
+  printable,
+  printableLines,
   skillDirs,
   skillStanding,
   tadeHome,
@@ -82,11 +84,13 @@ export function registerExtensions(
         safe,
         configPath: opts.config,
       })
+      // A server names itself and its tools, and an extension says its own
+      // trouble: printed as text (`printable`).
       const say = (one: LoadedExtension) => {
-        io.out(`${one.title} (${one.name}, ${one.source}): ${one.state}`)
-        if (one.problem) io.out(`  ${one.problem}`)
+        io.out(printable(`${one.title} (${one.name}, ${one.source}): ${one.state}`))
+        if (one.problem) io.out(`  ${printable(one.problem)}`)
         if (one.tools.length > 0)
-          io.out(`  tools: ${one.tools.map((tool) => tool.name).join(', ')}`)
+          io.out(`  tools: ${printable(one.tools.map((tool) => tool.name).join(', '))}`)
         if (one.unknownSettings.length > 0) {
           io.out(
             `  not read: ${one.unknownSettings.map((key) => `extensions.${one.name}.${key}`).join(', ')}`,
@@ -114,7 +118,7 @@ export function registerExtensions(
         for (const tool of tools) {
           const on = !safe && extensionEnabled(cfg.config.extensions[tool.name], 'yours')
           const state = on ? 'on' : safe ? 'off, left out by --safe' : 'off'
-          io.out(`  ${tool.name}: ${state}${tool.why ? ` — ${tool.why}` : ''}`)
+          io.out(`  ${tool.name}: ${state}${tool.why ? ` — ${printable(tool.why)}` : ''}`)
           io.out(`    ${tool.path}`)
         }
       }
@@ -245,9 +249,11 @@ export function registerExtensions(
           { ...input, ...(opts.project ? { project: opts.project } : {}) },
           { caller: { kind: 'you' }, tade: null },
         )
-        io.out(answer.text)
+        // What a source answered — a review's threads, a Sentry issue, a
+        // finding, a server's own words — printed as text, a line at a time.
+        io.out(printableLines(answer.text))
       } catch (err) {
-        io.err(err instanceof Error ? err.message : String(err))
+        io.err(printable(err instanceof Error ? err.message : String(err)))
         setExit(Exit.error)
       }
     })
