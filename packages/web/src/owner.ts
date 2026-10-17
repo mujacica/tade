@@ -11,9 +11,10 @@ import { SCOPES } from './surface.ts'
 // it may not start an agent, plan, schedule or create a task, because a
 // phone's session is a weaker credential than being at the keyboard. The Mac
 // driving a VPS needs to *start* work there, and everything it would do
-// through an owner session, `ssh vps` already lets it do — attaching to that
-// box's window in tmux and typing included. The SSH key is the owner; a
-// request that arrives through that connection can never be more than it.
+// through an owner session, `ssh vps` already lets it do — running `tade`
+// there and typing into its agents' terminals included. The SSH key is the
+// owner; a request that arrives through that connection can never be more
+// than it.
 //
 // **Why it can only ever be used on this machine**, which is the whole of the
 // argument and five facts, each held where it lives:

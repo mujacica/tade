@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { homedir, userInfo } from 'node:os'
 import { join } from 'node:path'
@@ -10,7 +10,11 @@ import {
   type MissingProgram,
   runProgram,
   SERVICE,
+  type ServiceState,
+  SHOWN,
+  serviceStateOf,
   type Unattended,
+  unitTrouble,
   upgradeWith,
 } from '@tade/core'
 import { type AccountStatus, type LaunchSpec, signInHere } from '@tade/harnesses-core'
@@ -59,12 +63,15 @@ export interface HostLook {
 /**
  * Whether this is a server whose own service manager could keep Tade running
  * with nobody logged in — Linux, under systemd, with no screen — and whether
- * it will: linger on, and the unit written. Null anywhere else, so a Mac or a
- * Linux desktop is never asked about either.
+ * it will: linger on, and the unit written and running `tade serve` from
+ * files that are there. Null anywhere else, so a Mac or a Linux desktop is
+ * never asked about either.
  *
- * Three files, and no process: `/run/systemd/system` is how systemd says it
- * is the init (`sd_booted`), and linger is a file per user under
- * `/var/lib/systemd/linger`, which is all `loginctl enable-linger` writes.
+ * Files, and no process: `/run/systemd/system` is how systemd says it is the
+ * init (`sd_booted`), linger is a file per user under
+ * `/var/lib/systemd/linger`, which is all `loginctl enable-linger` writes, and
+ * the unit is read for what it runs. Whether it is running is a process to
+ * ask (`lookAtService`), which only setting up does.
  */
 export function unattendedHere(look: HostLook = {}): Unattended | null {
   const env = look.env ?? process.env
@@ -74,12 +81,52 @@ export function unattendedHere(look: HostLook = {}): Unattended | null {
   if (!systemdHere(root)) return null
   const user = look.user ?? userInfo().username
   const unit = serviceUnitPath(env, look.home)
+  const read = unitRead(unit)
   return {
     user,
     linger: existsSync(join(root, 'var', 'lib', 'systemd', 'linger', user)),
-    unit: existsSync(unit) ? unit : null,
+    unit: read === null ? null : unit,
+    unitTrouble: read?.trouble ?? null,
     root: process.getuid?.() === 0,
   }
+}
+
+/** What is wrong with the unit at `path`, or null where there is no unit there. */
+function unitRead(path: string): { trouble: string | null } | null {
+  try {
+    return { trouble: unitTrouble(readFileSync(path, 'utf8'), (word) => existsSync(word)) }
+  } catch (err) {
+    // Not there is the answer; one that is there and cannot be read is a unit
+    // its manager may not read either, which is said.
+    const code = (err as NodeJS.ErrnoException).code
+    if (code === 'ENOENT') return null
+    return { trouble: `cannot be read (${code ?? (err as Error).message})` }
+  }
+}
+
+/** A user manager that answers in milliseconds; one that has not in this long is not answering. */
+const SHOW_MS = 5_000
+
+/**
+ * How the unit stands, as the user's service manager answers: whether `tade
+ * serve` said it was ready, is starting, failed or is not running — and its
+ * pid, which is how a window holding the home is told apart from the service.
+ * One `systemctl`, with a deadline, never thrown: one that could not be asked
+ * is `cannot`, with why.
+ */
+export async function lookAtService(env: NodeJS.ProcessEnv = process.env): Promise<ServiceState> {
+  const ran = await runProgram(
+    'systemctl',
+    ['--user', 'show', SERVICE, `--property=${SHOWN.join(',')}`],
+    { env, timeoutMs: SHOW_MS },
+  )
+  if (ran.missing) return { kind: 'cannot', why: 'there is no systemctl here' }
+  if (ran.timedOut) return { kind: 'cannot', why: 'systemctl did not answer' }
+  if (ran.code !== 0) {
+    const said = ran.stderr.trim().split('\n')[0] || `systemctl exited ${ran.code}`
+    return { kind: 'cannot', why: said }
+  }
+  return serviceStateOf(ran.stdout)
 }
 
 /**

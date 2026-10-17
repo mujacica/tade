@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ATTACH, SERVICE } from '@tade/core'
+import { LOG, SERVICE, type ServiceState, START } from '@tade/core'
 import { systemdHere } from '@tade/workbench/machine'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -11,7 +11,6 @@ import {
   lanesWouldStop,
   offerLinger,
   offerUnit,
-  START,
   setUpUnattended,
   unitHere,
 } from '../src/commands/host-service.ts'
@@ -21,9 +20,10 @@ import {
 // What has to be exact is what is shown, what is written and what is run:
 // the unit is printed whole before anything is written, nothing is written or
 // started without a press, and the line that runs is the line that was shown.
-// That systemd reads the unit this way, and that the agents outlive a restart
-// of it, was proved in a Debian container under systemd (the task's commit
-// says how): no runner here has a user manager to prove it with.
+// That systemd reads the unit this way, hears `tade serve` say it is ready, and
+// that the agents outlive a restart of it, was proved in a Debian container
+// under systemd (`set-up-the-machine`, "Proving it"): no runner here has a
+// user manager to prove it with.
 
 interface Recorder extends Asker {
   said: string[]
@@ -53,9 +53,13 @@ function recorder(answers: boolean[] = [], code = 0): Recorder {
 }
 
 const unitAt = (dir: string) => ({
-  text: '[Service]\nExecStart=/usr/bin/tmux\n',
+  text: '[Service]\nExecStart=/usr/bin/node /x/bin.ts serve\n',
   path: join(dir, 'systemd', 'user', SERVICE),
 })
+
+/** A service manager that answers this, and is asked nothing else. */
+const standing = (state: ServiceState) => async () => state
+const stopped = standing({ kind: 'stopped' })
 
 let home: string
 let saved: string | undefined
@@ -73,14 +77,12 @@ describe('writing the unit', () => {
   it('writes it on a press, then offers to start it, running exactly the line it shows', async () => {
     const unit = unitAt(tmp('tade-host-'))
     const ask = recorder([true, true])
-    expect(await offerUnit(ask, unit, { write: false, start: true })).toBe(true)
+    expect(await offerUnit(ask, unit, { write: false, start: true }, stopped)).toBe(true)
     expect(readFileSync(unit.path, 'utf8')).toBe(unit.text)
     expect(ask.asked).toEqual([`write it to ${unit.path}?`, 'start it now, and at every boot?'])
     expect(ask.ran).toEqual([START])
-    expect(START).toBe(
-      'systemctl --user daemon-reload && systemctl --user enable tade.service && systemctl --user restart tade.service',
-    )
-    expect(ask.said.join('\n')).toContain(ATTACH)
+    expect(ask.said.join('\n')).toContain(LOG)
+    expect(ask.said.join('\n')).toContain('`tade remote add` shows it all')
   })
 
   it('writes nothing and starts nothing when the answer is no', async () => {
@@ -129,9 +131,21 @@ describe('writing the unit', () => {
     writeFileSync(join(home, 'tade.lock'), String(process.pid))
     const unit = unitAt(tmp('tade-host-'))
     const ask = recorder([true, true])
-    await offerUnit(ask, unit, { write: false, start: true })
+    await offerUnit(ask, unit, { write: false, start: true }, stopped)
     expect(ask.ran).toEqual([])
     expect(ask.said.join('\n')).toContain(`a window has this home open (pid ${process.pid})`)
+  })
+
+  // An older Tade's unit ran the window in tmux, and that window holds the
+  // home: restarting the service is what moves it onto the unit just written.
+  it('restarts the service on it where what holds the home is the service itself', async () => {
+    writeFileSync(join(home, 'tade.lock'), String(process.pid))
+    const unit = unitAt(tmp('tade-host-'))
+    const ask = recorder([true, true])
+    const running = standing({ kind: 'ready', pid: process.pid, status: '' })
+    await offerUnit(ask, unit, { write: false, start: true }, running)
+    expect(ask.asked.at(-1)).toBe('restart the service on it now, and at every boot?')
+    expect(ask.ran).toEqual([START])
   })
 
   it('from setup, never starts it: the window setup was opened for would be refused its home', async () => {
@@ -189,36 +203,18 @@ describe('whether the agents would outlive the service', () => {
 })
 
 describe('the unit for this machine', () => {
-  /** A PATH with a `tmux` on it, or with none. */
-  function path(withTmux: boolean): string {
-    const dir = tmp('tade-host-path-')
-    if (withTmux) {
-      writeFileSync(join(dir, 'tmux'), '#!/bin/sh\n')
-      chmodSync(join(dir, 'tmux'), 0o755)
-    }
-    return dir
-  }
-
-  it('runs this Node and this Tade, in the tmux on the PATH it carries', async () => {
-    const dir = path(true)
-    const unit = await unitHere({ PATH: dir, HOME: '/home/you', LANG: 'en_US.UTF-8' })
-    if ('cannot' in unit) throw new Error(unit.cannot)
-    expect(unit.text).toContain(`ExecStart=${join(dir, 'tmux')} -u -L tade-window`)
-    expect(unit.text).toContain(`${process.execPath} `)
-    expect(unit.text).toMatch(/bin\.[tj]s app\n/)
-    expect(unit.text).toContain(`Environment=PATH=${dir}`)
+  it('runs `tade serve` with this Node and this Tade, on the PATH it carries', () => {
+    const unit = unitHere({ PATH: '/opt/bin:/usr/bin', HOME: '/home/you', LANG: 'en_US.UTF-8' })
+    expect(unit.text).toContain(`ExecStart=${process.execPath} `)
+    expect(unit.text).toMatch(/bin\.[tj]s serve\n/)
+    expect(unit.text).toContain('Environment=PATH=/opt/bin:/usr/bin')
     expect(unit.text).toContain('Environment=LANG=en_US.UTF-8')
     expect(unit.path).toBe('/home/you/.config/systemd/user/tade.service')
   })
 
-  it('draws in UTF-8 whatever the shell was set to', async () => {
-    const unit = await unitHere({ PATH: path(true), HOME: '/home/you', LANG: 'C' })
-    expect('text' in unit && unit.text).toContain('Environment=LANG=C.UTF-8')
-  })
-
-  it('says how to get tmux where there is none, because the window runs in it', async () => {
-    const unit = await unitHere({ PATH: path(false), HOME: '/home/you' })
-    expect(unit).toMatchObject({ cannot: expect.stringContaining('tmux is not here') })
+  it('draws in UTF-8 whatever the shell was set to, and needs no tmux of its own', () => {
+    const unit = unitHere({ PATH: '/nowhere', HOME: '/home/you', LANG: 'C' })
+    expect(unit.text).toContain('Environment=LANG=C.UTF-8')
   })
 })
 
@@ -232,8 +228,8 @@ describe('setting up a server', () => {
       await setUpUnattended(ask, { user: 'you', linger: false, unit: null })
       expect(ask.asked[0]).toBe('turn linger on?')
       const said = ask.said.join('\n')
-      if (said.includes('tmux is not here')) return
       expect(said).toContain('  [Service]')
+      expect(said).toContain('serve')
       expect(ask.asked[1]).toContain(join(config, 'systemd', 'user', SERVICE))
       expect(existsSync(join(config, 'systemd', 'user', SERVICE))).toBe(true)
       expect(ask.ran).toEqual([])
@@ -243,10 +239,47 @@ describe('setting up a server', () => {
     }
   })
 
-  it('asks nothing about a unit that is already written', async () => {
+  it('asks nothing about a unit that is already written, and says how to start one not running', async () => {
     const ask = recorder()
     await setUpUnattended(ask, { user: 'you', linger: true, unit: '/u/tade.service' })
     expect(ask.asked).toEqual([])
+    const ready = recorder()
+    const box = { user: 'you', linger: true, unit: '/u/tade.service' }
+    await setUpUnattended(ready, { ...box, service: { kind: 'ready', pid: 1, status: '' } })
+    expect(ready.asked).toEqual([])
+    expect(ready.said.join('\n')).not.toContain('tade.service:')
+    const down = recorder()
+    await setUpUnattended(down, { ...box, service: { kind: 'stopped' } })
+    expect(down.asked).toEqual([])
+    expect(down.ran).toEqual([])
+    expect(down.said.at(-1)).toBe(`  tade.service: it is not running: \`${START}\``)
+  })
+
+  it('offers this Tade’s unit in place of one that is wrong, shown whole first', async () => {
+    const config = tmp('tade-host-xdg-')
+    const was = process.env.XDG_CONFIG_HOME
+    process.env.XDG_CONFIG_HOME = config
+    try {
+      const at = join(config, 'systemd', 'user', SERVICE)
+      mkdirSync(join(at, '..'), { recursive: true })
+      writeFileSync(at, '[Service]\nExecStart=/usr/bin/tmux new-session /x/bin.ts app\n')
+      const ask = recorder([true])
+      await setUpUnattended(ask, {
+        user: 'you',
+        linger: true,
+        unit: at,
+        unitTrouble: 'is an older Tade’s, which runs the window in tmux',
+      })
+      const said = ask.said.join('\n')
+      expect(said).toContain(`the unit at ${at} is an older Tade’s`)
+      expect(said).toContain('  [Service]')
+      expect(ask.asked).toEqual([`write it to ${at}, in place of the one there?`])
+      expect(readFileSync(at, 'utf8')).toMatch(/bin\.[tj]s serve\n/)
+      expect(ask.ran).toEqual([])
+    } finally {
+      if (was === undefined) delete process.env.XDG_CONFIG_HOME
+      else process.env.XDG_CONFIG_HOME = was
+    }
   })
 })
 
@@ -272,7 +305,6 @@ describe('tade host service', () => {
 
   it('prints the unit and nothing else on standard output, and writes nothing unasked', async () => {
     const result = await run(['host', 'service'])
-    if (result.stderr.includes('tmux is not here')) return
     expect(result.stdout.startsWith('# Tade, kept running by your own service manager.')).toBe(true)
     expect(result.stdout).toContain('[Service]')
     expect(result.stdout).toContain('WantedBy=default.target')

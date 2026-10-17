@@ -403,6 +403,43 @@ describe('a server, with nobody logged in', () => {
     })
   })
 
+  it('is done only once the service said it is ready, where somebody asked', () => {
+    const only = (over: Partial<Unattended>) =>
+      readiness(
+        facts({ unattended: { ...box, linger: true, unit: '/u/tade.service', ...over } }),
+      ).find((s) => s.id === 'unattended')
+    expect(only({ service: { kind: 'ready', pid: 9, status: '' } })).toMatchObject({ done: true })
+    const stopped = only({ service: { kind: 'stopped' } })
+    expect(stopped).toMatchObject({ done: false, required: false })
+    expect(stopped?.detail).toContain('it is not running: `systemctl --user daemon-reload')
+    expect(only({ service: { kind: 'failed', result: 'timeout' } })?.detail).toContain(
+      'never said it was ready',
+    )
+    // Nobody could ask: not told as fine.
+    expect(only({ service: { kind: 'cannot', why: 'there is no systemctl here' } })).toMatchObject({
+      done: false,
+      detail: 'whether it is running cannot be told: there is no systemctl here',
+    })
+  })
+
+  it('says what is wrong with a unit that is there before asking whether it runs', () => {
+    const step = readiness(
+      facts({
+        unattended: {
+          ...box,
+          linger: true,
+          unit: '/u/tade.service',
+          unitTrouble: 'is an older Tade’s, which runs the window in tmux',
+          service: { kind: 'ready', pid: 9, status: '' },
+        },
+      }),
+    ).at(-1)
+    expect(step).toMatchObject({
+      done: false,
+      detail: 'the unit is an older Tade’s, which runs the window in tmux',
+    })
+  })
+
   it('quotes a name a shell would read otherwise, because the line is run through one', () => {
     expect(lingerCommand({ ...box, user: 'EXAMPLE\\you' })).toBe(
       "sudo loginctl enable-linger 'EXAMPLE\\you'",

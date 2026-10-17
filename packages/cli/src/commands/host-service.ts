@@ -2,20 +2,20 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  ATTACH,
   defaultConfigPath,
-  installWith,
+  LOG,
   lingerCommand,
   loadConfig,
-  resolveCommand,
   SERVICE,
+  type ServiceState,
+  START,
+  serviceTrouble,
   serviceUnit,
-  stringEnv,
   tadeHome,
   type Unattended,
 } from '@tade/core'
 import { heldBy } from '@tade/workbench/lock'
-import { installersHere, serviceUnitPath } from '@tade/workbench/machine'
+import { lookAtService, serviceUnitPath } from '@tade/workbench/machine'
 import { drivers } from '@tade/workbench/registry'
 
 // Tade on a machine of its own: a Linux server, kept running by the person's
@@ -23,17 +23,13 @@ import { drivers } from '@tade/workbench/registry'
 //
 // Tade starts no daemon of its own and installs nothing that was not pressed
 // for. So what is here builds the systemd user unit that would keep it running
-// — the window in tmux, which anybody can attach to — writes it only when
-// somebody says so, and offers to start it the same way. `tade host service`
+// — `tade serve`, the window with no screen — writes it only when somebody
+// says so, and offers to start it the same way. `tade host service`
 // (`host.ts`) asks in a terminal and `tade setup` on its own screen, through
 // these same functions, with linger first.
 
-/**
- * What starting the unit is, as the person would type it: `restart` rather
- * than `--now`, which leaves a running one on the unit it started with — and
- * restarting is harmless, because the agents are not in it.
- */
-export const START = `systemctl --user daemon-reload && systemctl --user enable ${SERVICE} && systemctl --user restart ${SERVICE}`
+/** Where to look at it once it runs: its log here, and the window on the Mac. */
+const LOOK = `read what it says with \`${LOG}\`, and from your Mac \`tade remote add\` shows it all`
 
 /** What asking needs: the setup screen, or this terminal. */
 export interface Asker {
@@ -43,30 +39,23 @@ export interface Asker {
   run(title: string, command: string, args: string[]): Promise<number>
 }
 
-/** The unit for this machine, and where it goes — or why there is none. */
-export type UnitHere = { text: string; path: string } | { cannot: string }
+/** The unit for this machine, and where it goes. */
+export interface UnitHere {
+  text: string
+  path: string
+}
 
 /**
  * The unit, for the Tade running now: this Node and this CLI, so what the
- * service starts is what was just run; the PATH of the shell it was run from,
- * because a service's own has none of Node, the harnesses or an npm prefix;
- * and the tmux on that PATH, which the window runs in.
+ * service starts is what was just run, and the PATH of the shell it was run
+ * from, because a service's own has none of Node, the harnesses or an npm
+ * prefix.
  */
-export async function unitHere(env: NodeJS.ProcessEnv = process.env): Promise<UnitHere> {
-  const tmux = resolveCommand('tmux', stringEnv(env))
-  if (!tmux) {
-    const made = drivers.tmux?.(tadeHome(env))
-    const declared = made?.programs?.find((one) => one.command === 'tmux')
-    await made?.detach()
-    const how = installWith(declared?.install, installersHere(env))
-    const install = 'command' in how ? `\`${how.command}\`` : how.cannot
-    return { cannot: `tmux is not here, and the window runs in it: ${install}` }
-  }
+export function unitHere(env: NodeJS.ProcessEnv = process.env): UnitHere {
   const lang = env.LANG && /utf-?8/i.test(env.LANG) ? env.LANG : 'C.UTF-8'
   return {
     text: serviceUnit({
       tade: [process.execPath, fileURLToPath(new URL('../bin.ts', import.meta.url))],
-      tmux,
       path: env.PATH ?? '',
       home: env.TADE_HOME ?? null,
       lang,
@@ -102,15 +91,19 @@ export async function lanesWouldStop(): Promise<string | null> {
  * Write the unit on a press, then — with `start` — offer to start it on
  * another. Answers whether it is written.
  *
- * Starting is not offered while a window holds this home: the service's window
- * would be refused the home, and a unit that fails at once is a unit systemd
- * stops trying after five. Nor from `tade setup`, which a window may be
- * waiting on to open this very home.
+ * Starting is not offered while a window holds this home: the service would
+ * be refused the home, and a unit that fails at once is a unit systemd stops
+ * trying after five. The service holding it is not such a window — restarting
+ * is how it takes the unit just written, an older Tade's window in tmux
+ * included — so the holder is told apart by the service's own pid
+ * (`service`). Nor from `tade setup`, which a window may be waiting on to open
+ * this very home.
  */
 export async function offerUnit(
   ask: Asker,
-  unit: { text: string; path: string },
+  unit: UnitHere,
   opts: { write: boolean; start: boolean },
+  service: () => Promise<ServiceState> = () => lookAtService(),
 ): Promise<boolean> {
   const write = opts.write
   const same = existsSync(unit.path) && readFileSync(unit.path, 'utf8') === unit.text
@@ -128,22 +121,30 @@ export async function offerUnit(
   }
   if (!opts.start) {
     ask.say(`  once setup is done, start it now and at every boot: \`${START}\``)
-    ask.say(`  and look at it with \`${ATTACH}\``)
+    ask.say(`  then ${LOOK}`)
     return true
   }
   const holder = await heldBy(tadeHome())
-  if (holder !== null) {
+  if (holder !== null && holder !== pidOf(await service())) {
     ask.say(`  a window has this home open (pid ${holder}): quit it, then \`${START}\``)
     return true
   }
-  if (write || !(await ask.confirm('start it now, and at every boot?', true))) {
-    ask.say(`  to start it now, and at every boot: \`${START}\``)
+  const again = holder === null ? 'start it now' : 'restart the service on it now'
+  if (write || !(await ask.confirm(`${again}, and at every boot?`, true))) {
+    ask.say(`  to ${again}, and at every boot: \`${START}\``)
   } else if ((await ask.run(START, '/bin/sh', ['-c', START])) !== 0) {
     ask.say(`  that did not work — \`journalctl --user -u ${SERVICE}\` says why`)
   } else {
-    ask.say(`  started — look at it with \`${ATTACH}\``)
+    ask.say(`  started — ${LOOK}`)
   }
   return true
+}
+
+/** The service's own pid, where it is running. */
+function pidOf(state: ServiceState): number | null {
+  return state.kind === 'ready' || state.kind === 'starting' || state.kind === 'stopping'
+    ? state.pid
+    : null
 }
 
 /**
@@ -162,22 +163,26 @@ export async function offerLinger(ask: Asker, box: Unattended): Promise<void> {
 }
 
 /**
- * `tade setup`'s step on a server: linger, then the unit. Each is offered,
- * neither is run unpressed, and the unit is shown whole before it is written.
+ * `tade setup`'s step on a server: linger, then the unit, then whether it runs.
+ * Each is offered, none is run unpressed, a unit is shown whole before it is
+ * written, and one that is there and wrong — an older Tade's, or one whose
+ * Node has moved — is offered again in its place. Never started from here
+ * (`offerUnit`): what is said is how.
  */
 export async function setUpUnattended(ask: Asker, box: Unattended): Promise<void> {
   ask.say('This is a server: Tade can keep working here with nobody logged in, kept running')
-  ask.say('by your own service manager, in tmux, where you can attach to it over SSH.')
+  ask.say('by your own service manager as `tade serve`, and seen from your Mac over SSH.')
   ask.say('')
   if (!box.linger) await offerLinger(ask, box)
-  if (box.unit) return
-  const stops = await lanesWouldStop()
-  if (stops) ask.say(`  ${stops}`)
-  const unit = await unitHere()
-  if ('cannot' in unit) {
-    ask.say(`  ${unit.cannot}`)
+  if (box.unit && !box.unitTrouble) {
+    const trouble = box.service ? serviceTrouble(box.service) : null
+    if (trouble) ask.say(`  ${SERVICE}: ${trouble}`)
     return
   }
+  if (box.unitTrouble) ask.say(`  the unit at ${box.unit} ${box.unitTrouble}`)
+  const stops = await lanesWouldStop()
+  if (stops) ask.say(`  ${stops}`)
+  const unit = unitHere()
   ask.say(`The unit (${SERVICE}):`)
   for (const line of unit.text.trimEnd().split('\n')) ask.say(`  ${line}`)
   await offerUnit(ask, unit, { write: false, start: false })

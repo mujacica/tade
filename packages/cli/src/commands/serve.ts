@@ -13,6 +13,7 @@ import { HomeBusyError, Workbench } from '@tade/workbench'
 import { lookAtCertificate } from '@tade/workbench/certificate'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
+import { notifier, takeNotifySocket } from '../notify.ts'
 import { type Orchestrating, orchestrating } from '../orchestrating.ts'
 import { closeAll, endSoon, hangingUp, leftBehind, onSignals } from '../quitting.ts'
 import { reporterLater, reportJournal } from '../telemetry.ts'
@@ -31,6 +32,11 @@ import { reporterLater, reportJournal } from '../telemetry.ts'
 // is asked to stop — a signal, or the terminal it was started in going — and
 // closing it is closing the window: the agents are the workbench's and carry
 // on under a driver whose lanes outlive it.
+//
+// Under the unit `tade host service` writes, it tells systemd it is ready
+// (`notify.ts`) once it holds the home, its away view listens and a stop
+// would close it as a signal does — so a Mac's link can reach it the moment
+// the unit is active — and that it is stopping when it closes.
 
 /** What runs here with no screen, said first. */
 export const SERVES =
@@ -59,6 +65,8 @@ export function registerServe(program: Command, io: Io, setExit: (code: number) 
     )
     .option('-c, --config <path>', 'config file path', defaultConfigPath())
     .action(async (opts: { config: string }) => {
+      // First, before anything is started that would inherit it.
+      const told = takeNotifySocket()
       const cfg = await loadConfig(opts.config)
       if (!cfg.ok) {
         io.err(`${cfg.path}: invalid config (run \`tade config --check\`)`)
@@ -123,6 +131,10 @@ export function registerServe(program: Command, io: Io, setExit: (code: number) 
           .catch((writing: unknown) => io.err(`${message} (not in the journal: ${why(writing)})`))
       }
       const stopReporting = reportJournal(report, client)
+      const notify = notifier(told, (message) => {
+        io.err(message)
+        void warn(message)
+      })
       // Status in a child of its own, as the window looks: the fork storm of a
       // look is never on the thread the beat runs on.
       const looking = makeCollector('child')
@@ -191,6 +203,7 @@ export function registerServe(program: Command, io: Io, setExit: (code: number) 
           () => false,
           hangingUp(process, stop),
         )
+        void notify.ready(`holding ${home} with no screen`)
         await stopped
       } catch (err) {
         io.err(err instanceof Error ? err.message : String(err))
@@ -209,7 +222,10 @@ export function registerServe(program: Command, io: Io, setExit: (code: number) 
             between: stopWatching,
             // Last, and alone: lets go of the lanes; under tmux the agents carry on working.
             last: { name: 'the workbench', close: () => client.close() },
-            meanwhile: [{ name: 'the reporter', close: () => report.close() }],
+            meanwhile: [
+              { name: 'the reporter', close: () => report.close() },
+              { name: 'telling systemd it is stopping', close: () => notify.stopping() },
+            ],
           })),
         )
         for (const line of leftBehind(late)) io.err(line)

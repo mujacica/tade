@@ -49,9 +49,12 @@ program and exposes `run(argv, io)` which returns an exit code instead of callin
 - **A command that runs until it is stopped holds the home as the window does** (`tade serve`): it
   opens the workbench itself, says on standard error first what runs and what does not, writes
   nothing to standard output, closes on the first signal and ends at once on the second
-  (`onSignals`), and closes through `closeAll`. Its test spawns it with no terminal on any stream,
-  waits on what it says rather than on a clock, and opens the home after it has stopped: the lock let
-  go is what says it closed.
+  (`onSignals`), and closes through `closeAll`. Under a service manager it says it is ready only once
+  a stop would close it cleanly and what it serves answers (`notify.ts`: `NOTIFY_SOCKET` taken out of
+  the environment first, `READY=1` through `systemd-notify`, `STOPPING=1` on the way out). Its test
+  spawns it with no terminal on any stream, waits on what it says rather than on a clock (a
+  `systemd-notify` on PATH that writes down what it was told stands in for systemd), and opens the
+  home after it has stopped: the lock let go is what says it closed.
 - **Interactive commands must end at end of input.** `readline`'s `question()` never settles on EOF,
   so a loop built on it hangs on Ctrl-D or piped input, and whatever it started keeps running.
   Iterate the interface (`for await (const line of rl)`), which ends on both EOF and close, and stop

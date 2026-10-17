@@ -13,7 +13,7 @@ import { readBody } from './request.ts'
 //
 // **An owner's, and only at this machine's own door** (`here` in
 // `routes.ts`), for the reason the take is: whoever holds the SSH key can
-// already `git clone` here and open the project at the window in tmux. A
+// already `git clone` here and add the project to this machine's config. A
 // phone's session is refused it however much it was granted.
 //
 // **What it is asked for is a repository, not a path.** The asking machine

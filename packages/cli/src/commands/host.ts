@@ -167,12 +167,7 @@ export function registerHost(program: Command, io: Io, setExit: (code: number) =
     )
     .option('--write', 'write it, and say how to start it, without asking')
     .action(async (opts: { write?: boolean }) => {
-      const unit = await unitHere()
-      if ('cannot' in unit) {
-        io.err(unit.cannot)
-        setExit(Exit.error)
-        return
-      }
+      const unit = unitHere()
       io.out(unit.text.trimEnd())
       const box = unattendedHere()
       if (!systemdHere()) {

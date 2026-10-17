@@ -22,8 +22,9 @@ and setting up ends by actually opening a lane — because every other check is 
 | `packages/cli/src/commands/setup-facts.ts` | `lookHere`, `gather`, `nativeTroubles`, `Look` — the two depths |
 | `packages/cli/src/commands/setup-machine.ts` | `setUpPrograms`, `offerInstall`, `sayNativeTrouble`, `signInSomewhere`, `harnessLines`, `setUpKeys` |
 | `packages/cli/src/commands/host.ts` | `tade host service`: the command, and asking in a terminal |
-| `packages/cli/src/commands/host-service.ts` | what it and setup's server step share: `unitHere`, `offerUnit`, `offerLinger`, `setUpUnattended`, `lanesWouldStop`, `START` |
-| `packages/core/src/service.ts` | pure: `serviceUnit`, `SERVICE`, `WINDOW_SOCKET`, `ATTACH` — the user unit, as text |
+| `packages/cli/src/commands/host-service.ts` | what it and setup's server step share: `unitHere`, `offerUnit`, `offerLinger`, `setUpUnattended`, `lanesWouldStop` |
+| `packages/core/src/service.ts` | pure: `serviceUnit`, `SERVICE`, `START`, `LOG` — the user unit, as text; `execOf`, `unitTrouble` — a unit that is there, read back; `serviceStateOf`, `serviceTrouble` — how it stands |
+| `packages/cli/src/notify.ts` | `tade serve` telling systemd it is ready and stopping: `takeNotifySocket`, `notifier` |
 | `packages/cli/src/commands/host-caddy.ts` | `tade host caddy`: `caddySaid` (the steps beside the block), `lookAtPublic` (`--check`) |
 | `packages/core/src/public-listener.ts` | pure: `PUBLIC_DIR`, `publicSocket`, `publicName`, `publicDirProblem`, `publicDirCommand`, `caddySite`, `certificateSays`, `outdatedSays` |
 | `packages/workbench/src/certificate.ts` | `lookAtCertificate` — one TLS handshake to a name, what a phone would get |
@@ -33,7 +34,7 @@ and setting up ends by actually opening a lane — because every other check is 
 | `packages/workbench/src/dns.ts` | `ask` — one question over UDP with a deadline, the bits `node:dns` cannot set; `keyTag`, `dsOf` |
 | `packages/cli/src/commands/host-domain.ts` | `tade host domain`: `domainPrinted`, `domainRefused`, `writeTrusted` |
 | `packages/app/src/wire/web-domain.ts`, `panels/settings/domain.ts` | the same look under the Public name row in Settings › Away view |
-| `packages/workbench/src/machine.ts` (`unattendedHere`, `systemdHere`, `serviceUnitPath`) | whether this is a server, linger, and where the unit goes: three files, no process |
+| `packages/workbench/src/machine.ts` (`unattendedHere`, `systemdHere`, `serviceUnitPath`, `lookAtService`) | whether this is a server, linger, the unit and what it runs — files, no process — and how the service stands, one `systemctl show` |
 | `packages/harnesses/core/src/sign-in.ts` | `signInHere` (is a browser here?), `signInLasts` (how long a sign-in has left) |
 | `packages/drivers/tmux/src/scope.ts` | the lanes' tmux server in a systemd scope of its own, under a user service |
 | `packages/cli/src/commands/update.ts` | `tade update`, and `--check` as the only thing that dials |
@@ -283,54 +284,85 @@ same `tade setup`. What changes is decided by facts about *this process*, never 
 - **The server step** (`unattended`) exists only where `unattendedHere()` answers: Linux, systemd as
   init (`/run/systemd/system`, how `sd_booted` asks), no browser. Linger is a file per user under
   `/var/lib/systemd/linger`, and the unit is `~/.config/systemd/user/tade.service` (or under
-  `XDG_CONFIG_HOME`). One step, two facts, because either alone keeps nothing running. It is last,
-  never required, and **setup writes the unit but never starts it**: `tade app` runs setup before it
-  opens its home, so a service started from setup would take the home from the window waiting on
-  it. `tade host service` offers the start, and not while `heldBy` says a window has the home.
+  `XDG_CONFIG_HOME`), **read for what it runs** (`unitTrouble`): an older Tade's, which ran the
+  window in tmux, and one whose Node or Tade is not there any more — a Node upgraded under a version
+  manager, which fails every start with nothing but `exit-code` — are each said with the line that
+  writes this one. Setting up (`lookHere`, never the window's free `gather`) also asks how the service
+  stands (`lookAtService`): the step is done only once it **said it was ready**, and otherwise says
+  why in systemd's terms — not running, starting, failing and restarted, never said ready (`timeout`),
+  started too often (`start-limit-hit`), or `cannot tell`. It is last, never required, and **setup
+  writes the unit but never starts it**: `tade app` runs setup before it opens its home, so a
+  service started from setup would take the home from the window waiting on it. `tade host service`
+  offers the start, and not while `heldBy` says a window has the home — unless what holds it is the
+  service itself (its `MainPID`), which restarting moves onto the unit just written.
 
 ### The unit (`tade host service`)
 
 Printed to standard output whole, with everything else on standard error, so `tade host service >
 tade.service` is the file; written on a press or with `--write`. What it says, and why each line:
 
-- **The window in tmux on a server of its own** (`-L tade-window`), so `ATTACH` over SSH shows
-  exactly what the keyboard would. tmux prints the pane's pid (`-P -F '#{pane_pid}'`) into the
-  `PIDFile` through `StandardOutput=truncate:` — systemd 248, Debian 12 and Ubuntu 22.04 on — so
-  **Tade is the main process**, and `Restart=on-failure` restarts a crash and not a quit.
-- **`ExecStop` sends Tade SIGTERM and waits for it.** Tade is tmux's child, not systemd's, and
-  systemd does not wait for a main process it did not start: without it a stop signalled Tade and
-  SIGKILLed the whole unit 11 ms later, and the unit read `failed`. With it Tade closes as q does,
-  exits 0 and the unit is `inactive`. `KillMode=mixed` then kills what is left.
+- **`tade serve` itself, `Type=notify`.** Node is systemd's own child, its main process, so
+  `Restart=on-failure` restarts a crash and not a stop, and a stop waits for it: no PIDFile, no
+  ExecStop, no tmux. It is started — `systemctl start` returns, `active` — only once it says
+  `READY=1`, after it holds the home, its away view listens and its signal handlers are on, so a
+  Mac's link reaches it the moment the unit is active. It says so through `systemd-notify` (Node has
+  no Unix datagram socket), which since systemd 246 waits until the manager has read the line — a
+  sender gone before then is a pid the manager can no longer place in the unit — and a child is
+  heard only under **`NotifyAccess=all`**. `NOTIFY_SOCKET` is taken out of the environment before
+  anything is started, so nothing Tade starts inherits it. On systemd below 246 (RHEL 8's 239) the
+  message can be dropped, the start times out and setup says `never said it was ready`.
+- **`KillMode=mixed`**: a stop signals Tade alone, which closes the orchestrator and the servers it
+  brokers as quitting does; what is left after it is killed. `SyslogIdentifier=tade`, so its log
+  (`LOG`, `journalctl --user -u tade.service -f`) reads `tade[pid]:`.
 - **The PATH of the shell it was made in**, because a service's own has none of Node, the
   harnesses or an npm prefix — and no key: a key exported in a shell does not reach a service, and
   the unit says so.
-- **`StartLimitBurst=5` in 300 s**: a window refused its home fails at once, and five of those is a
-  reason to stop.
+- **`StartLimitBurst=5` in 300 s**: a Tade refused its home fails at once, and five of those is a
+  reason to stop. The limit counts **every** start, a person's restarts included — six in five
+  minutes and `restart` is refused — so `START` runs `reset-failed` before `restart`: somebody
+  starting it means now.
 - **The agents are not in it.** The tmux driver starts its server in a scope of its own when this
   process is a service of the user's manager (`scope.ts`, `add-workspace-driver`), so stopping,
   restarting or crashing the unit never ends one; `lanesWouldStop` says so, in the driver's own
   `capabilities.detach`, where the configured driver's lanes would die with it.
+- **Moving off an older Tade's unit** (the window in tmux) is `tade host service --write` and
+  `START`: the reloaded definition has no ExecStop to wait on a main process systemd did not start,
+  so the old window is killed rather than closed, once — which a `kill -9` already proves harmless
+  — and `tade serve` takes the home and adopts every lane.
 
 ### Proving it
 
-No CI runner has a user manager, so this was proved in a Debian 12 container with systemd as its
-first process — repeat it after changing any of the above. `FROM node:22-slim`, `apt-get install
-systemd systemd-sysv dbus dbus-user-session libpam-systemd sudo build-essential python3`, a user,
-`CMD ["/sbin/init"]`, run `--privileged --cgroupns=private --tmpfs /run --tmpfs /run/lock`. Copy
-the tree in (a macOS tar leaves `._*` files: `COPYFILE_DISABLE=1`), `pnpm install
---registry=https://registry.npmjs.org`, and run as the user with `SSH_CONNECTION` set and
-`XDG_RUNTIME_DIR=/run/user/<uid>`. Then: `tade setup --check` names git and tmux with their apt
-lines and linger off; run those lines; `sudo loginctl enable-linger`; a project and
-`workspace.driver: tmux`; `tade host service --write` (`systemd-analyze --user verify` it); a task
-file with `start:` so the window starts an agent; `START`. The agent's tmux server is in
-`tade-lanes-*.scope`, and its pid survives `systemctl --user restart`, `stop` + `start`, a `kill
--9` of the window (systemd restarts it) and a `docker restart` (linger starts the unit, the window
-reopens the agent it lost). The trap itself is one line: `systemd-run --user sh -c "setsid sleep N
-& exec sleep M"` and a stop — the setsid'd one dies with it.
+No CI runner has a user manager, so this was proved in a container with systemd as its first
+process — repeat it after changing any of the above. `packages/cli/test/serve-linked.test.ts`
+holds the rest without systemd: the Mac's own ssh link through a real `sshd` to a real `tade
+serve` with an agent in tmux, pairing, the projection, `/api/attach`, and a restart it rides.
 
-Not proved: whether systemd before 252 notices an alien main process exiting at all (Ubuntu 22.04
-has 249); a distribution with `KillUserProcesses=yes`, where a tmux server started from an SSH login
-— by `tade setup`'s own proof lane, say — dies at logout; and a sign-in carried through to the end.
+The box: `docker pull` fails here, so the last one was built from the Ubuntu 22.04 image already on
+this laptop (`ghcr.io/getsentry/image-mirror-altinity-clickhouse-server`, `--entrypoint`
+overridden), committed as `tade-vps-jammy` — systemd 249, tmux 3.2a: `apt-get install systemd
+systemd-sysv dbus dbus-user-session libpam-systemd sudo build-essential python3 tmux git curl
+openssh-server`, Node from nodejs.org's tarball (checksummed), a user (uid 1001), run with
+`--privileged --cgroupns=private --tmpfs /run --tmpfs /run/lock -p 127.0.0.1:2222:22 --entrypoint
+/sbin/init`. Copy the tree in (`git archive HEAD` plus the changed files; a macOS tar leaves `._*`
+files: `COPYFILE_DISABLE=1`), `pnpm install --frozen-lockfile --registry=https://registry.npmjs.org`,
+and run as the user with `SSH_CONNECTION`, `XDG_RUNTIME_DIR=/run/user/<uid>` and
+`DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus`. **Ubuntu 22.04's own git (2.34) cannot
+be a Tade box**: `git worktree list -z` is 2.36, so the status look sees no tasks; the git-core PPA's
+git was used. Then: `sudo loginctl enable-linger`; a project and `workspace.driver: tmux`; `tade
+setup --check` says what the unit is missing, then names an older Tade's unit and a Node that has
+gone; `tade host service --write` (`systemd-analyze --user verify` it); a task file with `start:`
+so the service starts the agent (never `docker exec`, which is no unit: kill the lanes' tmux first);
+`START`. `systemctl --user restart` returned in 0.7 s with `StatusText=holding … with no screen` and
+the away view answering at once; the agent's tmux server is in `tade-lanes-*.scope` and its pid
+survived `restart`, `stop` + `start`, a `kill -9` of Tade (systemd restarted it), six `START`s in a
+row, and the move off V1's unit with its window holding the home. From the Mac, the ssh link with
+`-F` a config naming the box paired as an owner (`tade web pair --owner` there), held its
+projection with the agent, attached it (a pty with `TERM=xterm-256color` — the box has no terminfo
+for this laptop's Ghostty) and came back on the restarted unit's new epoch with the agent working.
+
+Not proved: systemd below 246, where `systemd-notify` races; a distribution with
+`KillUserProcesses=yes`, where a tmux server started from an SSH login — by `tade setup`'s own proof
+lane, say — dies at logout; and a sign-in carried through to the end.
 
 ### A public name, behind Caddy (`tade host caddy`)
 

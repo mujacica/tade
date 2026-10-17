@@ -1,12 +1,13 @@
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ConfigSchema } from '@tade/core'
+import { ConfigSchema, serviceUnit } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import {
   installersHere,
   keptByServiceHere,
   lookAtHarnesses,
+  lookAtService,
   missingFrom,
   nativeProblems,
   serviceUnitPath,
@@ -248,7 +249,7 @@ describe('where each harness stands', () => {
   }, 60_000)
 })
 
-describe('a server, read off three files', () => {
+describe('a server, read off its files', () => {
   /** A machine's root: systemd as its init or not, linger for `you` or not. */
   function machine(opts: { systemd: boolean; linger: boolean }) {
     const root = mkdtempSync(join(tmpdir(), 'tade-host-'))
@@ -271,6 +272,28 @@ describe('a server, read off three files', () => {
     writeFileSync(unit, '[Service]\n')
     expect(unattendedHere(look)).toMatchObject({ linger: true, unit })
     expect(unit).toBe(join(box.home, '.config', 'systemd', 'user', 'tade.service'))
+  })
+
+  it('reads what the unit runs: this Tade’s, an older one’s in tmux, or a Node that has gone', () => {
+    const box = machine({ systemd: true, linger: true })
+    const look = { ...box, env: ssh, platform: 'linux' as const }
+    const unit = serviceUnitPath(ssh, box.home)
+    mkdirSync(join(unit, '..'), { recursive: true })
+    const tade = join(box.root, 'tade.ts')
+    writeFileSync(tade, '')
+    const text = (node: string) =>
+      serviceUnit({ tade: [node, tade], path: '/usr/bin', home: null, lang: 'C.UTF-8' })
+    writeFileSync(unit, text(process.execPath))
+    expect(unattendedHere(look)).toMatchObject({ unit, unitTrouble: null })
+
+    writeFileSync(unit, text(join(box.root, 'node-22.1')))
+    expect(unattendedHere(look)?.unitTrouble).toContain('node-22.1, which is not there any more')
+
+    writeFileSync(
+      unit,
+      `[Service]\nExecStart=/usr/bin/tmux -u -L tade-window new-session ${tade} app\n`,
+    )
+    expect(unattendedHere(look)?.unitTrouble).toContain('runs the window in tmux')
   })
 
   it('puts the unit where XDG_CONFIG_HOME says, when it says', () => {
@@ -329,6 +352,38 @@ describe('a server, read off three files', () => {
       expect(
         await keptByServiceHere(served({ linger: true, unit: true, code: null }).look),
       ).toBeNull()
+    })
+
+    it('reads how the unit stands out of one `systemctl show`, and says why where it could not ask', async () => {
+      const box = machine({ systemd: true, linger: true })
+      const bin = join(box.root, 'bin')
+      mkdirSync(bin)
+      const asked = join(box.root, 'asked')
+      const systemctl = join(bin, 'systemctl')
+      const answer = (code: number, out: string, err = '') =>
+        writeFileSync(
+          systemctl,
+          `#!/bin/sh\necho "$@" > '${asked}'\nprintf '%s' '${out}'\nprintf '%s' '${err}' >&2\nexit ${code}\n`,
+        )
+      answer(
+        0,
+        'LoadState=loaded\nActiveState=active\nSubState=running\nMainPID=4242\nStatusText=holding\n',
+      )
+      chmodSync(systemctl, 0o755)
+      const env = { PATH: bin }
+      expect(await lookAtService(env)).toEqual({ kind: 'ready', pid: 4242, status: 'holding' })
+      expect(readFileSync(asked, 'utf8').trim()).toBe(
+        '--user show tade.service --property=LoadState,ActiveState,SubState,Result,MainPID,NRestarts,StatusText',
+      )
+      answer(1, '', 'Failed to connect to bus: No medium found\nmore')
+      expect(await lookAtService(env)).toEqual({
+        kind: 'cannot',
+        why: 'Failed to connect to bus: No medium found',
+      })
+      expect(await lookAtService({ PATH: join(box.root, 'nothing') })).toEqual({
+        kind: 'cannot',
+        why: 'there is no systemctl here',
+      })
     })
 
     it('asks nothing where either half is missing, or on a Mac', async () => {

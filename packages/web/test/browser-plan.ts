@@ -205,7 +205,7 @@ export const MANUAL: readonly string[] = [
   'Lock the phone and make something want you: start an agent on a task whose tools need approving. One notification should arrive, saying how many pieces of work want you and naming nothing — no project, no task, no title.',
   'Turn Get work names in them on at the machine, grant that device what work is called, and do it again. The name should appear; with either half off, it should not.',
   'Tap the notification. It should open the app where it was, not a new window and not the root of a browser.',
-  'Close Tade and make something else happen. Nothing should arrive — there is no background service, and nothing is caught up when the window comes back.',
+  'Close Tade and make something else happen: on a Mac, quit the window; on a box where `tade serve` runs under the unit `tade host service` wrote, `systemctl --user stop tade.service` first, and `systemctl --user start tade.service` once you have looked. Nothing should arrive while it is closed — nothing of Tade’s runs to send it — and nothing is caught up when it comes back.',
   'Sign the device out at the machine and make something happen. Nothing should arrive, with the phone never asked anything.',
 ]
 

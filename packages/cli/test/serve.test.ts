@@ -1,6 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process'
-import { mkdirSync, writeFileSync } from 'node:fs'
-import { createServer } from 'node:net'
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { connect, createServer } from 'node:net'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WHILE_STARTING } from '@tade/app/heart'
@@ -170,4 +170,66 @@ it('runs what came due with no screen, tells the orchestrator, which decides, an
   expect(listened.map((one) => (one.detail as { enabled: boolean }).enabled)).toEqual([true, false])
   expect(String(listened[0]?.detail?.bound)).toContain(String(port))
   await after.close()
+}, 120_000)
+
+/** Whether anything answers a TCP connection on this port. */
+function answers(port: number): Promise<boolean> {
+  return new Promise((done) => {
+    const socket = connect({ host: '127.0.0.1', port })
+    socket.once('connect', () => {
+      socket.destroy()
+      done(true)
+    })
+    socket.once('error', () => done(false))
+  })
+}
+
+// Under the unit `tade host service` writes, systemd counts it started only
+// once it says so: a `systemd-notify` that writes down what it was asked to
+// say, and where, stands in for systemd's own.
+it('tells its service manager it is ready once its away view listens, and that it is stopping', async () => {
+  const repo = mkrepo()
+  repo.commit('first')
+  const home = repo.home
+  const port = await freePort()
+  writeFileSync(
+    join(home, 'config.yaml'),
+    [
+      'projects:',
+      '  app:',
+      `    root: ${repo.root}`,
+      'surfaces:',
+      '  web:',
+      '    enabled: true',
+      `    port: ${port}`,
+      '',
+    ].join('\n'),
+  )
+  const bin = join(home, 'bin')
+  mkdirSync(bin)
+  const told = join(home, 'told')
+  writeFileSync(
+    join(bin, 'systemd-notify'),
+    `#!/bin/sh\nprintf '%s %s\\n' "$NOTIFY_SOCKET" "$*" >> '${told}'\n`,
+  )
+  chmodSync(join(bin, 'systemd-notify'), 0o755)
+  const said = () => (existsSync(told) ? readFileSync(told, 'utf8') : '')
+  const socket = '/run/user/1001/systemd/notify'
+
+  const serving = tade(['serve'], home, {
+    NOTIFY_SOCKET: socket,
+    PATH: `${bin}:${process.env.PATH ?? ''}`,
+  })
+  await until('it said it is ready', () => said().includes('READY=1'))
+  expect(said().trim().split('\n')).toEqual([
+    `${socket} READY=1 STATUS=holding ${home} with no screen`,
+  ])
+  // Ready is reachable: the away view a Mac's link goes to already answers.
+  expect(await answers(port)).toBe(true)
+  expect(serving.err()).toContain(`${SERVES}, with no screen.`)
+
+  serving.child.kill('SIGTERM')
+  expect(await serving.exited).toBe(0)
+  expect(said().trim().split('\n').at(-1)).toBe(`${socket} STOPPING=1`)
+  expect(serving.err()).not.toContain('systemd was not told')
 }, 120_000)

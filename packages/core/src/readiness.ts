@@ -9,6 +9,7 @@
 // is here and exhaustively testable.
 
 import type { InstallCommand } from './programs.ts'
+import { type ServiceState, serviceTrouble } from './service.ts'
 
 // A judge is a Tade concept with a port and a registry behind it, and Jev is
 // one implementation of it — so the step is `judge`, never a vendor's name.
@@ -204,6 +205,17 @@ export interface Unattended {
   linger: boolean
   /** Where the user unit that runs Tade is, when it has been written. */
   unit: string | null
+  /**
+   * What is wrong with the unit that is there, as a clause after "the unit" —
+   * an older Tade's, or one whose Node has moved (`unitTrouble`) — or null.
+   */
+  unitTrouble?: string | null
+  /**
+   * How the service stands, as its manager answered — whether it said it is
+   * ready. Absent where nobody asked, which costs a process: the window never
+   * does on opening, setting up does.
+   */
+  service?: ServiceState
   /** Whether this runs as root, which needs no `sudo` to turn linger on. */
   root?: boolean
 }
@@ -262,16 +274,20 @@ export function shellWord(word: string): string {
 }
 
 /**
- * Tade working on a server with nobody logged in: linger on, and a user unit
- * that runs it. Two facts and one step, because either alone keeps nothing
- * running — a unit stops at the last logout without linger, and linger with
- * no unit has nothing to keep. Never required: the box works without it for
- * as long as somebody stays logged in.
+ * Tade working on a server with nobody logged in: linger on, a user unit that
+ * runs `tade serve`, and that service saying it is ready. One step, because
+ * no part alone keeps anything running — a unit stops at the last logout
+ * without linger, linger with no unit has nothing to keep, and a unit that is
+ * written and not running, or failing, keeps nothing either. Never required:
+ * the box works without it for as long as somebody stays logged in.
  */
 function unattended(box: Unattended): Step {
+  const service = box.unit && !box.unitTrouble && box.service ? serviceTrouble(box.service) : null
   const missing = [
     box.linger ? '' : `\`${lingerCommand(box)}\`, or your services stop when you log out`,
     box.unit ? '' : '`tade host service` writes the unit that keeps Tade running',
+    box.unit && box.unitTrouble ? `the unit ${box.unitTrouble}` : '',
+    service ?? '',
   ].filter(Boolean)
   return {
     id: 'unattended',

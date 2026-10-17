@@ -596,8 +596,8 @@ export const OWNED: readonly Route[] = [
   },
   // Work another machine of the person's hands this one (`taken.ts`): made
   // queued work in one of its projects, which the window here starts by its
-  // own rule. The one route that makes work — what `ssh` here and a plan at
-  // this machine's window in tmux already allow the same key.
+  // own rule. The one route that makes work — what `ssh` here and `tade run
+  // start` in that shell already allow the same key.
   { method: 'POST', path: '/api/take', name: 'take', needs: 'read', mutates: true, here: true },
   // A project another machine of the person's is moving here (`opened.ts`):
   // cloned with this machine's own credentials where it is not checked out

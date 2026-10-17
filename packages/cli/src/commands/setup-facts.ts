@@ -21,6 +21,7 @@ import {
   type HarnessHere,
   installersHere,
   lookAtHarnesses,
+  lookAtService,
   missingFrom,
   nativeProblems,
   unattendedHere,
@@ -87,7 +88,7 @@ export async function lookHere(home = tadeHome()): Promise<Look> {
   const loaded = await loadConfig(defaultConfigPath())
   const config = loaded.ok ? loaded.config : null
   const installers = installersHere()
-  const [programs, native, harnesses, extensions] = await Promise.all([
+  const [programs, native, harnesses, extensions, unattended] = await Promise.all([
     config
       ? programsNeeded(config, home, voiceDeclared(config.surfaces.voice))
           .then((needs) => lookAtPrograms(needs))
@@ -96,6 +97,7 @@ export async function lookHere(home = tadeHome()): Promise<Look> {
     nativeTroubles(home),
     config ? lookAtHarnesses(config, home).catch(() => []) : Promise.resolve([]),
     extensionsHere(config),
+    unattendedLooked(),
   ])
   return {
     programs,
@@ -106,8 +108,19 @@ export async function lookHere(home = tadeHome()): Promise<Look> {
     secrets: extensions.secrets,
     extensions: extensions.listed,
     installers,
-    unattended: unattendedHere(),
+    unattended,
   }
+}
+
+/**
+ * A server's facts, and — where a unit is written — whether the service it
+ * runs said it is ready, which is one `systemctl` and so only ever looked at
+ * here.
+ */
+async function unattendedLooked(): Promise<Unattended | null> {
+  const box = unattendedHere()
+  if (box === null || box.unit === null) return box
+  return { ...box, service: await lookAtService() }
 }
 
 /**

@@ -27,8 +27,8 @@ import { reachOf } from './surface.ts'
 // **An owner's, and only at this machine's own door** (`here` in
 // `routes.ts`). It is the one route that makes work, and what keeps it no
 // wider than what already was is who may use it: an owner session is the SSH
-// key (`owner.ts`), and whoever holds that key can already `ssh` here and plan
-// the same work at this machine's window in tmux. A phone's session is
+// key (`owner.ts`), and whoever holds that key can already `ssh` here and start
+// the same work with `tade run start` in that shell. A phone's session is
 // refused it however much it was granted (`out_of_scope`); within an owner's
 // reach, a project the window took back from it is refused too. Nothing it
 // makes is parked or held for anybody: the person pressed for it on their own

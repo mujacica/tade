@@ -121,8 +121,9 @@ export type Arm =
    * loopback host, so it is *used* only on the loopback listener: from outside
    * the box, through that same SSH connection (`@tade/web`'s `owner.ts` has the
    * chain). Everything a turn under it can reach, `ssh` to this machine already
-   * reaches, attaching to this window in tmux and typing included. So it
-   * reaches what a local turn reaches, and every gate answers it as one.
+   * reaches, running `tade` here and typing into its agents' terminals
+   * included. So it reaches what a local turn reaches, and every gate answers
+   * it as one.
    *
    * **And it stays a device in every record.** Who asked is `device <id>`
    * (`whoOf`), the transcript marks the words as that device's, and nothing it

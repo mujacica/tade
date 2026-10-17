@@ -814,13 +814,15 @@ packages whisper.cpp's program, the steps that build it.
 **On a Linux server**, run the same `tade setup` over SSH. It knows the box has no screen: each
 missing program comes with its exact `apt` or `dnf` line, each harness signs in the way a server can —
 Claude Code's link and pasted code, Codex's device code, pi's pasted code — with how many days a
-Claude Code login has left, and it checks `loginctl enable-linger`. Then `tade host service` prints
-the systemd user unit that keeps Tade running there, writes it when you say so and offers to start
-it; the window runs in tmux, so `tmux -L tade-window attach -t tade` over SSH shows it. `tade serve`
-is that window with no screen at all — the queue, schedules, watches and intake on its beat, the
-orchestrator told what happens and deciding, the away view and its notifications, and what it says
-and does written to its log. Set `workspace.driver: tmux` there: its agents then run in a systemd
-scope of their own, so stopping, restarting or upgrading Tade never ends one.
+Claude Code login has left, and it checks `loginctl enable-linger`, the unit and whether the service
+said it is ready. Then `tade host service` prints the systemd user unit that keeps Tade running
+there, writes it when you say so and offers to start it. What it runs is `tade serve`, the window
+with no screen — the queue, schedules, watches and intake on its beat, the orchestrator told what
+happens and deciding, the away view and its notifications — which tells systemd it is ready once it
+holds the home and listens, and writes what it says and does to its log, `journalctl --user -u
+tade.service -f`. From your Mac, `tade remote add` links the box to your window, which shows all of
+it. Set `workspace.driver: tmux` there: its agents then run in a systemd scope of their own, so
+stopping, restarting or upgrading Tade never ends one.
 
 For a phone, give the server a name of your own and put Caddy in front. `tade host domain
 tade.example.com` looks at the records the name needs from the box — A, AAAA only where IPv6 answers
