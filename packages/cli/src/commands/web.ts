@@ -55,10 +55,9 @@ import { Exit, type Io } from '../io.ts'
 // here rewrites the file, which is what makes that true rather than lucky.
 //
 // **`on` and `off` write a setting and say when it takes effect.** The
-// listener comes up when the window starts — the epoch a connected phone
-// holds is per server start — so turning it on while a window is open is
-// honestly reported as *next time Tade starts* rather than silently doing
-// nothing.
+// listener lives in the window, so with none open it is *next time Tade
+// starts*; a window open on this home takes the change the next time it looks
+// (`Settings.fold`) and brings its listener up or down as its own switch does.
 //
 // **`pair` writes a code, and needs no window to.** It used to only point at
 // the panel, because a ticket lived in the window's memory and the person at
@@ -643,11 +642,11 @@ function sshClient(connection: string | undefined): string {
 const NOTHING_ANSWERS =
   'no window is open on this home, so nothing answers until one is: the away view lives in the window'
 
-/** Whether a setting written now is a listener now. It is not. */
+/** When a setting written now is a listener: a window open on this home takes it, and none is. */
 async function takesEffect(): Promise<string> {
   return (await heldBy(tadeHome())) === null
     ? 'it takes effect the next time Tade starts'
-    : 'a window is open on this home: it takes effect the next time Tade starts'
+    : 'a window is open on this home, and takes it the next time it looks at the tasks'
 }
 
 /**

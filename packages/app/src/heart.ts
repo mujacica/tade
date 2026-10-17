@@ -90,8 +90,9 @@ export interface Face {
   /** A journal line, once the state has taken it in and the orchestrator has been told it. */
   heard(event: TadeEvent): void
   /**
-   * A terminal turned an MCP server on or off, and the heart has taken the
-   * config again (`takeConfig`): what the face shows of the extensions, asked again.
+   * A terminal turned an MCP server or an extension on or off, or changed one,
+   * and the heart has taken the config again (`takeConfig`): what the face
+   * shows of the extensions, asked again.
    */
   serversMoved(): void
   settings: SettingsFace
@@ -559,11 +560,12 @@ export class Heart {
   }
 
   /**
-   * A terminal turned an MCP server on or off while this held the journal
-   * (`Settings.fold`): taken as the page's own switch takes it, then the
-   * face's page asked again. One turned on connects the next time Tade
-   * starts, which is the rule and never a hot reload. A window is somebody's
-   * to look at; where nothing draws, the log is the only place that is said.
+   * A terminal turned an MCP server or an extension on or off, or changed one,
+   * while this held the journal (`Settings.taken`): taken as the page's own
+   * switch takes it, then the face's page asked again. One turned on connects
+   * the next time Tade starts, which is the rule and never a hot reload. A
+   * window is somebody's to look at; where nothing draws, the log is the only
+   * place that is said.
    */
   private async serversMoved(): Promise<void> {
     const was = this.wire.opts.config.mcp.servers

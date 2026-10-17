@@ -321,6 +321,49 @@ describe('the window, and its extensions', () => {
     expect((await changes(client, 1))[0]).toMatchObject(change)
   })
 
+  // `tade extensions disable` while this window holds the journal: taken on
+  // the beat as the page's own switch takes it — off at once, its tools no
+  // longer offered, and the orchestrator started again on what is left.
+  it('turns an extension off that a terminal turned off, on its next beat', async () => {
+    const path = join(home, 'config.yaml')
+    const settings = { projects: { app: { root: repo.root } } }
+    writeFileSync(path, stringify(settings))
+    const extensions = await ExtensionHost.load({
+      builtin: [
+        {
+          name: 'clock',
+          title: 'Clock',
+          description: 'The time.',
+          tools: [
+            {
+              name: 'clock_now',
+              description: 'The time.',
+              parameters: { type: 'object', properties: {} },
+              for: ['orchestrator'],
+              run: async () => ({ text: 'noon' }),
+            },
+          ],
+        },
+      ],
+      config: { extensions: {}, projects: settings.projects },
+      home,
+    })
+    let restarted = 0
+    await start({
+      extensions,
+      restartThinker: async () => {
+        restarted++
+      },
+    })
+    expect(extensions.specs('orchestrator')).toHaveLength(1)
+    writeFileSync(path, stringify({ ...settings, extensions: { clock: { enabled: false } } }))
+    const change = { path: 'extensions.clock.enabled', was: '', now: 'false', by: 'cli' }
+    expect(await recordConfigChanges(home, [change])).toBe('spool')
+    await until('the extension off', () => extensions.specs('orchestrator').length === 0)
+    await until('the orchestrator started again on what is left', () => restarted === 1)
+    expect((await changes(client, 1))[0]).toMatchObject(change)
+  })
+
   it('runs an extension from its panel, and shows it working and what it said', async () => {
     terminal.columns = 120
     terminal.rows = 40

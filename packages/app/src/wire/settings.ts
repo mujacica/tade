@@ -420,17 +420,21 @@ export class Settings implements Subject {
   /**
    * On the window's beat: the config changes a terminal made while this window
    * held the journal, written down by its own append (`foldConfigChanges`), so
-   * every number in it is still this window's. Trouble is said once. A server
-   * a terminal turned off (`tade mcp disable`) is taken the way this window's
-   * own switch takes one, which is `serversMoved`: the config read back.
+   * every number in it is still this window's. Trouble is said once.
+   *
+   * And taken, as this window takes a change of its own, because `tade config`
+   * says a setting *is now* what was typed, and a setting Tade accepts and
+   * ignores until it is started again is worse than one it does not have —
+   * most of all under `tade serve`, where a terminal over SSH is the only
+   * page there is (`taken`).
    */
-  async fold(serversMoved?: () => Promise<void>): Promise<void> {
+  async fold(switched?: () => Promise<void>): Promise<void> {
     if (this.folding) return
     this.folding = true
-    let moved = false
+    const paths: string[] = []
     try {
       const { trouble } = await foldConfigChanges(this.wire.opts.home, (line) => {
-        if (SWITCH.test(String(line.detail?.path))) moved = true
+        paths.push(String(line.detail?.path))
         return this.wire.opts.client.log.append(line)
       })
       if (trouble !== null && trouble !== this.foldTrouble) {
@@ -439,14 +443,66 @@ export class Settings implements Subject {
         )
       }
       this.foldTrouble = trouble
-      if (moved && serversMoved) {
-        await serversMoved().catch((err: unknown) =>
-          this.said(`What a terminal changed about an MCP server is not taken here: ${why(err)}`),
+      if (paths.length > 0) {
+        await this.taken(paths, switched).catch((err: unknown) =>
+          this.said(`What a terminal changed in the config is not taken here: ${why(err)}`),
         )
       }
     } finally {
       this.folding = false
     }
+  }
+
+  /**
+   * What a terminal changed (`fold`), taken: the config read back and used
+   * everywhere one is held, then what each change needs beyond that
+   * (`followed`). One that moved an extension or a server — `tade extensions
+   * disable`, `tade mcp disable` — is taken the way the Extensions page's own
+   * switch takes one, which is `switched`: the config read back and handed to
+   * the extensions with it, so off is at once and on still waits for a start.
+   * Where there are no extensions there is nothing for it to hand over.
+   */
+  private async taken(paths: readonly string[], switched?: () => Promise<void>): Promise<void> {
+    const host = this.wire.opts.extensions
+    if (switched && host && paths.some((path) => SWITCH.test(path))) await switched()
+    else {
+      const loaded = await loadConfig(this.path)
+      if (!loaded.ok) throw new Error(loaded.issues[0]?.message ?? 'the config would not load')
+      this.use(loaded.config)
+    }
+    // A line means the value changed, so a harness path is one changing hands.
+    for (const path of new Set(paths)) {
+      const config = this.wire.opts.config
+      const trouble = await this.followed(path, config, clearedByHarness(path).length > 0)
+      if (trouble) {
+        this.said(`What a terminal changed applies when the orchestrator next starts: ${trouble}`)
+      }
+    }
+  }
+
+  /**
+   * What a change at `path` needs once the config that has it is used, beyond
+   * what `use` reaches — whoever made it, this page (`write`) or a terminal
+   * (`taken`). Why the orchestrator could not be told, where it could not.
+   */
+  private async followed(
+    path: string,
+    config: Config,
+    changedHands: boolean,
+  ): Promise<string | null> {
+    // Which account new agents run as is drawn on the Accounts page too.
+    if (ACCOUNT_ROW.test(path)) this.deps.loadAccounts()
+    // A harness that just changed hands has never been asked what it runs,
+    // and its model setting is the next thing somebody opens. Drawn when it
+    // answers, because a list opened before then says the harness has none,
+    // and an idle window draws nothing new until something moves.
+    if (changedHands) void this.deps.refreshModels().then(() => this.wire.draw())
+    // How hard the orchestrator thinks is live only if the one running is
+    // told: a setting that looks applied and is not is worse than one that
+    // waits honestly, so where it could not be told, it says so.
+    return path === 'orchestrator.thinking' && config.orchestrator.thinking
+      ? await this.deps.tellThinking(config.orchestrator.thinking)
+      : null
   }
 
   /** A line of Tade's own in the conversation. */
@@ -535,15 +591,6 @@ export class Settings implements Subject {
         throw new Error(loaded.issues[0]?.message ?? 'the config would not load with that')
       }
       this.use(loaded.config)
-      // Which account new agents run as is drawn on the Accounts page too.
-      if (ACCOUNT_ROW.test(path)) this.deps.loadAccounts()
-      // A harness that just changed hands has never been asked what it runs,
-      // and its model setting is the next thing somebody opens. `clearable` is
-      // already the answer to "is this a harness path": what choosing one
-      // clears is nothing for anything else. Drawn when it answers, because a
-      // list opened before then says the harness has none, and an idle window
-      // draws nothing new until something moves.
-      if (clearable.length > 0) void this.deps.refreshModels().then(() => this.wire.draw())
       // An extension's own setting means nothing until the extension has it:
       // Settings can change one (which Sentry the Sentry extension reads), so
       // the host is handed the config here as it is from the Extensions panel.
@@ -551,13 +598,10 @@ export class Settings implements Subject {
         await this.wire.opts.extensions?.reconfigure(loaded.config.extensions)
         this.deps.setupChanged()
       }
-      // How hard the orchestrator thinks is live only if the one running is
-      // told: a setting that looks applied and is not is worse than one that
-      // waits honestly, so where it could not be told, it says so.
-      const trouble =
-        path === 'orchestrator.thinking' && loaded.config.orchestrator.thinking
-          ? await this.deps.tellThinking(loaded.config.orchestrator.thinking)
-          : null
+      // `clearable` is already the answer to "did a harness change hands": what
+      // choosing one clears is nothing for anything else, and nothing for the
+      // harness it already was.
+      const trouble = await this.followed(path, loaded.config, clearable.length > 0)
       // A model is chosen per harness, so choosing a harness puts the model
       // back to whatever that harness decides — said, because a choice that
       // disappears without a word reads as a bug.
@@ -690,8 +734,12 @@ function takingSays(taking: Taking): string {
 }
 
 /** A name as two writes of it compare: case, spaces and a final dot aside. */
-/** A line that may turn a server off: its switch, or its block written again (`tade mcp add`). */
-const SWITCH = /^mcp\.servers\.[^.]+(?:\.enabled)?$/
+/**
+ * A line about what the extensions are or offer — an extension's switch or
+ * setting, a server's switch or its block written again (`tade mcp add`) —
+ * taken as the Extensions page's own switch takes one (`Settings.taken`).
+ */
+const SWITCH = /^(?:extensions|mcp)(?:\.|$)/
 
 /** Which account a harness's new agents run as: the machine's, or one project's. */
 const ACCOUNT_ROW = /^(?:workers|projects\.[^.]+)\.accounts\.[^.]+$/

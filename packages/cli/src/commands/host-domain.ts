@@ -94,7 +94,7 @@ export async function offerName(ask: Asker, name: string, offer: NameOffer): Pro
   }
   const applies = async () =>
     (await offer.open())
-      ? 'A window has this home open, so it applies when that window next starts.'
+      ? 'A window has this home open, and takes it the next time it looks at the tasks.'
       : 'It applies the next time Tade starts.'
   const question = `Write ${name} as surfaces.web.public?`
   if (offer.write || (await ask.confirm(question, !offer.loud))) {

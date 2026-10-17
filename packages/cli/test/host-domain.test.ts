@@ -288,7 +288,7 @@ describe('the name, on a press', () => {
     expect(await offerName(ask, NAME, offer(path, { copies: async () => [OLD], open }))).toBe(true)
     expect(await web(path)).toEqual({ public: NAME, trusted_hosts: ['studio.ts.net'] })
     expect(ask.said.at(-1)).toBe(
-      `surfaces.web.public is ${NAME}. ${OLD} is no longer a trusted hostname: Tade had copied it there beside a public name, which is trusted on its own. A window has this home open, so it applies when that window next starts. \`tade host caddy\` prints the site block for it.`,
+      `surfaces.web.public is ${NAME}. ${OLD} is no longer a trusted hostname: Tade had copied it there beside a public name, which is trusted on its own. A window has this home open, and takes it the next time it looks at the tasks. \`tade host caddy\` prints the site block for it.`,
     )
   })
 

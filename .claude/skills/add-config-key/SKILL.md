@@ -456,8 +456,10 @@ writes `config_changed` `by: cli` through `changeOf` — a key as `set` or `not 
 `set`, a list with spaces between — so `copiedHosts` and `changedThere` read it as they read Settings'. The CLI may not append beside
 an open window, so the line goes through `recordConfigChanges` (`workbench/src/config-changes.ts`):
 folded in at once where nobody holds the home, and otherwise by the window on its beat
-(`Settings.fold`). A change made to the config as data — `tade setup`'s — is `patchFromShell`, a
-line per leaf.
+(`Settings.fold`) — which also **takes** it, as it takes a change of its own: the config read back
+and used, an extension's or a server's as the Extensions page's switch takes one (`Settings.taken`),
+so a live setting changed from a terminal is live in an open window or `tade serve` too. A change
+made to the config as data — `tade setup`'s — is `patchFromShell`, a line per leaf.
 
 **Nowhere else either.** Every writer is one of these, and a new one picks its door rather than
 calling `writeSetting` bare:

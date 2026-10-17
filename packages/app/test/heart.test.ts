@@ -315,6 +315,22 @@ describe('the heart, with no screen', () => {
     expect(extensions.list().some((one) => one.name === 'mcp-sentry')).toBe(false)
   })
 
+  // `tade config` over SSH, on a box whose only window is `tade serve`: any
+  // setting a terminal changes is taken on the beat, as a window takes one of
+  // its own — here where the workbench starts the next agent — and not only
+  // a server's switch.
+  it('takes a setting a terminal changed, on its next beat, with no screen', async () => {
+    const settings = { projects: { app: { root: repo.root } }, agents: { workspace: 'worktree' } }
+    await alone()
+    expect(client.config.agents.workspace).toBe('checkout')
+    writeFileSync(join(home, 'config.yaml'), stringify(settings))
+    const change = { path: 'agents.workspace', was: '', now: 'worktree', by: 'cli' }
+    expect(await recordConfigChanges(home, [change])).toBe('spool')
+    await until('the workbench told', () => client.config.agents.workspace === 'worktree')
+    const lines = (await client.events({ types: ['config_changed'] })).map(({ detail }) => detail)
+    expect(lines).toContainEqual(expect.objectContaining(change))
+  })
+
   // What Connect Linear hands over (`/connect`, `web-connect.ts`) is held by
   // the heart: a Linear source reads with that token rather than only with
   // LINEAR_API_KEY, and the refresh token is written through the one door and

@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { ConfigSchema, loadConfig, SEEN_BY_AGENTS, settingsOf } from '@tade/core'
 import { ExtensionHost, type TadeExtension } from '@tade/extensions-core'
 import type { Workbench } from '@tade/workbench'
+import { recordConfigChanges } from '@tade/workbench/config-changes'
 import { describe, expect, it } from 'vitest'
 import { asPaste } from '../../src/input.ts'
 import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
@@ -109,6 +110,24 @@ describe('the window, and its settings', () => {
     click(again.col + 1, again.row)
     await until('the hold dropped', () => awake.dropped() === 1)
     expect(client.config.agents.keep_awake).toBe(false)
+  })
+
+  // `tade config` in another terminal, or over SSH, while this window holds
+  // the journal: the line waits in the spool for the window's beat, which
+  // writes it down and takes the change as it takes one of its own — the hold
+  // taken here and now, where it used to wait for Tade to be started again.
+  it('holds the machine awake when a terminal turns it on, on its next beat', async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('Keep awake'))
+    const path = join(home, 'config.yaml')
+    writeFileSync(path, `${readFileSync(path, 'utf8')}agents:\n  keep_awake: true\n`)
+    const change = { path: 'agents.keep_awake', was: '', now: 'true', by: 'cli' }
+    expect(await recordConfigChanges(home, [change])).toBe('spool')
+    await until('the hold', () => awake.took.length === 1)
+    expect(client.config.agents.keep_awake).toBe(true)
+    await until('the way out', () => terminal.written.includes('Let it sleep'))
+    const lines = (await client.events({ types: ['config_changed'] })).map(({ detail }) => detail)
+    expect(lines).toContainEqual(expect.objectContaining(change))
   })
 
   it('clears the model when the harness is reselected, so the new one decides', async () => {
