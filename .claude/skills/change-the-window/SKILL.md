@@ -886,7 +886,12 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   the late not waited for, and anything still holding the process open after that is not a reason to keep the
   terminal (`endSoon`). A close you add goes in one of those lists, never as a bare `await`. Once
   closing has begun, any signal ends Tade at once (`onSignals`), because a SIGINT listener is what turns
-  Node's own answer off. `quitting.test.ts` times a real process with everything hung.
+  Node's own answer off — but a hang-up never does: closing the terminal closes the window as quitting
+  does, from then on nothing is written to it (`hangingUp`), and the second SIGHUP the shell passes on
+  is the same one. A write to a terminal that has gone is an `EIO` a moment later, which reads as a
+  crash, and on macOS the first write to a stream Node has not made yet never returns, so write to
+  the terminal through `process.stdout`/`stderr` and never a stream of your own.
+  `quitting.test.ts` times a real process with everything hung, and closes a real pty under one.
 - **Keys the window keeps are config** (`surfaces.window.keys`, listed once in `KEY_BINDINGS`):
   `appKey` names them, `keyAction` gives them meaning, the shortcuts sheet and Shortcuts settings read the
   same list. A new shortcut is a binding there, never a literal key in `app.ts`.

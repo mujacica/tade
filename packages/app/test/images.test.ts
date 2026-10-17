@@ -1,6 +1,6 @@
 import { execFileSync, spawn } from 'node:child_process'
-import { existsSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -117,23 +117,32 @@ describe('a dropped file', () => {
 
 describe('the clipboard', () => {
   it('gives a file when something wrote one, and nothing when it could not', async () => {
-    const dir = tmp('tade-clip-')
-    const wrote = await clipboardImage('darwin', dir, async (_command, args) => {
+    // Whoever it was pasted to may have no attachments yet: the folder is made.
+    const dir = join(tmp('tade-clip-'), 'orchestrator', 'attachments')
+    const wrote = await clipboardImage(dir, 'darwin', async (_command, args) => {
       const target = /POSIX file "(.+?)"/.exec(args.join(' '))?.[1]
       if (!target) return { ok: false, stdout: '' }
       writeFileSync(target, 'png')
       return { ok: true, stdout: '' }
     })
     expect(wrote).toMatch(/tade-clipboard-.*\.png$/)
-    expect(await clipboardImage('darwin', dir, async () => ({ ok: false, stdout: '' }))).toBeNull()
-    expect(await clipboardImage('win32', dir, async () => ({ ok: true, stdout: '' }))).toBeNull()
+    expect(dirname(wrote ?? '')).toBe(dir)
+    expect(statSync(dir).mode & 0o777).toBe(0o700)
+    expect(await clipboardImage(dir, 'darwin', async () => ({ ok: false, stdout: '' }))).toBeNull()
+    expect(readdirSync(dir)).toEqual([basename(wrote ?? '')])
+    // Nothing can save one there, so nothing is made for it either.
+    const nowhere = join(tmp('tade-clip-'), 'attachments')
+    expect(
+      await clipboardImage(nowhere, 'win32', async () => ({ ok: true, stdout: '' })),
+    ).toBeNull()
+    expect(existsSync(nowhere)).toBe(false)
   })
 
   it('gives a picture file copied in Finder as that file', async () => {
     const dir = tmp('tade-clip-')
     const shot = join(dir, 'shot.png')
     writeFileSync(shot, 'png')
-    const found = await clipboardImage('darwin', dir, async (_command, args) =>
+    const found = await clipboardImage(dir, 'darwin', async (_command, args) =>
       args.join(' ').includes('furl')
         ? { ok: true, stdout: `${shot}\n` }
         : { ok: false, stdout: '' },

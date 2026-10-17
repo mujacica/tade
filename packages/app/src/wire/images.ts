@@ -1,5 +1,5 @@
 import { basename, join } from 'node:path'
-import { type LaneId, taskDir } from '@tade/core'
+import { type LaneId, orchestratorAttachments, taskDir } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import {
   asPaste,
@@ -210,9 +210,22 @@ export class Images implements Subject {
     this.wire.draw()
   }
 
-  /** The picture on the clipboard, attached; false where there is none. */
+  /**
+   * The picture on the clipboard, attached, saved with the orchestrator's own
+   * attachments since that is who it goes to. False only where there is none:
+   * one that could not be saved is said, and is not a reason to paste text.
+   */
   private async takePicture(): Promise<boolean> {
-    const path = await (this.wire.opts.clipboard?.image ?? clipboardImage)()
+    const saving = (this.wire.opts.clipboard?.image ?? clipboardImage)(
+      orchestratorAttachments(this.wire.opts.home),
+    )
+    const path = await saving.catch((err: unknown) => {
+      notify(this.wire, `could not save the picture on the clipboard: ${why(err)}`)
+      this.wire.draw()
+      return undefined
+    })
+    // Said already: not a clipboard with nothing on it, so nothing else is pasted.
+    if (path === undefined) return true
     if (!path) return false
     // That copy is taken: it is not offered again.
     if (this.clipboard.offered) this.clipboard.seen = this.clipboard.offered

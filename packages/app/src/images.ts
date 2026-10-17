@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { copyFile, mkdir } from 'node:fs/promises'
 import type { Socket } from 'node:net'
-import { tmpdir } from 'node:os'
 import { basename, extname, join } from 'node:path'
 import { located, runProgram } from '@tade/core'
 
@@ -376,17 +375,23 @@ async function askLinux(exec: Run): Promise<ClipboardCopy | null> {
 }
 
 /**
- * Whatever picture is on the clipboard, saved to a file. Null when there is
- * none, or nothing on this machine can read one.
+ * Whatever picture is on the clipboard, saved to a file in `dir`, which is
+ * made if it is not there. Null when there is none, or nothing on this
+ * machine can read one.
+ *
+ * `dir` is the attachments of whoever it was pasted to, never the temp
+ * folder: the picture is handed on by its path, so it cannot be taken away
+ * once it has gone, and in the temp folder every one of them stayed for good.
  *
  * macOS needs nothing installed: AppleScript can write the clipboard's PNG
  * out. Linux asks wl-paste, then xclip.
  */
 export async function clipboardImage(
+  dir: string,
   platform: NodeJS.Platform = process.platform,
-  dir: string = tmpdir(),
   exec: Run = run,
 ): Promise<string | null> {
+  if (platform !== 'darwin' && platform !== 'linux') return null
   const path = join(dir, `tade-clipboard-${randomUUID()}.png`)
   if (platform === 'darwin') {
     // A picture file copied in Finder is on the clipboard as the file, not its pixels.
@@ -394,6 +399,8 @@ export async function clipboardImage(
     const file = copied.stdout.trim()
     if (copied.ok && file.startsWith('/') && isImagePath(file) && existsSync(file)) return file
   }
+  // Somebody's screenshot: a folder only they can read, as each harness makes its own.
+  await mkdir(dir, { recursive: true, mode: 0o700 })
   const saved =
     platform === 'darwin'
       ? await exec('osascript', [
@@ -414,15 +421,13 @@ export async function clipboardImage(
           '-e',
           'close access f',
         ]).then((done) => done.ok)
-      : platform === 'linux'
-        ? (await exec('sh', ['-c', `wl-paste --type image/png > ${shellQuote(path)}`])).ok ||
-          (
-            await exec('sh', [
-              '-c',
-              `xclip -selection clipboard -t image/png -o > ${shellQuote(path)}`,
-            ])
-          ).ok
-        : false
+      : (await exec('sh', ['-c', `wl-paste --type image/png > ${shellQuote(path)}`])).ok ||
+        (
+          await exec('sh', [
+            '-c',
+            `xclip -selection clipboard -t image/png -o > ${shellQuote(path)}`,
+          ])
+        ).ok
   try {
     if (saved && statSync(path).size > 0) return path
   } catch {

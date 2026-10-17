@@ -1,8 +1,10 @@
-import { writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { readdirSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { basename, dirname, join } from 'node:path'
+import { orchestratorAttachments } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { asPaste, type ClipboardCopy } from '../../src/images.ts'
+import { asPaste, type ClipboardCopy, clipboardImage } from '../../src/images.ts'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
 
 /**
@@ -18,8 +20,10 @@ const theirWords = (message: string | undefined): string =>
 
 describe('the window, taking a picture', () => {
   let terminal: FakeTerminal
+  let home: string
   const { start } = windowUnderTest((wired) => {
     terminal = wired.terminal
+    home = wired.home
   })
 
   it('offers a screenshot on the clipboard, and attaches it from an empty paste or a click', async () => {
@@ -93,6 +97,35 @@ describe('the window, taking a picture', () => {
     terminal.press('\x1b[118;9u')
     await until('the second attached', () => attached('two.png'))
     expect(screenOf(terminal.written).some((row) => row.includes('never typed'))).toBe(false)
+  })
+
+  it("keeps a pasted screenshot with the orchestrator's own attachments, never in the temp folder", async () => {
+    const saved: string[] = []
+    await start({
+      clipboard: {
+        watch: () => ({ stop: () => {} }),
+        // The machine's own saving, over an osascript that writes the picture where it is told.
+        image: (dir) =>
+          clipboardImage(dir, 'darwin', async (_command, args) => {
+            const target = /POSIX file "(.+?)"/.exec(args.join(' '))?.[1]
+            if (!target) return { ok: false, stdout: '' }
+            writeFileSync(target, Buffer.from('89504e470d0a1a0a', 'hex'))
+            saved.push(target)
+            return { ok: true, stdout: '' }
+          }),
+        text: async () => 'never typed',
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\x00')
+    terminal.press('\x1b[118;5u')
+    await until('attached', () =>
+      screenOf(terminal.written).some((row) => row.includes('▣ tade-clipboard-')),
+    )
+    const kept = orchestratorAttachments(home)
+    expect(saved.map((path) => dirname(path))).toEqual([kept])
+    expect(readdirSync(kept)).toEqual([basename(saved[0] ?? '')])
+    expect(readdirSync(tmpdir()).filter((name) => name.startsWith('tade-clipboard-'))).toEqual([])
   })
 
   it('watches the clipboard only while the line is open, and never after the window', async () => {

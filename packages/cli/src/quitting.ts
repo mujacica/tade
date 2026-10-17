@@ -13,7 +13,9 @@ import { type Closing, closeBy, type Unclosed } from '@tade/core'
 // - whatever still holds the process open after that is not waited for
 //   (`endSoon`), because a handle somebody leaked is not a reason to keep a
 //   terminal;
-// - and a second ctrl+c always ends it at once (`onSignals`).
+// - and a second ctrl+c always ends it at once (`onSignals`);
+// - while closing the terminal closes it as quitting does, writing nothing to
+//   a terminal that has gone (`hangingUp`).
 //
 // Nothing here stops an agent: under a driver whose lanes outlive the window
 // the workbench lets go of them, and that is still what `last` does.
@@ -103,18 +105,27 @@ export interface Signals {
 const ASKED: readonly NodeJS.Signals[] = ['SIGINT', 'SIGTERM']
 
 /**
- * Close on the first signal and end at once on any after it.
+ * Close on the first signal and end at once on any after it — but a hang-up
+ * is never the second ask.
  *
  * A listener on SIGINT is what turns Node's own answer off, so one that only
  * ever said "close" made every later ctrl+c a no-op for as long as closing
  * took. `already` says whether closing has begun some other way — a key in
  * the window — so the first signal after that is already the second ask.
+ *
+ * SIGHUP is the terminal going (`hangingUp`), and Node's own answer to it was
+ * to end there and then: the driver never let go, the journal never heard,
+ * and the home stayed locked by a process that was not there. Nobody is left
+ * to have asked twice, and one window closing is two of them — the kernel's,
+ * then the shell passing it on to its jobs — so every one is `hungUp`, which
+ * is safe to be told twice and never cuts a close short.
  */
 export function onSignals(
   target: Signals,
   close: () => void,
   now: () => void,
   already: () => boolean,
+  hungUp: () => void,
 ): () => void {
   let asked = false
   const listener = () => {
@@ -123,7 +134,59 @@ export function onSignals(
     close()
   }
   for (const signal of ASKED) target.on(signal, listener)
+  target.on('SIGHUP', hungUp)
   return () => {
     for (const signal of ASKED) target.removeListener(signal, listener)
+    target.removeListener('SIGHUP', hungUp)
   }
 }
+
+/** What the window is drawn in: the stream it reads keys from and the two it writes. */
+export interface TerminalStreams {
+  stdin: Pick<NodeJS.ReadStream, 'on'>
+  stdout: Pick<NodeJS.WriteStream, 'on' | 'write'>
+  stderr: Pick<NodeJS.WriteStream, 'on' | 'write'>
+}
+
+/**
+ * The terminal hanging up — its window closed, the ssh connection under it
+ * gone: from then on nothing is written to it, and `close` is told, once, to
+ * close the window as quitting does. Answers the hang-up, for SIGHUP, and is
+ * told it by an error on any of the terminal's streams too, since a frame
+ * drawn between the hang-up and its signal is the first to hear of it — and
+ * on the window's own terminal no other error means anything else.
+ *
+ * Nothing at all is written, because a write to a terminal that has gone does
+ * not simply go nowhere. It is an `EIO` thrown a moment later out of nowhere,
+ * which `watchProcess` takes for a crash and ends Tade on, half way through
+ * closing — and on macOS the first write to a stream Node has not made yet
+ * never returns: Node makes `process.stderr` when it is first asked for, by
+ * opening the terminal again, and an open of one that has hung up waits for
+ * it to come back. So the streams are taken here, while there is a terminal,
+ * and on the hang-up every write to them — the window's last frame, the
+ * restore that would have given the screen back, a line about what did not
+ * close, a warning of Node's own — is dropped where it is made.
+ */
+export function hangingUp(terminal: TerminalStreams, close: () => void): () => void {
+  // Read now, so neither is made after the hang-up (see above).
+  const { stdin, stdout, stderr } = terminal
+  let gone = false
+  const hangUp = () => {
+    if (gone) return
+    gone = true
+    stdout.write = dropped
+    stderr.write = dropped
+    close()
+  }
+  stdin.on('error', hangUp)
+  stdout.on('error', hangUp)
+  stderr.on('error', hangUp)
+  return hangUp
+}
+
+/** A write to a terminal that has gone: taken, sent nowhere, and its callback answered. */
+const dropped = ((...args: unknown[]) => {
+  const done = args.findLast((arg) => typeof arg === 'function')
+  if (typeof done === 'function') process.nextTick(done as () => void)
+  return true
+}) as NodeJS.WriteStream['write']

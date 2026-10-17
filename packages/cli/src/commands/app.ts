@@ -56,7 +56,7 @@ import { lookAtUpdates } from '@tade/workbench/programs'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 import { handOverOpening, unsayOpening } from '../opening.ts'
-import { closeAll, endSoon, leftBehind, onSignals } from '../quitting.ts'
+import { closeAll, endSoon, hangingUp, leftBehind, onSignals } from '../quitting.ts'
 import { reporterLater, reportJournal } from '../telemetry.ts'
 import { gather } from './setup-facts.ts'
 
@@ -687,11 +687,15 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         // after a quit already under way — ends Tade there and then: the
         // terminal is already back, and asking twice is never asking for a wait.
         // Kept to the end, since a listener on SIGINT is what turns Node's off.
+        // Closing the terminal itself closes the window the same way, and
+        // from then on nothing is written to it (`hangingUp`): the window's
+        // restore, the lines below about what did not close, any of it.
         onSignals(
           process,
           () => void app.stop(),
           () => process.exit(130),
           () => app.closing,
+          hangingUp(process, () => void app.stop()),
         )
         try {
           late.push(...(await app.wait()))
