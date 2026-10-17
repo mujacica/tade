@@ -150,6 +150,8 @@ const DECIDES_FOR_SOMEBODY =
 // (REMOTE-TADE.md §9.4).
 const OWNS_ELSEWHERE =
   'it hands words to another machine’s Tade as its owner, where they reach what its keyboard does and no narrowing goes with them'
+const READS_ELSEWHERE =
+  'it reads another machine’s Tade as its owner, which is wider than anything a paired device was granted there'
 
 /**
  * Every one of Tade's own tools, and what a remote turn may do with it.
@@ -473,6 +475,10 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
   'updates/run': never(EXECUTES),
   'window/reload': never(EXECUTES),
   'remote/tell': never(OWNS_ELSEWHERE),
+  'remote/status': never(READS_ELSEWHERE),
+  'remote/documents': never(READS_ELSEWHERE),
+  'remote/intake': never(READS_ELSEWHERE),
+  'remote/tool': never(READS_ELSEWHERE),
   'worker/list': never(READS_WIDE),
   'worker/stop': never(CONFIRMS),
   'events/read': never(READS_WIDE),

@@ -283,7 +283,9 @@ const ALLOWED: Record<string, number> = {
   'packages/orchestrator/src/orchestrator.ts': 3,
   'packages/orchestrator/src/told.ts': 1,
   'packages/orchestrator/src/tool-host.ts': 3,
-  'packages/orchestrator/src/tools-extension.ts': 3,
+  'packages/orchestrator/src/tools-extension.ts': 2,
+  // Moved with the reader of the extension tools' list, unchanged.
+  'packages/orchestrator/src/tools-listed.ts': 1,
   'packages/orchestrator/src/tools-gate.ts': 1,
   'packages/orchestrator/src/tools-machine.ts': 1,
   'packages/orchestrator/src/tools-mcp.ts': 1,

@@ -1,5 +1,4 @@
 import { spawn } from 'node:child_process'
-import { readFileSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { connect } from 'node:net'
 import { join } from 'node:path'
@@ -7,11 +6,12 @@ import { configTools } from './tools-config.ts'
 import { documentTools } from './tools-documents.ts'
 import { type Gateable, gateTools } from './tools-gate.ts'
 import { lessonTools } from './tools-lessons.ts'
+import { listedTools } from './tools-listed.ts'
 import { machineTools } from './tools-machine.ts'
 import { noteTools } from './tools-notes.ts'
 import { done, PLAN_AFTER, PLAN_CONTEXT, queueTools, stringList, TOUCHES } from './tools-queue.ts'
 import { raceTools, replayTools } from './tools-race.ts'
-import { remoteTools } from './tools-remotes.ts'
+import { ON_MACHINE, remoteTools } from './tools-remotes.ts'
 import { intakeTools, templateTools } from './tools-templates.ts'
 
 /** Where extensions live. Set by the orchestrator that launched us. */
@@ -19,25 +19,6 @@ function extensionsRoot(): string {
   const configured = process.env.TADE_EXTENSIONS
   if (configured) return configured
   return join(process.env.TADE_HOME ?? process.cwd(), 'extensions')
-}
-
-/** The extension tools Tade listed for this orchestrator, or none. */
-function extensionTools(): Array<{
-  name: string
-  label: string
-  description: string
-  parameters: Record<string, unknown>
-}> {
-  const path = process.env.TADE_EXTENSION_TOOLS
-  if (!path) return []
-  try {
-    const parsed = JSON.parse(readFileSync(path, 'utf8')) as unknown
-    return Array.isArray(parsed)
-      ? parsed.filter((one) => typeof one?.name === 'string' && typeof one?.parameters === 'object')
-      : []
-  } catch {
-    return []
-  }
 }
 
 // Tade's tools, as seen by the orchestrator.
@@ -143,11 +124,12 @@ export function orchestratorTools(
 
   tool(
     'tade_status',
-    'Where everything stands: every task, in every project, with its state, why, and the effort it belongs to when it is one repository\'s share of a change that spans several — so "how far is oauth-scopes" is these tasks counted, never something remembered. Derived fresh from git, running agents and provider transcripts. Use this for any question about what is happening.',
-    object({}),
+    'Where everything stands: every task, in every project, with its state, why, and the effort it belongs to when it is one repository\'s share of a change that spans several — so "how far is oauth-scopes" is these tasks counted, never something remembered. Derived fresh from git, running agents and provider transcripts. Use this for any question about what is happening. With `machine`, the same for another machine this one is linked to, as it last said — its agents, checks, findings, requests, schedules, plans, problems, the Tade it runs and its public name — and as of when, where its link is down.',
+    object({ machine: ON_MACHINE }),
     // From the window when there is one: only it knows which agents are between
     // turns, and the CLI would call every one of them working.
-    async () => {
+    async (p) => {
+      if (typeof p.machine === 'string' && p.machine !== '') return rpc('remote/status', p)
       const seen = await rpc('status/read', {}).catch(() => null)
       return seen === null ? runCli(['status', '--json']) : JSON.stringify(seen, null, 2)
     },
@@ -301,17 +283,8 @@ export function orchestratorTools(
   // Changing work already queued, and work on a clock: its own file, `tools-queue.ts`.
   for (const spec of queueTools(rpc)) tools.push(spec)
 
-  // Tade's extensions: listed when Tade started this orchestrator, run by
-  // Tade, which is where their settings, secrets and window are.
-  for (const spec of extensionTools()) {
-    tool(
-      spec.name,
-      spec.description,
-      spec.parameters,
-      (p, callId) => rpc('extension/call', { tool: spec.name, input: p, callId }),
-      spec.label,
-    )
-  }
+  // Tade's extensions, and another machine's where a tool only reads: `tools-listed.ts`.
+  for (const spec of listedTools(rpc)) tools.push(spec)
 
   tool(
     'tade_run_start',

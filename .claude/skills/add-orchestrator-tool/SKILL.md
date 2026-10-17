@@ -116,6 +116,14 @@ an unnamed one is refused.
   phone's words passed on would arrive with the keyboard's reach. The window holds it to a line of the
   person's naming that machine (`REMOTE_TELL_REACH`, `remoteNamedBy`), and says it there as this
   machine's orchestrator's words, never the person's. `origin.test.ts` holds both refusals.
+- **A tool that reads can name another machine; a tool that acts never does.** `tade_status`,
+  `tade_documents`, `tade_intake`, `tade_intake_show` and every extension tool that declares `reads`
+  (`tools-listed.ts` adds the parameter) take `machine` (`ON_MACHINE`, `tools-remotes.ts`) and then
+  call a `remote/*` method in `host-remotes.ts` — `local` with `READS_ELSEWHERE`, since reading
+  through an owner session is wider than any phone's grant there. The window answers out of what it
+  holds of that machine (`wire/remote-reads.ts`): as of when it last said, a request's own words
+  left out as they are here, a document handed over as a path to a copy. Anything that would change
+  something there is `tade_remote_tell`'s, through that machine's own orchestrator.
 - Only where a turn runs under a remote arm does any of this apply. A local turn is checked against
   nothing, which is the type saying it rather than a comment promising it (`Arm`) — and so is an
   **owner device's** turn (`{ how: 'owner' }`, minted only by `tade web pair --owner` over SSH and

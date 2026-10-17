@@ -36,7 +36,7 @@ import { notify, saidLately, type Wiring, why } from './context.ts'
 // comes back again, and said once in the strip.
 
 /** What this window answers the orchestrator's `tade_remote_tell` with (`host-remotes.ts`). */
-export interface RemoteTools {
+export interface RemoteTalkTools {
   tell(req: { machine: string; said: string; asked: string }): Promise<string>
 }
 

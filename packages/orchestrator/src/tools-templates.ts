@@ -1,4 +1,5 @@
 import type { OrchestratorTool } from './tools-extension.ts'
+import { ON_MACHINE } from './tools-remotes.ts'
 
 // Stored workflows, as far as the orchestrator's arm reaches into them.
 //
@@ -164,24 +165,35 @@ export function intakeTools(
 
   tool(
     'tade_intake',
-    'What has been handed to this machine from outside — a ticket somebody filed, a line typed at the local door — and where each one stands: noticed, proposed (a task is made and parked, waiting for a person), accepted, started, held, refused, or given up on. Also what each source’s grant says and when it last looked. Read it when somebody asks what came in, or what is waiting for them. **You cannot approve, refuse or retry one, and you cannot turn a source on or put anybody on its list** — each of those is a person at this machine, in the window or with `tade intake`; say that rather than offering. The request itself is not in this answer at any length: it is in the task’s own context file, as material, for the agent doing the work.',
+    'What has been handed to this machine from outside — a ticket somebody filed, a line typed at the local door — and where each one stands: noticed, proposed (a task is made and parked, waiting for a person), accepted, started, held, refused, or given up on. Also what each source’s grant says and when it last looked. Read it when somebody asks what came in, or what is waiting for them. **You cannot approve, refuse or retry one, and you cannot turn a source on or put anybody on its list** — each of those is a person at this machine, in the window or with `tade intake`; say that rather than offering. The request itself is not in this answer at any length: it is in the task’s own context file, as material, for the agent doing the work. With `machine`, what was handed to another machine this one is linked to and where each stands there, as it last said, with its doors.',
     object({
       project: string('only this project’s; every project when not said'),
       waiting: {
         type: 'boolean',
         description: 'only the ones a person at the machine has to answer',
       },
+      machine: ON_MACHINE,
     }),
-    (p) => rpc('intake/list', p),
+    (p) =>
+      typeof p.machine === 'string' && p.machine !== ''
+        ? rpc('remote/intake', p)
+        : rpc('intake/list', p),
   )
 
   tool(
     'tade_intake_show',
-    'One request in full: where it came from, the handle the source gave, the dotted path of the grant in the owner’s own config that allowed it, the published template version it was stamped from, what approving it would start — one row per task, what each waits on and why — and what bounds that work. **It starts nothing and changes nothing.** Call it before saying what would happen if somebody approved something, and read the rows back rather than summarising them. The request’s own words are deliberately not in the answer; if somebody wants to read it, the page in the window shows it under a heading saying whose words they are.',
-    object({ item: string('the request, as tade_intake lists it: `<source>:<their id>`') }, [
-      'item',
-    ]),
-    (p) => rpc('intake/show', p),
+    'One request in full: where it came from, the handle the source gave, the dotted path of the grant in the owner’s own config that allowed it, the published template version it was stamped from, what approving it would start — one row per task, what each waits on and why — and what bounds that work. **It starts nothing and changes nothing.** Call it before saying what would happen if somebody approved something, and read the rows back rather than summarising them. The request’s own words are deliberately not in the answer; if somebody wants to read it, the page in the window shows it under a heading saying whose words they are. With `machine`, one request handed to another machine, as it last said: where it stands there and what was made of it.',
+    object(
+      {
+        item: string('the request, as tade_intake lists it: `<source>:<their id>`'),
+        machine: ON_MACHINE,
+      },
+      ['item'],
+    ),
+    (p) =>
+      typeof p.machine === 'string' && p.machine !== ''
+        ? rpc('remote/intake', { machine: p.machine, item: p.item })
+        : rpc('intake/show', p),
   )
 
   return tools

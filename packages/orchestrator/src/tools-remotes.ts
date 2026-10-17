@@ -28,6 +28,15 @@ const object = (
 
 const string = (description: string) => ({ type: 'string', description })
 
+/**
+ * The parameter every reading tool takes to ask another machine instead of
+ * this one (`tade_status`, `tade_documents`, `tade_intake`, `tade_intake_show`,
+ * and every extension tool that only reads, `tools-listed.ts`).
+ */
+export const ON_MACHINE = string(
+  'another machine to ask instead of this one, by the name it has here (`vps`); leave it out for this machine',
+)
+
 export function remoteTools(
   rpc: (method: string, params: Record<string, unknown>) => Promise<unknown>,
 ): OrchestratorTool[] {
@@ -36,7 +45,7 @@ export function remoteTools(
       name: 'tade_remote_tell',
       label: 'tade: remote tell',
       description:
-        'Pass a sentence to another machine’s orchestrator: a Tade on a machine this one is linked to as its owner, each named under "Other machines" in what you are told with every message. Use it when the person asks for something on that machine — start or plan work there, ask how its agents are doing, steer, park or stop one of them: none of your other tools reach another machine, and its projects are not projects here even where one has the same name. Say what they asked, in their words, with what that orchestrator needs to act on it; it acts there with that machine’s own tools, and answers in its own conversation, which the person reads on that machine’s tab in this window — you are not given its answer, so tell them it went and where to look. Refused unless a line of theirs names that machine — pass that line, word for word, in `asked` — and refused while its link is down, while its orchestrator is answering something else, and where talking to it from another screen is off there. Never reached from a turn that came from a paired device.',
+        'Pass a sentence to another machine’s orchestrator: a Tade on a machine this one is linked to as its owner, each named under "Other machines" in what you are told with every message. Use it when the person asks for something to be done on that machine — start or plan work there, steer, park or stop one of its agents: your tools that read (`tade_status`, `tade_documents`, `tade_intake`, `tade_intake_show`, and an extension’s tools that only read, such as Sentry’s) take a `machine` to answer about it, nothing else of yours reaches it, and its projects are not projects here even where one has the same name. Say what they asked, in their words, with what that orchestrator needs to act on it; it acts there with that machine’s own tools, and answers in its own conversation, which the person reads on that machine’s tab in this window — you are not given its answer, so tell them it went and where to look. Refused unless a line of theirs names that machine — pass that line, word for word, in `asked` — and refused while its link is down, while its orchestrator is answering something else, and where talking to it from another screen is off there. Never reached from a turn that came from a paired device.',
       parameters: object(
         {
           machine: string('the machine, by the name it has here: `vps`'),

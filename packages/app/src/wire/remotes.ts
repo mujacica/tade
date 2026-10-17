@@ -31,6 +31,7 @@ import { projectSays } from '../view/top.ts'
 import { Carries, type CarriesDeps } from './carry.ts'
 import {
   type Actions,
+  clockOf,
   configPathOf,
   type Menus,
   type Prompts,
@@ -42,11 +43,13 @@ import { type Mirrors, mirrorsFor } from './mirrors.ts'
 import { type SharedNotes, sharedNotesFor } from './notes-shared.ts'
 import { RemoteAgents } from './remote-agent.ts'
 import { RemoteMachines } from './remote-machine.ts'
-import { RemoteTalks, type RemoteTools } from './remote-talk.ts'
+import { type RemoteReads, remoteReads } from './remote-reads.ts'
+import { RemoteTalks, type RemoteTalkTools } from './remote-talk.ts'
 import type { WatchTwinsHere } from './watch-where.ts'
 import { MACHINE } from './web-panel.ts'
 
-export type { RemoteTools } from './remote-talk.ts'
+/** What the orchestrator's tools ask of other machines: a sentence passed on, and what each says. */
+export type RemoteTools = RemoteTalkTools & RemoteReads
 
 // The window's links to other machines' Tades it is an owner of: one link per
 // `remotes.<name>`, held while the window is open (REMOTE-TADE.md §2.5, §5.4).
@@ -189,13 +192,17 @@ export class Remotes implements Subject {
     return this.talks?.interrupt() ?? false
   }
 
-  /** What the orchestrator's `tade_remote_tell` does, answered from this window. */
+  /**
+   * What the orchestrator's `tade_remote_tell` does, and what its reading tools
+   * answer when they name a machine (`remote-reads.ts`), answered from this window.
+   */
   tools(): RemoteTools {
     return {
       tell: async (req) => {
         if (this.talks === null) throw new Error('this window talks to no other machine')
         return this.talks.tell(req)
       },
+      ...remoteReads(this, (at) => clockOf(at)),
     }
   }
 

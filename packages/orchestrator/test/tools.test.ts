@@ -117,6 +117,29 @@ describe('orchestrator tools', () => {
     expect(shown).toEqual(['app/terminals/1'])
   }, 90_000)
 
+  it('asks another machine how it stands when the model names one, and the window answers', async () => {
+    const asked: string[] = []
+    await tools.close()
+    tools = await ToolHost.listen({
+      tade,
+      path: join(home, 'tools.sock'),
+      remotes: {
+        tell: async () => 'passed on',
+        status: async (machine) => {
+          asked.push(machine)
+          return JSON.stringify({ machine, link: 'live', tade: { version: '0.2.3' } })
+        },
+        documents: async () => '',
+        intake: async () => '',
+        tool: async () => '',
+      },
+    })
+    await runWithTool({ name: 'tade_status', arguments: { machine: 'vps' } })
+    await until(() => (model?.requests.length ?? 0) >= 2)
+    expect(asked).toEqual(['vps'])
+    expect(JSON.stringify(model?.requests[1] ?? {})).toContain('0.2.3')
+  }, 90_000)
+
   it('creates a real task through the tool, with the intent kept verbatim', async () => {
     const intent = 'the refund flow double-charges when the webhook retries'
     await runWithTool({

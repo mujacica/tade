@@ -364,6 +364,23 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
             if (!remotes) throw opening()
             return remotes.tell(req)
           },
+          // What another machine says of itself and its work, read the same way.
+          status: async (machine) => {
+            if (!remotes) throw opening()
+            return remotes.status(machine)
+          },
+          documents: async (req) => {
+            if (!remotes) throw opening()
+            return remotes.documents(req)
+          },
+          intake: async (req) => {
+            if (!remotes) throw opening()
+            return remotes.intake(req)
+          },
+          tool: async (req) => {
+            if (!remotes) throw opening()
+            return remotes.tool(req)
+          },
         },
         updates: {
           read: async (check) => {
