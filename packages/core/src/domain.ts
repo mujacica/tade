@@ -186,28 +186,6 @@ export function domainHead(seen: DomainSeen): string {
   return `${seen.name}, in the zone ${seen.zone.apex}, answered for by ${servers}`
 }
 
-/**
- * The name, written as the public name and added to the trusted hostnames —
- * or null where both already have it.
- *
- * **Only ever on a press.** The name is the one the person gave, and nothing
- * here guesses one: a name Tade typed in would be a decision about who reaches
- * this machine made by something other than the person. Added to the trusted
- * hostnames rather than replacing them, so a tailnet name already there stays.
- */
-export function trustedWrite(
-  web: { public: string; trusted_hosts: readonly string[] },
-  name: string,
-): { public: string; trusted_hosts: string[] } | null {
-  const named = name.toLowerCase()
-  const trusted = web.trusted_hosts.some((one) => one.toLowerCase() === named)
-  if (web.public.toLowerCase() === named && trusted) return null
-  return {
-    public: named,
-    trusted_hosts: trusted ? [...web.trusted_hosts] : [...web.trusted_hosts, named],
-  }
-}
-
 // ── one record each ──
 
 function line(

@@ -3,6 +3,7 @@ import { userInfo } from 'node:os'
 import { createInterface } from 'node:readline'
 import {
   caddySite,
+  copiedHosts,
   defaultConfigPath,
   domainSays,
   lingerCommand,
@@ -10,18 +11,18 @@ import {
   PUBLIC_DIR,
   publicSocket,
   tadeHome,
-  trustedWrite,
 } from '@tade/core'
 import { answering, dirSeen } from '@tade/web'
 import { lookAtCertificate } from '@tade/workbench/certificate'
 import { accountUri, lookAtDomain } from '@tade/workbench/domain'
+import { readJournal } from '@tade/workbench/events'
 import { heldBy } from '@tade/workbench/lock'
 import { systemdHere, unattendedHere } from '@tade/workbench/machine'
 import { lastUpdates } from '@tade/workbench/programs'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 import { caddySaid, lookAtPublic } from './host-caddy.ts'
-import { domainJson, domainPrinted, domainRefused, writeTrusted } from './host-domain.ts'
+import { domainJson, domainPrinted, domainRefused, offerName } from './host-domain.ts'
 import { type Asker, lanesWouldStop, offerUnit, unitHere } from './host-service.ts'
 
 // `tade host`: Tade on a server of its own. The command and the terminal it
@@ -119,7 +120,7 @@ export function registerHost(program: Command, io: Io, setExit: (code: number) =
       '--account <uri>',
       "Caddy's account at Let's Encrypt, for the CAA record, where it cannot be read here",
     )
-    .option('--write', 'write it as the public name and a trusted hostname without asking')
+    .option('--write', 'write it as the public name without asking')
     .option('--json', 'machine-readable output')
     .action(async (given: string, opts: { account?: string; write?: boolean; json?: boolean }) => {
       const name = given.toLowerCase().replace(/\.$/, '')
@@ -146,36 +147,18 @@ export function registerHost(program: Command, io: Io, setExit: (code: number) =
       else for (const line of domainPrinted(seen)) io.out(line)
       if (loud) setExit(Exit.error)
       if (opts.json && !opts.write) return
-      // The name goes into the config on a press and never otherwise: it
-      // decides who reaches this machine, so it is the person's to write.
-      const ask = terminal(io)
-      const path = defaultConfigPath()
-      const loaded = await loadConfig(path)
-      const web = loaded.ok ? loaded.config.surfaces.web : null
-      ask.say('')
-      if (web !== null && trustedWrite(web, name) === null) {
-        ask.say(`surfaces.web.public is ${name}, and it is a trusted hostname.`)
-        return
-      }
-      if (!opts.write && !(process.stdin.isTTY && process.stderr.isTTY)) {
-        ask.say(
-          `\`tade host domain ${name} --write\` writes it as the public name and a trusted hostname.`,
-        )
-        return
-      }
-      const question = `Write ${name} as surfaces.web.public and add it to surfaces.web.trusted_hosts?`
-      if (!opts.write && !(await ask.confirm(question, !loud))) return
-      try {
-        await writeTrusted(path, name)
-      } catch (err) {
-        ask.say(err instanceof Error ? err.message : String(err))
-        setExit(Exit.error)
-        return
-      }
-      const open = (await heldBy(tadeHome())) !== null
-      ask.say(
-        `surfaces.web.public is ${name}, and it is a trusted hostname. ${open ? 'A window has this home open, so it applies when that window next starts.' : 'It applies the next time Tade starts.'} \`tade host caddy\` prints the site block for it.`,
-      )
+      // The name goes into the config on a press and never otherwise
+      // (`offerName`): it decides who reaches this machine.
+      const home = tadeHome()
+      const written = await offerName(terminal(io), name, {
+        path: defaultConfigPath(),
+        loud,
+        write: opts.write === true,
+        asking: process.stdin.isTTY === true && process.stderr.isTTY === true,
+        copies: async () => copiedHosts(await readJournal(home, { types: ['config_changed'] })),
+        open: async () => (await heldBy(home)) !== null,
+      })
+      if (!written) setExit(Exit.error)
     })
   host
     .command('service')

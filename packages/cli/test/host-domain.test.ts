@@ -2,25 +2,48 @@ import { spawn } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { type DomainSeen, TADE_SH_IS_THE_INSTALLER } from '@tade/core'
+import { type DomainSeen, loadConfig, TADE_SH_IS_THE_INSTALLER } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import {
   domainJson,
   domainPrinted,
   domainRefused,
+  loopbackAsks,
   markOf,
-  writeTrusted,
+  type NameOffer,
+  offerName,
+  writeLoopback,
+  writePublic,
 } from '../src/commands/host-domain.ts'
+import type { Asker } from '../src/commands/host-service.ts'
 
 // `tade host domain`: the look printed as the terminal has it, the name
-// refused before anything is asked, and the write that happens on a press.
+// refused before anything is asked, and the write that happens on a press —
+// the public name alone, or a trusted hostname for a Caddy in front of the
+// loopback listener, and never both.
 // What the records come to is `@tade/core`'s `domain.test.ts`; asking for them
 // is `@tade/workbench`'s, over a server on loopback — a test here never
 // reaches the network, which is why the binary is only run where it refuses.
 
 const NAME = 'tade.example.com'
+const OLD = 'old.example.com'
 const HERE4 = '203.0.113.7'
+
+/** A config file holding `text`, somewhere of its own. */
+function configWith(text: string): string {
+  const path = join(tmp('tade-domain-write-'), 'config.yaml')
+  writeFileSync(path, text)
+  return path
+}
+
+/** The two keys as the config at `path` loads them. */
+async function web(path: string): Promise<{ public: string; trusted_hosts: string[] }> {
+  const loaded = await loadConfig(path)
+  if (!loaded.ok) throw new Error(`${path} does not load`)
+  const { public: name, trusted_hosts } = loaded.config.surfaces.web
+  return { public: name, trusted_hosts: [...trusted_hosts] }
+}
 
 const SEEN: DomainSeen = {
   name: NAME,
@@ -81,19 +104,33 @@ describe('the name', () => {
     expect(domainRefused('box.tade.sh')).toBe(TADE_SH_IS_THE_INSTALLER)
   })
 
-  it('is written as the public name and a trusted hostname, keeping what was there', async () => {
-    const path = join(tmp('tade-domain-write-'), 'config.yaml')
-    writeFileSync(path, '# mine\nsurfaces:\n  web:\n    trusted_hosts: [studio.ts.net]\n')
-    expect(await writeTrusted(path, NAME)).toEqual({
-      public: NAME,
-      trusted_hosts: ['studio.ts.net', NAME],
-    })
+  it('is written as the public name alone, keeping the trusted hostnames as they were', async () => {
+    const path = configWith('# mine\nsurfaces:\n  web:\n    trusted_hosts: [studio.ts.net]\n')
+    expect(await writePublic(path, NAME, [])).toEqual({ public: NAME, taken: [] })
     const text = readFileSync(path, 'utf8')
     expect(text).toContain('# mine')
     expect(text).toContain(`public: ${NAME}`)
-    expect(text).toContain(`- ${NAME}`)
+    expect(await web(path)).toEqual({ public: NAME, trusted_hosts: ['studio.ts.net'] })
     // Twice is once.
-    expect(await writeTrusted(path, NAME)).toBeNull()
+    expect(await writePublic(path, NAME, [])).toBeNull()
+  })
+
+  it('takes back what Tade copied beside the public name it replaces, and nothing else', async () => {
+    const path = configWith(
+      `surfaces:\n  web:\n    public: ${OLD}\n    trusted_hosts: [studio.ts.net, ${OLD}]\n`,
+    )
+    expect(await writePublic(path, NAME, [OLD, 'gone.example.com'])).toEqual({
+      public: NAME,
+      taken: [OLD],
+    })
+    expect(await web(path)).toEqual({ public: NAME, trusted_hosts: ['studio.ts.net'] })
+  })
+
+  it('is added to the trusted hostnames alone for a Caddy in front of the loopback listener', async () => {
+    const path = configWith('surfaces:\n  web:\n    trusted_hosts: [studio.ts.net]\n')
+    expect(await writeLoopback(path, NAME)).toEqual(['studio.ts.net', NAME])
+    expect(await web(path)).toEqual({ public: '', trusted_hosts: ['studio.ts.net', NAME] })
+    expect(await writeLoopback(path, NAME)).toBeNull()
   })
 
   it('puts the file back as it was where the config would not load with it', async () => {
@@ -101,15 +138,132 @@ describe('the name', () => {
     const path = join(dir, 'config.yaml')
     const before = '# mine\nsurfaces:\n  web:\n    enabled: true\n'
     writeFileSync(path, before)
-    await expect(writeTrusted(path, 'box.tade.sh')).rejects.toThrow(TADE_SH_IS_THE_INSTALLER)
+    await expect(writePublic(path, 'box.tade.sh', [])).rejects.toThrow(TADE_SH_IS_THE_INSTALLER)
     expect(readFileSync(path, 'utf8')).toBe(before)
     // And where there was no file, there is none after.
     const none = join(dir, 'none.yaml')
-    await expect(writeTrusted(none, 'box.tade.sh')).rejects.toThrow(TADE_SH_IS_THE_INSTALLER)
+    await expect(writePublic(none, 'box.tade.sh', [])).rejects.toThrow(TADE_SH_IS_THE_INSTALLER)
     expect(existsSync(none)).toBe(false)
     // A config that does not load is not written into.
     writeFileSync(path, 'surfaces: [\n')
-    await expect(writeTrusted(path, NAME)).rejects.toThrow('does not load')
+    await expect(writePublic(path, NAME, [])).rejects.toThrow('does not load')
+    await expect(writeLoopback(path, NAME)).rejects.toThrow('does not load')
+  })
+})
+
+describe('the name, on a press', () => {
+  /** A terminal that answers each question in turn, and keeps what was said and asked. */
+  function asker(answers: boolean[]): Asker & { said: string[]; asked: string[] } {
+    const said: string[] = []
+    const asked: string[] = []
+    return {
+      said,
+      asked,
+      say: (text) => said.push(text),
+      confirm: async (question) => {
+        asked.push(question)
+        return answers.shift() ?? false
+      },
+      run: async () => 0,
+    }
+  }
+
+  function offer(path: string, over: Partial<NameOffer> = {}): NameOffer {
+    return {
+      path,
+      loud: false,
+      write: false,
+      asking: true,
+      copies: async () => [],
+      open: async () => false,
+      ...over,
+    }
+  }
+
+  it('asks once, and writes the public name alone', async () => {
+    const path = configWith('surfaces:\n  web:\n    trusted_hosts: [studio.ts.net]\n')
+    const ask = asker([true])
+    expect(await offerName(ask, NAME, offer(path))).toBe(true)
+    expect(ask.asked).toEqual([`Write ${NAME} as surfaces.web.public?`])
+    expect(await web(path)).toEqual({ public: NAME, trusted_hosts: ['studio.ts.net'] })
+    expect(ask.said.at(-1)).toBe(
+      `surfaces.web.public is ${NAME}. It applies the next time Tade starts. \`tade host caddy\` prints the site block for it.`,
+    )
+  })
+
+  it('takes back the copy of the name it replaces, and says so', async () => {
+    const path = configWith(
+      `surfaces:\n  web:\n    public: ${OLD}\n    trusted_hosts: [studio.ts.net, ${OLD}]\n`,
+    )
+    const ask = asker([true])
+    const open = async () => true
+    expect(await offerName(ask, NAME, offer(path, { copies: async () => [OLD], open }))).toBe(true)
+    expect(await web(path)).toEqual({ public: NAME, trusted_hosts: ['studio.ts.net'] })
+    expect(ask.said.at(-1)).toBe(
+      `surfaces.web.public is ${NAME}. ${OLD} is no longer a trusted hostname: Tade had copied it there beside a public name, which is trusted on its own. A window has this home open, so it applies when that window next starts. \`tade host caddy\` prints the site block for it.`,
+    )
+  })
+
+  it('writes the public name and takes nothing back where the journal could not be read', async () => {
+    const path = configWith(`surfaces:\n  web:\n    public: ${OLD}\n    trusted_hosts: [${OLD}]\n`)
+    const ask = asker([])
+    const copies = async () => {
+      throw new Error('EACCES')
+    }
+    expect(await offerName(ask, NAME, offer(path, { write: true, copies }))).toBe(true)
+    expect(ask.asked).toEqual([])
+    expect(await web(path)).toEqual({ public: NAME, trusted_hosts: [OLD] })
+    expect(ask.said.at(-1)).toContain('could not be read (EACCES), so they are as they were.')
+  })
+
+  it('offers the trusted hostnames only once the public name is declined, said as the loopback path', async () => {
+    const path = configWith('surfaces:\n  web:\n    port: 7700\n')
+    const ask = asker([false, true])
+    expect(await offerName(ask, NAME, offer(path))).toBe(true)
+    expect(ask.asked).toEqual([`Write ${NAME} as surfaces.web.public?`, loopbackAsks(NAME, 7700)])
+    expect(loopbackAsks(NAME, 7700)).toContain('127.0.0.1:7700, with no public socket')
+    expect(await web(path)).toEqual({ public: '', trusted_hosts: [NAME] })
+    expect(ask.said.at(-1)).toBe(
+      `${NAME} is a trusted hostname, for a Caddy in front of the loopback listener. It applies the next time Tade starts.`,
+    )
+  })
+
+  it('writes nothing where both are declined', async () => {
+    const before = 'surfaces:\n  web:\n    enabled: true\n'
+    const path = configWith(before)
+    const ask = asker([false, false])
+    expect(await offerName(ask, NAME, offer(path))).toBe(true)
+    expect(ask.asked).toHaveLength(2)
+    expect(readFileSync(path, 'utf8')).toBe(before)
+  })
+
+  it('does not offer the trusted hostnames where the name is one already', async () => {
+    const path = configWith(`surfaces:\n  web:\n    trusted_hosts: [${NAME}]\n`)
+    const ask = asker([false])
+    expect(await offerName(ask, NAME, offer(path))).toBe(true)
+    expect(ask.asked).toEqual([`Write ${NAME} as surfaces.web.public?`])
+  })
+
+  it('asks nothing where it is the public name already, or where there is no terminal to ask in', async () => {
+    const set = configWith(`surfaces:\n  web:\n    public: ${NAME}\n`)
+    const ask = asker([])
+    expect(await offerName(ask, NAME, offer(set))).toBe(true)
+    expect(ask.said.at(-1)).toBe(`surfaces.web.public is ${NAME}.`)
+    const before = 'surfaces:\n  web:\n    enabled: true\n'
+    const unset = configWith(before)
+    expect(await offerName(ask, NAME, offer(unset, { asking: false }))).toBe(true)
+    expect(ask.said.at(-1)).toBe(
+      `\`tade host domain ${NAME} --write\` writes it as the public name.`,
+    )
+    expect(ask.asked).toEqual([])
+    expect(readFileSync(unset, 'utf8')).toBe(before)
+  })
+
+  it('says why and answers false where the write failed', async () => {
+    const path = configWith('surfaces: [\n')
+    const ask = asker([true])
+    expect(await offerName(ask, NAME, offer(path))).toBe(false)
+    expect(ask.said.at(-1)).toContain('does not load')
   })
 })
 

@@ -27,7 +27,8 @@ and setting up ends by actually opening a lane — because every other check is 
 | `packages/cli/src/commands/host-caddy.ts` | `tade host caddy`: `caddySaid` (the steps beside the block), `lookAtPublic` (`--check`) |
 | `packages/core/src/public-listener.ts` | pure: `PUBLIC_DIR`, `publicSocket`, `publicName`, `publicDirProblem`, `publicDirCommand`, `caddySite`, `certificateSays`, `outdatedSays` |
 | `packages/workbench/src/certificate.ts` | `lookAtCertificate` — one TLS handshake to a name, what a phone would get |
-| `packages/core/src/domain.ts` | pure: `domainSays`, `domainHead`, `DomainSeen`, `caaRecord`, `refusedName` (`TADE_SH_IS_THE_INSTALLER`), `publicAddresses`, `trustedWrite` |
+| `packages/core/src/domain.ts` | pure: `domainSays`, `domainHead`, `DomainSeen`, `caaRecord`, `refusedName` (`TADE_SH_IS_THE_INSTALLER`), `publicAddresses` |
+| `packages/core/src/public-name.ts` | pure: `publicWrite`, `loopbackWrite`, `copiedHosts` — the name written alone, `trusted_hosts` for a loopback Caddy, and which trusted hostnames Tade itself copied there |
 | `packages/workbench/src/domain.ts` | `lookAtDomain` — the zone's servers and a public resolver asked for each record, 443 here, the certificate, `caddyAccount` |
 | `packages/workbench/src/dns.ts` | `ask` — one question over UDP with a deadline, the bits `node:dns` cannot set; `keyTag`, `dsOf` |
 | `packages/cli/src/commands/host-domain.ts` | `tade host domain`: `domainPrinted`, `domainRefused`, `writeTrusted` |
@@ -355,9 +356,13 @@ neither the AD bit, nor the response code, nor the SOA of a negative answer. `dn
 format the look needs, over `node:dgram`, with a deadline on every try, and a server that did not
 answer is not asked again in the same look, so a box with no network waits once.
 
-**The name is written on a press and never otherwise** — `trustedWrite`, as `surfaces.web.public`
-and added to `surfaces.web.trusted_hosts` — by the command's question, `--write`, or typing it in the
-Public name row, whose write adds it to the trusted hostnames on the same press and journals both.
+**The name is written on a press and never otherwise** — `publicWrite`, as `surfaces.web.public`
+alone — by the command's question, `--write`, or typing it in the Public name row. **Never into
+`surfaces.web.trusted_hosts` beside it**: `surfaceOf` trusts the public name on its own, and a copy
+outlives the name. Changing or clearing it takes back the copies Tade wrote there until 2026-10-17
+(`copiedHosts`, the journal's `config_changed` lines), never a name somebody put there. The one path
+that needs a trusted hostname is a Caddy in front of the loopback listener with no public socket
+(stage 0): the command offers it, said as that, once the public name is declined (`loopbackWrite`).
 The look in the window runs once each time Settings is opened on the row and on **Look again**,
 never on a clock, and only where the CLI handed it `AppOptions.domain`. **`tade.sh` and every name
 under it are refused at the schema** (`refusedName`), so the field, the CLI and `tade config --check`

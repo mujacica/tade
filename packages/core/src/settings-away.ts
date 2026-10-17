@@ -157,7 +157,7 @@ export function awayGroup(config: Config): SettingGroup {
         // socket for Caddy, which is the internet. Its own row rather than a
         // third `bind`, because the loopback listener stays as it was.
         title: 'Public name',
-        means: `the name this machine answers the internet by, through Caddy on this box: a second listener on a socket only Caddy can open, and the name a pairing code carries. A name written here is added to the trusted hostnames too, and the records it needs are drawn under it, as \`tade host domain\` prints them; \`tade host caddy\` prints the site block and the line that makes its directory. Never tade.sh or a name under it. ${PUBLIC_IS_THE_INTERNET}`,
+        means: `the name this machine answers the internet by, through Caddy on this box: a second listener on a socket only Caddy can open, and the name a pairing code carries. Trusted on its own, so it is not written into the trusted hostnames, and changing it takes back a copy Tade wrote there before; those are for a Caddy in front of the loopback listener with no public socket. The records it needs are drawn under it, as \`tade host domain\` prints them; \`tade host caddy\` prints the site block and the line that makes its directory. Never tade.sh or a name under it. ${PUBLIC_IS_THE_INTERNET}`,
         short: `${PUBLIC_IS_THE_INTERNET_SHORT}; \`tade host caddy\` sets Caddy up`,
         value: web.public,
         fallback: 'none',

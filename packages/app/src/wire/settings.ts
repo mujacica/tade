@@ -1,7 +1,10 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import {
+  type ChangedLine,
   type Config,
   clearedByHarness,
+  copiedHosts,
+  copiesUnreadSays,
   HARNESS_CHOICES,
   LINES_LOOKED_BACK,
   loadConfig,
@@ -14,8 +17,9 @@ import {
   settingReach,
   settingsOf,
   type ThinkingLevel,
-  trustedWrite,
+  tookBackSays,
   wantedInstead,
+  withoutCopies,
 } from '@tade/core'
 import { isCredential } from '@tade/web'
 import type { Frame } from '../frame.ts'
@@ -510,9 +514,16 @@ export class Settings implements Subject {
       .flatMap((also) => rows.filter((one) => one.path === also))
       .filter((one) => one.value !== '')
       .map((one) => one.title.toLowerCase())
-    // A public name written here is a trusted hostname on the same press
-    // (`trustedWrite`): the name is the one typed, and nothing types one in.
-    const trusting = path === PUBLIC ? trustedAlso(this.wire.opts.config, value.trim()) : null
+    // A public name is trusted on its own (`surfaceOf`), so it is written
+    // alone, and changing or clearing it takes back every copy of one Tade
+    // wrote into the trusted hostnames before — never a name somebody put
+    // there, which is what the journal can tell apart (`copiedHosts`).
+    const taking =
+      path === PUBLIC && named(value) !== named(setting?.value ?? '')
+        ? await takenBack(this.wire.opts.config.surfaces.web.trusted_hosts, () =>
+            this.wire.opts.client.events({ types: ['config_changed'] }),
+          )
+        : null
     let before: string | null = null
     try {
       before = readFileSync(this.path, 'utf8')
@@ -536,7 +547,7 @@ export class Settings implements Subject {
         // model belongs to the harness it was chosen in, and unset is the
         // harness deciding, which is where this sat before anybody chose.
         for (const also of clearable) writeSetting(this.path, also, undefined)
-        if (trusting !== null) writeSetting(this.path, TRUSTED, trusting.now)
+        if (taking !== null && 'now' in taking) writeSetting(this.path, TRUSTED, taking.now)
       }
       const loaded = await loadConfig(this.path)
       if (!loaded.ok) {
@@ -577,7 +588,7 @@ export class Settings implements Subject {
           ? `Saved. ${setting.title} applies when Tade next starts.${reset}`
           : trouble
             ? `Saved. It applies when the orchestrator next starts: ${trouble}`
-            : `Saved. It applies now.${reset}${this.aboutKey(path, value)}${trusting === null ? '' : ` ${value.trim().toLowerCase()} is a trusted hostname too.`}`
+            : `Saved. It applies now.${reset}${this.aboutKey(path, value)}${takingSays(taking)}`
       // Written down once it is true, with what it was: the config is one file
       // rewritten in place and nothing else remembers, so this line is what
       // makes a change somebody was not at the keyboard for undoable rather
@@ -590,9 +601,9 @@ export class Settings implements Subject {
       // the disk takes.
       const changed = [
         { path, was: held(setting?.value ?? ''), now: held(value) },
-        ...(trusting === null
+        ...(taking === null || !('now' in taking)
           ? []
-          : [{ path: TRUSTED, was: trusting.was.join(' '), now: trusting.now.join(' ') }]),
+          : [{ path: TRUSTED, was: taking.was.join(' '), now: taking.now.join(' ') }]),
       ]
       for (const one of changed) {
         void this.wire.opts.client.log
@@ -666,19 +677,40 @@ export class Settings implements Subject {
   }
 }
 
-/** The public name's row, and the trusted hostnames a name written in it joins. */
+/** The public name's row, and the trusted hostnames Tade once copied a name written in it into. */
 const PUBLIC = 'surfaces.web.public'
 const TRUSTED = 'surfaces.web.trusted_hosts'
 
+type Taking = { was: string[]; now: string[]; taken: string[] } | { cannot: string } | null
+
 /**
- * The trusted hostnames as they were and as they are with `name` among them,
- * or null where it already is or no name was written.
+ * The trusted hostnames as they were and as they are without Tade's own copies
+ * of a public name in them, out of the whole journal — or null where there are
+ * none, or why the journal could not be read, in which case nothing is taken.
  */
-function trustedAlso(config: Config, name: string): { was: string[]; now: string[] } | null {
-  if (name === '') return null
-  const web = config.surfaces.web
-  const now = trustedWrite(web, name)?.trusted_hosts ?? [...web.trusted_hosts]
-  return now.length === web.trusted_hosts.length ? null : { was: [...web.trusted_hosts], now }
+async function takenBack(
+  trusted: readonly string[],
+  read: () => Promise<readonly ChangedLine[]>,
+): Promise<Taking> {
+  let lines: readonly ChangedLine[]
+  try {
+    lines = await read()
+  } catch (err) {
+    return { cannot: why(err) }
+  }
+  const { trusted_hosts: now, taken } = withoutCopies(trusted, copiedHosts(lines))
+  return taken.length === 0 ? null : { was: [...trusted], now, taken }
+}
+
+/** What a public name's write says about the trusted hostnames, after "Saved.". */
+function takingSays(taking: Taking): string {
+  if (taking === null) return ''
+  return 'cannot' in taking ? copiesUnreadSays(taking.cannot) : tookBackSays(taking.taken)
+}
+
+/** A name as two writes of it compare: case, spaces and a final dot aside. */
+function named(name: string): string {
+  return name.trim().toLowerCase().replace(/\.$/, '')
 }
 
 /**

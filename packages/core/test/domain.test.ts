@@ -13,7 +13,6 @@ import {
   publicAddresses,
   refusedName,
   TADE_SH_IS_THE_INSTALLER,
-  trustedWrite,
 } from '../src/index.ts'
 
 // What each record comes to, out of answers written here: the zone's own
@@ -391,17 +390,6 @@ describe('the name itself', () => {
       expect(read.issues[0]?.path).toBe('surfaces.web.public')
       expect(read.issues[0]?.message).toBe(TADE_SH_IS_THE_INSTALLER)
     }
-  })
-
-  it('is written as the public name and added to the trusted hostnames, and never twice', () => {
-    expect(
-      trustedWrite({ public: '', trusted_hosts: ['studio.ts.net'] }, 'Tade.Example.com'),
-    ).toEqual({ public: NAME, trusted_hosts: ['studio.ts.net', NAME] })
-    expect(trustedWrite({ public: '', trusted_hosts: [NAME] }, NAME)).toEqual({
-      public: NAME,
-      trusted_hosts: [NAME],
-    })
-    expect(trustedWrite({ public: NAME, trusted_hosts: ['TADE.example.com'] }, NAME)).toBeNull()
   })
 })
 

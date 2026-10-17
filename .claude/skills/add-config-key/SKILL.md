@@ -44,8 +44,11 @@ orchestrator's arm reaches into it, and whether a person can read back what they
   `tade.sh` and the names under it (`refusedName`) — so the field, the CLI and `tade config --check`
   all say it.
 - **A row may write a second key on the same press** where the person's one act means both, and
-  only then: Public name adds the name to `trusted_hosts` (`trustedAlso`, `wire/settings.ts`), and
-  each key gets its own `config_changed` line. Never a key the row does not say it writes.
+  only then, and each key gets its own `config_changed` line. Never a key the row does not say it
+  writes. **Never a copy of the value into a key that outlives it**: Public name once added the name
+  to `trusted_hosts`, which already trusted it on its own and kept trusting it after it changed. Now
+  it writes the name alone and takes back those copies (`copiedHosts`, `core/src/public-name.ts`),
+  which the journal tells from a name somebody put there.
 - A key that refers to something else in the file (a worker route name, a project) is checked in
   the schema's `superRefine`, with `path` pointing at the offending key. Catching it at
   `tade config --check` time is the whole point; don't leave it to fail at spawn time.

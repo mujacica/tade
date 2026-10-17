@@ -291,7 +291,8 @@ a device still has none of the scopes that change anything until somebody at thi
   in a directory that must be this user's, `2750`, setgid, Caddy's group — **refused, never
   repaired** (`publicDirProblem`), because loosening it would be deciding who may connect. A socket
   a dead Tade left is taken over; one something answers on, or a file, never. The name is the first
-  trusted host, so it is `https` and the name a code carries.
+  trusted host, so it is `https` and the name a code carries — on its own, and **never copied into
+  `trusted_hosts`**, where it would outlive the name (`publicWrite`, `core/src/public-name.ts`).
 - **The PROXY header is the one address that is not the socket's**, read only on that socket
   (`proxied.ts`, v1 and v2) and **optional**: Caddy writes the request itself, so no client's bytes
   start the upstream connection, and a missing header is one shared address said once, never a
