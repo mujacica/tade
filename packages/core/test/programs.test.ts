@@ -524,4 +524,21 @@ describe('a program that is here and too old', () => {
     expect(declarationProblems([{ ...tmux, oldest: 'three' }])).toHaveLength(1)
     expect(declarationProblems([{ ...tmux, oldest: 'v3.2' }])).toHaveLength(1)
   })
+
+  // `merge-tree --write-tree` is 2.38's and `worktree list -z` 2.36's. Setup
+  // ticked Ubuntu 22.04's own git while every project on it read as having no
+  // tasks, because `worktree list` answered `unknown switch 'z'`.
+  it('holds git to the oldest that runs everything Tade asks of it', () => {
+    const [git] = TADE_PROGRAMS
+    const cases: [string, boolean][] = [
+      ['git version 2.34.1', true],
+      ['git version 2.37.2', true],
+      ['git version 2.38.0', false],
+      ['git version 2.39.5 (Apple Git-154)', false],
+      ['git version 2.43.0', false],
+    ]
+    for (const [said, tooOld] of cases) {
+      expect(belowOldest(parseVersion(said), git?.oldest), said).toBe(tooOld)
+    }
+  })
 })

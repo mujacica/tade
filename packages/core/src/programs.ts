@@ -124,6 +124,11 @@ export const TADE_PROGRAMS: readonly RequiredProgram[] = [
     title: 'git',
     why: 'every reading of a project’s state, and every commit an agent makes',
     versionArgs: ['--version'],
+    // `merge-tree --write-tree` (with `--name-only`, `--no-messages`, `-z`),
+    // which forecasts conflicts, is 2.38's, and `worktree list -z`, which
+    // finds every task's worktree, is 2.36's. Below them a project reads as
+    // having no tasks: Ubuntu 22.04's own 2.34 answers `unknown switch 'z'`.
+    oldest: '2.38',
     install: {
       brew: 'git',
       apt: 'git',
