@@ -9,6 +9,7 @@ import {
   string,
   type TadeExtension,
   type ToolContext,
+  Unreachable,
 } from '@tade/extensions-core'
 import type { Review, ReviewDetail, ReviewRef } from '@tade/forges-core'
 import { ForgeError } from '@tade/forges-core'
@@ -511,7 +512,7 @@ export const reviewExtension: TadeExtension = {
         if (!branch || branch === 'HEAD') {
           throw new Error('there is no branch here to open a review for')
         }
-        const pushed = await run(ctx, root, ['ls-remote', '--heads', 'origin', branch])
+        const pushed = await onOrigin(ctx, root, where, branch)
         if (!pushed.trim()) {
           throw new Error(`${branch} is not on the remote yet: push it first, then open the review`)
         }
@@ -980,12 +981,7 @@ export const reviewExtension: TadeExtension = {
       async check(ctx) {
         const where = await whereOf(ctx, ctx.watching)
         if ('problem' in where) throw new Error(where.problem)
-        const heads = await run(ctx, ctx.watching.root, [
-          'ls-remote',
-          '--heads',
-          'origin',
-          'tade/*',
-        ])
+        const heads = await onOrigin(ctx, ctx.watching.root, where, 'tade/*')
         const findings: Finding[] = []
         for (const line of heads.split('\n')) {
           const branch = line.split('\t')[1]?.replace('refs/heads/', '').trim()
@@ -1037,6 +1033,35 @@ async function run(ctx: ExtensionContext, root: string, args: readonly string[])
   const got = await ctx.exec('git', ['-C', root, ...args], { timeoutMs: 10_000 })
   return got.code === 0 ? got.stdout : ''
 }
+
+/**
+ * The branches `origin` has matching `pattern`, as `ls-remote` lists them —
+ * and a throw rather than an empty list when origin could not be asked, because
+ * an empty list is "nothing pushed": a watch would find nothing all through an
+ * outage, and `review_open` would tell an agent to push what it already had.
+ *
+ * Where git says nothing answered it is `Unreachable`, naming the forge's host,
+ * so the scheduler's reach can ask about it; a refusal — no such repository, no
+ * access — is something answering, and stays an ordinary error. Git's words are
+ * read because they are all there is: it exits 128 for both.
+ */
+async function onOrigin(
+  ctx: ExtensionContext,
+  root: string,
+  where: Where,
+  pattern: string,
+): Promise<string> {
+  const args = ['-C', root, 'ls-remote', '--heads', 'origin', pattern]
+  const got = await ctx.exec('git', args, { timeoutMs: 10_000 })
+  if (got.code === 0) return got.stdout
+  const said = got.stderr.trim().split('\n')[0]?.trim() || `git ended with ${got.code}`
+  const asked = `could not ask origin which branches it has matching ${pattern}: ${said}`
+  throw NOTHING_ANSWERED.test(got.stderr) ? new Unreachable(where.host, asked) : new Error(asked)
+}
+
+/** What git, curl and ssh say when the host never answered. */
+const NOTHING_ANSWERED =
+  /could not resolve|unable to look up|failed to connect|couldn't connect|unable to connect|connection refused|timed out|no route to host|network is unreachable/i
 
 /** The body a project wants its reviews to have, when it says. */
 async function template(_ctx: ExtensionContext, path: string | undefined): Promise<string> {
