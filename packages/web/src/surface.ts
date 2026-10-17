@@ -24,10 +24,10 @@ import { GRANTS, type Grant, type Reach } from './reach.ts'
 // LAN bind on, the one that lets a paired device act, and the one that lists
 // the devices that have been let in —
 // and a control's words are a `Setting`'s `means`, which lives in the domain.
-// `@tade/core` cannot import this package: the arrow goes the other way and
-// `test/modularity.test.ts` holds it. So the choice was a second spelling of
-// each sentence beside each control, or one spelling in the domain. A second
-// spelling is the exact failure these sentences exist to prevent.
+// `@tade/core` cannot import this package: the arrow goes the other way. So
+// the choice was a second spelling of each sentence beside each control, or
+// one spelling in the domain. A second spelling is the exact failure these
+// sentences exist to prevent.
 export {
   ACTING_IS_NOT_YOU,
   ACTING_IS_NOT_YOU_SHORT,

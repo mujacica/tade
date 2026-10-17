@@ -25,9 +25,9 @@ import { discardsIn } from './swallowed.ts'
 // `discardsIn` (`./swallowed.ts`) says exactly what is counted.
 //
 // There are over six hundred of these already, many deliberate and commented,
-// a few still the finding they were made in. So this is a ratchet, as
-// `modularity.test.ts` is for length: one number per file, today's, which may
-// go DOWN in the commit that earns it and never up. A new one is a line here
+// a few still the finding they were made in. So this is a ratchet: one number
+// per file, today's, which may go DOWN in the commit that earns it and never
+// up. A new one is a line here
 // argued for in review, which is the moment the fourteen never had.
 //
 // What it cannot see, and the two of the fourteen that showed it:

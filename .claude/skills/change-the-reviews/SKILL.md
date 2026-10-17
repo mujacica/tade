@@ -396,8 +396,6 @@ beside it. Then, in order of how likely each is to have moved:
   two reviewing tools (`reviewer.test.ts`), the loop and its bounds (`reviewer-loop.test.ts`), and
   `extensionConformance`.
 - `pnpm vitest run packages/status/test/forges.test.ts` if the registry or `forgeFor` moved.
-- `pnpm vitest run test/modularity.test.ts` if a file grew: `review/src/extension.ts` has a budget
-  line of its own, and a number in it may only go down.
 - `pnpm coverage` if you added a file — the floors are per package (`scripts/coverage-floors.ts`),
   and `forges/core` sits at 95.
 - `TADE_LIVE=1 pnpm vitest run packages/orchestrator/test/live.test.ts` if you added a tool: it is

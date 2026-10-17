@@ -318,8 +318,6 @@ beside it. Then, in order of how likely each is to have moved:
 - `pnpm vitest run packages/extensions/jev` — the pack, the change reading, the loop, the sweep,
   `stuck` and `precision` all have their own tests; `measure.test.ts` is where the three tables meet.
 - `pnpm vitest run packages/judges` — the conformance suite for every implementation.
-- `pnpm vitest run test/modularity.test.ts` if a file grew: `jev/src/extension.ts` has a budget line
-  of its own, and a number in it may only go down.
 - A screen scenario for anything drawn (`packages/app/test/screens/scenarios/extensions.ts`), then
   `pnpm screens` and accept on purpose.
 - `TADE_LIVE=1 pnpm vitest run packages/orchestrator/test/live.test.ts` if you added a tool: it is

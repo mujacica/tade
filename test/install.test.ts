@@ -107,7 +107,7 @@ describe('the script itself', () => {
   // costs nothing and a wall of shell is still a wall. 125 today; this may go
   // DOWN in the commit that earns it and never up, because the day this needs
   // half as much again is the day it is doing something a person piping it
-  // into a shell cannot check. Same ratchet as `test/modularity.test.ts`.
+  // into a shell cannot check.
   it('is small enough that somebody can read all of it', () => {
     const doing = lines.filter((line) => line.trim() !== '' && !line.trim().startsWith('#'))
     expect(doing.length).toBeLessThanOrEqual(135)

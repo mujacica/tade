@@ -32,7 +32,7 @@ import { withoutCredentials } from './screen.ts'
 // that need not have been is a shorter line, and a path let through that should
 // not have been is the leak.
 //
-// Pure: no `node:` import, no clock, nothing awaited (`test/modularity.test.ts`).
+// Pure: no `node:` import, no clock, nothing awaited.
 
 /** The three places a path may be shortened to, as the window knows them. */
 export interface Places {

@@ -44,8 +44,7 @@ import { has, type Reach, readsOf, sees } from './reach.ts'
 // The projection. One pure function of what it is handed and the moment.
 //
 // No `node:` import, no clock read, nothing to await — the same rule the
-// window's own pure files are held to (`test/modularity.test.ts`), and for the
-// same reason: a function of its arguments can be tested exhaustively, and a
+// window's own pure files keep, and for the same reason: a function of its arguments can be tested exhaustively, and a
 // projection is the one place in the away view where being sure matters more
 // than anything else.
 //

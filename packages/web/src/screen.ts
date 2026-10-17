@@ -44,7 +44,7 @@ import { ELIDED, pathIn } from './fields.ts'
 // each row cut at `width` code points. What was left out is counted, so a page
 // says *there was more* rather than drawing a screen that looks whole.
 //
-// Pure: no `node:` import, no clock, nothing awaited (`test/modularity.test.ts`).
+// Pure: no `node:` import, no clock, nothing awaited.
 
 /** How much of a lane's screen one answer carries. */
 export interface ScreenBudget {

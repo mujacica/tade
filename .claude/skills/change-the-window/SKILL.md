@@ -227,7 +227,7 @@ regions in a cycle now.
   deadline — including the one nobody thinks of as a wait, an extension's `ready()`, which is somebody
   else's code awaited from the Settings page and which the host holds to one with `inTime`
   (`extensions/core/src/host.ts`). A standalone script the window never imports is its own process and
-  may be simple; it is named in `test/modularity.test.ts`, which holds the rest to it.
+  may be simple.
 - **A program the window waits for is started by `runProgram`** (`core/src/run.ts`): its own process
   group, an absolute path, a deadline that kills the group, never a throw. Terminal.app names its
   window after the newest process in the terminal's foreground group, and `execFile` silently drops

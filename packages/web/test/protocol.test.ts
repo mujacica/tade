@@ -78,8 +78,8 @@ describe('the schema is the test', () => {
 
 describe('what this package may not reach', () => {
   it('imports neither the window nor the workbench', () => {
-    // Also held repo-wide by `test/modularity.test.ts`; here because this is
-    // where somebody adding an import to this package is looking.
+    // Here because this is where somebody adding an import to this package
+    // is looking.
     const guilty = sources().filter((path) => /@tade\/(app|workbench)/.test(code(path)))
     expect(guilty).toEqual([])
   })

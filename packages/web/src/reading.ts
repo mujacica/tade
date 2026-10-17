@@ -24,14 +24,13 @@ import { type Cursors, noteRows, noteSeen } from './snapshot.ts'
 // `Live`'s held state. A registry would offer a choice nobody has, and a
 // conformance suite would describe one implementation to itself. What this is,
 // is dependency inversion: `@tade/web` imports neither `@tade/app` nor
-// `@tade/workbench` (held by `test/modularity.test.ts`), so it declares what it
+// `@tade/workbench` (held by `protocol.test.ts`), so it declares what it
 // needs and the window implements it.
 //
 // It is written in this package's own vocabulary and not the workbench's (R2):
 // `snapshot()` and `notes()`, never `collectStatus` or `recall`.
 //
-// This is the one file in the package that is not among `test/modularity.test.ts`'s
-// pure ones: `projector` holds the last projection and the revision, which is
+// This is the one file in the package that is not pure: `projector` holds the last projection and the revision, which is
 // state, and the pure half of what it does is `revise` in `delta.ts`.
 //
 // **Phase 1 ships only the reading half, and there is no mutation method to

@@ -25,10 +25,8 @@
 // the thing properly, or to say in the commit message why it is not worth
 // covering and lower it.
 //
-// The shape is `test/modularity.test.ts`'s, deliberately, because it is the
-// same kind of rule: one table, checked in, and a ratchet. The direction is the
-// mirror of it — a line budget may only go down, a coverage floor may only go
-// up.
+// The shape is one table, checked in, and a ratchet: a coverage floor may only
+// go up.
 //
 // Nothing here can quietly stop working, which is the failure a gate is most
 // likely to have: a package the report never reached is a named problem, an

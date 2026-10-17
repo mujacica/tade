@@ -305,8 +305,8 @@ The whole of it is the `change-the-window` skill. The rules that break things qu
   in between, on one thread, so everything in the packages it loads spawns asynchronously and **every
   wait has a deadline** (`inTime`) — an extension's `ready()` included.
 - **The pure files** (`frame.ts`, `model.ts`, `view.ts`, `view/*`, `panels/*`, `skin.ts`, `ui.ts`, …)
-  **contain no `node:` import, no clock read and no `async`**, held by `test/modularity.test.ts`,
-  which also holds `app.ts` → `wire/*` one way only.
+  **contain no `node:` import, no clock read and no `async`**, and `app.ts` → `wire/*` is one way
+  only.
 - **Tade stays light, and proves it**: what it polls is cheap and shared, and anything on a timer or
   drawn every frame has a performance test.
 - **Escape stops what is thinking; ctrl+c throws away what you typed; neither does the other's job**
@@ -365,14 +365,11 @@ Recipes: `set-up-the-machine` and `cut-a-release`.
 
 - **`CLAUDE.md` is a link to this file**, so every agent reads the same words — and *all* of them,
   which is why its budget (`test/guide.test.ts`) may go **down** and never up.
-- **A file over 800 lines is a conversation.** `test/modularity.test.ts` holds one budget per file
-  (`DEFAULT = 800`, a line of its own for each file allowed to be bigger); a number goes **down** in the
-  commit that earns it, never up, and one sitting more than `SLACK` above its file is the ratchet
-  failing. **A coverage floor per package, and never one number for the repository**
-  (`scripts/coverage-floors.ts`) is the same ratchet the other way — up, never down without an
-  argument. **A number is not the goal**: a test that runs a function and asserts nothing raises every
-  figure and makes the table lie, and what the instrument cannot see is named with its reason
-  (`UNSEEN`) rather than mocked around.
+- **A coverage floor per package, and never one number for the repository**
+  (`scripts/coverage-floors.ts`) is a ratchet — up, never down without an argument. **A number is
+  not the goal**: a test that runs a function and asserts nothing raises every figure and makes the
+  table lie, and what the instrument cannot see is named with its reason (`UNSEEN`) rather than
+  mocked around.
 - **`README.md` is the showcase**: a hero, a section per feature with a picture, then install and
   setup — which must stay findable. **Its pictures are generated, never taken
   by hand** (`pnpm screens --assets`, held to their bytes by `packages/app/test/pictures.test.ts`), so

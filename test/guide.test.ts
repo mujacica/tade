@@ -51,9 +51,9 @@ const GUIDE = 'AGENTS.md'
  * it is counted in, so the number here and the number in the refusal are the
  * same kind of thing.
  *
- * This may go DOWN in the commit that earns it, and never up. Reducing it is
- * the same act as lowering a line in `test/modularity.test.ts`: something moved
- * to where it belongs. Raising it is the act this test exists to refuse.
+ * This may go DOWN in the commit that earns it, and never up. Reducing it means
+ * something moved to where it belongs. Raising it is the act this test exists
+ * to refuse.
  */
 const BUDGET = 30_000
 

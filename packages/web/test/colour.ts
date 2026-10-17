@@ -2,8 +2,8 @@
 // arithmetic.
 //
 // **Why there are two copies of this.** `packages/app/src/skin.ts` has the same
-// cube table and the same `contrast()`, and `test/modularity.test.ts` forbids
-// anything under `packages/web/` from importing `@tade/app` — the arrow points
+// cube table and the same `contrast()`, and `protocol.test.ts` forbids the
+// away view's sources from importing `@tade/app` — the arrow points
 // the other way, so that the away view can be tested without a window. The
 // choice was therefore a copy here or **no mechanical check of the palette at
 // all**, and the second is worse: the away view is the same control room

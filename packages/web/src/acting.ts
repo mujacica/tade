@@ -299,8 +299,8 @@ export function projectRev(facts: ProjectFacts): string {
  * here already uses. It moved because the orchestrator needs the same fact
  * about the same two doors — a turn from away has a provenance exactly as an
  * act does — and `@tade/core` cannot import this package: the arrow goes the
- * other way and `test/modularity.test.ts` holds it. Two spellings of *who
- * asked* is the failure this type exists to prevent.
+ * other way. Two spellings of *who asked* is the failure this type exists to
+ * prevent.
  */
 export type From = Who
 

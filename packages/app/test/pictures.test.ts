@@ -98,9 +98,9 @@ describe('the pictures the README is made of', () => {
     // pinned (`packages/web/scripts/still.ts`), and Node 22 and Node 26 draw
     // it to the same byte.
     //
-    // Thrown rather than expected, for `modularity.test.ts`'s reason: a diff
-    // of two hundred-kilobyte SVGs teaches nobody, and the name of the picture
-    // and the command to run are the whole of what somebody needs here.
+    // Thrown rather than expected: a diff of two hundred-kilobyte SVGs teaches
+    // nobody, and the name of the picture and the command to run are the whole
+    // of what somebody needs here.
     const stale = (await drawPictures())
       .filter((one) => {
         let onDisk: string

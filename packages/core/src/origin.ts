@@ -8,8 +8,7 @@
 // `by` of `you` as something the person did and `namedBy` reads their own
 // lines to authorise a setting change. It lived in `@tade/web`; it is here
 // because the conversation needs it too and `@tade/core` cannot import that
-// package (`test/modularity.test.ts` holds the arrow). One spelling, in the
-// domain, re-exported there.
+// package. One spelling, in the domain, re-exported there.
 //
 // **How far the words reach** is authority, and it is new. A verb from a
 // paired device is one bounded act with a target and the state it expects, so
