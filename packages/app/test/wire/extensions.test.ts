@@ -4,6 +4,7 @@ import { type Config, ConfigSchema } from '@tade/core'
 import { sentryExtension } from '@tade/extension-sentry'
 import { ExtensionHost } from '@tade/extensions-core'
 import { CATALOGUE } from '@tade/mcp-core'
+import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
 import { parse, stringify } from 'yaml'
 import type { McpServerShown } from '../../src/panels/extensions/state.ts'
@@ -51,12 +52,26 @@ function written(home: string): {
   return parse(readFileSync(join(home, 'config.yaml'), 'utf8'))
 }
 
+/**
+ * The `config_changed` lines the window has written, once there are `count`:
+ * a switch is written down like a change from Settings — what it was, what it
+ * is and who asked — and the line follows the write rather than holding it up.
+ */
+async function changes(client: Workbench, count: number): Promise<Record<string, unknown>[]> {
+  const read = async () =>
+    (await client.events({ types: ['config_changed'] })).map(({ detail }) => detail)
+  await until(`${count} config_changed lines`, async () => (await read()).length >= count)
+  return read()
+}
+
 describe('the window, and its extensions', () => {
   let terminal: FakeTerminal
+  let client: Workbench
   let repo: Repo
   let home: string
   const { start, click, find } = windowUnderTest((wired) => {
     terminal = wired.terminal
+    client = wired.client
     repo = wired.repo
     home = wired.home
   })
@@ -105,6 +120,9 @@ describe('the window, and its extensions', () => {
       ),
     )
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('enabled: true')
+    expect(await changes(client, 1)).toEqual([
+      { path: 'extensions.standup.enabled', was: '', now: 'true', by: 'window' },
+    ])
   })
 
   // Tade's Sentry extension and the catalogue's Sentry server are both called
@@ -166,6 +184,9 @@ describe('the window, and its extensions', () => {
     expect(after.extensions?.sentry?.enabled).toBe(true)
     // And the server it shares a name with was left exactly as it was.
     expect(after.mcp?.servers?.sentry?.enabled).toBe(false)
+    expect(await changes(client, 1)).toEqual([
+      { path: 'extensions.sentry.enabled', was: 'false', now: 'true', by: 'window' },
+    ])
   })
 
   it('turns a server on from the row that is the server, which is `mcp-<it>`', async () => {
@@ -202,6 +223,9 @@ describe('the window, and its extensions', () => {
     // One switch, and it is the server's: `extensions.mcp-sentry` is not a
     // second question, so nothing was written under it.
     expect(after.extensions?.['mcp-sentry']).toBeUndefined()
+    expect(await changes(client, 1)).toEqual([
+      { path: 'mcp.servers.sentry.enabled', was: 'false', now: 'true', by: 'window' },
+    ])
   })
 
   it('runs an extension from its panel, and shows it working and what it said', async () => {
@@ -375,8 +399,12 @@ describe('the window, and its extensions', () => {
     )
     // Written into the config, under the setting it is.
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('wk_0123456789')
-    // And nowhere else: pasting a key writes no line about it, so the journal
-    // this window has been keeping all along holds none of it.
+    // And written down as a change like any other — that a key was set, and by
+    // whom, and never the key: the journal this window has been keeping all
+    // along holds none of it.
+    expect(await changes(client, 1)).toEqual([
+      { path: 'extensions.weather.key', was: 'not set', now: 'set', by: 'window' },
+    ])
     expect(readFileSync(join(home, 'events.jsonl'), 'utf8')).not.toContain('wk_0123456789')
   })
 

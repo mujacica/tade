@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { basename, dirname, join, resolve } from 'node:path'
+import { existsSync } from 'node:fs'
+import { basename, join, resolve } from 'node:path'
 
 import { fileURLToPath } from 'node:url'
 import { runScreen, ScreenCancelled, type Ui } from '@tade/app'
@@ -10,7 +10,6 @@ import {
   isReady,
   type LaneProof,
   loadConfig,
-  ownerOnly,
   type ReadinessFacts,
   readiness,
   resolveCommand,
@@ -25,8 +24,7 @@ import { usableModels } from '@tade/harnesses-pi'
 import { makeJudge } from '@tade/workbench'
 import { proveALane } from '@tade/workbench/prove'
 import type { Command } from 'commander'
-import { type Document, parseDocument } from 'yaml'
-import { writeFromShell } from '../config-write.ts'
+import { patchFromShell, writeFromShell } from '../config-write.ts'
 import { Exit, type Io } from '../io.ts'
 import { setUpUnattended } from './host-service.ts'
 import { gather, type Look, lookHere } from './setup-facts.ts'
@@ -298,7 +296,7 @@ async function setUpProject(ui: Ui, facts: ReadinessFacts): Promise<void> {
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, '-')
   const name = await ui.ask('call it what?', fallback)
-  patchConfig((config) => {
+  await patchConfig(ui, (config) => {
     config.projects = { ...(config.projects ?? {}), [name]: { root } }
   })
   ui.say(`  added ${name} → ${root}`)
@@ -338,7 +336,7 @@ async function setUpModel(
 
   const model = await pickModel(ui)
   if (!model) return
-  patchConfig((config) => {
+  await patchConfig(ui, (config) => {
     config.orchestrator = { ...(config.orchestrator ?? {}), model }
   })
   ui.say(`  orchestrator will use ${model}`)
@@ -384,7 +382,7 @@ async function setUpWorkspace(ui: Ui, look: Look): Promise<void> {
       'pty — nothing to install, and they stop when Tade does',
     ])) === 0
   if (!keepRunning) {
-    patchConfig((config) => {
+    await patchConfig(ui, (config) => {
       config.workspace = { ...(config.workspace ?? {}), driver: 'pty' }
     })
     ui.say('  agents will run inside Tade and stop with it')
@@ -398,12 +396,12 @@ async function setUpWorkspace(ui: Ui, look: Look): Promise<void> {
     // Asked for durable agents and has no tmux: say plainly what they got
     // rather than writing a driver that will not start.
     ui.say('  leaving it on pty for now — agents will stop when Tade does')
-    patchConfig((config) => {
+    await patchConfig(ui, (config) => {
       config.workspace = { ...(config.workspace ?? {}), driver: 'pty' }
     })
     return
   }
-  patchConfig((config) => {
+  await patchConfig(ui, (config) => {
     config.workspace = { ...(config.workspace ?? {}), driver: 'tmux', fallback: 'pty' }
   })
   ui.say('  agents will live in tmux and keep working when you close Tade')
@@ -421,7 +419,7 @@ async function setUpTalkKey(ui: Ui): Promise<void> {
     'ctrl+t — free in pi and most shells',
   ])
   const key = keys[picked] ?? 'ctrl+space'
-  patchConfig((config) => {
+  await patchConfig(ui, (config) => {
     const surfaces = (config.surfaces ?? {}) as Record<string, Record<string, unknown>>
     const voice = (surfaces.voice ?? {}) as Record<string, unknown>
     config.surfaces = {
@@ -457,7 +455,7 @@ async function setUpJudge(ui: Ui): Promise<void> {
     'not now — Settings › Extensions › Jev whenever you want it',
   ])
   if (set !== 0) {
-    patchConfig((config) => {
+    await patchConfig(ui, (config) => {
       const extensions = (config.extensions ?? {}) as Record<string, Record<string, unknown>>
       config.extensions = { ...extensions, jev: { ...(extensions.jev ?? {}), enabled: false } }
     })
@@ -506,7 +504,7 @@ async function setUpJudge(ui: Ui): Promise<void> {
   // has its own deadline, so a machine with no network says so rather than
   // hanging on this.
   const problem = await makeJudge('jev', { key }).verify()
-  patchConfig((config) => {
+  await patchConfig(ui, (config) => {
     const extensions = (config.extensions ?? {}) as Record<string, Record<string, unknown>>
     config.extensions = { ...extensions, jev: { ...(extensions.jev ?? {}), enabled: true } }
   })
@@ -554,16 +552,16 @@ async function setUpExtensions(ui: Ui, look: Look): Promise<void> {
     'none for now',
   ])
   if (choice === 2) {
-    for (const one of waiting) setExtension(one.name, false)
+    for (const one of waiting) await setExtension(ui, one.name, false)
     ui.say('  all off — Settings › Extensions whenever you want one')
   } else if (choice === 0) {
-    for (const one of waiting) setExtension(one.name, true)
+    for (const one of waiting) await setExtension(ui, one.name, true)
     ui.say(`  on: ${waiting.map((one) => one.title).join(', ')}`)
     ui.say('  they load the next time Tade starts')
   } else {
     for (const one of waiting) {
       const on = await ui.confirm(`use ${one.title}?`, true)
-      setExtension(one.name, on)
+      await setExtension(ui, one.name, on)
       ui.say(`  ${one.title} is ${on ? 'on' : 'off'}`)
     }
     ui.say('  what you turned on loads the next time Tade starts')
@@ -571,8 +569,8 @@ async function setUpExtensions(ui: Ui, look: Look): Promise<void> {
 }
 
 /** On or off, written down: there is one answer to whether an extension runs. */
-function setExtension(name: string, on: boolean): void {
-  patchConfig((config) => {
+async function setExtension(ui: Ui, name: string, on: boolean): Promise<void> {
+  await patchConfig(ui, (config) => {
     const extensions = (config.extensions ?? {}) as Record<string, Record<string, unknown>>
     config.extensions = { ...extensions, [name]: { ...(extensions[name] ?? {}), enabled: on } }
   })
@@ -609,7 +607,7 @@ async function setUpVoice(ui: Ui, facts: ReadinessFacts, look: Look): Promise<vo
   if (picked === 1 || picked === 2) {
     const driver = picked === 1 ? 'openai' : 'groq'
     const key = picked === 1 ? 'OPENAI_API_KEY' : 'GROQ_API_KEY'
-    patchConfig((config) => {
+    await patchConfig(ui, (config) => {
       const surfaces = (config.surfaces ?? {}) as Record<string, Record<string, unknown>>
       const voice = (surfaces.voice ?? {}) as Record<string, unknown>
       config.surfaces = { ...surfaces, voice: { ...voice, stt: { driver } } }
@@ -657,7 +655,7 @@ async function setUpWhisper(ui: Ui, machine: InstallersHere): Promise<void> {
   const model = models[picked]
   if (!model) return
 
-  patchConfig((config) => {
+  await patchConfig(ui, (config) => {
     const surfaces = (config.surfaces ?? {}) as Record<string, Record<string, unknown>>
     const voice = (surfaces.voice ?? {}) as Record<string, unknown>
     config.surfaces = {
@@ -682,41 +680,10 @@ function modelPathFor(name: string): string {
   return join(tadeHome(), 'models', `ggml-${name}.bin`)
 }
 
-/** Read, change and write `config.yaml`, keeping whatever else is in it. */
-function patchConfig(change: (config: Record<string, unknown>) => void): void {
-  const path = defaultConfigPath()
-  let text = ''
-  try {
-    text = readFileSync(path, 'utf8')
-  } catch {
-    // No config yet: this writes a fresh one.
-  }
-  // The file is somebody's: their comments survive. The change is made to a
-  // copy of the data, and only the values that differ are written back into
-  // the document — printing the data again would drop every comment in it.
-  const doc = parseDocument(text)
-  const before = (doc.toJS() as Record<string, unknown> | null) ?? {}
-  const after = structuredClone(before)
-  change(after)
-  writeDifferences(doc, [], before, after)
-  mkdirSync(dirname(path), { recursive: true })
-  mkdirSync(tadeHome(), { recursive: true })
-  // The file holds keys, so it is the owner's alone to read.
-  writeFileSync(path, doc.toString(), { mode: 0o600 })
-  ownerOnly(path)
-}
-
-function writeDifferences(doc: Document, at: string[], before: unknown, after: unknown): void {
-  const isObject = (value: unknown): value is Record<string, unknown> =>
-    typeof value === 'object' && value !== null && !Array.isArray(value)
-  if (isObject(before) && isObject(after)) {
-    for (const key of Object.keys(before)) {
-      if (!(key in after)) doc.deleteIn([...at, key])
-    }
-    for (const [key, value] of Object.entries(after)) {
-      writeDifferences(doc, [...at, key], before[key], value)
-    }
-    return
-  }
-  if (JSON.stringify(before) !== JSON.stringify(after)) doc.setIn(at, after)
+/**
+ * Read, change and write `config.yaml`, keeping whatever else is in it, and
+ * write each key the change set or took away down (`patchFromShell`).
+ */
+function patchConfig(ui: Ui, change: (config: Record<string, unknown>) => void): Promise<void> {
+  return patchFromShell(defaultConfigPath(), change, (said) => ui.say(`  ${said}`))
 }

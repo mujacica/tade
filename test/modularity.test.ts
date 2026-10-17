@@ -48,7 +48,8 @@ const BUDGET: Record<string, number> = {
   // subject from what the window should *show*, and the one the next command
   // added to.
   'packages/app/src/model.ts': 1_950,
-  'packages/app/src/wire/extensions.ts': 885,
+  // 880 when the setup panel's write, put-back and record became `writeApplied`.
+  'packages/app/src/wire/extensions.ts': 880,
   // Both lost their SMART QUEUE corner to `packages/app/test/queue-view.test.ts`:
   // what the queue shows and how the side draws it are one subject, and they
   // were being tested as two halves that could disagree.
@@ -100,8 +101,10 @@ const BUDGET: Record<string, number> = {
   // when `holdQueued` joined `changeQueued` and a plan learned races; 2,315
   // when making a finding into work went to `found.ts`, as it learned to park;
   // 2,291 when a schedule's run followed it there, as both learned to propose;
-  // 2,285 when the `cwd` the harness and account lookups no longer read went.
-  'packages/workbench/src/workbench.ts': 2_285,
+  // 2,285 when the `cwd` the harness and account lookups no longer read went;
+  // 2,267 when writing the config and keeping a route went to `config-kept.ts`,
+  // as both learned to write their change down.
+  'packages/workbench/src/workbench.ts': 2_267,
   // 1,100 -> 1,045 when what each agent has been doing went to `doing.ts`, as
   // it learned which files each one wrote for the conflict forecast.
   'packages/workbench/src/workers.ts': 1_045,

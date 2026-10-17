@@ -394,6 +394,21 @@ writes `config_changed` `by: cli` — a key as a count, a block as `set`, a list
 so `copiedHosts` and `changedThere` read it as they read Settings'. The CLI may not append beside
 an open window, so the line goes through `recordConfigChanges` (`workbench/src/config-changes.ts`):
 folded in at once where nobody holds the home, and otherwise by the window on its beat
-(`Settings.fold`).
+(`Settings.fold`). A change made to the config as data — `tade setup`'s — is `patchFromShell`, a
+line per leaf.
+
+**Nowhere else either.** Every writer is one of these, and a new one picks its door rather than
+calling `writeSetting` bare:
+
+| Writing from | Door | Says a key as |
+|---|---|---|
+| the Settings page, a carry | `Settings.write` / `writeKey` (`app/src/wire/settings.ts`) | `set` / `not set`, or a count |
+| the window, off the page — a switch, a model, a setup panel, `/settings` | `writeRecorded`, `writeApplied` where something must take it first, `editRecorded` (`app/src/wire/config-written.ts`) | `set` / `not set` |
+| the workbench — accounts, an account's key, a route kept | `keptIn` then `recordKept` (`workbench/src/config-kept.ts`) | `set` / `not set` |
+| a process at startup that may not hold the journal | `changeOf` into `recordConfigChanges` (the extension-folder move, `by: tade`) | `set` / `not set` |
+
+`changeOf` (`config-changes.ts`) is the one rule for those lines: no line for a key written as it
+was, a credential by its leaf name or `secret`, a block as `set`. `by` is whoever asked —
+`window`, `orchestrator` (pass it down: `setAgentModel(…, 'orchestrator')`), `cli`, `tade`.
 
 Then: `pnpm check` on its own.

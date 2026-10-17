@@ -5,8 +5,8 @@ import type { Speaker } from '@tade/voice-tts'
 import type { Frame } from '../frame.ts'
 import { keyCaps } from '../keys.ts'
 import { activeTerminal, notice, openLine, setListening } from '../model.ts'
-import { writeSetting } from '../settings.ts'
-import { type Actions, configPathOf, flash, type Subject, type Wiring, why } from './context.ts'
+import { writeRecorded } from './config-written.ts'
+import { type Actions, flash, type Subject, type Wiring, why } from './context.ts'
 
 /** A sentence that starts with a capital, because it is read out as one. */
 function capitalise(text: string): string {
@@ -307,7 +307,7 @@ export class Voice implements Subject {
     try {
       // Written either way, never deleted: muted is the default, so taking the
       // key away would mute again the next time Tade starts.
-      writeSetting(configPathOf(this.wire.opts), 'surfaces.voice.muted', muted)
+      writeRecorded(this.wire, 'surfaces.voice.muted', muted)
     } catch {
       // Not writable: muted for this window only.
     }

@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { ConfigSchema, loadConfig, settingsOf, taskDir } from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
 import { Workbench } from '@tade/workbench'
+import { readJournal } from '@tade/workbench/events'
 import { afterEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import {
@@ -217,7 +218,13 @@ describe('an agent an extension starts', () => {
     mkdirSync(join(root, 'rejected'), { recursive: true })
     writeFileSync(join(root, 'rejected', 'shouty.ts'), '// No.\n')
 
-    expect(oneExtensionsFolder(root, config).sort()).toEqual(['release-notes', 'standup'])
+    const moved = oneExtensionsFolder(root, config)
+    expect(moved.names.sort()).toEqual(['release-notes', 'standup'])
+    // Turning one on is a change to the config like any other, handed back to
+    // be written down: what it was, what it is, and that Tade did it.
+    expect(moved.turnedOn).toEqual([
+      { path: 'extensions.release-notes.enabled', was: '', now: 'true', by: 'tade' },
+    ])
     expect(existsSync(join(root, 'release-notes', 'extension.ts'))).toBe(true)
     expect(existsSync(join(root, 'standup.ts'))).toBe(true)
     expect(existsSync(join(root, 'active'))).toBe(false)
@@ -230,7 +237,51 @@ describe('an agent an extension starts', () => {
     expect(after.ok && after.config.extensions['release-notes']?.enabled).toBe(true)
     expect(after.ok && after.config.extensions.standup).toBeUndefined()
     // Run again, it has nothing left to do.
-    expect(oneExtensionsFolder(root, config)).toEqual([])
+    expect(oneExtensionsFolder(root, config)).toEqual({ names: [], turnedOn: [] })
+  })
+
+  it('writes down what the move turned on in this home’s journal, and only for its config', async () => {
+    const home = tmp('wx-onefolder-journal-')
+    const root = join(home, 'extensions')
+    mkdirSync(join(root, 'active', 'release-notes'), { recursive: true })
+    writeFileSync(join(root, 'active', 'release-notes', 'extension.ts'), 'export default {}\n')
+    const configPath = join(home, 'config.yaml')
+    writeFileSync(configPath, `orchestrator:\n  extensions: ${root}\n`)
+    const loaded = await loadConfig(configPath)
+    if (!loaded.ok) throw new Error('the fixture does not load')
+    const said: string[] = []
+    await loadExtensions({
+      config: loaded.config,
+      home,
+      configPath,
+      env: {},
+      safe: true,
+      onWarning: (message) => said.push(message),
+    })
+    expect(said).toEqual([])
+    const lines = (await readJournal(home, { types: ['config_changed'] })).map(({ detail }) => {
+      const { at: _at, ...rest } = detail
+      return rest
+    })
+    expect(lines).toEqual([
+      { path: 'extensions.release-notes.enabled', was: '', now: 'true', by: 'tade' },
+    ])
+
+    // Another home's config is not a change to this one, and is not written down here.
+    const other = tmp('wx-onefolder-other-')
+    const elsewhere = join(other, 'extensions')
+    mkdirSync(join(elsewhere, 'active', 'standup'), { recursive: true })
+    writeFileSync(join(elsewhere, 'active', 'standup', 'extension.ts'), 'export default {}\n')
+    const otherConfig = join(tmp('wx-onefolder-config-'), 'config.yaml')
+    await loadExtensions({
+      config: ConfigSchema.parse({ orchestrator: { extensions: elsewhere } }),
+      home: other,
+      configPath: otherConfig,
+      env: {},
+      safe: true,
+    })
+    expect(readFileSync(otherConfig, 'utf8')).toContain('standup')
+    expect(await readJournal(other, { types: ['config_changed'] })).toEqual([])
   })
 })
 

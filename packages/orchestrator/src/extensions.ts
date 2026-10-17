@@ -7,7 +7,7 @@ import {
   rmdirSync,
   writeFileSync,
 } from 'node:fs'
-import { basename, join } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import {
   type Config,
   expandHome,
@@ -37,6 +37,12 @@ import {
 import type { WorkerExtras } from '@tade/harnesses-core'
 import { type Brokered, brokered } from '@tade/mcp-broker'
 import { branchSlug, type Workbench, type WorkbenchExtensions } from '@tade/workbench'
+import {
+  type ConfigChange,
+  changeOf,
+  heldIn,
+  recordConfigChanges,
+} from '@tade/workbench/config-changes'
 
 // Finding the tools Tade wrote for itself. The rules about which files count
 // are in core and tested there; this is the part that touches the disk.
@@ -142,11 +148,16 @@ function firstComment(file: string): string {
  * exactly where it is — moving something back in that somebody turned down is
  * the one thing this must never do.
  *
+ * Turning one on is a config change like any other, so what it was and is are
+ * handed back as `config_changed` lines, `by: tade`, for whoever holds the
+ * journal to write down (`loadExtensions`).
+ *
  * Never throws: a directory that cannot be moved is not a reason to refuse to
  * start.
  */
-export function oneExtensionsFolder(root: string, configPath?: string): string[] {
+export function oneExtensionsFolder(root: string, configPath?: string): Moved {
   const moved: string[] = []
+  const turnedOn: ConfigChange[] = []
   for (const old of ['active', 'proposed'] as const) {
     const from = join(root, old)
     let entries: import('node:fs').Dirent[]
@@ -168,7 +179,10 @@ export function oneExtensionsFolder(root: string, configPath?: string): string[]
       moved.push(name)
       if (old === 'active' && configPath) {
         try {
-          writeSetting(configPath, `extensions.${name}.enabled`, true)
+          const key = `extensions.${name}.enabled`
+          const change = changeOf(heldIn(configPath), key, true, 'tade')
+          writeSetting(configPath, key, true)
+          if (change) turnedOn.push(change)
         } catch {
           // A config that cannot be written is a tool that has to be turned on
           // by hand, not a window that refuses to open.
@@ -181,7 +195,34 @@ export function oneExtensionsFolder(root: string, configPath?: string): string[]
       // Something is still in it: leave it, and say nothing.
     }
   }
-  return moved
+  return { names: moved, turnedOn }
+}
+
+/** What moving the old folders did: what moved, and the lines saying which it turned on. */
+export interface Moved {
+  names: string[]
+  turnedOn: ConfigChange[]
+}
+
+/**
+ * What the move turned on, written down in this home's journal — by whoever
+ * holds it (`recordConfigChanges`) — and only where it is this home's config.
+ * What stopped it is said, never thrown: the extensions are on either way.
+ */
+async function recordMove(
+  opts: { home: string; configPath?: string; onWarning?: (message: string) => void },
+  changes: readonly ConfigChange[],
+): Promise<void> {
+  if (changes.length === 0 || !opts.configPath) return
+  if (resolve(opts.configPath) !== resolve(join(opts.home, 'config.yaml'))) return
+  try {
+    await recordConfigChanges(opts.home, changes)
+  } catch (err) {
+    const say = opts.onWarning ?? ((message: string) => process.stderr.write(`${message}\n`))
+    say(
+      `${changes.map((one) => one.path).join(', ')} turned on, but not yet in the journal: ${err instanceof Error ? err.message : String(err)}`,
+    )
+  }
 }
 
 /** The extensions that ship with Tade, by name. */
@@ -209,6 +250,8 @@ export async function loadExtensions(opts: {
   fetch?: typeof fetch
   /** Where the settings are, so what used to be in `active/` stays on. */
   configPath?: string
+  /** Where trouble that stops nothing is said: standard error where nobody says. */
+  onWarning?: (message: string) => void
   /**
    * The MCP servers, already brokered, for whoever has to end their sessions.
    * One is made from the config when nothing is handed in, so every surface
@@ -220,8 +263,9 @@ export async function loadExtensions(opts: {
   // What the move turned on is read back before anything loads: an extension
   // that was running before the upgrade has to still be running after it.
   const moved = oneExtensionsFolder(root, opts.configPath)
+  await recordMove(opts, moved.turnedOn)
   const settings =
-    moved.length > 0 && opts.configPath
+    moved.names.length > 0 && opts.configPath
       ? await loadConfig(opts.configPath).then(
           (again) => (again.ok ? again.config.extensions : opts.config.extensions),
           () => opts.config.extensions,

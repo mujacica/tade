@@ -618,9 +618,25 @@ describe('task and run RPC', () => {
     const sessionsRoot = tmp('tade-sessions-')
     await client.close()
     client = await Workbench.open({ home, version: '9.9.9', sessionsRoot })
-    client.keepAgentModel('app/refunds', { provider: 'openrouter', id: 'anthropic/claude-opus-5' })
+    await client.keepAgentModel('app/refunds', {
+      provider: 'openrouter',
+      id: 'anthropic/claude-opus-5',
+    })
     // Kept where Settings shows the agent model, so the next window starts there too.
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('anthropic/claude-opus-5')
+    // And written down like a change from Settings, by whoever asked: a model
+    // chosen for one agent is new agents' model from then on.
+    const lines = async () =>
+      (await client.events({ types: ['config_changed'] })).map(({ detail }) => detail)
+    expect(await lines()).toEqual([
+      { path: 'workers.routes.default.provider', was: '', now: 'openrouter', by: 'window' },
+      {
+        path: 'workers.routes.default.model',
+        was: '',
+        now: 'anthropic/claude-opus-5',
+        by: 'window',
+      },
+    ])
 
     const fresh = await client.createTask({ project: 'app', slug: 'fresh', intent: INTENT })
     const lane = await client.startAgent({ task: fresh.id, cwd: fresh.worktree, prompt: '' })
@@ -638,6 +654,36 @@ describe('task and run RPC', () => {
     )
     const returning = await client.startAgent({ task: back.id, cwd: back.worktree, prompt: '' })
     expect(returning.spec.args).not.toContain('--model')
+
+    // Chosen by the orchestrator for an agent in another harness: kept beside
+    // the route's own, and said to be the orchestrator's.
+    await client.keepAgentModel(
+      'app/refunds',
+      { provider: 'anthropic', id: 'claude-opus-5' },
+      'claude-code',
+      'orchestrator',
+    )
+    expect((await lines()).slice(2)).toEqual([
+      {
+        path: 'workers.routes.default.harnesses.claude-code.provider',
+        was: '',
+        now: 'anthropic',
+        by: 'orchestrator',
+      },
+      {
+        path: 'workers.routes.default.harnesses.claude-code.model',
+        was: '',
+        now: 'claude-opus-5',
+        by: 'orchestrator',
+      },
+    ])
+    // The same model again changes nothing, and nothing is written down.
+    await client.keepAgentModel(
+      'app/refunds',
+      { provider: 'anthropic', id: 'claude-opus-5' },
+      'claude-code',
+    )
+    expect(await lines()).toHaveLength(4)
   }, 60_000)
 
   it('starts new agents as hard-thinking as was last chosen, and refuses a level there is not', async () => {

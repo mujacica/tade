@@ -1,8 +1,9 @@
-import { readFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { mkdirSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import { tadeHome, textOf, writeSetting, writtenAt } from '@tade/core'
-import { recordConfigChanges } from '@tade/workbench/config-changes'
-import { parseDocument } from 'yaml'
+import { CREDENTIAL, heldIn, recordConfigChanges } from '@tade/workbench/config-changes'
+
+export { heldIn }
 
 // The config written from a terminal: through the one write path
 // (`writeSetting`), and every key that changed written down as
@@ -32,9 +33,6 @@ export interface ShellWrite {
 /** Where a line could not be written down, what is said: the key is written either way. */
 export type Unrecorded = (said: string) => void
 
-/** A leaf whose value is a credential, wherever it is: an extension's key, a session. */
-const CREDENTIAL = /(?:^|[._])(?:key|token|secret|password|session|csrf)$/
-
 /**
  * Write `writes` into the config at `path`, in order, and write each one that
  * changed something down as `config_changed`. What stopped the writing down is
@@ -51,20 +49,49 @@ export async function writeFromShell(
 }
 
 /**
- * What the file at `path` holds now, as data: what each line will say its key
- * `was`, read before the write. Nothing where there is no file, or none that
- * reads as YAML.
+ * Change the config at `path` as data — `change` is handed a copy of what it
+ * holds — and write back only the keys that differ, one at a time, each
+ * written down as a line of its own: a block is its leaves, so every key is
+ * said by its own name. What `tade setup` writes with. Printing the data again
+ * instead would drop every comment somebody wrote in the file.
+ *
+ * Only for blocks whose leaves are named for what they are, since a leaf is
+ * kept off the line by its name (`CREDENTIAL`): one a key may hide in under
+ * another name — an MCP server's environment — goes through `writeFromShell`
+ * whole, and is said as `set`.
  */
-export function heldIn(path: string): unknown {
-  let text: string
-  try {
-    text = readFileSync(path, 'utf8')
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return {}
-    throw err
+export async function patchFromShell(
+  path: string,
+  change: (config: Record<string, unknown>) => void,
+  unrecorded: Unrecorded,
+): Promise<void> {
+  const held = heldIn(path)
+  const before = isObject(held) ? held : {}
+  const after = structuredClone(before)
+  change(after)
+  mkdirSync(dirname(path), { recursive: true })
+  await writeFromShell(path, differences([], before, after), unrecorded)
+}
+
+/** Each key `after` sets or takes away from `before`, as a write of its own. */
+function differences(at: string[], before: unknown, after: unknown): ShellWrite[] {
+  if (isObject(after)) {
+    const was = isObject(before) ? before : {}
+    return [
+      ...Object.keys(was)
+        .filter((key) => !(key in after))
+        .map((key) => ({ key: [...at, key].join('.'), value: undefined })),
+      ...Object.entries(after).flatMap(([key, value]) =>
+        differences([...at, key], was[key], value),
+      ),
+    ]
   }
-  const doc = parseDocument(text)
-  return doc.errors.length > 0 ? {} : (doc.toJS() ?? {})
+  if (JSON.stringify(before) === JSON.stringify(after)) return []
+  return [{ key: at.join('.'), value: after as Value }]
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**

@@ -100,7 +100,7 @@ export class Machine implements Subject {
       },
       'account-key': async (panel, text) => {
         if (!panel.target) return
-        const where = this.wire.opts.client.saveAccountKey(panel.target, text)
+        const where = await this.wire.opts.client.saveAccountKey(panel.target, text)
         this.wire.put({
           ...this.wire.state,
           panel: {

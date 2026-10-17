@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { readJournal } from '@tade/workbench/events'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
-import { writeFromShell } from '../src/config-write.ts'
+import { patchFromShell, writeFromShell } from '../src/config-write.ts'
 
 // The config written from a terminal goes through the one write path and is
 // written down as `config_changed`, `by: cli`, like a change from Settings —
@@ -110,5 +110,70 @@ describe('a config write from a terminal', () => {
     expect(said).toEqual([
       expect.stringContaining('surfaces.web.enabled is written, but not yet in the journal'),
     ])
+  })
+})
+
+// What `tade setup` writes: a change to the config as data, written back key
+// by key, each key on a line of its own.
+describe('a config patched from a terminal', () => {
+  it('writes down each key the change set or took away, by its own name, and keeps the comments', async () => {
+    const { home, path } = homeWith(
+      '# mine\nworkspace:\n  driver: pty\norchestrator:\n  model: claude-opus-5\nnotes:\n  keep_days: 30\n',
+    )
+    await patchFromShell(
+      path,
+      (config) => {
+        config.workspace = { driver: 'tmux', fallback: 'pty' }
+        config.projects = { app: { root: '/src/app' } }
+        config.extensions = { jev: { enabled: false } }
+        delete config.notes
+      },
+      unsaid,
+    )
+    const text = readFileSync(path, 'utf8')
+    expect(text).toContain('# mine')
+    expect(text).toContain('model: claude-opus-5')
+    expect(text).not.toContain('keep_days')
+    expect(await details(home)).toEqual([
+      { path: 'notes', was: 'set', now: '', by: 'cli' },
+      { path: 'workspace.driver', was: 'pty', now: 'tmux', by: 'cli' },
+      { path: 'workspace.fallback', was: '', now: 'pty', by: 'cli' },
+      { path: 'projects.app.root', was: '', now: '/src/app', by: 'cli' },
+      { path: 'extensions.jev.enabled', was: '', now: 'false', by: 'cli' },
+    ])
+  })
+
+  it('writes nothing down where the change changed nothing', async () => {
+    const { home, path } = homeWith('workspace:\n  driver: tmux\n')
+    await patchFromShell(
+      path,
+      (config) => {
+        config.workspace = { driver: 'tmux' }
+      },
+      unsaid,
+    )
+    expect(await details(home)).toEqual([])
+  })
+
+  it('starts a config where there was none, and keeps a key the change set off its line', async () => {
+    const home = tmp('tade-config-patch-')
+    vi.stubEnv('TADE_HOME', home)
+    const path = join(home, 'config.yaml')
+    await patchFromShell(
+      path,
+      (config) => {
+        config.surfaces = { voice: { stt: { driver: 'openai' } } }
+        config.extensions = { jev: { key: 'jev-0123456789', enabled: true } }
+      },
+      unsaid,
+    )
+    expect(readFileSync(path, 'utf8')).toContain('driver: openai')
+    const said = await details(home)
+    expect(said).toEqual([
+      { path: 'surfaces.voice.stt.driver', was: '', now: 'openai', by: 'cli' },
+      { path: 'extensions.jev.key', was: '', now: '14 characters', by: 'cli' },
+      { path: 'extensions.jev.enabled', was: '', now: 'true', by: 'cli' },
+    ])
+    expect(JSON.stringify(said)).not.toContain('jev-0123456789')
   })
 })

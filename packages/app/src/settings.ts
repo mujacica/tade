@@ -8,6 +8,7 @@ import {
   wantedInstead,
   writeSetting,
 } from '@tade/core'
+import { heldIn } from '@tade/workbench/config-changes'
 
 export { writeSetting }
 
@@ -21,8 +22,23 @@ import type { Ui } from './screen.ts'
 
 const DONE = 'done'
 
-/** Choose a setting, change it, repeat. Every change is written immediately. */
-export async function editSettings(ui: Ui, path: string): Promise<void> {
+/**
+ * How a change made here is written down as `config_changed`: by its caller,
+ * who knows who is asking and whether it holds the journal — the window into
+ * its own, a terminal by the spool (`recordFromShell`). `before` is the config
+ * as data before the write (`heldIn`).
+ */
+export type Written = (
+  before: unknown,
+  key: string,
+  value: SettingValue | undefined,
+) => Promise<void>
+
+/**
+ * Choose a setting, change it, repeat. Every change is written immediately,
+ * and written down (`written`).
+ */
+export async function editSettings(ui: Ui, path: string, written: Written): Promise<void> {
   for (;;) {
     const loaded = await loadConfig(path)
     if (!loaded.ok) throw new Error(`${path}: invalid config`)
@@ -41,7 +57,9 @@ export async function editSettings(ui: Ui, path: string): Promise<void> {
 
     const changed = await change(ui, chosen.setting)
     if (changed === null) continue
+    const before = heldIn(path)
     write(path, chosen.setting.path, changed)
+    await written(before, chosen.setting.path, changed)
     ui.say(
       changed === undefined
         ? `${chosen.setting.title} back to its default (${chosen.setting.fallback})`

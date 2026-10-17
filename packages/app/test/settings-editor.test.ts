@@ -4,7 +4,7 @@ import { loadConfig, type Setting, settingsOf } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import type { Ui } from '../src/screen.ts'
-import { addProject, editSettings } from '../src/settings.ts'
+import { addProject, editSettings, type Written } from '../src/settings.ts'
 
 // Changing what Tade has been told, from a screen rather than by editing YAML.
 //
@@ -88,13 +88,22 @@ async function optionFor(path: string, key: string): Promise<number> {
 
 const read = (path: string): string => readFileSync(path, 'utf8')
 
+/** Where a change is written down, for the tests that are about something else. */
+const unwatched: Written = async () => {}
+
+/** Where a change is written down, kept to be looked at. */
+function watched(): { written: Written; seen: { before: unknown; key: string; value: unknown }[] } {
+  const seen: { before: unknown; key: string; value: unknown }[] = []
+  return { seen, written: async (before, key, value) => void seen.push({ before, key, value }) }
+}
+
 describe('changing a setting from the screen', () => {
   it('writes the one line it changed and leaves the rest of the file alone', async () => {
     const path = configWith(
       '# my own note about this file\nagents:\n  workspace: checkout\n  commit: own-files\nprojects:\n  shop:\n    root: /tmp/shop\n',
     )
     const ui = recorder({ choose: [await optionFor(path, 'agents.workspace'), 1] })
-    await editSettings(ui, path)
+    await editSettings(ui, path, unwatched)
 
     const after = read(path)
     expect(after).toContain('workspace: worktree')
@@ -106,10 +115,23 @@ describe('changing a setting from the screen', () => {
     expect(after).toContain('root: /tmp/shop')
   })
 
+  it('hands each change to whoever writes it down, with what the file held before it', async () => {
+    const path = configWith('agents:\n  commit: own-files\n')
+    const { written, seen } = watched()
+    const at = await optionFor(path, 'agents.commit')
+    // when-done, and then the same setting left as it was: one change, not two.
+    const leave = (await offered(path)).find((one) => one.path === 'agents.commit')
+    const options = leave?.type.kind === 'choice' ? leave.type.options.length : 0
+    await editSettings(recorder({ choose: [at, 0, at, options] }), path, written)
+    expect(seen).toEqual([
+      { before: { agents: { commit: 'own-files' } }, key: 'agents.commit', value: 'when-done' },
+    ])
+  })
+
   it('says what the setting is now, so nobody has to open the file to find out', async () => {
     const path = configWith('agents:\n  commit: own-files\n')
     const ui = recorder({ choose: [await optionFor(path, 'agents.commit'), 0] })
-    await editSettings(ui, path)
+    await editSettings(ui, path, unwatched)
     expect(ui.said).toContain('When agents commit is now when-done')
     expect(read(path)).toContain('commit: when-done')
   })
@@ -120,7 +142,7 @@ describe('changing a setting from the screen', () => {
     // The last option of a choice is `leave it (…)`, which is never mind.
     const at = await optionFor(path, 'agents.workspace')
     const ui = recorder({ choose: [at, 2] })
-    await editSettings(ui, path)
+    await editSettings(ui, path, unwatched)
     expect(read(path)).toBe(before)
     expect(ui.said.some((line) => line.includes('is now'))).toBe(false)
   })
@@ -128,14 +150,14 @@ describe('changing a setting from the screen', () => {
   it('asks a flag as a yes or no, and writes the answer', async () => {
     const path = configWith('workspace:\n  adopt: true\n')
     const ui = recorder({ choose: [await optionFor(path, 'workspace.adopt')], confirm: [false] })
-    await editSettings(ui, path)
+    await editSettings(ui, path, unwatched)
     expect(read(path)).toContain('adopt: false')
   })
 
   it('refuses a value of the wrong shape, says what shape, and writes nothing', async () => {
     const path = configWith('journal:\n  max_mb: 16\n')
     const ui = recorder({ choose: [await optionFor(path, 'journal.max_mb')], ask: ['ten-ish'] })
-    await editSettings(ui, path)
+    await editSettings(ui, path, unwatched)
 
     // The whole point of asking here rather than writing and finding out: the
     // schema would refuse this on the next load, and a config Tade cannot load
@@ -147,7 +169,7 @@ describe('changing a setting from the screen', () => {
   it('puts a setting back to its default when the answer is blank', async () => {
     const path = configWith('journal:\n  max_mb: 64\n')
     const ui = recorder({ choose: [await optionFor(path, 'journal.max_mb')], ask: [''] })
-    await editSettings(ui, path)
+    await editSettings(ui, path, unwatched)
 
     expect(read(path)).not.toContain('max_mb')
     expect(ui.said).toContain('Journal size back to its default (16 MB)')
@@ -157,7 +179,7 @@ describe('changing a setting from the screen', () => {
     const path = configWith('agents:\n  workspace: checkout\n')
     const before = read(path)
     const ui = recorder({ choose: [await optionFor(path, 'agents.instructions')], ask: [''] })
-    await editSettings(ui, path)
+    await editSettings(ui, path, unwatched)
     // Nothing was set and nothing was typed, so there is nothing to say and
     // nothing to write — not "back to its default", which sounds like an act.
     expect(read(path)).toBe(before)
@@ -174,7 +196,7 @@ describe('changing a setting from the screen', () => {
         3,
       ],
     })
-    await editSettings(ui, path)
+    await editSettings(ui, path, unwatched)
     const after = read(path)
     expect(after).toContain('workspace: worktree')
     expect(after).toContain('commit: never')
@@ -183,7 +205,7 @@ describe('changing a setting from the screen', () => {
   it('says what a setting means before asking what it should be', async () => {
     const path = configWith('agents:\n  workspace: checkout\n')
     const ui = recorder({ choose: [await optionFor(path, 'agents.workspace'), 0] })
-    await editSettings(ui, path)
+    await editSettings(ui, path, unwatched)
     // A settings list is names; the consequence is said where somebody is
     // about to change one, which is here and nowhere else on this screen.
     expect(ui.said.some((line) => line.startsWith('Where agents work: '))).toBe(true)
@@ -192,13 +214,13 @@ describe('changing a setting from the screen', () => {
   it('ends when nothing more is chosen, and never asks again after that', async () => {
     const path = configWith('agents:\n  workspace: checkout\n')
     const ui = recorder({})
-    await editSettings(ui, path)
+    await editSettings(ui, path, unwatched)
     expect(ui.asked).toEqual(['What would you like to change?'])
   })
 
   it('refuses to edit a config it cannot load rather than writing over it', async () => {
     const path = configWith('agents:\n  workspace: neither one nor the other\n')
-    await expect(editSettings(recorder({}), path)).rejects.toThrow('invalid config')
+    await expect(editSettings(recorder({}), path, unwatched)).rejects.toThrow('invalid config')
   })
 })
 

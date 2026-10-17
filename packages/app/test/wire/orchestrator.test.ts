@@ -32,6 +32,9 @@ describe('the window, talking to the orchestrator', () => {
     repo = wired.repo
     home = wired.home
   })
+  /** The config changes this window has written down. */
+  const changes = async () =>
+    (await client.events({ types: ['config_changed'] })).map(({ detail }) => detail)
 
   it('sends anything it does not recognise to the orchestrator', async () => {
     const asked: string[] = []
@@ -297,6 +300,36 @@ describe('the window, talking to the orchestrator', () => {
     await until('scrolled down the list', () =>
       screenOf(terminal.written).some((row) => row.includes('model-35')),
     )
+    // Chosen: kept for the next start, and written down as a change. What it
+    // was is what the file said, and this window was handed its config
+    // without one written.
+    const chosen = find('model-35 ')
+    click(chosen.col + 1, chosen.row)
+    await until('the lines', async () => (await changes()).length === 2)
+    expect(await changes()).toEqual([
+      { path: 'orchestrator.provider', was: '', now: 'openrouter', by: 'window' },
+      { path: 'orchestrator.model', was: '', now: 'vendor/model-35', by: 'window' },
+    ])
+  })
+
+  it('writes down the model it settles on, and the one it moves itself to, as whose each is', async () => {
+    const app = await start()
+    // None was chosen, so the one it ended up on is kept: Tade's own doing.
+    app.keepThinkerModel({ provider: 'anthropic', id: 'claude-opus-5' })
+    // Asked to move, it moved itself: the orchestrator's doing.
+    app.thinkerMovedTo({ provider: 'openrouter', id: 'anthropic/claude-opus-5' })
+    await until('the lines', async () => (await changes()).length === 4)
+    expect(await changes()).toEqual([
+      { path: 'orchestrator.provider', was: '', now: 'anthropic', by: 'window' },
+      { path: 'orchestrator.model', was: '', now: 'claude-opus-5', by: 'window' },
+      { path: 'orchestrator.provider', was: 'anthropic', now: 'openrouter', by: 'orchestrator' },
+      {
+        path: 'orchestrator.model',
+        was: 'claude-opus-5',
+        now: 'anthropic/claude-opus-5',
+        by: 'orchestrator',
+      },
+    ])
   })
 
   it('offers the models its own harness runs, and never another harness’s', async () => {
@@ -488,8 +521,13 @@ describe('the window, talking to the orchestrator', () => {
     // It takes effect where it is: the conversation carries on, at the new level.
     await until('the orchestrator to be told', () => told.length === 1)
     expect(told[0]).toBe('medium')
-    // And it is written down, so the next one starts there.
+    // And it is written down, so the next one starts there — and as a change,
+    // what it was and who asked, like one from Settings.
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('thinking: medium')
+    await until('the line', async () => (await changes()).length === 1)
+    expect(await changes()).toEqual([
+      { path: 'orchestrator.thinking', was: '', now: 'medium', by: 'window' },
+    ])
     await until('it to say so', () =>
       screenOf(terminal.written).some((row) => row.includes('thinks at medium')),
     )

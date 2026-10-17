@@ -1,6 +1,7 @@
 import { editSettings, runScreen, ScreenCancelled } from '@tade/app'
 import { defaultConfigPath, describeSetting, loadConfig, settingsOf } from '@tade/core'
 import type { Command } from 'commander'
+import { recordFromShell } from '../config-write.ts'
 import { Exit, type Io } from '../io.ts'
 
 // Reading and changing what Tade has been told.
@@ -49,7 +50,9 @@ export function registerConfig(program: Command, io: Io, setExit: (code: number)
 
       try {
         await runScreen({ title: 'Settings', context: [result.path] }, (ui) =>
-          editSettings(ui, opts.config),
+          editSettings(ui, opts.config, (before, key, value) =>
+            recordFromShell(opts.config, before, [{ key, value }], (said) => ui.say(`  ${said}`)),
+          ),
         )
       } catch (err) {
         if (err instanceof ScreenCancelled) return

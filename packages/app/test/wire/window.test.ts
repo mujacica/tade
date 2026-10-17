@@ -338,6 +338,16 @@ describe('answering where you are looking', () => {
     // Nothing else asks for a frame: the window owes one when the flash runs out.
     clock.at += FLASH_MS
     await until('the flash to go', () => !shown(said))
+    // Kept for next time, and written down like a change from Settings.
+    await until('the line', async () =>
+      (await client.events({ types: ['config_changed'] })).some(
+        ({ detail }) =>
+          detail.path === 'surfaces.voice.muted' &&
+          detail.was === '' &&
+          detail.now === 'false' &&
+          detail.by === 'window',
+      ),
+    )
   })
 
   it('marks the conversation’s tab when something lands in it behind a terminal', async () => {

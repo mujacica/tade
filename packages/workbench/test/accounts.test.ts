@@ -157,7 +157,7 @@ describe('accounts', () => {
 
   it('writes an API-key account’s key beside the account, and hands out a command', async () => {
     await client.addAccount({ name: 'paid', harness: 'claude-code', kind: 'api-key' })
-    expect(client.saveAccountKey('paid', '  sk-ant-0123456789  ')).toBe('config.yaml')
+    expect(await client.saveAccountKey('paid', '  sk-ant-0123456789  ')).toBe('config.yaml')
     // In the config, next to the account it pays for, as it was typed.
     expect(config().accounts.paid.key).toBe('sk-ant-0123456789')
     // What the harness is given is still a command that prints it: a key in a
@@ -168,7 +168,35 @@ describe('accounts', () => {
     // And it goes when the account does, because it is one of its fields.
     await client.removeAccount('paid')
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).not.toContain('sk-ant')
-    expect(() => client.saveAccountKey('paid', 'sk-ant-other')).toThrow(/API key/)
+    await expect(client.saveAccountKey('paid', 'sk-ant-other')).rejects.toThrow(/API key/)
+  })
+
+  it('writes every change it makes to the config down, by the window, and never the key', async () => {
+    await client.addAccount({ name: 'paid', harness: 'claude-code', kind: 'api-key' })
+    await client.saveAccountKey('paid', '  sk-ant-0123456789  ')
+    await client.useAccount('claude-code', 'paid')
+    await client.saveAccountKey('paid', '')
+    await client.removeAccount('paid')
+    const lines = (await client.events({ types: ['config_changed'] })).map(({ detail }) => detail)
+    // What it was, what it is and who asked: what makes a change somebody was
+    // not watching one they can find and undo. A key only as whether there is one.
+    expect(lines).toEqual([
+      { path: 'accounts.paid', was: '', now: 'set', by: 'window' },
+      { path: 'accounts.paid.key', was: 'not set', now: 'set', by: 'window' },
+      { path: 'workers.accounts.claude-code', was: '', now: 'paid', by: 'window' },
+      { path: 'accounts.paid.key', was: 'set', now: 'not set', by: 'window' },
+      { path: 'workers.accounts.claude-code', was: 'paid', now: '', by: 'window' },
+      { path: 'accounts.paid', was: 'set', now: '', by: 'window' },
+    ])
+    expect(JSON.stringify(await client.events())).not.toContain('sk-ant')
+    // A key saved again as it is changes nothing, and says nothing.
+    await client.addAccount({ name: 'again', harness: 'claude-code', kind: 'api-key' })
+    await client.saveAccountKey('again', 'sk-ant-same')
+    await client.saveAccountKey('again', 'sk-ant-same')
+    const keyLines = (await client.events({ types: ['config_changed'] })).filter(
+      ({ detail }) => detail.path === 'accounts.again.key',
+    )
+    expect(keyLines).toHaveLength(1)
   })
 
   it('takes one away, and nothing is left pointing at it', async () => {

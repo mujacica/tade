@@ -39,7 +39,6 @@ import {
   withTranscript,
 } from '../model.ts'
 import { runScreen, ScreenCancelled, type Ui } from '../screen.ts'
-import { addProject, editSettings, writeSetting } from '../settings.ts'
 import { PLAIN } from '../skin.ts'
 import {
   deviceSaid,
@@ -53,6 +52,7 @@ import {
   youSaid,
 } from '../transcript.ts'
 import { transcriptLines } from '../transcript-view.ts'
+import { editRecorded, writeRecorded } from './config-written.ts'
 import {
   type Actions,
   clockOf,
@@ -303,15 +303,15 @@ export class Orchestrator implements Subject {
    * the next start and shown on its tab, without restarting what it is doing.
    */
   movedTo(model: { provider: string; id: string }): void {
-    this.saveModel(model)
+    this.saveModel(model, 'orchestrator')
     notify(this.wire, `the orchestrator is now on ${model.provider}/${model.id}`)
     this.wire.draw()
   }
 
-  private saveModel(model: { provider?: string; id: string }): void {
+  private saveModel(model: { provider?: string; id: string }, by = 'window'): void {
     try {
-      writeSetting(configPathOf(this.wire.opts), 'orchestrator.provider', model.provider)
-      writeSetting(configPathOf(this.wire.opts), 'orchestrator.model', model.id)
+      writeRecorded(this.wire, 'orchestrator.provider', model.provider, by)
+      writeRecorded(this.wire, 'orchestrator.model', model.id, by)
       this.deps.useConfig({
         ...this.wire.opts.config,
         orchestrator: {
@@ -375,7 +375,7 @@ export class Orchestrator implements Subject {
       return
     }
     try {
-      writeSetting(configPathOf(this.wire.opts), 'orchestrator.thinking', chosen)
+      writeRecorded(this.wire, 'orchestrator.thinking', chosen)
       const loaded = await loadConfig(configPathOf(this.wire.opts))
       if (loaded.ok) this.deps.useConfig(loaded.config)
     } catch (err) {
@@ -756,10 +756,9 @@ export class Orchestrator implements Subject {
   }
   /** What each command actually does, once it has a screen to ask on. */
   async runCommand(command: string, ui: Ui): Promise<string> {
-    const path = join(this.wire.opts.home, 'config.yaml')
     switch (command) {
       case '/settings':
-        await editSettings(ui, path)
+        await editRecorded(this.wire, ui)
         return 'settings closed'
       case '/project': {
         const root = resolve(await ui.ask('repository path', this.wire.opts.cwd ?? process.cwd()))
@@ -768,7 +767,7 @@ export class Orchestrator implements Subject {
           .toLowerCase()
           .replace(/[^a-z0-9-]+/g, '-')
         const name = await ui.ask('call it what?', fallback)
-        addProject(path, name, root)
+        writeRecorded(this.wire, `projects.${name}.root`, root)
         return `added ${name} → ${root}, from the next time Tade starts`
       }
       default:

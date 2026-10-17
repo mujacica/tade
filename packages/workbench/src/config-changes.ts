@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { configChangesSpool, type EventInput } from '@tade/core'
+import { configChangesSpool, type EventInput, textOf, writtenAt } from '@tade/core'
+import { parseDocument } from 'yaml'
 import { EventLog } from './events.ts'
 import { HomeBusyError, lockHome } from './lock.ts'
 
@@ -39,6 +41,58 @@ export interface ConfigChange {
   was: string
   now: string
   by: string
+}
+
+/** A leaf whose value is a credential, wherever it is: an extension's key, a session. */
+export const CREDENTIAL = /(?:^|[._])(?:key|token|secret|password|session|csrf)$/
+
+/**
+ * What the file at `path` holds now, as data: what a line will say a key
+ * `was`, read before the write. Nothing where there is no file, or none that
+ * reads as YAML.
+ */
+export function heldIn(path: string): unknown {
+  let text: string
+  try {
+    text = readFileSync(path, 'utf8')
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return {}
+    throw err
+  }
+  const doc = parseDocument(text)
+  return doc.errors.length > 0 ? {} : (doc.toJS() ?? {})
+}
+
+/**
+ * The line a write of `value` at `key` leaves, over what the config held
+ * `before` (`heldIn`) — or null where it changed nothing. A credential is said
+ * only as whether there is one, `set` or `not set`, as the Settings page says
+ * one; a block only as `set`, because a key may be inside one; a list as its
+ * items with spaces between. For a writer that holds the journal, or hands its
+ * lines to whoever does (`recordConfigChanges`).
+ */
+export function changeOf(
+  before: unknown,
+  key: string,
+  value: unknown,
+  by: string,
+  secret = false,
+): ConfigChange | null {
+  const was = writtenAt(before, key)
+  if (textOf(was) === textOf(value)) return null
+  const credential = secret || CREDENTIAL.test(key)
+  return { path: key, was: saidOnLine(was, credential), now: saidOnLine(value, credential), by }
+}
+
+/** A value as `changeOf` says it. */
+function saidOnLine(value: unknown, credential: boolean): string {
+  if (credential) return value === undefined || value === null || value === '' ? 'not set' : 'set'
+  if (value === undefined || value === null) return ''
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) {
+    return value.every((one) => one === null || typeof one !== 'object') ? value.join(' ') : 'set'
+  }
+  return typeof value === 'object' ? 'set' : String(value)
 }
 
 /** What a spool file holds: one write's changes, and when it was made. */

@@ -397,9 +397,9 @@ export class ToolHost {
           worktree: String(p.worktree),
           title: String(p.title),
         }),
-      'worker/model': (p) => tade.setAgentModel(String(p.task), String(p.model)),
+      'worker/model': (p) => tade.setAgentModel(String(p.task), String(p.model), 'orchestrator'),
       'worker/thinking': async (p) => ({
-        level: await tade.setAgentThinking(String(p.task), String(p.level)),
+        level: await tade.setAgentThinking(String(p.task), String(p.level), 'orchestrator'),
       }),
       'worker/harness': (p) =>
         tade.setAgentHarness({

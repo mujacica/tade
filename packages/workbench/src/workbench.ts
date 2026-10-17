@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { mkdir, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { readRuns } from '@tade/checks-core'
@@ -26,7 +26,6 @@ import {
   type Plan,
   type PlanBusy,
   type PlanSource,
-  parseConfig,
   pricesFrom,
   producesPath,
   producesProblem,
@@ -47,7 +46,6 @@ import {
   type ThinkingLevel,
   type Unsubscribe,
   workspaceFor,
-  writeSetting,
 } from '@tade/core'
 import type {
   LaneScreen,
@@ -80,6 +78,7 @@ import { type AccountView, harnessAccount, listAccounts, planSources } from './a
 import { answerAgentTool } from './agent-tools.ts'
 import { recordAuthored } from './authored.ts'
 import { checksGate, checksTold, sharesCheckout } from './checks.ts'
+import { type Kept, type KeptWrite, keptIn, recordKept, routeWrites } from './config-kept.ts'
 import { documentsFolder, removedDocument, settleDocuments, waitedDetail } from './documents.ts'
 import { chooseDriver, troubleSaid } from './driver-choice.ts'
 import { EventLog, readJournal } from './events.ts'
@@ -1673,7 +1672,7 @@ export class Workbench {
     }
     const kind = req.kind ?? 'subscription'
     const share = req.share ?? true
-    this.writeConfig(`accounts.${name}`, { harness: req.harness, kind, share })
+    await this.writeConfig(`accounts.${name}`, { harness: req.harness, kind, share })
     await this.adapterFor(req.harness, name).prepareAccount(share)
     await this.log.append({
       type: 'state_change',
@@ -1698,9 +1697,9 @@ export class Workbench {
     if (account.kind === 'subscription') await adapter.signOut().catch(() => {})
     await rm(join(this.home, 'accounts', name), { recursive: true, force: true })
     if (this.config.workers.accounts[account.harness] === name) {
-      this.writeConfig(`workers.accounts.${account.harness}`, undefined)
+      await this.writeConfig(`workers.accounts.${account.harness}`, undefined)
     }
-    this.writeConfig(`accounts.${name}`, undefined)
+    await this.writeConfig(`accounts.${name}`, undefined)
     delete this.adapters[adapterKey(account.harness, name)]
     await this.log.append({
       type: 'state_change',
@@ -1713,7 +1712,7 @@ export class Workbench {
     if (name && this.config.accounts[name]?.harness !== harness) {
       throw new Error(`${name} is not a ${harness} account`)
     }
-    this.writeConfig(`workers.accounts.${harness}`, name ?? undefined)
+    await this.writeConfig(`workers.accounts.${harness}`, name ?? undefined)
     await this.log.append({
       type: 'state_change',
       detail: { harness, account: name ?? 'default', forNewAgents: true, by: 'you' },
@@ -1788,27 +1787,22 @@ export class Workbench {
    * key is here, in plain sight, next to the account it belongs to. Taking
    * the account away takes it with it: it is one of the account's own fields.
    */
-  saveAccountKey(name: string, key: string): string {
+  async saveAccountKey(name: string, key: string): Promise<string> {
     if (this.config.accounts[name]?.kind !== 'api-key') {
       throw new Error(`${name} is not an account paid for with an API key`)
     }
-    this.writeConfig(accountKey(name), key.trim() === '' ? undefined : key.trim())
+    await this.writeConfig(accountKey(name), key.trim() === '' ? undefined : key.trim(), true)
     return 'config.yaml'
   }
 
-  /** Write one setting and read the config back, so what was written is what runs. */
-  private writeConfig(key: string, value: Parameters<typeof writeSetting>[2]): void {
-    const path = join(this.home, 'config.yaml')
-    const before = existsSync(path) ? readFileSync(path, 'utf8') : null
-    writeSetting(path, key, value)
-    const parsed = parseConfig(readFileSync(path, 'utf8'), path)
-    if (!parsed.ok) {
-      // Never leave behind a file the next window would refuse.
-      if (before === null) rmSync(path, { force: true })
-      else writeFileSync(path, before, { mode: 0o600 })
-      throw new Error(`that would make config.yaml invalid: ${parsed.issues[0]?.message ?? ''}`)
-    }
-    this.config = parsed.config
+  /**
+   * Write one setting from the Accounts page, read the config back so what was
+   * written is what runs, and write it down as `config_changed` (`config-kept.ts`).
+   */
+  private async writeConfig(key: string, value: KeptWrite['value'], secret = false): Promise<void> {
+    const kept = keptIn(this.home, [{ key, value, secret }], 'window')
+    this.config = kept.config
+    await recordKept(kept.changes, (line) => this.log.append(line))
   }
 
   /**
@@ -1888,7 +1882,11 @@ export class Workbench {
    * Switch a running agent to another model, said the way people say it —
    * "opus 5". Only for this agent's session: nothing else changes model with it.
    */
-  async setAgentModel(task: string, said: string): Promise<{ provider: string; id: string }> {
+  async setAgentModel(
+    task: string,
+    said: string,
+    by = 'window',
+  ): Promise<{ provider: string; id: string }> {
     const run = `${task}/agent` as RunId
     if (!this.registry.get(run as unknown as LaneId)?.alive) {
       throw new Error(`${task} has no agent running: open it first`)
@@ -1903,7 +1901,7 @@ export class Workbench {
     // What it switched to is journalled by the agent itself, as the model its usage is priced at.
     if (support === 'restart') await this.restartAgent(task, { model })
     else await this.workers.setModel(run, model)
-    this.keepAgentModel(task, model, adapter.id)
+    await this.keepAgentModel(task, model, adapter.id, by)
     return model
   }
 
@@ -1986,59 +1984,43 @@ export class Workbench {
    * picks by what you are signed in to, which is how every agent ended up on
    * the same model whatever anyone chose.
    */
-  keepAgentModel(task: string, model: { provider: string; id: string }, harness?: string): void {
-    this.keepAgentRoute(task, { provider: model.provider, model: model.id }, harness)
+  keepAgentModel(
+    task: string,
+    model: { provider: string; id: string },
+    harness?: string,
+    by = 'window',
+  ): Promise<void> {
+    return this.keepAgentRoute(task, { provider: model.provider, model: model.id }, harness, by)
   }
 
   /**
    * Change what new agents in a task's project start on: in the file, and
-   * here. Kept for the harness the agent runs in — the route's own when it is
-   * that one, and beside it for any other — so no harness is handed another's
-   * model.
+   * here, and written down `by` whoever asked (`routeWrites`, `config-kept.ts`).
    */
-  private keepAgentRoute(
+  private async keepAgentRoute(
     task: string,
     change: { provider?: string; model?: string; thinking?: ThinkingLevel },
-    harness?: string,
-  ): void {
-    const project = task.split('/')[0]
-    const route = resolveRoute(this.config, project ? { project } : {})
-    const own = !harness || harness === route.harness
-    const at = own
-      ? `workers.routes.${route.name}`
-      : `workers.routes.${route.name}.harnesses.${harness}`
-    const path = join(this.home, 'config.yaml')
+    harness: string | undefined,
+    by: string,
+  ): Promise<void> {
+    const writes = routeWrites(this.config, task, change, harness)
+    let kept: Kept
     try {
-      for (const [key, value] of Object.entries(change)) writeSetting(path, `${at}.${key}`, value)
+      kept = keptIn(this.home, writes, by)
     } catch {
       // A config that cannot be written: this agent changed, and new ones
       // start where they did before.
       return
     }
-    const { name: _name, ...kept } = route
-    const next = own
-      ? { ...kept, ...change }
-      : {
-          ...kept,
-          harnesses: {
-            ...kept.harnesses,
-            [harness]: { ...kept.harnesses?.[harness as HarnessId], ...change },
-          },
-        }
-    this.config = {
-      ...this.config,
-      workers: {
-        ...this.config.workers,
-        routes: { ...this.config.workers.routes, [route.name]: next },
-      },
-    }
+    this.config = kept.config
+    await recordKept(kept.changes, (line) => this.log.append(line))
   }
 
   /**
    * How hard an agent thinks from its next turn on — and new agents from
    * their first, until another level is chosen: kept beside the agent model.
    */
-  async setAgentThinking(task: string, level: string): Promise<ThinkingLevel> {
+  async setAgentThinking(task: string, level: string, by = 'window'): Promise<ThinkingLevel> {
     const chosen = THINKING_LEVELS.find((one) => one === level.trim().toLowerCase())
     if (!chosen) {
       throw new Error(`${level} is not a thinking level: ${THINKING_LEVELS.join(', ')}`)
@@ -2058,7 +2040,7 @@ export class Workbench {
     // What it settled on is said back by the agent: a model that cannot think that hard takes less.
     if (support === 'restart') await this.restartAgent(task, { thinking: chosen })
     else await this.workers.setThinking(run, chosen)
-    this.keepAgentRoute(task, { thinking: chosen }, thinker.id)
+    await this.keepAgentRoute(task, { thinking: chosen }, thinker.id, by)
     return chosen
   }
 

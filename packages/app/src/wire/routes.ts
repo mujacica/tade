@@ -30,7 +30,7 @@ import {
 } from '../panels/models/state.ts'
 import type { AccountShown } from '../panels/settings/accounts.ts'
 import type { Choice } from '../panels/settings/state.ts'
-import { writeSetting } from '../settings.ts'
+import { writeRecorded } from './config-written.ts'
 import {
   type Actions,
   configPathOf,
@@ -589,8 +589,8 @@ export class Routes implements Subject {
         // and leave `model` empty here, which is a route that starts on
         // nothing and a provider nobody can pay.
         const chosen = modelChosen(id)
-        writeSetting(configPathOf(this.wire.opts), 'orchestrator.provider', chosen.provider)
-        writeSetting(configPathOf(this.wire.opts), 'orchestrator.model', chosen.model)
+        writeRecorded(this.wire, 'orchestrator.provider', chosen.provider)
+        writeRecorded(this.wire, 'orchestrator.model', chosen.model)
         const loaded = await loadConfig(configPathOf(this.wire.opts))
         if (loaded.ok) this.deps.useConfig(loaded.config)
         this.wire.put({ ...this.wire.state, panel: null })

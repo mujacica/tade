@@ -38,6 +38,7 @@ import {
 import { keysPanel } from '../panels/small/state.ts'
 import { writeSetting } from '../settings.ts'
 import { tadeDid } from '../transcript.ts'
+import { recordChange } from './config-written.ts'
 import {
   type Actions,
   configPathOf,
@@ -508,12 +509,8 @@ export class Settings implements Subject {
    * and a carried one reads to the next carry as changed here. Begun before
    * anything is awaited, so lines written in a loop keep their order.
    */
-  private async recorded(detail: Record<string, string>): Promise<void> {
-    try {
-      await this.wire.opts.client.log.append({ type: 'config_changed', detail })
-    } catch (err) {
-      this.said(unrecordedSays(detail, why(err)))
-    }
+  private recorded(detail: Record<string, string>): Promise<void> {
+    return recordChange(this.wire, detail)
   }
 
   /**
@@ -770,15 +767,6 @@ function takingSays(taking: Taking): string {
 /** A name as two writes of it compare: case, spaces and a final dot aside. */
 function named(name: string): string {
   return name.trim().toLowerCase().replace(/\.$/, '')
-}
-
-/** What is said where a change's `config_changed` line could not be written. */
-function unrecordedSays(detail: Readonly<Record<string, string>>, trouble: string): string {
-  const after =
-    detail.carried === undefined
-      ? 'so nothing records what it was before'
-      : `so the next carry from ${detail.carried} reads it as changed here and leaves it`
-  return `${detail.path} is written, but the journal would not take the line that says so (${trouble}), ${after}.`
 }
 
 /**

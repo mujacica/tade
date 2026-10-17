@@ -196,7 +196,7 @@ const ALLOWED: Record<string, number> = {
   'packages/cli/src/commands/proposals.ts': 2,
   'packages/cli/src/commands/setup-facts.ts': 6,
   'packages/cli/src/commands/setup-watches.ts': 1,
-  'packages/cli/src/commands/setup.ts': 3,
+  'packages/cli/src/commands/setup.ts': 2,
   'packages/cli/src/commands/update.ts': 1,
   'packages/cli/src/telemetry.ts': 2,
   'packages/cli/src/version.ts': 1,

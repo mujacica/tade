@@ -1,4 +1,3 @@
-import { readFileSync, writeFileSync } from 'node:fs'
 import { type Config, expandHome, extensionEnabled, loadConfig } from '@tade/core'
 import {
   type SetupFieldView as HostSetupField,
@@ -29,11 +28,11 @@ import {
   type WrittenToolView,
 } from '../panels/extensions/state.ts'
 import { extensionsScrollable } from '../panels/extensions/view.ts'
-import { writeSetting } from '../settings.ts'
 import type { Skin } from '../skin.ts'
 import { sinceOf } from '../spend.ts'
 import { fromThinker, ran, said } from '../transcript.ts'
 import { markdownLines } from '../viewer.ts'
+import { type WindowWrite, writeApplied, writeRecorded } from './config-written.ts'
 import {
   type Actions,
   configPathOf,
@@ -378,7 +377,7 @@ export class Extensions implements Subject {
    * half-configured server inside a running window is the evening lost.
    */
   private async turnServer(name: string, on: boolean): Promise<string> {
-    writeSetting(configPathOf(this.wire.opts), `mcp.servers.${name}.enabled`, on)
+    writeRecorded(this.wire, `mcp.servers.${name}.enabled`, on)
     await this.reloadExtensions()
     const server = this.serverNamed(name)
     const needs = on && server?.problem ? `, and needs setting up: ${server.problem}` : ''
@@ -492,7 +491,7 @@ export class Extensions implements Subject {
           const on = was ? was.state === 'off' : tool?.on !== true
           // Written down either way: one of Tade's own is on unless it says
           // otherwise, and one of yours is off until it says so.
-          writeSetting(configPathOf(this.wire.opts), `extensions.${name}.enabled`, on)
+          writeRecorded(this.wire, `extensions.${name}.enabled`, on)
           await this.reloadExtensions()
           if (tool) {
             // Nothing is loaded mid-session, so say when it takes effect.
@@ -678,17 +677,10 @@ export class Extensions implements Subject {
     const host = this.wire.opts.extensions
     const setup = host?.setupOf(panel.extension)
     if (!host || !setup) return
-    const before = readFileSync(configPathOf(this.wire.opts), 'utf8')
     try {
       const kept: string[] = []
-      for (const field of setup.fields) {
+      const writes = setup.fields.map((field): WindowWrite => {
         const typed = panel.values[field.key] ?? ''
-        const value = settingFrom(typed, field.kind)
-        writeSetting(
-          configPathOf(this.wire.opts),
-          `extensions.${panel.extension}.${field.key}`,
-          value as Parameters<typeof writeSetting>[2],
-        )
         // A key is written like every other field. The one thing that cannot
         // be read off the page is that a variable in the shell still beats it,
         // so that is what is said: a key kept and not used is the worst of both.
@@ -696,8 +688,12 @@ export class Extensions implements Subject {
           const beaten = host.secretBeatenBy(panel.extension, field.key)
           if (beaten) kept.push(`${field.label} is saved, but ${beaten} is set and wins`)
         }
-      }
-      await this.reloadExtensions()
+        const value = settingFrom(typed, field.kind) as WindowWrite['value']
+        const secret = field.kind === 'secret'
+        return { key: `extensions.${panel.extension}.${field.key}`, value, secret }
+      })
+      // Put back where the extensions would not take it; written down once they do.
+      await writeApplied(this.wire, writes, () => this.reloadExtensions())
       const now = host.list().find((one) => one.name === panel.extension)
       const said = [
         now?.state === 'ready' ? `Saved. ${now.title} is ready.` : kept.length > 0 ? 'Saved.' : '',
@@ -715,7 +711,6 @@ export class Extensions implements Subject {
         },
       })
     } catch (err) {
-      writeFileSync(configPathOf(this.wire.opts), before)
       this.wire.put({ ...this.wire.state, panel: { ...panel, busy: false, error: why(err) } })
     }
     this.wire.draw()
