@@ -376,6 +376,32 @@ describe('sending', () => {
     expect(JSON.stringify(sent)).not.toContain(HOME)
   })
 
+  it('takes the paths out of both errors a suppressed one carries', async () => {
+    const sent: unknown[] = []
+    const report = await open({}, (envelope) => sent.push(envelope))
+    // What `using` leaves when a disposal throws on the way out of a failure,
+    // in the shape TypeScript's and esbuild's own helper builds; the SDK knows
+    // it by the two properties. Since @sentry/node 11.8 each of them goes out
+    // as an exception of its own, so each has to pass through `clean`.
+    const error = Object.assign(new Error('An error was suppressed during disposal.'), {
+      name: 'SuppressedError',
+      error: new Error(`could not close ${HOME}/.tade/events.jsonl`),
+      suppressed: new Error(`could not read ${HOME}/.tade/config.yaml`),
+    })
+    report.trouble({ error, where: 'the journal' })
+    await report.flush(1_000)
+
+    const issue = items(sent).find((item) => item.type === 'event')?.payload as {
+      exception: { values: { value: string }[] }
+    }
+    expect(issue.exception.values.map((one) => one.value).sort()).toEqual([
+      'An error was suppressed during disposal.',
+      'could not close ~/.tade/events.jsonl',
+      'could not read ~/.tade/config.yaml',
+    ])
+    expect(JSON.stringify(sent)).not.toContain(HOME)
+  })
+
   it('keeps the lines of Tade’s own files, and of nobody else’s', async () => {
     const sent: unknown[] = []
     const report = await open({}, (envelope) => sent.push(envelope))
