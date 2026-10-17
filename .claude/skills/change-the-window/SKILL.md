@@ -1060,8 +1060,11 @@ drawn from what its away view sends — the projection the link holds (REMOTE-TA
   top lists `Hand <task> to vps` for each agent running here whose project it holds
   (`Moves.menuItems`, `chose`); an agent's own menu, where a person looks before closing the lid,
   says `Hand to vps` for each machine holding its repository, off with why (`handItems`); and Settings › Remotes
-  has a row per project here, `Move <project>`, with the one press that is next — open it there,
-  hand its work over, close it here, the last asked twice (`ProjectMove`, `CLOSE_AFTER_MOVE`). What
+  folds them under one line per machine, opened on a press (`remote:fold:`, `SettingsPanel.opened`,
+  walked through `remotePresses`): a row `Move <project>` for each project that machine holds
+  (`ProjectMove.there`), with the one press that is next — hand its work over, close it here, the
+  last asked twice (`CLOSE_AFTER_MOVE`) — and the ones it does not hold under one line of their
+  own, each opened there by a press of its own. What
   comes of a hand-over is said in the strip when it comes, because it comes on a later beat.
 
 ## Drawing the queue and a plan

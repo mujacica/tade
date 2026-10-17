@@ -269,6 +269,16 @@ function vpsShown(): RemoteShown {
       here: [{ what: 'projects', why: 'a project is a folder on this machine' }],
       holds: [],
     },
+    // Moving them there, folded: one of the two projects here is on it.
+    moves: [
+      {
+        project: 'checkout',
+        there: true,
+        said: 'on vps as checkout · nothing of it is working here',
+        next: 'close',
+      },
+      { project: 'search', there: false, said: 'not on vps yet', next: 'open' },
+    ],
     machine: {
       ...unheard('vps', null),
       link: 'live',
@@ -425,6 +435,33 @@ export const SETTINGS_SCREENS: Scenario[] = [
       height: 50,
       date: utcDate,
       panel: { ...settingsFacts(), remotes: [vpsShown()] },
+    }),
+  },
+  {
+    name: 'settings-remotes-narrow',
+    about:
+      'Settings › Remotes where there is no room beside a label for what it says: each label ' +
+      'over what it says, its press under that, and turning Talk to Tade on asked once, with ' +
+      'the whole of what that means said before the second press — then moving its projects ' +
+      'there, opened: a row for the project it holds, and the one it does not under a line of ' +
+      'its own.',
+    state: {
+      ...base(),
+      panel: {
+        ...settingsPanel('remotes'),
+        row: 1,
+        confirm: 'remote:talk:vps',
+        opened: ['remote:fold:vps:moves', 'remote:fold:vps:not-there'],
+      },
+    },
+    frame: frame({
+      width: 56,
+      height: 60,
+      date: utcDate,
+      panel: {
+        ...settingsFacts(),
+        remotes: [{ ...vpsShown(), machine: null, list: { ...vpsShown().list!, talk: 'off' } }],
+      },
     }),
   },
   {

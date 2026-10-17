@@ -1,0 +1,60 @@
+ ▄▀   T A D E      checkout    search    infra      +   
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ ╭─ Settings ───────── ~/.tade/config.yaml · esc ─╮l  
+   │  search sett…   │ Remotes                      │───
+ ▌ │                 │                              │   
+ ▌ │  Agents bypass ▕│ vps  ● linked               ▕│   
+   │                ▕│   ssh me@vps.example.com ·  ▕│   
+   │  Models        ▕│   it calls itself box-1 ·   ▕│   
+   │                ▕│   carried Sun 13 Sep 13:00  ▕│   
+   │  Orchestrat…   ▕│   Carried                   ▕│   
+ ▸ │                ▕│     3 settings and files, … ▕│   
+ ▸ │  Queue         ▕│   Talk to Tade              ▕│   
+ ▸ │                ▕│     off there: its tab her… ▕│   
+ ▾ │  Checks        ▕│       Press again to tur…   ▕│   
+  M│                ▕│     Turns on Talk to Tade   ▕│   
+  A│  Voice         ▕│     on that machine: what   ▕│   
+  M│                ▕│     you type in its tab     ▕│   
+   │  Window        ▕│     here goes to its        ▕│   
+ ▾ │                ▕│     orchestrator as you at  ▕│   
+   │  Away view     ▕│     its keyboard, and a     ▕│   
+   │                ▕│     device paired there and ▕│   
+   │  Intake        ▕│     granted it may send one ▕│   
+   │                ▕│     too — a device talks to ▕│   
+   │  Projects  ● 1 ▕│     Tade as a request,      ▕│   
+   │                ▕│     never as your own       ▕│   
+   │  Journal       ▕│     words. Its Settings ›   ▕│   
+ ▸ │                ▕│     Away view turns it off  ▕│   
+ ▾ │  Telemetry     ▕│     again.                  ▕│   
+   │                ▕│   claude-code               ▕│   
+   │  Shortcuts     ▕│     ● 27 days left          ▕│   
+   │                ▕│   This machine’s            ▕│   
+   │  Accounts  ● 3 ▕│     projects                ▕│   
+   │                ▕│   Move projects             ▕│   
+   │▌ Remotes       ▕│     1 of 2 here is on vps   ▕│   
+   │▌               ▕│       Hide                  ▕│   
+   │  Updates       ▕│   Move checkout             ▕│   
+   │                ▕│     on vps as checkout · n… ▕│   
+   │                ▕│       Close it here…        ▕│   
+   │                ▕│   Not there yet             ▕│5. 
+   │                ▕│     search                  ▕│ds 
+   │                ▕│       Hide                  ▕│   
+   │                ▕│   search                    ▕│   
+   │                ▕│       Open it on vps        ▕│+12
+   │                ▕│       Carry again           ▕│   
+   │                ▕│                             ▕│   
+   │                ▕│                             ▕│   
+   │                ▕│                             ▕│   
+   │                ▕│                             ▕│   
+   │                ▕│                             ▕│   
+━  │                ▕│                             ▕│  ━
+   │                ▕│                             ▕│   
+   │                ▕│                             ▕│  ▕
+   │                ▕│                             ▕│  ▕
+   │                ▕│ ● Saved as you change it.    │  ▕
+   │                ▕│                      Done    │  ▕
+ ❯ ╰────────────────────────────────────────────────╯d ▕
+────────────────────────────────────────────────────────
+ Ask Tade anything  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake      

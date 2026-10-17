@@ -69,9 +69,6 @@ export class ProjectMoves {
     const runs = this.wire.opts.client.runs().map((run) => run.task as string)
     const queued = this.wire.live?.queued ?? []
     return Object.keys(this.wire.opts.config.projects).map((project): ProjectMove => {
-      if (this.stepping.has(`${machine} ${project}`)) {
-        return { project, said: `moving to ${machine}…`, next: null }
-      }
       const there = [
         ...new Set(
           this.deps
@@ -80,10 +77,14 @@ export class ProjectMoves {
             .map((one) => one.project),
         ),
       ]
-      if (there.length === 0) return { project, said: `not on ${machine} yet`, next: 'open' }
+      const held = { project, there: there.length > 0 }
+      if (this.stepping.has(`${machine} ${project}`)) {
+        return { ...held, said: `moving to ${machine}…`, next: null }
+      }
+      if (there.length === 0) return { ...held, said: `not on ${machine} yet`, next: 'open' }
       if (there.length > 1) {
         return {
-          project,
+          ...held,
           said: `on ${machine} ${there.length} times: ${there.join(', ')}`,
           next: null,
         }
@@ -98,10 +99,10 @@ export class ProjectMoves {
       if (handing.length > 0) parts.push(`${handing.length} being handed over`)
       if (movable.length > 0) parts.push(`${movable.length} queued here`)
       if (stays > 0) parts.push(`${stays} queued that wait${stays === 1 ? 's' : ''} and stay here`)
-      if (handing.length > 0) return { project, said: parts.join(' · '), next: null }
+      if (handing.length > 0) return { ...held, said: parts.join(' · '), next: null }
       const left = mine.length > 0 || movable.length > 0
       if (!left) parts.push('nothing of it is working here')
-      return { project, said: parts.join(' · '), next: left ? 'hand' : 'close' }
+      return { ...held, said: parts.join(' · '), next: left ? 'hand' : 'close' }
     })
   }
 

@@ -9,8 +9,9 @@ import {
   type RemoteShown,
   remoteActions,
   remoteChoice,
+  remotePresses,
 } from '../src/panels/settings/remotes.ts'
-import { settingsKey } from '../src/panels/settings/state.ts'
+import { type SettingsPanel, settingsKey } from '../src/panels/settings/state.ts'
 import { drawnAt, panelFor, plainRows, WIDTHS } from './settings-panel.ts'
 
 // Settings › Remotes: each other machine's Tade this one is an owner of, and
@@ -97,6 +98,50 @@ const vpsMachine = (over: Partial<Machine> = {}): Machine => ({
   ...over,
 })
 
+/** A machine holding two of four projects here, one of the other two being opened there now. */
+const MOVING: RemoteShown = {
+  ...VPS,
+  list: null,
+  moves: [
+    { project: 'docs', there: false, said: 'not on vps yet', next: 'open' },
+    { project: 'app', there: true, said: 'on vps as tade · 1 running here', next: 'hand' },
+    {
+      project: 'web',
+      there: true,
+      said: 'on vps as web · nothing of it is working here',
+      next: 'close',
+    },
+    { project: 'shop', there: false, said: 'moving to vps…', next: null },
+  ],
+}
+
+/** Both folds open. */
+const OPEN = ['remote:fold:vps:moves', 'remote:fold:vps:not-there']
+
+/**
+ * The form's own columns at a width — past the list, its scrollbar and the
+ * line between, short of the form's scrollbar — one string a row, every row
+ * of the panel held to its width on the way.
+ */
+const formRows = (remote: RemoteShown, width: number, over: Partial<SettingsPanel>) => {
+  const rows = plainRows(
+    drawnAt(
+      'remotes',
+      { remotes: [remote], width, height: 120 },
+      panelFor('remotes', { focus: 'form', ...over }),
+    ),
+  )
+  const inner = visibleWidth(rows[0] ?? '') - 2
+  const side = sideWidth(inner)
+  for (const row of rows) expect(visibleWidth(row), `at ${width}`).toBe(inner + 2)
+  // Short of the border, and of the two rows at the foot, which are the panel's.
+  return rows.slice(1, -3).map((row) => sliceByColumn(row, side + 3, inner - side - 3))
+}
+
+/** The form at a width as one flowing string: where it wrapped is not what the page is held to. */
+const form = (remote: RemoteShown, width: number, over: Partial<SettingsPanel>) =>
+  formRows(remote, width, over).join(' ')
+
 /** The page at `NOW`, its runs of spaces made one: what a row says, not where its columns are. */
 const at = (remotes: RemoteShown[]) =>
   plainRows(drawnAt('remotes', { remotes, now: NOW }, panelFor('remotes', { focus: 'form' })))
@@ -149,37 +194,94 @@ describe('Settings › Remotes', () => {
   })
 
   it('walks moving a project there one press at a time, and asks twice before closing it here', () => {
-    const moving: RemoteShown = {
-      ...VPS,
-      list: null,
-      moves: [
-        { project: 'docs', said: 'not on vps yet', next: 'open' },
-        { project: 'app', said: 'on vps as tade · 1 running here', next: 'hand' },
-        { project: 'web', said: 'on vps as web · nothing of it is working here', next: 'close' },
-        { project: 'shop', said: 'moving to vps…', next: null },
-      ],
-    }
-    const drawn = page([moving]).replace(/ +/g, ' ')
-    expect(drawn).toContain('Move docs not on vps yet')
+    const drawn = page([MOVING], { opened: OPEN }).replace(/ +/g, ' ')
+    expect(drawn).toContain('Move app on vps as tade · 1 running here')
     expect(drawn).toContain('Open it on vps')
     expect(drawn).toContain('Hand its work over')
     expect(drawn).toContain('Close it here…')
     expect(drawn).toContain('moving to vps…')
-    expect(remoteActions([moving]).map((one) => one.id)).toEqual([
-      'remote:move-open:vps:docs',
+    expect(
+      remotePresses(remoteActions([MOVING]), panelFor('remotes', { opened: OPEN })).map(
+        (one) => one.id,
+      ),
+    ).toEqual([
+      'remote:fold:vps:moves',
       'remote:move-hand:vps:app',
       'remote:move-close:vps:web',
+      'remote:fold:vps:not-there',
+      'remote:move-open:vps:docs',
       'remote:again:vps',
     ])
     const first = remoteChoice(panelFor('remotes'), 'remote:move-close:vps:web')
     expect('submit' in first && first.submit).toBeFalsy()
-    const asked = page([moving], { confirm: 'remote:move-close:vps:web' }).replace(/\s+/g, ' ')
+    const asked = page([MOVING], { opened: OPEN, confirm: 'remote:move-close:vps:web' }).replace(
+      /\s+/g,
+      ' ',
+    )
     expect(asked).toContain('Press again to close it here')
     expect(asked).toContain(CLOSE_AFTER_MOVE.slice(0, 40))
     expect(remoteChoice(panelFor('remotes'), 'remote:move-open:vps:docs')).toMatchObject({
       submit: true,
       choice: 'remote:move-open:vps:docs',
     })
+  })
+
+  it('folds the Move rows under one line per machine, a row only for what that machine holds, opened on a press', () => {
+    // Shut: one line saying how many it holds, and the press that opens it.
+    const shut = page([MOVING]).replace(/ +/g, ' ')
+    expect(shut).toContain('Move projects 2 of 4 here are on vps')
+    expect(shut).toContain('Show')
+    expect(shut).not.toContain('Move app')
+    expect(shut).not.toContain('Not there yet')
+    const walked = (panel: ReturnType<typeof panelFor>) =>
+      remotePresses(remoteActions([MOVING]), panel).map((one) => one.id)
+    expect(walked(panelFor('remotes'))).toEqual(['remote:fold:vps:moves', 'remote:again:vps'])
+
+    // A press opens it, and the keyboard walks what it opened.
+    const pressed = settingsKey(panelFor('remotes', { focus: 'form', row: 0 }), 'enter', '\r', {
+      remoteActions: remoteActions([MOVING]),
+    })
+    expect('submit' in pressed && pressed.submit).toBeFalsy()
+    const opened = pressed.panel as ReturnType<typeof panelFor>
+    expect(opened.opened).toEqual(['remote:fold:vps:moves'])
+    const moves = page([MOVING], { opened: opened.opened }).replace(/ +/g, ' ')
+    expect(moves).toContain('Hide')
+    expect(moves).toContain('Move app on vps as tade · 1 running here')
+    expect(moves).toContain('Move web on vps as web · nothing of it is working here')
+    // The projects it does not hold are one line, not a row each.
+    expect(moves).toContain('Not there yet docs, shop')
+    expect(moves).toContain('Open one there…')
+    expect(moves).not.toContain('Move docs')
+    expect(moves).not.toContain('Open it on vps')
+    expect(walked(opened)).toEqual([
+      'remote:fold:vps:moves',
+      'remote:move-hand:vps:app',
+      'remote:move-close:vps:web',
+      'remote:fold:vps:not-there',
+      'remote:again:vps',
+    ])
+    const down = settingsKey({ ...opened, row: 4 }, 'down', '', {
+      remoteActions: remoteActions([MOVING]),
+    }).panel as ReturnType<typeof panelFor>
+    expect(down.row).toBe(4)
+
+    // And shut again by the same press, which nothing outside the page hears of.
+    const again = remoteChoice(opened, 'remote:fold:vps:moves')
+    expect('submit' in again && again.submit).toBeFalsy()
+    expect((again.panel as ReturnType<typeof panelFor>).opened).toEqual([])
+
+    // Shut outside, what is open inside it is neither drawn nor walked.
+    const inner = panelFor('remotes', { opened: ['remote:fold:vps:not-there'] })
+    expect(walked(inner)).toEqual(['remote:fold:vps:moves', 'remote:again:vps'])
+
+    // A machine holding none of them says so, and has nothing else to fold.
+    const none: RemoteShown = {
+      ...MOVING,
+      moves: [{ project: 'docs', there: false, said: 'not on vps yet', next: 'open' }],
+    }
+    expect(page([none]).replace(/ +/g, ' ')).toContain('Move projects none of 1 here is on vps')
+    // And one with no projects here has no line at all.
+    expect(page([{ ...MOVING, moves: [] }])).not.toContain('Move projects')
   })
 
   it('asks twice before keys go, saying what that means between the two presses', () => {
@@ -194,26 +296,44 @@ describe('Settings › Remotes', () => {
     expect(second).toMatchObject({ submit: true, choice: 'remote:keys:vps' })
   })
 
-  it('says all of what sending keys means, the way out at its end included, at every width', () => {
-    // From the narrowest width at which each of its words fits on a line.
-    for (const width of WIDTHS.filter((one) => one >= 56)) {
-      const rows = plainRows(
-        drawnAt(
-          'remotes',
-          { remotes: [VPS], width, height: 90 },
-          panelFor('remotes', { focus: 'form', confirm: 'remote:keys:vps' }),
-        ),
-      )
-      // The form's own columns — past the list, its scrollbar and the line
-      // between, short of the form's scrollbar — as one flowing string: where
-      // it wrapped is not what the page is held to.
-      const inner = visibleWidth(rows[0] ?? '') - 2
-      const side = sideWidth(inner)
-      const said = rows
-        .map((row) => sliceByColumn(row, side + 3, inner - side - 3))
-        .join(' ')
-        .replace(/\s+/g, ' ')
-      expect(said, `at ${width}`).toContain(KEYS_TO_REMOTE)
+  it('says the whole of each sentence asked between two presses, the way out at its end included, at every width', () => {
+    const asked = [
+      { sentence: KEYS_TO_REMOTE, remote: VPS, confirm: 'remote:keys:vps' },
+      {
+        sentence: TALK_TO_REMOTE,
+        remote: { ...VPS, list: { ...LIST, talk: 'off' as const } },
+        confirm: 'remote:talk:vps',
+      },
+      { sentence: CLOSE_AFTER_MOVE, remote: MOVING, confirm: 'remote:move-close:vps:web' },
+    ]
+    for (const { sentence, remote, confirm } of asked) {
+      for (const width of WIDTHS) {
+        const said = form(remote, width, { confirm, opened: OPEN })
+        // Every character of it, in order: at the narrowest a word longer than
+        // the column is broken across two rows, which is where it wrapped and
+        // not what it says.
+        expect(said.replace(/\s+/g, ''), `${confirm} at ${width}`).toContain(
+          sentence.replace(/\s+/g, ''),
+        )
+      }
+    }
+  })
+
+  it('stacks a label over what it says where there is no room beside it, and runs nothing past the edge', () => {
+    const off: RemoteShown = { ...VPS, list: { ...LIST, talk: 'off' } }
+    for (const width of WIDTHS) {
+      const rows = formRows(off, width, { confirm: 'remote:talk:vps' })
+      // Whatever the width, a label never runs into what it says.
+      const said = rows.join('\n').replace(/ +/g, ' ')
+      expect(said, `at ${width}`).not.toMatch(/…[a-z]/)
+      // And every row stops short of the form's last column, so nothing is cut at its edge.
+      for (const row of rows)
+        expect(row.trimEnd().length, `${row} at ${width}`).toBeLessThan(row.length)
+    }
+    // From the narrowest width with room for its whole label, the label stands whole.
+    for (const width of WIDTHS.filter((one) => one >= 48)) {
+      const said = formRows(off, width, {}).join(' ').replace(/\s+/g, ' ')
+      expect(said, `at ${width}`).toContain('Talk to Tade off there:')
     }
   })
 

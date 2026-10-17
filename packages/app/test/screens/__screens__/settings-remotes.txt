@@ -3,44 +3,44 @@
  ▾ A╭─ Settings ─────────────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮×   
     │  search settings            │ Remotes                                                                        │────
  ▌ !│                             │                                                                                │    
- ▌  │  Agents             bypass ▕│ vps  ● linked                                                                 ▕│    
-    │                            ▕│   ssh me@vps.example.com · it calls itself box-1 · carried Sun 13 Sep 13:00   ▕│    
-   ⠋│  Models                    ▕│   Heard           2s ago · 41 ms there and back                               ▕│    
-    │                            ▕│   Tade            0.2.3 · Tade 0.2.4 is out                                   ▕│    
-    │  Orchestrator              ▕│   Public name     tade.example.com                                            ▕│    
- ▸ S│                            ▕│                   certificate: 6 days left of 45 — renewing has been failing  ▕│    
- ▸ S│  Queue                     ▕│                   for weeks                                                   ▕│    
- ▸ I│                            ▕│   Records         as of Sun 13 Sep 13:59                                      ▕│    
- ▾ C│  Checks                    ▕│                   tade.example.com, in the zone example.com, answered for by  ▕│    
-  M │                            ▕│                   ns1.dns.example, ns2.dns.example                            ▕│    
-  A │  Voice                     ▕│                   ✓ A: tade.example.com → 203.0.113.7, this machine           ▕│    
-  M │                            ▕│                   ▲ AAAA: tade.example.com → 2001:db8::7, where 443 does not  ▕│    
-    │  Window                    ▕│                   answer, and Let’s Encrypt tries IPv6 first: take it away,   ▕│    
- ▾ F│                            ▕│                   or have Caddy answer there                                  ▕│    
-   ▾│  Away view                 ▕│                     remove tade.example.com. AAAA 2001:db8::7                 ▕│    
-    │                            ▕│                   ✓ DNSSEC: example.com is not signed, so nothing stands in   ▕│    
-    │  Intake                    ▕│                   the way of the CAA lookup                                   ▕│    
-   ▸│                            ▕│                   · CAA: none, so any CA may issue for it: add the record     ▕│    
-    │  Projects              ● 1 ▕│                   that names Caddy’s account                                  ▕│    
-    │                            ▕│                     add tade.example.com. CAA 0 issue "letsencrypt.org;       ▕│    
-    │  Journal                   ▕│                     accounturi=https://acme-v02.api.letsencrypt.org/acme/acct ▕│    
- ▸ N│                            ▕│                     /2104831; validationmethods=tls-alpn-01,http-01"          ▕│    
- ▾ G│  Telemetry                 ▕│                     Look again                                                ▕│    
-   r│                            ▕│   Problems        2                                                           ▕│    
-   b│  Shortcuts                 ▕│                   · Sentry needs setting up: no token                         ▕│    
-   f│                            ▕│                   · checkout: git could not read the base: it is being        ▕│    
-   w│  Accounts              ● 3 ▕│                   rewritten                                                   ▕│    
-   p│                            ▕│   Schedules       2                                                           ▕│    
-    │▌ Remotes                   ▕│                   ◎ New Sentry errors in checkout · every hour · 2 new Sun 13 ▕│    
-    │▌                           ▕│                   Sep 13:30                                                   ▕│    
-    │  Updates                   ▕│                   ◎ Reviews in checkout · every 10m · ! GitHub said 401: the  ▕│    
-    │                            ▕│                   token was revoked                                           ▕│    
-    │                            ▕│   Carried         3 settings and files, kept in step                          ▕│    
-    │                            ▕│   claude-code     ● 27 days left                                              ▕│    
-━   │                            ▕│   This machine’s  projects                                                    ▕│   ━
-    │                            ▕│                     Carry again                                               ▕│    
-    │                            ▕│                                                                               ▕│   ▕
-    │                            ▕│                                                                               ▕│   ▕
+ ▌  │  Agents             bypass ▕│ vps  ● linked                                                                 █│    
+    │                            ▕│   ssh me@vps.example.com · it calls itself box-1 · carried Sun 13 Sep 13:00   █│    
+   ⠋│  Models                    ▕│   Heard           2s ago · 41 ms there and back                               █│    
+    │                            ▕│   Tade            0.2.3 · Tade 0.2.4 is out                                   █│    
+    │  Orchestrator              ▕│   Public name     tade.example.com                                            █│    
+ ▸ S│                            ▕│                   certificate: 6 days left of 45 — renewing has been failing  █│    
+ ▸ S│  Queue                     ▕│                   for weeks                                                   █│    
+ ▸ I│                            ▕│   Records         as of Sun 13 Sep 13:59                                      █│    
+ ▾ C│  Checks                    ▕│                   tade.example.com, in the zone example.com, answered for by  █│    
+  M │                            ▕│                   ns1.dns.example, ns2.dns.example                            █│    
+  A │  Voice                     ▕│                   ✓ A: tade.example.com → 203.0.113.7, this machine           █│    
+  M │                            ▕│                   ▲ AAAA: tade.example.com → 2001:db8::7, where 443 does not  █│    
+    │  Window                    ▕│                   answer, and Let’s Encrypt tries IPv6 first: take it away,   █│    
+ ▾ F│                            ▕│                   or have Caddy answer there                                  █│    
+   ▾│  Away view                 ▕│                     remove tade.example.com. AAAA 2001:db8::7                 █│    
+    │                            ▕│                   ✓ DNSSEC: example.com is not signed, so nothing stands in   █│    
+    │  Intake                    ▕│                   the way of the CAA lookup                                   █│    
+   ▸│                            ▕│                   · CAA: none, so any CA may issue for it: add the record     █│    
+    │  Projects              ● 1 ▕│                   that names Caddy’s account                                  █│    
+    │                            ▕│                     add tade.example.com. CAA 0 issue "letsencrypt.org;       █│    
+    │  Journal                   ▕│                     accounturi=https://acme-v02.api.letsencrypt.org/acme/acct █│    
+ ▸ N│                            ▕│                     /2104831; validationmethods=tls-alpn-01,http-01"          █│    
+ ▾ G│  Telemetry                 ▕│                     Look again                                                █│    
+   r│                            ▕│   Problems        2                                                           █│    
+   b│  Shortcuts                 ▕│                   · Sentry needs setting up: no token                         █│    
+   f│                            ▕│                   · checkout: git could not read the base: it is being        █│    
+   w│  Accounts              ● 3 ▕│                   rewritten                                                   █│    
+   p│                            ▕│   Schedules       2                                                           █│    
+    │▌ Remotes                   ▕│                   ◎ New Sentry errors in checkout · every hour · 2 new Sun 13 █│    
+    │▌                           ▕│                   Sep 13:30                                                   █│    
+    │  Updates                   ▕│                   ◎ Reviews in checkout · every 10m · ! GitHub said 401: the  █│    
+    │                            ▕│                   token was revoked                                           █│    
+    │                            ▕│   Carried         3 settings and files, kept in step                          █│    
+    │                            ▕│   claude-code     ● 27 days left                                              █│    
+━   │                            ▕│   This machine’s  projects                                                    █│   ━
+    │                            ▕│   Move projects   1 of 2 here is on vps                                       █│    
+    │                            ▕│                     Show                                                      █│   ▕
+    │                            ▕│                     Carry again                                               ▕│   ▕
     │                            ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕

@@ -6,6 +6,7 @@ import { lookSaid, type MachineAbout } from '../../machine-there.ts'
 import type { Machine } from '../../machines.ts'
 import type { Look } from '../../skin.ts'
 import { blank, Row } from '../../ui.ts'
+import { widthOf } from '../../width.ts'
 import { cap, padTo, withFocus, wrapTo } from '../cells.ts'
 import type { PanelContext } from '../context.ts'
 import { type PanelOutcome, stay } from '../outcome.ts'
@@ -32,6 +33,10 @@ import type { SettingsPanel } from './state.ts'
 // here with the one press that is next — open it there, hand its work over,
 // close it here — which is the whole guided flow, because the steps are only
 // ever taken in that order and each is a press somebody can see the result of.
+// Folded under one line per machine, opened on a press: a row for each project
+// that machine already holds, and the ones it does not hold under one more
+// line of their own, because a row per project here under every machine is a
+// page as long as the projects list, most of it work nobody means to move.
 //
 // A category only while there is a remote: a page that says "none" to
 // everybody who never added one is a page in every picture of Settings.
@@ -62,6 +67,8 @@ export interface RemoteShown {
 /** One project here, as moving it to one machine stands: what it says, and the one press that is next. */
 export interface ProjectMove {
   project: string
+  /** That machine holds a project that is this one's repository. */
+  there: boolean
   /** Where it is there, and what of it is still here. */
   said: string
   /** Open it there, hand its work over, or close it here — or nothing while a press is under way. */
@@ -90,10 +97,25 @@ export interface RemoteAction {
   remote: string
   /** What it says between the two presses, where it is asked twice. */
   again?: string
+  /** What a fold's press says while what it opens is open. */
+  shut?: string
+  /** The folds it is drawn inside: drawn, and walked, only while every one is open. */
+  under?: readonly string[]
 }
 
 /** The presses asked twice: what each means is said between the two. */
 const TWICE: readonly string[] = ['keys', 'talk', 'move-close']
+
+/** A fold on the page: a machine's Move rows, and the projects not on it yet under them. */
+const foldOf = (remote: string, what: 'moves' | 'not-there') => `remote:fold:${remote}:${what}`
+
+/** The presses drawn, which are the ones the keyboard walks: none inside a fold that is shut. */
+export function remotePresses(
+  actions: readonly RemoteAction[],
+  panel: SettingsPanel,
+): RemoteAction[] {
+  return actions.filter((one) => (one.under ?? []).every((fold) => panel.opened.includes(fold)))
+}
 
 /** The account a sign-in is for, as an id carries it: empty for the harness's own. */
 function signInId(remote: string, one: { harness: string; account: string | null }): string {
@@ -138,28 +160,65 @@ export function remoteActions(remotes: readonly RemoteShown[]): RemoteAction[] {
         actions.push({ id: signInId(at, one), label: 'Sign in…', remote: at })
       }
     }
-    for (const one of remote.moves ?? []) {
-      if (one.next === null) continue
-      actions.push({
-        id: `remote:move-${one.next}:${at}:${one.project}`,
-        label: MOVE_LABELS[one.next](at),
-        remote: at,
-        ...(one.next === 'close' ? { again: 'Press again to close it here' } : {}),
-      })
+    const moves = remote.moves ?? []
+    if (moves.length > 0) {
+      const folded = foldOf(at, 'moves')
+      actions.push({ id: folded, label: 'Show', shut: 'Hide', remote: at })
+      const move = (one: ProjectMove, under: readonly string[]) => {
+        if (one.next === null) return
+        actions.push({
+          id: `remote:move-${one.next}:${at}:${one.project}`,
+          label: MOVE_LABELS[one.next](at),
+          remote: at,
+          under,
+          ...(one.next === 'close' ? { again: 'Press again to close it here' } : {}),
+        })
+      }
+      for (const one of moves.filter((one) => one.there)) move(one, [folded])
+      if (moves.some((one) => !one.there)) {
+        const notThere = foldOf(at, 'not-there')
+        actions.push({
+          id: notThere,
+          label: 'Open one there…',
+          shut: 'Hide',
+          remote: at,
+          under: [folded],
+        })
+        for (const one of moves.filter((one) => !one.there)) move(one, [folded, notThere])
+      }
     }
     actions.push({ id: `remote:again:${at}`, label: 'Carry again', remote: at })
   }
   return actions
 }
 
-/** Carry out a press, asking twice for the ones that send keys or turn talking on. */
+/**
+ * Carry out a press, asking twice for the ones that send keys or turn talking
+ * on; a fold's press opens or shuts it, and is the page's alone.
+ */
 export function remoteChoice(panel: SettingsPanel, id: string): PanelOutcome {
+  if (id.startsWith('remote:fold:')) {
+    const open = panel.opened.includes(id)
+    const opened = open ? panel.opened.filter((one) => one !== id) : [...panel.opened, id]
+    return stay({ ...panel, opened, confirm: null })
+  }
   const twice = TWICE.some((verb) => id.startsWith(`remote:${verb}:`))
   if (twice && panel.confirm !== id) {
     return stay({ ...panel, confirm: id, saved: null, error: null })
   }
   return { panel: { ...panel, confirm: null }, submit: true, choice: id }
 }
+
+/** A label's column, the gap after it included. */
+const LABEL = 16
+/** The fewest columns what a label says is given beside it: short of that, it goes under it. */
+const BESIDE = 24
+/** How far in what a label says goes, where it goes under the label. */
+const UNDER = 5
+/** The fewest columns anything is wrapped to: past that it goes in less, never past the edge. */
+const NARROWEST = 8
+/** What a button adds to its label: `[ label ]`. */
+const BUTTON = 4
 
 /** The page: one block per remote, each its checklist and the presses beside it. */
 export function drawRemotes(
@@ -171,52 +230,140 @@ export function drawRemotes(
 ): void {
   const { skin } = ctx
   const remotes = ctx.remotes ?? []
-  const actions = remoteActions(remotes)
+  const actions = remotePresses(remoteActions(remotes), panel)
   const focused = panel.focus === 'form' ? (actions[panel.row]?.id ?? null) : null
   const keys = withFocus(ctx.pointer, focused)
   const plain = (text: string) => text
-  const named = Math.min(16, Math.max(8, form - 44))
+  // What a label says goes beside it where that leaves it room, and under it
+  // where it does not — the one shape that runs past the edge at no width.
+  const named = LABEL
+  const stacked = form - 3 - named < BESIDE
+  const deep = stacked ? UNDER : 3 + named
+  /** Never so far in that fewer than `NARROWEST` columns are left to say anything in. */
+  const inset = (indent: number) => Math.max(1, Math.min(indent, form - NARROWEST - 1))
 
   const say = (text: string, tone = skin.hint, indent = 3, lines = 3) => {
-    for (const line of wrapTo(text, Math.max(8, form - indent - 1), lines)) {
-      body.push(new Row(form, skin).space(indent).text(line, tone).build())
+    const at = inset(indent)
+    for (const line of wrapTo(text, Math.max(1, form - at - 1), lines)) {
+      body.push(new Row(form, skin).space(at).text(line, tone).build())
     }
   }
-  /** A labelled line: a word for what it is, then what it says. */
-  const line = (label: string, text: string, tone = plain) =>
+  /** A labelled line: a word for what it is, then what it says — beside it, or under it. */
+  const line = (label: string, text: string, tone = plain) => {
+    const row = new Row(form, skin).space(3)
+    if (!stacked) {
+      row.text(padTo(cap(label, named - 1), named), skin.label)
+      body.push(row.text(cap(text, form - 3 - named - 1), tone).build())
+      return
+    }
+    body.push(row.text(cap(label, form - 4), skin.label).build())
+    const at = inset(deep)
     body.push(
       new Row(form, skin)
-        .space(3)
-        .text(padTo(cap(label, named), named), skin.label)
-        .text(cap(text, Math.max(4, form - named - 4)), tone)
+        .space(at)
+        .text(cap(text, form - at - 1), tone)
         .build(),
     )
+  }
+  /** What a press says now: asked once, a fold open, or its own label. */
+  const labelOf = (action: RemoteAction) =>
+    panel.confirm === action.id
+      ? (action.again ?? action.label)
+      : panel.opened.includes(action.id)
+        ? (action.shut ?? action.label)
+        : action.label
+  /** A press, its label cut to the room left, short of the last column as the text is. */
+  const press = (row: Row, action: RemoteAction, look: Look) => {
+    const label = cap(labelOf(action), Math.max(1, form - row.used - BUTTON - 1))
+    row.button(label, { kind: 'control', id: action.id }, look).space()
+  }
+  const pushed = (row: Row, ids: readonly string[]) => {
+    if (focused !== null && ids.includes(focused)) keepInView(body.length, body.length)
+    body.push(row.build())
+  }
   const buttons = (ids: readonly string[], look: Look = 'rest') => {
     const mine = actions.filter((action) => ids.includes(action.id))
     if (mine.length === 0) return
-    const row = new Row(form, skin, keys).space(3 + named)
-    for (const action of mine) {
-      const label = panel.confirm === action.id ? (action.again ?? action.label) : action.label
-      row.button(label, { kind: 'control', id: action.id }, look).space()
+    const row = new Row(form, skin, keys).space(inset(deep))
+    for (const action of mine) press(row, action, look)
+    pushed(row, ids)
+  }
+  /** A name with its one press beside it, or under it where there is no room beside. */
+  const pressNamed = (label: string, id: string) => {
+    const action = actions.find((one) => one.id === id)
+    if (action === undefined) return
+    if (stacked) {
+      body.push(
+        new Row(form, skin)
+          .space(3)
+          .text(cap(label, form - 4), skin.label)
+          .build(),
+      )
+      buttons([id])
+      return
     }
-    if (focused !== null && mine.some((action) => action.id === focused)) {
-      keepInView(body.length, body.length)
+    const row = new Row(form, skin, keys)
+      .space(3)
+      .text(padTo(cap(label, named - 1), named), skin.label)
+    press(row, action, 'rest')
+    pushed(row, [id])
+  }
+
+  // Said where somebody is deciding: once they have pressed, before the press
+  // that does it. Whole, however many lines that takes — the way out is each
+  // one's last clause, so any cap drops it, and the page scrolls.
+  const between = (sentence: string) => say(sentence, skin.hint, deep, Number.POSITIVE_INFINITY)
+
+  /**
+   * Moving its projects there, folded under one line: a row for each project
+   * it holds, then the ones it does not under a line of their own, each with
+   * the one press that opens it there.
+   */
+  const moving = (remote: RemoteShown) => {
+    const at = remote.name
+    const moves = remote.moves ?? []
+    if (moves.length === 0) return
+    const held = moves.filter((one) => one.there)
+    const notThere = moves.filter((one) => !one.there)
+    const count = held.length === 0 ? 'none' : `${held.length}`
+    const are = held.length > 1 ? 'are' : 'is'
+    line('Move projects', `${count} of ${moves.length} here ${are} on ${at}`, skin.hint)
+    buttons([foldOf(at, 'moves')])
+    if (!panel.opened.includes(foldOf(at, 'moves'))) return
+    for (const one of held) {
+      const tone = one.next === 'close' ? skin.done : one.next === null ? skin.waiting : skin.hint
+      line(`Move ${one.project}`, one.said, tone)
+      if (one.next === null) continue
+      const id = `remote:move-${one.next}:${at}:${one.project}`
+      buttons([id])
+      if (panel.confirm === id) between(CLOSE_AFTER_MOVE)
     }
-    body.push(row.build())
+    if (notThere.length === 0) return
+    line('Not there yet', notThere.map((one) => one.project).join(', '), skin.hint)
+    buttons([foldOf(at, 'not-there')])
+    if (!panel.opened.includes(foldOf(at, 'not-there'))) return
+    for (const one of notThere) {
+      if (one.next === null) line(one.project, one.said, skin.waiting)
+      else pressNamed(one.project, `remote:move-${one.next}:${at}:${one.project}`)
+    }
   }
 
   for (const remote of remotes) {
     const from = body.length
     const list = remote.list
     const at = remote.name
-    body.push(
-      new Row(form, skin)
-        .space()
-        .text(cap(at, Math.max(4, named)), skin.brand)
-        .space(2)
-        .text(cap(remote.link, form - named - 5), remote.live ? skin.done : skin.waiting)
-        .build(),
-    )
+    const head = new Row(form, skin)
+      .space()
+      .text(cap(at, Math.max(4, Math.min(named, form - 2))), skin.brand)
+    const tone = remote.live ? skin.done : skin.waiting
+    // Beside its name where it fits there whole, and under it where it does not.
+    if (stacked && head.used + 2 + widthOf(remote.link) > form - 1) {
+      body.push(head.build())
+      say(remote.link, tone, 3, 1)
+    } else {
+      head.space(2)
+      body.push(head.text(cap(remote.link, form - head.used - 1), tone).build())
+    }
     const where = [
       `ssh ${remote.address}`,
       list?.machine ? `it calls itself ${list.machine}` : null,
@@ -227,11 +374,11 @@ export function drawRemotes(
       remote,
       ctx,
       line,
-      (text, tone) => say(text, tone, 3 + named, 3),
+      (text, tone) => say(text, tone, deep, 3),
       // Under its public name: the records that name needs, and the press that looks again.
       () => {
         records(remote, ctx, line, (text, tone, indent = 0, lines = 4) =>
-          say(text, tone, 3 + named + indent, lines),
+          say(text, tone, deep + indent, lines),
         )
         buttons([`remote:records:${at}`])
       },
@@ -257,18 +404,13 @@ export function drawRemotes(
     if (list !== null && list.waiting.length > 0) {
       line('On a press', list.waiting.join(', '), skin.waiting)
       buttons([`remote:keys:${at}`], 'attention')
-      // Said where somebody is deciding: once they have pressed, before the
-      // press that sends. Whole, however many lines that takes — the way out
-      // is its last clause, so any cap drops it, and the page scrolls.
-      if (panel.confirm === `remote:keys:${at}`) {
-        say(KEYS_TO_REMOTE, skin.hint, 3 + named, Number.POSITIVE_INFINITY)
-      }
+      if (panel.confirm === `remote:keys:${at}`) between(KEYS_TO_REMOTE)
     }
     // Listed until it is on: what is typed in its tab here goes nowhere until then.
     if (list?.talk === 'off') {
       line('Talk to Tade', 'off there: its tab here takes no message', skin.waiting)
       buttons([`remote:talk:${at}`], 'attention')
-      if (panel.confirm === `remote:talk:${at}`) say(TALK_TO_REMOTE, skin.hint, 3 + named, 5)
+      if (panel.confirm === `remote:talk:${at}`) between(TALK_TO_REMOTE)
     } else if (list?.talk === 'turning on') {
       line('Talk to Tade', 'turned on there, on your press', skin.done)
     }
@@ -281,14 +423,7 @@ export function drawRemotes(
     if (list !== null && list.here.length > 0) {
       line('This machine’s', list.here.map((one) => one.what).join(', '), skin.hint)
     }
-    for (const one of remote.moves ?? []) {
-      const tone = one.next === 'close' ? skin.done : one.next === null ? skin.waiting : skin.hint
-      line(`Move ${one.project}`, one.said, tone)
-      if (one.next === null) continue
-      const id = `remote:move-${one.next}:${at}:${one.project}`
-      buttons([id])
-      if (panel.confirm === id) say(CLOSE_AFTER_MOVE, skin.hint, 3 + named, 3)
-    }
+    moving(remote)
     buttons([`remote:again:${at}`])
     body.push(blank(form))
     if (focused !== null && focused.split(':')[2] === at) keepInView(from, body.length - 1)

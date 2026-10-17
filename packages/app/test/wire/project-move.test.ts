@@ -92,7 +92,7 @@ describe('moving a whole project to another machine', () => {
   it('opens it there first, handing over the URL with no credential in it', async () => {
     const one = await moving()
     expect(one.moves.projects.projectMoves('vps')).toEqual([
-      { project: 'app', said: 'not on vps yet', next: 'open' },
+      { project: 'app', there: false, said: 'not on vps yet', next: 'open' },
     ])
     // Its origin is a path on this machine, which no other machine clones from.
     await one.moves.projects.step('remote:move-open:vps:app', one.door)
@@ -124,7 +124,7 @@ describe('moving a whole project to another machine', () => {
     })
     one.running.add('app/refunds')
     expect(one.moves.projects.projectMoves('vps')).toEqual([
-      { project: 'app', said: 'on vps as tade · 1 running here', next: 'hand' },
+      { project: 'app', there: true, said: 'on vps as tade · 1 running here', next: 'hand' },
     ])
     // Closing is refused out of order, whatever was pressed.
     await one.moves.projects.step('remote:move-close:vps:app', one.door)
@@ -134,7 +134,7 @@ describe('moving a whole project to another machine', () => {
     await one.moves.projects.step('remote:move-hand:vps:app', one.door)
     expect(one.told.at(-1)?.saved).toContain('app/refunds told to push')
     expect(one.steered).toEqual(['app/refunds'])
-    expect(one.moves.projects.projectMoves('vps')[0]).toMatchObject({ next: null })
+    expect(one.moves.projects.projectMoves('vps')[0]).toMatchObject({ there: true, next: null })
 
     // Its agent gone from here: the last press closes it, asked twice on the page.
     one.running.clear()
@@ -148,7 +148,7 @@ describe('moving a whole project to another machine', () => {
         at: null,
         busy: false,
         machine: null,
-        moves: [{ project: 'app', said: 'on vps as tade', next: 'close' }],
+        moves: [{ project: 'app', there: true, said: 'on vps as tade', next: 'close' }],
       },
     ])
     expect(page.find((action) => action.id === 'remote:move-close:vps:app')).toMatchObject({

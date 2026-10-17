@@ -6,7 +6,7 @@ import type { PanelInputs } from '../../panels.ts'
 import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
 import { accountChoice } from './accounts.ts'
 import { LOOK_AGAIN } from './domain.ts'
-import { REMOTES, remoteChoice } from './remotes.ts'
+import { REMOTES, remoteChoice, remotePresses } from './remotes.ts'
 import { scopedGroup, scopedRows, scopeHere, scopesOf } from './scopes.ts'
 
 export type { UpdatesShown }
@@ -93,6 +93,8 @@ export interface SettingsPanel {
   testing: boolean
   /** An action that is asked twice, asked once: removing an account. */
   confirm: string | null
+  /** Folds a press opened on the page, by that press's id: on Remotes, a machine's Move rows. */
+  opened: readonly string[]
   busy: false
 }
 
@@ -196,6 +198,7 @@ export function settingsPanel(category = 'agents', search = '', scope = ''): Set
     error: null,
     testing: false,
     confirm: null,
+    opened: [],
     busy: false,
   }
 }
@@ -516,7 +519,7 @@ function settingsPress(
     : panel.category === ACCOUNTS
       ? (inputs.accountActions ?? []).length
       : panel.category === REMOTES
-        ? (inputs.remoteActions ?? []).length
+        ? remotePresses(inputs.remoteActions ?? [], panel).length
         : panel.category === UPDATES
           ? (inputs.updateActions ?? []).length
           : rows.length
@@ -541,7 +544,7 @@ function settingsPress(
     return key === 'enter' && action ? accountChoice(panel, action.id) : stay(panel)
   }
   if (panel.category === REMOTES && !panel.search) {
-    const action = (inputs.remoteActions ?? [])[panel.row]
+    const action = remotePresses(inputs.remoteActions ?? [], panel)[panel.row]
     return key === 'enter' && action ? remoteChoice(panel, action.id) : stay(panel)
   }
   if (panel.category === UPDATES && !panel.search) {
