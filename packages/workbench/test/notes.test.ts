@@ -1,6 +1,6 @@
-import { mkdirSync, readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { projectDir } from '@tade/core'
+import { projectDir, type TadeEvent, type TaskLast } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { Memory } from '../src/memory.ts'
@@ -151,8 +151,9 @@ describe('the cleanup, on open', () => {
   it('retires a note about a task long gone, and the journal says so without its words', async () => {
     const home = tmp('tade-notes-')
     worked(home, 'tade')
+    heard(home, [told('tade/purple', 'task_created', Date.now() - 12 * DAY)])
     const memory = Memory.open(home)
-    // Taken ten days ago, about a task that has no task file: gone.
+    // Taken ten days ago, about a task this home had that has no task file: gone.
     memory.remember('hover the purple too', 'tade/purple', 'orchestrator', Date.now() - 10 * DAY)
     memory.remember('a rule for the project', 'tade', 'orchestrator', Date.now() - 10 * DAY)
     memory.remember('fresh one', 'tade/purple-two', 'orchestrator', Date.now() - DAY)
@@ -184,7 +185,8 @@ describe('the cleanup, on open', () => {
     worked(home, 'tade')
     Memory.open(home).remember('x', 'tade/gone', 'cli', NOW - 10 * DAY)
     const memory = Memory.open(home)
-    const log = { read: async () => [], append: async () => undefined }
+    const events = [told('tade/gone', 'task_created', NOW - 12 * DAY)]
+    const log = { read: async () => events, append: async () => undefined }
     const would = await cleanupNotes({ home, memory, log }, 3, false, NOW)
     expect(would.map((one) => one.because)).toEqual([
       'tade/gone is gone, and nothing has happened to it since 10 days ago',
@@ -200,15 +202,55 @@ describe('the cleanup, on open', () => {
     const memory = Memory.open(home)
     memory.remember('run it at two', 'nightly/backup', 'orchestrator', NOW - 10 * DAY)
     memory.remember('hover too', 'tade/purple', 'orchestrator', NOW - 10 * DAY)
-    const log = { read: async () => [], append: async () => undefined }
+    const events = [
+      told('nightly/backup', 'task_removed', NOW - 8 * DAY),
+      told('tade/purple', 'task_removed', NOW - 8 * DAY),
+    ]
+    const log = { read: async () => events, append: async () => undefined }
     const would = await cleanupNotes({ home, memory, log }, 3, false, NOW)
     expect(would.map((one) => one.note.text)).toEqual(['hover too'])
+  })
+
+  it('keeps a note taken here about a task only another machine has, in a project both have', async () => {
+    // The Mac takes a note about the VPS's work in `tade`, which is on both:
+    // the Mac's journal never heard of the task, so whether it is gone is the
+    // VPS's to say, and the retirement would only have gone back over the link.
+    const home = tmp('tade-notes-')
+    worked(home, 'tade')
+    heard(home, [
+      told('tade/purple', 'task_created', Date.now() - 12 * DAY),
+      told('tade/purple', 'task_removed', Date.now() - 8 * DAY),
+    ])
+    const memory = Memory.open(home)
+    memory.remember('run it at two', 'tade/nightly', 'orchestrator', Date.now() - 10 * DAY)
+    memory.remember('hover too', 'tade/purple', 'orchestrator', Date.now() - 10 * DAY)
+
+    client = await Workbench.open({ home })
+    const kept = client.recallAll()
+    expect(kept.map((n) => [n.text, n.from])).toEqual([['run it at two', undefined]])
+    // A task this home did have, and that is gone, still goes.
+    const retired = client.recallAll({ retired: true }).filter((n) => n.retired)
+    expect(retired.map((n) => [n.text, n.retired?.because])).toEqual([
+      ['hover too', 'tade/purple was removed 8 days ago'],
+    ])
   })
 })
 
 /** A home that has had work in this project: its folder, as a task file there leaves it. */
 function worked(home: string, project: string): void {
   mkdirSync(projectDir(home, project), { recursive: true })
+}
+
+/** A line of this home's journal about a task, as the window writes one. */
+function told(task: string, type: TaskLast['type'], at: number): TadeEvent {
+  const ts = new Date(at).toISOString()
+  return { seq: 0, ts, type, urgency: 'notable', task, lane: null, run: null, detail: {} }
+}
+
+/** A journal that has heard these, written before any window opens on the home. */
+function heard(home: string, events: readonly TadeEvent[]): void {
+  const lines = events.map((event, i) => JSON.stringify({ ...event, seq: i + 1 }))
+  writeFileSync(join(home, 'events.jsonl'), `${lines.join('\n')}\n`)
 }
 
 describe('retiring on somebody’s say-so', () => {

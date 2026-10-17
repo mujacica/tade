@@ -86,10 +86,11 @@ in step.
 - **The cleanup retires only what needs no judgement** (`notesToRetire`, core, pure; run on every
   open by `settleNotes`, like `settleDocuments`): the same words again about the same, and a note
   every scope of which is a task finished or gone for longer than `notes.keep_days`. Never a note
-  about a project or everything, never one whose task is still there and not finished, and a task
-  file it cannot look at is a task. Superseded, contradicted, no longer true are judgements: the
-  orchestrator proposes them and retires one only on a line the person said lately (`theirLine`,
-  the check a document approval uses), so it is never silent and never on something it read.
+  about a project or everything, never one whose task is still there and not finished, never one
+  about a task this journal never heard of, and a task file it cannot look at is a task.
+  Superseded, contradicted, no longer true are judgements: the orchestrator proposes them and
+  retires one only on a line the person said lately (`theirLine`, the check a document approval
+  uses), so it is never silent and never on something it read.
 - **Notes are shared between homes, as a union of lines** (REMOTE-TADE §4.5, §9.6;
   `notes-shared.ts`, `Memory.shared`/`take`): every line but `came` is given to each machine the
   window is linked to and theirs are taken, so each `memory.jsonl` is the union of all of them. It
@@ -100,10 +101,11 @@ in step.
   digest of `keyOf`, never by its words. `came` is each home's own record of the machine a note it
   took was taken on (the giver's word, or the giver), so **a note's machine is said only where
   somebody asks** — its page in the window, `tade notes`, `tade_notes`' `from` — and never in a
-  prompt or the briefing. Two cleanup rules follow from it: a note taken elsewhere about a task this
-  journal never heard of is that machine's to call gone (`notesToRetire`), and a task in a project
-  this home has no folder for is a task (`present`) — otherwise the Mac retires a note about the
-  VPS's running work and sends the retirement back. Each exchange that moved anything is
+  prompt or the briefing. Two cleanup rules follow from it: a note about a task this journal never
+  heard of is another home's to call gone, whichever machine took it down (`notesToRetire`) — the
+  Mac's note about the VPS's work in a project both have names a task the Mac never saw — and a task
+  in a project this home has no folder for is a task (`present`); otherwise the Mac retires a note
+  about the VPS's running work and sends the retirement back. Each exchange that moved anything is
   `notes_shared`, on both sides, counts only. The window's half (`app/src/wire/notes-shared.ts`)
   shares when a link comes up, when this home's file moved (a shell, or lines just taken — which is
   how a note reaches the next remote), when the remote's projection's notes moved, and every ten

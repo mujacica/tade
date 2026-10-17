@@ -341,20 +341,25 @@ describe('what the cleanup retires', () => {
     ).toEqual([])
   })
 
-  it('leaves a note taken on another machine about a task nothing here has heard of to that machine', () => {
+  it('leaves a note about a task nothing here has heard of to the home that has, wherever it was taken', () => {
     // Shared between homes, tasks not: the task is most likely running there,
     // and that machine's retirement comes back over the link.
     const far: Note = { ...said(daysAgo(30), 'vps/nightly', 'run it at two'), from: 'vps' }
     const gone = { last: new Map<string, TaskLast>(), present: () => false }
     expect(notesToRetire([far], gone, TODAY, keep)).toEqual([])
+    // Taken here about the VPS's work, in a project both machines have: this
+    // journal still never heard of the task, so it is still not this home's.
+    const here = said(daysAgo(30), 'tade/nightly', 'run it at two')
+    expect(notesToRetire([here], gone, TODAY, keep)).toEqual([])
+    // Nor is a note about two tasks, one gone here and one nothing here knows.
+    const one = { last: last({ 'tade/a': ['task_removed', 10] }), present: () => false }
+    const both = said(daysAgo(30), 'tade/a', 'one sentence', ['tade/nightly'])
+    expect(notesToRetire([both], one, TODAY, keep)).toEqual([])
     // What this journal does know, it still judges: finished here is finished.
     const done = { last: last({ 'vps/nightly': ['task_done', 10] }), present: () => false }
     expect(notesToRetire([far], done, TODAY, keep).map((t) => t.because)).toEqual([
       'vps/nightly finished 10 days ago',
     ])
-    // And one taken here about a task nothing knows is aged as it always was.
-    const here = said(daysAgo(30), 'vps/nightly', 'run it at two')
-    expect(notesToRetire([here], gone, TODAY, keep).map((t) => t.rule)).toEqual(['gone'])
   })
 
   it('leaves alone what is already retired', () => {

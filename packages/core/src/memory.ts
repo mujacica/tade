@@ -226,15 +226,14 @@ export const NotesConfigSchema = z
  *   than `keep`. Aged from the latest of the note and the task's last word, so
  *   a note taken yesterday about a task removed last month waits like any.
  *
- * What it cannot see it keeps: a task with nothing in the journal is aged from
- * the note alone, and a task file that is there is a task — `present` is the
- * caller's look, and a look that failed must answer `true`.
- *
- * **A note taken on another machine is that machine's to call gone** where this
- * journal has never heard of the task: notes are shared between homes and
- * tasks are not, so a task nothing here knows is most likely running there.
- * It is kept here, and when that machine retires it the line comes back over
- * the link (`notes-shared.ts`).
+ * What it cannot see it keeps: a task file that is there is a task — `present`
+ * is the caller's look, and a look that failed must answer `true` — and **a
+ * task this journal has never heard of is another home's to call gone**,
+ * whichever machine the note was taken on. Notes are shared between homes and
+ * tasks are not, so a note taken here about the VPS's work, in a project both
+ * machines have, names a task nothing here knows that is most likely running
+ * there. It is kept, and when the home that has the task retires it the line
+ * comes back over the link (`notes-shared.ts`).
  *
  * Pure, and takes `now`: the clock is the caller's.
  */
@@ -283,18 +282,17 @@ function goneFor(
   for (const scope of scopesOf(entry)) {
     if (scope === null || !scope.includes('/')) return null
     const last = facts.last.get(scope)
-    const there = facts.present(scope)
-    if (there && last?.type !== 'task_done') return null
-    if (last === undefined && entry.from !== undefined) return null
-    const from = Math.max(Date.parse(entry.at) || 0, last?.at ?? 0)
+    if (last === undefined) return null
+    if (facts.present(scope) && last.type !== 'task_done') return null
+    const from = Math.max(Date.parse(entry.at) || 0, last.at)
     if (now - from >= since) continue
     since = now - from
     const days = Math.floor(since / 86_400_000)
     const ago = `${days} day${days === 1 ? '' : 's'} ago`
     because =
-      last?.type === 'task_done'
+      last.type === 'task_done'
         ? `${scope} finished ${ago}`
-        : last?.type === 'task_removed'
+        : last.type === 'task_removed'
           ? `${scope} was removed ${ago}`
           : `${scope} is gone, and nothing has happened to it since ${ago}`
   }
