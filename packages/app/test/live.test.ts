@@ -401,7 +401,12 @@ describe('the last look at a task, read without starting one', () => {
     // starts it, and what it finds is what this reads.
     live.actions('app/refunds')
     live.lookAgain()
-    await new Promise((resolve) => setTimeout(resolve, 2_000))
+    // Until it lands, not for a stretch of clock: the look is git and the
+    // disk, which another suite on the machine slows past any fixed wait.
+    for (const deadline = Date.now() + 20_000; Date.now() < deadline; ) {
+      if (live.seenActions('app/refunds') !== null) break
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
     expect(live.seenActions('app/refunds')).toEqual(live.actions('app/refunds'))
     expect(live.seenActions('app/refunds')?.task).toBe('app/refunds')
   }, 30_000)

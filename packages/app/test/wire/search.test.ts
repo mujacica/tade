@@ -239,10 +239,10 @@ describe('the window, asking what is happening', () => {
     for (const char of ' please') terminal.press(char)
     await until('the question about what is there now', () => asked.length > 1)
     release()
-    await new Promise((resolve) => setTimeout(resolve, 300))
     // The box still holds what they went on typing, and the answer to what
     // they had typed before is nowhere.
-    expect(terminal.written).toContain('double charge please')
+    await until('what they went on typing', () => terminal.written.includes('double charge please'))
+    await new Promise((resolve) => setTimeout(resolve, 300))
     expect(terminal.written).not.toContain('MIGHT MEAN')
   })
 

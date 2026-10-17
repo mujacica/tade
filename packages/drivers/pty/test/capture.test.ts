@@ -239,9 +239,14 @@ describe('a program that repaints in place and says nothing', () => {
       seen.push(first)
       await new Promise((resolve) => setTimeout(resolve, 8))
     }
-    // Read once the newest frame in a capture has had time to finish, since
-    // a frame is written down only after its last piece.
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    // Read once every frame a capture tore has finished, since a frame is
+    // written down only after its last piece — which a capture of a later
+    // frame proves, as no frame starts before the last one's pieces are out.
+    // Never a stretch of clock, which a loaded runner outlasts.
+    const newest = Math.max(0, ...torn.flat())
+    await until(async () =>
+      framesIn(await driver.capture(lane, { lines: 40 })).some((frame) => frame > newest),
+    )
     const late = new Set(readFileSync(stretched, 'utf8').split('\n').filter(Boolean).map(Number))
     // A frame the runner stretched past the boundary was, as far as anything
     // could tell, two frames, and a capture between them is the driver keeping

@@ -1,22 +1,38 @@
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
-// Biome plugins don't run in --stdin mode, so probe with a real (non-ignored) file.
-const probeDir = join(root, 'test', `lint-probe-${process.pid}`)
+// Biome plugins don't run in --stdin mode, so probe with a real file — never
+// one in the checkout: it breaks R3 on purpose, and a `biome ci .` run beside
+// the suite (the `format` check, another agent's hook) read it and went red.
+// The repository's own config goes with it, its plugins made absolute.
+const probeDir = mkdtempSync(join(tmpdir(), 'tade-lint-probe-'))
+const config = JSON.parse(readFileSync(join(root, 'biome.json'), 'utf8'))
+writeFileSync(
+  join(probeDir, 'biome.json'),
+  JSON.stringify({
+    ...config,
+    plugins: config.plugins.map((plugin: string) => resolve(root, plugin)),
+    vcs: { enabled: false },
+  }),
+)
 
 function lint(source: string) {
-  mkdirSync(probeDir, { recursive: true })
   const file = join(probeDir, 'probe.ts')
   writeFileSync(file, source)
-  const r = spawnSync('pnpm', ['exec', 'biome', 'lint', '--colors=off', file], {
-    cwd: root,
-    encoding: 'utf8',
-  })
-  return `${r.stdout}${r.stderr}`
+  const r = spawnSync(
+    'pnpm',
+    ['exec', 'biome', 'lint', '--colors=off', `--config-path=${probeDir}`, file],
+    { cwd: root, encoding: 'utf8' },
+  )
+  const out = `${r.stdout}${r.stderr}`
+  // A probe biome skipped would pass every "allows" below without a look.
+  if (!out.includes('Checked 1 file')) throw new Error(`biome did not lint the probe:\n${out}`)
+  return out
 }
 
 afterAll(() => rmSync(probeDir, { recursive: true, force: true }))

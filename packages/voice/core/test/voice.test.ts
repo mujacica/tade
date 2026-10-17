@@ -629,7 +629,13 @@ describe('VoiceSurface', () => {
       // Something that wants you, while the answer is still being said.
       tade.emit(event({ type: 'permission_request', urgency: 'blocking' }))
       await answered
-      await new Promise((r) => setTimeout(r, 60))
+      // Until all three are said and nothing is being said, not for a stretch
+      // of clock: each is fifteen milliseconds of the fake's own timers, which
+      // a runner sharing the machine with another suite stretches.
+      for (const deadline = Date.now() + 10_000; Date.now() < deadline; ) {
+        if (said.length >= 3 && talking === 0) break
+        await new Promise((r) => setTimeout(r, 5))
+      }
       expect(most).toBe(1)
       // Everything said, each once, in whichever order it came.
       expect([...said].sort()).toEqual([
