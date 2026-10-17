@@ -1,4 +1,10 @@
-import { declarationProblems, LIMITS_SUPPORT, type TaskId, THINKING_LEVELS } from '@tade/core'
+import {
+  declarationProblems,
+  LIMITS_SUPPORT,
+  namesAnInstaller,
+  type TaskId,
+  THINKING_LEVELS,
+} from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   type HarnessFeature,
@@ -219,7 +225,7 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
         // machine is setup's, out of the `install` in `programs`.
         const one = await adapter()
         const said = [...(await one.probe()).problems, (await one.account()).problem ?? '']
-        expect(said.join('\n')).not.toMatch(/\b(?:brew|apt|apt-get|dnf) install\b/)
+        expect(said.filter(namesAnInstaller)).toEqual([])
       })
 
       it('says what any tool does, including one it has never heard of', async () => {
