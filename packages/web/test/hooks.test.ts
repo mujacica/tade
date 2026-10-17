@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   checkDelivery,
   deliveryDigest,
@@ -114,6 +114,7 @@ describe('a GitHub delivery', () => {
       'ghe.example.com/team/tool',
     )
     expect(where({ full_name: 'acme/app' })).toBe('github.com/acme/app')
+    expect(where({ html_url: 'not an address', full_name: 'acme/app' })).toBe('github.com/acme/app')
     expect(where({ html_url: 'javascript:alert(1)', full_name: '../../etc' })).toBeNull()
     expect(where(undefined)).toBeNull()
   })
@@ -129,6 +130,19 @@ describe('a GitHub delivery', () => {
       why: 'unreadable',
       verified: true,
     })
+  })
+
+  it('throws anything but a body that is not JSON, rather than calling it unreadable', () => {
+    // Only a SyntaxError is a body that is not JSON. Anything else is this
+    // machine's trouble, and an answer of `unreadable` would hide it.
+    const parse = vi.spyOn(JSON, 'parse').mockImplementationOnce(() => {
+      throw new RangeError('out of memory reading the body')
+    })
+    try {
+      expect(() => checkDelivery('github', signed(issue))).toThrow('out of memory reading the body')
+    } finally {
+      parse.mockRestore()
+    }
   })
 })
 
