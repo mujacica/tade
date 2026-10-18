@@ -84,6 +84,7 @@ import {
 } from './panels/small/state.ts'
 import { type SpendPanel, spendClick, spendKey } from './panels/spend/state.ts'
 import { type RowSummaryPanel, rowSummaryClick, rowSummaryKey } from './panels/summary/state.ts'
+import { type WaitRow, type WaitsPanel, waitsClick, waitsKey } from './panels/waits/state.ts'
 import {
   type WorkflowPanel,
   type WorkflowRow,
@@ -132,6 +133,7 @@ export type Panel =
   | RequestTherePanel
   | WorkflowPanel
   | ChatsPanel
+  | WaitsPanel
 
 /** What the panel needs to know that it does not hold: the settings themselves, and lists. */
 export interface PanelInputs {
@@ -188,6 +190,8 @@ export interface PanelInputs {
   models?: readonly ModelChoice[]
   /** The conversations a chat can be brought back on, in the order the keyboard walks them. */
   chatRows?: readonly ChatRow[]
+  /** What queued work could wait on, in the order the waits panel lists them. */
+  waitRows?: readonly WaitRow[]
   /** The tools Tade wrote for itself, on or off. */
   written?: readonly WrittenToolView[]
   /** The fields of the extension being set up. */
@@ -245,6 +249,7 @@ export function panelKey(
   if (panel.kind === 'keys') return keysKey(panel, key)
   if (panel.kind === 'model') return modelKey(panel, key, data, inputs.models ?? [])
   if (panel.kind === 'chats') return chatsKey(panel, key, inputs.chatRows ?? [])
+  if (panel.kind === 'waits') return waitsKey(panel, key, data, inputs.waitRows ?? [])
   if (panel.kind === 'extension-setup') return setupKey(panel, key, data, inputs.setupFields ?? [])
   if (panel.kind === 'extension-view') {
     return extensionViewKey(panel, key, {
@@ -305,6 +310,7 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
   if (panel.kind === 'keys') return keysClick(panel, control)
   if (panel.kind === 'model') return modelClick(panel, control, inputs.models ?? [])
   if (panel.kind === 'chats') return chatsClick(panel, control, inputs.chatRows ?? [])
+  if (panel.kind === 'waits') return waitsClick(panel, control, inputs.waitRows ?? [])
   if (panel.kind === 'extension-view') {
     return extensionViewClick(panel, control, {
       tabs: inputs.viewTabs ?? [],

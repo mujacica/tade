@@ -616,9 +616,10 @@ export function queueMenuItems(queued: {
       label: 'Wait for a retry',
       ...(held ? {} : { off: 'not held' }),
     },
-    // Each asks for a line that starts from what its task file says: a plan
-    // is changed by writing on the work it made, never by removing and
-    // planning it again, which uses the name up and holds what waited on it.
+    // Each starts from what its task file says — the waits as a list to pick
+    // from, what it is told as a line: a plan is changed by writing on the
+    // work it made, never by removing and planning it again, which uses the
+    // name up and holds what waited on it.
     { id: 'queue-after', label: 'Wait on…' },
     { id: 'queue-retell', label: 'Retell…' },
     { id: 'rename', label: 'Rename…' },

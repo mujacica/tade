@@ -1,0 +1,34 @@
+ ▄▀   T A D E      checkout !⠋    search ✓    infra      +          ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS ╭─ What remote-end-to-end-rehearsal waits on ──────────────────────────────────────────────── esc ─╮▾     ×   
+          │  ▏type to narrow by name, project or state                                                       │──────────
+ ▌ ! strip│                                                                                                  │          
+ ▌   wants│ WAITS ON NOW                                                                                    ▕│          
+          │  ■ an-agent-of-its-own-user-cannot-work-in                              tade  removed — drop it ▕│          
+   ⠋ refun│    why  tab to say why                                                                          ▕│          
+     worki│▌ ■ setup-says-bwrap-needs                                                         tade  working ▕│          
+          │▌   why  setup has to pass first                                                                 ▕│          
+ ▸ SMART Q│                                                                                                 ▕│          
+ ▸ SCHEDUL│ AGENTS AT WORK                                                                                  ▕│          
+ ▸ INTAKE │  □ remote-backups-and-upgrades                                                  tade  needs you ▕│          
+ ▾ CHANGES│    Remote backups, and upgrading a remote from the Mac                                          ▕│          
+  M packag│  □ pagination                                                                 checkout  working ▕│          
+  A …/webh│    Paginate the order history                                                                   ▕│          
+  M src/we│                                                                                                 ▕│          
+          │ QUEUED                                                                                          ▕│          
+ ▾ FILES  │  □ release-notes                                                                   tade  parked ▕│          
+   ▾ src/ │    Write the release notes for 0.9                                                              ▕│          
+       web│                                                                                                 ▕│          
+       web│                                                                                                 ▕│          
+   ▸ test/│                                                                                                 ▕│          
+━   orches│                                                                                                 ▕│     ↓   ━
+          │                                                                                                 ▕│          
+          │                                                                                                 ▕│         ▕
+          │                                                                                                 ▕│         ▕
+          │                                                                                                  │         ▕
+          │ space picks · tab why · enter saves · 2 picked                Drop 1 gone     Cancel     Save    │         ▕
+ ❯ what yo╰──────────────────────────────────────────────────────────────────────────────────────────────────╯         ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

@@ -16,6 +16,7 @@ import {
   noteHeadlinePanel,
   promptPanel,
 } from '../../../src/panels/small/state.ts'
+import { waitsPanel } from '../../../src/panels/waits/state.ts'
 import { base, finished, frame, type Scenario, utcDate } from './fixtures.ts'
 
 // The panels: menus, and the pages that float over the window.
@@ -147,6 +148,70 @@ export const PANEL_SCREENS: Scenario[] = [
         modelsFrom: { harness: 'pi', why: null },
         modelTarget: 'the orchestrator',
         currentModel: 'openrouter/anthropic/claude-opus-5',
+      },
+    }),
+  },
+  {
+    name: 'picking-what-queued-work-waits-on',
+    about:
+      "Wait on… from queued work's menu: what it waits on now ticked first, a wait on a task that was removed said so, then the agents at work and the rest of the queue, each with its project and where it stands; typing narrows it, space ticks, tab writes why.",
+    state: {
+      ...base(),
+      panel: {
+        ...waitsPanel('tade/remote-end-to-end-rehearsal', [
+          { task: 'tade/an-agent-of-its-own-user-cannot-work-in', why: '' },
+          { task: 'tade/setup-says-bwrap-needs', why: 'setup has to pass first' },
+        ]),
+        index: 1,
+      },
+    },
+    frame: frame({
+      panel: {
+        waits: {
+          task: 'tade/remote-end-to-end-rehearsal',
+          rows: [
+            {
+              task: 'tade/an-agent-of-its-own-user-cannot-work-in',
+              project: 'tade',
+              name: 'an-agent-of-its-own-user-cannot-work-in',
+              standing: 'removed',
+              group: 'now',
+              about: '',
+            },
+            {
+              task: 'tade/setup-says-bwrap-needs',
+              project: 'tade',
+              name: 'setup-says-bwrap-needs',
+              standing: 'working',
+              group: 'now',
+              about: 'Setup says bwrap needs an AppArmor profile',
+            },
+            {
+              task: 'tade/remote-backups-and-upgrades',
+              project: 'tade',
+              name: 'remote-backups-and-upgrades',
+              standing: 'needs you',
+              group: 'working',
+              about: 'Remote backups, and upgrading a remote from the Mac',
+            },
+            {
+              task: 'checkout/pagination',
+              project: 'checkout',
+              name: 'pagination',
+              standing: 'working',
+              group: 'working',
+              about: 'Paginate the order history',
+            },
+            {
+              task: 'tade/release-notes',
+              project: 'tade',
+              name: 'release-notes',
+              standing: 'parked',
+              group: 'queued',
+              about: 'Write the release notes for 0.9',
+            },
+          ],
+        },
       },
     }),
   },

@@ -18,8 +18,11 @@ import {
 } from '@tade/core'
 import { type HandedOn, handOnWaits } from '@tade/workbench'
 import { acknowledge } from '../flash.ts'
+import type { Frame } from '../frame.ts'
 import { type ScheduleView, showPlan, showQueue, withTranscript } from '../model.ts'
 import { promptPanel } from '../panels/small/state.ts'
+import { type WaitsPanel, type WaitsView, waitRowsOf, waitsPanel } from '../panels/waits/state.ts'
+import type { PanelInputs } from '../panels.ts'
 import {
   changedSays,
   describeQueue,
@@ -42,6 +45,7 @@ import {
   notify,
   type Prompts,
   type Subject,
+  type Submits,
   type Wiring,
   whenShort,
   why,
@@ -102,8 +106,8 @@ export interface QueueTools {
     change: string
     name?: string
     order?: readonly string[]
-    /** For `after`: what it waits on, each with why. */
-    after?: readonly { task: string; why: string }[]
+    /** For `after`: what it waits on, each with why, and whether it waits for an approval too. */
+    after?: readonly { task: string; why: string; approved?: boolean }[]
     /** For `after`: the list replaces what it waits on, rather than adding to it. */
     replace?: boolean
     /** For `retell`: what its agent is told when it starts. */
@@ -697,10 +701,10 @@ export class Queue implements Subject {
   }
 
   /**
-   * What it waits on, or what it is told, asked for in a line that starts from
-   * what its task file says now — so editing the line is changing it, and
-   * clearing the waits is waiting on nothing. A prompt of several lines is not
-   * put in a one-line field, which would join its lines when it was saved.
+   * What it waits on, picked from a list that starts from what its task file
+   * says now (`panels/waits/`), or what it is told, asked for in a line — so
+   * unpicking every wait is waiting on nothing. A prompt of several lines is
+   * not put in a one-line field, which would join its lines when it was saved.
    */
   private ask(task: string, change: 'after' | 'retell'): void {
     const item = this.wire.live?.queued.find((one) => one.task === task)
@@ -709,46 +713,83 @@ export class Queue implements Subject {
       this.wire.draw()
       return
     }
+    if (change === 'after') {
+      this.wire.put({ ...this.wire.state, panel: waitsPanel(task, item.start.after) })
+      this.wire.draw()
+      return
+    }
     const name = task.split('/').slice(1).join('/')
-    const own = (dep: string) =>
-      dep.startsWith(`${item.project}/`) ? dep.slice(item.project.length + 1) : dep
-    const panel =
-      change === 'after'
-        ? promptPanel(
-            'queue-after',
-            `What ${name} waits on`,
-            'TASKS',
-            item.start.after.map((dep) => own(dep.task)).join(' '),
-          )
-        : promptPanel(
-            'queue-retell',
-            `What ${name} is told`,
-            'PROMPT',
-            item.start.prompt.includes('\n') ? '' : item.start.prompt,
-          )
+    const panel = promptPanel(
+      'queue-retell',
+      `What ${name} is told`,
+      'PROMPT',
+      item.start.prompt.includes('\n') ? '' : item.start.prompt,
+    )
     this.wire.put({ ...this.wire.state, panel: { ...panel, target: task } })
     this.wire.draw()
+  }
+
+  /**
+   * What the waits panel lists: every task the work could wait on, read off
+   * the last look — what its task file says it waits on, the agents at work
+   * and the rest of the queue, across every project, since a wait may name
+   * work anywhere.
+   */
+  private waitsView(task: string): WaitsView {
+    const live = this.wire.live
+    const item = live?.queued.find((one) => one.task === task)
+    if (!live) return { task, rows: [] }
+    return {
+      task,
+      rows: waitRowsOf({
+        task,
+        after: item?.start.after ?? [],
+        tasks: live.tasks,
+        queued: live.queued,
+        finished: new Set(live.queueFacts().finished.keys()),
+      }),
+    }
+  }
+
+  panel(): Frame['panel'] {
+    const panel = this.wire.state.panel
+    return panel?.kind === 'waits' ? { waits: this.waitsView(panel.task) } : {}
+  }
+
+  inputs(): PanelInputs {
+    const panel = this.wire.state.panel
+    return panel?.kind === 'waits' ? { waitRows: this.waitsView(panel.task).rows } : {}
+  }
+
+  /**
+   * The list picked, saved as the orchestrator's tool saves one: `after`,
+   * replacing what it waited on, so nothing waits on itself and nothing on a
+   * loop whichever door it came through. A refusal is put back in the panel,
+   * in the queue's own words, with what was picked still picked.
+   */
+  submits(): Submits {
+    return {
+      waits: async (panel: WaitsPanel) => {
+        try {
+          const answer = await this.tools().change({
+            task: panel.task,
+            change: 'after',
+            after: panel.picked,
+            replace: true,
+            by: 'you',
+          })
+          this.wire.put(acknowledge({ ...this.wire.state, panel: null }, answer, this.wire.now()))
+        } catch (err) {
+          this.wire.put({ ...this.wire.state, panel: { ...panel, busy: false, error: why(err) } })
+        }
+      },
+    }
   }
 
   prompts(): Prompts {
     const done = (answer: string) =>
       this.wire.put(acknowledge({ ...this.wire.state, panel: null }, answer, this.wire.now()))
     return {
-      'queue-after': async (panel, text) => {
-        const task = panel.target ?? ''
-        const item = this.wire.live?.queued.find((one) => one.task === task)
-        // The reasons already written stay with the waits they were written for.
-        const why = new Map((item?.start.after ?? []).map((dep) => [dep.task, dep.why]))
-        const project = task.split('/')[0] ?? ''
-        const after = text
-          .split(/[\s,]+/)
-          .filter((one) => one !== '')
-          .map((one) => ({
-            task: one,
-            why: why.get(one.includes('/') ? one : `${project}/${one}`) ?? '',
-          }))
-        done(await this.tools().change({ task, change: 'after', after, replace: true, by: 'you' }))
-      },
       'queue-retell': async (panel, text) => {
         const task = panel.target ?? ''
         done(await this.tools().change({ task, change: 'retell', prompt: text, by: 'you' }))

@@ -21,6 +21,7 @@ import { settingsPanel } from '../src/panels/settings/state.ts'
 import { notePanel } from '../src/panels/small/state.ts'
 import { spendPanel } from '../src/panels/spend/state.ts'
 import { rowSummaryPanel } from '../src/panels/summary/state.ts'
+import { waitsPanel } from '../src/panels/waits/state.ts'
 import { windowTitle } from '../src/title.ts'
 import {
   deviceSaid,
@@ -791,5 +792,47 @@ describe('everything else another machine says, drawn here', () => {
       '$1',
     )
     expectOnlyText(see({ ...base(), panel: spendPanel() }, { machines }), 'claude-code · ', 'me')
+  })
+})
+
+describe('what queued work could wait on', () => {
+  it('draws a task it lists, what it is and why it is waited on as text', () => {
+    const task = 'app/later'
+    const waits = {
+      task,
+      rows: [
+        {
+          task: 'app/gate',
+          project: 'app',
+          name: 'gate',
+          standing: 'working' as const,
+          group: 'now' as const,
+          about: '',
+        },
+        {
+          task: 'app/other',
+          project: 'app',
+          name: 'other',
+          standing: 'queued' as const,
+          group: 'queued' as const,
+          about: hostile('Other work'),
+        },
+      ],
+    }
+    expectOnlyText(
+      see(
+        {
+          ...base(),
+          panel: {
+            ...waitsPanel(task, [{ task: 'app/gate', why: hostile('needs it') }]),
+            error: hostile('refused'),
+          },
+        },
+        { panel: { waits } },
+      ),
+      'Other work',
+      'needs it',
+      'refused',
+    )
   })
 })

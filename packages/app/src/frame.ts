@@ -548,6 +548,7 @@ export interface Frame {
       | 'modelTarget'
       | 'currentModel'
       | 'chats'
+      | 'waits'
       | 'written'
       | 'setup'
       | 'extensionView'

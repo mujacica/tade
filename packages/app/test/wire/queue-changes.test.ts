@@ -304,12 +304,18 @@ describe('changing work already queued', () => {
       click(item.col + 1, item.row)
     }
 
-    // The line starts from what it waits on now, so adding is typing more.
+    // The list starts from what it waits on now, so adding is picking one more:
+    // narrowed by typing, ticked with space, saved with enter.
     await menu('Wait on…')
     await until('what it waits on, asked for', () =>
       terminal.written.includes('What later-step waits on'),
     )
-    for (const char of ' other-step') terminal.press(char)
+    for (const char of 'other-step') terminal.press(char)
+    await until('narrowed to it', () =>
+      screenOf(terminal.written).some((row) => row.includes('□ other-step')),
+    )
+    terminal.press(' ')
+    await until('picked', () => screenOf(terminal.written).some((row) => row.includes('2 picked')))
     terminal.press('\r')
     // Answered where the person is looking, with where it stands now.
     await until('the answer', () =>

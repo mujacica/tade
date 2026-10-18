@@ -207,6 +207,7 @@ export function draw(state: AppState, given: Frame, last: LastFrame | null = nul
     modelTarget: extra.modelTarget ?? 'the orchestrator',
     currentModel: extra.currentModel ?? null,
     chats: extra.chats ?? null,
+    waits: extra.waits ?? null,
     written: extra.written ?? [],
     setup: extra.setup ?? null,
     extensionView: extra.extensionView ?? null,

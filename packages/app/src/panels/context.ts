@@ -54,6 +54,8 @@ import {
 } from './small/view.ts'
 import { spend } from './spend/view.ts'
 import { rowSummary } from './summary/view.ts'
+import type { WaitsView } from './waits/state.ts'
+import { waits } from './waits/view.ts'
 import { workflow } from './workflow/view.ts'
 
 // What a panel is handed, and which drawing answers which panel.
@@ -254,6 +256,8 @@ export interface PanelContext {
   currentModel: string | null
   /** What a chat can be brought back on, for the chats panel; null before it has been opened. */
   chats?: ChatsView | null
+  /** What queued work could wait on, for the waits panel; null where nothing is open on it. */
+  waits?: WaitsView | null
   /**
    * What the away view is: what is listening, the code, who is asking, and
    * every paired device. Null where the window was built without one, which
@@ -330,6 +334,8 @@ export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
       return { panel: models(panel, ctx), popups: [] }
     case 'chats':
       return { panel: chats(panel, ctx), popups: [] }
+    case 'waits':
+      return { panel: waits(panel, ctx), popups: [] }
     case 'evaluations':
       return { panel: evaluations(panel, ctx), popups: [] }
     case 'race':
