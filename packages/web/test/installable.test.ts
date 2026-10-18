@@ -297,8 +297,11 @@ describe('the real folder', () => {
     // it to 1299. 1304 until the command an approval asks about (a component
     // drawn above a card's presses and in an agent's lead, 2.5 KB with the
     // reasons Allow is never blind) took it to 1306. 1310 until the landing
-    // desk's three files went again, which took it to 1286: the pages still to
-    // come spend the rest, and the next one is this conversation again.
-    expect(raw).toBeLessThan(1290 * 1024)
+    // desk's three files went again, which took it to 1286. 1290 until the
+    // findings page (its badge counting the unanswered and its questions as a
+    // grid, 4 KB as they sit) and every press in the frame named by the words
+    // it shows (half a kilobyte, most of it why) took it to 1291: the pages
+    // still to come spend the rest, and the next one is this conversation again.
+    expect(raw).toBeLessThan(1296 * 1024)
   })
 })
