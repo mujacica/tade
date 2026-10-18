@@ -1884,11 +1884,13 @@ export class Workbench {
    * harness can carry it, so it goes on rather than starting over; a running
    * agent is started again there.
    */
-  async setAgentAccount(req: {
-    task: string
-    worktree: string
+  async setAgentAccount(req: { task: string; worktree: string; account: string | null }): Promise<{
     account: string | null
-  }): Promise<{ account: string | null; restarted: boolean; carried: boolean }> {
+    restarted: boolean
+    carried: boolean
+    /** What its own sign-in is called, where it went back to one somebody named. */
+    ownName: string | null
+  }> {
     const harness = await this.harnessOf(req.task)
     req = { ...req, account: signInChosen(this.config, harness, req.account) }
     if (req.account && this.config.accounts[req.account]?.harness !== harness) {
@@ -1919,7 +1921,12 @@ export class Workbench {
       task: req.task,
       detail: { account: req.account ?? 'default', carried, by: 'you' },
     })
-    return { account: req.account, restarted: running, carried }
+    return {
+      account: req.account,
+      restarted: running,
+      carried,
+      ownName: req.account === null ? ownSignInName(this.config, harness) : null,
+    }
   }
 
   /**

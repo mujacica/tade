@@ -279,6 +279,25 @@ describe('moving an agent to another model or thinking level', () => {
     // Nothing but the switch is asked of the window: no default is written on the side.
     expect(host.calls.map((one) => one.method)).toEqual(['worker/model', 'worker/thinking'])
   })
+
+  it('says the own sign-in by the name it was given, and as its own sign-in only where it has none', async () => {
+    const status = JSON.stringify({
+      projects: [{ tasks: [{ id: 'shop/refunds', worktree: '/tmp/wt/refunds' }] }],
+    })
+    let ownName: string | null = 'sentry'
+    const host = await hostListening(() => ({
+      account: null,
+      restarted: false,
+      carried: true,
+      ownName,
+    }))
+    const { by } = await tools({ TADE_SOCKET: host.path, TADE_CLI: fakeCli(status).path })
+    const move = () =>
+      by('tade_agent_account').run({ task: 'shop/refunds', account: 'default' }, 'c1', {})
+    expect(await move()).toMatch(/^shop\/refunds runs as sentry, its conversation with it/)
+    ownName = null
+    expect(await move()).toMatch(/^shop\/refunds runs as its own sign-in, /)
+  })
 })
 
 describe('writing something down for a person to read', () => {

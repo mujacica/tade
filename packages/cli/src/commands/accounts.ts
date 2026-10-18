@@ -4,6 +4,7 @@ import {
   type Config,
   defaultConfigPath,
   loadConfig,
+  ownSignInName,
   runtimeDir,
   signInChosen,
   tadeHome,
@@ -214,7 +215,10 @@ export function registerAccounts(program: Command, io: Io, setExit: (code: numbe
             throw new Error('--unset is for a project: the machine has no answer above it')
           const name = opts.unset ? undefined : !account || account === 'default' ? null : account
           await tade.useAccount(harness, name, opts.project)
-          const who = name === undefined ? 'as the machine does' : (name ?? 'its own sign-in')
+          const who =
+            name === undefined
+              ? 'as the machine does'
+              : (name ?? ownSignInName(tade.config, harness) ?? 'its own sign-in')
           io.out(
             `new ${harness} agents${opts.project ? ` in ${opts.project}` : ''} run as ${who}; an agent already working stays on its own`,
           )

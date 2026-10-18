@@ -393,8 +393,13 @@ export function orchestratorTools(
         task,
         worktree,
         account: String(p.account),
-      })) as { account: string | null; restarted: boolean; carried: boolean }
-      return `${task} runs as ${done.account ?? 'its own sign-in'}${done.carried ? ', its conversation with it' : ''}${done.restarted ? ', started again there' : ' from its next start'}. Only it: new agents keep the account their project names, which is a setting.`
+      })) as {
+        account: string | null
+        restarted: boolean
+        carried: boolean
+        ownName?: string | null
+      }
+      return `${task} runs as ${done.account ?? done.ownName ?? 'its own sign-in'}${done.carried ? ', its conversation with it' : ''}${done.restarted ? ', started again there' : ' from its next start'}. Only it: new agents keep the account their project names, which is a setting.`
     },
   )
 

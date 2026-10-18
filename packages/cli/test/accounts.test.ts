@@ -101,6 +101,9 @@ describe('tade accounts', () => {
       0,
     )
     expect(config().projects.app.accounts).toEqual({ 'claude-code': 'default' })
+    // With no account at all, it is said back by its name too.
+    const own = await tade('accounts', 'use', 'claude-code', '--project', 'app')
+    expect(own.stdout).toContain('in app run as sentry;')
     const bad = await tade('accounts', 'name', 'claude-code', 'Not A Name')
     expect(bad.code).not.toBe(0)
     expect(bad.stderr).toContain('cannot name a sign-in')

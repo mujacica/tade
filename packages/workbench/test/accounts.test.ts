@@ -92,7 +92,7 @@ describe('accounts', () => {
       worktree: task.worktree,
       account: 'work',
     })
-    expect(moved).toEqual({ account: 'work', restarted: false, carried: false })
+    expect(moved).toEqual({ account: 'work', restarted: false, carried: false, ownName: null })
     expect(await client.agentHarness(task.id)).toMatchObject({
       harness: 'claude-code',
       account: 'work',
@@ -198,6 +198,8 @@ describe('accounts', () => {
       account: 'sentry',
     })
     expect(back.account).toBeNull()
+    // Said back by the name it was given, rather than as "its own sign-in".
+    expect(back.ownName).toBe('sentry')
     expect((await client.agentHarness(task.id)).account).toBeNull()
     // One name is one sign-in, either way round.
     await expect(client.addAccount({ name: 'sentry', harness: 'claude-code' })).rejects.toThrow(
