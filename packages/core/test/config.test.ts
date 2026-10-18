@@ -514,6 +514,15 @@ describe('writing a setting', () => {
     expect((await stat(path)).mode & 0o777).toBe(0o600)
   })
 
+  it('makes the home where nothing has written one yet', async () => {
+    // `tade web on` on a new box before `tade setup`: an ENOENT stack trace.
+    const home = join(await mkdtemp(join(tmpdir(), 'tade-cfg-')), 'not-yet', '.tade')
+    const path = join(home, 'config.yaml')
+    writeSetting(path, 'surfaces.web.enabled', true)
+    expect(await readFile(path, 'utf8')).toContain('enabled: true')
+    expect((await stat(home)).mode & 0o777).toBe(0o700)
+  })
+
   it('narrows one that was already readable by everybody', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tade-cfg-'))
     const path = join(dir, 'config.yaml')

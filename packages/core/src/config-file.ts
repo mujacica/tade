@@ -1,5 +1,6 @@
-import { chmodSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { dirname } from 'node:path'
 import { parseDocument, parse as parseYaml, YAMLParseError } from 'yaml'
 import type { z } from 'zod'
 import { awayProblems } from './away.ts'
@@ -117,6 +118,9 @@ export function writeSetting(
   const at = key.split('.')
   if (value === undefined || value === '') doc.deleteIn(at)
   else doc.setIn(at, typeof value === 'object' ? doc.createNode(value) : value)
+  // A home nothing has written yet — `tade web on` on a new box before setup —
+  // is made here rather than an ENOENT out of a stack trace.
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
   writeFileSync(path, doc.toString(), { mode: 0o600 })
   ownerOnly(path)
 }
