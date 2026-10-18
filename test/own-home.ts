@@ -27,7 +27,14 @@ import { join } from 'node:path'
 // pi's agent directory moves out of the home when `PI_CODING_AGENT_DIR` says
 // so, and its sessions when `PI_CODING_AGENT_SESSION_DIR` does, and Tade
 // follows both there (`sessionsOf`), so they go too.
+//
+// Claude Code's folder moves when `CLAUDE_CONFIG_DIR` says so, and Tade sets
+// it for every agent it starts on an account, so a suite run by an agent
+// inherits the agent's own folder: `backup.test.ts` backed up that agent's
+// real conversations and restored them over themselves, leaving six tests red
+// only when an agent ran them. It goes too.
 
 process.env.HOME = realpathSync(mkdtempSync(join(tmpdir(), 'tade-test-home-')))
 delete process.env.PI_CODING_AGENT_DIR
 delete process.env.PI_CODING_AGENT_SESSION_DIR
+delete process.env.CLAUDE_CONFIG_DIR
