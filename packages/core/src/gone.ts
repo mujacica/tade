@@ -54,6 +54,17 @@ export const CHECKS_ARE_READ =
   'adopt and nothing to choose: use projects.<name>.test_command where neither can be read'
 
 /**
+ * Who agents run as, now that it is not a setting.
+ *
+ * `agents.user` and `projects.<name>.user` ran a machine's agents, or one
+ * project's, as a Unix user of their own through a `sudo` rule. Tade's
+ * machines are each one person's, so agents run as whoever runs Tade, on a
+ * server as on a laptop, and there is nothing left for the keys to choose.
+ */
+export const AGENTS_RUN_AS_YOU =
+  'agents run as whoever runs Tade, on every machine: there is no user of their own to run them as'
+
+/**
  * Keys Tade used to read and does not any more, and what to say about each.
  *
  * A setting somebody wrote down is a sentence they meant. Refusing the whole
@@ -70,10 +81,12 @@ export const CHECKS_ARE_READ =
 const GONE: readonly (readonly [pattern: string, said: string])[] = [
   [
     'workers.routes.*.sandbox',
-    'sandboxes are gone from Tade: what needs containing is the harness’s or the operating system’s to do — agents.user runs agents as a user of their own, with their harness’s sandbox on',
+    'sandboxes are gone from Tade: agents run as you, and what needs containing is a harness’s or an agent’s to do',
   ],
   ['mcp.servers.*.sandbox', `sandboxes are gone from Tade. ${SERVER_RUNS_AS_YOU}`],
   ['checks.from_ci', CHECKS_ARE_READ],
+  ['agents.user', AGENTS_RUN_AS_YOU],
+  ['projects.*.user', AGENTS_RUN_AS_YOU],
   ['projects.*.checks.from_ci', CHECKS_ARE_READ],
   // Not a key that went, but a name that never was one: a remote called what
   // `watches` calls this machine, from before `tade remote add` refused it.

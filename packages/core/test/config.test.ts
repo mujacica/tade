@@ -127,6 +127,23 @@ projects:
     expect('from_ci' in r.config.checks).toBe(false)
   })
 
+  it('ignores a user for agents, at either level, and says they run as you', () => {
+    // Agents ran as a Unix user of their own through a sudo rule. Every
+    // machine is one person's, so they run as whoever runs Tade; a config that
+    // still names one keeps loading, and says so.
+    const r = parseConfig(
+      'agents:\n  user: tade-agent\n  commit: never\nprojects:\n  demo:\n    root: /tmp/demo\n    user: tade-demo\n',
+    )
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.warnings.join('\n')).toContain('agents.user is ignored')
+    expect(r.warnings.join('\n')).toContain('projects.demo.user is ignored')
+    expect(r.warnings.join('\n')).toContain('agents run as whoever runs Tade')
+    expect(r.config.agents.commit).toBe('never')
+    expect('user' in r.config.agents).toBe(false)
+    expect(r.config.projects.demo?.root).toBe('/tmp/demo')
+  })
+
   it('ignores a remote called here and says so, rather than refusing the file', () => {
     // `here` is what `projects.<name>.watches` calls this machine, so a remote
     // by that name would make the setting name two. `tade remote add` refuses

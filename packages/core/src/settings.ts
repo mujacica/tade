@@ -1,4 +1,3 @@
-import { AGENT_USER, AGENT_USER_MEANS, agentsKeptAs } from './agent-user.ts'
 import {
   AGENT_WORKSPACES,
   COMMIT_RULES,
@@ -8,7 +7,7 @@ import {
 } from './config.ts'
 import { GIVE_WAY_MAX, GIVE_WAY_MEANS } from './priority.ts'
 import { PUSH_BY_DEFAULT, PUSH_MODES, pushDefault } from './project.ts'
-import { keysAndAgents, seenByAgents } from './secrets.ts'
+import { KEYS_AND_AGENTS, SEEN_BY_AGENTS } from './secrets.ts'
 import { awayGroup } from './settings-away.ts'
 import { intakeGroup } from './settings-intake.ts'
 import { keepGroup } from './settings-keep.ts'
@@ -157,12 +156,6 @@ export interface SettingGroup {
    * no scope is the group's own, and on every one of them.
    */
   scoped?: { word: string; scopes: readonly { id: string; title: string }[]; none: string }
-  /**
-   * The keys' sentence that is true here (`keysAndAgents`), on the Agents
-   * group, for a page that says it away from the Keys group — Accounts, where
-   * somebody adds a sign-in with a key.
-   */
-  keys?: string
 }
 
 /**
@@ -185,11 +178,7 @@ export function settingsOf(
   levels: Readonly<Record<string, readonly ThinkingLevel[]>> = {},
   /** What keeps this window open where something does (`keptByService`): said where it matters. */
   keptBy: string | null = null,
-  /** Tade's own user, so a user named for agents that is this one is read as none (`agentsKeptAs`). */
-  self = '',
 ): SettingGroup[] {
-  // Whether the keys' sentence is the first or the second (`keysAndAgents`).
-  const keptAs = agentsKeptAs(config, self)
   const voice = config.surfaces.voice
   // `…/ggml-base.en.bin` is the base.en model: the name people know it by.
   const whisperModel =
@@ -211,7 +200,6 @@ export function settingsOf(
     {
       id: 'agents',
       title: 'Agents',
-      keys: keysAndAgents(keptAs),
       about:
         'Where agents work, what they commit, what they push, when they have to ask before they act, what this machine may spend on them in a day, and what happens to them when Tade closes.',
       keywords: ['approval', 'approvals', 'ask', 'permission', 'policy', 'bypass'],
@@ -289,21 +277,6 @@ export function settingsOf(
           // What somebody would actually say for it, which is the half of
           // `asked` that decides whether a legitimate request is refused.
           keywords: ['caffeinate', 'awake', 'sleep', 'sleeping', 'asleep', 'anti-sleep'],
-        },
-        {
-          // Where somebody decides whether agents can read every key Tade
-          // keeps, so the sentence is the whole of it, what it does not fix
-          // included (`AGENT_USER_MEANS`). Not live: it reaches the next agent
-          // started, and setup has to have made the user first.
-          path: 'agents.user',
-          title: 'Run agents as',
-          means: AGENT_USER_MEANS,
-          short: 'a user of their own here keeps every key from them; unset, they run as you',
-          value: config.agents.user ?? '',
-          fallback: 'you',
-          type: { kind: 'text', placeholder: AGENT_USER },
-          live: false,
-          keywords: ['user', 'unix user', 'sandbox', 'isolation', 'contain', AGENT_USER, 'sudo'],
         },
         {
           path: 'agents.give_way',
@@ -763,7 +736,7 @@ export function settingsOf(
             // The one thing about a key that cannot be seen on the page, and
             // the file's mode is not it: `0600` keeps the file from other
             // people, and the programs you run here are not other people.
-            about: `The keys Tade holds for you. ${keysAndAgents(keptAs)}`,
+            about: `The keys Tade holds for you. ${KEYS_AND_AGENTS}`,
             keywords: [
               'key',
               'keys',
@@ -784,9 +757,7 @@ export function settingsOf(
                 // a person actually reads, and only for the setting they are
                 // on. Tade's half goes first because the line is cut at two,
                 // and the half that may never be the one cut is this one.
-                means: secret.means
-                  ? `${seenByAgents(keptAs)}; ${secret.means}`
-                  : seenByAgents(keptAs),
+                means: secret.means ? `${SEEN_BY_AGENTS}; ${secret.means}` : SEEN_BY_AGENTS,
                 value: secret.value,
                 // What is *used*, which is the environment where there is one:
                 // a field that looks empty while an agent authenticates fine is

@@ -111,7 +111,10 @@ export const MANIFEST = 'backup.json'
 export interface RecordsFolder {
   /** The harness's id: `claude-code`, `pi`. */
   harness: string
-  /** The Unix user its agents run as, or null for whoever runs Tade. */
+  /**
+   * Null: whoever runs Tade. A name only in a snapshot taken while agents
+   * could run as a user of their own, which a restore says it cannot place.
+   */
   user: string | null
   /** Where, absolute. */
   path: string

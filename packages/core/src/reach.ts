@@ -157,13 +157,6 @@ const NEVER: readonly (readonly [string, string])[] = [
     'mcp',
     'an MCP server is somebody else’s code with tools your agents will call, and only a person turns one on',
   ],
-  // Which user agents run as is what they can read and write: Tade's home and
-  // every key in it, or none of it (`agent-user.ts`). A project's own is under
-  // `projects`, refused below with the rest of its block.
-  [
-    'agents.user',
-    'which user agents run as decides whether they can read every key Tade keeps, and a thing inside that loop does not get to move its own walls',
-  ],
   ['orchestrator.extensions', 'that is the folder my own tools are read from'],
   // Where my own conversation is sent, as a route's provider is where an
   // agent's work is. My `Model` row writes it beside the model it is chosen

@@ -398,13 +398,9 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
           .build(),
       )
     // Where somebody decides which sign-in agents run as, and adds one with a
-    // key: whether an agent can read what Tade keeps, as is true here.
+    // key: whichever it is, an agent runs as you and can read what Tade keeps.
     else
-      for (const line of wrapTo(
-        ctx.settings.find((group) => group.id === 'agents')?.keys ?? KEYS_AND_AGENTS,
-        form - 4,
-        4,
-      )) {
+      for (const line of wrapTo(KEYS_AND_AGENTS, form - 4, 4)) {
         body.push(new Row(form, skin).space().text(line, skin.hint).build())
       }
   } else if (panel.category === UPDATES && !panel.search) {

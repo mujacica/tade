@@ -270,20 +270,6 @@ describe('composeAgentPrompt', () => {
     expect(composeAgentPrompt(base)).not.toContain('What this task produces')
   })
 
-  it('tells an agent where the project’s documents are, and an agent of its own user that its are a copy', () => {
-    const own = composeAgentPrompt({ ...base, documents: '/h/.tade/projects/shop/documents' })
-    expect(own).toContain('is kept in /h/.tade/projects/shop/documents, one folder per task.')
-    const copy = composeAgentPrompt({
-      ...base,
-      documents: '/home/tade-agent/tade-share/documents/shop',
-      documentsCopied: true,
-    })
-    expect(copy).toContain(
-      'is kept in /home/tade-agent/tade-share/documents/shop, one folder per task: a copy you can read and not change, as it stood when you started.',
-    )
-    expect(composeAgentPrompt(base)).not.toContain('one folder per task')
-  })
-
   it('tells an agent writing a document how to hand it to the person and wait, where it can', () => {
     const produces = '/h/.tade/projects/shop/documents/refunds/plan.md'
     const told = composeAgentPrompt({ ...base, produces, canSayDone: true })
