@@ -104,9 +104,13 @@ describe('scheduled work on a full plan', () => {
       SPAWNING_MS,
     )
     const said = told.find((text) => text.includes(task)) ?? ''
-    expect(
-      said.startsWith('Nobody has been at a keyboard of theirs since systemd started this window'),
-    ).toBe(true)
+    // A line of its own, not the message's first: news that waited goes above
+    // it (`withNews`), and the watch's own look has some.
+    expect(said.split('\n')).toContainEqual(
+      expect.stringMatching(
+        /^Nobody has been at a keyboard of theirs since systemd started this window/,
+      ),
+    )
     // Above Tade's own words, never mistaken for the person's.
     expect(said.indexOf('Nobody has been')).toBeLessThan(said.indexOf('Tade says:'))
   })
