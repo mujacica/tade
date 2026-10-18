@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import { userInfo } from 'node:os'
 import { createInterface } from 'node:readline'
+import { fileURLToPath } from 'node:url'
 import {
   caddySite,
   copiedHosts,
@@ -21,6 +22,16 @@ import { systemdHere, unattendedHere } from '@tade/workbench/machine'
 import { lastUpdates } from '@tade/workbench/programs'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
+import {
+  type BackupDeps,
+  initBackup,
+  listBackups,
+  offerTimer,
+  resticHere,
+  restoreBackup,
+  takeBackup,
+  timerHere,
+} from './host-backup.ts'
 import { caddySaid, lookAtPublic } from './host-caddy.ts'
 import { domainJson, domainPrinted, domainRefused, offerName } from './host-domain.ts'
 import {
@@ -199,4 +210,88 @@ export function registerHost(program: Command, io: Io, setExit: (code: number) =
       }
       await offerUnit(ask, unit, { write: opts.write === true, start: true })
     })
+
+  // Backups (`host-backup.ts`): the home and the harnesses' conversations,
+  // encrypted by restic, to a repository the person names — and back.
+  const backupDeps = async (json: boolean, from?: string): Promise<BackupDeps | null> => {
+    const path = defaultConfigPath()
+    const loaded = await loadConfig(path)
+    if (!loaded.ok) {
+      io.err(`${loaded.path}: invalid config (run \`tade config --check\`)`)
+      setExit(Exit.invalidInput)
+      return null
+    }
+    const asking = !json && process.stdin.isTTY === true && process.stderr.isTTY === true
+    const config =
+      from === undefined
+        ? loaded.config
+        : { ...loaded.config, backup: { ...loaded.config.backup, repository: from } }
+    return {
+      ask: terminal(io),
+      asking,
+      place: { config, home: tadeHome(), restic: resticHere(), asks: asking },
+      configPath: path,
+      out: io.out,
+      held: () => heldBy(tadeHome()),
+      unrecorded: (said) => io.err(said),
+    }
+  }
+  host
+    .command('backup')
+    .description(
+      'Back this machine’s Tade up with restic, encrypted, to a repository you name: its home and the harnesses’ conversations — never the index or the worktrees',
+    )
+    .option(
+      '--init <repository>',
+      'name where backups go — a folder, sftp:user@host:/path, s3:… — make its password, and make it there',
+    )
+    .option('--list', 'the backups there, newest first')
+    .option('--timer', 'print the systemd timer that backs up every hour, and write it on a press')
+    .option('--write', 'with --timer: write it, and say how to start it, without asking')
+    .option('--json', 'machine-readable output')
+    .action(
+      async (opts: {
+        init?: string
+        list?: boolean
+        timer?: boolean
+        write?: boolean
+        json?: boolean
+      }) => {
+        const json = opts.json === true
+        const deps = await backupDeps(json)
+        if (deps === null) return
+        if (opts.init !== undefined) setExit(await initBackup(deps, opts.init))
+        else if (opts.list) setExit(await listBackups(deps, json))
+        else if (opts.timer) {
+          const bin = fileURLToPath(new URL('../bin.ts', import.meta.url))
+          const write = opts.write === true
+          setExit(
+            await offerTimer(deps, timerHere(process.env, bin), { write, systemd: systemdHere() }),
+          )
+        } else setExit(await takeBackup(deps, json))
+      },
+    )
+  host
+    .command('restore [snapshot]')
+    .description(
+      'Put a backup back as this machine’s Tade — the latest, unless you name one — or, with --to, under a folder to look at',
+    )
+    .option(
+      '--from <repository>',
+      'where to restore from, on a machine whose config does not say yet',
+    )
+    .option('--to <folder>', 'restore under this folder as it was laid out, and move nothing')
+    .option('--yes', 'restore into the home without asking')
+    .action(
+      async (snapshot: string | undefined, opts: { from?: string; to?: string; yes?: boolean }) => {
+        const deps = await backupDeps(false, opts.from)
+        if (deps === null) return
+        setExit(
+          await restoreBackup(deps, snapshot ?? 'latest', {
+            ...(opts.to === undefined ? {} : { to: opts.to }),
+            yes: opts.yes === true,
+          }),
+        )
+      },
+    )
 }

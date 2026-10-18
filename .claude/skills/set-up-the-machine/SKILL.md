@@ -33,6 +33,9 @@ and setting up ends by actually opening a lane — because every other check is 
 | `packages/workbench/src/domain.ts` | `lookAtDomain` — the zone's servers and a public resolver asked for each record, 443 here, the certificate, `caddyAccount` |
 | `packages/workbench/src/dns.ts` | `ask` — one question over UDP with a deadline, the bits `node:dns` cannot set; `keyTag`, `dsOf` |
 | `packages/cli/src/commands/host-domain.ts` | `tade host domain`: `domainPrinted`, `domainRefused`, `writeTrusted` |
+| `packages/core/src/backup.ts` | pure: `RESTIC`, `LEFT_OUT` (what a backup leaves out, each with why), `backupPaths`, `resticBackup`, `backupSaid`, `snapshotsSaid`, `manifestOf`, `passwordFor`, `shownRepository`, `BackupConfigSchema` (`backup.*`) |
+| `packages/workbench/src/backup.ts` | `recordsFolders`/`recordsHere` (each harness's `records()`), `notPushed`, `backUp`, `snapshotsIn`, `initRepository`, `restoreInto`, `restoreTo`, `cutTornTail` |
+| `packages/cli/src/commands/host-backup.ts` | `tade host backup` and `tade host restore`: `takeBackup`, `initBackup`, `listBackups`, `restoreBackup`, `offerTimer` (`backupUnits`, in `core/src/service.ts`), `resticHere` |
 | `packages/app/src/wire/web-domain.ts`, `panels/settings/domain.ts` | the same look under the Public name row in Settings › Away view |
 | `packages/workbench/src/machine.ts` (`unattendedHere`, `systemdHere`, `serviceUnitPath`, `lookAtService`, `serviceGroups`, `groupIdOf`) | whether this is a server, linger, the unit and what it runs — files, no process — how the service stands, one `systemctl show`, and the groups its process and its manager hold, out of `/proc` |
 | `packages/harnesses/core/src/sign-in.ts` | `signInHere` (is a browser here?), `signInLasts` (how long a sign-in has left) |
@@ -561,6 +564,61 @@ Services certificate), `example.com` (signed, validating, compact denial answeri
 name that does not exist), `dnssec-failed.org` (the broken chain, its DS worked out exactly). Not
 proved: a VPS's own addresses, a real AAAA on 443, Caddy's account file as Caddy writes it, and a
 record going from not yet visible to right.
+
+### Backups (`tade host backup`, `tade host restore`)
+
+A backup nobody restored is a hope, so both halves are one feature and have one test
+(`workbench/test/backup.test.ts`, against a real restic; CI's `restic` step installs it, and where
+it is missing the restore half is skipped and says so in its title).
+
+- **restic does the keeping, Tade says what to keep.** Encrypted, because `config.yaml` holds every
+  key; deduplicated, because the journal is tens of megabytes appended to and the harnesses'
+  conversations are gigabytes, and hourly costs only what changed; and it speaks every target a
+  person names (a folder, `sftp:`, `s3:`, `rest:`). Tade owning an archive format would be the
+  half-owned sandbox again. restic is `RESTIC`, folded in under Tade by `programsNeeded`, in use
+  once `backup.repository` is set.
+- **The whole home, less `LEFT_OUT`** — never a list of what to keep, so a file Tade starts writing
+  next month is in the next backup. Each left-out path says why beside it: the index and its WAL
+  (built again on open, which also steps round copying a live SQLite file), `worktrees/`, `runs/`,
+  the lock, the check slots, mirrors and copies of another machine's documents, the speech model.
+  Beside the home go the folders each harness keeps its agents' conversations in
+  (`WorkerAdapter.records()`, read off how the adapter was made — its account, the user its agents
+  run as — never its sign-in), for Tade's user and every `agents.user`, where they are there.
+- **What is not in it is said every time**: every checkout and worktree with commits on no remote
+  or changes not committed (`notPushed`, out of git, never Tade's records), and
+  `BRANCHES_ARE_THE_WORK`. Each project's remote goes in the manifest (`backup.json`, renamed into
+  the home before restic reads it), so a restore elsewhere prints `git clone <remote> <root>` for
+  each checkout that is not there.
+- **The repository and the password are `backup.*`, a `never` subtree and `here` to `carryOf`.** The
+  repository reaches restic in its environment (`RESTIC_REPOSITORY`), never its command line, and is
+  said with any URL password cut out (`shownRepository`). restic's own `RESTIC_PASSWORD`,
+  `_FILE` and `_COMMAND` win over `backup.password` (`passwordFor`). `--init <repository>` mints one
+  where there is none, prints it once on standard output with `KEEP_THE_PASSWORD`, and writes it
+  through `writeFromShell` as a secret, so `config_changed` says `set` and nothing of it.
+- **A restore writes over nothing.** Refused while anything holds the home, and where the home has
+  a journal (a backup is older than it); a home with only `tade setup`'s config is moved aside as
+  `<home>.before-restore-<moment>`. restic restores into a folder beside the home first, so a failed
+  restore leaves the home as it was; the home is renamed into place, then each records folder is
+  merged into where *this* machine's harness keeps it for the same user — by the config just
+  restored — keeping any file of the same name already there, and what nothing placed stays where
+  restic put it, said. Every `.jsonl` file gets its torn last line cut (`cutTornTail`): a backup
+  taken mid-append holds half a line, and the next line appended to it would be torn too. `--to
+  <folder>` lays a snapshot out to look at and moves nothing; `--from <repository>` restores on a
+  machine whose config does not say yet, and restic asks for the password itself in a terminal.
+- **Hourly is the person's service manager's**: `--timer` prints `tade-backup.service` (a oneshot,
+  nice, idle for the disk) and `tade-backup.timer` (hourly, spread ten minutes, `Persistent=`), each
+  under where it goes, writes them on a press and offers `BACKUP_START`; refused until a
+  repository is named, since a timer failing every hour is noise. A run that could not read a file
+  exits 1, so the unit fails loudly.
+
+**Proved** here with restic 0.19.1 (its release binary, checksummed, in a scratch folder): a real
+workbench home with a task in a worktree and a note, backed up, deleted with pi's sessions, restored,
+and opened again on the same journal with the index built again; a torn line cut; through the
+binary, `--init`, a backup, the list, and a restore on a second home given only the repository and
+the password. **Not proved**: a remote repository (SFTP to a storage box, S3), the timer under
+systemd, restic as old as Ubuntu 22.04's 0.12, a records folder of an agents' user that Tade's user
+cannot read (restic's exit 3 is said, file by file), and pi sessions moved by
+`PI_CODING_AGENT_SESSION_DIR` or a project's `sessionDir`, which `records()` does not name.
 
 ## Setting up ends with a lane
 

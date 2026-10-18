@@ -353,6 +353,7 @@ describe('the shape of the rule', () => {
       'accounts',
       'agents',
       'approvals',
+      'backup',
       'budget',
       'checks',
       'documents',

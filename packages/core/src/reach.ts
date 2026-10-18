@@ -216,6 +216,13 @@ const NEVER: readonly (readonly [string, string])[] = [
     'remotes',
     'a remote is another machine I would reach and drive as you, with a session that is yours there — only a person points me at one',
   ],
+  // Where `tade host backup` sends this machine's home — every key and every
+  // word Tade keeps — and the password it is read with: where Tade sends
+  // something and a credential, both, so the whole section.
+  [
+    'backup',
+    'a backup is every key and every word Tade keeps, sent where it names — where it goes and the password that opens it are a person’s',
+  ],
 ]
 
 /**

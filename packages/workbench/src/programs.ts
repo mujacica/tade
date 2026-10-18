@@ -3,6 +3,7 @@ import { readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  BACKUP_PROGRAMS,
   belowOldest,
   type Config,
   type Declared,
@@ -135,6 +136,12 @@ export async function programsNeeded(
       what: 'Tade',
       inUse: true,
       programs: [...TADE_PROGRAMS, ...PROCESSES_PROGRAMS, ...PORTS_PROGRAMS],
+    },
+    // `tade host backup`, Tade's own too: in use once somebody names where to.
+    {
+      what: 'backups',
+      inUse: config.backup.repository.trim() !== '',
+      programs: BACKUP_PROGRAMS,
     },
   ]
 

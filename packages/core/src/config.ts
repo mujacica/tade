@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { USER_NAME } from './agent-user.ts'
 import { WebSurface } from './away.ts'
+import { BackupConfigSchema } from './backup.ts'
 import { BudgetSchema } from './budget.ts'
 import { IntakeSurface } from './intake.ts'
 import { NotesConfigSchema } from './memory.ts'
@@ -760,6 +761,8 @@ export const ConfigSchema = z
     projects: z.record(z.string().regex(/^[a-z0-9][a-z0-9-]*$/), ProjectConfigSchema).default({}),
     /** Other machines' Tades this one is an owner of, by name (`remotes.ts`). */
     remotes: RemotesSchema,
+    /** Where `tade host backup` keeps this machine's Tade, and its password (`backup.ts`). */
+    backup: BackupConfigSchema,
     /**
      * The MCP servers this machine is set up to reach, by name. One that
      * somebody turns on becomes an extension whose tools are that server's

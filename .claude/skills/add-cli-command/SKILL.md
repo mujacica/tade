@@ -55,6 +55,10 @@ program and exposes `run(argv, io)` which returns an exit code instead of callin
   spawns it with no terminal on any stream, waits on what it says rather than on a clock (a
   `systemd-notify` on PATH that writes down what it was told stands in for systemd), and opens the
   home after it has stopped: the lock let go is what says it closed.
+- **A command that puts something back writes over nothing** (`tade host restore`): refused while
+  anything holds the home or it has a journal, a press — or `--yes`, said from a pipe — before
+  anything moves, and whatever it moved aside or left unplaced said with where it is.
+  `set-up-the-machine` has the rest of backups.
 - **Interactive commands must end at end of input.** `readline`'s `question()` never settles on EOF,
   so a loop built on it hangs on Ctrl-D or piped input, and whatever it started keeps running.
   Iterate the interface (`for await (const line of rl)`), which ends on both EOF and close, and stop

@@ -79,6 +79,12 @@ const RULES: readonly Rule[] = [
     because: 'the machines this one drives, with a session that is yours there, are its own',
   },
   {
+    at: 'backup',
+    carry: 'here',
+    because:
+      'where this machine is backed up to, and the password its backup opens with, are its own',
+  },
+  {
     at: 'surfaces.web',
     carry: 'here',
     because: 'the away view is this machine’s door: who reaches it, at which names, which devices',

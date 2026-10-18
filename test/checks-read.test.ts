@@ -103,5 +103,6 @@ describe("Tade's own checks", () => {
     expect(said).toContain('actions/checkout@v5')
     expect(said).toContain('prepares the machine rather than checking the code')
     expect(read.checks.map((check) => check.id)).not.toContain('tmux')
+    expect(read.checks.map((check) => check.id)).not.toContain('restic')
   })
 })

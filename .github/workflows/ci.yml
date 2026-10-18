@@ -63,6 +63,13 @@ jobs:
         run: |
           command -v tmux >/dev/null || if command -v brew >/dev/null; then brew install tmux; else sudo apt-get update && sudo apt-get install -y tmux; fi
           tmux -V
+      # A backup nobody restored is a hope: `tade host backup`'s restore tests
+      # run against a real restic, and skip — saying so — where there is none,
+      # which neither runner has.
+      - name: restic
+        run: |
+          command -v restic >/dev/null || if command -v brew >/dev/null; then brew install restic; else sudo apt-get update && sudo apt-get install -y restic; fi
+          restic version
       - name: format
         run: pnpm exec biome ci .
       - name: types

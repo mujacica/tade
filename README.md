@@ -831,6 +831,14 @@ tade.service -f`. From your Mac, `tade remote add` links the box to your window,
 it. Set `workspace.driver: tmux` there: its agents then run in a systemd scope of their own, so
 stopping, restarting or upgrading Tade never ends one.
 
+**Backups** are restic's, encrypted. `tade host backup --init sftp:u1@u1.your-storagebox.de:tade`
+names where — a folder, SFTP, S3, a REST server — makes the password and prints it once, to keep
+somewhere off the box; `tade host backup` then takes one: Tade's home and each harness's
+conversations, never the journal's index or the worktrees, and says which checkouts and worktrees
+hold work pushed nowhere. `tade host backup --timer` writes the hourly systemd timer. `tade host
+restore` puts the latest back on a new box given only the repository and its password, writes over
+nothing, and prints the `git clone` for each checkout it does not find there.
+
 For a phone, give the server a name of your own and put Caddy in front. `tade host domain
 tade.example.com` looks at the records the name needs from the box — A, AAAA only where IPv6 answers
 on 443, DNSSEC before Caddy orders a certificate, CAA after it — says of each whether it is missing,
