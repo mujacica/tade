@@ -470,6 +470,16 @@ export default function tadeExtension(pi: PiApi): void {
       chosen = given
       titled = given
     }
+    // Named for its work where nobody named it: the session is called that,
+    // whatever an earlier run named it from what it was told first — a name a
+    // person chose would have come back as TADE_TITLE — and nothing it is
+    // asked renames it.
+    const called = process.env.TADE_CALLED?.trim()
+    if (!given && called) {
+      generated = called
+      titled = called
+      if (pi.getSessionName?.() !== called) pi.setSessionName?.(called)
+    }
     sayName()
   }) as never)
   pi.on('turn_start', (() => sayName()) as never)

@@ -889,6 +889,7 @@ export class PiAdapter implements WorkerAdapter {
     env[WORKER_ENV.task] = spec.task
     if (spec.extras?.tools) env[WORKER_ENV.tools] = spec.extras.tools
     if (spec.title) env[WORKER_ENV.title] = spec.title
+    if (spec.called) env[WORKER_ENV.called] = spec.called
     return env
   }
 

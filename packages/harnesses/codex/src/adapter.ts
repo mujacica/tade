@@ -813,7 +813,8 @@ export class CodexAdapter implements WorkerAdapter {
       held: new Map(),
       calls: new Map(),
       named: Boolean(spec.title),
-      titled: false,
+      // Titled by its work already (`WorkerSpec.called`), so not by its opening prompt.
+      titled: Boolean(spec.called),
       told: contextFor(spec),
       thread,
       // A conversation it comes back to arrives with its history, which was

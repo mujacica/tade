@@ -113,6 +113,7 @@ afterEach(async () => {
     'TADE_APPROVALS',
     'TADE_EXTENSION_TOOLS',
     'TADE_TITLE',
+    'TADE_CALLED',
   ])
     delete process.env[key]
   vi.resetModules()
@@ -648,6 +649,25 @@ describe('what the work is called', () => {
     await waitFor(at, 'titled')
     expect(pi.api.sessionName).toBe('what I typed')
     expect(of(at, 'titled')[0]).toMatchObject({ title: 'what I typed', named: true })
+  })
+
+  it('is called by its work, never by what it was told first, until a person names it', async () => {
+    const at = await tadeListening()
+    const { pi } = await running(at, { TADE_CALLED: 'Agents are titled by their work' })
+    // Whatever an earlier run named the session from its opening instruction.
+    pi.api.sessionName = 'Read your context file first'
+    await pi.fire('session_start', {}, ctx())
+    expect(pi.api.sessionName).toBe('Agents are titled by their work')
+    await pi.fire('input', { text: 'Read your context file first, then fix it' }, ctx())
+    await pi.fire('tool_call', { toolCallId: 'c1', toolName: 'edit', input: {} }, ctx())
+    await pi.fire('turn_start', {}, ctx())
+    // Tade is what said the name, so it is not told it back, nor a guess at a better one.
+    expect(of(at, 'titled')).toEqual([])
+
+    at.say({ type: 'name', title: 'Window titles' })
+    await waitFor(at, 'titled')
+    expect(pi.api.sessionName).toBe('Window titles')
+    expect(of(at, 'titled')[0]).toMatchObject({ title: 'Window titles', named: true })
   })
 
   it('names the work from what was asked, at the first thing that changes something', async () => {

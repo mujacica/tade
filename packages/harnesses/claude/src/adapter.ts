@@ -650,7 +650,9 @@ export class ClaudeAdapter implements WorkerAdapter {
         'tade-claude',
         sessionIdFor(spec.task),
         this.opts.configDir,
-        spec.title ?? '',
+        // Its session's name: a person's, or else the work's — never the
+        // first words of what it is told.
+        spec.title ?? spec.called ?? '',
         this.opts.bin,
         this.opts.user ? process.execPath : '',
         this.opts.user ? TRUST_PATH : '',
@@ -743,7 +745,8 @@ export class ClaudeAdapter implements WorkerAdapter {
         held: new Map(),
         calls: new Map(),
         named: Boolean(spec.title),
-        titled: false,
+        // Titled by its work already (`WorkerSpec.called`), so not by its opening prompt.
+        titled: Boolean(spec.called),
         transcript,
         // A conversation it comes back to arrives with its history, which was
         // reported by whoever was watching then: counted from here, not from zero.
@@ -833,7 +836,7 @@ export class ClaudeAdapter implements WorkerAdapter {
       held: new Map(),
       calls: new Map(),
       named: Boolean(spec.title),
-      titled: false,
+      titled: Boolean(spec.called),
       transcript: going,
       spent: await spentOn(spec.task, this.opts.configDir),
       cost: 0,

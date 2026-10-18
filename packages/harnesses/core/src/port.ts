@@ -48,6 +48,13 @@ export interface WorkerSpec {
   extras?: WorkerExtras
   /** A name a person gave the work, for the harness's own session to carry. */
   title?: string
+  /**
+   * What the work is called where no person named it, taken from the task and
+   * never from `prompt` (`workTitle`): the session carries it, and the first
+   * words of an opening instruction — "Read your context file first…" — do not
+   * replace it. A name a person gives later still does.
+   */
+  called?: string
   /** Pictures to send with the opening prompt. */
   images?: readonly WorkerImage[]
   /**
@@ -311,6 +318,8 @@ export const WORKER_ENV = {
   tools: 'TADE_EXTENSION_TOOLS',
   /** The name a person gave the work, which the agent's session takes when it has none. */
   title: 'TADE_TITLE',
+  /** What the work is called where nobody named it (`WorkerSpec.called`): the session's name until one is chosen. */
+  called: 'TADE_CALLED',
 } as const
 
 /** The program that ends a headless harness when Tade is gone. */

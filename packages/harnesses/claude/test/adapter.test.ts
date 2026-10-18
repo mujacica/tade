@@ -87,6 +87,8 @@ describe('ClaudeAdapter', () => {
     approvals: 'bypass' | 'policy' = 'bypass',
     /** A sign-in beside Claude Code's own: how the money it reports is decided. */
     account_?: HarnessAccount,
+    /** What the work is called where nobody named it (`WorkerSpec.called`). */
+    called?: string,
   ) => {
     const typed: string[] = []
     const account = tmp('tade-claude-account-')
@@ -102,7 +104,13 @@ describe('ClaudeAdapter', () => {
       },
     })
     const cwd = tmp('tade-claude-cwd-')
-    const spec = { run: 'app/refunds/agent', task: 'app/refunds', cwd, prompt: '' }
+    const spec = {
+      run: 'app/refunds/agent',
+      task: 'app/refunds',
+      cwd,
+      prompt: '',
+      ...(called ? { called } : {}),
+    }
     const signals: WorkerSignal[] = []
     adapter.onSignal(spec.run, (signal) => signals.push(signal))
     await adapter.supervise(spec)
@@ -155,6 +163,28 @@ describe('ClaudeAdapter', () => {
       expect(rest.join(' ')).toContain('--effort low')
       expect(launch.opening).toEqual(['fix the double charge'])
       expect(launch.env.CLAUDE_CONFIG_DIR).toBe('/accounts/work')
+    })
+
+    it('calls a session nobody named by its work, not by the first thing it is told', () => {
+      const one = new ClaudeAdapter({ runDir: tmp('tcc-'), configDir: '/accounts/work' })
+      const launch = one.launchSpec({
+        run: 'tade/agents-are-titled/agent',
+        task: 'tade/agents-are-titled',
+        cwd: '/wt/t',
+        prompt: 'Read your context file first, then fix it.',
+        called: 'Agents are titled',
+      })
+      expect(launch.args[5]).toBe('Agents are titled')
+      // A name a person gave wins over the work's.
+      const named = one.launchSpec({
+        run: 'tade/agents-are-titled/agent',
+        task: 'tade/agents-are-titled',
+        cwd: '/wt/t',
+        prompt: '',
+        title: 'Window titles',
+        called: 'Agents are titled',
+      })
+      expect(named.args[5]).toBe('Window titles')
     })
 
     it('hands it hooks, a status line and Tade’s tools for this run alone', () => {
@@ -240,6 +270,15 @@ describe('ClaudeAdapter', () => {
         named: false,
       })
       expect(signals.find((s) => s.type === 'started')).toMatchObject({ model: 'claude-opus-5' })
+    })
+
+    it('does not name work that has a name after the first thing it is told', async () => {
+      const { hook, kinds } = await setUp('bypass', undefined, 'Refunds')
+      await hook({
+        hook_event_name: 'UserPromptSubmit',
+        prompt: 'Read your context file first, then fix the refund retries',
+      })
+      expect(kinds()).toEqual(['turn_started'])
     })
 
     it('does not name the work after a turn it started itself', async () => {

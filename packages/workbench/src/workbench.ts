@@ -125,7 +125,7 @@ import { type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
 import { settleRuns } from './run-files.ts'
 import { type KeptSchedule, Schedules } from './schedules.ts'
 import { continueRun as continueAgent } from './sleep.ts'
-import { taskSaid } from './task-said.ts'
+import { takeTitle, taskSaid, titleForWork } from './task-said.ts'
 import {
   beginFrom,
   createTask,
@@ -440,9 +440,10 @@ export class Workbench {
           },
         }),
         // Written into the task, not held: the branch may be named long after,
-        // by a window opened later.
+        // by a window opened later. Not one taken from the opening instruction,
+        // where the work has a name of its own (`takeTitle`).
         onTitle: (task, title, named) => {
-          void setTitle(opts.home, task, title, named).catch(() => {})
+          void takeTitle(opts.home, task, title, named).catch(() => {})
         },
         // A tool an agent calls runs in this process: Tade's own, or an extension's.
         onExtensionCall: async (call) => {
@@ -1475,6 +1476,8 @@ export class Workbench {
       await this.agentPrompt(req.task, req.cwd, adapter.capabilities.done, as),
     )
     const { chosen } = await taskSaid(this.home, req.task)
+    // Titled by its work, never by what it is told first (`titleForWork`).
+    const called = await titleForWork(this.home, req.task, chosen)
     // The model new agents start on is for new agents. One coming back to its
     // conversation keeps the model that conversation was on, which its session
     // remembers — told the default instead, it would quietly change models.
@@ -1495,6 +1498,7 @@ export class Workbench {
       cwd: req.cwd,
       prompt: req.prompt,
       ...(chosen ? { title: chosen } : {}),
+      ...(called ? { called } : {}),
       ...(extras ? { extras } : {}),
       ...(model ? { model } : {}),
       ...(thinking ? { thinking } : {}),
