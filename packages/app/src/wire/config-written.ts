@@ -1,10 +1,11 @@
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { type Config, loadConfig } from '@tade/core'
 import { changeOf, heldIn } from '@tade/workbench/config-changes'
 import { withTranscript } from '../model.ts'
 import type { Ui } from '../screen.ts'
 import { editSettings, writeSetting } from '../settings.ts'
 import { tadeDid } from '../transcript.ts'
-import { configPathOf, type Wiring, why } from './context.ts'
+import { configPathOf, notify, type Wiring, why } from './context.ts'
 
 // The config written by the window outside the Settings page: muting, the
 // orchestrator's model and thinking, an extension or a tool server turned on
@@ -93,6 +94,24 @@ export function editRecorded(wire: Wiring, ui: Ui): Promise<void> {
   return editSettings(ui, configPathOf(wire.opts), async (before, key, value) =>
     recordWritten(wire, before, [{ key, value }]),
   )
+}
+
+/**
+ * The config as a write left it, for the window to take up — or null, with
+ * what would not load said on the orchestrator's line. Passed over without a
+ * word, the window carried on with what it had while the file said otherwise,
+ * and nobody was told why the change never took.
+ */
+export async function reloaded(wire: Wiring): Promise<Config | null> {
+  const loaded = await loadConfig(configPathOf(wire.opts))
+  if (loaded.ok) return loaded.config
+  const first = loaded.issues[0]
+  const reason = first ? (first.path ? `${first.path}: ${first.message}` : first.message) : null
+  notify(
+    wire,
+    `the config would not load (${reason ?? 'no reason given'}), so this window carries on with what it had`,
+  )
+  return null
 }
 
 /**

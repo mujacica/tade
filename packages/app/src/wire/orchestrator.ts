@@ -3,7 +3,6 @@ import {
   type Config,
   composeBrief,
   type LaneId,
-  loadConfig,
   needsReflection,
   orchestratorAccount,
   reflectionPrompt,
@@ -47,11 +46,10 @@ import {
   thinking,
   youSaid,
 } from '../transcript.ts'
-import { writeRecorded } from './config-written.ts'
+import { reloaded, writeRecorded } from './config-written.ts'
 import {
   type Actions,
   clockOf,
-  configPathOf,
   notify,
   type Subject,
   type Thinker,
@@ -369,8 +367,8 @@ export class Orchestrator implements Subject {
     }
     try {
       writeRecorded(this.wire, 'orchestrator.thinking', chosen)
-      const loaded = await loadConfig(configPathOf(this.wire.opts))
-      if (loaded.ok) this.deps.useConfig(loaded.config)
+      const config = await reloaded(this.wire)
+      if (config) this.deps.useConfig(config)
     } catch (err) {
       notify(this.wire, why(err))
       this.wire.draw()

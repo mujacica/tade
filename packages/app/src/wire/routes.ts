@@ -1,7 +1,6 @@
 import {
   type Config,
   HARNESS_CHOICES,
-  loadConfig,
   modelChosen,
   orchestratorRoute,
   resolveRoute,
@@ -30,10 +29,9 @@ import {
 } from '../panels/models/state.ts'
 import type { AccountShown } from '../panels/settings/accounts.ts'
 import type { Choice } from '../panels/settings/state.ts'
-import { writeRecorded } from './config-written.ts'
+import { reloaded, writeRecorded } from './config-written.ts'
 import {
   type Actions,
-  configPathOf,
   type Menus,
   notify,
   type Pressed,
@@ -623,8 +621,8 @@ export class Routes implements Subject {
         const chosen = modelChosen(id)
         writeRecorded(this.wire, 'orchestrator.provider', chosen.provider)
         writeRecorded(this.wire, 'orchestrator.model', chosen.model)
-        const loaded = await loadConfig(configPathOf(this.wire.opts))
-        if (loaded.ok) this.deps.useConfig(loaded.config)
+        const config = await reloaded(this.wire)
+        if (config) this.deps.useConfig(config)
         this.wire.put({ ...this.wire.state, panel: null })
         notify(this.wire, `the orchestrator is moving to ${chosen.model ?? id}`)
         this.wire.draw()

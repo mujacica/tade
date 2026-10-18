@@ -1,5 +1,5 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 import { ConfigSchema } from '@tade/core'
 import type { HarnessModels } from '@tade/harnesses-core'
 import { taskFilePath } from '@tade/workbench'
@@ -207,6 +207,24 @@ describe('an agent moved to another model or thinking level, from the window', (
     // Nothing was written, so nothing is read back or handed round as new.
     expect(wire.opts.config).toBe(config)
     expect(used()).toBe(0)
+  })
+
+  it('says why, for the orchestrator, where the config it wrote will not load', async () => {
+    const { routes, wire, used } = choosing()
+    // Something else in the file this Tade cannot read, as a newer one may write.
+    writeFileSync(join(wire.opts.home, 'config.yaml'), 'workspace:\n  drivr: pty\n')
+    const said: string[] = []
+    const put = wire.put
+    Object.assign(wire, {
+      put: (next: AppState) => {
+        if (next.notice && next.notice !== wire.state.notice) said.push(next.notice)
+        put(next)
+      },
+    })
+    Object.assign(wire.opts.client, { log: { append: async () => {} } })
+    await routes.chooseModel({ kind: 'model', for: 'orchestrator' } as ModelPanel, 'openai/gpt-5')
+    expect(said[0]).toMatch(/^the config would not load \(workspace\.drivr: .+\), so this window/)
+    expect(used(), 'a config that did not load was handed round').toBe(0)
   })
 })
 
