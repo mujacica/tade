@@ -37,8 +37,13 @@ const SETTLED = `Promise.all(document.getAnimations()
  * is an older server talking to a newer page, which no fixture here models.
  * It is a guard against that, not a covered behaviour, and reintroducing the
  * drawing bug it is about does **not** turn it red.
+ *
+ * **Measured once the screen has risen** (`SETTLED`), as `SHAPE` is: the
+ * acting pass's phone keeps its motion, and a press caught mid-`rise` sits at
+ * a fractional offset and measures 69.906×43.99988 — one run in five, on a
+ * button that is 44px tall.
  */
-export const CONTROLS = `(() => {
+export const CONTROLS = `${SETTLED}.then(() => {
   const TAP = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tap')) || 44
   const NAMED = {
     'SET ASIDE': 'park',
@@ -84,7 +89,7 @@ export const CONTROLS = `(() => {
     small,
     blank: [...new Set(blank)],
   }
-})()`
+})`
 
 /** That some control answered at all. */
 export const SAID_SOMETHING = `[...document.querySelectorAll('main [role="status"]')].some(
