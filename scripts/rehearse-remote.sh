@@ -135,9 +135,9 @@ install_on() {
   local line
   line="$(docker exec -u you "$name" sh /tmp/install.sh --dry-run | grep '^  npm ')"
   note "the installer would run:$line"
-  note "so, for the staged tarball: ${line/tade-sh/\/tmp\/tade-sh.tgz}"
+  note "so, for the staged tarball: ${line/tade-sh//tmp/tade-sh.tgz}"
   # shellcheck disable=SC2086
-  docker exec -u you -w /home/you "$name" ${line/tade-sh/\/tmp\/tade-sh.tgz} >/dev/null 2>&1
+  docker exec -u you -w /home/you "$name" ${line/tade-sh//tmp/tade-sh.tgz} >/dev/null 2>&1
   docker exec -u you "$name" bash -lc 'tade --version'
 }
 
@@ -236,6 +236,9 @@ export PATH="$DIR/bin:$DIR/mac-install/bin:\$PATH"
 export HOME="$DIR/mac/home" TADE_HOME="$DIR/mac/tade" TERM=xterm-256color
 EOF
   note "source $DIR/mac.env to be this Mac"
+  # Read before becoming the Mac: its HOME is not the one docker keeps its context in.
+  local keys=()
+  for n in $(seq 1 "$BOXES"); do keys+=("$(docker exec "$(box "$n")" ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub)"); done
   # shellcheck disable=SC1091
   . "$DIR/mac.env"
   git config --global user.name You && git config --global user.email you@example.com
@@ -245,15 +248,16 @@ EOF
   "apiKey": "rehearsal", "models": [{ "id": "stand-in", "name": "Rehearsal stand-in" }] } } }
 EOF
   (REHEARSAL_MODEL_PORT=11435 REHEARSAL_WORK_SECONDS="$WORK_SECONDS" nohup node "$ROOT/test/fixtures/stand-in-model.ts" >"$DIR/mac-model.log" 2>&1 &)
-  say "The Mac's project app: a clone of vps1:acme/app.git, the same repository as vps1's"
-  [ -d "$DIR/mac/src/app" ] || git clone -q vps1:acme/app.git "$DIR/mac/src/app"
   printf 'projects:\n  app:\n    root: %s\norchestrator:\n  model: rehearsal/stand-in\n' "$DIR/mac/src/app" >"$TADE_HOME/config.yaml"
   for n in $(seq 1 "$BOXES"); do
     say "tade remote add vps$n --ssh vps$n --tade /home/you/.local/bin/tade"
     note 'a box never met is shown by its key first: compare it with the one printed here'
-    docker exec "$(box "$n")" ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
+    note "${keys[$((n - 1))]}"
     tade remote add "vps$n" --ssh "vps$n" --tade /home/you/.local/bin/tade
   done
+  # After the boxes are met, so this clone's ssh is never the first to meet vps1.
+  say "The Mac's project app: a clone of vps1:acme/app.git, the same repository as vps1's"
+  [ -d "$DIR/mac/src/app" ] || git clone -q vps1:acme/app.git "$DIR/mac/src/app"
   say 'Then, in order (source mac.env and run `tade`):'
   cat <<'EOF'
    - each box's project is a tab under its name; on its orchestrator tab (the strip, bottom left) type
