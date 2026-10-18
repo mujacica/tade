@@ -26,6 +26,7 @@ const NOTHING_ELSE: SettingsDeps = {
   refreshModels: () => Promise.resolve(),
   lookAtWhatIsInstalled: () => {},
   tellThinking: () => Promise.resolve(null),
+  moveThinker: () => {},
   setupChanged: () => {},
   silence: () => {},
   accountAction: () => Promise.resolve(),

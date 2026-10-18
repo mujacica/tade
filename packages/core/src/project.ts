@@ -46,6 +46,18 @@ export function accountFor(config: Config, project: string | null, harness: stri
   return config.accounts[chosen]?.harness === harness ? chosen : null
 }
 
+/**
+ * The account the orchestrator runs as (`orchestrator.account`), or null for
+ * its harness's own sign-in. The one reader: its launch, the history the window
+ * reads before it is up, the Settings row and the Accounts page all ask it.
+ * Only ever an account of the orchestrator's harness, as `accountFor` holds.
+ */
+export function orchestratorAccount(config: Config): string | null {
+  const chosen = config.orchestrator.account
+  if (!chosen) return null
+  return config.accounts[chosen]?.harness === config.orchestrator.harness ? chosen : null
+}
+
 /** Who runs as one sign-in when nobody chose otherwise. */
 export interface SignInUse {
   /** New agents of its harness, in every project that does not say otherwise. */

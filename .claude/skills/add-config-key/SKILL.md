@@ -154,7 +154,11 @@ an account row only by the harness and the word together ("the claude code accou
 `accounts` or the harness alone (`wordsTogether`). **One reader**: `accountFor`
 (`core/src/project.ts`), beside `workspaceFor`; the workbench, the plan a start would spend and the
 Accounts page all go through it, and `signInUse` says who runs as each sign-in for the surfaces that
-list them.
+list them. **The orchestrator's own is `asked` too** (`orchestrator.account`, decided 2026-10-18 with
+a running agent's, `tade_agent_account`): named only as "your account" (`OWNED_ROWS`), since "account"
+alone is every agent row's word; read through `orchestratorAccount`; cleared with its harness
+(`clearedByHarness`); and a change starts it again on that sign-in with its conversation carried
+(`carryHere`) — at once for a person's press, after the turn that asked where it asked (`moveAccount`).
 
 **Defaults are settings, and where work is sent is not a default.** What new agents start on —
 each route's model and thinking, and each other harness's under it

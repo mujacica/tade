@@ -8,6 +8,7 @@ import { ConfigSchema, updateCheckEvery } from '../src/config.ts'
 import { loadConfig, parseConfig, writeSetting } from '../src/config-file.ts'
 import {
   accountFor,
+  orchestratorAccount,
   pushDefault,
   pushFor,
   pushNeedsABranch,
@@ -494,6 +495,20 @@ describe('accounts', () => {
       'accounts:\n  work:\n    harness: claude-code\nworkers:\n  accounts:\n    pi: work\n',
     )
     expect(!wrong.ok && wrong.issues[0]?.message).toContain('claude-code account')
+  })
+
+  it('let the orchestrator run as an account of its own harness, and nothing else', () => {
+    const on = (yaml: string) =>
+      accounts(`accounts:\n  work:\n    harness: claude-code\norchestrator:\n${yaml}`)
+    const work = on('  harness: claude-code\n  account: work\n')
+    expect(work.ok && orchestratorAccount(work.config)).toBe('work')
+    // Unset is its harness's own sign-in.
+    const own = on('  harness: claude-code\n')
+    expect(own.ok && orchestratorAccount(own.config)).toBeNull()
+    const missing = on('  harness: claude-code\n  account: home\n')
+    expect(!missing.ok && missing.issues[0]?.path).toBe('orchestrator.account')
+    const wrong = on('  harness: codex\n  account: work\n')
+    expect(!wrong.ok && wrong.issues[0]?.message).toContain('claude-code account, not codex')
   })
 
   it('let a project name its own account for a harness, or its own sign-in, and nothing else', () => {

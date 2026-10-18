@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ConfigSchema, loadConfig } from '@tade/core'
+import { ConfigSchema, loadConfig, writeSetting } from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
@@ -257,6 +257,53 @@ describe('the orchestrator, configuring Tade', () => {
     expect(await mine()).toEqual([
       { path: 'projects.app.accounts.claude-code', was: '', now: 'work', by: 'orchestrator', said },
     ])
+  })
+
+  it('moves its own account on words naming it, and starts again there once its turn is over', async () => {
+    await client.addAccount({ name: 'work', harness: 'claude-code' })
+    writeSetting(join(home, 'config.yaml'), 'orchestrator.harness', 'claude-code')
+    const config = ConfigSchema.parse({
+      projects: { app: { root: repo.root } },
+      orchestrator: { harness: 'claude-code' },
+      accounts: { work: { harness: 'claude-code' } },
+    })
+    client.config = config
+    // The orchestrator, in the middle of the turn that asks for it.
+    let busy = true
+    const listeners: ((event: { type: 'idle' }) => void)[] = []
+    let restarts = 0
+    const app = await start({
+      config,
+      thinker: {
+        ask: async () => '',
+        busy: () => busy,
+        onEvent: (listener) => {
+          listeners.push(listener)
+          return () => listeners.splice(listeners.indexOf(listener), 1)
+        },
+      },
+      restartThinker: async () => {
+        restarts += 1
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const tools = app.configTools()
+    // An agent's account is not its own.
+    await theySaid('move refunds to the work account')
+    await expect(
+      tools.change({ path: 'orchestrator.account', value: 'work', said: 'they asked' }),
+    ).rejects.toThrow(/Nothing they have said names Account/)
+    const said = 'switch your account to work, the plan is out'
+    await theySaid(said)
+    expect(await tools.change({ path: 'orchestrator.account', value: 'work', said })).toContain(
+      'once this turn is over',
+    )
+    expect(client.config.orchestrator.account).toBe('work')
+    // Started again under the turn that asked, its answer would never arrive.
+    expect(restarts).toBe(0)
+    busy = false
+    for (const listener of [...listeners]) listener({ type: 'idle' })
+    await until('started again', () => restarts === 1)
   })
 
   it('refuses a default nobody named, and where a route sends work however it is asked', async () => {

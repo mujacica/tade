@@ -18,6 +18,7 @@ import {
   type Holding,
   heldIn,
   LOCAL,
+  orchestratorAccount,
   orchestratorRoute,
   wentQuiet,
 } from '@tade/core'
@@ -34,6 +35,7 @@ import {
   type WorkerModel,
 } from '@tade/harnesses-core'
 import { sessionIdFor } from '@tade/harnesses-pi'
+import { harnessAccount } from '@tade/workbench/accounts'
 import { HARNESS_ADAPTERS } from '@tade/workbench/harnesses'
 import { enabledTools } from './extensions.ts'
 import { TOOLS_MCP, toolEnv, writeToolServer } from './launch.ts'
@@ -156,6 +158,12 @@ export interface OrchestratorOptions {
   toldBefore?: readonly TadeEvent[]
   /** The harness, when not the registry's: for tests, with a scripted one. */
   adapter?: WorkerAdapter
+  /**
+   * The orchestrator this one is started in place of, stopped: its
+   * conversation is carried from the sign-in that one ran as, where this one
+   * runs as another (`orchestrator.account`).
+   */
+  after?: Orchestrator
 }
 
 export interface OrchestratorUsage {
@@ -200,9 +208,15 @@ export type OrchestratorEvent =
   | { type: 'error'; reason: string }
   | { type: 'exited'; code: number | null }
 
-/** The adapter of the harness the orchestrator talks through, or null for one Tade has none of. */
+/**
+ * The adapter of the harness the orchestrator talks through, on `account` —
+ * the one the config names (`orchestratorAccount`) unless another is asked
+ * for, null being the harness's own sign-in — or null for a harness Tade has
+ * none of.
+ */
 function adapterFor(
-  opts: Pick<OrchestratorOptions, 'config' | 'runDir' | 'args' | 'env' | 'adapter'>,
+  opts: Pick<OrchestratorOptions, 'config' | 'home' | 'runDir' | 'args' | 'env' | 'adapter'>,
+  account: string | null = opts.config ? orchestratorAccount(opts.config) : null,
 ): WorkerAdapter | null {
   if (opts.adapter) return opts.adapter
   const route = opts.config ? orchestratorRoute(opts.config) : null
@@ -210,6 +224,10 @@ function adapterFor(
   return (
     make?.({
       runDir: opts.runDir,
+      // Its folder under Tade's home, as an agent's is (`harnessAccount`).
+      ...(account && opts.config
+        ? { account: harnessAccount(opts.config, opts.home, account) }
+        : {}),
       socketDir: opts.runDir,
       approvals: 'bypass',
       // Tade's own interface: gating its tool calls on an approval would mean
@@ -232,6 +250,53 @@ function adapterFor(
 }
 
 /**
+ * Its conversation brought to the sign-in it is about to run as, so a change
+ * of account goes on rather than introducing it again: from the one it ran as
+ * until now (`from`, the orchestrator this one takes over from), which holds
+ * the newest of it — or, started with none there, from whichever other sign-in
+ * of its harness has one, its own first, which is a change made while Tade was
+ * closed. A copy over a copy: the one carried from is the conversation as it
+ * stands. Never throws, since what could not be carried is a conversation
+ * started there.
+ */
+export async function carryHere(
+  opts: Pick<
+    OrchestratorOptions,
+    'config' | 'home' | 'runDir' | 'args' | 'env' | 'adapter' | 'onWarning'
+  >,
+  to: WorkerAdapter,
+  cwd: string,
+  from?: WorkerAdapter,
+): Promise<void> {
+  try {
+    if (from) {
+      await from.carryConversation(ORCHESTRATOR_TASK, cwd, to)
+      return
+    }
+    const config = opts.config
+    if (!config || !to.capabilities.accounts) return
+    if (await to.hasConversation(ORCHESTRATOR_TASK, cwd)) return
+    const harness = config.orchestrator.harness
+    const others = [
+      null,
+      ...Object.keys(config.accounts).filter((name) => config.accounts[name]?.harness === harness),
+    ].filter((name) => name !== orchestratorAccount(config))
+    for (const name of others) {
+      const there = adapterFor(opts, name)
+      if (!there || there === to) continue
+      if (!(await there.hasConversation(ORCHESTRATOR_TASK, cwd))) continue
+      await there.carryConversation(ORCHESTRATOR_TASK, cwd, to)
+      return
+    }
+  } catch (err) {
+    // Said, because what follows is a conversation started there without it.
+    opts.onWarning?.(
+      `its conversation could not be carried to the sign-in it runs as now, so it may start there without it: ${err instanceof Error ? err.message : String(err)}`,
+    )
+  }
+}
+
+/**
  * The conversation so far, a page at a time, as its harness kept it.
  *
  * For a window that draws the conversation itself: the conversation comes back
@@ -243,7 +308,7 @@ function adapterFor(
  * starts at all.
  */
 export function orchestratorHistory(
-  opts: Pick<OrchestratorOptions, 'config' | 'runDir' | 'env' | 'cwd'>,
+  opts: Pick<OrchestratorOptions, 'config' | 'home' | 'runDir' | 'env' | 'cwd'>,
 ): (ask: HistoryAsk) => Promise<HistoryPage> {
   let adapter: WorkerAdapter | null | undefined
   return async (ask) => {
@@ -371,6 +436,7 @@ export class Orchestrator {
     // Whether there is a conversation to come back to, asked before starting
     // one: a new one holds whatever this launch says, pinned or not.
     const cwd = opts.cwd ?? process.cwd()
+    await carryHere(opts, adapter, cwd, opts.after?.adapter)
     const going = await adapter.hasConversation(ORCHESTRATOR_TASK, cwd).catch(() => true)
 
     // Tade's own tools, given to this harness the way it takes them: modules

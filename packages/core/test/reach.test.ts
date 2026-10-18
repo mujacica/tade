@@ -859,6 +859,34 @@ describe('whether the person themselves named it', () => {
     expect(settingFound(group, harness, ['claude', 'code'])).toBe(true)
   })
 
+  it('moves the orchestrator to another of its accounts only on words naming its own account', () => {
+    // The person's word of 2026-10-18: it changes its own account when asked.
+    expect(settingReach('orchestrator.account').reach).toBe('asked')
+    const rows = (over: Record<string, unknown>) =>
+      settingsOf(ConfigSchema.parse(over)).flatMap((group) => group.settings)
+    const row = rows({
+      orchestrator: { harness: 'claude-code' },
+      accounts: { work: { harness: 'claude-code' }, company: { harness: 'codex' } },
+    }).find((one) => one.path === 'orchestrator.account')
+    if (!row) throw new Error('no orchestrator account row')
+    // Only its own harness's accounts, beside its own sign-in.
+    expect(row.type).toMatchObject({ kind: 'choice', options: ['', 'work'] })
+    const names = (line: string) => namedBy(row, [line]) !== null
+    // An agent's account, or the machine's: never this one.
+    expect(names('move refunds to the work account')).toBe(false)
+    expect(names('use my work account for claude code')).toBe(false)
+    expect(names('orchestrator, put refunds on the work account')).toBe(false)
+    expect(names('switch your account to work, the plan is out')).toBe(true)
+    expect(names('put the orchestrator’s account on work')).toBe(true)
+    expect(spokenAs(row)).toBe('your account')
+    // With no other sign-in of its harness there is nothing to choose.
+    const none = rows({
+      orchestrator: { harness: 'pi' },
+      accounts: { work: { harness: 'claude-code' } },
+    })
+    expect(none.some((one) => one.path === 'orchestrator.account')).toBe(false)
+  })
+
   it('still counts a title that is specific, however short', () => {
     // The other direction: only a title that is just its kind lost the rule.
     const rows = settingsOf(ConfigSchema.parse({})).flatMap((group) => group.settings)

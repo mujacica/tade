@@ -385,6 +385,12 @@ export const ConfigSchema = z
         model: z.string().optional(),
         /** How hard it thinks before it answers; the harness's own default when unset. */
         thinking: z.enum(THINKING_LEVELS).optional(),
+        /**
+         * Which of its harness's accounts it runs as, so a plan that has run out
+         * is not the one you talk through. Absent, the harness's own sign-in.
+         * Read through `orchestratorAccount`.
+         */
+        account: AccountName.optional(),
         extensions: z.string().default('~/.tade/extensions'),
         /**
          * Look back at a task once it has finished, and write down a lesson if
@@ -821,6 +827,10 @@ export const ConfigSchema = z
     for (const [harness, name] of Object.entries(config.workers.accounts)) {
       const message = accountIssue(harness, name)
       if (message) ctx.addIssue({ code: 'custom', path: ['workers', 'accounts', harness], message })
+    }
+    if (config.orchestrator.account !== undefined) {
+      const message = accountIssue(config.orchestrator.harness, config.orchestrator.account)
+      if (message) ctx.addIssue({ code: 'custom', path: ['orchestrator', 'account'], message })
     }
     for (const [name, project] of Object.entries(config.projects)) {
       if (project.worker && !routes.includes(project.worker)) {

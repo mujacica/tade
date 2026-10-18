@@ -5,6 +5,7 @@ import {
   type LaneId,
   loadConfig,
   needsReflection,
+  orchestratorAccount,
   reflectionPrompt,
   THINKING_LEVELS,
   type ThinkingLevel,
@@ -292,6 +293,38 @@ export class Orchestrator implements Subject {
     } catch {
       // Not writable: it still runs, only without the promise to stay put.
     }
+  }
+
+  /**
+   * Start it again on the account the config now names (`orchestrator.account`):
+   * its conversation is carried there as it starts (`Orchestrator.start`), so it
+   * goes on rather than being introduced again.
+   *
+   * At once for a person's press — a plan that has run out is a conversation
+   * that cannot answer, so there is nothing to wait for. Where it changed its
+   * own account (`afterTurn`), once that turn is over: started again under it,
+   * the turn that asked would end with its answer unsaid.
+   */
+  moveAccount(afterTurn: boolean): void {
+    const restart = this.wire.opts.restartThinker
+    if (!restart) return
+    const go = () => {
+      const as = orchestratorAccount(this.wire.opts.config) ?? 'its own sign-in'
+      notify(this.wire, `the orchestrator is starting again as ${as}`)
+      this.wire.draw()
+      void restart().catch((err: unknown) => this.failed(why(err)))
+    }
+    const thinker = this.thinker
+    if (!afterTurn || !thinker?.busy?.()) {
+      go()
+      return
+    }
+    const off = thinker.onEvent?.((event) => {
+      if (event.type !== 'idle' && event.type !== 'failed' && event.type !== 'exited') return
+      off?.()
+      go()
+    })
+    if (!off) go()
   }
 
   /**

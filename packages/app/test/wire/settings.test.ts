@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ConfigSchema, loadConfig, SEEN_BY_AGENTS, settingsOf } from '@tade/core'
+import { ConfigSchema, loadConfig, SEEN_BY_AGENTS, settingsOf, writeSetting } from '@tade/core'
 import { ExtensionHost, type TadeExtension } from '@tade/extensions-core'
 import type { Workbench } from '@tade/workbench'
 import { recordConfigChanges } from '@tade/workbench/config-changes'
@@ -89,6 +89,43 @@ describe('the window, and its settings', () => {
     await until('the row to say so', async () =>
       (await row()).includes('workers.accounts.claude-code = work'),
     )
+  })
+
+  it('moves the orchestrator to another account from the Accounts page, and starts it again there', async () => {
+    // The way off a plan it has used up: with no turns left it cannot be asked.
+    await client.addAccount({ name: 'work', harness: 'claude-code' })
+    writeSetting(join(home, 'config.yaml'), 'orchestrator.harness', 'claude-code')
+    const config = ConfigSchema.parse({
+      projects: { app: { root: repo.root } },
+      orchestrator: { harness: 'claude-code' },
+      accounts: { work: { harness: 'claude-code' } },
+    })
+    client.config = config
+    let restarts = 0
+    terminal.resize(120, 60)
+    await start({
+      config,
+      restartThinker: async () => {
+        restarts += 1
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const button = find('Settings ')
+    click(button.col + 1, button.row)
+    await until('the settings', () => terminal.written.includes('Accounts'))
+    const accounts = find('Accounts')
+    click(accounts.col + 1, accounts.row)
+    await until('the account to move to', () =>
+      terminal.written.includes('Use for the orchestrator'),
+    )
+    const use = find('Use for the orchestrator')
+    terminal.written = ''
+    click(use.col + 1, use.row)
+    await until('it said so', () => terminal.written.includes('starts again as work'))
+    expect(restarts).toBe(1)
+    expect(client.config.orchestrator.account).toBe('work')
+    const loaded = await loadConfig(join(home, 'config.yaml'))
+    expect(loaded.ok && loaded.config.orchestrator.account).toBe('work')
   })
 
   it('holds the machine awake from the button in the strip, and says the machine is held', async () => {

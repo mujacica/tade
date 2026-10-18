@@ -246,6 +246,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           // record: shown before it has started, and if it never does.
           history: orchestratorHistory({
             config: cfg.config,
+            home,
             runDir: join(home, 'orchestrator'),
             cwd: process.cwd(),
           }),

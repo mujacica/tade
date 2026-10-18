@@ -52,6 +52,7 @@ describe('the tools the orchestrator has', () => {
   it('is exactly this set', () => {
     // Adding or removing a verb changes what Tade can be asked to do.
     expect(toolSurface().map((t) => t.name)).toEqual([
+      'tade_agent_account',
       'tade_agent_harness',
       'tade_agent_model',
       'tade_agent_rename',

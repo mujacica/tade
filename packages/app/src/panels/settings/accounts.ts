@@ -37,6 +37,8 @@ export interface AccountShown {
   forNewAgents: boolean
   /** The projects whose own answer it is, whatever the machine's is. */
   projects?: readonly string[]
+  /** Whether the orchestrator runs as it; null or absent where it talks through another harness. */
+  forOrchestrator?: boolean | null
   canSignIn: boolean
   /**
    * What would put its harness on this machine, where it is not here: the
@@ -82,6 +84,16 @@ export function accountActions(accounts: readonly AccountShown[]): AccountAction
         actions.push({
           id: id('use', harness, at),
           label: 'Use for new agents',
+          harness,
+          account: at,
+        })
+      }
+      // The way off a plan the orchestrator has used up: it cannot be asked to
+      // move itself with no turns left. Written as `orchestrator.account`.
+      if (one.forOrchestrator === false) {
+        actions.push({
+          id: id('orchestrator', harness, at),
+          label: 'Use for the orchestrator',
           harness,
           account: at,
         })

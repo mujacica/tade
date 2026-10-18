@@ -4,6 +4,7 @@ import {
   type InstallCommand,
   type InstallersHere,
   installWith,
+  orchestratorAccount,
   type PlanChoice,
   type PlanSource,
   type PlanWindow,
@@ -38,6 +39,12 @@ export interface AccountView {
   forNewAgents: boolean
   /** The projects whose own answer it is (`accountFor`), by name. */
   projects: string[]
+  /**
+   * Whether the orchestrator runs as it (`orchestratorAccount`): null where
+   * the orchestrator talks through another harness, so none of its sign-ins
+   * is one it could move to.
+   */
+  forOrchestrator: boolean | null
   /** Whether it has a sign-in of its own to run. */
   canSignIn: boolean
   /**
@@ -254,6 +261,8 @@ export async function listAccounts(
       agents: opts.agentsOn?.(adapter) ?? 0,
       forNewAgents: uses.newAgents,
       projects: uses.projects,
+      forOrchestrator:
+        config.orchestrator.harness === harness ? orchestratorAccount(config) === name : null,
       canSignIn: adapter.signIn() !== null,
       provider: adapter.provider,
       install: program && !programHere(program, env) ? installWith(program.install, machine) : null,

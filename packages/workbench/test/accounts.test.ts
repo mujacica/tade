@@ -292,6 +292,28 @@ describe('accounts', () => {
     expect(existsSync(join(home, 'accounts', 'work'))).toBe(false)
     await expect(client.removeAccount('work')).rejects.toThrow(/no account called work/)
   })
+
+  it('says which sign-in the orchestrator runs as, and keeps that one until it is moved', async () => {
+    await client.addAccount({ name: 'work', harness: 'claude-code' })
+    client.config = ConfigSchema.parse({
+      ...config(),
+      orchestrator: { harness: 'claude-code', account: 'work' },
+    })
+    const all = await client.accounts()
+    expect(
+      all
+        .filter((one) => one.harness === 'claude-code')
+        .map((one) => [one.name, one.forOrchestrator]),
+    ).toEqual([
+      [null, false],
+      ['work', true],
+    ])
+    // Not a harness it talks through, so none of its sign-ins is one to move to.
+    expect(all.find((one) => one.harness === 'pi')?.forOrchestrator).toBeNull()
+    // Its conversation is in that folder, in another process.
+    await expect(client.removeAccount('work')).rejects.toThrow(/the orchestrator runs as work/)
+    expect(existsSync(join(home, 'accounts', 'work'))).toBe(true)
+  })
 })
 
 describe('a harness that is not installed, on the Accounts page', () => {

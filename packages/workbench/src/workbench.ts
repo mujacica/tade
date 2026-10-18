@@ -26,6 +26,7 @@ import {
   type Note,
   noSpend,
   OWN_SIGN_IN,
+  orchestratorAccount,
   type Plan,
   type PlanBusy,
   type PlanChoice,
@@ -1970,6 +1971,13 @@ export class Workbench {
     if (busy.length > 0) {
       throw new Error(
         `${busy.map((run) => run.task).join(', ')} ${busy.length === 1 ? 'runs' : 'run'} as ${name}: stop ${busy.length === 1 ? 'it' : 'them'} first`,
+      )
+    }
+    // The orchestrator is in another process, with its conversation in this
+    // account's folder: moved first, so nothing is taken from under it.
+    if (orchestratorAccount(this.config) === name) {
+      throw new Error(
+        `the orchestrator runs as ${name}: move it to another account first, in Settings › Orchestrator`,
       )
     }
     if (account.kind === 'subscription') await adapter.signOut().catch(() => {})

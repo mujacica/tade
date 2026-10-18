@@ -137,7 +137,7 @@ export function orchestratorTools(
 
   tool(
     'tade_limits',
-    'Where every sign-in stands against its plan: each account of each harness, how much of each rolling window it has used, what is left of it and when it starts over \u2014 with the ones at their limit named, and what else there is to run as. Use it when somebody asks whether they are about to run out, when an agent has stopped or slowed and a plan could be the reason, and before telling somebody they can keep working. Each says whether new agents run as it, and which projects name it as theirs. Say what you would move to \u2014 another account of the same harness, another harness, or an API key rather than a subscription \u2014 and move new agents to another account only when the person asked for it in their own words, with tade_setting_change on that harness\u2019s account row (`workers.accounts.<harness>`, or `projects.<name>.accounts.<harness>` for one project): an agent already working stays where it is, and adding, removing or signing in an account is never yours. A sign-in that reports nothing has not reported nothing used: the harnesses that only hear about a plan while one of their agents is working say so in their own words, and that reads as cannot tell, never as zero. None of it is money \u2014 a subscription has no price per turn \u2014 so never add a plan to what anything cost.',
+    'Where every sign-in stands against its plan: each account of each harness, how much of each rolling window it has used, what is left of it and when it starts over \u2014 with the ones at their limit named, and what else there is to run as. Use it when somebody asks whether they are about to run out, when an agent has stopped or slowed and a plan could be the reason, and before telling somebody they can keep working. Each says whether new agents run as it, and which projects name it as theirs. Say what you would move to \u2014 another account of the same harness, another harness, or an API key rather than a subscription \u2014 and move new agents to another account only when the person asked for it in their own words, with tade_setting_change on that harness\u2019s account row (`workers.accounts.<harness>`, or `projects.<name>.accounts.<harness>` for one project): an agent already working stays where it is unless they ask for it to be moved, which is tade_agent_account, and which one you yourself run as is `orchestrator.account`, the same way. Adding, removing or signing in an account is never yours. A sign-in that reports nothing has not reported nothing used: the harnesses that only hear about a plan while one of their agents is working say so in their own words, and that reads as cannot tell, never as zero. None of it is money \u2014 a subscription has no price per turn \u2014 so never add a plan to what anything cost.',
     object({}),
     // From the window: only the process holding the harnesses knows what each
     // last said, and nothing asks anybody on the way.
@@ -370,6 +370,29 @@ export function orchestratorTools(
         harness: String(p.harness),
       })) as { harness: string; restarted: boolean }
       return `${task} runs in ${done.harness}${done.restarted ? ', started again there' : ' from its next start'}.`
+    },
+  )
+
+  tool(
+    'tade_agent_account',
+    'Run one agent as another account of its harness — "move refunds to the work account", "put agent-1 back on my own sign-in" — so it goes on where a plan has run out. Only when the human asks. Its conversation goes with it where its harness can carry it, and a running agent is started again there. That agent alone: which account new agents run as is a setting (`workers.accounts.<harness>`, or `projects.<name>.accounts.<harness>` for one project), and which one you yourself run as is `orchestrator.account` — each changed with tade_setting_change, on their words naming it. tade_limits says which accounts there are and how much of each plan is left.',
+    object(
+      {
+        task: string('task id, like checkout/refunds'),
+        account: string('the account\'s name, or "default" for its harness\'s own sign-in'),
+      },
+      ['task', 'account'],
+    ),
+    async (p) => {
+      const task = String(p.task)
+      const worktree = await worktreeOf(task)
+      if (!worktree) throw new Error(`no such task: ${task}`)
+      const done = (await rpc('worker/account', {
+        task,
+        worktree,
+        account: String(p.account),
+      })) as { account: string | null; restarted: boolean; carried: boolean; why?: string }
+      return `${task} runs as ${done.account ?? 'its own sign-in'}${done.carried ? ', its conversation with it' : ''}${done.restarted ? ', started again there' : ' from its next start'}${done.why ? ` — ${done.why}` : ''}. Only it: new agents keep the account their project names, which is a setting.`
     },
   )
 

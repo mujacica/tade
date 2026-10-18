@@ -302,6 +302,14 @@ const NEVER: readonly (readonly [string, string])[] = [
  * which is exactly the act they asked to be able to ask for. A running agent
  * is never moved by it (`accountFor`).
  *
+ * **And the orchestrator's own (`orchestrator.account`), `asked` the same
+ * way**, on the person's word of 2026-10-18 that it "should be able to control
+ * both" — a running agent's account (`tade_agent_account`) and its own. The
+ * same bound holds: only an account of its harness that they added. Named only
+ * as "your account" (`OWNED_ROWS`), never by "account" alone, which is every
+ * agent's row's word too. Moving it starts it again on that sign-in once the
+ * turn that asked is over (`moveAccount`), its conversation carried along.
+ *
  * **Two of the away view's, and only the two that hand a device nothing.**
  * `install` puts the static page on a device already paired — the same bytes
  * for every device, no projection, no way to read one without a session — and
@@ -659,6 +667,9 @@ const OWNED_ROWS: Readonly<Record<string, readonly string[]>> = {
   'orchestrator.model': THE_ORCHESTRATOR,
   'orchestrator.thinking': THE_ORCHESTRATOR,
   'orchestrator.harness': THE_ORCHESTRATOR,
+  // "Account" alone is every account row's word, and "move refunds to the
+  // work account" is about an agent: only "your account" names this one.
+  'orchestrator.account': THE_ORCHESTRATOR,
 }
 
 /**

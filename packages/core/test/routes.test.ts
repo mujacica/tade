@@ -148,10 +148,13 @@ describe('clearedByHarness', () => {
   })
 
   it("clears the orchestrator's own, which are chosen the same way", () => {
+    // Its account too: an account belongs to one harness, and one left naming
+    // another harness's would be a config that does not load.
     expect(clearedByHarness('orchestrator.harness')).toEqual([
       'orchestrator.provider',
       'orchestrator.model',
       'orchestrator.thinking',
+      'orchestrator.account',
     ])
   })
 

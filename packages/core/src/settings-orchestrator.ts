@@ -1,6 +1,8 @@
 import type { Config, ThinkingLevel } from './config.ts'
 import { HARNESS_CHOICES } from './model.ts'
-import type { SettingGroup } from './settings.ts'
+import { orchestratorAccount } from './project.ts'
+import type { Setting, SettingGroup } from './settings.ts'
+import { accountsAbout } from './settings-models.ts'
 
 // The one you talk to: what it runs in, on and at, and when Tade makes its
 // conversation shorter. Its own file because `settings.ts` is at its budget,
@@ -49,6 +51,7 @@ export function orchestratorGroup(config: Config, levels: readonly ThinkingLevel
         type: { kind: 'choice', options: [...levels] },
         live: true,
       },
+      ...accountRow(config),
       {
         path: 'orchestrator.reflect',
         title: 'Look back at finished tasks',
@@ -72,4 +75,36 @@ export function orchestratorGroup(config: Config, levels: readonly ThinkingLevel
       },
     ],
   }
+}
+
+/**
+ * Which of its harness's sign-ins it runs as, where somebody has added one
+ * beside the harness's own: the way off a plan that has run out, since an
+ * orchestrator out of turns cannot be asked to move itself. Choosing one
+ * starts it again there at once, its conversation carried with it.
+ */
+function accountRow(config: Config): Setting[] {
+  const harness = HARNESS_CHOICES.find((one) => one.id === config.orchestrator.harness)
+  const names = Object.keys(config.accounts).filter(
+    (name) => config.accounts[name]?.harness === config.orchestrator.harness,
+  )
+  if (!harness || names.length === 0) return []
+  const own = `${harness.title}'s own sign-in`
+  return [
+    {
+      path: 'orchestrator.account',
+      title: 'Account',
+      means: `which of your ${harness.title} sign-ins you talk through; it starts again on it at once, its conversation with it`,
+      value: orchestratorAccount(config) ?? '',
+      fallback: own,
+      type: {
+        kind: 'choice',
+        options: ['', ...names],
+        list: true,
+        about: accountsAbout(harness.title, names, { '': own }),
+      },
+      live: true,
+      keywords: [`${harness.title} sign-in`, `${harness.title} subscription`, 'plan', 'quota'],
+    },
+  ]
 }

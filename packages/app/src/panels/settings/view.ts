@@ -350,8 +350,13 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
         )
         // Which projects run as it whatever the machine says: remembered per
         // project (`projects.<name>.accounts`), and set on its Projects page.
-        if (one.projects && one.projects.length > 0) {
-          const said = `new agents in ${one.projects.join(', ')}`
+        // And the orchestrator, where there is another sign-in it could be on.
+        const whose = [
+          one.projects && one.projects.length > 0 ? `new agents in ${one.projects.join(', ')}` : '',
+          one.forOrchestrator && mine.length > 1 ? 'the orchestrator' : '',
+        ].filter((part) => part !== '')
+        if (whose.length > 0) {
+          const said = whose.join(' · ')
           for (const line of wrapTo(said, form - named - 5, 2)) {
             body.push(
               new Row(form, skin)

@@ -76,6 +76,12 @@ export interface SettingsDeps {
   lookAtWhatIsInstalled(): void
   /** Tell the orchestrator how hard to think; the reason back, if it could not be told. */
   tellThinking(level: ThinkingLevel): Promise<string | null>
+  /**
+   * Start the orchestrator again on the account the config now names, its
+   * conversation carried there: at once, or once the turn it is on is over
+   * where that turn is what asked for it.
+   */
+  moveThinker(afterTurn: boolean): void
   /** An extension has been handed the config again: its setup is read afresh. */
   setupChanged(): void
   /** Muted now: cut off what is being said and drop what was queued behind it. */
@@ -222,6 +228,14 @@ export class Settings implements Subject {
     }
     if (choice.startsWith('copy:')) {
       await this.copied(panel, choice.slice('copy:'.length))
+      return
+    }
+    // Which account the orchestrator runs as is a setting, written by the
+    // door every setting is, so the page's button and the row are one act.
+    if (choice.startsWith('account:orchestrator:')) {
+      const [, , , name = ''] = choice.split(':')
+      await this.save(panel, OWN_ACCOUNT, name)
+      this.deps.loadAccounts()
       return
     }
     if (choice.startsWith('account:')) {
@@ -491,14 +505,19 @@ export class Settings implements Subject {
    * What a change at `path` needs once the config that has it is used, beyond
    * what `use` reaches — whoever made it, this page (`write`) or a terminal
    * (`taken`). Why the orchestrator could not be told, where it could not.
+   * `afterTurn` is the orchestrator having made it from inside its own turn.
    */
   private async followed(
     path: string,
     config: Config,
     changedHands: boolean,
+    afterTurn = false,
   ): Promise<string | null> {
     // Which account new agents run as is drawn on the Accounts page too.
     if (ACCOUNT_ROW.test(path)) this.deps.loadAccounts()
+    // The account it runs as is the folder its process was started with, so
+    // it is started again there: telling the one running changes nothing.
+    if (path === OWN_ACCOUNT) this.deps.moveThinker(afterTurn)
     // A harness that just changed hands has never been asked what it runs,
     // and its model setting is the next thing somebody opens. Drawn when it
     // answers, because a list opened before then says the harness has none,
@@ -608,7 +627,12 @@ export class Settings implements Subject {
       // `clearable` is already the answer to "did a harness change hands": what
       // choosing one clears is nothing for anything else, and nothing for the
       // harness it already was.
-      const trouble = await this.followed(path, loaded.config, clearable.length > 0)
+      const trouble = await this.followed(
+        path,
+        loaded.config,
+        clearable.length > 0,
+        by === 'orchestrator',
+      )
       // A model is chosen per harness, so choosing a harness puts the model
       // back to whatever that harness decides — said, because a choice that
       // disappears without a word reads as a bug.
@@ -623,7 +647,9 @@ export class Settings implements Subject {
           ? `Saved. ${setting.title} applies when Tade next starts.${reset}`
           : trouble
             ? `Saved. It applies when the orchestrator next starts: ${trouble}`
-            : `Saved. It applies now.${reset}${this.aboutKey(path, value)}${takingSays(taking)}`
+            : path === OWN_ACCOUNT
+              ? `Saved. The orchestrator starts again as ${value || 'its own sign-in'}${by === 'orchestrator' ? ' once this turn is over' : ' now'}, its conversation with it.`
+              : `Saved. It applies now.${reset}${this.aboutKey(path, value)}${takingSays(taking)}`
       // Written down once it is true, with what it was: the config is one file
       // rewritten in place and nothing else remembers, so this line is what
       // makes a change somebody was not at the keyboard for undoable rather
@@ -749,6 +775,9 @@ const SWITCH = /^(?:extensions|mcp)(?:\.|$)/
 
 /** Which account a harness's new agents run as: the machine's, or one project's. */
 const ACCOUNT_ROW = /^(?:workers|projects\.[^.]+)\.accounts\.[^.]+$/
+
+/** Which account the orchestrator runs as: a row of its own, and a button on the Accounts page. */
+const OWN_ACCOUNT = 'orchestrator.account'
 
 /** A name as two writes of it compare: case, spaces and a final dot aside. */
 function named(name: string): string {

@@ -300,6 +300,16 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
       // restart* for that reason.
       talking: config.surfaces.web.enabled && config.surfaces.web.orchestrator,
       signal: quitting.signal,
+      // What starting it had to say — its conversation not carried to the
+      // account it runs as, a model it could not place — written down where
+      // Tade's own trouble goes, rather than nowhere.
+      onWarning: (message) => {
+        void client.log.append({
+          type: 'warning',
+          task: null,
+          detail: { message: `the orchestrator: ${message}` },
+        })
+      },
       extensions: orchestratorExtensions(extensions, home, config.orchestrator.harness),
       // What its conversation was told before, read for that alone: it may be
       // older than the briefing's two thousand lines.
@@ -320,11 +330,11 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
     }
   }
 
-  const startThinker = async (holding: Holding) => {
+  const startThinker = async (holding: Holding, after?: Orchestrator) => {
     const options = await thinkerOptions()
     const config = options.config
     return (
-      Orchestrator.start(options)
+      Orchestrator.start({ ...options, ...(after ? { after } : {}) })
         .then(async (started) => {
           orchestrator = started
           holding.attachThinker({
@@ -380,9 +390,12 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
     const holding = held?.holding
     if (!holding) return
     await starting
+    // Stopped first, so what it said last is in its conversation before that
+    // is carried to another account, where one was chosen (`after`).
+    const before = orchestrator ?? undefined
     await stopOrchestrator()
     orchestrator = null
-    starting = startThinker(holding)
+    starting = startThinker(holding, before)
     await starting
   }
 

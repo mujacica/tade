@@ -8,6 +8,7 @@ import {
   inboxWaiting,
   type LaneId,
   LOCAL,
+  OWN_SIGN_IN,
   type Plan,
   planReport,
   type When,
@@ -413,6 +414,14 @@ export class ToolHost {
           task: String(p.task),
           worktree: String(p.worktree),
           harness: String(p.harness),
+        }),
+      // One agent, its conversation carried where its harness can: which
+      // account new agents run as is a setting, changed with `config/change`.
+      'worker/account': (p) =>
+        tade.setAgentAccount({
+          task: String(p.task),
+          worktree: String(p.worktree),
+          account: p.account && p.account !== OWN_SIGN_IN ? String(p.account) : null,
         }),
       'orchestrator/model': (p) => {
         if (!opts.orchestratorModel)

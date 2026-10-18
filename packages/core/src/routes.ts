@@ -75,7 +75,13 @@ export function routeIn(
  */
 export function clearedByHarness(path: string): string[] {
   if (path === 'orchestrator.harness') {
-    return ['orchestrator.provider', 'orchestrator.model', 'orchestrator.thinking']
+    // An account belongs to one harness, so it goes with the model.
+    return [
+      'orchestrator.provider',
+      'orchestrator.model',
+      'orchestrator.thinking',
+      'orchestrator.account',
+    ]
   }
   const route = /^workers\.routes\.([^.]+)\.harness$/.exec(path)
   if (!route?.[1]) return []

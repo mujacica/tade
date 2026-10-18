@@ -59,7 +59,7 @@ import { talkingThrough } from './wire/web-asking.ts'
 // every member with nothing (`screenless`), and the work goes on the same.
 
 /** The Settings page's half: what the accounts, models, sounds and clipboard of a screen answer. */
-export type SettingsFace = Omit<SettingsDeps, 'tellThinking' | 'away'>
+export type SettingsFace = Omit<SettingsDeps, 'tellThinking' | 'moveThinker' | 'away'>
 /** An agent's menu and the line you type on: what a press in front of somebody reaches. */
 export type AgentsFace = Omit<AgentsDeps, 'useConfig' | 'changeQueue'>
 /** Where the window was, written down as a project opens or closes. */
@@ -342,6 +342,7 @@ export class Heart {
     this.settings = new Settings(this.wire, {
       ...face.settings,
       tellThinking: (level) => this.orchestrator.tellThinking(level),
+      moveThinker: (afterTurn) => this.orchestrator.moveAccount(afterTurn),
       silence: () => {
         this.orchestrator.stopSpeaking()
         face.settings.silence()
