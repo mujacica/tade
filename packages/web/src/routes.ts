@@ -169,8 +169,9 @@ export interface Route {
   /**
    * What this route is in connecting a source (REMOTE-TADE §6.4,
    * `connected.ts`), where it is one of `CONNECTS`: the guided `page`, one
-   * `press` on it — each answered on this machine alone and with no session,
-   * because reaching that door is what a session would prove — or where the
+   * `press` on it — each answered on this machine's door with no session,
+   * because reaching that door is what a session would prove, and to the
+   * person's own device on any other under its session (`theirs`) — or where the
    * source sends the browser `back`, answered on any door and only for the
    * one-time word a press minted.
    */
@@ -545,9 +546,11 @@ export const SETTINGS: readonly Route[] = Object.keys(CHANGES).map((name) => ({
  * (`out_of_scope`) to every session that is not an owner, and the `404` of a
  * path nobody built on every other door.
  *
- * **But the person's own device** (`theirs`, `theirsOf`), on the ones that
- * say so: the carry, the attach line, the catch-up, what this machine is, a
- * document, a tool that reads, presence and connecting a source, on any door.
+ * **But the person's own device** (`theirs`, `theirsOf`), on every one of
+ * them, on any door: presence, the carry, the attach line, the catch-up,
+ * sharing notes, where each project is, what this machine is, a document, a
+ * tool that reads, its public name's records, taking work, opening a project
+ * and connecting a source.
  * The person decided it — their phone is the screen they can pull the plug
  * on, so it may do what their SSH key may — and it is read off the record at
  * every request, so revoking it or unticking one box ends it at the next.
@@ -595,6 +598,7 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
+    theirs: true,
   },
   // Where each project is checked out here and the branches its work is on
   // (`repositories.ts`): a path on this machine, which no phone reads, for the
@@ -606,6 +610,7 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
+    theirs: true,
   },
   // What this machine is, for another of the person's that links to it
   // (`machine.ts`): its version, its public name's health, its own problems,
@@ -649,17 +654,34 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
+    theirs: true,
   },
   // Work another machine of the person's hands this one (`taken.ts`): made
   // queued work in one of its projects, which the window here starts by its
   // own rule. The one route that makes work — what `ssh` here and `tade run
   // start` in that shell already allow the same key.
-  { method: 'POST', path: '/api/take', name: 'take', needs: 'read', mutates: true, here: true },
+  {
+    method: 'POST',
+    path: '/api/take',
+    name: 'take',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
   // A project another machine of the person's is moving here (`opened.ts`):
   // cloned with this machine's own credentials where it is not checked out
   // yet, and opened through the window's own door — what `ssh` here and
   // `git clone` already allow the same key.
-  { method: 'POST', path: '/api/open', name: 'open', needs: 'read', mutates: true, here: true },
+  {
+    method: 'POST',
+    path: '/api/open',
+    name: 'open',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
   // A source's guided page as it stands, and one press on it (`connected.ts`):
   // for another machine of the person's whose browser cannot reach this one's
   // own `/connect`, because its link ends in a socket no browser opens. What
@@ -684,7 +706,10 @@ export const OWNED: readonly Route[] = [
  *
  * A table of its own because none of them is anything a device asks: the page
  * and its presses are this machine's alone (`here`) and ask no session, since
- * turning a source on is `never`-tier and reaching that door is the person;
+ * turning a source on is `never`-tier and reaching that door is the person —
+ * **but the person's own device** (`theirs`), which is asked for them on any
+ * other door under its session, as every other act of its is: its cookie and
+ * token, an exact `Origin`, a trusted origin and the passkey;
  * the two callbacks are on whichever door the source was told to send the
  * browser to — the public name, or this machine's own where it has none — and
  * are answered only for a one-time word a press here minted, for that host.
@@ -703,6 +728,7 @@ export const CONNECTS: readonly Route[] = [
     needs: 'read',
     mutates: false,
     here: true,
+    theirs: true,
     connects: 'page',
   },
   // Each source's presses and callbacks, as its flow says (`CONNECT_FLOWS`):
@@ -717,6 +743,7 @@ export const CONNECTS: readonly Route[] = [
         needs: 'read',
         mutates: true,
         here: true,
+        theirs: true,
         connects: 'press',
         source,
         press,

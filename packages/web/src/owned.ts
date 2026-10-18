@@ -28,9 +28,9 @@ import { type ToolReadAnswer, toolHere } from './tool-read.ts'
 // work it hands this machine to start here (`taken.ts`), and
 // a project it is moving here, opened (`opened.ts`). One door in `server.ts` for all of them (`OWNED_DOOR`),
 // because each is the SSH key's word and nothing an ordinary phone's session
-// is ever answered — but the person's own phone, on the ones `Route.theirs`
-// marks (`ownsOrTheirs` in each handler), because they decided it may do what
-// they can.
+// is ever answered — but the person's own phone, on every one of them
+// (`Route.theirs`, `ownsOrTheirs` in each handler), because they decided it
+// may do what they can.
 //
 // And through the same door, one word **any** device may say, because it is
 // the same kind of word as the first — a device's own about the person holding

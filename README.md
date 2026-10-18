@@ -364,7 +364,8 @@ now — the look still reads the source under the grant, so a delivery can only 
 sooner — and that watch's poll slows to hourly while deliveries keep arriving.
 
 **Connecting GitHub is a guided page**, `http://localhost:<port>/connect` on the machine itself (or
-through `ssh -L`; from your Mac, Settings › Remotes does it for the server) — `tade web connect`
+through `ssh -L`; from your Mac, Settings › Remotes does it for the server; your own phone, paired
+with full access, opens `/connect` at the server's public name under its passkey) — `tade web connect`
 prints where it is, and Settings › Intake says so under its switch and opens it. It makes a GitHub App
 in your account from a manifest — read-only, the webhook built in where there is a public name —
 says what it will ask GitHub for and why before you press, and ticks off making it, installing it on

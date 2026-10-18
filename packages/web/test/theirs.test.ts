@@ -8,39 +8,61 @@ import { SCOPES, type Surface } from '../src/surface.ts'
 import { ask, closeAll, pair, type Running, start } from './harness.ts'
 
 // The person's own phone asks what only the SSH key's session could
-// (`Route.theirs`): the carry, an attach line, the catch-up, what this
-// machine is, a document, a tool that reads, presence and connecting a
-// source. The person decided it — their phone is the screen they can pull the
-// plug on — so a device with full access that is not a machine link
-// (`theirsOf`) is answered these on any door, read off the record at the
-// request. Every other device keeps exactly what it had: on this machine's
-// door refused, anywhere else the `404` of a path nobody built.
+// (`Route.theirs`): every route of the owner's, presence, and the guided
+// pages that connect a source with their presses. The person decided it —
+// their phone is the screen they can pull the plug on — so a device with full
+// access that is not a machine link (`theirsOf`) is answered these on any
+// door, read off the record at the request. Every other device keeps exactly
+// what it had: on this machine's door refused (and the connect pages there
+// sessionless, as they were), anywhere else the `404` of a path nobody built.
 
 afterEach(closeAll)
 
-/** The routes the person's own device is answered on any door, by name. */
+/** The routes the person's own device is answered on any door that are asked with a body, by name. */
 const THEIRS = [
   'presence',
   'carry',
   'attach',
   'since',
+  'share notes',
+  'repositories',
   'machine',
   'document',
   'tool',
+  'records',
+  'take',
+  'open',
   'connect',
 ] as const
 
+/** The connect page and its presses: each source's, as its flow says. */
+const PRESSES = CONNECTS.filter((one) => one.connects === 'press')
+const CONNECT_PAGE = CONNECTS.find((one) => one.connects === 'page') as Route
+
 const routeNamed = (name: string): Route => {
-  const found = [...ROUTES, ...OWNED].find((one) => one.name === name)
+  const found = [...ROUTES, ...OWNED, ...CONNECTS].find((one) => one.name === name)
   if (found === undefined) throw new Error(`no route named ${name}`)
   return found
 }
 
 describe('which routes the person’s own device reaches from any door', () => {
-  it('is these eight, named here, and none of the rest of the owner’s', () => {
+  it('is every route only this machine’s door answered: the owner’s, presence, and the connect page and presses', () => {
     const marked = [...ROUTES, ...OWNED, ...CONNECTS].filter((one) => one.theirs === true)
-    expect(marked.map((one) => one.name).sort()).toEqual([...THEIRS].sort())
+    expect(marked.map((one) => one.name).sort()).toEqual(
+      [...THEIRS, 'connect page', ...PRESSES.map((one) => one.name)].sort(),
+    )
     for (const route of marked) expect(route.here, route.name).toBe(true)
+    // Nothing that is this machine's alone is left out of it.
+    const here = [...ROUTES, ...OWNED, ...CONNECTS].filter((one) => one.here === true)
+    expect(here.filter((one) => one.theirs !== true).map((one) => one.name)).toEqual([])
+    expect(PRESSES.length).toBeGreaterThan(0)
+    expect(PRESSES.map((one) => one.name)).toContain('connect github make')
+  })
+
+  it('is never where a source sends the browser back, which no session asks', () => {
+    for (const route of CONNECTS.filter((one) => one.connects === 'back')) {
+      expect(route.theirs, route.name).toBeUndefined()
+    }
   })
 })
 
@@ -94,20 +116,21 @@ describe('the door, for a route that is the SSH key’s', () => {
     now: NOW,
     ...over,
   })
-  const here = [...ROUTES, ...OWNED].filter((one) => one.here === true)
+  const here = [...ROUTES, ...OWNED, ...CONNECTS].filter((one) => one.here === true)
+  const ALL = [...THEIRS, 'connect page', ...PRESSES.map((one) => one.name)]
 
-  it('lets the person’s own device through from the public name, on the eight alone', () => {
+  it('lets the person’s own device through from the public name, on every one of them', () => {
     const answered: string[] = []
     for (const route of here) {
       const verdict = allowed(through(), route, guarding())
       if (verdict.ok) answered.push(route.name)
-      else expect(verdict.refusal.error, route.name).toBe('no_such')
+      else expect.fail(`${route.name}: ${verdict.why}`)
     }
-    expect(answered.sort()).toEqual([...THEIRS].sort())
+    expect(answered.sort()).toEqual([...ALL].sort())
   })
 
   it('is the same 404 as ever for every other device, and for nobody at all', () => {
-    for (const name of THEIRS) {
+    for (const name of ALL) {
       const route = routeNamed(name)
       for (const [who, asked] of [
         ['an ordinary device', session({ theirs: false })],
@@ -121,7 +144,7 @@ describe('the door, for a route that is the SSH key’s', () => {
   })
 
   it('asks what acting asks: a trusted origin, and the passkey from the public name', () => {
-    for (const name of THEIRS) {
+    for (const name of ALL) {
       const route = routeNamed(name)
       const stale = allowed(
         through(),
@@ -151,12 +174,97 @@ describe('the door, for a route that is the SSH key’s', () => {
   })
 
   it('still needs the session’s own token, as every mutation does', () => {
-    const verdict = allowed(through({ token: 'y'.repeat(43) }), routeNamed('carry'), guarding())
-    expect(!verdict.ok && verdict.refusal.error).toBe('bad_origin')
+    for (const route of [routeNamed('carry'), routeNamed('take'), ...PRESSES]) {
+      const verdict = allowed(through({ token: 'y'.repeat(43) }), route, guarding())
+      expect(!verdict.ok && verdict.refusal.error, route.name).toBe('bad_origin')
+      const none = allowed(through({ token: null }), route, guarding())
+      expect(!none.ok && none.refusal.error, route.name).toBe('bad_origin')
+    }
+  })
+
+  it('asks a press off this machine’s door every layer a phone’s act is asked', () => {
+    for (const route of PRESSES) {
+      for (const [what, asked] of [
+        ['another origin', through({ origin: 'https://evil.example' })],
+        ['no origin', through({ origin: null })],
+        ['a form', through({ contentType: 'application/x-www-form-urlencoded' })],
+        ['a cross-site fetch', through({ site: 'cross-site' })],
+      ] as const) {
+        const verdict = allowed(asked, route, guarding())
+        expect(!verdict.ok && verdict.refusal.error, `${route.name}, ${what}`).toBe('bad_origin')
+      }
+      const someoneElse = allowed(
+        through(),
+        route,
+        guarding({ session: session({ host: 'other.example.com' }) }),
+      )
+      expect(!someoneElse.ok && someoneElse.refusal.error, route.name).toBe('no_session')
+    }
+  })
+
+  // A typed address or a link from the away view's page: a navigation, with no
+  // `Origin`, and through Caddy's socket in the clear — so `https` by the name
+  // the config trusts, as every read is.
+  const opened = (over: Partial<Asking> = {}) =>
+    through({
+      method: 'GET',
+      path: '/connect',
+      origin: null,
+      site: 'none',
+      contentType: null,
+      token: null,
+      tls: false,
+      ...over,
+    })
+
+  it('draws the connect page for its session, typed or followed, and asks the passkey for it', () => {
+    expect(allowed(opened(), CONNECT_PAGE, guarding()).ok).toBe(true)
+    expect(allowed(opened({ site: 'same-origin' }), CONNECT_PAGE, guarding()).ok).toBe(true)
+    const stale = allowed(
+      opened(),
+      CONNECT_PAGE,
+      guarding({ session: session({ proved: NOW - 13 * HOUR }) }),
+    )
+    expect(!stale.ok && stale.refusal.error).toBe('unproven')
+    // A network name the config does not trust is not one a proxy ends TLS for.
+    const untrusted = allowed(
+      opened({ host: '192.168.1.10:7654' }),
+      CONNECT_PAGE,
+      guarding({
+        surface: { ...PUBLIC, bind: 'lan', publicName: null, trustedHosts: [] },
+        bound: ['192.168.1.10'],
+        session: session({ host: '192.168.1.10:7654' }),
+      }),
+    )
+    expect(!untrusted.ok && untrusted.refusal.error).toBe('locked')
+    for (const [who, asked] of [
+      ['an ordinary device', session({ theirs: false })],
+      ['no session', null],
+    ] as const) {
+      const verdict = allowed(opened(), CONNECT_PAGE, guarding({ session: asked }))
+      expect(!verdict.ok && verdict.refusal.error, who).toBe('no_such')
+    }
+  })
+
+  it('keeps this machine’s own door sessionless, as it was', () => {
+    const door = {
+      host: 'localhost:7654',
+      origin: 'http://localhost:7654',
+      tls: false,
+      listener: 'loopback' as const,
+    }
+    for (const route of [CONNECT_PAGE, ...PRESSES]) {
+      const verdict = allowed(
+        through({ ...door, token: null, cookie: null }),
+        route,
+        guarding({ session: null }),
+      )
+      expect(verdict.ok, route.name).toBe(true)
+    }
   })
 })
 
-/** A machine whose window wired every one of the eight, each recording that it was asked. */
+/** A machine whose window wired every one of them, each recording that it was asked. */
 async function wired(): Promise<{ one: Running; asked: string[] }> {
   const asked: string[] = []
   const heard =
@@ -174,10 +282,15 @@ async function wired(): Promise<{ one: Running; asked: string[] }> {
         return { command: `tmux attach -t ${task}` }
       },
       since: heard('since'),
+      notes: heard('share notes'),
+      repositories: heard('repositories'),
       owned: {
         machine: heard('machine'),
         document: heard('document'),
         tool: heard('tool'),
+        records: heard('records'),
+        taking: heard('take'),
+        opening: heard('open'),
         // Never reached: its body is read before anything of it is.
         carrying: {} as never,
       },
@@ -187,7 +300,7 @@ async function wired(): Promise<{ one: Running; asked: string[] }> {
   return { one, asked }
 }
 
-/** POST one of the eight at this machine's own door, as a paired device. */
+/** POST one of them at this machine's own door, as a paired device. */
 function post(one: Running, device: Awaited<ReturnType<typeof pair>>, path: string, body: unknown) {
   return ask(one, path, {
     method: 'POST',
@@ -213,7 +326,7 @@ describe('the person’s own device at this machine’s door', () => {
   // asks the record: a body that does not parse is `malformed` past it and
   // `out_of_scope` before it, so no window half is ever reached.
 
-  it('is answered each of the eight past the owner’s gate, where an ordinary device is refused', async () => {
+  it('is answered each of them past the owner’s gate, where an ordinary device is refused', async () => {
     const { one, asked } = await wired()
     const phone = await pair(one, { label: 'mine' })
     const other = await pair(one, { label: 'theirs too?' })

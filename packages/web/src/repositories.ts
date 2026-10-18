@@ -4,7 +4,7 @@ import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { type Reach, sees } from './reach.ts'
 import { readBody } from './request.ts'
-import { reachOf } from './surface.ts'
+import { ownsOrTheirs, reachOf } from './surface.ts'
 
 // Where this machine's projects are checked out, and the branches their work
 // is on: what another machine of the person's needs to fetch that work into a
@@ -18,8 +18,10 @@ import { reachOf } from './surface.ts'
 // the fetch it is for goes over it too — whoever holds the key can already
 // `ssh` in and `cd` there. A phone's session is refused it however much it was
 // granted (`out_of_scope`), and the public listener answers the `404` of a
-// path nobody built. Within what the device reads: a project the window took
-// back from it is left out.
+// path nobody built — **but the person's own** (`Route.theirs`, `theirsOf`),
+// on any door, because a path on their own machine is theirs to be told; off
+// this machine's door it is asked a trusted origin and the passkey. Within
+// what the device reads: a project the window took back from it is left out.
 //
 // **No credential in it.** What names each repository is `repositoryNamed`'s
 // answer — `github.com/owner/name` — never the remote URL, which may hold one.
@@ -78,7 +80,7 @@ export async function repositoriesHere(
   repositories: WebRepositories | undefined,
 ): Promise<{ body: RepositoriesAnswer } | { refusal: Refusal }> {
   if (repositories === undefined) return { refusal: refuse('no_such') }
-  if (!device.owner) return { refusal: refuse('out_of_scope') }
+  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   if (!z.strictObject({}).safeParse(got.body).success) return { refusal: refuse('malformed') }

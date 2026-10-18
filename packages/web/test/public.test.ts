@@ -6,7 +6,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PUBLIC_IS_THE_INTERNET, PUBLIC_IS_THE_INTERNET_SHORT } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
-import { allowDevice, grantDevice } from '../src/devices.ts'
+import type { WebConnecting } from '../src/connected.ts'
+import { allowDevice, appendDevice, grantDevice } from '../src/devices.ts'
 import { listenAll } from '../src/listeners.ts'
 import { GRANTS } from '../src/reach.ts'
 import { CSRF_HEADER } from '../src/request.ts'
@@ -199,7 +200,17 @@ describe('the person’s own phone at the public name', () => {
     const socket = join(await dirFor(), 'away.sock')
     const one = await start(
       { publicName: NAME, trustedHosts: [NAME] },
-      { publicSocket: socket, present: (device) => heard.push(device) },
+      {
+        publicSocket: socket,
+        present: (device) => heard.push(device),
+        owned: {
+          taking: async (take, device) => {
+            heard.push(`take ${take.name} ${device}`)
+            return { took: false, said: 'not here' }
+          },
+        },
+        connecting: connectingHalf(heard),
+      },
     )
     return { one, socket }
   }
@@ -238,14 +249,114 @@ describe('the person’s own phone at the public name', () => {
     expect(said.status, said.text).toBe(200)
     expect(heard).toEqual([mine.device])
     expect((await post(socket, other, '/api/presence', { ago: 0 })).status).toBe(404)
-    // A route of the owner's that is not one of the eight stays this machine's.
-    expect((await post(socket, mine, '/api/take', {})).status).toBe(404)
     // One box unticked, and it is an ordinary phone at the next request.
     await grantDevice(one.home, mine.device, GRANTS.slice(1), new Date())
     expect((await post(socket, mine, '/api/presence', { ago: 0 })).status).toBe(404)
     expect(heard).toEqual([mine.device])
   })
+
+  it('hands this machine work to start, where an ordinary phone is a 404', async () => {
+    const heard: string[] = []
+    const { one, socket } = await upWith(heard)
+    const mine = await phone(one, socket, '203.0.113.7')
+    const other = await phone(one, socket, '198.51.100.9')
+    await allowDevice(one.home, mine.device, SCOPES, new Date())
+    await grantDevice(one.home, mine.device, GRANTS, new Date())
+    const take = {
+      from: 'phone',
+      was: 'app/fix-it',
+      project: 'app',
+      name: 'fix-it',
+      intent: 'fix it',
+    }
+    const took = await post(socket, mine, '/api/take', take)
+    expect(took.status, took.text).toBe(200)
+    expect(heard).toEqual([`take fix-it ${mine.device}`])
+    expect((await post(socket, other, '/api/take', take)).status).toBe(404)
+    expect(heard).toHaveLength(1)
+  })
+
+  it('draws the connect page for its session and takes its presses, with its token', async () => {
+    const heard: string[] = []
+    const { one, socket } = await upWith(heard)
+    const mine = await phone(one, socket, '203.0.113.7')
+    const other = await phone(one, socket, '198.51.100.9')
+    await allowDevice(one.home, mine.device, SCOPES, new Date())
+    await grantDevice(one.home, mine.device, GRANTS, new Date())
+    // A typed address: a navigation, no `Origin`, Caddy's socket in the clear.
+    const open = (cookie: string | null) =>
+      viaCaddy(socket, '203.0.113.7', '/connect', {
+        headers: { 'sec-fetch-site': 'none', ...(cookie === null ? {} : { cookie }) },
+      })
+    const page = await open(mine.cookie)
+    expect(page.status, page.text).toBe(200)
+    // Its presses carry the session's token, which is in the page and nowhere else.
+    expect(page.text).toContain(`<meta name="tade-csrf" content="${mine.csrf}">`)
+    expect(page.text).toContain('data-press="/connect/github/make"')
+    for (const cookie of [other.cookie, null]) expect((await open(cookie)).status).toBe(404)
+
+    const made = await post(socket, mine, '/connect/github/make', {})
+    expect(made.status, made.text).toBe(200)
+    expect(heard).toEqual([`make https://${NAME}/connect/github/made`])
+    // With no token, it is any other mutation without one.
+    const bare = await viaCaddy(socket, '203.0.113.7', '/connect/github/make', {
+      method: 'POST',
+      headers: {
+        origin: `https://${NAME}`,
+        'sec-fetch-site': 'same-origin',
+        'content-type': 'application/json',
+        cookie: mine.cookie,
+      },
+      body: '{}',
+    })
+    expect(bare.status).toBe(403)
+    expect((await post(socket, other, '/connect/github/make', {})).status).toBe(404)
+    expect(heard).toHaveLength(1)
+
+    // Revoked, and it is nothing at the next request.
+    await appendDevice(one.home, {
+      kind: 'revoked',
+      device: mine.device,
+      at: new Date().toISOString(),
+      why: 'revoked at the machine',
+    })
+    expect((await open(mine.cookie)).status).toBe(404)
+    expect((await post(socket, mine, '/connect/github/make', {})).status).toBe(404)
+    expect(heard).toHaveLength(1)
+  })
 })
+
+/** A window's half of the connect pages that says which press made what. */
+function connectingHalf(heard: string[]): WebConnecting {
+  return {
+    page: async (source) => ({
+      page: {
+        source,
+        title: source,
+        steps: [
+          {
+            id: 'make',
+            title: 'Make it',
+            done: false,
+            said: 'one app',
+            press: { act: 'make', label: 'Make it' },
+          },
+        ],
+        writes: '',
+      },
+      asks: [],
+      events: [],
+    }),
+    form: (_source, want) => {
+      heard.push(`make ${want.made}`)
+      return { url: 'https://github.com/settings/apps/new', fields: { manifest: '{}' } }
+    },
+    installUrl: () => null,
+    made: async () => ({ problem: 'not in this test' }),
+    installed: async () => ({ problem: 'not in this test' }),
+    keep: async () => ({ problem: 'not in this test' }),
+  }
+}
 
 describe('the public listener never comes up alone', () => {
   it('stays down, and says why, where nothing listens on this machine', async () => {

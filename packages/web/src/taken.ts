@@ -5,7 +5,7 @@ import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { sees } from './reach.ts'
 import { readBody } from './request.ts'
-import { reachOf } from './surface.ts'
+import { ownsOrTheirs, reachOf } from './surface.ts'
 
 // Work another machine of the person's hands this one (REMOTE-TADE.md §9.2):
 // queued work it was asked to start here instead ("start on vps"), and a task
@@ -29,8 +29,11 @@ import { reachOf } from './surface.ts'
 // wider than what already was is who may use it: an owner session is the SSH
 // key (`owner.ts`), and whoever holds that key can already `ssh` here and start
 // the same work with `tade run start` in that shell. A phone's session is
-// refused it however much it was granted (`out_of_scope`); within an owner's
-// reach, a project the window took back from it is refused too. Nothing it
+// refused it however much it was granted (`out_of_scope`) — **but the
+// person's own** (`Route.theirs`, `theirsOf`), on any door, which may already
+// queue work from the away view, off this machine's door asked a trusted
+// origin and the passkey; within either's reach, a project the window took
+// back from it is refused too. Nothing it
 // makes is parked or held for anybody: the person pressed for it on their own
 // other machine, so it is theirs (`by: you`), and the line written here says
 // which machine and which device it came from.
@@ -133,7 +136,7 @@ export async function takeHere(
   taking: WebTaking | undefined,
 ): Promise<{ body: TakeAnswer } | { refusal: Refusal }> {
   if (taking === undefined) return { refusal: refuse('no_such') }
-  if (!device.owner) return { refusal: refuse('out_of_scope') }
+  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const asked = TakeSchema.safeParse(got.body)

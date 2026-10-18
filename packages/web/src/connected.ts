@@ -36,10 +36,14 @@ import { ownsOrTheirs } from './surface.ts'
 // loopback `Host`), which from anywhere else is a person over SSH — the reach
 // that can already edit `config.yaml` — and to an owner device asking the same
 // over its own door (`/api/connect`, the Mac's window for a remote), or the
-// person's own phone asking it from any door (`Route.theirs`), which already
-// turns a `never`-tier setting on from Settings. Nothing else a phone holds
-// gets to the pages or presses: the public listener refuses this machine's
-// names at the door, and a `lan` bind is public.
+// person's own phone (`Route.theirs`), which already turns a `never`-tier
+// setting on from Settings — `/api/connect`, and the pages and presses
+// themselves, from any door, under its session: its cookie and token, an exact
+// `Origin`, a trusted origin and the passkey (`allowed`), and the page it is
+// drawn carries that token for its presses. Nothing else a phone holds gets to
+// the pages or presses: the public listener refuses this machine's names at
+// the door, a `lan` bind is public, and a session that is not theirs is the
+// `404` of a path nobody built.
 //
 // **On this door no session is asked**, and that is the one new thing here.
 // What a session would prove — that this is the person — is what reaching this
@@ -232,7 +236,21 @@ export interface Connecting {
   publicName: string | null
   /** The request's `Host`, as the guard accepted it. */
   host: string
+  /** Whether that `Host` is one the config trusts, so a browser there is on `https`. */
+  secure: boolean
+  /**
+   * The session's token where the person's own device asked off this
+   * machine's door (`Route.theirs`), for the page to send with its presses;
+   * null on this machine's door, which asks no session.
+   */
+  csrf?: string | null
   now: number
+}
+
+/** Where a browser at this door is sent back to: the public name, else this door on its own scheme. */
+function homeOf(at: Pick<Connecting, 'publicName' | 'host' | 'secure'>): string {
+  if (at.publicName !== null) return `https://${at.publicName}`
+  return `${at.secure ? 'https' : 'http'}://${at.host}`
 }
 
 /** The page and its presses, and a source sending the browser back: one of `CONNECTS`. */
@@ -248,7 +266,7 @@ export async function carryConnect(
   if (connecting === undefined) return answer(refuse('no_such'))
   if (route.connects === 'page') {
     const pages = await Promise.all(CONNECT_SOURCES.map((one) => connecting.page(one)))
-    return html(res, 200, connectHome(pages))
+    return html(res, 200, connectHome(pages, at.csrf ?? null))
   }
   const source = route.source
   if (source === undefined) return answer(refuse('no_such'))
@@ -278,7 +296,7 @@ export async function carryConnect(
     const home =
       at.publicName !== null && at.publicName.toLowerCase() === at.host.toLowerCase()
         ? `https://${at.publicName}`
-        : `http://${at.host}`
+        : `${at.secure ? 'https' : 'http'}://${at.host}`
     const installed = await connecting.installed(source, {
       code: query.get('code'),
       error: query.get('error'),
@@ -460,14 +478,14 @@ function dropEmpty(body: unknown): unknown {
  */
 export function pressed(
   connecting: WebConnecting,
-  at: Pick<Connecting, 'states' | 'publicName' | 'host' | 'now'>,
+  at: Pick<Connecting, 'states' | 'publicName' | 'host' | 'secure' | 'now'>,
   source: ConnectSource,
   press: ConnectPress,
   asked: z.infer<typeof PressSchema>,
 ): { form: ConnectForm } | { refusal: Refusal; said: { error: string; said: string } } {
   const flow = CONNECT_FLOWS[source]
   const back = at.publicName ?? at.host
-  const home = at.publicName === null ? `http://${at.host}` : `https://${at.publicName}`
+  const home = homeOf(at)
   const returns = flow.backs.includes(press === 'make' ? 'made' : 'installed')
   if (press === 'install' && flow.publicBack && at.publicName === null) {
     const refusal = refuse('no_such')
@@ -534,7 +552,7 @@ function html(res: ServerResponse, status: number, page: string): void {
 export async function connectHere(
   req: IncomingMessage,
   device: Device,
-  at: Pick<Connecting, 'connecting' | 'states' | 'publicName' | 'host' | 'now'>,
+  at: Pick<Connecting, 'connecting' | 'states' | 'publicName' | 'host' | 'secure' | 'now'>,
 ): Promise<{ body: ConnectAnswer } | { refusal: Refusal }> {
   const connecting = at.connecting
   if (connecting === undefined) return { refusal: refuse('no_such') }

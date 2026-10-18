@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { CONNECT_IS_HERE, CONNECT_TITLES, type ConnectPage, type ConnectSource } from '@tade/core'
+import { CSRF_HEADER } from './request.ts'
 
 // The connect pages' HTML, drawn here rather than by the away view's page.
 //
@@ -42,14 +43,22 @@ input { font: inherit; padding: .3rem .5rem; border: 1px solid var(--line); bord
 [role=status] { min-height: 1.5em; color: var(--quiet); }
 `
 
+/** Where the page carries its session's token, for the person's own device off this machine's door. */
+export const TOKEN_META = 'tade-csrf'
+
 /**
  * The page's one script: a press asks this machine for its one-time word, then
  * posts the form GitHub makes the App from, or goes to where it is made or
  * installed — or, for a `keep`, hands this machine what was typed into the
  * step's boxes, clears them, and reads the page again. The answer's `said` is
  * this machine's own sentence; nothing else is written into the page.
+ *
+ * Where the page was drawn for the person's own device off this machine's
+ * door, its session's token is in a `meta` (`TOKEN_META`) and goes with every
+ * press, as the away view's page sends it; on this machine's door there is none.
  */
 const SCRIPT = `
+const token = document.querySelector('meta[name="${TOKEN_META}"]')?.content
 document.addEventListener('click', async (event) => {
   const button = event.target.closest('button[data-press]')
   if (!button) return
@@ -66,7 +75,7 @@ document.addEventListener('click', async (event) => {
   try {
     const answer = await fetch(button.dataset.press, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: token ? { 'content-type': 'application/json', '${CSRF_HEADER}': token } : { 'content-type': 'application/json' },
       body: JSON.stringify(body),
     })
     const got = await answer.json()
@@ -135,24 +144,35 @@ export function esc(text: string): string {
     .replace(/'/g, '&#39;')
 }
 
-function document(title: string, body: string, script = false): string {
+function document(
+  title: string,
+  body: string,
+  script = false,
+  token: string | null = null,
+): string {
   return [
     '<!doctype html>',
     '<html lang="en"><head><meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     '<meta name="referrer" content="no-referrer">',
+    token === null ? '' : `<meta name="${TOKEN_META}" content="${esc(token)}">`,
     `<title>${esc(title)}</title><style>${STYLE}</style></head>`,
     `<body><main>${body}</main>${script ? `<script>${SCRIPT}</script>` : ''}</body></html>`,
   ].join('')
 }
 
-/** The guided page: every source, each a list of steps with what is done ticked. */
+/**
+ * The guided page: every source, each a list of steps with what is done ticked
+ * — and, drawn for the person's own device off this machine's door, its
+ * session's token for the presses (`token`).
+ */
 export function connectHome(
   pages: readonly {
     page: ConnectPage
     asks: readonly { what: string; why: string }[]
     events: readonly string[]
   }[],
+  token: string | null = null,
 ): string {
   const sections = pages.map(({ page, asks, events }) => {
     const steps = page.steps.map((step) => {
@@ -190,6 +210,7 @@ export function connectHome(
     'Connect — Tade',
     `<h1>Connect</h1><p class="lead">${esc(CONNECT_IS_HERE)}</p>${sections.join('')}`,
     true,
+    token,
   )
 }
 

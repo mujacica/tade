@@ -46,7 +46,7 @@ import {
 } from './serving.ts'
 import { clearCookie, renamed, renewal, renewedCookie, sessionOf } from './sessions.ts'
 import { cursorOf } from './stream.ts'
-import { type Listener, type Origin, reachOf, type Scope } from './surface.ts'
+import { type Listener, type Origin, reachOf, type Scope, sameHost } from './surface.ts'
 
 // The away view's own HTTP server: `node:http`, one handler, the table in
 // `routes.ts`, and nothing else listening.
@@ -204,8 +204,10 @@ export function webServer(opts: ServerOptions): WebServer {
     // anybody who can reach the port may ask for, repeatedly, with no
     // credential.
     const host = asking.host === null ? null : hostOf(asking.host)
+    // A connect page or press is read it too: off this machine's door it is
+    // the person's own device's, under its session (`Route.theirs`).
     const devices =
-      found.route.public === true || found.route.connects !== undefined
+      found.route.public === true || found.route.connects === 'back'
         ? NO_DEVICES
         : await readDevices(opts.home)
     saidSkipped(devices.skipped)
@@ -273,13 +275,16 @@ export function webServer(opts: ServerOptions): WebServer {
 
     // A webhook delivery: its own door, and nothing after the guard is asked of it.
     if (found.route.rings !== undefined) return hooks.ring(found.route.rings, req, res)
-    // A connect page, a press, or a source sending the browser back: no session.
+    // A connect page, a press, or a source sending the browser back: no session
+    // on this machine's door, and the person's own device's anywhere else, whose
+    // page then carries its token for the presses.
     if (found.route.connects !== undefined) {
+      const theirs = verdict.device === '' ? null : (guarding.session?.csrf ?? null)
       return carryConnect(
         found.route,
         req,
         res,
-        connectAt(asking.host ?? ''),
+        { ...connectAt(asking.host ?? ''), csrf: theirs },
         (body, status) => json(res, body, status),
         (refusal) => answer(res, refusal),
       )
@@ -669,6 +674,9 @@ export function webServer(opts: ServerOptions): WebServer {
       states,
       publicName: opts.surface.publicName,
       host,
+      // A name the config trusts is one a proxy ends TLS for, so a browser
+      // there is on `https` and is sent back there.
+      secure: opts.surface.trustedHosts.some((one) => sameHost(one, hostOf(host) ?? '')),
       now: now(),
     }
   }

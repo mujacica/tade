@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
+import { ownsOrTheirs } from './surface.ts'
 
 // The records this machine's public name needs, looked at now, for another
 // machine of the person's that links to it as an owner: what `tade host
@@ -20,7 +21,10 @@ import { readBody } from './request.ts'
 //
 // **An owner's, and only at this machine's own door** (`here`): whoever holds
 // the SSH key can already run `tade host domain` here. A phone's session is
-// refused it however much it was granted. What it says is Tade's own sentences
+// refused it however much it was granted — **but the person's own**
+// (`Route.theirs`, `theirsOf`), on any door, off this machine's asked a trusted
+// origin and the passkey; the look's own rule (one in flight, `RECORDS_MS`)
+// holds whoever asks. What it says is Tade's own sentences
 // and the records to add or take away, as zone file lines; it writes nothing.
 
 /** A sentence this machine's Tade wrote, bounded. */
@@ -65,7 +69,7 @@ export async function recordsHere(
   records: WebRecords | undefined,
 ): Promise<{ body: RecordsAnswer } | { refusal: Refusal }> {
   if (records === undefined) return { refusal: refuse('no_such') }
-  if (!device.owner) return { refusal: refuse('out_of_scope') }
+  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   if (!z.strictObject({}).safeParse(got.body).success) return { refusal: refuse('malformed') }

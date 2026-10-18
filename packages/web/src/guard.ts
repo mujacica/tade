@@ -336,7 +336,12 @@ export function allowed(asking: Asking, route: Route, guarding: Guarding): Verdi
     }
     return { ok: true, device: '', scopes: [], origin }
   }
-  if (route.connects !== undefined) return connecting(asking, route, origin)
+  // **Off this machine's door a connect page or press is the person's own
+  // device's** (`theirs`, let through above for that session alone), so it is
+  // asked everything below that any act of theirs is — the session, its token,
+  // an exact `Origin`, a trusted origin and the passkey — rather than the
+  // sessionless door's few layers, which stand in for a session only here.
+  if (route.connects !== undefined && !away) return connecting(asking, route, origin)
 
   // **Not on a document navigation**, and this is the correction somebody will
   // otherwise make twice. A person who scans the pairing code is a *typed URL*,
@@ -346,7 +351,7 @@ export function allowed(asking: Asking, route: Route, guarding: Guarding): Verdi
   // everything else — every `fetch` the page makes, including the pairing POST
   // — `same-origin` is what the browser sends, so the check is exact there and
   // catches the same-site subdomain case `Origin` cannot see.
-  const navigation = route.public === true && !route.mutates
+  const navigation = (route.public === true || route.connects === 'page') && !route.mutates
   if (!navigation && asking.site !== null && asking.site !== '' && asking.site !== 'same-origin') {
     return no('bad_origin', `Sec-Fetch-Site said ${quoted(asking.site)}`)
   }
@@ -415,9 +420,14 @@ export function allowed(asking: Asking, route: Route, guarding: Guarding): Verdi
   // above `read` needs an origin whose credential did not travel in the clear.
   // A route that is the SSH key's, asked by the person's own device off this
   // machine's door (`away`), is asked what acting is, whatever it needs.
+  // **A read cannot say its scheme** (no `Origin` on a navigation), so the
+  // connect page is asked it by listener and host: `https` where the `Host` is
+  // one the config trusts, which is what a proxy ends TLS for.
   const acts = route.needs !== 'read' || away
   const what = route.needs === 'read' ? route.name : route.needs
-  if (acts && !trusted(origin, guarding.surface)) {
+  const read =
+    route.connects === 'page' ? { ...origin, scheme: readScheme(asking, host, guarding) } : origin
+  if (acts && !trusted(read, guarding.surface)) {
     return no(
       'locked',
       `${what} from ${origin.scheme}://${origin.host}, which is not a trusted origin`,
@@ -462,6 +472,12 @@ function connecting(asking: Asking, route: Route, origin: Origin): Verdict {
     }
   }
   return { ok: true, device: '', scopes: [], origin }
+}
+
+/** The scheme a request with no `Origin` was made over: the best this listener could have served it as. */
+function readScheme(asking: Asking, host: string, guarding: Guarding): string {
+  if (asking.origin !== null) return originOf(asking, host).scheme
+  return schemesFor(asking, host, guarding.surface).includes('https') ? 'https' : 'http'
 }
 
 function no(error: ErrorKind, why: string): Verdict {
