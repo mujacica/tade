@@ -7,10 +7,12 @@
 //
 // The five rules that break this screen quietly:
 //
-// - **A reply is text and never markup.** `proseOf` sets `textContent`, like
-//   every other authored string on this page: there is no Markdown renderer
-//   here and no `innerHTML` anywhere, and that is what actually stands against
-//   a reply quoting an injected `<script>` out of something an agent read.
+// - **A reply is drawn as markdown and never as markup.** `conversation.js`
+//   reads it with `markdown.js`, which builds the page's own nodes out of a
+//   closed list and puts every character in a text node: there is no
+//   `innerHTML` anywhere, and that is what actually stands against a reply
+//   quoting an injected `<script>` out of something an agent read. A person's
+//   own words are drawn as they typed them.
 // - **What was typed survives everything but a `200`.** A `409` is the world
 //   having moved — Tade started answering somebody else — and throwing away
 //   the paragraph somebody typed on a phone because of it is the one failure
@@ -32,7 +34,8 @@
 import { mayFor } from './access.js'
 import { afterAnswer, askBody, stopBody } from './acts.js'
 import { keyOf } from './controls.js'
-import { classOn, el, empty, hintOf, into, keyed, proseOf, textIn, toneOn } from './dom.js'
+import { callIn, callRow, wordsIn } from './conversation.js'
+import { classOn, el, empty, hintOf, into, keyed, textIn, toneOn } from './dom.js'
 import { ageSaid } from './figures.js'
 import { CHAT_KINDS } from './glyphs.js'
 import { nothingSaid, section } from './rows.js'
@@ -282,39 +285,50 @@ export function reasonFor(talk) {
 
 export function createChatLine() {
   const node = el('li')
-  const head = el('p', { class: 'aside' })
-  into(node, head)
+  into(
+    node,
+    el('p', { class: 'aside' }),
+    el('div'),
+    el('p', { class: 'unknown', text: 'more than this was written down' }),
+    callRow(),
+  )
   return node
 }
 
 /**
- * One line: who, when, and the words.
+ * One line: who, when, and the words — or, for a tool, one row that opens.
  *
  * The words are written **every** time rather than once, which is the one
  * difference from a note: a reply arrives in pieces, so the row it is in is
- * patched as it streams. Everything else about the row is stable, so the
- * `aside` is the only other thing touched.
+ * patched as it streams, and `markdownIn` draws again only the part of it
+ * being written. Everything else about the row is stable.
  */
 export function fillChatLine(node, line, view) {
-  const [head] = node.children
+  const [head, body, cut, call] = node.children
   const kind = CHAT_KINDS[line.kind] ?? CHAT_KINDS.tade
+  const tool = line.kind === 'tool'
   const age = ageSaid(line.at, view.asOf, view.frozen)
   textIn(
     head,
-    [whoSaid(line), kind.word, line.tool, age === null ? '' : age]
+    [whoSaid(line), kind.word, age === null ? '' : age]
       .filter((one) => one !== '' && one !== null && one !== undefined)
       .join(' · '),
   )
   toneOn(head, kind.tone)
-  if (node.children.length === 1) into(node, proseOf(''))
-  const body = node.children[1]
-  const words = saidOn(line)
-  if (body !== undefined) {
-    textIn(body, words)
-    body.hidden = words === ''
+  // A tool's row says what it is itself, so it has no line over it.
+  head.hidden = tool
+  call.hidden = !tool
+  if (tool) {
+    callIn(call, { tool: line.tool, outcome: line.outcome ?? 'none', call: line.call ?? null })
+    body.hidden = true
+  } else {
+    // The model's words and Tade's are markdown; a person's are as they typed them.
+    wordsIn(body, line.text, line.kind === 'reply' || line.kind === 'tade')
   }
+  // What the budget cut is said, never drawn as three dots in somebody's words.
+  cut.hidden = tool || line.text?.more !== true
   // Whose line it is, for the drawing: a person's on the right as in any
-  // conversation, Tade's on the left, a tool's as a quiet line between them.
+  // conversation, Tade's on the left, a tool's as a quiet row between them.
   for (const kind of ['asked', 'reply', 'tool', 'tade', 'problem']) {
     classOn(node, `is-${kind}`, line.kind === kind)
   }

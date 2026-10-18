@@ -31,6 +31,8 @@ a device still has none of the scopes that change anything until somebody at thi
 | what a device may **say to Tade** | `src/asking.ts` (the interface and the revision), `src/asked.ts` (the gate and the sequence), `ASKS` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-asking.ts`, and the screen in `src/assets/talk.js` |
 | what a turn from away may **reach** | `packages/core/src/origin.ts` (the arm, the provenance, the sentences) and `packages/orchestrator/src/origin.ts` (the two tables); an owner's turn is `Arm`'s third variant, answered as local by every gate (`narrowedArm`); a full-access device's is `theirs`, its words a `said` line (`fullAccess`, `theirSaid`) |
 | the conversation, as a device reads it | `ChatIn`/`TalkIn` in `src/input.ts`, `chatRows` in `src/snapshot.ts`, `talkIn`/`chatLines` in `packages/app/src/away.ts` |
+| **how a conversation is drawn** — a reply as markdown, a tool call as a row that opens onto what it was handed and answered — in Tade's and an agent's alike | `src/assets/markdown.js` (the reader: a closed list of tags, `hrefOf`, parts redrawn only where the words changed, so streaming costs the part being written), `src/assets/conversation.js` (`wordsIn`, `callRow`/`callIn`), `talk.js`'s `fillChatLine`, `pages/agent-said.js`; `test/markdown-client.test.ts` throws markup at it |
+| **a call's arguments and answer, and an agent's conversation, leaving the machine** — both an agent's own bytes, on `lanes` | `src/conversation.ts` (`callOf`, `turnsOf`, cleaned by `cleanText` in `src/screen.ts` before they are cut), `withCalls` in `src/snapshot.ts`, `conversation` on `AgentOut` (sent only when it moved since `?seen=`), `Lanes.readTalk` in `packages/app/src/wire/web-lanes.ts` over `Workbench.agentHistory`; `test/conversation.test.ts` |
 | what a task's revision is made of | `taskRev`/`TaskFacts` in `src/acting.ts`, `factsOf` in `src/input.ts` |
 | the factory floor's four collections | `src/protocol-factory.ts` (the schemas), `src/factory.ts` (the input types and the projection), `packages/app/src/away-factory.ts` (the window's own mapping), `packages/app/src/wire/web-factory.ts` (the fold it keeps) |
 | where one source of outside work stands | `intake-sources.ts` in `@tade/core` (the nine states), `doorsOf` in `wire/web-factory.ts` |
@@ -620,8 +622,10 @@ a device still has none of the scopes that change anything until somebody at thi
 - **An age freezes when the stream is not live** and gains the moment it was last true. An age
   counting up against a snapshot nothing can refresh is the lie §5.10 exists to prevent, so `asOf`
   hands the server's own last word to every row rather than the device's clock.
-- **Nothing in the client touches `innerHTML`**, there is no Markdown renderer, and the content policy
-  has no `unsafe-inline`. Those three are what actually stands against injected script; `HttpOnly`
+- **Nothing in the client touches `innerHTML`**, the one Markdown reader (`markdown.js`) builds
+  nodes from a closed list of tags with attributes it chose — every character a text node, a link
+  only `http(s)`/`mailto` with `rel="noopener noreferrer"`, no picture fetched — and the content
+  policy has no `unsafe-inline`. Those three are what actually stands against injected script; `HttpOnly`
   stops the *theft* of a credential and not its use.
 - **A page with no session is the pairing screen alone** (`outside` in `boot.js`, `insideIn`,
   `outsideOf`): no rail, no desk, no retry, and `not paired` rather than `reconnecting` — it

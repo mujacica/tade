@@ -1,4 +1,5 @@
 import { LaneClosedError, LaneNotFoundError } from '@tade/drivers-core'
+import type { TurnIn } from '@tade/web'
 import { describe, expect, it } from 'vitest'
 import { knownKeys, Lanes, MOST_PER_DEVICE, WATCH_MS } from '../../src/wire/web-lanes.ts'
 
@@ -207,5 +208,100 @@ describe('the keys a screen is scrubbed of', () => {
     expect(known).not.toContain('/Users/testperson')
     // And nothing so short it would only be taking words off a screen.
     expect(known).not.toContain('abc')
+  })
+})
+
+describe('its conversation', () => {
+  /** A record that answers what it is told to, and counts every read. */
+  function recorded(answer: () => Promise<{ turns: TurnIn[]; earlier: boolean }>) {
+    let reads = 0
+    let now = 1_000_000
+    const troubles: string[] = []
+    const lanes = new Lanes({
+      capture: () => Promise.resolve('$ ok'),
+      history: () => {
+        reads += 1
+        return answer()
+      },
+      trouble: (task, err) => troubles.push(`${task}: ${(err as Error).message}`),
+      now: () => now,
+      deadline: SOON,
+    })
+    return {
+      lanes,
+      troubles,
+      reads: () => reads,
+      at: () => now,
+      pass: (ms: number) => {
+        now += ms
+      },
+    }
+  }
+  const said = (text: string): TurnIn => ({ kind: 'reply', text, at: 1 })
+
+  it('is read on the beat while somebody looks, and not at all while nobody does', async () => {
+    const one = recorded(() => Promise.resolve({ turns: [said('hello')], earlier: false }))
+    for (let n = 0; n < 10; n += 1) one.lanes.beat(one.at())
+    expect(one.reads()).toBe(0)
+    one.lanes.watch('dev', 'app/migration', one.at())
+    expect(one.lanes.talkFor('app/migration')).toBeUndefined()
+    one.lanes.beat(one.at())
+    await tick()
+    expect(one.reads()).toBe(1)
+    expect(one.lanes.talkFor('app/migration')).toMatchObject({ kind: 'read', earlier: false })
+  })
+
+  it('moves its revision only when the turns moved', async () => {
+    let turns = [said('hello')]
+    const one = recorded(() => Promise.resolve({ turns, earlier: false }))
+    one.lanes.watch('dev', 'app/migration', one.at())
+    one.lanes.beat(one.at())
+    await tick()
+    const first = one.lanes.talkFor('app/migration')
+    one.lanes.beat(one.at())
+    await tick()
+    expect(one.lanes.talkFor('app/migration')).toBe(first)
+    turns = [said('hello'), said('again')]
+    one.lanes.beat(one.at())
+    await tick()
+    const second = one.lanes.talkFor('app/migration')
+    expect(second?.kind === 'read' && first?.kind === 'read' && second.rev !== first.rev).toBe(true)
+  })
+
+  it('says it could not be read, and keeps the last one known when a read fails after it', async () => {
+    let fail = true
+    const one = recorded(() =>
+      fail
+        ? Promise.reject(new Error('EACCES'))
+        : Promise.resolve({ turns: [said('hi')], earlier: false }),
+    )
+    one.lanes.watch('dev', 'app/migration', one.at())
+    one.lanes.beat(one.at())
+    await tick()
+    expect(one.lanes.talkFor('app/migration')).toEqual({ kind: 'none', why: 'could not read' })
+    // Said once, not once a beat.
+    one.lanes.beat(one.at())
+    await tick()
+    expect(one.troubles).toEqual(['app/migration: EACCES'])
+    fail = false
+    one.lanes.beat(one.at())
+    await tick()
+    const known = one.lanes.talkFor('app/migration')
+    expect(known?.kind).toBe('read')
+    fail = true
+    one.lanes.beat(one.at())
+    await tick()
+    expect(one.lanes.talkFor('app/migration')).toBe(known)
+    expect(one.troubles).toHaveLength(2)
+  })
+
+  it('keeps nothing once nobody is looking', async () => {
+    const one = recorded(() => Promise.resolve({ turns: [said('hi')], earlier: false }))
+    one.lanes.watch('dev', 'app/migration', one.at())
+    one.lanes.beat(one.at())
+    await tick()
+    one.pass(WATCH_MS + 1)
+    one.lanes.beat(one.at())
+    expect(one.lanes.talkFor('app/migration')).toBeUndefined()
   })
 })

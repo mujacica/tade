@@ -158,7 +158,7 @@ export interface RemoteLine {
   from: string | null
   /** The words, a line break kept where the remote had one. */
   text: string
-  /** A tool's name, never its arguments: the protocol carries no more. */
+  /** A tool's name: what this window draws of another machine's call, whatever that machine sent. */
   tool: string | null
   outcome: 'running' | 'ok' | 'failed' | null
   streaming: boolean

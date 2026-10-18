@@ -1,6 +1,7 @@
 import type { PlanStanding, Spend } from '@tade/core'
 import { projectRev, taskRev } from './acting.ts'
 import { commandShown } from './command.ts'
+import { callFor } from './conversation.ts'
 import { intakeRow, runRow, sourceRow, type WorkflowIn, workflowRow } from './factory.ts'
 import { withoutPaths } from './fields.ts'
 import {
@@ -15,6 +16,7 @@ import {
   type QueueStateIn,
   type ReasonIn,
   type SnapshotInput,
+  type TalkIn,
   type TaskIn,
 } from './input.ts'
 import { BUDGET, type Budget, type Page, pageOf, textOf, withheld } from './page.ts'
@@ -295,12 +297,17 @@ export function noteRows(notes: readonly NoteIn[], reach: Reach, budget: Budget)
  *    message reads as `…` on the phone. It is the one place the away view does
  *    not show what was said as it was said, and `GRANT_MEANS.talk` is where a
  *    person is told so before granting it.
- * 2. **A tool line carries a name and an outcome.** Never `detail`, which is
- *    the call's own arguments — a command, a path, a prompt — and is what
- *    `NEVER_A_FIELD` forbids by that name and by `args` and `payload`.
+ * 2. **A tool line carries a name and an outcome**, and its call — what it
+ *    was handed and what it answered — only where `withCalls` puts it: under
+ *    `lanes`, cleaned. Never by the names `NEVER_A_FIELD` keeps for the raw
+ *    thing (`args`, `payload`, `output`).
  * 3. **The newest lines win.** A conversation is read from the bottom, so the
  *    budget takes the *last* `budget.chat` lines rather than the first, and
  *    the count says how many were left behind.
+ * 4. **What was said is the thing the screen is for**, so a person's words
+ *    and the model's are bounded as a body (`budget.material`) rather than as
+ *    a line on a row: a reply cut at 600 characters is a table with no end
+ *    and a code block that never closes. Tade's own lines are a line.
  */
 export function chatRows(lines: readonly ChatIn[], budget: Budget): ChatRow[] {
   return lines.map((line) => ({
@@ -308,11 +315,34 @@ export function chatRows(lines: readonly ChatIn[], budget: Budget): ChatRow[] {
     at: ISO(line.at),
     kind: line.kind,
     from: SOME(line.from),
-    text: textOf(withoutPaths(line.text), budget.text),
+    text: textOf(
+      withoutPaths(line.text),
+      line.kind === 'asked' || line.kind === 'reply' ? budget.material : budget.text,
+    ),
     tool: SOME(line.tool),
     outcome: line.outcome === '' ? null : line.outcome,
+    call: null,
     streaming: line.streaming,
   }))
+}
+
+/**
+ * The lines a device is sent, each tool line given its call where the device
+ * was granted an agent's own bytes (`lanes`) — and only the lines on its page,
+ * because cleaning is the work and a page is what crosses.
+ */
+export function withCalls(
+  rows: readonly ChatRow[],
+  talk: TalkIn | null,
+  granted: boolean,
+): ChatRow[] {
+  if (!granted || talk === null) return [...rows]
+  const held = new Map(talk.lines.map((line) => [line.id, line]))
+  return rows.map((row) => {
+    const line = held.get(row.id)
+    if (line?.call === null || line?.call === undefined) return row
+    return { ...row, call: callFor(row.id, line.call.input, line.call.result, talk.known) }
+  })
 }
 
 /** A sign-in's plan beside the id its row is keyed by (`plansKeyed`). */
@@ -623,7 +653,9 @@ export function snapshotOf(
     // Back into the order they were said in: the budget chose from the end,
     // and a page that drew them backwards would be a second ordering of the
     // one thing whose order is its meaning.
-    chat: [...chatPage.rows].sort((a, b) => byText(a.id, b.id)),
+    chat: withCalls(chatPage.rows, input.talk, has(reach, 'lanes')).sort((a, b) =>
+      byText(a.id, b.id),
+    ),
     // Back into id order for the wire, like every other collection: the
     // *choosing* order is newest-first, because cutting the newest request
     // would be absurd, and the order rows arrive in is what makes a delta a

@@ -63,7 +63,10 @@ import {
   type HarnessAccount,
   type HarnessModels,
   type HarnessSession,
+  type HistoryAsk,
+  type HistoryPage,
   modelsOffered,
+  NO_HISTORY,
   noHarnessSpend,
   type Offer,
   offer,
@@ -1683,6 +1686,21 @@ export class Workbench {
     } catch {
       return null
     }
+  }
+
+  /**
+   * A page of what a task's agent said, out of its harness's own record — the
+   * harness and the folder its lane was started with, so an agent whose
+   * project has since moved to another harness is still read where it talked.
+   * A task no agent ran is an empty page; a record that is there and could
+   * not be read throws, as `history` does.
+   */
+  async agentHistory(task: string, ask: HistoryAsk): Promise<HistoryPage> {
+    const lane = this.registry.get(`${task}/agent` as LaneId)
+    if (lane?.kind !== 'agent') return NO_HISTORY
+    const harness = lane.harness ?? (await this.harnessOf(task))
+    const account = await this.accountOf(task, harness)
+    return this.adapterFor(harness, account).history(task as TaskId, lane.spec.cwd, ask)
   }
 
   /**

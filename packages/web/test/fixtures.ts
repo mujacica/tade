@@ -603,8 +603,8 @@ export function input(over: Partial<SnapshotInput> = {}): SnapshotInput {
  * **Every line carries something the projection must not pass on**, for the
  * reason the warnings above do: a fixture whose conversation happens to be
  * tidy is the leakage test passing while the claim is false. So the person's
- * own message names a path, the reply quotes one back, and the tool line
- * carries a name whose arguments were a command.
+ * own message names a path, the reply quotes one back, and the tool line's
+ * call names a key Tade holds, a credential and a path.
  */
 export function talk(over: Partial<TalkIn> = {}): TalkIn {
   const lines: ChatIn[] = [
@@ -616,6 +616,7 @@ export function talk(over: Partial<TalkIn> = {}): TalkIn {
       text: `what is going on in ${PRIVATE.root}?`,
       tool: '',
       outcome: '',
+      call: null,
       streaming: false,
     },
     {
@@ -626,6 +627,16 @@ export function talk(over: Partial<TalkIn> = {}): TalkIn {
       text: '',
       tool: 'tade_status',
       outcome: 'ok',
+      // The call carries what the projection may only ever pass on cleaned:
+      // a command naming a key and a path, and an answer quoting both.
+      call: {
+        input: {
+          command: `cat ${PRIVATE.home}/config.yaml && curl -H "X-Api-Key: ${PRIVATE.credential}"`,
+          cwd: PRIVATE.worktree,
+          key: PRIVATE.opaque,
+        },
+        result: `read ${PRIVATE.transcript}: ${PRIVATE.credential} and ${PRIVATE.opaque}`,
+      },
       streaming: false,
     },
     {
@@ -636,6 +647,7 @@ export function talk(over: Partial<TalkIn> = {}): TalkIn {
       text: `two agents are working; one is held on a command in ${PRIVATE.worktree}`,
       tool: '',
       outcome: '',
+      call: null,
       streaming: false,
     },
     {
@@ -646,10 +658,11 @@ export function talk(over: Partial<TalkIn> = {}): TalkIn {
       text: 'is anything waiting for me?',
       tool: '',
       outcome: '',
+      call: null,
       streaming: false,
     },
   ]
-  return { lines, rev: 'b0', busy: false, whose: '', mine: true, ...over }
+  return { lines, rev: 'b0', busy: false, whose: '', mine: true, known: [PRIVATE.opaque], ...over }
 }
 
 /** The moment every test projects at, so a golden is a golden. */
@@ -726,8 +739,70 @@ export function agentHeld(over: Partial<AgentIn> = {}): AgentIn {
   return {
     activity: activity(),
     lane: { kind: 'read', text: screenText(), at: Date.parse('2026-10-08T14:29:58.000Z') },
+    conversation: conversationHeld(),
     known: [HELD_KEY, 'short'],
     ...over,
+  }
+}
+
+/**
+ * An agent's conversation as the window holds it out of its harness's record:
+ * what it was told, what it said in markdown, a call that worked and one that
+ * failed — and in every one of them something that must not cross as itself:
+ * a machine path, a key Tade holds, a credential, and markup.
+ */
+export function conversationHeld(): Extract<
+  NonNullable<AgentIn['conversation']>,
+  { kind: 'read' }
+> {
+  const at = (s: number) => Date.parse('2026-10-08T14:20:00.000Z') + s * 1000
+  return {
+    kind: 'read',
+    earlier: true,
+    rev: '7',
+    turns: [
+      {
+        kind: 'sent',
+        text: `# The work\n\nBuild the away view's boundary. Your checkout is ${PRIVATE.root}.`,
+        at: at(0),
+      },
+      {
+        kind: 'tool',
+        id: 'toolu_01',
+        tool: 'Bash',
+        input: { command: `cat ${PRIVATE.home}/config.yaml`, description: 'Read the config' },
+        ok: true,
+        result: '',
+        at: at(5),
+      },
+      {
+        kind: 'tool',
+        id: 'toolu_02',
+        tool: 'Bash',
+        input: { command: `curl -H "X-Api-Key: ${HELD_KEY}" https://example.invalid` },
+        ok: false,
+        result: `<script>alert(1)</script> refused with ${PRIVATE.credential}`,
+        at: at(9),
+      },
+      {
+        kind: 'reply',
+        text: [
+          '## Done',
+          '',
+          '- **projection** is pure',
+          `- the key ${HELD_KEY} stays at the machine`,
+          '',
+          '| file | lines |',
+          '| --- | ---: |',
+          '| `snapshot.ts` | 120 |',
+          '',
+          '```ts',
+          'export const a = 1',
+          '```',
+        ].join('\n'),
+        at: at(12),
+      },
+    ],
   }
 }
 

@@ -179,9 +179,11 @@ export const NEVER_A_FIELD: Readonly<Record<string, string>> = {
   // call's arguments, a tool's answer, a lane's bytes, a machine path, a
   // provider's own envelope — and every one of those is still a name that
   // fails this test (`args`, `payload`, `output`, `root`, `worktree`, `cwd`).
-  // `ChatRow` is the hand-written allow-list over one: five fields, a tool's
-  // **name** and never its arguments, an outcome in one word, every line
-  // path-elided on the way out, and the whole collection behind its own grant.
+  // `ChatRow` is the hand-written allow-list over one: a few fields, a tool's
+  // **name**, an outcome in one word, every line path-elided on the way out,
+  // and the whole collection behind its own grant — and a call's arguments and
+  // answer only as `call` (`CallSchema`), cleaned by the screen's rule and only
+  // under `lanes`, an agent's own bytes, never under one of these names.
   // A field called `transcript` would be the raw thing arriving by the name a
   // harness reaches for, which is the mistake this entry is about.
   transcript: 'the largest, least structured, most injection-prone surface Tade has',

@@ -602,6 +602,64 @@ const STRIPE: AgentIn = {
       '',
     ].join('\n'),
   },
+  // Its conversation out of its harness's record: what it was told, the
+  // tools it reached for, and what it said — the agent page draws it as
+  // markdown, a call as a row that opens.
+  conversation: {
+    kind: 'read',
+    earlier: false,
+    rev: '3',
+    turns: [
+      {
+        kind: 'sent',
+        text: 'Upgrade **stripe** to v15 and keep the webhook tests green.',
+        at: ago(52),
+      },
+      {
+        kind: 'tool',
+        id: 'toolu_read',
+        tool: 'Read',
+        input: { file_path: 'src/webhooks.ts' },
+        ok: true,
+        result: '',
+        at: ago(6),
+      },
+      {
+        kind: 'tool',
+        id: 'toolu_edit',
+        tool: 'Edit',
+        input: {
+          file_path: 'src/webhooks.ts',
+          old_string: 'constructEvent(',
+          new_string: 'constructEventAsync(',
+        },
+        ok: true,
+        result: '',
+        at: ago(4),
+      },
+      {
+        kind: 'reply',
+        text: [
+          'The webhook signature API changed in v15:',
+          '',
+          '- `constructEvent` is now `constructEventAsync`',
+          '- the tests still pin **stripe@14**',
+          '',
+          'Installing v15 before running them again.',
+        ].join('\n'),
+        at: ago(3),
+      },
+      {
+        kind: 'tool',
+        id: 'toolu_bash',
+        tool: 'Bash',
+        input: { command: 'npm i stripe@15', description: 'Install stripe v15' },
+        ok: null,
+        result: '',
+        at: ago(3),
+      },
+    ],
+  },
   known: [],
 }
 
@@ -669,6 +727,7 @@ function input(reach: Reach): SnapshotInput {
           text: 'what needs me?',
           tool: '',
           outcome: '',
+          call: null,
           streaming: false,
         },
         {
@@ -679,6 +738,7 @@ function input(reach: Reach): SnapshotInput {
           text: '',
           tool: 'tade_status',
           outcome: 'ok',
+          call: { input: { project: 'payments' }, result: '' },
           streaming: false,
         },
         {
@@ -686,17 +746,22 @@ function input(reach: Reach): SnapshotInput {
           at: ago(4),
           kind: 'reply',
           from: '',
-          text:
-            'stripe-v15 wants to run npm i stripe@15, which is the upgrade you asked for. ' +
-            'ledger-api is writing the endpoints, and refund-flow starts when it is done.',
+          text: [
+            '**stripe-v15** wants to run `npm i stripe@15`, which is the upgrade you asked for.',
+            '',
+            '- **ledger-api** is writing the endpoints',
+            '- **refund-flow** starts when it is done',
+          ].join('\n'),
           tool: '',
           outcome: '',
+          call: null,
           streaming: false,
         },
       ],
       rev: 'c4',
       busy: false,
       whose: '',
+      known: [],
       mine: true,
     },
   }

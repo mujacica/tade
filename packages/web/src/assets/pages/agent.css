@@ -674,6 +674,24 @@ be asked now one quiet line each with its reason, at the end.
 
 /* ── where the work has the room ───────────────────────────────────────────── */
 
+/*
+  Its conversation: what it was told folded past a few lines (Tade's opening is
+  long, and the page is for what it is doing), a press to open it, and the
+  list no wider than the column it is in.
+*/
+.page-agent .ag-said {
+  min-width: 0;
+}
+
+.page-agent .ag-said .ag-said-long:not(.ag-said-open) {
+  max-height: 9rem;
+  overflow: hidden;
+}
+
+.page-agent .ag-said > li > .more {
+  justify-self: end;
+}
+
 @container (min-width: 40rem) {
   .page-agent :is(.ag-cells, .ag-about) {
     grid-template-columns: repeat(4, minmax(0, 1fr));

@@ -411,13 +411,41 @@ export const NoteRowSchema = z.strictObject({
 export type NoteRow = z.infer<typeof NoteRowSchema>
 
 /**
+ * A tool call's own words: a line saying which one, what it was handed, and
+ * what it answered.
+ *
+ * **The fourth kind of value, as an agent's screen is** (`screen.ts`), and on
+ * the same grant (`lanes`, `WITHHOLDS`): a call's arguments and its answer are
+ * whatever a model or a tool wrote — a command, a file's contents, a page an
+ * agent fetched — so they cross only to a device somebody granted an agent's
+ * own bytes, and only as `cleanText` left them: every machine path, every key
+ * Tade knows of, anything shaped like a credential and every character that
+ * reorders or hides text taken out. Never a field called `args`, `payload` or
+ * `output`, which `NEVER_A_FIELD` keeps for the raw thing.
+ */
+export const CallSchema = z.strictObject({
+  /** The arguments that tell you which call it was, on one line. Null where it had none. */
+  brief: z.string().nullable(),
+  /** Everything it was handed, a line per argument. Null where it had none. */
+  input: SaidSchema.nullable(),
+  /**
+   * What it answered, where that was written down — the orchestrator's tools
+   * say what they answered, and a harness's record keeps the reason a call
+   * failed and nothing of one that worked. Null where nothing was.
+   */
+  result: SaidSchema.nullable(),
+})
+export type Call = z.infer<typeof CallSchema>
+
+/**
  * One line of the conversation with Tade.
  *
  * **A hand-written allow-list over a transcript, and the name `transcript` is
  * still forbidden** (`fields.ts`): what makes a raw one dangerous is a tool
  * call's arguments, a tool's answer, a lane's bytes and a machine path, and
- * every one of those is still a name that fails a test. What is here is five
- * fields, a tool's **name**, and an outcome in one word.
+ * every one of those is still a name that fails a test. What is here is a
+ * tool's **name**, an outcome in one word, and — only for a device granted an
+ * agent's own bytes — the call itself, cleaned (`CallSchema`).
  */
 export const ChatRowSchema = z.strictObject({
   /** The line's own place in the conversation. Stable: a delta is keyed by it. */
@@ -432,9 +460,11 @@ export const ChatRowSchema = z.strictObject({
   from: z.string().nullable(),
   /** The words. A person's verbatim; a model's with anything path-shaped taken out. */
   text: SaidSchema.nullable(),
-  /** The tool's **name** and never its arguments. */
+  /** The tool's **name**. */
   tool: z.string().nullable(),
   outcome: z.enum(['running', 'ok', 'failed']).nullable(),
+  /** A tool line's call, under `lanes` (`CallSchema`). Null on every other line, and without it. */
+  call: CallSchema.nullable(),
   streaming: z.boolean(),
 })
 export type ChatRow = z.infer<typeof ChatRowSchema>
@@ -692,6 +722,35 @@ export const SCREEN_WHY = [
   'not here',
 ] as const
 
+/**
+ * Why an agent's conversation is not in an answer, in a word: not granted,
+ * not read yet, or a record that is there and could not be read — never
+ * *nothing said*, which is a conversation with no turns in it.
+ */
+export const CONVERSATION_WHY = ['not granted', 'not read yet', 'could not read'] as const
+
+/**
+ * One turn of an agent's conversation, out of its harness's own record.
+ *
+ * Three kinds: what it was **sent** (Tade's opening, a steer — Tade's framing
+ * included, because that is what the agent read), what it **replied**, and a
+ * **tool** it reached for with its call. All of it the fourth kind of value,
+ * cleaned as a screen is (`cleanText`), and on the screen's grant.
+ */
+export const TurnRowSchema = z.strictObject({
+  /** Its place in the record, stable while the conversation grows. */
+  id: z.string(),
+  /** When the record says it was written; null where the record did not say. */
+  at: z.string().nullable(),
+  kind: z.enum(['sent', 'reply', 'tool']),
+  text: SaidSchema.nullable(),
+  tool: z.string().nullable(),
+  /** How a call went: `none` is a call nothing answered — cut short, or still going. */
+  outcome: z.enum(['ok', 'failed', 'none']).nullable(),
+  call: CallSchema.nullable(),
+})
+export type TurnRow = z.infer<typeof TurnRowSchema>
+
 /** One moment in a task's life, in Tade's own words. */
 export const ActivityRowSchema = z.strictObject({
   at: z.string(),
@@ -736,5 +795,23 @@ export const AgentOutSchema = z.strictObject({
     .nullable(),
   /** Why there is no screen. Null where there is one. */
   why: z.enum(SCREEN_WHY).nullable(),
+  /**
+   * The newest turns of its conversation, oldest first (`TurnRowSchema`).
+   * `turns` is null where the device said it already holds this `rev`
+   * (`?seen=`), so a page asking every two seconds is sent a conversation
+   * only when it moved.
+   */
+  conversation: z
+    .strictObject({
+      rev: z.string(),
+      turns: z.array(TurnRowSchema).nullable(),
+      /** Whether the record goes back further than these: said, never a silent cut. */
+      earlier: z.boolean(),
+      /** How many things were taken out. A count, never what. */
+      taken: z.int().nonnegative(),
+    })
+    .nullable(),
+  /** Why there is no conversation. Null where there is one. */
+  unread: z.enum(CONVERSATION_WHY).nullable(),
 })
 export type AgentOut = z.infer<typeof AgentOutSchema>

@@ -128,9 +128,20 @@ declare module '*/assets/pages/agent-shape.js' {
   export function foldSaid(hidden: number, open: boolean): string
 }
 
+declare module '*/assets/pages/agent-said.js' {
+  /** A heading and what to do, per word of `CONVERSATION_WHY`. */
+  export const UNREAD_SAID: Readonly<Record<string, readonly [string, string | null]>>
+  export const FOLD_AT: number
+  // biome-ignore lint/suspicious/noExplicitAny: nodes of whichever document a test installs
+  export function conversationView(): { node: any; update(heard: unknown, view: unknown): void }
+}
+
 declare module '*/assets/pages/agent-pane.js' {
   /** One sentence per word of `SCREEN_WHY`. */
   export const WHY_SAID: Readonly<Record<string, string>>
+  /** An answer, with the conversation the page holds kept where the machine said it has not moved. */
+  // biome-ignore lint/suspicious/noExplicitAny: the answer's own shape
+  export function withHeld(was: any, next: any): any
   /** Why there is no screen, as the card's state. */
   export function whyOf(word: string | null | undefined): {
     kind: 'empty' | 'error'

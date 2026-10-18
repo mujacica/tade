@@ -56,6 +56,7 @@ function withheldWithout(grant: Grant): string[] {
 /** The answers that are not part of the snapshot: their gates are held in their own tests. */
 const ANSWERS = [
   'agent.screen',
+  'agent.conversation',
   'settings',
   'evaluations.cost',
   'evaluations.findings',

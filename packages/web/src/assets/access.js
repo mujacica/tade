@@ -30,7 +30,7 @@ export const WITHHOLDS = {
   requests: ['intake.title', 'intake.who', 'intake.url'],
   material: ['intake.material', 'intake.materialSays', 'intake.materialLabel'],
   workflows: ['workflows'],
-  lanes: ['agent.screen'],
+  lanes: ['agent.screen', 'agent.conversation', 'chat.call'],
   settings: ['settings'],
 }
 

@@ -87,7 +87,7 @@ export interface WebReading {
    * already holds, and the first one for an agent nobody was watching says
    * `not read yet`.
    */
-  agent(task: string): AgentOut
+  agent(task: string, seen?: string | null): AgentOut
   /**
    * What Tade is set up with, as this device may read it.
    *
@@ -187,8 +187,8 @@ export function projector(
     notes(scope: string | null | undefined, after: string | null = null): Page<NoteRow> {
       return notesOf(input, scope, budget, after)
     },
-    agent(task: string): AgentOut {
-      return agentOf(input.reach, input.tasks, task, opts.agent?.(task) ?? null, AGENT)
+    agent(task: string, seen: string | null = null): AgentOut {
+      return agentOf(input.reach, input.tasks, task, opts.agent?.(task) ?? null, AGENT, seen)
     },
     settings(): SettingsOut {
       const held = opts.settings?.() ?? { groups: [], known: [] }

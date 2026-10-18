@@ -68,6 +68,7 @@ import {
   stateBoxIn,
 } from '../ui.js'
 import { agentPane } from './agent-pane.js'
+import { conversationView } from './agent-said.js'
 import {
   aboutOf,
   branchOf,
@@ -125,6 +126,8 @@ export function taskScreen(where, ctx) {
   const tell = el('div', { class: 'ag-tell' })
   into(screen.body, tell)
   const told = live ? actsIn(tell, ctx, ['steer']) : null
+  // What it was told and said, and the tools it reached for, from the same asking.
+  const said = conversationView()
 
   const checks = checksView()
   const work = workView()
@@ -140,7 +143,16 @@ export function taskScreen(where, ctx) {
   // into one survives every delta.
   const controls = live ? actsIn(acts.body, ctx, REST) : null
 
-  const regions = [lead.node, screen.node, time.node, first, asked.node, about.node, acts.node]
+  const regions = [
+    lead.node,
+    screen.node,
+    said.node,
+    time.node,
+    first,
+    asked.node,
+    about.node,
+    acts.node,
+  ]
   into(node, bar.node, coming, gone, ...regions)
 
   let view = null
@@ -149,7 +161,9 @@ export function taskScreen(where, ctx) {
     const task = view.store.had ? taskAt(view.store, where.project, where.task) : null
     if (task === null) return
     const record = treeOf(task, view.store)
-    time.update(pane?.heard() ?? { answer: null, failed: null }, task, record, view)
+    const heard = pane?.heard() ?? { answer: null, failed: null }
+    time.update(heard, task, record, view)
+    said.update(heard, view)
   }
 
   return {

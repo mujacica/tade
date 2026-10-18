@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { byProject, runsOn } from '../src/assets/agents.js'
-import { WHY_SAID } from '../src/assets/pages/agent-pane.js'
-import { SCREEN_WHY } from '../src/protocol.ts'
+import { WHY_SAID, withHeld } from '../src/assets/pages/agent-pane.js'
+import { UNREAD_SAID } from '../src/assets/pages/agent-said.js'
+import { CONVERSATION_WHY, SCREEN_WHY } from '../src/protocol.ts'
 
 // The page's half of an agent looked into, as far as anything offline can see
 // it: the sentences it says for each absence, held equal to the words the
@@ -26,6 +27,33 @@ describe('why there is no screen, said', () => {
     // And no agent is not "could not read": one is the work, the other is the
     // reading, and somebody does something different about each.
     expect(WHY_SAID['no agent']).not.toBe(WHY_SAID['could not read'])
+  })
+})
+
+describe('its conversation, asked for again', () => {
+  it('says why there is none for every word the machine can send, and none for a word it cannot', () => {
+    expect(Object.keys(UNREAD_SAID).sort()).toEqual([...CONVERSATION_WHY].sort())
+    expect(UNREAD_SAID['not granted']?.[1]).toContain('at the machine')
+  })
+
+  it('keeps the turns it holds where the machine says they have not moved', () => {
+    const turns = [{ id: 'reply:1#0' }]
+    const was = { conversation: { rev: '7', turns, earlier: false, taken: 2 }, unread: null }
+    const same = withHeld(was, {
+      screen: null,
+      conversation: { rev: '7', turns: null, earlier: false, taken: 0 },
+      unread: null,
+    })
+    expect(same.conversation).toEqual(was.conversation)
+    // A revision it never held the turns of is not drawn as an empty conversation.
+    const lost = withHeld(null, {
+      conversation: { rev: '8', turns: null, earlier: false, taken: 0 },
+      unread: null,
+    })
+    expect(lost).toMatchObject({ conversation: null, unread: 'not read yet' })
+    // A whole answer is taken as it is.
+    const next = { conversation: { rev: '8', turns: [], earlier: false, taken: 0 }, unread: null }
+    expect(withHeld(was, next)).toBe(next)
   })
 })
 

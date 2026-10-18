@@ -114,9 +114,10 @@ export const GRANT_MEANS: Readonly<Record<Grant, string>> = {
   // an agent printed — a customer's address in a fixture, a key in a shape
   // nobody listed — and a person deciding has to be told that half too.
   lanes:
-    'the last lines each agent’s own screen shows, read only while you are looking at it — ' +
-    'machine paths, the keys Tade holds and anything shaped like a credential are taken out, ' +
-    'and anything else an agent printed is not',
+    'the last lines each agent’s own screen shows and its conversation, and what every tool ' +
+    'call was handed and answered, read only while you are looking at it — machine paths, ' +
+    'the keys Tade holds and anything shaped like a credential are taken out, and anything ' +
+    'else an agent printed is not',
   settings:
     'what Tade is set up with, as the Settings page lists it, for the projects this device ' +
     'reads — a key or a token is said as set or not set and never shown, and machine paths ' +
@@ -162,7 +163,7 @@ export const WITHHOLDS: Readonly<Record<Grant, readonly string[]>> = {
   requests: ['intake.title', 'intake.who', 'intake.url'],
   material: ['intake.material', 'intake.materialSays', 'intake.materialLabel'],
   workflows: ['workflows'],
-  lanes: ['agent.screen'],
+  lanes: ['agent.screen', 'agent.conversation', 'chat.call'],
   settings: ['settings'],
 }
 

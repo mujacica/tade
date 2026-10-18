@@ -131,10 +131,12 @@ export function agentPane(where, ctx, told = () => {}) {
     // laptop with the page left open in another tab is not a lane being read
     // every two seconds for as long as it is awake.
     if (document.visibilityState === 'visible') {
-      const got = await ctx.ask('GET', path)
+      // The conversation this page holds, so one that has not moved is not sent again.
+      const seen = answer?.conversation?.rev
+      const got = await ctx.ask('GET', seen ? `${path}?seen=${encodeURIComponent(seen)}` : path)
       if (gone) return
       if (got.status === 200 && got.body !== null && got.body.v === 1) {
-        answer = got.body
+        answer = withHeld(answer, got.body)
         failed = null
       } else {
         failed = troubleSaid(troubleOf(got) ?? UNKNOWN_TROUBLE)
@@ -160,6 +162,21 @@ export function agentPane(where, ctx, told = () => {}) {
       timer = null
     },
   }
+}
+
+/**
+ * An answer, with the conversation the page already holds kept where the
+ * machine said it has not moved (`turns: null` for the revision it was told).
+ */
+export function withHeld(was, next) {
+  const talk = next.conversation
+  if (talk === null || talk === undefined || talk.turns !== null) return next
+  const held = was?.conversation
+  if (held === null || held === undefined || held.rev !== talk.rev || held.turns === null) {
+    // A revision this page never held the turns of: nothing to keep, so it asks whole next time.
+    return { ...next, conversation: null, unread: 'not read yet' }
+  }
+  return { ...next, conversation: held }
 }
 
 /**

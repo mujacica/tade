@@ -460,8 +460,9 @@ export interface NoteIn {
  * what a raw one carries — a tool call's arguments, a tool's answer, a lane's
  * bytes, a machine path — is still a name that fails a test. This is the
  * hand-written allow-list over it, which is the only shape that gets to go to
- * a phone: five fields, a tool's **name** and never its arguments, and an
- * outcome in one word.
+ * a phone: a few fields, a tool's **name**, an outcome in one word, and the
+ * call itself only as `chatRows` cleans it and only for a device granted an
+ * agent's own bytes (`lanes`).
  *
  * Behind its own grant (`talk`), because reading what somebody typed at their
  * own keyboard is a decision somebody makes per device, exactly as `notes` is.
@@ -511,6 +512,13 @@ export interface ChatIn {
   tool: string
   /** How a tool line went, in one word. Empty where it is not a tool line. */
   outcome: '' | 'running' | 'ok' | 'failed'
+  /**
+   * A tool line's call as the window holds it: what the model handed the tool
+   * and what the tool answered. **Untrusted and uncleaned** — `chatRows` is
+   * the boundary that cleans it (`callOf`), and sends it at all only under
+   * `lanes`. Null on every other line.
+   */
+  call: { input: unknown; result: string } | null
   /** Still arriving, so the page can draw it as such rather than as finished. */
   streaming: boolean
 }
@@ -545,6 +553,12 @@ export interface TalkIn {
    * answers `403`.
    */
   mine: boolean
+  /**
+   * Every value the window knows to be a key (`knownKeys`), which a call is
+   * cleaned of. Empty where no line is a tool's: asking every extension for
+   * its keys is not free.
+   */
+  known: readonly string[]
 }
 
 /** Everything one projection is built from. */

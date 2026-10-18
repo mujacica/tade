@@ -66,6 +66,7 @@ export class FarTalk {
       busy: this.busy,
       whose: this.whose,
       mine: true,
+      known: [],
     }
   }
 
@@ -141,6 +142,7 @@ export class FarTalk {
       text,
       tool: '',
       outcome: '',
+      call: null,
       streaming: false,
     })
   }

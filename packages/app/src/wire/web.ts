@@ -144,6 +144,16 @@ export class Away implements Subject {
     })
     this.lanes = new Lanes({
       capture: (lane, lines) => wire.opts.client.capture(lane as never, lines, false),
+      history: async (task, limit) => {
+        const page = await wire.opts.client.agentHistory(task, { limit })
+        return { turns: page.items, earlier: page.earlier !== null }
+      },
+      trouble: (task, err) =>
+        wire.note(
+          new Error(
+            `the away view could not read ${task}'s conversation: ${err instanceof Error ? err.message : String(err)}`,
+          ),
+        ),
       now: () => wire.now(),
     })
     // Out of the collections the beat already built: no look at the world.
@@ -699,12 +709,19 @@ export class Away implements Subject {
         this.catchUp(reach, held)
         return held.notes(scope, after)
       },
-      agent: (task) => {
+      agent: (task, seen = null) => {
         // **This request's reach, not the projector's.** The device list is
         // read at every request and a projector catches up on a beat, so a
         // grant taken back a second ago is already gone here — and the
         // collections are the ones this beat built, memoised, never a look.
-        const answer = agentOf(reach, this.collections().tasks, task, this.agentIn(reach, task))
+        const answer = agentOf(
+          reach,
+          this.collections().tasks,
+          task,
+          this.agentIn(reach, task),
+          AGENT,
+          seen,
+        )
         // **Asking is looking**, and only a device that may read the screen,
         // about a task it may read at all, makes the window read one: an
         // ungranted phone with the page open costs the activity fold and no
@@ -730,6 +747,7 @@ export class Away implements Subject {
     return {
       activity: activityIn(this.wire.live?.events ?? [], task, AGENT.activity),
       lane: this.lanes.heldFor(task) ?? { kind: 'none', why: 'not read yet' },
+      conversation: this.lanes.talkFor(task),
       // Only for a device that will be shown a screen: asking every extension
       // for its keys is not free, and an ungranted answer has no screen.
       known: has(reach, 'lanes') ? this.lanes.keys(keys) : [],
@@ -805,7 +823,11 @@ export class Away implements Subject {
 
   /** The conversation as the projection takes it, or null where talking is off. */
   private talkNow(): ReturnType<typeof talkFor> {
-    return talkFor(this.wire.state.transcript, this.deps.talk, this.talking())
+    // The keys a call is cleaned of: the same ones a screen is, worked out at
+    // most once a beat and only where some line is a tool's.
+    return talkFor(this.wire.state.transcript, this.deps.talk, this.talking(), () =>
+      this.lanes.keys(() => knownHere(this.wire, this.config())),
+    )
   }
 
   private talking(): boolean {

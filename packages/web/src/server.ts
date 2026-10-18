@@ -371,7 +371,9 @@ export function webServer(opts: ServerOptions): WebServer {
       }
       case 'agent': {
         const task = `${found.params.project ?? ''}/${found.params.task ?? ''}`
-        return json(res, opts.readingFor(reachOf(device)).agent(task))
+        // The conversation this page already holds, so an unmoved one is not sent again.
+        const seen = queryOf(req.url ?? '/').get('seen')
+        return json(res, opts.readingFor(reachOf(device)).agent(task, seen))
       }
       case 'settings':
         return json(res, opts.readingFor(reachOf(device)).settings())

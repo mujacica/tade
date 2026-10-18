@@ -30,7 +30,7 @@ export const BOXES = {
   projects: { scopes: ['projects'], reads: [], draws: [] },
   talk: { scopes: ['ask'], reads: ['talk'], draws: ['chat'] },
   configure: { scopes: ['configure'], reads: ['settings'], draws: ['settings'] },
-  see: { scopes: [], reads: ['lanes'], draws: ['agent.screen'] },
+  see: { scopes: [], reads: ['lanes'], draws: ['agent.screen', 'agent.conversation', 'chat.call'] },
   settings: { scopes: [], reads: ['settings'], draws: ['settings'] },
 } as const satisfies Record<string, Box>
 

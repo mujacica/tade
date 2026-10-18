@@ -293,6 +293,7 @@ a.pal-whole:hover {
 
 .rows.chat > li {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--s1);
 }
 
@@ -311,6 +312,26 @@ a.pal-whole:hover {
 
 .rows.chat > li > div:empty {
   display: none;
+}
+
+/*
+  Words drawn as markdown keep their own lines, not the typed ones'; a tool's
+  call is a quiet row between the bubbles, not a bubble, and a run of them
+  sits close.
+*/
+.rows.chat > li > .ui-md {
+  min-width: 0;
+  white-space: normal;
+  text-align: start;
+}
+
+.rows.chat > li > .ui-call {
+  padding: 0;
+  background: none;
+}
+
+.rows.chat > li.is-tool + li.is-tool {
+  margin-block-start: calc(-1 * var(--s3));
 }
 
 /*

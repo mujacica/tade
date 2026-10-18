@@ -43,6 +43,13 @@ export type Entry =
       tool: string
       /** The arguments that tell you which one: a project, a command. */
       detail: string
+      /**
+       * Everything it was handed, as the harness gave it — kept so the away
+       * view can show a device granted an agent's bytes the call itself
+       * (`@tade/web`'s `callOf` cleans it there). Absent on a line made
+       * before anything kept it.
+       */
+      input?: unknown
       state: ToolState
       /** What it answered: the reason, when it failed. */
       result: string
@@ -167,6 +174,7 @@ export function withEarlier(
         id: item.id,
         tool: item.tool,
         detail: toolDetail(item.input),
+        input: item.input,
         state: item.ok === null ? 'failed' : item.ok ? 'ok' : 'failed',
         result: item.ok === null ? 'no answer to it was recorded' : item.result,
         progress: null,
@@ -361,6 +369,7 @@ export function fromThinker(transcript: Transcript, event: ThinkerEvent, at: num
         id: event.id,
         tool: event.tool,
         detail: toolDetail(event.input),
+        input: event.input,
         state: 'running',
         result: '',
         progress: null,

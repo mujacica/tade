@@ -2,9 +2,10 @@
 // without taking somebody's place in it away.
 //
 // **Every value reaches the DOM through `textContent`.** There is no markup
-// path here at all — no template string that becomes HTML, no Markdown
-// renderer, no attribute built by concatenation — so a note somebody pasted a
-// `<script>` into is a note that says `<script>`. The content policy has no
+// path here at all — no template string that becomes HTML, no attribute built
+// by concatenation, and the one reader of markdown (`markdown.js`) builds its
+// own nodes from a closed list and puts every character in a text node — so a
+// note somebody pasted a `<script>` into is a note that says `<script>`. The content policy has no
 // `unsafe-inline` to fall back on and `test/assets.test.ts` asserts no file in
 // this folder so much as reaches for `innerHTML`, but the reason those two hold
 // is that nothing here wants them.

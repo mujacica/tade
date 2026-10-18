@@ -1,6 +1,14 @@
 import { type Config, findSecret } from '@tade/core'
 import { LaneClosedError, LaneNotFoundError } from '@tade/drivers-core'
-import { inTime, KNOWN_FLOOR, type LaneIn, SCREEN } from '@tade/web'
+import {
+  type ConversationIn,
+  inTime,
+  KNOWN_FLOOR,
+  type LaneIn,
+  SCREEN,
+  TURNS,
+  type TurnIn,
+} from '@tade/web'
 import type { Wiring } from './context.ts'
 
 // What the away view holds of agents' screens, and the one rule that decides
@@ -54,6 +62,18 @@ export interface LaneReading {
    * Throws for a lane that is not there, which is an answer: no agent.
    */
   capture(lane: string, lines: number): Promise<string>
+  /**
+   * The newest turns of a task's agent's conversation, out of its harness's
+   * own record (`Workbench.agentHistory`): at least `limit` of them, and
+   * whether the record goes back further. Throws for a record that is there
+   * and could not be read. Absent, no conversation is read.
+   */
+  history?(task: string, limit: number): Promise<{ turns: TurnIn[]; earlier: boolean }>
+  /**
+   * A conversation's record could not be read: said where somebody reads it,
+   * once each time it goes from read to not, never once a beat.
+   */
+  trouble?(task: string, err: unknown): void
   now(): number
   /** How long a read may take. `READ_MS` but in a test, which has no second to spend. */
   deadline?: number
@@ -68,6 +88,11 @@ export class Lanes {
   private readonly watching = new Map<string, Map<string, number>>()
   private readonly held = new Map<string, LaneIn>()
   private readonly flying = new Set<string>()
+  /** What was last read of each watched agent's conversation, and what it was made from. */
+  private readonly talks = new Map<string, { said: ConversationIn; whole: string }>()
+  private readonly talking = new Set<string>()
+  /** Counts every conversation that moved, so a revision is never one a page already holds. */
+  private moved = 0
   /** The keys a screen is scrubbed of: worked out at most once a beat, and only if asked. */
   private known: string[] | null = null
   /** How many reads were started, which is what a test counts. */
@@ -94,6 +119,11 @@ export class Lanes {
   /** What was last read of this task's agent, or null for nothing yet. */
   heldFor(task: string): LaneIn | null {
     return this.held.get(task) ?? null
+  }
+
+  /** What was last read of this task's agent's conversation; absent for nothing yet. */
+  talkFor(task: string): ConversationIn | undefined {
+    return this.talks.get(task)?.said
   }
 
   /**
@@ -142,8 +172,8 @@ export class Lanes {
         this.drop(task)
         continue
       }
-      if (this.flying.has(task)) continue
-      void this.read(task)
+      if (!this.flying.has(task)) void this.read(task)
+      if (this.reading.history !== undefined && !this.talking.has(task)) void this.readTalk(task)
     }
   }
 
@@ -165,6 +195,56 @@ export class Lanes {
     // is never the first thing a page is shown when it opens the agent again:
     // that answer is `not read yet`, which is true, and the next beat reads it.
     this.held.delete(task)
+    this.talks.delete(task)
+  }
+
+  /**
+   * One read of an agent's conversation: the same rules as its screen — one in
+   * flight, a deadline, and a late or failed read keeps the last one known.
+   * Its revision moves only when the turns did, so a page that already holds
+   * them is sent nothing (`?seen=`).
+   */
+  private async readTalk(task: string): Promise<void> {
+    const history = this.reading.history
+    if (history === undefined) return
+    this.talking.add(task)
+    try {
+      const page = await inTime<{ turns: TurnIn[]; earlier: boolean } | typeof LATE>(
+        history(task, TURNS.turns),
+        this.reading.deadline ?? READ_MS,
+        LATE,
+      )
+      if (!this.watching.has(task)) return
+      if (page === LATE) {
+        this.talkCouldNot(task)
+        return
+      }
+      const whole = JSON.stringify(page)
+      const was = this.talks.get(task)
+      if (was !== undefined && was.said.kind === 'read' && was.whole === whole) return
+      this.moved += 1
+      this.talks.set(task, {
+        said: { kind: 'read', turns: page.turns, earlier: page.earlier, rev: String(this.moved) },
+        whole,
+      })
+    } catch (problem) {
+      // A record that is there and could not be read is said as that, never
+      // as a conversation with nothing in it — to the page, and to the person
+      // at the machine the first time it happens.
+      if (!this.watching.has(task)) return
+      const was = this.talks.get(task)?.said
+      if (was === undefined || was.kind === 'read') this.reading.trouble?.(task, problem)
+      this.talkCouldNot(task)
+    } finally {
+      this.talking.delete(task)
+    }
+  }
+
+  private talkCouldNot(task: string): void {
+    const was = this.talks.get(task)
+    if (was === undefined || was.said.kind === 'none') {
+      this.talks.set(task, { said: { kind: 'none', why: 'could not read' }, whole: '' })
+    }
   }
 
   private async read(task: string): Promise<void> {

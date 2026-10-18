@@ -1,7 +1,14 @@
 import { TaskState } from '@tade/core'
+import { type TurnIn, turnsOf } from './conversation.ts'
 import { pathIn } from './fields.ts'
 import type { TaskIn } from './input.ts'
-import type { ActivityKind, ActivityRow, AgentOut, SCREEN_WHY } from './protocol.ts'
+import type {
+  ActivityKind,
+  ActivityRow,
+  AgentOut,
+  CONVERSATION_WHY,
+  SCREEN_WHY,
+} from './protocol.ts'
 import { PROTOCOL_VERSION } from './protocol.ts'
 import { has, type Reach, sees } from './reach.ts'
 import { cleanScreen, SCREEN, type ScreenBudget } from './screen.ts'
@@ -16,7 +23,7 @@ import { cleanScreen, SCREEN, type ScreenBudget } from './screen.ts'
 // of one task's row, what the window held of it, and the device's reach — and
 // nothing is built for a device that is not asking.
 //
-// Two halves with two different rules:
+// Three parts with two different rules:
 //
 // - **What it has been doing** is metadata: a kind out of a closed list
 //   (`ACTIVITY_KINDS`) and a name a harness or Tade gave a thing — a tool, a
@@ -29,6 +36,10 @@ import { cleanScreen, SCREEN, type ScreenBudget } from './screen.ts'
 //   rides on `lanes`, which is off with every other grant off. Without it the
 //   answer says `not granted` — and never *no agent*, which would be the page
 //   blaming the work for the reader's own reach.
+// - **What it was told and said, and every call it made** (`conversation`) is
+//   the same kind of value on the same grant, out of its harness's own record
+//   and cleaned by the screen's rule (`turnsOf`). Sent only when it moved
+//   since the revision the page says it holds (`seen`).
 //
 // Pure: no `node:` import, no clock, nothing awaited.
 
@@ -53,11 +64,29 @@ export type LaneIn =
   | { kind: 'read'; text: string; at: number }
   | { kind: 'none'; why: Exclude<(typeof SCREEN_WHY)[number], 'not granted' | 'not here'> }
 
+/**
+ * What the window holds of one agent's conversation, out of its harness's own
+ * record. Untrusted, like the screen: `turnsOf` is what cleans it.
+ */
+export type ConversationIn =
+  | {
+      kind: 'read'
+      /** The newest turns, oldest first. */
+      turns: readonly TurnIn[]
+      /** Whether the record goes back further. */
+      earlier: boolean
+      /** Moves exactly when the turns did, so a page that has these is sent nothing. */
+      rev: string
+    }
+  | { kind: 'none'; why: Exclude<(typeof CONVERSATION_WHY)[number], 'not granted'> }
+
 /** Everything the window hands over about one agent. */
 export interface AgentIn {
   /** Newest first, already bounded by the window to `activity` and one more. */
   activity: readonly ActivityIn[]
   lane: LaneIn
+  /** Its conversation as last read. Absent is not read yet. */
+  conversation?: ConversationIn
   /**
    * Every value the window knows to be a key: the config's, the variables
    * they are read from, and the window's own environment's — which is the
@@ -140,6 +169,7 @@ export function agentOf(
   task: string,
   held: AgentIn | null,
   budget: AgentBudget = AGENT,
+  seen: string | null = null,
 ): AgentOut {
   const row = tasks.find((one) => one.id === task)
   if (row === undefined || !sees(reach, row.project)) {
@@ -154,6 +184,8 @@ export function agentOf(
       more: false,
       screen: null,
       why: 'not here',
+      conversation: null,
+      unread: null,
     }
   }
   const activity: ActivityRow[] = []
@@ -164,12 +196,15 @@ export function agentOf(
   }
   const more = (held?.activity.length ?? 0) > activity.length
   const base = { v: PROTOCOL_VERSION, task, here: true, activity, more } as const
-  if (!has(reach, 'lanes')) return { ...base, screen: null, why: 'not granted' }
+  if (!has(reach, 'lanes')) {
+    return { ...base, screen: null, why: 'not granted', conversation: null, unread: 'not granted' }
+  }
+  const talked = conversationOut(held?.conversation, held?.known ?? [], seen)
   // Nothing held and nothing running is *no agent*; nothing held and something
   // running is a window that has not read it yet, which the next beat answers.
   const idle = row.agents === 0 && row.lanes === 0
   const lane = held?.lane ?? { kind: 'none', why: idle ? 'no agent' : 'not read yet' }
-  if (lane.kind === 'none') return { ...base, screen: null, why: lane.why }
+  if (lane.kind === 'none') return { ...base, screen: null, why: lane.why, ...talked }
   const clean = cleanScreen(lane.text, held?.known ?? [], budget)
   return {
     ...base,
@@ -181,5 +216,37 @@ export function agentOf(
       taken: clean.taken,
     },
     why: null,
+    ...talked,
+  }
+}
+
+/**
+ * An agent's conversation as one device is sent it: cleaned, or — where the
+ * device said it already holds this one (`seen`) — its revision and no turns,
+ * which is what keeps a page that asks every two seconds from being sent forty
+ * turns every two seconds.
+ */
+function conversationOut(
+  held: ConversationIn | undefined,
+  known: readonly string[],
+  seen: string | null,
+): Pick<AgentOut, 'conversation' | 'unread'> {
+  const talk = held ?? { kind: 'none', why: 'not read yet' }
+  if (talk.kind === 'none') return { conversation: null, unread: talk.why }
+  if (seen === talk.rev) {
+    return {
+      conversation: { rev: talk.rev, turns: null, earlier: talk.earlier, taken: 0 },
+      unread: null,
+    }
+  }
+  const clean = turnsOf(talk.turns, known)
+  return {
+    conversation: {
+      rev: talk.rev,
+      turns: clean.turns,
+      earlier: talk.earlier || talk.turns.length > clean.turns.length,
+      taken: clean.taken,
+    },
+    unread: null,
   }
 }

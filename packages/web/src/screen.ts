@@ -202,6 +202,31 @@ export function withoutCredentials(text: string, known: readonly string[]): stri
   return masked(flat, mask, 0)
 }
 
+/**
+ * Words an agent or a tool wrote that are not a screen — a turn of its
+ * conversation, a call's arguments and its answer — cleaned by the screen's
+ * own rule and kept whole: every character that is not text, a private key's
+ * block, every key Tade knows of, anything shaped like a credential and every
+ * machine path, each one `…`, and how many things that was. Its lines stay
+ * lines, a tab is two spaces, and nothing is cut to a budget: that is the
+ * caller's (`textOf`), after this, so a key is never cut in half and half let
+ * through.
+ */
+export function cleanText(text: string, known: readonly string[]): { text: string; taken: number } {
+  const rows = text
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((row) => textOnly(row.replace(/\t/g, '  ')))
+  const blocked = keyBlocks(rows)
+  for (const at of blocked) rows[at] = ELIDED
+  const flat = rows.join('\n')
+  const mask = new Uint8Array(flat.length)
+  markKnown(flat, keysOf(known), mask)
+  markShapes(flat, mask)
+  markPaths(flat, mask)
+  return { text: masked(flat, mask, 0), taken: countRuns(blocked) + runs(mask) }
+}
+
 /** The keys worth looking for, longest first so a key inside a key goes whole. */
 function keysOf(known: readonly string[]): string[] {
   const kept = new Set<string>()

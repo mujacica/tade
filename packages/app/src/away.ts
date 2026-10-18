@@ -624,13 +624,21 @@ export function awayCollections(parts: AwayParts): AwayCollections {
  * five kinds are *asked*, *reply*, *tool*, *tade* (Tade's own words, whatever
  * prompted them) and *problem*, and `glyphs.js` has one rule for each.
  *
- * **What is left out is the point.** A tool entry's `detail` is the call's own
- * arguments — a command, a path, a prompt — and its `result` is what the tool
- * answered; neither crosses. The tool's **name** does, which is what Phase 3
- * promised and what a person on a phone can actually act on.
+ * **A tool entry's call goes as the window holds it, and the projection
+ * decides.** Its arguments — a command, a path, a prompt — and what the tool
+ * answered are handed over raw, and `@tade/web` cleans them at its boundary
+ * and sends them only under `lanes` (`withCalls`); every other device reads
+ * the tool's **name** and how it went, as it always did.
  */
-export function talkIn(from: { transcript: Transcript; busy: boolean; whose: string }): TalkIn {
+export function talkIn(from: {
+  transcript: Transcript
+  busy: boolean
+  whose: string
+  /** The keys a call is cleaned of, asked for only where a line is a tool's. */
+  known?: () => readonly string[]
+}): TalkIn {
   const lines = chatLines(from.transcript)
+  const calls = lines.some((line) => line.call !== null)
   return {
     lines,
     // Built from the same two facts the window re-checks at the moment it
@@ -640,6 +648,7 @@ export function talkIn(from: { transcript: Transcript; busy: boolean; whose: str
     whose: from.whose,
     // Raised per device by whoever knows that device's scopes. Never here.
     mine: false,
+    known: calls ? (from.known?.() ?? []) : [],
   }
 }
 
@@ -667,7 +676,7 @@ export function chatLines(transcript: Transcript): ChatIn[] {
 
 /** One entry's own fields, without its id. */
 function chatLine(entry: Entry): Omit<ChatIn, 'id' | 'at'> {
-  const plain = { from: '', tool: '', outcome: '' as const, streaming: false }
+  const plain = { from: '', tool: '', outcome: '' as const, streaming: false, call: null }
   switch (entry.kind) {
     case 'you':
       return { ...plain, kind: 'asked', from: entry.from, text: entry.text }
@@ -685,11 +694,13 @@ function chatLine(entry: Entry): Omit<ChatIn, 'id' | 'at'> {
       return {
         ...plain,
         kind: 'tool',
-        // The name, and **never** `detail` (the call's arguments) or `result`
-        // (what it answered). `NEVER_A_FIELD` forbids both by name.
         tool: entry.tool,
         text: '',
         outcome: entry.state,
+        // What it was handed and what it answered, **as the window holds
+        // them**: `@tade/web`'s `withCalls` cleans them and sends them only to
+        // a device granted an agent's own bytes (`lanes`).
+        call: { input: entry.input ?? null, result: entry.result },
       }
     case 'problem':
       return { ...plain, kind: 'problem', text: entry.text }

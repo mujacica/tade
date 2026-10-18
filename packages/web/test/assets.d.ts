@@ -252,6 +252,29 @@ declare module '*/assets/talk.js' {
   export function saidOn(line: unknown): string
   export function draftStore(): { get(): string; set(said: unknown): void }
   export function reasonWord(talk: unknown): string
+  // biome-ignore lint/suspicious/noExplicitAny: a node of whichever document a test installs
+  export function createChatLine(): any
+  export function fillChatLine(node: unknown, line: unknown, view: unknown): void
+}
+
+declare module '*/assets/markdown.js' {
+  export const TAGS: readonly string[]
+  export function hrefOf(address: unknown): string | null
+  export function partsOf(text: string, from?: number): { start: number; src: string }[]
+  // biome-ignore lint/suspicious/noExplicitAny: the blocks are the reader's own shapes
+  export function blocksOf(text: string, depth?: number): any[]
+  // biome-ignore lint/suspicious/noExplicitAny: the inline parts are the reader's own shapes
+  export function inlineOf(text: string, depth?: number): any[]
+  export function blockNodes(blocks: unknown[]): unknown[]
+  export function markdownIn(node: unknown, text: unknown): void
+}
+
+declare module '*/assets/conversation.js' {
+  export const CALL_STATES: Record<string, { glyph: string; word: string; tone: string }>
+  export function wordsIn(node: unknown, said: unknown, markdown: boolean): void
+  // biome-ignore lint/suspicious/noExplicitAny: a node of whichever document a test installs
+  export function callRow(): any
+  export function callIn(node: unknown, one: unknown): void
 }
 
 declare module '*/assets/icons.js' {

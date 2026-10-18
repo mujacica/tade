@@ -132,9 +132,10 @@ export function talkFor(
   transcript: Transcript,
   talk: { busy(): boolean; whose(): string },
   on: boolean,
+  known?: () => readonly string[],
 ): TalkIn | null {
   if (!on) return null
-  return talkIn({ transcript, busy: talk.busy(), whose: talk.whose() })
+  return talkIn({ transcript, busy: talk.busy(), whose: talk.whose(), known })
 }
 
 /** Nothing projected yet: an away view that has had no beat still answers. */
