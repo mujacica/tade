@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
+import type { AppState } from '../../src/model.ts'
 import { NOTCH } from '../../src/scroll.ts'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
 
@@ -298,6 +299,19 @@ describe('the window, under the pointer', () => {
     await until('the line to open', () => terminal.written.includes('here'))
     // The pane still says whose agent it is.
     expect(screenOf(terminal.written).join('\n')).not.toContain('Nothing is running')
+  })
+
+  it('counts a click as somebody here, as a key is', async () => {
+    const running = await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const state = () => (running as unknown as { wire: { state: AppState } }).wire.state
+    expect(state().lastKeyAt).toBeNull()
+    const before = Date.now()
+    const strip = find('orchestrator')
+    click(strip.col + 2, strip.row)
+    // A click reaches the pointer and never `Keyboard.onInput`, which is what
+    // stamps a key: presence and push read this, not `presses`.
+    expect(state().lastKeyAt).toBeGreaterThanOrEqual(before)
   })
 
   it('keeps what was half-written at the orchestrator while focus is elsewhere', async () => {

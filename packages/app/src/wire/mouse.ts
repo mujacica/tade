@@ -320,9 +320,16 @@ export class Mouse {
    */
   private pointer(event: PointerEvent): boolean {
     if (this.deps.stopped() || this.deps.borrowed()) return false
-    // Anything but the pointer passing over is somebody doing something (`presses`).
+    // Anything but the pointer passing over is somebody doing something
+    // (`presses`), and somebody here (`lastKeyAt`): a click never reaches
+    // `Keyboard.onInput`, which sets it for a key, because the screen's own
+    // listener takes every mouse report first.
     if (event.kind !== 'move') {
-      this.wire.put({ ...this.wire.state, presses: this.wire.state.presses + 1 })
+      this.wire.put({
+        ...this.wire.state,
+        lastKeyAt: this.wire.now(),
+        presses: this.wire.state.presses + 1,
+      })
     }
     // A notch waits for the rest of its turn; anything else comes after the
     // notches turned before it, so those are answered first.
