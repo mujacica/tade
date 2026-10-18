@@ -414,3 +414,49 @@ describe('a harness that is not installed, on the Accounts page', () => {
     expect(all.find((one) => one.harness === 'acp')?.install).toBeNull()
   })
 })
+
+describe('a harness made the way the workbench is told', () => {
+  it('answers for its own sign-in and for an account added beside it', async () => {
+    const repo = mkrepo()
+    const home = tmp('tade-accounts-made-')
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
+    const make = HARNESS_ADAPTERS['claude-code']
+    if (!make) throw new Error('no claude-code in the registry')
+    const asked: string[] = []
+    const client = await Workbench.open({
+      home,
+      harnessHome: tmp('tade-own-home-'),
+      harnesses: {
+        // The real adapter, asking nobody: an added account's is made the
+        // first time it is needed, and must be made this way too.
+        'claude-code': (opts) => {
+          const adapter = make(opts)
+          adapter.account = async () => {
+            asked.push(opts.account?.name ?? 'own')
+            return {
+              signedIn: true,
+              who: 'made@example.com',
+              plan: null,
+              method: null,
+              problem: null,
+            }
+          }
+          return adapter
+        },
+      },
+    })
+    try {
+      await client.addAccount({ name: 'work', harness: 'claude-code' })
+      const rows = (await client.accounts()).filter((one) => one.harness === 'claude-code')
+      expect(rows.map((one) => [one.name, one.status.who])).toEqual([
+        [null, 'made@example.com'],
+        ['work', 'made@example.com'],
+      ])
+      expect(asked.sort()).toEqual(['own', 'work'])
+      // Every other harness is still the registry's.
+      expect((await client.accounts()).some((one) => one.harness === 'codex')).toBe(true)
+    } finally {
+      await client.close()
+    }
+  })
+})

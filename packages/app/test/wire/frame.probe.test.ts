@@ -155,7 +155,7 @@ describe('what the frame loop costs', () => {
     await client.write(opened.id, `exec node ${script}\r`)
     // The beat the window really has. The harness runs it faster so tests do
     // not wait, and a probe about the beat has to use the one people get.
-    await start({ frameMs: 250 })
+    await start({ frameMs: 250, beatMs: 2_000 })
     await until('the first frame', () => terminal.written.includes('refunds'))
     const tab = find('terminal 1')
     click(tab.col + 1, tab.row)
@@ -203,7 +203,11 @@ describe('what the frame loop costs', () => {
       await client.write(opened.id, `exec node ${script}\r`)
       // A turn that never ends until the test is over: the spinner on the
       // orchestrator's tab turns for as long as this waits.
-      await start({ frameMs: 250, thinker: { ask: () => new Promise<string>(() => {}) } })
+      await start({
+        frameMs: 250,
+        beatMs: 2_000,
+        thinker: { ask: () => new Promise<string>(() => {}) },
+      })
       await until('the first frame', () => terminal.written.includes('refunds'))
       terminal.press('\x00')
       for (const char of 'what is going on') terminal.press(char)
@@ -231,7 +235,11 @@ describe('what the frame loop costs', () => {
     const timings = new Timings(true)
     const stop = probing(timings)
     try {
-      await start({ frameMs: 250, thinker: { ask: () => new Promise<string>(() => {}) } })
+      await start({
+        frameMs: 250,
+        beatMs: 2_000,
+        thinker: { ask: () => new Promise<string>(() => {}) },
+      })
       await until('the first frame', () => terminal.written.includes('refunds'))
       terminal.press('\x00')
       for (const char of 'what is going on') terminal.press(char)
@@ -272,7 +280,7 @@ describe('what the frame loop costs', () => {
       const script = join(root, 'repaint.cjs')
       writeFileSync(script, REPAINTER)
       await client.write(opened.id, `exec node ${script}\r`)
-      await start({ frameMs: 250 })
+      await start({ frameMs: 250, beatMs: 2_000 })
       await until('the first frame', () => terminal.written.includes('refunds'))
       const tab = find('terminal 1')
       click(tab.col + 1, tab.row)
@@ -337,7 +345,7 @@ describe('what the frame loop costs', () => {
       }
       const opened = await client.openTerminal({ project: 'app' })
       await client.write(opened.id, 'exec cat\r')
-      await start({ frameMs: 250 })
+      await start({ frameMs: 250, beatMs: 2_000 })
       await until('the first frame', () => terminal.written.includes('refunds'))
       const tab = find('terminal 1')
       click(tab.col + 1, tab.row)
@@ -393,7 +401,7 @@ describe('what the frame loop costs', () => {
     const timings = new Timings(true)
     const stop = probing(timings)
     try {
-      await start({ frameMs: 250 })
+      await start({ frameMs: 250, beatMs: 2_000 })
       await until('the first frame', () => terminal.written.includes('Settings'))
       const from = timings.span('doRender')?.count ?? 0
       const started = performance.now()
@@ -440,7 +448,7 @@ describe('what the frame loop costs', () => {
     const stop = probing(timings)
     try {
       terminal.resize(160, 60)
-      await start({ frameMs: 250 })
+      await start({ frameMs: 250, beatMs: 2_000 })
       await until('the first frame', () => terminal.written.includes('refunds'))
       // The first looks at everything land and are drawn, and then it is quiet:
       // a frame a beat is what it drew before, so two beats tell the two apart.

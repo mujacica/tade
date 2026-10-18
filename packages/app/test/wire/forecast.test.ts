@@ -11,7 +11,7 @@ describe('the window, and work that would collide', () => {
   let terminal: FakeTerminal
   let client: Workbench
   let repo: Repo
-  const { start, sidebar } = windowUnderTest((wired) => {
+  const { start, sidebar, beats } = windowUnderTest((wired) => {
     terminal = wired.terminal
     client = wired.client
     repo = wired.repo
@@ -56,7 +56,7 @@ describe('the window, and work that would collide', () => {
 
     // Moving on without touching the files it collides over is not news.
     repo.commit('search more', { 'search.ts': 'faster\n' }, search)
-    await new Promise((resolve) => setTimeout(resolve, 2_500))
+    await beats(3)
     expect(told.filter((text) => text.includes('would conflict in charge.ts'))).toHaveLength(1)
 
     // Taking the other's work in resolves it, and that is written down.

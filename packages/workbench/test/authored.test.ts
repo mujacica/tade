@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -45,6 +45,42 @@ describe('recording what Tade wrote for itself', () => {
     // Opening Tade must not produce a commit a day saying nothing happened.
     expect(await recordAuthored(root, 'second')).toEqual({ recorded: false })
     expect(log(root)).toEqual(['first'])
+  })
+
+  it('asks git once when nothing changed, which is almost every open', async () => {
+    const root = tmp('tade-authored-')
+    writeFileSync(join(root, 'a.md'), 'x\n')
+    await recordAuthored(root, 'first')
+    // The real git, behind a script on PATH that writes down every time it is
+    // asked: opening asks this of two folders, every time Tade opens.
+    const real = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim()
+    const shim = tmp('tade-authored-shim-')
+    const asked = join(shim, 'asked')
+    writeFileSync(join(shim, 'git'), `#!/bin/sh\necho "$*" >> "${asked}"\nexec "${real}" "$@"\n`)
+    chmodSync(join(shim, 'git'), 0o755)
+    const path = process.env.PATH
+    process.env.PATH = `${shim}:${path}`
+    try {
+      expect(await recordAuthored(root, 'second')).toEqual({ recorded: false })
+    } finally {
+      process.env.PATH = path
+    }
+    expect(readFileSync(asked, 'utf8').trim().split('\n')).toEqual([
+      'status --porcelain=v2 -z --untracked-files=all',
+    ])
+    expect(log(root)).toEqual(['first'])
+  })
+
+  it('records what was staged and never committed', async () => {
+    const root = tmp('tade-authored-')
+    writeFileSync(join(root, 'a.md'), 'x\n')
+    await recordAuthored(root, 'first')
+    // Somebody's `git add`, or a record that stopped between its add and its
+    // commit: nothing is untracked or changed, and it is still not history.
+    writeFileSync(join(root, 'b.md'), 'y\n')
+    execFileSync('git', ['add', 'b.md'], { cwd: root })
+    expect(await recordAuthored(root, 'second')).toEqual({ recorded: true })
+    expect(log(root)).toEqual(['second', 'first'])
   })
 
   it('commits as Tade, never as you', async () => {

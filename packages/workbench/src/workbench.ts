@@ -163,6 +163,13 @@ export interface WorkbenchOptions {
   /** Whose home harnesses find their own sign-ins in: for tests, so none reads yours. */
   harnessHome?: string
   /**
+   * How a harness's adapter is made, by name, in place of the registry's
+   * (`HARNESS_ADAPTERS`): for tests, so a window opened in one never asks the
+   * machine's own `claude` or `codex` who it is signed in as. Only names the
+   * registry has; the rest are made as it says.
+   */
+  harnesses?: Readonly<Record<string, (opts: HarnessOptions) => WorkerAdapter>>
+  /**
    * What extensions give agents: extras at launch, and a way to run the tools
    * they call. Passed in, so the workbench never has to know what an extension
    * is — only that there may be more to hand an agent than its prompt.
@@ -289,6 +296,8 @@ export class Workbench {
   private readonly adapters: Record<string, WorkerAdapter>
   /** How an adapter is made, for an account's, which is made the first time it is needed. */
   private readonly harnessOptions: HarnessOptions
+  /** What makes each harness's adapter: the registry's, unless a test said otherwise. */
+  private readonly harnesses: Readonly<Record<string, (opts: HarnessOptions) => WorkerAdapter>>
   private readonly openedAt = Date.now()
   private closing: Promise<void> | null = null
   private readonly extensions: WorkbenchExtensions | null
@@ -306,11 +315,13 @@ export class Workbench {
     lock: HomeLock
     adapters: Record<string, WorkerAdapter>
     harnessOptions: HarnessOptions
+    harnesses: Readonly<Record<string, (opts: HarnessOptions) => WorkerAdapter>>
     extensions?: WorkbenchExtensions
   }) {
     this.home = opts.home
     this.adapters = opts.adapters
     this.harnessOptions = opts.harnessOptions
+    this.harnesses = opts.harnesses
     this.version = opts.version
     this.driver = opts.driver
     this.log = opts.log
@@ -378,8 +389,11 @@ export class Workbench {
           void log.append({ type: 'warning', detail: { message } }).catch(() => {})
         },
       }
+      const harnesses = Object.fromEntries(
+        Object.entries(HARNESS_ADAPTERS).map(([id, make]) => [id, opts.harnesses?.[id] ?? make]),
+      )
       const adapters: Record<string, WorkerAdapter> = Object.fromEntries(
-        Object.entries(HARNESS_ADAPTERS).map(([id, make]) => [id, make(harnessOptions)]),
+        Object.entries(harnesses).map(([id, make]) => [id, make(harnessOptions)]),
       )
       const defaultHarness = config.workers.routes[config.workers.default]?.harness ?? 'pi'
       const fallback = adapters[defaultHarness] ?? adapters.pi
@@ -435,6 +449,7 @@ export class Workbench {
         lock,
         adapters,
         harnessOptions,
+        harnesses,
         ...(opts.extensions ? { extensions: opts.extensions } : {}),
       })
       await log.append({
@@ -1610,7 +1625,7 @@ export class Workbench {
     if (known) return known
     // An account's own adapter, made the first time an agent needs it and
     // answering its runs from then on.
-    const made = HARNESS_ADAPTERS[id]?.({
+    const made = this.harnesses[id]?.({
       ...this.harnessOptions,
       account: this.accountFor(account),
     })

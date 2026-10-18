@@ -486,6 +486,7 @@ export class Heart {
       tadeHome: this.opts.home,
       ...(this.opts.cwd ? { cwd: this.opts.cwd } : {}),
       ...(this.opts.now ? { now: this.opts.now } : {}),
+      ...(this.opts.beatMs ? { pollMs: this.opts.beatMs } : {}),
       openedAt: this.wire.openedAt,
       status: this.opts.status,
       onTasks: (tasks, moved) => {

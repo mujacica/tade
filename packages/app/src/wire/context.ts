@@ -307,6 +307,12 @@ export interface AppOptions {
   now?: () => number
   frameMs?: number
   /**
+   * How often status is looked at again (`Live`'s beat), two seconds unless
+   * given: for tests, whose "nothing more happens" waits are counted in beats
+   * and should not each cost the one a person gets.
+   */
+  beatMs?: number
+  /**
    * Called once, just before the window takes the terminal: whatever was
    * drawn on it while Tade opened stops there, so nothing but the window ever
    * writes to the screen it draws on.

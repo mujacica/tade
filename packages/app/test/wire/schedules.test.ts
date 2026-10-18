@@ -21,7 +21,7 @@ describe('the window, and what it watches', () => {
   let client: Workbench
   let repo: Repo
   let home: string
-  const { start, click, find } = windowUnderTest((wired) => {
+  const { start, click, find, beats } = windowUnderTest((wired) => {
     terminal = wired.terminal
     client = wired.client
     repo = wired.repo
@@ -90,7 +90,7 @@ describe('the window, and what it watches', () => {
       'release-notes',
     ])
     // Once is once: nothing comes due again.
-    await new Promise((resolve) => setTimeout(resolve, 2_500))
+    await beats(3)
     expect(await client.events({ types: ['schedule_fired'] })).toHaveLength(2)
   })
 
@@ -426,7 +426,7 @@ describe('the window, and what it watches', () => {
     expect(client.schedules()).toEqual([])
     // Removed is a decision, and it stays made: the file is append-only, so
     // the id it held is still a fact after the schedule itself is gone.
-    await new Promise((resolve) => setTimeout(resolve, 1_000))
+    await beats(3)
     expect(client.schedules()).toEqual([])
   })
 

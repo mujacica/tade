@@ -39,12 +39,27 @@ export async function recordAuthored(root: string, message: string): Promise<Aut
       const ran = await runProgram('git', args, { cwd: root, timeoutMs: 30_000 })
       if (ran.code !== 0) throw new Error(ran.stderr.trim() || `git ${args[0]} exited ${ran.code}`)
     }
+    // Opening asks this of two folders every time, and almost every time
+    // nothing has changed: one status answers both "is this a repository" and
+    // "is there anything to record", where `rev-parse`, `add` and `diff` took
+    // three processes each. It lists what `add -A` would stage — untracked,
+    // changed and already staged, never ignored — so an empty answer is
+    // exactly nothing to commit. Anything else, or a status that failed, goes
+    // the whole way below, as it always did.
+    const status = await runProgram(
+      'git',
+      ['status', '--porcelain=v2', '-z', '--untracked-files=all'],
+      { cwd: root, timeoutMs: 30_000 },
+    )
+    if (status.code === 0 && status.stdout === '') return { recorded: false }
     // `rev-parse --git-dir` rather than testing for `.git`: a directory that
     // is already inside a repository must not get a second one nested in it.
-    const inside = await git(['rev-parse', '--git-dir']).then(
-      () => true,
-      () => false,
-    )
+    const inside =
+      status.code === 0 ||
+      (await git(['rev-parse', '--git-dir']).then(
+        () => true,
+        () => false,
+      ))
     if (!inside) {
       await git(['init', '--quiet'])
       // Its own identity, so it never depends on a global git config being set

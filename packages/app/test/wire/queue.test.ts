@@ -25,7 +25,7 @@ describe('the window, and the work waiting in it', () => {
   let client: Workbench
   let repo: Repo
   let home: string
-  const { start, click, find } = windowUnderTest((wired) => {
+  const { start, click, find, beats } = windowUnderTest((wired) => {
     terminal = wired.terminal
     client = wired.client
     repo = wired.repo
@@ -41,7 +41,7 @@ describe('the window, and the work waiting in it', () => {
     // Its agent ran and ended a turn, but nothing is committed: not yet.
     await client.log.append({ type: 'run_started', task: 'app/refunds', detail: {} })
     await client.log.append({ type: 'turn_done', task: 'app/refunds', detail: { status: 'ok' } })
-    await new Promise((resolve) => setTimeout(resolve, 2_500))
+    await beats(3)
     expect(await client.events({ types: ['task_done'] })).toEqual([])
     repo.commit('refunds charge once', { 'refunds.ts': 'once' }, worktree)
     await until(

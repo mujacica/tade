@@ -26,7 +26,7 @@ describe('changing work already queued', () => {
   let client: Workbench
   let repo: Repo
   let home: string
-  const { start, click, find } = windowUnderTest((wired) => {
+  const { start, click, find, beats } = windowUnderTest((wired) => {
     terminal = wired.terminal
     client = wired.client
     repo = wired.repo
@@ -86,7 +86,7 @@ describe('changing work already queued', () => {
     // Written down again, because a wait is an answer — and told once, in the
     // answer, rather than again a turn later.
     expect((await holds()).length).toBe(2)
-    await new Promise((resolve) => setTimeout(resolve, 1_500))
+    await beats(3)
     expect(heldSaid()).toBe(1)
 
     // The one call the whole incident needed: wait on the work changing it.
@@ -164,7 +164,7 @@ describe('changing work already queued', () => {
       }),
     ).toBe('Done. app/step-c waits on app/step-a, and starts by itself once that has finished.')
     // Each was in the answer the orchestrator read; none is said to it again.
-    await new Promise((resolve) => setTimeout(resolve, 1_500))
+    await beats(3)
     expect(told.filter((text) => text.includes('app/step-c is held'))).toEqual([])
 
     // A loop is refused with every reason, and nothing is written.

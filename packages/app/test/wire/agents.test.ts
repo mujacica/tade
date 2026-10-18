@@ -8,7 +8,9 @@ import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { App } from '../../src/app.ts'
 import {
+  BEAT_MS,
   FakeTerminal,
+  HARNESSES,
   type Repo,
   SPAWNING_MS,
   screenOf,
@@ -269,7 +271,7 @@ describe('closing the last agent in a project', () => {
     const two = mkrepo({ home })
     two.commit('first')
     two.addTask('retries', { project: 'two', intent: 'webhook retries' })
-    const client = await Workbench.open({ home })
+    const client = await Workbench.open({ home, harnesses: HARNESSES })
     const terminal = new FakeTerminal()
     const speaker = await Speaker.create({
       soundDir: tmp('tade-app-sound-'),
@@ -287,6 +289,7 @@ describe('closing the last agent in a project', () => {
       terminal,
       speaker,
       frameMs: 50,
+      beatMs: BEAT_MS,
     })
     const shown = () => screenOf(terminal.written)
     // Down the side, never in the pane: the agent's name is in its own header
@@ -355,7 +358,7 @@ describe('a project with nothing in it', () => {
     const yaml = (workspace: string) =>
       `projects:\n  empty:\n    root: ${repo.root}\nagents:\n  workspace: ${workspace}\n`
     writeFileSync(join(home, 'config.yaml'), yaml('worktree'))
-    const client = await Workbench.open({ home })
+    const client = await Workbench.open({ home, harnesses: HARNESSES })
     const terminal = new FakeTerminal()
     const speaker = await Speaker.create({
       soundDir: tmp('tade-app-sound-'),
@@ -373,6 +376,7 @@ describe('a project with nothing in it', () => {
       terminal,
       speaker,
       frameMs: 50,
+      beatMs: BEAT_MS,
     })
     try {
       // Opening the window makes nothing: an agent is started when you ask for one.
@@ -504,7 +508,7 @@ describe('a project opened, and the window opened again', () => {
     // the lane back. That is what `lost` means, and it is the one thing
     // opening the window is allowed to start.
     await client.close()
-    const after = await Workbench.open({ home })
+    const after = await Workbench.open({ home, harnesses: HARNESSES })
     try {
       expect(after.lanes().find((lane) => lane.task === refunds.task)?.lost).toBe(true)
       terminal = newTerminal()

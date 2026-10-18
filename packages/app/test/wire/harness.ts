@@ -2,8 +2,10 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { StdinBuffer, type Terminal } from '@earendil-works/pi-tui'
 import { ConfigSchema } from '@tade/core'
+import type { AccountStatus, WorkerAdapter } from '@tade/harnesses-core'
+import { makeCollector, type StatusCollector } from '@tade/status'
 import { Speaker } from '@tade/voice-tts'
-import { recordAuthored, Workbench } from '@tade/workbench'
+import { HARNESS_ADAPTERS, type HarnessOptions, recordAuthored, Workbench } from '@tade/workbench'
 import { afterEach, beforeEach } from 'vitest'
 import { copyRepo, mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { App, type AppOptions } from '../../src/app.ts'
@@ -193,6 +195,45 @@ export async function until(
   throw new Error(`timed out waiting for ${what}`)
 }
 
+/**
+ * How often the window looks at status again in these tests: a quarter of the
+ * two seconds a person gets. What the beat does is counted in beats here
+ * (`Wired.beats`), so a test that waits for nothing more to happen waits three
+ * of them rather than a guess in seconds; a probe about what the beat costs
+ * says `beatMs: 2_000`, the one people get.
+ */
+export const BEAT_MS = 500
+
+/** What every harness says about its sign-in here: nobody is signed in, and nothing was asked. */
+const SIGNED_OUT: AccountStatus = {
+  signedIn: false,
+  who: null,
+  plan: null,
+  method: null,
+  problem: null,
+}
+
+/**
+ * The harnesses as Tade registers them, except that none of them asks the
+ * machine who it is signed in as. The window reads every account when it
+ * opens, and the harness's own answer is its real program — `claude auth
+ * status`, `codex login status`, a tenth of a second of CPU each on every
+ * test, and the developer's own sign-ins read by a suite. An account paid by
+ * an API key keeps its own answer, which asks no program. Everything else
+ * about an adapter is the real one: an agent a test starts runs for real.
+ */
+export const HARNESSES: Readonly<Record<string, (opts: HarnessOptions) => WorkerAdapter>> =
+  Object.fromEntries(
+    Object.entries(HARNESS_ADAPTERS).map(([id, make]) => [
+      id,
+      (opts: HarnessOptions) => {
+        const adapter = make(opts)
+        if (opts.account?.kind !== 'api-key') adapter.account = async () => SIGNED_OUT
+        return adapter
+      },
+    ]),
+  )
+
 /** The repository a test is given: two tasks in it, and one commit. */
 export type Repo = ReturnType<typeof mkrepo>
 
@@ -239,6 +280,14 @@ export interface Wired {
   sidebar(): string
   /** A sidebar heading and where it is, for pressing what is pinned to its right. */
   headingRow(label?: string): { row: number; text: string }
+  /**
+   * Wait for the window to have looked at status this many more times, each
+   * look landed: how a test says "and nothing more happens" about what the
+   * beat does, counted in beats rather than seconds (`BEAT_MS`). Only the
+   * window's own looks count, so a test that hands `start` a `status` of its
+   * own cannot wait on them here.
+   */
+  beats(count: number): Promise<void>
 }
 
 /**
@@ -278,6 +327,9 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
   const opened: { command: string; args: readonly string[] }[] = []
   const took: string[] = []
   let dropped = 0
+  /** The collectors each window here looks through, closed after the test as a window's own would be. */
+  const collectors: StatusCollector[] = []
+  let looked = 0
 
   const wired: Wired = {
     get repo() {
@@ -297,6 +349,11 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
     },
     awake: { took, dropped: () => dropped },
 
+    async beats(count: number): Promise<void> {
+      const from = looked
+      await until(`${count} looks at status`, () => looked >= from + count, SPAWNING_MS)
+    },
+
     async start(over: Partial<AppOptions> = {}, opts: { looked?: boolean } = {}): Promise<App> {
       const speaker = await Speaker.create({
         soundDir: tmp('tade-app-sound-'),
@@ -307,6 +364,20 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
       // Read off the title, as a person would: it says *looking…* until the
       // first look lands, and something else from the next look on.
       const from = terminal.titles.length
+      // The collector the window makes for itself, in this process, counted
+      // as each look lands: one per window, as it would have made, because
+      // what it holds between looks is that window's.
+      const own = makeCollector('here')
+      collectors.push(own)
+      const status: StatusCollector = {
+        id: own.id,
+        collect: async (ask) => {
+          const answer = await own.collect(ask)
+          looked += 1
+          return answer
+        },
+        close: () => own.close(),
+      }
       app = await App.start({
         client,
         config: ConfigSchema.parse({ projects: { app: { root: repo.root } } }),
@@ -315,6 +386,8 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
         terminal,
         speaker,
         frameMs: 50,
+        beatMs: BEAT_MS,
+        status,
         // Every region kept from one frame to the next is drawn again and
         // compared, so a subject that changes what it hands the frame in place
         // fails whichever test happened to move it (`view/last-frame.ts`).
@@ -399,7 +472,7 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
     // transcripts — and so the tasks it just made are the ones it finds.
     home = repo.home
     writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
-    client = await Workbench.open({ home })
+    client = await Workbench.open({ home, harnesses: HARNESSES })
     terminal = new FakeTerminal()
     // Emptied rather than replaced, so a test that took the array off the
     // harness once still holds the one being written to.
@@ -414,8 +487,10 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
     // window's stop, `client` may already be the next test's — and nothing at
     // all where this file's first `beforeEach` never got as far as opening one.
     const [window, workbench] = [app, client as Workbench | undefined]
+    const looking = collectors.splice(0)
     app = null
     await window?.stop().catch(() => {})
+    await Promise.all(looking.map((one) => one.close().catch(() => {})))
     await workbench?.close().catch(() => {})
   })
 
