@@ -60,6 +60,15 @@ describe('tade CLI', () => {
     expect(r.stderr).toContain('sandboxes are gone from Tade')
   })
 
+  it('config --check fails on a key this Tade has no setting for, which a window takes without', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tade-cli-'))
+    const path = join(dir, 'config.yaml')
+    await writeFile(path, 'workspace:\n  drivr: pty\n')
+    const r = tade(['config', '--check', '--config', path])
+    expect(r.code).toBe(2)
+    expect(r.stderr).toContain('workspace.drivr: not a setting this Tade has')
+  })
+
   it('config --check defaults to $TADE_HOME/config.yaml', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tade-cli-'))
     const r = tade(['config', '--check'], { TADE_HOME: dir })

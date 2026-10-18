@@ -34,8 +34,12 @@ orchestrator's arm reaches into it, and whether a person can read back what they
 
 ## Conventions
 
-- Objects are `z.strictObject` so typos are errors, and `tade config --check` names the bad key
-  by its dotted path (`workspace.drivr`). Keep new objects strict.
+- Objects are `z.strictObject` so a key this Tade has no setting for is named by its dotted path
+  (`workspace.drivr`). `parseConfig` reads past it and names it (`unknownSays`,
+  `ConfigResult.unknown`) rather than refusing the file — and every writer edits the document, so
+  the file keeps it — because a newer Tade's CLI writing a key of its own would otherwise
+  take every setting away from a window on this one holding the home; `tade config --check` fails
+  on it, which is where a typo is caught. Keep new objects strict.
 - Every key has a default (`.default(...)`) or is `.optional()`. An empty or missing config
   file must always parse. Nested sections use `.prefault({})` so their inner defaults apply.
 - Closed sets are `z.enum([...])`, not free strings.

@@ -19,8 +19,25 @@ export interface ConfigIssue {
 }
 
 export type ConfigResult =
-  | { ok: true; config: Config; path: string; exists: boolean; warnings: string[] }
+  | {
+      ok: true
+      config: Config
+      path: string
+      exists: boolean
+      warnings: string[]
+      /** Dotted paths of the keys this Tade has no setting for, dropped and said in `warnings`. */
+      unknown: string[]
+    }
   | { ok: false; path: string; issues: ConfigIssue[] }
+
+/**
+ * What is said of a key this Tade has no setting for. Two things write one:
+ * a hand that misspelt a setting, and a newer Tade — its CLI writing the
+ * file while a window on this one holds the home.
+ */
+export function unknownSays(path: string): string {
+  return `${path} is ignored: this Tade has no such setting — a newer Tade may have written it, or it is misspelt`
+}
 
 export function parseConfig(text: string, path = '<inline>'): ConfigResult {
   let raw: unknown
@@ -31,17 +48,33 @@ export function parseConfig(text: string, path = '<inline>'): ConfigResult {
     return { ok: false, path, issues: [{ path: '', message: `invalid YAML: ${message}` }] }
   }
   const warnings = dropGone(raw)
-  const parsed = ConfigSchema.safeParse(raw)
+  // A key this Tade has no setting for is dropped and said, like one that is
+  // gone, rather than refusing the file: a newer Tade's CLI writing a key of
+  // its own took away every setting from a window on this one holding the
+  // home, and every change in its Settings after it. A typo is still named by
+  // its dotted path here, and `tade config --check` still fails on it.
+  const unknown: z.core.$ZodIssue[] = []
+  let parsed = ConfigSchema.safeParse(raw)
+  // Each round can only take keys away, and a parent refused for its own value
+  // hides what is under it, so it stops when a round finds none.
+  for (let round = 0; !parsed.success && round < 8; round++) {
+    const found = parsed.error.issues.filter((i) => i.code === 'unrecognized_keys')
+    if (found.length === 0 || !found.every((i) => dropKeys(raw, i))) break
+    unknown.push(...found)
+    parsed = ConfigSchema.safeParse(raw)
+  }
   if (!parsed.success) {
     return {
       ok: false,
       path,
-      issues: parsed.error.issues.map((i) => ({
+      issues: [...parsed.error.issues, ...unknown].map((i) => ({
         path: issuePath(i),
         message: i.message,
       })),
     }
   }
+  const unknownPaths = unknown.flatMap((i) => issuePath(i).split(', '))
+  warnings.push(...unknownPaths.map(unknownSays))
   // A push mode that cannot mean what it says is said here rather than
   // refused: it resolves to pushing nothing, and refusing the file would take
   // away everything else somebody wrote in it.
@@ -50,7 +83,7 @@ export function parseConfig(text: string, path = '<inline>'): ConfigResult {
   // the same way and for the same reason: a setting Tade accepts and ignores
   // is worse than one it does not have.
   warnings.push(...awayProblems(parsed.data.surfaces.web))
-  return { ok: true, config: parsed.data, path, exists: true, warnings }
+  return { ok: true, config: parsed.data, path, exists: true, warnings, unknown: unknownPaths }
 }
 
 /**
@@ -114,11 +147,35 @@ export async function loadConfig(path = defaultConfigPath()): Promise<ConfigResu
     text = await readFile(path, 'utf8')
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      return { ok: true, config: ConfigSchema.parse({}), path, exists: false, warnings: [] }
+      return {
+        ok: true,
+        config: ConfigSchema.parse({}),
+        path,
+        exists: false,
+        warnings: [],
+        unknown: [],
+      }
     }
     return { ok: false, path, issues: [{ path: '', message: String(err) }] }
   }
   return parseConfig(text, path)
+}
+
+/**
+ * Take the keys one `unrecognized_keys` issue names out of what was parsed.
+ * False where its path does not lead to an object, which is then left to be
+ * refused as it was.
+ */
+function dropKeys(raw: unknown, issue: z.core.$ZodIssue): boolean {
+  if (issue.code !== 'unrecognized_keys') return false
+  let node = raw
+  for (const at of issue.path) {
+    if (typeof node !== 'object' || node === null) return false
+    node = (node as Record<PropertyKey, unknown>)[at as PropertyKey]
+  }
+  if (typeof node !== 'object' || node === null || Array.isArray(node)) return false
+  for (const key of issue.keys) delete (node as Record<string, unknown>)[key]
+  return true
 }
 
 function issuePath(issue: z.core.$ZodIssue): string {

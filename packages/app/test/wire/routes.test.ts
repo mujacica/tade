@@ -211,8 +211,8 @@ describe('an agent moved to another model or thinking level, from the window', (
 
   it('says why, for the orchestrator, where the config it wrote will not load', async () => {
     const { routes, wire, used } = choosing()
-    // Something else in the file this Tade cannot read, as a newer one may write.
-    writeFileSync(join(wire.opts.home, 'config.yaml'), 'workspace:\n  drivr: pty\n')
+    // Something else in the file is a value this Tade cannot take.
+    writeFileSync(join(wire.opts.home, 'config.yaml'), 'workspace:\n  driver: screen\n')
     const said: string[] = []
     const put = wire.put
     Object.assign(wire, {
@@ -223,7 +223,7 @@ describe('an agent moved to another model or thinking level, from the window', (
     })
     Object.assign(wire.opts.client, { log: { append: async () => {} } })
     await routes.chooseModel({ kind: 'model', for: 'orchestrator' } as ModelPanel, 'openai/gpt-5')
-    expect(said[0]).toMatch(/^the config would not load \(workspace\.drivr: .+\), so this window/)
+    expect(said[0]).toMatch(/^the config would not load \(workspace\.driver: .+\), so this window/)
     expect(used(), 'a config that did not load was handed round').toBe(0)
   })
 })

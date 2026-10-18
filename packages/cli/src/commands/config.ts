@@ -30,6 +30,15 @@ export function registerConfig(program: Command, io: Io, setExit: (code: number)
       // otherwise fine, and a line somebody can go and delete is worth more
       // than an error that takes the rest of their setup down with it.
       for (const warning of result.warnings) io.err(`${result.path}: ${warning}`)
+      // Except a key this Tade has no setting for, where somebody asked for
+      // the file to be checked: a window takes the file without it, and a
+      // check is where a misspelt one has to be caught.
+      if (opts.check && result.unknown.length > 0) {
+        io.err(`${result.path}: invalid config`)
+        for (const path of result.unknown) io.err(`  ${path}: not a setting this Tade has`)
+        setExit(Exit.invalidInput)
+        return
+      }
       if (opts.check) {
         io.out(result.exists ? `${result.path}: ok` : `${result.path}: not found, using defaults`)
         return

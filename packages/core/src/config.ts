@@ -11,8 +11,9 @@ import { PUSH_MODES } from './project.ts'
 import { RemotesSchema } from './remotes.ts'
 import { WatchesOn } from './watch-where.ts'
 
-// Schema for ~/.tade/config.yaml. Objects are strict so a typo'd key is an
-// error rather than a silently ignored setting.
+// Schema for ~/.tade/config.yaml. Objects are strict so a typo'd key is named
+// rather than silently ignored: `parseConfig` reads past it and names it, the
+// file keeps it, and `tade config --check` fails on it.
 
 // The drivers that exist. Names with no implementation behind them used to be
 // listed here and validated clean, which reads as a promise.

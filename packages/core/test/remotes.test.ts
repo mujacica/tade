@@ -61,16 +61,22 @@ describe('remotes in the config', () => {
     ],
     ['a session that is not one', `session: ${SESSION}`, 'session: hello', 'remotes.vps.session'],
     ['a name with capitals in it', '  vps:', '  VPS:', 'remotes.VPS'],
-    [
-      'a key nobody declared',
-      'host: localhost:7654',
-      'host: localhost:7654\n    port: 22',
-      'remotes.vps.port',
-    ],
   ])('refuses %s, by its dotted key', (_what, from, to, path) => {
     const read = parseConfig(ONE.replace(from, to))
     expect(read.ok).toBe(false)
     if (!read.ok) expect(read.issues[0]?.path).toEqual(path)
+  })
+
+  it('reads past a key nobody declared, and names it by its dotted key', () => {
+    // Read past rather than refused: `tade remote add` on a newer Tade may
+    // write a key this one has no setting for, and refusing the file would
+    // take every setting away from a window here. The remote is reached as
+    // the keys this Tade knows say.
+    const read = parseConfig(
+      ONE.replace('host: localhost:7654', 'host: localhost:7654\n    port: 22'),
+    )
+    expect(read.ok && read.unknown).toEqual(['remotes.vps.port'])
+    expect(read.ok && read.config.remotes.vps?.host).toBe('localhost:7654')
   })
 
   it('says where the session is kept and who can read it, with the way out', () => {

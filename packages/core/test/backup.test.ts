@@ -176,8 +176,12 @@ describe('the repository and its password', () => {
     const broken = parseConfig('backup:\n  repository: "a\\nb"\n')
     expect(broken.ok).toBe(false)
     if (!broken.ok) expect(broken.issues[0]?.path).toBe('backup.repository')
+    // A key it has no setting for is read past and named, never the whole file
+    // refused: what a newer Tade wrote under `backup` would take every setting
+    // away from a window on this one. Nothing is backed up to it.
     const typo = parseConfig('backup:\n  repo: x\n')
-    expect(typo.ok).toBe(false)
+    expect(typo.ok && typo.unknown).toEqual(['backup.repo'])
+    expect(typo.ok && typo.config.backup.repository).toBe('')
   })
 
   it('is a person’s to set, and this machine’s own', () => {

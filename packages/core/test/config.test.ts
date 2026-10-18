@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { awayProblems } from '../src/away.ts'
 import { checksFor } from '../src/checks.ts'
 import { ConfigSchema, updateCheckEvery } from '../src/config.ts'
-import { loadConfig, parseConfig, writeSetting } from '../src/config-file.ts'
+import { loadConfig, parseConfig, unknownSays, writeSetting } from '../src/config-file.ts'
 import {
   accountFor,
   isOwnSignIn,
@@ -264,11 +264,31 @@ projects:
     expect(wrong.issues[0]?.path).toBe('surfaces.search.context')
   })
 
-  it('names an unknown (typo) key', () => {
-    const r = parseConfig('workspace:\n  drivr: pty\n')
+  it('names an unknown (typo) key, and takes the rest of the file without it', () => {
+    const r = parseConfig('workspace:\n  drivr: tmux\nagents:\n  give_way: 5\n')
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.unknown).toEqual(['workspace.drivr'])
+    expect(r.warnings).toEqual([unknownSays('workspace.drivr')])
+    expect(r.config.workspace.driver, 'what it said was read as a setting').not.toBe('tmux')
+    expect(r.config.agents.give_way).toBe(5)
+  })
+
+  it('takes a file a newer Tade wrote a key of its own into', () => {
+    // A window on this Tade holds the home while a newer CLI writes: refused,
+    // the window lost every setting it had, and every change after.
+    const r = parseConfig(
+      'tomorrow:\n  keep: true\nprojects:\n  app:\n    root: ~/app\n    later: 1\n',
+    )
+    expect(r.ok && r.unknown).toEqual(['projects.app.later', 'tomorrow'])
+    expect(r.ok && r.config.projects.app?.root).toBe('~/app')
+  })
+
+  it('still refuses a value it cannot read, and names the unknown keys beside it', () => {
+    const r = parseConfig('agents:\n  give_way: 25\nwhenever: 1\n')
     expect(r.ok).toBe(false)
     if (r.ok) return
-    expect(r.issues[0]?.path).toBe('workspace.drivr')
+    expect(r.issues.map((one) => one.path)).toEqual(['agents.give_way', 'whenever'])
   })
 
   it('names a key inside a project record', () => {
@@ -291,7 +311,7 @@ projects:
     // A bound each project set for itself is one per project, which is six
     // suites for six projects — the thing this setting exists to stop.
     const r = parseConfig('projects:\n  checkout:\n    root: ~/x\n    checks:\n      suites: 3\n')
-    expect(!r.ok && r.issues[0]?.path).toBe('projects.checkout.checks.suites')
+    expect(r.ok && r.unknown).toEqual(['projects.checkout.checks.suites'])
   })
 
   it('has no MCP server in it until somebody writes one', () => {
@@ -319,9 +339,8 @@ projects:
 
   it('names a typo inside a server, rather than keeping a setting nothing reads', () => {
     const r = parseConfig('mcp:\n  servers:\n    linear:\n      transprt: stdio\n')
-    expect(r.ok).toBe(false)
-    if (r.ok) return
-    expect(r.issues[0]?.path).toBe('mcp.servers.linear.transprt')
+    expect(r.ok && r.unknown).toEqual(['mcp.servers.linear.transprt'])
+    expect(r.ok && r.config.mcp.servers.linear).toEqual({})
   })
 
   it('refuses a transport and a name it has no meaning for', () => {
@@ -410,15 +429,16 @@ describe('what the journal keeps', () => {
   })
 
   it('refuses a ceiling of nothing, which would be a setting that empties the journal', () => {
-    for (const [yaml, path] of [
-      ['journal:\n  max_mb: 0\n', 'journal.max_mb'],
-      ['journal:\n  max_md: 16\n', 'journal.max_md'],
-    ] as const) {
+    for (const [yaml, path] of [['journal:\n  max_mb: 0\n', 'journal.max_mb']] as const) {
       const r = parseConfig(yaml)
       expect(r.ok, yaml).toBe(false)
       if (r.ok) continue
       expect(r.issues[0]?.path).toBe(path)
     }
+    // A misspelling is said and left out, so the ceiling is still the default.
+    const typo = parseConfig('journal:\n  max_md: 64\n')
+    expect(typo.ok && typo.unknown).toEqual(['journal.max_md'])
+    expect(typo.ok && typo.config.journal.max_mb).not.toBe(64)
   })
 })
 
@@ -438,13 +458,19 @@ describe('what a lane keeps to scroll back through', () => {
       ['drivers:\n  pty:\n    scrollback: 0\n', 'drivers.pty.scrollback'],
       ['drivers:\n  pty:\n    scrollback: 2.5\n', 'drivers.pty.scrollback'],
       ['drivers:\n  pty:\n    scrollback: 1000000\n', 'drivers.pty.scrollback'],
-      ['drivers:\n  pty:\n    scrolback: 2000\n', 'drivers.pty.scrolback'],
-      ['drivers:\n  ghostty: {}\n', 'drivers.ghostty'],
     ] as const) {
       const r = parseConfig(yaml)
       expect(r.ok, yaml).toBe(false)
       if (r.ok) continue
       expect(r.issues[0]?.path).toBe(path)
+    }
+    // A misspelling, and a driver there is none of, are said and left out.
+    for (const [yaml, path] of [
+      ['drivers:\n  pty:\n    scrolback: 2000\n', 'drivers.pty.scrolback'],
+      ['drivers:\n  ghostty: {}\n', 'drivers.ghostty'],
+    ] as const) {
+      const r = parseConfig(yaml)
+      expect(r.ok && r.unknown, yaml).toEqual([path])
     }
   })
 })
@@ -462,6 +488,19 @@ describe('loadConfig', () => {
     await writeFile(path, 'workers:\n  default: codex\n')
     const r = await loadConfig(path)
     expect(r.ok && r.config.workers.default).toBe('codex')
+  })
+
+  it('keeps a key it read past when a setting is written beside it', async () => {
+    // What a newer Tade wrote is not this one's to lose: the write edits the
+    // document, so the key is still there, and still named, afterwards.
+    const dir = await mkdtemp(join(tmpdir(), 'tade-cfg-'))
+    const path = join(dir, 'config.yaml')
+    await writeFile(path, 'tomorrow:\n  keep: true\n')
+    writeSetting(path, 'agents.give_way', 5)
+    expect(await readFile(path, 'utf8')).toContain('tomorrow:\n  keep: true')
+    const r = await loadConfig(path)
+    expect(r.ok && r.unknown).toEqual(['tomorrow'])
+    expect(r.ok && r.config.agents.give_way).toBe(5)
   })
 })
 
