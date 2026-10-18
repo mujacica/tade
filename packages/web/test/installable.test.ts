@@ -282,8 +282,12 @@ describe('the real folder', () => {
     // `markdown.js`, a reader of the markdown a reply is written in that builds
     // the page's own nodes and never markup, a tool call as a row that opens
     // onto what it was handed and answered, and an agent's conversation on its
-    // page) took it from 402 to 414.
-    expect(wire).toBeLessThan(418 * 1024)
+    // page) took it from 402 to 414. 418 until the conversation with Tade was
+    // drawn as the window draws it (df27642f, about 421 at HEAD before the
+    // next) and a call that is opened asked for its whole answer rather than
+    // being sent a cut of it (about 1 KB: `answerIn` and its sentences in
+    // `conversation.js`) took it to 422.
+    expect(wire).toBeLessThan(426 * 1024)
     // And the files as they sit, which is what a browser holds once it has
     // them: about a megabyte, with the comments every module carries. 768
     // until the pages were redrawn one at a time, each 40–90 KB as it sits.
@@ -311,6 +315,10 @@ describe('the real folder', () => {
     // calls as rows that open, in Tade's conversation and on an agent's page
     // (three modules and their rules, 37.5 KB as they sit, most of it the
     // reader and why each thing it refuses is refused), took it from 1290 to 1328.
-    expect(raw).toBeLessThan(1336 * 1024)
+    // 1336 until the conversation with Tade drawn as the window draws it
+    // (df27642f, 1350 at HEAD before the next) and a call that is opened
+    // reading its whole answer rather than being sent a cut of it (3 KB as it
+    // sits, most of it what each answer it can be told says) took it to 1353.
+    expect(raw).toBeLessThan(1360 * 1024)
   })
 })

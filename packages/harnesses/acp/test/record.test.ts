@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import {
+  answerOf,
   append,
   conversationKey,
   emptyRecorded,
@@ -92,6 +93,27 @@ describe('the record of an ACP conversation', () => {
       kind: 'reply',
       text: 'The test waits on a timer it never advances.',
     })
+  })
+
+  it("keeps a call's whole answer, however long, and hands it back by the call", async () => {
+    const path = recordPath(join(tmp('tade-acp-record-'), 'runs'), 'proj/fix-login')
+    const long = Array.from({ length: 5_000 }, (_, n) => `ok ${n}`).join('\n')
+    append(path, { type: 'sent', at: 1, text: 'run them' })
+    append(path, {
+      type: 'tool',
+      at: 2,
+      id: 'call-1',
+      tool: 'execute',
+      title: 'pnpm test',
+      input: {},
+    })
+    append(path, { type: 'tool_result', at: 3, id: 'call-1', ok: true, result: long })
+    expect(await answerOf(path, 'call-1')).toEqual({ ok: true, result: long })
+    expect(await answerOf(fixture('conversation.jsonl'), 'call-2')).toEqual({
+      ok: false,
+      result: '1 failed',
+    })
+    expect(await answerOf(path, 'call-9')).toBeNull()
   })
 
   it('is written where Tade keeps its own files, one line at a time, readable back', async () => {

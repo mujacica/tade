@@ -630,6 +630,7 @@ export function talk(over: Partial<TalkIn> = {}): TalkIn {
       // The call carries what the projection may only ever pass on cleaned:
       // a command naming a key and a path, and an answer quoting both.
       call: {
+        id: 'call_status',
         input: {
           command: `cat ${PRIVATE.home}/config.yaml && curl -H "X-Api-Key: ${PRIVATE.credential}"`,
           cwd: PRIVATE.worktree,

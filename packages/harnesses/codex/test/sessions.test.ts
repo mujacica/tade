@@ -1,10 +1,10 @@
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { RESULT_KEPT } from '@tade/harnesses-core'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import {
+  answerOn,
   contextIn,
   conversationKey,
   historyLine,
@@ -227,7 +227,7 @@ function callsIn(name: string): [string, boolean | null, string | null][] {
     .flatMap((item) => {
       if (item.kind !== 'tool') return []
       const answer = results.get(item.id)
-      return [[item.id, answer?.ok ?? null, answer?.result ?? null]]
+      return [[item.id, answer?.ok ?? null, answer?.result.trimEnd() ?? null]]
     })
 }
 
@@ -294,8 +294,24 @@ describe('whether a call worked, read back', () => {
   })
 })
 
+describe("one call's whole answer, read again when it is opened", () => {
+  it("is out of the rollout of its task's thread, whole, and nothing for one never answered", async () => {
+    const state = tmp('tade-codex-state-')
+    const home = homeWith(
+      fixture('0.81/rollout-2026-01-19T09-19-12-019bd556-28e0-7ee1-9beb-95cfcb584c6a.jsonl'),
+    )
+    expect(await answerOn('app/search', state, home, 'call_01dZZjqWj6UZqVI8EALUc8U5')).toBeNull()
+    await rememberThread('app/search', state, THREAD)
+    expect(await answerOn('app/search', state, home, 'call_01dZZjqWj6UZqVI8EALUc8U5')).toEqual({
+      ok: false,
+      result: 'Exit code: 1\nWall time: 0 seconds\nOutput:',
+    })
+    expect(await answerOn('app/search', state, home, 'call_nobody')).toBeNull()
+  })
+})
+
 describe("a tool call's answer read back", () => {
-  it('is what it answered, in each shape a rollout writes it, cut at the bound', () => {
+  it('is what it answered, in each shape a rollout writes it, whole', () => {
     const answer = (output: unknown) =>
       historyLine(
         JSON.stringify({
@@ -305,7 +321,7 @@ describe("a tool call's answer read back", () => {
         }),
       )?.results
     expect(answer('Exit code: 0\nOutput:\nMakefile\n')).toEqual([
-      { id: 'c1', ok: true, result: 'Exit code: 0\nOutput:\nMakefile' },
+      { id: 'c1', ok: true, result: 'Exit code: 0\nOutput:\nMakefile\n' },
     ])
     expect(answer(JSON.stringify({ output: 'Makefile', metadata: { exit_code: 0 } }))).toEqual([
       { id: 'c1', ok: true, result: 'Makefile' },
@@ -314,8 +330,7 @@ describe("a tool call's answer read back", () => {
     expect(answer([{ type: 'input_text', text: 'seen' }, { type: 'input_image' }])).toEqual([
       { id: 'c1', ok: null, result: 'seen' },
     ])
-    const [kept] = answer('a\n'.repeat(100)) ?? []
-    expect(kept?.result.split('\n').slice(0, -1)).toEqual(Array(RESULT_KEPT.lines).fill('a'))
-    expect(kept?.result.split('\n').at(-1)).toBe('… 76 more lines (152 characters) not kept')
+    const long = `Exit code: 1\nOutput:\n${'a\n'.repeat(5_000)}`
+    expect(answer(long)).toEqual([{ id: 'c1', ok: false, result: long }])
   })
 })

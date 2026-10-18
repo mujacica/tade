@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import type { Terminal } from '@earendil-works/pi-tui'
 import type { Arm, CertificateLook, Config, DomainSeen, Holding, ToldPrint } from '@tade/core'
 import type { ExtensionHost, ExtensionWorkbench } from '@tade/extensions-core'
-import type { HarnessModels, HistoryAsk, HistoryPage } from '@tade/harnesses-core'
+import type { HarnessModels, HistoryAsk, HistoryPage, ToolAnswer } from '@tade/harnesses-core'
 import type { MakeRemoteLink } from '@tade/remotes-core'
 import type { StatusCollector } from '@tade/status'
 import type { Reporter } from '@tade/telemetry'
@@ -202,6 +202,12 @@ export interface AppOptions {
    * before it closed. Without it the conversation starts empty.
    */
   history?: (ask: HistoryAsk) => Promise<HistoryPage>
+  /**
+   * The whole of what one of the orchestrator's calls answered, out of the
+   * same record (`WorkerAdapter.callAnswer`): what the away view reads when a
+   * call of the conversation with Tade is opened. Without it, none was kept.
+   */
+  callAnswer?: (call: string) => Promise<ToolAnswer | null>
   /**
    * What one harness offers to run, asked of that harness: never a list
    * gathered across them, because no harness could run one. The workbench

@@ -188,7 +188,14 @@ export function withEarlier(
               : item.ok
                 ? 'ok'
                 : 'failed',
-        result: item.result ?? 'no answer to it was recorded',
+        // A page of history holds the start of a long answer: the window marks
+        // where it stops, and the away view reads the whole when it is opened.
+        result:
+          item.result === null
+            ? 'no answer to it was recorded'
+            : item.cut
+              ? `${item.result}\n…`
+              : item.result,
         progress: null,
         at: item.at,
       })

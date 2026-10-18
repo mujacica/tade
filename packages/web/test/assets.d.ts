@@ -291,7 +291,10 @@ declare module '*/assets/conversation.js' {
   export function wordsIn(node: unknown, said: unknown, markdown: boolean): void
   // biome-ignore lint/suspicious/noExplicitAny: a node of whichever document a test installs
   export function callRow(): any
-  export function callIn(node: unknown, one: unknown): void
+  export function callIn(node: unknown, one: unknown, at?: string | null): void
+  export function answersWith(
+    ask: (method: string, path: string) => Promise<{ status: number; body: unknown }>,
+  ): void
 }
 
 declare module '*/assets/icons.js' {

@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from 'node:child_process'
-import { keptResult, type WorkerSignal } from '@tade/harnesses-core'
+import type { WorkerSignal } from '@tade/harnesses-core'
 import type { z } from 'zod'
 import {
   AGENT,
@@ -610,7 +610,8 @@ export class AcpClient {
       at: this.now(),
       id: call.id,
       ok,
-      result: keptResult(call.output),
+      // Whole: the record is where opening this call reads it from (`answerIn`).
+      result: call.output,
     })
   }
 

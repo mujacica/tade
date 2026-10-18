@@ -426,14 +426,20 @@ export type NoteRow = z.infer<typeof NoteRowSchema>
 export const CallSchema = z.strictObject({
   /** The arguments that tell you which call it was, on one line. Null where it had none. */
   brief: z.string().nullable(),
-  /** Everything it was handed, a line per argument. Null where it had none. */
+  /** Everything it was handed, a line per argument, whole. Null where it had none. */
   input: SaidSchema.nullable(),
   /**
-   * What it answered, where that was written down. Words of `''` are a call
-   * that answered nothing; null is one whose answer nobody kept, or that has
-   * not answered yet — two different facts, drawn as two.
+   * Whether it answered: `words`, `nothing` — it answered, and what it
+   * answered was nothing — or `none`, an answer nobody kept or one not given
+   * yet. Two different facts from the last two, drawn as two.
+   *
+   * **Never what it answered.** That is read whole, never cut, when somebody
+   * opens the call (`answered.ts`, by `id`), so no row carries a preview
+   * standing in for it and none is held for a row nobody opens.
    */
-  result: SaidSchema.nullable(),
+  answered: z.enum(['words', 'nothing', 'none']),
+  /** The call's own id in its record, which its answer is asked for by. Null where it has none. */
+  id: z.string().nullable(),
 })
 export type Call = z.infer<typeof CallSchema>
 

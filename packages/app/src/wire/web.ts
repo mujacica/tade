@@ -1,8 +1,10 @@
 import { homedir } from 'node:os'
 import type { Arming, Config } from '@tade/core'
+import type { ToolAnswer } from '@tade/harnesses-core'
 import {
   AGENT,
   type AgentIn,
+  type AnswerIn,
   agentOf,
   type Confirmed,
   type ConnectWhere,
@@ -24,6 +26,7 @@ import {
   type TaskFacts,
   Tickets,
   type Told,
+  type WebAnswers,
   type WebReading,
   type WebServer,
   webServer,
@@ -242,6 +245,7 @@ export class Away implements Subject {
         },
         now: () => this.wire.now(),
       }),
+      answers: this.answers(),
       present: (device, at) => this.presences.seen(device, at),
       looking: (device, at) => this.push.looking(device, at),
       since: this.presences.since(),
@@ -736,6 +740,39 @@ export class Away implements Subject {
       settings: () =>
         settingsFor(this.deps.settings.rows(), reach, knownHere(this.wire, this.config())),
       evaluations: () => evaluationsAnswer(this.wire, reach),
+    }
+  }
+
+  /**
+   * One call's whole answer, read out of the record of the conversation it is
+   * in when a page opens it (`@tade/web`'s `answered.ts`) — an agent's out of
+   * its harness's, the orchestrator's out of its own. Never held: a page asks
+   * once a press. A record that could not be read is said here, at the
+   * machine, and to the page as `unread`, never as a call that answered nothing.
+   */
+  private answers(): WebAnswers {
+    const read = async (what: string, asking: Promise<ToolAnswer | null>): Promise<AnswerIn> => {
+      try {
+        const found = await asking
+        return found === null ? null : { result: found.result }
+      } catch (err) {
+        this.wire.note(
+          new Error(
+            `the away view could not read ${what}: ${err instanceof Error ? err.message : String(err)}`,
+          ),
+        )
+        return 'unread'
+      }
+    }
+    return {
+      agent: (task, call) =>
+        read(`what ${task}'s call answered`, this.wire.opts.client.agentAnswer(task, call)),
+      talk: (call) =>
+        read(
+          "what the orchestrator's call answered",
+          this.wire.opts.callAnswer?.(call) ?? Promise.resolve(null),
+        ),
+      known: () => this.lanes.keys(() => knownHere(this.wire, this.config())),
     }
   }
 

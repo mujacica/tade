@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { StillDocument, type StillElement } from '../scripts/still-dom.ts'
-import { callIn, callRow } from '../src/assets/conversation.js'
+import { answersWith, callIn, callRow } from '../src/assets/conversation.js'
 import { keyed } from '../src/assets/dom.js'
 import {
   blocksOf,
@@ -370,17 +370,46 @@ describe('a line of the conversation on one line', () => {
 describe('a tool call', () => {
   const view = { asOf: '2026-10-08T14:30:00.000Z', frozen: false }
 
-  it('is a button with its own words that opens onto what it was handed and answered', () => {
-    const row = callRow()
-    callIn(row, {
-      tool: 'tade_status',
-      outcome: 'failed',
-      call: {
-        brief: 'project payments',
-        input: { words: 'project: payments', more: false },
-        result: { words: 'no such project <script>x</script>', more: false },
+  /** What the page asked the machine, and the machine's answer to each. */
+  const asked: string[] = []
+  const answering = (answers: Record<string, unknown>) => {
+    asked.length = 0
+    answersWith(async (_method, path) => {
+      asked.push(path)
+      const body = answers[path]
+      return body === undefined ? { status: 0, body: null } : { status: 200, body }
+    })
+  }
+  /** Every answer the page asked for has come back. */
+  const settled = () => new Promise((done) => setTimeout(done, 0))
+  const texts = (row: StillElement) =>
+    row.querySelectorAll('pre').map((one: StillElement) => one.textContent)
+
+  it('is a button with its own words that opens onto what it was handed and, read then, answered', async () => {
+    answering({
+      '/api/talk/answer/toolu_1': {
+        v: 1,
+        call: 'toolu_1',
+        says: 'words',
+        text: 'no such project <script>x</script>',
+        taken: 0,
       },
     })
+    const row = callRow()
+    callIn(
+      row,
+      {
+        tool: 'tade_status',
+        outcome: 'failed',
+        call: {
+          brief: 'project payments',
+          input: { words: 'project: payments', more: false },
+          answered: 'words',
+          id: 'toolu_1',
+        },
+      },
+      '/api/talk/answer',
+    )
     const press = row.querySelector('button')
     expect(press.hidden).toBe(false)
     // Named by what it shows, with no label apart from it.
@@ -393,78 +422,155 @@ describe('a tool call', () => {
     const body = row.querySelector('.ui-call-body')
     expect(body.hidden).toBe(true)
     expect(press.getAttribute('aria-expanded')).toBe('false')
+    // Nothing is asked for a row nobody opened.
+    expect(asked).toEqual([])
     press.click()
     expect(body.hidden).toBe(false)
     expect(press.getAttribute('aria-expanded')).toBe('true')
     expect(body.getAttribute('id')).toBe(press.getAttribute('aria-controls'))
-    expect(row.querySelectorAll('pre').map((one: StillElement) => one.textContent)).toEqual([
-      'project: payments',
-      'no such project <script>x</script>',
-    ])
+    expect(body.textContent).toContain('Reading what it answered')
+    await settled()
+    expect(asked).toEqual(['/api/talk/answer/toolu_1'])
+    expect(texts(row)).toEqual(['project: payments', 'no such project <script>x</script>'])
     expect(row.querySelectorAll('script')).toEqual([])
+    // Opened again, it is not asked for again.
+    press.click()
+    press.click()
+    await settled()
+    expect(asked).toHaveLength(1)
   })
 
-  it('opens a call that worked onto what it answered, cut where its harness cut it, as text', () => {
-    const row = callRow()
-    const answered = `<b>line 1</b>\nline 2\n… 476 more lines (2,310 characters) not kept`
-    callIn(row, {
-      tool: 'Read',
-      outcome: 'ok',
-      call: {
-        brief: 'a.ts',
-        input: { words: 'path: a.ts', more: false },
-        result: { words: answered, more: false },
+  it('opens onto the whole of a five-thousand-line answer, as text, with nothing saying there was more', async () => {
+    const whole = Array.from({ length: 5_000 }, (_, n) => `<b>line ${n + 1}</b>`).join('\n')
+    answering({
+      '/api/agent/app/search/answer/call_1': {
+        v: 1,
+        call: 'call_1',
+        says: 'words',
+        text: whole,
+        taken: 0,
       },
     })
+    const row = callRow()
+    callIn(
+      row,
+      {
+        tool: 'Read',
+        outcome: 'ok',
+        call: {
+          brief: 'a.ts',
+          input: { words: 'path: a.ts', more: false },
+          answered: 'words',
+          id: 'call_1',
+        },
+      },
+      '/api/agent/app/search/answer',
+    )
     row.querySelector('button').click()
-    const [, answer] = row.querySelectorAll('pre').map((one: StillElement) => one.textContent)
-    expect(answer).toBe(answered)
+    await settled()
+    const [, answer] = texts(row)
+    expect(answer).toBe(whole)
+    expect(answer?.split('\n')).toHaveLength(5_000)
     expect(row.querySelectorAll('b')).toEqual([])
-    expect(row.querySelector('.ui-call-body').textContent).not.toContain('not written down')
+    // Drawn in the box that scrolls, and nothing anywhere says it was cut.
+    const frame = row.querySelectorAll('.ui-call-text')[1]
+    expect(frame?.classList.contains('scrolls')).toBe(true)
+    expect(row.textContent).not.toMatch(/more than|not kept|more lines|not written down/)
   })
 
-  it('says a call that answered nothing answered nothing, and one nobody kept was not written down', () => {
-    const opened = (result: unknown, outcome = 'ok') => {
+  it('says a call that answered nothing answered nothing, and one nobody kept was not written down', async () => {
+    answering({})
+    const opened = (answered: string, outcome = 'ok') => {
       const row = callRow()
-      callIn(row, {
-        tool: 'shell',
-        outcome,
-        call: { brief: 'rm', input: { words: 'command: rm -r old', more: false }, result },
-      })
+      callIn(
+        row,
+        {
+          tool: 'shell',
+          outcome,
+          call: {
+            brief: 'rm',
+            input: { words: 'command: rm -r old', more: false },
+            answered,
+            id: 'c1',
+          },
+        },
+        '/api/talk/answer',
+      )
       row.querySelector('button').click()
       return row
     }
-    const nothing = opened({ words: '', more: false })
+    const nothing = opened('nothing')
     expect(nothing.querySelector('.ui-call-body').textContent).toContain('It answered nothing')
     expect(nothing.querySelector('.ui-call-body').textContent).not.toContain('not written down')
     expect(
       nothing.querySelectorAll('pre').filter((one: StillElement) => !one.parentElement?.hidden),
     ).toHaveLength(1)
-    const unkept = opened(null, 'none')
+    const unkept = opened('none', 'none')
     expect(unkept.querySelector('.ui-call-body').textContent).toContain('not written down')
     expect(unkept.querySelector('.ui-call-body').textContent).not.toContain('answered nothing')
+    // Neither is asked for: there is nothing to read.
+    await settled()
+    expect(asked).toEqual([])
     // A record that does not say how it went is neither a tick nor a failure.
-    const unknown = opened({ words: 'Makefile', more: false }, 'unknown')
+    const unknown = opened('words', 'unknown')
     expect(unknown.querySelector('button').textContent).toContain('cannot tell')
     expect(unknown.classList.contains('is-failed')).toBe(false)
   })
 
-  it('stays open while the call it is about answers, and is nothing to press with nothing to open', () => {
+  it('says an answer that could not be read, and reads it again the next time it is opened', async () => {
+    answering({
+      '/api/talk/answer/c1': { v: 1, call: 'c1', says: 'unread', text: null, taken: 0 },
+    })
+    const row = callRow()
+    callIn(
+      row,
+      {
+        tool: 'shell',
+        outcome: 'ok',
+        call: { brief: 'ls', input: null, answered: 'words', id: 'c1' },
+      },
+      '/api/talk/answer',
+    )
+    const press = row.querySelector('button')
+    press.click()
+    await settled()
+    expect(row.querySelector('.ui-call-body').textContent).toContain('could not be read')
+    answering({
+      '/api/talk/answer/c1': { v: 1, call: 'c1', says: 'words', text: 'a\nb', taken: 0 },
+    })
+    press.click()
+    press.click()
+    await settled()
+    expect(texts(row).at(-1)).toBe('a\nb')
+  })
+
+  it('stays open while the call it is about answers, and is nothing to press with nothing to open', async () => {
+    answering({
+      '/api/talk/answer/c9': { v: 1, call: 'c9', says: 'words', text: 'a\nb', taken: 0 },
+    })
     const row = callRow()
     const one = {
       tool: 'Bash',
       outcome: 'running',
-      call: { brief: 'ls', input: { words: 'command: ls', more: false }, result: null },
+      call: {
+        brief: 'ls',
+        input: { words: 'command: ls', more: false },
+        answered: 'none',
+        id: 'c9',
+      },
     }
-    callIn(row, one)
+    callIn(row, one, '/api/talk/answer')
     row.querySelector('button').click()
-    callIn(row, {
-      ...one,
-      outcome: 'ok',
-      call: { ...one.call, result: { words: 'a\nb', more: false } },
-    })
+    callIn(
+      row,
+      { ...one, outcome: 'ok', call: { ...one.call, answered: 'words' } },
+      '/api/talk/answer',
+    )
     expect(row.querySelector('.ui-call-body').hidden).toBe(false)
-    // No call crossed — not granted, or nothing written down: the same words, and no press.
+    // Open when it answered, so its answer is read then.
+    await settled()
+    expect(texts(row).at(-1)).toBe('a\nb')
+    // No call crossed — not granted: the same words, and no press.
     callIn(row, { tool: 'Bash', outcome: 'ok', call: null })
     expect(row.querySelector('button').hidden).toBe(true)
     expect(row.querySelector('.ui-call-body').hidden).toBe(true)
@@ -485,7 +591,9 @@ describe('a tool call', () => {
       tool: n % 3 === 0 ? 'tade_status' : null,
       outcome: n % 3 === 0 ? 'ok' : null,
       call:
-        n % 3 === 0 ? { brief: 'x', input: { words: 'x: 1', more: false }, result: null } : null,
+        n % 3 === 0
+          ? { brief: 'x', input: { words: 'x: 1', more: false }, answered: 'none', id: null }
+          : null,
       streaming: false,
     }))
     const fill = (rows: typeof lines) =>

@@ -707,6 +707,9 @@ function chatLine(entry: Entry): Omit<ChatIn, 'id' | 'at'> {
         // a device granted an agent's own bytes (`lanes`).
         // A call still going has no answer yet, which is not one that answered nothing.
         call: {
+          // The call's own id in the orchestrator's record: opening it on a
+          // page reads its whole answer from there (`callAnswer`).
+          id: entry.id,
           input: entry.input ?? null,
           result: entry.state === 'running' ? null : entry.result,
         },

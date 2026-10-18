@@ -3,6 +3,7 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { publicSocket, routesOf } from '@tade/core'
 import { carryOut, type Did } from './acted.ts'
+import { answerHere } from './answering.ts'
 import { carryAsk } from './asked.ts'
 import { assetsDir, readAssets } from './assets.ts'
 import { carryChange } from './configured.ts'
@@ -375,6 +376,9 @@ export function webServer(opts: ServerOptions): WebServer {
         const seen = queryOf(req.url ?? '/').get('seen')
         return json(res, opts.readingFor(reachOf(device)).agent(task, seen))
       }
+      case 'agent answer':
+      case 'talk answer':
+        return json(res, await answerHere(found.route.name, found.params, reachOf(device), opts))
       case 'settings':
         return json(res, opts.readingFor(reachOf(device)).settings())
       case 'evaluations':

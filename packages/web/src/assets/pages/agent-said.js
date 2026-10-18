@@ -87,7 +87,7 @@ export function conversationView() {
         turns,
         (turn) => turn.id,
         createTurn,
-        (node, turn) => fillTurn(node, turn, view),
+        (node, turn) => fillTurn(node, turn, view, answer?.task ?? null),
       )
       if (turns.length > 0) follow.drawn()
       const parts = []
@@ -115,14 +115,7 @@ function createTurn() {
   const mark = el('span', { class: 'line-mark' })
   into(mark, el('span', { attrs: { 'aria-hidden': 'true' } }), el('span', { class: 'sr-only' }))
   const body = el('div', { class: 'line-body' })
-  into(
-    body,
-    el('p', { class: 'aside' }),
-    words,
-    fold,
-    el('p', { class: 'unknown', text: 'more than this was written down' }),
-    callRow(),
-  )
+  into(body, el('p', { class: 'aside' }), words, fold, callRow())
   into(node, mark, body)
   return node
 }
@@ -132,10 +125,10 @@ function createTurn() {
  * was told is folded past `FOLD_AT`, because Tade's opening is long and the
  * page is for what it is doing.
  */
-function fillTurn(node, turn, view) {
+function fillTurn(node, turn, view, task) {
   const [mark, body] = node.children
   const [glyph, word] = mark.children
-  const [head, words, fold, cut, call] = body.children
+  const [head, words, fold, call] = body.children
   const tool = turn.kind === 'tool'
   const kind = TURN_HEADS[turn.kind] ?? TURN_HEADS.reply
   const drawn = tool ? (CALL_STATES[turn.outcome] ?? CALL_STATES.none) : kind
@@ -154,16 +147,22 @@ function fillTurn(node, turn, view) {
   call.hidden = !tool
   if (tool) {
     words.hidden = true
-    callIn(call, turn)
+    // Its whole answer is asked for under the agent it is one of, when opened.
+    callIn(call, turn, task === null ? null : `/api/agent/${agentPath(task)}/answer`)
   } else {
     wordsIn(words, turn.text, true)
   }
   const long = !tool && turn.kind === 'sent' && (turn.text?.words.length ?? 0) > FOLD_AT
   classOn(words, 'ag-said-long', long)
   fold.hidden = !long
-  cut.hidden = tool || turn.text?.more !== true
   classOn(node, 'is-asked', turn.kind === 'sent')
   classOn(node, 'is-reply', turn.kind === 'reply')
   classOn(node, 'is-tool', tool)
   classOn(node, 'is-failed', tool && turn.outcome === 'failed')
+}
+
+/** `project/task` as two segments of a path, each encoded. */
+function agentPath(task) {
+  const [project = '', ...rest] = task.split('/')
+  return `${encodeURIComponent(project)}/${encodeURIComponent(rest.join('/'))}`
 }

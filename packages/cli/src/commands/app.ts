@@ -24,6 +24,7 @@ import {
   brokerFor,
   extensionWorkbench,
   loadExtensions,
+  orchestratorAnswer,
   orchestratorHistory,
   workbenchExtensions,
   writtenTools,
@@ -245,6 +246,13 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           // What was said to it before this window, out of its harness's own
           // record: shown before it has started, and if it never does.
           history: orchestratorHistory({
+            config: cfg.config,
+            home,
+            runDir: join(home, 'orchestrator'),
+            cwd: process.cwd(),
+          }),
+          // One of its calls' whole answer, out of the same record, when the away view opens it.
+          callAnswer: orchestratorAnswer({
             config: cfg.config,
             home,
             runDir: join(home, 'orchestrator'),

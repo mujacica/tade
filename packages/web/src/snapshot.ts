@@ -304,21 +304,18 @@ export function noteRows(notes: readonly NoteIn[], reach: Reach, budget: Budget)
  * 3. **The newest lines win.** A conversation is read from the bottom, so the
  *    budget takes the *last* `budget.chat` lines rather than the first, and
  *    the count says how many were left behind.
- * 4. **What was said is the thing the screen is for**, so a person's words
- *    and the model's are bounded as a body (`budget.material`) rather than as
- *    a line on a row: a reply cut at 600 characters is a table with no end
- *    and a code block that never closes. Tade's own lines are a line.
+ * 4. **What was said is the thing the screen is for**, so every line crosses
+ *    whole — a person's words, the model's, and Tade's own: a reply cut at any
+ *    length is a table with no end and a code block that never closes, and a
+ *    line saying there was more is no use to somebody who wanted to read it.
  */
-export function chatRows(lines: readonly ChatIn[], budget: Budget): ChatRow[] {
+export function chatRows(lines: readonly ChatIn[]): ChatRow[] {
   return lines.map((line) => ({
     id: line.id,
     at: ISO(line.at),
     kind: line.kind,
     from: SOME(line.from),
-    text: textOf(
-      withoutPaths(line.text),
-      line.kind === 'asked' || line.kind === 'reply' ? budget.material : budget.text,
-    ),
+    text: line.text === '' ? null : { words: withoutPaths(line.text), more: false },
     tool: SOME(line.tool),
     outcome: line.outcome === '' ? null : line.outcome,
     call: null,
@@ -343,7 +340,14 @@ export function withCalls(
     if (line?.call === null || line?.call === undefined) return row
     return {
       ...row,
-      call: callFor(row.id, line.call.input, line.call.result, talk.known, talk.places),
+      call: callFor(
+        row.id,
+        line.call.input,
+        line.call.result,
+        talk.known,
+        talk.places,
+        line.call.id ?? null,
+      ),
     }
   })
 }
@@ -590,7 +594,7 @@ export function snapshotOf(
   // from the bottom: what a phone opening the screen needs is the exchange
   // that just happened. The cursor pages *backwards* through what is left, so
   // `after` names the oldest line this page carried.
-  const allChat = input.talk === null ? [] : chatRows(input.talk.lines, budget)
+  const allChat = input.talk === null ? [] : chatRows(input.talk.lines)
   const chatPage = has(reach, 'talk')
     ? pageOf([...allChat].reverse(), budget.chat, (row) => row.id, cursors.chat ?? null)
     : withheld<ChatRow>(allChat.length)

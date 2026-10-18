@@ -10,7 +10,6 @@ import {
   type HistoryLine,
   type HistoryPage,
   historyIn,
-  keptResult,
   momentOf,
   noHarnessSpend,
   type ToolAnswer,
@@ -272,7 +271,7 @@ export function historyLine(
         line.results.push({
           id: part.tool_use_id,
           ok: !failed,
-          result: keptResult(resultText(part.content)),
+          result: resultText(part.content),
         })
       }
     }

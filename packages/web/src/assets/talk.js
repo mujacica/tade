@@ -428,13 +428,7 @@ export function createChatLine() {
   const mark = el('span', { class: 'line-mark' })
   into(mark, el('span', { attrs: { 'aria-hidden': 'true' } }), el('span', { class: 'sr-only' }))
   const body = el('div', { class: 'line-body' })
-  into(
-    body,
-    el('p', { class: 'aside' }),
-    el('div'),
-    el('p', { class: 'unknown', text: 'more than this was written down' }),
-    callRow(),
-  )
+  into(body, el('p', { class: 'aside' }), el('div'), callRow())
   into(node, mark, body)
   return node
 }
@@ -459,7 +453,7 @@ export function lineMark(line) {
 export function fillChatLine(node, line, view) {
   const [mark, body] = node.children
   const [glyph, word] = mark.children
-  const [head, words, cut, call] = body.children
+  const [head, words, call] = body.children
   const kind = CHAT_KINDS[line.kind] ?? CHAT_KINDS.tade
   const tool = line.kind === 'tool'
   const drawn = lineMark(line)
@@ -485,13 +479,16 @@ export function fillChatLine(node, line, view) {
   head.hidden = !asked
   call.hidden = !tool
   if (tool) {
-    callIn(call, { tool: line.tool, outcome: line.outcome ?? 'none', call: line.call ?? null })
+    // Its whole answer is read out of the orchestrator's record when opened.
+    callIn(
+      call,
+      { tool: line.tool, outcome: line.outcome ?? 'none', call: line.call ?? null },
+      '/api/talk/answer',
+    )
     words.hidden = true
   } else {
     wordsIn(words, line.text, marked(line))
   }
-  // What the budget cut is said, never drawn as three dots in somebody's words.
-  cut.hidden = tool || line.text?.more !== true
   for (const one of ['asked', 'reply', 'tool', 'tade', 'problem']) {
     classOn(node, `is-${one}`, line.kind === one)
   }

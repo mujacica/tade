@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { HookRung, NetworkAddress } from '@tade/core'
 import type { WebActing } from './acting.ts'
+import type { WebAnswers } from './answered.ts'
 import type { WebAsking } from './asking.ts'
 import type { WebAttaching } from './attached.ts'
 import type { WebCarrying } from './carried.ts'
@@ -251,6 +252,11 @@ export interface ServerOptions {
   machine?: WebMachine
   document?: WebDocument
   tool?: WebToolRead
+  /**
+   * One call's whole answer, out of the record of the conversation it is in
+   * (`answered.ts`). Absent, both answer routes say the record could not be read.
+   */
+  answers?: WebAnswers
   /**
    * This machine's public name's records, looked at now, for an owner's window
    * on another machine whose Settings › Remotes is open on it (`records.ts`).

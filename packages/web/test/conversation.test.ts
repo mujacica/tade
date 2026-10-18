@@ -3,9 +3,8 @@ import { agentOf } from '../src/agent.ts'
 import {
   briefOf,
   briefOut,
-  CALL,
   callOf,
-  cleanSaid,
+  cleanWhole,
   inputText,
   NOWHERE,
   TURNS,
@@ -59,70 +58,59 @@ describe('a call, cleaned', () => {
     expect(inputText('as it was')).toBe('as it was')
   })
 
-  it('takes out every path, key and credential before it is cut', () => {
+  it('takes out every path, key and credential, and carries nothing of what it answered', () => {
     const made = callOf(
-      { command: `cat ${PRIVATE.home}/config.yaml`, key: HELD_KEY },
+      { command: `cat ${PRIVATE.home}/config.yaml`, key: HELD_KEY, cwd: PRIVATE.worktree },
       `token: ${PRIVATE.credential} from ${PRIVATE.worktree}`,
       [HELD_KEY],
+      undefined,
+      'toolu_1',
     )
     const said = JSON.stringify(made.call)
     for (const one of SECRETS) expect(said, one).not.toContain(one)
-    expect(made.taken).toBeGreaterThanOrEqual(4)
+    expect(made.taken).toBeGreaterThanOrEqual(2)
     expect(made.call.input?.words).toContain('cat …')
+    // Whether it answered and what to ask for it by — never the answer itself.
+    expect(made.call).toMatchObject({ answered: 'words', id: 'toolu_1' })
+    expect(said).not.toContain('token:')
   })
 
-  it('never lets half a key through at the cut', () => {
-    const long = `${'x'.repeat(CALL.result - 5)} ${HELD_KEY}`
-    // Cleaned first and cut after: the key is a `…`, never its first five characters.
-    const made = cleanSaid(long, CALL.result, [HELD_KEY])
-    expect(made.taken).toBe(1)
-    expect(made.said?.words).not.toContain(HELD_KEY.slice(0, 5))
+  it('carries everything it was handed, however long, and never cuts a key in half', () => {
+    const long = `${'x\n'.repeat(5_000)}${HELD_KEY}`
+    const made = callOf({ content: long }, '', [HELD_KEY])
+    // `content:` on a line of its own, then every line it was handed.
+    expect(made.call.input?.words.split('\n')).toHaveLength(5_002)
+    expect(made.call.input?.more).toBe(false)
+    expect(made.call.input?.words).not.toContain(HELD_KEY.slice(0, 5))
+    expect(cleanWhole('y'.repeat(1_000_000), []).said).toEqual({
+      words: 'y'.repeat(1_000_000),
+      more: false,
+    })
   })
 
-  it("carries a successful call's answer whole, the line saying what its harness left out included", () => {
-    // As a harness's history keeps one (`keptResult`, `RESULT_KEPT` in
-    // `@tade/harnesses-core`: 1,800 characters and a line), which is under this
-    // bound so the line saying how much was left out reaches the page.
-    const kept = `${'z'.repeat(1_800)}\n… 8,200 more characters not kept`
-    const { turns } = turnsOf(
-      [
-        {
-          kind: 'tool',
-          id: 't1',
-          tool: 'Read',
-          input: { path: 'a.ts' },
-          ok: true,
-          result: kept,
-          at: 1,
-        },
-      ],
-      [],
-    )
-    expect(turns[0]?.outcome).toBe('ok')
-    expect(turns[0]?.call?.result).toEqual({ words: kept, more: false })
-  })
-
-  it('cuts a megabyte to the bound and says there was more', () => {
-    const made = cleanSaid('y'.repeat(1_000_000), CALL.result, [])
-    expect(made.said?.words.length).toBe(CALL.result)
-    expect(made.said?.more).toBe(true)
+  it("names no call it cannot be asked about by: an id that is not a harness's is none", () => {
+    expect(callOf({}, 'a', [], undefined, '../../etc').call.id).toBeNull()
+    expect(callOf({}, 'a', []).call.id).toBeNull()
   })
 })
 
 describe('an answer of nothing and an answer nobody kept', () => {
   it('cross as two different facts', () => {
-    expect(callOf({ command: 'rm -r old' }, '', []).call.result).toEqual({ words: '', more: false })
-    expect(callOf({ command: 'rm -r old' }, null, []).call.result).toBeNull()
+    expect(callOf({ command: 'rm -r old' }, '', []).call.answered).toBe('nothing')
+    expect(callOf({ command: 'rm -r old' }, null, []).call.answered).toBe('none')
   })
 
   it('tell a call that answered where its record does not say how it went from one nothing answered', () => {
     const turn = (ok: boolean | null, result: string | null) =>
       turnsOf([{ kind: 'tool', id: 'c1', tool: 'shell', input: {}, ok, result, at: 1 }], [])
         .turns[0]
-    expect(turn(null, '')).toMatchObject({ outcome: 'unknown', call: { result: { words: '' } } })
-    expect(turn(null, null)).toMatchObject({ outcome: 'none', call: { result: null } })
-    expect(turn(false, 'Exit code: 1')?.outcome).toBe('failed')
-    expect(turn(true, '')).toMatchObject({ outcome: 'ok', call: { result: { words: '' } } })
+    expect(turn(null, '')).toMatchObject({ outcome: 'unknown', call: { answered: 'nothing' } })
+    expect(turn(null, null)).toMatchObject({ outcome: 'none', call: { answered: 'none' } })
+    expect(turn(false, 'Exit code: 1')).toMatchObject({
+      outcome: 'failed',
+      call: { answered: 'words', id: 'c1' },
+    })
+    expect(turn(true, '')).toMatchObject({ outcome: 'ok', call: { answered: 'nothing' } })
   })
 })
 
@@ -137,7 +125,7 @@ describe('the conversation with Tade, on the snapshot', () => {
     const row = tool(EVERY)
     expect(() => ChatRowSchema.parse(row)).not.toThrow()
     expect(row?.call?.brief).toContain('cat …')
-    expect(row?.call?.result?.words).toContain('read …')
+    expect(row?.call).toMatchObject({ answered: 'words', id: 'call_status' })
     for (const one of SECRETS) expect(JSON.stringify(row), one).not.toContain(one)
   })
 
@@ -166,7 +154,7 @@ describe('an agent’s conversation, on its own answer', () => {
     const turns = answer.conversation?.turns ?? []
     expect(turns.map((one) => one.kind)).toEqual(['sent', 'tool', 'tool', 'reply'])
     expect(turns.map((one) => one.outcome)).toEqual([null, 'ok', 'failed', null])
-    expect(turns[2]?.call?.result?.words).toContain('<script>alert(1)</script>')
+    expect(turns[2]?.call).toMatchObject({ answered: 'words' })
     expect(turns[3]?.text?.words).toContain('| `snapshot.ts` | 120 |')
     expect(answer.conversation?.earlier).toBe(true)
     expect(answer.conversation?.taken).toBeGreaterThan(0)

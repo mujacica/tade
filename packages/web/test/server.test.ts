@@ -2,7 +2,7 @@ import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { join, relative } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { allowDevice } from '../src/devices.ts'
+import { allowDevice, grantDevice } from '../src/devices.ts'
 import { COMPANIONS, CSP } from '../src/headers.ts'
 import { BODY_MAX, CSRF_HEADER, pathOf, queryOf } from '../src/request.ts'
 import type { Told } from '../src/server.ts'
@@ -311,6 +311,63 @@ describe('one agent, asked for again', () => {
         unread: 'not granted',
       })
     }
+  })
+})
+
+describe("one call's whole answer, read when it is opened", () => {
+  const long = Array.from({ length: 5_000 }, (_, n) => `line ${n + 1} at /Users/someone/x`).join(
+    '\n',
+  )
+  const answers = {
+    agent: async (_task: string, call: string) =>
+      call === 'toolu_long' ? { result: long } : call === 'toolu_empty' ? { result: '' } : null,
+    talk: async (call: string) => (call === 'call_sick' ? ('unread' as const) : null),
+    known: () => [],
+  }
+  const opened = async (path: string, grants: readonly string[]) => {
+    const one = await start({}, { owned: { answers } })
+    const paired = await pair(one)
+    await grantDevice(one.home, paired.device, grants as never, new Date())
+    return said(await ask(one, path, { headers: { cookie: paired.cookie } }))
+  }
+
+  it('is the whole of a five-thousand-line answer, cleaned, with no line saying there was more', async () => {
+    const got = await opened('/api/agent/sentry/away-projection/answer/toolu_long', ['lanes'])
+    expect(got).toMatchObject({ v: 1, call: 'toolu_long', says: 'words' })
+    const lines = String(got.text).split('\n')
+    expect(lines).toHaveLength(5_000)
+    expect(lines.at(-1)).toMatch(/^line 5000 at /)
+    // Cleaned at the boundary like everything an agent wrote, and cut nowhere.
+    expect(String(got.text)).not.toContain('/Users/someone')
+    expect(String(got.text)).not.toMatch(/more than|not kept|more lines|more characters/)
+  })
+
+  it('tells an answer of nothing, one nobody kept and one that could not be read apart', async () => {
+    const at = (call: string) => `/api/agent/sentry/away-projection/answer/${call}`
+    expect(await opened(at('toolu_empty'), ['lanes'])).toMatchObject({
+      says: 'nothing',
+      text: null,
+    })
+    expect(await opened(at('toolu_cut'), ['lanes'])).toMatchObject({ says: 'unrecorded' })
+    expect(await opened('/api/talk/answer/call_sick', ['talk', 'lanes'])).toMatchObject({
+      says: 'unread',
+    })
+  })
+
+  it('is told only to a device granted the conversation, about a task it reads', async () => {
+    const path = '/api/agent/sentry/away-projection/answer/toolu_long'
+    expect(await opened(path, [])).toMatchObject({ says: 'not granted', text: null })
+    expect(await opened('/api/agent/nobody/nothing/answer/toolu_long', ['lanes'])).toMatchObject({
+      says: 'not here',
+      text: null,
+    })
+    expect(await opened('/api/talk/answer/call_sick', ['lanes'])).toMatchObject({
+      says: 'not granted',
+    })
+    // A name that is not a call's is not echoed back.
+    expect(
+      await opened('/api/agent/sentry/away-projection/answer/%3Cscript%3E', ['lanes']),
+    ).toMatchObject({ says: 'not here', call: '' })
   })
 })
 

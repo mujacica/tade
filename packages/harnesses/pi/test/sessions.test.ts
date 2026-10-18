@@ -1,11 +1,11 @@
 import { mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { RESULT_KEPT } from '@tade/harnesses-core'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { PiAdapter, sessionIdFor } from '../src/adapter.ts'
 import {
+  answerOfTask,
   historyLine,
   historyOfTask,
   sessionDirFor,
@@ -427,6 +427,13 @@ describe('a conversation read back', () => {
       expect.objectContaining({ kind: 'tool', tool: 'tade_status', ok: true, result: '{}' }),
       { kind: 'reply', text: 'It is `#8700d7` now.', at: Date.parse('2026-09-19T11:47:20.000Z') },
     ])
+    // Opened, a call's answer is read again from the same file by its id.
+    const at = { root: tmp('tade-pi-root-'), headless }
+    expect(await answerOfTask('tade/orchestrator', '/work/tade', 't1', at)).toEqual({
+      ok: false,
+      result: 'rg: not found',
+    })
+    expect(await answerOfTask('tade/orchestrator', '/work/tade', 't9', at)).toBeNull()
   })
 
   it('finds a session in a lane where pi files it, and nothing for a task with none', async () => {
@@ -444,7 +451,7 @@ describe('a conversation read back', () => {
 })
 
 describe("a tool call's answer read back", () => {
-  it('is kept when it worked, cut at the bound with what was left out', () => {
+  it('is kept whole when it worked, however long', () => {
     const answer = (text: string) =>
       historyLine(
         JSON.stringify({
@@ -459,7 +466,7 @@ describe("a tool call's answer read back", () => {
         }),
       )?.results
     expect(answer('two files')).toEqual([{ id: 't1', ok: true, result: 'two files' }])
-    const [kept] = answer('z'.repeat(10_000)) ?? []
-    expect(kept?.result).toBe(`${'z'.repeat(RESULT_KEPT.chars)}\n… 8,200 more characters not kept`)
+    const long = Array.from({ length: 5_000 }, (_, n) => `${n}`).join('\n')
+    expect(answer(long)).toEqual([{ id: 't1', ok: true, result: long }])
   })
 })

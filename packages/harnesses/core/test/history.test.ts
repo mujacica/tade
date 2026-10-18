@@ -2,13 +2,14 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
+import { answerIn } from '../src/answer.ts'
 import {
   type HistoryItem,
   type HistoryLine,
+  headOf,
   historyIn,
-  keptResult,
   NO_HISTORY,
-  RESULT_KEPT,
+  RESULT_HEAD,
 } from '../src/history.ts'
 
 // A record in the simplest shape a harness could keep one: a line per thing
@@ -17,7 +18,7 @@ type Raw =
   | { sent: string; at: number }
   | { reply: string; at: number }
   | { call: string; at: number }
-  | { answer: string; ok: boolean }
+  | { answer: string; ok: boolean; text?: string }
 
 function read(text: string): HistoryLine | null {
   const raw = JSON.parse(text) as Raw
@@ -45,7 +46,7 @@ function read(text: string): HistoryLine | null {
   }
   return {
     items: [],
-    results: [{ id: raw.answer, ok: raw.ok, result: raw.ok ? '' : 'no' }],
+    results: [{ id: raw.answer, ok: raw.ok, result: raw.text ?? (raw.ok ? '' : 'no') }],
     opens: false,
   }
 }
@@ -159,31 +160,61 @@ describe('a record that is there and could not be read', () => {
   })
 })
 
-describe("a tool's answer as a page keeps it", () => {
+describe("a tool's answer as a page holds it", () => {
   it('is the whole of a short one, without what it ended on', () => {
-    expect(keptResult('src/a.ts\nsrc/b.ts\n')).toBe('src/a.ts\nsrc/b.ts')
-    expect(keptResult('')).toBe('')
+    expect(headOf('src/a.ts\nsrc/b.ts\n')).toEqual({ result: 'src/a.ts\nsrc/b.ts' })
+    expect(headOf('')).toEqual({ result: '' })
   })
 
-  it('is its first lines, and says how many more there were', () => {
+  it('is its first lines and that it is cut, with no sentence standing in for the rest', () => {
     const lines = Array.from({ length: 100 }, (_, n) => `line ${n + 1}`)
-    const kept = keptResult(lines.join('\n'))
-    const shown = kept.split('\n')
-    expect(shown.slice(0, -1)).toEqual(lines.slice(0, RESULT_KEPT.lines))
-    const left = lines.slice(RESULT_KEPT.lines).join('\n').length + 1
-    expect(shown.at(-1)).toBe(
-      `… ${100 - RESULT_KEPT.lines} more lines (${left} characters) not kept`,
-    )
+    expect(headOf(lines.join('\n'))).toEqual({
+      result: lines.slice(0, RESULT_HEAD.lines).join('\n'),
+      cut: true,
+    })
   })
 
-  it('is cut at its characters where its lines are long, and a megabyte keeps only that', () => {
+  it('is cut at its characters where its lines are long, and a megabyte holds only that', () => {
     const megabyte = 'x'.repeat(1024 * 1024)
-    const kept = keptResult(megabyte)
-    expect(kept).toBe(
-      `${'x'.repeat(RESULT_KEPT.chars)}\n… ${(megabyte.length - RESULT_KEPT.chars).toLocaleString('en-US')} more characters not kept`,
+    expect(headOf(megabyte)).toEqual({ result: 'x'.repeat(RESULT_HEAD.chars), cut: true })
+  })
+})
+
+describe("a tool's whole answer, read again by its call", () => {
+  const long = Array.from({ length: 5_000 }, (_, n) => `line ${n + 1}`).join('\n')
+  const lines: Raw[] = [
+    { sent: 'run the tests', at: 1 },
+    { call: 'call-long', at: 2 },
+    { answer: 'call-long', ok: false, text: `${long}\n` },
+    { reply: `done ${'y'.repeat(300 * 1024)}`, at: 3 },
+    { call: 'call-unanswered', at: 4 },
+  ]
+  const path = () => file(`${lines.map((line) => JSON.stringify(line)).join('\n')}\n`)
+
+  it('is held on a page as its head, and marked so', async () => {
+    const page = await historyIn(path(), { limit: 10 }, read)
+    const tool = page.items.find((item) => item.kind === 'tool' && item.id === 'call-long')
+    expect(tool).toMatchObject({ ok: false, cut: true })
+    expect(tool?.kind === 'tool' && tool.result?.split('\n')).toHaveLength(RESULT_HEAD.lines)
+  })
+
+  it('is all five thousand lines of it, from a record longer than a chunk, and nothing else', async () => {
+    const found = await answerIn(path(), 'call-long', read)
+    expect(found).toEqual({ ok: false, result: long })
+    expect(found?.result.split('\n')).toHaveLength(5_000)
+    expect(found?.result).not.toMatch(/more than|not kept|more lines/)
+  })
+
+  it('is nothing for a call nobody answered, a file that is not there, or no call at all', async () => {
+    expect(await answerIn(path(), 'call-unanswered', read)).toBeNull()
+    expect(await answerIn(path(), 'call-nobody-made', read)).toBeNull()
+    expect(await answerIn(join(tmp('tade-history-'), 'gone.jsonl'), 'call-long', read)).toBeNull()
+    expect(await answerIn(null, 'call-long', read)).toBeNull()
+  })
+
+  it('throws for a record that is there and cannot be read', async () => {
+    await expect(answerIn(tmp('tade-history-'), 'call-long', read)).rejects.toThrow(
+      /could not read/,
     )
-    expect(kept.length).toBeLessThan(RESULT_KEPT.chars + 60)
-    const one = keptResult(`${'y'.repeat(RESULT_KEPT.chars - 2)}\nz\nz`)
-    expect(one.split('\n').at(-1)).toBe('… 1 more line (2 characters) not kept')
   })
 })

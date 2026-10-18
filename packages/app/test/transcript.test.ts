@@ -437,6 +437,22 @@ describe('what was said before the window opened', () => {
     ]
     const back = withEarlier(emptyTranscript(), asked, null, theirs)
     expect(back.entries[0]).toMatchObject({ state: 'unknown', result: 'Makefile' })
+    const held: HistoryItem[] = [
+      {
+        kind: 'tool',
+        id: 't8',
+        tool: 'shell',
+        input: {},
+        ok: false,
+        result: 'FAIL',
+        cut: true,
+        at: 1,
+      },
+    ]
+    // The start of a longer answer is marked where it stops, not drawn as the whole.
+    expect(withEarlier(emptyTranscript(), held, null, theirs).entries[0]).toMatchObject({
+      result: 'FAIL\n…',
+    })
     const drawn = transcriptLines(back, 60, PLAIN, pointer, 0).map((line) => line.text)
     expect(drawn.some((line) => line.includes('✓') || line.includes('✗'))).toBe(false)
     expect(drawn.some((line) => line.includes('Makefile'))).toBe(true)

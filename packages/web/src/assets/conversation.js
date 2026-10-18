@@ -10,6 +10,12 @@
 // and answer are one text node each in a `<pre>` — drawn as they came, with
 // the `…` the machine left where it took something out.
 //
+// **A call's answer is never cut and never previewed.** A row says whether its
+// call answered and carries none of it; opening it asks the machine for the
+// whole of it (`/api/…/answer/<call>`, `answered.ts`), which is drawn in a box
+// that scrolls — five lines or five thousand, with nothing saying how much more
+// there was, because there is none.
+//
 // **A row that opens is a real button with its own words**: the tool's name,
 // the line that says which call it was, and how it went — so a screen reader,
 // a voice control and a thumb all reach it by what it shows, and
@@ -38,6 +44,14 @@ export const CALL_STATES = {
 }
 
 let calls = 0
+
+/** How a page asks the machine for something: `boot.js`'s `ask`, handed over once. */
+let asking = null
+
+/** Where a call's whole answer is asked for: `boot.js` hands its `ask` over at start. */
+export function answersWith(ask) {
+  asking = ask
+}
 
 /**
  * Words into a bubble: as markdown where they are a model's or an agent's,
@@ -81,6 +95,7 @@ export function callRow() {
   press.addEventListener('click', () => {
     body.hidden = !body.hidden
     press.setAttribute('aria-expanded', body.hidden ? 'false' : 'true')
+    if (!body.hidden) void answerIn(node)
   })
   into(node, press, still, body)
   return node
@@ -93,17 +108,51 @@ export function callRow() {
  * Patched like every row (`textIn`), so a row somebody opened stays open, and
  * what they selected in it stays selected, while the call it is about answers.
  */
-export function callIn(node, one) {
+export function callIn(node, one, at = null) {
   const [press, still, body] = node.children
   const state = CALL_STATES[one.outcome] ?? CALL_STATES.none
   const call = one.call ?? null
-  const opens = call !== null && (call.input !== null || call.result !== null)
+  // A call that crossed always has something to open onto: what it was
+  // handed, and what it answered or why that cannot be shown.
+  const opens = call !== null
   press.hidden = !opens
   still.hidden = opens
   if (!opens) body.hidden = true
   for (const row of [press, still]) partsOf(row, one, state, call)
   classOn(node, 'is-failed', one.outcome === 'failed')
-  if (opens) partsIn(body, call)
+  if (!opens) return
+  // Where its whole answer is asked for, and what it was the last time it was
+  // drawn: a call that answered since, or another call in this row, asks again.
+  const where =
+    call.answered === 'words' && call.id !== null && at !== null
+      ? `${at}/${encodeURIComponent(call.id)}`
+      : null
+  const was = node.tadeAnswer
+  if (was === undefined || was.where !== where || was.answered !== call.answered) {
+    node.tadeAnswer = { where, answered: call.answered, read: null }
+  }
+  partsIn(body, call, node.tadeAnswer)
+  if (!body.hidden) void answerIn(node)
+}
+
+/**
+ * Ask for an open call's whole answer, once: a press that opens it again while
+ * one is in flight asks nothing more, and one that could not be read is asked
+ * again the next time it is opened.
+ */
+async function answerIn(node) {
+  const held = node.tadeAnswer
+  if (held === undefined || held.where === null || asking === null) return
+  if (held.read !== null && held.read.says !== 'unread' && held.read.says !== 'gone') return
+  held.read = { says: 'reading', text: null }
+  partsIn(node.children[2], null, held)
+  const answer = await asking('GET', held.where)
+  if (node.tadeAnswer !== held) return
+  held.read =
+    answer.status === 200 && answer.body !== null && typeof answer.body.says === 'string'
+      ? { says: answer.body.says, text: answer.body.text ?? null }
+      : { says: 'gone', text: null }
+  partsIn(node.children[2], null, held)
 }
 
 /** A row's four parts: how it went, the tool's name, what it was handed in a line, and the word. */
@@ -121,7 +170,7 @@ function partsOf(row, one, state, call) {
 }
 
 /** What a call was handed and what it answered, each under its own label. */
-function partsIn(body, call) {
+function partsIn(body, call, held) {
   if (body.children.length === 0) {
     into(
       body,
@@ -133,30 +182,42 @@ function partsIn(body, call) {
     )
   }
   const [handedLabel, handed, answeredLabel, answered, none] = body.children
-  fill(handedLabel, handed, call.input)
-  fill(
-    answeredLabel,
-    answered,
-    call.result === null || call.result.words === '' ? null : call.result,
-  )
-  textIn(none, noAnswer(call.result))
-  none.hidden = noAnswer(call.result) === ''
+  if (call !== null) fill(handedLabel, handed, call.input?.words ?? null)
+  const whole = held.read?.says === 'words' ? held.read.text : null
+  fill(answeredLabel, answered, whole)
+  const said = noAnswer(held)
+  textIn(none, said)
+  none.hidden = said === ''
 }
 
 /**
- * What to say where there are no words to show: a call that answered nothing
- * and one whose answer nobody kept are two different facts.
+ * What to say where there are no words to show. A call that answered nothing
+ * and one whose answer nobody kept are two different facts, and an answer
+ * being read, one that could not be, and one this device may not see are
+ * three more.
  */
-function noAnswer(result) {
-  if (result === null) return 'What it answered was not written down'
-  return result.words === '' ? 'It answered nothing' : ''
+function noAnswer(held) {
+  if (held.answered === 'nothing') return 'It answered nothing'
+  if (held.answered !== 'words') return 'What it answered was not written down'
+  if (held.where === null) return 'What it answered is not on this page'
+  return NO_ANSWER[held.read?.says ?? 'reading'] ?? ''
 }
 
-function fill(label, frame, said) {
-  label.hidden = said === null
-  frame.hidden = said === null
-  const words = said === null ? '' : said.words + (said.more ? '\n…' : '')
-  textIn(frame.firstElementChild, words)
+/** What a call's answer says when it is not words to show. */
+const NO_ANSWER = {
+  reading: 'Reading what it answered…',
+  nothing: 'It answered nothing',
+  unrecorded: 'What it answered was not written down',
+  unread: 'Its harness’s record is there and could not be read. Open it again to try again.',
+  gone: 'The machine did not answer. Open it again to try again.',
+  'not here': 'What it answered is not on this device',
+  'not granted': 'What it answered is not on this device',
+}
+
+function fill(label, frame, words) {
+  label.hidden = words === null
+  frame.hidden = words === null
+  textIn(frame.firstElementChild, words ?? '')
 }
 
 /**

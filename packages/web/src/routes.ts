@@ -315,6 +315,25 @@ export const ROUTES: readonly Route[] = [
     needs: 'read',
     mutates: false,
   },
+  // **One call's whole answer, read when somebody opens it** (`answered.ts`):
+  // an agent's out of its harness's record, the conversation with Tade's out
+  // of the orchestrator's. A conversation's rows say whether a call answered
+  // and carry none of it, so nothing is cut and nothing is held for a row
+  // nobody opens. On the conversation's own grants, checked in the answer.
+  {
+    method: 'GET',
+    path: '/api/agent/:project/:task/answer/:call',
+    name: 'agent answer',
+    needs: 'read',
+    mutates: false,
+  },
+  {
+    method: 'GET',
+    path: '/api/talk/answer/:call',
+    name: 'talk answer',
+    needs: 'read',
+    mutates: false,
+  },
   { method: 'GET', path: '/api/devices', name: 'devices', needs: 'read', mutates: false },
   // **What Tade is set up with, read while somebody has the page open.** A
   // `GET` like every other read, and the same for every device: what it may

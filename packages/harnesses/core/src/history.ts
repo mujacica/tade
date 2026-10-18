@@ -36,12 +36,17 @@ export type HistoryItem =
        */
       ok: boolean | null
       /**
-       * What it answered — whether it worked or not — bounded by `keptResult`,
-       * with a line saying how much was left out. `''` is a call that answered
-       * nothing; null is one whose answer was never recorded — a turn cut
-       * short, or a process that died with the call in the air. Two facts.
+       * What it answered — whether it worked or not — or as much of it as a
+       * page holds (`headOf`). `''` is a call that answered nothing; null is
+       * one whose answer was never recorded — a turn cut short, or a process
+       * that died with the call in the air. Two facts.
        */
       result: string | null
+      /**
+       * Present where `result` is the start of the answer and not the whole:
+       * the whole is still in the record, and `answerIn` reads it from there.
+       */
+      cut?: true
       at: number
     }
 
@@ -70,8 +75,12 @@ export const NO_HISTORY: HistoryPage = { items: [], earlier: null }
  */
 export interface HistoryLine {
   items: HistoryItem[]
-  /** Answers to tool calls, matched to them by id; `ok` null where the answer does not say. */
-  results: { id: string; ok: boolean | null; result: string }[]
+  /**
+   * Answers to tool calls, matched to them by id; `ok` null where the answer
+   * does not say. Each whole as the record has it: a page keeps the start of
+   * each (`headOf`), and `answerIn` hands the whole of one over.
+   */
+  results: { id: string; ok: boolean | null; result: string; cut?: true }[]
   /**
    * Whether an exchange starts here — something was sent to it. A page starts
    * on one, so a tool and its answer are never split across two pages.
@@ -80,41 +89,37 @@ export interface HistoryLine {
 }
 
 /**
- * How much of a tool's answer a page keeps: a file read or a test run can be a
- * megabyte, and a page holds a hundred of them. Under the away view's own bound
- * (`CALL.result` in `@tade/web`), so the line saying what was left out reaches
- * the page rather than being cut off it.
+ * How much of a tool's answer a page of history holds: a file read or a test
+ * run can be a megabyte, and a page holds a hundred of them. A page is what
+ * the window keeps; **what a person reads is never this** — opening a call
+ * reads its whole answer again out of the record (`answerIn`).
  */
-export const RESULT_KEPT = { chars: 1_800, lines: 24 } as const
+export const RESULT_HEAD = { chars: 1_800, lines: 24 } as const
 
 /**
- * A tool's answer as a page keeps it: the first `RESULT_KEPT.lines` lines or
- * `RESULT_KEPT.chars` characters, whichever ends first, and then a line saying
- * how much more there was. What is kept is a copy, never a slice: V8 keeps a
- * slice's whole parent alive, so a kept two kilobytes would hold the megabyte.
+ * A tool's answer as a page holds it: the first `RESULT_HEAD.lines` lines or
+ * `RESULT_HEAD.chars` characters, whichever ends first, and `cut` where that
+ * is not all of it — a fact, never a sentence standing in for the rest. What
+ * is held is a copy, never a slice: V8 keeps a slice's whole parent alive, so
+ * a held two kilobytes would hold the megabyte.
  */
-export function keptResult(text: string): string {
+export function headOf(text: string): { result: string; cut?: true } {
   const whole = text.trimEnd()
-  let end = Math.min(whole.length, RESULT_KEPT.chars)
+  let end = Math.min(whole.length, RESULT_HEAD.chars)
   let at = -1
-  for (let n = 0; n < RESULT_KEPT.lines; n++) {
+  for (let n = 0; n < RESULT_HEAD.lines; n++) {
     at = whole.indexOf('\n', at + 1)
     if (at < 0 || at >= end) break
-    if (n === RESULT_KEPT.lines - 1) end = at
+    if (n === RESULT_HEAD.lines - 1) end = at
   }
-  if (end >= whole.length) return whole
-  const left = whole.length - end
-  let lines = 0
-  for (let i = whole.indexOf('\n', end); i >= 0; i = whole.indexOf('\n', i + 1)) lines++
-  const more =
-    lines > 0
-      ? `${count(lines)} more ${lines === 1 ? 'line' : 'lines'} (${count(left)} characters)`
-      : `${count(left)} more characters`
-  return Buffer.from(`${whole.slice(0, end).trimEnd()}\n… ${more} not kept`).toString()
+  if (end >= whole.length) return { result: whole }
+  return { result: Buffer.from(whole.slice(0, end).trimEnd()).toString(), cut: true }
 }
 
-function count(n: number): string {
-  return n.toLocaleString('en-US')
+/** A line as a page holds it: every answer in it cut to its head. */
+function held(line: HistoryLine): HistoryLine {
+  if (line.results.length === 0) return line
+  return { ...line, results: line.results.map((one) => ({ ...one, ...headOf(one.result) })) }
 }
 
 /** How much is read from the file at a time, going back. */
@@ -175,8 +180,9 @@ export async function historyIn(
         const text = bytes.subarray(at + 1, cut).toString('utf8')
         const offset = from + at + 1
         cut = Math.max(0, at)
-        const line = text.trim() ? safely(read, text) : null
-        if (!line) continue
+        const whole = text.trim() ? safely(read, text) : null
+        if (!whole) continue
+        const line = held(whole)
         lines.push({ at: offset, line })
         count += line.items.length
         if ((count >= ask.limit && line.opens) || (before - offset > REACH && count > 0)) {
@@ -208,13 +214,15 @@ function safely(read: (line: string) => HistoryLine | null, text: string): Histo
 
 /** Each tool given the answer recorded for it, oldest first; an answer to nothing here is dropped. */
 function paired(lines: readonly HistoryLine[]): HistoryItem[] {
-  const answers = new Map<string, { ok: boolean | null; result: string }>()
+  const answers = new Map<string, HistoryLine['results'][number]>()
   for (const line of lines) for (const one of line.results) answers.set(one.id, one)
   return lines.flatMap((line) =>
     line.items.map((item) => {
       if (item.kind !== 'tool') return item
       const answer = answers.get(item.id)
-      return answer ? { ...item, ok: answer.ok, result: answer.result } : item
+      if (!answer) return item
+      const answered = { ...item, ok: answer.ok, result: answer.result }
+      return answer.cut ? { ...answered, cut: true as const } : answered
     }),
   )
 }

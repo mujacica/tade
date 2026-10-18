@@ -7,7 +7,6 @@ import {
   type HistoryLine,
   type HistoryPage,
   historyIn,
-  keptResult,
   momentOf,
   type ToolAnswer,
 } from '@tade/harnesses-core'
@@ -354,7 +353,7 @@ export function historyLine(text: string): HistoryLine | null {
     line.results.push({
       id: toolCallId,
       ok: !failed,
-      result: keptResult(words.join('\n')),
+      result: words.join('\n'),
     })
   } else {
     return null

@@ -1,7 +1,6 @@
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { RESULT_KEPT } from '@tade/harnesses-core'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { ClaudeAdapter } from '../src/adapter.ts'
@@ -168,6 +167,12 @@ describe('a conversation read back', () => {
     )
     const tool = page.items[1]
     expect(tool?.kind === 'tool' && tool.input).toEqual({ project: 'shop' })
+    // Opened, a call's answer is read again by its id; one cut short has none.
+    expect(await adapter.callAnswer('tade/orchestrator', '/work/shop', 'toolu_git')).toEqual({
+      ok: false,
+      result: 'fatal: not a git repository',
+    })
+    expect(await adapter.callAnswer('tade/orchestrator', '/work/shop', 'toolu_nobody')).toBeNull()
     // The picture it was pointed at is the picture, not words of the message.
     const pictured = page.items[8]
     expect(pictured).toMatchObject({
@@ -209,12 +214,11 @@ describe("a tool call's answer read back", () => {
         }),
       )?.results
     expect(answer([{ type: 'text', text: 'two files\n' }], false)).toEqual([
-      { id: 't1', ok: true, result: 'two files' },
+      { id: 't1', ok: true, result: 'two files\n' },
     ])
     expect(answer('no such file', true)).toEqual([{ id: 't1', ok: false, result: 'no such file' }])
-    const long = Array.from({ length: 500 }, (_, n) => `${n}`).join('\n')
-    const [kept] = answer(long, false) ?? []
-    expect(kept?.result.split('\n')).toHaveLength(RESULT_KEPT.lines + 1)
-    expect(kept?.result).toMatch(/\n… 476 more lines \([\d,]+ characters\) not kept$/)
+    // Whole, however long: a page holds the head of it, and opening it reads this.
+    const long = Array.from({ length: 5_000 }, (_, n) => `${n}`).join('\n')
+    expect(answer(long, false)).toEqual([{ id: 't1', ok: true, result: long }])
   })
 })

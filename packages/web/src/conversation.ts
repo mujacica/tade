@@ -1,3 +1,4 @@
+import { CALL_ID } from './answered.ts'
 import { commandOut, type Places } from './command.ts'
 import { textOf } from './page.ts'
 import type { Call, Said, TurnRow } from './protocol.ts'
@@ -15,35 +16,30 @@ import { cleanText } from './screen.ts'
 //
 // Pure: no `node:` import, no clock, nothing awaited.
 
-/** How much of a call crosses: the line that says which, what it was handed, what it answered. */
-export const CALL = { brief: 160, input: 2_000, result: 2_000 } as const
-
-/** How much of an agent's conversation one answer carries. */
-export const TURNS = { turns: 40, text: 4_000 } as const
+/**
+ * How long the line that names a call may be: a label on a row, not the call.
+ * What it was handed and what it answered are never cut — the first crosses
+ * whole, the second is read whole when the call is opened (`answered.ts`).
+ */
+export const CALL = { brief: 160 } as const
 
 /**
- * How far past a bound text is cleaned before it is cut.
- *
- * Cleaning is cut **after**, so a key straddling the cut is never half let
- * through; cleaning a megabyte a tool answered to show two thousand characters
- * of it is cost for nothing. What is cleaned is the bound and this much more,
- * which is longer than any key — so whatever straddles the first cut is past
- * the second, and is not shown at all.
+ * How many of an agent's turns one answer carries — the newest, each whole;
+ * the page says where there are earlier ones.
  */
-const SLACK = 1_024
+export const TURNS = { turns: 40 } as const
 
-/** Words cleaned, then bounded: the count of what was taken out goes with them. */
-export function cleanSaid(
+/**
+ * Words cleaned and **never cut**: what was said, every word of it, with the
+ * count of what cleaning took out.
+ */
+export function cleanWhole(
   text: string,
-  most: number,
   known: readonly string[],
 ): { said: Said | null; taken: number } {
   if (text === '') return { said: null, taken: 0 }
-  const clean = cleanText(text.slice(0, most + SLACK), known)
-  const said = textOf(clean.text, most)
-  if (said === null) return { said: null, taken: clean.taken }
-  // Cut before cleaning is still cut: said so, rather than read as the whole.
-  return { said: { ...said, more: said.more || text.length > most + SLACK }, taken: clean.taken }
+  const clean = cleanText(text, known)
+  return { said: clean.text === '' ? null : { words: clean.text, more: false }, taken: clean.taken }
 }
 
 /**
@@ -119,43 +115,44 @@ export function inputText(input: unknown): string {
 }
 
 /**
- * One call, cleaned and bounded, and how many things were taken out of it.
+ * One call, cleaned, and how many things were taken out of it: everything it
+ * was handed, whole, and whether it answered — words, nothing, or none kept —
+ * with the id its whole answer is asked for by (`answered.ts`).
  *
- * An answer of `''` crosses as words of `''` — it answered nothing — and a
- * `result` of null as null, an answer nobody kept: `cleanSaid` makes both
- * null, and the page would say of a call that answered nothing that what it
- * answered was not written down.
+ * **Never what it answered.** That is read whole when somebody opens the call,
+ * so a conversation of a hundred test runs is not cut to fit a row, nor held
+ * for a row nobody opens.
  */
 export function callOf(
   input: unknown,
   result: string | null,
   known: readonly string[],
   places: Places = NOWHERE,
+  call: string | null = null,
 ): { call: Call; taken: number } {
   const words = briefOut(input, places, known)
-  const brief = { said: textOf(words, CALL.brief), taken: 0 }
-  const asked = cleanSaid(inputText(input), CALL.input, known)
-  const answered = result === '' ? NOTHING : cleanSaid(result ?? '', CALL.result, known)
+  const brief = textOf(words, CALL.brief)
+  const asked = cleanWhole(inputText(input), known)
   return {
     call: {
-      brief: brief.said === null ? null : brief.said.words,
+      brief: brief === null ? null : brief.words,
       input: asked.said,
-      result: answered.said,
+      answered: result === null ? 'none' : result === '' ? 'nothing' : 'words',
+      id: call !== null && CALL_ID.test(call) ? call : null,
     },
-    taken: brief.taken + asked.taken + answered.taken,
+    taken: asked.taken,
   }
 }
-
-/** An answer of nothing at all. */
-const NOTHING = { said: { words: '', more: false }, taken: 0 } as const
 
 /** One cleaned call, and what it was cleaned from. */
 interface Kept {
   input: unknown
   result: string | null
+  /** The call's own id in its record, which its answer is asked for by. */
+  call: string | null
   known: readonly string[]
   places: Places
-  call: Call
+  made: Call
 }
 
 /** How many cleaned calls are kept: more than a conversation's lines (`TRANSCRIPT_MAX`). */
@@ -180,25 +177,27 @@ export function callFor(
   result: string | null,
   known: readonly string[],
   places: Places = NOWHERE,
+  call: string | null = null,
 ): Call {
   const was = kept.get(id)
   if (
     was !== undefined &&
     was.input === input &&
     was.result === result &&
+    was.call === call &&
     sameKeys(was.known, known) &&
     samePlaces(was.places, places)
   ) {
-    return was.call
+    return was.made
   }
-  const { call } = callOf(input, result, known, places)
+  const made = callOf(input, result, known, places, call).call
   kept.delete(id)
-  kept.set(id, { input, result, known, places, call })
+  kept.set(id, { input, result, call, known, places, made })
   if (kept.size > KEPT_CALLS) {
     const oldest = kept.keys().next().value
     if (oldest !== undefined) kept.delete(oldest)
   }
-  return call
+  return made
 }
 
 /**
@@ -214,7 +213,11 @@ export type TurnIn =
       tool: string
       input: unknown
       ok: boolean | null
-      /** `''` where it answered nothing; null where no answer was recorded. */
+      /**
+       * The start of what it answered (`headOf`), which only says whether it
+       * did — `''` where it answered nothing, null where no answer was
+       * recorded. What a person reads is the whole, asked for by `id`.
+       */
       result: string | null
       at: number
     }
@@ -245,7 +248,7 @@ export function turnsOf(
         : `${one.kind}:${one.at}#${n}`
     const when = one.at > 0 ? new Date(one.at).toISOString() : null
     if (one.kind !== 'tool') {
-      const words = cleanSaid(one.text, TURNS.text, known)
+      const words = cleanWhole(one.text, known)
       taken += words.taken
       return {
         id,
@@ -257,7 +260,7 @@ export function turnsOf(
         call: null,
       }
     }
-    const made = callOf(one.input, one.result, known, places)
+    const made = callOf(one.input, one.result, known, places, one.id)
     taken += made.taken
     return {
       id,

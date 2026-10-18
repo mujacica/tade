@@ -9,7 +9,6 @@ import {
   type HistoryLine,
   type HistoryPage,
   historyIn,
-  keptResult,
   jsonOf,
   momentOf,
   NO_HISTORY,
@@ -424,7 +423,7 @@ export function historyLine(text: string): HistoryLine | null {
     line.results.push({
       id: payload.call_id,
       ok: code === null ? null : code === 0,
-      result: keptResult(text),
+      result: text,
     })
     return line
   }

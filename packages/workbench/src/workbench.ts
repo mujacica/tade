@@ -75,6 +75,7 @@ import {
   resumeOffer,
   type SignIn,
   type Support,
+  type ToolAnswer,
   type WorkerAdapter,
   type WorkerCapabilities,
   type WorkerExtras,
@@ -1701,6 +1702,19 @@ export class Workbench {
     const harness = lane.harness ?? (await this.harnessOf(task))
     const account = await this.accountOf(task, harness)
     return this.adapterFor(harness, account).history(task as TaskId, lane.spec.cwd, ask)
+  }
+
+  /**
+   * The whole of what one call in a task's agent's conversation answered, out
+   * of its harness's own record (`WorkerAdapter.callAnswer`): what a person
+   * reads when they open the call, where `agentHistory` holds only its start.
+   */
+  async agentAnswer(task: string, call: string): Promise<ToolAnswer | null> {
+    const lane = this.registry.get(`${task}/agent` as LaneId)
+    if (lane?.kind !== 'agent') return null
+    const harness = lane.harness ?? (await this.harnessOf(task))
+    const account = await this.accountOf(task, harness)
+    return this.adapterFor(harness, account).callAnswer(task as TaskId, lane.spec.cwd, call)
   }
 
   /**

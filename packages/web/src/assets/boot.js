@@ -26,6 +26,7 @@
 
 import { actsOf } from './acts.js'
 import { agentsScreen } from './agents.js'
+import { answersWith } from './conversation.js'
 import { deskParts } from './desk.js'
 import { docksOn, forgetFolds } from './docks.js'
 import { classOn, el, textIn } from './dom.js'
@@ -150,6 +151,9 @@ function sentence(answer) {
   if (answer.body !== null && typeof answer.body.said === 'string') return answer.body.said
   return 'Something went wrong here.'
 }
+
+// A call's whole answer is asked for with the same `ask` as everything else.
+answersWith(ask)
 
 const ctx = {
   ask,

@@ -518,9 +518,11 @@ export interface ChatIn {
    * and what the tool answered. **Untrusted and uncleaned** — `chatRows` is
    * the boundary that cleans it (`callOf`), and sends it at all only under
    * `lanes`. Null on every other line. `result` is `''` for a call that
-   * answered nothing and null for one with no answer yet or none kept.
+   * answered nothing and null for one with no answer yet or none kept; `id`
+   * is the call's own, in the orchestrator's record, which the page asks for
+   * its whole answer by — absent where there is none to ask by.
    */
-  call: { input: unknown; result: string | null } | null
+  call: { id?: string; input: unknown; result: string | null } | null
   /** Still arriving, so the page can draw it as such rather than as finished. */
   streaming: boolean
 }
