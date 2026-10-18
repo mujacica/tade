@@ -175,8 +175,6 @@ export interface HostOptions {
   timeoutMs?: number
   /** How long an extension has to say whether it is ready. `READY_MS_LIMIT` unless given. */
   readyMs?: number
-  /** Resolve `~` in a project root. */
-  expandHome?: (path: string) => string
 }
 
 interface Entry {
@@ -1364,7 +1362,8 @@ export class ExtensionHost {
 }
 
 /**
- * The projects as the config has them *now*, resolved against the machine's `~`.
+ * The projects as the config has them *now*, each root already absolute: the
+ * config's `~` is expanded where it is read (`ProjectConfigSchema.root`).
  *
  * Read at every call and never held. A list read once, when the extensions
  * loaded, is how `there is no project called zahlenzauber (there is tade,
@@ -1372,10 +1371,9 @@ export class ExtensionHost {
  * by three watches, once every ten minutes, until Tade was started again.
  */
 function projectsOf(opts: HostOptions): ProjectRef[] {
-  const expand = opts.expandHome ?? ((path: string) => path)
   return Object.entries(opts.config.projects).map(([project, value]) => ({
     name: project,
-    root: expand(value.root),
+    root: value.root,
     ...(value.test_command ? { test: value.test_command } : {}),
   }))
 }

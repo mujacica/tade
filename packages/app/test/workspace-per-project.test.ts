@@ -1,9 +1,11 @@
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { ConfigSchema, type Queued, queueStateOf, readyToStart } from '@tade/core'
+import { ExtensionHost, object, string } from '@tade/extensions-core'
+import { collectStatus } from '@tade/status'
 import { Workbench } from '@tade/workbench'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { gitEnv, mkrepo } from '../../../test/fixtures/mkrepo.ts'
 import { Live } from '../src/live.ts'
 
@@ -17,6 +19,7 @@ import { Live } from '../src/live.ts'
 const opened: { live: Live; client: Workbench }[] = []
 
 afterEach(async () => {
+  vi.unstubAllEnvs()
   for (const one of opened.splice(0)) {
     await one.live.stop().catch(() => {})
     await one.client.close().catch(() => {})
@@ -178,6 +181,81 @@ describe('the look at a project’s tree before work starts', () => {
       working: ['shop/refunds'],
       dirty: ['src/charge.ts'],
     })
+  }, 30_000)
+})
+
+describe('a project whose root the config writes with ~', () => {
+  // vrolta on 2026-10-17: `root: ~/vrolta` in the config, and the queue's look
+  // ran git in a literal `~/vrolta` — "cannot change to '~/vrolta'" — so every
+  // hold on its files stood and held work there never started. Agents started
+  // fine, because their reader expanded it and this one did not. The root is
+  // now absolute once the config is read, so every reader is handed the same.
+  it('is read by the queue’s look, by status and by what extensions are handed', async () => {
+    const shop = mkrepo()
+    // The home is the fixture's own folder, so `~/repo` is that checkout.
+    vi.stubEnv('HOME', dirname(shop.root))
+    const config = ConfigSchema.parse({
+      projects: { shop: { root: '~/repo', workspace: 'checkout' } },
+    })
+    const home = mkdtempSync(join(tmpdir(), 'tade-tilde-'))
+    const client = await Workbench.open({ home })
+    const live = await Live.start({
+      client,
+      config,
+      home,
+      tadeHome: home,
+      pollMs: 600_000,
+      now: () => NOW,
+    })
+    opened.push({ live, client })
+    await atWork(client, 'shop/refunds', shop.root, 'checkout')
+    shop.write({ 'src/charge.ts': 'charged\n' })
+
+    await live.refresh()
+    await live.lookAtTrees([queued('shop/add-refunds', ['src/charge.ts'])])
+    const looked = live.queueFacts().reality?.get('shop')
+    expect(looked?.unread).toBeUndefined()
+    expect(looked).toMatchObject({ working: ['shop/refunds'], dirty: ['src/charge.ts'] })
+
+    const world = await collectStatus({
+      config,
+      now: NOW,
+      home,
+      tadeHome: home,
+      pr: false,
+      processes: async () => ({ processes: [], servers: { looked: true, alive: 0 }, warnings: [] }),
+    })
+    expect(world.warnings.filter((one) => one.includes('~'))).toEqual([])
+    expect(world.projects.find((one) => one.name === 'shop')?.root).toBe(shop.root)
+
+    // The checks and the branch's checks find a project's checkout through
+    // `ctx.project`, which is what every extension is handed.
+    const host = await ExtensionHost.load({
+      builtin: [
+        {
+          name: 'where',
+          title: 'Where',
+          description: 'Says where a project is.',
+          tools: [
+            {
+              name: 'where_is',
+              description: 'Where a project’s checkout is.',
+              parameters: object({ project: string('which project') }, ['project']),
+              for: ['orchestrator'],
+              run: async (input, ctx) => ({ text: ctx.project(String(input.project)).root }),
+            },
+          ],
+        },
+      ],
+      config,
+      home,
+    })
+    const answer = await host.call(
+      'where_is',
+      { project: 'shop' },
+      { caller: { kind: 'you' }, id: 'c1' },
+    )
+    expect(answer.text).toBe(shop.root)
   }, 30_000)
 })
 

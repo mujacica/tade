@@ -3,6 +3,7 @@ import { basename, dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { ConfigSchema } from '../src/config.ts'
 import {
+  expandHome,
   extensionsRoot,
   projectDir,
   recordsDir,
@@ -11,6 +12,7 @@ import {
   tadeHome,
   taskDir,
   taskFolder,
+  typedHome,
 } from '../src/home.ts'
 
 // Where everything Tade writes about a project goes, and the one way that
@@ -71,6 +73,17 @@ describe('the home itself', () => {
     expect(extensionsRoot('/somewhere/else', unset)).toBe('/somewhere/else/extensions')
     expect(extensionsRoot(tadeHome({}), unset)).toBe(join(homedir(), '.tade', 'extensions'))
     expect(extensionsRoot('/somewhere/else', '~/tools')).toBe(join(homedir(), 'tools'))
+  })
+})
+
+describe('a path written with ~', () => {
+  it('is the home’s, and is written back the way somebody typed it', () => {
+    expect(expandHome('~/vrolta')).toBe(join(homedir(), 'vrolta'))
+    expect(typedHome(expandHome('~/vrolta'))).toBe('~/vrolta')
+    expect(typedHome(homedir())).toBe('~')
+    // A folder beside the home whose name starts with it is not in it.
+    expect(typedHome(`${homedir()}-old/src`)).toBe(`${homedir()}-old/src`)
+    expect(typedHome('/src/shop')).toBe('/src/shop')
   })
 })
 

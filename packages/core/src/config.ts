@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { WebSurface } from './away.ts'
 import { BackupConfigSchema } from './backup.ts'
 import { BudgetSchema } from './budget.ts'
+import { expandHome } from './home.ts'
 import { IntakeSurface } from './intake.ts'
 import { NotesConfigSchema } from './memory.ts'
 import { PrepareConfigSchema } from './prepare.ts'
@@ -161,7 +162,15 @@ export const ChecksConfigSchema = z.strictObject({
 export type ChecksConfig = z.infer<typeof ChecksConfigSchema>
 
 export const ProjectConfigSchema = z.strictObject({
-  root: z.string().min(1),
+  /**
+   * Where the project's checkout is, absolute once read: `~/vrolta` in the
+   * file is the home's `vrolta` to every reader. Expanded here, the one place
+   * the root is read, because a reader that forgot ran git in a literal `~`
+   * — the queue's start-time look did, and held work in that project was
+   * never let go. The file keeps what was written (`writeSetting` edits the
+   * document, never this value).
+   */
+  root: z.string().min(1).transform(expandHome),
   /**
    * What to call it on screen, where that is not its name.
    *

@@ -287,7 +287,6 @@ export async function loadExtensions(opts: {
     home: opts.home,
     ...(opts.env ? { env: opts.env } : {}),
     ...(opts.fetch ? { fetch: opts.fetch } : {}),
-    expandHome,
   })
 }
 

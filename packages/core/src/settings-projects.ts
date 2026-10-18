@@ -1,4 +1,5 @@
 import { AGENT_WORKSPACES, type Config, type HarnessId, OWN_SIGN_IN } from './config.ts'
+import { typedHome } from './home.ts'
 import { HARNESS_CHOICES } from './model.ts'
 import { PREPARE_DEADLINE_MINUTES } from './prepare.ts'
 import {
@@ -52,7 +53,8 @@ export function projectGroups(config: Config): SettingGroup[] {
           path: `projects.${name}.root`,
           title: 'Where the repository is',
           means: `the checkout every agent in ${name} works in; moving it moves where all of them work`,
-          value: project.root,
+          // Absolute once read (`ProjectConfigSchema.root`), and shown as typed.
+          value: typedHome(project.root),
           fallback: '',
           type: { kind: 'text', placeholder: '~/src/app' } as const,
           live: false,

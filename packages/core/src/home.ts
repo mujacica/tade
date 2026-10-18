@@ -42,6 +42,13 @@ export function expandHome(p: string): string {
   return p
 }
 
+/** A path as somebody would type it, `expandHome` undone: `~/vrolta` rather than `/Users/me/vrolta`. */
+export function typedHome(p: string): string {
+  const home = homedir()
+  if (p === home) return '~'
+  return p.startsWith(`${home}/`) ? `~${p.slice(home.length)}` : p
+}
+
 /**
  * The folder Tade's own tools and extensions are read from, and which
  * `recordAuthored` commits: `orchestrator.extensions` where somebody set one,

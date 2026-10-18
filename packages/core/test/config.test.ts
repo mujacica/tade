@@ -1,5 +1,5 @@
 import { chmod, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { awayProblems } from '../src/away.ts'
@@ -30,6 +30,19 @@ describe('parseConfig', () => {
     expect(r.config.workers.default).toBe('default')
     expect(r.config.workers.routes.default?.harness).toBe('pi')
     expect(r.config.projects).toEqual({})
+  })
+
+  it('reads a project root written with ~ as the home’s, so no reader runs git in a literal ~', () => {
+    // vrolta on 2026-10-17: `root: ~/vrolta`, and the queue's look at its
+    // checkout failed with "cannot change to '~/vrolta'", holding its work.
+    const r = parseConfig(
+      'projects:\n  vrolta: { root: ~/vrolta }\n  home: { root: "~" }\n  shop: { root: /src/shop }\n',
+    )
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.config.projects.vrolta?.root).toBe(join(homedir(), 'vrolta'))
+    expect(r.config.projects.home?.root).toBe(homedir())
+    expect(r.config.projects.shop?.root).toBe('/src/shop')
   })
 
   it('starts muted, and keeps a person’s own answer to it', () => {
@@ -85,7 +98,7 @@ projects:
     // Everything beside it survives, which is the whole point of not refusing.
     expect(r.config.workers.routes.default?.model).toBe('claude-opus-5')
     expect(r.config.mcp.servers.linear?.enabled).toBe(true)
-    expect(r.config.projects.checkout?.root).toBe('~/src/checkout')
+    expect(r.config.projects.checkout?.root).toBe(join(homedir(), 'src/checkout'))
     expect(r.warnings).toHaveLength(2)
     expect(r.warnings[0]).toContain('workers.routes.default.sandbox')
     expect(r.warnings[0]).toContain('sandboxes are gone')
@@ -281,7 +294,7 @@ projects:
       'tomorrow:\n  keep: true\nprojects:\n  app:\n    root: ~/app\n    later: 1\n',
     )
     expect(r.ok && r.unknown).toEqual(['projects.app.later', 'tomorrow'])
-    expect(r.ok && r.config.projects.app?.root).toBe('~/app')
+    expect(r.ok && r.config.projects.app?.root).toBe(join(homedir(), 'app'))
   })
 
   it('still refuses a value it cannot read, and names the unknown keys beside it', () => {
@@ -532,6 +545,14 @@ describe('writing a setting', () => {
     expect((await stat(path)).mode & 0o077).toBe(0)
     // And the file is still the one its owner wrote, comment and all.
     expect(await readFile(path, 'utf8')).toContain('# mine')
+  })
+
+  it('keeps a root the person wrote with ~ as they wrote it', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tade-cfg-'))
+    const path = join(dir, 'config.yaml')
+    await writeFile(path, 'projects:\n  vrolta:\n    root: ~/vrolta\n')
+    writeSetting(path, 'projects.vrolta.title', 'Vrolta')
+    expect(await readFile(path, 'utf8')).toContain('root: ~/vrolta')
   })
 })
 
