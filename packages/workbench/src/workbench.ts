@@ -124,6 +124,7 @@ import {
   type TaskWorktree,
   taskContextPath,
   taskFilePath,
+  worktreesAgain,
 } from './tasks.ts'
 import {
   findTerminal,
@@ -457,6 +458,16 @@ export class Workbench {
         'tools written since Tade was last open',
       )
       await recordAuthored(join(opts.home, 'skills'), 'lessons proposed since Tade was last open')
+      // Before anything looks at the tasks: a restored home has their files and
+      // none of their worktrees, and what was pushed can be put back.
+      await worktreesAgain({ home: opts.home, config, log }).catch((err: unknown) =>
+        log.append({
+          type: 'warning',
+          detail: {
+            message: `no task's worktree was made again: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        }),
+      )
       await workbench.resupervise().catch(() => {})
       await workbench.reconcileSpend().catch(() => {})
       await workbench.lookAtCommits().catch(() => {})

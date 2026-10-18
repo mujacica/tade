@@ -1,11 +1,14 @@
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import {
+  type Config,
   type DoneRule,
+  expandHome,
   type PrepareConfig,
   producesPath,
   producesProblem,
+  projectDir,
   type Setup,
   type StartCondition,
   TaskFile,
@@ -15,6 +18,7 @@ import {
 } from '@tade/core'
 import { git, parseStatusV2, resolveBase } from '@tade/status'
 import { parse as parseYaml, stringify } from 'yaml'
+import type { EventLog } from './events.ts'
 import { type Prepared, prepareWorktree } from './prepare.ts'
 
 // Task lifecycle: where the work happens, and the sentence you said when you
@@ -522,6 +526,118 @@ export async function readTaskFile(home: string, id: string): Promise<TaskFile |
   } catch {
     return null
   }
+}
+
+export interface WorktreeAgainOptions {
+  root: string
+  /** The branch its work is on. */
+  branch: string
+  /** Where it worked, and is made again. */
+  worktree: string
+  prepare?: PrepareConfig | undefined
+}
+
+/** What making a task's worktree again came to, where there was one to make. */
+export type WorktreeAgain =
+  | { made: true; worktree: string; from: string; prepared: Prepared }
+  | { made: false; why: string }
+
+/**
+ * Make a task's worktree again from its pushed branch: what a restore leaves,
+ * since a backup keeps the task's file and never its worktree, and the
+ * checkout it is cloned into again has the branch on its remote alone.
+ *
+ * Null where there is nothing to make: its folder is there, or nothing was
+ * pushed to make it from — and where the branch is still in the checkout,
+ * since then the worktree was taken away here, by somebody who meant to.
+ */
+export async function worktreeAgain(opts: WorktreeAgainOptions): Promise<WorktreeAgain | null> {
+  if (!opts.branch || existsSync(opts.worktree)) return null
+  const local = await git(opts.root, [
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    `refs/heads/${opts.branch}`,
+  ])
+  if (local.ok) return null
+  const refs = await git(opts.root, ['for-each-ref', '--format=%(refname)', 'refs/remotes/'])
+  if (!refs.ok) return { made: false, why: firstLine(refs.stderr) }
+  const pushed = refs.stdout.split('\n').filter((ref) => {
+    if (!ref.endsWith(`/${opts.branch}`)) return false
+    const remote = ref.slice('refs/remotes/'.length, -(opts.branch.length + 1))
+    return remote !== '' && !remote.includes('/')
+  })
+  if (pushed.length === 0) return null
+  const [from] = pushed
+  if (!from || pushed.length > 1) {
+    return { made: false, why: `${opts.branch} is on more than one remote: ${pushed.join(', ')}` }
+  }
+  await mkdir(join(opts.worktree, '..'), { recursive: true })
+  const added = await git(
+    opts.root,
+    ['worktree', 'add', '--track', '-b', opts.branch, opts.worktree, from],
+    30_000,
+  )
+  if (!added.ok) return { made: false, why: `git worktree add failed: ${firstLine(added.stderr)}` }
+  const prepared = await prepareWorktree({
+    root: opts.root,
+    worktree: opts.worktree,
+    configured: opts.prepare,
+  })
+  return { made: true, worktree: opts.worktree, from, prepared }
+}
+
+/**
+ * Every task whose file is here without its worktree, made again from its
+ * pushed branch (`worktreeAgain`) where it was: so Tade opens a restored home
+ * on what was kept (`BRANCHES_ARE_THE_WORK`), rather than on a warning per
+ * task that it has no worktree any more. Its branch is the one it was named
+ * (`task_named`), or `tade/<slug>`. What could not be made is a warning.
+ */
+export async function worktreesAgain(tade: {
+  home: string
+  config: Config
+  log: Pick<EventLog, 'read' | 'append'>
+}): Promise<string[]> {
+  const named = new Map<string, string>()
+  for (const line of await tade.log.read({ types: ['task_named'] })) {
+    if (line.task && typeof line.detail.branch === 'string')
+      named.set(line.task, line.detail.branch)
+  }
+  const made: string[] = []
+  for (const [project, configured] of Object.entries(tade.config.projects)) {
+    const root = expandHome(configured.root)
+    if (!existsSync(root)) continue
+    // No folder is no tasks; any other failure to look is not.
+    const folders = await readdir(join(projectDir(tade.home, project), 'tasks')).catch(
+      (err: NodeJS.ErrnoException) => {
+        if (err.code === 'ENOENT') return []
+        throw err
+      },
+    )
+    for (const folder of folders.sort()) {
+      const file = await readTaskFile(tade.home, `${project}/${folder}`)
+      if (!file || file.workspace === 'checkout') continue
+      const id = file.id ?? `${project}/${folder}`
+      if (!id.startsWith(`${project}/`)) continue
+      const slug = id.slice(project.length + 1)
+      const again = await worktreeAgain({
+        root,
+        branch: named.get(id) ?? `${TASK_BRANCH_PREFIX}${slug}`,
+        worktree: join(tade.home, 'worktrees', `${project}-${slug}`),
+        prepare: configured.prepare,
+      })
+      if (again?.made) made.push(id)
+      else if (again) {
+        await tade.log.append({
+          type: 'warning',
+          task: id,
+          detail: { message: `${id}'s worktree was not made again from its branch: ${again.why}` },
+        })
+      }
+    }
+  }
+  return made
 }
 
 /**

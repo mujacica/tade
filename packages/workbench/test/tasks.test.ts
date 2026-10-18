@@ -1,10 +1,18 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { taskDir } from '@tade/core'
+import { ConfigSchema, taskDir } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import { mkrepo, runGit, tmp } from '../../../test/fixtures/mkrepo.ts'
-import { branchSlug, createTask, nameTask, removeTask, setTitle } from '../src/tasks.ts'
+import { EventLog } from '../src/events.ts'
+import {
+  branchSlug,
+  createTask,
+  nameTask,
+  removeTask,
+  setTitle,
+  worktreesAgain,
+} from '../src/tasks.ts'
 
 const INTENT =
   "the refund flow double-charges when the webhook retries, I think it's not idempotent"
@@ -315,5 +323,91 @@ describe('an agent that starts without a branch', () => {
       'fix-the-double-charge-when-stripe',
     )
     expect(branchSlug('!!!')).toBe('work')
+  })
+})
+
+describe('worktreesAgain', () => {
+  /**
+   * A home as a restore leaves it, beside the project it was backed up from:
+   * the task's file and the journal, and no worktree — its folder is not in a
+   * backup. `clone` is the checkout cloned again from the remote.
+   */
+  async function restored(push: boolean) {
+    const repo = mkrepo({ remote: true })
+    const task = await createTask({
+      home: repo.home,
+      project: 'checkout',
+      root: repo.root,
+      slug: 'refunds',
+      intent: INTENT,
+      worktreeRoot: join(repo.home, 'worktrees'),
+    })
+    const head = repo.commit('the work', { 'refund.ts': 'once\n' }, task.worktree)
+    if (push) runGit(task.worktree, 'push', '-q', 'origin', 'tade/refunds')
+    const clone = join(tmp('tade-clone-'), 'repo')
+    runGit(repo.root, 'clone', '-q', repo.remote!, clone)
+    rmSync(join(repo.home, 'worktrees'), { recursive: true, force: true })
+    const log = await EventLog.open({ path: join(repo.home, 'events.jsonl'), indexPath: null })
+    const config = (root: string) => ConfigSchema.parse({ projects: { checkout: { root } } })
+    return { repo, task, head, clone, log, config }
+  }
+
+  it('makes a restored task’s worktree again from its pushed branch, tracking it', async () => {
+    const { repo, task, head, clone, log, config } = await restored(true)
+    const made = await worktreesAgain({ home: repo.home, config: config(clone), log })
+    expect(made).toEqual(['checkout/refunds'])
+    expect(runGit(task.worktree, 'rev-parse', 'HEAD').trim()).toBe(head)
+    expect(runGit(task.worktree, 'rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe('tade/refunds')
+    expect(runGit(task.worktree, 'rev-parse', '--abbrev-ref', '@{upstream}').trim()).toBe(
+      'origin/tade/refunds',
+    )
+    // And once it is there, opening again leaves it be.
+    expect(await worktreesAgain({ home: repo.home, config: config(clone), log })).toEqual([])
+    expect(await log.read({ types: ['warning'] })).toEqual([])
+    await log.close()
+  })
+
+  it('makes it from the branch the task was named, where it was', async () => {
+    const { repo, task, clone, log, config } = await restored(false)
+    runGit(repo.root, 'worktree', 'prune')
+    runGit(repo.root, 'branch', '-m', 'tade/refunds', 'tade/refund-retries')
+    runGit(repo.root, 'push', '-q', 'origin', 'tade/refund-retries')
+    runGit(clone, 'fetch', '-q', 'origin')
+    await log.append({
+      type: 'task_named',
+      task: task.id,
+      detail: { branch: 'tade/refund-retries', title: 'Refund retries' },
+    })
+    const made = await worktreesAgain({ home: repo.home, config: config(clone), log })
+    expect(made).toEqual(['checkout/refunds'])
+    expect(runGit(task.worktree, 'rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe(
+      'tade/refund-retries',
+    )
+    await log.close()
+  })
+
+  it('makes nothing of a branch that was never pushed, or one still in the checkout', async () => {
+    const { repo, task, clone, log, config } = await restored(false)
+    expect(await worktreesAgain({ home: repo.home, config: config(clone), log })).toEqual([])
+    // Here, the worktree was taken away by hand and its branch kept: meant.
+    runGit(repo.root, 'worktree', 'prune')
+    runGit(repo.root, 'push', '-q', 'origin', 'tade/refunds')
+    runGit(repo.root, 'fetch', '-q', 'origin')
+    expect(await worktreesAgain({ home: repo.home, config: config(repo.root), log })).toEqual([])
+    expect(existsSync(task.worktree)).toBe(false)
+    expect(await log.read({ types: ['warning'] })).toEqual([])
+    await log.close()
+  })
+
+  it('says why, where the branch is on more than one remote', async () => {
+    const { repo, task, clone, log, config } = await restored(true)
+    runGit(clone, 'remote', 'add', 'fork', repo.remote!)
+    runGit(clone, 'fetch', '-q', 'fork')
+    expect(await worktreesAgain({ home: repo.home, config: config(clone), log })).toEqual([])
+    expect(existsSync(task.worktree)).toBe(false)
+    const [warning] = await log.read({ types: ['warning'] })
+    expect(warning?.task).toBe('checkout/refunds')
+    expect(String(warning?.detail.message)).toContain('more than one remote')
+    await log.close()
   })
 })
