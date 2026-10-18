@@ -125,6 +125,46 @@ describe('what the orchestrator was told, and what it holds', () => {
     expect(adapter.compacted).toEqual([])
   })
 
+  it('holds what is said while it compacts, and answers it once, after', async () => {
+    const adapter = harness()
+    const one = await start(adapter)
+    // A compaction that takes a while, as Claude Code's does: it is over when the test says.
+    let finish: () => void = () => {}
+    const over = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    adapter.compact = async (run) => {
+      adapter.compacted.push(run)
+      await over
+      adapter.emit(run, { type: 'context', tokens: null, percent: 1 })
+    }
+    // A harness that answers what it is asked, and only once it is asked.
+    adapter.prompt = async (run, message) => {
+      adapter.prompted.push({ run, message })
+      setTimeout(() => {
+        adapter.emit(run, { type: 'turn_started' })
+        adapter.emit(run, { type: 'message', text: `you said: ${message}` })
+        adapter.emit(run, { type: 'turn_done', status: 'ok' })
+        adapter.emit(run, { type: 'idle' })
+      }, 5)
+    }
+    adapter.emit(ORCHESTRATOR_RUN, { type: 'context', tokens: 800_000, percent: 80 })
+    const compacted = one.compact()
+    const answer = one.askFor('show me the whole answer')
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    // Nothing reached the harness behind the compaction, and it is still busy.
+    expect(adapter.prompted).toEqual([])
+    expect(one.busy).toBe(true)
+    await expect(one.compact()).rejects.toThrow('compacts only between turns')
+    finish()
+    await compacted
+    expect(await answer).toBe('you said: show me the whole answer')
+    expect(adapter.prompted.map((said) => said.message)).toEqual(['show me the whole answer'])
+    expect(adapter.compacted).toEqual([ORCHESTRATOR_RUN])
+    expect(one.context).toBe(1)
+    expect(one.busy).toBe(false)
+  })
+
   it('says why a compaction failed, keeps what it did not do, and is free again', async () => {
     const adapter = harness({ pins: true })
     const one = await start(adapter, { toldBefore: [] })

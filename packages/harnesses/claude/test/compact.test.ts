@@ -1,4 +1,4 @@
-import { chmodSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { WorkerSignal } from '@tade/harnesses-core'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -90,7 +90,7 @@ function fakeClaude(help: string[]): string {
       '#!/usr/bin/env node',
       `const help = ${JSON.stringify(help)}`,
       "if (process.argv[2] === '--help') { console.log(help.join('\\n')); process.exit(0) }",
-      "const { existsSync } = require('node:fs')",
+      "const { appendFileSync, existsSync } = require('node:fs')",
       'const say = (event) => process.stdout.write(JSON.stringify(event) + "\\n")',
       "let rest = ''",
       "process.stdin.on('data', (chunk) => {",
@@ -99,6 +99,7 @@ function fakeClaude(help: string[]): string {
       '    const message = JSON.parse(rest.slice(0, end)).message',
       '    rest = rest.slice(end + 1)',
       "    if (message.content === '/compact') {",
+      "      appendFileSync(process.argv[1] + '.compacts', '/compact\\n')",
       `      ${say({ type: 'system', subtype: 'status', status: 'compacting' })}`,
       `      if (existsSync(process.argv[1] + '.fail')) {`,
       `        ${say({ type: 'system', subtype: 'status', status: null, compact_result: 'failed', compact_error: 'Not enough messages to compact.' })}`,
@@ -109,7 +110,8 @@ function fakeClaude(help: string[]): string {
       `      ${say({ type: 'system', subtype: 'init', model: 'claude-opus-5', session_id: 'same' })}`,
       `      ${say({ type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'manual', pre_tokens: 160_010, post_tokens: 20_000 } })}`,
       `      ${say({ type: 'user', message: { role: 'user', content: 'This session is being continued from a previous conversation…' } })}`,
-      `      ${say({ type: 'result', subtype: 'success', result: '', is_error: false, ...window })}`,
+      `      if (existsSync(process.argv[1] + '.nowindow')) ${say({ type: 'result', subtype: 'success', result: '', is_error: false })}`,
+      `      else ${say({ type: 'result', subtype: 'success', result: '', is_error: false, ...window })}`,
       '      continue',
       '    }',
       `    ${say({ type: 'system', subtype: 'init', model: 'claude-opus-5', session_id: 'same' })}`,
@@ -178,6 +180,46 @@ describe('the conversation Tade draws itself, kept short', () => {
     expect(fullness(signals)).toEqual([80, 10])
     // Same conversation: it was never started again.
     expect(signals.filter((signal) => signal.type === 'started')).toHaveLength(1)
+  })
+
+  it('compacts once when asked the moment a turn ends, and that turn’s end does not settle it', async () => {
+    // What the window does (`Keeping`): a turn ends, its context reads 80%,
+    // and the compaction is asked for from inside the `idle` that said so.
+    const { one, signals, bin } = await started()
+    let compacted: Promise<void> | null = null
+    let settledAt: (number | null)[] | null = null
+    const off = one.onSignal(run, (signal) => {
+      if (signal.type !== 'idle' || compacted) return
+      compacted = one.compact(run).then(() => {
+        settledAt = fullness(signals)
+      })
+    })
+    await turn(one, signals)
+    off()
+    expect(compacted).not.toBeNull()
+    await compacted
+    // Settled by the compaction's own `result`, so how full it is had moved by then.
+    expect(settledAt).toEqual([80, 10])
+    expect(readFileSync(`${bin}.compacts`, 'utf8')).toBe('/compact\n')
+    // The compaction was not a turn: one began and one ended, the one asked.
+    const turns = (type: string) => signals.filter((signal) => signal.type === type).length
+    expect(turns('turn_started')).toBe(1)
+    expect(turns('turn_done')).toBe(1)
+    expect(turns('idle')).toBe(1)
+    // And what is said next is answered, once.
+    await turn(one, signals)
+    const said = signals.flatMap((signal) => (signal.type === 'message' ? [signal.text] : []))
+    expect(said).toEqual(['Refunds has an agent on it.', 'Refunds has an agent on it.'])
+    expect(turns('turn_done')).toBe(2)
+    expect(readFileSync(`${bin}.compacts`, 'utf8')).toBe('/compact\n')
+  })
+
+  it('keeps the window it last heard of when a compaction’s result does not say one', async () => {
+    const { one, signals, bin } = await started()
+    await turn(one, signals)
+    writeFileSync(`${bin}.nowindow`, '')
+    await one.compact(run)
+    expect(fullness(signals)).toEqual([80, 10])
   })
 
   it('says why, in Claude Code’s words, when a compaction fails', async () => {

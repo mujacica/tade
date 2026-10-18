@@ -52,6 +52,18 @@ export function percentOf(tokens: number, window: number): number {
 }
 
 /**
+ * Whether a line is about a compaction at all: that it began, how it ended,
+ * or what it left. The `result` after one is that compaction's, and every
+ * `result` before one is a turn's — a `/compact` written just as a turn ends
+ * comes after that turn's `result`, never before.
+ */
+export function aboutCompacting(event: Record<string, unknown>): boolean {
+  if (event.type !== 'system') return false
+  if (event.subtype === 'compact_boundary') return true
+  return event.subtype === 'status' && (event.status === 'compacting' || 'compact_result' in event)
+}
+
+/**
  * What a compaction said about itself — done, with how many tokens are left;
  * failed, with why — or null for anything else. Its own (`trigger: auto`) is
  * read the same way, so how full the context is never stays at the figure

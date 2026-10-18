@@ -36,6 +36,7 @@ import {
   type SignIn,
   type SignInHere,
   signInHere,
+  type ToolAnswer,
   WORKER_ENV,
   type WorkerAdapter,
   type WorkerCapabilities,
@@ -51,13 +52,21 @@ import { UNHEARD } from './ask.ts'
 import { BACKGROUNDED } from './background.ts'
 import { claudeCapabilities, EFFORTS } from './capabilities.ts'
 import { type ChannelRequest, ClaudeChannel } from './channel.ts'
-import { COMPACT_LINE, compactionIn, percentOf, tokensIn, windowIn } from './compact.ts'
+import {
+  aboutCompacting,
+  COMPACT_LINE,
+  compactionIn,
+  percentOf,
+  tokensIn,
+  windowIn,
+} from './compact.ts'
 import { headlessArgs, headlessEnv, SNAPSHOT_OPTION } from './headless.ts'
 import { optionsOf } from './installed.ts'
 import { signedInUntil } from './login.ts'
 import { type Missed, takeMissed } from './missed.ts'
 import { carryInto, sessionsIn } from './sessions.ts'
 import {
+  answerOn,
   defaultConfigDir,
   historyOn,
   interruptedIn,
@@ -208,10 +217,20 @@ interface Run {
   stderr?: string
   /** Tade asked for the turn to stop, so the end of it is not a failure. */
   aborting?: boolean
-  /** A `/compact` Tade sent, until its `result`: and why it failed, once it says. */
-  compacting?: { done: (failed: string | null) => void; failed: string | null } | null
+  /**
+   * A `/compact` Tade sent, until its `result`: why it failed, once it says,
+   * and whether it has begun — the `result` of a turn that ended just before
+   * it is that turn's, not the compaction's.
+   */
+  compacting?: {
+    done: (failed: string | null) => void
+    failed: string | null
+    begun: boolean
+  } | null
   /** What its context holds, as the protocol last said: for a headless run. */
   tokens?: number | null
+  /** The context window it runs in, as a `result` last said: one that does not say keeps it. */
+  window?: number | null
   cwd: string
   /** Whether a turn is running, as its hooks said. `starting` until the session has begun. */
   turn: 'starting' | 'running' | 'idle'
@@ -383,6 +402,10 @@ export class ClaudeAdapter implements WorkerAdapter {
 
   history(task: string, _cwd: string, ask: HistoryAsk): Promise<HistoryPage> {
     return historyOn(task, this.opts.configDir, ask, toolName)
+  }
+
+  callAnswer(task: string, _cwd: string, call: string): Promise<ToolAnswer | null> {
+    return answerOn(task, this.opts.configDir, call)
   }
 
   sessions(cwd: string, tasks: readonly TaskId[]): Promise<HarnessSession[]> {
@@ -836,8 +859,13 @@ export class ClaudeAdapter implements WorkerAdapter {
         const compacted = compactionIn(event)
         if (compacted && 'after' in compacted) run.tokens = compacted.after
         else if (compacted && run.compacting) run.compacting.failed = compacted.failed
+        if (run.compacting && aboutCompacting(event)) run.compacting.begun = true
         if (event.subtype !== 'init') return
         if (typeof event.model === 'string') run.model = event.model
+        // A compaction begins with an init line too, and is not a turn: said
+        // as one, it ended as a turn that said nothing — the very next thing
+        // anybody asked was answered by its silence.
+        if (run.compacting?.begun) return
         // Said once: a turn of its own begins with an init line every time.
         if (run.turn === 'starting') {
           this.say(run, {
@@ -889,15 +917,30 @@ export class ClaudeAdapter implements WorkerAdapter {
         return
       }
       case 'result': {
+        // Taken before anything is said: whoever hears this turn end may ask
+        // for a compaction there and then, and that one is settled by its own
+        // `result`, never by the turn's it was asked at the end of. Settled by
+        // this one, it was done before it began, the context still read full,
+        // and a second `/compact` followed half a second later.
+        const compacting = run.compacting?.begun ? run.compacting : null
+        if (compacting) run.compacting = null
         this.sayResultUsage(run, event)
-        // How full it is, after every turn: the window is the protocol's to say.
-        const window = windowIn(event, run.model)
-        if (window && run.tokens) {
+        // How full it is, after every turn and every compaction: the window is
+        // the protocol's to say, and one it does not say again has not moved.
+        run.window = windowIn(event, run.model) ?? run.window ?? null
+        if (run.window && run.tokens) {
           this.say(run, {
             type: 'context',
             tokens: run.tokens,
-            percent: percentOf(run.tokens, window),
+            percent: percentOf(run.tokens, run.window),
           })
+        }
+        if (compacting) {
+          const failed = event.is_error === true || event.subtype !== 'success'
+          compacting.done(
+            compacting.failed ?? (failed ? String(event.result ?? 'it failed') : null),
+          )
+          return
         }
         const aborted = run.aborting === true
         run.aborting = false
@@ -911,9 +954,6 @@ export class ClaudeAdapter implements WorkerAdapter {
         })
         run.turn = 'idle'
         this.say(run, { type: 'idle' })
-        const compacting = run.compacting
-        run.compacting = null
-        compacting?.done(compacting.failed ?? (failed ? String(event.result ?? 'it failed') : null))
         return
       }
       default:
@@ -1056,7 +1096,7 @@ export class ClaudeAdapter implements WorkerAdapter {
       throw new Error('Claude Code is in the middle of a turn, and compacts only between them')
     }
     const failed = await new Promise<string | null>((done) => {
-      entry.compacting = { done, failed: null }
+      entry.compacting = { done, failed: null, begun: false }
       child.stdin?.write(COMPACT_LINE)
     })
     if (failed) throw new Error(`Claude Code could not compact: ${failed}`)

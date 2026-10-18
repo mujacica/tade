@@ -27,6 +27,7 @@ import {
   type HistoryPage,
   modelsOffered,
   NO_HISTORY,
+  type ToolAnswer,
   type WorkerAdapter,
   type WorkerCapabilities,
   type WorkerExtras,
@@ -303,6 +304,21 @@ export function orchestratorHistory(
   }
 }
 
+/**
+ * The whole of what one of its calls answered, out of the same record
+ * (`WorkerAdapter.callAnswer`), asked the way `orchestratorHistory` is.
+ */
+export function orchestratorAnswer(
+  opts: Pick<OrchestratorOptions, 'config' | 'home' | 'runDir' | 'env' | 'cwd'>,
+): (call: string) => Promise<ToolAnswer | null> {
+  let adapter: WorkerAdapter | null | undefined
+  return async (call) => {
+    adapter ??= adapterFor(opts)
+    if (!adapter) return null
+    return adapter.callAnswer(ORCHESTRATOR_TASK, opts.cwd ?? process.cwd(), call)
+  }
+}
+
 export class Orchestrator {
   private readonly adapter: WorkerAdapter
   private readonly messageListeners = new Set<(text: string) => void>()
@@ -354,6 +370,8 @@ export class Orchestrator {
   private unarmable: string | null = null
   /** How full its context is, as its harness last said: a percentage. */
   private full: number | null = null
+  /** A compaction in flight, settled however it ends: what is said meanwhile waits for it. */
+  private compacting: Promise<void> | null = null
   /** What it was told at launch, and what of it its conversation holds: set once it has started. */
   private holding: Holding | null = null
 
@@ -576,24 +594,43 @@ export class Orchestrator {
    * caller's to choose; a turn in flight is refused rather than cut across.
    *
    * Busy while it runs, so a phone is told *still answering* rather than
-   * steering a stranger's words into it.
+   * steering a stranger's words into it — and what you say meanwhile waits
+   * for it (`afterCompacting`).
    */
   async compact(): Promise<void> {
     if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
     if (this.working)
       throw new Error('the orchestrator is answering, and compacts only between turns')
     this.working = true
-    try {
-      await this.adapter.compact(ORCHESTRATOR_RUN)
-      if (this.holding) this.holding = { ...this.holding, stale: [], known: true }
-    } finally {
-      this.working = false
-    }
+    const compacting = (async () => {
+      try {
+        await this.adapter.compact(ORCHESTRATOR_RUN)
+        if (this.holding) this.holding = { ...this.holding, stale: [], known: true }
+      } finally {
+        this.working = false
+        this.compacting = null
+      }
+    })()
+    this.compacting = compacting
+    await compacting
+  }
+
+  /**
+   * Once a compaction in flight is over, however it ended: whoever asked for
+   * it says how. Something said meanwhile and handed over at once reached the
+   * harness behind the `/compact`, and the end of the compaction was taken
+   * for the end of its answer — which read as an answer of nothing. How it
+   * failed is not lost here: `compact()` throws it to whoever asked for it.
+   */
+  private async afterCompacting(): Promise<void> {
+    while (this.compacting) await Promise.allSettled([this.compacting])
+    if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
   }
 
   /** Say something, with pictures if there are any. Replies arrive through `onMessage`. */
   async ask(text: string, images: readonly WorkerImage[] = []): Promise<void> {
     if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
+    await this.afterCompacting()
     this.working = true
     await this.adapter.prompt(ORCHESTRATOR_RUN, text, images)
   }
@@ -692,6 +729,7 @@ export class Orchestrator {
    */
   async tell(text: string): Promise<void> {
     if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
+    await this.afterCompacting()
     this.working = true
     await this.adapter.prompt(ORCHESTRATOR_RUN, text, [], { whenBusy: 'queue' })
   }
@@ -761,6 +799,9 @@ export class Orchestrator {
     timeoutMs = 120_000,
     images: readonly WorkerImage[] = [],
   ): Promise<string> {
+    // Listened for only once a compaction is over: whatever it does is not
+    // this answer, and its end is not this answer's end.
+    await this.afterCompacting()
     const parts: string[] = []
     const errors: string[] = []
     // The tool a turn that said nothing ended on. A list, like the two above,
