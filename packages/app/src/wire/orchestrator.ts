@@ -122,6 +122,13 @@ export class Orchestrator implements Subject {
    * Tade could have, and everything except free text works meanwhile.
    */
   private thinker: Thinker | null = null
+  /**
+   * Stops hearing the thinker this one replaced. One stopped to start it again,
+   * on another account or model, ends after its successor is up — Claude Code
+   * with 143, from the TERM it was sent — and heard, that read as the new one
+   * stopping, under `orchestrator ready`.
+   */
+  private unheard: (() => void) | null = null
   /** The pictures that went with what was said last, until the orchestrator is asked. */
   private sending: string[] = []
   /**
@@ -235,26 +242,28 @@ export class Orchestrator implements Subject {
 
   /** Take free text to this thinker, and show what it does as it does it. */
   private use(thinker: Thinker): void {
+    this.unheard?.()
     this.thinker = thinker
     this.keeping.attached(thinker)
-    thinker.onEvent?.((event) => {
-      // Said as it streams. The whole message follows its pieces, and only
-      // closes them off: said again, every answer was heard twice at once.
-      if (this.speakingTurn && event.type === 'delta' && event.text) {
-        this.deps.voice.speakChunk(event.text)
-      } else if (this.speakingTurn && event.type === 'message' && event.text) {
-        this.deps.voice.speakMessage(event.text)
-      }
-      this.wire.put(
-        this.deps.anchored(
-          withTranscript(
-            this.wire.state,
-            fromThinker(this.wire.state.transcript, event, this.wire.now()),
+    this.unheard =
+      thinker.onEvent?.((event) => {
+        // Said as it streams. The whole message follows its pieces, and only
+        // closes them off: said again, every answer was heard twice at once.
+        if (this.speakingTurn && event.type === 'delta' && event.text) {
+          this.deps.voice.speakChunk(event.text)
+        } else if (this.speakingTurn && event.type === 'message' && event.text) {
+          this.deps.voice.speakMessage(event.text)
+        }
+        this.wire.put(
+          this.deps.anchored(
+            withTranscript(
+              this.wire.state,
+              fromThinker(this.wire.state.transcript, event, this.wire.now()),
+            ),
           ),
-        ),
-      )
-      this.wire.draw()
-    })
+        )
+        this.wire.draw()
+      }) ?? null
   }
   /**
    * Write down the model the orchestrator ended up on when none was chosen,

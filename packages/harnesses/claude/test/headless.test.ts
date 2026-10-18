@@ -75,6 +75,16 @@ describe('the environment', () => {
   })
 })
 
+/** Whether a process is there, a zombie included: one reaped is not. */
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
 /** A `claude` whose `--help` says `help`, and which writes down how it was started. */
 function fakeClaude(help: string[] | null): string {
   const bin = join(tmp('tade-claude-fake-'), 'claude')
@@ -89,6 +99,8 @@ function fakeClaude(help: string[] | null): string {
       'printf \'%s\\n\' "$@" > "$0.args.tmp"',
       'echo "$ENABLE_TOOL_SEARCH" > "$0.search"',
       'mv "$0.args.tmp" "$0.args"',
+      // Who started it — the reaper between it and the adapter — one a line.
+      'echo "$PPID" >> "$0.parents"',
       'exec sleep 600',
     ].join('\n'),
   )
@@ -186,5 +198,28 @@ describe('starting the orchestrator', () => {
   it('hands it one server called tade: its own tools, never the adapter’s lane server beside them', async () => {
     const { args } = await started(HELP)
     expect(args.slice(0, 3)).toEqual(['--mcp-config', '/run/tade-tools.mcp.json', '-p'])
+  })
+
+  it('hears nothing from one it stopped, and keeps the one started again under its id', async () => {
+    // A restart — another account, another model — stops it and starts it
+    // again under the same run id. The one stopped ends after: its exit was
+    // said as `failed` to whoever listened under that id, and took the new
+    // run out of the adapter with it.
+    const bin = fakeClaude(HELP)
+    await started(HELP, bin)
+    const run = 'tade/orchestrator/agent'
+    const heard: string[] = []
+    adapter?.onSignal(run, (signal) => heard.push(signal.type))
+    await adapter?.stop(run)
+    await started(HELP, bin)
+    const stopped = Number(readFileSync(`${bin}.parents`, 'utf8').split('\n')[0])
+    // Gone is reaped, and the adapter hears an exit in the same callback.
+    const deadline = Date.now() + 10_000
+    while (alive(stopped)) {
+      if (Date.now() > deadline) throw new Error('the stopped one never ended')
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    expect(heard).toEqual([])
+    expect((await adapter?.list())?.map((one) => one.run)).toEqual([run])
   })
 })

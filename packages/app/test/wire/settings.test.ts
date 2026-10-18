@@ -6,6 +6,7 @@ import type { Workbench } from '@tade/workbench'
 import { recordConfigChanges } from '@tade/workbench/config-changes'
 import { describe, expect, it } from 'vitest'
 import { asPaste } from '../../src/input.ts'
+import type { Thinker } from '../../src/wire/context.ts'
 import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
 
 // The page opened from its button, a setting saved so the next agent gets it,
@@ -14,6 +15,13 @@ import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from '
 
 /** Seventy characters, which is what a Sentry DSN is and what a field is not. */
 const DSN = 'https://0123456789abcdef0123456789abcdef@o447951.ingest.sentry.io/4505'
+
+/** What is on screen, a wrapped line read as one. */
+const shown = (terminal: FakeTerminal) =>
+  screenOf(terminal.written)
+    .map((row) => row.replace(/[│┃▕▏█▌]/g, ' ').trim())
+    .join(' ')
+    .replace(/\s+/g, ' ')
 
 describe('the window, and its settings', () => {
   let terminal: FakeTerminal
@@ -126,6 +134,69 @@ describe('the window, and its settings', () => {
     expect(client.config.orchestrator.account).toBe('work')
     const loaded = await loadConfig(join(home, 'config.yaml'))
     expect(loaded.ok && loaded.config.orchestrator.account).toBe('work')
+  })
+
+  it('hears nothing more from the orchestrator it stopped to move it, whose TERM ends it with 143', async () => {
+    // Claude Code ends on the TERM a restart sends it with code 143, after the
+    // one on the new account is up: said by the one it replaced, that read as
+    // the new one stopping — `The orchestrator stopped: Claude Code exited
+    // with code 143` under `orchestrator ready`.
+    await client.addAccount({ name: 'work', harness: 'claude-code' })
+    writeSetting(join(home, 'config.yaml'), 'orchestrator.harness', 'claude-code')
+    const config = ConfigSchema.parse({
+      projects: { app: { root: repo.root } },
+      orchestrator: { harness: 'claude-code' },
+      accounts: { work: { harness: 'claude-code' } },
+    })
+    client.config = config
+    type Listener = Parameters<NonNullable<Thinker['onEvent']>>[0]
+    const thinker = () => {
+      const listeners = new Set<Listener>()
+      const one: Thinker = {
+        ask: async () => '',
+        onEvent: (listener) => {
+          listeners.add(listener)
+          return () => listeners.delete(listener)
+        },
+      }
+      const says = (event: Parameters<Listener>[0]) => {
+        for (const listener of [...listeners]) listener(event)
+      }
+      return { one, says }
+    }
+    const old = thinker()
+    const moved = thinker()
+    let restarts = 0
+    terminal.resize(120, 60)
+    const app = await start({
+      config,
+      thinker: old.one,
+      restartThinker: async () => {
+        app.attachThinker(moved.one)
+        restarts += 1
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const button = find('Settings ')
+    click(button.col + 1, button.row)
+    await until('the settings', () => terminal.written.includes('Accounts'))
+    const accounts = find('Accounts')
+    click(accounts.col + 1, accounts.row)
+    await until('the account to move to', () =>
+      terminal.written.includes('Use for the orchestrator'),
+    )
+    const use = find('Use for the orchestrator')
+    click(use.col + 1, use.row)
+    await until('it was started again', () => restarts === 1)
+    // Closed, so the conversation is in view.
+    const done = find('Done')
+    click(done.col + 2, done.row)
+    await until('the page to close', () => !shown(terminal).includes('Use for new agents'))
+    old.says({ type: 'failed', reason: 'Claude Code exited with code 143' })
+    old.says({ type: 'exited', code: 143 })
+    moved.says({ type: 'message', text: 'still here as work' })
+    await until('the one it runs as now', () => shown(terminal).includes('still here as work'))
+    expect(shown(terminal)).not.toContain('orchestrator stopped')
   })
 
   it('holds the machine awake from the button in the strip, and says the machine is held', async () => {

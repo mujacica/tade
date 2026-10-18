@@ -857,6 +857,11 @@ export class ClaudeAdapter implements WorkerAdapter {
       run.stderr = (run.stderr + chunk.toString('utf8')).slice(-4_000)
     })
     child.on('exit', (code) => {
+      // Ended by us (`stop`, `detach`): let go of already, and its exit is the
+      // TERM we sent — 143 from Claude Code — not a failure. Said, it reached
+      // whoever now listens under its id, the run started again there, and
+      // took that run out of `runs` with it.
+      if (this.runs.get(spec.run) !== run) return
       // A process that ends before it says anything says why from what it
       // wrote, rather than leaving a caller waiting on a turn that never comes.
       if (code !== 0 && code !== null) {
