@@ -113,7 +113,7 @@ export type Said = Extract<Entry, { kind: 'tade' | 'problem' | 'said' | 'you' | 
 export interface Beating {
   look(): void
   readonly state: AppState
-  readonly wire: Pick<Wiring, 'now'>
+  readonly wire: Pick<Wiring, 'now' | 'opts'>
 }
 
 /** How the words that went to an orchestrator that is not running begin, in the log. */
@@ -232,7 +232,17 @@ export function screenless(heart: () => Beating): Face {
         speakMessage: () => {},
         flushSpeech: () => {},
       },
-      remember: () => {},
+      // The person's own words that came another way — their own device, or
+      // a line typed on another machine's tab — are a `said` line here as at
+      // a keyboard, because that is what `namedBy` reads. With no screen there
+      // is no history to keep beside it.
+      remember: (said) => {
+        void heart()
+          .wire.opts.client.log.append({ type: 'said', task: null, detail: { text: said } })
+          .catch((err: unknown) => {
+            process.stderr.write(`the person's words could not be written down: ${String(err)}\n`)
+          })
+      },
       credentialProblem: () => null,
     },
     away: { copy: async () => false },

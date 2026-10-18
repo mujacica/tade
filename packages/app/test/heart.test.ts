@@ -263,6 +263,19 @@ describe('the heart, with no screen', () => {
   // the server off the way the Extensions page's own switch does — then and
   // there, not at a restart — and the orchestrator is started again on what it
   // can still call.
+  it('writes the person’s own words down as theirs, with no keyboard to do it', async () => {
+    // Their own device's line, or one typed on this machine's tab from
+    // another of theirs, reaches the orchestrator as `theirSaid`: under
+    // `tade serve` that was dropped, so no setting could ever be named.
+    const one = await alone()
+    one.orchestrator.theirSaid('watch the rehearsal requests on app')
+    await until('the said line', async () =>
+      (await client.events({ types: ['said'] })).some(
+        (line) => line.detail.text === 'watch the rehearsal requests on app',
+      ),
+    )
+  })
+
   it('turns a server off that a terminal turned off, on its next beat, with no screen', async () => {
     const { settings, config, extensions, search } = await sentryOn()
     const ended: (boolean | undefined)[] = []
