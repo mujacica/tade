@@ -20,6 +20,7 @@ import {
   WORDMARK_SHADES,
 } from './skin.ts'
 import { blank, box, type Drawn, Row, stack } from './ui.ts'
+import { wrapWords } from './view/text.ts'
 import { widthOf } from './width.ts'
 
 // A screen for the things Tade asks you: setting up, and changing settings.
@@ -303,24 +304,41 @@ function drawQuestion(
 ): Drawn {
   const inner = width - 2
   const row = () => new Row(inner, skin)
-  const body: { text: string; hits: Hit[] }[] = []
+  const head: { text: string; hits: Hit[] }[] = []
 
   // With no room for the steps beside the panel, they go inside it.
   if (contextInside) {
     for (const line of state.context) {
       const step = stepOf(line)
       const tone = step?.mark === '✓' ? skin.done : step ? skin.hint : skin.hint
-      body.push(row().space().text(line.trim(), tone).build())
+      head.push(row().space().text(line.trim(), tone).build())
     }
-    if (state.context.length > 0) body.push(blank(inner))
+    if (state.context.length > 0) head.push(blank(inner))
   }
-  for (const said of state.said) body.push(row().space().text(said.trim(), skin.hint).build())
-  if (state.said.length > 0) body.push(blank(inner))
+  // What was said is wrapped, never cut at the edge: an install line is the
+  // one a person types, and its end is the part that names the package.
+  const said: { text: string; hits: Hit[] }[] = []
+  for (const line of state.said) {
+    wrapWords(line.trim(), inner - 4).forEach((piece, i) => {
+      said.push(
+        row()
+          .space(i === 0 ? 1 : 3)
+          .text(piece, skin.hint)
+          .build(),
+      )
+    })
+  }
+  if (state.said.length > 0) said.push(blank(inner))
+  // The question is never what gives way: a terminal or a list sizes itself
+  // to the room left after the last few lines said, and the oldest of what was
+  // said scrolls off the top below, as it would in a terminal.
+  const before = head.length + Math.min(said.length, SAID_KEPT)
+  const body: { text: string; hits: Hit[] }[] = []
 
   let title = state.title
   if (state.running) {
     title = state.running.title
-    const screenRows = Math.max(3, room - body.length - 6)
+    const screenRows = Math.max(3, room - before - 6)
     const termWidth = inner - 2
     body.push(
       row()
@@ -366,7 +384,7 @@ function drawQuestion(
       body.push(row().space(3).text('nothing matches that', skin.hint).build())
     // A window around the cursor, so a long list neither overflows the screen
     // nor scrolls the thing you are pointing at out of sight.
-    const space = Math.max(1, room - body.length - 5)
+    const space = Math.max(1, room - before - body.length - 5)
     const first = Math.max(0, Math.min(menu.index - Math.floor(space / 2), found.length - space))
     // Descriptions line up in a column, so the names read down the left.
     const labelWidth = Math.max(
@@ -438,8 +456,15 @@ function drawQuestion(
   }
 
   const corner = checklist && current >= 0 ? `step ${current + 1} of ${checklist.length}` : ''
-  return box(title, body.slice(0, Math.max(1, room - 2)), width, skin, corner ? { corner } : {})
+  const fits = Math.max(1, room - 2)
+  const asked = body.slice(0, fits)
+  const steps = head.slice(0, fits - asked.length)
+  const recent = said.slice(Math.max(0, said.length - (fits - asked.length - steps.length)))
+  return box(title, [...steps, ...recent, ...asked], width, skin, corner ? { corner } : {})
 }
+
+/** Lines of what was said a terminal or a list leaves room for above it, at least. */
+const SAID_KEPT = 4
 
 function shorten(text: string, size: number): string {
   return [...text].length > size ? `${[...text].slice(0, size - 1).join('')}…` : text

@@ -142,6 +142,25 @@ describe('the setup screen', () => {
     expect(rows).toContain('ctrl+]')
   })
 
+  it('keeps the question when what was said outgrows the room, and wraps a long line whole', () => {
+    // Setup on a server says every optional program with its install line,
+    // so by the fourth step the transcript is taller than the terminal: the
+    // question has to be what stays, and the line a person types has to be
+    // there to its end.
+    const install = 'lsof — finding the ports (sudo apt-get update && sudo apt-get install -y lsof)'
+    const state = {
+      ...initialScreen('Setting up', context),
+      said: [...Array.from({ length: 30 }, (_, i) => `said ${i}`), install],
+      prompt: { question: 'Sign in to one?', fallback: 'y', confirm: true },
+    }
+    for (const width of [70, 140]) {
+      const rows = renderScreen(state, { width, height: 24 }).join('\n')
+      expect(rows).toContain('Sign in to one? [Y/n]')
+      expect(rows).toContain('install -y lsof)')
+      expect(rows).not.toContain('said 0 ')
+    }
+  })
+
   it('never draws more rows than the terminal has', () => {
     const state = {
       ...initialScreen('Setting up', context),
