@@ -50,6 +50,39 @@ import { afterEach, expect } from 'vitest'
 // test may run is the checkout this suite runs from, which Tade's batched
 // full checks put under the home (`batchDir`). The synchronous forms do not
 // pass through the patch, as there.
+//
+// And the agent running the suite is not the suite's either. Every harness's
+// launch hands its agent the way back to the Tade supervising it — the run's
+// socket, its id, its task, whether it is gated, the list of Tade's tools, its
+// name — and the orchestrator's tools the window's own socket and CLI. A worker
+// that inherits them can reach that agent's real channel: `ask.ts`, `mcp.ts`
+// and pi's extension read them at import, so a test that loads one could mark
+// the running agent done. `own-home.test.ts` reads every launch's environment
+// and fails on a `TADE_` name missing here.
+
+/**
+ * What a running Tade hands its children, and none of it the suite's: the
+ * home's three names, everything a harness's launch gives an agent
+ * (`WORKER_ENV`, and Claude Code's own status line), and the window's socket
+ * and CLI that `toolEnv` gives the orchestrator's tools. What a check run gives
+ * the suite itself — `TADE_CHECK`, `TADE_CHECKS_SLOT` — stays.
+ */
+export const HANDED_DOWN = [
+  'TADE_HOME',
+  'TADE_EXTENSIONS',
+  'TADE_SKILLS',
+  'TADE_RUN_SOCKET',
+  'TADE_RUN_ID',
+  'TADE_TASK_ID',
+  'TADE_APPROVALS',
+  'TADE_EXTENSION_TOOLS',
+  'TADE_TITLE',
+  'TADE_CALLED',
+  'TADE_CLAUDE_STATUSLINE',
+  'TADE_SOCKET',
+  'TADE_CLI',
+  'TADE_CLI_ARGS',
+] as const
 
 /** The person's own Tade home, every way it can be named, read before anything here moves it. */
 const PERSONS_TADE = [
@@ -67,9 +100,7 @@ process.env.HOME = realpathSync(mkdtempSync(join(tmpdir(), 'tade-test-home-')))
 delete process.env.PI_CODING_AGENT_DIR
 delete process.env.PI_CODING_AGENT_SESSION_DIR
 delete process.env.CLAUDE_CONFIG_DIR
-delete process.env.TADE_HOME
-delete process.env.TADE_EXTENSIONS
-delete process.env.TADE_SKILLS
+for (const name of HANDED_DOWN) delete process.env[name]
 
 /** The home the account database gives, which no variable moves; none on a uid without an entry. */
 function passwdHome(): string | null {
