@@ -9,9 +9,11 @@
 // is here and exhaustively testable.
 
 import { AGENT_USER, type AgentUserSeen, agentUserTrouble } from './agent-user.ts'
+import type { AppArmorSeen } from './apparmor.ts'
 import type { InstallCommand } from './programs.ts'
 import { IN_CONFIG } from './secrets.ts'
 import { type ServiceState, serviceTrouble } from './service.ts'
+import { type ServiceGroup, serviceGroupTrouble } from './service-groups.ts'
 
 // A judge is a Tade concept with a port and a registry behind it, and Jev is
 // one implementation of it — so the step is `judge`, never a vendor's name.
@@ -210,6 +212,10 @@ export interface AgentsHere {
   seen: readonly AgentUserSeen[]
   /** Why the look could not be made at all, where it could not: said, never read as nothing to do. */
   problem?: string
+  /** Whether AppArmor keeps the sandboxes in use from starting, where one is bubblewrap. */
+  apparmor?: AppArmorSeen | null
+  /** Whether Tade's running service holds each agent user's group, where one runs. */
+  service?: readonly ServiceGroup[]
 }
 
 /** What keeps Tade working on a server once everybody has logged out. */
@@ -344,7 +350,10 @@ function agentsApart(here: AgentsHere): Step {
       required: false,
     }
   }
-  const trouble = here.seen.flatMap((seen) => agentUserTrouble(seen, here.self))
+  const trouble = [
+    ...here.seen.flatMap((seen) => agentUserTrouble(seen, here.self)),
+    ...(here.service ?? []).flatMap((one) => serviceGroupTrouble(one, here.self) ?? []),
+  ]
   return {
     id: 'agents',
     title,

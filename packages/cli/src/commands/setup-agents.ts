@@ -7,13 +7,20 @@ import {
   type AgentUserSeen,
   agentCommands,
   agentUsers,
+  appArmorCommands,
+  BWRAP_PROFILE,
+  bwrapProfile,
   type Config,
   defaultConfigPath,
   type LaneProof,
   loadConfig,
   runProgram,
+  type ServiceGroup,
+  serviceGroupTrouble,
 } from '@tade/core'
 import { lookAtAgentUser, ownUser, rootsOf, sandboxProofs } from '@tade/workbench/agent-user'
+import { lookAtAppArmor } from '@tade/workbench/apparmor'
+import { serviceGroups } from '@tade/workbench/machine'
 import { proveALane } from '@tade/workbench/prove'
 import { writeFromShell } from '../config-write.ts'
 
@@ -44,7 +51,8 @@ export async function agentsLooked(
   const seen = await Promise.all(
     users.map((user) => lookAtAgentUser(user, self, rootsOf(config, user, self), home, proofs)),
   )
-  return { self, seen }
+  const apparmor = proofs.length > 0 ? await lookAtAppArmor(proofs.map((one) => one.harness)) : null
+  return { self, seen, apparmor, service: await serviceGroups(users) }
 }
 
 /** Your git's name and address, for the agent user's commits to carry. */
@@ -76,12 +84,56 @@ export function proveAgentUser(
   })
 }
 
+/** What the step reads of the machine besides the user: a test stands one in. */
+export interface AgentsLook {
+  platform?: NodeJS.Platform
+  /** Whether Tade's running service holds each user's group (`serviceGroups`). */
+  service?: (users: readonly string[]) => Promise<ServiceGroup[]>
+}
+
+/**
+ * Give bwrap the AppArmor profile Claude Code's sandbox page gives, on a
+ * press, where the kernel refuses it the namespaces its sandbox needs
+ * (`core/src/apparmor.ts`): what is written and where, shown whole, then the
+ * two commands. Answers whether both ran.
+ */
+async function offerProfile(ui: Ui, here: AgentsHere): Promise<boolean> {
+  const seen = here.apparmor
+  const commands = seen ? appArmorCommands(seen) : []
+  if (!seen?.bwrap || commands.length === 0) return false
+  ui.say(
+    `This kernel keeps bwrap, which ${seen.harnesses.join(' and ')} sandbox commands in here, from the namespaces it needs, so every command those agents run is refused.`,
+  )
+  ui.say(
+    `Claude Code's sandbox page gives bwrap an AppArmor profile of its own, which applies to bwrap and not to what it runs. As root, this goes in ${BWRAP_PROFILE}:`,
+  )
+  for (const line of bwrapProfile(seen.bwrap)) ui.say(`    ${line}`)
+  for (const command of commands) {
+    ui.say(`  ${command.says}:`)
+    ui.say(`    ${command.line}`)
+  }
+  if (!(await ui.confirm('write it and load it now?', true))) {
+    ui.say(
+      '  skipped — until it is there the sandbox refuses every command: each line above, when you want it, and `tade setup` again',
+    )
+    return false
+  }
+  for (const command of commands) {
+    if ((await ui.run(command.says, '/bin/sh', ['-c', command.line])) !== 0) {
+      ui.say(`  that did not work — run it yourself and try again: ${command.line}`)
+      return false
+    }
+  }
+  return true
+}
+
 /** The setup step: make the user, give it what it needs, write it down, prove it. */
 export async function setUpAgents(
   ui: Ui,
   here: AgentsHere,
   home: string,
   driver: string,
+  look: AgentsLook = {},
 ): Promise<void> {
   const loaded = await loadConfig(defaultConfigPath())
   if (!loaded.ok) {
@@ -127,6 +179,7 @@ export async function setUpAgents(
       }
     }
   }
+  const profiled = await offerProfile(ui, here)
   if (writes) {
     await writeFromShell(defaultConfigPath(), [{ key: 'agents.user', value: writes }], (said) =>
       ui.say(`  ${said}`),
@@ -140,14 +193,30 @@ export async function setUpAgents(
       `  ${one.user} signs in to its harness and pushes with its own credentials, never yours: \`sudo -iu ${one.user}\` and sign in there, and give it a key of its own for git`,
     )
   }
+  const proofs = sandboxProofs(loaded.config, home, look.platform)
+  const service = look.service ?? ((users) => serviceGroups(users))
   for (const one of seen) {
-    const again = await lookAtAgentUser(
-      one.user,
-      here.self,
-      one.roots,
-      home,
-      sandboxProofs(loaded.config, home),
+    const again = await lookAtAgentUser(one.user, here.self, one.roots, home, proofs)
+    // The profile is proved the way it was found wanting: each sandbox, tried as that user.
+    if (profiled && !again.sudo) {
+      ui.say(
+        `  whether a sandbox starts as ${one.user} is tried once ${here.self} can run things as it`,
+      )
+    }
+    for (const box of profiled ? again.sandboxes : []) {
+      ui.say(
+        box.needs
+          ? `  ${box.harness}'s own sandbox still will not start as ${one.user}: it needs ${box.needs}`
+          : `  ${box.harness}'s own sandbox starts as ${one.user} now`,
+      )
+    }
+    // Looked at after the commands, since one of them may just have made the group.
+    const lacking = (await service([one.user])).flatMap(
+      (held) => serviceGroupTrouble(held, here.self) ?? [],
     )
+    for (const trouble of lacking) ui.say(`  ${trouble}`)
+    // A lane setup opens proves setup's own groups, not the service's.
+    if (lacking.length > 0) continue
     if (!again.groupHeld) {
       ui.say(
         `  ${here.self} is in ${one.user}'s group from your next login: log in again, or restart Tade's service, before an agent starts`,

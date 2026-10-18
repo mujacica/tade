@@ -4,12 +4,14 @@ import { join } from 'node:path'
 import { ConfigSchema, serviceUnit } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import {
+  groupIdOf,
   installersHere,
   keptByServiceHere,
   lookAtHarnesses,
   lookAtService,
   missingFrom,
   nativeProblems,
+  serviceGroups,
   serviceUnitPath,
   unattendedHere,
 } from '../src/machine.ts'
@@ -400,5 +402,59 @@ describe('a server, read off its files', () => {
       expect(await keptByServiceHere({ ...mac.look, platform: 'darwin' })).toBeNull()
       expect(mac.said()).toBeNull()
     })
+  })
+})
+
+describe('the groups the running service holds', () => {
+  // A `tade serve` (4242) its manager (917) started before `usermod` put tade
+  // in tade-agent's group (1001): the user has it now, and neither process
+  // does. `/proc` and the group file are stood in by folders.
+  function box(service: string, manager: string | null) {
+    const proc = mkdtempSync(join(tmpdir(), 'tade-proc-'))
+    const status = (pid: number, groups: string, parent: number) => {
+      mkdirSync(join(proc, String(pid)))
+      writeFileSync(
+        join(proc, String(pid), 'status'),
+        `Name:\tx\nPPid:\t${parent}\nUid:\t1000\t1000\t1000\t1000\nGid:\t1000\t1000\t1000\t1000\nGroups:\t${groups}\n`,
+      )
+    }
+    status(4242, service, 917)
+    if (manager !== null) status(917, manager, 1)
+    const groupFile = join(proc, 'group')
+    writeFileSync(groupFile, 'tade:x:1000:\ntade-agent:x:1001:tade\n')
+    return { proc, groupFile }
+  }
+  const running = { kind: 'ready', pid: 4242, status: '' } as const
+
+  it('are read off the process and its manager, never off the user', async () => {
+    const look = { ...box('1000', '1000'), state: running }
+    expect(await serviceGroups(['tade-agent'], look)).toEqual([
+      { user: 'tade-agent', pid: 4242, held: false, manager: false, uid: 1000 },
+    ])
+    const later = { ...box('1000 1001', '1000 1001'), state: running }
+    expect(await serviceGroups(['tade-agent'], later)).toMatchObject([
+      { held: true, manager: true },
+    ])
+  })
+
+  it('cannot say what a manager holds that it could not read, and says nothing of a user with no group', async () => {
+    const look = { ...box('1000', null), state: running }
+    expect(await serviceGroups(['tade-agent', 'tade-nobody'], look)).toEqual([
+      { user: 'tade-agent', pid: 4242, held: false, manager: null, uid: 1000 },
+    ])
+  })
+
+  it('says nothing where no service is running, or nothing runs as another user', async () => {
+    const look = box('1000', '1000')
+    expect(await serviceGroups(['tade-agent'], { ...look, state: { kind: 'stopped' } })).toEqual([])
+    expect(await serviceGroups([], { ...look, state: running })).toEqual([])
+    // A service that ended between asking and reading holds nothing.
+    const gone = { ...look, state: { kind: 'ready', pid: 5151, status: '' } as const }
+    expect(await serviceGroups(['tade-agent'], gone)).toEqual([])
+  })
+
+  it('finds a group by name in the group file', async () => {
+    const { groupFile } = box('1000', '1000')
+    expect(await groupIdOf('tade-agent', groupFile)).toBe(1001)
   })
 })

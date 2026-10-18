@@ -23,7 +23,13 @@ import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 import { caddySaid, lookAtPublic } from './host-caddy.ts'
 import { domainJson, domainPrinted, domainRefused, offerName } from './host-domain.ts'
-import { type Asker, lanesWouldStop, offerUnit, unitHere } from './host-service.ts'
+import {
+  type Asker,
+  lanesWouldStop,
+  offerUnit,
+  serviceLacksGroups,
+  unitHere,
+} from './host-service.ts'
 
 // `tade host`: Tade on a server of its own. The command and the terminal it
 // asks in; what it builds, writes and offers is `host-service.ts`, which
@@ -183,6 +189,7 @@ export function registerHost(program: Command, io: Io, setExit: (code: number) =
       ask.say('')
       const stops = await lanesWouldStop()
       if (stops) ask.say(stops)
+      for (const lacking of await serviceLacksGroups()) ask.say(lacking)
       if (box && !box.linger) {
         ask.say(`linger is off, so it stops when you log out: \`${lingerCommand(box)}\``)
       }

@@ -34,11 +34,14 @@ and setting up ends by actually opening a lane — because every other check is 
 | `packages/workbench/src/dns.ts` | `ask` — one question over UDP with a deadline, the bits `node:dns` cannot set; `keyTag`, `dsOf` |
 | `packages/cli/src/commands/host-domain.ts` | `tade host domain`: `domainPrinted`, `domainRefused`, `writeTrusted` |
 | `packages/app/src/wire/web-domain.ts`, `panels/settings/domain.ts` | the same look under the Public name row in Settings › Away view |
-| `packages/workbench/src/machine.ts` (`unattendedHere`, `systemdHere`, `serviceUnitPath`, `lookAtService`) | whether this is a server, linger, the unit and what it runs — files, no process — and how the service stands, one `systemctl show` |
+| `packages/workbench/src/machine.ts` (`unattendedHere`, `systemdHere`, `serviceUnitPath`, `lookAtService`, `serviceGroups`, `groupIdOf`) | whether this is a server, linger, the unit and what it runs — files, no process — how the service stands, one `systemctl show`, and the groups its process and its manager hold, out of `/proc` |
 | `packages/harnesses/core/src/sign-in.ts` | `signInHere` (is a browser here?), `signInLasts` (how long a sign-in has left) |
 | `packages/drivers/tmux/src/scope.ts` | the lanes' tmux server in a systemd scope of its own, under a user service |
 | `packages/core/src/agent-user.ts` | pure: `agentUserOf`, `agentsKeptAs`, `asAgent` (the launch through `sudo`), `sudoersRule`, `agentShare`, `agentCommands` (what setup shows), `agentUserTrouble`, `AGENT_USER_MEANS` |
 | `packages/workbench/src/agent-user.ts` | `homeOf`, `agentUserFor`, `shareReady`, `closeHome`, `contextFor`, `sandboxWrites`, `lookAtAgentUser`, `sandboxProofs` |
+| `packages/core/src/apparmor.ts` | pure: `bwrapProfile` (Claude Code's, word for word), `BWRAP_PROFILE`, `RELOAD_APPARMOR`, `AppArmorSeen`, `appArmorCommands` |
+| `packages/workbench/src/apparmor.ts` | `lookAtAppArmor` — the kernel's switch, the profile's file, the bwrap on PATH |
+| `packages/core/src/service-groups.ts` | pure: `processGroupsOf` (`/proc/<pid>/status`), `ServiceGroup`, `serviceGroupTrouble` |
 | `packages/cli/src/commands/setup-agents.ts` | the `agents` step: `agentsLooked`, `setUpAgents`, `proveAgentUser` |
 | `packages/cli/src/commands/update.ts` | `tade update`, and `--check` as the only thing that dials |
 | `packages/cli/src/bin.ts` | the door: `nodeTooOld` before any other import, then `nativeTrouble` |
@@ -396,10 +399,30 @@ it — `tade` in the recommended install — and **setup makes the agents' user 
   checkout is the group's to write, and `chmod 0700` on its home (`closeHome`), narrowed and never
   widened, said once in the journal. An agent cannot be started as Tade instead: a user this machine
   has not got, or a share Tade cannot write in, refuses the start with the setup line.
-- **The group takes effect at the next login** — and for a service, at its next start. The step says
-  so rather than proving a lane that would fail; `--check` then proves each finished user with a lane
-  opened *as it* that tries to read `config.yaml` (`proveALane`'s `as`): passed only where it comes
-  back as that user and the file stays shut.
+- **The group takes effect at the next login** — for setup's own shell. The step says so rather than
+  proving a lane that would fail; `--check` then proves each finished user with a lane opened *as it*
+  that tries to read `config.yaml` (`proveALane`'s `as`): passed only where it comes back as that user
+  and the file stays shut.
+- **A running service keeps the groups it began with**, however often anybody logs in, so one started
+  before `usermod` refuses every start (`share is not there for Tade to write in`) while the user and
+  setup's shell have the group. So it is read off **the running process** — `MainPID`'s
+  `/proc/<pid>/status`, never `id <user>` (`serviceGroups`) — and said in setup's step, after its
+  commands, and in `tade host service` (`serviceLacksGroups`), one sentence with the command. A user
+  service has its groups from the user's manager (`user@<uid>.service`, its parent), which systemd
+  starts with the user's groups and which, with linger, runs from boot; it never re-reads them, and a
+  unit with no `User=` gets the manager's. So the manager's are read too: where it has the group,
+  `START`; where not, `sudo systemctl restart user@<uid>.service`, said with what it costs — every
+  service of the user's, the agents' tmux among them. Setup then proves no lane, since one it opens
+  proves its own groups, not the service's.
+- **AppArmor and bwrap** (`apparmor.ts`). On Ubuntu 24.04 and later the kernel refuses bubblewrap a
+  user namespace (`kernel.apparmor_restrict_unprivileged_userns = 1`) unless it has a profile, and
+  both Linux sandboxes are bubblewrap, so every command such an agent runs is refused. Setup offers
+  **Claude Code's own profile, word for word** (its sandbox page, cited in the file): shown whole with
+  `/etc/apparmor.d/bwrap`, then written by `printf … | sudo tee` and loaded by `sudo systemctl reload
+  apparmor`, each said, on one press — only where the switch is `1`, a sandbox in use is bubblewrap,
+  bwrap is installed (the profile attaches to its own path, links followed) and no file is there yet,
+  since one that is there is somebody's. Then each sandbox is **tried again as each user** and said
+  started or still refused, with what it needs.
 
 **Proved** in `tade-vps-jammy` (Ubuntu 22.04, the git-core PPA's git, kernel 6.8 under colima) with
 this tree in `/opt/tade`, Tade as `you`: `--check` named the three missing pieces; the six commands
@@ -417,9 +440,11 @@ Bash call ran inside `bwrap`, which this kernel refused (`kernel.apparmor_restri
 
 **Not proved**: a sandbox that *starts* under a user of its own on Linux (this VM refuses it, and
 loosening its kernel was not this test's to do; Claude Code's keys are proved on a Mac,
-`sandboxed-lane.test.ts`); a Codex agent's whole turn as another user; one user per project on one
-box; the agent pushing (its own key or token, which setup says nothing about yet); and `tade serve`
-under systemd picking the group up after `usermod`.
+`sandboxed-lane.test.ts`) — so neither is the profile setup offers making it start, nor whether Codex's
+bubblewrap is the `bwrap` the profile attaches to; a Codex agent's whole turn as another user; one user
+per project on one box; the agent pushing (its own key or token, which setup says nothing about yet);
+and which restart gives `tade serve` the group after `usermod` — the manager's rule above is systemd's
+exec (no `initgroups` without `User=`), read and not run; the tests stand `/proc` in.
 
 ### A public name, behind Caddy (`tade host caddy`)
 

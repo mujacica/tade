@@ -458,3 +458,32 @@ describe('a server, with nobody logged in', () => {
     expect(step?.detail).not.toContain('sudo')
   })
 })
+
+describe('agents of their own user under a service that began before their group', () => {
+  const done = {
+    user: 'tade-agent',
+    home: '/home/tade-agent',
+    inGroup: true,
+    groupHeld: true,
+    sudo: true,
+    share: true,
+    git: true,
+    homeClosed: true,
+    roots: [],
+    sandboxes: [],
+  }
+
+  it('is a step not done, saying to restart, though the user and setup’s own shell have the group', () => {
+    const lacking = { user: 'tade-agent', pid: 4242, held: false, manager: false, uid: 1000 }
+    const step = readiness(
+      facts({ agents: { self: 'tade', seen: [done], service: [lacking] } }),
+    ).find((one) => one.id === 'agents')
+    expect(step?.done).toBe(false)
+    expect(step?.detail).toContain("Tade's service (pid 4242)")
+    expect(step?.detail).toContain('sudo systemctl restart user@1000.service')
+    const held = readiness(
+      facts({ agents: { self: 'tade', seen: [done], service: [{ ...lacking, held: true }] } }),
+    ).find((one) => one.id === 'agents')
+    expect(held?.done).toBe(true)
+  })
+})

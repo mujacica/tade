@@ -11,6 +11,7 @@ import {
   lanesWouldStop,
   offerLinger,
   offerUnit,
+  serviceLacksGroups,
   setUpUnattended,
   unitHere,
 } from '../src/commands/host-service.ts'
@@ -199,6 +200,27 @@ describe('whether the agents would outlive the service', () => {
   it('cannot tell where the config does not read, rather than taking it for pty', async () => {
     driver('kitty')
     expect(await lanesWouldStop()).toContain('does not read (`tade config --check` says why)')
+  })
+})
+
+describe('a service started before its user was put in the agents’ group', () => {
+  it('is said with the restart it needs, asked for each user agents run as', async () => {
+    writeFileSync(join(home, 'config.yaml'), 'agents:\n  user: tade-agent\n')
+    const asked: string[][] = []
+    const said = await serviceLacksGroups(async (users) => {
+      asked.push([...users])
+      return [{ user: 'tade-agent', pid: 4242, held: false, manager: true, uid: 1000 }]
+    })
+    expect(asked).toEqual([['tade-agent']])
+    expect(said).toHaveLength(1)
+    expect(said[0]).toContain('started before')
+    expect(said[0]).toContain(`restart it — \`${START}\``)
+  })
+
+  it('says nothing where the service holds the group', async () => {
+    writeFileSync(join(home, 'config.yaml'), 'agents:\n  user: tade-agent\n')
+    const held = [{ user: 'tade-agent', pid: 4242, held: true, manager: true, uid: 1000 }]
+    expect(await serviceLacksGroups(async () => held)).toEqual([])
   })
 })
 
