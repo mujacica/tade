@@ -183,6 +183,8 @@ export class Keyboard implements Subject {
   onInput(data: string): TuiInputListenerResult {
     if (this.deps.stopped()) return undefined
     this.deps.settle()
+    // Any key or click is somebody here (`lastKeyAt`), whatever it goes to.
+    this.wire.put({ ...this.wire.state, lastKeyAt: this.wire.now() })
     // ctrl+v, and Cmd+V with no text to paste: on Tade's own lines the window
     // reads the clipboard, and a lane is sent what a terminal sends (`pasteGoes`).
     const paste = pasted(data)

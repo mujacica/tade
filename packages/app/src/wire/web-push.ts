@@ -678,7 +678,7 @@ export interface Pushed {
 export function pushFor(
   wire: {
     opts: { home: string; config: Config }
-    state: { lastInputAt: number | null }
+    state: { lastKeyAt: number | null }
     now: () => number
   },
   deps: Pick<Pushes, 'writeKey' | 'pusher'>,
@@ -708,7 +708,7 @@ export function pushFor(
     },
     // A key here, or one at another of the person's screens (`@tade/web`'s
     // `presence.ts`): either is somebody at a keyboard of theirs.
-    lastInputAt: () => newest(wire.state.lastInputAt, away.presentAt()),
+    lastInputAt: () => newest(wire.state.lastKeyAt, away.presentAt()),
     writeKey: deps.writeKey,
     ...(deps.pusher ? { pusher: deps.pusher } : {}),
     tell: away.tell,

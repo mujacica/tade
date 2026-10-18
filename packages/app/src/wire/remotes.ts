@@ -769,7 +769,7 @@ export function remotesFor(
     ...(wire.opts.remoteLinks ? { links: wire.opts.remoteLinks } : {}),
     remotes: () => wire.opts.config.remotes,
     configPath: configPathOf(wire.opts),
-    lastInputAt: () => wire.state.lastInputAt,
+    lastInputAt: () => wire.state.lastKeyAt,
     now: () => wire.now(),
     log: async (told) => {
       await wire.opts.client.log.append(told)

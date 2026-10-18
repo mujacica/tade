@@ -464,7 +464,7 @@ describe('who is in front of which screen', () => {
       host: 'tade.example.com',
     }
     const push = pushFor(
-      { opts: { home, config }, state: { lastInputAt: null }, now: () => now },
+      { opts: { home, config }, state: { lastKeyAt: null }, now: () => now },
       { writeKey: async () => {}, pusher: () => pusher },
       {
         tasks: () => tasks as never,

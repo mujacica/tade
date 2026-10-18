@@ -154,6 +154,19 @@ describe('another machine’s orchestrator, from this window', () => {
     expect(shown('tade/old-news')).toBe(false)
   })
 
+  it('tells that machine the person is here when they type on its tab, not only into an agent', async () => {
+    // The card above is cut at the last presence the machine wrote down. A
+    // window that counted only typing into a local agent's pane as somebody
+    // here never told a remote anything: a person talking to orchestrators
+    // all evening came back to no card at all (found rehearsing two VPSes).
+    const { far } = await linkedTo()
+    expect(far.presentAt).toBeNull()
+    tab('vps')
+    await until('its tab', () => shown('what you type here goes to the orchestrator on vps'))
+    terminal.press('h')
+    await until('that machine to hear somebody is here', () => far.presentAt !== null, 20_000)
+  })
+
   it('passes the orchestrator’s sentence on only where a line of the person’s names that machine', async () => {
     const { far, app } = await linkedTo()
     // What a message there needs, in one frame: the link up and what that

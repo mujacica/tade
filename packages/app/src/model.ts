@@ -175,6 +175,14 @@ export interface AppState {
   listening: boolean
   /** When you last typed into a pane, which is what holds focus still. */
   lastInputAt: number | null
+  /**
+   * When a key was last pressed or a click made anywhere in this window: the
+   * sign somebody is here — what another machine is told as presence, what
+   * holds a phone's notification back, and what "nobody is here" reads.
+   * Wider than `lastInputAt`, which only typing into a pane sets: a person
+   * talking to an orchestrator is here as much as one typing to an agent.
+   */
+  lastKeyAt: number | null
   /** A question the resolver asked, waiting for you to pick one. */
   question: { question: string; candidates: string[] } | null
   /** How far back the focused agent's screen is scrolled, in lines; 0 follows its newest. */
@@ -381,6 +389,7 @@ export function initialState(): AppState {
     attached: [],
     listening: false,
     lastInputAt: null,
+    lastKeyAt: null,
     question: null,
     dictation: null,
     historySearch: null,

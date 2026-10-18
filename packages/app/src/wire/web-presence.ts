@@ -68,7 +68,7 @@ export class Presences {
    * theirs, and this window's opening where a person opened it.
    */
   nobodyHere(): string | null {
-    const here = this.wire.state.lastInputAt
+    const here = this.wire.state.lastKeyAt
     return nobodyHere({
       seen: here === null ? this.at : this.at === null ? here : Math.max(here, this.at),
       opened: this.wire.openedAt,
