@@ -294,6 +294,26 @@ describe('the notes, a page at a time', () => {
   })
 })
 
+describe('one agent, asked for again', () => {
+  it('routes an ask that says which conversation it holds, and reads `seen` as a word to compare', async () => {
+    const one = await start()
+    const paired = await pair(one)
+    for (const path of [
+      '/api/agent/sentry/away-projection?seen=7',
+      '/api/agent/sentry/away-projection?seen=../../etc/passwd',
+    ]) {
+      const answer = await ask(one, path, { headers: { cookie: paired.cookie } })
+      expect(answer.status, path).toBe(200)
+      // A device granted nothing: the conversation is withheld, and says so.
+      expect(said(answer), path).toMatchObject({
+        here: true,
+        conversation: null,
+        unread: 'not granted',
+      })
+    }
+  })
+})
+
 describe('what a device is told about keeping anything', () => {
   it('is booleans beside the device list, and no names', async () => {
     const one = await start({ installing: true, keepsView: true })

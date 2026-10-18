@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { agentOf } from '../src/agent.ts'
 import { briefOf, CALL, callOf, cleanSaid, inputText, TURNS, turnsOf } from '../src/conversation.ts'
 import { AgentOutSchema, ChatRowSchema } from '../src/protocol.ts'
+import { projector } from '../src/reading.ts'
 import { snapshotOf } from '../src/snapshot.ts'
 import {
   agentHeld,
@@ -128,6 +129,12 @@ describe('an agent’s conversation, on its own answer', () => {
     expect(answer.conversation).toEqual({ rev: '7', turns: null, earlier: true, taken: 0 })
     const moved = agentOf(reach(['lanes']), tasks, TASK, agentHeld(), undefined, '6')
     expect(moved.conversation?.turns?.length).toBe(4)
+  })
+
+  it('is threaded through a device’s reading with the revision it holds', () => {
+    const held = projector(input({ reach: reach(['lanes']) }), NOW, { agent: () => agentHeld() })
+    expect(held.agent(TASK).conversation?.turns?.length).toBe(4)
+    expect(held.agent(TASK, '7').conversation?.turns).toBeNull()
   })
 
   it('tells not read yet and could not read apart from nothing said', () => {

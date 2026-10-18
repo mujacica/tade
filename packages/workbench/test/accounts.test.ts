@@ -78,6 +78,11 @@ describe('accounts', () => {
     )
   })
 
+  it('reads no conversation for a task no agent ran, as an empty page rather than a throw', async () => {
+    const task = await client.createTask({ project: 'app', slug: 'quiet', intent: 'nothing yet' })
+    expect(await client.agentHistory(task.id, { limit: 20 })).toEqual({ items: [], earlier: null })
+  })
+
   it('runs one task’s agent as another account, and only as one of its own harness', async () => {
     await client.addAccount({ name: 'work', harness: 'claude-code' })
     const task = await client.createTask({ project: 'app', slug: 'refunds', intent: 'fix it' })
