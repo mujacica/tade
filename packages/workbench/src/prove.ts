@@ -57,8 +57,8 @@ export interface ProveOptions {
  * file it was handed opened — `tade-lane-ok tade-agent shut`.
  */
 const AS_SPELL =
-  "let k='shut';try{require('fs').readFileSync(process.argv[1]);k='open'}catch{}" +
-  "process.stdout.write(['tade','lane','ok'].join('-')+' '+require('os').userInfo().username+' '+k)"
+  "let k='shut';try{require('node:fs').readFileSync(process.argv[1]);k='open'}catch{}" +
+  "process.stdout.write(['tade','lane','ok'].join('-')+' '+require('node:os').userInfo().username+' '+k)"
 
 /**
  * Open a lane, run a command in it, close it — and say what happened.
