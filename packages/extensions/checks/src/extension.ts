@@ -88,6 +88,8 @@ export const checksExtension: TadeExtension = {
         'What this project checks, and how each check stands at the commit that is checked out: what passed, what failed, what has never run. Reads files only — no run, no network, and it works when nothing is set up.',
       parameters: object({ project: projectInput }),
       for: ['orchestrator', 'agent'],
+      // Files only, so another machine of the person's may ask it of this one.
+      reads: true,
       async run(input, ctx) {
         const where = await workingIn(input, ctx)
         const stood = await checksAt({
@@ -263,6 +265,8 @@ export const checksExtension: TadeExtension = {
         ['check'],
       ),
       for: ['orchestrator', 'agent'],
+      // A file read and scrubbed, so another machine of the person's may ask it too.
+      reads: true,
       async run(input, ctx) {
         const where = await workingIn(input, ctx)
         const stood = await checksAt({

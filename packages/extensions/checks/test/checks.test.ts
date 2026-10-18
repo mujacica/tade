@@ -68,6 +68,18 @@ describe('what a project checks', () => {
   })
 })
 
+describe('what another machine of the person’s may ask', () => {
+  it('is how the checks stand and what one printed, which only read, and never a run', () => {
+    // The Mac reads a VPS's checks through its own tools there, as it does
+    // its findings: found rehearsing two VPSes, where neither was offered.
+    const reads = checksExtension.tools
+      ?.filter((tool) => tool.reads === true)
+      .map((tool) => tool.name)
+      .sort()
+    expect(reads).toEqual(['checks_list', 'checks_log'])
+  })
+})
+
 describe('reading what a project already says', () => {
   it('does not read a workflow that never says when it runs', async () => {
     // Every rule that keeps this safe hangs off the trigger, so a file with no
