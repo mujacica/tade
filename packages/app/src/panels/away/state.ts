@@ -68,6 +68,13 @@ export const ASKING_OUT_OF_VIEW =
 export const ASKING_FIRST = 'Nothing answered: a device is asking to be let in first.'
 
 /**
+ * Said for a yes or a no on the panel with no device asking: the agent's card
+ * it would have answered is behind the panel, and closing it is the way back.
+ */
+export const BEHIND_THE_PANEL =
+  'Nothing answered: no device is asking, and this panel is in front of the agents — close it to answer one.'
+
+/**
  * What the away panel's own controls are, by name.
  *
  * Written out so `wire/web.ts` and the drawing agree on one spelling, and so
@@ -210,7 +217,10 @@ export const AWAY_LABELS = {
  * the wheel, or pulled away by the keyboard following a device further down,
  * a yes would let in a device nobody could see. Then the key says so and does
  * nothing, and `home` brings the card back — every other key here moves the
- * chosen device. With nobody asking the keys go on as the window's own.
+ * chosen device. With nobody asking the key is handed on to the window's own
+ * rule, whether an agent's approval card is in front (`approvalInFront`), which
+ * says no while this panel stands over the pane: nothing is answered, and the
+ * panel says why (`BEHIND_THE_PANEL`).
  *
  * The arrows read down the device list. `escape` and `enter` close, and
  * neither answers the question: a pairing refused by accident is a code to

@@ -539,7 +539,9 @@ describe('answering the device at the door', () => {
     })
   })
 
-  it('goes on as the window’s own keys with nobody asking, wherever the list is', () => {
+  it('hands the key on with nobody asking, wherever the list is', () => {
+    // To the window's own rule (`Away.decide`, `approvalInFront`), which
+    // answers no agent from behind the panel: `wire/away-keys.test.ts`.
     const panel = onTheLast(6)
     expect(awayKey(panel, 'a', { asking: false, drawnFrom: 40, bindings: {} })).toMatchObject({
       submit: true,

@@ -31,7 +31,8 @@ import { lastUpdates } from '@tade/workbench/programs'
 import { awayCollections } from '../away.ts'
 import { activityIn } from '../away-activity.ts'
 import type { Frame } from '../frame.ts'
-import { ASKING_FIRST, AWAY_CONTROLS, awayPanel } from '../panels/away/state.ts'
+import { approvalInFront } from '../model.ts'
+import { ASKING_FIRST, AWAY_CONTROLS, awayPanel, BEHIND_THE_PANEL } from '../panels/away/state.ts'
 import type { AwayView } from '../panels/away/view.ts'
 import type { PanelInputs } from '../panels.ts'
 import { type Actions, notify, type Subject, type Submits, type Wiring } from './context.ts'
@@ -416,12 +417,19 @@ export class Away implements Subject {
 
   /**
    * A yes or a no from the panel, which answers only while the card is drawn
-   * (`awayKey`). With nothing asking, the keys go where they always went.
+   * (`awayKey`). With nothing asking, the key is the window's own and asks the
+   * window's own question — whether an agent's card is in front
+   * (`approvalInFront`) — which says no while a panel covers the pane, so the
+   * agent behind it is not answered and the panel says why.
    */
   async decide(allow: boolean): Promise<void> {
     const asking = this.asking
     if (asking === null) {
-      await this.deps.decided(allow)
+      const shown = this.wire.state.panel
+      if (approvalInFront(this.wire.state)) await this.deps.decided(allow)
+      else if (shown?.kind === 'away') {
+        this.wire.put({ ...this.wire.state, panel: { ...shown, said: BEHIND_THE_PANEL } })
+      } else notify(this.wire, BEHIND_THE_PANEL)
       return
     }
     this.asking = null

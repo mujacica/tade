@@ -2010,14 +2010,26 @@ export function keyAction(key: string, state: AppState): KeyAction {
   if (RUNS.has(key)) return { kind: 'run', action: key }
   const numbered = numberAction(key)
   if (numbered) return numbered
-  // Answering an approval is a single key only while one is actually waiting,
-  // and never while a line to Tade is being typed.
+  if (approvalInFront(state) && key === 'a') return { kind: 'approve' }
+  if (approvalInFront(state) && key === 'd') return { kind: 'deny' }
+  return { kind: 'none' }
+}
+
+/**
+ * Whether an agent's approval card is in front of you, so that `a` and `d`
+ * answer it: a key never decides something that is not on screen.
+ *
+ * Only while one is actually waiting, never while a line to Tade is being
+ * typed, and never while a panel is open — it has the keyboard, and the ones
+ * that ask something take the middle and fade the pane behind them. Asked by
+ * `keyAction` and by the away panel's keys with nobody at the door
+ * (`Away.decide`), so the two cannot come to disagree.
+ */
+export function approvalInFront(state: AppState): boolean {
+  if (state.panel !== null || state.dictation !== null) return false
   const focused = state.panes.find((pane) => pane.task === state.focused)
   // An answer still on its way keeps both, so a second press is told so rather than typed.
-  const asked = focused?.waiting || (focused?.task ?? '') in state.answered
-  if (state.dictation === null && asked && key === 'a') return { kind: 'approve' }
-  if (state.dictation === null && asked && key === 'd') return { kind: 'deny' }
-  return { kind: 'none' }
+  return focused !== undefined && (focused.waiting || focused.task in state.answered)
 }
 
 export function removeAttachment(state: AppState, path: string): AppState {

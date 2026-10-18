@@ -7,8 +7,8 @@ import { ConfigSchema, LAN_IS_PLAINTEXT_SHORT, LOCAL, startOfToday } from '@tade
 import { GRANTS, readDevices, SCOPES, writeDevices } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Live } from '../../src/live.ts'
-import { type AppState, initialState } from '../../src/model.ts'
-import { ASKING_FIRST, awayPanel } from '../../src/panels/away/state.ts'
+import { type AppState, initialState, withTasks } from '../../src/model.ts'
+import { ASKING_FIRST, awayPanel, BEHIND_THE_PANEL } from '../../src/panels/away/state.ts'
 import { settingsPanel } from '../../src/panels/settings/state.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 import { Away } from '../../src/wire/web.ts'
@@ -478,9 +478,26 @@ describe('what it costs when nobody is looking', () => {
 })
 
 describe('letting a device in', () => {
-  it('hands the keys to the agents while nothing is asking', async () => {
-    const { away, decided } = await wiring({ web: { enabled: true } })
+  it('answers no agent from behind a panel while nothing is asking, and says why', async () => {
+    const { away, at, decided } = await wiring({ web: { enabled: true } })
     await away.open()
+    const put = (state: AppState) => (away as unknown as { wire: Wiring }).wire.put(state)
+    // An agent waiting on an approval, focused: its card is what a/d answer.
+    const waiting = withTasks(initialState(), [
+      { task: 'app/refunds', state: 'blocked', lane: 'app/refunds/agent', waiting: true },
+    ])
+    // The away panel open over it: the card is behind the panel.
+    put({ ...waiting, panel: awayPanel() })
+    for (const allow of [true, false]) await away.decide(allow)
+    expect(decided).toEqual([])
+    expect(at().panel).toEqual({ ...awayPanel(), said: BEHIND_THE_PANEL })
+    // Settings › Away, which has no foot of this panel's: said where a notice goes.
+    put({ ...waiting, panel: settingsPanel('away') })
+    await away.decide(true)
+    expect(decided).toEqual([])
+    expect(at().notice).toBe(BEHIND_THE_PANEL)
+    // With nothing in front of the card, the key is the agent's.
+    put(waiting)
     await away.decide(true)
     expect(decided).toEqual([true])
   })

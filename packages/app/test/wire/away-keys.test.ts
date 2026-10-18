@@ -6,7 +6,7 @@ import { readDevices } from '@tade/web'
 import type { Workbench } from '@tade/workbench'
 import type { PendingApproval } from '@tade/workbench/workers'
 import { describe, expect, it } from 'vitest'
-import { ASKING_FIRST, ASKING_OUT_OF_VIEW } from '../../src/panels/away/state.ts'
+import { ASKING_FIRST, ASKING_OUT_OF_VIEW, BEHIND_THE_PANEL } from '../../src/panels/away/state.ts'
 import { freePort } from './away-harness.ts'
 import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
 
@@ -99,28 +99,7 @@ describe('a yes or a no to a device at the door', () => {
   it('with the panel shut, opens it on the device rather than answering one nobody can see', async () => {
     // An agent waiting on an approval in front, which is what makes `a` and
     // `d` the window's own keys at all — and whose card *is* on the screen.
-    const pending: PendingApproval[] = [
-      {
-        run: 'run-1' as PendingApproval['run'],
-        task: 'app/refunds' as TaskId,
-        requestId: 'req-1',
-        tool: 'bash',
-        summary: 'rm -rf dist',
-        tier: 'hard',
-        rule: 'ask before deleting',
-        reason: 'it deletes',
-        at: 1,
-      },
-    ]
-    client.pendingApprovals = ((task?: string) =>
-      pending.filter(
-        (one) => task === undefined || one.task === task,
-      )) as typeof client.pendingApprovals
-    const decided: unknown[] = []
-    client.decideApproval = (async (_run, _request, decision) => {
-      decided.push(decision)
-    }) as typeof client.decideApproval
-
+    const decided = waitingAgent()
     const port = await freePort()
     await listening(port)
     const asked = pair(port, await ticketDrawn())
@@ -150,6 +129,60 @@ describe('a yes or a no to a device at the door', () => {
     expect((await readDevices(home)).devices).toHaveLength(1)
     expect(decided).toEqual([])
   })
+
+  it('with nobody asking, answers no agent whose card is behind the open panel', async () => {
+    const decided = waitingAgent()
+    await listening(await freePort())
+    await until('the agent’s card in front', () => says('Allow once'))
+    // The panel open over it, and nobody at the door.
+    await ticketDrawn()
+
+    const refusal = () => says(BEHIND_THE_PANEL.slice(0, 30))
+    for (const key of ['a', 'd']) {
+      terminal.press(key)
+      await until(`the refusal on ${key}`, () => refusal() || decided.length > 0)
+      expect(decided, key).toEqual([])
+      expect(says('AWAY VIEW'), key).toBe(true)
+      // Any other key quiets it, so the next refusal is the next key's own.
+      terminal.press('\x1b[H')
+      await until('the refusal gone', () => !refusal())
+    }
+
+    // Closed, the card is in front again, and the same key answers it.
+    terminal.press('\x1b')
+    await until('the panel shut', () => !says('AWAY VIEW'))
+    if (says('enter sends')) terminal.press('\x1b')
+    await until('the agent’s card in front', () => says('Allow once') && !says('enter sends'))
+    terminal.press('a')
+    await until('the agent answered', () => decided.length > 0)
+    expect(decided).toEqual([{ allow: true }])
+  })
+
+  /** An agent waiting on an approval in front, and what was decided about it. */
+  function waitingAgent(): unknown[] {
+    const pending: PendingApproval[] = [
+      {
+        run: 'run-1' as PendingApproval['run'],
+        task: 'app/refunds' as TaskId,
+        requestId: 'req-1',
+        tool: 'bash',
+        summary: 'rm -rf dist',
+        tier: 'hard',
+        rule: 'ask before deleting',
+        reason: 'it deletes',
+        at: 1,
+      },
+    ]
+    client.pendingApprovals = ((task?: string) =>
+      pending.filter(
+        (one) => task === undefined || one.task === task,
+      )) as typeof client.pendingApprovals
+    const decided: unknown[] = []
+    client.decideApproval = (async (_run, _request, decision) => {
+      decided.push(decision)
+    }) as typeof client.decideApproval
+    return decided
+  }
 })
 
 /** The pairing link drawn on a screen, or null. */
