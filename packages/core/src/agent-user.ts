@@ -267,7 +267,10 @@ export interface AgentRemote {
   url: string
   /** `github.com/owner/name`, as `repositoryNamed` spells it; null where the URL names none. */
   repository: string | null
-  /** Whether `git ls-remote` reached it as that user; null where it was not tried, and `problem` says why. */
+  /**
+   * Whether that user's git may push there, tried as it (`pushTry`); null
+   * where it was not tried, and `problem` says why.
+   */
   reached: boolean | null
   problem: string | null
 }
@@ -331,16 +334,34 @@ export const GITHUB_HOST_KEYS =
   'https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints'
 
 /**
- * What the person runs to try a remote as an agent user: `git ls-remote` in
- * that user's own login, in front of them — where ssh asks once about the
- * forge's host key, which is theirs to compare and answer.
+ * What a push is tried with: a refspec no branch matches, so there is nothing
+ * to send even before `--dry-run` says send nothing.
  */
-export function lsRemoteLine(
+export const PUSH_TRIED = 'refs/tade-push-check/*:refs/tade-push-check/*'
+
+/**
+ * The git that tries a remote as its user pushes to it, in the project, and
+ * changes nothing there or on the forge. A dry run still has to be let into
+ * the forge's write side (`receive-pack`) before it hears "Everything
+ * up-to-date"; `git ls-remote` is its read side, which a read-only deploy key
+ * gets through — and so does any key at all, on a public repository. No hook
+ * of the project's runs, since a dry run runs `pre-push` too.
+ */
+export function pushTry(remote: Pick<AgentRemote, 'root' | 'url' | 'repository'>): string[] {
+  return ['git', '-C', remote.root, 'push', '--dry-run', '--no-verify', triedAt(remote), PUSH_TRIED]
+}
+
+/**
+ * What the person runs to try a remote as an agent user: `pushTry` in that
+ * user's own login, in front of them — where ssh asks once about the forge's
+ * host key, which is theirs to compare and answer.
+ */
+export function pushTryLine(
   user: string,
-  remote: Pick<AgentRemote, 'url' | 'repository'>,
+  remote: Pick<AgentRemote, 'root' | 'url' | 'repository'>,
 ): string {
   if (!USER_NAME.test(user)) throw new Error(`not a user name: ${user}`)
-  return `sudo -iu ${user} git ls-remote ${word(triedAt(remote))} HEAD`
+  return `sudo -iu ${user} ${pushTry(remote).map(word).join(' ')}`
 }
 
 /**
@@ -419,9 +440,9 @@ export function agentReachTrouble(seen: AgentUserSeen): string[] {
     if (overHttps(one.url))
       out.push(`${u}'s pushes to ${where} go over https, where it has nothing to sign in with`)
     if (one.reached === false)
-      out.push(`${u} cannot reach ${where} with its own key: ${one.problem}`)
+      out.push(`${u} cannot push to ${where} with its own key: ${one.problem}`)
     else if (one.reached === null)
-      out.push(`cannot tell whether ${u} can reach ${where}: ${one.problem}`)
+      out.push(`cannot tell whether ${u} can push to ${where}: ${one.problem}`)
   }
   return out
 }

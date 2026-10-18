@@ -18,7 +18,7 @@ import {
   agentUserTrouble,
   asAgent,
   keyPages,
-  lsRemoteLine,
+  pushTryLine,
   reachCommands,
   SUDO,
   signInLine,
@@ -373,7 +373,7 @@ describe('signing in and pushing, as that user', () => {
     ])
     expect(agentReachTrouble(none)).toEqual([
       'tade-agent has no key of its own to push with',
-      'tade-agent cannot reach github.com/acme/app with its own key: Permission denied (publickey).',
+      'tade-agent cannot push to github.com/acme/app with its own key: Permission denied (publickey).',
       "tade-agent's pushes to github.com/acme/web go over https, where it has nothing to sign in with",
       "tade-agent's pushes to github.com/acme/api go over https, where it has nothing to sign in with",
     ])
@@ -417,8 +417,13 @@ describe('signing in and pushing, as that user', () => {
     expect(triedAt(remote({ url: 'ssh://git@example.org/x.git', repository: null }))).toBe(
       'ssh://git@example.org/x.git',
     )
-    expect(lsRemoteLine('tade-agent', remote())).toBe(
-      'sudo -iu tade-agent git ls-remote git@github.com:acme/app.git HEAD',
+    // A push from the project, of nothing and as a dry run: `ls-remote` is the
+    // forge's read side, which a key that may only read gets through.
+    expect(pushTryLine('tade-agent', remote())).toBe(
+      "sudo -iu tade-agent git -C /srv/app push --dry-run --no-verify git@github.com:acme/app.git 'refs/tade-push-check/*:refs/tade-push-check/*'",
+    )
+    expect(pushTryLine('tade-agent', remote({ root: '/srv/my app' }))).toContain(
+      "git -C '/srv/my app' push",
     )
     expect(keyPages('github.com/acme/app')).toEqual({
       account: 'https://github.com/settings/ssh/new',

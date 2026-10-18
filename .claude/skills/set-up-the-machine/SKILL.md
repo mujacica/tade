@@ -42,7 +42,7 @@ and setting up ends by actually opening a lane — because every other check is 
 | `packages/workbench/src/machine.ts` (`unattendedHere`, `systemdHere`, `serviceUnitPath`, `lookAtService`, `serviceGroups`, `groupIdOf`) | whether this is a server, linger, the unit and what it runs — files, no process — how the service stands, one `systemctl show`, and the groups its process and its manager hold, out of `/proc` |
 | `packages/harnesses/core/src/sign-in.ts` | `signInHere` (is a browser here?), `signInLasts` (how long a sign-in has left) |
 | `packages/drivers/tmux/src/scope.ts` | the lanes' tmux server in a systemd scope of its own, under a user service |
-| `packages/core/src/agent-user.ts` | pure: `agentUserOf`, `agentsKeptAs`, `asAgent` (the launch through `sudo`), `sudoersRule`, `agentShare`, `agentCommands` (what setup shows), `agentUserTrouble`, `groupFromLogin`, `AGENT_USER_MEANS`; and what its agents need beyond it: `agentAccountDir`, `signInLine`, `reachCommands`, `agentReachTrouble`, `keyPages`, `lsRemoteLine`, `triedAt` |
+| `packages/core/src/agent-user.ts` | pure: `agentUserOf`, `agentsKeptAs`, `asAgent` (the launch through `sudo`), `sudoersRule`, `agentShare`, `agentCommands` (what setup shows), `agentUserTrouble`, `groupFromLogin`, `AGENT_USER_MEANS`; and what its agents need beyond it: `agentAccountDir`, `signInLine`, `reachCommands`, `agentReachTrouble`, `keyPages`, `pushTry`, `pushTryLine`, `triedAt` |
 | `packages/workbench/src/agent-user.ts` | `homeOf`, `agentUserFor`, `shareReady`, `closeHome`, `contextFor`, `documentsFor`, `sandboxWrites`, `lookAtAgentUser`, `closedAbove`, `sandboxProofs`; `adapterOfUser`, `signInsFor`, `signedInAs`, `lookAtReach`, `accountFolderOf` |
 | `packages/core/src/apparmor.ts` | pure: `bwrapProfile` (Claude Code's, word for word), `BWRAP_PROFILE`, `RELOAD_APPARMOR`, `AppArmorSeen`, `appArmorCommands` |
 | `packages/workbench/src/apparmor.ts` | `lookAtAppArmor` — the kernel's switch, the profile's file, the bwrap on PATH |
@@ -452,13 +452,17 @@ it — `tade` in the recommended install — and **setup makes the agents' user 
 - **It pushes with a key of its own** (decision 9 of the VPS plan: a dedicated key, never a forwarded
   agent). `lookAtReach` reads the public half of `~<user>/.ssh/id_ed25519` as that user, and for each
   project with an origin, the URL that user's git pushes to (its own `pushInsteadOf` applied), tried
-  by `git ls-remote` in batch mode — a missing key or an unknown host key is a refusal with its
-  reason, never a prompt. `reachCommands` makes the key (`ssh-keygen -t ed25519`, only where it has
-  none and does not already reach every remote) and sends https pushes over SSH; then `offerPush`
-  shows the public half with `github.com/settings/ssh/new` and each repository's deploy-key page,
-  and tries each remote as that user in front of the person (`lsRemoteLine`), where ssh asks once
-  about GitHub's host key and the published fingerprints are named to compare. `ls-remote` proves
-  the key reaches the repository, not that it may write: a read-only deploy key passes it.
+  by a push in batch mode (`pushTry`) — a missing key, an unknown host key or one that may only read
+  is a refusal with its reason, never a prompt. It is a dry run of a refspec nothing matches, from
+  the project with `--no-verify`, so nothing is sent and no hook runs — and it still has to be let
+  into the forge's write side. `git ls-remote` was the read side, which a read-only deploy key got
+  through, and any key at all on a public repository (`setup-agent-reach.test.ts` holds the
+  difference against a `git daemon`, which serves reads and refuses pushes). `reachCommands` makes
+  the key (`ssh-keygen -t ed25519`, only where it has none and cannot already push to every remote)
+  and sends https pushes over SSH; then `offerPush` shows the public half with
+  `github.com/settings/ssh/new` and each repository's deploy-key page, and tries each remote as that
+  user in front of the person (`pushTryLine`), where ssh asks once about GitHub's host key and the
+  published fingerprints are named to compare.
 - **Its documents and chats.** The project's documents folder is copied into the share at each start
   (`documentsFor`: Tade's files the group reads and cannot change, only what changed, links not
   followed) and named to the agent as a read-only copy. Bringing a chat back reads that user's

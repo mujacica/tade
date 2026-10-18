@@ -1,10 +1,21 @@
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { type AddressInfo, createServer } from 'node:net'
 import { join } from 'node:path'
 import type { Ui } from '@tade/app'
-import { AGENT_USER, type AgentUserSeen, agentAccountDir, GITHUB_HOST_KEYS } from '@tade/core'
+import {
+  AGENT_USER,
+  type AgentUserSeen,
+  agentAccountDir,
+  agentReachTrouble,
+  ConfigSchema,
+  GITHUB_HOST_KEYS,
+  PUSH_TRIED,
+} from '@tade/core'
+import { until } from '@tade/drivers-core/conformance'
+import { lookAtReach } from '@tade/workbench/agent-user'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { mkrepo, runGit, tmp } from '../../../test/fixtures/mkrepo.ts'
+import { gitEnv, mkrepo, runGit, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { offerPush, setUpReach } from '../src/commands/setup-agent-reach.ts'
 
 // What an agent user's agents need besides the user: each sign-in, run as that
@@ -90,7 +101,7 @@ function person(tries = 1): Ui & { said: string[]; ran: string[] } {
     async run(_title: string, _command: string, args: string[]) {
       const line = args[1] ?? ''
       ran.push(line)
-      if (line.includes('git ls-remote')) return tries
+      if (line.includes(' push --dry-run ')) return tries
       if (line.includes('auth login')) {
         const folder = /CLAUDE_CONFIG_DIR=(\S+)/.exec(line)?.[1] ?? join(userHome, '.claude')
         mkdirSync(folder, { recursive: true })
@@ -118,7 +129,8 @@ const seen = (): AgentUserSeen => ({
 describe('signing an agent user in, and giving it a key', () => {
   it('makes what it needs as that user, signs each in on a press, and asks each again after', async () => {
     const repo = mkrepo()
-    runGit(repo.root, 'remote', 'add', 'origin', join(tmp('tade-reach-gone-'), 'nowhere.git'))
+    const origin = join(tmp('tade-reach-gone-'), 'nowhere.git')
+    runGit(repo.root, 'remote', 'add', 'origin', origin)
     writeFileSync(
       join(home, 'config.yaml'),
       [
@@ -154,10 +166,10 @@ describe('signing an agent user in, and giving it a key', () => {
     expect(said).toContain(`${AGENT_USER} is signed in to claude-code's account work`)
     // The key's public half shown, and the remote tried in front of the person.
     expect(said).toContain('ssh-ed25519 ')
-    expect(ui.ran.at(-1)).toMatch(
-      new RegExp(`^sudo -iu ${AGENT_USER} git ls-remote .*nowhere\\.git HEAD$`),
+    expect(ui.ran.at(-1)).toBe(
+      `sudo -iu ${AGENT_USER} git -C ${repo.root} push --dry-run --no-verify ${origin} '${PUSH_TRIED}'`,
     )
-    expect(said).toContain('cannot reach')
+    expect(said).toContain(`${AGENT_USER} cannot push to ${origin} yet`)
   }, 60_000)
 
   it('says a sign-in that did not take, rather than ticking it', async () => {
@@ -208,9 +220,84 @@ describe('signing an agent user in, and giving it a key', () => {
     expect(said).toContain('git.example.org/acme/lib: wherever its forge takes an SSH key')
     expect(said).toContain(GITHUB_HOST_KEYS)
     expect(ui.ran).toEqual([
-      `sudo -iu ${AGENT_USER} git ls-remote git@github.com:acme/app.git HEAD`,
-      `sudo -iu ${AGENT_USER} git ls-remote git@git.example.org:acme/lib.git HEAD`,
+      `sudo -iu ${AGENT_USER} git -C /srv/app push --dry-run --no-verify git@github.com:acme/app.git '${PUSH_TRIED}'`,
+      `sudo -iu ${AGENT_USER} git -C /srv/lib push --dry-run --no-verify git@git.example.org:acme/lib.git '${PUSH_TRIED}'`,
     ])
-    expect(said).toContain(`${AGENT_USER} reaches github.com/acme/app`)
+    expect(said).toContain(`${AGENT_USER} can push to github.com/acme/app`)
   })
+
+  it('takes a remote it may read and not write for one it cannot push to, and sends nothing to one it may', async () => {
+    // `git daemon` serves reads and refuses every push, as a forge refuses a
+    // read-only deploy key — or any key on a public repository it may not
+    // write to: `git ls-remote` gets through, and a push does not.
+    const served = tmp('tade-reach-served-')
+    const seed = mkrepo()
+    runGit(seed.root, 'commit', '-q', '--allow-empty', '-m', 'first')
+    runGit(seed.root, 'clone', '-q', '--bare', seed.root, join(served, 'app.git'))
+    const port = await freePort()
+    const daemon = spawn(
+      'git',
+      [
+        'daemon',
+        '--reuseaddr',
+        '--listen=127.0.0.1',
+        `--port=${port}`,
+        `--base-path=${served}`,
+        '--export-all',
+        served,
+      ],
+      { stdio: 'ignore', env: gitEnv() },
+    )
+    try {
+      const readOnly = `git://127.0.0.1:${port}/app.git`
+      const read = () => spawnSync('git', ['ls-remote', readOnly, 'HEAD'], { env: gitEnv() })
+      await until(() => read().status === 0, { timeout: 15_000 })
+      const app = mkrepo()
+      runGit(app.root, 'remote', 'add', 'origin', readOnly)
+      // One it may write to, whose project refuses every push in its own
+      // `pre-push` — which a dry run runs too, and which is not the forge's answer.
+      const writable = join(served, 'lib.git')
+      runGit(seed.root, 'clone', '-q', '--bare', seed.root, writable)
+      const lib = mkrepo()
+      runGit(lib.root, 'remote', 'add', 'origin', writable)
+      const hooks = join(lib.root, '.git', 'hooks')
+      mkdirSync(hooks, { recursive: true })
+      writeFileSync(
+        join(hooks, 'pre-push'),
+        `#!/bin/sh
+touch "${join(lib.root, 'hook-ran')}"
+exit 1
+`,
+      )
+      chmodSync(join(hooks, 'pre-push'), 0o755)
+      const refs = runGit(writable, 'for-each-ref')
+      const config = ConfigSchema.parse({
+        agents: { user: AGENT_USER },
+        projects: { app: { root: app.root }, lib: { root: lib.root } },
+      })
+      mkdirSync(join(userHome, '.ssh'))
+      writeFileSync(join(userHome, '.ssh', 'id_ed25519.pub'), 'ssh-ed25519 AAAA tade-agent@box\n')
+      const { push } = await lookAtReach(seen(), config, 'tade')
+      const [refused, pushed] = push?.remotes ?? []
+      expect(refused).toMatchObject({ root: app.root, url: readOnly, reached: false })
+      expect(refused?.problem).toContain('access denied')
+      expect(pushed).toMatchObject({ root: lib.root, url: writable, reached: true, problem: null })
+      expect(runGit(writable, 'for-each-ref')).toBe(refs)
+      expect(existsSync(join(lib.root, 'hook-ran'))).toBe(false)
+      expect(agentReachTrouble({ ...seen(), push })).toEqual([
+        `${AGENT_USER} cannot push to ${refused?.repository ?? readOnly} with its own key: ${refused?.problem}`,
+      ])
+    } finally {
+      daemon.kill()
+    }
+  }, 60_000)
 })
+
+/** A port nothing listens on, as the kernel hands one out. */
+async function freePort(): Promise<number> {
+  const server = createServer()
+  await new Promise<void>((done) => server.listen(0, '127.0.0.1', () => done()))
+  const port = (server.address() as AddressInfo).port
+  await new Promise<void>((done) => server.close(() => done()))
+  return port
+}

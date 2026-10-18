@@ -9,7 +9,7 @@ import {
   GITHUB_HOST_KEYS,
   keyPages,
   loadConfig,
-  lsRemoteLine,
+  pushTryLine,
   reachCommands,
   signInLine,
 } from '@tade/core'
@@ -107,8 +107,8 @@ async function signIn(
 }
 
 /**
- * The key's public half and where it goes, then each remote not yet reached
- * tried as that user in front of the person — where ssh asks once about the
+ * The key's public half and where it goes, then each remote it cannot push to
+ * yet tried as that user in front of the person — where ssh asks once about the
  * forge's host key, which is theirs to compare and answer.
  */
 export async function offerPush(
@@ -120,7 +120,7 @@ export async function offerPush(
   if (remotes.length === 0) return
   const unreached = remotes.filter((one) => one.reached !== true)
   if (unreached.length === 0) {
-    ui.say(`  ${u} reaches every remote its projects push to, with its own key`)
+    ui.say(`  ${u} can push to each of its projects' remotes, with its own key`)
     return
   }
   if (!key) {
@@ -150,12 +150,12 @@ export async function offerPush(
   if (github.length > 0)
     ui.say(`  if ssh asks about GitHub's host key, compare it with ${GITHUB_HOST_KEYS}`)
   for (const one of unreached) {
-    const line = lsRemoteLine(u, one)
+    const line = pushTryLine(u, one)
     const code = await ui.run(`${one.repository ?? one.url} as ${u}`, '/bin/sh', ['-c', line])
     ui.say(
       code === 0
-        ? `  ${u} reaches ${one.repository ?? one.url}`
-        : `  ${u} cannot reach ${one.repository ?? one.url} yet: add the key above and try again — ${line}`,
+        ? `  ${u} can push to ${one.repository ?? one.url}`
+        : `  ${u} cannot push to ${one.repository ?? one.url} yet: add the key above, with write access where it is a deploy key, and try again — ${line}`,
     )
   }
 }

@@ -31,6 +31,7 @@ import {
   PUSH_KEY,
   producesPath,
   producesProblem,
+  pushTry,
   resolveCommand,
   runProgram,
   type SignInLaunch,
@@ -39,7 +40,6 @@ import {
   shareTask,
   taskDir,
   taskFolder,
-  triedAt,
 } from '@tade/core'
 import type { SandboxProof, SignInProof, WorkerAdapter } from '@tade/harnesses-core'
 import { git, repositoryNamed } from '@tade/status'
@@ -605,7 +605,7 @@ export function signInsFor(config: Config, user: AgentUser): SignInAsk[] {
   return out
 }
 
-/** A network question's deadline: `git ls-remote` reaching a forge from a box under load. */
+/** A network question's deadline: a dry-run push reaching a forge from a box under load. */
 const REACH_MS = 20_000
 
 /**
@@ -645,8 +645,9 @@ export async function signedInAs(
  * What an agent user's agents need beyond the user itself, looked at as it:
  * each sign-in (`signInsFor`, asked by `signedInAs`), and whether it can push
  * — the public half of its key, and each of its projects' remotes as its own
- * git pushes to it, tried with `git ls-remote` in batch mode, so an unknown
- * host key or a missing key is a refusal with its reason, never a prompt.
+ * git pushes to it, tried with a dry-run push in batch mode (`pushTry`), so an
+ * unknown host key, a missing key or one that may only read is a refusal with
+ * its reason, never a prompt.
  * Nothing where Tade cannot become it yet: that is said by the step already.
  */
 export async function lookAtReach(
@@ -709,15 +710,7 @@ async function remoteAs(user: string, root: string): Promise<AgentRemote | null>
   const remote = { root, url, repository: repositoryNamed(url) }
   const tried = await asUser(
     user,
-    [
-      'env',
-      'GIT_SSH_COMMAND=ssh -o BatchMode=yes',
-      'GIT_TERMINAL_PROMPT=0',
-      'git',
-      'ls-remote',
-      triedAt(remote),
-      'HEAD',
-    ],
+    ['env', 'GIT_SSH_COMMAND=ssh -o BatchMode=yes', 'GIT_TERMINAL_PROMPT=0', ...pushTry(remote)],
     REACH_MS,
   )
   if (tried.timedOut) {
