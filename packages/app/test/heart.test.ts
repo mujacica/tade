@@ -6,10 +6,11 @@ import { readRuns } from '@tade/checks-core'
 import { ConfigSchema, recordsDir, type TaskId } from '@tade/core'
 import { LINEAR_APP, LINEAR_APP_IN } from '@tade/extension-intake'
 import { ExtensionHost } from '@tade/extensions-core'
+import { makeCollector, type StatusCollector } from '@tade/status'
 import { AUTH_BYTES, appendPush, generateVapid, P256DH_BYTES, scriptedPusher } from '@tade/web'
 import { BATCH_BY, readTaskFile, Workbench } from '@tade/workbench'
 import { recordConfigChanges } from '@tade/workbench/config-changes'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from 'vitest'
 import { parse, stringify } from 'yaml'
 import { mkrepo } from '../../../test/fixtures/mkrepo.ts'
 import { CI_WORKFLOW, ciWorkflow } from '../../../test/fixtures/workflow.ts'
@@ -671,7 +672,21 @@ describe('the heart, with no screen', () => {
     // then is the right answer to a different question.
     const midday = new Date()
     midday.setHours(12, 0, 0, 0)
+    // The heart's own collector, counted as each look lands.
+    let looks = 0
+    const own = makeCollector('here')
+    onTestFinished(() => own.close())
+    const status: StatusCollector = {
+      id: own.id,
+      collect: async (ask) => {
+        const answer = await own.collect(ask)
+        looks += 1
+        return answer
+      },
+      close: () => own.close(),
+    }
     const running = await alone({
+      status,
       config: ConfigSchema.parse({
         projects: { app: { root: repo.root } },
         surfaces: {
@@ -690,17 +705,31 @@ describe('the heart, with no screen', () => {
     // The listener came up with the heart: there is no window to have opened it.
     expect(running.away.facts().remote).toEqual({ on: true, devices: 0 })
     // A notification is a transition, so a beat has to have seen the work
-    // first: the beat that puts it in the state is the one the push half
-    // remembers it from, in the same turn.
-    await until('a beat saw the work', () =>
-      running.state.panes.some((pane) => pane.task === 'app/refunds'),
+    // first, and it has to be a beat of the push half's with the subscription
+    // read — which is when the listener is up, and `alone` returns. A look can
+    // land while it is still coming up (on Linux, where git is quick, the first
+    // one does), and the half remembers nothing of a beat with nothing
+    // subscribed. Two looks from here: the first may have been asked before
+    // the listener was up, and the second is asked only once the first is in.
+    const from = looks
+    await until(
+      () => `two looks after the listener came up, and ${looks - from} landed`,
+      () => looks >= from + 2,
+      SPAWNING_MS,
     )
+    expect(running.state.panes.some((pane) => pane.task === 'app/refunds')).toBe(true)
     // And it answers the phone what a window would.
     const read = await get(port, '/api/snapshot')
     expect(read.status).toBe(200)
     expect(read.text).toContain('app/refunds')
     await client.markDone('app/refunds', { by: 'you' })
-    await until('the phone was told', () => pusher.sent.length === 1, SPAWNING_MS)
+    const done = looks
+    await until(
+      () =>
+        `the phone was told, and ${pusher.sent.length} were sent in ${looks - done} looks since the work was finished`,
+      () => pusher.sent.length === 1,
+      SPAWNING_MS,
+    )
     expect(pusher.sent[0]?.notice.body).toBe('Work has finished')
   })
 

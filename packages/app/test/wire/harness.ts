@@ -181,9 +181,12 @@ export const SPAWNING_MS = 90_000
  *
  * Write neither when you add a test. If a wait here is genuinely longer than
  * this, it is `SPAWNING_MS`.
+ *
+ * `what` may be a function, read once the deadline has passed, so a wait can
+ * say what it saw instead of only what it wanted.
  */
 export async function until(
-  what: string,
+  what: string | (() => string),
   ok: () => boolean | Promise<boolean>,
   ms = 45_000,
 ): Promise<void> {
@@ -192,7 +195,7 @@ export async function until(
     if (await ok()) return
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
-  throw new Error(`timed out waiting for ${what}`)
+  throw new Error(`timed out waiting for ${typeof what === 'string' ? what : what()}`)
 }
 
 /**
@@ -420,6 +423,13 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
         await until('the window to have looked once', () =>
           terminal.titles.slice(from).some((title) => !title.includes('looking…')),
         )
+        // And drawn: the title is set in the turn the look lands, while the
+        // frame waits on the terminal's pace (`paint.ts`). Where the look is
+        // quicker than that — Linux, where git is — the title came first and a
+        // test that pressed what it found pressed a blank screen.
+        await until('the window to have drawn a frame', () =>
+          screenOf(terminal.written).some((row) => row.trim() !== ''),
+        )
       }
       return app
     },
@@ -440,7 +450,12 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
         const col = lines[row]?.indexOf(label) ?? -1
         if (col >= 0) return { col, row }
       }
-      throw new Error(`"${label}" is not on screen`)
+      const drawn = lines.filter((line) => line.trim() !== '')
+      throw new Error(
+        drawn.length === 0
+          ? `"${label}" is not on screen: nothing has been drawn on it yet`
+          : `"${label}" is not on screen, which shows:\n${lines.join('\n')}`,
+      )
     },
 
     // The pane beside it draws the same names, so a test about the list has to
