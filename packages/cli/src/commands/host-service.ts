@@ -2,24 +2,20 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  agentUsers,
   defaultConfigPath,
   LOG,
   lingerCommand,
   loadConfig,
   SERVICE,
-  type ServiceGroup,
   type ServiceState,
   START,
-  serviceGroupTrouble,
   serviceTrouble,
   serviceUnit,
   tadeHome,
   type Unattended,
 } from '@tade/core'
-import { ownUser } from '@tade/workbench/agent-user'
 import { heldBy } from '@tade/workbench/lock'
-import { lookAtService, serviceGroups, serviceUnitPath } from '@tade/workbench/machine'
+import { lookAtService, serviceUnitPath } from '@tade/workbench/machine'
 import { drivers } from '@tade/workbench/registry'
 
 // Tade on a machine of its own: a Linux server, kept running by the person's
@@ -89,24 +85,6 @@ export async function lanesWouldStop(): Promise<string | null> {
   return detach
     ? null
     : `agents run under the ${name} driver, so they stop whenever the service does — set workspace.driver: tmux (\`tade setup\` asks)`
-}
-
-/**
- * Why no agent of its own user can start under the service running now, one
- * sentence each with the command that restarts what has to restart — read off
- * the running process's groups, never the user's (`serviceGroups`), since a
- * service started before `usermod` keeps the groups it began with. Nothing
- * where no agent runs as another user, or nothing is running; a config that
- * does not read is said by `lanesWouldStop`.
- */
-export async function serviceLacksGroups(
-  groups: (users: readonly string[]) => Promise<ServiceGroup[]> = (users) => serviceGroups(users),
-): Promise<string[]> {
-  const loaded = await loadConfig(defaultConfigPath())
-  if (!loaded.ok) return []
-  const self = ownUser()
-  const held = await groups(agentUsers(loaded.config, self))
-  return held.flatMap((one) => serviceGroupTrouble(one, self) ?? [])
 }
 
 /**

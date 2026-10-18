@@ -24,7 +24,6 @@ import type { Command } from 'commander'
 import { writeFromShell } from '../config-write.ts'
 import { Exit, type Io } from '../io.ts'
 import { setUpUnattended } from './host-service.ts'
-import { proveAgentUser, setUpAgents, usersToProve } from './setup-agents.ts'
 import { gather, type Look, lookHere } from './setup-facts.ts'
 import {
   dictationSaid,
@@ -70,7 +69,6 @@ const ORDER: StepId[] = [
   'judge',
   'extensions',
   'keys',
-  'agents',
   'unattended',
 ]
 
@@ -87,7 +85,6 @@ const CHANGES_MACHINE = new Set<StepId>([
   'voice',
   'judge',
   'extensions',
-  'agents',
   'unattended',
 ])
 
@@ -138,11 +135,6 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
           for (const line of render(steps)) io.out(line)
           for (const line of report(look)) io.out(line)
           for (const line of serverSays(look)) io.out(line)
-          // Each agent user with nothing left to do, proved by a lane opened as
-          // it: the one look that sees the rule, Node and the closed home at once.
-          for (const seen of look.agents ? usersToProve(look.agents) : []) {
-            io.out(`  as ${seen.user}: ${(await proveAgentUser(facts.driver, home, seen)).says}`)
-          }
         }
         if (!isReady(steps)) setExit(Exit.error)
         return
@@ -251,9 +243,6 @@ async function doStep(
   // Both of these read the look they were handed: the step before either of
   // them changes the machine, so the loop has already looked again.
   if (id === 'keys') return setUpKeys(ui, look)
-  if (id === 'agents' && look.agents) {
-    return setUpAgents(ui, look.agents, tadeHome(), facts.driver)
-  }
   if (id === 'unattended' && look.unattended) return setUpUnattended(ui, look.unattended)
 }
 

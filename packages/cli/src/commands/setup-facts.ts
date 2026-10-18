@@ -1,7 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
-  type AgentsHere,
   type Config,
   defaultConfigPath,
   type InstallersHere,
@@ -30,7 +29,6 @@ import {
 } from '@tade/workbench/machine'
 import { lookAtPrograms, type ProgramLook, programsNeeded } from '@tade/workbench/programs'
 import { nativeTrouble } from '../native.ts'
-import { agentsLooked } from './setup-agents.ts'
 
 // What setting up reads about this machine, and nothing about what it then
 // asks.
@@ -77,8 +75,6 @@ export interface Look {
   installers: InstallersHere
   /** A server with no screen, and what keeps Tade running on it: null anywhere else. */
   unattended: Unattended | null
-  /** Who agents run as, on a server or wherever the config names a user: null anywhere else. */
-  agents: AgentsHere | null
 }
 
 /**
@@ -114,12 +110,6 @@ export async function lookHere(home = tadeHome()): Promise<Look> {
     extensions: extensions.listed,
     installers,
     unattended,
-    // A look that could not be made is said on the step, never read as nothing to do.
-    agents: await agentsLooked(config, home, unattended !== null).catch((err: unknown) => ({
-      self: '',
-      seen: [],
-      problem: err instanceof Error ? err.message : String(err),
-    })),
   }
 }
 
@@ -222,7 +212,6 @@ export async function gather(
           missing: look.missing,
           keysWanted: look.keysWanted,
           ...(look.unattended ? { unattended: look.unattended } : {}),
-          ...(look.agents ? { agents: look.agents } : {}),
         }
       : {}),
   }
