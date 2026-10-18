@@ -200,7 +200,36 @@ export class Carries {
       )
     } else if (verb === 'sign-in') {
       await this.signIn(name, rest[0] ?? '', rest[1] ?? '')
+    } else if (verb === 'upgrade') {
+      await this.upgrade(name)
     }
+  }
+
+  /**
+   * That machine's Tade moved forward by its own `tade host upgrade`, in a
+   * terminal over this window: the install's command and the restart are
+   * shown and pressed there, as at that machine's keyboard, and nothing of it
+   * runs here. Its link comes back on the restarted Tade by itself, and what
+   * it is then is asked as on any link coming up.
+   */
+  private async upgrade(name: string): Promise<void> {
+    const held = this.deps.reach(name)
+    const words = ['host', 'upgrade']
+    const terminal = held?.link.terminal(held.remote, words) ?? null
+    if (held === null || terminal === null) {
+      this.deps.said(null, `${name} cannot be upgraded from here: run \`tade host upgrade\` there`)
+      return
+    }
+    await this.deps.onScreenWith(async (ui) => {
+      ui.say(
+        `  Tade on ${name}, upgraded there: what it runs and restarts is pressed in this terminal.`,
+      )
+      await ui.run(`Tade on ${name}`, terminal.command, terminal.args, {})
+    })
+    this.deps.said(
+      `${name}’s upgrade ended: its link comes back on the Tade it runs now, and this page says which.`,
+      null,
+    )
   }
 
   /**

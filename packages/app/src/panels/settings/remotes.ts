@@ -2,7 +2,7 @@ import { type ConnectSource, duration, KEYS_TO_REMOTE, TALK_TO_REMOTE } from '@t
 // Type-only, so the pure panel model never loads what makes a checklist.
 import type { Checklist } from '@tade/workbench/carry'
 import type { Hit } from '../../hits.ts'
-import { type ConnectShown, lookSaid, type MachineAbout } from '../../machine-there.ts'
+import { type ConnectShown, lookSaid, type MachineAbout, type Versus } from '../../machine-there.ts'
 import type { Machine } from '../../machines.ts'
 import type { Look } from '../../skin.ts'
 import { blank, Row } from '../../ui.ts'
@@ -62,6 +62,8 @@ export interface RemoteShown {
   machine: Machine | null
   /** Each project here, as moving it to this machine stands (`wire/moves.ts`). */
   moves?: readonly ProjectMove[]
+  /** Its Tade against this machine's (`versusHere`), or null where they are the same. */
+  versus?: Versus | null
 }
 
 /** One project here, as moving it to one machine stands: what it says, and the one press that is next. */
@@ -147,6 +149,12 @@ export function remoteActions(remotes: readonly RemoteShown[]): RemoteAction[] {
           })
         }
       }
+    }
+    // Behind this machine, or behind what its own check says is out: upgraded
+    // there by its own `tade host upgrade`, in a terminal over the link.
+    const about = remote.machine?.detail.about ?? null
+    if (remote.live && about !== null && (remote.versus?.behind === true || about.newer !== null)) {
+      actions.push({ id: `remote:upgrade:${at}`, label: 'Upgrade Tade there', remote: at })
     }
     for (const one of list?.theirs ?? []) {
       actions.push({
@@ -391,6 +399,7 @@ export function drawRemotes(
       ctx,
       line,
       (text, tone) => say(text, tone, deep, 3),
+      () => buttons([`remote:upgrade:${at}`]),
       // Under its public name: the records that name needs, and the press that looks again.
       () => {
         records(remote, ctx, line, (text, tone, indent = 0, lines = 4) =>
@@ -471,6 +480,8 @@ function connection(
   line: (label: string, text: string, tone?: (text: string) => string) => void,
   /** Wrapped under a line's own column, as much of it as three rows hold. */
   under: (text: string, tone: (text: string) => string) => void,
+  /** What goes under its Tade: the press that upgrades it there. */
+  underTade: () => void,
   /** What goes under its public name. */
   underPublic: () => void,
 ): void {
@@ -494,11 +505,13 @@ function connection(
     return
   }
   const stale = machine.link === 'live' ? '' : ` · as of ${ctx.date(about.at)}`
+  const versus = remote.versus ?? null
   line(
     'Tade',
-    `${about.version}${about.newer ? ` · ${about.newer}` : ''}${stale}`,
-    about.newer ? skin.waiting : (text) => text,
+    `${about.version}${versus ? ` · ${versus.said}` : ''}${about.newer ? ` · ${about.newer}` : ''}${stale}`,
+    about.newer || versus?.behind ? skin.waiting : (text) => text,
   )
+  underTade()
   if (detail.aboutSaid !== null) under(detail.aboutSaid, skin.hint)
   if (about.public !== null) publicLines(about, line, under, skin)
   underPublic()

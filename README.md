@@ -875,7 +875,9 @@ to a socket only you can open — keeps what each server says about itself curre
 step there, dials again on its own after a dropped network and at once when the lid opens, and
 tells each server when you are at the keyboard so its phone notifications wait. `tade remote status`
 says how each link last stood, window open or not; `tade remote remove vps` signs this machine out
-there. A server whose `tade` is not on the PATH a command over SSH gets takes `--tade <its path>`.
+there. When a server's Tade is behind this one's, the strip says so once and Settings › Remotes says
+it on that server's Tade line, with **Upgrade Tade there**, which runs `tade host upgrade` on it in
+a terminal over the link. A server whose `tade` is not on the PATH a command over SSH gets takes `--tade <its path>`.
 
 ```sh
 tade remote add vps --ssh vps   # meet it, pair as an owner, carry your setup; vps is a Host in ~/.ssh/config

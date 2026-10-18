@@ -7,6 +7,7 @@ import { makeScriptedLink, type ScriptedRemote } from '@tade/remotes-scripted'
 import { Memory } from '@tade/workbench/memory'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SharedNotes } from '../../src/wire/notes-shared.ts'
+import { RemoteMachines } from '../../src/wire/remote-machine.ts'
 import { Remotes, type RemotesDeps } from '../../src/wire/remotes.ts'
 
 // The Mac's window linked to two other machines' Tades at once — the proof V6
@@ -25,6 +26,8 @@ interface Rig {
   config: Record<string, RemoteConfig>
   /** Read the config file again, as `Settings.use` hands the window a new one. */
   read: () => Promise<void>
+  /** What asks each machine what it is, where the rig was made with one. */
+  machines: RemoteMachines | null
 }
 
 const made: { fars: FarEnd[]; homes: string[]; remotes: Remotes[] } = {
@@ -56,6 +59,7 @@ function carrying(
   config: () => Config,
   said: string[] = [],
   open = { settings: false },
+  onScreenWith: RemotesDeps['carrying']['onScreenWith'] = async () => {},
 ): Pick<RemotesDeps, 'carrying' | 'settingsOpen' | 'here' | 'go' | 'draw'> {
   return {
     here: 'this Mac',
@@ -65,7 +69,7 @@ function carrying(
       config,
       secrets: () => new Set(),
       from: () => 'mac',
-      onScreenWith: async () => {},
+      onScreenWith,
       said: (saved, error) => {
         said.push(error ?? saved ?? '')
       },
@@ -115,6 +119,10 @@ async function rig(
     open?: { settings: boolean }
     go?: RemotesDeps['go']
     draw?: RemotesDeps['draw']
+    version?: string
+    terminals?: boolean
+    onScreenWith?: RemotesDeps['carrying']['onScreenWith']
+    machines?: boolean
   } = {},
 ): Promise<Rig> {
   const home = await mkdtemp(join(tmpdir(), 'tade-remotes-'))
@@ -144,14 +152,31 @@ async function rig(
     // Every remote here is reached the way `linkOf` says, which is `ssh`: the
     // scripted link stands in under that name and reaches the far ends by
     // the address in each block.
-    links: { ssh: (options) => makeScriptedLink({ ...options, remotes: table }) },
-    ...carrying(() => mac.config, said, opts.open),
+    links: {
+      ssh: (options) =>
+        makeScriptedLink({ ...options, remotes: table, terminals: opts.terminals === true }),
+    },
+    ...carrying(() => mac.config, said, opts.open, opts.onScreenWith),
+    ...(opts.version ? { version: opts.version } : {}),
     ...(opts.go ? { go: opts.go } : {}),
     ...(opts.draw ? { draw: opts.draw } : {}),
   }
   const remotes = new Remotes(deps)
+  // What each machine says it is, asked on the rig's own clock, where a test is about that.
+  let machines: RemoteMachines | null = null
+  if (opts.machines) {
+    remotes.withMachines((one) => {
+      machines = new RemoteMachines({
+        home,
+        reach: (name) => one.reachFor(name),
+        now: () => clock.at,
+        draw: () => {},
+      })
+      return machines
+    })
+  }
   made.remotes.push(remotes)
-  return { remotes, lines, said, configPath, clock, config, read }
+  return { remotes, lines, said, configPath, clock, config, read, machines }
 }
 
 /** Beat until it holds, on the rig's clock moved forward with real time. */
@@ -448,3 +473,99 @@ describe('this machine’s setup, kept in step there', () => {
     expect(one.remotes.inputs()).toEqual({})
   })
 })
+
+describe('a remote whose Tade is behind this one’s', () => {
+  const told = (said: string[]) => said.filter((line) => line.includes('runs Tade'))
+
+  it('is said in the strip once for each pair of versions, and not while it is not behind', async () => {
+    const north = await far(['api'])
+    north.machine = { ...quiet(), version: '0.1.0' }
+    const one = await rig(
+      { vps: await block('north', north) },
+      { version: '0.2.3', machines: true },
+    )
+    await until(one, 'the machine heard', () => told(one.said).length > 0)
+    for (let beat = 0; beat < 5; beat++) one.remotes.beat()
+    expect(told(one.said)).toEqual([
+      'vps runs Tade 0.1.0, behind this Mac’s 0.2.3: Upgrade Tade there in Settings › Remotes, or `tade host upgrade` on it',
+    ])
+    /** What it says of itself now, asked again on the window's next minute. */
+    const says = async (version: string) => {
+      north.machine = { ...quiet(), version }
+      await one.machines?.ask('vps')
+      expect(heard(one)).toBe(version)
+      one.remotes.beat()
+    }
+    // Upgraded there, and still behind: said again, once.
+    await says('0.2.0')
+    one.remotes.beat()
+    expect(told(one.said)).toHaveLength(2)
+    expect(told(one.said)[1]).toContain('runs Tade 0.2.0, behind this Mac’s 0.2.3')
+    // Caught up: nothing more is said, and falling behind again is news again.
+    await says('0.2.3')
+    expect(told(one.said)).toHaveLength(2)
+    await says('0.2.0')
+    expect(told(one.said)).toHaveLength(3)
+  })
+
+  it('is upgraded by its own `tade host upgrade`, in a terminal over the link, on the press', async () => {
+    const north = await far(['api'])
+    north.machine = { ...quiet(), version: '0.1.0' }
+    const ran: { title: string; command: string; args: readonly string[] }[] = []
+    const said: string[] = []
+    const one = await rig(
+      { vps: await block('north', north) },
+      {
+        version: '0.2.3',
+        terminals: true,
+        machines: true,
+        open: { settings: true },
+        onScreenWith: async (work) => {
+          await work({
+            say: (line: string) => said.push(line),
+            run: async (title: string, command: string, args: readonly string[]) => {
+              ran.push({ title, command, args })
+              return 0
+            },
+          } as never)
+        },
+      },
+    )
+    await until(one, 'the press offered', () =>
+      (one.remotes.inputs().remoteActions ?? []).some((a) => a.id === 'remote:upgrade:vps'),
+    )
+    const shown = one.remotes.panel()?.remotes?.[0]
+    expect(shown?.versus).toEqual({ behind: true, said: 'behind this Mac’s 0.2.3' })
+    await one.remotes.action('remote:upgrade:vps')
+    expect(ran).toHaveLength(1)
+    expect(ran[0]?.title).toBe('Tade on vps')
+    expect([ran[0]?.command, ...(ran[0]?.args ?? [])].join(' ')).toContain('host upgrade')
+    expect(said[0]).toContain('upgraded there')
+    expect(one.said.at(-1)).toContain('vps’s upgrade ended')
+  })
+
+  it('says it cannot be upgraded from here where the link opens no terminal there', async () => {
+    const north = await far(['api'])
+    north.machine = { ...quiet(), version: '0.1.0' }
+    const one = await rig({ vps: await block('north', north) }, { version: '0.2.3' })
+    await until(one, 'link up', live(one, 'vps'))
+    await one.remotes.action('remote:upgrade:vps')
+    expect(one.said.at(-1)).toBe('vps cannot be upgraded from here: run `tade host upgrade` there')
+  })
+})
+
+/** The version a remote last said it runs, as the window holds it. */
+const heard = (one: Rig) => one.remotes.machines().remotes[0]?.detail.about?.version ?? null
+
+/** What a far end says of itself with nothing set: a test changes the one field it is about. */
+function quiet() {
+  return {
+    at: new Date().toISOString(),
+    version: '0.0.0',
+    newer: null,
+    public: null,
+    problems: [],
+    schedules: [],
+    documents: [],
+  }
+}

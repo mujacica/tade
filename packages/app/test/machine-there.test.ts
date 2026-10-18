@@ -2,7 +2,7 @@ import { isText } from '@tade/core'
 import { type Held, heldFor } from '@tade/remotes-core'
 import type { MachineAnswer, Snapshot } from '@tade/web'
 import { describe, expect, it } from 'vitest'
-import { aboutOf, detailIn, machineThere } from '../src/machine-there.ts'
+import { aboutOf, detailIn, machineThere, versusHere } from '../src/machine-there.ts'
 
 // Everything else another machine says about itself and its work, folded for
 // the window (`machine-there.ts`): its findings, requests, doors, plans,
@@ -264,5 +264,24 @@ describe('everything else another machine says', () => {
     expect(machine.detail.about).toBeNull()
     expect(machine.detail.aboutSaid?.startsWith('vps runs a Tade')).toBe(true)
     expect(notText(machine.detail)).toEqual([])
+  })
+})
+
+describe('another machine’s Tade against this one’s', () => {
+  it('is behind, ahead or the same, by version, and nothing where either is not one', () => {
+    expect(versusHere('0.2.2', '0.2.3', 'this Mac')).toEqual({
+      behind: true,
+      said: 'behind this Mac’s 0.2.3',
+    })
+    // As numbers: 0.10 is after 0.9, and a release after its candidate.
+    expect(versusHere('0.9.0', '0.10.0', 'this Mac')?.behind).toBe(true)
+    expect(versusHere('1.0.0-rc1', '1.0.0', 'this Mac')?.behind).toBe(true)
+    expect(versusHere('0.3.0', '0.2.3', 'this Mac')).toEqual({
+      behind: false,
+      said: 'ahead of this Mac’s 0.2.3',
+    })
+    expect(versusHere('0.2.3', '0.2.3', 'this Mac')).toBeNull()
+    expect(versusHere('an unknown Tade', '0.2.3', 'this Mac')).toBeNull()
+    expect(versusHere('0.2.3', '', 'this Mac')).toBeNull()
   })
 })

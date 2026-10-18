@@ -13,6 +13,7 @@ import {
   type Waking,
 } from '@tade/core'
 import type { Held, MakeRemoteLink, Remote, RemoteLink } from '@tade/remotes-core'
+import { runningVersion } from '@tade/workbench/programs'
 import {
   type LinkWord,
   lineFor,
@@ -22,8 +23,15 @@ import {
   wordOf,
 } from '@tade/workbench/remotes'
 import type { Frame } from '../frame.ts'
-import { machineThere } from '../machine-there.ts'
-import { goElsewhere, type Machines, type Place, skewOf, unheard } from '../machines.ts'
+import { machineThere, type Versus, versusHere } from '../machine-there.ts'
+import {
+  goElsewhere,
+  type Machine,
+  type Machines,
+  type Place,
+  skewOf,
+  unheard,
+} from '../machines.ts'
 import { notice } from '../model.ts'
 import { type RequestTherePanel, requestTherePanel } from '../panels/intake/there.ts'
 import { projectsMenuItems } from '../panels/menu/state.ts'
@@ -129,6 +137,8 @@ export interface RemotesDeps {
   show?: (panel: RequestTherePanel) => void
   /** Open an address in this machine's browser: GitHub's or Slack's, for connecting it on a remote. */
   openLink?: (url: string) => Promise<void>
+  /** This machine's Tade, which each remote's is held against: `runningVersion` unless a test says. */
+  version?: string
 }
 
 export class Remotes implements Subject {
@@ -146,6 +156,8 @@ export class Remotes implements Subject {
   private waking: Waking = AWAKE
   /** The remotes no registered link reaches, each said once. */
   private readonly unreachable = new Set<string>()
+  /** Each remote whose Tade was said to be behind this one's, and which two versions it was said of. */
+  private readonly behindSaid = new Map<string, string>()
   /** What reading the file last said went wrong, so it is said once and not every beat. */
   private trouble: string | null = null
   private stopped = false
@@ -494,10 +506,39 @@ export class Remotes implements Subject {
           ),
           live: held?.live === true,
           machine: machines.find((machine) => machine.name === name) ?? null,
+          versus: this.versusOf(machines.find((machine) => machine.name === name) ?? null),
           ...(this.moves === null ? {} : { moves: this.moves.projects.projectMoves(name) }),
         }
       }),
     )
+  }
+
+  /** One remote's Tade against this machine's, out of what it last said it is. */
+  private versusOf(machine: Machine | null): Versus | null {
+    const there = machine?.detail.about?.version
+    return there ? versusHere(there, this.deps.version ?? runningVersion(), this.deps.here) : null
+  }
+
+  /**
+   * Say in the strip, once, a remote whose Tade is behind this one's — and
+   * again only once either moves — where it can be upgraded from: Settings ›
+   * Remotes, or `tade host upgrade` there. Nothing while it is not behind.
+   */
+  private sayBehind(): void {
+    for (const machine of this.machines().remotes) {
+      const versus = this.versusOf(machine)
+      const there = machine.detail.about?.version ?? ''
+      const key = `${there}<${this.deps.version ?? runningVersion()}`
+      if (!versus?.behind) {
+        this.behindSaid.delete(machine.name)
+        continue
+      }
+      if (this.behindSaid.get(machine.name) === key) continue
+      this.behindSaid.set(machine.name, key)
+      this.deps.say(
+        `${machine.name} runs Tade ${there}, ${versus.said}: Upgrade Tade there in Settings › Remotes, or \`tade host upgrade\` on it`,
+      )
+    }
   }
 
   /** The link holding one remote, the remote as opened, and whether it is up. */
@@ -529,6 +570,7 @@ export class Remotes implements Subject {
     void this.notes?.beat([...this.holder.keys()])
     void this.mirrors?.beat([...this.holder.keys()])
     this.about?.beat([...this.holder.keys()])
+    this.sayBehind()
     this.agents?.beat()
     this.moves?.beat(this.waking.slept)
     void this.reread()

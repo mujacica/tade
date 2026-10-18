@@ -677,6 +677,15 @@ each state a box can be in.
   says which Tade opened and how many lanes it took up again — the proof the agents carried on —
   and says a service that failed, with the way back, or came back as the wrong version.
 
+- **The Mac says when a remote's Tade is behind its own** (`versusHere`, `machine-there.ts`): the
+  version each remote says it runs (`/api/machine`) against this window's `runningVersion`, as
+  numbers. Settings › Remotes says `behind this Mac’s 0.2.4` (or `ahead of`) on its Tade line, and
+  under it offers **Upgrade Tade there** where the link is up and it is behind this one or its own
+  check says a newer is out; the press runs that machine's `tade host upgrade` in a terminal over
+  the link (`RemoteLink.terminal`), pressed there as at its keyboard, and the link comes back on
+  the restarted Tade by itself. Behind is said in the strip once per pair of versions
+  (`Remotes.sayBehind`), and again only once either moves.
+
 **Not proved**: a real upgrade from npm under systemd — the restart that keeps agents is the unit's
 own, proved in `tade-vps-jammy` ("Proving it"), and the journal's `tade_opened` after it is the new
 part, held by `workbench/test/upgrade.test.ts` against a real workbench.

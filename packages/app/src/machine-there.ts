@@ -2,6 +2,7 @@ import {
   CONNECT_SOURCES,
   CONNECT_TITLES,
   type ConnectSource,
+  compareVersions,
   INBOX_STATES,
   type InboxState,
   printable,
@@ -589,6 +590,30 @@ function producedIn(projection: Record<string, unknown>): ProducedThere[] {
       { task, project: text(row.project, NAME_MOST), name, written: produces?.written === true },
     ]
   })
+}
+
+/** How another machine's Tade stands against this one's: behind it, or ahead. */
+export interface Versus {
+  behind: boolean
+  /** As it is said beside its version: `behind this Mac’s 0.2.4`. */
+  said: string
+}
+
+/**
+ * Another machine's Tade against this one's, by version, or null where they
+ * are the same or either is not a version. A remote behind is the one to
+ * upgrade (`tade host upgrade` there, which Settings › Remotes runs over the
+ * link); one ahead says that this machine is the one behind, which its own
+ * Updates check answers.
+ */
+export function versusHere(there: string, here: string, hereName: string): Versus | null {
+  const version = /^\d+\.\d+(?:\.\d+)*(?:[-+][0-9A-Za-z.-]+)?$/
+  if (!version.test(there) || !version.test(here)) return null
+  const order = compareVersions(there, here)
+  if (order === 0) return null
+  return order < 0
+    ? { behind: true, said: `behind ${hereName}’s ${here}` }
+    : { behind: false, said: `ahead of ${hereName}’s ${here}` }
 }
 
 /** What it said it is, as text, in this machine's clock. */

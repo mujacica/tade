@@ -370,6 +370,36 @@ describe('Settings › Remotes', () => {
     expect(pressed).toMatchObject({ submit: true, choice: 'remote:again:vps' })
   })
 
+  it('says a machine whose Tade is behind this one’s, and offers its upgrade there under that line', () => {
+    const current = vpsMachine()
+    const about = current.detail.about
+    if (about === null) throw new Error('the fixture says what it is')
+    const behind: RemoteShown = {
+      ...VPS,
+      list: null,
+      machine: { ...current, detail: { ...current.detail, about: { ...about, newer: null } } },
+      versus: { behind: true, said: 'behind this Mac’s 0.2.4' },
+    }
+    const rows = at([behind]).split('\n')
+    const line = rows.findIndex((row) => row.includes('Tade 0.2.3 · behind this Mac’s 0.2.4'))
+    expect(line).toBeGreaterThan(0)
+    // Its press on the row under that line, where the line says why.
+    expect(rows[line + 1]).toContain('Upgrade Tade there')
+    expect(remoteActions([behind]).map((one) => one.id)).toContain('remote:upgrade:vps')
+    // Ahead of this one: said, and nothing to press — this machine is the one behind.
+    const ahead = { ...behind, versus: { behind: false, said: 'ahead of this Mac’s 0.2.1' } }
+    expect(at([ahead])).toContain('Tade 0.2.3 · ahead of this Mac’s 0.2.1')
+    expect(remoteActions([ahead]).map((one) => one.id)).not.toContain('remote:upgrade:vps')
+    // Nothing is pressed into a link that is down.
+    const down = { ...behind, live: false }
+    expect(remoteActions([down]).map((one) => one.id)).not.toContain('remote:upgrade:vps')
+  })
+
+  it('offers the upgrade where that machine’s own check says a newer Tade is out', () => {
+    const newer: RemoteShown = { ...VPS, list: null, machine: vpsMachine() }
+    expect(remoteActions([newer]).map((one) => one.id)).toContain('remote:upgrade:vps')
+  })
+
   it('says how each machine stands: heard from, the round trip, its Tade, its public name, its problems and its watches', () => {
     const drawn = at([{ ...VPS, machine: vpsMachine() }])
     expect(drawn).toContain('Heard 4s ago · 38 ms there and back')
