@@ -68,7 +68,9 @@ export const FLOOR: Record<string, number> = {
   // layers (`view/` at 97%) are what the goldens hold, and the wiring is what
   // reaches lanes, files and the machine.
   'packages/app': 88,
-  'packages/harnesses/codex': 83,
+  // 83 -> 87 at 88.7%, as the ratchet asked once agents running as a Unix
+  // user of their own had taken 117 lines out of `src` (9b6725f6).
+  'packages/harnesses/codex': 87,
   // 93.9 when it came in, every line of it driven against the scripted ACP
   // agent: 90 leaves room for a slower runner, the same slack the others keep.
   'packages/harnesses/acp': 90,
@@ -231,7 +233,6 @@ export const UNSEEN: Record<string, string> = {
   'packages/cli/src/commands/schedules.ts': 'a command of the binary',
   'packages/cli/src/commands/serve.ts': 'a command of the binary',
   'packages/cli/src/commands/setup.ts': 'a command of the binary',
-  'packages/cli/src/commands/setup-facts.ts': 'a command of the binary',
   'packages/cli/src/commands/spend.ts': 'a command of the binary',
   'packages/cli/src/commands/stats.ts': 'a command of the binary',
   'packages/cli/src/commands/status.ts': 'a command of the binary',
@@ -295,7 +296,6 @@ export const LOADED: Record<string, number> = {
   'packages/cli/src/attach.ts': 0,
   // Imported by `commands/app.ts` and `commands/serve.ts`: its top level.
   'packages/cli/src/orchestrating.ts': 0,
-  'packages/cli/src/commands/setup-facts.ts': 0,
   'packages/cli/src/commands/accounts.ts': 2,
   'packages/cli/src/commands/app.ts': 1,
   'packages/cli/src/commands/brief.ts': 1,
@@ -312,7 +312,8 @@ export const LOADED: Record<string, number> = {
   'packages/cli/src/commands/notes.ts': 1,
   'packages/cli/src/commands/proposals.ts': 2,
   'packages/cli/src/commands/queue.ts': 3,
-  'packages/cli/src/commands/remote.ts': 1,
+  // Two: registering it runs the arrow that names the connect pages in its help.
+  'packages/cli/src/commands/remote.ts': 2,
   'packages/cli/src/commands/schedules.ts': 1,
   'packages/cli/src/commands/serve.ts': 1,
   'packages/cli/src/commands/setup.ts': 1,
@@ -323,7 +324,8 @@ export const LOADED: Record<string, number> = {
   'packages/cli/src/commands/tasks.ts': 1,
   'packages/cli/src/commands/templates.ts': 2,
   'packages/cli/src/commands/update.ts': 1,
-  'packages/cli/src/commands/web.ts': 1,
+  // Two, as `remote.ts`: the arrow that names the connect pages in its help.
+  'packages/cli/src/commands/web.ts': 2,
 }
 
 /**
