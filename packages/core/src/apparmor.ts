@@ -1,4 +1,5 @@
 import type { AgentCommand } from './agent-user.ts'
+import type { HowToInstall } from './programs.ts'
 
 // Letting bubblewrap make the namespaces a sandbox needs, where AppArmor keeps
 // it from them.
@@ -32,6 +33,9 @@ export const RELOAD_APPARMOR = 'sudo systemctl reload apparmor'
 /** Where bwrap is on Ubuntu, and so where the page's profile attaches. */
 export const BWRAP = '/usr/bin/bwrap'
 
+/** Bubblewrap as Ubuntu packages it, which puts bwrap at `BWRAP`. */
+export const BUBBLEWRAP: HowToInstall = { apt: 'bubblewrap' }
+
 /** The profile's lines, for the bwrap at `bwrap`. */
 export function bwrapProfile(bwrap: string = BWRAP): string[] {
   return [
@@ -55,6 +59,19 @@ export interface AppArmorSeen {
   bwrap: string | null
   /** The harnesses in use whose sandbox is bubblewrap here. */
   harnesses: readonly string[]
+}
+
+/**
+ * Whether bubblewrap has to be installed before a profile can help: the kernel
+ * refuses the namespaces, a sandbox in use is bubblewrap, and no bwrap is on
+ * PATH. Claude Code's sandbox has none of its own. Codex bundles one, inside
+ * its own package, and the kernel refuses that too (`loopback: Failed
+ * RTM_NEWADDR`) — a profile there would be a path that moves on every update,
+ * in a folder that need not be root's — and runs the system's once there is
+ * one.
+ */
+export function bubblewrapWanted(seen: AppArmorSeen): boolean {
+  return seen.restricted && seen.harnesses.length > 0 && seen.bwrap === null
 }
 
 /** A line as `sh` reads it back: single-quoted, since a profile is all brackets and braces. */

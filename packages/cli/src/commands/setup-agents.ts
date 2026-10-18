@@ -9,11 +9,15 @@ import {
   agentUsers,
   agentUserTrouble,
   appArmorCommands,
+  BUBBLEWRAP,
   BWRAP_PROFILE,
+  bubblewrapWanted,
   bwrapProfile,
   type Config,
   defaultConfigPath,
   groupFromLogin,
+  type InstallersHere,
+  installWith,
   type LaneProof,
   loadConfig,
   runProgram,
@@ -28,10 +32,12 @@ import {
   sandboxProofs,
 } from '@tade/workbench/agent-user'
 import { lookAtAppArmor } from '@tade/workbench/apparmor'
+import { installersHere } from '@tade/workbench/installers'
 import { serviceGroups } from '@tade/workbench/machine'
 import { proveALane } from '@tade/workbench/prove'
 import { writeFromShell } from '../config-write.ts'
 import { setUpReach } from './setup-agent-reach.ts'
+import { offerInstall } from './setup-machine.ts'
 
 // Setting up agents as a user of their own (`agents.user`, `agent-user.ts`).
 //
@@ -124,18 +130,34 @@ export interface AgentsLook {
   service?: (users: readonly string[]) => Promise<ServiceGroup[]>
   /** Signing each user in and giving it a key (`setUpReach`), which a test of something else stands in. */
   reach?: typeof setUpReach
+  /** What this machine installs with (`installersHere`), and AppArmor looked at again after an install. */
+  installers?: InstallersHere
+  apparmor?: typeof lookAtAppArmor
 }
 
 /**
  * Give bwrap the AppArmor profile Claude Code's sandbox page gives, on a
  * press, where the kernel refuses it the namespaces its sandbox needs
- * (`core/src/apparmor.ts`): what is written and where, shown whole, then the
- * two commands. Answers whether both ran.
+ * (`core/src/apparmor.ts`): bubblewrap first where it is not installed, since
+ * a profile attaches to an installed bwrap, then what is written and where,
+ * shown whole, and the two commands. Answers whether anything ran that the
+ * sandboxes should be tried again for.
  */
-async function offerProfile(ui: Ui, here: AgentsHere): Promise<boolean> {
-  const seen = here.apparmor
-  const commands = seen ? appArmorCommands(seen) : []
-  if (!seen?.bwrap || commands.length === 0) return false
+async function offerProfile(ui: Ui, here: AgentsHere, look: AgentsLook): Promise<boolean> {
+  let seen = here.apparmor
+  if (!seen) return false
+  let installed = false
+  if (bubblewrapWanted(seen)) {
+    ui.say(
+      `This kernel keeps bwrap, which ${seen.harnesses.join(' and ')} sandbox commands in here, from the namespaces it needs unless it has an AppArmor profile, and bubblewrap is not installed — so there is no bwrap for a profile to attach to, and every command those agents run is refused.`,
+    )
+    const how = installWith(BUBBLEWRAP, look.installers ?? installersHere())
+    if (!(await offerInstall(ui, 'bubblewrap', how))) return false
+    seen = await (look.apparmor ?? lookAtAppArmor)(seen.harnesses)
+    installed = true
+  }
+  const commands = appArmorCommands(seen)
+  if (!seen.bwrap || commands.length === 0) return installed
   ui.say(
     `This kernel keeps bwrap, which ${seen.harnesses.join(' and ')} sandbox commands in here, from the namespaces it needs, so every command those agents run is refused.`,
   )
@@ -214,7 +236,7 @@ export async function setUpAgents(
       }
     }
   }
-  const profiled = await offerProfile(ui, here)
+  const profiled = await offerProfile(ui, here, look)
   if (writes) {
     await writeFromShell(defaultConfigPath(), [{ key: 'agents.user', value: writes }], (said) =>
       ui.say(`  ${said}`),
