@@ -1,6 +1,14 @@
 # Tade — **T**erminal **A**gentic **D**evelopment **E**nvironment
 
-### Run as many coding agents as you can land.
+A control room in your terminal for running coding agents and landing what they make.
+
+```sh
+curl -fsSL https://tade.sh/install.sh | sh
+```
+
+![Tade: a project with nothing running, a request typed to the orchestrator, the orchestrator calling its tools, an agent at work asking for approval, and then what its work came to — its own commits, the review it is out for and the project's checks run here](https://raw.githubusercontent.com/mujacica/tade/main/images/tade.svg)
+
+## Why Tade
 
 Plenty of things run agents in parallel. The work still has to be read, checked and merged before it
 counts, and that is where the day goes: you are the queue. Tade is the place agent work becomes
@@ -23,6 +31,8 @@ the forge and what the agents spent, and none of it is graded by the agent that 
 - **[Mistakes turned into checks.](#a-mistake-made-twice-becomes-a-check)** The same real finding
   twice in one project becomes a proposed hook line, lint rule or test, rather than one more
   paragraph an agent can read past.
+- **[On your Mac, on a server of yours, or both.](#installing)** A VPS keeps working with the
+  laptop shut, and the Mac's window shows and drives every machine's projects.
 
 The number to read first is **what a landed task cost**, not how many agents are running:
 Evaluations divides each way of working's spend by the work of it that landed — merged, or committed
@@ -32,17 +42,8 @@ How long finished work then waits to land is the next figure, and is not built y
 
 Under all of it: spend that never adds a subscription's turns to a dollar total, and nothing
 remembered — what each agent *is* comes back from git and the processes every time you look, so
-nothing drifts and closing Tade leaves nothing behind. One machine, one terminal. No server, no browser, no cloud, and agents are not
-sandboxed — see [Agents run as you](#agents-run-as-you).
-
-```sh
-npm install -g tade-sh   # the package is `tade-sh`; the command it installs is `tade`
-tade                     # the window; the first time, a short setup that sets you up
-```
-
-Needs Node ≥ 22.19 and git; [Installing](#installing) has the rest.
-
-![Tade: a project with nothing running, a request typed to the orchestrator, the orchestrator calling its tools, an agent at work asking for approval, and then what its work came to — its own commits, the review it is out for and the project's checks run here](https://raw.githubusercontent.com/mujacica/tade/main/images/tade.svg)
+nothing drifts and closing Tade leaves nothing behind. Agents are not sandboxed — see
+[Agents run as you](#agents-run-as-you).
 
 ## Agents run as you
 
@@ -450,7 +451,7 @@ are.
 ![Projects along the top, and an agent in another project asking for approval](https://raw.githubusercontent.com/mujacica/tade/main/images/projects.svg)
 
 **Projects on other machines are tabs too, under the machine they are on**: this Mac's first, then
-each server linked with `tade remote add` ([below](#installing)) by its name, every tab carrying the
+each server linked with `tade remote add` ([below](#from-your-mac-to-your-vps)) by its name, every tab carrying the
 marks that machine gave its agents — so the `tade` here and the `tade` on the VPS are never two tabs
 nobody can tell apart. A machine's name opens its projects. Standing in one, the side lists its
 agents with how long ago each moved and its queued work under them, and the pane says where it is
@@ -547,7 +548,7 @@ else, letters and all; `Answer search` off on Jev's own page stops the question 
 
 Notes are the one thing Tade is told rather than derives, so they are kept word for word, in a file
 you own. Say *"remember the staging key rotates on the 1st"*, or press `+`. Agents are given the
-notes that concern their work. On a Mac linked to a server ([below](#installing)) the notes are
+notes that concern their work. On a Mac linked to a server ([below](#from-your-mac-to-your-vps)) the notes are
 shared both ways, so both orchestrators and every agent hear what you said to either, and a note's
 own page says which machine it was taken on.
 
@@ -570,8 +571,8 @@ every project as a card with the shape of its work. Tade is one press away from 
 middle of the tab bar on a phone raises the conversation as a sheet, and the search in the header —
 `⌘K` at a keyboard — is one bar that sends what you type to Tade, or jumps to any screen, project or
 piece of work by name. The agents and the queue are the tab beside it, a drawer split by project. Letting a device in is a keypress here, so a
-typed address reaches the pairing page with nothing to present. The listener dies with the window:
-a page opened with Tade closed says it cannot reach the machine — and, where the phone kept its
+typed address reaches the pairing page with nothing to present. The listener dies with the window —
+on a server, `tade serve` is the window and never closes — and a page opened with Tade closed says it cannot reach the machine — and, where the phone kept its
 last view, what it last knew — never an empty control room.
 
 ![Tade's away view on a laptop and then a phone: the overview with what needs you and its presses, the agent waiting on npm i stripe@15 with Allow and Deny and its screen, two plans with their steps, the morning's spend against each plan's limits, and three phones](https://raw.githubusercontent.com/mujacica/tade/main/images/away-page.svg)
@@ -595,20 +596,17 @@ page types into an agent; what you say goes through Tade.
 A device asking in is a card at the top of the panel — what it calls itself, where it came from in
 words, that a yes grants full access, a bar for the minute it has, and Approve or Refuse, the same
 `a` and `d` as approving a tool call. What each device may read and do is granted here, per device,
-a box each, ticked where it was granted, and pointing at a box says in one line what it grants. The
-whole of it: a request from a paired device is never your own words. Granted acting, it can answer
-what an agent is waiting on — shown the whole command it would allow, with this machine's paths
-shortened (where the task works as `./`, your home as `~`, anything else to its last name) and the
-keys Tade holds taken out — tell one something, hold or release queued work, add a note or a line
-to what a task is told, mark work finished and approve a request a grant here already allowed — and,
-granted each, stop or reopen an agent and close or reopen a project. It can never change a setting
-beyond its own switch, read a credential, run a command, start an agent that never ran, push, merge
-or overrule a check, and it acts only from this machine or an `https` name you trusted. A message
-from one reaches the same conversation you type into, cannot authorise a setting change however it
-is phrased, and is answered with Tade's tools narrowed in code to that device's own view. Publishing
-a workflow, turning a source on and granting anything stay acts at this machine: **no route for any
-of them exists**, and every act a device does take is in the journal under its own id. The two
-pictures below are the window's end of it.
+a box each, ticked where it was granted, and pointing at a box says in one line what it grants.
+
+**Your own phone is you.** Paired with full access — every box ticked, which is what pairing gives
+unless you untick one — it does whatever you can at the machine Tade runs on: what you type there
+is your own words, it changes any setting, a key included (typed, never shown), and the orchestrator
+answers it with the reach your keyboard has. Pulling the plug is revoking it — **Sign out** beside it in the
+device list, or `tade web revoke` — and that takes it back at its next press. A device with anything
+unticked keeps exactly what is ticked, its messages are never your words, and Tade's tools are
+narrowed in code to its view. Every device acts only from this machine or an `https` name you
+trusted, and every act one takes is in the journal under its own id. The two pictures below are the
+window's end of it.
 
 <table>
 <tr>
@@ -630,8 +628,8 @@ it — and each is still nothing to a device until you grant that device here:
 | **Who can reach it: lan** | this machine | plain HTTP on your wifi, and read-only whatever else is on — `tailscale serve localhost:7654` gives a phone HTTPS and leaves Tade listening here |
 | **Public name** | none | the internet, through Caddy on a server of yours: a second listener on a socket only Caddy can open, where nothing is ever this machine, and each phone's own pairing limit — `tade host domain` and `tade host caddy` say the rest |
 | **Passkey before acting** | 12 hours | from the public name, a device acts only within this many hours of using its passkey — a face, a fingerprint, a passcode — made on it in the minutes after it pairs, so a session copied off a phone reads and cannot act. Reading never asks; nought asks nothing |
-| **Act** | on | eight bounded things on work you already set up — plus stopping or reopening an agent and closing or reopening a project, each only on a device you granted it — and only from this machine or an `https` name you trusted |
-| **Talk to Tade** | on | free text into the same conversation, answered with its tools narrowed to that device's own view |
+| **Act** | on | your own phone, with full access, does what you can at the machine; any other device, only what is ticked for it — and either only from this machine or an `https` name you trusted |
+| **Talk to Tade** | on | free text into the same conversation: from your own phone, your own words; from any other device, answered with its tools narrowed to its own view |
 | **Save draft workflows** | on | one field at a time, into a file no run reads until you publish it here |
 | **Change settings** | on | only what an ordinary request is enough for — the sidebar's width, the strip's height, the editor, what a project pushes — two presses each, under the device's id. Your own device, with full access, changes any setting as you would here, a key included; on any other, anything that needs your own words is changed here. A key is said as set or not set, never shown |
 | **Install · keep · be told** | on | the page and two icons; counts and a moment; a notification with a count, and the work's name while **Get work names in them** is on and that device may read names |
@@ -643,8 +641,8 @@ prints the code in your terminal instead, and running it was the yes, so nobody 
 code works once, within five minutes, on the name its link carries, and a new one takes the last
 back. `tade web pair --owner` mints an **owner device** for the Tade on the machine you came from: a
 session bound to the server's own address, so it works only through SSH and never over its public
-name, whose messages to Tade reach what you would reach at that server's keyboard and are still
-never your own words.
+name, whose messages to Tade reach what you would reach at that server's keyboard — and what you type
+on that server's tab is your own words there, while what the Mac's orchestrator passes on never is.
 
 ```sh
 tade web               # what is on, and where
@@ -777,110 +775,188 @@ Not built yet, and named here rather than anywhere above, at the part of Tade it
 
 ## Installing
 
-Four ways in, all the same npm package. Whichever you use, the command is `tade`.
+One npm package, `tade-sh`; the command is `tade`. macOS and Linux (**Windows is not supported
+yet**), Node ≥ 22.19 and git. Every machine runs its own Tade — its own home, journal and agents —
+and the Mac's window shows and drives the others over SSH. Agents run as the user Tade runs as, on
+every machine.
+
+| Where | What you run | What you get |
+|---|---|---|
+| [Your Mac](#on-your-mac) | the installer, then `tade` | the window; agents work while it is open, and with tmux after it closes |
+| [A VPS](#on-a-vps) | the installer, `tade setup` and `tade host service` over SSH | agents that keep working with the laptop shut; a phone and webhooks through a domain of yours |
+| [Both](#from-your-mac-to-your-vps) | `tade remote add vps --ssh vps` on the Mac | every machine's projects as tabs in one window |
+
+### On your Mac
+
+```sh
+curl -fsSL https://tade.sh/install.sh | sh
+tade                                          # the window; the first time, a short setup
+```
+
+The one-liner installs `tade-sh` from npm with whichever of npm, pnpm or bun you have — it downloads
+no binary and builds nothing, prints the exact command before it runs it and never asks a question.
+Read it first at [tade.sh/install.sh](https://tade.sh/install.sh) or
+[`scripts/install.sh`](scripts/install.sh). Or by hand:
 
 ```sh
 npm install -g tade-sh
 pnpm add -g tade-sh  && pnpm approve-builds -g
 bun add -g tade-sh   && bun pm -g trust --all
-curl -fsSL https://tade.sh/install.sh | sh     # picks whichever of the three you have
-tade
 ```
 
-The one-liner installs `tade-sh` from npm like the others — it downloads no binary and builds
-nothing. It prints the exact command before it runs it, never asks a question, and touches nothing
-but what your package manager touches; it is a short file you can read first, at
-[tade.sh/install.sh](https://tade.sh/install.sh) or in this repository at
-[`scripts/install.sh`](scripts/install.sh). **Windows is not supported yet**, which is why there is
-no PowerShell line: `tade` would install and then not run.
+**The second command on the pnpm and bun lines is the one people miss**: both hold a dependency's
+install scripts until you say so, and so does npm from 11.19, which is why the one-liner passes
+`--allow-scripts`. node-pty (every terminal Tade opens) and better-sqlite3 are native, and an
+unbuilt node-pty is a Tade that cannot open a terminal; setup says so and how to fix it.
 
-**The second command on the pnpm and bun lines is the one people miss.** Both hold a dependency's
-install scripts until you say so, and so does npm from 11.19 — which is why the one-liner passes
-`--allow-scripts` for you. Two of the things Tade is built on are native (node-pty, which is every
-terminal it opens, and better-sqlite3), and an unbuilt node-pty is a Tade that cannot open a
-terminal. Setup recognises that and tells you how to fix it, rather than leaving it to be found at
-the first lane.
+The first `tade` is setup: it looks at the machine, offers to install what is missing — the exact
+command on screen first, run in a terminal you are watching — and ends by opening a lane, so "all
+set" means a terminal that opened. `tade setup --check` does it again whenever you like. Optional:
+tmux 3.2 or newer (agents that outlive the window), whisper.cpp and ffmpeg (speech), `gh` (pull
+request state).
 
-Needs Node ≥ 22.19 and git. The first `tade` is a short setup: it looks at the machine, offers to
-install what is missing — the exact command on screen first, run in a terminal you are watching —
-and ends by opening a lane, running a command in it and closing it, so that "all set" means a
-terminal that actually opened. `tade setup --check` does the same whenever you want to be sure.
+### On a VPS
 
-What it is looking for, in case you would rather do it yourself. The two native dependencies arrive
-prebuilt on macOS and are compiled on Linux, which needs python3 and a C++ toolchain
-(`build-essential`, or `gcc-c++ make python3`). Optional: tmux 3.2 or newer (agents that outlive
-the window), whisper.cpp and ffmpeg (speech), `gh` (pull request state); setup offers to install
-each where you want it, with this machine's own line — and on Linux, where no stable distribution
-packages whisper.cpp's program, the steps that build it.
-
-**On a Linux server**, run the same `tade setup` over SSH. It knows the box has no screen: each
-missing program comes with its exact `apt` or `dnf` line, each harness signs in the way a server can —
-Claude Code's link and pasted code, Codex's device code, pi's pasted code — with how many days a
-Claude Code login has left, and it checks `loginctl enable-linger`, the unit and whether the service
-said it is ready. Then `tade host service` prints the systemd user unit that keeps Tade running
-there, writes it when you say so and offers to start it. What it runs is `tade serve`, the window
-with no screen — the queue, schedules, watches and intake on its beat, the orchestrator told what
-happens and deciding, the away view and its notifications — which tells systemd it is ready once it
-holds the home and listens, and writes what it says and does to its log, `journalctl --user -u
-tade.service -f`. From your Mac, `tade remote add` links the box to your window, which shows all of
-it. Set `workspace.driver: tmux` there: its agents then run in a systemd scope of their own, so
-stopping, restarting or upgrading Tade never ends one.
-
-**Backups** are restic's, encrypted. `tade host backup --init sftp:u1@u1.your-storagebox.de:tade`
-names where — a folder, SFTP, S3, a REST server — makes the password and prints it once, to keep
-somewhere off the box; `tade host backup` then takes one: Tade's home and each harness's
-conversations, never the journal's index or the worktrees, and says which checkouts and worktrees
-hold work pushed nowhere. `tade host backup --timer` writes the hourly systemd timer. `tade host
-restore` puts the latest back on a new box given only the repository and its password, writes over
-nothing, and prints the `git clone` for each checkout it does not find there. `tade host upgrade` moves Tade
-forward on the box in place: the install's own command on a press, a backup first where one is set
-up, the new Tade asked to start before anything is restarted onto it, and then the service restarted
-— only where its agents outlive it — and said back as the version and lanes it came up with.
-
-For a phone, give the server a name of your own and put Caddy in front. `tade host domain
-tade.example.com` looks at the records the name needs from the box — A, AAAA only where IPv6 answers
-on 443, DNSSEC before Caddy orders a certificate, CAA after it — says of each whether it is missing,
-wrong or not yet visible with the exact record to add, and writes the name as the public name and a
-trusted hostname when you say so; Settings › Away view shows the same look under **Public name**.
-`tade.sh` and the names under it are refused: it serves the installer. `tade host caddy` prints the
-site block and the one root line that makes the socket's directory, and writes nothing. The block
-needs Caddy 2.7 or newer, which Debian's and Ubuntu's own package is not: install Caddy from its own
-apt repository (caddyserver.com/docs/install). `tade host caddy --check` looks from
-the box at the directory, the socket, the certificate the name answers with — loudly when renewing
-has stopped — and whether this Tade is behind, which the away view also says loudly while it is
-public. A phone paired through the name makes a passkey right after it pairs — inside the app it
-lives in, if you added the page to the home screen — and uses it before acting from there, every
-twelve hours by default; one that missed the moment reads until it pairs again. A webhook to
-`https://<name>/hooks/github`, `/hooks/slack` or `/hooks/linear` rings the intake watch once its
-source's secret is set — the last of each source's steps, which `tade intake status` prints until
-its grant is finished.
-
-**From your Mac**, `tade remote add vps --ssh vps` makes this machine an owner of the server's Tade
-and sets it up the way this one is. A server it has never connected to is shown by its host key's
-fingerprint first and trusted only when you say so; one whose key changed is said plainly and never
-trusted. It runs `tade web pair --owner` there over SSH and keeps the session in `config.yaml`, then
-carries your preferences, the personas you wrote and the templates you published through that
-server's own settings — a value changed on the server is left as it is and said, never written over.
-Keys, MCP servers, the telemetry DSN and intake's grants wait on a press, with what sending a key
-means said first; each harness this Mac uses is signed in there through its own sign-in, in your
-terminal over the link, so a subscription token never passes through Tade. It ends with a checklist
-of what was carried, what waits on a press and what still needs you, and Settings › Remotes shows
-the same. Projects, drivers, where agents work and the away view stay each machine's own.
-
-Add as many as you have. While the window is open it holds one SSH connection to each — a forward
-to a socket only you can open — keeps what each server says about itself current and your setup in
-step there, dials again on its own after a dropped network and at once when the lid opens, and
-tells each server when you are at the keyboard so its phone notifications wait. `tade remote status`
-says how each link last stood, window open or not; `tade remote remove vps` signs this machine out
-there. When a server's Tade is behind this one's, the strip says so once and Settings › Remotes says
-it on that server's Tade line, with **Upgrade Tade there**, which runs `tade host upgrade` on it in
-a terminal over the link. A server whose `tade` is not on the PATH a command over SSH gets takes `--tade <its path>`.
+Any Debian or Ubuntu box you can reach over SSH, as an ordinary user with sudo.
 
 ```sh
-tade remote add vps --ssh vps   # meet it, pair as an owner, carry your setup; vps is a Host in ~/.ssh/config
+sudo apt-get install -y git tmux build-essential python3   # plus Node 22, from nodejs.org or your distribution
+curl -fsSL https://tade.sh/install.sh | sh                 # into ~/.local where npm's global folder is root's
+tade setup                                                 # over SSH: it knows the box has no screen
+tade host service                                          # the systemd user unit for `tade serve`; starts it
+```
+
+**Setup** gives each missing program its exact `apt` or `dnf` line and signs each harness in the
+way a server can — Claude Code's link and pasted code (with the days its login has left), Codex's
+device code, pi's pasted code, or an OpenAI-shaped endpoint in pi's `models.json`. Pick tmux
+(`workspace.driver: tmux`), so restarting or upgrading Tade never ends an agent, and say yes to
+`loginctl enable-linger` and the unit. **The service** runs `tade serve`, the window with no screen
+— queue, schedules, watches, intake, the orchestrator and the away view — and logs to `journalctl
+--user -u tade.service -f`.
+
+That is a working remote. A phone and webhooks also need a name of yours on the internet:
+
+```sh
+tade host domain tade.example.com   # the A, AAAA, DNSSEC and CAA records it needs, each checked; sets the name on a press
+tade host caddy                     # the Caddy site block, and the one root line that makes its socket's directory
+tade web on                         # serve the away view; behind Caddy, on a socket only Caddy can open
+tade host caddy --check             # the directory, the socket, the certificate and Caddy's version, from the box
+```
+
+`tade host domain` says of each record whether it is missing, wrong or not yet visible, with the
+exact record to add. `tade.sh` and the names under it are refused: it serves the installer. The
+site block needs **Caddy 2.7 or newer**, which Debian's and Ubuntu's own package is not — install it
+from [Caddy's apt repository](https://caddyserver.com/docs/install).
+
+### From your Mac to your VPS
+
+```sh
+tade remote add vps --ssh vps   # vps is a Host in ~/.ssh/config, user@host or ssh://user@host:port
 tade remote carry vps --keys    # send the keys too, after saying what that means
 tade remote status              # up, down or signed out, and since when
 ```
+
+`tade remote add` shows a box it has never met by its host key's fingerprint and trusts it only when
+you say so (`--accept-key` for a script); a changed key is said plainly and never trusted. It pairs
+this Mac as an **owner** of that Tade over SSH (`tade web pair --owner` there), carries your
+preferences, personas and published templates, signs in each harness this Mac uses through its own
+sign-in in your terminal — a subscription token never passes through Tade — and ends with a
+checklist of what was carried and what still needs you; Settings › Remotes shows the same. Keys,
+MCP servers, the telemetry DSN and intake's grants wait on a press. A box whose `tade` is not on the
+PATH an SSH command gets takes `--tade ~/.local/bin/tade`.
+
+**Several remotes**: run `tade remote add` once for each. `tade remote list` names them, `tade remote
+remove vps` signs this Mac out of one. While the window is open it holds one SSH connection to each
+and dials again by itself after a dropped network, and at once when the lid opens.
+
+**From the Mac you see all of it** ([Many projects](#many-projects-many-tasks) has the pictures):
+
+- each machine's projects as tabs under its name, with its agents' marks — `○` and `as of 13:52`
+  while its link is down;
+- an agent there opened here: its screen, steer, park, stop, allow or deny, and Enter types into it
+  over SSH, or mosh where both machines have it;
+- that machine's orchestrator on a tab beside the Mac's;
+- its checks, schedules, documents and findings on its project tabs, and its spend as a row of its
+  own;
+- notes shared both ways, and the collision forecast across both machines' branches of one
+  repository;
+- work handed over: **Hand \<task\> to vps** on that machine's menu for a running task, **Start on
+  vps** on a queued card, and a whole project moved in Settings › Remotes.
+
+**With the laptop shut**, the VPS carries on: its agents, queue, schedules, watches and intake run
+under systemd with nobody connected — and each project's watches run on one machine, the VPS by
+default (Settings › Projects). Hand anything still running on the Mac to the VPS before the lid
+closes. When it opens, each machine's tab says what happened since you were last at the keyboard —
+what waits on you, what finished, what is held, what it cost — and the notes taken in between are on
+both. While you are at the keyboard, the phone's notifications wait.
+
+### Connecting GitHub, Slack and Linear
+
+Each is a guided page on the machine that watches, `/connect`:
+
+```sh
+tade remote connect vps   # from the Mac: the VPS's own pages, in this Mac's browser, until ctrl+c
+tade web connect          # on the box: where they answer, to open there or through ssh -L
+```
+
+Each makes an app of your own — a read-only GitHub App, an internal Slack app, a private Linear app
+that may only read — from a manifest, says what it asks for before you press, and ticks off
+installing it and its first delivery. With a public name, a signed webhook to
+`https://<name>/hooks/github`, `/hooks/slack` or `/hooks/linear` makes the watch look at once, and
+its poll slows to hourly. `tade intake status` says what each source still needs. Connecting grants
+nobody anything; whose requests count is still yours to write
+([A software factory](#a-software-factory-work-that-arrives-on-its-own)).
+
+### Pairing a phone
+
+```sh
+tade web pair             # on the box, over SSH: a code to scan, good once, for five minutes
+tade web devices          # who is paired, and what each may do
+tade web revoke <device>  # pull the plug on one; --all for every device and unused code
+```
+
+Scan the code and the page opens on your public name, pairs, and asks the phone for a **passkey** —
+a face, a fingerprint, a passcode. From then on it acts from the public name only within 12 hours of
+using it (Settings › Away view › *Passkey before acting*); a session copied off the phone reads and
+cannot act. Your own phone, paired with full access — what pairing gives unless you untick
+something — **is you**: whatever you can do at that machine, it can. If it is lost, revoke it; that
+needs no network. On a Mac, a phone pairs from the code in the window
+([A remote control](#a-remote-control-while-the-window-is-open)).
+
+### Backups and upgrades
+
+```sh
+tade host backup --init sftp:u1@u1.your-storagebox.de:tade   # where (a folder, SFTP, S3, REST); prints the password once
+tade host backup                                             # one now
+tade host backup --timer                                     # every hour, as a systemd timer
+tade host restore --from sftp:u1@u1.your-storagebox.de:tade  # on a new box: the latest back, writing over nothing
+tade host upgrade                                            # Tade forward in place, a backup first, no agent ended
+```
+
+Backups are restic's, encrypted: Tade's home and each harness's conversations, never the journal's
+index or the worktrees, and each one says which checkouts hold work pushed nowhere. A restore prints
+the `git clone` for each checkout it does not find. `tade host upgrade` asks the new Tade to start
+before the service restarts onto it, and says the version and lanes it came up with. From the Mac,
+when a box's Tade is behind, Settings › Remotes has **Upgrade Tade there**. On the Mac itself it is
+the `updates` chip ([Up to date](#up-to-date-and-honest-about-it)).
+
+### What the rehearsal proved
+
+The whole story above was rehearsed from nothing: two fresh Debian 12 boxes as the VPSes and an
+isolated Mac, each installed from the tarball a release would publish, with pi on a local stand-in
+model so agents could work with no key. Every step worked — install, setup over SSH, the service, a
+stand-in domain, Caddy, pairing through Caddy, `tade remote add` for both boxes, agents started from
+the Mac and seen finishing, "since you were here" and a box's notes after the window had been
+closed, a running task handed to a box, a box's checks, schedules and documents read from the Mac,
+and a signed GitHub webhook through Caddy waking a watch. The twenty rough edges it hit were fixed,
+one commit each.
+
+It is held by `packages/app/test/wire/rehearsal.test.ts`, which runs in CI — two real `tade serve`
+through a real sshd, paired by the real `tade remote add` — and by `scripts/rehearse-remote.sh up`,
+`mac`, `hook` and `down`, which needs docker. Not yet proved on a real VPS with a real domain: a
+Let's Encrypt certificate and its CAA record, real DNS records and DNSSEC, real GitHub, Slack and
+Linear webhooks, a real phone's passkey and push notifications, mosh across a real network, real
+harness sign-ins and a real model, and `tade host upgrade` from npm under systemd.
 
 macOS Terminal puts its own parts around the title Tade sets — the folder, the program and its
 arguments (`node …/pnpm.cjs run tade` under `pnpm tade`), the size — and for a title that is only
