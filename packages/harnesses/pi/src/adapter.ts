@@ -31,7 +31,6 @@ import {
   SignalChannel,
   type SignIn,
   type SignInHere,
-  type SignInProof,
   signInHere,
   WORKER_ENV,
   type WorkerAdapter,
@@ -62,8 +61,6 @@ import { type Spent, spentBy, spentByMessage } from './usage.ts'
 export const EXTENSION_PATH = fileURLToPath(new URL('./tade.ts', import.meta.url))
 /** Rewrites requests a provider in between would refuse; loaded into every pi Tade starts. */
 export const COMPAT_PATH = fileURLToPath(new URL('./compat.ts', import.meta.url))
-/** Says by its exit code whether pi is signed in, as whoever runs it (`signInProof`). */
-export const SIGNED_IN_PATH = fileURLToPath(new URL('./signed-in-here.ts', import.meta.url))
 
 /**
  * The session a task's agent talks in, for the life of the task.
@@ -215,14 +212,6 @@ export interface PiAdapterOptions {
   /** Where pi keeps its sessions, when not its own default: for tests. */
   sessionsRoot?: string
   onWarning?: (message: string) => void
-  /**
-   * The Unix user its agents run as, where not Tade's own (`agents.user`):
-   * its sessions and sign-ins are then read from that user's `home`, where
-   * the pi it runs as keeps them, and its socket is its group's too.
-   */
-  user?: string
-  /** That user's home. */
-  home?: string
 }
 
 interface Run {
@@ -292,12 +281,9 @@ export class PiAdapter implements WorkerAdapter {
     // at every launch and kept in no session, so nothing it was told is pinned.
     compact: 'idle',
     pins: false,
-    sandbox: false,
     why: {
       compact:
         'compacts only between turns, and an agent in a lane only when /compact is typed into it',
-      sandbox:
-        'has no sandbox of its own: where its agents run as a user of their own, that user is all that holds what their commands may reach',
       accounts: 'keeps one set of sign-ins, in ~/.pi: you sign in to its providers inside pi',
       models:
         'runs the models of the providers you are signed in to, and has written no catalog here yet: open pi once and sign in with /login',
@@ -329,21 +315,10 @@ export class PiAdapter implements WorkerAdapter {
   private readonly opts: Required<
     Omit<
       PiAdapterOptions,
-      | 'onWarning'
-      | 'bin'
-      | 'args'
-      | 'env'
-      | 'approvals'
-      | 'socketDir'
-      | 'sessionsRoot'
-      | 'user'
-      | 'home'
+      'onWarning' | 'bin' | 'args' | 'env' | 'approvals' | 'socketDir' | 'sessionsRoot'
     >
   > & {
     sessionsRoot: string | undefined
-    user: string | null
-    /** Whose pi records and sign-ins are read: the agent's user's, where it has one. */
-    home: string
     socketDir: string
     approvals: 'bypass' | 'policy'
     bin: string
@@ -361,13 +336,8 @@ export class PiAdapter implements WorkerAdapter {
       bin: opts.bin ?? piBinary(),
       args: opts.args ?? [],
       env: opts.env ?? process.env,
-      // pi run as another user keeps its sessions in that user's home, and
-      // what moves them there is that user's environment, not this one's.
-      sessionsRoot:
-        opts.sessionsRoot ?? (opts.user ? sessionsRoot({}, opts.home ?? homedir()) : undefined),
+      sessionsRoot: opts.sessionsRoot,
       onWarning: opts.onWarning ?? (() => {}),
-      user: opts.user ?? null,
-      home: opts.user ? (opts.home ?? homedir()) : homedir(),
     }
   }
 
@@ -411,7 +381,7 @@ export class PiAdapter implements WorkerAdapter {
 
   async account(): Promise<AccountStatus> {
     try {
-      const providers = await loggedInProviders(this.opts.home, this.accountEnv())
+      const providers = await loggedInProviders(homedir(), this.opts.env)
       return {
         signedIn: providers.length > 0,
         who: providers.length > 0 ? providers.join(', ') : null,
@@ -449,17 +419,9 @@ export class PiAdapter implements WorkerAdapter {
     }
   }
 
-  /**
-   * pi has no command that says, so a few lines of its own (`signed-in-here.ts`)
-   * read what `account` reads, as the agent's user, and answer by exit code.
-   */
-  signInProof(): SignInProof {
-    return { command: process.execPath, args: [SIGNED_IN_PATH], env: {} }
-  }
-
   /** Its sessions folder, a folder per working directory inside it: every conversation an agent had. */
   records(): readonly string[] {
-    return [this.opts.sessionsRoot ?? sessionsRoot(this.opts.env, this.opts.home)]
+    return [this.opts.sessionsRoot ?? sessionsRoot(this.opts.env)]
   }
 
   async signOut(): Promise<void> {
@@ -508,7 +470,7 @@ export class PiAdapter implements WorkerAdapter {
 
   /** What pi can run on: its catalog, narrowed to what you are signed in to. */
   async models(): Promise<HarnessModel[]> {
-    return usableModels(this.opts.home, this.accountEnv()).catch(() => [])
+    return usableModels(homedir(), this.opts.env).catch(() => [])
   }
 
   async resolveModel(said: string): Promise<ModelFound> {
@@ -516,11 +478,6 @@ export class PiAdapter implements WorkerAdapter {
   }
 
   /** Where this adapter's pi files sessions: read from the environment `runEnv` launches it with. */
-  /** The environment pi's own folders are found by: none of this one's, for another user's pi. */
-  private accountEnv(): NodeJS.ProcessEnv {
-    return this.opts.user ? {} : this.opts.env
-  }
-
   private recordsAt(): SessionsAt {
     return this.opts.sessionsRoot ? { root: this.opts.sessionsRoot } : { env: this.opts.env }
   }
@@ -593,7 +550,6 @@ export class PiAdapter implements WorkerAdapter {
       run: spec.run,
       onSignal: (signal) => this.dispatch(spec.run, signal),
       onWarning: this.opts.onWarning,
-      shared: this.opts.user !== null,
     })
     const run: Run = {
       handle: {

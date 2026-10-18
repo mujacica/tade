@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { appendFileSync, mkdirSync, readFileSync, statSync } from 'node:fs'
+import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import {
@@ -67,10 +67,7 @@ export function recordPath(runDir: string, task: string): string {
  */
 export function append(path: string, line: RecordLine): void {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
-  // Its folder's group's to read where the folder is its group's — a lane
-  // running as a user of its own, writing in the share Tade reads it from.
-  const mode = (statSync(dirname(path)).mode & 0o070) !== 0 ? 0o660 : 0o600
-  appendFileSync(path, `${JSON.stringify({ v: RECORD_VERSION, ...line })}\n`, { mode })
+  appendFileSync(path, `${JSON.stringify({ v: RECORD_VERSION, ...line })}\n`, { mode: 0o600 })
 }
 
 const obj = (value: unknown): Record<string, unknown> | null =>

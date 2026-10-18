@@ -64,16 +64,6 @@ export interface WorkerSpec {
    * unsaid is not about it.
    */
   alreadyRunning?: boolean
-  /**
-   * Run its commands inside the harness's own sandbox
-   * (`capabilities.sandbox`), with `writes` writable beside its working
-   * folder: the repository's own git folder, where the worktree's is
-   * elsewhere and a commit has to write there. Asked where its agent runs as a
-   * user of its own (`agents.user`); absent, the harness's sandbox stays off
-   * and Tade's gate is what decides. A harness with none ignores it, and says
-   * so in `why.sandbox`.
-   */
-  sandbox?: { writes: readonly string[] }
 }
 
 /**
@@ -286,22 +276,6 @@ export const WorkerCommand = z.discriminatedUnion('type', [
 ])
 export type WorkerCommand = z.infer<typeof WorkerCommand>
 
-/** How setup proves a harness's sandbox can start here (`WorkerAdapter.sandboxProof`). */
-export interface SandboxProof {
-  command: string
-  args: readonly string[]
-  /** What it needs, as a clause after "it needs": said when the command fails. */
-  needs: string
-}
-
-/** How setup asks whether a harness is signed in, as another user (`WorkerAdapter.signInProof`). */
-export interface SignInProof {
-  command: string
-  args: readonly string[]
-  /** What it needs set to find the account's folder, by name: nothing of the sign-in itself. */
-  env: Readonly<Record<string, string>>
-}
-
 /** Environment a supervised agent is started with. */
 export const WORKER_ENV = {
   socket: 'TADE_RUN_SOCKET',
@@ -442,15 +416,6 @@ export interface WorkerCapabilities {
    * a compaction does (`why.pins` says what it pins).
    */
   pins: boolean
-  /**
-   * Has a sandbox of its own that Tade can turn on for one agent
-   * (`WorkerSpec.sandbox`): what that agent's commands may write, and how they
-   * reach the network, is then the harness's to hold — Tade has no sandbox and
-   * builds none. Declared, because what a machine whose agents run as their
-   * own user says about them depends on it; one with none says so in
-   * `why.sandbox`, in its own words.
-   */
-  sandbox: boolean
   /**
    * The sentence a person sees beside something this harness does only partly
    * or not at all, in its own words. Every feature that is not `live` (or
@@ -695,28 +660,8 @@ export interface WorkerAdapter {
   readonly programs?: readonly RequiredProgram[]
 
   /**
-   * A command that exits 0 only where this harness's own sandbox
-   * (`capabilities.sandbox`) can start on this machine, and what it needs
-   * when it cannot — run by setup as the user its agents run as, because a
-   * sandbox the kernel refuses is a refusal of every command the agent then
-   * runs, said in its lane one command at a time. Null where there is nothing
-   * to prove on this platform, or no sandbox at all.
-   */
-  sandboxProof?(platform: NodeJS.Platform): SandboxProof | null
-
-  /**
-   * A command that exits 0 only where this harness is signed in, for the
-   * account it was made for — run by setup as the user its agents run as,
-   * the way an agent is launched, because that user's sign-in is in a home
-   * Tade cannot open and is never Tade's to read. It asks nobody anything
-   * and says nothing but its exit code. Null where there is nothing to sign
-   * in to: an API-key account, or a harness whose agents sign in their own way.
-   */
-  signInProof?(): SignInProof | null
-
-  /**
    * The folders this harness keeps its agents' conversations in, absolute —
-   * for the account and the user it was made for. What a backup of this
+   * for the account it was made for. What a backup of this
    * machine keeps beside Tade's home (`backupPaths`), so an agent restored on
    * another one picks its conversation back up. Read off how it was made, no
    * I/O: a folder not made yet is still the answer. Absent where it keeps none

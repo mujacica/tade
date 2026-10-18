@@ -57,7 +57,6 @@ export class FakeAdapter implements WorkerAdapter {
     headless: true,
     compact: 'idle',
     pins: false,
-    sandbox: false,
     why: {},
   }
   readonly decisions: Array<{ run: string; requestId: string; decision: PermissionDecision }> = []

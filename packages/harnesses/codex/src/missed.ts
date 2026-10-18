@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { readFile, rename, rm } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
@@ -35,16 +35,6 @@ export function missedPath(socket: string): string {
 }
 
 /**
- * The mode what is left is written with: its folder's group's to read where
- * the folder is its group's — an agent running as a user of its own, whose
- * socket folder Tade shares with it (`runModes`) — so the Tade that takes it
- * can, and the agent's alone otherwise.
- */
-function modeIn(dir: string): number {
-  return (statSync(dir).mode & 0o070) !== 0 ? 0o660 : 0o600
-}
-
-/**
  * Leave what a hook nobody heard has to say, where it is something a window
  * coming back must be told. Never throws: a hook carries on regardless, and
  * one that cannot leave it says why on its standard error — the agent's own
@@ -56,14 +46,10 @@ export function leave(socket: string, event: Record<string, unknown>, now = Date
   try {
     if (typeof name === 'string' && ENDS.has(name)) {
       mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
-      writeFileSync(path, JSON.stringify({ at: now, event }), { mode: modeIn(dirname(path)) })
+      writeFileSync(path, JSON.stringify({ at: now, event }), { mode: 0o600 })
     } else if (name === 'UserPromptSubmit' && existsSync(path)) {
       const kept = missedIn(readFileSync(path, 'utf8'))
-      if (kept) {
-        writeFileSync(path, JSON.stringify({ ...kept, began: now }), {
-          mode: modeIn(dirname(path)),
-        })
-      }
+      if (kept) writeFileSync(path, JSON.stringify({ ...kept, began: now }), { mode: 0o600 })
     }
   } catch (err) {
     process.stderr.write(

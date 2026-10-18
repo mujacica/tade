@@ -96,5 +96,3 @@ export type HarnessFeature =
   | 'compact'
   /** Coming back to a conversation declared what it was first told, not what it is told now. */
   | 'pins'
-  /** Holding what its agent's commands may write and reach, when Tade turns it on (`WorkerSpec.sandbox`). */
-  | 'sandbox'

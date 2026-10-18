@@ -31,14 +31,10 @@ import {
   type PlanLimits,
   promptWithImages,
   type RunId,
-  type RunModes,
   reaped,
   runFolderName,
-  runModes,
-  type SandboxProof,
   type SignIn,
   type SignInHere,
-  type SignInProof,
   signInHere,
   WORKER_ENV,
   type WorkerAdapter,
@@ -89,7 +85,6 @@ import { trustFolder } from './trust.ts'
 export const HOOK_PATH = fileURLToPath(new URL('./hook.ts', import.meta.url))
 export const STATUSLINE_PATH = fileURLToPath(new URL('./statusline.ts', import.meta.url))
 export const MCP_PATH = fileURLToPath(new URL('./mcp.ts', import.meta.url))
-export const TRUST_PATH = fileURLToPath(new URL('./trust-here.ts', import.meta.url))
 
 /** The harness's name, as tasks, routes and the journal say it. */
 export const CLAUDE_CODE = 'claude-code'
@@ -161,10 +156,8 @@ const INHERITED_SESSION = [
  * one that should pay.
  */
 const LAUNCHER = [
-  'id="$1"; look="$2"; name="$3"; bin="$4"; node="$5"; trust="$6"; shift 6',
+  'id="$1"; look="$2"; name="$3"; bin="$4"; shift 4',
   `unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN ${INHERITED_SESSION.join(' ')}`,
-  // As a user of its own, the folder is trusted here, as that user (`trust-here.ts`).
-  'if [ -n "$trust" ]; then "$node" "$trust" "$PWD" "$look" || :; fi',
   'if [ -n "$(find "$look/projects" -maxdepth 2 -name "$id.jsonl" -print 2>/dev/null | head -n 1)" ]; then',
   '  exec "$bin" --resume "$id" "$@"',
   'fi',
@@ -199,13 +192,6 @@ export interface ClaudeAdapterOptions {
   account?: HarnessAccount
   /** For tests: whose home the default account is in. */
   home?: string
-  /**
-   * The Unix user its agents run as, where not Tade's own (`agents.user`):
-   * `home` is then that user's, its run files and socket are its group's too
-   * (`runModes`), and the folder question is answered in the launch line, as
-   * that user, since Tade cannot write in that user's home.
-   */
-  user?: string
 }
 
 interface Waiter<T> {
@@ -287,25 +273,6 @@ export class ClaudeAdapter implements WorkerAdapter {
     },
   ]
 
-  /**
-   * On Linux its sandbox is bubblewrap making namespaces, with `socat` for its
-   * proxy: both there, and the kernel letting an unprivileged user make a
-   * user namespace and its loopback, which Ubuntu 24.04's AppArmor refuses
-   * `bwrap` until it has a profile. On a Mac it is Seatbelt, which is built in.
-   */
-  sandboxProof(platform: NodeJS.Platform): SandboxProof | null {
-    if (platform !== 'linux') return null
-    return {
-      command: '/bin/sh',
-      args: [
-        '-c',
-        'command -v socat >/dev/null && bwrap --ro-bind / / --dev /dev --unshare-net true',
-      ],
-      needs:
-        'bubblewrap and socat, and the kernel letting bwrap make a namespace — on Ubuntu 24.04 an AppArmor profile for bwrap, which Claude Code’s sandbox page gives',
-    }
-  }
-
   private readonly runs = new Map<string, Run>()
   /**
    * Runs being taken in, until whoever asked has them: what reaches one
@@ -314,16 +281,11 @@ export class ClaudeAdapter implements WorkerAdapter {
    */
   private readonly arriving = new Map<string, Promise<void>>()
   private readonly listeners = new Map<string, Set<WorkerSignalListener>>()
-  private readonly opts: Required<
-    Omit<ClaudeAdapterOptions, 'type' | 'home' | 'account' | 'user'>
-  > & {
+  private readonly opts: Required<Omit<ClaudeAdapterOptions, 'type' | 'home' | 'account'>> & {
     type: ClaudeAdapterOptions['type']
     home: string
     account: HarnessAccount | undefined
-    user: string | null
   }
-  /** How private what a run is handed is: its user's group's too, where it has one. */
-  private readonly modes: RunModes
   private planLimits: PlanLimits | null = null
   private offered: Set<string> | null = null
 
@@ -346,9 +308,7 @@ export class ClaudeAdapter implements WorkerAdapter {
       onWarning: opts.onWarning ?? (() => {}),
       home,
       account: opts.account,
-      user: opts.user ?? null,
     }
-    this.modes = runModes(this.opts.user !== null)
   }
 
   async probe(): Promise<HarnessProbe> {
@@ -541,16 +501,6 @@ export class ClaudeAdapter implements WorkerAdapter {
     }
   }
 
-  /** `claude auth status`, which exits 1 signed out: asked as the agent's user, never read here. */
-  signInProof(): SignInProof | null {
-    if (this.opts.account?.kind === 'api-key') return null
-    return {
-      command: this.opts.bin,
-      args: ['auth', 'status'],
-      env: this.ownFolder() ? { CLAUDE_CONFIG_DIR: this.opts.configDir } : {},
-    }
-  }
-
   /**
    * Its transcripts, a folder per working directory under `projects` — never
    * the whole config folder, whose sign-in a backup has no business holding
@@ -636,8 +586,7 @@ export class ClaudeAdapter implements WorkerAdapter {
   private ownFolder(): boolean {
     // Judged against where Claude Code looks when left alone — the real home —
     // whatever `home` this adapter was made with: anywhere else has to be said.
-    // As a user of its own, the real home is that user's, which `sudo -H` gives it.
-    return this.opts.configDir !== defaultConfigDir(this.opts.user ? this.opts.home : homedir())
+    return this.opts.configDir !== defaultConfigDir(homedir())
   }
 
   launchSpec(spec: WorkerSpec): LaunchSpec {
@@ -654,8 +603,6 @@ export class ClaudeAdapter implements WorkerAdapter {
         // first words of what it is told.
         spec.title ?? spec.called ?? '',
         this.opts.bin,
-        this.opts.user ? process.execPath : '',
-        this.opts.user ? TRUST_PATH : '',
         // First: it takes several values, and would take the next word too.
         '--mcp-config',
         ...[files.mcp, ...(spec.extras?.mcp ?? [])],
@@ -676,9 +623,7 @@ export class ClaudeAdapter implements WorkerAdapter {
       ...launch,
       env: this.runEnv(spec),
       // Its first message, said at the first launch only.
-      ...(spec.prompt
-        ? { opening: [promptWithImages(spec.prompt, spec.images, files.dir, this.modes)] }
-        : {}),
+      ...(spec.prompt ? { opening: [promptWithImages(spec.prompt, spec.images, files.dir)] } : {}),
     }
   }
 
@@ -692,19 +637,15 @@ export class ClaudeAdapter implements WorkerAdapter {
     let taken = (): void => {}
     try {
       // A folder Claude Code has never run in stops it with a question before
-      // anything starts; Tade answers it for the folders it starts agents in —
-      // here, or as the agent's own user in its launch line (`TRUST_PATH`).
-      if (!this.opts.user) {
-        await trustFolder(spec.cwd, this.opts.configDir).catch((err) =>
-          this.opts.onWarning(
-            `could not mark ${spec.cwd} as trusted for Claude Code, so it will ask in its lane: ${(err as Error).message}`,
-          ),
-        )
-      }
+      // anything starts; Tade answers it for the folders it starts agents in.
+      await trustFolder(spec.cwd, this.opts.configDir).catch((err) =>
+        this.opts.onWarning(
+          `could not mark ${spec.cwd} as trusted for Claude Code, so it will ask in its lane: ${(err as Error).message}`,
+        ),
+      )
       const socket = runSocket(this.opts.socketDir, spec.run)
       const channel = await ClaudeChannel.listen({
         path: socket,
-        shared: this.opts.user !== null,
         onRequest: (request) => this.onRequest(spec.run, request),
         onWarning: this.opts.onWarning,
       })
@@ -1034,7 +975,7 @@ export class ClaudeAdapter implements WorkerAdapter {
     opts: { whenBusy?: 'steer' | 'queue' } = {},
   ): Promise<void> {
     const entry = this.require(run)
-    const text = promptWithImages(message, images, this.filesDir(run), this.modes)
+    const text = promptWithImages(message, images, this.filesDir(run))
     if (opts.whenBusy === 'queue') await this.queueOn(entry, text)
     else await this.steerOn(entry, text)
   }
@@ -1604,8 +1545,7 @@ export class ClaudeAdapter implements WorkerAdapter {
     plugin: string | null
   } {
     const dir = this.filesDir(spec.run)
-    mkdirSync(dir, { recursive: true, mode: this.modes.dir })
-    const write = (path: string, value: unknown): void => writeJson(path, value, this.modes.file)
+    mkdirSync(dir, { recursive: true, mode: 0o700 })
     const node = shellWord(process.execPath)
     const hook = (timeout: number) => [
       { hooks: [{ type: 'command', command: `${node} ${shellWord(HOOK_PATH)}`, timeout }] },
@@ -1636,7 +1576,6 @@ export class ClaudeAdapter implements WorkerAdapter {
       ...(this.opts.account?.kind === 'api-key' && this.opts.account.key
         ? { apiKeyHelper: this.opts.account.key }
         : {}),
-      ...(spec.sandbox ? { sandbox: sandboxOf(spec.sandbox) } : {}),
     })
     const mcp = join(dir, 'mcp.json')
     write(mcp, {
@@ -1662,7 +1601,7 @@ export class ClaudeAdapter implements WorkerAdapter {
     let instructions: string | null = null
     if (told) {
       instructions = join(dir, 'instructions.md')
-      writeFileSync(instructions, told, { mode: this.modes.file })
+      writeFileSync(instructions, told, { mode: 0o600 })
     }
     let plugin: string | null = null
     const skills = spec.extras?.skills ?? []
@@ -1684,37 +1623,8 @@ export class ClaudeAdapter implements WorkerAdapter {
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
 
-function writeJson(path: string, value: unknown, mode: number): void {
-  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, { mode })
-}
-
-/**
- * Claude Code's own sandbox, as Tade asks for it (`WorkerSpec.sandbox`), in
- * the run's settings: bubblewrap and a proxy on Linux, Seatbelt on a Mac,
- * around its shell commands — not its file tools, its MCP servers or its hooks,
- * which is what Claude Code says of it and why the agent's own user is the
- * wall that holds those.
- *
- * - **No unsandboxed retry.** Under `bypassPermissions` a command that failed
- *   in the sandbox would be retried outside it without asking anybody, which
- *   is the sandbox turned off by the model.
- * - **No sandbox, no start.** One that cannot start (no `bwrap` or `socat`,
- *   or Ubuntu's AppArmor refusing it a namespace) ends the launch with Claude
- *   Code's own reason in the lane, rather than running every command loose.
- * - **What else it may write**: the repository's git folder where the
- *   worktree's is elsewhere, and the package caches in its user's home.
- *
- * The network is left as `bypassPermissions` leaves it — every host, through
- * its proxy — so an agent can still push and install. Narrowing that is a wall
- * of its own, and not one a setting here should pretend to be.
- */
-export function sandboxOf(sandbox: { writes: readonly string[] }): Record<string, unknown> {
-  return {
-    enabled: true,
-    allowUnsandboxedCommands: false,
-    failIfUnavailable: true,
-    ...(sandbox.writes.length > 0 ? { filesystem: { allowWrite: [...sandbox.writes] } } : {}),
-  }
+function write(path: string, value: unknown): void {
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 })
 }
 
 /** A word the shell reads back as itself. */

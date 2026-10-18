@@ -70,9 +70,6 @@ const PARTIAL: Array<[HarnessFeature, (adapter: WorkerAdapter) => boolean]> = [
   // short, or had to compact it to bring what it was told up to date.
   ['compact', (a) => a.capabilities.compact !== 'live'],
   ['pins', (a) => a.capabilities.pins],
-  // Said where somebody runs agents as their own user and this harness's are
-  // the ones nothing holds but the user.
-  ['sandbox', (a) => !a.capabilities.sandbox],
 ]
 
 let counter = 0
@@ -216,18 +213,6 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
         }
       })
 
-      it('says how to ask whether it is signed in, carrying nothing but where to look', async () => {
-        // Run as another user, whose sign-in Tade never reads: a command and
-        // the folder it is told by name — never a key, a token or an answer.
-        const proof = (await adapter()).signInProof?.() ?? null
-        if (!proof) return
-        expect(proof.command.length).toBeGreaterThan(0)
-        for (const [name, value] of Object.entries(proof.env)) {
-          expect(name).toMatch(/^[A-Z_][A-Z0-9_]*$/)
-          expect(value.startsWith('/')).toBe(true)
-        }
-      })
-
       it('says where it keeps conversations as absolute folders, asking nothing', async () => {
         // What a backup keeps beside Tade's home: a relative path would be
         // read from wherever the backup ran, and an empty one is the home.
@@ -304,15 +289,6 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
         const second = one.launchSpec(told)
         expect(second.command).toBe(first.command)
         expect(second.args).toEqual(first.args)
-      })
-
-      it('launches the same line when asked for a sandbox it says it does not have', async () => {
-        const one = await adapter()
-        if (one.capabilities.sandbox) return
-        const told = await spec()
-        const held = one.launchSpec({ ...told, sandbox: { writes: ['/elsewhere/.git'] } })
-        expect(held.args).toEqual(one.launchSpec(told).args)
-        expect(one.capabilities.why.sandbox?.trim()).toBeTruthy()
       })
 
       it('tells the agent where to report, which run it is and which task', async () => {

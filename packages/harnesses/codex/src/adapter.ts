@@ -31,14 +31,10 @@ import {
   type PlanLimits,
   promptWithImages,
   type RunId,
-  type RunModes,
   reaped,
   runFolderName,
-  runModes,
-  type SandboxProof,
   type SignIn,
   type SignInHere,
-  type SignInProof,
   signInHere,
   WORKER_ENV,
   type WorkerAdapter,
@@ -160,12 +156,6 @@ export interface CodexAdapterOptions {
   account?: HarnessAccount
   /** For tests: whose home the default account is in. */
   home?: string
-  /**
-   * The Unix user its agents run as, where not Tade's own (`agents.user`):
-   * `home` is then that user's, and its run files and socket are its group's
-   * too (`runModes`), so the agent can read what its launch is handed.
-   */
-  user?: string
 }
 
 interface Waiter<T> {
@@ -225,31 +215,6 @@ interface Run {
   events: Promise<void>
 }
 
-/**
- * Codex's own containment, as Tade asks for it (`WorkerSpec.sandbox`).
- *
- * Off where nobody asked: what an agent may reach is the harness's business
- * and never Tade's, and Tade's gate is what decides there. On where its agent
- * runs as a user of its own: `workspace-write`, so its commands write only its
- * working folder, the temporary folder and what it is handed (`--add-dir`, the
- * repository's own git folder where the worktree's is elsewhere, or a commit
- * fails). The network stays on for its commands, so it can still push and
- * install: Codex's sandbox has no list of hosts, only on or off, and an agent
- * that cannot push its branch is one whose work never leaves the machine.
- * Narrowing where it reaches is somebody else's wall (the egress rules a
- * public box may add), not one this flag can draw.
- */
-export function sandboxOf(spec: Pick<WorkerSpec, 'sandbox'>): string[] {
-  if (!spec.sandbox) return ['--sandbox', 'danger-full-access']
-  return [
-    '--sandbox',
-    'workspace-write',
-    '-c',
-    'sandbox_workspace_write.network_access=true',
-    ...spec.sandbox.writes.flatMap((dir) => ['--add-dir', dir]),
-  ]
-}
-
 export class CodexAdapter implements WorkerAdapter {
   readonly id = CODEX
   /** OpenAI, through its own sign-in: Codex reaches nothing else. */
@@ -295,8 +260,6 @@ export class CodexAdapter implements WorkerAdapter {
     // start (`SessionStart`), so nothing it was told is pinned.
     compact: 'none',
     pins: false,
-    // `--sandbox workspace-write` in place of `danger-full-access`.
-    sandbox: true,
     why: {
       compact:
         'has /compact only in its own terminal, and runs one process per turn when Tade draws it, with nothing in between to ask',
@@ -325,22 +288,6 @@ export class CodexAdapter implements WorkerAdapter {
     },
   ]
 
-  /**
-   * Its own `codex sandbox`, run around `true`: on Linux that is bubblewrap
-   * making namespaces, which the kernel has to let an unprivileged user do —
-   * Ubuntu 24.04's AppArmor does not until bwrap has a profile. On a Mac it is
-   * Seatbelt, which is built in.
-   */
-  sandboxProof(platform: NodeJS.Platform): SandboxProof | null {
-    if (platform !== 'linux') return null
-    return {
-      command: this.opts.bin,
-      args: ['sandbox', 'true'],
-      needs:
-        'the kernel letting its bubblewrap make a namespace — on Ubuntu 24.04 an AppArmor profile for bwrap',
-    }
-  }
-
   private readonly runs = new Map<string, Run>()
   /**
    * Runs being taken in, until whoever asked has them: what reaches one
@@ -349,13 +296,10 @@ export class CodexAdapter implements WorkerAdapter {
    */
   private readonly arriving = new Map<string, Promise<void>>()
   private readonly listeners = new Map<string, Set<WorkerSignalListener>>()
-  private readonly opts: Required<Omit<CodexAdapterOptions, 'type' | 'account' | 'user'>> & {
+  private readonly opts: Required<Omit<CodexAdapterOptions, 'type' | 'account'>> & {
     type: CodexAdapterOptions['type']
     account: HarnessAccount | undefined
-    user: string | null
   }
-  /** How private what a run is handed is: its user's group's too, where it has one. */
-  private readonly modes: RunModes
   private planLimits: PlanLimits | null = null
 
   constructor(opts: CodexAdapterOptions) {
@@ -372,9 +316,7 @@ export class CodexAdapter implements WorkerAdapter {
       onWarning: opts.onWarning ?? (() => {}),
       home,
       account: opts.account,
-      user: opts.user ?? null,
     }
-    this.modes = runModes(this.opts.user !== null)
   }
 
   async probe(): Promise<HarnessProbe> {
@@ -594,16 +536,6 @@ export class CodexAdapter implements WorkerAdapter {
     }
   }
 
-  /** `codex login status`, which exits non-zero signed out: asked as the agent's user, never read here. */
-  signInProof(): SignInProof | null {
-    if (this.opts.account?.kind === 'api-key') return null
-    return {
-      command: this.opts.bin,
-      args: ['login', 'status'],
-      env: this.ownFolder() ? { CODEX_HOME: this.opts.codexHome } : {},
-    }
-  }
-
   /**
    * Its rollouts, a folder per day under `sessions` — never its sign-in beside
    * them, which a restore on another machine is signed in to again.
@@ -669,8 +601,7 @@ export class CodexAdapter implements WorkerAdapter {
   private ownFolder(): boolean {
     // Judged against where Codex looks when left alone — the real home —
     // whatever `home` this adapter was made with: anywhere else has to be said.
-    // As a user of its own, the real home is that user's, which `sudo -H` gives it.
-    return this.opts.codexHome !== defaultHome(this.opts.user ? this.opts.home : homedir())
+    return this.opts.codexHome !== defaultHome(homedir())
   }
 
   launchSpec(spec: WorkerSpec): LaunchSpec {
@@ -688,7 +619,11 @@ export class CodexAdapter implements WorkerAdapter {
         // ask twice, in a lane nobody may be looking at.
         '--ask-for-approval',
         'never',
-        ...sandboxOf(spec),
+        // Codex's own containment, turned off: what an agent may reach is
+        // the harness's business and never Tade's, and Tade's gate is what
+        // decides here. Its flag, not a setting of ours.
+        '--sandbox',
+        'danger-full-access',
         // Tade wrote the hooks it is being given, one launch at a time.
         '--dangerously-bypass-hook-trust',
         // `--skip-git-repo-check` belongs to `codex exec` and nowhere else:
@@ -703,11 +638,7 @@ export class CodexAdapter implements WorkerAdapter {
       env: this.runEnv(spec),
       // Its first message, said at the first launch only.
       ...(spec.prompt
-        ? {
-            opening: [
-              promptWithImages(spec.prompt, spec.images, this.filesDir(spec.run), this.modes),
-            ],
-          }
+        ? { opening: [promptWithImages(spec.prompt, spec.images, this.filesDir(spec.run))] }
         : {}),
     }
   }
@@ -726,7 +657,6 @@ export class CodexAdapter implements WorkerAdapter {
         path: socket,
         onRequest: (request) => this.onRequest(spec.run, request),
         onWarning: this.opts.onWarning,
-        shared: this.opts.user !== null,
       })
       // What its hooks could not tell while Tade was away (`missed.ts`), once it
       // can be told: taken either way, since a launch is a new process and what
@@ -834,7 +764,7 @@ export class CodexAdapter implements WorkerAdapter {
     opts: { whenBusy?: 'steer' | 'queue' } = {},
   ): Promise<void> {
     const entry = this.require(run)
-    const text = promptWithImages(message, images, entry.dir, this.modes)
+    const text = promptWithImages(message, images, entry.dir)
     if (opts.whenBusy === 'queue') await this.queueOn(entry, text)
     else await this.steerOn(entry, text)
   }
@@ -1090,11 +1020,10 @@ export class CodexAdapter implements WorkerAdapter {
     if (!thread || thread === entry.thread) return
     entry.thread = thread
     entry.handle.sessionId = thread
-    await rememberThread(entry.handle.task, this.opts.runDir, thread, this.modes).catch(
-      (err: unknown) =>
-        this.opts.onWarning(
-          `could not write down which Codex thread ${entry.handle.task} talks in, so it will start a new one next time: ${(err as Error).message}`,
-        ),
+    await rememberThread(entry.handle.task, this.opts.runDir, thread).catch((err: unknown) =>
+      this.opts.onWarning(
+        `could not write down which Codex thread ${entry.handle.task} talks in, so it will start a new one next time: ${(err as Error).message}`,
+      ),
     )
   }
 
