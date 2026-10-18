@@ -27,7 +27,7 @@ import {
 import { COLOUR } from '../src/skin.ts'
 import { youSaid } from '../src/transcript.ts'
 import { NOT_HERE } from '../src/view/actions.ts'
-import { wrapPath } from '../src/view/text.ts'
+import { wrapPath, wrapWords } from '../src/view/text.ts'
 import { BUTTONS, draw, renderApp } from '../src/view.ts'
 
 /** The same row without its colour, for comparing positions against columns. */
@@ -658,6 +658,17 @@ describe('the orchestrator strip', () => {
     expect(renderApp(notice(state(), 'refunds needs you', 0), frame()).join('\n')).toContain(
       'refunds needs you',
     )
+  })
+})
+
+describe('words to a width', () => {
+  it('breaks a word longer than a line inside it, and loses none of it', () => {
+    // A unit's PATH line in setup: the break used the length of a truncation
+    // that ends in a colour reset, so four characters went at every break.
+    const path = 'PATH=/home/you/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games'
+    const lines = wrapWords(`set ${path}`, 20)
+    expect(lines.join('')).toBe(`set${path}`)
+    expect(lines.every((line) => line.length <= 20 && !line.includes('\x1b'))).toBe(true)
   })
 })
 

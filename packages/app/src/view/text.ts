@@ -50,13 +50,28 @@ export function wrapWords(text: string, width: number): string[] {
         line = word
       }
       while (widthOf(line) > width) {
-        lines.push(truncateToWidth(line, width, ''))
-        line = line.slice(truncateToWidth(line, width, '').length)
+        const head = headOf(line, width)
+        lines.push(head)
+        line = line.slice(head.length)
       }
     }
     lines.push(line)
   }
   return lines
+}
+
+/**
+ * As much of a word as fits a width, and always at least its first character.
+ * Not `truncateToWidth`, whose answer ends in a colour reset: its length is
+ * not where the word was cut, and slicing by it lost four characters a break.
+ */
+function headOf(word: string, width: number): string {
+  let head = ''
+  for (const char of word) {
+    if (head !== '' && widthOf(head + char) > width) break
+    head += char
+  }
+  return head
 }
 
 /** A path in lines of a width, broken after a slash where it can be, and anywhere where it cannot. */
