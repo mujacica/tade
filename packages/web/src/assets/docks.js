@@ -89,23 +89,24 @@ export function docksOn(shown) {
     shown.scrim.hidden = !(open.side || open.tade)
   }
 
-  /** What a press says, which is what pressing it does now — at this width, in this state. */
+  /**
+   * What a press says, which is what pressing it does now — at this width, in this state.
+   *
+   * **Its name starts with the word it shows** (WCAG 2.5.3, axe's
+   * `label-content-name-mismatch`), so somebody who says what they see to a
+   * voice control reaches it. A phone tab is named by its own words and count,
+   * and says whether it is open with `aria-expanded` alone.
+   */
   const said = (press, which) => {
     const name = { menu: 'the menu', side: 'agents and queue', tade: 'Tade' }[which]
     const drawer = which !== 'menu' && !docked(which)
     const shut = drawer ? !open[which] : folds[which]
-    const word = drawer
-      ? shut
-        ? `Open ${name}`
-        : `Close ${name}`
-      : shut
-        ? `Unfold ${name}`
-        : `Fold ${name}`
-    press.setAttribute('aria-label', word)
+    const word = drawer ? (shut ? 'Open' : 'Close') : shut ? 'Expand' : 'Collapse'
+    if (press.querySelector('.label') !== null) press.removeAttribute('aria-label')
+    else press.setAttribute('aria-label', `${word} ${name}`)
     press.setAttribute('aria-expanded', shut ? 'false' : 'true')
     const words = press.querySelector('.fold-said')
-    if (words !== null)
-      words.textContent = drawer ? (shut ? 'Open' : 'Close') : shut ? 'Expand' : 'Collapse'
+    if (words !== null) words.textContent = word
   }
 
   const toggle = (which, from = null) => {

@@ -52,16 +52,23 @@ export function shell(desk = null) {
   const top = el('header', { class: 'top' })
   const brand = el('a', { class: 'brand', attrs: { href: '/', 'aria-label': 'Tade, overview' } })
   into(brand, wordmark())
+  const askSaid = 'Go anywhere, or ask Tade'
   const ask = el('button', {
     class: 'cmd',
-    attrs: { type: 'button', 'aria-label': 'Ask Tade, or go anywhere', 'aria-haspopup': 'dialog' },
+    attrs: {
+      type: 'button',
+      // What it shows, key included, so a voice control reaches it by what it says.
+      'aria-label': `${askSaid}, ⌘K`,
+      'aria-haspopup': 'dialog',
+      'aria-keyshortcuts': 'Meta+K Control+K',
+    },
   })
   into(
     ask,
     icon('search'),
     el('span', {
       class: 'cmd-said',
-      text: 'Go anywhere, or ask Tade',
+      text: askSaid,
       attrs: { 'aria-hidden': 'true' },
     }),
     el('kbd', { text: '⌘K', attrs: { 'aria-hidden': 'true' } }),
@@ -122,7 +129,9 @@ export function shell(desk = null) {
   })
   const disc = el('span', { class: 'ask-disc' })
   into(disc, icon('spark'))
-  into(tabTade, disc, el('span', { class: 'label', text: 'Tade' }))
+  // The disc is the whole of what shows, so the word is for a screen reader:
+  // the tab is named by it, as every other tab is by its own.
+  into(tabTade, disc, el('span', { class: 'label sr-only', text: 'Tade' }))
 
   const sheet = el('div', {
     class: 'sheet',
