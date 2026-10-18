@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
+import { mkrepo } from '../../../../test/fixtures/mkrepo.ts'
 import { CHARS_PER_TOKEN, cutTo, inBatches, partSaid, whoseWork } from '../src/changes.ts'
 import { roomFor } from '../src/review.ts'
 import { readReviews } from '../src/reviews.ts'

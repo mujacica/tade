@@ -1,4 +1,3 @@
-import type { Config } from '@tade/core'
 import type { Machine } from './away-harness.ts'
 
 // The intake half of the away harness: the grant, the home's own config, and

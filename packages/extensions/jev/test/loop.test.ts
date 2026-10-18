@@ -1,6 +1,6 @@
 import type { ToolContext } from '@tade/extensions-core'
 import { describe, expect, it } from 'vitest'
-import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
+import { mkrepo } from '../../../../test/fixtures/mkrepo.ts'
 import { jevExtension } from '../src/extension.ts'
 import { citedIn, findingsOf, sweepOf, verdictProblem } from '../src/loop.ts'
 import { RUBRIC, reviewQuestions, rubricOf, titleOf } from '../src/questions.ts'

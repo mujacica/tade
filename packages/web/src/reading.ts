@@ -12,7 +12,7 @@ import type { SnapshotInput } from './input.ts'
 import { BUDGET, type Budget, type Page, pageOf, withheld } from './page.ts'
 import type { AgentOut, Delta, NoteRow, Snapshot } from './protocol.ts'
 import { has } from './reach.ts'
-import { type Cursors, noteRows, noteSeen } from './snapshot.ts'
+import { type Cursors, noteRows } from './snapshot.ts'
 
 // The whole of what the away view may read, declared in one place.
 //
