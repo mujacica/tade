@@ -27,9 +27,11 @@ interface Licensed {
 const root = new URL('..', import.meta.url).pathname
 
 function listed(prodOnly: boolean): Licensed[] {
+  // Every workspace package's, not only the root's: pnpm 12 lists the root's
+  // alone unless asked, which left pi's packages — the ones Tade ships — out.
   const out = execFileSync(
     'pnpm',
-    ['licenses', 'list', '--json', ...(prodOnly ? ['--prod'] : [])],
+    ['licenses', 'list', '--json', '--recursive', ...(prodOnly ? ['--prod'] : [])],
     {
       cwd: root,
       encoding: 'utf8',

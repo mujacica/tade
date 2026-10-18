@@ -2,3 +2,11 @@ packages:
   - packages/*
   - packages/*/*
   - test
+# Which dependencies may run their install scripts. Only node-pty needs one
+# (its native binding); the rest were never built under pnpm 10's
+# `onlyBuiltDependencies` either, and work without theirs.
+allowBuilds:
+  '@google/genai': false
+  esbuild: false
+  node-pty: true
+  protobufjs: false

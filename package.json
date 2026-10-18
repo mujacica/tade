@@ -13,7 +13,7 @@
     "url": "https://github.com/mujacica/tade/issues"
   },
   "type": "module",
-  "packageManager": "pnpm@10.27.0",
+  "packageManager": "pnpm@12.14.0",
   "engines": {
     "node": ">=22.19"
   },
