@@ -62,10 +62,15 @@ import type { WorkerCapabilities } from '@tade/harnesses-core'
 // and the same for every other door in the `local` half of the tables below.
 
 /**
- * Whether a harness can run a remote turn at all, or why not.
+ * Whether a harness can run a narrowed turn at all, or why not.
+ *
+ * **Only a narrowed turn asks.** An owner's turn — the person's own device
+ * with full access, or a machine link — is answered by every gate here as
+ * the keyboard's (`narrowedArm`), so there is nothing to hold and it runs on
+ * any harness. A device somebody narrowed is what this is about.
  *
  * **Two declared capabilities, and a harness that lacks either serves no
- * remote turn.** Never a silent unrestricted run, which is the failure mode
+ * narrowed turn.** Never a silent unrestricted run, which is the failure mode
  * this function exists to make impossible:
  *
  * - `permissionGate`, because gate 1 is the harness holding one of its own

@@ -110,6 +110,24 @@ describe('one message, all the way through', () => {
     const lines = await waitFor(one.client, 'web_asked')
     expect(lines[0]?.detail).toMatchObject({ device: DEVICE, tool: 'ask', why: 'done' })
     expect(await one.client.events({ types: ['said'] })).toEqual([])
+    expect(one.theirs).toEqual([])
+  })
+
+  it('answers the person’s own device as them: the keyboard’s reach, and their own words', async () => {
+    // A device with full access — what pairing gives unless somebody unticks
+    // something — is the person's own phone. Its turn is not narrowed, and
+    // what they typed is kept as theirs, so a setting it names is named.
+    const one = await ready({ scopes: [...SCOPES], granted: [...GRANTS] })
+    const answer = await ask(one.port, 'ask', {
+      was: revOf(),
+      key: KEY,
+      rev: 0,
+      said: 'turn the commit judge on',
+    })
+    expect(answer.status).toBe(200)
+    expect(one.armed).toEqual([{ how: 'owner', device: DEVICE, theirs: true }])
+    expect(one.said).toEqual([{ text: 'turn the commit judge on', device: DEVICE }])
+    expect(one.theirs).toEqual(['turn the commit judge on'])
   })
 })
 

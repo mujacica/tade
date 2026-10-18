@@ -183,6 +183,7 @@ async function wiring(
       askRemote: () => Promise.resolve(),
       stopTurn: () => Promise.resolve(false),
       remoteSaid: () => {},
+      theirSaid: () => {},
     },
     stands: () => Promise.resolve(null),
     factory: () => nothingHandedOver(),

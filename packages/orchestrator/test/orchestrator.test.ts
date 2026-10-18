@@ -503,10 +503,10 @@ describe('Orchestrator', () => {
     // asks at every call. Set here because the host and the orchestrator are
     // two objects in this test and one window in life.
     arm = { how: 'remote', device: 'a1b2c3d4e5f60718', projects: null, may: [] }
-    const chat = await start(
-      { tool: { name: 'bash', arguments: { command: 'echo hi' } }, finalText: 'I cannot do that.' },
-      { talking: true },
-    )
+    const chat = await start({
+      tool: { name: 'bash', arguments: { command: 'echo hi' } },
+      finalText: 'I cannot do that.',
+    })
     const events: OrchestratorEvent[] = []
     chat.onEvent((event) => events.push(event))
     expect(chat.unarmed).toBeNull()
@@ -547,12 +547,12 @@ describe('Orchestrator', () => {
 
   it('is not narrowed at all for the person at the keyboard', async () => {
     // The other half of the same gate, and the one a regression would hide:
-    // with talking on, every tool call is held — so a local turn would stop
+    // every tool call is held — so a local turn would stop
     // dead if the gate forgot to answer one. Nothing is refused here.
-    const chat = await start(
-      { tool: { name: 'bash', arguments: { command: 'echo hi' } }, finalText: 'Done.' },
-      { talking: true },
-    )
+    const chat = await start({
+      tool: { name: 'bash', arguments: { command: 'echo hi' } },
+      finalText: 'Done.',
+    })
     const events: OrchestratorEvent[] = []
     chat.onEvent((event) => events.push(event))
     expect(await chat.askFor('run echo', 60_000)).toBe('Done.')
@@ -562,14 +562,14 @@ describe('Orchestrator', () => {
 
   it('runs an owner device’s turn with the keyboard’s reach, told as the device’s', async () => {
     // REMOTE-TADE.md §11 item 4, through a real pi: the harness's own `bash`
-    // is held as every call is with talking on, and the host lets it through,
+    // is held as every call is, and the host lets it through,
     // because an owner's turn is answered as a local one. What the model is
     // told still says whose words they are, and nothing writes a `said` line.
     arm = { how: 'owner', device: 'a1b2c3d4e5f60718' }
-    const chat = await start(
-      { tool: { name: 'bash', arguments: { command: 'echo hi' } }, finalText: 'Done.' },
-      { talking: true },
-    )
+    const chat = await start({
+      tool: { name: 'bash', arguments: { command: 'echo hi' } },
+      finalText: 'Done.',
+    })
     const events: OrchestratorEvent[] = []
     chat.onEvent((event) => events.push(event))
     await chat.askFrom('run echo', arm)
@@ -585,7 +585,7 @@ describe('Orchestrator', () => {
   }, 90_000)
 
   it('refuses a local arm handed to the away door, rather than running it unnarrowed', async () => {
-    const chat = await start({ finalText: 'Nothing.' }, { talking: true })
+    const chat = await start({ finalText: 'Nothing.' })
     await expect(chat.askFrom('hello', { how: 'local' })).rejects.toThrow(/never a local arm/)
   }, 90_000)
 })

@@ -20,12 +20,12 @@
    │  Away view     ▕│     its keyboard, and a     ▕│   
    │                ▕│     device paired there and ▕│   
    │  Intake        ▕│     granted it may send one ▕│   
-   │                ▕│     too — a device talks to ▕│   
-   │  Projects  ● 1 ▕│     Tade as a request,      ▕│   
-   │                ▕│     never as your own       ▕│   
-   │  Journal       ▕│     words. Its Settings ›   ▕│   
- ▸ │                ▕│     Away view turns it off  ▕│   
- ▾ │  Telemetry     ▕│     again.                  ▕│   
+   │                ▕│     too — a full-access     ▕│   
+   │  Projects  ● 1 ▕│     device talks as you;    ▕│   
+   │                ▕│     others, never as your   ▕│   
+   │  Journal       ▕│     own words. Its Settings ▕│   
+ ▸ │                ▕│     › Away view turns it    ▕│   
+ ▾ │  Telemetry     ▕│     off again.              ▕│   
    │                ▕│   claude-code               ▕│   
    │  Shortcuts     ▕│     ● 27 days left          ▕│   
    │                ▕│   This machine’s            ▕│   

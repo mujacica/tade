@@ -2,6 +2,7 @@ import type { Config } from '@tade/core'
 import {
   allowDevice,
   type Device,
+  fullAccess,
   GRANTS,
   grantDevice,
   SCOPES,
@@ -154,9 +155,7 @@ export async function letEverything(
 ): Promise<{ reads: string[]; scopes: string[]; said: string }> {
   const device = devices.find((one) => one.id === id && one.revoked === null)
   if (device === undefined) throw new Error('that device is not paired')
-  const full =
-    GRANTS.every((grant) => device.granted.includes(grant)) &&
-    SCOPES.every((scope) => device.scopes.includes(scope))
+  const full = fullAccess(device)
   const reads: string[] = full ? [] : [...GRANTS]
   const scopes: string[] = full ? ['read'] : [...SCOPES]
   const when = new Date(deps.now())

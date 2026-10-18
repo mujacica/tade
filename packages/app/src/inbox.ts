@@ -1,4 +1,11 @@
-import { AWAY_WORDS, documentSize, documentsIn, producedClause, type TadeEvent } from '@tade/core'
+import {
+  AWAY_WORDS,
+  documentSize,
+  documentsIn,
+  producedClause,
+  type TadeEvent,
+  THEIR_WORDS,
+} from '@tade/core'
 import type { Machine, Machines } from './machines.ts'
 import type { TaskSnapshot } from './model.ts'
 
@@ -253,7 +260,7 @@ const READ_IT_AND_ASK =
   'Read the file now, then tell the person in a few sentences where things stand and put what is next to them — the options, and which you would choose. Queue nothing and start nothing until they answer, and record what they decide with tade_document_triage.'
 
 /** The heading the person's own words go under, which the orchestrator is told to look for. */
-export const THEIR_WORDS = 'What they said:'
+export { THEIR_WORDS }
 
 /**
  * Where the person is standing, in one line, for the turn they are standing

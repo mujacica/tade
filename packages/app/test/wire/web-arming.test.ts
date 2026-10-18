@@ -1,5 +1,5 @@
 import { type Arm, LOCAL } from '@tade/core'
-import { chatRev, type Device } from '@tade/web'
+import { chatRev, type Device, GRANTS, SCOPES } from '@tade/web'
 import { describe, expect, it } from 'vitest'
 import { armingFor, narrowed, type Paired, webAsking } from '../../src/wire/web-asking.ts'
 
@@ -83,6 +83,38 @@ describe('the arm, re-checked against the record', () => {
       projects: ['sentry'],
       may: ['answer'],
     })
+  })
+
+  it('keeps the person’s own device as them only while it has full access', () => {
+    // Revoking is the safety net and it is instant: a device disconnected
+    // mid-turn reaches nothing from the next call on. Unticking any one box
+    // makes it a device with exactly what is left, mid-turn included.
+    const yours: Arm = { how: 'owner', device: DEVICE, theirs: true }
+    const full = (): Paired => ({
+      projects: null,
+      scopes: [...SCOPES],
+      granted: [...GRANTS],
+    })
+    expect(narrowed(yours, full)).toBe(yours)
+    expect(narrowed(yours, () => null)).toEqual({
+      how: 'remote',
+      device: DEVICE,
+      projects: [],
+      may: [],
+    })
+    const lessOne = (): Paired => ({
+      projects: null,
+      scopes: SCOPES.filter((scope) => scope !== 'steer'),
+      granted: [...GRANTS],
+    })
+    expect(narrowed(yours, lessOne)).toEqual({
+      how: 'remote',
+      device: DEVICE,
+      projects: null,
+      may: ['answer'],
+    })
+    // A machine link with full access is still a link: its words are not theirs.
+    expect(narrowed(yours, () => ({ ...full(), owner: true }))).toMatchObject({ how: 'remote' })
   })
 
   it('keeps the projects both lists agree on', () => {
@@ -194,6 +226,7 @@ describe('an owner device’s arm, built at the turn', () => {
       },
       stop: async () => false,
       said: () => {},
+      theirs: () => {},
       now: () => Date.now(),
     })
     await asking.ask(
@@ -212,5 +245,78 @@ describe('an owner device’s arm, built at the turn', () => {
     const remote = { how: 'remote', device: DEVICE, projects: null, may: ['steer'] }
     expect(await armedFor(true, false)).toEqual([remote])
     expect(await armedFor(false, true)).toEqual([remote])
+  })
+})
+
+describe('the person’s own device, built at the turn', () => {
+  // Full access — every scope and every reading grant, what pairing gives —
+  // is the person: the keyboard's reach from any door the guard let it
+  // through, and what they typed kept as their own words.
+  const device = (over: Partial<Device> = {}): Device => ({
+    id: DEVICE,
+    label: 'phone',
+    digest: 'a'.repeat(64),
+    host: 'tade.example.com',
+    csrf: 'x'.repeat(43),
+    until: Date.now() + 86_400_000,
+    pairedAt: Date.now(),
+    scopes: [...SCOPES],
+    projects: null,
+    granted: [...GRANTS],
+    from: '203.0.113.9',
+    revoked: null,
+    owner: false,
+    passkey: null,
+    ...over,
+  })
+
+  async function asked(one: Device, here: boolean) {
+    const armed: Arm[] = []
+    const theirs: string[] = []
+    const asking = webAsking({
+      talking: () => true,
+      devices: () => [one],
+      seen: () => ({ busy: false, whose: '' }),
+      ask: async (_said, arm) => {
+        armed.push(arm)
+      },
+      stop: async () => false,
+      said: () => {},
+      theirs: (text) => theirs.push(text),
+      now: () => Date.now(),
+    })
+    await asking.ask(
+      { was: chatRev({ busy: false }), said: 'turn the commit judge on' },
+      { how: 'remote', device: DEVICE },
+      here,
+    )
+    return { armed, theirs }
+  }
+
+  it('is the keyboard’s reach from a public name, and its words are theirs', async () => {
+    const { armed, theirs } = await asked(device(), false)
+    expect(armed).toEqual([{ how: 'owner', device: DEVICE, theirs: true }])
+    expect(theirs).toEqual(['turn the commit judge on'])
+  })
+
+  it('keeps exactly its grant once anything is taken away, and nothing is theirs', async () => {
+    const narrowedOne = device({ granted: GRANTS.filter((grant) => grant !== 'lanes') })
+    const { armed, theirs } = await asked(narrowedOne, false)
+    expect(armed).toEqual([
+      { how: 'remote', device: DEVICE, projects: null, may: ['answer', 'steer'] },
+    ])
+    expect(theirs).toEqual([])
+  })
+
+  it('is refused at once once revoked', async () => {
+    await expect(asked(device({ revoked: 'revoked at the machine' }), false)).rejects.toThrow(
+      /not paired/,
+    )
+  })
+
+  it('never makes a machine link’s words theirs', async () => {
+    const { armed, theirs } = await asked(device({ owner: true, host: 'localhost:7654' }), true)
+    expect(armed).toEqual([{ how: 'owner', device: DEVICE }])
+    expect(theirs).toEqual([])
   })
 })

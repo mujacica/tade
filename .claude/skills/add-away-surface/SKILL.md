@@ -29,7 +29,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | a code the terminal writes (`tade web pair`), and its claim | `src/pending.ts` — the one ticket on a disk, with the argument; the `pending` and `claimed` lines in `src/devices.ts` |
 | an owner device (`tade web pair --owner`) | `src/owner.ts` (the mint, and the five facts that keep it on this machine), `ownerOf` in `src/devices.ts`, the `here` an ask carries (`asked.ts`), and `armOf` in `packages/app/src/wire/web-asking.ts` |
 | what a device may **say to Tade** | `src/asking.ts` (the interface and the revision), `src/asked.ts` (the gate and the sequence), `ASKS` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-asking.ts`, and the screen in `src/assets/talk.js` |
-| what a turn from away may **reach** | `packages/core/src/origin.ts` (the arm, the provenance, the sentences) and `packages/orchestrator/src/origin.ts` (the two tables); an owner device's turn is `Arm`'s third variant, answered as local by every gate (`narrowedArm`) |
+| what a turn from away may **reach** | `packages/core/src/origin.ts` (the arm, the provenance, the sentences) and `packages/orchestrator/src/origin.ts` (the two tables); an owner's turn is `Arm`'s third variant, answered as local by every gate (`narrowedArm`); a full-access device's is `theirs`, its words a `said` line (`fullAccess`, `theirSaid`) |
 | the conversation, as a device reads it | `ChatIn`/`TalkIn` in `src/input.ts`, `chatRows` in `src/snapshot.ts`, `talkIn`/`chatLines` in `packages/app/src/away.ts` |
 | what a task's revision is made of | `taskRev`/`TaskFacts` in `src/acting.ts`, `factsOf` in `src/input.ts` |
 | the factory floor's four collections | `src/protocol-factory.ts` (the schemas), `src/factory.ts` (the input types and the projection), `packages/app/src/away-factory.ts` (the window's own mapping), `packages/app/src/wire/web-factory.ts` (the fold it keeps) |
@@ -437,8 +437,11 @@ a device still has none of the scopes that change anything until somebody at thi
   route writes `owner`; the fold makes an owner only of a line bound to a loopback host (`ownerOf`);
   a session is bound to its host; a public listener refuses this machine's names; and the window
   gives the owner arm only where the record says owner **and** the door says `thisMachine`. Its
-  words are never `said` and its acts are `device <id>` — the reach is the keyboard's, the record
-  is still the device's.
+  words are never `said` (another machine's model may have written them) and its acts are
+  `device <id>`.
+- **A device with full access is the person's own** (`fullAccess`, `armOf`): the owner arm with
+  `theirs`, from any door the guard let it through, on any harness; what they type is `said`.
+  Unticking any box makes it a device with exactly what is left, and revoking is read at every call.
 - **A body of `null` is a body.** `readBody` returns a discriminated answer, because `unknown | null`
   made a four-byte `null` indistinguishable from "already refused" and held the request open for ever.
 - **`(epoch, rev)` is the cursor, and nothing reads `seq` or a byte offset.** The epoch is minted by
@@ -811,11 +814,11 @@ own table (`ASKS`), its own interface (`WebAsking`), its own event type
   no supervision channel, which is what keeps a local turn exactly as it was;
   and it had to be there rather than in the supervision extension for a
   mechanical reason too — both register this run's extension tools, and pi
-  refuses to start on the collision. A remote turn is therefore only possible
+  refuses to start on the collision. A narrowed turn is therefore only possible
   where the harness can hold its own tool calls (`permissionGate`) **and**
   loads Tade's code as its own modules (`nativeExtensions`): `canBeArmed` is
-  the one reader, and a harness that lacks either **answers nobody and says
-  why** rather than running one unrestricted.
+  the one reader, and a harness that lacks either answers no **narrowed**
+  turn, saying why, rather than running one unrestricted.
 - **A socket that cannot be answered means allow**, and the argument is not
   convenience: the thing that answers `origin/allow` is the window, and the
   window is also the only thing that can serve a message from away. No window,

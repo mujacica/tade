@@ -1,6 +1,15 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { type Arm, armMay, armSees, cameFromAway, LOCAL } from '@tade/core'
+import {
+  type Arm,
+  AWAY_WORDS,
+  armMay,
+  armSees,
+  cameFromAway,
+  LOCAL,
+  THEIR_WORDS,
+  wordsHeading,
+} from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import {
   allowMethod,
@@ -124,6 +133,22 @@ describe('what a remote turn may reach', () => {
     expect(armMay(owner, 'steer')).toBe(true)
     expect(cameFromAway(owner)).toContain('owner device')
     expect(cameFromAway(owner)).toContain('still not their own words')
+  })
+
+  it('answers the person’s own device as the keyboard, and tells the model the words are theirs', () => {
+    // A phone with full access is the person: every gate as local, the record
+    // still the device's, and the words under the heading their own go under.
+    const yours: Arm = { how: 'owner', device: 'a1b2c3d4e5f60718', theirs: true }
+    for (const tool of ['bash', 'tade_setting_change', 'tade_run_start', 'tade_remote_tell']) {
+      expect(allowTool(tool, yours)).toEqual({ ok: true })
+    }
+    expect(allowMethod('config/change', { path: 'checks.before' }, yours)).toEqual({ ok: true })
+    expect(writtenBy(yours, 'orchestrator')).toBe('device a1b2c3d4e5f60718')
+    expect(cameFromAway(yours)).toContain('their own words')
+    expect(cameFromAway(yours)).not.toContain('still not their own words')
+    expect(wordsHeading(yours)).toBe(THEIR_WORDS)
+    expect(wordsHeading({ how: 'owner', device: 'a1b2c3d4e5f60718' })).toBe(AWAY_WORDS)
+    expect(wordsHeading(LOCAL)).toBe(THEIR_WORDS)
   })
 
   it('never passes a phone’s words on to another machine, where they would be its owner’s', () => {

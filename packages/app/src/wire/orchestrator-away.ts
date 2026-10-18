@@ -62,17 +62,21 @@ export async function stopTurn(
 }
 
 /**
- * Why a paired device cannot be answered here, or null when it can.
+ * Why a paired device's turn under this arm cannot be answered here, or null
+ * when it can.
  *
  * Three answers and they are not interchangeable: the orchestrator has not
- * started yet, this Tade has no way to run a narrowed turn at all, or the
+ * started yet, this Tade has no way to run a turn from away at all, or the
  * harness itself cannot be narrowed. The last is the one that must never be
  * silent — a harness whose own tool calls cannot be held would run a
  * stranger's words unrestricted — so it is the harness's own sentence, and a
- * device is told it rather than being answered.
+ * device is told it rather than being answered. **It is asked only of a
+ * narrowed arm**: an owner's turn (the person's own device, or a machine
+ * link) is the keyboard's reach, so there is nothing to hold and any harness
+ * answers it — Claude Code's and Codex's included (Sentry TADE-4).
  */
-export function cannotTalk(thinker: Thinker | null): string | null {
+export function cannotTalk(thinker: Thinker | null, arm: Arm): string | null {
   if (!thinker) return 'Tade is still starting'
   if (!thinker.askFrom) return 'this Tade cannot answer a paired device'
-  return thinker.unarmed?.() ?? null
+  return arm.how === 'remote' ? (thinker.unarmed?.() ?? null) : null
 }

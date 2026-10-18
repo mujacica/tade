@@ -11,7 +11,6 @@ import type {
   Unsubscribe,
 } from '@tade/core'
 import {
-  AWAY_WORDS,
   cameFromAway,
   changedFrom,
   expandHome,
@@ -21,6 +20,7 @@ import {
   orchestratorAccount,
   orchestratorRoute,
   wentQuiet,
+  wordsHeading,
 } from '@tade/core'
 import {
   type HarnessModels,
@@ -117,21 +117,6 @@ export interface OrchestratorOptions {
   /** Extra pi arguments. Tests use this to inject a scripted model. */
   args?: string[]
   env?: NodeJS.ProcessEnv
-  /**
-   * Whether a paired device may talk to this conversation
-   * (`surfaces.web.orchestrator`).
-   *
-   * **It changes nothing about how the conversation is run**, which is the
-   * point: the gate on its tool calls is registered either way and answers
-   * *yes* to every local one, so the orchestrator is ungated for the person at
-   * the keyboard exactly as it was.
-   *
-   * What it is read for is **saying so at the start**. A harness that cannot
-   * be narrowed serves no remote turn (`canBeArmed`), and the person who
-   * turned the setting on is the one who needs to hear that nothing will come
-   * of it — at start-up, rather than from a phone being refused an hour later.
-   */
-  talking?: boolean
   /**
    * Start with none of the self-written extensions loaded. This is the way
    * back when one of them is what broke, so it must not depend on any of them.
@@ -399,16 +384,10 @@ export class Orchestrator {
         `${harness} ${adapter.capabilities.why.headless ?? 'cannot be the one you talk to'}: it runs agents`,
       )
     }
-    // Whether a remote turn could be run at all, decided before one arrives
-    // and **said** rather than discovered: a harness that cannot be narrowed
-    // serves no remote turn, and the person who turned the setting on is the
-    // one who needs to know that nothing will come of it.
+    // Whether a narrowed turn could be run at all. Said to a device that asks
+    // rather than at start-up: the person's own device (full access) is
+    // answered by every harness, so on most machines nothing is refused.
     const armed = canBeArmed(adapter.capabilities)
-    if (opts.talking === true && !armed.ok) {
-      opts.onWarning?.(
-        `${harness} ${armed.why}, so a paired device cannot talk to Tade through it — nothing from away will be answered, and every message is refused with that reason`,
-      )
-    }
 
     // The exact model, settled before anything starts and among what this
     // harness offers: a name it cannot place makes it exit before it reads a
@@ -638,12 +617,14 @@ export class Orchestrator {
   }
 
   /**
-   * Why this harness cannot answer a paired device, or null when it can.
+   * Why this harness cannot answer a device whose turn is narrowed, or null
+   * when it can.
    *
    * Read by whatever offers the capability, so a phone is told *this harness
    * cannot be narrowed* rather than being answered by a conversation nothing
-   * was holding back. Never a silent unrestricted run: `askFrom` refuses on
-   * the same answer.
+   * was holding back. Never a silent unrestricted run: `askFrom` refuses a
+   * narrowed turn on the same answer. An owner's turn is never narrowed, so
+   * this is nothing to one.
    */
   get unarmed(): string | null {
     return this.unarmable
@@ -657,11 +638,13 @@ export class Orchestrator {
    * a dropped message:
    *
    * 1. **not running** — nothing to say it to;
-   * 2. **this harness cannot be narrowed** (`canBeArmed`), which is the one
-   *    that must never become a silent unrestricted run;
-   * 3. **a local arm asked for** — nothing here claims to be the person's (an
-   *    owner device's arm reaches as far, and is still its device's turn): the
-   *    one caller is the away view's own door, and the local path is `ask`;
+   * 2. **this harness cannot be narrowed** (`canBeArmed`) and the turn is a
+   *    narrowed one, which must never become a silent unrestricted run. An
+   *    owner's turn — the person's own device, or a machine link — is answered
+   *    by every gate as the keyboard's, so it needs no narrowing and is run on
+   *    any harness, Claude Code and Codex included;
+   * 3. **a local arm asked for** — the one caller is the away view's own door,
+   *    and the local path is `ask`;
    * 4. **something is already in flight.** A prompt sent mid-turn is *steered
    *    into that turn* by every harness here, so a remote message arriving
    *    while the person's question is being answered would put a stranger's
@@ -674,7 +657,7 @@ export class Orchestrator {
    */
   async askFrom(text: string, arm: Arm): Promise<void> {
     if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
-    if (this.unarmable) {
+    if (this.unarmable && arm.how === 'remote') {
       throw new Error(
         `Tade cannot answer a paired device here: ${this.adapter.id} ${this.unarmable}`,
       )
@@ -691,7 +674,7 @@ export class Orchestrator {
     try {
       await this.adapter.prompt(
         ORCHESTRATOR_RUN,
-        [cameFromAway(arm), '', AWAY_WORDS, text].join('\n'),
+        [cameFromAway(arm), '', wordsHeading(arm), text].join('\n'),
       )
     } catch (error) {
       // It never started, so nothing is in flight and the host must not stay

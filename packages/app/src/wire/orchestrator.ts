@@ -507,11 +507,6 @@ export class Orchestrator implements Subject {
     return whoseTurn(this.thinker)
   }
 
-  /** Why a paired device cannot be answered here, or null when it can. */
-  cannotTalk(): string | null {
-    return cannotTalk(this.thinker)
-  }
-
   /** Stop the turn in flight, if its harness can. False where it cannot. */
   stopTurn(): Promise<boolean> {
     return stopTurn(this.thinker, () => this.interrupt())
@@ -520,8 +515,13 @@ export class Orchestrator implements Subject {
   /**
    * Something a paired device said, into the same conversation.
    *
-   * **Three things this is not**, each of which would be the hole Phase 3 was
-   * written around:
+   * **The person's own device is the exception** (an owner arm that is
+   * `theirs`: full access): what they type there is theirs, so it is a `said`
+   * line like what they type here (`theirSaid`) — and it is answered on any
+   * harness, because nothing about its turn is narrowed.
+   *
+   * **For every other device, three things this is not**, each of which would
+   * be the hole Phase 3 was written around:
    *
    * - it is **not** `say`, so `deps.remember` is never called and no `said`
    *   line is written. That is necessary and nowhere near sufficient — an old
@@ -539,7 +539,7 @@ export class Orchestrator implements Subject {
   async askRemote(text: string, arm: Arm): Promise<void> {
     const thinker = this.thinker
     const askFrom = thinker?.askFrom
-    const cannot = this.cannotTalk()
+    const cannot = cannotTalk(thinker, arm)
     if (!thinker || !askFrom || cannot) {
       throw new Error(cannot ?? 'this Tade cannot answer a paired device')
     }
@@ -570,6 +570,14 @@ export class Orchestrator implements Subject {
       ),
     )
     this.wire.draw()
+  }
+
+  /**
+   * The person's own words from their own device, kept as what they type here
+   * is: a `said` line, which `namedBy` reads, and a line for up and ctrl+r.
+   */
+  theirSaid(text: string): void {
+    this.deps.remember(text)
   }
 
   /** Everything addressed to Tade arrives here, however it was said. */

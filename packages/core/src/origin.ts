@@ -111,27 +111,27 @@ export type Arm =
       may: readonly RemoteGrant[]
     }
   /**
-   * An owner device's turn: the local arm's reach, and a device's provenance.
+   * The person's own turn from a device: the local arm's reach, and a device's
+   * provenance. Two kinds, and `theirs` tells them apart.
    *
-   * **The one place the two questions at the head of this file get different
-   * answers, and why it is safe** (REMOTE-TADE.md §11 item 4). The narrowing
-   * exists because a phone's session is a weaker credential than being at the
-   * keyboard. An owner device is minted only by `tade web pair --owner`, a
-   * shell on this machine — which over SSH is the SSH key — and bound to a
-   * loopback host, so it is *used* only on the loopback listener: from outside
-   * the box, through that same SSH connection (`@tade/web`'s `owner.ts` has the
-   * chain). Everything a turn under it can reach, `ssh` to this machine already
-   * reaches, running `tade` here and typing into its agents' terminals
-   * included. So it reaches what a local turn reaches, and every gate answers
-   * it as one.
+   * **A device with full access is the person's own** (`theirs`, `@tade/web`'s
+   * `fullAccess`): every scope and every reading grant, which is what a code
+   * pairs with unless somebody unticks something. The person decided that
+   * their own phone is them — pairing is a code only this machine shows or a
+   * shell here writes, a passkey stands behind anything above reading from a
+   * public name, and revoking it is instant. So it reaches what the keyboard
+   * reaches, and what they type on it is a `said` line like what they type
+   * here, which is what lets it name an `asked`-tier setting.
    *
-   * **And it stays a device in every record.** Who asked is `device <id>`
-   * (`whoOf`), the transcript marks the words as that device's, and nothing it
-   * says is ever a `said` line: an agent on the other machine can hold the same
-   * session (`DEVICES_AND_AGENTS`, one hop further), so its words may never
-   * authorise an `asked`-tier setting the way the person's own do.
+   * **A machine link** (`tade web pair --owner`, REMOTE-TADE.md §11 item 4)
+   * reaches as far, used only on this machine's own door through the SSH key —
+   * but what it carries may be another machine's model's words rather than
+   * the person's, so it is never a `said` line.
+   *
+   * Either stays a device in the record: who asked is `device <id>` (`whoOf`)
+   * and the transcript marks the words as that device's.
    */
-  | { how: 'owner'; device: string }
+  | { how: 'owner'; device: string; theirs?: boolean }
 
 /** Not narrowed: the person at this machine. */
 export const LOCAL: Arm = { how: 'local' }
@@ -223,6 +223,16 @@ export interface Arming {
 /** The heading a remote request's own words go under, so Tade's are told apart. */
 export const AWAY_WORDS = 'What a paired device asked:'
 
+/** The heading the person's own words go under, typed here or on their own device. */
+export const THEIR_WORDS = 'What they said:'
+
+/** Which of the two headings a turn's words go under: the person's own, or a request. */
+export function wordsHeading(arm: Arm): string {
+  return arm.how === 'local' || (arm.how === 'owner' && arm.theirs === true)
+    ? THEIR_WORDS
+    : AWAY_WORDS
+}
+
 /**
  * Tade's own line above a remote turn's words.
  *
@@ -240,7 +250,7 @@ export const AWAY_WORDS = 'What a paired device asked:'
  */
 export function cameFromAway(arm: Arm): string {
   if (arm.how === 'local') return ''
-  if (arm.how === 'owner') return OWNER_ASKED
+  if (arm.how === 'owner') return arm.theirs === true ? YOURS_ASKED : OWNER_ASKED
   const may =
     arm.may.length === 0
       ? 'It was granted nothing beyond reading, so anything that changes work is refused.'
@@ -257,7 +267,15 @@ export function cameFromAway(arm: Arm): string {
 }
 
 /**
- * Tade's own line above an owner device's words: `cameFromAway`'s shape, for
+ * Tade's own line above the person's words from their own device: where they
+ * typed it, and that it is them — so the model does not treat it as a request
+ * to be careful with, and the transcript says why a phone could do that.
+ */
+const YOURS_ASKED =
+  'This came from the person’s own device, which has full access: these are their own words, typed there rather than at the keyboard, and they reach everything the keyboard does.'
+
+/**
+ * Tade's own line above a machine link's words: `cameFromAway`'s shape, for
  * the arm that is not narrowed.
  *
  * It says the two halves the model needs and the person reading the transcript
@@ -306,15 +324,18 @@ export function needsYouHere(what: string): string {
  * is safe is a closed list rather than a paragraph telling the model to behave.
  */
 export const TALKING_IS_NOT_YOU =
-  'A message from a paired device reaches the same conversation you type into, and is never your ' +
-  'own words: it cannot authorise a setting change, however it is phrased, and nothing it says ' +
-  'reaches a line you said. While Tade is answering one, its own tools are narrowed to reading ' +
-  'this device’s own view of your work plus whatever that device was granted — answering what an ' +
-  'agent is waiting on, telling one something, setting work aside, writing a note — and every ' +
-  'other tool it has is refused in code: no setting, no credential, no command, no new agent, no ' +
-  'push, no merge, no check overruled. Its own words are in the transcript here, marked as the ' +
-  'device’s, and every turn is in the journal under its id.'
+  'A message from a device with full access is yours: every scope and every reading grant, which ' +
+  'is what pairing gives unless you untick something. It counts as your own words, so it can ' +
+  'name a setting as you would at this keyboard, and Tade answers it with everything it has here. ' +
+  'A message from any other paired device is never your own words: it cannot authorise a setting ' +
+  'change, however it is phrased, and nothing it says reaches a line you said. While Tade is ' +
+  'answering one, its own tools are narrowed to reading this device’s own view of your work plus ' +
+  'whatever that device was granted — answering what an agent is waiting on, telling one ' +
+  'something, setting work aside, writing a note — and every other tool it has is refused in ' +
+  'code: no setting, no credential, no command, no new agent, no push, no merge, no check ' +
+  'overruled. Every message is in the transcript here, marked as the device’s, and every turn is ' +
+  'in the journal under its id.'
 
 /** The short clause, for the one line a control gets. */
 export const TALKING_IS_NOT_YOU_SHORT =
-  'a device talks to Tade as a request, never as your own words'
+  'a full-access device talks as you; others, never as your own words'

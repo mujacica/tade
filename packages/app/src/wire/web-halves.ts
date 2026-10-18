@@ -92,6 +92,7 @@ export function halvesFor(surface: Surface, deps: Halving): Partial<ServerOption
             ask: (said, arm) => deps.talk.askRemote(said, arm),
             stop: () => deps.talk.stopTurn(),
             said: (text, device) => deps.talk.remoteSaid(text, device),
+            theirs: (text) => deps.talk.theirSaid(text),
             now: () => deps.now(),
           }),
         }

@@ -293,12 +293,6 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
         new Set(finishedFrom(journal).keys()),
       ),
       safe: o.safe,
-      // Whether the conversation needs a gate on its own tool calls, which is
-      // wired when it starts. Read from the config here rather than asked
-      // later, because a gate added mid-session would be a gate the turn
-      // already in flight never had — and the setting says *takes effect on
-      // restart* for that reason.
-      talking: config.surfaces.web.enabled && config.surfaces.web.orchestrator,
       signal: quitting.signal,
       // What starting it had to say — its conversation not carried to the
       // account it runs as, a model it could not place — written down where

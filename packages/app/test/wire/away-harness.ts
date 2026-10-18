@@ -157,6 +157,8 @@ export interface Machine {
   said: { text: string; device: string }[]
   /** The arms every remote turn was handed, so a test can read what it narrowed to. */
   armed: Arm[]
+  /** What was kept as the person's own words (`theirSaid`). */
+  theirs: string[]
 }
 
 export interface MachineOptions {
@@ -387,6 +389,7 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
 
   const said: { text: string; device: string }[] = []
   const armed: Arm[] = []
+  const theirs: string[] = []
   const away = new Away(wire, {
     decided: () => {},
     news: (one) => news.push(one),
@@ -401,6 +404,7 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
       },
       stopTurn: over.stop ?? (() => Promise.resolve(true)),
       remoteSaid: (text: string, device: string) => said.push({ text, device }),
+      theirSaid: (text: string) => theirs.push(text),
     },
     stands: over.stands ?? (() => Promise.resolve(null)),
     factory: over.factory ?? (() => nothingHandedOver()),
@@ -444,6 +448,7 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     news,
     transcript: () => state.transcript,
     said,
+    theirs,
     armed,
     decided,
     told,

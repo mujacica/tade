@@ -666,6 +666,12 @@ describe('the sentences', () => {
     // a closed list of tools, in code. A control that said *Tade is careful
     // with messages from away* would be this sentence with its argument taken
     // out.
+    // **Both halves, in one breath**: a device with full access is the person
+    // (their own words, the keyboard's reach), and what makes one a request
+    // again is unticking something — said where somebody decides.
+    expect(TALKING_IS_NOT_YOU).toContain('full access is yours')
+    expect(TALKING_IS_NOT_YOU).toContain('counts as your own words')
+    expect(TALKING_IS_NOT_YOU).toContain('untick')
     expect(TALKING_IS_NOT_YOU).toContain('never your own words')
     expect(TALKING_IS_NOT_YOU).toContain('cannot authorise a setting change')
     expect(TALKING_IS_NOT_YOU).toContain('refused in code')
@@ -738,6 +744,7 @@ describe('the sentences', () => {
   it('have a short clause for the one line a control gets', () => {
     expect(TALKING_IS_NOT_YOU_SHORT.length).toBeLessThan(70)
     expect(TALKING_IS_NOT_YOU_SHORT).toContain('never as your own words')
+    expect(TALKING_IS_NOT_YOU_SHORT).toContain('full-access device talks as you')
     // Short enough to sit on a row beside a control, and still carrying the
     // half that matters: that a request from a device is a request.
     expect(ACTING_IS_NOT_YOU_SHORT).toContain('never as your own words')

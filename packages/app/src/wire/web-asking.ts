@@ -4,6 +4,7 @@ import {
   chatRev,
   type Device,
   type From,
+  fullAccess,
   Moved,
   NotOffered,
   NotThere,
@@ -37,8 +38,9 @@ import {
 //    one whose grant was narrowed, must not be answered on what it had when it
 //    connected — so `armFor` is called here, against the list as it is now.
 // 3. **Carry the provenance into the record.** The transcript line is marked
-//    as the device's (`deviceSaid`), the journal line is a `web_asked`, and
-//    neither is ever a `said` line.
+//    as the device's (`deviceSaid`) and the journal line is a `web_asked`.
+//    Only the person's own device (full access) also writes a `said` line,
+//    and that is the window's (`askRemote`), never this file's.
 //
 // What this file deliberately does **not** do is decide what the turn may
 // reach. That is two closed tables in `@tade/orchestrator` and a gate in front
@@ -59,7 +61,7 @@ export function seenFrom(
   paired: (device: string) => Device | undefined,
   snapshot: (device: Device) => unknown,
 ): Promise<unknown> {
-  if (arm.how !== 'remote') throw new Error('only a turn from away is answered this way')
+  if (arm.how !== 'remote') throw new Error('only a narrowed turn from away is answered this way')
   const device = paired(arm.device)
   if (device === undefined) throw new Error('that device is no longer paired')
   return Promise.resolve(snapshot(device))
@@ -129,6 +131,11 @@ export interface Talking {
   stopTurn(): Promise<boolean>
   /** A device's words, in the conversation, marked as theirs. */
   remoteSaid(text: string, device: string): void
+  /**
+   * The person's own words from their own device (full access): a `said` line,
+   * as what they type here is. Never called for any other device.
+   */
+  theirSaid(text: string): void
 }
 
 /**
@@ -137,7 +144,7 @@ export interface Talking {
  * **Lazily, because the subjects are built in an order and this one is built
  * first.** `Away` is constructed before the orchestrator subject — the window
  * opens without waiting for a model in another process — so a direct
- * reference here would be read before it was assigned. Five one-line
+ * reference here would be read before it was assigned. Six one-line
  * delegations rather than five lambdas at the call site, so `app.ts` stays
  * wiring and the reason is written down once.
  */
@@ -149,6 +156,7 @@ export function talkingThrough(held: () => Talking): Talking {
     askRemote: (said, arm) => held().askRemote(said, arm),
     stopTurn: () => held().stopTurn(),
     remoteSaid: (text, device) => held().remoteSaid(text, device),
+    theirSaid: (text) => held().theirSaid(text),
   }
 }
 
@@ -156,7 +164,9 @@ export function talkingThrough(held: () => Talking): Talking {
 export interface Paired {
   projects: readonly string[] | null
   scopes: readonly string[]
-  /** Whether it is an owner device (`@tade/web`'s `owner.ts`). Absent is not. */
+  /** Its reading grants: with every scope, all of them is full access (`fullAccess`). */
+  granted?: readonly string[]
+  /** Whether it is a machine link (`@tade/web`'s `owner.ts`). Absent is not. */
   owner?: boolean
 }
 
@@ -180,11 +190,18 @@ export function narrowed(arm: Arm, paired: (device: string) => Paired | null): A
   if (arm.how === 'local') return arm
   const held = paired(arm.device)
   if (held === null) return { how: 'remote', device: arm.device, projects: [], may: [] }
-  // An owner turn keeps the keyboard's reach only while the record still says
-  // owner. Revoked is above; a record that stopped saying it is taken back to
-  // what the device was granted, which is still only ever narrower.
-  if (arm.how === 'owner') return held.owner === true ? arm : remoteNow(arm.device, held, null)
+  // An owner turn keeps the keyboard's reach only while the record still makes
+  // it one: a machine link while it says owner, the person's own device while
+  // it has full access. Revoked is above; a box unticked mid-turn takes it
+  // back to what the device was granted, which is still only ever narrower.
+  if (arm.how === 'owner') return stillOwner(arm, held) ? arm : remoteNow(arm.device, held, null)
   return remoteNow(arm.device, held, arm)
+}
+
+/** Whether the record still gives an owner turn the keyboard's reach. */
+function stillOwner(arm: Extract<Arm, { how: 'owner' }>, held: Paired): boolean {
+  if (arm.theirs !== true) return held.owner === true
+  return held.owner !== true && fullAccess({ scopes: held.scopes, granted: held.granted ?? [] })
 }
 
 /** The remote arm a record grants now, never wider than the lease it narrows. */
@@ -244,6 +261,11 @@ export interface AskingDeps {
   stop: () => Promise<boolean>
   /** Write the message down: the transcript line, marked as the device's. */
   said: (text: string, device: string) => void
+  /**
+   * Write the person's own words down as theirs: a `said` line, which is what
+   * `namedBy` reads. Called only for an owner arm that is `theirs`.
+   */
+  theirs: (text: string) => void
   now: () => number
 }
 
@@ -279,6 +301,10 @@ export function webAsking(deps: AskingDeps): WebAsking {
       // on. It is the device's line and never the person's: `deviceSaid` is a
       // different function from `youSaid` for exactly that reason.
       deps.said(call.said, from.how === 'remote' ? from.device : '')
+      // **The person's own device is them**, so what they typed is a `said`
+      // line, written before the turn so a setting it names is named by the
+      // time a tool asks. No other device's words ever are.
+      if (arm.how === 'owner' && arm.theirs === true) deps.theirs(call.said)
       await deps.ask(call.said, arm)
       const after = deps.seen()
       return { did: true, rev: chatRev({ busy: after.busy }), said: 'Tade is answering' }
@@ -331,10 +357,14 @@ function armOf(deps: AskingDeps, from: From, here: boolean): Arm {
   if (!device.scopes.includes('ask')) {
     throw new OutOfScope(`${byOf(from)} was not granted talking to Tade`)
   }
-  // **Both halves, and neither is the request's word.** The record says owner
-  // (minted only by `tade web pair --owner`, bound to a loopback host), and the
-  // door says this message came in on this machine. Either alone is a device's
-  // ordinary, narrowed turn.
-  if (device.owner && here) return { how: 'owner', device: device.id }
+  // **A machine link needs both halves, and neither is the request's word.**
+  // The record says owner (minted only by `tade web pair --owner`, bound to a
+  // loopback host), and the door says this message came in on this machine.
+  // Its words may be another machine's model's, so they are never `theirs`.
+  if (device.owner) return here ? { how: 'owner', device: device.id } : armFor(device)
+  // **A device with full access is the person's own**, from any door the
+  // guard let it through — a public name only with a passkey proved: its
+  // reach is the keyboard's and its words are theirs (`Arm`'s owner variant).
+  if (fullAccess(device)) return { how: 'owner', device: device.id, theirs: true }
   return armFor(device)
 }

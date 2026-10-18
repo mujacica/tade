@@ -406,6 +406,21 @@ export function ownerOf(line: { owner?: true | undefined; host: string }): boole
   return line.owner === true && name !== null && loopbackHost(name)
 }
 
+/**
+ * Whether a device has full access: every scope and every reading grant —
+ * what pairing gives unless somebody unticks something (the panel's `full
+ * access` box draws exactly this). **Such a device is the person's own**: its
+ * turns reach what the keyboard reaches and what is typed on it is theirs
+ * (`Arm`'s owner variant, `theirs`). A device with anything taken away keeps
+ * exactly the grant it has. Revoking it is a line, read at every request.
+ */
+export function fullAccess(device: Pick<Device, 'scopes' | 'granted'>): boolean {
+  return (
+    SCOPES.every((scope) => device.scopes.includes(scope)) &&
+    GRANTS.every((grant) => device.granted.includes(grant))
+  )
+}
+
 /** The devices in the file, or none at all where there is no file yet. */
 export async function readDevices(
   home: string,
