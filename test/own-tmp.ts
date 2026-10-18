@@ -1,8 +1,18 @@
 import { spawnSync } from 'node:child_process'
-import { chmodSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs'
+import fs, {
+  appendFileSync,
+  chmodSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  statSync,
+} from 'node:fs'
 import { opendir, rm } from 'node:fs/promises'
+import { syncBuiltinESMExports } from 'node:module'
 import { constants } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 
 // Each suite run has a temp root of its own, and the root goes when the run
 // ends.
@@ -45,6 +55,19 @@ import { basename, join } from 'node:path'
 //   nothing new under a name this repository makes, in the real temp folder
 //   or in `/tmp`, which is where a child started without `TMPDIR` writes. A
 //   run that leaves something there fails and names each entry, by its prefix.
+// - **But only for what it made itself** (`recordMade`, `madeHere`). The temp
+//   folders are the machine's, and on a machine agents share there is always
+//   something else beside the suite making the same names — another agent's
+//   script building a fixture, a Tade window, a tool of the same name from
+//   outside this repository — and the guard read all of it as this run's:
+//   `tade-drive-*` and another run's `tade-repo-*` turned two `related` runs
+//   red that had left nothing. Nothing in a folder says which process made
+//   it, so the run writes that down as it goes: every test process records
+//   each folder it makes outside its root under a guarded name, in a ledger
+//   in the root, and only those are the run's. Whatever else turned up is
+//   named, and is not a failure. What the ledger cannot see is a process the
+//   suite did not load into: a child started with an environment of its own
+//   that writes to `/tmp` is not recorded, and is named among the others.
 
 /** What every root's name starts with, before the suite's pid. */
 export const ROOT = 'tade-suite-'
@@ -200,6 +223,142 @@ export async function leftBehind(
 }
 
 /**
+ * Where a run's processes write down what they made in the temp folders
+ * rather than under its root: a path in the root, set by `ownTmp` and read by
+ * `recordMade`. The file is only there once something was.
+ */
+export const MADE_ENV = 'TADE_SUITE_MADE'
+
+/** Marks `node:fs` once it records, since every test file loads the setup files again. */
+const RECORDING = Symbol.for('tade.own-tmp.recording')
+
+/**
+ * From now on, every folder this process makes under a guarded name outside
+ * the run's root goes in the run's ledger (`MADE_ENV`), as the path it really
+ * is (`/tmp` is `/private/tmp` on macOS). Both ways a folder is made —
+ * `mkdtemp` and `mkdir`, each of their three forms — in every module, however
+ * it imported them: the module's own functions are replaced and the named
+ * imports follow (`syncBuiltinESMExports`). With no ledger it records nothing.
+ */
+export function recordMade(env: NodeJS.ProcessEnv = process.env): void {
+  const marked = fs as typeof fs & { [RECORDING]?: true }
+  if (marked[RECORDING]) return
+  marked[RECORDING] = true
+  let unwritten = false
+  const note = (made: unknown) => {
+    const ledger = env[MADE_ENV]
+    if (!ledger || typeof made !== 'string' || !guarded(basename(made))) return
+    try {
+      const path = join(realpathSync(dirname(made)), basename(made))
+      if (path.startsWith(`${dirname(ledger)}/`)) return
+      appendFileSync(ledger, `${path}\n`)
+    } catch (err) {
+      // The folder was made all the same; what is lost is the run being able
+      // to answer for it, which the teardown then names among the others.
+      if (unwritten) return
+      unwritten = true
+      process.stderr.write(`\nCould not write down ${made} in ${ledger}: ${String(err)}\n`)
+    }
+  }
+  /** A callback form's own callback, told what was made once it was. */
+  const after = (args: unknown[], made: (result: unknown) => unknown) => {
+    const done = args.at(-1)
+    if (typeof done !== 'function') return args
+    return [
+      ...args.slice(0, -1),
+      (err: unknown, result: unknown) => {
+        if (!err) note(made(result))
+        done(err, result)
+      },
+    ]
+  }
+  const recursive = (opts: unknown) =>
+    typeof opts === 'object' &&
+    opts !== null &&
+    (opts as { recursive?: unknown }).recursive === true
+  // A recursive mkdir answers the first folder it made, or nothing; one that
+  // is not answers nothing, and made exactly what it was given.
+  const madeBy = (path: unknown, opts: unknown) => (result: unknown) =>
+    recursive(opts) ? result : path
+
+  const { mkdtempSync: tempSync, mkdtemp: temp, mkdirSync: dirSync, mkdir: dir } = fs
+  const promised = fs.promises
+  const { mkdtemp: tempPromised, mkdir: dirPromised } = promised
+  fs.mkdtempSync = ((...args: Parameters<typeof tempSync>) => {
+    const made = tempSync(...args)
+    note(made)
+    return made
+  }) as typeof tempSync
+  fs.mkdtemp = ((...args: unknown[]) =>
+    (temp as (...all: unknown[]) => void)(...after(args, (made) => made))) as typeof temp
+  promised.mkdtemp = (async (...args: Parameters<typeof tempPromised>) => {
+    const made = await tempPromised(...args)
+    note(made)
+    return made
+  }) as typeof tempPromised
+  fs.mkdirSync = ((path: fs.PathLike, opts?: fs.MakeDirectoryOptions | fs.Mode | null) => {
+    const made = dirSync(path, opts as fs.MakeDirectoryOptions)
+    note(madeBy(path, opts)(made))
+    return made
+  }) as typeof dirSync
+  fs.mkdir = ((path: fs.PathLike, ...rest: unknown[]) =>
+    (dir as (...all: unknown[]) => void)(
+      path,
+      ...after(rest, madeBy(path, rest.length > 1 ? rest[0] : undefined)),
+    )) as typeof dir
+  promised.mkdir = (async (path: fs.PathLike, opts?: fs.MakeDirectoryOptions | fs.Mode | null) => {
+    const made = await dirPromised(path, opts as fs.MakeDirectoryOptions)
+    note(madeBy(path, opts)(made))
+    return made
+  }) as typeof dirPromised
+  syncBuiltinESMExports()
+}
+
+/** What a run's ledger says it made, or nothing where it made nothing outside its root. */
+export function readMade(ledger: string): Set<string> {
+  try {
+    return new Set(readFileSync(ledger, 'utf8').split('\n').filter(Boolean))
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return new Set()
+    throw err
+  }
+}
+
+/**
+ * What was left, split into what this run made — what its ledger says it
+ * made — and what something beside it did. Compared as the paths really are,
+ * since a ledger holds `/private/tmp` where the guard looked at `/tmp`.
+ */
+export function madeHere(
+  left: readonly string[],
+  made: ReadonlySet<string>,
+): { mine: string[]; beside: string[] } {
+  const mine: string[] = []
+  const beside: string[] = []
+  for (const path of left) {
+    let real = path
+    try {
+      real = join(realpathSync(dirname(path)), basename(path))
+    } catch {
+      // Its folder went since it was looked at; the path as it was looked at is all there is.
+    }
+    ;(made.has(real) || made.has(path) ? mine : beside).push(path)
+  }
+  return { mine, beside }
+}
+
+/** What turned up in the temp folders during the run that the run did not make, named and no failure. */
+export function besideSaid(beside: readonly string[]): string {
+  const most = 5
+  const more = beside.length > most ? `, and ${beside.length - most} more` : ''
+  const things = beside.length === 1 ? '1 thing' : `${beside.length} things`
+  return (
+    `${things} under this repository's names turned up in the temp folders during this suite, made by something beside it, ` +
+    `so not this suite's to answer for: ${beside.slice(0, most).join(', ')}${more}.`
+  )
+}
+
+/**
  * The prefix a name was made with: mkdtemp's six characters off the end, so
  * it is the string to search the code for. A name with no such tail is its own
  * prefix.
@@ -228,8 +387,8 @@ export function leftSaid(left: readonly string[], dirs: readonly string[]): stri
     `This suite left ${things} in ${dirs.join(' and ')}, which it must leave as it found it:`,
     ...rows,
     'Everything a test makes belongs under the suite’s own temp root (TMPDIR, test/own-tmp.ts), which is taken away at the end.',
-    'Something here did not use it. Most likely a child was started with an environment of its own and no TMPDIR, so it wrote to /tmp,',
-    'or a path was built from somewhere other than os.tmpdir(). Search the code for the prefix to find what made it.',
+    'Each of these was made by one of this suite’s own test processes (its ledger says so), outside that root: most likely its path was built',
+    'from somewhere other than os.tmpdir() — a fixed /tmp, or a TMPDIR read too early, while it was still the machine’s. Search the code for the prefix to find what made it.',
   ].join('\n')
 }
 
@@ -275,8 +434,10 @@ export async function ownTmp(opts: {
   await sweepRoots(made.base, opts.now ?? Date.now(), say)
   const before = opts.guard ? await lookAt(watched) : null
   const { root } = made
-  const was = Object.fromEntries(POINTED.map((key) => [key, opts.env[key]]))
+  const ledger = join(realpathSync(root), '.made-outside')
+  const was = Object.fromEntries([...POINTED, MADE_ENV].map((key) => [key, opts.env[key]]))
   for (const key of POINTED) opts.env[key] = root
+  opts.env[MADE_ENV] = ledger
   // Once, whichever comes first: the end of the run, or a signal before it.
   let kept: string | null | undefined
   const takeAway = (): string | null => {
@@ -302,12 +463,16 @@ export async function ownTmp(opts: {
         if (value === undefined) delete opts.env[key]
         else opts.env[key] = value
       }
+      // Read before the root it is in goes.
+      const made = before ? readMade(ledger) : new Set<string>()
       const why = takeAway()
       if (why && !before) say(`\n${why}\n`)
       if (!before) return
       if (why) throw new Error(why)
       const left = await leftBehind(before, await lookAt(watched), opts.settleMs)
-      if (left.length > 0) throw new Error(leftSaid(left, watched))
+      const { mine, beside } = madeHere(left, made)
+      if (beside.length > 0) say(`\n${besideSaid(beside)}\n`)
+      if (mine.length > 0) throw new Error(leftSaid(mine, watched))
     },
   }
 }

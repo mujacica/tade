@@ -11,7 +11,7 @@ import { Graph, testsReaching, workspaceAt } from '../scripts/related-graph.ts'
 // dependency a narrower graph must still catch.
 
 function repo(files: Record<string, string>): Graph {
-  const root = mkdtempSync(join(tmpdir(), 'related-'))
+  const root = mkdtempSync(join(tmpdir(), 'tade-related-'))
   for (const [path, source] of Object.entries(files)) {
     mkdirSync(dirname(join(root, path)), { recursive: true })
     writeFileSync(join(root, path), source)

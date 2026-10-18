@@ -18,6 +18,8 @@ import {
   guarded,
   leftBehind,
   leftSaid,
+  MADE_ENV,
+  madeHere,
   ownTmp,
   prefixOf,
   ROOT,
@@ -33,6 +35,24 @@ import {
 
 /** A pid nothing can have: above the largest either macOS or Linux hands out. */
 const GONE = 2 ** 22 + 1
+
+/**
+ * Run `make` as a process of the run `env` belongs to: what this process makes
+ * goes in that run's ledger while it runs (`recordMade`, which every test file
+ * loads), as it would for a test of that run.
+ */
+const asThisRun = (env: NodeJS.ProcessEnv, make: () => void) => {
+  const was = process.env[MADE_ENV]
+  process.env[MADE_ENV] = env[MADE_ENV]
+  try {
+    make()
+  } finally {
+    process.env[MADE_ENV] = was
+  }
+}
+
+/** Something beside the suite making a folder: another process, which loaded nothing of it. */
+const beside = (path: string) => execFileSync('mkdir', [path])
 
 const aged = (path: string, ms: number) => {
   const at = (Date.now() - ms) / 1000
@@ -62,7 +82,13 @@ describe('a suite run has a temp root of its own', () => {
     const own = await ownTmp({ env, guard: false, base, watch: [] })
     expect(dirname(own.root)).toBe(base)
     expect(basename(own.root)).toMatch(new RegExp(`^${ROOT}${process.pid}-`))
-    expect(env).toEqual({ TMPDIR: own.root, TMUX_TMPDIR: own.root, TADE_RUNTIME_DIR: own.root })
+    expect(env).toEqual({
+      TMPDIR: own.root,
+      TMUX_TMPDIR: own.root,
+      TADE_RUNTIME_DIR: own.root,
+      // Where what it makes outside the root is written down: in the root.
+      [MADE_ENV]: join(realpathSync(own.root), '.made-outside'),
+    })
     mkdirSync(join(own.root, 'tade-repo-abc123', 'repo'), { recursive: true })
     await own.done()
     expect(existsSync(own.root)).toBe(false)
@@ -204,16 +230,18 @@ describe('a full run leaves the temp folder as it found it', () => {
       watch: [real],
       settleMs: 1,
     })
-    // Under the root goes with it.
-    mkdirSync(join(own.root, 'tade-repo-inside'))
-    // Beside it is left behind.
-    for (const name of ['tade-repo-Abc123', 'tade-repo-Def456', 'tcc-Ghi789', 'tade-x y']) {
-      mkdirSync(join(real, name))
-    }
-    // Not this repository's, a Tade window's own, and another run's root.
-    for (const name of ['pi-editor-Jkl012', 'tade-tmux-Mno345', `${ROOT}${GONE}-pqr678`]) {
-      mkdirSync(join(real, name))
-    }
+    asThisRun(env, () => {
+      // Under the root goes with it.
+      mkdirSync(join(own.root, 'tade-repo-inside'))
+      // Beside it is left behind.
+      for (const name of ['tade-repo-Abc123', 'tade-repo-Def456', 'tcc-Ghi789', 'tade-x y']) {
+        mkdirSync(join(real, name))
+      }
+      // Not this repository's, a Tade window's own, and another run's root.
+      for (const name of ['pi-editor-Jkl012', 'tade-tmux-Mno345', `${ROOT}${GONE}-pqr678`]) {
+        mkdirSync(join(real, name))
+      }
+    })
 
     const failed = await own.done().then(
       () => null,
@@ -229,6 +257,112 @@ describe('a full run leaves the temp folder as it found it', () => {
       expect(failed).not.toContain(not)
     }
     expect(existsSync(own.root)).toBe(false)
+  })
+
+  it('answers only for what it made: what turned up beside it is named, and no failure', async () => {
+    const real = tmp('tade-real-')
+    const env: NodeJS.ProcessEnv = { TMPDIR: real }
+    const said: string[] = []
+    const own = await ownTmp({
+      env,
+      guard: true,
+      base: tmp('tade-base-'),
+      watch: [real],
+      settleMs: 1,
+      say: (line) => said.push(line),
+    })
+    // What another agent's fixture and a tool of the same name from outside
+    // this repository made in the same folder while the run went on.
+    beside(join(real, 'tade-repo-Oth3r1'))
+    beside(join(real, 'tade-drive-Ext3r1'))
+    await expect(own.done()).resolves.toBeUndefined()
+    expect(said.join('')).toContain(
+      `2 things under this repository's names turned up in the temp folders during this suite, made by something beside it`,
+    )
+    expect(said.join('')).toContain(join(real, 'tade-drive-Ext3r1'))
+  })
+
+  it('still fails for what it left among them, made in any of the ways a folder is made', async () => {
+    const real = tmp('tade-real-')
+    const env: NodeJS.ProcessEnv = { TMPDIR: real }
+    const said: string[] = []
+    const own = await ownTmp({
+      env,
+      guard: true,
+      base: tmp('tade-base-'),
+      watch: [real],
+      settleMs: 1,
+      say: (line) => said.push(line),
+    })
+    beside(join(real, 'tade-repo-Oth3r1'))
+    // A test of this run that built its path from somewhere other than its
+    // root, each way there is of making a folder in this process.
+    const fs = await import('node:fs')
+    const promised = await import('node:fs/promises')
+    asThisRun(env, () => fs.mkdtempSync(join(real, 'tade-repo-')))
+    asThisRun(env, () => fs.mkdirSync(join(real, 'tade-home-Abc123', 'deep'), { recursive: true }))
+    process.env[MADE_ENV] = env[MADE_ENV]
+    try {
+      await new Promise<void>((done, fail) =>
+        fs.mkdtemp(join(real, 'tcc-'), (err) => (err ? fail(err) : done())),
+      )
+      await new Promise<void>((done, fail) =>
+        fs.mkdir(join(real, 'tcx-Abc123'), (err) => (err ? fail(err) : done())),
+      )
+      await promised.mkdtemp(join(real, 'wd-'))
+      await promised.mkdir(join(real, 'wl-Abc123'))
+    } finally {
+      delete process.env[MADE_ENV]
+    }
+    // And a child of it that loaded the suite's setup, as a worker does.
+    const child = spawnSync(
+      process.execPath,
+      [
+        '--import',
+        fileURLToPath(new URL('./made-here.ts', import.meta.url)),
+        '--input-type=module',
+        '-e',
+        "import { mkdtempSync } from 'node:fs'; mkdtempSync(process.argv[1] + '/tade-child-')",
+        real,
+      ],
+      { env: { ...process.env, ...env }, encoding: 'utf8' },
+    )
+    expect(child.stderr).toBe('')
+
+    const failed = await own.done().then(
+      () => null,
+      (err: Error) => err.message,
+    )
+    expect(failed).toContain(`This suite left 7 things in ${real}`)
+    for (const prefix of [
+      'tade-repo-',
+      'tade-home-',
+      'tcc-',
+      'tcx-',
+      'wd-',
+      'wl-',
+      'tade-child-',
+    ]) {
+      expect(failed).toContain(`${prefix}*  1: ${join(real, prefix)}`)
+    }
+    expect(failed).not.toContain('Oth3r1')
+    expect(said.join('')).toContain(`1 thing under this repository's names turned up`)
+  })
+
+  it('compares what it made as the path really is', () => {
+    const real = tmp('tade-real-')
+    const linked = `${tmp('tade-link-')}/to`
+    execFileSync('ln', ['-s', real, linked])
+    mkdirSync(join(real, 'tade-repo-Abc123'))
+    expect(
+      madeHere(
+        [join(linked, 'tade-repo-Abc123'), join(linked, 'tade-repo-Def456')],
+        new Set([join(real, 'tade-repo-Abc123')]),
+      ),
+    ).toEqual({
+      mine: [join(linked, 'tade-repo-Abc123')],
+      beside: [join(linked, 'tade-repo-Def456')],
+    })
   })
 
   it('passes when nothing new is there', async () => {
