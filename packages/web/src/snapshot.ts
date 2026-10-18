@@ -341,7 +341,10 @@ export function withCalls(
   return rows.map((row) => {
     const line = held.get(row.id)
     if (line?.call === null || line?.call === undefined) return row
-    return { ...row, call: callFor(row.id, line.call.input, line.call.result, talk.known) }
+    return {
+      ...row,
+      call: callFor(row.id, line.call.input, line.call.result, talk.known, talk.places),
+    }
   })
 }
 
@@ -609,6 +612,7 @@ export function snapshotOf(
               rev: input.talk.rev,
               busy: input.talk.busy,
               whose: SOME(input.talk.whose),
+              since: input.talk.busy ? ISO_OR(input.talk.since ?? null) : null,
               mine: input.talk.mine,
             },
     },

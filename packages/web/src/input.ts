@@ -1,5 +1,6 @@
 import type { AgentMark, DoneRule, PlanStanding, ReviewState, Spend, TaskState } from '@tade/core'
 import type { AgentLane, Can, Cannot, ProjectFacts, TaskFacts } from './acting.ts'
+import type { Places } from './command.ts'
 import type { IntakeIn, RunIn, SourceIn, WorkflowIn } from './factory.ts'
 import type { Reach } from './reach.ts'
 
@@ -541,6 +542,12 @@ export interface TalkIn {
   rev: string
   /** Whether a turn is in flight, which is what a message needs to be false. */
   busy: boolean
+  /**
+   * When the turn in flight began (`Transcript.thinking`), so a page can say
+   * how long Tade has been at it. Null or absent where none is, or none
+   * began here.
+   */
+  since?: number | null
   /** Whose turn is in flight, as `byOf` writes it. Empty for none. */
   whose: string
   /**
@@ -560,6 +567,12 @@ export interface TalkIn {
    * its keys is not free.
    */
   known: readonly string[]
+  /**
+   * Where a path in a call's brief may be shortened to (`briefOut`): Tade's
+   * home and the home directory, as the window knows them. Absent where it
+   * knows neither, and every path is then its last name.
+   */
+  places?: Places
 }
 
 /** Everything one projection is built from. */

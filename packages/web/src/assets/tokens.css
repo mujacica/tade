@@ -170,6 +170,7 @@
     browser harness reads this value off the page, so the two never disagree.
   */
   --tap: 44px;
+  --mark: 1.25rem; /* the column a conversation's marks stand in, as the window's strip has its two */
   --border: 1px solid var(--line);
   /* The one shadow: what floats over the page — the command bar, a sheet, a toast. */
   --lift: 0 16px 48px #000000b3;

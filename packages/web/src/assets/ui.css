@@ -590,9 +590,10 @@ a.ui-card:hover,
 /* ── call: a tool a conversation reached for, and what it was handed ────────── */
 
 /*
-  A compact row — the tool, the line that says which call, how it went — that
-  opens onto the call. A failed one is ruled red down its side and says
-  `failed` in words, so it is never colour alone.
+  A compact row, as the window's strip draws a call — `✓ plan · tade · "…"`:
+  how it went as a mark in its colour, the tool's name and what it was handed
+  in the quiet grey, and a failed one's name red with `failed` in words, so it
+  is never colour alone. It opens onto the call.
 */
 .ui-call {
   display: grid;
@@ -622,14 +623,15 @@ a.ui-card:hover,
   cursor: default;
 }
 
-.ui-call.is-failed .ui-call-press {
-  box-shadow: inset 2px 0 0 var(--red);
+.ui-call.is-failed .ui-call-name {
+  color: var(--red);
 }
 
 .ui-call-name {
   flex: none;
-  color: var(--bright);
+  color: var(--heading);
   font-family: var(--font-mono);
+  font-size: var(--step--1);
   white-space: nowrap;
 }
 
@@ -642,6 +644,10 @@ a.ui-card:hover,
   color: var(--heading);
   font-family: var(--font-mono);
   font-size: var(--step--1);
+}
+
+.ui-call-brief::before {
+  content: "· ";
 }
 
 .ui-call-state {

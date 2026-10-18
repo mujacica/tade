@@ -1,3 +1,4 @@
+import { homedir } from 'node:os'
 import type { Arming, Config } from '@tade/core'
 import {
   AGENT,
@@ -825,8 +826,12 @@ export class Away implements Subject {
   private talkNow(): ReturnType<typeof talkFor> {
     // The keys a call is cleaned of: the same ones a screen is, worked out at
     // most once a beat and only where some line is a tool's.
-    return talkFor(this.wire.state.transcript, this.deps.talk, this.talking(), () =>
-      this.lanes.keys(() => knownHere(this.wire, this.config())),
+    return talkFor(
+      this.wire.state.transcript,
+      this.deps.talk,
+      this.talking(),
+      () => this.lanes.keys(() => knownHere(this.wire, this.config())),
+      { tade: this.wire.opts.home, home: homedir() },
     )
   }
 

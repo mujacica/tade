@@ -359,18 +359,19 @@ describe('reach and motion', () => {
     expect(TOKENS).toMatch(/transition-duration:\s*1ms !important/)
     // **Motion is named, and only the live signals repeat.** Every
     // `@keyframes` is one of these, in `motion.css` and nowhere else; and an
-    // animation that runs for ever is one of the three that stand for a
+    // animation that runs for ever is one of the four that stand for a
     // process rather than a fact — an agent working, a figure not read yet, a
-    // machine being asked again. A fourth that loops is a page that never
-    // settles, and has to argue for itself here.
+    // machine being asked again, and Tade thinking (`spin`, the window's own
+    // spinner, drawn only while a turn or a call is in flight). A fifth that
+    // loops is a page that never settles, and has to argue for itself here.
     const named = [...AWAY.matchAll(/@keyframes\s+([\w-]+)/g)].map((one) => one[1])
-    expect(named.sort()).toEqual(['bump', 'glow', 'pulse', 'rise', 'shimmer', 'sweep'])
+    expect(named.sort()).toEqual(['bump', 'glow', 'pulse', 'rise', 'shimmer', 'spin', 'sweep'])
     expect(read('motion.css')).toContain('@keyframes')
     for (const name of SHEETS.filter((one) => one !== 'motion.css')) {
       expect(read(name), name).not.toContain('@keyframes')
     }
     for (const found of AWAY.matchAll(/animation:\s*([\w-]+)[^;]*infinite/g)) {
-      expect(['pulse', 'shimmer', 'sweep'], found[0]).toContain(found[1])
+      expect(['pulse', 'shimmer', 'spin', 'sweep'], found[0]).toContain(found[1])
     }
   })
 

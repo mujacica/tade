@@ -537,6 +537,8 @@ export const YouSchema = z.strictObject({
       busy: z.boolean(),
       /** `you` or `device <id>`. Null for nothing in flight. Never a label. */
       whose: z.string().nullable(),
+      /** When the turn in flight began, so a page can say how long it has been. Null for none. */
+      since: z.string().nullable(),
       mine: z.boolean(),
     })
     .nullable(),

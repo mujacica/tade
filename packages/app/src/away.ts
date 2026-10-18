@@ -636,6 +636,8 @@ export function talkIn(from: {
   whose: string
   /** The keys a call is cleaned of, asked for only where a line is a tool's. */
   known?: () => readonly string[]
+  /** Where a path in a call's brief is shortened to: Tade's home and the home directory. */
+  places?: { tade: string | null; home: string | null }
 }): TalkIn {
   const lines = chatLines(from.transcript)
   const calls = lines.some((line) => line.call !== null)
@@ -646,6 +648,9 @@ export function talkIn(from: {
     rev: chatRev({ busy: from.busy }),
     busy: from.busy,
     whose: from.whose,
+    // When the turn in flight began, as the strip counts its own seconds.
+    since: from.busy ? from.transcript.thinking : null,
+    ...(from.places === undefined ? {} : { places: { work: null, ...from.places } }),
     // Raised per device by whoever knows that device's scopes. Never here.
     mine: false,
     known: calls ? (from.known?.() ?? []) : [],

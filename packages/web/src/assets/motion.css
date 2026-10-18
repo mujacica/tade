@@ -68,6 +68,13 @@
   }
 }
 
+/* The window's spinner: a turn of an arc while Tade thinks, and while a call it made is going. */
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
 @keyframes sweep {
   from {
     transform: translateX(-100%);

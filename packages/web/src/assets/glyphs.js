@@ -29,24 +29,35 @@
 const mark = (glyph, word, tone) => ({ glyph, word, tone })
 
 /**
- * What kind of line one of the conversation's lines is: who is speaking.
+ * What kind of line one of the conversation's lines is: who is speaking, drawn
+ * with **the window's own marks** (`transcript-view.ts`), so a phone and the
+ * window never disagree about what a line is.
  *
- * **Five, and they are about *who* rather than about how it should look.** The
- * window draws a routed line, a note and a suggestion differently because it
- * has the room; a phone does not, and a page that chose a shape from a guess
- * would be a second reading of the same entries. `tade` is Tade stating
- * something, whatever prompted it.
+ * - `❯` what somebody asked, in the brightest text there is (`skin.you`);
+ * - `◆` the orchestrator's answer, in amber (`skin.signal`), its words bright;
+ * - `●` Tade's own news — a task started, a proposal decided — in amber
+ *   (`skin.busy`), its words quiet (`skin.hint`), because it is the routine;
+ * - `✗` something that went wrong, in red, its words red (`skin.bad`).
  *
- * `t-quiet` for a tool line is deliberate: a tool that worked is the least
- * interesting thing on the screen, and one that failed is already a `problem`
- * line beside it.
+ * A tool's line takes its mark from how the call went (`CALL_STATES`): `✓`
+ * green, `✗` red, a spinner while it runs. The word is what a screen reader
+ * says in place of the glyph: never colour, nor a glyph, alone.
  */
 export const CHAT_KINDS = {
-  asked: mark('❯', 'asked', 't-wants'),
-  reply: mark('·', 'Tade', 't-working'),
-  tool: mark('⌸', 'used a tool', 't-quiet'),
-  tade: mark('·', 'Tade', 't-quiet'),
-  problem: mark('▲', 'went wrong', 't-failed'),
+  asked: mark('❯', 'asked', ''),
+  reply: mark('◆', 'Tade', 't-working'),
+  tool: mark('✓', 'used a tool', 't-done'),
+  tade: mark('●', 'from Tade', 't-working'),
+  problem: mark('✗', 'went wrong', 't-failed'),
+}
+
+/**
+ * A tool's name the way it reads, as the window has it (`toolName`):
+ * `tade_task_create` is "task create", and a harness's own `Read` is `Read`.
+ */
+export function toolNamed(tool) {
+  if (typeof tool !== 'string' || tool === '') return 'a tool'
+  return tool.replace(/^tade_/, '').replace(/_/g, ' ')
 }
 
 /**

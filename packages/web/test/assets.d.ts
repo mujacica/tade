@@ -104,6 +104,8 @@ declare module '*/assets/glyphs.js' {
   export function intakeMark(row: { state: string; work: readonly { finished: boolean }[] }): Mark
   export function sourceMark(state: string): Mark
   export function stepMark(step: { state: string; finished: boolean; active: boolean }): Mark
+  export const CHAT_KINDS: Readonly<Record<string, Mark>>
+  export function toolNamed(tool: unknown): string
 }
 
 declare module '*/assets/routes.js' {
@@ -237,14 +239,12 @@ declare module '*/assets/shell.js' {
 }
 
 /**
- * The conversation screen, of which only the **decisions** are declared.
- *
- * `talkScreen` builds DOM and is deliberately absent, for the reason given at
- * the head of this file: a type declaration for a renderer is a second
- * description of it that nothing holds to the first. What is here is the three
- * questions that are functions — why there is no box, who said a line, what a
- * line says — and the draft, which is the one piece of state a navigation
- * would otherwise take.
+ * The conversation screen, of which mostly the **decisions** are declared: why
+ * there is no box, who said a line, what a line says and what mark it takes,
+ * what Tade is doing while it answers — and the draft, which is the one piece
+ * of state a navigation would otherwise take. The renderers are declared as
+ * loosely as a node of a test's own document, for `talk-client.test.ts`,
+ * which asks what they drew rather than trusting a type for it.
  */
 declare module '*/assets/talk.js' {
   export function reasonFor(talk: unknown): string
@@ -255,6 +255,21 @@ declare module '*/assets/talk.js' {
   // biome-ignore lint/suspicious/noExplicitAny: a node of whichever document a test installs
   export function createChatLine(): any
   export function fillChatLine(node: unknown, line: unknown, view: unknown): void
+  export function lineMark(line: unknown): Mark
+  export function doingOf(lines: readonly unknown[], talk?: unknown): string
+  export function callDoing(tool: unknown, brief: string | null): string
+  // biome-ignore lint/suspicious/noExplicitAny: a node of whichever document a test installs
+  export function talkScreen(ctx: unknown): { node: any; update(view: unknown): void }
+}
+
+declare module '*/assets/follow.js' {
+  export const FOOT_SLACK: number
+  export function atFoot(
+    scrollTop: number,
+    clientHeight: number,
+    scrollHeight: number,
+    slack?: number,
+  ): boolean
 }
 
 declare module '*/assets/markdown.js' {
@@ -652,6 +667,8 @@ declare module '*/assets/tree.js' {
 
 declare module '*/assets/desk.js' {
   export function noAgentsSaid(store: unknown): string
+  // biome-ignore lint/suspicious/noExplicitAny: a node of whichever document a test installs
+  export function deskParts(ctx: unknown): { dock: any; update(view: unknown): void }
 }
 
 declare module '*/assets/agents.js' {

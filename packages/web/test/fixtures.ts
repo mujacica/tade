@@ -662,7 +662,16 @@ export function talk(over: Partial<TalkIn> = {}): TalkIn {
       streaming: false,
     },
   ]
-  return { lines, rev: 'b0', busy: false, whose: '', mine: true, known: [PRIVATE.opaque], ...over }
+  return {
+    lines,
+    rev: 'b0',
+    busy: false,
+    whose: '',
+    since: null,
+    mine: true,
+    known: [PRIVATE.opaque],
+    ...over,
+  }
 }
 
 /** The moment every test projects at, so a golden is a golden. */

@@ -385,7 +385,8 @@ describe('a tool call', () => {
     expect(press.hidden).toBe(false)
     // Named by what it shows, with no label apart from it.
     expect(press.getAttribute('aria-label')).toBeNull()
-    expect(press.textContent).toContain('tade_status')
+    // The tool's name as the window reads it: `tade_status` is "status".
+    expect(press.textContent).toContain('status')
     expect(press.textContent).toContain('project payments')
     expect(press.textContent).toContain('failed')
     expect(row.classList.contains('is-failed')).toBe(true)

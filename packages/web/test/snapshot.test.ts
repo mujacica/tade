@@ -47,7 +47,7 @@ describe('the projection', () => {
       // The conversation as it stands, and `mine` **false**: the collections
       // are built once for everybody and whoever knows this device's scopes
       // raises it (`inputFor`).
-      talk: { rev: 'b0', busy: false, whose: null, mine: true },
+      talk: { rev: 'b0', busy: false, whose: null, since: null, mine: true },
     })
   })
 

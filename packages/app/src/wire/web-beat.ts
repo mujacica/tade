@@ -133,9 +133,11 @@ export function talkFor(
   talk: { busy(): boolean; whose(): string },
   on: boolean,
   known?: () => readonly string[],
+  /** Tade's home and the home directory, which a path in a call's brief is shortened to. */
+  places?: { tade: string | null; home: string | null },
 ): TalkIn | null {
   if (!on) return null
-  return talkIn({ transcript, busy: talk.busy(), whose: talk.whose(), known })
+  return talkIn({ transcript, busy: talk.busy(), whose: talk.whose(), known, places })
 }
 
 /** Nothing projected yet: an away view that has had no beat still answers. */

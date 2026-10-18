@@ -23,6 +23,7 @@ import {
   worstOf,
 } from '../test/browser-plan.ts'
 import { agentHeld, input, NOW, settingRows } from '../test/fixtures.ts'
+import { chatAt, harnessTalk } from './browser-chat.ts'
 import { deskAt, lanesSeen, paletteAt, unpairedAt } from './browser-desk.ts'
 import { frameAt } from './browser-frame.ts'
 import { asPwa } from './browser-pwa.ts'
@@ -137,9 +138,10 @@ async function serve() {
       stop: () => Promise.reject(new NotOffered('this harness cannot stop a turn')),
     },
     readingFor: (reach: Reach) => {
+      reaches.set(reach.device, reach)
       const mine = held.get(reach.device)
       if (mine !== undefined) return mine
-      const made = projector(input({ reach }), NOW, {
+      const made = projector(input({ reach, talk: harnessTalk() }), NOW, {
         agent: () => agentHeld(),
         settings: () => ({ groups: settingRows(), known: [] }),
       })
@@ -271,6 +273,7 @@ interface Page {
   on: Listen
   waitForFunction: (body: string, opts?: object) => Promise<unknown>
   goto: (url: string, opts?: object) => Promise<unknown>
+  reload: (opts?: object) => Promise<unknown>
   fill: (selector: string, value: string) => Promise<void>
   click: (selector: string) => Promise<void>
   waitForSelector: (selector: string, opts?: object) => Promise<unknown>
@@ -283,6 +286,11 @@ interface Page {
   /** One element, by what it is and what it says. The acting pass taps these. */
   locator: (selector: string, opts?: { hasText?: string }) => Thing
   keyboard: { press: (key: string) => Promise<void>; type: (text: string) => Promise<void> }
+  /** The conversation is scrolled up the way a person does it: the wheel over it. */
+  mouse: {
+    move: (x: number, y: number) => Promise<void>
+    wheel: (dx: number, dy: number) => Promise<void>
+  }
   waitForTimeout: (ms: number) => Promise<void>
   /** The granted pass looks again at the phone's width on the device it already paired. */
   setViewportSize: (size: { width: number; height: number }) => Promise<void>
@@ -347,7 +355,7 @@ async function run(axe: Awaited<ReturnType<typeof axeSource>>) {
       await deltaUnder(page, origin, server, held, width.name)
       await context.close()
     }
-    await asGranted(made, origin, tickets, axe.source)
+    await asGranted(made, origin, tickets, axe.source, server, held)
     await asActing(made, origin, tickets, home, server, held)
   } finally {
     await made.close()
@@ -376,7 +384,14 @@ async function run(axe: Awaited<ReturnType<typeof axeSource>>) {
  * so a sixth would be refused. The phone look takes reduced motion, as the
  * first pass's phone does.
  */
-async function asGranted(made: Engine, origin: string, tickets: Tickets, axe: string | null) {
+async function asGranted(
+  made: Engine,
+  origin: string,
+  tickets: Tickets,
+  axe: string | null,
+  server: Served,
+  held: Map<string, ReturnType<typeof projector>>,
+) {
   const desk = [...WIDTHS].sort((a, b) => b.width - a.width)[0]
   const phone = WIDTHS.find((one) => one.narrow === true)
   if (desk === undefined) return
@@ -407,10 +422,12 @@ async function asGranted(made: Engine, origin: string, tickets: Tickets, axe: st
   }
   await lookAll(at)
   await lanesSeen(page, origin, axe, shots, found)
+  await chatAt(page, origin, at, arrival(page, server, held), found)
   if (phone !== undefined && phone !== desk) {
     await page.setViewportSize({ width: phone.width, height: phone.height })
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await lookAll(`${phone.name} granted`)
+    await chatAt(page, origin, `${phone.name} granted`, arrival(page, server, held), found)
   }
   await context.close()
   granting = []
@@ -595,7 +612,7 @@ async function nudge(
 ): Promise<void> {
   const made = held.get(device)
   if (made === undefined) throw new Error('no projector for this device')
-  const next = input()
+  const next = input({ talk: harnessTalk() })
   const first = next.tasks[0]
   if (first === undefined) throw new Error('no task to move')
   const delta = made.beat(
@@ -610,6 +627,37 @@ async function nudge(
   )
   if (delta === null) throw new Error('the projection did not move')
   server.streams.push(device, delta as never, Date.now())
+}
+
+/** How many lines `arrival` has sent after the harness's conversation, across every page. */
+let arrived = 0
+
+/** What each device may read, as the listener last asked: a delta is projected under its own. */
+const reaches = new Map<string, Reach>()
+
+/**
+ * One more line of the conversation, sent to this page's device as a delta on
+ * its stream — what Tade answering looks like from a phone.
+ */
+function arrival(
+  page: Page,
+  server: Served,
+  held: Map<string, ReturnType<typeof projector>>,
+): () => Promise<void> {
+  return async () => {
+    const device = await deviceIn(page)
+    if (device === null) throw new Error('the page never said which device this is')
+    const made = held.get(device)
+    if (made === undefined) throw new Error('no projector for this device')
+    arrived += 1
+    const reach = reaches.get(device)
+    const delta = made.beat(
+      input({ ...(reach === undefined ? {} : { reach }), talk: harnessTalk(arrived) }),
+      NOW + 2_000 + arrived,
+    )
+    if (delta === null) throw new Error('the conversation did not move')
+    server.streams.push(device, delta as never, Date.now())
+  }
 }
 
 /** Which device this page is signed in as, out of the devices screen. */

@@ -34,10 +34,12 @@
 import { mayFor } from './access.js'
 import { afterAnswer, askBody, stopBody } from './acts.js'
 import { keyOf } from './controls.js'
-import { callIn, callRow, wordsIn } from './conversation.js'
+import { CALL_STATES, callIn, callRow, wordsIn } from './conversation.js'
 import { classOn, el, empty, hintOf, into, keyed, textIn, toneOn } from './dom.js'
 import { ageSaid } from './figures.js'
-import { CHAT_KINDS } from './glyphs.js'
+import { followOf } from './follow.js'
+import { CHAT_KINDS, toolNamed } from './glyphs.js'
+import { icon } from './icons.js'
 import { plainOf } from './markdown.js'
 import { nothingSaid, section } from './rows.js'
 import { chatOf, omitted, talkOf } from './store.js'
@@ -79,10 +81,13 @@ const draft = draftStore()
 export function talkScreen(ctx) {
   const node = el('div')
   const made = section('TADE', { top: true })
+  // **What is older than this page is said once, at the top of the
+  // conversation**, where somebody scrolling up to it is looking for it — never
+  // as a line over the box, which every exchange would have to read past.
+  const older = el('p', { class: 'chat-earlier' })
   const list = el('ul', { class: 'rows chat' })
   const none = empty('nothing said yet')
-  into(made.body, list, none)
-  const older = el('p', { class: 'unknown' })
+  into(made.body, older, list, none)
 
   const composer = section('SAY SOMETHING')
   // Held at the foot of the screen as a chat's box is, over the tab bar on a
@@ -94,22 +99,21 @@ export function talkScreen(ctx) {
     send: 'Send',
     rows: '1',
   })
+  // **Read as a chat**: opened at the newest line, kept there while it is
+  // followed, let go the moment somebody scrolls up — and one press, over the
+  // box, to come back down. The region is the frame's `main`, which this
+  // screen is put into only after it is built.
+  const follow = followOf(() => node.closest?.('main') ?? null)
   into(composer.body, ...typing.nodes)
-  into(node, made.node, older, composer.node)
-
-  let opened = false
+  composer.node.prepend(follow.press)
+  into(node, made.node, composer.node)
 
   return {
     node,
+    /** Left: `main` is the frame's and stays, so what listens to it goes. */
+    leave: () => follow.leave(),
     update(view) {
       const lines = chatOf(view.store)
-      // Opened at the newest line, once — after that the scroll is the
-      // reader's, and a reply arriving never pulls them down from what they
-      // were reading.
-      if (!opened && lines.length > 0) {
-        opened = true
-        requestAnimationFrame(() => node.lastElementChild?.scrollIntoView?.({ block: 'end' }))
-      }
       textIn(made.figure, lines.length === 0 ? '' : String(lines.length))
       none.hidden = lines.length > 0
       textIn(
@@ -124,10 +128,11 @@ export function talkScreen(ctx) {
         (one, line) => fillChatLine(one, line, view),
       )
       const left = omitted(view.store, 'chat')
-      const more = left > 0 && mayFor(view.store, 'chat')
-      textIn(older, more ? `${left} earlier lines are not on this page` : '')
+      const more = left > 0 && mayFor(view.store, 'chat') && lines.length > 0
+      textIn(older, more ? `↑ ${left} earlier, in the window` : '')
       older.hidden = !more
-      typing.update(talkOf(view.store))
+      typing.update(talkOf(view.store), view)
+      if (lines.length > 0) follow.drawn()
     },
   }
 }
@@ -165,11 +170,12 @@ export function composerOf(ctx, words) {
   // a one-line box a paragraph is typed into hides the paragraph.
   const grow = () => {
     box.style.setProperty('height', 'auto')
-    box.style.setProperty('height', `${Math.min(box.scrollHeight + 2, 200)}px`)
+    box.style.setProperty('height', `${Math.min(box.scrollHeight, 200)}px`)
   }
   box.addEventListener('input', () => {
     draft.set(box.value)
     grow()
+    settle()
   })
   // **Enter sends at a keyboard, and never on a phone**, where Enter is the
   // only way to start a new line. Shift+Enter is a new line everywhere.
@@ -179,23 +185,43 @@ export function composerOf(ctx, words) {
     event.preventDefault()
     press.click()
   })
-  const press = el('button', { class: 'press quietly', text: words.send })
-  const stop = el('button', { class: 'press quietly', text: 'Stop' })
-  const presses = el('div', { class: 'presses' })
+  // **While Tade answers, the box's place says what it is doing** — a spinner
+  // in the window's own style (it turns one while the orchestrator thinks),
+  // the call in flight in words, and how long it has been at it — with Stop
+  // in the field where Send was, rather than a line and a press on their own.
+  const live = el('div', { class: 'ask-live', attrs: { role: 'status' } })
+  const spin = el('span', { class: 'ask-spin', attrs: { 'aria-hidden': 'true' } })
+  const doing = el('span', { class: 'ask-doing' })
+  const took = el('span', { class: 'ask-took' })
+  into(live, spin, doing, took)
+  live.hidden = true
+  const press = el('button', {
+    class: 'press ask-send',
+    attrs: { type: 'button', 'aria-label': words.send },
+  })
+  into(press, icon('send'), el('span', { text: words.send }))
+  const stop = el('button', {
+    class: 'press ask-stop',
+    attrs: { type: 'button', 'aria-label': 'Stop what Tade is doing' },
+  })
+  into(stop, icon('stop'), el('span', { text: 'Stop' }))
+  const field = el('div', { class: 'ask-field' })
+  into(field, box, live, press, stop)
   const said = el('p', { attrs: { role: 'status' } })
-  into(presses, press, stop)
 
   let talk = null
   /** What `talkOf` said, `undefined` included: nothing read yet is not *off*. */
   let told
   let going = false
+  /** What the last paint said Tade is doing, and the moment that paint was drawn against. */
+  let seen = { lines: [], asOf: 0, frozen: true, at: 0 }
+  let ticking = null
 
   /** One press, and the answer is the only thing that clears the box. */
   const send = async (what, body) => {
     if (going || talk === null) return
     going = true
-    press.disabled = true
-    stop.disabled = true
+    settle()
     const answer = await ctx.ask('POST', `/api/ask/${what}`, body)
     going = false
     const came = afterAnswer(answer, ctx.sentence(answer))
@@ -203,8 +229,18 @@ export function composerOf(ctx, words) {
     if (came.clear && what === 'ask') {
       box.value = ''
       draft.set('')
+      grow()
     }
     settle()
+  }
+
+  /** How long the turn has been going, against the server's clock moved on by this one's. */
+  const tookIn = () => {
+    const since = talk?.since ?? null
+    const now = seen.frozen ? seen.asOf : seen.asOf + (Date.now() - seen.at)
+    const age = since === null ? null : ageSaid(since, now, false)
+    textIn(took, age === null ? '' : age)
+    took.hidden = age === null
   }
 
   /**
@@ -216,13 +252,32 @@ export function composerOf(ctx, words) {
   const settle = () => {
     const mine = talk !== null && talk.mine === true
     const busy = talk !== null && talk.busy === true
-    press.hidden = !mine || busy
-    stop.hidden = !mine || !busy
-    box.hidden = !mine || busy
+    field.hidden = !mine
+    box.hidden = busy
+    live.hidden = !busy
+    press.hidden = busy
+    stop.hidden = !busy
     press.disabled = going
     stop.disabled = going
-    const reason = reasonFor(told)
-    textIn(whyWord, reasonWord(told))
+    // Nothing typed is a quieter Send, never a disabled one: pressing it does
+    // nothing, and a press that cannot be pressed is one nobody can explain.
+    classOn(field, 'is-empty', box.value.trim() === '')
+    classOn(field, 'is-busy', busy)
+    classOn(field, 'is-going', going)
+    if (busy) {
+      textIn(doing, doingOf(seen.lines, talk))
+      tookIn()
+    }
+    // A second hand only while something is being waited on, and only while
+    // the page is live: a frozen page's ages stop, and so does this one.
+    const tick = busy && !seen.frozen
+    if (tick && ticking === null) ticking = setInterval(tookIn, 1000)
+    if (!tick && ticking !== null) {
+      clearInterval(ticking)
+      ticking = null
+    }
+    const reason = mine ? '' : reasonFor(told)
+    textIn(whyWord, mine ? '' : reasonWord(told))
     textIn(whyMore.body, reason)
     why.hidden = reason === ''
   }
@@ -237,10 +292,18 @@ export function composerOf(ctx, words) {
   })
 
   return {
-    nodes: [why, box, presses, said],
-    update(next) {
+    nodes: [why, field, said],
+    update(next, view) {
       told = next
       talk = next ?? null
+      if (view !== undefined) {
+        seen = {
+          lines: chatOf(view.store),
+          asOf: view.asOf,
+          frozen: view.frozen === true,
+          at: Date.now(),
+        }
+      }
       // **The draft is the page's and the box is this one's view of it**: the
       // other composer may have been typed into since this one last drew, and
       // a box somebody is typing in is never written under them.
@@ -248,6 +311,73 @@ export function composerOf(ctx, words) {
       settle()
     },
   }
+}
+
+/**
+ * What Tade is doing now, in a few words: the call in flight — *Reading
+ * NAMES.md*, *Creating a task* — or its answer being written, or thinking.
+ *
+ * Out of the conversation's own last lines, so it is what the strip shows and
+ * nothing the page guessed: a tool line still going is the call in flight, and
+ * its `brief` (the arguments the window draws beside it) says which.
+ */
+export function doingOf(lines, talk = null) {
+  const last = lines.at(-1)
+  const whose = talk?.whose === 'you' ? ' for you, at the machine' : ''
+  if (last?.kind === 'tool' && last.outcome === 'running') {
+    return `${callDoing(last.tool, last.call?.brief ?? null)}…${whose}`
+  }
+  if (last?.kind === 'reply' && last.streaming === true) return `Writing its answer…${whose}`
+  return `Thinking…${whose}`
+}
+
+/**
+ * A call in flight as what it is doing: a verb for the kinds of tool every
+ * harness has, and Tade's own in its own words. Where nothing is known of it,
+ * its name: *Using deps check*.
+ */
+export function callDoing(tool, brief) {
+  const name = toolNamed(tool)
+  const first = firstOf(brief)
+  for (const [shape, verb, object] of DOING) {
+    if (!shape.test(name)) continue
+    const what = object === 'file' ? lastName(first) : object === 'whole' ? first : ''
+    return what === '' ? verb : `${verb} ${what}`
+  }
+  return `Using ${name}`
+}
+
+/** The verbs, by the name a tool reads as: what it does, and how much of its brief to name. */
+const DOING = [
+  [/^(read|view|cat|open)\b/i, 'Reading', 'file'],
+  [/^(write|create file)\b/i, 'Writing', 'file'],
+  [/^(edit|multi ?edit|apply ?patch|str replace)/i, 'Editing', 'file'],
+  [/^(bash|shell|exec|run|command|terminal run)\b/i, 'Running', 'whole'],
+  [/^(grep|glob|search|find|ls|list)\b/i, 'Searching', 'whole'],
+  [/^web ?fetch|^fetch\b/i, 'Fetching', 'whole'],
+  [/^web ?search/i, 'Searching the web for', 'whole'],
+  [/^task create\b|^run start\b|^start\b/i, 'Creating a task', ''],
+  [/^steer\b/i, 'Steering', 'whole'],
+  [/^plan\b/i, 'Planning', ''],
+  [/^proposal decide\b/i, 'Deciding a proposal', ''],
+  [/^(status|logs|summary|spend)\b/i, 'Looking at the work', ''],
+  [/^(note|memory remember|remember)\b/i, 'Writing a note', ''],
+  [/^(approve|deny)\b/i, 'Answering an approval', ''],
+  [/^(checks run|check)\b/i, 'Running the checks', ''],
+  [/^agent\b|^task\b/i, 'Starting an agent', ''],
+]
+
+/** The first of a brief's parts, its quotes off and cut to a few words. */
+function firstOf(brief) {
+  if (typeof brief !== 'string' || brief === '') return ''
+  const first = (brief.split(' · ')[0] ?? '').replace(/^"|"$/g, '').trim()
+  return first.length > 40 ? `${first.slice(0, 39)}…` : first
+}
+
+/** A path's last name: `~/.tade/…/NAMES.md` is `NAMES.md`. */
+function lastName(path) {
+  const parts = path.split('/').filter((one) => one !== '')
+  return parts.at(-1) ?? ''
 }
 
 /** The same three absences in a word or two, for where the sentence is behind a `?`. */
@@ -284,20 +414,42 @@ export function reasonFor(talk) {
   return ''
 }
 
+/**
+ * An empty line of the conversation, **the one drawing of a line on this
+ * page**: the screen's whole conversation and the dock's last lines are both
+ * made of these, so collapsed and open read alike.
+ *
+ * A mark down the left — the window's own, in its colour — and the line beside
+ * it: who and when where that is worth saying, the words, and for a tool one
+ * row that opens onto the call.
+ */
 export function createChatLine() {
-  const node = el('li')
+  const node = el('li', { class: 'line' })
+  const mark = el('span', { class: 'line-mark' })
+  into(mark, el('span', { attrs: { 'aria-hidden': 'true' } }), el('span', { class: 'sr-only' }))
+  const body = el('div', { class: 'line-body' })
   into(
-    node,
+    body,
     el('p', { class: 'aside' }),
     el('div'),
     el('p', { class: 'unknown', text: 'more than this was written down' }),
     callRow(),
   )
+  into(node, mark, body)
   return node
 }
 
 /**
- * One line: who, when, and the words — or, for a tool, one row that opens.
+ * The mark a line is drawn with: its kind's (`CHAT_KINDS`), or for a tool how
+ * the call went (`CALL_STATES`) — `✓` green, `✗` red, a spinner while it runs.
+ */
+export function lineMark(line) {
+  if (line.kind === 'tool') return CALL_STATES[line.outcome] ?? CALL_STATES.none
+  return CHAT_KINDS[line.kind] ?? CHAT_KINDS.tade
+}
+
+/**
+ * One line: its mark, and the words — or, for a tool, one row that opens.
  *
  * The words are written **every** time rather than once, which is the one
  * difference from a note: a reply arrives in pieces, so the row it is in is
@@ -305,33 +457,46 @@ export function createChatLine() {
  * being written. Everything else about the row is stable.
  */
 export function fillChatLine(node, line, view) {
-  const [head, body, cut, call] = node.children
+  const [mark, body] = node.children
+  const [glyph, word] = mark.children
+  const [head, words, cut, call] = body.children
   const kind = CHAT_KINDS[line.kind] ?? CHAT_KINDS.tade
   const tool = line.kind === 'tool'
+  const drawn = lineMark(line)
+  textIn(glyph, drawn.glyph)
+  // A tool's row says how it went in its own words; every other line's mark
+  // is said as its kind, so a screen reader hears who is speaking.
+  textIn(word, tool ? '' : ` ${kind.word}`)
+  toneOn(mark, drawn.tone)
+  classOn(mark, 'is-spinning', tool && line.outcome === 'running')
+  // Who and when, over what somebody asked — the start of an exchange, and
+  // the one place a request from a device must not read as the person's own.
+  // Tade's lines say who they are by their mark, as the window's do.
   const age = ageSaid(line.at, view.asOf, view.frozen)
+  const asked = line.kind === 'asked'
   textIn(
     head,
-    [whoSaid(line), kind.word, age === null ? '' : age]
-      .filter((one) => one !== '' && one !== null && one !== undefined)
-      .join(' · '),
+    asked
+      ? [whoSaid(line), age]
+          .filter((one) => one !== '' && one !== null && one !== undefined)
+          .join(' · ')
+      : '',
   )
-  toneOn(head, kind.tone)
-  // A tool's row says what it is itself, so it has no line over it.
-  head.hidden = tool
+  head.hidden = !asked
   call.hidden = !tool
   if (tool) {
     callIn(call, { tool: line.tool, outcome: line.outcome ?? 'none', call: line.call ?? null })
-    body.hidden = true
+    words.hidden = true
   } else {
-    wordsIn(body, line.text, marked(line))
+    wordsIn(words, line.text, marked(line))
   }
   // What the budget cut is said, never drawn as three dots in somebody's words.
   cut.hidden = tool || line.text?.more !== true
-  // Whose line it is, for the drawing: a person's on the right as in any
-  // conversation, Tade's on the left, a tool's as a quiet row between them.
-  for (const kind of ['asked', 'reply', 'tool', 'tade', 'problem']) {
-    classOn(node, `is-${kind}`, line.kind === kind)
+  for (const one of ['asked', 'reply', 'tool', 'tade', 'problem']) {
+    classOn(node, `is-${one}`, line.kind === one)
   }
+  classOn(node, 'is-failed', tool && line.outcome === 'failed')
+  classOn(node, 'is-streaming', line.streaming === true)
 }
 
 /** The model's words and Tade's are markdown; a person's are as they typed them. */

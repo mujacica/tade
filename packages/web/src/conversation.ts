@@ -1,3 +1,4 @@
+import { commandOut, type Places } from './command.ts'
 import { textOf } from './page.ts'
 import type { Call, Said, TurnRow } from './protocol.ts'
 import { cleanText } from './screen.ts'
@@ -66,6 +67,38 @@ export function briefOf(input: unknown): string {
   return parts.join(' · ')
 }
 
+/** No place known: every absolute path in a brief is its last name behind `…/`. */
+export const NOWHERE: Places = { work: null, tade: null, home: null }
+
+/**
+ * The line that names a call, as a device reads it: `briefOf` over arguments
+ * let out **by an approval's own rule** (`commandOut`) — credentials out, and
+ * paths shortened rather than taken out, so a call that read a file says which
+ * (`~/.tade/…/NAMES.md`) where the screen's rule would leave `…`. A path too
+ * long for the line keeps its first two names and its last.
+ */
+export function briefOut(input: unknown, places: Places, known: readonly string[]): string {
+  const out = (value: string) => pathCut(commandOut(value, places, known))
+  if (typeof input === 'string') return briefOf(out(input))
+  if (!isRecord(input)) return ''
+  const shown: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(input)) {
+    shown[key] = typeof value === 'string' ? out(value) : value
+  }
+  return briefOf(shown)
+}
+
+/** A lone path longer than a brief's value, cut in its middle: `~/.tade/…/NAMES.md`. */
+function pathCut(value: string): string {
+  const flat = value.trim()
+  if (flat.length <= 48 || /\s/.test(flat) || !flat.includes('/')) return value
+  const names = flat.split('/')
+  const last = names.at(-1) ?? ''
+  const head = names.slice(0, 2).join('/')
+  const cut = `${head}/…/${last}`
+  return cut.length < flat.length ? cut : value
+}
+
 /**
  * Everything a call was handed, a line per argument: `command: git status`.
  *
@@ -97,8 +130,10 @@ export function callOf(
   input: unknown,
   result: string | null,
   known: readonly string[],
+  places: Places = NOWHERE,
 ): { call: Call; taken: number } {
-  const brief = cleanSaid(briefOf(input), CALL.brief, known)
+  const words = briefOut(input, places, known)
+  const brief = { said: textOf(words, CALL.brief), taken: 0 }
   const asked = cleanSaid(inputText(input), CALL.input, known)
   const answered = result === '' ? NOTHING : cleanSaid(result ?? '', CALL.result, known)
   return {
@@ -119,6 +154,7 @@ interface Kept {
   input: unknown
   result: string | null
   known: readonly string[]
+  places: Places
   call: Call
 }
 
@@ -143,19 +179,21 @@ export function callFor(
   input: unknown,
   result: string | null,
   known: readonly string[],
+  places: Places = NOWHERE,
 ): Call {
   const was = kept.get(id)
   if (
     was !== undefined &&
     was.input === input &&
     was.result === result &&
-    sameKeys(was.known, known)
+    sameKeys(was.known, known) &&
+    samePlaces(was.places, places)
   ) {
     return was.call
   }
-  const { call } = callOf(input, result, known)
+  const { call } = callOf(input, result, known, places)
   kept.delete(id)
-  kept.set(id, { input, result, known, call })
+  kept.set(id, { input, result, known, places, call })
   if (kept.size > KEPT_CALLS) {
     const oldest = kept.keys().next().value
     if (oldest !== undefined) kept.delete(oldest)
@@ -191,6 +229,7 @@ export type TurnIn =
 export function turnsOf(
   turns: readonly TurnIn[],
   known: readonly string[],
+  places: Places = NOWHERE,
 ): { turns: TurnRow[]; taken: number } {
   const kept = turns.slice(-TURNS.turns)
   const same = new Map<number, number>()
@@ -218,7 +257,7 @@ export function turnsOf(
         call: null,
       }
     }
-    const made = callOf(one.input, one.result, known)
+    const made = callOf(one.input, one.result, known, places)
     taken += made.taken
     return {
       id,
@@ -235,6 +274,10 @@ export function turnsOf(
 }
 
 /** The same keys, compared by value: the window works them out again every beat. */
+function samePlaces(a: Places, b: Places): boolean {
+  return a.work === b.work && a.tade === b.tade && a.home === b.home
+}
+
 function sameKeys(a: readonly string[], b: readonly string[]): boolean {
   return a === b || (a.length === b.length && a.every((one, at) => one === b[at]))
 }

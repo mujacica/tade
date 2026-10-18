@@ -473,7 +473,11 @@
   color: var(--bright);
 }
 
-/* What was said last, on the heading line: drawn only where the dock is folded to it. */
+/*
+  What was said last, on the heading line, with its mark: drawn only where the
+  dock is folded to it, so folded it still says whether that was news, an
+  answer, or a call that worked or failed.
+*/
 .dock-last {
   display: none;
   flex: 1 1 auto;
@@ -483,6 +487,26 @@
   white-space: nowrap;
   color: var(--heading);
   font-size: var(--step--1);
+}
+
+.dock-last .line-mark {
+  display: inline;
+  margin-inline-end: var(--s2);
+  font-size: var(--step--1);
+}
+
+.dock-last.is-reply,
+.dock-last.is-asked {
+  color: var(--bright);
+}
+
+.dock-last.is-tade {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.dock-last.is-problem {
+  color: var(--red);
 }
 
 .dock-head > a {
@@ -495,20 +519,22 @@
 
 .dock-body {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto auto;
+  grid-template-rows: minmax(0, 1fr) auto auto auto;
   min-height: 0;
   padding: 0 var(--s3) var(--s3);
 }
 
 /*
-  The conversation: the exchange that just happened, then the box. Its own
-  scroll, so a long reply never pushes the box away — Tade's replies on the
-  left, what a person asked on the right, a tool it used as one quiet line.
+  The conversation: the exchange that just happened, then the box — the same
+  lines the conversation's own screen draws (`createChatLine`), marks and
+  colours and all, only fewer and shorter. Its own scroll, so a long reply
+  never pushes the box away.
 */
 .dock .lines {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--s2);
+  gap: var(--s1);
   min-height: 0;
   max-height: 40dvh;
   overflow-y: auto;
@@ -516,62 +542,44 @@
   padding-block: var(--s2);
 }
 
-.dock .lines li {
-  display: grid;
-  justify-items: start;
-  gap: 2px;
-  min-width: 0;
+/* A line is as tall as its words: the column scrolls, it never squeezes one line into the next. */
+.dock .lines > li {
+  flex: none;
 }
 
-.dock .who {
-  font-size: var(--step--1);
-  font-weight: var(--w-label);
-  color: var(--heading);
-}
-
-.dock .words {
-  min-width: 0;
-  max-width: 92%;
-  padding: var(--s2) var(--s3);
-  border-radius: var(--r2);
-  border-end-start-radius: 0;
-  background: var(--surface);
-  color: var(--body);
-  font-size: var(--step-0);
-  overflow-wrap: anywhere;
+/* Shorter, because the dock sits under the work: the whole of every line is one press away. */
+.dock .lines .said {
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 5;
+  -webkit-line-clamp: 4;
   overflow: hidden;
 }
 
-.dock .lines li:has(> .who.t-wants) {
-  justify-items: end;
+.dock .lines > li.is-tade .said {
+  -webkit-line-clamp: 2;
 }
 
-.dock .lines li:has(> .who.t-wants) .words {
-  background: var(--raised);
-  border-end-start-radius: var(--r2);
-  border-end-end-radius: 0;
+.dock .lines > li.is-asked {
+  margin-block-start: var(--s2);
 }
 
-.dock .lines li:has(> .who.t-quiet) {
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: baseline;
-  gap: var(--s2);
+.dock .lines .ui-call-press {
+  min-height: var(--tap);
 }
 
-.dock .lines li:has(> .who.t-quiet) .words {
-  padding: 0;
-  background: none;
-  color: var(--heading);
-  font-size: var(--step--1);
-  -webkit-line-clamp: 1;
-}
-
-.dock .words:empty,
 .dock .lines:empty {
   display: none;
+}
+
+/* The press back to the newest line floats over the foot of the lines, taking no room of its own. */
+.dock-jump {
+  position: relative;
+  height: 0;
+}
+
+.dock .jump-latest {
+  inset-block-start: auto;
+  inset-block-end: var(--s2);
 }
 
 .dock .nothing {
@@ -582,15 +590,8 @@
 
 .dock .composer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--s2);
-  align-items: end;
   margin-block-start: var(--s2);
-}
-
-.dock .composer > p,
-.dock .composer > .why-short {
-  grid-column: 1 / -1;
 }
 
 /* ── a tablet: Tade docked at the foot of the work, the side a drawer ──────── */

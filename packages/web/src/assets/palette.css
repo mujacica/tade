@@ -281,57 +281,159 @@ a.pal-whole:hover {
 }
 
 /*
-  The conversation: who, small, and their words in a bubble under it — a list
-  of things said rather than a table of rows, with no hairline between them.
+  The conversation, as the window's strip draws it: a mark down the left in
+  its colour — `❯` what was asked, `◆` the orchestrator's answer, `●` Tade's
+  own news, `✓` `✗` a call that worked or failed, `✗` something gone wrong —
+  and the line beside it. No bubbles and no hairlines: what tells one line
+  from the next is its mark and how bright its words are, as in a terminal.
 */
 .rows.chat {
-  gap: var(--s3);
+  gap: var(--s2);
   background: none;
   border: 0;
   overflow: visible;
 }
 
-.rows.chat > li {
+.rows.chat > li.line {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--s1);
-}
-
-.rows.chat > li > div,
-.rows.chat > li + li > div {
-  display: block;
+  grid-template-columns: var(--mark) minmax(0, 1fr);
+  align-items: start;
+  gap: 0;
   min-height: 0;
-  padding: var(--s3) var(--s4);
-  border: 0;
-  border-radius: var(--r2);
-  background: var(--surface);
-  color: var(--body);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.rows.chat > li > div:empty {
-  display: none;
-}
-
-/*
-  Words drawn as markdown keep their own lines, not the typed ones'; a tool's
-  call is a quiet row between the bubbles, not a bubble, and a run of them
-  sits close.
-*/
-.rows.chat > li > .ui-md {
-  min-width: 0;
-  white-space: normal;
-  text-align: start;
-}
-
-.rows.chat > li > .ui-call {
   padding: 0;
+  border: 0;
   background: none;
 }
 
+/* The mark: the glyph a line is led by, in its line's colour and weight. */
+.rows.chat .line-mark,
+.dock-last .line-mark {
+  display: inline-flex;
+  justify-content: flex-start;
+  font-family: var(--font-mono);
+  font-size: var(--step-0);
+  line-height: var(--lead);
+  font-weight: var(--w-strong);
+}
+
+/* A list row's own grid, padding, height and hairline (`.rows > li > div`) are not a line's. */
+.rows.chat > li.line > .line-body,
+.rows.chat > li.line + li.line > .line-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s1);
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+}
+
+.rows.chat > li.line .said {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: var(--lead);
+}
+
+.rows.chat > li.line .said.ui-md {
+  white-space: normal;
+}
+
+/* Who asked and when: one quiet line over the words, only where it is worth it. */
+.rows.chat > li.line .aside {
+  font-family: var(--font-ui);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+  color: var(--heading);
+}
+
+/*
+  **How bright the words are is how much they matter**, as the window's
+  skin has it: what somebody asked is the brightest thing on the screen, the
+  orchestrator's answer bright, Tade's own news the quiet grey a hint is, and
+  what went wrong red.
+*/
+.rows.chat > li.is-asked {
+  margin-block-start: var(--s3);
+}
+
+.rows.chat > li.is-asked:first-child {
+  margin-block-start: 0;
+}
+
+.rows.chat > li.is-asked .line-mark,
+.dock-last.is-asked .line-mark {
+  color: var(--bright);
+}
+
+.rows.chat > li.is-asked .said {
+  color: var(--bright);
+  font-weight: var(--w-strong);
+}
+
+.rows.chat > li.is-reply .said {
+  color: var(--bright);
+}
+
+.rows.chat > li.is-tade .said {
+  color: var(--quiet);
+  font-size: var(--step-0);
+}
+
+.rows.chat > li.is-problem .said {
+  color: var(--red);
+}
+
+/* A reply still arriving ends in the window's own cursor. */
+.rows.chat > li.is-streaming .said > :last-child::after {
+  content: "▍";
+  margin-inline-start: 1px;
+  color: var(--amber);
+  animation: shimmer 0.9s ease-in-out infinite alternate;
+}
+
+/*
+  A tool's line is its call's own row (`conversation.js`): its glyph sits in
+  the mark's column, so a run of calls lines up with the answers round them,
+  and the run sits close.
+*/
+.rows.chat > li.is-tool > .line-mark {
+  display: none;
+}
+
+.rows.chat > li.is-tool > .line-body {
+  grid-column: 1 / -1;
+}
+
+.rows.chat > li.is-tool .ui-call-press {
+  gap: 0;
+  padding-inline: 0 var(--s2);
+}
+
+.rows.chat > li.is-tool .ui-call-press > .glyph {
+  flex: none;
+  width: var(--mark);
+  font-family: var(--font-mono);
+  font-weight: var(--w-strong);
+}
+
+.rows.chat > li.is-tool .ui-call-press > .ui-call-brief {
+  margin-inline-start: var(--s2);
+}
+
 .rows.chat > li.is-tool + li.is-tool {
-  margin-block-start: calc(-1 * var(--s3));
+  margin-block-start: calc(-1 * var(--s1));
+}
+
+/* What is older than this page, once, at the top of the conversation. */
+.chat-earlier {
+  margin-block-end: var(--s3);
+  color: var(--heading);
+  font-size: var(--step--1);
 }
 
 /*
@@ -346,104 +448,190 @@ a.pal-whole:hover {
   margin-block-end: 0;
   padding-block: var(--s3);
   background: var(--ground);
-  border-block-start: var(--border);
+  box-shadow: 0 calc(-1 * var(--s4)) var(--s4) var(--ground);
 }
 
 .composer-dock .section-head {
   display: none;
 }
 
-.composer-dock textarea {
-  resize: none;
-  max-height: 200px;
-}
-
-/* Who said it and when: a quiet line over the words, as the dock's is. */
-.rows.chat > li > .aside {
-  display: block;
-  font-family: var(--font-ui);
-  font-size: var(--step--1);
-  font-weight: var(--w-label);
-  color: var(--heading);
-}
-
-/* A person's lines on the right, one step lighter; Tade's on the left. */
-.rows.chat > li.is-asked {
-  justify-items: end;
-  text-align: end;
-}
-
-.rows.chat > li.is-asked > div {
-  max-width: 85%;
-  background: var(--raised);
-  border-end-end-radius: var(--r1);
-}
-
-.rows.chat > li.is-reply > div {
-  max-width: 92%;
-  border-end-start-radius: var(--r1);
-}
-
-.rows.chat > li.is-problem > div {
-  box-shadow: inset 2px 0 0 var(--red);
-}
-
-/* The box and its press side by side, the reason and the answer under both. */
 .composer-dock .section-head + div {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0 var(--s2);
-  align-items: end;
-}
-
-.composer-dock .section-head + div > :not(textarea, .presses) {
-  grid-column: 1 / -1;
+  gap: var(--s2);
 }
 
 /*
-  **The box is one rounded field that holds its own press**, as a chat's is:
-  the field's edge round both, the text area bare inside it, and Ask at its
-  end. Only while there is a box — a composer that can only say why not is
-  that line, not an empty field.
+  **The press back down to the newest line**, over the box, while somebody
+  has scrolled up to read: a pill at the conversation's centre, never over the
+  words of the line they are reading for longer than it takes to press.
 */
-:is(.composer, .composer-dock .section-head + div):has(> textarea:not([hidden])) {
-  padding: var(--s1) var(--s1) var(--s1) var(--s3);
-  border-radius: var(--r4);
+.jump-latest {
+  position: absolute;
+  inset-block-start: calc(-1 * var(--tap) - var(--s2));
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  min-height: var(--tap);
+  padding-inline: var(--s3) var(--s4);
   border: 1px solid var(--chrome);
+  border-radius: var(--tap);
   background: var(--panel);
-  transition: border-color var(--ease);
+  color: var(--bright);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+  box-shadow: var(--lift);
+  cursor: pointer;
+  animation: rise var(--ease) both;
 }
 
-:is(.composer, .composer-dock .section-head + div):has(> textarea:focus-visible) {
+.jump-latest:hover {
   border-color: var(--amber);
 }
 
-:is(.composer, .composer-dock .section-head + div) > textarea {
-  margin: 0;
+.jump-latest .ic {
+  transform: rotate(90deg);
+  color: var(--amber);
+}
+
+/*
+  **The field is one rounded box that holds its own presses**, as a chat's
+  is: the text area bare inside it, and Send at its end — as tall as the line
+  you type on and centred on it, growing with what is typed and staying at
+  the foot of a paragraph. While Tade answers, the field says what it is
+  doing in the box's place, and Stop is where Send was.
+*/
+.ask-field {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s2);
+  min-height: calc(var(--tap) + 2 * var(--s1));
+  padding: var(--s1) var(--s1) var(--s1) var(--s3);
+  border: 1px solid var(--chrome);
+  border-radius: var(--r4);
+  background: var(--panel);
+  transition:
+    border-color var(--ease),
+    background var(--ease);
+}
+
+.ask-field:has(> textarea:focus-visible) {
+  border-color: var(--amber);
+}
+
+.ask-field.is-busy {
+  align-items: center;
+  border-color: var(--amber-dark);
+}
+
+.ask-field > textarea {
+  flex: 1 1 auto;
+  min-width: 0;
   max-width: none;
+  /* One line is exactly a press's height — 44px for a thumb, 32px at a desk — so Send is as tall as it and centred on it. */
+  height: var(--tap);
   min-height: var(--tap);
-  padding: var(--s2) 0;
+  max-height: 200px;
+  margin: 0;
+  padding: calc((var(--tap) - 24px) / 2) 0;
   border: 0;
   background: transparent;
+  color: var(--bright);
+  font-size: var(--step-1);
+  line-height: 24px;
   resize: none;
-  max-height: 200px;
 }
 
 /* The field's own edge is its focus; the text area inside it draws none. */
-:is(.composer, .composer-dock .section-head + div) > textarea:focus-visible {
+.ask-field > textarea:focus-visible {
   outline-color: transparent;
 }
 
-:is(.composer, .composer-dock .section-head + div) .press {
-  min-height: var(--tap);
-  padding-inline: var(--s3);
-  border-radius: calc(var(--r4) - 4px);
-  background: var(--amber);
+.ask-field > .press {
+  flex: none;
+  height: var(--tap);
+  padding-inline: var(--s3) var(--s4);
   border: 0;
-  color: var(--ink);
-  font-weight: var(--w-strong);
+  border-radius: calc(var(--r4) - 2px);
 }
 
-:is(.composer, .composer-dock .section-head + div) .press:hover:not(:disabled) {
-  background: var(--amber-light);
+.ask-field > .ask-send {
+  background: var(--amber);
+  color: var(--ink);
+}
+
+.ask-field.is-empty > .ask-send {
+  background: var(--raised);
+  color: var(--heading);
+}
+
+.ask-field > .ask-stop {
+  background: var(--raised);
+  color: var(--bright);
+}
+
+.ask-field > .ask-stop .ic {
+  color: var(--red);
+}
+
+.ask-field > .ask-stop:hover:not(:disabled) {
+  background: var(--control);
+}
+
+.ask-field.is-going > .press {
+  opacity: 0.6;
+}
+
+/* What Tade is doing, in the box's place: the spinner, the call, how long. */
+.ask-live {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+  min-height: var(--tap);
+  color: var(--bright);
+  font-size: var(--step-0);
+}
+
+.ask-doing {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ask-took {
+  flex: none;
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+  **The spinner is the window's**: an amber arc turning while the
+  orchestrator thinks, here and on a call still going. Reduced motion stops
+  it (`tokens.css` counts every animation once), and the arc stays, a still
+  mark that something is under way.
+*/
+.ask-spin,
+.line-mark.is-spinning > span[aria-hidden],
+.ui-call .glyph.is-spinning {
+  flex: none;
+  display: inline-block;
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 2px solid var(--raised);
+  border-block-start-color: var(--amber);
+  border-radius: var(--round);
+  color: transparent;
+  font-size: 0;
+  animation: spin 0.9s linear infinite;
+}
+
+/* A call still going turns; it does not also breathe as a working agent's dot does. */
+.ui-call .glyph.is-spinning::after {
+  content: none;
 }

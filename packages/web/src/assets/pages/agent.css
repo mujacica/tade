@@ -681,6 +681,21 @@ be asked now one quiet line each with its reason, at the end.
 */
 .page-agent .ag-said {
   min-width: 0;
+  max-height: min(70dvh, 48rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-inline-end: var(--s2);
+}
+
+/* The press back to its newest turn floats over the foot of the list, taking no room. */
+.page-agent .ag-said-jump {
+  position: relative;
+  height: 0;
+}
+
+.page-agent .ag-said-jump .jump-latest {
+  inset-block-start: auto;
+  inset-block-end: var(--s2);
 }
 
 .page-agent .ag-said .ag-said-long:not(.ag-said-open) {
@@ -688,7 +703,7 @@ be asked now one quiet line each with its reason, at the end.
   overflow: hidden;
 }
 
-.page-agent .ag-said > li > .more {
+.page-agent .ag-said .line-body > .more {
   justify-self: end;
 }
 

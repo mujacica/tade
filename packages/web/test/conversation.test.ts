@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { agentOf } from '../src/agent.ts'
-import { briefOf, CALL, callOf, cleanSaid, inputText, TURNS, turnsOf } from '../src/conversation.ts'
+import {
+  briefOf,
+  briefOut,
+  CALL,
+  callOf,
+  cleanSaid,
+  inputText,
+  NOWHERE,
+  TURNS,
+  turnsOf,
+} from '../src/conversation.ts'
 import { AgentOutSchema, ChatRowSchema } from '../src/protocol.ts'
 import { projector } from '../src/reading.ts'
 import { snapshotOf } from '../src/snapshot.ts'
@@ -226,5 +236,40 @@ describe('an agent’s conversation, on its own answer', () => {
     const kept = turnsOf(many, []).turns
     expect(kept.length).toBe(TURNS.turns)
     expect(kept.at(-1)?.text?.words).toBe(`turn ${TURNS.turns + 9}`)
+  })
+})
+
+describe('the line that names a call', () => {
+  const places = { work: null, tade: '/home/ann/.tade', home: '/home/ann' }
+
+  it('says which file, with the home as `~` and a long path cut in its middle', () => {
+    expect(
+      briefOut(
+        { file_path: '/home/ann/.tade/projects/tade/tasks/one/attachments/NAMES.md' },
+        places,
+        [],
+      ),
+    ).toBe('~/.tade/…/NAMES.md')
+    expect(briefOut({ file_path: '/home/ann/code/a.ts', limit: 20 }, places, [])).toBe(
+      '~/code/a.ts · limit 20',
+    )
+    // A path outside the places the window knows is its last name, as an approval's is.
+    expect(briefOut({ file_path: '/srv/private/keys.txt' }, places, [])).toBe('…/keys.txt')
+    expect(briefOut({ file_path: '/home/ann/a.ts' }, NOWHERE, [])).toBe('…/a.ts')
+  })
+
+  it('takes a key out of a command, and names the call as the window does', () => {
+    const brief = briefOut(
+      {
+        command: 'curl -H "Authorization: Bearer sk-ant-api03-abcdefghijklmnopqrstuvwxyz" x',
+        description: 'Ask',
+      },
+      places,
+      [],
+    )
+    expect(brief).not.toContain('sk-ant-api03')
+    expect(brief.startsWith('"curl')).toBe(true)
+    expect(briefOut({ project: 'tade', name: 'away-chat' }, places, [])).toBe('tade · away-chat')
+    expect(callOf({ file_path: '/home/ann/a.ts' }, 'x', [], places).call.brief).toBe('~/a.ts')
   })
 })

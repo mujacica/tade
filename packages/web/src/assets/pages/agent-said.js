@@ -10,17 +10,22 @@
 // **Asked every two seconds, sent only when it moved** — the pane says which
 // revision it holds (`?seen=`), and the machine answers that one with no turns.
 
-import { callIn, callRow, wordsIn } from '../conversation.js'
+import { CALL_STATES, callIn, callRow, wordsIn } from '../conversation.js'
 import { classOn, el, into, keyed, textIn, toneOn } from '../dom.js'
 import { ageSaid } from '../figures.js'
+import { followOf } from '../follow.js'
 import { section } from '../rows.js'
 import { stateBox, stateBoxIn } from '../ui.js'
 import { stateOf } from './agent-shape.js'
 
-/** Who a turn is from, in a word, and its tone. */
+/**
+ * Who a turn is from: its mark, in the conversation with Tade's own marks
+ * (`CHAT_KINDS`) — `❯` what it was told, bright, and `◆` what it said — and
+ * its word.
+ */
 const TURN_HEADS = {
-  sent: { word: 'told it', tone: 't-wants' },
-  reply: { word: 'it said', tone: 't-working' },
+  sent: { glyph: '❯', word: 'told it', tone: '' },
+  reply: { glyph: '◆', word: 'it said', tone: 't-working' },
 }
 
 /**
@@ -45,9 +50,18 @@ export function conversationView() {
   const made = section('CONVERSATION')
   made.node.id = 'ag-said'
   const why = stateBox()
-  const list = el('ul', { class: 'rows chat ag-said' })
+  // **Read as a chat**, in a region of its own on a page with more on it:
+  // opened at its newest turn, kept there while it is followed, let go the
+  // moment somebody scrolls up in it, and one press to come back down.
+  const list = el('ul', {
+    class: 'rows chat ag-said',
+    attrs: { tabindex: '0', 'aria-label': 'Its conversation' },
+  })
+  const follow = followOf(() => list)
+  const jump = el('div', { class: 'ag-said-jump' })
+  into(jump, follow.press)
   const foot = el('p', { class: 'unknown' })
-  into(made.body, why, list, foot)
+  into(made.body, why, list, jump, foot)
 
   return {
     node: made.node,
@@ -75,6 +89,7 @@ export function conversationView() {
         createTurn,
         (node, turn) => fillTurn(node, turn, view),
       )
+      if (turns.length > 0) follow.drawn()
       const parts = []
       if (talk?.earlier === true) parts.push('earlier turns are not on this page')
       if ((talk?.taken ?? 0) > 0) parts.push(`${talk.taken} taken out`)
@@ -85,7 +100,7 @@ export function conversationView() {
 }
 
 function createTurn() {
-  const node = el('li')
+  const node = el('li', { class: 'line' })
   const fold = el('button', {
     class: 'more',
     text: 'Show all',
@@ -97,30 +112,45 @@ function createTurn() {
     fold.setAttribute('aria-expanded', open ? 'true' : 'false')
     textIn(fold, open ? 'Show less' : 'Show all')
   })
+  const mark = el('span', { class: 'line-mark' })
+  into(mark, el('span', { attrs: { 'aria-hidden': 'true' } }), el('span', { class: 'sr-only' }))
+  const body = el('div', { class: 'line-body' })
   into(
-    node,
+    body,
     el('p', { class: 'aside' }),
     words,
     fold,
     el('p', { class: 'unknown', text: 'more than this was written down' }),
     callRow(),
   )
+  into(node, mark, body)
   return node
 }
 
 /**
- * One turn: who and when over its words, or one row for a tool. What it was
- * told is folded past `FOLD_AT`, because Tade's opening is long and the page
- * is for what it is doing.
+ * One turn: its mark and when beside its words, or one row for a tool. What it
+ * was told is folded past `FOLD_AT`, because Tade's opening is long and the
+ * page is for what it is doing.
  */
 function fillTurn(node, turn, view) {
-  const [head, words, fold, cut, call] = node.children
+  const [mark, body] = node.children
+  const [glyph, word] = mark.children
+  const [head, words, fold, cut, call] = body.children
   const tool = turn.kind === 'tool'
   const kind = TURN_HEADS[turn.kind] ?? TURN_HEADS.reply
+  const drawn = tool ? (CALL_STATES[turn.outcome] ?? CALL_STATES.none) : kind
+  textIn(glyph, drawn.glyph)
+  textIn(word, tool ? '' : ` ${kind.word}`)
+  toneOn(mark, drawn.tone)
   const age = turn.at === null ? null : ageSaid(turn.at, view.asOf, view.frozen)
-  textIn(head, [kind.word, age].filter((one) => one !== null && one !== '').join(' · '))
-  toneOn(head, kind.tone)
-  head.hidden = tool
+  // When, over what it was told: the start of each exchange.
+  textIn(
+    head,
+    turn.kind === 'sent'
+      ? [kind.word, age].filter((one) => one !== null && one !== '').join(' · ')
+      : '',
+  )
+  head.hidden = turn.kind !== 'sent'
   call.hidden = !tool
   if (tool) {
     words.hidden = true
@@ -135,4 +165,5 @@ function fillTurn(node, turn, view) {
   classOn(node, 'is-asked', turn.kind === 'sent')
   classOn(node, 'is-reply', turn.kind === 'reply')
   classOn(node, 'is-tool', tool)
+  classOn(node, 'is-failed', tool && turn.outcome === 'failed')
 }
