@@ -28,10 +28,10 @@ import { endWhatItStarted, onEnding, ownTmp } from './own-tmp.ts'
 //   machine for it would hold it all afternoon.
 
 /**
- * The most files a run may have and still not wait. The smoke tests are 57,
- * the whole suite is 400-odd and the window's own package alone is over a
- * hundred — so this lets a package or the hook's run through and makes
- * anything the size of the suite take its turn.
+ * The most files a run may have and still not wait. The smoke tests are 94,
+ * the whole suite is 750-odd and the window's own package alone is 240 — so
+ * this lets the hook's run and most packages through and makes anything the
+ * size of the suite take its turn.
  */
 export const NARROW = 100
 

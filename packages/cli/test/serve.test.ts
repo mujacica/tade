@@ -52,7 +52,8 @@ function tade(args: string[], home: string, env: NodeJS.ProcessEnv = {}): Runnin
   child.stderr?.setEncoding('utf8').on('data', (chunk: string) => {
     err += chunk
   })
-  const exited = new Promise<number | null>((resolve) => child.on('exit', (code) => resolve(code)))
+  // `close`, not `exit`: only then has everything it printed been read.
+  const exited = new Promise<number | null>((resolve) => child.on('close', (code) => resolve(code)))
   return { child, out: () => out, err: () => err, exited }
 }
 
@@ -126,7 +127,8 @@ it('runs what came due with no screen, tells the orchestrator, which decides, an
 
   const serving = tade(['serve'], home, { TADE_TEST_BASE_URL: model.url })
   await until('it says what it runs', () => serving.err().includes(`${SERVES}, with no screen.`))
-  expect(serving.err()).toContain(NOT_SERVED)
+  // Its own line, written after that one: a pipe may hand them over apart.
+  await until('it says what it does not serve', () => serving.err().includes(NOT_SERVED))
   await until('the schedule ran, and the log says so', () =>
     /\d\d:\d\d Morning brief ran: the orchestrator is asked/.test(serving.err()),
   )
@@ -226,7 +228,8 @@ it('tells its service manager it is ready once its away view listens, and that i
   ])
   // Ready is reachable: the away view a Mac's link goes to already answers.
   expect(await answers(port)).toBe(true)
-  expect(serving.err()).toContain(`${SERVES}, with no screen.`)
+  // Said before systemd was told, but over a pipe that need not have delivered it yet.
+  await until('it says what it runs', () => serving.err().includes(`${SERVES}, with no screen.`))
 
   serving.child.kill('SIGTERM')
   expect(await serving.exited).toBe(0)

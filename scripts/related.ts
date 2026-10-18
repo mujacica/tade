@@ -1,7 +1,9 @@
 import { execFileSync, spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, globSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import config from '../vitest.config.ts'
+import { Graph, testsReaching, workspaceAt } from './related-graph.ts'
 
 // The tests a change touches, and nothing else.
 //
@@ -9,10 +11,18 @@ import { fileURLToPath } from 'node:url'
 //   pnpm test:related <path>…          the tests those paths touch
 //   pnpm test:related --since <ref>    what changed since <ref>, committed or not
 //
-// Which tests is the import graph's answer (`vitest related`): a test file runs
-// when it imports a changed file, however far down. Never a model's and never
-// a judge's — a judge may only ever add caution, and choosing what not to run
-// is the opposite of that. The same change always picks the same tests.
+// Which tests is the import graph's answer (`related-graph.ts`): a test file
+// runs when it imports a changed file, however far down. Never a model's and
+// never a judge's — a judge may only ever add caution, and choosing what not to
+// run is the opposite of that. The same change always picks the same tests.
+//
+// It used to be `vitest related`, and that ran the whole suite for most
+// changes: it reads the graph by file, so a test taking one name from a
+// package's `index.ts` reached every file the package has; and it runs every
+// test when anything `globalSetup` reaches changed, which through
+// `test/one-suite.ts` was 140 files of core. 15 of 21 runs took over 100 s and
+// most ran all 11,900 tests. The graph here follows a re-export only for the
+// names asked of it, and `globalSetup` is read as what it is below.
 //
 // It is the quick look for one agent's loop, and **never** the suite: a related
 // run passing says the tests that import what changed passed, and nothing about
@@ -23,12 +33,17 @@ import { fileURLToPath } from 'node:url'
 //
 // What the graph cannot see is said rather than guessed at:
 //
-//  - A file every test runs under — the vitest config, its setup files, a
-//    manifest, the lockfile, a tsconfig — touches every test, so the whole
-//    suite runs (without the coverage floors, which are the `tests` check's).
+//  - A file every test runs under — the vitest config, its setup files and
+//    what they import, a manifest, the lockfile, a tsconfig, the temp root
+//    `globalSetup` gives every test — touches every test, so the whole suite
+//    runs (without the coverage floors, which are the `tests` check's).
+//  - The rest of what `globalSetup` imports decides whether a run waits for the
+//    machine, never what a test finds: a change there runs the tests that
+//    import it, `one-suite.test.ts` among them, and a `globalSetup` broken by
+//    it fails every run that loads it, loudly.
 //  - A deleted module has nothing left to import, so nothing in the graph
-//    leads to its importers. The type checker does: `tsc` fails on an import of
-//    a file that is gone, which is the commit hook's.
+//    leads to it. A test that still imports it runs (and fails), and `tsc`
+//    fails on any other import of it, which is the commit hook's.
 //  - A test that reads a file rather than importing it — the guide, the file
 //    budgets, the notices, the pictures — is the commit hook's smoke run.
 
@@ -37,9 +52,9 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
 /** Paths every test runs under: touching one is touching all of them. */
 const EVERYTHING = [
   /^vitest\.config\.ts$/,
-  /^test\/(no-gui|own-home|one-suite)\.ts$/,
-  /^package\.json$/,
-  /^packages\/(?:[^/]+\/){1,2}package\.json$/,
+  /^test\/(no-gui|own-home|one-suite|own-tmp)\.ts$/,
+  // Any manifest, as vitest's own `forceRerunTriggers` has it.
+  /(^|\/)package\.json$/,
   /^pnpm-lock\.yaml$/,
   /^pnpm-workspace\.yaml$/,
   /^tsconfig(\.[^/]*)?\.json$/,
@@ -94,25 +109,32 @@ if (paths.length === 0) {
 
 const all = paths.find((path) => EVERYTHING.some((rule) => rule.test(path)))
 const gone = paths.filter((path) => !existsSync(join(ROOT, path)))
-const present = paths.filter((path) => existsSync(join(ROOT, path)))
 const said = [
   all
     ? `${all} is something every test runs under, so every test is related: the whole suite runs, without the coverage floors.`
     : `${paths.length} changed ${paths.length === 1 ? 'path' : 'paths'}; the tests that import ${paths.length === 1 ? 'it' : 'them'} run.`,
   gone.length > 0
-    ? `${gone.length} ${gone.length === 1 ? 'is' : 'are'} gone (${gone.slice(0, 3).join(', ')}${gone.length > 3 ? ', …' : ''}): what imported ${gone.length === 1 ? 'it' : 'them'} is the type checker's to catch — the commit hook runs it.`
+    ? `${gone.length} ${gone.length === 1 ? 'is' : 'are'} gone (${gone.slice(0, 3).join(', ')}${gone.length > 3 ? ', …' : ''}): a test that still imports ${gone.length === 1 ? 'it' : 'one'} runs, and any other import of ${gone.length === 1 ? 'it' : 'them'} is the type checker's to catch — the commit hook runs it.`
     : '',
   'A test that reads a file rather than importing it is the commit hook’s smoke run, and everything else is the full suite’s.',
 ]
 process.stdout.write(`${said.filter(Boolean).join('\n')}\n\n`)
 
+const tests = (config.test?.include ?? [])
+  .flatMap((pattern) => globSync(pattern, { cwd: ROOT, exclude: ['**/node_modules/**'] }))
+  .sort()
+const setups = [config.test?.setupFiles ?? []]
+  .flat()
+  .map((file) => relative(ROOT, resolve(ROOT, file)))
+const related =
+  all !== undefined ? tests : testsReaching(new Graph(workspaceAt(ROOT)), tests, paths, setups)
+if (all === undefined) {
+  process.stdout.write(`${related.length} of ${tests.length} test files import what changed.\n\n`)
+}
+if (related.length === 0) process.exit(0)
+
 const vitest = fileURLToPath(new URL('../node_modules/vitest/vitest.mjs', import.meta.url))
-const run =
-  all !== undefined
-    ? ['run']
-    : present.length === 0
-      ? null
-      : ['related', '--run', '--passWithNoTests', ...present]
-if (run === null) process.exit(0)
+// Absolute paths, because vitest reads each as a part of a path to match.
+const run = all !== undefined ? ['run'] : ['run', ...related.map((test) => join(ROOT, test))]
 const suite = spawn(process.execPath, [vitest, ...run], { cwd: ROOT, stdio: 'inherit' })
 suite.on('exit', (code, signal) => process.exit(signal === null ? (code ?? 1) : 1))
