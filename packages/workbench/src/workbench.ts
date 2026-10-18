@@ -13,6 +13,7 @@ import {
   type DoneRule,
   type EventFilter,
   expandHome,
+  extensionsRoot,
   HARNESS_CHOICES,
   type IntakeCandidate,
   type LaneId,
@@ -469,7 +470,7 @@ export class Workbench {
       // there was nothing for them to report to. Neither is fatal. Anything an
       // agent wrote for itself gets a commit now, so it is reviewable.
       await recordAuthored(
-        expandHome(config.orchestrator.extensions),
+        extensionsRoot(opts.home, config.orchestrator.extensions),
         'tools written since Tade was last open',
       )
       await recordAuthored(join(opts.home, 'skills'), 'lessons proposed since Tade was last open')

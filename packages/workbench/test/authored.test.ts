@@ -1,9 +1,11 @@
 import { execFileSync } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { recordAuthored } from '../src/authored.ts'
+import { Workbench } from '../src/workbench.ts'
 
 // The history of what Tade wrote for itself.
 //
@@ -110,5 +112,19 @@ describe('recording what Tade wrote for itself', () => {
     const root = join(tmp('tade-authored-'), 'a-file-not-a-directory')
     writeFileSync(root, 'not a directory\n')
     expect(await recordAuthored(root, 'first')).toEqual({ recorded: false })
+  })
+})
+
+describe("a home's own tools", () => {
+  it('are recorded in that home, and nowhere else', async () => {
+    // The config's default used to be `~/.tade/extensions` whatever the home,
+    // so every workbench a test opened ran `git add -A` there.
+    const home = tmp('tade-authored-home-')
+    mkdirSync(join(home, 'extensions'), { recursive: true })
+    writeFileSync(join(home, 'extensions', 'standup.ts'), 'export default {}\n')
+    const client = await Workbench.open({ home })
+    await client.close()
+    expect(log(join(home, 'extensions'))).toEqual(['tools written since Tade was last open'])
+    expect(existsSync(join(homedir(), '.tade', 'extensions'))).toBe(false)
   })
 })

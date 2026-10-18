@@ -42,6 +42,23 @@ export function expandHome(p: string): string {
   return p
 }
 
+/**
+ * The folder Tade's own tools and extensions are read from, and which
+ * `recordAuthored` commits: `orchestrator.extensions` where somebody set one,
+ * and otherwise `extensions` in this home, beside its `skills`.
+ *
+ * Not `~/.tade/extensions` whatever the home, which is what the default used
+ * to be: a second home (`TADE_HOME`, or a test's) then read the first one's
+ * tools and staged its folder with `git add -A` on every open — every test
+ * that opened a workbench ran it in the developer's real folder, beside their
+ * running Tade, and only `test/own-home.ts` moving `~` kept it out. The home
+ * is the one answer to "whose Tade is this", so a home's tools are its own;
+ * for the default home the path is the same as it always was.
+ */
+export function extensionsRoot(home: string, configured: string | undefined): string {
+  return configured ? expandHome(configured) : join(home, 'extensions')
+}
+
 // Where everything Tade writes *about a project* goes, which is a different
 // question again — and the answer is "not in the project".
 //

@@ -12,6 +12,7 @@ import {
   type Config,
   expandHome,
   extensionEnabled,
+  extensionsRoot,
   loadable,
   loadableSkills,
   loadConfig,
@@ -259,7 +260,7 @@ export async function loadExtensions(opts: {
    */
   mcp?: Brokered
 }): Promise<ExtensionHost> {
-  const root = expandHome(opts.config.orchestrator.extensions)
+  const root = extensionsRoot(opts.home, opts.config.orchestrator.extensions)
   // What the move turned on is read back before anything loads: an extension
   // that was running before the upgrade has to still be running after it.
   const moved = oneExtensionsFolder(root, opts.configPath)

@@ -4,8 +4,8 @@ import {
   activityFrom,
   type Config,
   defaultConfigPath,
-  expandHome,
   extensionEnabled,
+  extensionsRoot,
   historyFrom,
   isExtensionName,
   loadableSkills,
@@ -128,7 +128,7 @@ export function registerExtensions(
       // The single-file tools the orchestrator loads. They are not the
       // window's to hold, so the host does not list them: they are listed
       // here, beside the rest, because there is one folder now.
-      const tools = writtenTools(expandHome(cfg.config.orchestrator.extensions))
+      const tools = writtenTools(extensionsRoot(tadeHome(), cfg.config.orchestrator.extensions))
       if (tools.length > 0) {
         io.out('')
         io.out('tools for the orchestrator, written by Tade:')
@@ -198,7 +198,7 @@ export function registerExtensions(
       setExit(Exit.invalidInput)
       return
     }
-    const root = expandHome(cfg.config.orchestrator.extensions)
+    const root = extensionsRoot(tadeHome(), cfg.config.orchestrator.extensions)
     const folder = existsSync(join(root, name, 'extension.ts'))
     const tool = !folder && writtenTools(root).some((one) => one.name === name)
     const known =

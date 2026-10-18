@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { App } from '@tade/app'
 import {
   defaultConfigPath,
-  expandHome,
+  extensionsRoot,
   isReady,
   keptByService,
   loadConfig,
@@ -165,7 +165,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         mcp,
       })
       loadingExtensions.end()
-      const extensionsRoot = expandHome(cfg.config.orchestrator.extensions)
+      const extensionsFolder = extensionsRoot(home, cfg.config.orchestrator.extensions)
       // What an extension may ask of the window, once there is one.
       let windowForExtensions: ExtensionWorkbench | null = null
       let client: Workbench
@@ -266,7 +266,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           certificate: (name) => lookAtCertificate(name),
           // And the records it needs, looked at when Settings shows its row.
           domain: (name) => lookAtDomain(name),
-          written: () => writtenTools(extensionsRoot),
+          written: () => writtenTools(extensionsFolder),
           extensions,
           // What each harness loads by itself, listed and nothing more: pi's
           // own extensions and skills, and the MCP servers Claude Code and

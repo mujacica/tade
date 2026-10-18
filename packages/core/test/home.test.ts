@@ -1,7 +1,9 @@
 import { homedir, tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { ConfigSchema } from '../src/config.ts'
 import {
+  extensionsRoot,
   projectDir,
   recordsDir,
   remoteDocumentPath,
@@ -60,6 +62,15 @@ describe('the home itself', () => {
   it('is `~/.tade` unless TADE_HOME says otherwise', () => {
     expect(tadeHome({})).toBe(join(homedir(), '.tade'))
     expect(tadeHome({ TADE_HOME: '/somewhere/else' })).toBe('/somewhere/else')
+  })
+
+  it('keeps its own tools, unless the config puts them somewhere', () => {
+    // A second home reading — and committing — the first one's folder is what
+    // the old `~/.tade/extensions` default did, to every test.
+    const unset = ConfigSchema.parse({}).orchestrator.extensions
+    expect(extensionsRoot('/somewhere/else', unset)).toBe('/somewhere/else/extensions')
+    expect(extensionsRoot(tadeHome({}), unset)).toBe(join(homedir(), '.tade', 'extensions'))
+    expect(extensionsRoot('/somewhere/else', '~/tools')).toBe(join(homedir(), 'tools'))
   })
 })
 

@@ -1,4 +1,4 @@
-import { expandHome, extensionEnabled } from '@tade/core'
+import { extensionEnabled, extensionsRoot } from '@tade/core'
 import {
   type SetupFieldView as HostSetupField,
   type ListRow,
@@ -189,7 +189,9 @@ export class Extensions implements Subject {
       extensions: this.extensionViews(),
       harnessExtensions: this.harnessLoads(),
       servers: this.serverOffers(),
-      extensionsRoot: tilde(expandHome(this.wire.opts.config.orchestrator.extensions)),
+      extensionsRoot: tilde(
+        extensionsRoot(this.wire.opts.home, this.wire.opts.config.orchestrator.extensions),
+      ),
     }
   }
 

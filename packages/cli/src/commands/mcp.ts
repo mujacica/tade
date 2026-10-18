@@ -1,7 +1,7 @@
 import {
   type Config,
   defaultConfigPath,
-  expandHome,
+  extensionsRoot,
   loadConfig,
   MCP_TRANSPORT_NAMES,
   printable,
@@ -222,7 +222,7 @@ export function registerMcp(program: Command, io: Io, setExit: (code: number) =>
         const config = await read(opts.config)
         if (config) {
           await recordAuthored(
-            expandHome(config.orchestrator.extensions),
+            extensionsRoot(tadeHome(), config.orchestrator.extensions),
             `${on ? 'enable' : 'disable'} MCP server ${name}`,
           )
         }

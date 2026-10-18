@@ -1,4 +1,3 @@
-import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type {
   Arm,
@@ -13,7 +12,7 @@ import type {
 import {
   cameFromAway,
   changedFrom,
-  expandHome,
+  extensionsRoot,
   type Holding,
   heldIn,
   LOCAL,
@@ -404,7 +403,7 @@ export class Orchestrator {
     const written = opts.safe
       ? []
       : enabledTools(
-          expandHome(opts.config?.orchestrator.extensions ?? join(opts.home, 'extensions')),
+          extensionsRoot(opts.home, opts.config?.orchestrator.extensions),
           opts.config?.extensions ?? {},
         )
 

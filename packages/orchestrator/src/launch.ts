@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { expandHome } from '@tade/core'
+import { extensionsRoot } from '@tade/core'
 import { WORKER_ENV } from '@tade/harnesses-core'
 import type { OrchestratorOptions } from './orchestrator.ts'
 
@@ -39,9 +39,7 @@ export function toolEnv(opts: OrchestratorOptions): Record<string, string> {
   env.TADE_HOME = opts.home
   // Where extensions live, so the tools do not have to guess at paths the
   // config may have moved.
-  env.TADE_EXTENSIONS = expandHome(
-    opts.config?.orchestrator.extensions ?? join(opts.home, 'extensions'),
-  )
+  env.TADE_EXTENSIONS = extensionsRoot(opts.home, opts.config?.orchestrator.extensions)
   env.TADE_SKILLS = skillsRoot(opts)
   env.TADE_CLI = process.execPath
   env.TADE_CLI_ARGS = CLI_BIN
