@@ -8,11 +8,14 @@ import { ConfigSchema, updateCheckEvery } from '../src/config.ts'
 import { loadConfig, parseConfig, writeSetting } from '../src/config-file.ts'
 import {
   accountFor,
+  isOwnSignIn,
   orchestratorAccount,
+  ownSignInName,
   pushDefault,
   pushFor,
   pushNeedsABranch,
   pushProblems,
+  signInChosen,
   signInUse,
   workspaceFor,
 } from '../src/project.ts'
@@ -565,6 +568,67 @@ describe('accounts', () => {
   it("keep 'default' for each harness's own sign-in", () => {
     const r = accounts('accounts:\n  default:\n    harness: claude-code\n')
     expect(!r.ok && r.issues[0]?.path).toBe('accounts.default')
+  })
+
+  it('name a harness’s own sign-in, and nothing else is called that', () => {
+    const none = accounts('')
+    expect(none.ok && none.config.workers.default_names).toEqual({})
+    const named = accounts('workers:\n  default_names:\n    claude-code: sentry\n')
+    expect(named.ok && ownSignInName(named.config, 'claude-code')).toBe('sentry')
+    expect(named.ok && ownSignInName(named.config, 'codex')).toBeNull()
+    // `default` is already every harness's own, and a name is a folder's shape.
+    const reserved = accounts('workers:\n  default_names:\n    claude-code: default\n')
+    expect(!reserved.ok && reserved.issues[0]?.path).toBe('workers.default_names.claude-code')
+    const bad = accounts('workers:\n  default_names:\n    claude-code: My Login\n')
+    expect(!bad.ok && bad.issues[0]?.path).toBe('workers.default_names.claude-code')
+    // One name is one sign-in: an added account of the same harness has it already.
+    const clash = accounts(
+      'accounts:\n  sentry:\n    harness: claude-code\nworkers:\n  default_names:\n    claude-code: sentry\n',
+    )
+    expect(!clash.ok && clash.issues[0]?.path).toBe('workers.default_names.claude-code')
+    expect(!clash.ok && clash.issues[0]?.message).toContain('already a claude-code account')
+    // Another harness's account by that name is another sign-in, told apart by its harness.
+    const elsewhere = accounts(
+      'accounts:\n  work:\n    harness: codex\nworkers:\n  default_names:\n    claude-code: work\n',
+    )
+    expect(elsewhere.ok).toBe(true)
+  })
+
+  it('take the own sign-in’s name wherever an account is chosen, as that sign-in', () => {
+    const config = ConfigSchema.parse({
+      accounts: { personal: { harness: 'claude-code' } },
+      workers: {
+        default_names: { 'claude-code': 'sentry' },
+        accounts: { 'claude-code': 'sentry' },
+      },
+      orchestrator: { harness: 'claude-code', account: 'sentry' },
+      projects: {
+        shop: { root: '/src/shop', accounts: { 'claude-code': 'personal' } },
+        folio: { root: '/src/folio', accounts: { 'claude-code': 'sentry' } },
+      },
+    })
+    expect(accountFor(config, null, 'claude-code')).toBeNull()
+    expect(accountFor(config, 'folio', 'claude-code')).toBeNull()
+    expect(accountFor(config, 'shop', 'claude-code')).toBe('personal')
+    expect(orchestratorAccount(config)).toBeNull()
+    expect(signInUse(config, 'claude-code', null)).toEqual({ newAgents: true, projects: ['folio'] })
+    expect(isOwnSignIn(config, 'claude-code', 'sentry')).toBe(true)
+    expect(isOwnSignIn(config, 'claude-code', 'default')).toBe(true)
+    expect(isOwnSignIn(config, 'codex', 'sentry')).toBe(false)
+    expect(signInChosen(config, 'claude-code', 'sentry')).toBeNull()
+    expect(signInChosen(config, 'claude-code', 'personal')).toBe('personal')
+    // Only that harness's: the name means nothing to another.
+    const other = parseConfig(
+      'workers:\n  default_names:\n    claude-code: sentry\n  accounts:\n    codex: sentry\n',
+      '/x/config.yaml',
+    )
+    expect(!other.ok && other.issues[0]?.path).toBe('workers.accounts.codex')
+    // And a name that has gone is said with the ones there are.
+    const gone = parseConfig(
+      'workers:\n  default_names:\n    claude-code: sentry\n  accounts:\n    claude-code: work\n',
+      '/x/config.yaml',
+    )
+    expect(!gone.ok && gone.issues[0]?.message).toContain('(have: sentry)')
   })
 })
 

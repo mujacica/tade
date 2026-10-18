@@ -5,6 +5,7 @@ import {
   type InstallersHere,
   installWith,
   orchestratorAccount,
+  ownSignInName,
   type PlanChoice,
   type PlanSource,
   type PlanWindow,
@@ -26,6 +27,12 @@ export interface AccountView {
   harness: string
   /** Null for the harness's own sign-in. */
   name: string | null
+  /**
+   * What the harness's own sign-in is called (`workers.default_names`), on its
+   * row and null on every other or where nobody named it: a label it is shown
+   * and chosen by, never a folder.
+   */
+  ownName: string | null
   kind: 'subscription' | 'api-key'
   /** Whether this harness can have accounts beside its own. */
   canAdd: boolean
@@ -135,9 +142,11 @@ export function planSources(
     const adapter = opts.adapterFor(harness, name)
     const can = adapter.capabilities.spend.limits
     const said = can === 'none' ? null : adapter.limits()
+    const ownName = name === null ? ownSignInName(config, harness) : null
     return {
       harness,
       account: name,
+      ...(ownName ? { ownName } : {}),
       can,
       pays: paysFor(config, name, adapter),
       why: adapter.capabilities.why.limits ?? null,
@@ -253,6 +262,7 @@ export async function listAccounts(
     views.push({
       harness,
       name,
+      ownName: name === null ? ownSignInName(config, harness) : null,
       kind: name ? (config.accounts[name]?.kind ?? 'subscription') : 'subscription',
       canAdd: adapter.capabilities.accounts,
       why: adapter.capabilities.accounts ? null : (adapter.capabilities.why.accounts ?? null),

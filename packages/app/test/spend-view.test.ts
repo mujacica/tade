@@ -259,6 +259,26 @@ describe('grouping what it cost', () => {
     expect(row?.label).toBe('not recorded')
   })
 
+  it('names the harness’s own sign-in by the name somebody gave it, as the plan list does', () => {
+    const own: PlanSource = {
+      harness: 'pi',
+      account: null,
+      ownName: 'sentry',
+      can: 'none',
+      pays: 'per-token',
+      why: null,
+      said: null,
+    }
+    const view = viewBy(
+      'account',
+      [usage({ detail: { harness: 'pi', usd: 1, priced: 'exact' } })],
+      [],
+      [own],
+    )
+    expect(view.rows.map((row) => row.label)).toEqual(['pi @sentry'])
+    expect(view.plan.map((row) => row.label)).toEqual(['pi @sentry'])
+  })
+
   it("names the harness's own sign-in as its own, not as an account", () => {
     const [row] = viewBy('account', [
       usage({ detail: { harness: 'pi', usd: 1, priced: 'exact' } }),

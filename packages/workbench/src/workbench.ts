@@ -27,6 +27,7 @@ import {
   noSpend,
   OWN_SIGN_IN,
   orchestratorAccount,
+  ownSignInName,
   type Plan,
   type PlanBusy,
   type PlanChoice,
@@ -42,6 +43,7 @@ import {
   type Schedule,
   type Scopes,
   type StartCondition,
+  signInChosen,
   sinceLastLook,
   spendFrom,
   startingModel,
@@ -1462,7 +1464,11 @@ export class Workbench {
     // that user's own sign-in, its share, its harness's sandbox (`agent-user.ts`).
     const as = await agentUserFor(this.config, req.task.split('/')[0] ?? '', ownUser())
     if (as) await shareReady(as)
-    const chosenAccount = req.account ?? (await this.accountOf(req.task, harness))
+    // A name the own sign-in was given is the own sign-in (`signInChosen`).
+    const named = req.account ? signInChosen(this.config, harness, req.account) : null
+    const chosenAccount = req.account
+      ? (named ?? undefined)
+      : await this.accountOf(req.task, harness)
     const account = as ? await this.accountAs(req.task, harness, chosenAccount, as) : chosenAccount
     const adapter = as ? this.adapterAs(harness, as, account) : this.adapterFor(harness, account)
     const extras = withTade(
@@ -1953,6 +1959,11 @@ export class Workbench {
     if (!own.capabilities.accounts) {
       throw new Error(`${req.harness} ${own.capabilities.why.accounts ?? 'has one account'}`)
     }
+    if (ownSignInName(this.config, req.harness) === name) {
+      throw new Error(
+        `${name} is what ${req.harness}'s own sign-in is called: give this one another name`,
+      )
+    }
     const kind = req.kind ?? 'subscription'
     const share = req.share ?? true
     await this.writeConfig(`accounts.${name}`, { harness: req.harness, kind, share })
@@ -2013,6 +2024,9 @@ export class Workbench {
     name: string | null | undefined,
     project?: string,
   ): Promise<void> {
+    // The own sign-in by its name is written as the own sign-in, so naming it
+    // again later leaves nothing pointing at a name that has gone.
+    if (name) name = signInChosen(this.config, harness, name)
     if (name && this.config.accounts[name]?.harness !== harness) {
       throw new Error(`${name} is not a ${harness} account`)
     }
@@ -2037,6 +2051,29 @@ export class Workbench {
   }
 
   /**
+   * Call a harness's own sign-in something (`workers.default_names`), or
+   * nothing again with `null`. A label: it signs in where it always did, and
+   * the name works wherever an account is chosen. Refused for a name an added
+   * account of that harness already has, in the schema's words.
+   */
+  async nameOwnSignIn(harness: string, name: string | null): Promise<string | null> {
+    if (!HARNESS_ADAPTERS[harness]) {
+      throw new Error(
+        `no harness called ${harness}: there are ${Object.keys(HARNESS_ADAPTERS).join(', ')}`,
+      )
+    }
+    const named = name?.trim().toLowerCase() || null
+    if (named !== null) {
+      const parsed = AccountName.safeParse(named)
+      if (!parsed.success) {
+        throw new Error(`"${name}" cannot name a sign-in: ${parsed.error.issues[0]?.message}`)
+      }
+    }
+    await this.writeConfig(`workers.default_names.${harness}`, named ?? undefined)
+    return named
+  }
+
+  /**
    * Run one task's agent as another account — the one to move to when an
    * account has run out of its plan. Its conversation goes with it, where the
    * harness can carry it, so it goes on rather than starting over; a running
@@ -2048,6 +2085,7 @@ export class Workbench {
     account: string | null
   }): Promise<{ account: string | null; restarted: boolean; carried: boolean; why?: string }> {
     const harness = await this.harnessOf(req.task)
+    req = { ...req, account: signInChosen(this.config, harness, req.account) }
     if (req.account && this.config.accounts[req.account]?.harness !== harness) {
       throw new Error(`${req.account} is not a ${harness} account`)
     }

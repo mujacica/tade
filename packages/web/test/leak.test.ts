@@ -332,6 +332,17 @@ describe('each grant lets through exactly its own content', () => {
     ])
   })
 
+  it('names a harness’s own sign-in by the name it was given, only with the grant', () => {
+    const plans = [plan({ account: null, ownName: 'sentry' })]
+    const read = (granted: Grant[]) =>
+      snapshotOf(input({ reach: reach(granted), plans }), NOW, { plans: null }, BUDGET).plans[0]
+    expect(read(['spend'])?.account).toBeNull()
+    expect(read(['spend', 'accounts'])).toMatchObject({
+      id: 'claude-code/0',
+      account: { words: 'sentry' },
+    })
+  })
+
   it('tells you how many notes and findings there are, and not one word of them', () => {
     const bare = only()
     expect(bare.notes).toEqual([])

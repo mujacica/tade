@@ -187,6 +187,13 @@ Tade counted.
   (`PlanPays`) — an added account by the kind a person wrote down for it, a harness's own sign-in by
   its own `spend.usd` — because Codex declares it prices nothing on *any* account, which is true of
   Codex and says nothing about who is billed.
+- **A sign-in is labelled one way everywhere** (`planLabel`): `codex @work` for an added account, and
+  a harness's own sign-in by the name somebody gave it (`workers.default_names`, `ownSignInName`) —
+  `claude-code @sentry` — carried as `ownName` from `planSources` through `PlanStanding` and
+  `TightestPlan`, so the strip, the PLAN list, the Spend table's account rows (`signIn`, which reads
+  it off the plan sources), `tade_limits` and the away view's cards (`account`) say one name. It is
+  a label and never an account: `account` stays null, the bucket stays the harness's, and a row's id
+  on the away view is still its place.
 - The strip draws the windows of **one** account: the one somebody moved to, and `tightestPlan` until
   they do, which is the one about to stop somebody working. One account and not the fullest window of
   each, since one sign-in's session beside another's week is two answers to one question. Its name is

@@ -219,6 +219,20 @@ describe('whose plan it is', () => {
     expect(planLabel({ harness: 'claude-code', account: null })).toBe('claude-code')
     expect(planLabel({ harness: 'codex', account: 'work' })).toBe('codex @work')
   })
+
+  it('names a harness’s own sign-in by the name somebody gave it, everywhere a plan is drawn', () => {
+    const own = source({ ownName: 'sentry' })
+    expect(planLabel({ harness: 'claude-code', account: null, ownName: 'sentry' })).toBe(
+      'claude-code @sentry',
+    )
+    const [standing] = planStandings([own], NOW)
+    // Still the own sign-in underneath: the name is a label, never an account.
+    expect(standing).toMatchObject({ account: null, ownName: 'sentry' })
+    expect(
+      planLabel(tightestPlan(planStandings([own], NOW)) ?? { harness: '', account: null }),
+    ).toBe('claude-code @sentry')
+    expect(planReport([own], NOW).signIns[0]?.label).toBe('claude-code @sentry')
+  })
 })
 
 describe('moving between the sign-ins', () => {

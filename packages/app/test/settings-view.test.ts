@@ -659,4 +659,15 @@ describe('a harness that is not installed, on the Accounts page', () => {
     ).join('\n')
     expect(page).not.toContain('npm install')
   })
+  it('names a harness’s own sign-in by the name somebody gave it', () => {
+    const own = { ...missing({ command: 'x' }), install: null }
+    expect(plainRows(drawnAt('accounts', { accounts: [own] })).join('\n')).toContain(
+      'its own sign-in',
+    )
+    const named = plainRows(
+      drawnAt('accounts', { accounts: [{ ...own, ownName: 'sentry' }] }),
+    ).join('\n')
+    expect(named).toContain('▸ sentry')
+    expect(named).not.toContain('its own sign-in')
+  })
 })

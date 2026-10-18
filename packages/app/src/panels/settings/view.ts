@@ -344,7 +344,7 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
           new Row(form, skin)
             .space()
             .text(one.forNewAgents ? '▸ ' : '  ', skin.you)
-            .text(padTo(cap(one.name ?? 'its own sign-in', named), named))
+            .text(padTo(cap(one.name ?? one.ownName ?? 'its own sign-in', named), named))
             .text(cap(status, form - named - 5), one.status.signedIn ? skin.done : skin.hint)
             .build(),
         )

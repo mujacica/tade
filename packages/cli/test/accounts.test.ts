@@ -86,6 +86,28 @@ describe('tade accounts', () => {
     expect(config().workers?.accounts?.['claude-code']).toBeUndefined()
   }, 60_000)
 
+  it('names a harness’s own sign-in, lists it by that name, and takes it as that sign-in', async () => {
+    const repo = mkrepo()
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
+    const config = () => parseYaml(readFileSync(join(home, 'config.yaml'), 'utf8'))
+    const named = await tade('accounts', 'name', 'claude-code', 'sentry')
+    expect(named.code).toBe(0)
+    expect(named.stdout).toContain('own sign-in is called sentry')
+    expect(config().workers.default_names).toEqual({ 'claude-code': 'sentry' })
+    const listed = await tade('accounts', '-c', join(home, 'config.yaml'))
+    expect(listed.stdout).toContain('claude-code · sentry')
+    // Chosen by it, it is the own sign-in, written as one.
+    expect((await tade('accounts', 'use', 'claude-code', 'sentry', '--project', 'app')).code).toBe(
+      0,
+    )
+    expect(config().projects.app.accounts).toEqual({ 'claude-code': 'default' })
+    const bad = await tade('accounts', 'name', 'claude-code', 'Not A Name')
+    expect(bad.code).not.toBe(0)
+    expect(bad.stderr).toContain('cannot name a sign-in')
+    expect((await tade('accounts', 'name', 'claude-code')).stdout).toContain('has no name')
+    expect(config().workers.default_names?.['claude-code']).toBeUndefined()
+  }, 60_000)
+
   it('says which account it does not know, rather than signing in to another', async () => {
     const result = await tade(
       'accounts',

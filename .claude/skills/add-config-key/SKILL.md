@@ -160,6 +160,14 @@ alone is every agent row's word; read through `orchestratorAccount`; cleared wit
 (`clearedByHarness`); and a change starts it again on that sign-in with its conversation carried
 (`carryHere`) — at once for a person's press, after the turn that asked where it asked (`moveAccount`).
 
+**What a harness's own sign-in is called is a label beside them** (`workers.default_names.<h>`,
+decided 2026-10-18): `asked` by sitting outside the `accounts` subtree, since naming one signs nothing
+in, and named only by the harness with a naming word (`DEFAULT_NAME_ROW`, `NAMING`). The name works
+wherever an account is chosen — `workers.accounts`, a project's, `orchestrator.account`,
+`tade_agent_account` — and means the own sign-in (`isOwnSignIn`, `signInChosen`, beside
+`accountFor`); the schema refuses one an added account of that harness has, and the workbench writes
+a choice of it as the own sign-in (`default`, or unset), so naming it again strands nothing.
+
 **Defaults are settings, and where work is sent is not a default.** What new agents start on —
 each route's model and thinking, and each other harness's under it
 (`workers.routes.<r>.harnesses.<h>.(model|thinking)`) — is `asked` (`ALLOWED_UNDER`): the person

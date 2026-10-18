@@ -493,7 +493,11 @@ export class Routes implements Subject {
         worktree,
         account: account || null,
       })
-      const as = done.account ?? 'its own sign-in'
+      const harness = this.harnessShown(task)
+      const own = this.deps
+        .accounts()
+        .find((one) => one.harness === harness && one.name === null)?.ownName
+      const as = done.account ?? own ?? 'its own sign-in'
       notify(
         this.wire,
         `${task} runs as ${as}${done.carried ? ', its conversation with it' : ''}${done.restarted ? ', started again there' : ' from its next start'}${done.why ? ` — ${done.why}` : ''}`,

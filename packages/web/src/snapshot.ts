@@ -356,7 +356,11 @@ function planRow({ plan, id }: KeyedPlan, reach: Reach, budget: Budget): PlanRow
   return {
     id,
     harness: plan.harness,
-    account: has(reach, 'accounts') ? textOf(plan.account, budget.text) : null,
+    // The own sign-in by the name somebody gave it, so its card says it: the
+    // row's id is still its place, never the name (`plansKeyed`).
+    account: has(reach, 'accounts')
+      ? textOf(plan.account ?? plan.ownName ?? null, budget.text)
+      : null,
     pays: plan.pays,
     windows: plan.windows.map((window) => ({
       label: window.label,

@@ -1,8 +1,8 @@
 import type { Config, ThinkingLevel } from './config.ts'
 import { HARNESS_CHOICES } from './model.ts'
-import { orchestratorAccount } from './project.ts'
+import { orchestratorAccount, ownSignInName } from './project.ts'
 import type { Setting, SettingGroup } from './settings.ts'
-import { accountsAbout } from './settings-models.ts'
+import { accountsAbout, ownSignInSaid } from './settings-models.ts'
 
 // The one you talk to: what it runs in, on and at, and when Tade makes its
 // conversation shorter. Its own file because `settings.ts` is at its budget,
@@ -89,7 +89,7 @@ function accountRow(config: Config): Setting[] {
     (name) => config.accounts[name]?.harness === config.orchestrator.harness,
   )
   if (!harness || names.length === 0) return []
-  const own = `${harness.title}'s own sign-in`
+  const own = ownSignInSaid(harness.title, ownSignInName(config, harness.id))
   return [
     {
       path: 'orchestrator.account',

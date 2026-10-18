@@ -313,7 +313,7 @@ export function spendView(
     const timed = ran[facet.ran]
     rows = keysOf(spent, timed).map((key) =>
       rowOf({
-        label: key === UNRECORDED ? 'not recorded' : facet.name(key),
+        label: key === UNRECORDED ? 'not recorded' : facet.name(key, opts.plan ?? []),
         kind: facet.kind,
         // The name column *is* the thing here, so a second column of the
         // model says nothing and takes the room the first one needs.
@@ -417,7 +417,7 @@ const HOW = {
     kind: 'account',
     // The same spelling the plan list uses, so what the Spend page calls a
     // sign-in and what Settings calls one are one name.
-    name: (key: string) => signIn(key),
+    name: (key: string, plan: readonly PlanSource[]) => signIn(key, plan),
   },
   provider: {
     spend: 'byProvider',
@@ -431,7 +431,8 @@ const HOW = {
     spend: keyof SpendReport
     ran: keyof RuntimeReport
     kind: SpendRow['kind']
-    name: (key: string) => string
+    /** What a key is called; `plan` is every sign-in's source, for the name its own was given. */
+    name: (key: string, plan: readonly PlanSource[]) => string
   }
 >
 
@@ -460,12 +461,15 @@ function rowOf(of: {
   }
 }
 
-/** A sign-in as a person reads it: the same spelling the plan list uses. */
-function signIn(key: string): string {
+/**
+ * A sign-in as a person reads it: the same spelling the plan list uses, the
+ * harness's own by the name its plan source carries where somebody gave one.
+ */
+function signIn(key: string, plan: readonly PlanSource[]): string {
   const at = key.indexOf('@')
-  return at === -1
-    ? planLabel({ harness: key, account: null })
-    : planLabel({ harness: key.slice(0, at), account: key.slice(at + 1) })
+  if (at !== -1) return planLabel({ harness: key.slice(0, at), account: key.slice(at + 1) })
+  const own = plan.find((one) => one.harness === key && one.account === null)?.ownName
+  return planLabel({ harness: key, account: null, ownName: own ?? null })
 }
 
 /**

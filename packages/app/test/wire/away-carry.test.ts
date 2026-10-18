@@ -21,6 +21,7 @@ const TOKEN = 'sk-ant-oat01-THE-HARNESS-KEEPS-THIS'
 const CLAUDE: AccountView = {
   harness: 'claude-code',
   name: null,
+  ownName: null,
   kind: 'subscription',
   canAdd: true,
   why: null,

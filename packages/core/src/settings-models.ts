@@ -1,5 +1,6 @@
 import { type Config, HARNESS_IDS, type ThinkingLevel } from './config.ts'
 import { HARNESS_CHOICES } from './model.ts'
+import { ownSignInName } from './project.ts'
 import type { Setting, SettingGroup } from './settings.ts'
 
 // What new agents start on: each route's model, thinking and harness, and what
@@ -51,9 +52,11 @@ function accountRows(config: Config): Setting[] {
     const names = Object.keys(config.accounts).filter(
       (name) => config.accounts[name]?.harness === harness.id,
     )
-    if (names.length === 0) return []
-    const own = `${harness.title}'s own sign-in`
+    const called = ownSignInName(config, harness.id)
+    if (names.length === 0) return called === null ? [] : [nameRow(harness, called)]
+    const own = ownSignInSaid(harness.title, called)
     return [
+      nameRow(harness, called),
       {
         path: `workers.accounts.${harness.id}`,
         title: `${harness.title} account`,
@@ -71,6 +74,30 @@ function accountRows(config: Config): Setting[] {
       },
     ]
   })
+}
+
+/** A harness's own sign-in as a choice says it: by the name somebody gave it, where they did. */
+export function ownSignInSaid(title: string, called: string | null): string {
+  return called === null ? `${title}'s own sign-in` : `${called} (${title}'s own sign-in)`
+}
+
+/**
+ * What a harness's own sign-in is called (`workers.default_names`): a label,
+ * so it is a row beside the account rows, offered where there is another
+ * sign-in to tell it from or a name is already given. It is `asked`, not
+ * `never` like `accounts` (`reach.ts`): naming one signs nothing in.
+ */
+function nameRow(harness: { id: string; title: string }, called: string | null): Setting {
+  return {
+    path: `workers.default_names.${harness.id}`,
+    title: `${harness.title} own sign-in name`,
+    means: `what ${harness.title}'s own sign-in is called wherever an account is shown or chosen; it still signs in where ${harness.title} always does`,
+    value: called ?? '',
+    fallback: 'no name',
+    type: { kind: 'text', placeholder: 'work' },
+    live: true,
+    keywords: [`${harness.title} default account name`],
+  }
 }
 
 /** An account choice's list: each option under the row's heading, the ones that are not a name labelled. */

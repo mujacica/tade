@@ -82,6 +82,8 @@ export interface PlanSource {
   harness: string
   /** Null for the harness's own sign-in. */
   account: string | null
+  /** What its own sign-in is called (`ownSignInName`), where somebody named it: a label, never an account. */
+  ownName?: string | null
   can: LimitsSupport
   pays: PlanPays
   /** Its own sentence for what it cannot do. Null when it is not short of full. */
@@ -96,6 +98,8 @@ export interface PlanSource {
 export interface PlanStanding {
   harness: string
   account: string | null
+  /** Carried from its source, for its label. */
+  ownName?: string | null
   pays: PlanPays
   /** The windows still running, in the order the harness named them. Empty when nothing is known. */
   windows: readonly PlanWindow[]
@@ -125,6 +129,7 @@ export function planStandings(sources: readonly PlanSource[], now: number): Plan
       harness: source.harness,
       account: source.account,
       pays: source.pays,
+      ...(source.ownName ? { ownName: source.ownName } : {}),
       ...(source.uses ? { uses: source.uses } : {}),
     }
     const nothing = (why: string): PlanStanding => ({
@@ -167,6 +172,8 @@ function running(window: PlanWindow, now: number): boolean {
 export interface TightestPlan {
   harness: string
   account: string | null
+  /** Carried from its standing, for its label. */
+  ownName?: string | null
   /** Its running windows, in the harness's own order. Never empty. */
   windows: readonly PlanWindow[]
   /** The fullest of them: the one kept where there is only room for one. */
@@ -208,6 +215,7 @@ function planOf(standing: PlanStanding): TightestPlan | null {
   return {
     harness: standing.harness,
     account: standing.account,
+    ...(standing.ownName ? { ownName: standing.ownName } : {}),
     windows: standing.windows,
     tightest,
     at,
@@ -233,9 +241,17 @@ export function resetsIn(window: PlanWindow, now: number): number | null {
   return Math.max(0, window.resetsAt - now)
 }
 
-/** Who an account is, as a line about it is labelled: `claude-code`, `codex @work`. */
-export function planLabel(of: { harness: string; account: string | null }): string {
-  return of.account ? `${of.harness} @${of.account}` : of.harness
+/**
+ * Who an account is, as a line about it is labelled: `claude-code`, `codex @work`
+ * — and a harness's own sign-in by the name somebody gave it, `claude-code @sentry`.
+ */
+export function planLabel(of: {
+  harness: string
+  account: string | null
+  ownName?: string | null
+}): string {
+  const name = of.account ?? of.ownName
+  return name ? `${of.harness} @${name}` : of.harness
 }
 
 /**

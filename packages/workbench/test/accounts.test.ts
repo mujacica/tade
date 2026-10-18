@@ -167,6 +167,54 @@ describe('accounts', () => {
     expect((await client.agentHarness(task.id)).account).toBeNull()
   })
 
+  it('calls a harness’s own sign-in by a name, and takes that name as the own sign-in wherever one is chosen', async () => {
+    await client.addAccount({ name: 'personal', harness: 'claude-code' })
+    expect(await client.nameOwnSignIn('claude-code', ' Sentry ')).toBe('sentry')
+    expect(config().workers.default_names).toEqual({ 'claude-code': 'sentry' })
+    // Shown by it, and still the own sign-in underneath: no folder, no account.
+    const claude = (await client.accounts()).filter((one) => one.harness === 'claude-code')
+    expect(claude.map((one) => [one.name, one.ownName])).toEqual([
+      [null, 'sentry'],
+      ['personal', null],
+    ])
+    expect(config().accounts.sentry).toBeUndefined()
+    expect(existsSync(join(home, 'accounts', 'sentry'))).toBe(false)
+    expect(client.planUsage().find((one) => one.harness === 'claude-code')).toMatchObject({
+      account: null,
+      ownName: 'sentry',
+    })
+    // Chosen by it: written as the own sign-in, so a later name strands nothing.
+    await client.useAccount('claude-code', 'personal')
+    await client.useAccount('claude-code', 'sentry')
+    expect(config().workers.accounts?.['claude-code']).toBeUndefined()
+    await client.useAccount('claude-code', 'sentry', 'app')
+    expect(config().projects.app.accounts['claude-code']).toBe('default')
+    const task = await client.createTask({ project: 'app', slug: 'named', intent: 'fix it' })
+    await client.setAgentHarness({ task: task.id, worktree: task.worktree, harness: 'claude-code' })
+    await client.setAgentAccount({ task: task.id, worktree: task.worktree, account: 'personal' })
+    const back = await client.setAgentAccount({
+      task: task.id,
+      worktree: task.worktree,
+      account: 'sentry',
+    })
+    expect(back.account).toBeNull()
+    expect((await client.agentHarness(task.id)).account).toBeNull()
+    // One name is one sign-in, either way round.
+    await expect(client.addAccount({ name: 'sentry', harness: 'claude-code' })).rejects.toThrow(
+      /own sign-in is called/,
+    )
+    await expect(client.nameOwnSignIn('claude-code', 'personal')).rejects.toThrow(
+      /already a claude-code account/,
+    )
+    await expect(client.nameOwnSignIn('claude-code', 'Not A Name!')).rejects.toThrow(
+      /cannot name a sign-in/,
+    )
+    await expect(client.nameOwnSignIn('clod', 'x')).rejects.toThrow(/no harness called clod/)
+    // And no name takes it away.
+    expect(await client.nameOwnSignIn('claude-code', null)).toBeNull()
+    expect(config().workers.default_names?.['claude-code']).toBeUndefined()
+  })
+
   it('keeps a task on its own sign-in when one is chosen for it, whatever new agents use', async () => {
     await client.addAccount({ name: 'work', harness: 'claude-code' })
     await client.useAccount('claude-code', 'work')

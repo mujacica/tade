@@ -11,7 +11,7 @@
         },
         "account": {
           "type": "string",
-          "description": "the account's name, or \"default\" for its harness's own sign-in"
+          "description": "the account's name, or \"default\" — or the name it was given, as tade_limits labels it — for its harness's own sign-in"
         }
       },
       "required": [

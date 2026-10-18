@@ -223,19 +223,29 @@ export class Machine implements Subject {
     const [, verb = '', harness = '', named = ''] = id.split(':')
     const name = named || null
     const title = HARNESS_CHOICES.find((one) => one.id === harness)?.title ?? harness
+    // The own sign-in by the name somebody gave it, where they did.
+    const own = this.views.find((one) => one.harness === harness && one.name === null)?.ownName
     try {
       switch (verb) {
         case 'sign-in':
           await this.signInto(harness, name)
-          this.onPage(`${name ?? title}: signed in, as far as ${title} says below.`, null, false)
+          this.onPage(
+            `${name ?? own ?? title}: signed in, as far as ${title} says below.`,
+            null,
+            false,
+          )
           break
         case 'sign-out':
           await this.wire.opts.client.signOut(harness, name)
-          this.onPage(`${name ?? title} is signed out.`, null, false)
+          this.onPage(`${name ?? own ?? title} is signed out.`, null, false)
           break
         case 'use':
           await this.wire.opts.client.useAccount(harness, name)
-          this.onPage(`New ${title} agents run as ${name ?? 'its own sign-in'}.`, null, false)
+          this.onPage(
+            `New ${title} agents run as ${name ?? own ?? 'its own sign-in'}.`,
+            null,
+            false,
+          )
           break
         case 'remove':
           if (name) await this.wire.opts.client.removeAccount(name)

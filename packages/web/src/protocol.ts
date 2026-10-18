@@ -447,6 +447,11 @@ export const PlanRowSchema = z.strictObject({
    */
   id: z.string(),
   harness: z.string(),
+  /**
+   * What it is called: an added account's name, or the one its harness's own
+   * sign-in was given (`workers.default_names`). Null for an own sign-in
+   * nobody named, and for a device not granted `accounts`.
+   */
   account: SaidSchema.nullable(),
   pays: z.enum(['plan', 'per-token']),
   windows: z.array(

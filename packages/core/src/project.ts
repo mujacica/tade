@@ -42,8 +42,36 @@ export function workspaceFor(config: Config, project: string | null): AgentWorks
 export function accountFor(config: Config, project: string | null, harness: string): string | null {
   const own = project ? config.projects[project]?.accounts?.[harness as HarnessId] : undefined
   const chosen = own ?? config.workers.accounts[harness as HarnessId]
-  if (!chosen || chosen === OWN_SIGN_IN) return null
+  if (!chosen || isOwnSignIn(config, harness, chosen)) return null
   return config.accounts[chosen]?.harness === harness ? chosen : null
+}
+
+/**
+ * What a harness's own sign-in is called (`workers.default_names`), or null
+ * where nobody has named it. A label: it signs in where it always did.
+ */
+export function ownSignInName(config: Config, harness: string): string | null {
+  return config.workers.default_names[harness as HarnessId] ?? null
+}
+
+/**
+ * Whether a name chosen for one harness means its own sign-in: `default`, or
+ * the name somebody gave it — so `workers.accounts.claude-code: work`, a
+ * project's, the orchestrator's and one agent's move all mean the same thing
+ * by it. The schema refuses an added account of that harness with the same
+ * name, so this is never two sign-ins.
+ */
+export function isOwnSignIn(config: Config, harness: string, name: string): boolean {
+  return name === OWN_SIGN_IN || name === ownSignInName(config, harness)
+}
+
+/**
+ * A name somebody chose for one harness, as the account it is: null for its
+ * own sign-in by either of its names, the name for any other. Whether that
+ * one is an account of the harness is still the caller's to say.
+ */
+export function signInChosen(config: Config, harness: string, name: string | null): string | null {
+  return name === null || isOwnSignIn(config, harness, name) ? null : name
 }
 
 /**
@@ -54,7 +82,7 @@ export function accountFor(config: Config, project: string | null, harness: stri
  */
 export function orchestratorAccount(config: Config): string | null {
   const chosen = config.orchestrator.account
-  if (!chosen) return null
+  if (!chosen || isOwnSignIn(config, config.orchestrator.harness, chosen)) return null
   return config.accounts[chosen]?.harness === config.orchestrator.harness ? chosen : null
 }
 

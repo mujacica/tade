@@ -379,7 +379,9 @@ export function orchestratorTools(
     object(
       {
         task: string('task id, like checkout/refunds'),
-        account: string('the account\'s name, or "default" for its harness\'s own sign-in'),
+        account: string(
+          'the account\'s name, or "default" — or the name it was given, as tade_limits labels it — for its harness\'s own sign-in',
+        ),
       },
       ['task', 'account'],
     ),

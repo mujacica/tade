@@ -2,9 +2,16 @@ import { AGENT_USER, AGENT_USER_MEANS } from './agent-user.ts'
 import { AGENT_WORKSPACES, type Config, type HarnessId, OWN_SIGN_IN } from './config.ts'
 import { HARNESS_CHOICES } from './model.ts'
 import { PREPARE_DEADLINE_MINUTES } from './prepare.ts'
-import { accountFor, PUSH_MODES, pushDefault, pushFor, workspaceFor } from './project.ts'
+import {
+  accountFor,
+  ownSignInName,
+  PUSH_MODES,
+  pushDefault,
+  pushFor,
+  workspaceFor,
+} from './project.ts'
 import type { Setting, SettingGroup } from './settings.ts'
-import { accountsAbout } from './settings-models.ts'
+import { accountsAbout, ownSignInSaid } from './settings-models.ts'
 import { WATCHES_HERE } from './watch-where.ts'
 
 // What one project answers for itself, as a person changes it.
@@ -293,7 +300,7 @@ function accountRows(config: Config, name: string): Setting[] {
       (one) => config.accounts[one]?.harness === harness.id,
     )
     if (names.length === 0) return []
-    const own = `${harness.title}'s own sign-in`
+    const own = ownSignInSaid(harness.title, ownSignInName(config, harness.id))
     const machine = accountFor(config, null, harness.id) ?? own
     return [
       {

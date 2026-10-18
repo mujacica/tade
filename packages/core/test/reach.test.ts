@@ -810,6 +810,40 @@ describe('whether the person themselves named it', () => {
     expect(machine && namedBy(machine, [spokenAs(machine)])).not.toBeNull()
   })
 
+  it('leaves what the own sign-in is called to the person’s words, apart from the accounts no words reach', () => {
+    // A label beside `workers.accounts`, not under `accounts`: naming one signs
+    // nothing in, adds or removes nothing and hands nobody a credential.
+    expect(settingReach('workers.default_names.claude-code').reach).toBe('asked')
+    expect(settingReach('accounts.sentry').reach).toBe('never')
+    const config = ConfigSchema.parse({
+      accounts: { personal: { harness: 'claude-code' } },
+      workers: { default_names: { codex: 'work' } },
+    })
+    const rows = settingsOf(config)
+      .flatMap((group) => group.settings)
+      .filter((one) => one.path.startsWith('workers.default_names.'))
+    // Where there is another sign-in to tell it from, or a name already given.
+    expect(rows.map((one) => one.path).sort()).toEqual([
+      'workers.default_names.claude-code',
+      'workers.default_names.codex',
+    ])
+    const named = (line: string) =>
+      rows
+        .filter((one) => namedBy(one, [line]) !== null)
+        .map((one) => one.path)
+        .sort()
+    // The harness and the act together, never either alone.
+    expect(named('name the claude code sign-in sentry')).toEqual([
+      'workers.default_names.claude-code',
+    ])
+    expect(named('rename my codex login to company')).toEqual(['workers.default_names.codex'])
+    expect(named('what is my name?')).toEqual([])
+    expect(named('start the next one in claude code')).toEqual([])
+    expect(named('how are my accounts doing?')).toEqual([])
+    const claude = rows.find((one) => one.path === 'workers.default_names.claude-code')
+    expect(claude && namedBy(claude, [spokenAs(claude)])).not.toBeNull()
+  })
+
   it('names the orchestrator’s own model, thinking and harness only when whose is said with them', () => {
     // Titled `Model`, `Thinking` and `Harness` because the page draws them
     // under the Orchestrator heading, and the title always counted: any line

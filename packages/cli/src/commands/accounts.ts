@@ -5,6 +5,7 @@ import {
   defaultConfigPath,
   loadConfig,
   runtimeDir,
+  signInChosen,
   tadeHome,
   windowUsed,
 } from '@tade/core'
@@ -42,12 +43,14 @@ async function acting(
   await withWorkbench(io, setExit, act, THERE)
 }
 
-function adapterFor(config: Config, home: string, harness: string, name: string | null) {
+function adapterFor(config: Config, home: string, harness: string, chosen: string | null) {
   const make = HARNESS_ADAPTERS[harness]
   if (!make)
     throw new Error(
       `no harness called ${harness}: there are ${Object.keys(HARNESS_ADAPTERS).join(', ')}`,
     )
+  // The own sign-in by `default` or the name it was given.
+  const name = signInChosen(config, harness, chosen)
   if (name && config.accounts[name]?.harness !== harness) {
     throw new Error(`no ${harness} account called ${name}`)
   }
@@ -95,7 +98,8 @@ export function registerAccounts(program: Command, io: Io, setExit: (code: numbe
         return
       }
       for (const view of views) {
-        const name = `${view.harness}${view.name ? ` · ${view.name}` : ''}`
+        const called = view.name ?? view.ownName
+        const name = `${view.harness}${called ? ` · ${called}` : ''}`
         const who = view.status.signedIn
           ? `signed in${view.status.who ? ` as ${view.status.who}` : ''}${view.status.plan ? ` (${view.status.plan})` : ''}`
           : (view.status.problem ?? 'not signed in')
@@ -215,6 +219,22 @@ export function registerAccounts(program: Command, io: Io, setExit: (code: numbe
             `new ${harness} agents${opts.project ? ` in ${opts.project}` : ''} run as ${who}; an agent already working stays on its own`,
           )
         }),
+    )
+
+  accounts
+    .command('name <harness> [name]')
+    .description(
+      "Call a harness's own sign-in something, so it is shown and chosen by that name: `tade accounts name claude-code work`. It still signs in where the harness always does; no name takes it away",
+    )
+    .action((harness: string, name: string | undefined) =>
+      acting(io, setExit, async (tade) => {
+        const named = await tade.nameOwnSignIn(harness, name ?? null)
+        io.out(
+          named === null
+            ? `${harness}'s own sign-in has no name`
+            : `${harness}'s own sign-in is called ${named}; \`default\` still means it too`,
+        )
+      }),
     )
 
   signing('sign-in').description(

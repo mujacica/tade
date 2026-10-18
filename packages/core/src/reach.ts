@@ -648,7 +648,10 @@ export function wordsFor(
   // A route's row is named by its words together, never one of them, and a
   // row whose title is only its kind by whose it is with it (`wordsTogether`).
   const owned = Object.hasOwn(OWNED_ROWS, setting.path)
-  const together = ROUTE_ROW.test(setting.path.toLowerCase()) || ACCOUNT_ROW.test(setting.path)
+  const together =
+    ROUTE_ROW.test(setting.path.toLowerCase()) ||
+    ACCOUNT_ROW.test(setting.path) ||
+    DEFAULT_NAME_ROW.test(setting.path)
   const segments = together ? [] : parts.slice(1).filter((part) => part.length >= 5)
   const rest = (owned ? [] : [setting.title, ...(setting.keywords ?? []), ...segments])
     .map((word) => word.trim().toLowerCase())
@@ -695,6 +698,27 @@ const ROUTE_ROW = /^workers\.routes\.([^.]+)\.(?:harnesses\.([^.]+)\.)?([^.]+)$/
 /** Which account a harness's new agents run as: the machine's, or one project's. */
 const ACCOUNT_ROW = /^(?:workers|projects\.[^.]+)\.accounts\.([^.]+)$/
 
+/**
+ * What a harness's own sign-in is called (`workers.default_names.<h>`).
+ *
+ * **`asked`, by being in no subtree, and outside `accounts` on purpose.** It
+ * is a label: it signs nothing in, adds and removes nothing, hands nobody a
+ * credential and moves no agent — the sign-in is where the harness always
+ * kept it, and the name only says which one it is wherever accounts are shown
+ * or chosen. So it sits beside `workers.accounts` rather than under the
+ * `accounts` subtree, which stays `never` for adding, removing and signing in.
+ * It is still the person's to set: the orchestrator writes it only on a line
+ * of theirs naming the harness and the act together — "name the claude code
+ * sign-in sentry" — never on `name` or the harness alone (`wordsTogether`).
+ * The residual risk, said: a name that reads like another sign-in's could
+ * mislabel a plan, which is why one an added account of that harness already
+ * has is refused by the schema.
+ */
+const DEFAULT_NAME_ROW = /^workers\.default_names\.([^.]+)$/
+
+/** The words that, with a harness's name, ask for its own sign-in to be called something. */
+const NAMING = ['name', 'names', 'named', 'rename', 'call', 'called']
+
 /** What every route has a row of: a line saying one of the others is not about its model. */
 const ROUTE_SETTINGS = ['model', 'thinking', 'harness']
 
@@ -728,6 +752,11 @@ function wordsTogether(row: Pick<Setting, 'path' | 'title'>): Together[] {
     return said.flatMap((harness) =>
       ['account', 'accounts'].map((word) => ({ all: [harness, word] })),
     )
+  }
+  const naming = DEFAULT_NAME_ROW.exec(path.trim().toLowerCase())
+  if (naming) {
+    const said = [...new Set([naming[1] ?? '', (naming[1] ?? '').replace(/-/g, ' ')])]
+    return said.flatMap((harness) => NAMING.map((word) => ({ all: [harness, word] })))
   }
   const found = ROUTE_ROW.exec(path.trim().toLowerCase())
   if (!found) return []

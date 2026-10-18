@@ -414,6 +414,16 @@ export const ConfigSchema = z
          * harness's own sign-in — what you would get running it yourself.
          */
         accounts: z.partialRecord(Harness, AccountName).default({}),
+        /**
+         * What each harness's own sign-in is called, where you have given it a
+         * name: `claude-code: work`. A label and nothing more — it signs in
+         * where it always did (`~/.claude`, `CODEX_HOME`), and the folder is
+         * the harness's. The name works wherever an account is chosen, and
+         * means the own sign-in there (`isOwnSignIn`); one an added account of
+         * the same harness already has is refused, since one name is one
+         * sign-in.
+         */
+        default_names: z.partialRecord(Harness, AccountName).default({}),
       })
       .prefault({}),
     /** Accounts beyond each harness's own sign-in, by name. */
@@ -815,14 +825,28 @@ export const ConfigSchema = z
     }
     // An account named for a harness is one of that harness's: the machine's
     // choice and each project's, and a project's may also be its own sign-in.
+    // The name somebody gave a harness's own sign-in is that sign-in too.
     const accountIssue = (harness: string, name: string | undefined): string | null => {
-      if (name === OWN_SIGN_IN) return null
+      const own = config.workers.default_names[harness as HarnessId]
+      if (name === OWN_SIGN_IN || (name !== undefined && name === own)) return null
       const account = name ? config.accounts[name] : undefined
-      if (!account)
-        return `no account called "${name}" (have: ${Object.keys(config.accounts).join(', ') || 'none'})`
+      if (!account) {
+        const have = [...(own ? [own] : []), ...Object.keys(config.accounts)]
+        return `no account called "${name}" (have: ${have.join(', ') || 'none'})`
+      }
       return account.harness === harness
         ? null
         : `"${name}" is a ${account.harness} account, not ${harness}'s`
+    }
+    // One name is one sign-in: a harness's own may not be called what one
+    // added beside it already is, or choosing it would mean either.
+    for (const [harness, name] of Object.entries(config.workers.default_names)) {
+      if (name && config.accounts[name]?.harness === harness)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['workers', 'default_names', harness],
+          message: `"${name}" is already a ${harness} account added beside its own sign-in: call the own sign-in something else, or remove that account first`,
+        })
     }
     for (const [harness, name] of Object.entries(config.workers.accounts)) {
       const message = accountIssue(harness, name)

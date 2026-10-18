@@ -27,6 +27,8 @@ export interface AccountAction {
 export interface AccountShown {
   harness: string
   name: string | null
+  /** What its own sign-in is called, on that row, where somebody named it (`workers.default_names`). */
+  ownName?: string | null
   kind: 'subscription' | 'api-key'
   canAdd: boolean
   why: string | null
