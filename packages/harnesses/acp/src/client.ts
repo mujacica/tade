@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from 'node:child_process'
-import type { WorkerSignal } from '@tade/harnesses-core'
+import { keptResult, type WorkerSignal } from '@tade/harnesses-core'
 import type { z } from 'zod'
 import {
   AGENT,
@@ -605,7 +605,13 @@ export class AcpClient {
     const ok = call.status === 'completed'
     const summary = call.output.trim().slice(0, 2000)
     this.signal({ type: 'tool_result', callId: call.id, ok, summary })
-    this.write({ type: 'tool_result', at: this.now(), id: call.id, ok, result: summary })
+    this.write({
+      type: 'tool_result',
+      at: this.now(),
+      id: call.id,
+      ok,
+      result: keptResult(call.output),
+    })
   }
 
   private async onRequest(method: string, params: unknown): Promise<unknown> {

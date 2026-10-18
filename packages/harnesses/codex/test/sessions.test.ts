@@ -1,6 +1,7 @@
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { RESULT_KEPT } from '@tade/harnesses-core'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import {
@@ -211,5 +212,30 @@ describe('a conversation read back', () => {
     expect(items[1]).toMatchObject({ tool: 'shell', input: { command: ['rg', 'paginate'] } })
     expect(historyLine('{"type":"turn_context","payload":{}}')).toBeNull()
     expect(historyLine('not json')).toBeNull()
+  })
+})
+
+describe("a tool call's answer read back", () => {
+  it('is what it answered, in each shape a rollout writes it, cut at the bound', () => {
+    const answer = (output: unknown) =>
+      historyLine(
+        JSON.stringify({
+          timestamp: '2026-10-18T10:00:00.000Z',
+          type: 'response_item',
+          payload: { type: 'function_call_output', call_id: 'c1', output },
+        }),
+      )?.results
+    expect(answer('Exit code: 0\nOutput:\nMakefile\n')).toEqual([
+      { id: 'c1', ok: true, result: 'Exit code: 0\nOutput:\nMakefile' },
+    ])
+    expect(answer(JSON.stringify({ output: 'Makefile', metadata: { exit_code: 0 } }))).toEqual([
+      { id: 'c1', ok: true, result: 'Makefile' },
+    ])
+    expect(answer([{ type: 'input_text', text: 'seen' }, { type: 'input_image' }])).toEqual([
+      { id: 'c1', ok: true, result: 'seen' },
+    ])
+    const [kept] = answer('a\n'.repeat(100)) ?? []
+    expect(kept?.result.split('\n').slice(0, -1)).toEqual(Array(RESULT_KEPT.lines).fill('a'))
+    expect(kept?.result.split('\n').at(-1)).toBe('… 76 more lines (152 characters) not kept')
   })
 })

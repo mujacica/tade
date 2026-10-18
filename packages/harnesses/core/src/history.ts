@@ -34,7 +34,10 @@ export type HistoryItem =
       tool: string
       input: unknown
       ok: boolean | null
-      /** What it answered, when that is worth saying: the reason it failed. */
+      /**
+       * What it answered — whether it worked or not — bounded by `keptResult`,
+       * with a line saying how much was left out.
+       */
       result: string
       at: number
     }
@@ -71,6 +74,44 @@ export interface HistoryLine {
    * on one, so a tool and its answer are never split across two pages.
    */
   opens: boolean
+}
+
+/**
+ * How much of a tool's answer a page keeps: a file read or a test run can be a
+ * megabyte, and a page holds a hundred of them. Under the away view's own bound
+ * (`CALL.result` in `@tade/web`), so the line saying what was left out reaches
+ * the page rather than being cut off it.
+ */
+export const RESULT_KEPT = { chars: 1_800, lines: 24 } as const
+
+/**
+ * A tool's answer as a page keeps it: the first `RESULT_KEPT.lines` lines or
+ * `RESULT_KEPT.chars` characters, whichever ends first, and then a line saying
+ * how much more there was. What is kept is a copy, never a slice: V8 keeps a
+ * slice's whole parent alive, so a kept two kilobytes would hold the megabyte.
+ */
+export function keptResult(text: string): string {
+  const whole = text.trimEnd()
+  let end = Math.min(whole.length, RESULT_KEPT.chars)
+  let at = -1
+  for (let n = 0; n < RESULT_KEPT.lines; n++) {
+    at = whole.indexOf('\n', at + 1)
+    if (at < 0 || at >= end) break
+    if (n === RESULT_KEPT.lines - 1) end = at
+  }
+  if (end >= whole.length) return whole
+  const left = whole.length - end
+  let lines = 0
+  for (let i = whole.indexOf('\n', end); i >= 0; i = whole.indexOf('\n', i + 1)) lines++
+  const more =
+    lines > 0
+      ? `${count(lines)} more ${lines === 1 ? 'line' : 'lines'} (${count(left)} characters)`
+      : `${count(left)} more characters`
+  return Buffer.from(`${whole.slice(0, end).trimEnd()}\n… ${more} not kept`).toString()
+}
+
+function count(n: number): string {
+  return n.toLocaleString('en-US')
 }
 
 /** How much is read from the file at a time, going back. */

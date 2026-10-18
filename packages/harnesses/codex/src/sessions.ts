@@ -8,6 +8,8 @@ import {
   type HistoryLine,
   type HistoryPage,
   historyIn,
+  jsonOf,
+  keptResult,
   momentOf,
   NO_HISTORY,
   noHarnessSpend,
@@ -405,8 +407,33 @@ export function historyLine(text: string): HistoryLine | null {
     typeof payload.call_id === 'string'
   ) {
     // Codex records what came back and not whether it worked: it answered.
-    line.results.push({ id: payload.call_id, ok: true, result: '' })
+    line.results.push({
+      id: payload.call_id,
+      ok: true,
+      result: keptResult(outputText(payload.output)),
+    })
     return line
   }
   return null
+}
+
+/**
+ * What a call answered, as words: a string in most rollouts, one wrapped as
+ * `{"output": …}` in older ones, and a list of parts where it answered with
+ * more than text — a picture is not history, so only the words are kept.
+ */
+function outputText(output: unknown): string {
+  if (Array.isArray(output)) {
+    return output
+      .map((part) => {
+        const said = record(part)
+        return typeof said?.text === 'string' ? said.text : ''
+      })
+      .filter((text) => text !== '')
+      .join('\n')
+  }
+  if (typeof output !== 'string') return ''
+  // Not the wrapper after all is the words as they came.
+  const wrapped = output.startsWith('{"output":') ? record(jsonOf(output)) : null
+  return typeof wrapped?.output === 'string' ? wrapped.output : output
 }

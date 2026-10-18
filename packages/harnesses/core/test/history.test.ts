@@ -2,7 +2,14 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { type HistoryItem, type HistoryLine, historyIn, NO_HISTORY } from '../src/history.ts'
+import {
+  type HistoryItem,
+  type HistoryLine,
+  historyIn,
+  keptResult,
+  NO_HISTORY,
+  RESULT_KEPT,
+} from '../src/history.ts'
 
 // A record in the simplest shape a harness could keep one: a line per thing
 // said, a tool call, or its answer. The real ones are each adapter's to read.
@@ -149,5 +156,34 @@ describe('a record that is there and could not be read', () => {
     await expect(historyIn(tmp('tade-history-'), { limit: 5 }, read)).rejects.toThrow(
       /could not read/,
     )
+  })
+})
+
+describe("a tool's answer as a page keeps it", () => {
+  it('is the whole of a short one, without what it ended on', () => {
+    expect(keptResult('src/a.ts\nsrc/b.ts\n')).toBe('src/a.ts\nsrc/b.ts')
+    expect(keptResult('')).toBe('')
+  })
+
+  it('is its first lines, and says how many more there were', () => {
+    const lines = Array.from({ length: 100 }, (_, n) => `line ${n + 1}`)
+    const kept = keptResult(lines.join('\n'))
+    const shown = kept.split('\n')
+    expect(shown.slice(0, -1)).toEqual(lines.slice(0, RESULT_KEPT.lines))
+    const left = lines.slice(RESULT_KEPT.lines).join('\n').length + 1
+    expect(shown.at(-1)).toBe(
+      `… ${100 - RESULT_KEPT.lines} more lines (${left} characters) not kept`,
+    )
+  })
+
+  it('is cut at its characters where its lines are long, and a megabyte keeps only that', () => {
+    const megabyte = 'x'.repeat(1024 * 1024)
+    const kept = keptResult(megabyte)
+    expect(kept).toBe(
+      `${'x'.repeat(RESULT_KEPT.chars)}\n… ${(megabyte.length - RESULT_KEPT.chars).toLocaleString('en-US')} more characters not kept`,
+    )
+    expect(kept.length).toBeLessThan(RESULT_KEPT.chars + 60)
+    const one = keptResult(`${'y'.repeat(RESULT_KEPT.chars - 2)}\nz\nz`)
+    expect(one.split('\n').at(-1)).toBe('… 1 more line (2 characters) not kept')
   })
 })

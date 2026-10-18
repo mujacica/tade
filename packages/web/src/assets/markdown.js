@@ -651,3 +651,51 @@ export function markdownIn(node, text) {
   for (const gone of old.slice(parts.length)) gone.box.remove()
   drawn.set(node, { text: said, parts: kept })
 }
+
+/**
+ * How much of some words `plainOf` reads: a one-line preview shows a sentence
+ * or two, and the reply behind it may be pages long and read again every beat.
+ */
+export const PLAIN_READ = 1_000
+
+/**
+ * Some markdown as plain words on one line, for a preview that has room for a
+ * line and no more: the same reader as `markdownIn`, so `**bold** and \`code\``
+ * reads `bold and code` — a mark taken off where the drawing would take it off,
+ * and left where the drawing would leave it. A link is its words, a picture
+ * the word `picture`, and a table its cells.
+ */
+export function plainOf(text) {
+  const said = typeof text === 'string' ? text.slice(0, PLAIN_READ) : ''
+  return plainBlocks(blocksOf(said)).join(' ').replace(/\s+/g, ' ').trim()
+}
+
+function plainBlocks(blocks) {
+  return blocks.flatMap((block) => {
+    switch (block.type) {
+      case 'code':
+        return [block.text]
+      case 'rule':
+        return []
+      case 'quote':
+        return plainBlocks(block.blocks)
+      case 'list':
+        return block.items.flatMap((item) => plainBlocks(item.blocks))
+      case 'table':
+        return [...block.head, ...block.rows.flat()].map((cell) => plainInline(inlineOf(cell)))
+      default:
+        return [plainInline(inlineOf(block.text))]
+    }
+  })
+}
+
+function plainInline(parts) {
+  return parts
+    .map((part) => {
+      if (part.t === 'text' || part.t === 'code') return part.v
+      if (part.t === 'br') return ' '
+      if (part.t === 'link' && part.picture) return `picture ${plainInline(part.c)}`
+      return plainInline(part.c)
+    })
+    .join('')
+}

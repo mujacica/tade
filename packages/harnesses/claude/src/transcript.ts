@@ -9,6 +9,7 @@ import {
   type HistoryLine,
   type HistoryPage,
   historyIn,
+  keptResult,
   momentOf,
   noHarnessSpend,
 } from '@tade/harnesses-core'
@@ -260,7 +261,7 @@ export function historyLine(
         line.results.push({
           id: part.tool_use_id,
           ok: !failed,
-          result: failed ? resultText(part.content).slice(0, 300) : '',
+          result: keptResult(resultText(part.content)),
         })
       }
     }

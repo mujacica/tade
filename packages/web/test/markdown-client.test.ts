@@ -2,8 +2,17 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { StillDocument, type StillElement } from '../scripts/still-dom.ts'
 import { callIn, callRow } from '../src/assets/conversation.js'
 import { keyed } from '../src/assets/dom.js'
-import { blocksOf, hrefOf, inlineOf, markdownIn, partsOf, TAGS } from '../src/assets/markdown.js'
-import { createChatLine, fillChatLine } from '../src/assets/talk.js'
+import {
+  blocksOf,
+  hrefOf,
+  inlineOf,
+  markdownIn,
+  PLAIN_READ,
+  partsOf,
+  plainOf,
+  TAGS,
+} from '../src/assets/markdown.js'
+import { createChatLine, fillChatLine, saidOn } from '../src/assets/talk.js'
 
 // The conversation's words, drawn as markdown — and what makes that safe.
 //
@@ -330,6 +339,34 @@ describe('a reply while it is written', () => {
   })
 })
 
+describe('a line of the conversation on one line', () => {
+  const said = (kind: string, words: string, more = false) =>
+    saidOn({ kind, text: { words, more }, tool: null, from: kind === 'asked' ? 'you' : null })
+
+  it("reads a model's words with the marks taken off, as the drawing takes them off", () => {
+    expect(said('reply', '**bold** and `code`')).toBe('bold and code')
+    expect(said('tade', '## Done\n\n- one *thing*\n- [the review](https://x.dev/1)')).toBe(
+      'Done one thing the review',
+    )
+    expect(said('reply', '| a | b |\n|---|---|\n| 1 | 2 |\n\n```ts\nconst x = 1\n```')).toBe(
+      'a b 1 2 const x = 1',
+    )
+    // A mark the drawing would leave, it leaves; and a cut is still said.
+    expect(said('reply', '2 * 3 and a_b_c', true)).toBe('2 * 3 and a_b_c …')
+    expect(plainOf('<script>x</script> ![a cat](https://x.dev/c.png)')).toBe(
+      '<script>x</script> picture a cat',
+    )
+  })
+
+  it("keeps a person's own marks, which were theirs to mean", () => {
+    expect(said('asked', '**not bold** `as typed`')).toBe('**not bold** `as typed`')
+  })
+
+  it('reads no further than a preview shows, however long the reply', () => {
+    expect(plainOf(`**${'w'.repeat(PLAIN_READ * 10)}**`).length).toBeLessThanOrEqual(PLAIN_READ)
+  })
+})
+
 describe('a tool call', () => {
   const view = { asOf: '2026-10-08T14:30:00.000Z', frozen: false }
 
@@ -364,6 +401,25 @@ describe('a tool call', () => {
       'no such project <script>x</script>',
     ])
     expect(row.querySelectorAll('script')).toEqual([])
+  })
+
+  it('opens a call that worked onto what it answered, cut where its harness cut it, as text', () => {
+    const row = callRow()
+    const answered = `<b>line 1</b>\nline 2\n… 476 more lines (2,310 characters) not kept`
+    callIn(row, {
+      tool: 'Read',
+      outcome: 'ok',
+      call: {
+        brief: 'a.ts',
+        input: { words: 'path: a.ts', more: false },
+        result: { words: answered, more: false },
+      },
+    })
+    row.querySelector('button').click()
+    const [, answer] = row.querySelectorAll('pre').map((one: StillElement) => one.textContent)
+    expect(answer).toBe(answered)
+    expect(row.querySelectorAll('b')).toEqual([])
+    expect(row.querySelector('.ui-call-body').textContent).not.toContain('not written down')
   })
 
   it('stays open while the call it is about answers, and is nothing to press with nothing to open', () => {

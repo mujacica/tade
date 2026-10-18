@@ -6,6 +6,7 @@ import {
   type HistoryLine,
   type HistoryPage,
   historyIn,
+  keptResult,
   momentOf,
 } from '@tade/harnesses-core'
 import { sessionIdFor } from './adapter.ts'
@@ -333,7 +334,7 @@ export function historyLine(text: string): HistoryLine | null {
     line.results.push({
       id: toolCallId,
       ok: !failed,
-      result: failed ? words.join('\n').slice(0, 300) : '',
+      result: keptResult(words.join('\n')),
     })
   } else {
     return null

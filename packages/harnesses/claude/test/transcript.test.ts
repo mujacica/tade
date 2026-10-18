@@ -1,6 +1,7 @@
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { RESULT_KEPT } from '@tade/harnesses-core'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { ClaudeAdapter } from '../src/adapter.ts'
@@ -150,7 +151,7 @@ describe('a conversation read back', () => {
     ).toEqual([
       ['sent', 'what is running?'],
       // One of Tade's own tools, by the name Tade gave it.
-      ['tool', 'tade_status', true, ''],
+      ['tool', 'tade_status', true, '{"tasks":2}'],
       ['reply', 'Two agents are working in **shop**: `search` and `refunds`.'],
       ['sent', 'Tell the person what it found.'],
       ['tool', 'Bash', false, 'fatal: not a git repository'],
@@ -191,5 +192,29 @@ describe('a conversation read back', () => {
     expect(historyLine('[1,2]')).toBeNull()
     expect(historyLine('{"type":"user"}')).toBeNull()
     expect(historyLine('not json')).toBeNull()
+  })
+})
+
+describe("a tool call's answer read back", () => {
+  it('is kept when it worked as well as when it failed, cut at the bound with what was left out', () => {
+    const answer = (content: unknown, failed: boolean) =>
+      historyLine(
+        JSON.stringify({
+          type: 'user',
+          timestamp: '2026-10-18T10:00:00.000Z',
+          message: {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 't1', is_error: failed, content }],
+          },
+        }),
+      )?.results
+    expect(answer([{ type: 'text', text: 'two files\n' }], false)).toEqual([
+      { id: 't1', ok: true, result: 'two files' },
+    ])
+    expect(answer('no such file', true)).toEqual([{ id: 't1', ok: false, result: 'no such file' }])
+    const long = Array.from({ length: 500 }, (_, n) => `${n}`).join('\n')
+    const [kept] = answer(long, false) ?? []
+    expect(kept?.result.split('\n')).toHaveLength(RESULT_KEPT.lines + 1)
+    expect(kept?.result).toMatch(/\n… 476 more lines \([\d,]+ characters\) not kept$/)
   })
 })

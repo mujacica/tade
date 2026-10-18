@@ -38,6 +38,7 @@ import { callIn, callRow, wordsIn } from './conversation.js'
 import { classOn, el, empty, hintOf, into, keyed, textIn, toneOn } from './dom.js'
 import { ageSaid } from './figures.js'
 import { CHAT_KINDS } from './glyphs.js'
+import { plainOf } from './markdown.js'
 import { nothingSaid, section } from './rows.js'
 import { chatOf, omitted, talkOf } from './store.js'
 import { answerIn } from './ui.js'
@@ -322,8 +323,7 @@ export function fillChatLine(node, line, view) {
     callIn(call, { tool: line.tool, outcome: line.outcome ?? 'none', call: line.call ?? null })
     body.hidden = true
   } else {
-    // The model's words and Tade's are markdown; a person's are as they typed them.
-    wordsIn(body, line.text, line.kind === 'reply' || line.kind === 'tade')
+    wordsIn(body, line.text, marked(line))
   }
   // What the budget cut is said, never drawn as three dots in somebody's words.
   cut.hidden = tool || line.text?.more !== true
@@ -332,6 +332,11 @@ export function fillChatLine(node, line, view) {
   for (const kind of ['asked', 'reply', 'tool', 'tade', 'problem']) {
     classOn(node, `is-${kind}`, line.kind === kind)
   }
+}
+
+/** The model's words and Tade's are markdown; a person's are as they typed them. */
+function marked(line) {
+  return line.kind === 'reply' || line.kind === 'tade'
 }
 
 /**
@@ -357,7 +362,10 @@ export function whoSaid(line) {
  */
 export function saidOn(line) {
   if (line.text !== null && line.text !== undefined) {
-    return line.text.words + (line.text.more === true ? ' …' : '')
+    // On one line the marks are taken off rather than drawn: `**` and `#` in
+    // a preview are noise, and a heading or a list has no room to be one.
+    const words = marked(line) ? plainOf(line.text.words) : line.text.words
+    return words + (line.text.more === true ? ' …' : '')
   }
   if (line.kind === 'tool') {
     return line.outcome === 'running' ? 'still going' : ''

@@ -69,6 +69,29 @@ describe('a call, cleaned', () => {
     expect(made.said?.words).not.toContain(HELD_KEY.slice(0, 5))
   })
 
+  it("carries a successful call's answer whole, the line saying what its harness left out included", () => {
+    // As a harness's history keeps one (`keptResult`, `RESULT_KEPT` in
+    // `@tade/harnesses-core`: 1,800 characters and a line), which is under this
+    // bound so the line saying how much was left out reaches the page.
+    const kept = `${'z'.repeat(1_800)}\n… 8,200 more characters not kept`
+    const { turns } = turnsOf(
+      [
+        {
+          kind: 'tool',
+          id: 't1',
+          tool: 'Read',
+          input: { path: 'a.ts' },
+          ok: true,
+          result: kept,
+          at: 1,
+        },
+      ],
+      [],
+    )
+    expect(turns[0]?.outcome).toBe('ok')
+    expect(turns[0]?.call?.result).toEqual({ words: kept, more: false })
+  })
+
   it('cuts a megabyte to the bound and says there was more', () => {
     const made = cleanSaid('y'.repeat(1_000_000), CALL.result, [])
     expect(made.said?.words.length).toBe(CALL.result)

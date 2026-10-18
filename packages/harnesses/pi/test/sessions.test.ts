@@ -1,6 +1,7 @@
 import { mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { RESULT_KEPT } from '@tade/harnesses-core'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { PiAdapter, sessionIdFor } from '../src/adapter.ts'
@@ -423,7 +424,7 @@ describe('a conversation read back', () => {
         ok: false,
         result: 'rg: not found',
       }),
-      expect.objectContaining({ kind: 'tool', tool: 'tade_status', ok: true, result: '' }),
+      expect.objectContaining({ kind: 'tool', tool: 'tade_status', ok: true, result: '{}' }),
       { kind: 'reply', text: 'It is `#8700d7` now.', at: Date.parse('2026-09-19T11:47:20.000Z') },
     ])
   })
@@ -439,5 +440,26 @@ describe('a conversation read back', () => {
     })
     expect(historyLine('{"type":"model_change"}')).toBeNull()
     expect(historyLine('{"type":"message","message":{"role":"system","content":""}}')).toBeNull()
+  })
+})
+
+describe("a tool call's answer read back", () => {
+  it('is kept when it worked, cut at the bound with what was left out', () => {
+    const answer = (text: string) =>
+      historyLine(
+        JSON.stringify({
+          type: 'message',
+          timestamp: '2026-10-18T10:00:00.000Z',
+          message: {
+            role: 'toolResult',
+            toolCallId: 't1',
+            isError: false,
+            content: [{ type: 'text', text }],
+          },
+        }),
+      )?.results
+    expect(answer('two files')).toEqual([{ id: 't1', ok: true, result: 'two files' }])
+    const [kept] = answer('z'.repeat(10_000)) ?? []
+    expect(kept?.result).toBe(`${'z'.repeat(RESULT_KEPT.chars)}\n… 8,200 more characters not kept`)
   })
 })

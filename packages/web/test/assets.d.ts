@@ -267,6 +267,8 @@ declare module '*/assets/markdown.js' {
   export function inlineOf(text: string, depth?: number): any[]
   export function blockNodes(blocks: unknown[]): unknown[]
   export function markdownIn(node: unknown, text: unknown): void
+  export const PLAIN_READ: number
+  export function plainOf(text: unknown): string
 }
 
 declare module '*/assets/conversation.js' {
