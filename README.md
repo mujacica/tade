@@ -843,7 +843,9 @@ on 443, DNSSEC before Caddy orders a certificate, CAA after it — says of each 
 wrong or not yet visible with the exact record to add, and writes the name as the public name and a
 trusted hostname when you say so; Settings › Away view shows the same look under **Public name**.
 `tade.sh` and the names under it are refused: it serves the installer. `tade host caddy` prints the
-site block and the one root line that makes the socket's directory, and writes nothing. `tade host caddy --check` looks from
+site block and the one root line that makes the socket's directory, and writes nothing. The block
+needs Caddy 2.7 or newer, which Debian's and Ubuntu's own package is not: install Caddy from its own
+apt repository (caddyserver.com/docs/install). `tade host caddy --check` looks from
 the box at the directory, the socket, the certificate the name answers with — loudly when renewing
 has stopped — and whether this Tade is behind, which the away view also says loudly while it is
 public. A phone paired through the name makes a passkey right after it pairs — inside the app it

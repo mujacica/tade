@@ -4,6 +4,7 @@ import { userInfo } from 'node:os'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
 import {
+  CADDY,
   caddySite,
   copiedHosts,
   defaultConfigPath,
@@ -11,7 +12,9 @@ import {
   lingerCommand,
   loadConfig,
   PUBLIC_DIR,
+  parseVersion,
   publicSocket,
+  runProgram,
   tadeHome,
 } from '@tade/core'
 import { answering, dirSeen } from '@tade/web'
@@ -121,6 +124,10 @@ export function registerHost(program: Command, io: Io, setExit: (code: number) =
         dir,
         answering,
         look: (one) => lookAtCertificate(one),
+        caddy: async () => {
+          const said = await runProgram(CADDY.command, CADDY.versionArgs, { timeoutMs: 5_000 })
+          return said.missing ? null : { version: parseVersion(said.stdout) }
+        },
         newer: async () => {
           const kept = await lastUpdates(tadeHome())
           return kept === null ? null : { newer: kept.tade.newer }

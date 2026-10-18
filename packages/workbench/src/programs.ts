@@ -12,6 +12,7 @@ import {
   isBehind,
   neededPrograms,
   type ProgramNeed,
+  PUBLIC_PROGRAMS,
   parseVersion,
   resolveCommand,
   runProgram,
@@ -142,6 +143,12 @@ export async function programsNeeded(
       what: 'backups',
       inUse: config.backup.repository.trim() !== '',
       programs: BACKUP_PROGRAMS,
+    },
+    // Caddy in front of a public name: in use once the name is set.
+    {
+      what: 'a public name',
+      inUse: config.surfaces.web.public !== '',
+      programs: PUBLIC_PROGRAMS,
     },
   ]
 

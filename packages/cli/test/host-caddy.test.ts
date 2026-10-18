@@ -35,6 +35,9 @@ describe('what is said beside the block', () => {
     expect(said).toContain("printf 'd /run/tade 2750 %s caddy -\\n' you | sudo tee")
     expect(said).toContain('now: /run/tade is not there, so nothing listens for Caddy')
     expect(said).toContain('sudo systemctl reload caddy')
+    // Debian 12's and Ubuntu's own caddy is 2.6, which refuses the block.
+    expect(said).toContain('Caddy 2.7 or newer')
+    expect(said).toContain('caddyserver.com/docs/install')
     expect(said).toContain(`An A record for ${NAME}`)
     expect(said).toContain(`domain ${NAME}\` looks at each and says exactly what to add`)
     expect(said).toContain(`Set surfaces.web.public to ${NAME}`)
@@ -73,6 +76,7 @@ describe('the look from here', () => {
         error: null,
       },
     }),
+    caddy: async () => ({ version: '2.11.7' }),
     newer: async () => ({ newer: null }),
     now: NOW,
     ...over,
@@ -80,9 +84,10 @@ describe('the look from here', () => {
 
   it('is quiet when all four are right', async () => {
     const said = await lookAtPublic(looking())
-    expect(said.map((one) => one.loud)).toEqual([false, false, false])
+    expect(said.map((one) => one.loud)).toEqual([false, false, false, false])
     expect(said.map((one) => one.said)).toEqual([
       `Tade is listening for Caddy at ${SOCKET}`,
+      'caddy 2.11.7',
       "certificate: 60 days left, until 2026-12-15, from Let's Encrypt",
       'Tade is not behind, as of the last update check',
     ])
@@ -94,9 +99,16 @@ describe('the look from here', () => {
         dir: null,
         look: async () => ({ at: NOW, cannot: 'ENOTFOUND' }),
         newer: async () => ({ newer: '0.2.4 is out' }),
+        caddy: async () => ({ version: '2.6.2' }),
       }),
     )
     expect(said.every((one) => one.loud)).toBe(true)
+    expect(said[1]?.said).toContain('caddy 2.6.2 is too old for the block, which needs 2.7')
+    const none = await lookAtPublic(looking({ caddy: async () => null }))
+    expect(none[1]).toEqual({
+      said: 'no caddy here: it needs installing, 2.7 or newer',
+      loud: true,
+    })
     expect(said[0]?.said).toContain('/run/tade is not there')
     const idle = await lookAtPublic(looking({ answering: async () => false }))
     expect(idle[0]).toMatchObject({ loud: true })
@@ -105,7 +117,7 @@ describe('the look from here', () => {
 
   it('cannot tell whether Tade is behind where nothing has asked, and does not guess', async () => {
     const said = await lookAtPublic(looking({ newer: async () => null }))
-    expect(said[2]).toEqual({
+    expect(said[3]).toEqual({
       said: 'whether Tade is behind cannot be told: nothing here has asked — `tade update --check` asks',
       loud: false,
     })

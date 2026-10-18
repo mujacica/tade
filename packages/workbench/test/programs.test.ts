@@ -86,6 +86,17 @@ describe('what the ports say Tade needs', async () => {
     })
   })
 
+  it('wants Caddy, 2.7 or newer, once a public name is set', async () => {
+    // Debian 12's own caddy is 2.6, which refuses the block `tade host caddy`
+    // prints: a box that set a name needs to hear that before Caddy does.
+    expect(commandOf('caddy')).toMatchObject({ optional: true, inUse: false, oldest: '2.7' })
+    const named = await programsNeeded(
+      ConfigSchema.parse({ surfaces: { web: { public: 'tade.example.com' } } }),
+      HOME,
+    )
+    expect(named.find((need) => need.command === 'caddy')?.inUse).toBe(true)
+  })
+
   it('follows the config when the driver or harness changes', async () => {
     const onTmux = await programsNeeded(ConfigSchema.parse({ workspace: { driver: 'tmux' } }), HOME)
     expect(onTmux.find((need) => need.command === 'tmux')?.inUse).toBe(true)

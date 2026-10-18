@@ -1,3 +1,4 @@
+import type { RequiredProgram } from './programs.ts'
 import { shellWord } from './readiness.ts'
 
 // The away view on a name of the person's own, behind Caddy (`surfaces.web.public`).
@@ -93,6 +94,33 @@ export function publicDirCommand(user: string, dir: string = PUBLIC_DIR): string
     ` && sudo systemd-tmpfiles --create ${conf}`
   )
 }
+
+/**
+ * The oldest Caddy the site block works with: `proxy_protocol` in
+ * `reverse_proxy`'s http transport is 2.7's, and 2.6 refuses the whole
+ * Caddyfile with "unrecognized subdirective proxy_protocol". Debian 12's and
+ * Ubuntu 24.04's own `caddy` package is 2.6.2.
+ */
+export const CADDY_OLDEST = '2.7'
+
+/** Caddy, in front of a public name: declared here, folded in under Tade, in use once a name is set. */
+export const CADDY: RequiredProgram = {
+  command: 'caddy',
+  title: 'Caddy',
+  why: 'putting the away view on a public name of yours, with its certificate (`tade host caddy`)',
+  versionArgs: ['version'],
+  optional: true,
+  oldest: CADDY_OLDEST,
+  install: {
+    brew: 'caddy',
+    apt: 'caddy',
+    aptTooOld:
+      'Debian’s and Ubuntu’s own caddy is 2.6, which refuses the block — Caddy’s own apt repository has a current one: caddyserver.com/docs/install',
+    dnf: 'caddy',
+  },
+}
+
+export const PUBLIC_PROGRAMS: readonly RequiredProgram[] = [CADDY]
 
 /**
  * The site block for `name`, as it goes into `/etc/caddy/Caddyfile`.

@@ -1,5 +1,8 @@
 import { dirname } from 'node:path'
 import {
+  belowOldest,
+  CADDY,
+  CADDY_OLDEST,
   type CertificateLook,
   certificateSays,
   type DirSeen,
@@ -41,7 +44,8 @@ export function caddySaid(opts: {
     problem === null
       ? `   ${dir} is there, and right.`
       : `   now: ${problem.replace(/: `tade host caddy`.*$/, '')}`,
-    `2. The block above in /etc/caddy/Caddyfile, then \`sudo systemctl reload caddy\`.`,
+    `2. Caddy ${CADDY_OLDEST} or newer (\`caddy version\`) — ${CADDY.install?.aptTooOld} — then the block above in`,
+    `   /etc/caddy/Caddyfile, and \`sudo systemctl reload caddy\`.`,
     `3. An A record for ${opts.name} pointing at this machine — and AAAA only if IPv6 answers on 443,`,
     `   because Let's Encrypt tries it first; once there is a certificate, a CAA record. \`tade host`,
     `   domain ${opts.name}\` looks at each and says exactly what to add.`,
@@ -62,6 +66,8 @@ export interface Looking {
   /** Whether something answers on the socket. */
   answering: (socket: string) => Promise<boolean>
   look: (name: string) => Promise<CertificateLook>
+  /** What `caddy version` said here: its version, or null where there is no caddy to ask. */
+  caddy: () => Promise<{ version: string | null } | null>
   /** The kept Updates answer: its clause for a newer Tade, or null where nothing has asked. Asks nobody. */
   newer: () => Promise<{ newer: string | null } | null>
   now: number
@@ -85,6 +91,7 @@ export async function lookAtPublic(at: Looking): Promise<Health[]> {
       loud: true,
     })
   }
+  out.push(caddySays(await at.caddy()))
   out.push(certificateSays(at.name, await at.look(at.name), at.now))
   const kept = await at.newer()
   if (kept === null) {
@@ -97,4 +104,21 @@ export async function lookAtPublic(at: Looking): Promise<Health[]> {
     out.push(behind ?? { said: 'Tade is not behind, as of the last update check', loud: false })
   }
   return out
+}
+
+/** Caddy here, said against the oldest the block works with. */
+export function caddySays(seen: { version: string | null } | null): Health {
+  if (seen === null) {
+    return { said: `no caddy here: it needs installing, ${CADDY_OLDEST} or newer`, loud: true }
+  }
+  if (seen.version === null) {
+    return { said: `caddy is here, and what version it is cannot be told`, loud: false }
+  }
+  if (belowOldest(seen.version, CADDY_OLDEST)) {
+    return {
+      said: `caddy ${seen.version} is too old for the block, which needs ${CADDY_OLDEST}: ${CADDY.install?.aptTooOld}`,
+      loud: true,
+    }
+  }
+  return { said: `caddy ${seen.version}`, loud: false }
 }

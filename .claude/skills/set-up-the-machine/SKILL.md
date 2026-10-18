@@ -385,6 +385,10 @@ things only a person with root can do, so **Tade says each exactly and does none
   line (`publicDirCommand`) because `/run` empties at every boot. `/run` and not `/tmp` or the home:
   Caddy's own unit has `PrivateTmp`, and Debian and Ubuntu homes are closed to it. The listener
   refuses a directory that is anything else rather than loosening it.
+- **Caddy 2.7 or newer** — `CADDY` (`core/src/public-listener.ts`), folded in under Tade by
+  `programsNeeded` and in use once `surfaces.web.public` is set, with `CADDY_OLDEST` its floor:
+  `proxy_protocol` in the http transport is 2.7's, and Debian 12's and Ubuntu 24.04's own package
+  is 2.6.2, which refuses the whole Caddyfile. Step 2 says so, and `--check` asks `caddy version`.
 - **The site block** — on standard output alone, so `tade host caddy | sudo tee -a
   /etc/caddy/Caddyfile` is the whole of adding it: name-bound, `unix//` upstream, `proxy_protocol
   v2`, `Host` untouched. Everything else goes to standard error.
