@@ -56,17 +56,11 @@ describe('an agent on another machine, from this window', () => {
   const rows = () => screenOf(terminal.written)
   const shown = (text: string) => rows().some((row) => row.includes(text))
 
-  /** Click the first place a label is drawn on the last frame, top down. */
-  function press(label: string): void {
-    const lines = rows()
-    for (let row = 0; row < lines.length; row++) {
-      const col = lines[row]?.indexOf(label) ?? -1
-      if (col >= 0) {
-        wired.click(col + 1, row)
-        return
-      }
-    }
-    throw new Error(`"${label}" is not on screen`)
+  /** Click a label once the screen shows it, where the harness finds it. */
+  async function press(label: string): Promise<void> {
+    await until(`"${label}" on screen`, () => shown(label), 20_000)
+    const at = wired.find(label)
+    wired.click(at.col + 1, at.row)
   }
 
   /** Press an agent's row down the side, where the pane beside it may say its name too. */
@@ -156,7 +150,7 @@ describe('an agent on another machine, from this window', () => {
     row('Doorbell')
     await until('its controls', () => shown('steer…'), 20_000)
 
-    press('steer…')
+    await press('steer…')
     await until('the line to say it on', () => shown('Tell Doorbell on vps'))
     terminal.press('check the signature first')
     terminal.press('\r')
@@ -168,7 +162,7 @@ describe('an agent on another machine, from this window', () => {
     // The line goes once that machine has answered, and what it said is said here.
     await until('what came of it', () => shown('vps: steer done there'), 20_000)
 
-    press('[ park ]')
+    await press('[ park ]')
     await until('the park there', () => far.acted.some((one) => one.verb === 'park'), 20_000)
     await until('what came of that', () => shown('vps: park done there'), 20_000)
     expect(far.acted.find((one) => one.verb === 'park')?.call).toMatchObject({
@@ -176,7 +170,7 @@ describe('an agent on another machine, from this window', () => {
       parked: true,
     })
 
-    press('[ allow ]')
+    await press('[ allow ]')
     await until('the answer there', () => far.acted.some((one) => one.verb === 'answer'), 20_000)
     expect(far.acted.find((one) => one.verb === 'answer')?.call).toMatchObject({
       task: 'tade/intake-door',
@@ -207,7 +201,7 @@ describe('an agent on another machine, from this window', () => {
     // It is no terminal of a project's: the orchestrator's tools never type into it.
     expect(client.terminals().map((one) => one.id)).not.toContain('remotes/vps/1')
     // Asked again, the one already open comes to the front; no second is opened.
-    press('type into it')
+    await press('type into it')
     await until('the same terminal', () => shown('attached-to-the-door'), 20_000)
     expect(client.lanes().filter((lane) => lane.id.startsWith('remotes/'))).toHaveLength(1)
   })
@@ -217,7 +211,7 @@ describe('an agent on another machine, from this window', () => {
     far.attachable.set('tade/intake-door', "echo 'no session called tade-1 there' >&2; exit 1")
     row('Doorbell')
     await until('its controls', () => shown('type into it'), 20_000)
-    press('type into it')
+    await press('type into it')
     // Its tab stays, saying what the far end said, rather than vanishing in silence.
     await until('what it said', () => shown('no session called tade-1 there'), 20_000)
     await until('that it ended', () => shown('[it ended (1): press enter to close]'), 20_000)
@@ -234,7 +228,7 @@ describe('an agent on another machine, from this window', () => {
     await linkedTo([INTAKE])
     row('Doorbell')
     await until('its controls', () => shown('type into it'), 20_000)
-    press('type into it')
+    await press('type into it')
     await until('why not', () => shown('its agent is not running there'), 20_000)
     expect(client.lanes().some((lane) => lane.id.startsWith('remotes/'))).toBe(false)
   })

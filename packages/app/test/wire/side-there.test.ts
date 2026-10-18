@@ -85,17 +85,11 @@ describe('pressed down the side of a project on another machine', () => {
   const rows = () => screenOf(terminal.written)
   const shown = (text: string) => rows().some((row) => row.includes(text))
 
-  /** Click the first place a label is drawn on the last frame, top down. */
-  function press(label: string, from = 0): void {
-    const lines = rows()
-    for (let row = from; row < lines.length; row++) {
-      const col = lines[row]?.indexOf(label) ?? -1
-      if (col >= 0) {
-        wired.click(col + 1, row)
-        return
-      }
-    }
-    throw new Error(`"${label}" is not on screen`)
+  /** Click a label once the screen shows it, where the harness finds it. */
+  async function press(label: string): Promise<void> {
+    await until(`"${label}" on screen`, () => shown(label), 20_000)
+    const at = wired.find(label)
+    wired.click(at.col + 1, at.row)
   }
 
   /** The window, linked to a far end called `vps` set up by `ready`, standing in its project tade. */
@@ -147,7 +141,7 @@ describe('pressed down the side of a project on another machine', () => {
     })
     await until('its request down the side', () => shown('Dropped'), 20_000)
 
-    press('Dropped', 1)
+    await press('Dropped')
     await until('the page', () => shown('acme/tade#412 on vps'), 20_000)
     expect(shown('Approving it is vps’s')).toBe(true)
     // Its own words are further down the page, read by scrolling it.
@@ -191,7 +185,7 @@ describe('pressed down the side of a project on another machine', () => {
     // Offered as a press once it is linked and has said what its work produced.
     await until('its document down the side', () => shown('tade/plan · press'), 20_000)
 
-    press('PLAN.md', 1)
+    await press('PLAN.md')
     await until(
       'the document, in the viewer',
       () => shown('Ring the doorbell on every delivery.'),

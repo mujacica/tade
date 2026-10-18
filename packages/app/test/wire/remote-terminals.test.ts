@@ -292,10 +292,19 @@ describe('a terminal to an agent on another machine, kept up', () => {
 
     // The newest is run again last, so by then every other one has been looked at.
     await until('the one that lost it, run again', async () => (await witness.runs()) === 2, 30_000)
-    // Said in the conversation, which is the orchestrator's tab.
-    const lines = rows()
-    const tabs = lines.findIndex((one) => one.includes('orchestrator') && one.includes('━'))
-    wired.click((lines[tabs] ?? '').indexOf('orchestrator') + 1, tabs)
+    // And put back in front: running again is not the end of it, because the
+    // window brings a terminal that was in front back there if the orchestrator
+    // took its place meanwhile (`replace`), and a press on that tab before then
+    // is read as the gap having moved it. Said once it has.
+    await until('it, in front again', () => shown('suite-run on vps: connected again'), 30_000)
+    // Said in the conversation, which is the orchestrator's tab: pressed once
+    // the lower pane's row of tabs is on screen, never at a row read off a
+    // frame that had not drawn it.
+    const tabs = () =>
+      rows().findLastIndex((one) => one.startsWith('━') && one.includes('orchestrator'))
+    await until('the orchestrator tab', () => tabs() >= 0)
+    const at = tabs()
+    wired.click((rows()[at] ?? '').indexOf(' orchestrator ') + 1, at)
     await until('why the gone one was not', () => shown('gone-soon on vps was not opened again'))
     expect(await gone.runs()).toBe(1)
     expect(alive('remotes/vps/3')).toBe(true)
