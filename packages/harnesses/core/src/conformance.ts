@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   type HarnessFeature,
   modelsOffered,
+  type PlanLimits,
   resumeOffer,
   SUPPORT,
   WORKER_ENV,
@@ -36,6 +37,27 @@ export interface HarnessConformanceOptions {
   make(): WorkerAdapter | Promise<WorkerAdapter>
   /** A directory the agent would work in, made fresh for each test. */
   cwd(): string | Promise<string>
+  /**
+   * An adapter whose plan, asked, answers — against a stand-in, never the
+   * service — for a harness that can be asked (`spend.limits: 'anytime'`), so
+   * what it hears is held to the shape a fresh one's nothing never shows.
+   */
+  asked?(): WorkerAdapter | Promise<WorkerAdapter>
+}
+
+/** How much of a plan is used: only percentages of windows, each by its length, shortest first. */
+function expectPlan(limits: PlanLimits): void {
+  expect(Number.isFinite(limits.at)).toBe(true)
+  for (const window of limits.windows) {
+    // Each by how long it is, which is never negative: zero is "not said".
+    expect(Number.isFinite(window.minutes)).toBe(true)
+    expect(window.minutes).toBeGreaterThanOrEqual(0)
+    expect(Number.isFinite(window.used)).toBe(true)
+    expect(window.used).toBeGreaterThanOrEqual(0)
+    expect(Number.isFinite(window.resetsAt)).toBe(true)
+  }
+  const lengths = limits.windows.map((window) => window.minutes)
+  expect(lengths).toEqual([...lengths].sort((a, b) => a - b))
 }
 
 /** Features that must say why whenever they are anything short of full. */
@@ -125,18 +147,7 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
         // Never asks anybody — the window reads this every frame — so a fresh
         // adapter has nothing to say, and says that rather than saying zero.
         if (one.capabilities.spend.limits === 'none') expect(limits).toBeNull()
-        if (limits === null) return
-        expect(Number.isFinite(limits.at)).toBe(true)
-        for (const window of limits.windows) {
-          // Each by how long it is, which is never negative: zero is "not said".
-          expect(Number.isFinite(window.minutes)).toBe(true)
-          expect(window.minutes).toBeGreaterThanOrEqual(0)
-          expect(Number.isFinite(window.used)).toBe(true)
-          expect(window.used).toBeGreaterThanOrEqual(0)
-          expect(Number.isFinite(window.resetsAt)).toBe(true)
-        }
-        const lengths = limits.windows.map((window) => window.minutes)
-        expect(lengths).toEqual([...lengths].sort((a, b) => a - b))
+        if (limits !== null) expectPlan(limits)
       })
 
       it('asks for its plan only where it says it can, within the time it is given, and keeps what it heard', async () => {
@@ -149,6 +160,21 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
         if (one.capabilities.spend.limits !== 'anytime') expect(asked).toBeNull()
         if (asked !== null) expect(one.limits()).toEqual(asked)
       })
+
+      it.skipIf(!options.asked)(
+        'says the plan it heard in the same shape, and keeps it',
+        async () => {
+          const one = await (options.asked as NonNullable<typeof options.asked>)()
+          made.push(one)
+          expect(one.capabilities.spend.limits).toBe('anytime')
+          const asked = await one.askLimits(5_000)
+          expect(asked, 'the stand-in answered, and the harness heard nothing').not.toBeNull()
+          if (asked === null) return
+          expect(asked.windows.length).toBeGreaterThan(0)
+          expectPlan(asked)
+          expect(one.limits()).toEqual(asked)
+        },
+      )
 
       it('says which provider it reaches, or that it routes', async () => {
         // A fact about the harness, because a route is only a wish: a route
