@@ -132,8 +132,16 @@ export async function livenessTableFrom(work: RunningWork): Promise<LivenessTabl
  * question from the one `reconcile` asks and so takes different evidence: this
  * wants to know whether an agent is working, not whether we could drive it if
  * we tried. A running pid answers the first and not the second.
+ *
+ * Whether an agent is mid-turn is what its run said, as the journal has it
+ * (`turnsFrom`), handed in by whoever read the journal: a lane alone cannot
+ * say, and without it every live agent — one that has finished included — is
+ * `working`.
  */
-export async function laneLivenessFromFile(home: string): Promise<LivenessProbe> {
+export async function laneLivenessFromFile(
+  home: string,
+  turns: ReadonlyMap<string, TurnState> = new Map(),
+): Promise<LivenessProbe> {
   const lanes = await readLanes(join(home, 'lanes.json'))
   const live = lanes.map((lane) =>
     lane.alive && running(lane.pid) ? lane : { ...lane, alive: false },
@@ -143,7 +151,7 @@ export async function laneLivenessFromFile(home: string): Promise<LivenessProbe>
     async lanes(task: TaskId): Promise<AgentSignal[]> {
       return of(task)
         .filter((l) => l.kind === 'agent')
-        .map((lane) => laneSignal(lane))
+        .map((lane) => laneSignal(lane, turns.get(lane.id)))
     },
     async records(task: TaskId): Promise<Lane[]> {
       return of(task).map(asLane)

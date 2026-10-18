@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { finishedFrom, ruleMet, workedFrom } from '../src/done.ts'
+import { finishedFrom, ruleMet, turnsFrom, workedFrom } from '../src/done.ts'
 import type { EventType, TadeEvent } from '../src/events.ts'
 import { IDLE_REASON } from '../src/state.ts'
 
@@ -39,6 +39,28 @@ describe('when a task is finished', () => {
         event('run_started', 'app/search'),
       ]),
     ).toEqual(new Set(['app/refunds']))
+  })
+
+  it('reads whether each run is mid-turn, by run, out of its turn lines', () => {
+    const of = (type: EventType, run: string) => ({ ...event(type, 'app/refunds'), run })
+    expect(
+      turnsFrom([
+        of('run_started', 'app/refunds/agent'),
+        of('turn_started', 'app/refunds/agent'),
+        of('turn_done', 'app/refunds/agent'),
+        of('turn_started', 'app/search/agent'),
+        of('turn_done', 'app/old/agent'),
+        // Started again and has said nothing since: not idle, unknown.
+        of('run_started', 'app/old/agent'),
+        // A line with no run says nothing about any run.
+        event('turn_started', 'app/refunds'),
+      ]),
+    ).toEqual(
+      new Map([
+        ['app/refunds/agent', 'idle'],
+        ['app/search/agent', 'running'],
+      ]),
+    )
   })
 
   it('meets its own rule only on evidence of that rule', () => {

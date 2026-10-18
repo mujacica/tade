@@ -1,5 +1,5 @@
 import type { TadeEvent } from './events.ts'
-import type { DoneRule, TaskState } from './model.ts'
+import type { DoneRule, TaskState, TurnState } from './model.ts'
 import { IDLE_REASON } from './state.ts'
 
 // When a task is finished.
@@ -78,4 +78,25 @@ export function workedFrom(events: readonly TadeEvent[]): Set<string> {
     if (event.type === 'turn_done') worked.add(event.task)
   }
   return worked
+}
+
+/** What a run's turn signals are journalled as, for whoever reads `turnsFrom` out of the file. */
+export const TURN_READS = ['run_started', 'turn_started', 'turn_done'] as const
+
+/**
+ * Whether each run is in the middle of a turn, from the journal: for whoever
+ * cannot ask the workers, as the window does — `tade status` from another
+ * terminal or over ssh. Without it every live agent read `working`, a finished
+ * one included, while the window drew it done. A run that started and has said
+ * nothing since is not in the map: that is `unknown`, never `idle`.
+ */
+export function turnsFrom(events: readonly TadeEvent[]): Map<string, TurnState> {
+  const turns = new Map<string, TurnState>()
+  for (const event of events) {
+    if (!event.run) continue
+    if (event.type === 'run_started') turns.delete(event.run)
+    if (event.type === 'turn_started') turns.set(event.run, 'running')
+    if (event.type === 'turn_done') turns.set(event.run, 'idle')
+  }
+  return turns
 }

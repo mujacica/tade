@@ -47,6 +47,68 @@ describe('tade status', () => {
     expect(lines.length).toBeLessThan(10)
   })
 
+  it('calls an agent that said it is done and sat idle finished, as the window draws it', () => {
+    // A live agent lane and a journal: `tade status` from another terminal or
+    // over ssh read every live agent as `working, agent running`, a finished
+    // one included, because a lane alone cannot say whether a turn ended.
+    const env = setup()
+    const run = 'app/fresh/agent'
+    writeFileSync(
+      join(env.TADE_HOME, 'lanes.json'),
+      JSON.stringify({
+        lanes: [
+          {
+            id: run,
+            task: 'app/fresh',
+            kind: 'agent',
+            spec: { id: run, cwd: '/tmp', command: '/usr/bin/pi', args: [] },
+            // This process: running, so the lane is alive.
+            pid: process.pid,
+            startedAt: Date.now(),
+            title: 'an agent',
+            alive: true,
+            exitCode: null,
+            lastOutputAt: Date.now(),
+          },
+        ],
+      }),
+    )
+    let seq = 0
+    const line = (type: string, detail: Record<string, unknown> = {}) =>
+      JSON.stringify({
+        seq: ++seq,
+        ts: new Date(Date.now() - 60_000 + seq * 1_000).toISOString(),
+        type,
+        urgency: 'notable',
+        task: 'app/fresh',
+        lane: null,
+        run,
+        detail,
+      })
+    const journal = [
+      line('run_started'),
+      line('turn_started'),
+      line('task_done', { by: 'agent', summary: 'the flag is in' }),
+      line('turn_done', { status: 'ok' }),
+    ]
+    writeFileSync(join(env.TADE_HOME, 'events.jsonl'), `${journal.join('\n')}\n`)
+
+    const said = tade(['status'], env).stdout.split('\n')
+    expect(said.find((l) => l.includes('fresh'))).toMatch(
+      /^ {2}fresh\s+done\s+finished · the flag is in$/,
+    )
+    const fresh = JSON.parse(tade(['status', '--json'], env).stdout).projects[0].tasks.find(
+      (t: { id: string }) => t.id === 'app/fresh',
+    )
+    expect(fresh.finished).toMatchObject({ by: 'agent', summary: 'the flag is in' })
+
+    // Put back to work after saying so, it is working, as the window says.
+    journal.push(line('turn_started'))
+    writeFileSync(join(env.TADE_HOME, 'events.jsonl'), `${journal.join('\n')}\n`)
+    const again = tade(['status'], env).stdout.split('\n')
+    expect(again.find((l) => l.includes('fresh'))).toMatch(/^ {2}fresh\s+working\s+agent running$/)
+  })
+
   it('an invalid config exits 2', () => {
     const env = setup()
     writeFileSync(join(env.TADE_HOME, 'config.yaml'), 'projects: nope\n')

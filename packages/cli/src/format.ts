@@ -1,11 +1,14 @@
 import { homedir } from 'node:os'
-import { type AgentSignal, printable, type Workspace } from '@tade/core'
+import { type AgentSignal, type Finished, markOf, printable, type Workspace } from '@tade/core'
 
 // Human-readable `tade status`. Terse on purpose: one line per task, one
 // summary line per group of untracked sessions. A reason can be what an agent
 // asked to run, read out of its transcript, so it is printed as text.
 
-export function formatStatus(ws: Workspace): string[] {
+export function formatStatus(
+  ws: Workspace,
+  finished: ReadonlyMap<string, Finished> = new Map(),
+): string[] {
   const lines: string[] = []
   const width = Math.max(
     8,
@@ -16,6 +19,14 @@ export function formatStatus(ws: Workspace): string[] {
     for (const t of p.tasks) {
       const name = t.id.slice(p.name.length + 1).padEnd(width)
       const flag = t.stalled ? ' ⚠' : ''
+      // Finished as the journal says, by the window's own rule (`markOf`): an
+      // agent idle after tade_done is done, and one put back to work is working.
+      const done = finished.get(t.id)
+      if (done && markOf({ state: t.state, reason: t.reason, finished: done }) === 'done') {
+        const said = done.summary ? ` · ${printable(done.summary)}` : ''
+        lines.push(`  ${name}  ${'done'.padEnd(7)}  finished${said}`)
+        continue
+      }
       lines.push(`  ${name}  ${t.state.padEnd(7)}  ${printable(t.reason)}${flag}`)
     }
     if (p.untracked.length > 0) lines.push(`  + ${sessions(p.untracked)} outside Tade`)

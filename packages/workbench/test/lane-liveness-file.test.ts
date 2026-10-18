@@ -67,6 +67,23 @@ describe('reading who is working out of the lane file', () => {
     ])
   })
 
+  it('says an agent is mid-turn or idle as its run said, when the journal has it', async () => {
+    // Without it every live agent read `working`: one that called tade_done
+    // and sat idle was `working, agent running` here while the window drew it done.
+    const probe = await laneLivenessFromFile(
+      home({
+        lanes: [
+          lane({ id: 'shop/refunds/agent', task: 'shop/refunds' }),
+          lane({ id: 'shop/vat/agent', task: 'shop/vat' }),
+        ],
+      }),
+      new Map([['shop/refunds/agent', 'idle']]),
+    )
+    expect((await probe.lanes('shop/refunds'))[0]?.turn).toBe('idle')
+    // A run the journal says nothing about is still a question, not an answer.
+    expect((await probe.lanes('shop/vat'))[0]?.turn).toBe('unknown')
+  })
+
   it('calls a lane dead whose pid has gone, whatever the file says', async () => {
     // The case this exists for. A window killed outright writes nothing on the
     // way out, so every lane it was holding is still `alive: true` in the file

@@ -1,6 +1,16 @@
 import { homedir } from 'node:os'
-import { defaultConfigPath, loadConfig, tadeHome } from '@tade/core'
+import {
+  defaultConfigPath,
+  type Finished,
+  finishedFrom,
+  loadConfig,
+  TURN_READS,
+  tadeHome,
+  turnsFrom,
+  type Workspace,
+} from '@tade/core'
 import { collectStatus } from '@tade/status'
+import { readJournal } from '@tade/workbench/events'
 // Subpath imports: the CLI must not load the driver stack just to read status.
 import { laneLivenessFromFile } from '@tade/workbench/lane-liveness'
 import type { Command } from 'commander'
@@ -23,7 +33,12 @@ export function registerStatus(program: Command, io: Io, setExit: (code: number)
       }
       // Read the lanes rather than take the workbench: status is a question,
       // and asking it must never wait on, or interfere with, an open window.
-      const liveness = await laneLivenessFromFile(tadeHome())
+      // And the journal, for what only it can say: whether each agent is
+      // mid-turn, and which tasks are finished — as the window reads them, or
+      // an agent that called tade_done reads `working` here while it is drawn
+      // done there.
+      const journal = await readJournal(tadeHome(), { types: [...TURN_READS, 'task_done'] })
+      const liveness = await laneLivenessFromFile(tadeHome(), turnsFrom(journal))
       const ws = await collectStatus({
         config: cfg.config,
         now: Date.now(),
@@ -35,7 +50,22 @@ export function registerStatus(program: Command, io: Io, setExit: (code: number)
         ports: true,
         liveness,
       })
-      if (opts.json) io.out(JSON.stringify(ws, null, 2))
-      else for (const line of formatStatus(ws)) io.out(line)
+      const finished = finishedFrom(journal)
+      if (opts.json) io.out(JSON.stringify(withFinished(ws, finished), null, 2))
+      else for (const line of formatStatus(ws, finished)) io.out(line)
     })
+}
+
+/** Each task the journal says is finished, with who said so and what was done. */
+function withFinished(ws: Workspace, finished: ReadonlyMap<string, Finished>): Workspace {
+  return {
+    ...ws,
+    projects: ws.projects.map((project) => ({
+      ...project,
+      tasks: project.tasks.map((task) => {
+        const done = finished.get(task.id)
+        return done ? { ...task, finished: done } : task
+      }),
+    })),
+  }
 }
