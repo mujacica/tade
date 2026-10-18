@@ -200,6 +200,65 @@ describe('the tier matrix, over every setting there is', () => {
   })
 })
 
+describe('the person’s own device, which reaches every tier', () => {
+  // Full access, not a machine link: `reachOf` says `theirs` (`theirsOf`), off
+  // the record read at this request.
+  const theirs = () => granted({ theirs: true })
+
+  it('reads a change for every path there is, asked and never included', () => {
+    for (const path of [...everyPath(), ...CRAFTED_NEVER]) {
+      const read = readSettingChange({ ...BODY, path }, true)
+      expect(read.ok, path).toBe(true)
+    }
+  })
+
+  it('reaches the window as the device for an asked and a never path', async () => {
+    for (const path of ['checks.before', 'agents.commit', 'approvals.mode', 'extensions.jev.key']) {
+      const one = window_()
+      const ctx = await context(one.configuring, { reach: theirs() }, 'configured-theirs')
+      const answered = await carryChange('change', { ...BODY, path }, ctx)
+      expect(answered.refusal, path).toBeNull()
+      // **Still the device**: the record says the change came from the phone.
+      expect(
+        one.calls.map((call) => call.from),
+        path,
+      ).toEqual([{ how: 'remote', device: DEVICE }])
+      expect(answered.did.device, path).toBe(DEVICE)
+      expect(answered.did.task, path).toBe(path)
+    }
+  })
+
+  it('cannot be claimed by the body: a request saying it is theirs is malformed', async () => {
+    // Whose device it is comes off the record, never out of anything the
+    // request carries — so no text from outside makes a device the person's.
+    for (const claim of ['theirs', 'owner', 'full']) {
+      const one = window_()
+      const ctx = await context(one.configuring, {}, 'configured-claim')
+      const answered = await carryChange(
+        'change',
+        { ...BODY, path: 'approvals.mode', [claim]: true },
+        ctx,
+      )
+      expect(answered.refusal?.error, claim).toBe('malformed')
+      expect(one.calls, claim).toEqual([])
+    }
+  })
+
+  it('still needs configure, the settings grant and a trusted origin', async () => {
+    const one = window_()
+    for (const over of [
+      { scopes: ['read'] as readonly Scope[] },
+      { reach: granted({ theirs: true, granted: [] }) },
+      { origin: { scheme: 'http', host: 'evil.example', listener: 'loopback' } as const },
+    ]) {
+      const ctx = await context(one.configuring, { reach: theirs(), ...over }, 'configured-still')
+      const answered = await carryChange('change', { ...BODY, path: 'approvals.mode' }, ctx)
+      expect(answered.refusal).not.toBeNull()
+    }
+    expect(one.calls).toEqual([])
+  })
+})
+
 describe('reading a change out of a body', () => {
   it('takes the six fields and nothing else', () => {
     const read = readSettingChange(BODY)

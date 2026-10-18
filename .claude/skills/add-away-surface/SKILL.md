@@ -740,7 +740,7 @@ the beat, so changing it cuts nobody off.
 (`redraw-the-pictures`): the Settings category list grew past the rows the panel has, which is
 correct (it scrolls) and moved every settings golden.
 
-## Changing a setting from away is a fifth table, and it reaches one tier
+## Changing a setting from away is a fifth table, and it reaches one tier — or, for theirs, all
 
 `SETTINGS` is one route, `POST /api/settings/change`, behind `surfaces.web.settings`, the `configure`
 scope (a chip, implied by nothing) **and** the `settings` reading grant (a chip, drawn always): a
@@ -752,26 +752,32 @@ an oracle for it.
   built — that is what *no route exists* means for a table with one route per kind of thing. The
   window asks `settingReach` again at the write. `test/configured.test.ts` runs every path Settings
   draws through the door.
-- **The `asked` tier is refused, and that is a decision with its argument in `configuring.ts`.** It
-  is passed by the person's own words (`namedBy`, over `said` lines), and a device has none: its
-  request as the words makes `asked` into `open` for something an agent here can pair; the person's
-  old lines let a phone ride on last week's sentence (Phase 3's hole); words typed on a phone written
-  as `said` is the one record no device may write. `SETTINGS_FROM_AWAY` says the gap where somebody
-  turns this on. Do not "fix" it without a provenance model none of those three is.
+- **The `asked` tier is refused to an ordinary device, and that is a decision with its argument in
+  `configuring.ts`.** It is passed by the person's own words (`namedBy`, over `said` lines), and a
+  device has none: its request as the words makes `asked` into `open` for any device; the person's
+  old lines let a phone ride on last week's sentence (Phase 3's hole).
+- **The person's own device reaches every tier** (`theirsOf` in `src/surface.ts`, `Reach.theirs`):
+  full access and not a machine link — the same two halves `armOf` asks. It is read off the record
+  at the request (`reachOf`, so `readSettingChange(body, theirs)`) and again at the write
+  (`web-settings.ts`), so revoking or unticking one box is an ordinary device at the next press; the
+  body can never claim it (strict parse). Its key rows carry `sets` and may be typed into, never
+  shown; `by` is still `device <id>`. An agent that paired itself with full access reaches nothing it
+  could not already, since it can edit `config.yaml` itself. `SETTINGS_FROM_AWAY` says both halves.
 - **The write accepts exactly what the read offered.** `settingOut` decides a row's `may` and `was`
   for `GET /api/settings`, and `web-settings.ts` asks the same function at the write — so a value not
   shown whole (a key pasted into it) is not changeable, and the echo is compared against the row the
   window lists now. A choice is one of its options exactly and a flag is `true`/`false`:
   `parseSetting` is a keyboard's reading and too lenient for a device's exact value.
-- **A key is never readable, and only ever cleared.** `set`/`not set`, no value, no revision of one,
-  every shown value cleaned of every key Tade holds (`keysOf`). No key is in the `open` tier today,
-  so from away nothing clears one; `clearOnly` is the rule for the day one is.
+- **A key is never readable, and only ever cleared — except by theirs, which may set one.**
+  `set`/`not set`, no value, no revision of one, every shown value cleaned of every key Tade holds
+  (`keysOf`). No key is in the `open` tier, so from an ordinary device nothing clears one;
+  `clearOnly` is the rule for the day one is.
 - **Provenance is `byOf`'s**: `config_changed` says `by: device <id>`, and the `web_did` carries the
   path as `setting` in its detail, never as the event's `task`.
 
 ## What is not built, and must not arrive because a route was convenient
 
-No setting outside `settingReach`'s `open` tier is writable (a project's own line leaving and coming
+No setting outside `settingReach`'s `open` tier is writable from any device but the person's own (a project's own line leaving and coming
 back with `close` and `open` is the other config write, a verb at its own scope), nothing grants
 anything, **nothing publishes a workflow or a persona,
 nothing makes, renames or deletes a draft, and nothing touches a published version** — which never

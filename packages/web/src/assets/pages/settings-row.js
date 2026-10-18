@@ -13,7 +13,9 @@
 //
 // - **A key is never here.** The machine sends `set` or `not set`, so a key's
 //   row draws that and says so when opened, and the one thing a device may do
-//   to one is clear it (`changeBody` sends nothing else for it).
+//   to one is clear it (`changeBody` sends nothing else for it) — except the
+//   person's own device, whose key rows carry `sets` and a hidden box to type
+//   a new one into, which is what is sent and never what was shown.
 // - **A reason only to a device that may change anything.** `settingStanding`
 //   is `off` for one that was not granted changing settings, and then a row
 //   says nothing about controls at all: a sentence naming a scope somebody does
@@ -35,6 +37,7 @@ import {
   drawnOf,
   editorOf,
   factsOf,
+  KEY_TYPED,
   KEYS_SAID,
   nowSaid,
   pressWord,
@@ -194,6 +197,23 @@ function editorFor(row, opts) {
     })
     read = () => box.value
     control = box
+  } else if (editor.kind === 'secret') {
+    // **Hidden, empty and never filled in**: the page was never sent the key,
+    // and a box that showed what was typed would be a key on a screen.
+    const box = el('input', {
+      class: 'st-box',
+      attrs: {
+        type: 'password',
+        'aria-label': `${row.title}, a new key`,
+        maxlength: '2000',
+        autocomplete: 'new-password',
+        spellcheck: 'false',
+        placeholder: `now ${row.held}`,
+      },
+    })
+    into(node, el('p', { class: 'st-aside', text: KEY_TYPED }))
+    read = () => box.value
+    control = box
   }
   sync()
 
@@ -209,7 +229,7 @@ function editorFor(row, opts) {
   let armed = false
   let going = false
   const word = () => {
-    textIn(press, pressWord(editor, armed, going))
+    textIn(press, pressWord(editor, armed, going, read()))
     classOn(press, 'asked', armed)
   }
   const disarm = () => {
@@ -222,6 +242,8 @@ function editorFor(row, opts) {
   // first tap on the old value, both go.
   const changed = () => {
     disarm()
+    // A key's box says *clear* or *save* by whether anything is typed in it.
+    if (editor.kind === 'secret' && !going) word()
     if (!going) answerIn(said, '', null)
   }
   control?.addEventListener('change', changed)

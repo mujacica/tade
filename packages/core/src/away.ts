@@ -188,29 +188,38 @@ export const DRAFTS_ARE_NOT_PUBLISHED_SHORT = 'a draft is a file no run reads un
  * because *only harmless settings* is the word a comfortable version would
  * keep while dropping which ones.
  *
- * **Why the `asked` tier is not in it, said here because somebody will want it
- * to be.** `settingReach`'s `asked` tier is passed by the person's own words
- * naming the setting (`namedBy`, over the journal's `said` lines), and there is
- * no provenance a device can bring that is those words: a request from a
- * phone is a request (`ACTING_IS_NOT_YOU`), an agent on this machine can pair
- * itself (`DEVICES_AND_AGENTS`), and reading the person's *old* lines would let
- * a phone ride on a sentence they said last week about something else — the
+ * **Why the `asked` tier is not in it for an ordinary device, said here
+ * because somebody will want it to be.** `settingReach`'s `asked` tier is
+ * passed by the person's own words naming the setting (`namedBy`, over the
+ * journal's `said` lines), and there is no provenance an ordinary device can
+ * bring that is those words: a request from a phone is a request
+ * (`ACTING_IS_NOT_YOU`), and reading the person's *old* lines would let a
+ * phone ride on a sentence they said last week about something else — the
  * same hole Phase 3 found in remote turns. So it is refused in code, and the
  * sentence says where those settings are changed instead.
+ *
+ * **The person's own device is the one exception** (`theirsOf` in
+ * `@tade/web`): full access, not a machine link. They decided it may do
+ * everything they can at the machine, a revoke away if it is stolen, so it
+ * changes any setting, a key included — still with two presses, against the
+ * value it was shown, under that device's name. An agent here that paired
+ * itself with full access reaches nothing it could not already: it runs as
+ * the person and can edit `config.yaml` itself (`KEYS_AND_AGENTS`).
  */
 export const SETTINGS_FROM_AWAY =
   'A device you granted it can change only the settings an ordinary request is enough for — the ' +
   'width of the sidebar and the height of the strip, the editor a file opens in, and what a ' +
   'project it can read pushes — each with two presses, against the value it was shown, and ' +
-  'written in the journal under that device. A setting that needs your own words is changed ' +
-  'at this machine, because a request from a device is never your own words and an agent here ' +
-  'could pair itself; one that widens what an agent may do, hands out a key or changes who can ' +
-  'reach Tade has no route at all. A key or a token is shown as set or not set and is never ' +
-  'read back.'
+  'written in the journal under that device. Your own device, with full access, changes any ' +
+  'setting as you would here, a key included; untick anything and it is an ordinary device ' +
+  'again. On any other, a setting that needs your own words is changed at this machine, ' +
+  'because a request from a device is never your own words and an agent here could pair ' +
+  'itself; one that widens what an agent may do, hands out a key or changes who can reach Tade ' +
+  'has no route at all. A key or a token is shown as set or not set and is never read back.'
 
 /** The short clause, for the one line a control gets. */
 export const SETTINGS_FROM_AWAY_SHORT =
-  'a device changes only what a request is enough for, never a key'
+  'full access changes any setting; other devices only the few, no key'
 
 /**
  * What installing this needs of the origin, said where somebody turns it on.

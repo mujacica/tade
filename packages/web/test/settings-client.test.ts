@@ -1,6 +1,6 @@
 import { ConfigSchema, settingsOf } from '@tade/core'
 import { describe, expect, it } from 'vitest'
-import { afterAnswer, settingStanding } from '../src/assets/acts.js'
+import { afterAnswer, changeBody, settingStanding } from '../src/assets/acts.js'
 import { ICONS } from '../src/assets/icons.js'
 import {
   afterChange,
@@ -290,6 +290,46 @@ describe('changing one', () => {
     expect(pressWord(pick, true, false)).toBe('Tap again to save')
     expect(pressWord(pick, false, true)).toBe('Saving…')
     expect(pressWord({ kind: 'clear', options: [] }, true, false)).toBe('Tap again to clear it')
+  })
+})
+
+describe('on the person’s own device', () => {
+  // Full access and not a machine link: the machine says `theirs` in the reach
+  // and every row it is shown whole comes with a control.
+  const OWN = answer({ theirs: true })
+  const own = (path: string): SettingOut => {
+    const found = OWN.groups.flatMap((group) => group.settings).find((one) => one.path === path)
+    if (found === undefined) throw new Error(`no row for ${path}`)
+    return found
+  }
+
+  it('offers a control on a setting that needs their words, and one nobody else may change', () => {
+    for (const path of ['agents.commit', 'approvals.mode', 'agents.instructions']) {
+      expect(settingStanding(own(path), MAY).kind, path).toBe('yes')
+      // And an ordinary device is still told it is changed at the machine.
+      expect(settingStanding(row(path), MAY).kind, path).toBe('no')
+    }
+    expect(hereOf(OWN, MAY).length).toBeGreaterThan(hereOf(ALL, MAY).length)
+  })
+
+  it('draws a key as a box to type a new one in, never filled with it', () => {
+    const key = own('extensions.jev.key')
+    expect(key.held).toBe('set')
+    expect(key.sets).toBe(true)
+    const editor = editorOf(key)
+    expect(editor.kind).toBe('secret')
+    // What was typed is what is sent, against whether one was held …
+    expect(changeBody(key, 'jev_new', 'k', 1)).toMatchObject({ was: 'set', value: 'jev_new' })
+    // … and an empty box is a clear, said as one before it is pressed.
+    expect(typedSaid(editor, '')).toBeNull()
+    expect(pressWord(editor, false, false, '')).toBe('Clear it')
+    expect(pressWord(editor, true, false, 'jev_new')).toBe('Tap again to save')
+    // A 200 empties the box, as for any typed value.
+    const came = afterAnswer({ status: 200, body: { rev: 'set' } }, '')
+    expect(afterChange(key, editor, 'set', came)).toMatchObject({ clear: true })
+    // And every other device's key row is still a clear, sending nothing typed.
+    expect(editorOf(row('extensions.jev.key')).kind).toBe('clear')
+    expect(changeBody(row('extensions.jev.key'), 'jev_new', 'k', 1).value).toBe('')
   })
 })
 

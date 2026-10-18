@@ -1,5 +1,5 @@
 import { type Config, ConfigSchema, type SettingGroup, settingsOf } from '@tade/core'
-import { type Device, Moved, NotOffered, NotThere, OutOfScope } from '@tade/web'
+import { type Device, GRANTS, Moved, NotOffered, NotThere, OutOfScope, SCOPES } from '@tade/web'
 import { describe, expect, it } from 'vitest'
 import { type ConfiguringDeps, webConfiguring } from '../../src/wire/web-settings.ts'
 
@@ -34,7 +34,11 @@ function device(over: Partial<Device> = {}): Device {
 }
 
 function setup(
-  over: { devices?: readonly Device[]; config?: Config; write?: ConfiguringDeps['write'] } = {},
+  over: {
+    devices?: readonly Device[] | (() => readonly Device[])
+    config?: Config
+    write?: ConfiguringDeps['write']
+  } = {},
 ) {
   let config =
     over.config ??
@@ -49,7 +53,8 @@ function setup(
   const wrote: { path: string; value: string; by: string }[] = []
   const deps: ConfiguringDeps = {
     configuring: () => true,
-    devices: () => over.devices ?? [device()],
+    devices: () =>
+      typeof over.devices === 'function' ? over.devices() : (over.devices ?? [device()]),
     rows,
     known: () => [],
     write:
@@ -67,7 +72,7 @@ function setup(
         return 'Saved. It applies now.'
       }),
   }
-  return { half: webConfiguring(deps), wrote }
+  return { half: webConfiguring(deps), wrote, rows }
 }
 
 const REMOTE = { how: 'remote', device: DEVICE } as const
@@ -203,5 +208,86 @@ describe('a key, which is never read and never set from here', () => {
       ).rejects.toBeInstanceOf(NotOffered)
     }
     expect(one.wrote).toEqual([])
+  })
+})
+
+describe('the person’s own device, which changes any setting as the keyboard does', () => {
+  // Full access — every scope and every reading grant — and not a machine
+  // link: what pairing gives unless something is unticked (`theirsOf`).
+  const theirs = (over: Partial<Device> = {}) =>
+    device({ scopes: [...SCOPES], granted: [...GRANTS], owner: false, ...over })
+  const value = (one: ReturnType<typeof setup>, path: string) =>
+    one
+      .rows()
+      .flatMap((group) => group.settings)
+      .find((row) => row.path === path)?.value ?? ''
+
+  it('changes an asked and a never setting, written under the device', async () => {
+    for (const path of ['agents.commit', 'approvals.mode']) {
+      const one = setup({ devices: [theirs()] })
+      const row = one
+        .rows()
+        .flatMap((group) => group.settings)
+        .find((it) => it.path === path)
+      const other = row?.type.kind === 'choice' ? row.type.options.find((o) => o !== row.value) : ''
+      if (other === undefined || other === '') throw new Error(`no other value for ${path}`)
+      await expect(
+        one.half.change({ path, was: value(one, path), value: other }, REMOTE),
+        path,
+      ).resolves.toMatchObject({ did: true })
+      // **Under the device**, never `you`: the record says it came from the phone.
+      expect(one.wrote, path).toEqual([{ path, value: other, by: `device ${DEVICE}` }])
+    }
+  })
+
+  it('sets a key it was never shown, echoing only whether one is held', async () => {
+    const one = setup({ devices: [theirs()] })
+    const next = 'jev_live_00000000000000000000000000000000'
+    await expect(
+      one.half.change({ path: 'extensions.jev.key', was: 'set', value: next }, REMOTE),
+    ).resolves.toMatchObject({ did: true, rev: 'set' })
+    expect(one.wrote).toEqual([{ path: 'extensions.jev.key', value: next, by: `device ${DEVICE}` }])
+    // And the key itself is still not the thing a change echoes.
+    await expect(
+      one.half.change({ path: 'extensions.jev.key', was: KEY, value: next }, REMOTE),
+    ).rejects.toBeInstanceOf(Moved)
+  })
+
+  it('is an ordinary device again the moment it is revoked or anything is unticked', async () => {
+    // **Read at the write**, against the record now: the same request that
+    // went through a second ago is refused once the panel changed the record.
+    const commit = (one: ReturnType<typeof setup>) => ({
+      path: 'agents.commit',
+      was: value(one, 'agents.commit'),
+      value: 'never',
+    })
+    const revoked = setup({ devices: [theirs({ revoked: new Date().toISOString() })] })
+    await expect(revoked.half.change(commit(revoked), REMOTE)).rejects.toBeInstanceOf(OutOfScope)
+    const cases: [string, Device][] = [
+      ['one scope unticked', theirs({ scopes: SCOPES.filter((scope) => scope !== 'agents') })],
+      ['one grant unticked', theirs({ granted: GRANTS.filter((grant) => grant !== 'spend') })],
+      // A machine link reaches as far in a turn, but its words may be another
+      // machine's model's, and the Settings page is never one.
+      ['a machine link', theirs({ owner: true })],
+    ]
+    for (const [why, held] of cases) {
+      const one = setup({ devices: [held] })
+      await expect(one.half.change(commit(one), REMOTE), why).rejects.toBeInstanceOf(NotOffered)
+      await expect(
+        one.half.change({ path: 'extensions.jev.key', was: 'set', value: 'x' }, REMOTE),
+        why,
+      ).rejects.toBeInstanceOf(NotOffered)
+      expect(one.wrote, why).toEqual([])
+    }
+    // Revoked between two presses of the same phone: the first lands, the
+    // second does not.
+    let devices: Device[] = [theirs()]
+    const flipping = setup({ devices: () => devices })
+    await expect(flipping.half.change(commit(flipping), REMOTE)).resolves.toMatchObject({
+      did: true,
+    })
+    devices = [theirs({ revoked: new Date().toISOString() })]
+    await expect(flipping.half.change(commit(flipping), REMOTE)).rejects.toBeInstanceOf(OutOfScope)
+    expect(flipping.wrote.length).toBe(1)
   })
 })

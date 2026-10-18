@@ -16,7 +16,8 @@ import {
   type SettingOut,
   settingsFor,
 } from '../src/configuring.ts'
-import type { Reach } from '../src/reach.ts'
+import { GRANTS, type Reach } from '../src/reach.ts'
+import { reachOf, SCOPES, theirsOf } from '../src/surface.ts'
 
 // What a device is shown of the config, and what it is never shown.
 //
@@ -272,7 +273,95 @@ describe('the sentence a person reads where they turn this on', () => {
     for (const word of ['secure', 'encrypted', 'private', 'safe', 'harmless']) {
       expect(SETTINGS_FROM_AWAY.toLowerCase(), word).not.toContain(word)
     }
+    // And the one exception, in the same breath as the rule: the person's own
+    // device, and what makes it an ordinary one again.
+    expect(SETTINGS_FROM_AWAY).toContain('Your own device, with full access, changes any setting')
+    expect(SETTINGS_FROM_AWAY).toContain('untick anything')
     expect(SETTINGS_FROM_AWAY_SHORT.length).toBeLessThan(80)
-    expect(SETTINGS_FROM_AWAY_SHORT).toContain('never a key')
+    expect(SETTINGS_FROM_AWAY_SHORT).toContain('full access changes any setting')
+    expect(SETTINGS_FROM_AWAY_SHORT).toContain('no key')
+  })
+})
+
+describe('the person’s own device', () => {
+  const full = {
+    id: DEVICE,
+    projects: null,
+    scopes: [...SCOPES],
+    granted: [...GRANTS],
+  }
+
+  it('is a device with full access that is not a machine link, read off the record', () => {
+    expect(theirsOf(full)).toBe(true)
+    expect(reachOf(full).theirs).toBe(true)
+    // A machine link reaches as far in a turn, but is never the person here.
+    expect(theirsOf({ ...full, owner: true })).toBe(false)
+    expect(reachOf({ ...full, owner: true }).theirs).toBeUndefined()
+    // One box unticked, either kind, and it is an ordinary device.
+    for (const scope of SCOPES) {
+      const less = { ...full, scopes: SCOPES.filter((one) => one !== scope) }
+      expect(theirsOf(less), scope).toBe(false)
+    }
+    for (const grant of GRANTS) {
+      const less = { ...full, granted: GRANTS.filter((one) => one !== grant) }
+      expect(reachOf(less).theirs, grant).toBeUndefined()
+    }
+    // A reach made from a record with no scopes is never theirs.
+    expect(theirsOf({ granted: [...GRANTS] })).toBe(false)
+  })
+
+  it('may change every setting it is shown whole, and set a key it is never shown', () => {
+    const out = settingsFor(rows(), reach({ theirs: true }), [])
+    let changed = 0
+    for (const row of every(out)) {
+      // A value cleaned for the screen — a project's root, with the machine's
+      // path taken out — has nothing exact to echo, for any device.
+      if (row.why === AT_THE_MACHINE.partial) continue
+      changed += 1
+      expect(row.may, row.path).toBe('change')
+      expect(row.why, row.path).toBe('')
+      if (row.held !== null) {
+        // Whether one is held, never the key — and it may type a new one.
+        expect(row.was, row.path).toBe(row.held)
+        expect(row.sets, row.path).toBe(true)
+      } else {
+        expect(row.sets, row.path).toBe(false)
+      }
+    }
+    // Every tier, so the loop above was not over the open one alone.
+    expect(changed).toBeGreaterThan(30)
+    expect(one(out, 'approvals.mode').may).toBe('change')
+    expect(one(out, 'agents.commit').may).toBe('change')
+    expect(awayReach('approvals.mode', true)).toEqual({ may: 'change' })
+    // And still no key in the answer, by value, over the whole of it.
+    const text = JSON.stringify(out)
+    for (const key of [JEV_KEY, ACCOUNT_KEY, PUSH_KEY]) expect(text, key).not.toContain(key)
+  })
+
+  it('still cannot change a value it could not be shown whole', () => {
+    const out = settingsFor(
+      rows({ instructions: `use ${JEV_KEY} for the judge` }),
+      reach({ theirs: true }),
+      [],
+    )
+    const row = one(out, 'agents.instructions')
+    expect(row.may).toBe('machine')
+    expect(row.was).toBeNull()
+  })
+
+  it('leaves every other device exactly where it was', () => {
+    const out = settingsFor(rows(), reach(), [])
+    for (const row of every(out)) expect(row.sets, row.path).toBe(false)
+    expect(
+      every(out)
+        .filter((row) => row.may === 'change')
+        .map((row) => row.path),
+    ).toEqual([
+      'surfaces.window.sidebar_width',
+      'surfaces.window.strip_height',
+      'surfaces.window.editor',
+      'projects.app.push',
+      'projects.ledger.push',
+    ])
   })
 })

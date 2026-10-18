@@ -633,7 +633,7 @@ it — and each is still nothing to a device until you grant that device here:
 | **Act** | on | eight bounded things on work you already set up — plus stopping or reopening an agent and closing or reopening a project, each only on a device you granted it — and only from this machine or an `https` name you trusted |
 | **Talk to Tade** | on | free text into the same conversation, answered with its tools narrowed to that device's own view |
 | **Save draft workflows** | on | one field at a time, into a file no run reads until you publish it here |
-| **Change settings** | on | only what an ordinary request is enough for — the sidebar's width, the strip's height, the editor, what a project pushes — two presses each, under the device's id. Anything that needs your own words is changed here, and a key is said as set or not set, never shown |
+| **Change settings** | on | only what an ordinary request is enough for — the sidebar's width, the strip's height, the editor, what a project pushes — two presses each, under the device's id. Your own device, with full access, changes any setting as you would here, a key included; on any other, anything that needs your own words is changed here. A key is said as set or not set, never shown |
 | **Install · keep · be told** | on | the page and two icons; counts and a moment; a notification with a count, and the work's name while **Get work names in them** is on and that device may read names |
 
 ![The away view in Settings, turned on: the code, its link and the devices under the switch, then what a paired device may do as short names under one heading](https://raw.githubusercontent.com/mujacica/tade/main/images/away-settings.svg)

@@ -17,7 +17,7 @@ declare module '*/assets/pages/settings-shape.js' {
     caps: string[]
   }
   type Editor = {
-    kind: 'pick' | 'list' | 'number' | 'text' | 'clear'
+    kind: 'pick' | 'list' | 'number' | 'text' | 'clear' | 'secret'
     options: { value: string; label: string }[]
   }
   type Box = {
@@ -30,6 +30,7 @@ declare module '*/assets/pages/settings-shape.js' {
   export const GROUP_ICONS: Record<string, string>
   export const HERE: string
   export const KEYS_SAID: string
+  export const KEY_TYPED: string
   export const PICK_MOST: number
   export const CUT_FROM: number
   export function iconOf(id: string): string
@@ -41,7 +42,7 @@ declare module '*/assets/pages/settings-shape.js' {
   export function emptyLabel(row: Row): string
   export function editorOf(row: Row): Editor
   export function typedSaid(editor: Editor, value: string): string | null
-  export function pressWord(editor: Editor, armed: boolean, going: boolean): string
+  export function pressWord(editor: Editor, armed: boolean, going: boolean, typed?: string): string
   export function afterChange(
     row: Row,
     editor: Editor,

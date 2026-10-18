@@ -143,8 +143,8 @@ Three answers and no fourth:
   **And `open` is also what a paired phone may change** where `surfaces.web.settings` is on
   (`awayReach`, `packages/web/src/configuring.ts`): a key added to the tier is reachable from away
   the day it is added, so `SETTINGS_FROM_AWAY`'s list moves in the same commit —
-  `packages/web/test/configuring.test.ts` holds the two together. `asked` and `never` are never
-  reachable from a device; that is argued in `configuring.ts`.
+  `packages/web/test/configuring.test.ts` holds the two together. `asked` and `never` are reachable
+  only from the person's own full-access device (`theirsOf`); that is argued in `configuring.ts`.
 
 **Which account new agents run as is a default too, among the accounts that exist.**
 `workers.accounts.<harness>` (the machine's) and `projects.<name>.accounts.<harness>` (one

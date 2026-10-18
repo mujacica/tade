@@ -450,13 +450,16 @@ export function settingStanding(row, acts) {
  *
  * **A row that holds a key sends nothing but a clear**, whatever was typed:
  * the page was never shown the key, so it can never have meant to set one, and
- * the machine refuses anything else for it too.
+ * the machine refuses anything else for it too. The one exception is a key row
+ * the machine says may be set (`sets`, the person's own device alone), which
+ * sends what was typed into its box — never anything it was shown.
  */
 export function changeBody(row, value, key, rev) {
+  const credential = row?.held !== null && row?.held !== undefined
   return {
     path: row?.path ?? '',
     was: row?.was ?? '',
-    value: row?.held === null || row?.held === undefined ? value : '',
+    value: !credential || row?.sets === true ? value : '',
     confirm: true,
     key,
     rev,

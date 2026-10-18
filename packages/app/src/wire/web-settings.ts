@@ -19,6 +19,7 @@ import {
   projectOfSetting,
   type SettingCall,
   settingOut,
+  theirsOf,
   type WebConfiguring,
 } from '@tade/web'
 
@@ -38,7 +39,10 @@ import {
 //    request arrived on. A grant taken back at the panel a second ago counts.
 // 2. **Re-check how far a device reaches.** `settingReach` asked again, so a
 //    path that was `open` when the listener started and is not now is refused
-//    — the tier is core's decision and this costs one call.
+//    — the tier is core's decision and this costs one call. The person's own
+//    device (`theirsOf`: full access, not a machine link) reaches every tier,
+//    asked of the record **now**, so revoking it or unticking one box at the
+//    panel is an ordinary device's reach at this very write.
 // 3. **Re-check the value against the row the window lists now**, through the
 //    same `settingOut` the reading was built with: the write accepts exactly
 //    what the read offered, a key is only ever cleared, and a change from a
@@ -90,20 +94,22 @@ export function webConfiguring(deps: ConfiguringDeps): WebConfiguring {
 
 async function changeOne(deps: ConfiguringDeps, call: SettingCall, from: From): Promise<Outcome> {
   const device = deviceOf(deps, from)
+  const theirs = theirsOf(device)
   const project = projectOfSetting(call.path)
   if (project !== null && device.projects !== null && !device.projects.includes(project)) {
     throw new OutOfScope(`${byOf(from)} does not read ${project}`)
   }
   // **The tier, asked of core again.** The parse already refused anything that
-  // is not `open`; this is the window not taking that on trust.
-  if (settingReach(call.path).reach !== 'open') {
+  // is not `open` from anything but the person's own device; this is the
+  // window not taking that on trust.
+  if (!theirs && settingReach(call.path).reach !== 'open') {
     throw new NotOffered(`${call.path} is changed at this machine`)
   }
   const groups = deps.rows()
   const found = findIn(groups, call.path)
   if (found === null) throw new NotThere(`Tade has no setting called ${call.path}`)
   const { group, setting } = found
-  const row = settingOut(group, setting, project, keysOf(groups, deps.known()))
+  const row = settingOut(group, setting, project, keysOf(groups, deps.known()), theirs)
   if (row.may !== 'change' || row.was === null) throw new NotOffered(row.why)
   if (row.was !== call.was) {
     // What is true now goes back with the refusal — the value as a device
@@ -111,10 +117,11 @@ async function changeOne(deps: ConfiguringDeps, call: SettingCall, from: From): 
     // the page redraws the truth and whatever was typed stays typed.
     throw new Moved(`${setting.title} has changed since this screen was drawn`, row.was)
   }
-  // **A key is only ever cleared.** A device was never shown it, so it can
-  // never have meant to set one — and the `set` it was shown must never be
-  // round-tripped into the file where the key was.
-  if (clearOnly(group, setting) && call.value !== '') {
+  // **A key is only ever cleared**, except from the person's own device. A
+  // device was never shown it, so it can never have meant to set one — and
+  // the `set` it was shown must never be round-tripped into the file where the
+  // key was. Theirs may type a new one, as at the keyboard.
+  if (clearOnly(group, setting, theirs) && call.value !== '') {
     throw new NotOffered(`${setting.title} can only be cleared from away`)
   }
   // **What the value may be, asked before the write rather than after**, and
@@ -139,8 +146,8 @@ async function changeOne(deps: ConfiguringDeps, call: SettingCall, from: From): 
   const now =
     after === null
       ? ''
-      : (settingOut(after.group, after.setting, project, keysOf(deps.rows(), deps.known())).was ??
-        '')
+      : (settingOut(after.group, after.setting, project, keysOf(deps.rows(), deps.known()), theirs)
+          .was ?? '')
   return { did: true, rev: now, said: `${setting.title}: ${told}` }
 }
 

@@ -272,7 +272,7 @@ export function awayGroup(config: Config, keptBy: string | null = null): Setting
         title: 'Change settings',
         section: DEVICE_MAY,
         short: `once granted per device; ${SETTINGS_FROM_AWAY_SHORT}`,
-        means: `on: a device you have granted it can change the few settings an ordinary request is enough for; off: there is no route to change one. ${SETTINGS_FROM_AWAY}`,
+        means: `on: a device you have granted it can change the few settings an ordinary request is enough for, and your own full-access device any setting; off: there is no route to change one. ${SETTINGS_FROM_AWAY}`,
         value: String(web.settings),
         fallback: 'true',
         type: { kind: 'flag' },

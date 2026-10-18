@@ -31,11 +31,14 @@ import { KEY } from './verbs.ts'
 // is the shape of the bug nobody finds.
 //
 // 1. **The body is parsed by a strict schema, and the tier is part of the
-//    parse.** A path that is not `settingReach`'s `open` tier is not a
-//    `Changing` at all — `never` and `asked` paths fail here, before a key is
-//    claimed, as the `404` of a path nobody built. That is what *no route
-//    exists* means for a table whose routes are one per kind of thing rather
-//    than one per setting.
+//    parse** — read against the device the request is from, which is known
+//    before the body is. For every device but the person's own, a path that is
+//    not `settingReach`'s `open` tier is not a `Changing` at all — `never` and
+//    `asked` paths fail here, before a key is claimed, as the `404` of a path
+//    nobody built. That is what *no route exists* means for a table whose
+//    routes are one per kind of thing rather than one per setting. The
+//    person's own device (`Reach.theirs`, `theirsOf`) reaches every tier, as
+//    the keyboard does (`configuring.ts` has the argument).
 // 2. **The gate** (`admitSetting`): the setting read now, the `configure`
 //    scope, the `settings` reading grant, the project the setting is one of,
 //    the origin re-asked, and how old the screen was.
@@ -48,8 +51,10 @@ import { KEY } from './verbs.ts'
 //    through the one door every setting is written by, which writes
 //    `config_changed` with `by: device <id>`.
 // 5. **It is written down whatever happened**, a refusal included, as
-//    `web_did`. Never as a `said` line: a device's words are not the person's,
-//    which is the whole of why the `asked` tier is out of reach.
+//    `web_did`, and `config_changed` says `by: device <id>` — the person's own
+//    phone included, so the record always says where a change came from.
+//    Never as a `said` line: a press on a control is not a sentence, and the
+//    `asked` tier is reached by the device being theirs, not by words.
 
 /** What one change's body carries. Strict: an undeclared field is a refusal. */
 const SettingBody = z.strictObject({
@@ -95,16 +100,20 @@ export type ReadingChange =
   | { ok: false; why: 'malformed' }
   | { ok: false; why: 'out_of_reach'; path: string }
 
-/** A change, read out of a body. A path outside the `open` tier is not one. */
-export function readSettingChange(body: unknown): ReadingChange {
+/**
+ * A change, read out of a body. A path outside the `open` tier is not one,
+ * unless the device is the person's own (`theirs`).
+ */
+export function readSettingChange(body: unknown, theirs = false): ReadingChange {
   const got = SettingBody.safeParse(body)
   if (!got.success) return { ok: false, why: 'malformed' }
   const call = got.data
-  // **The tier is decided here, by path, before anything else is asked.** So a
-  // body naming `approvals.mode` or `surfaces.web.acting` is never a change at
-  // all: there is no `Changing` for it to be, no key claimed for it and no
-  // window method it could reach.
-  if (awayReach(call.path).may !== 'change') {
+  // **The tier is decided here, by path and whose device this is, before
+  // anything else is asked.** So from any device but the person's own, a body
+  // naming `approvals.mode` or `surfaces.web.acting` is never a change at all:
+  // there is no `Changing` for it to be, no key claimed for it and no window
+  // method it could reach.
+  if (awayReach(call.path, theirs).may !== 'change') {
     return { ok: false, why: 'out_of_reach', path: call.path }
   }
   return {
@@ -133,9 +142,10 @@ export function readSettingChange(body: unknown): ReadingChange {
  * `change`, the method on `WebConfiguring` — held equal in both directions by
  * `test/separation.test.ts`, the way `WebActing` is held to `VERBS`.
  */
-export const CHANGES: Readonly<Record<string, (body: unknown) => ReadingChange>> = {
-  change: readSettingChange,
-}
+export const CHANGES: Readonly<Record<string, (body: unknown, theirs: boolean) => ReadingChange>> =
+  {
+    change: readSettingChange,
+  }
 
 /**
  * Whether this change may go through to the window.
@@ -242,7 +252,9 @@ export async function carryChange(name: string, body: unknown, ctx: Configured):
   const read = CHANGES[name]
   if (read === undefined) return nothing(ctx, refuse('no_such'))
 
-  const reading = read(body)
+  // Whose device this is, off the record read at this request: revoked or
+  // narrowed a second ago is an ordinary device's reach now.
+  const reading = read(body, ctx.reach.theirs === true)
   if (!reading.ok) {
     // **A path out of reach is the `404` of a path nobody built**, not a `403`
     // naming the tier: the person who needs to know reads *at this machine*

@@ -46,6 +46,9 @@ export const HERE = 'here'
 /** The sentence a key's row says about itself, said where somebody opens one. */
 export const KEYS_SAID = 'A key or a token is said as set or not set, and never shown here.'
 
+/** What a key's box says where this device may type a new one (`sets`). */
+export const KEY_TYPED = 'Type a new one to set it, or leave the box empty to clear it.'
+
 /** A flag's two values, in the words a switch is read in. */
 function flagWord(value) {
   if (value === 'true') return 'on'
@@ -182,9 +185,13 @@ export const PICK_MOST = 5
  * - `list`: one box that opens, for a longer choice (ten editors).
  * - `number`, `text`: a box to type in.
  * - `clear`: a key, which a device was never shown and so may only clear.
+ * - `secret`: a key on the person's own device (`sets`) — a hidden box to type
+ *   a new one in, which clears it where nothing is typed.
  */
 export function editorOf(row) {
-  if (row.held !== null && row.held !== undefined) return { kind: 'clear', options: [] }
+  if (row.held !== null && row.held !== undefined) {
+    return { kind: row.sets === true ? 'secret' : 'clear', options: [] }
+  }
   if (row.kind === 'flag') {
     return {
       kind: 'pick',
@@ -236,14 +243,22 @@ export function afterChange(row, editor, rev, came) {
       ? { was: rev, shown: row.shown, held: rev === 'set' ? 'set' : 'not set' }
       : { was: rev, shown: rev, held: row.held ?? null },
     sync: came.ok === true,
-    clear: came.ok === true && (editor.kind === 'number' || editor.kind === 'text'),
+    clear:
+      came.ok === true &&
+      (editor.kind === 'number' || editor.kind === 'text' || editor.kind === 'secret'),
   }
 }
 
-/** The press's word: once to ask, again to send, and nothing while it goes. */
-export function pressWord(editor, armed, going) {
+/**
+ * The press's word: once to ask, again to send, and nothing while it goes. A
+ * key's box says *clear* while nothing is typed in it, because that is what
+ * sending it does.
+ */
+export function pressWord(editor, armed, going, typed = '') {
   if (going) return 'Saving…'
-  if (editor.kind === 'clear') return armed ? 'Tap again to clear it' : 'Clear it'
+  if (editor.kind === 'clear' || (editor.kind === 'secret' && typed === '')) {
+    return armed ? 'Tap again to clear it' : 'Clear it'
+  }
   return armed ? 'Tap again to save' : 'Save'
 }
 

@@ -448,6 +448,7 @@ export function reachOf(device: {
   projects: readonly string[] | null
   granted: readonly string[]
   scopes?: readonly string[]
+  owner?: boolean
 }): Reach {
   return {
     device: device.id,
@@ -457,5 +458,45 @@ export function reachOf(device: {
         : { kind: 'listed', names: [...device.projects] },
     granted: GRANTS.filter((grant) => device.granted.includes(grant)) as Grant[],
     answers: device.scopes?.includes('answer') === true,
+    // Only where it is true, so every reach that is not the person's own reads
+    // exactly as it did.
+    ...(theirsOf(device) ? { theirs: true } : {}),
   }
+}
+
+/**
+ * Whether a device has full access: every scope and every reading grant —
+ * what pairing gives unless somebody unticks something (the panel's `full
+ * access` box draws exactly this). **Such a device is the person's own**: its
+ * turns reach what the keyboard reaches and what is typed on it is theirs
+ * (`Arm`'s owner variant, `theirs`). A device with anything taken away keeps
+ * exactly the grant it has. Revoking it is a line, read at every request.
+ */
+export function fullAccess(device: {
+  scopes: readonly string[]
+  granted: readonly string[]
+}): boolean {
+  return (
+    SCOPES.every((scope) => device.scopes.includes(scope)) &&
+    GRANTS.every((grant) => device.granted.includes(grant))
+  )
+}
+
+/**
+ * Whether a device is the person's own: full access, and **not a machine
+ * link** (`tade web pair --owner`), whose words may be another machine's
+ * model's and whose reach stays the one it was paired with — the same two
+ * halves `armOf` asks. Read off the record at every request, so revoking it
+ * or unticking one box ends it at the next one.
+ */
+export function theirsOf(device: {
+  scopes?: readonly string[]
+  granted: readonly string[]
+  owner?: boolean
+}): boolean {
+  return (
+    device.owner !== true &&
+    device.scopes !== undefined &&
+    fullAccess({ scopes: device.scopes, granted: device.granted })
+  )
 }

@@ -56,6 +56,21 @@ import { cleanScreen } from './screen.ts'
 //   `settingReach` again at the write, because the tier is core's decision and
 //   a second reading of it costs one call.
 //
+// ## The person's own device is the exception, and only it
+//
+// A device with full access that is not a machine link (`theirsOf`) is the
+// person's own phone: they decided it may do everything they can at the
+// machine, and that if it is stolen they revoke it. So for it — and for no
+// other device — every tier is `change` (`awayReach(path, true)`), its key rows
+// may be set as well as cleared (`sets`), and the change is written `by` that
+// device, so the record still says it came from the phone. Provenance model 3
+// above is answered by the same two halves the orchestrator's arm asks
+// (`armOf`): the record says full access, and it is read at **every** request
+// and again at the write, so revoking the phone or unticking one box makes it
+// an ordinary device at the next press. Nothing anybody else wrote — an agent,
+// a page, a machine link's model — becomes the person's here: the change is
+// what the person pressed on their own screen, against the value they saw.
+//
 // ## Keys
 //
 // A credential is **never readable**: the projection says `set` or `not set`
@@ -84,6 +99,11 @@ export interface SettingOut {
   fallback: string
   /** For a key: whether one is held. Null for everything else. */
   held: 'set' | 'not set' | null
+  /**
+   * For a key this device may change: whether it may set a new one, not only
+   * clear it — true for the person's own device alone. False everywhere else.
+   */
+  sets: boolean
   /** What kind of value it takes. */
   kind: Setting['type']['kind']
   /** The choices, for a choice. */
@@ -141,12 +161,15 @@ export type AwayReach = { may: 'change' } | { may: 'machine'; why: string }
 
 /**
  * How far a device reaches into one setting: `settingReach`'s `open` tier, and
- * nothing else.
+ * nothing else — unless it is the person's own device (`theirs`, `theirsOf`),
+ * which reaches every tier as the keyboard does.
  *
- * By path, so the gate can ask it of a body before anything is looked up —
- * which is what makes a `never` path unrepresentable rather than refused late.
+ * By path and that one fact of the record, so the gate can ask it of a body
+ * before anything is looked up — which is what makes a `never` path
+ * unrepresentable for every other device rather than refused late.
  */
-export function awayReach(path: string): AwayReach {
+export function awayReach(path: string, theirs = false): AwayReach {
+  if (theirs) return { may: 'change' }
   const { reach } = settingReach(path)
   if (reach === 'open') return { may: 'change' }
   return { may: 'machine', why: reach === 'asked' ? AT_THE_MACHINE.asked : AT_THE_MACHINE.never }
@@ -183,17 +206,24 @@ export function isCredential(group: Pick<SettingGroup, 'id'>, setting: Setting):
 }
 
 /**
- * Whether a change may only clear the setting: true of every credential.
+ * Whether a change may only clear the setting: true of every credential, for
+ * every device but the person's own (`theirs`).
  *
  * A device never sees a key, so it can never have meant to *set* one — and a
  * form that round-tripped the `set` it was shown back into the file would put
  * the word `set` where somebody's key was. Clearing is the one thing a key's
  * owner could want from away (where the setting reaches at all), and for the
  * notification key it is the revocation lever: a new one is minted when one is
- * next needed.
+ * next needed. The person's own phone may also type a new key in, as they
+ * could at the keyboard — it is still never shown one, and the page sends what
+ * was typed rather than anything it was shown.
  */
-export function clearOnly(group: Pick<SettingGroup, 'id'>, setting: Setting): boolean {
-  return isCredential(group, setting)
+export function clearOnly(
+  group: Pick<SettingGroup, 'id'>,
+  setting: Setting,
+  theirs = false,
+): boolean {
+  return !theirs && isCredential(group, setting)
 }
 
 /** What a credential's revision is: whether one is held, and never anything of it. */
@@ -259,7 +289,7 @@ export function settingsFor(
         withheld += 1
         continue
       }
-      settings.push(settingOut(group, setting, project, keys))
+      settings.push(settingOut(group, setting, project, keys, reach.theirs === true))
     }
     if (settings.length > 0) out.push({ id: group.id, title: group.title, settings })
   }
@@ -286,18 +316,20 @@ export function keysOf(groups: readonly SettingGroup[], known: readonly string[]
  * Exported because the window asks it again **at the write**: what a change
  * may echo and whether it may be made at all are this row's `was` and `may`,
  * so the write accepts exactly what the read offered and there is no second
- * reading of either to drift.
+ * reading of either to drift. `theirs` is whether the device is the person's
+ * own (`theirsOf`), read off the record at that request.
  */
 export function settingOut(
   group: SettingGroup,
   setting: Setting,
   project: string | null,
   keys: readonly string[],
+  theirs = false,
 ): SettingOut {
   const credential = isCredential(group, setting)
   const shown = credential ? { text: '', whole: true } : cleaned(setting.value, keys)
   const fallback = cleaned(setting.fallback, keys).text
-  const reach = awayReach(setting.path)
+  const reach = awayReach(setting.path, theirs)
   const may: AwayReach =
     reach.may === 'machine'
       ? reach
@@ -312,6 +344,7 @@ export function settingOut(
     shown: shown.text,
     fallback,
     held: credential ? heldOf(setting.value) : null,
+    sets: credential && may.may === 'change' && !clearOnly(group, setting, theirs),
     kind: setting.type.kind,
     options: setting.type.kind === 'choice' ? [...setting.type.options] : [],
     live: setting.live,
@@ -340,7 +373,8 @@ export interface SettingCall {
 
 /**
  * Changing one setting: the one method, and the whole of what a paired device
- * may ever do to the config.
+ * may ever do to the config — the `open` tier for any device granted it, and
+ * every setting for the person's own (`theirsOf`).
  *
  * **There is no method here that reads one** — reading is `WebReading`'s
  * `settings`, behind its grant — and no method that grants, signs in, turns an

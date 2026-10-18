@@ -198,6 +198,13 @@ export interface Reach {
    * (`ANSWERING`). Absent is no: a reach made for reading alone answers nothing.
    */
   answers?: boolean
+  /**
+   * Whether it is **the person's own device** — full access, and not a machine
+   * link (`theirsOf`) — which reaches every setting from the Settings page as
+   * the keyboard does (`awayReach`). Absent is no, so a reach made anywhere
+   * else is an ordinary device's.
+   */
+  theirs?: boolean
 }
 
 /**
