@@ -619,11 +619,17 @@ export async function worktreesAgain(tade: {
       const file = await readTaskFile(tade.home, `${project}/${folder}`)
       if (!file || file.workspace === 'checkout') continue
       const id = file.id ?? `${project}/${folder}`
-      if (!id.startsWith(`${project}/`)) continue
+      // A restored home is outside input: only a name Tade could have made a
+      // worktree for, and only a branch of Tade's own, is made again.
       const slug = id.slice(project.length + 1)
+      if (!id.startsWith(`${project}/`) || !SLUG.test(slug) || !TaskId.safeParse(id).success) {
+        continue
+      }
+      const branch = named.get(id) ?? `${TASK_BRANCH_PREFIX}${slug}`
+      if (!branch.startsWith(TASK_BRANCH_PREFIX) || branch.includes('..')) continue
       const again = await worktreeAgain({
         root,
-        branch: named.get(id) ?? `${TASK_BRANCH_PREFIX}${slug}`,
+        branch,
         worktree: join(tade.home, 'worktrees', `${project}-${slug}`),
         prepare: configured.prepare,
       })

@@ -399,6 +399,16 @@ describe('worktreesAgain', () => {
     await log.close()
   })
 
+  it('makes nothing from a branch that is not Tade’s, whatever a restored journal says', async () => {
+    const { repo, task, clone, log, config } = await restored(true)
+    runGit(repo.root, 'push', '-q', 'origin', 'main:feature')
+    runGit(clone, 'fetch', '-q', 'origin')
+    await log.append({ type: 'task_named', task: task.id, detail: { branch: 'feature' } })
+    expect(await worktreesAgain({ home: repo.home, config: config(clone), log })).toEqual([])
+    expect(existsSync(task.worktree)).toBe(false)
+    await log.close()
+  })
+
   it('says why, where the branch is on more than one remote', async () => {
     const { repo, task, clone, log, config } = await restored(true)
     runGit(clone, 'remote', 'add', 'fork', repo.remote!)
