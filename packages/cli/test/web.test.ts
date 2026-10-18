@@ -112,13 +112,43 @@ describe('tade web', () => {
     expect(lines.indexOf('https://tade.example.com/')).toBeLessThan(
       lines.indexOf('http://localhost:7654/'),
     )
-    expect(said.stdout).toContain(
-      'and on the internet as tade.example.com, through Caddy at /run/tade/away.sock',
-    )
+    // Not "alone": Caddy's listener is a second one, on the internet.
+    expect(lines[0]).toBe('on, on this machine and on the internet as tade.example.com')
+    expect(said.stdout).not.toContain('alone')
+    expect(said.stdout).toContain('tade.example.com comes in through Caddy at /run/tade/away.sock')
     const json = JSON.parse((await tade('web', 'status', '--json')).stdout) as {
       publicName: string
     }
     expect(json.publicName).toBe('tade.example.com')
+  })
+
+  it('says a public name is where a device installs it, rather than how to get an https name', async () => {
+    writeFileSync(
+      join(home, 'config.yaml'),
+      'surfaces:\n  web:\n    enabled: true\n    public: tade.example.com\n    install: true\n',
+    )
+    const said = await tade('web', 'status')
+    expect(said.stdout).toContain('https://tade.example.com/ is a secure origin')
+    // It already has the https name `tailscale serve` would be the way to.
+    expect(said.stdout).not.toContain('tailscale serve')
+  })
+
+  it('says where it is installed from without a public name', async () => {
+    writeFileSync(
+      join(home, 'config.yaml'),
+      'surfaces:\n  web:\n    enabled: true\n    install: true\n',
+    )
+    const said = await tade('web', 'status')
+    expect(said.stdout).toContain('on, on this machine alone')
+    expect(said.stdout).toContain('tailscale serve')
+  })
+
+  it('turns on where a public name is set, and does not call it alone', async () => {
+    writeFileSync(join(home, 'config.yaml'), 'surfaces:\n  web:\n    public: tade.example.com\n')
+    const said = await tade('web', 'on')
+    expect(said.stdout.split('\n')[0]).toBe(
+      'on, on this machine and on the internet as tade.example.com',
+    )
   })
 
   it('says what a LAN bind means on the act that turns one on', async () => {

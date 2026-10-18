@@ -107,7 +107,7 @@ export function registerWeb(program: Command, io: Io, setExit: (code: number) =>
         io.err,
       )
       const said = await look()
-      io.out(said.bind === 'lan' ? 'on, listening on the network' : 'on, on this machine alone')
+      io.out(listening(said))
       if (said.bind === 'lan') io.out(LAN)
       io.out(await takesEffect())
     })
@@ -402,6 +402,26 @@ async function look(): Promise<Looked> {
   }
 }
 
+/**
+ * Where it listens, as the first line says it.
+ *
+ * "Alone" only where it is: a public name is a second listener, Caddy's, and
+ * a box with one is on the internet as well as on itself.
+ */
+function listening(said: Pick<Looked, 'bind' | 'publicName'>): string {
+  const here = said.bind === 'lan' ? 'on, listening on the network' : 'on, on this machine'
+  if (said.publicName !== null) return `${here} and on the internet as ${said.publicName}`
+  return said.bind === 'lan' ? here : `${here} alone`
+}
+
+/** What installing needs, said where a public name already gives it. */
+function installsOn(name: string): string {
+  return (
+    `https://${name}/ is a secure origin, so a device can install it there — and pairs there, ` +
+    'because a session is bound to the exact host it was paired on and nothing is carried across.'
+  )
+}
+
 function lines(said: Looked): string[] {
   const out: string[] = []
   if (!said.read) {
@@ -415,12 +435,12 @@ function lines(said: Looked): string[] {
     out.push('`tade web on` serves it on this machine alone')
     return out
   }
-  out.push(said.bind === 'lan' ? 'on, listening on the network' : 'on, on this machine alone')
+  out.push(listening(said))
   out.push(`port ${said.port}`)
   for (const url of said.urls) out.push(url)
   if (said.publicName !== null) {
     out.push(
-      `and on the internet as ${said.publicName}, through Caddy at ${publicSocket()} — \`tade host caddy --check\` looks at it`,
+      `${said.publicName} comes in through Caddy at ${publicSocket()} — \`tade host caddy --check\` looks at it`,
     )
   }
   // **Said, not papered over.** With no window open nothing is listening,
@@ -444,7 +464,10 @@ function lines(said: Looked): string[] {
         ? 'a device may install it and keep a few counts it can open with nothing to ask'
         : 'a device may install it; it opens with nothing until it can reach this machine',
     )
-    out.push(OFFLINE_NEEDS_HTTPS)
+    // A public name is already the https origin `OFFLINE_NEEDS_HTTPS` sends
+    // somebody to find, so there it says where to install rather than how
+    // to get somewhere one could.
+    out.push(said.publicName === null ? OFFLINE_NEEDS_HTTPS : installsOn(said.publicName))
   }
   if (said.notifies) {
     // **Said here because the two halves are in two places.** This machine
