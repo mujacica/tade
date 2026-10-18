@@ -142,6 +142,20 @@ describe('running them', () => {
     ).rejects.toThrow(/no check called nothing/)
   })
 
+  it('says a quick look with nothing in it is not a project with no checks', async () => {
+    // A project whose checks are its CI alone has no hook and no test:related:
+    // "has no checks to run" sent an agent away from the one it had.
+    const where = project()
+    const host = await load(where)
+    const quick = await host.call(
+      'checks_run',
+      { related: true },
+      { caller: { kind: 'orchestrator' } },
+    )
+    expect(quick.text).toContain('no quick look to run')
+    expect(quick.text).toContain('checks_run without related')
+  })
+
   it('hands back the tail of what a check printed, and says when it never ran', async () => {
     const where = project()
     const host = await load(where)

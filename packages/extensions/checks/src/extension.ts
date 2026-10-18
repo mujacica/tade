@@ -211,10 +211,12 @@ export const checksExtension: TadeExtension = {
           throw err instanceof RunnerError ? new Error(err.message) : err
         }
         if (ran.length === 0) {
-          return {
-            text: `${where.project} has no checks to run${only.length > 0 ? ` matching ${only.join(', ')}` : ''}.`,
-            said: 'There is nothing to run.',
-          }
+          // The quick look is the hook and `test:related`: a project whose
+          // checks are its CI alone has none of it, which is not "no checks".
+          const text = related
+            ? `${where.project} has no quick look to run — no commit hook or test:related — so nothing ran: checks_run without related runs its full checks, where it has any.`
+            : `${where.project} has no checks to run${only.length > 0 ? ` matching ${only.join(', ')}` : ''}.`
+          return { text, said: 'There is nothing to run.' }
         }
         const failed = ran.filter((run) => run.state === 'failed' || run.state === 'timed out')
         const lines = [
