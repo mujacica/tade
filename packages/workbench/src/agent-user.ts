@@ -15,7 +15,7 @@ import {
   writeFile,
 } from 'node:fs/promises'
 import { userInfo } from 'node:os'
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
 import {
   type AgentPush,
   type AgentRemote,
@@ -300,16 +300,21 @@ export function shareSetupLog(task: string, user: AgentUser): string {
 
 /**
  * What else an agent's sandbox has to let it write besides its working
- * folder (`WorkerSpec.sandbox`): the repository's own git folder, where the
- * worktree's is elsewhere — a commit writes objects and refs there — and the
- * package caches in its user's home, so an install inside the sandbox works.
+ * folder (`WorkerSpec.sandbox`): the repository's own git folder — a commit
+ * writes objects and refs there — and the package caches in its user's home,
+ * so an install inside the sandbox works.
+ *
+ * The git folder even where it is inside the working folder, as a checkout's
+ * is: Codex's `workspace-write` keeps a `.git` in a writable folder read-only
+ * unless it is named itself, so a Codex agent in a checkout could not commit
+ * (`.git/index.lock: Read-only file system`, found on Ubuntu 24.04 and the
+ * same under Seatbelt).
  */
 export async function sandboxWrites(cwd: string, user: AgentUser): Promise<string[]> {
   const said = await git(cwd, ['rev-parse', '--git-common-dir'])
   const common = said.ok ? resolve(cwd, said.stdout.trim()) : null
-  const inside = common !== null && !relative(cwd, common).startsWith('..')
   return [
-    ...(common && !inside ? [common] : []),
+    ...(common ? [common] : []),
     join(user.home, '.cache'),
     join(user.home, '.npm'),
     join(user.home, '.local', 'share', 'pnpm'),
@@ -364,13 +369,25 @@ export async function lookAtAgentUser(
     .catch(orNo(false))
   const gid = await runProgram('id', ['-g', user], { timeoutMs: ASK_MS })
   const group = gid.code === 0 ? Number(gid.stdout.trim()) : null
+  const uid = await runProgram('id', ['-u', user], { timeoutMs: ASK_MS })
+  const own = uid.code === 0 ? Number(uid.stdout.trim()) : null
+  // Its group's alone: its group writes there, and nobody else may so much as
+  // open it — or one project's agents read another's, which is the point of a
+  // user each.
   const open: string[] = []
   for (const root of roots) {
     const info = await stat(root).catch(orNo(null))
-    if (!info || group === null || info.gid !== group || (info.mode & 0o2070) !== 0o2070) {
+    if (
+      !info ||
+      group === null ||
+      info.gid !== group ||
+      (info.mode & 0o2070) !== 0o2070 ||
+      (info.mode & 0o007) !== 0
+    ) {
       open.push(root)
     }
   }
+  const closed = await closedAbove(roots, { uid: own, gid: group }, sudo ? user : null)
   // Only where Tade can become it: a sandbox tried as Tade proves nothing.
   const sandboxes = sudo
     ? await Promise.all(
@@ -391,8 +408,53 @@ export async function lookAtAgentUser(
     git: gitOk,
     homeClosed,
     roots: open,
+    closed,
     sandboxes,
   }
+}
+
+/**
+ * The folders above `roots` an agent user cannot pass through, top first, so
+ * cannot reach its projects at all: a home is `0750` on Ubuntu 24.04, and a
+ * project cloned into Tade's user's is behind it. Read off the modes, which is
+ * all there is before the user exists; where Tade can already become it
+ * (`as`), the user is asked about the ones the modes close, since a group or
+ * an ACL may let it through.
+ */
+export async function closedAbove(
+  roots: readonly string[],
+  ids: { uid: number | null; gid: number | null },
+  as: string | null,
+): Promise<string[]> {
+  const above = new Set<string>()
+  for (const root of roots) {
+    for (let dir = dirname(root); ; dir = dirname(dir)) {
+      above.add(dir)
+      if (dirname(dir) === dir) break
+    }
+  }
+  const shut: string[] = []
+  // A folder's name is longer than any above it, so the shortest come first.
+  for (const dir of [...above].sort((a, b) => a.length - b.length || a.localeCompare(b))) {
+    const info = await stat(dir).catch(orNo(null))
+    if (!info) continue
+    const passes =
+      (info.mode & 0o001) !== 0 ||
+      (info.uid === ids.uid && (info.mode & 0o100) !== 0) ||
+      (info.gid === ids.gid && (info.mode & 0o010) !== 0)
+    if (!passes) shut.push(dir)
+  }
+  if (!as || shut.length === 0) return shut
+  const asked = await asUser(as, [
+    '/bin/sh',
+    '-c',
+    'for d; do test -x "$d" || printf "%s\\n" "$d"; done',
+    'sh',
+    ...shut,
+  ])
+  if (asked.code !== 0) return shut
+  const still = new Set(asked.stdout.split('\n').filter(Boolean))
+  return shut.filter((dir) => still.has(dir))
 }
 
 /**

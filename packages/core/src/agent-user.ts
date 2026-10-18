@@ -197,8 +197,16 @@ export interface AgentUserSeen {
   git: boolean
   /** Tade's home is closed to everybody else (`0700`). */
   homeClosed: boolean
-  /** The project roots its agents work in that its group cannot write. */
+  /**
+   * The project roots its agents work in that are not its group's alone: its
+   * group cannot write there, or anybody else may open one.
+   */
   roots: readonly string[]
+  /**
+   * The folders above those roots it cannot pass through, so cannot reach its
+   * projects at all (`closedAbove`). Absent where they were not looked at.
+   */
+  closed?: readonly string[]
   /**
    * Each harness in use whose own sandbox was tried as this user, and what it
    * needs where it would not start (`WorkerAdapter.sandboxProof`), else null.
@@ -489,11 +497,20 @@ export function agentCommands(
       line: `sudo -u ${u} -H sh -c ${word(parts.join(' && '))}`,
     })
   }
+  const closed = seen.closed ?? []
+  if (closed.length > 0) {
+    // Everybody's `x` and nobody's `r`: through, never a listing. Ubuntu
+    // 24.04 makes a home `0750`, and there is no ACL tool on every box.
+    out.push({
+      says: `let ${u} through ${closed.join(', ')} to its projects — everybody here may then pass through, though not list what is there`,
+      line: `sudo chmod o+x ${closed.map(word).join(' ')}`,
+    })
+  }
   for (const root of seen.roots) {
     out.push({
-      says: `let ${u}'s group work in ${root}, and keep what is made there the group's`,
+      says: `let ${u}'s group work in ${root}, keep what is made there the group's, and keep everybody else out`,
       line:
-        `sudo chgrp -R ${u} ${word(root)} && sudo chmod -R g+rwX ${word(root)} && ` +
+        `sudo chgrp -R ${u} ${word(root)} && sudo chmod -R g+rwX ${word(root)} && sudo chmod o-rwx ${word(root)} && ` +
         `sudo find ${word(root)} -type d -exec chmod g+s {} + && git -C ${word(root)} config core.sharedRepository group`,
     })
   }
@@ -528,7 +545,8 @@ export function agentUserTrouble(seen: AgentUserSeen, self: string): string[] {
     out.push(`${agentShare(seen.home)} is not there for Tade to write in`)
   if (seen.home && !seen.git)
     out.push(`${u}'s git has no name, or does not trust your repositories`)
-  for (const root of seen.roots) out.push(`${u}'s group cannot write in ${root}`)
+  for (const dir of seen.closed ?? []) out.push(`${u} cannot pass through ${dir} to its projects`)
+  for (const root of seen.roots) out.push(`${root} is not ${u}'s group's alone to work in`)
   for (const box of seen.sandboxes) {
     if (box.needs)
       out.push(`${box.harness}'s own sandbox will not start as ${u} here: it needs ${box.needs}`)

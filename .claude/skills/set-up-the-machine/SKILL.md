@@ -43,7 +43,7 @@ and setting up ends by actually opening a lane — because every other check is 
 | `packages/harnesses/core/src/sign-in.ts` | `signInHere` (is a browser here?), `signInLasts` (how long a sign-in has left) |
 | `packages/drivers/tmux/src/scope.ts` | the lanes' tmux server in a systemd scope of its own, under a user service |
 | `packages/core/src/agent-user.ts` | pure: `agentUserOf`, `agentsKeptAs`, `asAgent` (the launch through `sudo`), `sudoersRule`, `agentShare`, `agentCommands` (what setup shows), `agentUserTrouble`, `groupFromLogin`, `AGENT_USER_MEANS`; and what its agents need beyond it: `agentAccountDir`, `signInLine`, `reachCommands`, `agentReachTrouble`, `keyPages`, `lsRemoteLine`, `triedAt` |
-| `packages/workbench/src/agent-user.ts` | `homeOf`, `agentUserFor`, `shareReady`, `closeHome`, `contextFor`, `documentsFor`, `sandboxWrites`, `lookAtAgentUser`, `sandboxProofs`; `adapterOfUser`, `signInsFor`, `signedInAs`, `lookAtReach`, `accountFolderOf` |
+| `packages/workbench/src/agent-user.ts` | `homeOf`, `agentUserFor`, `shareReady`, `closeHome`, `contextFor`, `documentsFor`, `sandboxWrites`, `lookAtAgentUser`, `closedAbove`, `sandboxProofs`; `adapterOfUser`, `signInsFor`, `signedInAs`, `lookAtReach`, `accountFolderOf` |
 | `packages/core/src/apparmor.ts` | pure: `bwrapProfile` (Claude Code's, word for word), `BWRAP_PROFILE`, `RELOAD_APPARMOR`, `AppArmorSeen`, `appArmorCommands` |
 | `packages/workbench/src/apparmor.ts` | `lookAtAppArmor` — the kernel's switch, the profile's file, the bwrap on PATH |
 | `packages/core/src/service-groups.ts` | pure: `processGroupsOf` (`/proc/<pid>/status`), `ServiceGroup`, `serviceGroupTrouble` |
@@ -399,8 +399,12 @@ it — `tade` in the recommended install — and **setup makes the agents' user 
   ALL`, written to a temporary file, passed by `visudo -cf` and only then installed — a broken file
   in `sudoers.d` is a `sudo` that refuses everybody; the share, `install -d -m 2770`; the user's git
   name, address and `safe.directory '*'`, run **from its own home** (from Tade's, which it cannot
-  enter, git fails before it starts — found in the container); and each project root made the
-  group's, set-group-id, with `core.sharedRepository group`.
+  enter, git fails before it starts — found in the container); each project root made the group's,
+  set-group-id, with `core.sharedRepository group`, and **closed to everybody else** (`o-rwx`), or one
+  project's user reads every other project's clone; and **`o+x` on each folder above a root that user
+  cannot pass through** (`closedAbove`: read off the modes, then asked as the user where Tade can
+  become it, since a group or an ACL may let it through) — Ubuntu 24.04 makes a home `0750`, so an
+  agent could not so much as enter a project cloned into Tade's user's, and setup said nothing.
 - **What Tade does itself, at every open where a user is named**: `umask 007`, so what it makes in a
   checkout is the group's to write, and `chmod 0700` on its home (`closeHome`), narrowed and never
   widened, said once in the journal. An agent cannot be started as Tade instead: a user this machine
@@ -475,12 +479,30 @@ Bash call ran inside `bwrap`, which this kernel refused (`kernel.apparmor_restri
 = 1`, Ubuntu 24.04's), and with no unsandboxed retry the command was refused rather than run — and
 `--check` said `claude-code's own sandbox will not start as tade-agent here`.
 
-**Not proved**: a sandbox that *starts* under a user of its own on Linux (this VM refuses it, and
-loosening its kernel was not this test's to do; Claude Code's keys are proved on a Mac,
-`sandboxed-lane.test.ts`) — so neither is the profile setup offers making it start, nor whether Codex's
-bubblewrap is the `bwrap` the profile attaches to; a Codex agent's whole turn as another user; one user
-per project on one box; a sign-in through `sudo -iu` and a key added on GitHub and reached, on a real
-server (the tests stand in `sudo`, `claude` and the remote);
+**Proved, with the sandbox starting**, in a VM of its own — lima (`vmType: vz`) from colima's cached
+Ubuntu 24.04.1 image, kernel 6.8.0-50 with the restriction on, never the shared colima VM: Tade as
+`you` (home `0750`, as 24.04 makes it), two projects cloned into `~/code` naming a user each, Claude
+Code 2.1.302 for one and Codex 0.163.0 for the other, and `/etc/apparmor.d/bwrap` holding the lines
+setup offers (written by hand and loaded with `apparmor_parser -r`). Before the profile `--check` said
+both sandboxes would not start as either user, after it nothing; it named, for each user, the home it
+could not pass through and the clone open to everybody — before `closedAbove` it said nothing, and
+the agent could not enter its checkout — then setup's step ran their lines and its lane as each user,
+and `--check` ticked. Started through the workbench against fake models (Claude Code's in
+`agent-alpha`'s own `~/.claude/settings.json`; a scripted Responses server in `agent-beta`'s
+`~/.codex/config.toml`, its model one Codex has no upgrade notice for, which would hold the lane on a
+dialog), each agent's one shell call ran as its own user with umask `0007` **inside its sandbox**:
+it committed in its checkout, got `Permission denied` on `config.yaml` and on the other project's
+clone, and `Read-only file system` writing its own home — the sandbox refusing what the user may do —
+and its turns (and Codex's usage) reached Tade. **Codex could not commit** until its sandbox was handed
+the checkout's own `.git` (`sandboxWrites`): `workspace-write` keeps a `.git` inside it read-only,
+here and under Seatbelt, which `agent-user.test.ts` shows with the real `codex sandbox`. Codex ships a
+`bwrap` of its own, which the profile does not cover and the kernel refuses; it runs the system's
+where bubblewrap is installed.
+
+**Not proved**: setup's own press writing the profile and `systemctl reload apparmor` loading it; a
+Codex whose system has no bubblewrap (its own `bwrap` is refused, and the profile is not offered); a
+sign-in through `sudo -iu` and a key added on GitHub and reached, on a real server (the tests stand
+in `sudo`, `claude` and the remote);
 and which restart gives `tade serve` the group after `usermod` — the manager's rule above is systemd's
 exec (no `initgroups` without `User=`), read and not run; the tests stand `/proc` in.
 

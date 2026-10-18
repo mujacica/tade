@@ -1,5 +1,7 @@
+import { execFileSync, spawnSync } from 'node:child_process'
 import {
   chmodSync,
+  chownSync,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -10,10 +12,12 @@ import {
   utimesSync,
   writeFileSync,
 } from 'node:fs'
+import { userInfo } from 'node:os'
 import { join } from 'node:path'
 import {
   type AgentUserSeen,
   agentAccountDir,
+  agentCommands,
   agentShare,
   ConfigSchema,
   documentsDir,
@@ -32,10 +36,12 @@ import {
   accountFolderOf,
   bringDocumentHome,
   carryRefused,
+  closedAbove,
   closeHome,
   contextFor,
   documentsFor,
   homeOf,
+  lookAtAgentUser,
   lookAtReach,
   rootsOf,
   sandboxProofs,
@@ -197,11 +203,14 @@ describe('what an agent of its own user is handed', () => {
     expect(await bringDocumentHome(home, task, user, '../../escape.md')).toBe(false)
   })
 
-  it('lets its sandbox write the repository’s git folder where the worktree’s is elsewhere', async () => {
+  it('lets its sandbox write the repository’s git folder, a checkout’s inside it as much as a worktree’s elsewhere', async () => {
     const repo = mkrepo()
     const user: AgentUser = { name: 'tade-agent', home: '/home/tade-agent', share: '/s' }
+    // Inside it too: Codex keeps a `.git` in its writable folder read-only
+    // unless it is named, and a checkout's agent could not commit.
     const inside = await sandboxWrites(repo.root, user)
     expect(inside).toEqual([
+      join(repo.root, '.git'),
       '/home/tade-agent/.cache',
       '/home/tade-agent/.npm',
       '/home/tade-agent/.local/share/pnpm',
@@ -391,6 +400,109 @@ describe('what an agent of its own user signs in and pushes with', () => {
       })
     }
     expect(adapterKey('claude-code', 'work', 'tade-agent')).toBe('claude-code@work~tade-agent')
+  })
+})
+
+const codex = (() => {
+  try {
+    execFileSync('codex', ['--version'], { stdio: 'pipe', timeout: 10_000 })
+    return true
+  } catch {
+    return false
+  }
+})()
+
+// The real `codex`, in the sandbox Tade turns on for an agent of its own user:
+// the only evidence that what `sandboxWrites` hands it is what a commit in a
+// checkout needs. `codex sandbox` takes the folders as `writable_roots`, which
+// is what the agent's `--add-dir` sets. Only where it is installed and its
+// sandbox starts — on a Mac, Seatbelt; on Linux, a bwrap the kernel allows.
+describe.runIf(codex && process.platform === 'darwin')('Codex’s own sandbox, in a checkout', () => {
+  it('commits once its git folder is named, and is refused it otherwise', async () => {
+    const repo = mkrepo()
+    writeFileSync(join(repo.root, 'made.txt'), 'made\n')
+    const user: AgentUser = { name: 'tade-agent', home: tmp('tade-agent-home-'), share: '/s' }
+    const commit = (writes: readonly string[]) =>
+      spawnSync(
+        'codex',
+        [
+          'sandbox',
+          '-c',
+          'sandbox_mode="workspace-write"',
+          '-c',
+          `sandbox_workspace_write.writable_roots=${JSON.stringify(writes)}`,
+          '--',
+          '/bin/sh',
+          '-c',
+          'git add made.txt && git -c user.name=t -c user.email=t@t commit -qm made',
+        ],
+        { cwd: repo.root, encoding: 'utf8', timeout: 30_000 },
+      )
+    const refused = commit([])
+    expect(refused.status).not.toBe(0)
+    expect(refused.stderr).toContain('index.lock')
+    const handed = commit(await sandboxWrites(repo.root, user))
+    expect(handed.status, handed.stderr).toBe(0)
+    expect(runGit(repo.root, 'log', '-1', '--format=%s').trim()).toBe('made')
+  }, 60_000)
+})
+
+describe('reaching its projects', () => {
+  // Ubuntu 24.04 makes a home `0750`, and a project cloned into Tade's user's
+  // is behind it: the agent's user cannot so much as enter it.
+  it('names a folder above a project its user cannot pass through, and none it can', async () => {
+    const base = tmp('tade-agent-reach-')
+    const root = join(base, 'you', 'code', 'app')
+    mkdirSync(root, { recursive: true })
+    chmodSync(base, 0o755)
+    chmodSync(join(base, 'you'), 0o750)
+    chmodSync(join(base, 'you', 'code'), 0o755)
+    const nobody = { uid: null, gid: null }
+    const under = (dirs: readonly string[]) => dirs.filter((dir) => dir.startsWith(base))
+    expect(under(await closedAbove([root], nobody, null))).toEqual([join(base, 'you')])
+    // Its own group passing through is through.
+    const info = statSync(join(base, 'you'))
+    expect(under(await closedAbove([root], { uid: null, gid: info.gid }, null))).toEqual([])
+    // The line setup shows for it, run as a person would, through a `sudo`
+    // that only runs it: everybody's `x`, and it is through.
+    const seen = await lookAtAgentUser('tade-nobody-here', 'tade', [root], base)
+    expect(under(seen.closed ?? [])).toEqual([join(base, 'you')])
+    const through = agentCommands({ ...seen, closed: under(seen.closed ?? []) }, 'tade', {
+      name: null,
+      email: null,
+    }).find((command) => command.line.startsWith('sudo chmod o+x'))
+    const shim = tmp('tade-agent-shim-')
+    writeFileSync(join(shim, 'sudo'), '#!/bin/sh\nexec "$@"\n')
+    chmodSync(join(shim, 'sudo'), 0o755)
+    const ran = spawnSync('/bin/sh', ['-c', through?.line ?? 'false'], {
+      env: { PATH: `${shim}:/usr/bin:/bin` },
+      encoding: 'utf8',
+    })
+    expect(ran.status, ran.stderr).toBe(0)
+    expect(statSync(join(base, 'you')).mode & 0o777).toBe(0o751)
+    expect(under(await closedAbove([root], nobody, null))).toEqual([])
+  })
+
+  it('asks the user itself where Tade can become it, since a group or an ACL may let it through', async () => {
+    const base = tmp('tade-agent-reach-')
+    const root = join(base, 'you', 'code', 'app')
+    mkdirSync(root, { recursive: true })
+    chmodSync(join(base, 'you'), 0o750)
+    // The stand-in sudo becomes whoever runs the test, who owns the folder.
+    const asked = await closedAbove([root], { uid: null, gid: null }, 'tade-agent')
+    expect(asked.filter((dir) => dir.startsWith(base))).toEqual([])
+  })
+
+  it('counts a project anybody else may open as not its group’s alone', async () => {
+    const me = userInfo().username
+    const root = tmp('tade-agent-root-')
+    // Its group, as setup's `chgrp` makes it: here the test's own user's.
+    chownSync(root, userInfo().uid, userInfo().gid)
+    chmodSync(root, 0o2775)
+    const look = () => lookAtAgentUser(me, me, [root], tmp('tade-agent-home-'))
+    expect((await look()).roots).toEqual([root])
+    chmodSync(root, 0o2770)
+    expect((await look()).roots).toEqual([])
   })
 })
 

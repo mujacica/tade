@@ -257,6 +257,24 @@ describe('making the user, on a press', () => {
       "tade is in tade-agent's group from a new login: log in again — and where Tade runs as a service, restart the service manager it takes its groups from, `sudo systemctl restart user@$(id -u).service`, which stops every service of yours, or log out of every session",
     ])
   })
+
+  it('lets the user through what is above its projects, and keeps everybody else out of them', () => {
+    // Ubuntu 24.04's `0750` home with a project cloned into it, and one user
+    // per project: without both lines its agents cannot reach their own
+    // project, and can read every other one.
+    const shut = made({ closed: ['/home/tade'], roots: ['/home/tade/code/app'] })
+    const commands = agentCommands(shut, 'tade', { name: null, email: null })
+    expect(commands.map((c) => c.line)).toEqual([
+      'sudo chmod o+x /home/tade',
+      'sudo chgrp -R tade-agent /home/tade/code/app && sudo chmod -R g+rwX /home/tade/code/app && ' +
+        'sudo chmod o-rwx /home/tade/code/app && sudo find /home/tade/code/app -type d -exec chmod g+s {} + && ' +
+        'git -C /home/tade/code/app config core.sharedRepository group',
+    ])
+    expect(agentUserTrouble(shut, 'tade')).toEqual([
+      'tade-agent cannot pass through /home/tade to its projects',
+      "/home/tade/code/app is not tade-agent's group's alone to work in",
+    ])
+  })
 })
 
 describe('signing in and pushing, as that user', () => {
