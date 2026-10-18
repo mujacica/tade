@@ -428,7 +428,7 @@ export const PICTURES: readonly Picture[] = [
       'now, what it is, where it paired from and when, what it reads as pills, and a box per ' +
       'thing it may do — answer and steer, stop agents, close projects, see screens, read ' +
       'settings — ticked where it was granted. The pointer is on one box, so the foot says in ' +
-      'one clause what it grants: a device acts as a request, never as your own words. Sign ' +
+      'one clause what it grants: full access acts as you, other devices as a request. Sign ' +
       'out on each row and Disconnect everything stay grey until pointed at.',
   },
   {

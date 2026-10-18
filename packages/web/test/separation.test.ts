@@ -614,7 +614,12 @@ describe('the sentences', () => {
     // every one of these is a `never remote` line with an argument behind it
     // (DESIGN §9.1), and a control that quietly stopped naming one would be
     // the comfortable version of this sentence.
-    expect(ACTING_IS_NOT_YOU).toContain('never your own words')
+    // **Both halves, in one breath**, as talking has them: the person's own
+    // device with full access acts as them, every other device's act is a
+    // request, and what turns the one into the other is unticking something.
+    expect(ACTING_IS_NOT_YOU).toContain('with full access, acts as you')
+    expect(ACTING_IS_NOT_YOU).toContain('untick')
+    expect(ACTING_IS_NOT_YOU).toContain('any other paired device is never your own words')
     for (const never of [
       'change a setting',
       'read a credential',
@@ -745,10 +750,12 @@ describe('the sentences', () => {
     expect(TALKING_IS_NOT_YOU_SHORT.length).toBeLessThan(70)
     expect(TALKING_IS_NOT_YOU_SHORT).toContain('never as your own words')
     expect(TALKING_IS_NOT_YOU_SHORT).toContain('full-access device talks as you')
-    // Short enough to sit on a row beside a control, and still carrying the
-    // half that matters: that a request from a device is a request.
-    expect(ACTING_IS_NOT_YOU_SHORT).toContain('never as your own words')
-    expect(ACTING_IS_NOT_YOU_SHORT.length).toBeLessThan(80)
+    // Short enough to sit on the away panel's foot after `answer & steer: `,
+    // and still carrying both halves: the person's own full-access device
+    // acts as them, and a request from any other device is a request.
+    expect(ACTING_IS_NOT_YOU_SHORT).toContain('full access acts as you')
+    expect(ACTING_IS_NOT_YOU_SHORT).toContain('other devices, as a request')
+    expect(ACTING_IS_NOT_YOU_SHORT.length).toBeLessThan(56)
     // And neither of them says a device acts *for* the person, which is the
     // comfortable phrasing that would make `namedBy` sound like it applied.
     for (const sentence of [ACTING_IS_NOT_YOU, ACTING_IS_NOT_YOU_SHORT]) {

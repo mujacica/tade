@@ -113,27 +113,35 @@ export const AWAY_IS_WHILE_OPEN =
  * with it, and opening it again puts back the root the journal kept — never a
  * path a device named. "Can never change a setting" with that left out would
  * be the comfortable version of this sentence.
+ *
+ * **Both halves, as `TALKING_IS_NOT_YOU` has them**: the person's own device
+ * (`theirsOf`: full access, not a machine link) acts as them — they decided it
+ * may do everything they can here, a revoke away if it is stolen — and every
+ * other device's act is a request. The list of what acting never reaches is
+ * still true of the buttons on either; what the person's own reaches past
+ * it, it reaches by talking to Tade or on Settings, which is said so the two
+ * halves do not read as a contradiction.
  */
 export const ACTING_IS_NOT_YOU =
-  'A request from a paired device is never your own words. On work you already set up it can ' +
-  'answer what an agent is waiting on, tell one something, hold or release queued work, add a ' +
-  'note or a line to what a task is told, mark work finished, and approve a request a grant ' +
-  'here already allowed. A device that may answer is shown the command it is answering, with ' +
-  'this machine’s paths shortened — where the task works as ./, your home as ~, any other ' +
-  'path cut to its last name — and every key Tade holds taken out; one that may not is ' +
-  'shown only the tool’s name. Where you granted that device each of them, it can also ' +
-  'stop an agent or open a stopped one again where it left off, and close a project or open ' +
-  'a closed one again: closing deletes nothing and stops nothing, but the project’s own ' +
-  'settings go with it and opening it puts back only where it lives. Beyond that one line, ' +
-  'acting can never change a ' +
-  'setting — that is a switch of its own — read a credential, run a command, start an agent ' +
-  'that has never run, push, merge or overrule a check. Acting needs this machine itself or an ' +
-  'https origin you named in ' +
-  'Trusted hostnames, so a credential that crossed a network in the clear never buys one — and ' +
-  'every act is in the journal under the device that took it.'
+  'Your own device, with full access, acts as you; untick anything and it is an ordinary device ' +
+  'again. A request from any other paired device is never your own words. On work you already ' +
+  'set up a device can answer what an agent is waiting on, tell one something, hold or release ' +
+  'queued work, add a note or a line to what a task is told, mark work finished, and approve a ' +
+  'request a grant here already allowed. A device that may answer is shown the command it is ' +
+  'answering, with this machine’s paths shortened — where the task works as ./, your home as ~, ' +
+  'any other path cut to its last name — and every key Tade holds taken out; one that may not is ' +
+  'shown only the tool’s name. Where you granted that device each of them, it can also stop an ' +
+  'agent or open a stopped one again where it left off, and close a project or open a closed one ' +
+  'again: closing deletes nothing and stops nothing, but the project’s own settings go with it ' +
+  'and opening it puts back only where it lives. Beyond that one line, acting can never change a ' +
+  'setting — that is a switch of its own — read a credential, run a command, start an agent that ' +
+  'has never run, push, merge or overrule a check; what your own device reaches past that, it ' +
+  'reaches by talking to Tade or on Settings, as you would here. Acting needs this machine ' +
+  'itself or an https origin you named in Trusted hostnames, so a credential that crossed a network in ' +
+  'the clear never buys one — and every act is in the journal under the device that took it.'
 
 /** The short clause, for the one line a control gets. */
-export const ACTING_IS_NOT_YOU_SHORT = 'a device acts as a request, never as your own words'
+export const ACTING_IS_NOT_YOU_SHORT = 'full access acts as you; other devices, as a request'
 
 /**
  * What stays an act at this machine, however much a device is granted.

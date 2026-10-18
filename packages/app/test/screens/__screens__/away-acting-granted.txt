@@ -28,7 +28,7 @@
  ▾ GIT                 │    reads     names   states   counts                                   │                       
    repo     ~/src/check│    may      □ full access  □ answer & steer  □ stop agents             │                       
    branch   …de/stripe-│             □ close projects  □ see screens  □ read settings           │                       
-   from     main       │ answer & steer: a device acts as a request, never as your own words    │                       
+   from     main       │ answer & steer: full access acts as you; other devices, as a request   │                       
    worktree …kout-strip│ an agent on this machine could pair itself     Disconnect everything   │                       
    path     /Users/me/.╰────────────────────────────────────────────────────────────────────────╯                       
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
