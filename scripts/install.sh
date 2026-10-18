@@ -125,6 +125,22 @@ npm_allows_scripts() {
   [ "$npm_major" -eq 11 ] && [ "$npm_minor" -ge 19 ]
 }
 
+# Where npm is to put it, where its own global folder is not this user's.
+#
+# Node from nodejs.org's tarball or a distribution's package keeps npm's
+# global folder under /usr/local or /usr, owned by root, and an ordinary
+# user's `npm install --global` there fails with EACCES after downloading
+# everything. Rule 3 rules out sudo, so it goes in the user's own ~/.local
+# instead — whose bin Debian's and Ubuntu's own profile puts on PATH at the
+# next login — and `report` says where. Root, a version manager and a prefix
+# somebody set are all writable, and get nothing.
+npm_place() {
+  prefix="$(npm prefix --global 2>/dev/null)" || return 0
+  modules="$prefix/lib/node_modules"
+  [ -z "$prefix" ] || [ -w "$modules" ] || { [ ! -d "$modules" ] && [ -w "$prefix" ]; } ||
+    printf -- '--prefix=%s' "$HOME/.local"
+}
+
 # Where the command went, and what to do next. A global install that is not on
 # PATH is the one failure left after a green install, and common enough on a
 # fresh machine to answer here rather than leaving somebody with
@@ -142,7 +158,7 @@ report() {
     return 0
   fi
   case "$1" in
-    npm) bin="$(npm prefix --global 2>/dev/null)/bin" ;;
+    npm) bin="${place#--prefix=}"; bin="${bin:-$(npm prefix --global 2>/dev/null)}/bin" ;;
     pnpm) bin="$(pnpm bin --global 2>/dev/null)" ;;
     bun) bin="$(bun pm bin --global 2>/dev/null)" ;;
   esac
@@ -234,9 +250,10 @@ nodejs.org or a version manager: mise, nvm, volta."
   # and every one of them is this script's own text, from the constants at the
   # top. Nothing a person typed reaches here — the version goes in `$spec`,
   # which is quoted everywhere it is used, and nothing is ever `eval`ed.
+  # `$place` is one word or none, quoted, because it holds $HOME.
   # shellcheck disable=SC2046
   case "$manager" in
-    npm) set -- npm install --global $(approval_for npm) "$spec" ;;
+    npm) place="$(npm_place)" && set -- npm install --global ${place:+"$place"} $(approval_for npm) "$spec" ;;
     pnpm) set -- pnpm add --global $(approval_for pnpm) "$spec" ;;
     bun) set -- bun add --global $(approval_for bun) "$spec" ;;
   esac

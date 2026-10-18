@@ -258,7 +258,9 @@ prints the one command it is about to run, and runs it. Four rules, held by `tes
    `TADE_INSTALL_VERSION` are the same two for somebody who cannot reach `sh -s --`.
 3. **It changes nothing of the machine's but what the package manager changes.** No sudo, no shell
    profile, no PATH written behind somebody's back — where the command lands off PATH it says
-   which directory and what to add. The test holds it to this by pattern, because the failure is
+   which directory and what to add. Where npm's global folder is root's (Node from nodejs.org or a
+   distribution's package) and this is not root, it passes `--prefix=$HOME/.local` (`npm_place`)
+   rather than an install that fails with EACCES after the whole download. The test holds it to this by pattern, because the failure is
    silent: nobody reads an installer afterwards.
 4. **It stays readable.** The budget in the test is on the lines that *do* something, so
    explaining itself costs nothing, and it may go down and never up.

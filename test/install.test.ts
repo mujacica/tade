@@ -69,10 +69,13 @@ function fakeNode(says: string, exits: number): string {
  * below were written on a laptop with npm 11.19.1 and went red on CI's 10.9.9,
  * where the flag is correctly left off.
  */
-function fakeNpm(version: string): string {
+function fakeNpm(version: string, prefix = ''): string {
   const bin = fakeNode(`v${process.versions.node}`, 0)
   const shim = join(bin, 'npm')
-  writeFileSync(shim, `#!/bin/sh\ncase "$1" in --version) echo '${version}' ;; esac\n`)
+  writeFileSync(
+    shim,
+    `#!/bin/sh\ncase "$1" in --version) echo '${version}' ;; prefix) echo '${prefix}' ;; esac\n`,
+  )
   chmodSync(shim, 0o755)
   return bin
 }
@@ -104,7 +107,7 @@ describe('the script itself', () => {
   })
 
   // The budget is on the lines that *do* something, so explaining itself
-  // costs nothing and a wall of shell is still a wall. 125 today; this may go
+  // costs nothing and a wall of shell is still a wall. 131 today; this may go
   // DOWN in the commit that earns it and never up, because the day this needs
   // half as much again is the day it is doing something a person piping it
   // into a shell cannot check.
@@ -252,6 +255,27 @@ describe('a dry run', () => {
       expect(said.stdout.includes('--allow-scripts='), version).toBe(flagged)
     }
   })
+
+  // Node from nodejs.org or a distribution's package keeps npm's global
+  // folder root's, and `npm install --global` there as anybody else is EACCES
+  // after the whole download: found rehearsing a fresh Debian 12 box.
+  it.skipIf(process.getuid?.() === 0)(
+    "installs into the user's own ~/.local where npm's global folder is not theirs",
+    () => {
+      const root = mkdtempSync(join(scratch, 'prefix-'))
+      const home = mkdtempSync(join(scratch, 'home-'))
+      const modules = join(root, 'lib', 'node_modules')
+      execFileSync('mkdir', ['-p', modules])
+      chmodSync(modules, 0o555)
+      const theirs = run(['--npm', '--dry-run'], { PATH: fakeNpm('10.9.9', root), HOME: home })
+      chmodSync(modules, 0o755)
+      expect(theirs.stdout).toContain(
+        `\n  npm install --global --prefix=${home}/.local ${PUBLISHED}\n`,
+      )
+      const mine = run(['--npm', '--dry-run'], { PATH: fakeNpm('10.9.9', root), HOME: home })
+      expect(mine.stdout).toContain(`\n  npm install --global ${PUBLISHED}\n`)
+    },
+  )
 
   it('asks for a version where one was given, and never otherwise', () => {
     expect(run(['--dry-run', '--version', '0.2.0']).stdout).toContain(`${PUBLISHED}@0.2.0`)
