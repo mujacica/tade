@@ -139,6 +139,48 @@ describe('the catalog', () => {
   })
 })
 
+describe('an endpoint written into models.json', () => {
+  it('is a model to choose, and its key is a sign-in, as pi reads it', async () => {
+    // Setup offers "a local model — Ollama, llama.cpp, LM Studio, anything
+    // OpenAI-shaped", which is pi's models.json; read past it, a box set up
+    // that way had no model and was told it was signed in to nothing.
+    const home = tmp('pi-home-')
+    const dir = join(home, '.pi', 'agent')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(
+      join(dir, 'models-store.json'),
+      JSON.stringify({ openrouter: { models: [{ id: 'moonshotai/kimi-k2.6', name: 'Kimi' }] } }),
+    )
+    writeFileSync(
+      join(dir, 'models.json'),
+      JSON.stringify({
+        providers: {
+          ollama: {
+            baseUrl: 'http://localhost:11434/v1',
+            api: 'openai-completions',
+            apiKey: 'ollama',
+            models: [{ id: 'qwen2.5-coder:7b', contextWindow: 32768 }],
+          },
+          // No key: pi then looks in the environment, so nothing here says it is usable.
+          vllm: { baseUrl: 'http://gpu:8000/v1', models: [{ id: 'llama' }] },
+        },
+      }),
+    )
+    expect((await availableModels(home, {})).map((model) => model.id)).toEqual([
+      'openrouter/moonshotai/kimi-k2.6',
+      'ollama/qwen2.5-coder:7b',
+      'vllm/llama',
+    ])
+    expect(await loggedInProviders(home, {})).toEqual(['ollama'])
+    expect(await credentials(home, {})).toEqual({ ollama: 'api-key' })
+    expect((await usableModels(home, {})).map((model) => model.id)).toEqual([
+      'ollama/qwen2.5-coder:7b',
+    ])
+    const adapter = new PiAdapter({ runDir: tmp('tade-pi-'), env: { PI_CODING_AGENT_DIR: dir } })
+    expect(await adapter.account()).toMatchObject({ signedIn: true, who: 'ollama' })
+  })
+})
+
 describe('the model someone meant', () => {
   const catalog: AvailableModel[] = [
     {

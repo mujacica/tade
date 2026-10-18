@@ -37,10 +37,26 @@ export async function availableModels(
   home = homedir(),
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<AvailableModel[]> {
-  const raw = await readJson(join(agentDir(env, home), 'models-store.json'))
-  if (!raw || typeof raw !== 'object') return []
+  const dir = agentDir(env, home)
+  const [store, configured] = await Promise.all([
+    readJson(join(dir, 'models-store.json')),
+    endpoints(dir),
+  ])
+  const providers: Record<string, unknown> = {
+    ...(store && typeof store === 'object' ? (store as Record<string, unknown>) : {}),
+  }
+  // An endpoint somebody wrote into models.json adds to its provider's list,
+  // and replaces a model of the same id, as pi itself reads it.
+  for (const [provider, value] of Object.entries(configured)) {
+    const listed = (providers[provider] as { models?: unknown } | undefined)?.models
+    const ids = new Set(value.models.map((model) => (model as { id?: unknown })?.id))
+    const kept = Array.isArray(listed)
+      ? listed.filter((model) => !ids.has((model as { id?: unknown })?.id))
+      : []
+    providers[provider] = { models: [...kept, ...value.models] }
+  }
   const out: AvailableModel[] = []
-  for (const [provider, value] of Object.entries(raw as Record<string, unknown>)) {
+  for (const [provider, value] of Object.entries(providers)) {
     const models = (value as { models?: unknown })?.models
     if (!Array.isArray(models)) continue
     for (const model of models) {
@@ -64,6 +80,38 @@ export async function availableModels(
   return out
 }
 
+/**
+ * The endpoints written into pi's own `models.json` (pi's "configure a
+ * compatible endpoint"): Ollama, LM Studio, vLLM, a proxy — what setup offers
+ * as "a local model". Each provider's models, and whether it names an `apiKey`,
+ * which pi takes as that provider's credential (a dummy one included: pi's
+ * documentation says the dummy key is what makes the model available). Empty
+ * where there is no file or it is not that shape.
+ */
+async function endpoints(
+  dir: string,
+): Promise<Record<string, { models: unknown[]; keyed: boolean }>> {
+  const raw = await readJson(join(dir, 'models.json'))
+  const providers = (raw as { providers?: unknown } | null)?.providers
+  if (!providers || typeof providers !== 'object') return {}
+  const out: Record<string, { models: unknown[]; keyed: boolean }> = {}
+  for (const [provider, value] of Object.entries(providers as Record<string, unknown>)) {
+    const { models, apiKey } = (value ?? {}) as { models?: unknown; apiKey?: unknown }
+    out[provider] = {
+      models: Array.isArray(models) ? models : [],
+      keyed: typeof apiKey === 'string' && apiKey !== '',
+    }
+  }
+  return out
+}
+
+/** The providers models.json gives a key to, which pi then counts as credentials. */
+async function keyedEndpoints(dir: string): Promise<string[]> {
+  return Object.entries(await endpoints(dir))
+    .filter(([, value]) => value.keyed)
+    .map(([provider]) => provider)
+}
+
 /** A catalog's prices, when every one of them is a number; nothing when any is not. */
 function priceOf(cost: Record<string, unknown> | undefined): ModelPrice | null {
   if (!cost || typeof cost !== 'object') return null
@@ -81,9 +129,10 @@ export async function loggedInProviders(
   home = homedir(),
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<string[]> {
-  const raw = await readJson(join(agentDir(env, home), 'auth.json'))
-  if (!raw || typeof raw !== 'object') return []
-  return Object.keys(raw as Record<string, unknown>)
+  const dir = agentDir(env, home)
+  const raw = await readJson(join(dir, 'auth.json'))
+  const stored = raw && typeof raw === 'object' ? Object.keys(raw as Record<string, unknown>) : []
+  return [...new Set([...stored, ...(await keyedEndpoints(dir))])]
 }
 
 /**
@@ -130,6 +179,7 @@ export async function credentials(
   for (const [provider, keys] of Object.entries(ENV_KEYS)) {
     if (keys.some((key) => (env[key] ?? '') !== '')) out[provider] = 'env-key'
   }
+  for (const provider of await keyedEndpoints(agentDir(env, home))) out[provider] = 'api-key'
   const raw = await readJson(join(agentDir(env, home), 'auth.json'))
   if (raw && typeof raw === 'object') {
     for (const [provider, value] of Object.entries(raw as Record<string, unknown>)) {
