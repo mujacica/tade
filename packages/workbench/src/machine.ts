@@ -1,5 +1,4 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { homedir, userInfo } from 'node:os'
 import { join } from 'node:path'
@@ -9,10 +8,8 @@ import {
   type InstallersHere,
   installWith,
   type MissingProgram,
-  processGroupsOf,
   runProgram,
   SERVICE,
-  type ServiceGroup,
   type ServiceState,
   SHOWN,
   serviceStateOf,
@@ -149,65 +146,6 @@ export async function keptByServiceHere(look: HostLook = {}): Promise<'systemd' 
     timeoutMs: 5_000,
   })
   return active.code === 0 ? 'systemd' : null
-}
-
-/** Nothing, where a file is not there or not ours to read; anything else is thrown. */
-function noneThere(err: unknown): string {
-  const code = (err as NodeJS.ErrnoException).code
-  if (code === 'ENOENT' || code === 'EACCES' || code === 'EPERM' || code === 'ESRCH') return ''
-  throw err
-}
-
-/** A group's id, from the group file — or from `getent` where a directory holds it — or null. */
-export async function groupIdOf(name: string, groupFile = '/etc/group'): Promise<number | null> {
-  const lines = await readFile(groupFile, 'utf8').catch(noneThere)
-  for (const line of lines.split('\n')) {
-    const fields = line.split(':')
-    if (fields[0] === name && /^\d+$/.test(fields[2] ?? '')) return Number(fields[2])
-  }
-  const said = await runProgram('getent', ['group', name], { timeoutMs: SHOW_MS })
-  const gid = said.code === 0 ? said.stdout.trim().split(':')[2] : undefined
-  return gid && /^\d+$/.test(gid) ? Number(gid) : null
-}
-
-/**
- * Whether the running service holds each agent user's group, read off the
- * process — `/proc/<pid>/status` — and off the service manager that started
- * it, since a user service has its groups from that manager and not from the
- * group file: one started before `usermod` keeps the groups it began with,
- * however often the person logs in again. Nothing where it is not running,
- * where `/proc` will not say, or for a user with no group of that name, which
- * setup says on its own (`agentUserTrouble`).
- */
-export async function serviceGroups(
-  users: readonly string[],
-  /** How the service stands — asked of systemd where not given — and where to read. */
-  look: { state?: ServiceState; proc?: string; groupFile?: string } = {},
-): Promise<ServiceGroup[]> {
-  if (users.length === 0) return []
-  const state = look.state ?? (await lookAtService())
-  const pid = state.kind === 'ready' || state.kind === 'starting' ? state.pid : null
-  if (pid === null) return []
-  const proc = look.proc ?? '/proc'
-  // A process that ended between asking and reading is one that holds nothing.
-  const groupsOf = async (of: number) =>
-    processGroupsOf(await readFile(join(proc, String(of), 'status'), 'utf8').catch(noneThere))
-  const service = await groupsOf(pid)
-  if (!service) return []
-  const manager = service.parent === null ? null : await groupsOf(service.parent)
-  const out: ServiceGroup[] = []
-  for (const user of users) {
-    const gid = await groupIdOf(user, look.groupFile)
-    if (gid === null) continue
-    out.push({
-      user,
-      pid,
-      held: service.groups.includes(gid),
-      manager: manager ? manager.groups.includes(gid) : null,
-      uid: service.uid,
-    })
-  }
-  return out
 }
 
 /**

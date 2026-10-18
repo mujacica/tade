@@ -16,7 +16,6 @@ import {
 import { hostname } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import {
-  agentUsers,
   BACKUP_TAG,
   type BackupError,
   type BackupManifest,
@@ -35,7 +34,6 @@ import {
   type SnapshotKept,
   snapshotsSaid,
 } from '@tade/core'
-import { homeOf, ownUser } from './agent-user.ts'
 import { HARNESS_ADAPTERS } from './harnesses.ts'
 import { runningVersion } from './programs.ts'
 
@@ -99,28 +97,20 @@ async function rmdirIfEmpty(folder: string): Promise<void> {
 
 /**
  * Where each harness would keep its agents' conversations on this machine,
- * for Tade's own user and each user its agents run as (`agentUsers`), whether
- * or not the folder is there yet. Every registered harness is asked, not only
- * the ones in use: one used last month still holds the conversations of the
- * tasks it ran. Asking makes an adapter and nothing else — no I/O in a
- * constructor — and a user the config names and this machine has not got
- * keeps nothing here.
+ * whether or not the folder is there yet. Every registered harness is asked,
+ * not only the ones in use: one used last month still holds the conversations
+ * of the tasks it ran. Asking makes an adapter and nothing else — no I/O in a
+ * constructor.
  */
 export async function recordsFolders(place: BackupPlace): Promise<RecordsFolder[]> {
-  const users: (string | null)[] = [null, ...agentUsers(place.config, ownUser())]
   const all: RecordsFolder[] = []
-  for (const user of users) {
-    const home = user === null ? undefined : await homeOf(user)
-    if (user !== null && !home) continue
-    for (const [harness, make] of Object.entries(HARNESS_ADAPTERS)) {
-      const adapter = make({
-        runDir: join(place.home, 'runs'),
-        socketDir: join(place.home, 'runs'),
-        approvals: 'bypass',
-        ...(user !== null && home ? { user, home } : {}),
-      })
-      for (const path of adapter.records?.() ?? []) all.push({ harness, user, path })
-    }
+  for (const [harness, make] of Object.entries(HARNESS_ADAPTERS)) {
+    const adapter = make({
+      runDir: join(place.home, 'runs'),
+      socketDir: join(place.home, 'runs'),
+      approvals: 'bypass',
+    })
+    for (const path of adapter.records?.() ?? []) all.push({ harness, user: null, path })
   }
   return all
 }

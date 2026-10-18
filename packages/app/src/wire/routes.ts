@@ -500,7 +500,7 @@ export class Routes implements Subject {
       const as = done.account ?? own ?? 'its own sign-in'
       notify(
         this.wire,
-        `${task} runs as ${as}${done.carried ? ', its conversation with it' : ''}${done.restarted ? ', started again there' : ' from its next start'}${done.why ? ` — ${done.why}` : ''}`,
+        `${task} runs as ${as}${done.carried ? ', its conversation with it' : ''}${done.restarted ? ', started again there' : ' from its next start'}`,
       )
     } catch (err) {
       notify(this.wire, why(err))

@@ -35,38 +35,22 @@ export interface HarnessOptions {
   args?: string[]
   /** The environment its processes start from, when not this one's. */
   env?: NodeJS.ProcessEnv
-  /**
-   * The Unix user its agents run as, when not Tade's own (`agents.user`):
-   * `home` is then that user's and `runDir` and `socketDir` are in its share,
-   * so what a launch hands its harness is what that user can read.
-   */
-  user?: string
 }
 
 /**
  * How an account's adapter is filed beside its harness's own: `claude-code`
- * for the harness's own sign-in, `claude-code@work` for the account "work" —
- * and `claude-code~tade-agent` for the harness as run by another user, on its
- * own sign-in, or `claude-code@work~tade-agent` on that user's sign-in of the
- * account (kept in its home, `agentAccountDir`, never the folder in Tade's).
+ * for the harness's own sign-in, `claude-code@work` for the account "work".
  */
-export function adapterKey(harness: string, account?: string | null, user?: string | null): string {
-  return `${harness}${account ? `@${account}` : ''}${user ? `~${user}` : ''}`
+export function adapterKey(harness: string, account?: string | null): string {
+  return account ? `${harness}@${account}` : harness
 }
 
-/** The harness, account and user an adapter is filed under, read back out of its key. */
-export function adapterParts(key: string): {
-  harness: string
-  account: string | null
-  user: string | null
-} {
-  const tilde = key.indexOf('~')
-  const user = tilde === -1 ? null : key.slice(tilde + 1)
-  const rest = tilde === -1 ? key : key.slice(0, tilde)
-  const at = rest.indexOf('@')
+/** The harness and account an adapter is filed under, read back out of its key. */
+export function adapterParts(key: string): { harness: string; account: string | null } {
+  const at = key.indexOf('@')
   return at === -1
-    ? { harness: rest, account: null, user }
-    : { harness: rest.slice(0, at), account: rest.slice(at + 1), user }
+    ? { harness: key, account: null }
+    : { harness: key.slice(0, at), account: key.slice(at + 1) }
 }
 
 /** Where Tade keeps an API-key account's key: named so no extension's can collide with it. */

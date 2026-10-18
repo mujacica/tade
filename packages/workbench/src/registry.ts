@@ -3,8 +3,6 @@ import { existsSync } from 'node:fs'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import {
-  asAgent,
-  CARRIED,
   type Config,
   givesWay,
   type LaneId,
@@ -28,9 +26,6 @@ import { PtyDriver } from '@tade/drivers-pty'
 import { TmuxDriver } from '@tade/drivers-tmux'
 import { z } from 'zod'
 import type { EventLog } from './events.ts'
-
-/** The PATH an agent made another user is handed: this process's, read at the launch. */
-const PATH_HERE = (): string => process.env.PATH ?? '/usr/local/bin:/usr/bin:/bin'
 
 // The lane registry: which lanes exist, which task each belongs to, and enough
 // detail to relaunch them. Persisted on every mutation and reconciled against
@@ -129,12 +124,6 @@ export const LaneRecord = z.object({
   harness: z.string().optional(),
   /** The account it runs as, when not its harness's own sign-in. */
   account: z.string().optional(),
-  /**
-   * The Unix user it runs as, when not Tade's own (`agents.user`): so a
-   * window that finds it again supervises it on the socket in that user's
-   * share, and a lane put back runs as that user again.
-   */
-  user: z.string().optional(),
 })
 export type LaneRecord = z.infer<typeof LaneRecord>
 
@@ -171,12 +160,6 @@ export interface SpawnRequest {
   harness?: string
   /** For an agent: the account it runs as, when not its harness's own. */
   account?: string
-  /**
-   * For an agent: the Unix user it runs as, when not Tade's own. Its line is
-   * run through `sudo` as that user at every launch (`asAgent`) and the
-   * stored spec stays the agent's own line, as with `giveWay`.
-   */
-  user?: string
   /** Run again in the place of a lane under the same id: when that one's tab was opened. */
   openedAt?: number
   /**
@@ -348,14 +331,7 @@ export class LaneRegistry {
     // the kind is what decides, not the caller.
     const line = { command: req.command, args: [...(req.args ?? []), ...(req.opening ?? [])] }
     const prepared = req.before ? setupLine({ ...req.before, node: process.execPath, line }) : line
-    // As its own user, outermost but for `nice`: its setup runs as that user
-    // too, in the worktree that user's agent will work in (`agent-user.ts`).
-    const lowered = niced(
-      req.user
-        ? asAgent(prepared, req.user, [...Object.keys(req.env ?? {}), ...CARRIED], PATH_HERE())
-        : prepared,
-      this.lowerBy(req),
-    )
+    const lowered = niced(prepared, this.lowerBy(req))
     const spec: LaneSpec = {
       id: req.id,
       cwd: req.cwd,
@@ -383,7 +359,6 @@ export class LaneRegistry {
       lastOutputAt: null,
       ...(req.harness ? { harness: req.harness } : {}),
       ...(req.account ? { account: req.account } : {}),
-      ...(req.user ? { user: req.user } : {}),
     }
     this.lanes.set(req.id, record)
     this.watch(record)
@@ -425,7 +400,6 @@ export class LaneRegistry {
       ...(record.spec.rows ? { rows: record.spec.rows } : {}),
       ...(record.harness ? { harness: record.harness } : {}),
       ...(record.account ? { account: record.account } : {}),
-      ...(record.user ? { user: record.user } : {}),
       title: record.title,
     })
   }

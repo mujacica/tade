@@ -6,10 +6,7 @@ import {
   AccountName,
   type Asker,
   accountFor,
-  agentShare,
-  agentUsers,
   type Caution,
-  CHATS,
   type Config,
   ConfigSchema,
   composeAgentPrompt,
@@ -86,24 +83,7 @@ import type { Reporter } from '@tade/telemetry'
 import { parse as parseYaml } from 'yaml'
 import type { AccountView } from './accounts.ts'
 import { askPlans, harnessAccount, listAccounts, planSources } from './accounts.ts'
-import { answerAgentTool, DOCUMENT_READY } from './agent-tools.ts'
-import {
-  type AgentUser,
-  accountFolderOf,
-  adapterOfUser,
-  agentUserFor,
-  bringDocumentHome,
-  carryRefused,
-  closeHome,
-  contextFor,
-  documentsFor,
-  homeOf,
-  ownUser,
-  sandboxWrites,
-  sharedDocument,
-  shareReady,
-  shareSetupLog,
-} from './agent-user.ts'
+import { answerAgentTool } from './agent-tools.ts'
 import { recordAuthored } from './authored.ts'
 import { guardBudget } from './budget.ts'
 import { checksGate, checksTold, sharesCheckout } from './checks.ts'
@@ -383,22 +363,6 @@ export class Workbench {
       for (const said of loaded.ok ? loaded.warnings : []) {
         await log.append({ type: 'warning', detail: { message: `config.yaml: ${said}` } })
       }
-      // Where agents run as a user of their own, what Tade makes in a checkout
-      // is their group's to write — and Tade is in that group, so what they
-      // make is Tade's — while Tade's home is closed to everybody else
-      // (`agent-user.ts`). Narrowed here, at every open, like `config.yaml`.
-      if (agentUsers(config, ownUser()).length > 0) {
-        process.umask(0o007)
-        const closed = await closeHome(opts.home).then(
-          (changed) =>
-            changed
-              ? `closed ${opts.home} to everybody else: agents here run as a user of their own, and nothing of Tade's is theirs to read`
-              : null,
-          (err: unknown) =>
-            `could not close ${opts.home} to everybody else, so agents running as their own user may read what is in it: ${(err as Error).message}`,
-        )
-        if (closed) await log.append({ type: 'warning', detail: { message: closed } })
-      }
       // One adapter per harness there is; the route's is the default.
       const harnessOptions: HarnessOptions = {
         runDir: join(opts.home, 'runs'),
@@ -448,11 +412,7 @@ export class Workbench {
           void takeTitle(opts.home, task, title, named).catch(() => {})
         },
         // A tool an agent calls runs in this process: Tade's own, or an extension's.
-        onExtensionCall: async (call) => {
-          if (call.tool === DOCUMENT_READY) await workbench.handOver(call.task)
-          return answerAgentTool({ ...opts, log, tasks: () => workbench }, call)
-        },
-        handOver: (task) => workbench.handOver(task),
+        onExtensionCall: (call) => answerAgentTool({ ...opts, log, tasks: () => workbench }, call),
         // And so does a second reading of what it is about to run. Left out
         // where there are no extensions, which is the gate Tade has on its own.
         ...(opts.extensions
@@ -527,17 +487,16 @@ export class Workbench {
       // By the harness it was started in: another adapter would listen on a
       // channel its agent never dials.
       const harness = lane.harness ?? (await this.harnessOf(lane.task))
-      // And the account it was started on, or the user it runs as, whose
-      // adapter is made again here — the latter listening in that user's share.
+      // And the account it was started on, whose adapter is made again here.
       const resumed = await Promise.resolve()
-        .then(() => this.laneAdapter(harness, lane))
+        .then(() => this.adapterFor(harness, lane.account))
         .then(() =>
           this.workers.resume({
             task: lane.task as never,
             run: lane.id as RunId,
             cwd: lane.spec.cwd,
             prompt: '',
-            harness: adapterKey(harness, lane.account, lane.user),
+            harness: adapterKey(harness, lane.account),
           }),
         )
         .catch(() => null)
@@ -576,7 +535,7 @@ export class Workbench {
       if (lane.kind !== 'agent') continue
       const harness = lane.harness ?? (await this.harnessOf(lane.task))
       const adapter = await Promise.resolve()
-        .then(() => this.laneAdapter(harness, lane))
+        .then(() => this.adapterFor(harness, lane.account))
         .catch(() => null)
       const session = await Promise.resolve()
         .then(() => adapter?.spent(lane.task as TaskId, lane.spec.cwd) ?? noHarnessSpend())
@@ -1460,17 +1419,10 @@ export class Workbench {
       throw new Error(`${req.task} already has an agent running: steer it or stop it first`)
     }
     const harness = req.harness ?? (await this.harnessOf(req.task))
-    // The user it runs as, where the config names one other than Tade's own:
-    // that user's own sign-in, its share, its harness's sandbox (`agent-user.ts`).
-    const as = await agentUserFor(this.config, req.task.split('/')[0] ?? '', ownUser())
-    if (as) await shareReady(as)
     // A name the own sign-in was given is the own sign-in (`signInChosen`).
     const named = req.account ? signInChosen(this.config, harness, req.account) : null
-    const chosenAccount = req.account
-      ? (named ?? undefined)
-      : await this.accountOf(req.task, harness)
-    const account = as ? await this.accountAs(req.task, harness, chosenAccount, as) : chosenAccount
-    const adapter = as ? this.adapterAs(harness, as, account) : this.adapterFor(harness, account)
+    const account = req.account ? (named ?? undefined) : await this.accountOf(req.task, harness)
+    const adapter = this.adapterFor(harness, account)
     const extras = withTade(
       req.extras ??
         this.extensions?.extras({
@@ -1479,7 +1431,7 @@ export class Workbench {
           cwd: req.cwd,
           harness,
         }),
-      await this.agentPrompt(req.task, req.cwd, adapter.capabilities.done, as),
+      await this.agentPrompt(req.task, req.cwd, adapter.capabilities.done),
     )
     const { chosen } = await taskSaid(this.home, req.task)
     // Titled by its work, never by what it is told first (`titleForWork`).
@@ -1508,10 +1460,6 @@ export class Workbench {
       ...(extras ? { extras } : {}),
       ...(model ? { model } : {}),
       ...(thinking ? { thinking } : {}),
-      // Its harness's own sandbox, where it runs as a user of its own: the
-      // user keeps Tade's home and keys from it, the sandbox what its commands
-      // may write. A harness with none says so (`capabilities.why.sandbox`).
-      ...(as ? { sandbox: { writes: await sandboxWrites(req.cwd, as) } } : {}),
       lane,
     }
     // Listen before launching: the channel has to exist for the agent's very
@@ -1522,7 +1470,7 @@ export class Workbench {
       run: lane as RunId,
       model: spec.model,
       ...(spec.thinking ? { thinking: spec.thinking } : {}),
-      harness: adapterKey(harness, account, as?.name),
+      harness: adapterKey(harness, account),
       ...(extras ? { extras } : {}),
     })
     const launch = adapter.launchSpec(spec)
@@ -1538,19 +1486,12 @@ export class Workbench {
         // back later must not repeat the instruction it opened with.
         ...(launch.opening ? { opening: launch.opening } : {}),
         // A new agent in a new worktree: its setup first, in this lane (`prepare.ts`).
-        ...(await setupBefore(
-          this.home,
-          this.config,
-          req.task,
-          !resuming && req.prompt !== '',
-          as ? shareSetupLog(req.task, as) : undefined,
-        )),
+        ...(await setupBefore(this.home, this.config, req.task, !resuming && req.prompt !== '')),
         env: launch.env,
         title: req.task,
         harness,
         giveWay: this.config.agents.give_way,
         ...(account ? { account } : {}),
-        ...(as ? { user: as.name } : {}),
         ...(req.openedAt !== undefined ? { openedAt: req.openedAt } : {}),
       })
       this.followExit(lane)
@@ -1568,38 +1509,23 @@ export class Workbench {
    * harness's agents run under, for that account, which is the only thing
    * that may read its store (`WorkerAdapter.sessions`).
    */
-  async sessionsIn(req: {
+  sessionsIn(req: {
     harness: string
     account?: string | null
     cwd: string
     tasks: readonly TaskId[]
   }): Promise<HarnessSession[]> {
-    // Asked of the adapter the tasks' agents run under: as a user of their
-    // own, that user's harness keeps them, in its home, read through the group.
-    const project = (req.tasks[0] ?? CHATS).split('/')[0] ?? CHATS
-    const as = await agentUserFor(this.config, project, ownUser())
-    const adapter = as
-      ? this.adapterAs(req.harness, as, this.userAccount(req.account ?? undefined))
-      : this.adapterFor(req.harness, req.account)
-    return adapter.sessions(req.cwd, req.tasks)
+    return this.adapterFor(req.harness, req.account).sessions(req.cwd, req.tasks)
   }
 
-  /**
-   * Have a task's agent carry on one of a folder's conversations
-   * (`WorkerAdapter.carrySession`). Refused, in words, for an agent of its own
-   * user: carrying is a file Tade writes beside that user's, which that user's
-   * harness then could not open — so it would start over while looking as
-   * though it had carried on.
-   */
-  async carrySession(req: {
+  /** Have a task's agent carry on one of a folder's conversations (`WorkerAdapter.carrySession`). */
+  carrySession(req: {
     harness: string
     account?: string | null
     session: string
     task: TaskId
     cwd: string
   }): Promise<boolean> {
-    const as = await agentUserFor(this.config, req.task.split('/')[0] ?? '', ownUser())
-    if (as) throw new Error(carryRefused(as.name))
     return this.adapterFor(req.harness, req.account).carrySession(req.session, req.task, req.cwd)
   }
 
@@ -1617,46 +1543,17 @@ export class Workbench {
     const harness = await this.harnessOf(task)
     const account = await this.accountOf(task, harness)
     return Promise.resolve()
-      .then(async () => {
-        const as = await agentUserFor(this.config, task.split('/')[0] ?? '', ownUser())
-        const adapter = as
-          ? this.adapterAs(harness, as, this.userAccount(account))
-          : this.adapterFor(harness, account)
-        return adapter.hasConversation(task as TaskId, cwd)
-      })
+      .then(() => this.adapterFor(harness, account).hasConversation(task as TaskId, cwd))
       .catch(() => false)
   }
 
   /** What an agent starting on a task is told about where it is. */
-  private async agentPrompt(
-    task: string,
-    cwd: string,
-    canSayDone: boolean,
-    as: AgentUser | null = null,
-  ): Promise<string> {
+  private async agentPrompt(task: string, cwd: string, canSayDone: boolean): Promise<string> {
     const project = task.split('/')[0] ?? ''
     const configured = this.config.projects[project]
     const { intent, produces, workspace, replay } = await taskSaid(this.home, task)
     const head = await git(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
     const context = taskContextPath(this.home, task)
-    // As a user of its own, everything it is pointed at has to be somewhere it
-    // can open: its context copied into its share, its document written there
-    // and brought home when it hands it over (`handOver`), its setup's log
-    // there — and the project's documents folder, which is in Tade's closed
-    // home, not named at all rather than named and refused.
-    const where = as
-      ? {
-          context: await contextFor(this.home, task, as),
-          documents: await this.documentsAs(task, project, as),
-          setupLog: shareSetupLog(task, as),
-          produced: (name: string) => sharedDocument(task, as, name),
-        }
-      : {
-          context: existsSync(context) ? context : null,
-          documents: documentsFolder(this.home, project),
-          setupLog: undefined,
-          produced: (name: string) => producesPath(this.home, task, name),
-        }
     return composeAgentPrompt({
       task,
       project,
@@ -1665,9 +1562,8 @@ export class Workbench {
       intent,
       branch: head.ok ? head.stdout.trim() : '',
       notes: this.memory.recall(task),
-      context: where.context,
-      documents: where.documents,
-      ...(as && where.documents ? { documentsCopied: true } : {}),
+      context: existsSync(context) ? context : null,
+      documents: documentsFolder(this.home, project),
       workspace,
       commit: this.config.agents.commit,
       instructions: this.config.agents.instructions,
@@ -1675,117 +1571,15 @@ export class Workbench {
       push: replay ? 'never' : pushFor(this.config, project, workspace).mode,
       ...(configured?.test_command ? { testCommand: configured.test_command } : {}),
       ...(await checksTold({ config: this.config, home: this.home }, project, cwd, task)),
-      ...(await setupTold(this.home, task, where.setupLog)),
+      ...(await setupTold(this.home, task)),
       // The resolved path, not the name: the agent is told the one place to
       // write it, and a hand-edited name Tade would not have written is left
       // out rather than joined onto a path.
-      ...(produces && !producesProblem(produces) ? { produces: where.produced(produces) } : {}),
+      ...(produces && !producesProblem(produces)
+        ? { produces: producesPath(this.home, task, produces) }
+        : {}),
       canSayDone,
     })
-  }
-
-  /**
-   * Bring a task's document into Tade's home from its agent's share, where
-   * its agent runs as a user of its own and wrote it there: before what it
-   * hands over is read (`document_ready`, `done`), so the orchestrator is sent
-   * to a path in the home like every other document's. Copied, never moved —
-   * the agent may go on writing it — and only where the share's is there.
-   */
-  async handOver(task: string): Promise<void> {
-    // A user that has gone throws, and whoever asked says so: the document
-    // would otherwise be read as never written.
-    const as = await agentUserFor(this.config, task.split('/')[0] ?? '', ownUser())
-    if (!as) return
-    const { produces } = await taskSaid(this.home, task)
-    if (produces) await bringDocumentHome(this.home, task, as, produces)
-  }
-
-  /**
-   * A harness's adapter for agents run as another user: that user's home for
-   * its own sign-in and records, its share for the files a launch hands it
-   * and the socket its hooks reach (`agent-user.ts`). Made the first time an
-   * agent needs it, and answering that user's runs from then on.
-   */
-  private adapterAs(harness: string, as: AgentUser, account?: string | null): WorkerAdapter {
-    const key = adapterKey(harness, account, as.name)
-    const known = this.adapters[key]
-    if (known) return known
-    // That user's sign-in of the account where one is named, in its own home.
-    const made = adapterOfUser(harness, as, account ?? null, this.harnessOptions)
-    if (!made) {
-      throw new Error(
-        `no harness called ${harness}: Tade runs ${Object.keys(HARNESS_ADAPTERS).join(', ')}`,
-      )
-    }
-    this.adapters[key] = made
-    this.workers.add(key, made)
-    return made
-  }
-
-  /** The account an agent of its own user runs on, of the one chosen: a subscription's, never a key's. */
-  private userAccount(chosen: string | null | undefined): string | undefined {
-    return chosen && this.config.accounts[chosen]?.kind === 'subscription' ? chosen : undefined
-  }
-
-  /**
-   * The account an agent of its own user starts on: that user's sign-in of
-   * the one chosen, in a folder of its own in that user's home
-   * (`agentAccountDir`), made and signed in by setup as that user — never the
-   * folder in Tade's home, which it cannot open, and never a copy of it.
-   *
-   * One with no such folder refuses the start with the setup line, rather
-   * than starting the agent on a sign-in other than the one chosen. An API-key
-   * account's key is in Tade's config, which that user cannot read and is
-   * never handed, so that agent runs on the user's own sign-in, and is said.
-   */
-  private async accountAs(
-    task: string,
-    harness: string,
-    chosen: string | undefined,
-    as: AgentUser,
-  ): Promise<string | undefined> {
-    if (!chosen) return undefined
-    const account = this.userAccount(chosen)
-    if (!account) {
-      await this.log.append({
-        type: 'warning',
-        task,
-        detail: {
-          message: `${task}'s agent runs as ${as.name}, on ${as.name}'s own ${harness} sign-in: ${chosen} is paid for with a key in Tade's config, which ${as.name} cannot read and is never handed`,
-        },
-      })
-      return undefined
-    }
-    await accountFolderOf(as, account, task)
-    return account
-  }
-
-  /**
-   * The project's documents folder as an agent of its own user is given it: a
-   * copy in its share, read-only (`documentsFor`). A copy that could not be
-   * made is said and the folder left out, rather than the agent not starting.
-   */
-  private async documentsAs(task: string, project: string, as: AgentUser): Promise<string | null> {
-    try {
-      return await documentsFor(this.home, project, as)
-    } catch (err) {
-      await this.log.append({
-        type: 'warning',
-        task,
-        detail: {
-          message: `could not share ${project}'s documents with ${as.name}, so its agent is not told where they are: ${err instanceof Error ? err.message : String(err)}`,
-        },
-      })
-      return null
-    }
-  }
-
-  /** The adapter a lane was started under: its user's where it ran as one, else its account's. */
-  private async laneAdapter(harness: string, lane: LaneRecord): Promise<WorkerAdapter> {
-    if (!lane.user) return this.adapterFor(harness, lane.account)
-    const home = await homeOf(lane.user)
-    if (!home) throw new Error(`there is no user ${lane.user} here any more`)
-    return this.adapterAs(harness, { name: lane.user, home, share: agentShare(home) }, lane.account)
   }
 
   /**
@@ -2083,22 +1877,19 @@ export class Workbench {
     task: string
     worktree: string
     account: string | null
-  }): Promise<{ account: string | null; restarted: boolean; carried: boolean; why?: string }> {
+  }): Promise<{ account: string | null; restarted: boolean; carried: boolean }> {
     const harness = await this.harnessOf(req.task)
     req = { ...req, account: signInChosen(this.config, harness, req.account) }
     if (req.account && this.config.accounts[req.account]?.harness !== harness) {
       throw new Error(`${req.account} is not a ${harness} account`)
     }
-    const as = await agentUserFor(this.config, req.task.split('/')[0] ?? '', ownUser())
     const from = this.adapterFor(harness, await this.accountOf(req.task, harness))
     const to = this.adapterFor(harness, req.account ?? undefined)
     const lane = `${req.task}/agent` as LaneId
     const running = this.registry.get(lane)?.alive === true
     if (running) await this.stopAgent(req.task)
-    // As a user of its own, both sign-ins are in that user's home, where a
-    // copy Tade wrote would be one that user's harness could not open.
     const carried =
-      !as && from !== to
+      from !== to
         ? await from.carryConversation(req.task as TaskId, req.worktree, to).catch(() => false)
         : false
     // Its own sign-in said as such, so a project or a machine that runs new
@@ -2117,12 +1908,7 @@ export class Workbench {
       task: req.task,
       detail: { account: req.account ?? 'default', carried, by: 'you' },
     })
-    return {
-      account: req.account,
-      restarted: running,
-      carried,
-      ...(as ? { why: carryRefused(as.name) } : {}),
-    }
+    return { account: req.account, restarted: running, carried }
   }
 
   /**

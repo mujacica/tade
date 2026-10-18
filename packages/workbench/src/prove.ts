@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { asAgent, type LaneId, type LaneProof } from '@tade/core'
+import type { LaneId, LaneProof } from '@tade/core'
 import type { WorkspaceDriver } from '@tade/drivers-core'
 import { drivers } from './registry.ts'
 
@@ -43,22 +43,7 @@ export interface ProveOptions {
   /** Injected by tests; the registry's own otherwise. */
   make?: (home: string) => WorkspaceDriver
   deadlineMs?: number
-  /**
-   * Open it as an agent user would be (`asAgent`), and have it try to read
-   * `config`: proved only where it comes back as that user and the file stays
-   * shut — the sudo rule, Node reachable to that user, the driver, and Tade's
-   * home closed, in one act.
-   */
-  as?: { user: string; config: string }
 }
-
-/**
- * What the lane prints as an agent user: the word, who it is, and whether the
- * file it was handed opened — `tade-lane-ok tade-agent shut`.
- */
-const AS_SPELL =
-  "let k='shut';try{require('node:fs').readFileSync(process.argv[1]);k='open'}catch{}" +
-  "process.stdout.write(['tade','lane','ok'].join('-')+' '+require('node:os').userInfo().username+' '+k)"
 
 /**
  * Open a lane, run a command in it, close it — and say what happened.
@@ -91,15 +76,14 @@ export async function proveALane(opts: ProveOptions): Promise<LaneProof> {
     const exit = new Promise<{ code: number | null }>((resolve) => {
       settle = resolve
     })
-    const line = opts.as
-      ? asAgent(
-          { command: process.execPath, args: ['-e', AS_SPELL, opts.as.config] },
-          opts.as.user,
-          [],
-          process.env.PATH ?? '',
-        )
-      : { command: process.execPath, args: ['-e', SPELL] }
-    await driver.open({ id, cwd: opts.cwd, ...line, cols: COLS, rows: ROWS })
+    await driver.open({
+      id,
+      cwd: opts.cwd,
+      command: process.execPath,
+      args: ['-e', SPELL],
+      cols: COLS,
+      rows: ROWS,
+    })
     // Subscribed after the open and replayed, because a program this small can
     // be finished before anybody is listening.
     driver.onOutput(id, (chunk) => seen.push(Buffer.from(chunk).toString('utf8')), { replay: true })
@@ -137,28 +121,6 @@ export async function proveALane(opts: ProveOptions): Promise<LaneProof> {
         ok: false,
         driver: driver.id,
         says: `a lane opened under ${driver.id} and nothing it printed came back${tail}`,
-      }
-    }
-    if (opts.as) {
-      const found = new RegExp(`${MARKER} (\\S+) (open|shut)`).exec(`${said}${screen}`)
-      if (found?.[1] !== opts.as.user) {
-        return {
-          ok: false,
-          driver: driver.id,
-          says: `a lane opened under ${driver.id} meant to run as ${opts.as.user} ran as ${found?.[1] ?? 'nobody it said'}`,
-        }
-      }
-      if (found[2] === 'open') {
-        return {
-          ok: false,
-          driver: driver.id,
-          says: `a lane opened as ${opts.as.user}, and ${opts.as.user} can read ${opts.as.config}: Tade's home is not closed to it`,
-        }
-      }
-      return {
-        ok: true,
-        driver: driver.id,
-        says: `opened a lane under ${driver.id} as ${opts.as.user}, which cannot read ${opts.as.config}`,
       }
     }
     return {
