@@ -5,11 +5,15 @@ import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
 import { ROUTES } from '../src/routes.ts'
 import {
+  AXE_CORE,
   allUnrun,
+  axeRefused,
   CHECKS,
   exitFor,
+  INSTALL,
   LOOKS,
   MANUAL,
+  PLAYWRIGHT_AT,
   READY,
   sayReport,
   WIDTHS,
@@ -191,6 +195,38 @@ describe('the harness itself', () => {
     const text = readFileSync(SCRIPT, 'utf8')
     expect(text).toContain('pnpm add -D')
     expect(text).toContain('playwright install chromium')
+    // **With the exact versions**, the ones `axeRefused` holds it to: an
+    // install line with none hands the verdict to whatever the registry has
+    // that day.
+    expect(text).toContain(INSTALL.split(' && ')[0])
+    const skill = readFileSync(
+      join(
+        import.meta.dirname,
+        '..',
+        '..',
+        '..',
+        '.claude',
+        'skills',
+        'add-away-surface',
+        'SKILL.md',
+      ),
+      'utf8',
+    )
+    expect(skill).toContain(INSTALL)
+  })
+
+  it('refuses, with the pinned install line, under any axe-core but the one it is held to', () => {
+    // axe-core 4.14.0 made `label-content-name-mismatch` serious and turned one
+    // run into 93 failures with the page unchanged, so an unpinned axe-core is
+    // a verdict nobody chose.
+    expect(AXE_CORE).toMatch(/^\d+\.\d+\.\d+$/)
+    expect(PLAYWRIGHT_AT).toMatch(/^\d+\.\d+\.\d+$/)
+    expect(axeRefused(AXE_CORE)).toBeNull()
+    for (const other of ['4.10.3', '4.15.0', `${AXE_CORE}-canary.1`]) {
+      const said = axeRefused(other) ?? ''
+      expect(said, other).toContain(`axe-core ${other} is installed`)
+      expect(said, other).toContain(INSTALL)
+    }
   })
 
   it('runs, reports unrun, and exits 2 when no browser can be started', async () => {

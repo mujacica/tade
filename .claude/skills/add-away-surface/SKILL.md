@@ -1011,18 +1011,24 @@ one `outline: none` in the stylesheet is named with its argument.
 `scripts/browser.ts` is the other half and it needs a real browser:
 
 ```
-pnpm add -D -w playwright axe-core && pnpm exec playwright install chromium
+pnpm add -D -w playwright@1.64.1 axe-core@4.14.0 && pnpm exec playwright install chromium
 node packages/web/scripts/browser.ts --shots /tmp/away
 # or, with a Chrome the machine already has:
 TADE_BROWSER='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
   node packages/web/scripts/browser.ts
 ```
 
+**The versions are exact** (`AXE_CORE`, `PLAYWRIGHT_AT` in `test/browser-plan.ts`): neither is in the
+lockfile, so the install would decide the verdict — axe-core 4.14.0 turned one unchanged run into 93
+failures — and under any other axe-core the script refuses with the pinned install line and exits 2.
+Moving the pin is a deliberate act: change it there and here, and run the harness under the new one.
+
 It pairs a device through the real page, visits every route at 360/834/1440, runs axe, and checks the
 landmarks, the targets and that nothing scrolls sideways — at every width, not only the phone's.
 **It pairs exactly five times, which is the server's limit per address in ten minutes**, so a new
 check rides on a device already paired (`browser-desk.ts` does) rather than pairing a sixth. **It pairs three times**: a device granted
-nothing, which is what the honesty checks are for; one granted everything at the widest width —
+nothing, which is what the honesty checks are for; one granted everything, at the widest width and then
+resized to 360px — the phone is what the person holds —
 because every figure draws differently with the grant, and the page with actual money, notes and
 sign-ins on it is the one the owner will look at; and one granted **both acting tiers** at 360px,
 where the three checks only a browser can answer live (`controls`, `touch`, `typing`): that what a

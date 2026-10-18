@@ -210,6 +210,26 @@ export const MANUAL: readonly string[] = [
 ]
 
 /**
+ * The two versions the harness's verdicts were written against, exactly.
+ *
+ * **Neither is in the lockfile, on purpose** (`browser.test.ts` holds that), so
+ * without a pin the machine's install decides the verdict: axe-core 4.14.0 made
+ * `label-content-name-mismatch` serious, and the same page went from passing to
+ * 93 failures with nobody changing a line of it. axe-core is the one that is
+ * refused when it differs, because its rules *are* the verdict; Playwright only
+ * drives the browser, so it is named for the install line and not checked.
+ */
+export const AXE_CORE = '4.14.0'
+export const PLAYWRIGHT_AT = '1.64.1'
+export const INSTALL = `pnpm add -D -w playwright@${PLAYWRIGHT_AT} axe-core@${AXE_CORE} && pnpm exec playwright install chromium`
+
+/** Why the harness will not run under the axe-core this machine has, or null when it will. */
+export function axeRefused(installed: string): string | null {
+  if (installed === AXE_CORE) return null
+  return `axe-core ${installed} is installed and this harness is held to ${AXE_CORE}, whose rules its verdicts were written against — a different axe-core answers a different question about the same page. Install the pinned one: ${INSTALL}`
+}
+
+/**
  * Every check, unrun, with one reason — what a machine with no browser reports.
  *
  * One row per check rather than one line saying "skipped", because a report

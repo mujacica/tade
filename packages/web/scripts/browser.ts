@@ -10,6 +10,7 @@ import { OFF } from '../src/surface.ts'
 import { Tickets } from '../src/tickets.ts'
 import {
   allUnrun,
+  axeRefused,
   exitFor,
   type Finding,
   LOOKS,
@@ -50,7 +51,11 @@ import { until } from './browser-until.ts'
 // line that `pnpm install` runs two scripts and installs nothing else. So they
 // are **optional, on the machine**:
 //
-//   pnpm add -D -w playwright axe-core && pnpm exec playwright install chromium
+//   pnpm add -D -w playwright@1.64.1 axe-core@4.14.0 && pnpm exec playwright install chromium
+//
+// **Those exact versions** (`AXE_CORE`, `PLAYWRIGHT_AT` in `browser-plan.ts`):
+// with nothing in a lockfile, the install decides the verdict, so under any
+// other axe-core the script refuses to run and says why.
 //
 // or, with a Chrome the machine already has and no download at all:
 //
@@ -219,13 +224,24 @@ async function browser(): Promise<{ made: Engine | null; why: string }> {
   }
 }
 
-/** `axe-core`'s own source, to run inside the page, or the reason there is none. */
-async function axeSource(): Promise<{ source: string | null; why: string }> {
+/**
+ * `axe-core`'s own source, to run inside the page, or the reason there is none
+ * — and the version it says it is, which `axeRefused` holds to `AXE_CORE`.
+ */
+async function axeSource(): Promise<{ source: string | null; why: string; version: string }> {
+  let where: string
   try {
-    const where = import.meta.resolve('axe-core')
-    return { source: await readFile(new URL(where), 'utf8'), why: '' }
+    where = import.meta.resolve('axe-core')
   } catch {
-    return { source: null, why: 'axe-core is not installed on this machine' }
+    return { source: null, why: 'axe-core is not installed on this machine', version: '' }
+  }
+  const own = JSON.parse(await readFile(new URL('package.json', where), 'utf8')) as {
+    version?: unknown
+  }
+  return {
+    source: await readFile(new URL(where), 'utf8'),
+    why: '',
+    version: typeof own.version === 'string' ? own.version : 'of no stated version',
   }
 }
 
@@ -268,6 +284,9 @@ interface Page {
   locator: (selector: string, opts?: { hasText?: string }) => Thing
   keyboard: { press: (key: string) => Promise<void>; type: (text: string) => Promise<void> }
   waitForTimeout: (ms: number) => Promise<void>
+  /** The granted pass looks again at the phone's width on the device it already paired. */
+  setViewportSize: (size: { width: number; height: number }) => Promise<void>
+  emulateMedia: (opts: { reducedMotion: 'reduce' | 'no-preference' }) => Promise<void>
 }
 
 /** The four things the acting pass asks of one element, and nothing else. */
@@ -280,14 +299,13 @@ interface Thing {
   inputValue: () => Promise<string>
 }
 
-async function run() {
+async function run(axe: Awaited<ReturnType<typeof axeSource>>) {
   const { made, why } = await browser()
   if (made === null) {
     findings.push(...allUnrun(why))
     return
   }
   const { server, origin, tickets, held, home } = await serve()
-  const axe = await axeSource()
   if (axe.source === null) found('axe', '—', 'unrun', axe.why)
   try {
     for (const width of WIDTHS) {
@@ -345,18 +363,26 @@ async function run() {
  * sign-in on every screen is a dash — which means the laid-out page with
  * actual content in it, the one the owner will look at, has never been
  * rendered in a browser at all. Here it is, once, at the width with the most
- * on screen, with the same questions asked of it.
+ * on screen, and again at the phone's, with the same questions asked of it.
  *
- * One width rather than three: what differs with a grant is the content, not
- * the breakpoints, and a second full sweep would double a harness people
- * already have to install a browser for.
+ * **The phone is the device the person actually holds**, and a page with real
+ * figures in it is the one most likely to be wider than 360px or to draw a
+ * control too small to hit — a dash fits anywhere. The desk is kept because it
+ * has the most on screen. The tablet is left out: what differs with a grant is
+ * the content, not the breakpoints, and the two ends are where it overflows.
+ *
+ * **One device, resized**, rather than a pairing per width: the harness pairs
+ * exactly five times, which is the server's limit per address in ten minutes,
+ * so a sixth would be refused. The phone look takes reduced motion, as the
+ * first pass's phone does.
  */
 async function asGranted(made: Engine, origin: string, tickets: Tickets, axe: string | null) {
-  const width = [...WIDTHS].sort((a, b) => b.width - a.width)[0]
-  if (width === undefined) return
+  const desk = [...WIDTHS].sort((a, b) => b.width - a.width)[0]
+  const phone = WIDTHS.find((one) => one.narrow === true)
+  if (desk === undefined) return
   granting = [...GRANTS]
   const context = await made.newContext({
-    viewport: { width: width.width, height: width.height },
+    viewport: { width: desk.width, height: desk.height },
   })
   const page = await context.newPage()
   const noise: string[] = []
@@ -364,20 +390,28 @@ async function asGranted(made: Engine, origin: string, tickets: Tickets, axe: st
   page.on('console', (line: { type: () => string; text: () => string }) => {
     if (line.type() === 'error') noise.push(`logged: ${line.text().split('\n')[0] ?? ''}`)
   })
-  const at = `${width.name} granted`
+  const at = `${desk.name} granted`
   await pairIn(page, origin, tickets.mint(`${origin}/pair`, Date.now()).value, at)
-  for (const look of LOOKS) {
-    if (look.path === '/pair') continue
-    const before = noise.length
-    await lookAt(page, origin, look, { name: at }, axe, true)
-    const fresh = noise.slice(before)
-    if (fresh.length > 0) {
-      found('quiet', `${look.name} @ ${at}`, 'fail', fresh.slice(0, 2).join('; '))
-    } else {
-      found('quiet', `${look.name} @ ${at}`, 'pass', 'nothing thrown, nothing logged')
+  const lookAll = async (at: string) => {
+    for (const look of LOOKS) {
+      if (look.path === '/pair') continue
+      const before = noise.length
+      await lookAt(page, origin, look, { name: at }, axe, true)
+      const fresh = noise.slice(before)
+      if (fresh.length > 0) {
+        found('quiet', `${look.name} @ ${at}`, 'fail', fresh.slice(0, 2).join('; '))
+      } else {
+        found('quiet', `${look.name} @ ${at}`, 'pass', 'nothing thrown, nothing logged')
+      }
     }
   }
+  await lookAll(at)
   await lanesSeen(page, origin, axe, shots, found)
+  if (phone !== undefined && phone !== desk) {
+    await page.setViewportSize({ width: phone.width, height: phone.height })
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await lookAll(`${phone.name} granted`)
+  }
   await context.close()
   granting = []
 }
@@ -791,8 +825,19 @@ function shotsDir(argv: readonly string[]): string | null {
   return at < 0 ? null : (argv[at + 1] ?? join(tmpdir(), 'tade-away-shots'))
 }
 
-if (shots !== null) await mkdir(shots, { recursive: true })
-await run()
-process.stdout.write(`${sayReport(findings)}\n`)
-if (shots !== null) process.stdout.write(`\npictures in ${shots}\n`)
-process.exitCode = exitFor(worstOf(findings))
+// **Refused before a browser is started**, rather than run and reported: a
+// report made under another axe-core reads exactly like one made under the
+// pinned one, and the difference is the verdict. Exit 2, `unrun` — nothing was
+// looked at.
+const axe = await axeSource()
+const refused = axe.source === null ? null : axeRefused(axe.version)
+if (refused !== null) {
+  process.stderr.write(`${refused}\n`)
+  process.exitCode = 2
+} else {
+  if (shots !== null) await mkdir(shots, { recursive: true })
+  await run(axe)
+  process.stdout.write(`${sayReport(findings)}\n`)
+  if (shots !== null) process.stdout.write(`\npictures in ${shots}\n`)
+  process.exitCode = exitFor(worstOf(findings))
+}
