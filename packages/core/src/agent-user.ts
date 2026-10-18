@@ -294,6 +294,9 @@ export function signInLine(user: string, launch: SignInLaunch): string {
   ].join(' ')
 }
 
+/** A host as a URL names one: letters, digits, dots and dashes, and a port. */
+const HOST_NAME = /^[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]+)?$/
+
 /** Where its pushes go over SSH, for a repository as `repositoryNamed` spells it. */
 export function sshRemote(repository: string): string {
   const cut = repository.indexOf('/')
@@ -376,11 +379,14 @@ export function reachCommands(seen: AgentUserSeen): AgentCommand[] {
   for (const one of push.remotes) {
     if (!one.repository || !overHttps(one.url)) continue
     const host = one.repository.slice(0, one.repository.indexOf('/'))
-    if (hosts.has(host)) continue
+    // Out of a remote's URL, which the agent's own group can write: a host
+    // name and nothing else goes into a line, and quoted even then.
+    if (!HOST_NAME.test(host) || hosts.has(host)) continue
     hosts.add(host)
+    const set = `git config --global --add ${word(`url.git@${host}:.pushInsteadOf`)} ${word(`https://${host}/`)}`
     out.push({
       says: `send ${u}'s pushes to ${host} over SSH, where its key works, rather than https, where it has nothing`,
-      line: `sudo -u ${u} -H sh -c ${word(`cd && git config --global --add url.git@${host}:.pushInsteadOf https://${host}/`)}`,
+      line: `sudo -u ${u} -H sh -c ${word(`cd && ${set}`)}`,
     })
   }
   return out

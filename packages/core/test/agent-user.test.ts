@@ -359,6 +359,14 @@ describe('signing in and pushing, as that user', () => {
       "tade-agent's pushes to github.com/acme/web go over https, where it has nothing to sign in with",
       "tade-agent's pushes to github.com/acme/api go over https, where it has nothing to sign in with",
     ])
+    // A host out of a remote the agent's group can write is a host name, or no line at all.
+    const planted = made({
+      push: {
+        key: 'ssh-ed25519 AAAA',
+        remotes: [remote({ url: 'https://x/y', repository: 'x;touch$HOME/owned/acme/app' })],
+      },
+    })
+    expect(reachCommands(planted)).toEqual([])
     // A key it already pushes with, by whatever name, is not replaced.
     expect(reachCommands(made({ push: { key: null, remotes: [remote()] } }))).toEqual([])
     expect(
