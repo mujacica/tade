@@ -15,6 +15,7 @@ import {
   resolveCommand,
 } from '@tade/core'
 import type { Restic } from '@tade/workbench/backup'
+import type { Opened } from '@tade/workbench/upgrade'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import {
@@ -104,6 +105,7 @@ function deps(opts: {
   asking?: boolean
   env?: Record<string, string>
   held?: number | null
+  opened?: Opened | null
 }): BackupDeps & { lines: string[]; ask: Recorder; home: string } {
   const home = join(tmp('tade-host-backup-'), '.tade')
   mkdirSync(home, { recursive: true })
@@ -118,6 +120,8 @@ function deps(opts: {
     configPath,
     out: (line) => lines.push(line),
     held: async () => opts.held ?? null,
+    opened: async () => opts.opened ?? null,
+    version: '0.3.0',
     unrecorded: (said) => ask.say(said),
     lines,
     home,
@@ -250,6 +254,35 @@ describe('naming where backups go', () => {
     expect(d.ask.said[0]).toBe(
       '✗ sftp:u1@box:/tade could not be made: Fatal: sftp: no route to host',
     )
+  })
+
+  it('says what writing backup.* does to a window on an older Tade holding the home', async () => {
+    for (const [opened, runs] of [
+      [{ version: '0.2.9', lanes: 2 }, 'runs Tade 0.2.9, older than this 0.3.0'],
+      [{ version: null, lanes: 2 }, 'runs a Tade older than this one'],
+      [null, 'runs a Tade whose version it never wrote down'],
+    ] as const) {
+      const d = deps({ restic: answering({}).restic, held: 4242, opened })
+      expect(await initBackup(d, '/mnt/b', () => 'pw')).toBe(0)
+      const said = d.ask.said.join('\n')
+      expect(said).toContain(`The window holding this home (pid 4242) ${runs}`)
+      expect(said).toContain('refuses every change in its Settings')
+      expect(configOf(readFileSync(d.configPath, 'utf8')).backup.repository).toBe('/mnt/b')
+    }
+  })
+
+  it('says nothing of a window on this Tade or a newer one, or where it writes nothing', async () => {
+    const quiet = [
+      deps({ restic: answering({}).restic, held: 4242, opened: { version: '0.3.0', lanes: 0 } }),
+      deps({ restic: answering({}).restic, held: 4242, opened: { version: '0.4.0', lanes: 0 } }),
+      deps({ restic: answering({}).restic }),
+      deps({ config: SET, restic: answering({}).restic, held: 4242 }),
+    ]
+    for (const d of quiet) {
+      const repository = d.place.config.backup.repository || '/mnt/b'
+      expect(await initBackup(d, repository, () => 'pw')).toBe(0)
+      expect(d.ask.said.join('\n')).not.toContain('The window holding this home')
+    }
   })
 
   it('mints a password with nothing in it to misread', () => {

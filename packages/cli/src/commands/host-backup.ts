@@ -12,6 +12,7 @@ import {
   backupUnits,
   bytesSaid,
   type Config,
+  compareVersions,
   KEEP_THE_PASSWORD,
   passwordFor,
   type RunResult,
@@ -32,6 +33,7 @@ import {
   snapshotsIn,
 } from '@tade/workbench/backup'
 import { serviceUnitPath } from '@tade/workbench/machine'
+import type { Opened } from '@tade/workbench/upgrade'
 import { type Unrecorded, writeFromShell } from '../config-write.ts'
 import { Exit } from '../io.ts'
 import type { Asker } from './host-service.ts'
@@ -56,6 +58,10 @@ export interface BackupDeps {
   out: (line: string) => void
   /** The pid holding the home, where something does (`heldBy`). */
   held: () => Promise<number | null>
+  /** What the Tade with this pid said as it opened (`openedAs`). */
+  opened: (pid: number) => Promise<Opened | null>
+  /** This Tade's version, as a window writes its own (`runningVersion`). */
+  version: string
   unrecorded: Unrecorded
 }
 
@@ -158,6 +164,8 @@ export async function initBackup(
     ...(minted === null ? [] : [{ key: 'backup.password', value: minted, secret: true }]),
   ]
   if (writes.length > 0) {
+    const behind = await heldBehind(deps)
+    if (behind !== null) deps.ask.say(behind)
     mkdirSync(dirname(deps.configPath), { recursive: true })
     await writeFromShell(deps.configPath, writes, deps.unrecorded)
   }
@@ -188,6 +196,34 @@ export async function initBackup(
   deps.ask.say(BACKUP_HOLDS_KEYS)
   deps.ask.say('`tade host backup` takes one now; `tade host backup --timer` takes one every hour.')
   return Exit.ok
+}
+
+/**
+ * What writing `backup.*` does to the window holding this home, where that
+ * window is an older Tade than this one — or null where none holds it or it is
+ * this one or newer. Its schema is strict and has no `backup`, so from the
+ * write on it will not load the config at all: every change in its Settings is
+ * refused until it is started again on this one. Its code is released already,
+ * so the writer is the one place it can be said. A Tade from before versions
+ * were written down (`version` null) is older than `backup` too.
+ */
+async function heldBehind(deps: BackupDeps): Promise<string | null> {
+  const pid = await deps.held()
+  if (pid === null) return null
+  const opened = await deps.opened(pid)
+  const was = opened?.version ?? null
+  if (was !== null && compareVersions(was, deps.version) >= 0) return null
+  const runs =
+    opened === null
+      ? 'runs a Tade whose version it never wrote down, and if that is older than this one, it'
+      : was === null
+        ? 'runs a Tade older than this one, which'
+        : `runs Tade ${was}, older than this ${deps.version}, which`
+  return (
+    `▲ The window holding this home (pid ${pid}) ${runs} has no backup.* keys: with them written it ` +
+    'will not load the config, and refuses every change in its Settings, until it is started again on ' +
+    'this Tade — `tade host upgrade` restarts it where it is the service.'
+  )
 }
 
 /** The minted password, once, where a person can copy it, with what it is. */

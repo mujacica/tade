@@ -26,7 +26,7 @@ import {
   systemdHere,
   unattendedHere,
 } from '@tade/workbench/machine'
-import { lastUpdates, lookAtTade } from '@tade/workbench/programs'
+import { lastUpdates, lookAtTade, runningVersion } from '@tade/workbench/programs'
 import { openedAs, startsAs } from '@tade/workbench/upgrade'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
@@ -242,6 +242,8 @@ export function registerHost(program: Command, io: Io, setExit: (code: number) =
       configPath: path,
       out: io.out,
       held: () => heldBy(tadeHome()),
+      opened: (pid) => openedAs(tadeHome(), pid),
+      version: runningVersion(),
       unrecorded: (said) => io.err(said),
     }
   }
