@@ -225,15 +225,13 @@ attached to the decision it governs. Load the matching one rather than working f
   write. **The environment always wins** (`ctx.secret`, `findSecret` — one rule, one place). No
   keychain, no vault. A key is never in the journal, in what telemetry sends, in a lane's stored spec
   (`withoutInherited`) or in a launch line — `secretCommand` prints it when it is needed.
-- **`0600` keeps the file from other people, and an agent is not another person** unless `agents.user`
-  makes it one. Agents run as you, so **any agent can read `config.yaml` and every key in it**, and
-  that is **said where somebody is deciding**, once (`KEYS_AND_AGENTS`, `SEEN_BY_AGENTS`,
-  `core/src/secrets.ts`), with the way out; where no agent runs as you, the second sentence
-  (`keysAndAgents`). **Nothing may say a file is kept from agents that is not.**
+- **`0600` keeps the file from other people, and an agent is not another person.** Agents run as you,
+  on every machine, so **any agent can read `config.yaml` and every key in it**, and that is **said
+  where somebody is deciding**, once (`KEYS_AND_AGENTS`, `SEEN_BY_AGENTS`, `core/src/secrets.ts`),
+  with the way out. **Nothing may say a file is kept from agents that is not.**
 - **Tade does not sandbox anything, and says so rather than half-owning it.** Containment is the
-  operating system's or the harness's: agents as a user of their own through one `sudo` rule
-  (`asAgent`, `agent-user.ts`), the harness's own sandbox a declared capability (`capabilities.sandbox`),
-  the approval tiers and the worktree (`SERVER_RUNS_AS_YOU`).
+  harness's or the agent's; what does the work is the approval tiers and the worktree
+  (`SERVER_RUNS_AS_YOU`).
 
 ### Telemetry and money
 
