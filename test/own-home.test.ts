@@ -1,7 +1,8 @@
 import { execFile, spawn } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { homedir, userInfo } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { ConfigSchema } from '../packages/core/src/config.ts'
 import { extensionsRoot, tadeHome } from '../packages/core/src/home.ts'
@@ -99,10 +100,14 @@ describe("a test never reaches the person's own Tade home", () => {
   })
 
   it('leaves the suite its own checkout, even where that is kept under the home', () => {
-    // Tade's batched full checks run the suite in a tree under its home.
-    const roots = [join(persons)]
-    expect(inPersonsTade(join(persons, 'projects', 'tade', 'batch'), roots)).toBe(true)
-    expect(inPersonsTade(process.cwd(), [process.cwd()])).toBe(false)
-    expect(inPersonsTade(join(persons, '..', '.tade-elsewhere'), roots)).toBe(false)
+    // Tade's batched full checks run the suite in a tree under its home —
+    // `~/.tade/projects/tade/batch` — so the home here is one of the test's
+    // own: named after the real one, the suite refused nothing there only
+    // when that was where it ran, and this went red in exactly that run.
+    const home = join(tmp('tade-persons-'), '.tade')
+    expect(inPersonsTade(join(home, 'projects', 'tade', 'batch'), [home])).toBe(true)
+    expect(inPersonsTade(join(home, '..', '.tade-elsewhere'), [home])).toBe(false)
+    const checkout = fileURLToPath(new URL('..', import.meta.url))
+    expect(inPersonsTade(join(checkout, 'test'), [dirname(checkout)])).toBe(false)
   })
 })
