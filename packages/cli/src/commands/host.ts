@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { existsSync, readFileSync } from 'node:fs'
 import { userInfo } from 'node:os'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
@@ -14,12 +15,19 @@ import {
   tadeHome,
 } from '@tade/core'
 import { answering, dirSeen } from '@tade/web'
+import { backUp } from '@tade/workbench/backup'
 import { lookAtCertificate } from '@tade/workbench/certificate'
 import { accountUri, lookAtDomain } from '@tade/workbench/domain'
 import { readJournal } from '@tade/workbench/events'
 import { heldBy } from '@tade/workbench/lock'
-import { systemdHere, unattendedHere } from '@tade/workbench/machine'
-import { lastUpdates } from '@tade/workbench/programs'
+import {
+  lookAtService,
+  serviceUnitPath,
+  systemdHere,
+  unattendedHere,
+} from '@tade/workbench/machine'
+import { lastUpdates, lookAtTade } from '@tade/workbench/programs'
+import { openedAs, startsAs } from '@tade/workbench/upgrade'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 import {
@@ -41,6 +49,7 @@ import {
   serviceLacksGroups,
   unitHere,
 } from './host-service.ts'
+import { type UpgradePlace, unitStarts, upgradeHere } from './host-upgrade.ts'
 
 // `tade host`: Tade on a server of its own. The command and the terminal it
 // asks in; what it builds, writes and offers is `host-service.ts`, which
@@ -294,4 +303,45 @@ export function registerHost(program: Command, io: Io, setExit: (code: number) =
         )
       },
     )
+
+  // Upgrading in place (`host-upgrade.ts`), without ending an agent.
+  host
+    .command('upgrade')
+    .description(
+      'Move Tade forward on this machine in place: the install’s own command on a press, then the service restarted onto it where agents outlive it',
+    )
+    .option('--yes', 'upgrade, and restart the service, without asking')
+    .option('--no-backup', 'do not take a backup first, where one is set up')
+    .action(async (opts: { yes?: boolean; backup?: boolean }) => {
+      const home = tadeHome()
+      const loaded = await loadConfig(defaultConfigPath())
+      const bin = fileURLToPath(new URL('../bin.ts', import.meta.url))
+      const unit = serviceUnitPath()
+      const written = systemdHere() && existsSync(unit)
+      const place: UpgradePlace = {
+        look: (ask) => lookAtTade({ ask }),
+        lanesWouldStop,
+        held: () => heldBy(home),
+        service: async () => (written ? lookAtService() : null),
+        opened: (pid) => openedAs(home, pid),
+        starts: () =>
+          startsAs(
+            unitStarts(written ? readFileSync(unit, 'utf8') : null) ?? [process.execPath, bin],
+          ),
+        backup: async () => {
+          if (!loaded.ok || loaded.config.backup.repository.trim() === '') return null
+          const taken = await backUp({ config: loaded.config, home, restic: resticHere() })
+          return { ok: taken.ok, said: taken.said }
+        },
+        wait: (ms) => new Promise((done) => setTimeout(done, ms)),
+      }
+      const asking = process.stdin.isTTY === true && process.stderr.isTTY === true
+      setExit(
+        await upgradeHere(terminal(io), place, {
+          yes: opts.yes === true,
+          asking,
+          backup: opts.backup !== false,
+        }),
+      )
+    })
 }

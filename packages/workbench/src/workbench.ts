@@ -118,6 +118,7 @@ import { type RetireRequest, retireNote, settleNotes } from './notes.ts'
 import { notStartable, type ParkedBy, park } from './parked.ts'
 import { makePlan, type PlanMade } from './plans.ts'
 import { preparedDetail, setupBefore, setupTold } from './prepare.ts'
+import { runningVersion } from './programs.ts'
 import { changeQueued, type HeldHow, holdQueued, type QueueChangeRequest } from './queue-changes.ts'
 import { type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
 import { settleRuns } from './run-files.ts'
@@ -473,7 +474,15 @@ export class Workbench {
       })
       await log.append({
         type: 'tade_opened',
-        detail: { pid: process.pid, driver: driver.id, lanes: registry.list().length },
+        // Which Tade it is, written down because a running process cannot be
+        // asked: `tade host upgrade` reads it back by the pid that holds the
+        // home, to say what the service runs before a restart and after it.
+        detail: {
+          pid: process.pid,
+          driver: driver.id,
+          lanes: registry.list().length,
+          version: runningVersion(),
+        },
       })
       // Pick the agents that kept working back up: the channel first, so their
       // extensions can reconnect, then the spend that went unreported while

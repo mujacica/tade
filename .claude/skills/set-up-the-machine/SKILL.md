@@ -36,6 +36,8 @@ and setting up ends by actually opening a lane — because every other check is 
 | `packages/core/src/backup.ts` | pure: `RESTIC`, `LEFT_OUT` (what a backup leaves out, each with why), `backupPaths`, `resticBackup`, `backupSaid`, `snapshotsSaid`, `manifestOf`, `passwordFor`, `shownRepository`, `BackupConfigSchema` (`backup.*`) |
 | `packages/workbench/src/backup.ts` | `recordsFolders`/`recordsHere` (each harness's `records()`), `notPushed`, `backUp`, `snapshotsIn`, `initRepository`, `restoreInto`, `restoreTo`, `cutTornTail` |
 | `packages/cli/src/commands/host-backup.ts` | `tade host backup` and `tade host restore`: `takeBackup`, `initBackup`, `listBackups`, `restoreBackup`, `offerTimer` (`backupUnits`, in `core/src/service.ts`), `resticHere` |
+| `packages/cli/src/commands/host-upgrade.ts` | `tade host upgrade`: `upgradeHere` over an `UpgradePlace`, `goingBack`, `unitStarts` |
+| `packages/workbench/src/upgrade.ts` | `openedAs` (which Tade holds the home, out of the journal's `tade_opened`), `startsAs` (whether the Tade on disk starts) |
 | `packages/app/src/wire/web-domain.ts`, `panels/settings/domain.ts` | the same look under the Public name row in Settings › Away view |
 | `packages/workbench/src/machine.ts` (`unattendedHere`, `systemdHere`, `serviceUnitPath`, `lookAtService`, `serviceGroups`, `groupIdOf`) | whether this is a server, linger, the unit and what it runs — files, no process — how the service stands, one `systemctl show`, and the groups its process and its manager hold, out of `/proc` |
 | `packages/harnesses/core/src/sign-in.ts` | `signInHere` (is a browser here?), `signInLasts` (how long a sign-in has left) |
@@ -619,6 +621,39 @@ the password. **Not proved**: a remote repository (SFTP to a storage box, S3), t
 systemd, restic as old as Ubuntu 22.04's 0.12, a records folder of an agents' user that Tade's user
 cannot read (restic's exit 3 is said, file by file), and pi sessions moved by
 `PI_CODING_AGENT_SESSION_DIR` or a project's `sessionDir`, which `records()` does not name.
+
+### Upgrading in place (`tade host upgrade`)
+
+The box's Tade moved forward without ending an agent (REMOTE-TADE.md §7.8). Its steps take every
+answer of the machine as an argument (`UpgradePlace`), so `cli/test/host-upgrade.test.ts` drives
+each state a box can be in.
+
+- **The install's own command**, `updateWith`'s — the line Settings › Updates and `tade update`
+  show — run on a press (or `--yes`) through `/bin/sh` in this terminal; from a pipe without `--yes`
+  it is said and nothing runs. Where nothing is newer and what holds the home runs what is on disk,
+  it is current and does nothing; a checkout ahead of its upstream is current, not a refusal. A
+  backup is taken first where `backup.repository` is set (`--no-backup` skips it); one that fails
+  stops the upgrade unless somebody presses on, and `--yes` is not that press.
+- **Which Tade holds the home is read out of the journal**: `tade_opened` carries the version of
+  the Tade that opened (`runningVersion`), and `openedAs` reads the newest one with the holder's
+  pid — a running process cannot be asked which files it started from, and after an install the
+  files on disk are already the new ones. So a service still on the Tade before an upgrade already
+  on disk is restarted without installing anything, and an older Tade that wrote no version is
+  `the Tade it opened on`.
+- **Before anything is restarted, the new Tade must start**: `startsAs` runs exactly what the unit
+  starts (`unitStarts`, its `ExecStart` as far as `serve`), or this CLI, with `--version`. One that
+  does not start is said with what it printed and nothing is restarted, with the line that goes back
+  where the install's command names a version (`goingBack`: `@latest` with the old version).
+- **Only the service is restarted, and only where its lanes outlive it** — `lanesWouldStop`, the
+  driver's `capabilities.detach` — with `START`, on its own press. A window somebody has open is
+  never restarted from here: it says it runs the old one until its `reload Tade` press. After the
+  restart it looks every two seconds, for two minutes, until systemd says ready and the journal
+  says which Tade opened and how many lanes it took up again — the proof the agents carried on —
+  and says a service that failed, with the way back, or came back as the wrong version.
+
+**Not proved**: a real upgrade from npm under systemd — the restart that keeps agents is the unit's
+own, proved in `tade-vps-jammy` ("Proving it"), and the journal's `tade_opened` after it is the new
+part, held by `workbench/test/upgrade.test.ts` against a real workbench.
 
 ## Setting up ends with a lane
 

@@ -837,7 +837,10 @@ somewhere off the box; `tade host backup` then takes one: Tade's home and each h
 conversations, never the journal's index or the worktrees, and says which checkouts and worktrees
 hold work pushed nowhere. `tade host backup --timer` writes the hourly systemd timer. `tade host
 restore` puts the latest back on a new box given only the repository and its password, writes over
-nothing, and prints the `git clone` for each checkout it does not find there.
+nothing, and prints the `git clone` for each checkout it does not find there. `tade host upgrade` moves Tade
+forward on the box in place: the install's own command on a press, a backup first where one is set
+up, the new Tade asked to start before anything is restarted onto it, and then the service restarted
+— only where its agents outlive it — and said back as the version and lanes it came up with.
 
 For a phone, give the server a name of your own and put Caddy in front. `tade host domain
 tade.example.com` looks at the records the name needs from the box — A, AAAA only where IPv6 answers
