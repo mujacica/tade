@@ -5,8 +5,11 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   AGENT_USER,
+  type AgentRemote,
   type AgentUserSeen,
+  agentAccountDir,
   agentCommands,
+  agentReachTrouble,
   agentShare,
   agentsKeptAs,
   agentsKeptOut,
@@ -14,8 +17,14 @@ import {
   agentUsers,
   agentUserTrouble,
   asAgent,
+  keyPages,
+  lsRemoteLine,
+  reachCommands,
   SUDO,
+  signInLine,
+  sshRemote,
   sudoersRule,
+  triedAt,
 } from '../src/agent-user.ts'
 import { ConfigSchema } from '../src/config.ts'
 import { settingReach } from '../src/reach.ts'
@@ -245,8 +254,151 @@ describe('making the user, on a press', () => {
 
   it('says a group not yet held as a login away, not as missing', () => {
     expect(agentUserTrouble(made({ groupHeld: false }), 'tade')).toEqual([
-      "tade is in tade-agent's group from your next login: log in again, or restart Tade's service",
+      "tade is in tade-agent's group from a new login: log in again — and where Tade runs as a service, restart the service manager it takes its groups from, `sudo systemctl restart user@$(id -u).service`, which stops every service of yours, or log out of every session",
     ])
+  })
+})
+
+describe('signing in and pushing, as that user', () => {
+  const work = agentAccountDir('/home/tade-agent', 'work')
+  const signIn = (over: Record<string, unknown> = {}) => ({
+    harness: 'claude-code',
+    account: null,
+    folder: null,
+    signedIn: true,
+    problem: null,
+    launch: { command: '/usr/local/bin/claude', args: ['auth', 'login', '--claudeai'], env: {} },
+    how: 'Claude Code prints a link',
+    ...over,
+  })
+  const remote = (over: Partial<AgentRemote> = {}): AgentRemote => ({
+    root: '/srv/app',
+    url: 'git@github.com:acme/app.git',
+    repository: 'github.com/acme/app',
+    reached: true,
+    problem: null,
+    ...over,
+  })
+
+  it('signs in through that user’s own login, naming only the folder an account is kept in', () => {
+    expect(signInLine('tade-agent', signIn().launch)).toBe(
+      'sudo -iu tade-agent /usr/local/bin/claude auth login --claudeai',
+    )
+    expect(
+      signInLine('tade-agent', {
+        command: 'codex',
+        args: ['login', '--device-auth'],
+        env: { CODEX_HOME: '/home/tade agent/tade-accounts/work' },
+      }),
+    ).toBe(
+      "sudo -iu tade-agent env CODEX_HOME='/home/tade agent/tade-accounts/work' codex login --device-auth",
+    )
+    expect(() => signInLine('tade agent; rm -rf /', signIn().launch)).toThrow('not a user name')
+  })
+
+  it('says each sign-in still to do, and one it could not ask about as that, never as signed out', () => {
+    const seen = made({
+      signIns: [
+        signIn({ signedIn: false }),
+        signIn({ account: 'work', folder: { path: work, made: true }, signedIn: false }),
+        signIn({ harness: 'codex', signedIn: null, problem: 'codex cannot be run as tade-agent' }),
+        signIn({ harness: 'pi' }),
+      ],
+      push: { key: 'ssh-ed25519 AAAA', remotes: [remote()] },
+    })
+    expect(agentUserTrouble(seen, 'tade')).toEqual([
+      'tade-agent is not signed in to claude-code',
+      "tade-agent is not signed in to claude-code's account work",
+      'cannot tell whether tade-agent is signed in to codex: codex cannot be run as tade-agent',
+    ])
+  })
+
+  it('makes an account’s folder as that user only where it is not made, and nothing as a user Tade cannot become', () => {
+    const seen = made({
+      signIns: [
+        signIn({ account: 'work', folder: { path: work, made: false } }),
+        signIn({
+          account: 'home',
+          folder: { path: agentAccountDir('/home/tade-agent', 'home'), made: true },
+        }),
+      ],
+    })
+    expect(reachCommands(seen).map((c) => c.line)).toEqual([
+      `sudo -u tade-agent -H sh -c 'mkdir -p -m 0750 /home/tade-agent/tade-accounts && mkdir -p -m 0700 ${work}'`,
+    ])
+    expect(reachCommands({ ...seen, sudo: false })).toEqual([])
+  })
+
+  it('makes it a key of its own only where it has none and cannot reach every remote, and sends https pushes over SSH', () => {
+    const none = made({
+      push: {
+        key: null,
+        remotes: [
+          remote({ reached: false, problem: 'Permission denied (publickey).' }),
+          remote({
+            root: '/srv/web',
+            url: 'https://github.com/acme/web.git',
+            repository: 'github.com/acme/web',
+          }),
+          remote({
+            root: '/srv/api',
+            url: 'https://github.com/acme/api',
+            repository: 'github.com/acme/api',
+          }),
+        ],
+      },
+    })
+    const lines = reachCommands(none).map((c) => c.line)
+    expect(lines).toEqual([
+      `sudo -u tade-agent -H sh -c 'cd && mkdir -p -m 0700 .ssh && ssh-keygen -q -t ed25519 -N "" -f .ssh/id_ed25519'`,
+      `sudo -u tade-agent -H sh -c 'cd && git config --global --add url.git@github.com:.pushInsteadOf https://github.com/'`,
+    ])
+    expect(agentReachTrouble(none)).toEqual([
+      'tade-agent has no key of its own to push with',
+      'tade-agent cannot reach github.com/acme/app with its own key: Permission denied (publickey).',
+      "tade-agent's pushes to github.com/acme/web go over https, where it has nothing to sign in with",
+      "tade-agent's pushes to github.com/acme/api go over https, where it has nothing to sign in with",
+    ])
+    // A key it already pushes with, by whatever name, is not replaced.
+    expect(reachCommands(made({ push: { key: null, remotes: [remote()] } }))).toEqual([])
+    expect(
+      agentReachTrouble(made({ push: { key: 'ssh-ed25519 AAAA', remotes: [remote()] } })),
+    ).toEqual([])
+  })
+
+  it('makes the key it says, where it says, when the line is run', () => {
+    const keygen = ['/usr/bin/ssh-keygen', '/bin/ssh-keygen'].find((path) => existsSync(path))
+    if (!keygen) return
+    const line = reachCommands(made({ push: { key: null, remotes: [] } }))[0]?.line ?? ''
+    // A sudo that becomes nobody new, and runs the rest in this test's home.
+    const bin = mkdtempSync(join(tmpdir(), 'tade-agent-bin-'))
+    const home = mkdtempSync(join(tmpdir(), 'tade-agent-home-'))
+    writeFileSync(join(bin, 'sudo'), '#!/bin/sh\nwhile [ "$1" != sh ]; do shift; done\nexec "$@"\n')
+    chmodSync(join(bin, 'sudo'), 0o755)
+    const ran = spawnSync('/bin/sh', ['-c', line], {
+      encoding: 'utf8',
+      env: { PATH: `${bin}:/usr/bin:/bin`, HOME: home },
+    })
+    expect(ran.status, ran.stderr).toBe(0)
+    expect(existsSync(join(home, '.ssh', 'id_ed25519.pub'))).toBe(true)
+  })
+
+  it('tries a remote where its pushes go, over SSH, and shows the person GitHub’s pages for its key', () => {
+    expect(sshRemote('github.com/acme/app')).toBe('git@github.com:acme/app.git')
+    expect(triedAt(remote({ url: 'https://github.com/acme/app.git' }))).toBe(
+      'git@github.com:acme/app.git',
+    )
+    expect(triedAt(remote({ url: 'ssh://git@example.org/x.git', repository: null }))).toBe(
+      'ssh://git@example.org/x.git',
+    )
+    expect(lsRemoteLine('tade-agent', remote())).toBe(
+      'sudo -iu tade-agent git ls-remote git@github.com:acme/app.git HEAD',
+    )
+    expect(keyPages('github.com/acme/app')).toEqual({
+      account: 'https://github.com/settings/ssh/new',
+      deploy: 'https://github.com/acme/app/settings/keys/new',
+    })
+    expect(keyPages('gitlab.com/acme/app')).toBeNull()
   })
 })
 

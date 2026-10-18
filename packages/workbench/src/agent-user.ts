@@ -1,23 +1,50 @@
+import { randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
-import { access, chmod, copyFile, cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import {
+  access,
+  chmod,
+  copyFile,
+  cp,
+  mkdir,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  stat,
+  utimes,
+  writeFile,
+} from 'node:fs/promises'
 import { userInfo } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import {
+  type AgentPush,
+  type AgentRemote,
+  type AgentSignIn,
   type AgentUserSeen,
+  agentAccountDir,
   agentShare,
   agentUserOf,
+  asAgent,
   type Config,
   expandHome,
+  groupFromLogin,
+  PUSH_KEY,
   producesPath,
   producesProblem,
+  resolveCommand,
   runProgram,
+  type SignInLaunch,
+  shareRuns,
+  shareSockets,
   shareTask,
   taskDir,
   taskFolder,
+  triedAt,
 } from '@tade/core'
-import type { SandboxProof } from '@tade/harnesses-core'
-import { git } from '@tade/status'
-import { HARNESS_ADAPTERS } from './harnesses.ts'
+import type { SandboxProof, SignInProof, WorkerAdapter } from '@tade/harnesses-core'
+import { git, repositoryNamed } from '@tade/status'
+import { documentsFolder } from './documents.ts'
+import { HARNESS_ADAPTERS, type HarnessOptions } from './harnesses.ts'
 import { taskContextPath } from './tasks.ts'
 
 // Running agents as a user of their own, the half that touches the machine.
@@ -103,7 +130,7 @@ export async function shareReady(user: AgentUser): Promise<void> {
     .catch(orNo(false))
   if (!ok) {
     throw new Error(
-      `agents here run as ${user.name}, and ${user.share} is not there for Tade to write in: tade setup makes it, and a new login (or restarting Tade's service) gives Tade ${user.name}'s group`,
+      `agents here run as ${user.name}, and ${user.share} is not there for Tade to write in: tade setup makes it, and ${groupFromLogin(ownUser(), user.name)}`,
     )
   }
 }
@@ -180,6 +207,90 @@ export async function bringDocumentHome(
 }
 
 /**
+ * The project's documents folder as an agent of its own user reads it, and
+ * the path it is told — or null where the project has none yet.
+ *
+ * Tade's home is closed to that user, so the folder is copied into its share
+ * at every start, read-only through the group: Tade's files, the group's to
+ * read — `0640`, folders `2750` — which the agent can neither change nor add
+ * to. Only what changed is copied again, each file under a name of its own
+ * and renamed into place, so another agent of the project reading it
+ * meanwhile never reads half a file; what went from the folder goes from the
+ * copy. Links are not followed: a document is a file Tade wrote, and a link
+ * would hand the agent whatever it points at.
+ */
+export async function documentsFor(
+  home: string,
+  project: string,
+  user: AgentUser,
+): Promise<string | null> {
+  const from = documentsFolder(home, project)
+  if (!from) return null
+  const shared = join(user.share, 'documents')
+  const to = join(shared, project)
+  // One copy at a time into one place: two agents of a project starting
+  // together would otherwise sweep away each other's half-written files.
+  // The one before's failure is its own caller's: this copy goes ahead either way.
+  const before = mirroring.get(to) ?? Promise.resolve()
+  const copy = async () => {
+    await readOnlyFolder(shared)
+    await mirror(from, to)
+  }
+  const now = before.then(copy, copy)
+  mirroring.set(to, now)
+  try {
+    await now
+  } finally {
+    if (mirroring.get(to) === now) mirroring.delete(to)
+  }
+  return to
+}
+
+const mirroring = new Map<string, Promise<void>>()
+
+/** A folder the group can read and not write: made where it is not, narrowed where it is ours. */
+async function readOnlyFolder(dir: string): Promise<void> {
+  await mkdir(dir, { recursive: true })
+  await chmod(dir, 0o2750).catch(orNo(undefined))
+}
+
+/** `from` made again at `to`, copying only what changed (`documentsFor`). */
+async function mirror(from: string, to: string): Promise<void> {
+  await readOnlyFolder(to)
+  const kept = new Set<string>()
+  for (const entry of await readdir(from, { withFileTypes: true })) {
+    const source = join(from, entry.name)
+    const target = join(to, entry.name)
+    if (entry.isDirectory()) {
+      kept.add(entry.name)
+      await mirror(source, target)
+      continue
+    }
+    if (!entry.isFile()) continue
+    kept.add(entry.name)
+    const [was, copy] = await Promise.all([stat(source), stat(target).catch(orNo(null))])
+    if (copy?.isFile() && copy.size === was.size && copy.mtimeMs === was.mtimeMs) continue
+    const writing = `${target}.tade-${randomUUID()}`
+    await copyFile(source, writing)
+    await chmod(writing, 0o640)
+    await utimes(writing, was.atime, was.mtime)
+    await rename(writing, target)
+  }
+  for (const entry of await readdir(to)) {
+    if (!kept.has(entry)) await rm(join(to, entry), { recursive: true, force: true })
+  }
+}
+
+/**
+ * Why a conversation is not carried into an agent of its own user, in words:
+ * carrying is a file Tade writes beside that user's own, and one Tade wrote is
+ * one that user's harness cannot open.
+ */
+export function carryRefused(user: string): string {
+  return `carrying a conversation into an agent that runs as ${user} is not available: it would be a copy Tade wrote among ${user}'s own, which ${user}'s harness cannot open, so it would start over while looking as though it had carried on`
+}
+
+/**
  * Where a task's setup log is written, where its agent runs as a user of its
  * own: in the share, since the setup runs in the agent's lane as that user.
  */
@@ -212,8 +323,8 @@ async function exists(path: string): Promise<boolean> {
 }
 
 /** `sudo -n -u <user>`, run with a deadline: never asks, never waits on a person. */
-function asUser(user: string, args: readonly string[]) {
-  return runProgram('sudo', ['-n', '-H', '-u', user, '--', ...args], { timeoutMs: ASK_MS })
+function asUser(user: string, args: readonly string[], timeoutMs = ASK_MS) {
+  return runProgram('sudo', ['-n', '-H', '-u', user, '--', ...args], { timeoutMs })
 }
 
 /**
@@ -294,12 +405,7 @@ export function sandboxProofs(
   home: string,
   platform: NodeJS.Platform = process.platform,
 ): { harness: string; proof: SandboxProof }[] {
-  const used = new Set<string>()
-  for (const route of Object.values(config.workers.routes)) {
-    used.add(route.harness)
-    for (const named of Object.keys(route.harnesses ?? {})) used.add(named)
-  }
-  return [...used].flatMap((id) => {
+  return harnessesInUse(config).flatMap((id) => {
     const make = HARNESS_ADAPTERS[id]
     if (!make) return []
     // The directories a launch would use, and nothing is launched: a
@@ -312,6 +418,258 @@ export function sandboxProofs(
     const proof = adapter.capabilities.sandbox ? (adapter.sandboxProof?.(platform) ?? null) : null
     return proof ? [{ harness: id, proof }] : []
   })
+}
+
+/** Each harness a route starts agents in, once: what an agent user has to be signed in to. */
+export function harnessesInUse(config: Config): string[] {
+  const used = new Set<string>()
+  for (const route of Object.values(config.workers.routes)) {
+    used.add(route.harness)
+    for (const named of Object.keys(route.harnesses ?? {})) used.add(named)
+  }
+  return [...used]
+}
+
+/**
+ * A harness's adapter as it runs for an agent user: that user's home, its
+ * share, and an account's folder in that home where one is named
+ * (`agentAccountDir`). What the workbench starts agents with, and what setup
+ * asks about sign-ins — one making, so the two can never disagree about where
+ * a sign-in is. A constructor does no I/O.
+ */
+export function adapterOfUser(
+  harness: string,
+  user: AgentUser,
+  account: string | null,
+  options: Partial<HarnessOptions> = {},
+): WorkerAdapter | null {
+  const make = HARNESS_ADAPTERS[harness]
+  if (!make) return null
+  // Where Tade's own pi keeps its sessions is not where that user's does.
+  const { sessionsRoot: _, ...own } = options
+  return make({
+    approvals: 'bypass',
+    ...own,
+    runDir: shareRuns(user.share),
+    socketDir: shareSockets(user.share),
+    home: user.home,
+    user: user.name,
+    // Where another user's harness keeps its things is that user's to say,
+    // never something in this process's environment.
+    env: { PATH: process.env.PATH ?? '' },
+    ...(account
+      ? {
+          account: {
+            name: account,
+            dir: agentAccountDir(user.home, account),
+            kind: 'subscription' as const,
+          },
+        }
+      : {}),
+  })
+}
+
+/**
+ * The folder an agent user's sign-in of an account is kept in
+ * (`agentAccountDir`) — refused, with the setup line, where setup has not
+ * made it, since an agent started there would stop at its harness's sign-in
+ * in a lane nobody is looking at. Looked at through the group, which keeps
+ * the user's home and that folder's parent open to Tade, never inside it.
+ */
+export async function accountFolderOf(
+  user: AgentUser,
+  account: string,
+  task: string,
+): Promise<string> {
+  const folder = agentAccountDir(user.home, account)
+  const made = await stat(folder)
+    .then((info) => info.isDirectory())
+    .catch(orNo(false))
+  if (!made) {
+    throw new Error(
+      `${task}'s agent runs as ${user.name}, which has no sign-in of the account ${account} yet: tade setup makes ${folder} and signs it in there, as ${user.name}`,
+    )
+  }
+  return folder
+}
+
+/** One sign-in setup asks about for an agent user, before anything is asked. */
+export interface SignInAsk {
+  harness: string
+  account: string | null
+  /** An account's folder in that user's home; null for the harness's own sign-in. */
+  folder: string | null
+  proof: SignInProof | null
+  launch: SignInLaunch | null
+  how: string
+}
+
+/**
+ * Each sign-in an agent user's agents run on: every harness in use, and every
+ * account of one paid for by a subscription — each signed in as that user, in
+ * that user's home, by the person. An API-key account is not among them: its
+ * key is in Tade's config, which that user cannot read, and it is never copied
+ * to it (`startAgent` says so where one is chosen).
+ */
+export function signInsFor(config: Config, user: AgentUser): SignInAsk[] {
+  const out: SignInAsk[] = []
+  for (const harness of harnessesInUse(config)) {
+    const accounts = Object.entries(config.accounts)
+      .filter(([, one]) => one.harness === harness && one.kind === 'subscription')
+      .map(([name]) => name)
+    for (const account of [null, ...accounts]) {
+      const adapter = adapterOfUser(harness, user, account)
+      // A server has no browser the person sees, and that user none at all.
+      const sign = adapter?.signIn({ browser: false }) ?? null
+      if (!adapter || !sign) continue
+      out.push({
+        harness,
+        account,
+        folder: account ? agentAccountDir(user.home, account) : null,
+        proof: adapter.signInProof?.() ?? null,
+        launch: {
+          // The very program agents run, found as they find it on Tade's PATH
+          // (`asAgent`), rather than whatever that user's login finds first.
+          command:
+            resolveCommand(sign.launch.command, { PATH: process.env.PATH ?? '' }) ??
+            sign.launch.command,
+          args: sign.launch.args,
+          env: sign.launch.env,
+        },
+        how: sign.how,
+      })
+    }
+  }
+  return out
+}
+
+/** A network question's deadline: `git ls-remote` reaching a forge from a box under load. */
+const REACH_MS = 20_000
+
+/**
+ * Whether a harness is signed in as `user`, asked the way an agent is
+ * launched (`asAgent`, Tade's PATH and the folder named): the exit code is
+ * the whole answer, and nothing the harness keeps is read here. A program
+ * that user cannot run is said as that, never as "signed out".
+ */
+export async function signedInAs(
+  user: string,
+  proof: SignInProof | null,
+): Promise<{ signedIn: boolean | null; problem: string | null }> {
+  if (!proof) return { signedIn: null, problem: 'its harness has no way to say' }
+  const line = asAgent(
+    { command: proof.command, args: proof.args },
+    user,
+    Object.keys(proof.env),
+    process.env.PATH ?? '',
+  )
+  const ran = await runProgram(line.command, line.args, {
+    env: { ...process.env, ...proof.env },
+    timeoutMs: ASK_MS,
+  })
+  if (ran.timedOut) {
+    return { signedIn: null, problem: `it did not answer within ${ASK_MS / 1000} s` }
+  }
+  if (ran.code === 126 || ran.code === 127) {
+    return {
+      signedIn: null,
+      problem: `${proof.command} cannot be run as ${user}: it has to be installed where every user can run it`,
+    }
+  }
+  return { signedIn: ran.code === 0, problem: null }
+}
+
+/**
+ * What an agent user's agents need beyond the user itself, looked at as it:
+ * each sign-in (`signInsFor`, asked by `signedInAs`), and whether it can push
+ * — the public half of its key, and each of its projects' remotes as its own
+ * git pushes to it, tried with `git ls-remote` in batch mode, so an unknown
+ * host key or a missing key is a refusal with its reason, never a prompt.
+ * Nothing where Tade cannot become it yet: that is said by the step already.
+ */
+export async function lookAtReach(
+  seen: AgentUserSeen,
+  config: Config,
+  self: string,
+): Promise<{ signIns: AgentSignIn[]; push: AgentPush | null }> {
+  if (!seen.sudo || !seen.home) return { signIns: [], push: null }
+  const user: AgentUser = { name: seen.user, home: seen.home, share: agentShare(seen.home) }
+  const signIns = await Promise.all(
+    signInsFor(config, user).map(
+      async (ask): Promise<AgentSignIn> => ({
+        harness: ask.harness,
+        account: ask.account,
+        folder: ask.folder
+          ? {
+              path: ask.folder,
+              made: (await asUser(user.name, ['test', '-d', ask.folder])).code === 0,
+            }
+          : null,
+        ...(await signedInAs(user.name, ask.proof)),
+        launch: ask.launch,
+        how: ask.how,
+      }),
+    ),
+  )
+  const key = await asUser(user.name, ['cat', join(user.home, `${PUSH_KEY}.pub`)])
+  const remotes = await Promise.all(
+    rootsOf(config, user.name, self).map((root) => remoteAs(user.name, root)),
+  )
+  return {
+    signIns,
+    push: {
+      key: key.code === 0 && key.stdout.trim() ? key.stdout.trim() : null,
+      remotes: remotes.filter((one): one is AgentRemote => one !== null),
+    },
+  }
+}
+
+/**
+ * One project's remote as an agent user pushes to it, tried as it — or null
+ * where the project has none, which is nothing to push to rather than
+ * something wrong.
+ */
+async function remoteAs(user: string, root: string): Promise<AgentRemote | null> {
+  const ours = await git(root, ['config', '--get', 'remote.origin.url'])
+  const origin = ours.ok ? ours.stdout.trim() : ''
+  if (!origin) return null
+  const theirs = await asUser(user, ['git', '-C', root, 'remote', 'get-url', '--push', 'origin'])
+  if (theirs.code !== 0) {
+    return {
+      root,
+      url: origin,
+      repository: repositoryNamed(origin),
+      reached: null,
+      problem: `${user} cannot read ${root} yet: ${lastLine(theirs.stderr)}`,
+    }
+  }
+  const url = theirs.stdout.trim()
+  const remote = { root, url, repository: repositoryNamed(url) }
+  const tried = await asUser(
+    user,
+    [
+      'env',
+      'GIT_SSH_COMMAND=ssh -o BatchMode=yes',
+      'GIT_TERMINAL_PROMPT=0',
+      'git',
+      'ls-remote',
+      triedAt(remote),
+      'HEAD',
+    ],
+    REACH_MS,
+  )
+  if (tried.timedOut) {
+    return { ...remote, reached: null, problem: `it did not answer within ${REACH_MS / 1000} s` }
+  }
+  return {
+    ...remote,
+    reached: tried.code === 0,
+    problem: tried.code === 0 ? null : lastLine(tried.stderr) || `it exited ${tried.code}`,
+  }
+}
+
+function lastLine(text: string): string {
+  return text.trim().split('\n').pop()?.trim() ?? ''
 }
 
 /** The roots of the projects whose agents run as `user`, as folders on this machine. */

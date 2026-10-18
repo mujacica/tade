@@ -11,7 +11,7 @@ import {
 } from '@tade/core'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
-import { agentsLooked, setUpAgents } from '../src/commands/setup-agents.ts'
+import { agentsLooked, setUpAgents, usersToProve } from '../src/commands/setup-agents.ts'
 
 // Setting up agents as a user of their own: offered on a Linux server and
 // wherever the config names a user, every command said before it runs, a
@@ -81,7 +81,10 @@ describe('setting it up', () => {
     expect(ui.ran.every((line) => ui.said.some((said) => said.includes(line)))).toBe(true)
     expect(ui.ran.some((line) => line.includes('visudo -cf'))).toBe(true)
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain(`user: ${AGENT_USER}`)
-    expect(ui.said.join('\n')).toContain('pushes with its own credentials, never yours')
+    // Its sign-ins and its key are its own, made once Tade can become it (`setup-agent-reach.test.ts`).
+    expect(ui.said.join('\n')).toContain(
+      `signing ${AGENT_USER} in, and its key, wait until tade can run things as it`,
+    )
   })
 
   it('names no user when a command fails', async () => {
@@ -111,7 +114,10 @@ describe('setting it up', () => {
     await setUpAgents(ui, { self: 'tade', seen: [done] }, home, 'pty')
     expect(ui.ran).toEqual([])
     // Looked at again on this machine, which has no such user in its group.
-    expect(ui.said.join('\n')).toContain(`is in ${AGENT_USER}'s group from your next login`)
+    const said = ui.said.join('\n')
+    expect(said).toContain(`is in ${AGENT_USER}'s group from a new login`)
+    // Said as the step and a refused start say it: a service's groups are its manager's.
+    expect(said).toContain('`sudo systemctl restart user@$(id -u).service`')
   })
 })
 
@@ -160,7 +166,8 @@ describe('a kernel that keeps bwrap from its namespaces', () => {
   }
   const here: AgentsHere = { self: 'tade', seen: [done], apparmor }
   const config = `agents:\n  user: ${user}\nworkers:\n  default: a\n  routes:\n    a:\n      harness: claude-code\n`
-  const look = { platform: 'linux' as const, service: async () => [] }
+  // Its sign-ins and key are `setup-agent-reach.test.ts`'s, and `nobody` is a real user here.
+  const look = { platform: 'linux' as const, service: async () => [], reach: async () => {} }
 
   /** A setup screen whose reload makes bwrap start, or not, and which notes what was said before the first run. */
   function screen(confirm: boolean[], fixes: boolean) {
@@ -257,7 +264,59 @@ describe('a service started before its user was put in the agents’ group', () 
     )
     expect(said).toContain('`sudo systemctl restart user@1000.service`')
     // Neither a login nor a lane is what it needs.
-    expect(said).not.toContain('from your next login')
+    expect(said).not.toContain('from a new login')
     expect(said).not.toContain('Opening a lane')
+  })
+})
+
+describe('which agent users `--check` opens a lane as', () => {
+  const user = (name: string, over: Partial<AgentUserSeen> = {}): AgentUserSeen => ({
+    user: name,
+    home: `/home/${name}`,
+    inGroup: true,
+    groupHeld: true,
+    sudo: true,
+    share: true,
+    git: true,
+    homeClosed: true,
+    roots: [],
+    sandboxes: [],
+    ...over,
+  })
+
+  it('is each one with nothing left to do to the user, whatever its sign-ins and key', () => {
+    const here: AgentsHere = {
+      self: 'tade',
+      seen: [
+        user('ready', {
+          signIns: [
+            {
+              harness: 'claude-code',
+              account: null,
+              folder: null,
+              signedIn: false,
+              problem: null,
+              launch: null,
+              how: 'sign in',
+            },
+          ],
+          push: { key: null, remotes: [] },
+        }),
+        user('unmade', { share: false }),
+      ],
+    }
+    expect(usersToProve(here).map((one) => one.user)).toEqual(['ready'])
+  })
+
+  it('is never one whose group Tade’s running service lacks: the step says the restart instead', () => {
+    const here: AgentsHere = {
+      self: 'tade',
+      seen: [user('lacked'), user('held')],
+      service: [
+        { user: 'lacked', pid: 4242, held: false, manager: false, uid: 1000 },
+        { user: 'held', pid: 4242, held: true, manager: true, uid: 1000 },
+      ],
+    }
+    expect(usersToProve(here).map((one) => one.user)).toEqual(['held'])
   })
 })

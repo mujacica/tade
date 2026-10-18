@@ -287,6 +287,14 @@ export interface SandboxProof {
   needs: string
 }
 
+/** How setup asks whether a harness is signed in, as another user (`WorkerAdapter.signInProof`). */
+export interface SignInProof {
+  command: string
+  args: readonly string[]
+  /** What it needs set to find the account's folder, by name: nothing of the sign-in itself. */
+  env: Readonly<Record<string, string>>
+}
+
 /** Environment a supervised agent is started with. */
 export const WORKER_ENV = {
   socket: 'TADE_RUN_SOCKET',
@@ -686,6 +694,16 @@ export interface WorkerAdapter {
    * to prove on this platform, or no sandbox at all.
    */
   sandboxProof?(platform: NodeJS.Platform): SandboxProof | null
+
+  /**
+   * A command that exits 0 only where this harness is signed in, for the
+   * account it was made for — run by setup as the user its agents run as,
+   * the way an agent is launched, because that user's sign-in is in a home
+   * Tade cannot open and is never Tade's to read. It asks nobody anything
+   * and says nothing but its exit code. Null where there is nothing to sign
+   * in to: an API-key account, or a harness whose agents sign in their own way.
+   */
+  signInProof?(): SignInProof | null
 
   /**
    * The folders this harness keeps its agents' conversations in, absolute —

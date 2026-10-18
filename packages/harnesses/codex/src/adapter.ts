@@ -38,6 +38,7 @@ import {
   type SandboxProof,
   type SignIn,
   type SignInHere,
+  type SignInProof,
   signInHere,
   WORKER_ENV,
   type WorkerAdapter,
@@ -590,6 +591,16 @@ export class CodexAdapter implements WorkerAdapter {
       how: here.browser
         ? 'Codex opens your browser to sign in to your ChatGPT account. If it asks, confirm the code it shows you here.'
         : 'Codex shows a link and a code: open the link on any device, sign in to your ChatGPT account and enter the code. Device-code sign-in has to be turned on first, in ChatGPT’s security settings.',
+    }
+  }
+
+  /** `codex login status`, which exits non-zero signed out: asked as the agent's user, never read here. */
+  signInProof(): SignInProof | null {
+    if (this.opts.account?.kind === 'api-key') return null
+    return {
+      command: this.opts.bin,
+      args: ['login', 'status'],
+      env: this.ownFolder() ? { CODEX_HOME: this.opts.codexHome } : {},
     }
   }
 

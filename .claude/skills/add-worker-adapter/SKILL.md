@@ -206,12 +206,27 @@ is still not the adapter's: the registry wraps the line in `sudo -n -H -u <user>
 (`asAgent`, re-decided like `niced`, never written into the stored spec; `LaneRecord.user` is what a
 window that finds the lane again supervises it by). What the adapter owes:
 
-- **Take `HarnessOptions.user`.** The workbench makes one adapter per harness and user
-  (`adapterAs`, filed `claude-code~tade-agent`) with `home` that user's — where its harness keeps
-  its own sign-in and records, which Tade reads through the group — and `runDir`/`socketDir` in that
-  user's share (`agentShare`, `~<user>/tade-share`, set-group-id, Tade in the group). An account's
-  folder is in Tade's closed home, so accounts and users never mix: the user's own sign-in wins, and
-  that is said.
+- **Take `HarnessOptions.user`.** The workbench makes one adapter per harness, account and user
+  (`adapterOfUser`, filed `claude-code~tade-agent`, or `claude-code@work~tade-agent` on an account)
+  with `home` that user's — where its harness keeps its own sign-in and records, which Tade reads
+  through the group — and `runDir`/`socketDir` in that user's share (`agentShare`, `~<user>/tade-share`,
+  set-group-id, Tade in the group). An account is **that user's own sign-in of it**, in
+  `~<user>/tade-accounts/<name>` (`agentAccountDir`), handed as `account.dir` like any other — never the
+  folder in Tade's closed home and never a copy of its token. A start on one setup has not made is
+  refused with the setup line (`accountFolderOf`); an API-key account's key is in Tade's config and is
+  never handed across, so that agent runs on the user's own sign-in, and that is said.
+- **Say how to ask whether it is signed in** (`signInProof()`): a command that exits 0 only where it
+  is, for the account it was made for, with `env` naming the account's folder and nothing else. Setup
+  runs it as the agent's user exactly as a launch runs (`asAgent`: Tade's PATH, `--preserve-env` by
+  name), because that user's sign-in is in a home Tade must not read — `claude auth status`, `codex
+  login status`; pi has no such command, so `signed-in-here.ts` reads what `account()` reads, as that
+  user, and answers by exit code alone. 126 and 127 are "cannot be run as that user", never "signed
+  out". `signIn({ browser: false })` is what setup then runs in front of the person, as `sudo -iu
+  <user> <the harness's line>` (`signInLine`), with the program resolved on Tade's PATH as agents find it.
+- **Conversations as that user are read, never carried in.** `sessions` and `history` are asked of the
+  user's adapter, through the group; carrying one in — `carrySession`, `carryConversation` between
+  accounts — writes a file Tade owns among that user's own, which its harness cannot open, so the
+  workbench refuses it in words (`carryRefused`) rather than starting over looking as though it carried on.
 - **Write a run's files with `runModes(shared)`**, never a bare `0o700`/`0o600`: the agent reads its
   settings, MCP config, instructions, pictures and thread file as a member of the group. Listen with
   `socketFolder`/`listenOn` (`harnesses/core/src/modes.ts`): connecting needs write on the socket,
@@ -222,7 +237,8 @@ window that finds the lane again supervises it by). What the adapter owes:
 - **Anything you write into the harness's own files as Tade, do as that user instead.** Claude
   Code's folder question lives in a state file in the user's home, which Tade cannot write in, so its
   launch line answers it as that user (`trust-here.ts`, `LAUNCHER`'s `node`/`trust` words) and
-  `supervise` does not.
+  `supervise` does not — and its first-run questions with it, since a folder that has only ever been
+  signed in to would otherwise stop the first agent at choosing a colour scheme.
 - **Declare `capabilities.sandbox`, with `why.sandbox` when false**, and honour
   `WorkerSpec.sandbox` (`{ writes }`, asked only for an agent of its own user): Codex `--sandbox
   workspace-write` with `--add-dir` for each and network on (it has only on or off, and an agent

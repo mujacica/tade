@@ -38,6 +38,7 @@ import {
   type SandboxProof,
   type SignIn,
   type SignInHere,
+  type SignInProof,
   signInHere,
   WORKER_ENV,
   type WorkerAdapter,
@@ -537,6 +538,16 @@ export class ClaudeAdapter implements WorkerAdapter {
       how: here.browser
         ? 'Claude Code opens your browser to sign in to your Claude account. If it asks, paste the code it shows you here.'
         : 'Claude Code prints a link: open it on any device, sign in to your Claude account, and paste the code it gives you back here.',
+    }
+  }
+
+  /** `claude auth status`, which exits 1 signed out: asked as the agent's user, never read here. */
+  signInProof(): SignInProof | null {
+    if (this.opts.account?.kind === 'api-key') return null
+    return {
+      command: this.opts.bin,
+      args: ['auth', 'status'],
+      env: this.ownFolder() ? { CLAUDE_CONFIG_DIR: this.opts.configDir } : {},
     }
   }
 

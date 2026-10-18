@@ -1,5 +1,13 @@
 import { spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
@@ -41,6 +49,26 @@ describe('Claude Code run as a user of its own', () => {
     const own = new ClaudeAdapter({ runDir: tmp('tcc-') })
     made.push(own)
     expect(own.launchSpec(spec).args.slice(7, 9)).toEqual(['', ''])
+  })
+
+  it('answers the folder question and the first-run ones as that user, in the folder it signed in to', () => {
+    const home = tmp('tade-claude-home-')
+    const folder = realpathSync(tmp('tade-claude-cwd-'))
+    // An account's folder setup made in that user's home, signed in to and nothing more.
+    const account = join(home, 'tade-accounts', 'work')
+    mkdirSync(account, { recursive: true })
+    for (const configDir of [join(home, '.claude'), account]) {
+      const ran = spawnSync(process.execPath, [TRUST_PATH, folder, configDir], {
+        encoding: 'utf8',
+        env: { HOME: home, PATH: process.env.PATH ?? '' },
+      })
+      expect(ran.status, ran.stderr).toBe(0)
+    }
+    for (const state of [join(home, '.claude.json'), join(account, '.claude.json')]) {
+      const said = JSON.parse(readFileSync(state, 'utf8'))
+      expect(said.hasCompletedOnboarding).toBe(true)
+      expect(said.projects[folder].hasTrustDialogAccepted).toBe(true)
+    }
   })
 
   it('writes what the launch is handed for its group to read and nobody else', () => {

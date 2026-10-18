@@ -9,10 +9,15 @@ import { trustFolder } from './trust.ts'
 // that `trustFolder` gives in Tade's own home. Run as
 // `node trust-here.ts <folder> <config folder>`; never throws, because a
 // question left unanswered is a dialog in the lane, which is where things were.
+//
+// Its first-run questions too — the colour scheme and the rest — which
+// `prepareAccount` answers for an account in Tade's home: that user's own
+// folder, and an account's that setup made in its home (`agentAccountDir`),
+// have only ever been signed in to, and an agent user has nobody to choose.
 
 const [folder, configDir] = process.argv.slice(2)
 if (folder && configDir) {
-  await trustFolder(folder, configDir).catch((err: unknown) => {
+  await trustFolder(folder, configDir, { firstRun: true }).catch((err: unknown) => {
     process.stderr.write(
       `tade: could not mark ${folder} as trusted for Claude Code, so it will ask: ${(err as Error).message}\n`,
     )

@@ -37,12 +37,13 @@ and setting up ends by actually opening a lane — because every other check is 
 | `packages/workbench/src/machine.ts` (`unattendedHere`, `systemdHere`, `serviceUnitPath`, `lookAtService`, `serviceGroups`, `groupIdOf`) | whether this is a server, linger, the unit and what it runs — files, no process — how the service stands, one `systemctl show`, and the groups its process and its manager hold, out of `/proc` |
 | `packages/harnesses/core/src/sign-in.ts` | `signInHere` (is a browser here?), `signInLasts` (how long a sign-in has left) |
 | `packages/drivers/tmux/src/scope.ts` | the lanes' tmux server in a systemd scope of its own, under a user service |
-| `packages/core/src/agent-user.ts` | pure: `agentUserOf`, `agentsKeptAs`, `asAgent` (the launch through `sudo`), `sudoersRule`, `agentShare`, `agentCommands` (what setup shows), `agentUserTrouble`, `AGENT_USER_MEANS` |
-| `packages/workbench/src/agent-user.ts` | `homeOf`, `agentUserFor`, `shareReady`, `closeHome`, `contextFor`, `sandboxWrites`, `lookAtAgentUser`, `sandboxProofs` |
+| `packages/core/src/agent-user.ts` | pure: `agentUserOf`, `agentsKeptAs`, `asAgent` (the launch through `sudo`), `sudoersRule`, `agentShare`, `agentCommands` (what setup shows), `agentUserTrouble`, `groupFromLogin`, `AGENT_USER_MEANS`; and what its agents need beyond it: `agentAccountDir`, `signInLine`, `reachCommands`, `agentReachTrouble`, `keyPages`, `lsRemoteLine`, `triedAt` |
+| `packages/workbench/src/agent-user.ts` | `homeOf`, `agentUserFor`, `shareReady`, `closeHome`, `contextFor`, `documentsFor`, `sandboxWrites`, `lookAtAgentUser`, `sandboxProofs`; `adapterOfUser`, `signInsFor`, `signedInAs`, `lookAtReach`, `accountFolderOf` |
 | `packages/core/src/apparmor.ts` | pure: `bwrapProfile` (Claude Code's, word for word), `BWRAP_PROFILE`, `RELOAD_APPARMOR`, `AppArmorSeen`, `appArmorCommands` |
 | `packages/workbench/src/apparmor.ts` | `lookAtAppArmor` — the kernel's switch, the profile's file, the bwrap on PATH |
 | `packages/core/src/service-groups.ts` | pure: `processGroupsOf` (`/proc/<pid>/status`), `ServiceGroup`, `serviceGroupTrouble` |
-| `packages/cli/src/commands/setup-agents.ts` | the `agents` step: `agentsLooked`, `setUpAgents`, `proveAgentUser` |
+| `packages/cli/src/commands/setup-agents.ts` | the `agents` step: `agentsLooked`, `setUpAgents`, `proveAgentUser`, `usersToProve` |
+| `packages/cli/src/commands/setup-agent-reach.ts` | its sign-ins and its key: `setUpReach`, `offerPush` |
 | `packages/cli/src/commands/update.ts` | `tade update`, and `--check` as the only thing that dials |
 | `packages/cli/src/bin.ts` | the door: `nodeTooOld` before any other import, then `nativeTrouble` |
 | `packages/cli/src/node.ts` | `nodeTooOld`, and the two private halves `numbers` and `below` |
@@ -400,9 +401,12 @@ it — `tade` in the recommended install — and **setup makes the agents' user 
   widened, said once in the journal. An agent cannot be started as Tade instead: a user this machine
   has not got, or a share Tade cannot write in, refuses the start with the setup line.
 - **The group takes effect at the next login** — for setup's own shell. The step says so rather than
-  proving a lane that would fail; `--check` then proves each finished user with a lane opened *as it*
-  that tries to read `config.yaml` (`proveALane`'s `as`): passed only where it comes back as that user
-  and the file stays shut.
+  proving a lane that would fail, in the one sentence a refused start and the step's line say too
+  (`groupFromLogin`: a new login, and for a service the manager's restart); `--check` then proves each
+  finished user with a lane opened *as it* that tries to read `config.yaml` (`proveALane`'s `as`):
+  passed only where it comes back as that user and the file stays shut — and opened for no user
+  Tade's running service lacks the group of, nor kept from one for want of a sign-in or a key, which
+  have nothing to do with what it proves (`usersToProve`).
 - **A running service keeps the groups it began with**, however often anybody logs in, so one started
   before `usermod` refuses every start (`share is not there for Tade to write in`) while the user and
   setup's shell have the group. So it is read off **the running process** — `MainPID`'s
@@ -423,6 +427,34 @@ it — `tade` in the recommended install — and **setup makes the agents' user 
   bwrap is installed (the profile attaches to its own path, links followed) and no file is there yet,
   since one that is there is somebody's. Then each sandbox is **tried again as each user** and said
   started or still refused, with what it needs.
+- **Its sign-ins are its own** (`setup-agent-reach.ts`), because an agent must read the sign-in of the
+  harness it runs in and must not read Tade's. Every harness a route uses, and every subscription
+  account of one, is asked **as that user, the way a launch runs** (`signedInAs` over `asAgent`, the
+  harness's `signInProof`): the exit code is the whole answer and nothing it keeps is read here, and
+  126/127 say the program cannot be run as that user, never "signed out". One that is not is offered
+  as `sudo -iu <user> [env <FOLDER>=…] <program> …` (`signInLine`, the harness's own headless
+  `signIn`, the program as agents find it on Tade's PATH), run in front of the person, and asked again
+  after — said signed in, still not, or why it cannot tell. **An account** is that user's own sign-in
+  of it in `~<user>/tade-accounts/<name>` (`agentAccountDir`, `0700`, its parent `0750` so Tade can
+  see it is there), made as that user by `reachCommands` and signed in the same way — never the folder
+  in Tade's home and never a copied token. A start on one that is not made is refused with this line
+  (`accountFolderOf`); an API-key account's key stays in Tade's config and that agent runs on the
+  user's own sign-in, said in the journal.
+- **It pushes with a key of its own** (decision 9 of the VPS plan: a dedicated key, never a forwarded
+  agent). `lookAtReach` reads the public half of `~<user>/.ssh/id_ed25519` as that user, and for each
+  project with an origin, the URL that user's git pushes to (its own `pushInsteadOf` applied), tried
+  by `git ls-remote` in batch mode — a missing key or an unknown host key is a refusal with its
+  reason, never a prompt. `reachCommands` makes the key (`ssh-keygen -t ed25519`, only where it has
+  none and does not already reach every remote) and sends https pushes over SSH; then `offerPush`
+  shows the public half with `github.com/settings/ssh/new` and each repository's deploy-key page,
+  and tries each remote as that user in front of the person (`lsRemoteLine`), where ssh asks once
+  about GitHub's host key and the published fingerprints are named to compare. `ls-remote` proves
+  the key reaches the repository, not that it may write: a read-only deploy key passes it.
+- **Its documents and chats.** The project's documents folder is copied into the share at each start
+  (`documentsFor`: Tade's files the group reads and cannot change, only what changed, links not
+  followed) and named to the agent as a read-only copy. Bringing a chat back reads that user's
+  folders, through the group; carrying a conversation into them is refused in words (`carryRefused`),
+  since a file Tade writes there is one that user's harness cannot open.
 
 **Proved** in `tade-vps-jammy` (Ubuntu 22.04, the git-core PPA's git, kernel 6.8 under colima) with
 this tree in `/opt/tade`, Tade as `you`: `--check` named the three missing pieces; the six commands
@@ -442,7 +474,8 @@ Bash call ran inside `bwrap`, which this kernel refused (`kernel.apparmor_restri
 loosening its kernel was not this test's to do; Claude Code's keys are proved on a Mac,
 `sandboxed-lane.test.ts`) — so neither is the profile setup offers making it start, nor whether Codex's
 bubblewrap is the `bwrap` the profile attaches to; a Codex agent's whole turn as another user; one user
-per project on one box; the agent pushing (its own key or token, which setup says nothing about yet);
+per project on one box; a sign-in through `sudo -iu` and a key added on GitHub and reached, on a real
+server (the tests stand in `sudo`, `claude` and the remote);
 and which restart gives `tade serve` the group after `usermod` — the manager's rule above is systemd's
 exec (no `initgroups` without `User=`), read and not run; the tests stand `/proc` in.
 

@@ -31,6 +31,7 @@ import {
   SignalChannel,
   type SignIn,
   type SignInHere,
+  type SignInProof,
   signInHere,
   WORKER_ENV,
   type WorkerAdapter,
@@ -61,6 +62,8 @@ import { type Spent, spentBy, spentByMessage } from './usage.ts'
 export const EXTENSION_PATH = fileURLToPath(new URL('./tade.ts', import.meta.url))
 /** Rewrites requests a provider in between would refuse; loaded into every pi Tade starts. */
 export const COMPAT_PATH = fileURLToPath(new URL('./compat.ts', import.meta.url))
+/** Says by its exit code whether pi is signed in, as whoever runs it (`signInProof`). */
+export const SIGNED_IN_PATH = fileURLToPath(new URL('./signed-in-here.ts', import.meta.url))
 
 /**
  * The session a task's agent talks in, for the life of the task.
@@ -444,6 +447,14 @@ export class PiAdapter implements WorkerAdapter {
       launch: { command: process.execPath, args: [this.opts.bin], env: {} },
       how: `${choose} A Claude subscription belongs in Claude Code: through pi, Anthropic bills it as extra usage. ctrl+] comes back here.`,
     }
+  }
+
+  /**
+   * pi has no command that says, so a few lines of its own (`signed-in-here.ts`)
+   * read what `account` reads, as the agent's user, and answer by exit code.
+   */
+  signInProof(): SignInProof {
+    return { command: process.execPath, args: [SIGNED_IN_PATH], env: {} }
   }
 
   /** Its sessions folder, a folder per working directory inside it: every conversation an agent had. */

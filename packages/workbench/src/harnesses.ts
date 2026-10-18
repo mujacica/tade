@@ -46,13 +46,12 @@ export interface HarnessOptions {
 /**
  * How an account's adapter is filed beside its harness's own: `claude-code`
  * for the harness's own sign-in, `claude-code@work` for the account "work" —
- * and `claude-code~tade-agent` for the harness as run by another user, whose
- * own sign-in it is (an account's folder is in Tade's home, which that user
- * cannot open, so the two are never put together).
+ * and `claude-code~tade-agent` for the harness as run by another user, on its
+ * own sign-in, or `claude-code@work~tade-agent` on that user's sign-in of the
+ * account (kept in its home, `agentAccountDir`, never the folder in Tade's).
  */
 export function adapterKey(harness: string, account?: string | null, user?: string | null): string {
-  if (user) return `${harness}~${user}`
-  return account ? `${harness}@${account}` : harness
+  return `${harness}${account ? `@${account}` : ''}${user ? `~${user}` : ''}`
 }
 
 /** The harness, account and user an adapter is filed under, read back out of its key. */
@@ -62,12 +61,12 @@ export function adapterParts(key: string): {
   user: string | null
 } {
   const tilde = key.indexOf('~')
-  if (tilde !== -1)
-    return { harness: key.slice(0, tilde), account: null, user: key.slice(tilde + 1) }
-  const at = key.indexOf('@')
+  const user = tilde === -1 ? null : key.slice(tilde + 1)
+  const rest = tilde === -1 ? key : key.slice(0, tilde)
+  const at = rest.indexOf('@')
   return at === -1
-    ? { harness: key, account: null, user: null }
-    : { harness: key.slice(0, at), account: key.slice(at + 1), user: null }
+    ? { harness: rest, account: null, user }
+    : { harness: rest.slice(0, at), account: rest.slice(at + 1), user }
 }
 
 /** Where Tade keeps an API-key account's key: named so no extension's can collide with it. */

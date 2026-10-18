@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { Config } from './config.ts'
 import type { Launched } from './priority.ts'
 import { IN_CONFIG } from './secrets.ts'
@@ -204,6 +204,212 @@ export interface AgentUserSeen {
    * needs where it would not start (`WorkerAdapter.sandboxProof`), else null.
    */
   sandboxes: readonly { harness: string; needs: string | null }[]
+  /**
+   * Each sign-in its agents need — every harness in use, and every account of
+   * one — asked of the harness as this user (`signInProof`). Absent where it
+   * was not looked at, empty where Tade cannot become it yet.
+   */
+  signIns?: readonly AgentSignIn[]
+  /** Whether it can push with a key of its own, looked at as it; absent or null where not. */
+  push?: AgentPush | null
+}
+
+/** What signs a harness in, as the harness says it (`WorkerAdapter.signIn`). */
+export interface SignInLaunch {
+  command: string
+  args: readonly string[]
+  /** Where it keeps the sign-in, by name — an account's folder — and nothing of the sign-in. */
+  env: Readonly<Record<string, string>>
+}
+
+/**
+ * One harness sign-in an agent user's agents run on, as looked at: its own,
+ * in its own home, made by the person signing in as it — never a token Tade
+ * read, copied or kept, which is why it is asked and never opened.
+ */
+export interface AgentSignIn {
+  harness: string
+  /** The account (`tade accounts`), where it is not the harness's own sign-in. */
+  account: string | null
+  /** Where an account's sign-in is kept for this user (`agentAccountDir`), and whether it is there. */
+  folder: { path: string; made: boolean } | null
+  /**
+   * Whether the harness says it is signed in, asked as this user the way an
+   * agent is launched; null where it could not say, and `problem` says why.
+   */
+  signedIn: boolean | null
+  problem: string | null
+  /** What signs it in, run as this user in front of the person (`signInLine`); null where nothing can. */
+  launch: SignInLaunch | null
+  /** What the person is about to be asked, in the harness's words. */
+  how: string
+}
+
+/** Whether an agent user can push its projects' work with a key of its own. */
+export interface AgentPush {
+  /** The public half of its key, where it has one: what the person adds to the forge. */
+  key: string | null
+  remotes: readonly AgentRemote[]
+}
+
+/** One project's remote, as the agent user's own git pushes to it. */
+export interface AgentRemote {
+  root: string
+  /** Where its pushes go, as that user's git says, its own `pushInsteadOf` applied. */
+  url: string
+  /** `github.com/owner/name`, as `repositoryNamed` spells it; null where the URL names none. */
+  repository: string | null
+  /** Whether `git ls-remote` reached it as that user; null where it was not tried, and `problem` says why. */
+  reached: boolean | null
+  problem: string | null
+}
+
+/**
+ * Where an account's sign-in is kept for an agent user: in that user's home,
+ * beside its share, its own and nobody else's. Never the folder in Tade's home
+ * (`harnessAccount`), which that user cannot open, and never a copy of it —
+ * setup makes it and the person signs it in, as that user.
+ */
+export function agentAccountDir(home: string, account: string): string {
+  return join(home, 'tade-accounts', account)
+}
+
+/** The key an agent user pushes with: ssh's own default, so its git needs telling nothing. */
+export const PUSH_KEY = '.ssh/id_ed25519'
+
+/**
+ * A sign-in as the person runs it for an agent user: `sudo -iu <user>`, in
+ * that user's own login, then the harness's own line — so whatever the
+ * person gives it lands in that user's home, and never passes through Tade.
+ */
+export function signInLine(user: string, launch: SignInLaunch): string {
+  if (!USER_NAME.test(user)) throw new Error(`not a user name: ${user}`)
+  const env = Object.entries(launch.env).map(([name, value]) => `${name}=${word(value)}`)
+  return [
+    'sudo -iu',
+    user,
+    ...(env.length > 0 ? ['env', ...env] : []),
+    word(launch.command),
+    ...launch.args.map(word),
+  ].join(' ')
+}
+
+/** Where its pushes go over SSH, for a repository as `repositoryNamed` spells it. */
+export function sshRemote(repository: string): string {
+  const cut = repository.indexOf('/')
+  return `git@${repository.slice(0, cut)}:${repository.slice(cut + 1)}.git`
+}
+
+/**
+ * Where the person adds an agent user's key for a repository: on their own
+ * account, which decision 9 recommends — every repository they can push to —
+ * or as that repository's deploy key with write access, which is narrower.
+ * Null for a forge whose pages Tade does not know.
+ */
+export function keyPages(repository: string): { account: string; deploy: string } | null {
+  const [host, ...path] = repository.split('/')
+  if (host !== 'github.com' || path.length < 2) return null
+  return {
+    account: 'https://github.com/settings/ssh/new',
+    deploy: `https://github.com/${path.join('/')}/settings/keys/new`,
+  }
+}
+
+/** Where GitHub publishes its SSH host keys, for the person to compare before saying yes. */
+export const GITHUB_HOST_KEYS =
+  'https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints'
+
+/**
+ * What the person runs to try a remote as an agent user: `git ls-remote` in
+ * that user's own login, in front of them — where ssh asks once about the
+ * forge's host key, which is theirs to compare and answer.
+ */
+export function lsRemoteLine(
+  user: string,
+  remote: Pick<AgentRemote, 'url' | 'repository'>,
+): string {
+  if (!USER_NAME.test(user)) throw new Error(`not a user name: ${user}`)
+  return `sudo -iu ${user} git ls-remote ${word(triedAt(remote))} HEAD`
+}
+
+/**
+ * Where a remote is tried as an agent user: where its pushes go, or — where
+ * they still go over https, which its key cannot sign in to — the same
+ * repository over SSH, where they go once `reachCommands` has said so.
+ */
+export function triedAt(remote: Pick<AgentRemote, 'url' | 'repository'>): string {
+  return remote.repository && overHttps(remote.url) ? sshRemote(remote.repository) : remote.url
+}
+
+function overHttps(url: string): boolean {
+  return /^https?:\/\//i.test(url)
+}
+
+/**
+ * The commands that give an agent user what its agents need beyond the user
+ * itself, each said before it runs and only those still to do: a folder of
+ * its own for each account's sign-in, a key to push with, and its pushes to a
+ * forge over https sent over SSH instead, where its key works. All run as
+ * that user, through the rule `agentCommands` wrote.
+ */
+export function reachCommands(seen: AgentUserSeen): AgentCommand[] {
+  const u = seen.user
+  if (!seen.sudo) return []
+  const out: AgentCommand[] = []
+  for (const one of seen.signIns ?? []) {
+    if (!one.folder || one.folder.made) continue
+    out.push({
+      says: `make the folder ${u} keeps ${one.harness}'s account ${one.account}'s sign-in in, its own and nobody else's`,
+      line: `sudo -u ${u} -H sh -c ${word(`mkdir -p -m 0750 ${word(dirname(one.folder.path))} && mkdir -p -m 0700 ${word(one.folder.path)}`)}`,
+    })
+  }
+  const push = seen.push
+  if (!push) return out
+  const reached = push.remotes.length > 0 && push.remotes.every((one) => one.reached === true)
+  if (push.key === null && !reached) {
+    out.push({
+      says: `make ${u} a key of its own to push with — never yours, which is in a home it cannot open`,
+      line: `sudo -u ${u} -H sh -c ${word(`cd && mkdir -p -m 0700 .ssh && ssh-keygen -q -t ed25519 -N "" -f ${PUSH_KEY}`)}`,
+    })
+  }
+  const hosts = new Set<string>()
+  for (const one of push.remotes) {
+    if (!one.repository || !overHttps(one.url)) continue
+    const host = one.repository.slice(0, one.repository.indexOf('/'))
+    if (hosts.has(host)) continue
+    hosts.add(host)
+    out.push({
+      says: `send ${u}'s pushes to ${host} over SSH, where its key works, rather than https, where it has nothing`,
+      line: `sudo -u ${u} -H sh -c ${word(`cd && git config --global --add url.git@${host}:.pushInsteadOf https://${host}/`)}`,
+    })
+  }
+  return out
+}
+
+/** What is still in the way of an agent user's agents signing in and pushing, one clause each. */
+export function agentReachTrouble(seen: AgentUserSeen): string[] {
+  const u = seen.user
+  const out: string[] = []
+  for (const one of seen.signIns ?? []) {
+    const what = one.account ? `${one.harness}'s account ${one.account}` : one.harness
+    if (one.signedIn === false) out.push(`${u} is not signed in to ${what}`)
+    else if (one.signedIn === null)
+      out.push(`cannot tell whether ${u} is signed in to ${what}: ${one.problem}`)
+  }
+  const push = seen.push
+  if (!push) return out
+  const reached = push.remotes.length > 0 && push.remotes.every((one) => one.reached === true)
+  if (push.key === null && !reached) out.push(`${u} has no key of its own to push with`)
+  for (const one of push.remotes) {
+    const where = one.repository ?? one.url
+    if (overHttps(one.url))
+      out.push(`${u}'s pushes to ${where} go over https, where it has nothing to sign in with`)
+    if (one.reached === false)
+      out.push(`${u} cannot reach ${where} with its own key: ${one.problem}`)
+    else if (one.reached === null)
+      out.push(`cannot tell whether ${u} can reach ${where}: ${one.problem}`)
+  }
+  return out
 }
 
 /** One command setup shows and runs on a press, and what it is for. */
@@ -289,6 +495,18 @@ export function agentCommands(
 }
 
 /**
+ * How Tade comes to hold an agent user's group, said the same wherever it
+ * does not yet — the step, a refused start, setup's last word: a process has
+ * the groups it began with, so a shell has it from a new login, and a service
+ * from a new start of the service manager it takes its groups from, which
+ * began before `usermod` and which restarting the service alone never is.
+ * Where a service is running, `serviceGroupTrouble` names its exact restart.
+ */
+export function groupFromLogin(self: string, user: string): string {
+  return `${self} is in ${user}'s group from a new login: log in again — and where Tade runs as a service, restart the service manager it takes its groups from, \`sudo systemctl restart user@$(id -u).service\`, which stops every service of yours, or log out of every session`
+}
+
+/**
  * What is still in the way, one clause each, or nothing: the step's line in
  * setup and `--check`. Tade's home is not here — Tade closes it itself
  * (`closeHome`), and only the group taking effect needs a person.
@@ -298,11 +516,7 @@ export function agentUserTrouble(seen: AgentUserSeen, self: string): string[] {
   const out: string[] = []
   if (!seen.home) out.push(`there is no user ${u}`)
   if (!seen.inGroup) out.push(`${self} is not in ${u}'s group`)
-  else if (!seen.groupHeld) {
-    out.push(
-      `${self} is in ${u}'s group from your next login: log in again, or restart Tade's service`,
-    )
-  }
+  else if (!seen.groupHeld) out.push(groupFromLogin(self, u))
   if (seen.home && !seen.sudo) out.push(`${self} cannot run things as ${u} without a password`)
   if (seen.home && !seen.share)
     out.push(`${agentShare(seen.home)} is not there for Tade to write in`)
@@ -313,6 +527,7 @@ export function agentUserTrouble(seen: AgentUserSeen, self: string): string[] {
     if (box.needs)
       out.push(`${box.harness}'s own sandbox will not start as ${u} here: it needs ${box.needs}`)
   }
+  out.push(...agentReachTrouble(seen))
   return out
 }
 

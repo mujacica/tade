@@ -1,5 +1,6 @@
 import { mkdirSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { runProgram } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { PiAdapter, runSocket, sessionIdFor } from '../src/adapter.ts'
@@ -43,5 +44,28 @@ describe('pi run as a user of its own', () => {
     expect(statSync(runSocket(socketDir, 'app/t/agent')).mode & 0o777).toBe(0o660)
     expect(one.capabilities.sandbox).toBe(false)
     expect(one.capabilities.why.sandbox).toContain('no sandbox of its own')
+  })
+
+  it('says whether it is signed in by its exit code alone, as whoever runs it', async () => {
+    const home = tmp('pi-home-')
+    const one = new PiAdapter({ runDir: tmp('pi-agent-'), user: 'tade-agent', home })
+    made.push(one)
+    const proof = one.signInProof()
+    // As setup runs it: as that user, whose home is the one it reads.
+    const ask = () =>
+      runProgram(proof.command, proof.args, {
+        env: { HOME: home, PATH: process.env.PATH ?? '', ...proof.env },
+        timeoutMs: 30_000,
+      })
+    expect((await ask()).code).toBe(1)
+    mkdirSync(join(home, '.pi', 'agent'), { recursive: true })
+    writeFileSync(
+      join(home, '.pi', 'agent', 'auth.json'),
+      JSON.stringify({ openai: { type: 'oauth', access: 'a-token-nobody-may-see' } }),
+    )
+    const signed = await ask()
+    expect(signed.code).toBe(0)
+    // Nothing of the sign-in comes back: not the token, not even the provider.
+    expect(`${signed.stdout}${signed.stderr}`).toBe('')
   })
 })

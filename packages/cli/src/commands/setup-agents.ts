@@ -7,22 +7,31 @@ import {
   type AgentUserSeen,
   agentCommands,
   agentUsers,
+  agentUserTrouble,
   appArmorCommands,
   BWRAP_PROFILE,
   bwrapProfile,
   type Config,
   defaultConfigPath,
+  groupFromLogin,
   type LaneProof,
   loadConfig,
   runProgram,
   type ServiceGroup,
   serviceGroupTrouble,
 } from '@tade/core'
-import { lookAtAgentUser, ownUser, rootsOf, sandboxProofs } from '@tade/workbench/agent-user'
+import {
+  lookAtAgentUser,
+  lookAtReach,
+  ownUser,
+  rootsOf,
+  sandboxProofs,
+} from '@tade/workbench/agent-user'
 import { lookAtAppArmor } from '@tade/workbench/apparmor'
 import { serviceGroups } from '@tade/workbench/machine'
 import { proveALane } from '@tade/workbench/prove'
 import { writeFromShell } from '../config-write.ts'
+import { setUpReach } from './setup-agent-reach.ts'
 
 // Setting up agents as a user of their own (`agents.user`, `agent-user.ts`).
 //
@@ -48,11 +57,35 @@ export async function agentsLooked(
   const users = agentUsers(config, self)
   if (users.length === 0 && !server) return null
   const proofs = sandboxProofs(config, home, platform)
+  // Each user, and what its agents need beyond it: their sign-ins and a key to push with.
   const seen = await Promise.all(
-    users.map((user) => lookAtAgentUser(user, self, rootsOf(config, user, self), home, proofs)),
+    users.map(async (user) => {
+      const one = await lookAtAgentUser(user, self, rootsOf(config, user, self), home, proofs)
+      return { ...one, ...(await lookAtReach(one, config, self)) }
+    }),
   )
   const apparmor = proofs.length > 0 ? await lookAtAppArmor(proofs.map((one) => one.harness)) : null
   return { self, seen, apparmor, service: await serviceGroups(users) }
+}
+
+/**
+ * The agent users `tade setup --check` proves with a lane opened as each:
+ * those with nothing left to do to the user itself — a sign-in or a key has
+ * nothing to do with what the lane proves — and never one whose group Tade's
+ * running service lacks, since a lane setup opens proves setup's own groups,
+ * not the service's, and the step already says the restart.
+ */
+export function usersToProve(here: AgentsHere): AgentUserSeen[] {
+  const lacking = new Set(
+    (here.service ?? [])
+      .filter((one) => serviceGroupTrouble(one, here.self) !== null)
+      .map((one) => one.user),
+  )
+  return here.seen.filter(
+    (seen) =>
+      !lacking.has(seen.user) &&
+      agentUserTrouble({ ...seen, signIns: [], push: null }, here.self).length === 0,
+  )
 }
 
 /** Your git's name and address, for the agent user's commits to carry. */
@@ -89,6 +122,8 @@ export interface AgentsLook {
   platform?: NodeJS.Platform
   /** Whether Tade's running service holds each user's group (`serviceGroups`). */
   service?: (users: readonly string[]) => Promise<ServiceGroup[]>
+  /** Signing each user in and giving it a key (`setUpReach`), which a test of something else stands in. */
+  reach?: typeof setUpReach
 }
 
 /**
@@ -186,13 +221,6 @@ export async function setUpAgents(
     )
     ui.say(`  agents.user: ${writes} — new agents run as ${writes} from now on`)
   }
-  // Said, because nothing here can do it: pushing is a credential, and yours
-  // is in a home that user cannot open — which is the point.
-  for (const one of seen) {
-    ui.say(
-      `  ${one.user} signs in to its harness and pushes with its own credentials, never yours: \`sudo -iu ${one.user}\` and sign in there, and give it a key of its own for git`,
-    )
-  }
   const proofs = sandboxProofs(loaded.config, home, look.platform)
   const service = look.service ?? ((users) => serviceGroups(users))
   for (const one of seen) {
@@ -210,6 +238,8 @@ export async function setUpAgents(
           : `  ${box.harness}'s own sandbox starts as ${one.user} now`,
       )
     }
+    // Its sign-ins and its key, as it: nothing of yours, which is in a home it cannot open.
+    await (look.reach ?? setUpReach)(ui, again, here.self)
     // Looked at after the commands, since one of them may just have made the group.
     const lacking = (await service([one.user])).flatMap(
       (held) => serviceGroupTrouble(held, here.self) ?? [],
@@ -218,9 +248,7 @@ export async function setUpAgents(
     // A lane setup opens proves setup's own groups, not the service's.
     if (lacking.length > 0) continue
     if (!again.groupHeld) {
-      ui.say(
-        `  ${here.self} is in ${one.user}'s group from your next login: log in again, or restart Tade's service, before an agent starts`,
-      )
+      ui.say(`  ${groupFromLogin(here.self, one.user)}, before an agent starts`)
       continue
     }
     ui.say(`Opening a lane as ${one.user}…`)

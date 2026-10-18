@@ -54,9 +54,9 @@ would rather Tade never wrote down can stay in an environment variable, which al
 file.
 
 On a server you can have them run as a user of their own instead (`agents.user`): `tade setup` makes
-`tade-agent` on a press, showing each command, and its agents then work with their harness's own
-sandbox on and cannot open Tade's home or read a key in it — only their own sign-in and their
-project's code.
+`tade-agent` on a press, showing each command, signs it in to each harness as itself and gives it a
+key of its own to push with, and its agents then work with their harness's own sandbox on and cannot
+open Tade's home or read a key in it — only their own sign-in and their project's code.
 
 ## Agents, together or apart
 

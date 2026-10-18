@@ -216,6 +216,18 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
         }
       })
 
+      it('says how to ask whether it is signed in, carrying nothing but where to look', async () => {
+        // Run as another user, whose sign-in Tade never reads: a command and
+        // the folder it is told by name — never a key, a token or an answer.
+        const proof = (await adapter()).signInProof?.() ?? null
+        if (!proof) return
+        expect(proof.command.length).toBeGreaterThan(0)
+        for (const [name, value] of Object.entries(proof.env)) {
+          expect(name).toMatch(/^[A-Z_][A-Z0-9_]*$/)
+          expect(value.startsWith('/')).toBe(true)
+        }
+      })
+
       it('says where it keeps conversations as absolute folders, asking nothing', async () => {
         // What a backup keeps beside Tade's home: a relative path would be
         // read from wherever the backup ran, and an empty one is the home.
