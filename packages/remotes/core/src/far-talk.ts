@@ -39,6 +39,8 @@ export interface FarSaid {
   device: string
   /** Whether it came in on that machine's own door, which is what makes it an owner's turn. */
   here: boolean
+  /** Whether the sending machine said the person typed it there (`AskCall.typed`). */
+  typed?: true
 }
 
 export class FarTalk {
@@ -111,7 +113,7 @@ export class FarTalk {
         const rev = chatRev({ busy: this.busy })
         if (call.was !== rev) throw new Moved('Tade is already answering something', rev)
         const device = from.how === 'remote' ? from.device : ''
-        this.said.push({ said: call.said, device, here })
+        this.said.push({ said: call.said, device, here, ...(call.typed ? { typed: true } : {}) })
         this.line('asked', call.said, `device ${device}`)
         this.busy = true
         this.whose = `device ${device}`

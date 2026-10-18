@@ -113,6 +113,26 @@ describe('one message, all the way through', () => {
     expect(one.theirs).toEqual([])
   })
 
+  it('takes a machine link’s line as the person’s where it says they typed it there', async () => {
+    // From the Mac's tab for this machine: typed at the Mac's keyboard, so it
+    // names a setting here as a line typed at this one would. Without the
+    // word it is still the device's (above): what the Mac's orchestrator
+    // passes on with tade_remote_tell never carries it.
+    const one = await machine({ talking: true })
+    await owned(one.home, one.port)
+    await one.away.open()
+    const answer = await ask(one.port, 'ask', {
+      was: revOf(),
+      key: KEY,
+      rev: 0,
+      said: 'watch the rehearsal requests on app',
+      typed: true,
+    })
+    expect(answer.status).toBe(200)
+    expect(one.armed).toEqual([{ how: 'owner', device: DEVICE, theirs: true, typed: true }])
+    expect(one.theirs).toEqual(['watch the rehearsal requests on app'])
+  })
+
   it('answers the person’s own device as them: the keyboard’s reach, and their own words', async () => {
     // A device with full access — what pairing gives unless somebody unticks
     // something — is the person's own phone. Its turn is not narrowed, and

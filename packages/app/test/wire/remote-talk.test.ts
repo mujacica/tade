@@ -106,7 +106,13 @@ describe('another machine’s orchestrator, from this window', () => {
     terminal.press('\r')
     await until('that machine to be told', () => far.talk.said.length === 1, 20_000)
     // As this machine's owner, on that machine's own door: the owner channel.
-    expect(far.talk.said[0]).toEqual({ said: 'start the deps bump there', device, here: true })
+    // Typed at this keyboard, and said so: there it is the person's own line.
+    expect(far.talk.said[0]).toEqual({
+      said: 'start the deps bump there',
+      device,
+      here: true,
+      typed: true,
+    })
     // What it says back is that machine's, drawn here as the person's own words.
     await until('its turn, on its tab', () => shown('answering you · esc stops it'), 20_000)
     expect(shown('start the deps bump there')).toBe(true)
@@ -198,5 +204,6 @@ describe('another machine’s orchestrator, from this window', () => {
     expect(far.talk.said[0]?.said).toMatch(
       /^The orchestrator on .+ passes this on:\n\nstart the release$/,
     )
+    expect(far.talk.said[0]?.typed).toBeUndefined()
   })
 })

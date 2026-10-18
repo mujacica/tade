@@ -54,6 +54,12 @@ export interface AskCall {
   was: string
   /** What to say, verbatim and bounded. Never trimmed into meaning. */
   said: string
+  /**
+   * A machine link's word that the person typed this at its keyboard, rather
+   * than its orchestrator passing a sentence on (`tade_remote_tell`). Only an
+   * owner's turn reads it: see `Arm` in `@tade/core`'s `origin.ts`.
+   */
+  typed?: true
 }
 
 /**

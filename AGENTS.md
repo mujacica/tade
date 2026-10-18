@@ -214,8 +214,8 @@ attached to the decision it governs. Load the matching one rather than working f
   enforced in the window, never in the tool** — a rule where the model lives is one the model can be
   talked out of. **`never`** is a *subtree*, not a key: anything widening what an agent may do, handing
   out tools or a credential, changing who is asked, or changing where Tade sends something. **`asked`**
-  is the default: the person's own `said` lines must name it (`namedBy`) — typed here or on their
-  full-access device (`fullAccess`), never what an agent read.
+  is the default: the person's own `said` lines must name it (`namedBy`) — typed here, on their
+  full-access device or another machine's tab (`theirs`), never what an agent read.
 - **One write path** — `settingsOf`, `parseSetting`, `writeSetting`/`writeKey` — from the Settings page,
   the CLI and the orchestrator alike, and every change writes `config_changed`. **A config naming
   something gone is ignored and said** (`GONE`), never refused: refusing the file takes away

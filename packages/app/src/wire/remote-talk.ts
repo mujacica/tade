@@ -207,7 +207,7 @@ export class RemoteTalks {
   private async send(name: string, said: string): Promise<void> {
     if (said === '') return
     try {
-      await this.carry(name, said)
+      await this.carry(name, said, true)
     } catch (err) {
       this.note(name, `${why(err)}. What was typed: ${said}`)
     }
@@ -246,8 +246,15 @@ export class RemoteTalks {
     return `Passed on to the orchestrator on ${machine.name}. It answers in its own conversation, which they read on ${machine.name}'s tab in this window; you are not given its answer.`
   }
 
-  /** One message to that machine's orchestrator, as this machine's owner there. Throws what to say where it did not go. */
-  private async carry(name: string, said: string): Promise<void> {
+  /**
+   * One message to that machine's orchestrator, as this machine's owner there.
+   * Throws what to say where it did not go.
+   *
+   * `typed` is this machine's word that the person typed it at this keyboard
+   * (`AskCall.typed`), which makes it their words there too: only what is
+   * typed on a machine's tab, never what this orchestrator passes on.
+   */
+  private async carry(name: string, said: string, typed = false): Promise<void> {
     const machine = this.deps.machines().remotes.find((one) => one.name === name)
     const reach = this.deps.reach(name)
     const talk = machine?.talk ?? null
@@ -266,14 +273,19 @@ export class RemoteTalks {
     this.missed.delete(name)
     this.sending.add(name)
     this.wire.draw()
+    const body = { was: talk.rev, rev: machine.rev, said }
+    const ask = (more: { typed?: true }) =>
+      reach.link.request(name, '/api/ask/ask', {
+        ...body,
+        key: randomBytes(12).toString('base64url'),
+        ...more,
+      })
     let answer: Answer
     try {
-      answer = await reach.link.request(name, '/api/ask/ask', {
-        was: talk.rev,
-        key: randomBytes(12).toString('base64url'),
-        rev: machine.rev,
-        said,
-      })
+      answer = await ask(typed ? { typed: true } : {})
+      // An older Tade there reads the body strictly and has no `typed`: its
+      // refusal acted on nothing, so the words go again as a device's.
+      if (typed && answer.status === 400 && errorOf(answer) === 'malformed') answer = await ask({})
     } catch (err) {
       throw new Error(`${name}: ${printable(why(err))} — it may not have been sent`)
     } finally {
@@ -356,6 +368,12 @@ export class RemoteTalks {
 const NONE: readonly Entry[] = []
 
 /** Why a message or a stop was not taken there, in that machine's words as text. */
+/** The error word an answer's body carries, or null. */
+function errorOf(answer: Answer): unknown {
+  const body = typeof answer.body === 'object' && answer.body !== null ? answer.body : {}
+  return 'error' in body ? body.error : null
+}
+
 function refusedSaid(answer: Answer, name: string): string {
   const body = typeof answer.body === 'object' && answer.body !== null ? answer.body : {}
   const error = 'error' in body ? body.error : null

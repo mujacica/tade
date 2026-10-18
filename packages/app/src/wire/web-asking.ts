@@ -200,7 +200,8 @@ export function narrowed(arm: Arm, paired: (device: string) => Paired | null): A
 
 /** Whether the record still gives an owner turn the keyboard's reach. */
 function stillOwner(arm: Extract<Arm, { how: 'owner' }>, held: Paired): boolean {
-  if (arm.theirs !== true) return held.owner === true
+  // A machine link, typed there or not, while the record says owner.
+  if (arm.theirs !== true || arm.typed === true) return held.owner === true
   return held.owner !== true && fullAccess({ scopes: held.scopes, granted: held.granted ?? [] })
 }
 
@@ -281,7 +282,7 @@ export function webAsking(deps: AskingDeps): WebAsking {
     unlocked: () => deps.talking(),
 
     async ask(call: AskCall, from: From, here: boolean): Promise<Outcome> {
-      const arm = armOf(deps, from, here)
+      const arm = armOf(deps, from, here, call.typed === true)
       const seen = deps.seen()
       // **The state the act named, re-checked against the world now.** A
       // mismatch is the conversation having moved — somebody said something,
@@ -348,7 +349,7 @@ export function webAsking(deps: AskingDeps): WebAsking {
  * into `LOCAL`, because the one thing that must never happen is a remote
  * request running unnarrowed.
  */
-function armOf(deps: AskingDeps, from: From, here: boolean): Arm {
+function armOf(deps: AskingDeps, from: From, here: boolean, typed = false): Arm {
   if (from.how !== 'remote') {
     throw new OutOfScope('a message from away is never the person at the machine')
   }
@@ -360,8 +361,16 @@ function armOf(deps: AskingDeps, from: From, here: boolean): Arm {
   // **A machine link needs both halves, and neither is the request's word.**
   // The record says owner (minted only by `tade web pair --owner`, bound to a
   // loopback host), and the door says this message came in on this machine.
-  // Its words may be another machine's model's, so they are never `theirs`.
-  if (device.owner) return here ? { how: 'owner', device: device.id } : armFor(device)
+  // Its words may be another machine's model's, so they are `theirs` only
+  // where that machine says the person typed them (`AskCall.typed`).
+  if (device.owner) {
+    if (!here) return armFor(device)
+    return {
+      how: 'owner',
+      device: device.id,
+      ...(typed ? { theirs: true as const, typed: true as const } : {}),
+    }
+  }
   // **A device with full access is the person's own**, from any door the
   // guard let it through — a public name only with a passkey proved: its
   // reach is the keyboard's and its words are theirs (`Arm`'s owner variant).

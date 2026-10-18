@@ -61,6 +61,8 @@ const AskBody = z.strictObject({
     .string()
     .max(ASK_BOUND)
     .refine((text) => text.trim() !== '', { message: 'say something' }),
+  /** Typed at the sending machine's keyboard (`AskCall.typed`). */
+  typed: z.literal(true).optional(),
 })
 
 /** Stopping the turn in flight. No words, so nothing to bound. */
@@ -109,7 +111,12 @@ export function readAsk(body: unknown): ReadingAsk {
       // and what somebody typed on a phone is not a record Tade writes about
       // them. The length is a count, which is a thing Tade may say.
       said: `said ${call.said.length} characters to Tade`,
-      run: (asking, from, here) => asking.ask({ was: call.was, said: call.said }, from, here),
+      run: (asking, from, here) =>
+        asking.ask(
+          { was: call.was, said: call.said, ...(call.typed ? { typed: true as const } : {}) },
+          from,
+          here,
+        ),
     },
   }
 }

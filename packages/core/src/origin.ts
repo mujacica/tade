@@ -126,12 +126,23 @@ export type Arm =
    * **A machine link** (`tade web pair --owner`, REMOTE-TADE.md §11 item 4)
    * reaches as far, used only on this machine's own door through the SSH key —
    * but what it carries may be another machine's model's words rather than
-   * the person's, so it is never a `said` line.
+   * the person's, so it is `theirs` — a `said` line and the person's heading
+   * — only where that machine says the person typed it at its keyboard
+   * (`AskCall.typed`: sent from a machine's tab, never by
+   * `tade_remote_tell`). That machine writes `said` from its own keyboard
+   * alone, and whoever holds the SSH key could edit the config here anyway,
+   * so the claim widens nothing a model could reach.
    *
    * Either stays a device in the record: who asked is `device <id>` (`whoOf`)
    * and the transcript marks the words as that device's.
    */
-  | { how: 'owner'; device: string; theirs?: boolean }
+  | {
+      how: 'owner'
+      device: string
+      theirs?: boolean
+      /** Theirs because a machine link says it was typed there (`AskCall.typed`), not by full access. */
+      typed?: true
+    }
 
 /** Not narrowed: the person at this machine. */
 export const LOCAL: Arm = { how: 'local' }
@@ -272,7 +283,7 @@ export function cameFromAway(arm: Arm): string {
  * to be careful with, and the transcript says why a phone could do that.
  */
 const YOURS_ASKED =
-  'This came from the person’s own device, which has full access: these are their own words, typed there rather than at the keyboard, and they reach everything the keyboard does.'
+  'This came from the person’s own device — one with full access, or another machine of theirs where they typed it: these are their own words, typed there rather than at the keyboard, and they reach everything the keyboard does.'
 
 /**
  * Tade's own line above a machine link's words: `cameFromAway`'s shape, for
