@@ -57,7 +57,10 @@ export async function answerIn(
         // Only a line that names the call is parsed: a record is mostly
         // other calls' answers, and parsing every one is the cost of the file.
         if (line.indexOf(needle) < 0) continue
-        const found = safely(read, line.toString('utf8'))?.results.find((one) => one.id === id)
+        // A reader answers null for a line it does not know; one that throws is
+        // a reader that is broken, and that reaches the caller as a record
+        // that could not be read — never as a call nobody answered.
+        const found = read(line.toString('utf8'))?.results.find((one) => one.id === id)
         if (found) return { ok: found.ok, result: found.result.trimEnd() }
       }
       rest = bytes.subarray(0, cut)
@@ -67,14 +70,11 @@ export async function answerIn(
   } catch (err) {
     throw new Error(`could not read ${file}: ${err instanceof Error ? err.message : String(err)}`)
   } finally {
-    await handle.close().catch(() => {})
-  }
-}
-
-function safely(read: (line: string) => HistoryLine | null, text: string): HistoryLine | null {
-  try {
-    return read(text)
-  } catch {
-    return null
+    // A file that will not close is said, with which, to whoever asked.
+    await handle.close().catch((err: unknown) => {
+      throw new Error(
+        `could not close ${file}: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    })
   }
 }
