@@ -282,6 +282,16 @@ export function findingsOf(store) {
   return rowsOf(store, 'findings')
 }
 
+/**
+ * The findings nobody has answered yet: no verdict written, whether they wait
+ * on the person or on the agent first. **The one count** the menu, the More
+ * screen and the findings page's own bar all draw, so none of them can say
+ * `99+` while the page says nothing waits.
+ */
+export function findingsUnanswered(store) {
+  return findingsOf(store).filter((row) => row.verdict === null || row.verdict === undefined)
+}
+
 export function plansOf(store) {
   return rowsOf(store, 'plans')
 }

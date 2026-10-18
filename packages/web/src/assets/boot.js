@@ -72,6 +72,7 @@ import {
   applySnapshot,
   asOf,
   emptyStore,
+  findingsUnanswered,
   GRANTS,
   intakeWaiting,
   mayRead,
@@ -382,7 +383,9 @@ function paint() {
         runs: held.store.rows.runs.size + omitted(held.store, 'runs'),
         workflows: held.store.rows.workflows.size + omitted(held.store, 'workflows'),
         reviews: rowsOf(held.store, 'tasks').filter((task) => task.review !== null).length,
-        findings: held.store.rows.findings.size,
+        // **What is unanswered**, not how many findings there are: the
+        // projection sends those first, so a cut list still holds them.
+        findings: findingsUnanswered(held.store).length,
         notes: held.store.rows.notes.size + omitted(held.store, 'notes'),
       }
     : null

@@ -486,9 +486,15 @@ export function snapshotOf(
     (row) => row.task,
     cursors.queue ?? null,
   )
+  // Findings are *chosen* unanswered first — no verdict yet, whoever's move it
+  // is — and then by key, so a cut list still holds every one the badge counts
+  // before it holds any that is settled; then sorted by key like everything
+  // else (below).
   const findingPage = has(reach, 'findings')
     ? pageOf(
-        [...findings].sort((a, b) => byText(a.key, b.key)),
+        [...findings].sort(
+          (a, b) => Number(a.verdict !== null) - Number(b.verdict !== null) || byText(a.key, b.key),
+        ),
         budget.findings,
         (row) => row.key,
         cursors.findings ?? null,
@@ -609,7 +615,9 @@ export function snapshotOf(
     ),
     tasks: taskPage.rows.map((task) => taskRow(task, reach, budget)),
     queue: queuePage.rows.map((item) => queueRow(item, reach, budget)),
-    findings: findingPage.rows.map((found) => findingRow(found, budget)),
+    findings: [...findingPage.rows]
+      .sort((a, b) => byText(a.key, b.key))
+      .map((found) => findingRow(found, budget)),
     notes: [...notePage.rows].sort((a, b) => byText(a.id, b.id)),
     plans: planPage.rows.map((one) => planRow(one, reach, budget)),
     // Back into the order they were said in: the budget chose from the end,

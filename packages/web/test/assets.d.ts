@@ -167,6 +167,7 @@ declare module '*/assets/store.js' {
   export function queueIn(store: Store, project: string | null): readonly any[]
   export function notesOf(store: Store): readonly any[]
   export function findingsOf(store: Store): readonly any[]
+  export function findingsUnanswered(store: Store): readonly any[]
   export function plansOf(store: Store): readonly any[]
   export function spendFold(tasks: readonly any[], partial?: boolean): Record<string, any>
   export function checksFold(tasks: readonly any[]): Record<string, any>
@@ -229,6 +230,10 @@ declare module '*/assets/shell.js' {
   ): { key: string; lead: string; under: string } | null
   export function crossing(was: Set<string> | null, is: Set<string>): string
   export function titleFor(where: { view: string; project?: string; task?: string }): string
+  export function navCounts(
+    links: readonly { figure: unknown; counts: string | null }[],
+    counts: Record<string, number>,
+  ): void
 }
 
 /**

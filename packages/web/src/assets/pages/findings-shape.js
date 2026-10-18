@@ -262,12 +262,16 @@ export function findingsPage(findings, asOf, known = () => false) {
   }
 }
 
-/** The bar's word: how many want a verdict, or that nothing does — empty before there is a page. */
+/**
+ * The bar's word: how many are unanswered — the menu's own count
+ * (`findingsUnanswered`), so the two never disagree — in violet while one of
+ * them waits on your verdict, or that nothing waits; empty before there is a page.
+ */
 export function figureSaid(page) {
   if (page === null || page.total === 0) return { word: '', tone: null }
-  if (page.counts.yours === 0) return { word: 'nothing waits on you', tone: null }
-  const n = page.counts.yours
-  return { word: `${n} ${n === 1 ? 'wants' : 'want'} a verdict`, tone: 't-wants' }
+  const n = page.counts.yours + page.counts.agent
+  if (n === 0) return { word: 'nothing waits on you', tone: null }
+  return { word: `${n} unanswered`, tone: page.counts.yours > 0 ? 't-wants' : null }
 }
 
 /** A line of the lead's tally: how long the oldest of that kind has waited, where it waits. */

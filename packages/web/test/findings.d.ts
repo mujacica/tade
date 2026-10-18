@@ -87,3 +87,12 @@ declare module '*/assets/pages/findings-shape.js' {
   export function verdictAside(row: Row): string
   export function omittedSaid(omitted: number, held: number): string | null
 }
+
+/**
+ * The screen itself, declared only so a test can build it in the stills'
+ * stand-in document and ask where each region landed: what it draws is the
+ * page's, and a second description of it here would be nobody's.
+ */
+declare module '*/assets/pages/findings.js' {
+  export function findingsScreen(): { node: any; update(view: any): void }
+}

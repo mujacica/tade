@@ -9,9 +9,10 @@
   **A probability is grey**: the judge's reading is a meter in a text grey,
   labelled, so it can never be taken for the colour of an answer.
 
-  One column on a phone, in the order a person reads it: the ring, what waits
-  on you, what waits on an agent, what is done; at a desk the questions stand
-  beside them in a narrow column of their own.
+  One column, in the order a person reads it: the ring, what waits on you,
+  what waits on an agent, what is done, and under them the questions at the
+  full width — a card each, as many to a row as fit, so all of them are about
+  a screen rather than a narrow column scrolled for ever.
 */
 
 /* The bar's word takes violet while something waits on a verdict. */
@@ -21,7 +22,6 @@
 
 /* One gap between every region of the page, and none of the sections' own. */
 .page-findings .fd-body,
-.page-findings .fd-grid,
 .page-findings .fd-main {
   display: grid;
   gap: var(--stack);
@@ -30,8 +30,7 @@
 }
 
 .page-findings .fd-body > .section,
-.page-findings .fd-main > .section,
-.page-findings .fd-grid > .section {
+.page-findings .fd-main > .section {
   margin-block-end: 0;
   min-width: 0;
 }
@@ -47,14 +46,6 @@
   color: var(--violet);
   background: color-mix(in srgb, var(--violet) 14%, transparent);
   font-weight: var(--w-strong);
-}
-
-/* Two columns where both are full: the questions are the short one. */
-@container (min-width: 52rem) {
-  .page-findings .fd-grid {
-    grid-template-columns: minmax(0, 1fr) 20rem;
-    align-items: start;
-  }
 }
 
 .fd-groups,
@@ -454,21 +445,31 @@ a.fd-row[href]:hover {
 
 /* ── each question: its precision, and its findings by verdict ─────────────── */
 
+/* The questions as a grid of cards at the page's width: one to a row on a phone, three or more at a desk. */
+.page-findings .fd-questions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: var(--s3);
+}
+
 .fd-question {
   display: grid;
   gap: var(--s3);
+  align-content: start;
   padding: var(--s3) var(--inset);
 }
 
-.fd-question + .fd-question {
-  border-block-start: var(--border);
-}
-
+/*
+  A name too long to share its line with the precision keeps the line, and the
+  figure goes under it on the right — never a name broken mid-word in a card
+  a third of the page wide.
+*/
 .fd-question-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--s3);
+  gap: var(--s1) var(--s3);
   min-width: 0;
 }
 
@@ -481,6 +482,7 @@ a.fd-row[href]:hover {
 }
 
 .fd-question-name > .fd-q {
+  overflow-wrap: break-word;
   font-size: var(--step-0);
 }
 
@@ -489,6 +491,7 @@ a.fd-row[href]:hover {
   display: grid;
   justify-items: end;
   flex: none;
+  margin-inline-start: auto;
   text-align: end;
 }
 

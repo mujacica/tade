@@ -282,7 +282,7 @@ const NOUNS = {
   agents: 'agents running',
   queue: 'queued',
   reviews: 'offered for merge',
-  findings: 'findings',
+  findings: 'findings unanswered',
   notes: 'notes',
   // Waiting on somebody, not handed over: a badge counting answered requests
   // is a badge nobody looks at twice.

@@ -7,7 +7,9 @@
 // finding waiting on them, a group per project, longest wait first: the
 // question, the judge's probability, and what the agent said back. What waits
 // on an agent is a quiet list under it, what has its verdict is folded away,
-// and beside them at a desk is each question's precision, out of verdicts.
+// and under all of them, at the page's full width, each question's precision,
+// out of verdicts, as a grid of cards — so neither the findings nor the
+// questions are squeezed into a column that takes a long scroll to read.
 //
 // **A probability is not a verdict.** It is drawn as the judge's reading — a
 // grey meter labelled *judge*, never in a state's colour — beside the question
@@ -73,10 +75,9 @@ export function findingsScreen() {
   const questions = questionsOf()
   const main = el('div', { class: 'fd-main' })
   into(main, yours.made.node, agent.made.node, read.made.node)
-  const grid = el('div', { class: 'fd-grid' })
-  into(grid, main, questions.made.node)
+  questions.made.node.classList.add('fd-by-question')
   made.body.classList.add('fd-body')
-  into(made.body, coming, whole, lead.node, left, grid)
+  into(made.body, coming, whole, lead.node, left, main, questions.made.node)
   into(node, made.node)
 
   return {
@@ -97,7 +98,8 @@ export function findingsScreen() {
       stateBoxIn(whole, wholeOf(had, shut, may, page, omitted(store, 'findings')))
       const shown = page !== null && page.total > 0
       lead.node.hidden = !shown
-      grid.hidden = !shown
+      main.hidden = !shown
+      questions.made.node.hidden = !shown
       const gone = page === null ? null : omittedSaid(omitted(store, 'findings'), page.total)
       left.hidden = !shown || (gone === null && !view.frozen)
       if (!left.hidden) {
@@ -464,7 +466,7 @@ function questionsOf() {
   const made = section('BY QUESTION', {
     hint: `Precision is how many of a question’s findings somebody confirmed, out of the ones given a verdict. It is drawn as a rate from ${ENOUGH} verdicts; under that the counts are said and the rate is not. A finding with no verdict is counted as neither.`,
   })
-  const list = el('ul', { class: 'ui-panel fd-questions', attrs: { 'aria-label': 'Questions' } })
+  const list = el('ul', { class: 'fd-questions', attrs: { 'aria-label': 'Questions' } })
   into(made.body, list)
   return {
     made,
@@ -482,7 +484,7 @@ function questionsOf() {
  * the counts — so the bar is never the only place a figure is.
  */
 function createQuestion() {
-  const item = el('li', { class: 'fd-question' })
+  const item = el('li', { class: 'ui-card fd-question' })
   const head = el('div', { class: 'fd-question-head' })
   const name = el('span', { class: 'fd-question-name' })
   into(name, el('span', { class: 'fd-q' }), el('span', { class: 'ui-pill t-wants' }))

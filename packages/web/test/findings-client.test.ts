@@ -1,5 +1,8 @@
 import { readFileSync } from 'node:fs'
-import { describe, expect, it } from 'vitest'
+import { fileURLToPath } from 'node:url'
+import { afterEach, describe, expect, it } from 'vitest'
+import { StillDocument } from '../scripts/still-dom.ts'
+import { findingsScreen } from '../src/assets/pages/findings.js'
 import {
   ENOUGH,
   figureSaid,
@@ -14,7 +17,16 @@ import {
   verdictAside,
   whoseOf,
 } from '../src/assets/pages/findings-shape.js'
+import { navCounts } from '../src/assets/shell.js'
+import {
+  applySnapshot,
+  emptyStore,
+  findingsOf,
+  findingsUnanswered,
+  omitted,
+} from '../src/assets/store.js'
 import type { FindingIn } from '../src/input.ts'
+import { BUDGET } from '../src/page.ts'
 import { snapshotOf } from '../src/snapshot.ts'
 import { EVERY, finding, input, NOW, reach } from './fixtures.ts'
 
@@ -272,15 +284,18 @@ describe('each question’s precision', () => {
 })
 
 describe('the words around it', () => {
-  it('says in the bar how many want a verdict, in violet, and nothing before there is a page', () => {
+  it('says in the bar how many are unanswered, in violet while one wants you, and nothing before there is a page', () => {
     expect(figureSaid(null)).toEqual({ word: '', tone: null })
     expect(figureSaid(page([]))).toEqual({ word: '', tone: null })
-    expect(figureSaid(page([yours('a', 5)]))).toEqual({
-      word: '1 wants a verdict',
+    expect(figureSaid(page([yours('a', 5)]))).toEqual({ word: '1 unanswered', tone: 't-wants' })
+    // The menu's count, so the two never disagree: what waits on an agent is
+    // unanswered too, and violet only while one of them waits on you.
+    expect(figureSaid(page([yours('a', 5), unanswered('b', 5)]))).toEqual({
+      word: '2 unanswered',
       tone: 't-wants',
     })
-    expect(figureSaid(page([yours('a', 5), yours('b', 5)])).word).toBe('2 want a verdict')
-    expect(figureSaid(page([unanswered('a', 5)]))).toEqual({
+    expect(figureSaid(page([unanswered('a', 5)]))).toEqual({ word: '1 unanswered', tone: null })
+    expect(figureSaid(page([read('a', 'confirmed', 5)]))).toEqual({
       word: 'nothing waits on you',
       tone: null,
     })
@@ -297,5 +312,124 @@ describe('the words around it', () => {
     const made = snapshotOf(input({ reach: reach([]), findings: [finding()] }), NOW)
     expect(made.findings).toEqual([])
     expect(findingsPage(made.findings, NOW).total).toBe(0)
+  })
+})
+
+describe('the count beside Findings in the menu', () => {
+  /** A store holding what a device granted everything is sent, under `budget`. */
+  function held(findings: FindingIn[], most = BUDGET.findings) {
+    const store = emptyStore()
+    applySnapshot(
+      store,
+      snapshotOf(input({ reach: reach(EVERY), findings }), NOW, {}, { ...BUDGET, findings: most }),
+    )
+    return store
+  }
+
+  /** What the menu's figure says, drawn by the page's own `navCounts`. */
+  function badge(store: ReturnType<typeof emptyStore>) {
+    const doc = new StillDocument()
+    const figure = doc.createElement('span')
+    navCounts([{ figure, counts: 'findings' }], {
+      findings: findingsUnanswered(store).length,
+    })
+    return { said: figure.textContent, label: figure.getAttribute('aria-label') }
+  }
+
+  it('counts only the unanswered — yours and the agent’s — never the ones with a verdict', () => {
+    const store = held([
+      yours('a', 5),
+      unanswered('b', 5),
+      read('c', 'confirmed', 5),
+      read('d', 'false positive', 5),
+    ])
+    expect(findingsUnanswered(store).map((one) => one.key)).toEqual(['a', 'b'])
+    expect(badge(store)).toEqual({ said: '2', label: '2 findings unanswered' })
+    // The page's own bar says the same number.
+    expect(figureSaid(findingsPage(findingsOf(store), NOW)).word).toBe('2 unanswered')
+  })
+
+  it('is absent at nought, however many have a verdict', () => {
+    const many = Array.from({ length: 120 }, (_, n) =>
+      read(`k${String(n).padStart(3, '0')}`, n % 2 === 0 ? 'confirmed' : 'false positive', 5),
+    )
+    expect(badge(held(many))).toEqual({ said: '', label: '0 findings unanswered' })
+  })
+
+  it('is sent the unanswered first, so a cut list still holds every one it counts', () => {
+    // Keys that sort the settled ones first: by key alone, a list cut to three
+    // would hold none of the two that wait.
+    const store = held(
+      [
+        read('a', 'confirmed', 5),
+        read('b', 'confirmed', 5),
+        read('c', 'false positive', 5),
+        read('d', 'confirmed', 5),
+        yours('y', 5),
+        unanswered('z', 5),
+      ],
+      3,
+    )
+    expect(findingsOf(store).map((one) => one.key)).toEqual(['a', 'y', 'z'])
+    expect(badge(store).said).toBe('2')
+    expect(omitted(store, 'findings')).toBe(3)
+  })
+})
+
+describe('the page’s layout', () => {
+  const was = { document: Reflect.get(globalThis, 'document') }
+  afterEach(() => {
+    Object.defineProperty(globalThis, 'document', {
+      value: was.document,
+      configurable: true,
+      writable: true,
+    })
+  })
+
+  it('puts the questions after the findings at the page’s full width, never in a column beside them', () => {
+    const doc = new StillDocument()
+    Object.defineProperty(globalThis, 'document', {
+      value: doc,
+      configurable: true,
+      writable: true,
+    })
+    const store = emptyStore()
+    applySnapshot(
+      store,
+      snapshotOf(
+        input({
+          reach: reach(EVERY),
+          findings: [yours('a', 5), read('b', 'confirmed', 5, { question: 'test_missing' })],
+        }),
+        NOW,
+      ),
+    )
+    const screen = findingsScreen()
+    doc.body.append(screen.node)
+    screen.update({ store, standing: 'live', asOf: NOW, frozen: false })
+    const body = doc.querySelector('.fd-body')
+    const regions = [...(body?.children ?? [])]
+    const main = regions.findIndex((one) => one.classList.contains('fd-main'))
+    const questions = regions.findIndex(
+      (one) => one.querySelector('.fd-questions') !== null && !one.classList.contains('fd-main'),
+    )
+    // Both are the page body's own children, findings first: nothing puts them side by side.
+    expect(main).toBeGreaterThan(-1)
+    expect(questions).toBeGreaterThan(main)
+    expect(doc.querySelector('.fd-main .fd-questions')).toBeNull()
+    expect(regions[questions]?.hidden).toBe(false)
+    expect(doc.querySelectorAll('.fd-questions > li.ui-card').length).toBe(2)
+  })
+
+  it('lays the questions out as a grid of several to a row, and the page as one column', () => {
+    const sheet = readFileSync(
+      fileURLToPath(new URL('../src/assets/pages/findings.css', import.meta.url)),
+      'utf8',
+    )
+    // No two-column rule for the findings and the questions any more.
+    expect(sheet).not.toMatch(/grid-template-columns:\s*minmax\(0, 1fr\) \d+rem/)
+    expect(sheet).toMatch(
+      /\.fd-questions \{[^}]*grid-template-columns: repeat\(auto-fill, minmax\(min\(100%, \d+rem\), 1fr\)\)/,
+    )
   })
 })
