@@ -577,6 +577,16 @@ describe('the keys the extensions asked for', () => {
     expect(said).toContain('export its variable instead')
   })
 
+  it('on a server, never says to export a key the service will not read', async () => {
+    // A service is started from its unit, not a login shell: an exported
+    // variable there is a key the Tade that runs on that box never sees.
+    const ui = recorder({ ask: [''] })
+    await setUpKeys(ui, { ...look, unattended: { user: 'you', linger: true, unit: null } })
+    const said = ui.said.join(' ').replace(/\s+/g, ' ')
+    expect(said).not.toContain('export its variable instead')
+    expect(said).toContain('never reaches it')
+  })
+
   it('is explicit that everything works without one, and writes nothing when skipped', async () => {
     const skipped = tmp('tade-setup-skipped-')
     process.env.TADE_HOME = skipped

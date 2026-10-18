@@ -55,9 +55,9 @@ export async function setUpWatches(ui: Ui, home = tadeHome()): Promise<void> {
   const already = offers.filter((one) => one.choice.state === 'on')
   if (offered.length === 0 && cannot.length === 0) return
 
-  ui.say('A watch is Tade looking for work on a clock: a red build, a new error, a dependency')
-  ui.say('with a vulnerability in it. Each one is off until you say so, and Settings › Extensions')
-  ui.say('turns any of them on or off again later.')
+  ui.say(
+    'A watch is Tade looking for work on a clock: a red build, a new error, a dependency with a vulnerability in it. Each one is off until you say so, and Settings › Extensions turns any of them on or off again later.',
+  )
   ui.say('')
   for (const one of [...offered, ...cannot]) ui.say(`  ${lineFor(one.choice)}`)
   if (already.length > 0) {

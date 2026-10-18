@@ -78,14 +78,16 @@ export async function offerInstall(
  * to prevent.
  */
 export async function sayNativeTrouble(ui: Ui, troubles: readonly NativeTrouble[]): Promise<void> {
-  ui.say('Tade is built on two native modules: node-pty, which is every terminal it opens,')
-  ui.say('and better-sqlite3, which indexes the journal. One of them cannot be run here.')
+  ui.say(
+    'Tade is built on two native modules: node-pty, which is every terminal it opens, and better-sqlite3, which indexes the journal. One of them cannot be run here.',
+  )
   ui.say('')
   for (const trouble of troubles) {
     for (const line of trouble.fix.split('\n')) ui.say(line)
   }
-  ui.say('Tade cannot do this for itself: the command that fixes it has to run in a terminal,')
-  ui.say('and opening one is the part that is broken.')
+  ui.say(
+    'Tade cannot do this for itself: the command that fixes it has to run in a terminal, and opening one is the part that is broken.',
+  )
   await ui.pause('Run it in another terminal, then `tade setup` again.')
 }
 
@@ -110,8 +112,9 @@ export function serverSays(look: Pick<Look, 'unattended'>): string[] {
 export async function setUpPrograms(ui: Ui, missing: readonly MissingProgram[]): Promise<void> {
   const needed = missing.filter((one) => !one.optional)
   const spare = missing.filter((one) => one.optional)
-  ui.say('Tade shells out to other people’s programs. Each is declared by whatever needs it,')
-  ui.say('so this list is what your drivers, harnesses and forges asked for.')
+  ui.say(
+    'Tade shells out to other people’s programs. Each is declared by whatever needs it, so this list is what your drivers, harnesses and forges asked for.',
+  )
   ui.say('')
   for (const program of needed) {
     ui.say(`${program.title} ${programTrouble(program)} — ${program.why}`)
@@ -220,8 +223,9 @@ export async function signInSomewhere(
 ): Promise<void> {
   ui.say('Agents are run by a harness, and each keeps its own sign-in.')
   ui.say('Tade ships with pi and runs it unless you say otherwise:')
-  ui.say('  · one pi sign-in covers subscriptions (ChatGPT, Copilot, xAI, …) — a Claude')
-  ui.say('    subscription belongs in Claude Code: through pi, Anthropic bills it as extra usage')
+  ui.say(
+    '  · one pi sign-in covers subscriptions (ChatGPT, Copilot, xAI, …) — a Claude subscription belongs in Claude Code: through pi, Anthropic bills it as extra usage',
+  )
   ui.say('  · or an API key for any of 30-odd providers, read from your environment')
   ui.say('  · or a local model — Ollama, llama.cpp, LM Studio, anything OpenAI-shaped')
   ui.say('Credentials stay with the harness. Tade never sees, stores or sends them.')
@@ -348,12 +352,19 @@ export async function setUpKeys(ui: Ui, look: Look): Promise<void> {
   const wanted = look.keysWanted
   if (wanted.length === 0) return
   const configPath = defaultConfigPath()
-  ui.say('Some extensions do more with a key. All of them work without one, and what is')
-  ui.say('missing is said on the extension’s own page, so skipping here changes nothing else.')
-  ui.say(`A key you paste is written into ${configPath} as you typed it, so you can`)
-  ui.say('check it against the console you copied it from — and any agent you run can read')
-  ui.say('it: agents run as you. To keep one out of the file, export its variable instead,')
-  ui.say('which always wins, or skip it here.')
+  ui.say(
+    'Some extensions do more with a key. All of them work without one, and what is missing is said on the extension’s own page, so skipping here changes nothing else.',
+  )
+  ui.say(
+    `A key you paste is written into ${configPath} as you typed it, so you can check it against the console you copied it from — and any agent you run can read it: agents run as you.`,
+  )
+  // A service is started with the unit's environment, never a login shell's,
+  // so on a server an exported variable is a key Tade there never sees.
+  ui.say(
+    look.unattended
+      ? 'Tade here runs as a service, which reads no shell profile, so a key exported in your shell never reaches it: paste it here, or skip it.'
+      : 'To keep one out of the file, export its variable instead, which always wins, or skip it here.',
+  )
   ui.say('')
 
   for (const one of wanted) {

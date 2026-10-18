@@ -245,8 +245,10 @@ export function readiness(facts: ReadinessFacts): Step[] {
     project(facts),
     model(facts),
     workspace(facts),
-    voice(facts),
-    talk(facts),
+    // Speech is heard by the machine somebody sits at. A server has no
+    // microphone and nobody speaking to it — what is said to it comes from the
+    // Mac's window over the link — so it is never asked about either.
+    ...(facts.unattended ? [] : [voice(facts), talk(facts)]),
     judge(facts),
     extensions(facts),
     // After the extensions, because which keys are wanted is decided by which

@@ -380,6 +380,13 @@ describe('a server, with nobody logged in', () => {
     expect(readiness(facts()).map((step) => step.id)).not.toContain('unattended')
   })
 
+  it('is never asked about speech or a key to talk with: nobody speaks to a server', () => {
+    const ids = readiness(facts({ unattended: box })).map((step) => step.id)
+    expect(ids).not.toContain('voice')
+    expect(ids).not.toContain('talk')
+    expect(readiness(facts()).map((step) => step.id)).toContain('voice')
+  })
+
   it('comes last, says both commands, and never stops anything', () => {
     const steps = readiness(facts({ unattended: box }))
     const step = steps.at(-1)

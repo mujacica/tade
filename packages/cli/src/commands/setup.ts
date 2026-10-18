@@ -217,7 +217,12 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
       for (const line of render(after)) io.out(line)
       for (const line of serverSays(look)) io.out(line)
       io.out('')
-      if (isReady(after)) io.out(todo ? 'Ready. Run `tade`.' : 'Everything is set up. Run `tade`.')
+      // On a server the next thing is the service, never a window: a `tade`
+      // run there would hold the home the service is about to need.
+      const next = look.unattended
+        ? 'Run `tade host service` to start the service that keeps it running here, then `tade remote add` from your Mac.'
+        : 'Run `tade`.'
+      if (isReady(after)) io.out(todo ? `Ready. ${next}` : `Everything is set up. ${next}`)
       else io.out('Still missing something — see above.')
       if (!isReady(after)) setExit(Exit.error)
     })
@@ -294,8 +299,13 @@ async function setUpModel(
     await signInSomewhere(ui, look, again)
     const now = await again()
     if (!now.harnesses.some((one) => one.signedIn)) {
-      ui.say('  no harness is signed in. An API key in your shell works too:')
-      ui.say('  `export ANTHROPIC_API_KEY=sk-…` in your ~/.zshrc, then a new terminal')
+      // A service reads no shell profile, so on a server the key in a shell
+      // is one the Tade that runs there never sees: what pi keeps itself is.
+      ui.say(
+        look.unattended
+          ? '  no harness is signed in. A key exported in your shell never reaches the service Tade runs as here: sign pi in (`tade accounts sign-in pi`), or give an endpoint and its key to pi in ~/.pi/agent/models.json'
+          : '  no harness is signed in. An API key in your shell works too: `export ANTHROPIC_API_KEY=sk-…` in your shell profile, then a new terminal',
+      )
       throw new Error('nothing is signed in and no API key is set — `tade setup` again after')
     }
   } else {
@@ -368,17 +378,19 @@ async function setUpTalkKey(ui: Ui): Promise<void> {
  * one screen and "not now" is a finished answer rather than a nag.
  */
 async function setUpJudge(ui: Ui): Promise<void> {
-  ui.say('Tade can ask a small, fast model — Jev, from TypeSafe — bounded questions about the')
-  ui.say('things nobody has time to read. It answers with a number and no paragraph, in about a')
-  ui.say('third of a second, for roughly a hundredth of a cent a question. With a key, Tade can:')
+  ui.say(
+    'Tade can ask a small, fast model — Jev, from TypeSafe — bounded questions about the things nobody has time to read. It answers with a number and no paragraph, in about a third of a second, for roughly a hundredth of a cent a question. With a key, Tade can:',
+  )
   ui.say('  · read every change an agent makes, and tell you which ones want your eyes')
   ui.say('  · search logs and journals by meaning — “where did it give up?”')
   ui.say('  · warn you before two agents that would collide start in one checkout')
   ui.say('  · put a long queue in an order, and say why each thing is where it is')
-  ui.say('It never approves, merges or closes anything, and it never writes code: what it flags,')
-  ui.say('a person or an agent reads. Without it, none of that runs and nothing else changes.')
-  ui.say('Diffs and logs you point it at are sent to TypeSafe, who say they do not train on them.')
-  ui.say('Nothing is sent until you ask for something, or turn a watch on.')
+  ui.say(
+    'It never approves, merges or closes anything, and it never writes code: what it flags, a person or an agent reads. Without it, none of that runs and nothing else changes.',
+  )
+  ui.say(
+    'Diffs and logs you point it at are sent to TypeSafe, who say they do not train on them. Nothing is sent until you ask for something, or turn a watch on.',
+  )
   ui.say('')
 
   const set = await ui.choose('A second opinion, if you want one?', [
@@ -471,9 +483,9 @@ async function setUpExtensions(ui: Ui, look: Look): Promise<void> {
   const waiting = look.extensions.filter((one) => !one.chosen)
   if (waiting.length === 0) return
 
-  ui.say('Extensions are what Tade can do that it was not built knowing about: your')
-  ui.say('dependencies, your reviews, your errors, what the machine is spending. Each is off')
-  ui.say('until you say so, and one you turn on loads the next time Tade starts.')
+  ui.say(
+    'Extensions are what Tade can do that it was not built knowing about: your dependencies, your reviews, your errors, what the machine is spending. Each is off until you say so, and one you turn on loads the next time Tade starts.',
+  )
   ui.say('Settings › Extensions turns any of them on or off later, and sets them up.')
   ui.say('')
 

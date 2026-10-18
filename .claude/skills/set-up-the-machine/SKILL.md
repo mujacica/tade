@@ -278,6 +278,9 @@ same `tade setup`. What changes is decided by facts about *this process*, never 
   the later of it and `expiresAt`, and only the two dates), and only off macOS, where the sign-in
   is in the Keychain and that is not Tade's to open. Codex and pi renew by themselves and keep no
   end date.
+- **No speech is asked about** where `facts.unattended` is: the `voice` and `talk` steps are left
+  out of `readiness()`, because a server has no microphone and what is said to it comes from the
+  Mac's window over the link.
 - **From the Mac, it is the same sign-in, over the link.** `tade remote add` and Settings › Remotes
   run `ssh -t <host> tade accounts sign-in <harness>` (`RemoteLink.terminal`) in a terminal the
   person types into, for each harness the Mac uses that the server says is not signed in — so it is
