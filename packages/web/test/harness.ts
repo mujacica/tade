@@ -215,8 +215,11 @@ export async function start(
     notes?: WebNotes
     /** The window's projects and branches, for a test of an owner asking where they are. */
     repositories?: WebRepositories
-    /** What the window says this machine is, a document, a tool that reads, and work it takes. */
-    owned?: Pick<ServerOptions, 'machine' | 'document' | 'tool' | 'records' | 'taking' | 'opening'>
+    /** What the window says this machine is, a document, a tool that reads, work it takes, and a carry. */
+    owned?: Pick<
+      ServerOptions,
+      'machine' | 'document' | 'tool' | 'records' | 'taking' | 'opening' | 'carrying'
+    >
     /** The window's half of the doorbells, for a test of a webhook delivery. */
     hooks?: ServerOptions['hooks']
     /** The window's half of the connect pages, for a test of connecting a source. */

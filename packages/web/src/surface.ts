@@ -500,3 +500,17 @@ export function theirsOf(device: {
     fullAccess({ scopes: device.scopes, granted: device.granted })
   )
 }
+
+/**
+ * Whether a device may ask what only the SSH key's session could
+ * (`Route.theirs` in `routes.ts`): a machine link (`owner.ts`), or the
+ * person's own device (`theirsOf`). Where each may ask it is the door's to
+ * say (`allowed`): an owner on this machine's own alone, theirs on any.
+ */
+export function ownsOrTheirs(device: {
+  scopes?: readonly string[]
+  granted: readonly string[]
+  owner?: boolean
+}): boolean {
+  return device.owner === true || theirsOf(device)
+}

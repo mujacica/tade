@@ -136,6 +136,8 @@ export interface Session {
   csrf: string
   /** When this device last used its passkey, or null for never (`proven`). */
   proved: number | null
+  /** Whether it is the person's own device at this request (`theirsOf`), for `Route.theirs`. */
+  theirs?: boolean
 }
 
 /**
@@ -314,7 +316,11 @@ export function allowed(asking: Asking, route: Route, guarding: Guarding): Verdi
   // so it is the `404` an absent path is and never a `403` that says it exists.
   // Asked of the listener and the `Host` both (`thisMachine`): the proxy's
   // socket never gets as far as one, whatever it is told.
-  if (route.here === true && !thisMachine(origin)) {
+  // **The person's own device is the one exception** (`Route.theirs`): asked of
+  // the record at this request, before anything that would say the path
+  // exists, so every other device and nobody at all still meet the `404`.
+  const away = route.here === true && !thisMachine(origin)
+  if (away && (route.theirs !== true || guarding.session?.theirs !== true)) {
     return no('no_such', `${route.name} is answered on this machine alone`)
   }
   // **A delivery is not a browser's request** (`hooked.ts`): no browser sends
@@ -407,18 +413,22 @@ export function allowed(asking: Asking, route: Route, guarding: Guarding): Verdi
   // Re-asked here and not only at pairing, because the network a device is on
   // changes. A session that may read keeps reading over plain HTTP; anything
   // above `read` needs an origin whose credential did not travel in the clear.
-  if (route.needs !== 'read' && !trusted(origin, guarding.surface)) {
+  // A route that is the SSH key's, asked by the person's own device off this
+  // machine's door (`away`), is asked what acting is, whatever it needs.
+  const acts = route.needs !== 'read' || away
+  const what = route.needs === 'read' ? route.name : route.needs
+  if (acts && !trusted(origin, guarding.surface)) {
     return no(
       'locked',
-      `${route.needs} from ${origin.scheme}://${origin.host}, which is not a trusted origin`,
+      `${what} from ${origin.scheme}://${origin.host}, which is not a trusted origin`,
     )
   }
 
   // **And from the public listener, the passkey** — asked at every act, like
   // the origin, because a proof runs out while a page stays open. Reading never
   // asks: the snapshot and the stream are `read`, and so is making the proof.
-  if (route.needs !== 'read' && !proven(origin, session.proved, guarding.surface, guarding.now)) {
-    return no('unproven', `${route.needs} from the public listener with no passkey proved lately`)
+  if (acts && !proven(origin, session.proved, guarding.surface, guarding.now)) {
+    return no('unproven', `${what} from the public listener with no passkey proved lately`)
   }
 
   return { ok: true, device: session.device, scopes: session.scopes, origin }

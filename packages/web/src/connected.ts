@@ -24,6 +24,7 @@ import { type Refusal, refuse } from './errors.ts'
 import { headersFor } from './headers.ts'
 import { queryOf, readBody } from './request.ts'
 import type { Route } from './routes.ts'
+import { ownsOrTheirs } from './surface.ts'
 
 // The guided pages that connect a source (REMOTE-TADE.md §6.4): who may use
 // them, the one-time word each press mints, and what a source sending the
@@ -34,9 +35,11 @@ import type { Route } from './routes.ts'
 // answer **on this machine alone** (`Route.here`: the loopback listener and a
 // loopback `Host`), which from anywhere else is a person over SSH — the reach
 // that can already edit `config.yaml` — and to an owner device asking the same
-// over its own door (`/api/connect`, the Mac's window for a remote). Nothing a
-// phone holds gets here: the public listener refuses this machine's names at
-// the door, and a `lan` bind is public.
+// over its own door (`/api/connect`, the Mac's window for a remote), or the
+// person's own phone asking it from any door (`Route.theirs`), which already
+// turns a `never`-tier setting on from Settings. Nothing else a phone holds
+// gets to the pages or presses: the public listener refuses this machine's
+// names at the door, and a `lan` bind is public.
 //
 // **On this door no session is asked**, and that is the one new thing here.
 // What a session would prove — that this is the person — is what reaching this
@@ -535,7 +538,7 @@ export async function connectHere(
 ): Promise<{ body: ConnectAnswer } | { refusal: Refusal }> {
   const connecting = at.connecting
   if (connecting === undefined) return { refusal: refuse('no_such') }
-  if (!device.owner) return { refusal: refuse('out_of_scope') }
+  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const asked = OwnerAskSchema.safeParse(got.body)

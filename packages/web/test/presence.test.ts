@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { mintOwner } from '../src/owner.ts'
 import { PRESENCE_MOST_MS, presenceOf } from '../src/presence.ts'
+import { GRANTS } from '../src/reach.ts'
 import { CSRF_HEADER } from '../src/request.ts'
 import { ROUTES } from '../src/routes.ts'
+import { SCOPES } from '../src/surface.ts'
 import { ask, closeAll, pair, start } from './harness.ts'
 
 // Somebody at another of their screens (`presence.ts`): an owner's link says
@@ -89,7 +91,7 @@ describe('an owner saying the person is at another screen', () => {
 })
 
 describe('reading one', () => {
-  const owner = { owner: true }
+  const owner = { owner: true, scopes: [], granted: [] }
 
   it('takes an age and nothing else, bounded', () => {
     expect(presenceOf({ ago: 1_000 }, owner, 10_000)).toEqual({ ok: true, at: 9_000 })
@@ -112,10 +114,14 @@ describe('reading one', () => {
     }
   })
 
-  it('is an owner’s alone', () => {
-    const read = presenceOf({ ago: 0 }, { owner: false }, 10_000)
+  it('is an owner’s, or the person’s own device’s, and nobody else’s', () => {
+    const read = presenceOf({ ago: 0 }, { owner: false, scopes: ['read'], granted: [] }, 10_000)
     expect(read.ok).toBe(false)
     if (!read.ok) expect(read.refusal.error).toBe('out_of_scope')
+    const theirs = { owner: false, scopes: [...SCOPES], granted: [...GRANTS] }
+    expect(presenceOf({ ago: 0 }, theirs, 10_000)).toEqual({ ok: true, at: 10_000 })
+    const less = { ...theirs, granted: GRANTS.slice(1) }
+    expect(presenceOf({ ago: 0 }, less, 10_000).ok).toBe(false)
   })
 })
 

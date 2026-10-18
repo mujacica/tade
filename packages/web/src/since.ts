@@ -6,6 +6,7 @@ import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { has, type Reach, sees } from './reach.ts'
 import { readBody } from './request.ts'
+import { ownsOrTheirs } from './surface.ts'
 
 // "Since you were here": the card another machine of the person's draws once,
 // when its link to this one comes back (REMOTE-TADE.md §5.4) — what finished,
@@ -19,7 +20,11 @@ import { readBody } from './request.ts'
 // asking this machine what they missed, through the SSH connection that is
 // their key. A phone's session is refused it however much it was granted — a
 // phone pairs with this machine and reads its projection — and the public
-// listener answers the `404` of a path nobody built.
+// listener answers the `404` of a path nobody built, **but the person's own**
+// (`Route.theirs`), on any door: coming back to their phone is the same
+// question as coming back to the Mac. The person decided it: their
+// phone is the screen they can pull the plug on — and off this machine's door
+// it is asked a trusted origin and the passkey, as acting is.
 //
 // **The moment they came back is told as an age**, never a moment
 // (`presence.ts`' rule, for its reason: two machines are two clocks). `back`
@@ -131,7 +136,7 @@ export async function sinceHereFor(
   since: WebSince | undefined,
 ): Promise<{ body: SinceAnswer } | { refusal: Refusal }> {
   if (since === undefined) return { refusal: refuse('no_such') }
-  if (!device.owner) return { refusal: refuse('out_of_scope') }
+  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const parsed = SinceBody.safeParse(got.body)

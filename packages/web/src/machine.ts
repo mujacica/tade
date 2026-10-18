@@ -4,7 +4,7 @@ import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { has, type Reach, sees } from './reach.ts'
 import { readBody } from './request.ts'
-import { reachOf } from './surface.ts'
+import { ownsOrTheirs, reachOf } from './surface.ts'
 
 // What this machine is, for another machine of the person's that links to it
 // as an owner (REMOTE-TADE.md §9.4, §9.6): which Tade it runs, how its public
@@ -19,7 +19,10 @@ import { reachOf } from './surface.ts'
 // already `ssh` in and run `tade status`, `tade schedules`, read the config's
 // warnings and the journal's. A phone's session is refused it however much it
 // was granted (`out_of_scope`), and the public listener answers the `404` of a
-// path nobody built.
+// path nobody built — **but the person's own** (`Route.theirs`), on any door.
+// The person decided it: their
+// phone is the screen they can pull the plug on — and off this machine's door
+// it is asked a trusted origin and the passkey, as acting is.
 //
 // **Within what the device reads**: a schedule or a document of a project the
 // window took back from it is left out, and what an outside source said a
@@ -155,7 +158,7 @@ export async function machineHere(
   machine: WebMachine | undefined,
 ): Promise<{ body: MachineAnswer } | { refusal: Refusal }> {
   if (machine === undefined) return { refusal: refuse('no_such') }
-  if (!device.owner) return { refusal: refuse('out_of_scope') }
+  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   if (!z.strictObject({}).safeParse(got.body).success) return { refusal: refuse('malformed') }

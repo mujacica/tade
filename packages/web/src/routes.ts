@@ -154,6 +154,19 @@ export interface Route {
    */
   here?: true
   /**
+   * Whether the person's own device (`theirsOf`: full access, not a machine
+   * link) is answered this `here` route on **any** door, as an owner is on
+   * this one. Off this machine's door the guard lets it through only for a
+   * session that is theirs at that request — every other is still the `404`
+   * of a path nobody built — and asks it what acting asks, a trusted origin
+   * and the passkey, because what it reaches is the SSH key's.
+   *
+   * The person decided it: their phone is the device they can pull the plug
+   * on, so it may do what they can. Revoking it, or unticking one box, makes
+   * it an ordinary device at the next request (`sessionOf` reads the record).
+   */
+  theirs?: true
+  /**
    * What this route is in connecting a source (REMOTE-TADE §6.4,
    * `connected.ts`), where it is one of `CONNECTS`: the guided `page`, one
    * `press` on it — each answered on this machine alone and with no session,
@@ -350,7 +363,8 @@ export const ROUTES: readonly Route[] = [
   // phone while the person sits at the Mac. Lifecycle like the passkey — this
   // device's own word about the person holding it, written to no file and
   // touching no project — and only on this machine's own door (`here`), which
-  // is the one door an owner session can be used at.
+  // is the one door an owner session can be used at, but for the person's own
+  // phone (`theirs`), which may say it from any door.
   {
     method: 'POST',
     path: '/api/presence',
@@ -358,6 +372,7 @@ export const ROUTES: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
+    theirs: true,
   },
 
   // **This device's own page is in front of somebody** (`looking.ts`): any
@@ -515,7 +530,7 @@ export const SETTINGS: readonly Route[] = Object.keys(CHANGES).map((name) => ({
  * (`shared-notes.ts`), what this machine is (`machine.ts`), work handed
  * here to start (`taken.ts`), and a project moved here (`opened.ts`).
  *
- * A table of its own because each is what no phone may ever be given: the
+ * A table of its own because each is what no ordinary device may ever be given: the
  * carry writes the config beyond `settingReach`'s `open` tier — preferences,
  * files and, on a press, keys — and so is the one exception to "no route
  * reaches a credential", and the attach line is the one answer that is a way
@@ -529,16 +544,47 @@ export const SETTINGS: readonly Route[] = Object.keys(CHANGES).map((name) => ({
  * anything: each is answered where the window wired it, refused
  * (`out_of_scope`) to every session that is not an owner, and the `404` of a
  * path nobody built on every other door.
+ *
+ * **But the person's own device** (`theirs`, `theirsOf`), on the ones that
+ * say so: the carry, the attach line, the catch-up, what this machine is, a
+ * document, a tool that reads, presence and connecting a source, on any door.
+ * The person decided it — their phone is the screen they can pull the plug
+ * on, so it may do what their SSH key may — and it is read off the record at
+ * every request, so revoking it or unticking one box ends it at the next.
  */
 export const OWNED: readonly Route[] = [
-  { method: 'POST', path: '/api/carry', name: 'carry', needs: 'read', mutates: true, here: true },
-  { method: 'POST', path: '/api/attach', name: 'attach', needs: 'read', mutates: true, here: true },
+  {
+    method: 'POST',
+    path: '/api/carry',
+    name: 'carry',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
+  {
+    method: 'POST',
+    path: '/api/attach',
+    name: 'attach',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
   // What the person missed while they were away (`since.ts`): a read, folded
   // over this machine's journal from the last moment it counted them present.
   // A `POST` and `here` like its neighbours — an owner's, through SSH — and it
   // changes nothing; it is here rather than in `ROUTES` because it is read
   // from the cursor an owner's presence wrote, which no phone carries.
-  { method: 'POST', path: '/api/since', name: 'since', needs: 'read', mutates: true, here: true },
+  {
+    method: 'POST',
+    path: '/api/since',
+    name: 'since',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
   // The person's notes shared with the machine that asks (`shared-notes.ts`):
   // what it gives is written into this home's `memory.jsonl`, which every
   // agent here is told — so an owner's, as an edit to that file over SSH is.
@@ -573,6 +619,7 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
+    theirs: true,
   },
   {
     method: 'POST',
@@ -581,8 +628,17 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
+    theirs: true,
   },
-  { method: 'POST', path: '/api/tool', name: 'tool', needs: 'read', mutates: true, here: true },
+  {
+    method: 'POST',
+    path: '/api/tool',
+    name: 'tool',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
   // The records this machine's public name needs, looked at now (`records.ts`):
   // what `tade host domain` says here, asked only while somebody there has its
   // Settings › Remotes open, because the look is asking the world. A read.
@@ -615,6 +671,7 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
+    theirs: true,
   },
 ]
 

@@ -180,9 +180,24 @@ describe('a carry into this window', () => {
     ])
   })
 
-  it('is refused to a phone, however much it was granted', async () => {
+  it('writes for the person’s own phone, a device with full access, as that device', async () => {
+    // `Route.theirs`: the person decided their own phone may do what they can,
+    // and it already changes every setting from Settings, keys included.
     const one = await machine({ realKeys: true })
     await paired(one.home, one.port, [...SCOPES], [...GRANTS])
+    await one.away.open()
+    const answer = await carried(one.port, {
+      from: 'phone',
+      complete: false,
+      settings: [{ path: 'agents.commit', value: 'never' }],
+    })
+    expect(answer.status).toBe(200)
+    expect(fileOf(one.home).agents?.commit).toBe('never')
+  })
+
+  it('is refused to a phone with one box unticked', async () => {
+    const one = await machine({ realKeys: true })
+    await paired(one.home, one.port, [...SCOPES], GRANTS.slice(1))
     await one.away.open()
     const answer = await carried(one.port, {
       from: 'phone',

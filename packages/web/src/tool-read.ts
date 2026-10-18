@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
+import { ownsOrTheirs } from './surface.ts'
 
 // One of this machine's extension tools that only reads — its Sentry issues,
 // what its judge flagged — asked by another machine of the person's that links
@@ -12,7 +13,10 @@ import { readBody } from './request.ts'
 // **An owner's, and only at this machine's own door** (`here`): whoever holds
 // the SSH key can already run this Tade's tools over the same connection — ask
 // its orchestrator, or run `tade extensions run` there — and a phone's session
-// is refused it however much it was granted.
+// is refused it however much it was granted, **but the person's own**
+// (`Route.theirs`), on any door. The person decided it: their
+// phone is the screen they can pull the plug on — and off this machine's door
+// it is asked a trusted origin and the passkey, as acting is.
 //
 // **Only a tool that says it reads** (`ExtensionTool.reads`, declared and never
 // guessed from its name): a tool that changes something — resolving an issue,
@@ -56,7 +60,7 @@ export async function toolHere(
   tool: WebToolRead | undefined,
 ): Promise<{ body: ToolReadAnswer } | { refusal: Refusal }> {
   if (tool === undefined) return { refusal: refuse('no_such') }
-  if (!device.owner) return { refusal: refuse('out_of_scope') }
+  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const asked = ToolAskSchema.safeParse(got.body)

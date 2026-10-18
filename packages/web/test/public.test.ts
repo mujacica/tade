@@ -6,8 +6,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PUBLIC_IS_THE_INTERNET, PUBLIC_IS_THE_INTERNET_SHORT } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
+import { allowDevice, grantDevice } from '../src/devices.ts'
 import { listenAll } from '../src/listeners.ts'
-import { listenOn, surfaceOf } from '../src/surface.ts'
+import { GRANTS } from '../src/reach.ts'
+import { CSRF_HEADER } from '../src/request.ts'
+import { listenOn, SCOPES, surfaceOf } from '../src/surface.ts'
 import { type Answer, ask, BASE, closeAll, pair, type Running, start } from './harness.ts'
 
 // The public listener over a real Unix socket, the way Caddy reaches it: a
@@ -184,6 +187,63 @@ describe('the socket Caddy connects to', () => {
     })
     expect(heard).toBe('')
     expect(warnings(one).some((said) => said.includes('closed a connection'))).toBe(true)
+  })
+})
+
+describe('the person’s own phone at the public name', () => {
+  // `Route.theirs`: what only the SSH key's session was answered, on this
+  // machine's door alone, the person's own phone is answered here too — read
+  // off the record at each request — and every other device still meets the
+  // `404` of a path nobody built. `theirs.test.ts` has the guard's cross-product.
+  async function upWith(heard: string[]): Promise<{ one: Running; socket: string }> {
+    const socket = join(await dirFor(), 'away.sock')
+    const one = await start(
+      { publicName: NAME, trustedHosts: [NAME] },
+      { publicSocket: socket, present: (device) => heard.push(device) },
+    )
+    return { one, socket }
+  }
+  async function phone(one: Running, socket: string, from: string) {
+    const paired = await claim(one, socket, from)
+    const body = JSON.parse(paired.text) as { device: string; csrf: string }
+    const cookie = (paired.headers['set-cookie'] ?? '').split(';')[0] ?? ''
+    return { device: body.device, csrf: body.csrf, cookie }
+  }
+  const post = (
+    socket: string,
+    made: { cookie: string; csrf: string },
+    path: string,
+    body: unknown,
+  ) =>
+    viaCaddy(socket, '203.0.113.7', path, {
+      method: 'POST',
+      headers: {
+        origin: `https://${NAME}`,
+        'sec-fetch-site': 'same-origin',
+        'content-type': 'application/json',
+        cookie: made.cookie,
+        [CSRF_HEADER]: made.csrf,
+      },
+      body: JSON.stringify(body),
+    })
+
+  it('says the person is at a screen of theirs, where an ordinary phone is a 404', async () => {
+    const heard: string[] = []
+    const { one, socket } = await upWith(heard)
+    const mine = await phone(one, socket, '203.0.113.7')
+    const other = await phone(one, socket, '198.51.100.9')
+    await allowDevice(one.home, mine.device, SCOPES, new Date())
+    await grantDevice(one.home, mine.device, GRANTS, new Date())
+    const said = await post(socket, mine, '/api/presence', { ago: 0 })
+    expect(said.status, said.text).toBe(200)
+    expect(heard).toEqual([mine.device])
+    expect((await post(socket, other, '/api/presence', { ago: 0 })).status).toBe(404)
+    // A route of the owner's that is not one of the eight stays this machine's.
+    expect((await post(socket, mine, '/api/take', {})).status).toBe(404)
+    // One box unticked, and it is an ordinary phone at the next request.
+    await grantDevice(one.home, mine.device, GRANTS.slice(1), new Date())
+    expect((await post(socket, mine, '/api/presence', { ago: 0 })).status).toBe(404)
+    expect(heard).toEqual([mine.device])
   })
 })
 

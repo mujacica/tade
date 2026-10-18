@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
+import { ownsOrTheirs } from './surface.ts'
 
 // Somebody is at another of their screens: an owner's link saying how long ago
 // a key was pressed there, so this machine does not buzz a phone while the
@@ -17,14 +18,17 @@ import { readBody } from './request.ts'
 //
 // **What it is allowed to be**, which is a short list and mostly absences:
 //
-// 1. **An owner's, and only an owner's.** An owner session is the SSH key's
-//    (`owner.ts`), so "the person is at a keyboard of theirs" from it is the
-//    person's word. A phone's session could say the same thing, and what it
-//    would buy a copied one is silencing every notification — so a phone
-//    saying it is being looked at is a later decision, not this route.
-// 2. **Only on this machine's own door** (`here` in `routes.ts`): the loopback
-//    listener and a loopback `Host`, which from anywhere else is an SSH
-//    connection. The public listener answers it as a path nobody built.
+// 1. **An owner's, or the person's own phone's.** An owner session is the SSH
+//    key's (`owner.ts`), so "the person is at a keyboard of theirs" from it is
+//    the person's word. An ordinary phone's session could say the same thing,
+//    and what it would buy a copied one is silencing every notification — so
+//    a phone saying it is being looked at is `looking.ts`, not this route. The
+//    person's own phone (`Route.theirs`, `theirsOf`) may: they decided it may
+//    do what they can, and it is the screen they can pull the plug on.
+// 2. **An owner only on this machine's own door** (`here` in `routes.ts`): the
+//    loopback listener and a loopback `Host`, which from anywhere else is an
+//    SSH connection. Anywhere else it is a path nobody built, but for the
+//    person's own phone, which is asked a trusted origin and the passkey there.
 // 3. **An age and never a moment**, because the two machines' clocks are two
 //    clocks: `ago` is milliseconds before *this* request, and the moment is
 //    worked out here, in this machine's clock, where `noticed.ts` compares it.
@@ -51,8 +55,12 @@ const PresenceBody = z.strictObject({ ago: z.int().min(0).max(PRESENCE_MOST_MS) 
 export type Presence = { ok: true; at: number } | { ok: false; refusal: Refusal }
 
 /** One presence out of a body, for this device, at this moment. Pure. */
-export function presenceOf(body: unknown, device: Pick<Device, 'owner'>, now: number): Presence {
-  if (!device.owner) return { ok: false, refusal: refuse('out_of_scope') }
+export function presenceOf(
+  body: unknown,
+  device: Pick<Device, 'owner' | 'scopes' | 'granted'>,
+  now: number,
+): Presence {
+  if (!ownsOrTheirs(device)) return { ok: false, refusal: refuse('out_of_scope') }
   const got = PresenceBody.safeParse(body)
   if (!got.success) return { ok: false, refusal: refuse('malformed') }
   return { ok: true, at: now - got.data.ago }

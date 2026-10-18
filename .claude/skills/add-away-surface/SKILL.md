@@ -77,6 +77,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | what a request *is* | `src/request.ts` — reading an `IncomingMessage`, and every bound on one |
 | what a request must satisfy | `src/guard.ts` — pure, and `test/guard.test.ts` runs the cross-product |
 | a route only this machine may reach (`presence`, and the pages that connect a source) | `Route.here` — `allowed` answers it the `404` of a path nobody built anywhere but `thisMachine` |
+| **the person's own phone asking what the SSH key may** — presence, the carry, an attach line, the catch-up, what this machine is, a document, a tool that reads, connecting a source | `Route.theirs` on those eight `here` routes: `allowed` lets one through off this machine's door only for a session `sessionOf` marks `theirs` (`theirsOf`, read off the record at the request) and asks it a trusted origin and the passkey; each handler's gate is `ownsOrTheirs` (`src/surface.ts`). `test/theirs.test.ts` is the cross-product, `test/public.test.ts` the same over Caddy's socket |
 | **the pages that connect a source** (`/connect`, a press per step, where the source sends the browser back), and an owner asking the same (`/api/connect`) | `CONNECTS` in `src/routes.ts` (`Route.connects`, `source`), the guard's `connecting` layer, `src/connected.ts` (`ConnectStates`, `carryConnect`, `pressed`, `connectHere`, `ConnectAnswerSchema`), `src/connect-page.ts` (the HTML and `PAGE_CSP`), the fold in `@tade/core`'s `connect.ts`, the window's half in `packages/app/src/wire/web-connect.ts`; the asking side is `RemoteMachines.connectPress` (`wire/remote-machine.ts`), drawn on Settings › Remotes |
 | another machine's Tade linked to this one as an owner (`tade remote`) | `@tade/remotes-core` (the `RemoteLink` port, the stream follower, the far end its suite links to) — the client half of everything in this table, over SSH; `add-workspace-driver` has its shape. What it posts here is `presence` (`src/presence.ts`): an owner's age of a keypress at another screen, held by the window (`Presences` in `wire/web-presence.ts`) and read as one by push, and written down once a stretch as `person_present` — the cursor of `since` below. A phone's `looking` (`src/looking.ts`) is its sibling and quiets only that phone (below) |
 | **what this machine is**, for another machine of the person's: its version, its public name's health, its problems, its schedules' looks, its documents — and one of those documents as text, and one of its extension tools that only reads | `OWNED` in `src/routes.ts` (`/api/machine`, `/api/document`, `/api/tool`, all `here`), `src/machine.ts`, `src/document.ts`, `src/tool-read.ts` (each the body, the bounds and the answer's schema), the window's half in `packages/app/src/wire/web-machine.ts` (out of what the window holds; a document only where the journal says the task wrote one by that name; a tool only where it declares `reads`); the asking side is `packages/app/src/wire/remote-machine.ts` |
@@ -133,7 +134,8 @@ a device still has none of the scopes that change anything until somebody at thi
   `scripts/browser-frame.ts`'s.
 - **No route in `ROUTES` mutates a project or a task.** The non-`GET` routes there are session
   lifecycle — this browser's own credential, created, destroyed and proved with its passkey, an
-  owner saying the person is at another of their screens (`presence`, `here`), and a device saying its
+  owner or the person's own phone saying they are at another of their screens (`presence`, `here`,
+  `theirs`), and a device saying its
   own page is being looked at (`looking`) — and `test/routes.test.ts` asserts that set is exactly
   `LIFECYCLE` **by name**. Another fails the test until somebody puts it there deliberately, which is
   the conversation the rule is for.
@@ -141,9 +143,13 @@ a device still has none of the scopes that change anything until somebody at thi
   carries the argument). Any device, any listener, a body of nothing: its page visible and touched in
   the last minute (`push.js`'s `looking`) quiets what *that device* is sent for the two minutes a
   keypress counts — held in the push sender per device (`WebPush.looking`), never written down, never
-  read for another device, never "somebody is here". Machine-wide presence is an owner's alone
-  (`presence.ts`), because a copied phone session saying it would silence every device; this is no
-  more than that session's own `forget`, which is why it asks no passkey and no trusted origin.
+  read for another device, never "somebody is here". Machine-wide presence is an owner's and the
+  person's own phone's (`presence.ts`, `Route.theirs`), never an ordinary phone's, because a copied
+  session saying it would silence every device. **Why their own phone may:** the person decided it —
+  it is the screen they can pull the plug on — and off this machine's door it is asked a trusted
+  origin and a passkey proved lately, so a copied cookie alone cannot say it from the public name;
+  unticking one box or revoking it ends it at the next request. `looking` is no more than a
+  session's own `forget`, which is why it asks no passkey and no trusted origin.
 - **"Nobody is here" is said to the orchestrator, from the keyboards** (`nobodyHere`, `core/src/since.ts`;
   `Presences.nobodyHere`): above Tade's words on a turn Tade starts (`tell`), after fifteen minutes
   with no key in this window and none an owner's link carried — and a window a service manager opened
@@ -154,9 +160,13 @@ a device still has none of the scopes that change anything until somebody at thi
   (`core/src/service.ts`) reads systemd's `INVOCATION_ID`, which the unit's tmux hands to the window,
   once, where the window is started (`AppOptions.keptBy`) — never out of the environment by what needs it.
 - **The one route that writes a key is the owner's carry, and it is in no setting's table**
-  (`OWNED`): only an owner device — the SSH key's session — only on this machine's own door
-  (`here`), refused `out_of_scope` to a phone however much it was granted. That is what keeps it no
-  wider than what already was: whoever holds the key can edit `config.yaml` over the same SSH. **This
+  (`OWNED`): an owner device — the SSH key's session — on this machine's own door (`here`), or the
+  person's own phone on any door (`theirs`), and refused to every other device however much it was
+  granted (`out_of_scope` here, the `404` elsewhere). That is what keeps it no wider than what
+  already was: whoever holds the key can edit `config.yaml` over the same SSH. **Why the owner's
+  phone may:** a full-access phone already changes every setting from the away Settings page, keys
+  included (`theirsOf`, `web-settings.ts`), so the carry asks nothing it could not; off the door it
+  is asked a trusted origin and the passkey, and it writes as `device <id>`. **This
   machine decides** — every path is asked of `carryOf` again, so its own are refused whatever
   arrives; a value somebody here changed is said back and left unless the person there pressed;
   a key arrives as a digest until a press sends it — and **what goes back is never a key and never a
@@ -167,7 +177,10 @@ a device still has none of the scopes that change anything until somebody at thi
   `attachCommand` for one task's agent as a pane, from the window's `attachingFor`
   (`wire/web-attach.ts`), or why not — not running, or a driver whose lanes no other terminal can
   reach (`remoteAttach`). An owner whose `lanes` the window took back is answered as for a task that
-  is not there. It writes nothing: the terminal is an SSH session, which is `sshd`'s record.
+  is not there. It writes nothing: the terminal is an SSH session, which is `sshd`'s record. **Why
+  the owner's phone may** (`theirs`): the line is a command, not a way in — running it still needs
+  the SSH key the phone's terminal holds — and the person decided their own phone may do what they
+  can; one with `lanes` unticked is not theirs, so it is refused.
 - **What the person missed while away is the owner's third** (`OWNED`'s `since`, `src/since.ts`):
   the card another machine of theirs draws once its link comes back, folded here over this
   machine's own journal (`@tade/core`'s `since.ts`) from the last `person_present` line written
@@ -176,7 +189,9 @@ a device still has none of the scopes that change anything until somebody at thi
   a line a stretch (`presenceLineDue`), never one per keystroke: an instant in this machine's own
   clock is a cursor a compaction, a restart and a restored journal cannot move, where `seq` and a
   byte offset can (REMOTE-TADE §4.5). Each row is within what the device reads, money only with
-  `spend`, and each list a cap with a count. It writes nothing.
+  `spend`, and each list a cap with a count. It writes nothing. **Why the owner's phone may**
+  (`theirs`): it is a fold of what that phone's full-access snapshot already reads, and the person
+  coming back to their phone is the same question as coming back to the Mac.
 - **The person's notes are the owner's fourth** (`OWNED`'s `share notes`, `POST
   /api/notes/share`, `src/shared-notes.ts`): another machine of theirs gives the lines this home
   lacks and asks, by digest, for the ones it lacks; the window's half (`notesFor`,
@@ -205,7 +220,10 @@ a device still has none of the scopes that change anything until somebody at thi
   it; the copy goes under `remotes/<machine>/documents/` in the asking home (`remoteDocumentPath`,
   which refuses a name that walks). A tool runs only where it declares `reads` (`ExtensionTool.reads`,
   never guessed from a name), with this machine's own settings and keys, after a `tool_call` line
-  naming the device. None of them writes anything else.
+  naming the device. None of them writes anything else. **Why the owner's phone may** (`theirs`):
+  each is within what a full-access device already reads, a tool that only reads is no more than
+  what its snapshot shows, and the person decided their own phone may do what their SSH key may;
+  off the door each is asked a trusted origin and the passkey, as acting is.
 - **Its public name's records are the owner's ninth** (`OWNED`'s `records`), what `tade host
   domain` over the same SSH already gives the key — and the one owner's read that **asks the
   world**, so it keeps the look's own rule: asked when somebody is looking, never on a clock. The
@@ -233,7 +251,11 @@ a device still has none of the scopes that change anything until somebody at thi
   hosts (`CONNECT_FLOWS.goes`). **What a source's own page shows the person** — Slack's signing
   secret and client, Linear's client id and webhook secret — goes in through a `keep` press on this
   machine's own door alone, shape-checked per source (`KEEP_SCHEMAS`) and never answered back; the
-  owner's route takes no `keep`, so no secret crosses the link. A press nothing comes back from
+  owner's route takes no `keep`, so no secret crosses the link. **Why the owner's phone may**
+  (`theirs`, `/api/connect` alone — the pages and presses stay this machine's and sessionless): a
+  full-access phone already turns a `never`-tier setting on from Settings, so asking a source's page
+  and a press that opens a browser is no wider, and off the door it is asked a trusted origin and
+  the passkey. A press nothing comes back from
   (Slack's and Linear's making) mints no word, and a source that sends a browser back only over HTTPS
   (`publicBack`) refuses its install with no public name. **Where a source installs with a proof key**
   (`CONNECT_FLOWS.pkce`, Linear), the install press mints a verifier beside its word (`mintInstall`)
@@ -241,7 +263,8 @@ a device still has none of the scopes that change anything until somebody at thi
   ever sees it — so a code read off a browser's history is worth nothing to anybody else.
 - **From the public listener, anything above `read` needs a passkey proved within
   `passkey_hours`** (`proven`, after the scope and the origin, so it never says more than they
-  would). The **listener and never the host**, like `thisMachine`: this machine, an SSH forward and a
+  would) — and so does a `theirs` route asked off this machine's door, whatever it needs, because
+  what it reaches is the SSH key's. The **listener and never the host**, like `thisMachine`: this machine, an SSH forward and a
   tailnet name come in on the loopback listener, behind something of the person's own. Reading never
   asks, and nor do the two passkey routes — proving may not need the proof. `test/proven.test.ts` is
   the cross-product; `passkey.test.ts` is it over Caddy's socket with a software authenticator.
@@ -440,7 +463,9 @@ a device still has none of the scopes that change anything until somebody at thi
   words are never `said` (another machine's model may have written them) and its acts are
   `device <id>`.
 - **A device with full access is the person's own** (`fullAccess`, `armOf`): the owner arm with
-  `theirs`, from any door the guard let it through, on any harness; what they type is `said`.
+  `theirs`, from any door the guard let it through, on any harness; what they type is `said`. It is
+  answered the eight `Route.theirs` routes of the owner's from any door (`sessionOf` marks the
+  session, `ownsOrTheirs` gates each handler); the rest of `OWNED` stays the SSH key's.
   Unticking any box makes it a device with exactly what is left, and revoking is read at every call.
 - **A body of `null` is a body.** `readBody` returns a discriminated answer, because `unknown | null`
   made a four-byte `null` indistinguishable from "already refused" and held the request open for ever.

@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import type { Device } from './devices.ts'
 import type { Session } from './guard.ts'
-import { type Scope, type Surface, sameHost } from './surface.ts'
+import { type Scope, type Surface, sameHost, theirsOf } from './surface.ts'
 
 // The session credential: minted here, hashed before it is written down, and
 // verified in constant time.
@@ -132,6 +132,7 @@ export function sessionOf(
     host: device.host,
     csrf: device.csrf,
     proved: device.passkey?.proved ?? null,
+    theirs: theirsOf(device),
   }
 }
 

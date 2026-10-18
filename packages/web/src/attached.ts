@@ -6,7 +6,7 @@ import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { has, sees } from './reach.ts'
 import { readBody } from './request.ts'
-import { reachOf } from './surface.ts'
+import { ownsOrTheirs, reachOf } from './surface.ts'
 
 // What to run on this machine to be shown one of its agents and type into it:
 // the far half of the terminal another machine's window opens over SSH and
@@ -52,7 +52,7 @@ export async function attachHere(
   attaching: WebAttaching | undefined,
 ): Promise<{ body: AttachAnswer } | { refusal: Refusal }> {
   if (attaching === undefined) return { refusal: refuse('no_such') }
-  if (!device.owner) return { refusal: refuse('out_of_scope') }
+  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const parsed = AttachBody.safeParse(got.body)
