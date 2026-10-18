@@ -258,6 +258,16 @@ export function sidewaysNotch(report: string): string | null {
 }
 
 /**
+ * A report of the pointer moving with no button held — 32 for moving, 3 for
+ * no button, and 4, 8 and 16 more for shift, alt and control — which is
+ * somebody here but not a press: nothing was chosen by it.
+ */
+export function hovered(report: string): boolean {
+  const sgr = report.startsWith('\x1b[<') ? SGR_REPORT.exec(report.slice(3)) : null
+  return sgr !== null && report.endsWith('M') && (Number(sgr[1]) & 227) === 35
+}
+
+/**
  * A lane's screen as it was last read back, kept as its lines.
  *
  * A capture always ends at the lane's newest line, so which lines these are

@@ -207,6 +207,11 @@ export class RemoteTerminals {
    * Another terminal in the lane one was in: the same tab, where it was along
    * the row and at the size the lane last had, so the window tells it nothing
    * new — and in front again if the gap between the two took it away from there.
+   *
+   * Only the gap: the window giving the front to the orchestrator while the
+   * lane was gone looks the same as somebody pressing its tab, so it is put
+   * back only where nothing was pressed meanwhile (`presses`). A choice made
+   * in the gap is the person's, and stays.
    */
   private async replace(
     one: { id: string; machine: string; task: string },
@@ -215,12 +220,16 @@ export class RemoteTerminals {
   ): Promise<void> {
     const client = this.wire.opts.client
     const was = client.lane(one.id as LaneId)
-    const before = { bottom: this.wire.state.bottom, keyboard: this.wire.state.keyboard }
+    const before = this.wire.state
     if (was?.alive) await client.closeLane(one.id as LaneId)
     await this.run(one.id, one.machine, one.task, terminal, said, was)
     this.wire.live?.tabsNow()
     const now = this.wire.state
-    if (before.bottom === one.id && now.bottom === ORCHESTRATOR_TAB) {
+    if (
+      before.bottom === one.id &&
+      now.bottom === ORCHESTRATOR_TAB &&
+      now.presses === before.presses
+    ) {
       this.wire.put({ ...now, bottom: one.id, keyboard: before.keyboard })
     }
   }

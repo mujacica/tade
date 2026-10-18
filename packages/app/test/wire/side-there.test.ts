@@ -1,11 +1,10 @@
-import { readFile, rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
-import { ConfigSchema, remoteDocumentPath } from '@tade/core'
+import { readFile, rm } from 'node:fs/promises'
+import { remoteDocumentPath } from '@tade/core'
 import { type FarEnd, startFarEnd } from '@tade/remotes-core/far'
-import { makeScriptedLink, type ScriptedRemote } from '@tade/remotes-scripted'
 import type { IntakeIn } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
+import { standingThere } from './standing-there.ts'
 
 // What is pressed down the side while standing in a project on another
 // machine, through the whole window — so the press goes through the router, as
@@ -68,12 +67,10 @@ const REQUEST: IntakeIn = {
 describe('pressed down the side of a project on another machine', () => {
   let terminal: FakeTerminal
   let home: string
-  let root: string
   const fars: FarEnd[] = []
   const wired = windowUnderTest((one) => {
     terminal = one.terminal
     home = one.home
-    root = one.repo.root
   })
 
   afterEach(async () => {
@@ -93,50 +90,16 @@ describe('pressed down the side of a project on another machine', () => {
   }
 
   /** The window, linked to a far end called `vps` set up by `ready`, standing in its project tade. */
-  async function standingThere(ready: (far: FarEnd) => void): Promise<FarEnd> {
+  async function standingOn(ready: (far: FarEnd) => void): Promise<FarEnd> {
     const far = await startFarEnd({ projects: ['tade'] })
     fars.push(far)
     ready(far)
-    const table = new Map<string, ScriptedRemote>([['vps', far]])
-    const session = await far.pair('mac')
-    const vps = {
-      ssh: 'vps',
-      tade: 'tade',
-      device: session.device,
-      session: session.cookie,
-      csrf: session.csrf,
-      host: session.host,
-    }
-    await writeFile(
-      join(home, 'config.yaml'),
-      [
-        `projects:\n  app:\n    root: ${root}`,
-        'remotes:\n  vps:',
-        ...Object.entries(vps).map(([key, value]) => `    ${key}: ${value}`),
-        '',
-      ].join('\n'),
-    )
-    await wired.start({
-      config: ConfigSchema.parse({ projects: { app: { root } }, remotes: { vps } }),
-      remoteLinks: { ssh: (options) => makeScriptedLink({ ...options, remotes: table }) },
-    })
-    await until('vps along the top', () => (rows()[0] ?? '').includes('vps'), 20_000)
-    const top = rows()[0] ?? ''
-    wired.click(top.indexOf('vps') + 1, 0)
-    await until(
-      'its projects',
-      () =>
-        rows()
-          .slice(1)
-          .some((row) => row.includes('tade')),
-      20_000,
-    )
-    terminal.press('\r')
+    await standingThere(wired, far)
     return far
   }
 
   it('opens one of its requests from its INTAKE on a page that only reads, and says approving it is that machine’s', async () => {
-    const far = await standingThere((one) => {
+    const far = await standingOn((one) => {
       one.intake = [REQUEST]
     })
     await until('its request down the side', () => shown('Dropped'), 20_000)
@@ -160,7 +123,7 @@ describe('pressed down the side of a project on another machine', () => {
   it('reads one of its documents from its DOCUMENTS into a copy here and opens it in the viewer', async () => {
     const at = new Date().toISOString()
     const text = '# The plan\n\nRing the doorbell on every delivery.\n'
-    await standingThere((one) => {
+    await standingOn((one) => {
       one.machine = {
         at,
         version: '0.2.3',

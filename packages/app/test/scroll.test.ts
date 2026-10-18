@@ -11,6 +11,7 @@ import {
   DRAG_MS,
   endOf,
   HELD_LINES,
+  hovered,
   NOTCH,
   notchedIn,
   RUN_MS,
@@ -228,6 +229,24 @@ describe('a notch sideways', () => {
     expect(sidewaysNotch('b')).toBeNull()
     expect(sidewaysNotch('\x1b[A')).toBeNull()
     expect(sidewaysNotch(`${GHOSTTY.left}${GHOSTTY.left}`)).toBeNull()
+  })
+
+  it('reads the pointer passing over as no press, with keys held or not, and nothing else as one', () => {
+    expect(hovered(GHOSTTY.moved)).toBe(true)
+    for (const held of [4, 8, 16, 28]) expect(hovered(`\x1b[<${35 + held};80;29M`)).toBe(true)
+    // A press, a release, a drag with the left button held, the wheel, and a key.
+    for (const report of [
+      GHOSTTY.press,
+      GHOSTTY.release,
+      GHOSTTY.rightPress,
+      '\x1b[<32;80;29M',
+      GHOSTTY.up,
+      GHOSTTY.left,
+      '\x1b[<35;80;29m',
+      'b',
+    ]) {
+      expect(hovered(report), JSON.stringify(report)).toBe(false)
+    }
   })
 })
 

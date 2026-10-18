@@ -50,7 +50,7 @@ import {
 import type { PanelOutcome } from '../panels/outcome.ts'
 import { type PanelInputs, panelKey } from '../panels.ts'
 import { pasteGoes } from '../pasting.ts'
-import { type Reach, scrollable } from '../scroll.ts'
+import { hovered, type Reach, scrollable } from '../scroll.ts'
 import type { Skin } from '../skin.ts'
 import { terminalSplitShown } from '../split.ts'
 import { notify, type Subject, type Wiring } from './context.ts'
@@ -183,8 +183,13 @@ export class Keyboard implements Subject {
   onInput(data: string): TuiInputListenerResult {
     if (this.deps.stopped()) return undefined
     this.deps.settle()
-    // Any key or click is somebody here (`lastKeyAt`), whatever it goes to.
-    this.wire.put({ ...this.wire.state, lastKeyAt: this.wire.now() })
+    // Any key or click is somebody here (`lastKeyAt`), whatever it goes to,
+    // and a press (`presses`) unless the pointer only moved.
+    this.wire.put({
+      ...this.wire.state,
+      lastKeyAt: this.wire.now(),
+      presses: this.wire.state.presses + (hovered(data) ? 0 : 1),
+    })
     // ctrl+v, and Cmd+V with no text to paste: on Tade's own lines the window
     // reads the clipboard, and a lane is sent what a terminal sends (`pasteGoes`).
     const paste = pasted(data)

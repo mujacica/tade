@@ -1,11 +1,9 @@
-import { rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
-import { ConfigSchema } from '@tade/core'
+import { rm } from 'node:fs/promises'
 import { type FarAgent, type FarEnd, startFarEnd } from '@tade/remotes-core/far'
-import { makeScriptedLink, type ScriptedRemote } from '@tade/remotes-scripted'
 import type { Workbench } from '@tade/workbench'
 import { afterEach, describe, expect, it } from 'vitest'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
+import { pressRow, standingThere } from './standing-there.ts'
 
 // An agent on another machine, opened from this window (REMOTE-TADE.md §3.4,
 // §9.4) — the whole of it through the window: its row pressed down the side,
@@ -37,14 +35,10 @@ const LINK: FarAgent = {
 describe('an agent on another machine, from this window', () => {
   let terminal: FakeTerminal
   let client: Workbench
-  let home: string
-  let root: string
   const fars: FarEnd[] = []
   const wired = windowUnderTest((one) => {
     terminal = one.terminal
     client = one.client
-    home = one.home
-    root = one.repo.root
   })
 
   afterEach(async () => {
@@ -63,66 +57,19 @@ describe('an agent on another machine, from this window', () => {
     wired.click(at.col + 1, at.row)
   }
 
-  /** Press an agent's row down the side, where the pane beside it may say its name too. */
-  function row(label: string): void {
-    const lines = rows()
-    for (let at = 1; at < lines.length; at++) {
-      const line = lines[at] ?? ''
-      const edge = Math.max(line.indexOf('│'), line.indexOf('┃'))
-      const col = line.indexOf(label)
-      if (col >= 0 && (edge < 0 || col < edge)) {
-        wired.click(col + 1, at)
-        return
-      }
-    }
-    throw new Error(`no row says "${label}"`)
-  }
+  const row = (label: string) => pressRow(wired, label)
 
   /** The window, linked to a far end called `vps` with these agents, standing in its project. */
   async function linkedTo(agents: readonly FarAgent[]): Promise<FarEnd> {
     const far = await startFarEnd({ projects: ['tade'] })
     fars.push(far)
     far.show(['tade'], {}, agents)
-    const table = new Map<string, ScriptedRemote>([['vps', far]])
-    const session = await far.pair('mac')
-    const vps = {
-      ssh: 'vps',
-      tade: 'tade',
-      device: session.device,
-      session: session.cookie,
-      csrf: session.csrf,
-      host: session.host,
-    }
-    // In the file too, so the window's own reading of it finds the same remote.
-    await writeFile(
-      join(home, 'config.yaml'),
-      [
-        `projects:\n  app:\n    root: ${root}`,
-        'remotes:\n  vps:',
-        ...Object.entries(vps).map(([key, value]) => `    ${key}: ${value}`),
-        '',
-      ].join('\n'),
-    )
-    await wired.start({
-      config: ConfigSchema.parse({ projects: { app: { root } }, remotes: { vps } }),
-      remoteLinks: {
-        ssh: (options) => makeScriptedLink({ ...options, remotes: table, terminals: true }),
-      },
-    })
-    // Eighty columns fold a machine's projects into its chip: its menu is them.
-    await until('vps along the top', () => (rows()[0] ?? '').includes('vps'), 20_000)
-    const top = rows()[0] ?? ''
-    wired.click(top.indexOf('vps') + 1, 0)
+    await standingThere(wired, far, { terminals: true })
     await until(
-      'its projects',
-      () =>
-        rows()
-          .slice(1)
-          .some((row) => row.includes('tade')),
+      () => `its agents down the side, where the screen shows:\n${rows().join('\n')}`,
+      () => shown(agents[0]?.title ?? ''),
       20_000,
     )
-    terminal.press('\r')
-    await until('its agents down the side', () => shown(agents[0]?.title ?? ''), 20_000)
     return far
   }
 

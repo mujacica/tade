@@ -1,13 +1,14 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ConfigSchema, type LaneId } from '@tade/core'
+import type { LaneId } from '@tade/core'
 import { type FarAgent, type FarEnd, startFarEnd } from '@tade/remotes-core/far'
-import { makeScriptedLink, type ScriptedOptions, type ScriptedRemote } from '@tade/remotes-scripted'
+import type { ScriptedOptions } from '@tade/remotes-scripted'
 import type { Workbench } from '@tade/workbench'
 import { afterEach, describe, expect, it } from 'vitest'
 import { endedOf } from '../../src/wire/remote-terminals.ts'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
+import { pressRow, standingThere } from './standing-there.ts'
 
 // A terminal here that is an agent on another machine, kept up
 // (REMOTE-TADE.md §3.5): run again in its own tab when its connection is back
@@ -31,14 +32,12 @@ describe('a terminal to an agent on another machine, kept up', () => {
   let terminal: FakeTerminal
   let client: Workbench
   let home: string
-  let root: string
   const fars: FarEnd[] = []
   const dirs: string[] = []
   const wired = windowUnderTest((one) => {
     terminal = one.terminal
     client = one.client
     home = one.home
-    root = one.repo.root
   })
 
   afterEach(async () => {
@@ -53,20 +52,7 @@ describe('a terminal to an agent on another machine, kept up', () => {
   const shown = (text: string) => rows().some((row) => row.includes(text))
   const alive = (id: string) => client.lanes().some((lane) => lane.id === id && lane.alive)
 
-  /** Press an agent's row down the side, where the pane beside it may say its name too. */
-  function row(label: string): void {
-    const lines = rows()
-    for (let at = 1; at < lines.length; at++) {
-      const line = lines[at] ?? ''
-      const edge = Math.max(line.indexOf('│'), line.indexOf('┃'))
-      const col = line.indexOf(label)
-      if (col >= 0 && (edge < 0 || col < edge)) {
-        wired.click(col + 1, at)
-        return
-      }
-    }
-    throw new Error(`no row says "${label}"`)
-  }
+  const row = (label: string) => pressRow(wired, label)
 
   /** The window, linked to a far end called `vps` with these agents, standing in its project. */
   async function linkedTo(
@@ -76,45 +62,12 @@ describe('a terminal to an agent on another machine, kept up', () => {
     const far = await startFarEnd({ projects: ['tade'] })
     fars.push(far)
     far.show(['tade'], {}, agents)
-    const table = new Map<string, ScriptedRemote>([['vps', far]])
-    const session = await far.pair('mac')
-    const vps = {
-      ssh: 'vps',
-      tade: 'tade',
-      device: session.device,
-      session: session.cookie,
-      csrf: session.csrf,
-      host: session.host,
-    }
-    await writeFile(
-      join(home, 'config.yaml'),
-      [
-        `projects:\n  app:\n    root: ${root}`,
-        'remotes:\n  vps:',
-        ...Object.entries(vps).map(([key, value]) => `    ${key}: ${value}`),
-        '',
-      ].join('\n'),
-    )
-    await wired.start({
-      config: ConfigSchema.parse({ projects: { app: { root } }, remotes: { vps } }),
-      remoteLinks: {
-        ssh: (options) =>
-          makeScriptedLink({ ...options, remotes: table, terminals: true, ...link }),
-      },
-    })
-    await until('vps along the top', () => (rows()[0] ?? '').includes('vps'), 20_000)
-    const top = rows()[0] ?? ''
-    wired.click(top.indexOf('vps') + 1, 0)
+    await standingThere(wired, far, { terminals: true, ...link })
     await until(
-      'its projects',
-      () =>
-        rows()
-          .slice(1)
-          .some((one) => one.includes('tade')),
+      () => `its agents down the side, where the screen shows:\n${rows().join('\n')}`,
+      () => shown(agents[0]?.title ?? ''),
       20_000,
     )
-    terminal.press('\r')
-    await until('its agents down the side', () => shown(agents[0]?.title ?? ''), 20_000)
     // Room for the side's rows under a terminal in front, and for the lower pane's controls.
     terminal.resize(160, 40)
     await until('the window, wider', () => (rows()[0] ?? '').length >= 160, 20_000)
@@ -217,6 +170,57 @@ describe('a terminal to an agent on another machine, kept up', () => {
       'the new lane watched',
       () => watched.filter((lane) => lane === 'remotes/vps/1').length === 2,
     )
+  })
+
+  it('leaves the orchestrator in front where the person pressed its tab while a terminal was run again', async () => {
+    const far = await linkedTo([DOOR])
+    const door = await dropping('door')
+    far.attachable.set(DOOR.task, door.line)
+    await attach('Doorbell', 'remotes/vps/1', 'door-run-1')
+    // Its next run waits to start, in the gap between the old terminal closed
+    // and the new one in its lane, until the person has pressed.
+    let gap = false
+    let start = () => {}
+    const pressed = new Promise<void>((resolve) => {
+      start = resolve
+    })
+    const spawn = client.spawn.bind(client)
+    client.spawn = async (req) => {
+      if (req.id === 'remotes/vps/1') {
+        gap = true
+        await pressed
+      }
+      return spawn(req)
+    }
+
+    await far.close()
+    await door.drop()
+    await until('it said its connection dropped', () => shown('[the connection to vps dropped'))
+    await door.mend()
+    await far.reopen()
+    await until('the gap', () => gap, 30_000)
+    // The person presses the orchestrator's tab, in the gap.
+    const tabs = () =>
+      rows().findLastIndex((one) => one.startsWith('━') && one.includes('orchestrator'))
+    const front = () => rows()[tabs()] ?? ''
+    await until('the orchestrator tab', () => tabs() >= 0)
+    wired.click(front().indexOf(' orchestrator ') + 1, tabs())
+    await until(
+      () => `the orchestrator in front, where its tabs say: ${front()}`,
+      () => front().includes('[ orchestrator ]'),
+    )
+    start()
+
+    // Run again in its tab, which stays behind the one the person chose.
+    await until(
+      'said once',
+      () => shown('intake-door on vps: connected again, over scripted'),
+      30_000,
+    )
+    await until('it ran again', async () => (await door.runs()) === 2)
+    expect(alive('remotes/vps/1')).toBe(true)
+    expect(front()).toContain('[ orchestrator ]')
+    expect(front()).not.toContain('[ vps · intake-door ]')
   })
 
   it('keeps a terminal run again where its tab was, before one opened after it', async () => {

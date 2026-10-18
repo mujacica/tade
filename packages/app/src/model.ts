@@ -183,6 +183,14 @@ export interface AppState {
    * talking to an orchestrator is here as much as one typing to an agent.
    */
   lastKeyAt: number | null
+  /**
+   * How many keys, and how much of the pointer short of only passing over,
+   * have reached this window (`Keyboard.onInput`, `Mouse`): what something
+   * the window does on its own across a wait compares, so a choice somebody
+   * made meanwhile is never undone — a time can be the same for two presses,
+   * a count cannot.
+   */
+  presses: number
   /** A question the resolver asked, waiting for you to pick one. */
   question: { question: string; candidates: string[] } | null
   /** How far back the focused agent's screen is scrolled, in lines; 0 follows its newest. */
@@ -390,6 +398,7 @@ export function initialState(): AppState {
     listening: false,
     lastInputAt: null,
     lastKeyAt: null,
+    presses: 0,
     question: null,
     dictation: null,
     historySearch: null,
