@@ -15,6 +15,14 @@ if (tooOld !== null) {
   process.exit(1)
 }
 
+// A reader that stops reading — `tade web status | head -2` — is the shell
+// saying it has enough, not an error: the same quiet end `head` gives `cat`,
+// rather than an unhandled EPIPE and a stack trace.
+process.stdout.on('error', (error: NodeJS.ErrnoException) => {
+  if (error.code !== 'EPIPE') throw error
+  process.exit(typeof process.exitCode === 'number' ? process.exitCode : 0)
+})
+
 // Before the most of a second it takes to load the rest: a terminal left blank
 // that long reads as a command that did nothing, so the mark goes up at once
 // and turns until the window takes the screen (`opening.ts`).
