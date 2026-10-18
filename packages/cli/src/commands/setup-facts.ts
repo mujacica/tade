@@ -89,16 +89,17 @@ export async function lookHere(home = tadeHome()): Promise<Look> {
   const loaded = await loadConfig(defaultConfigPath())
   const config = loaded.ok ? loaded.config : null
   const installers = installersHere()
+  const box = unattendedHere()
   const [programs, native, harnesses, extensions, unattended] = await Promise.all([
     config
-      ? programsNeeded(config, home, voiceDeclared(config.surfaces.voice))
+      ? programsNeeded(config, home, speechDeclared(config.surfaces.voice, box))
           .then((needs) => lookAtPrograms(needs))
           .catch(() => [])
       : Promise.resolve([]),
     nativeTroubles(home),
     config ? lookAtHarnesses(config, home).catch(() => []) : Promise.resolve([]),
     extensionsHere(config),
-    unattendedLooked(),
+    unattendedLooked({}, box),
   ])
   return {
     programs,
@@ -114,12 +115,27 @@ export async function lookHere(home = tadeHome()): Promise<Look> {
 }
 
 /**
+ * What the speech ports declare, as setting up lists it: nothing on a server,
+ * where readiness has no speech steps — nobody speaks to a box with no
+ * microphone — so whisper.cpp and ffmpeg there would be programs the
+ * Programs step holds setting up on for a voice nobody will use.
+ */
+export function speechDeclared(
+  voice: Parameters<typeof voiceDeclared>[0],
+  unattended: Unattended | null,
+): ReturnType<typeof voiceDeclared> {
+  return unattended ? [] : voiceDeclared(voice)
+}
+
+/**
  * A server's facts, and — where a unit is written — whether the service it
  * runs said it is ready, which is one `systemctl` and so only ever looked at
  * here.
  */
-export async function unattendedLooked(look: HostLook = {}): Promise<Unattended | null> {
-  const box = unattendedHere(look)
+export async function unattendedLooked(
+  look: HostLook = {},
+  box = unattendedHere(look),
+): Promise<Unattended | null> {
   if (box === null || box.unit === null) return box
   return { ...box, service: await lookAtService(look.env) }
 }

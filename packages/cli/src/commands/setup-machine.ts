@@ -377,7 +377,12 @@ export async function setUpKeys(ui: Ui, look: Look): Promise<void> {
       }
       ui.say(`  ${secret.label} — ${secret.means}`)
       if (secret.variables.length > 0) {
-        ui.say(`  $${secret.variables.join(' or $')} in your shell wins over what you paste here`)
+        // Where the variable that wins comes from: a service's environment is
+        // its unit's, and a shell's never reaches it.
+        const where = look.unattended
+          ? 'set in the service’s own environment (an EnvironmentFile= in its unit)'
+          : 'in your shell'
+        ui.say(`  $${secret.variables.join(' or $')} ${where} wins over what you paste here`)
       }
       const typed = (
         await ui.ask(`paste ${one.title}’s ${secret.label} (enter to skip)`, '')

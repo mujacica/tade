@@ -7,7 +7,7 @@ import { type HarnessHere, missingFrom, serviceUnitPath } from '@tade/workbench/
 import type { ProgramLook } from '@tade/workbench/programs'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
-import { type Look, unattendedLooked } from '../src/commands/setup-facts.ts'
+import { type Look, speechDeclared, unattendedLooked } from '../src/commands/setup-facts.ts'
 import {
   dictationSaid,
   harnessLines,
@@ -289,8 +289,8 @@ describe('local speech, on each kind of machine', () => {
   // What the speech ports declare, folded the way `lookHere` folds them, on a
   // machine with neither program: the speech step reads the same list the
   // Programs step does, so its line is this machine's.
-  const missingOn = (machine: InstallersHere) => {
-    const looks: ProgramLook[] = neededPrograms(voiceDeclared()).map((need) => ({
+  const missingOn = (machine: InstallersHere, declared = voiceDeclared()) => {
+    const looks: ProgramLook[] = neededPrograms(declared).map((need) => ({
       need,
       install: null,
       version: null,
@@ -301,6 +301,23 @@ describe('local speech, on each kind of machine', () => {
     }))
     return { missing: missingFrom(looks, machine) }
   }
+
+  it('lists neither on a server, whose setting up has no speech steps', async () => {
+    // Found on a VPS: the speech steps were dropped where `unattended`, and
+    // the Programs step still held setting up on whisper.cpp and ffmpeg.
+    const debian: InstallersHere = { platform: 'linux', managers: ['apt-get'] }
+    const desktop = recorder({ confirm: [false, false] })
+    await setUpPrograms(desktop, missingOn(debian, speechDeclared({}, null)).missing)
+    expect(desktop.said.join('\n')).toMatch(/whisper\.cpp[\s\S]*ffmpeg/)
+
+    const box = { user: 'you', linger: true, unit: null }
+    const server = recorder({ confirm: [] })
+    const listed = missingOn(debian, speechDeclared({}, box)).missing
+    expect(listed).toEqual([])
+    await setUpPrograms(server, listed)
+    expect(server.said.join('\n')).not.toMatch(/whisper|ffmpeg/)
+    expect(server.asked).toEqual([])
+  })
 
   it('offers Homebrew on a Mac, one program at a time', async () => {
     const ui = recorder({ confirm: [true, true] })
@@ -585,6 +602,10 @@ describe('the keys the extensions asked for', () => {
     const said = ui.said.join(' ').replace(/\s+/g, ' ')
     expect(said).not.toContain('export its variable instead')
     expect(said).toContain('never reaches it')
+    // Nor, key by key, that the shell's variable wins: the unit's does.
+    expect(said).not.toContain('in your shell wins')
+    expect(said).toContain('$TYPESAFE_API_KEY set in the service’s own environment')
+    expect(said).toContain('EnvironmentFile=')
   })
 
   it('is explicit that everything works without one, and writes nothing when skipped', async () => {
