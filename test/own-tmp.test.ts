@@ -216,6 +216,24 @@ describe('a root a killed run left is removed by the next', () => {
     expect(existsSync(left)).toBe(false)
     for (const kept of [running, recent, notOne, other]) expect(existsSync(kept)).toBe(true)
   })
+
+  it('stopping a tmux server still running under it first, and naming it', async () => {
+    const base = tmp('tade-base-')
+    const left = join(base, `${ROOT}${GONE}-aaaaaa`)
+    mkdirSync(left)
+    const env = { ...process.env, TMUX_TMPDIR: left }
+    const tmux = (...args: string[]) => spawnSync('tmux', ['-L', 'left', ...args], { env })
+    expect(tmux('new-session', '-d', '-s', 'conf-abc12345', 'sleep 600').status).toBe(0)
+    try {
+      aged(left, STALE_MS + 60_000)
+      const said: string[] = []
+      expect(await sweepRoots(base, Date.now(), (line) => said.push(line))).toEqual([left])
+      expect(tmux('has-session').status).not.toBe(0)
+      expect(said.join('')).toContain('tmux -L left: conf-abc12345')
+    } finally {
+      tmux('kill-server')
+    }
+  })
 })
 
 describe('a full run leaves the temp folder as it found it', () => {

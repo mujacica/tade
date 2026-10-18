@@ -149,7 +149,8 @@ function alive(pid: number): boolean {
 
 /**
  * Remove the roots in `base` that runs killed before their teardown left:
- * older than `STALE_MS`, and their suite gone. Answers what it removed. A root
+ * older than `STALE_MS`, and their suite gone, stopping any tmux server still
+ * running under one first. Answers what it removed. A root
  * that cannot be read or removed stays for the next run, and that is said.
  */
 export async function sweepRoots(
@@ -163,6 +164,9 @@ export async function sweepRoots(
     const root = join(base, name)
     try {
       if (now - statSync(root).mtimeMs < STALE_MS || alive(pid)) continue
+      // A tmux server the killed run left would run on with no socket.
+      const stopped = stopServersUnder(root)
+      if (stopped.length > 0) say(`\n${serversSaid(stopped)}\n`)
       await rm(root, { recursive: true, force: true, maxRetries: 3 })
       removed.push(root)
     } catch (err) {
