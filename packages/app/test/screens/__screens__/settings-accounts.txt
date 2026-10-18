@@ -11,7 +11,7 @@
  ▸ S│                            █│                                                                               █│    
  ▸ S│  Voice                     █│ Claude Code                                                                   █│    
  ▸ I│                            █│ ▸ its own sign-in       ● you@example.com · max · 34% of 5h · 2 agents        █│    
- ▾ C│  Window                    █│     Sign in again…     Sign out                                               █│    
+ ▾ C│  Window                    █│     Sign in again…     Sign out     Name it…                                  █│    
   M │                            █│   work                  ○ not signed in yet                                   █│    
   A │  Away view                 █│                         new agents in infra                                   █│    
   M │                            █│     Sign in…     Use for new agents     Remove                                █│    
@@ -20,7 +20,7 @@
    ▾│  Projects              ● 1 █│                                                                               █│    
     │                            █│ Codex                                                                         █│    
     │  Journal                   █│ ▸ its own sign-in       ● you@example.com · pro · 1 agent                     █│    
-   ▸│                            █│     Sign in again…     Sign out                                               █│    
+   ▸│                            █│     Sign in again…     Sign out     Name it…                                  █│    
 ━   │  Telemetry                 █│                                                                               █│   ━
     │                            █│     Add an account…     Add an API-key account…                               ▕│    
     │  Shortcuts                 █│                                                                               ▕│   ▕

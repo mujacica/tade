@@ -27,6 +27,11 @@ export interface MachineDeps {
   onScreenWith(flow: (ui: Ui) => Promise<void>): Promise<void>
   /** Read the models an agent can start on again: signing in changes them. */
   refreshModels(): Promise<void>
+  /**
+   * Write one setting the way its row on the Settings page does, and say how
+   * it went; a value the config refuses is put back and thrown.
+   */
+  writeSetting(path: string, value: string): Promise<string>
 }
 
 /** How a provider is paid for, the way a page that asked says it. */
@@ -96,6 +101,28 @@ export class Machine implements Subject {
         }
         this.wire.put({ ...this.wire.state, panel: settingsPanel(ACCOUNTS) })
         await this.signInto(harness, name)
+        await this.loadAccountViews()
+      },
+      // A label, written through the same door as its row on the Models
+      // page (`workers.default_names.<harness>`): empty takes the name away.
+      'account-own-name': async (panel, text) => {
+        if (!panel.target) return
+        const harness = panel.target
+        // Nothing to take away is nothing to write: without a name or an
+        // added account there is no row, and an empty name is no name.
+        const named = this.views.some((one) => one.harness === harness && one.ownName)
+        if (text === '' && !named) {
+          this.wire.put({ ...this.wire.state, panel: settingsPanel(ACCOUNTS) })
+          return
+        }
+        const told = await this.deps.writeSetting(
+          `workers.default_names.${harness}`,
+          text.toLowerCase(),
+        )
+        this.wire.put({
+          ...this.wire.state,
+          panel: { ...settingsPanel(ACCOUNTS), saved: told },
+        })
         await this.loadAccountViews()
       },
       'account-key': async (panel, text) => {
@@ -217,7 +244,8 @@ export class Machine implements Subject {
   /**
    * Do something to an account from the Accounts page: sign it in with its
    * harness's own sign-in, sign it out, have new agents use it, add one, set
-   * a key, or take one away. Whatever happens is said on the page.
+   * a key, name a harness's own sign-in, or take one away. Whatever happens is
+   * said on the page.
    */
   async accountAction(id: string): Promise<void> {
     const [, verb = '', harness = '', named = ''] = id.split(':')
@@ -264,6 +292,16 @@ export class Machine implements Subject {
                 'NAME',
               ),
               target: `${harness}\u0000${verb === 'add' ? 'subscription' : 'api-key'}`,
+            },
+          })
+          this.wire.draw()
+          return
+        case 'name':
+          this.wire.put({
+            ...this.wire.state,
+            panel: {
+              ...promptPanel('account-own-name', `Name ${title}'s own sign-in`, 'NAME', own ?? ''),
+              target: harness,
             },
           })
           this.wire.draw()

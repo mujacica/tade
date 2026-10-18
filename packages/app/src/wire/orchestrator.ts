@@ -5,6 +5,7 @@ import {
   type LaneId,
   needsReflection,
   orchestratorAccount,
+  ownSignInName,
   reflectionPrompt,
   THINKING_LEVELS,
   type ThinkingLevel,
@@ -316,7 +317,11 @@ export class Orchestrator implements Subject {
     const restart = this.wire.opts.restartThinker
     if (!restart) return
     const go = () => {
-      const as = orchestratorAccount(this.wire.opts.config) ?? 'its own sign-in'
+      const config = this.wire.opts.config
+      const as =
+        orchestratorAccount(config) ??
+        ownSignInName(config, config.orchestrator.harness) ??
+        'its own sign-in'
       notify(this.wire, `the orchestrator is starting again as ${as}`)
       this.wire.draw()
       void restart().catch((err: unknown) => this.failed(why(err)))

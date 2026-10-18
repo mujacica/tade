@@ -264,6 +264,7 @@ export class App {
       showTerminal: (id) => this.lanes.showTerminal(id),
       onScreenWith: (flow) => this.screens.onScreenWith(flow),
       refreshModels: () => this.routes.refreshModels(),
+      writeSetting: (path, value) => this.settings.write(path, value),
     })
     this.updates = new Updates(this.wire, {
       reload: () => this.window.reload(),

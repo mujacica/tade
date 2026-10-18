@@ -82,6 +82,8 @@ export interface PromptPanel {
     | 'account-name'
     /** An API-key account's key: `target` is the account. Never drawn as typed. */
     | 'account-key'
+    /** What a harness's own sign-in is called: `target` is the harness. */
+    | 'account-own-name'
     /**
      * A sentence for an agent on another machine, sent as its `steer`:
      * `target` is the machine and its task there, joined by a NUL.

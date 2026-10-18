@@ -136,6 +136,43 @@ describe('the window, and its settings', () => {
     expect(loaded.ok && loaded.config.orchestrator.account).toBe('work')
   })
 
+  it('says the orchestrator moves back to its own sign-in by the name somebody gave it', async () => {
+    await client.addAccount({ name: 'work', harness: 'claude-code' })
+    const file = join(home, 'config.yaml')
+    writeSetting(file, 'orchestrator.harness', 'claude-code')
+    writeSetting(file, 'orchestrator.account', 'work')
+    writeSetting(file, 'workers.default_names.claude-code', 'sentry')
+    const config = ConfigSchema.parse({
+      projects: { app: { root: repo.root } },
+      orchestrator: { harness: 'claude-code', account: 'work' },
+      accounts: { work: { harness: 'claude-code' } },
+      workers: { default_names: { 'claude-code': 'sentry' } },
+    })
+    client.config = config
+    terminal.resize(120, 60)
+    await start({ config, restartThinker: async () => {} })
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const button = find('Settings ')
+    click(button.col + 1, button.row)
+    await until('the settings', () => terminal.written.includes('Accounts'))
+    const accounts = find('Accounts')
+    click(accounts.col + 1, accounts.row)
+    await until('the own sign-in to move to', () =>
+      terminal.written.includes('Use for the orchestrator'),
+    )
+    const use = find('Use for the orchestrator')
+    terminal.written = ''
+    click(use.col + 1, use.row)
+    // Both what the page says and, once it is closed, what the strip under it
+    // says: its name, never the words for a sign-in nobody named.
+    await until('the page said so', () => shown(terminal).includes('starts again as sentry now'))
+    terminal.press('\x1b')
+    await until('the strip said so', () =>
+      shown(terminal).includes('the orchestrator is starting again as sentry'),
+    )
+    expect(shown(terminal)).not.toContain('as its own sign-in')
+  })
+
   it('hears nothing more from the orchestrator it stopped to move it, whose TERM ends it with 143', async () => {
     // Claude Code ends on the TERM a restart sends it with code 143, after the
     // one on the new account is up: said by the one it replaced, that read as

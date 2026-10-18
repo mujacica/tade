@@ -576,7 +576,7 @@ export function accountMenuItems(
       const id = one.name ?? ''
       return {
         id,
-        label: `${id === current ? '● ' : '  '}${one.name ?? 'its own sign-in'}`,
+        label: `${id === current ? '● ' : '  '}${one.name ?? one.ownName ?? 'its own sign-in'}`,
         ...(id === current
           ? { note: 'now' }
           : one.status.signedIn

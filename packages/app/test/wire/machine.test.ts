@@ -1,6 +1,7 @@
 import { ConfigSchema } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { type AppState, initialState } from '../../src/model.ts'
+import { promptPanel } from '../../src/panels/small/state.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 import { Machine } from '../../src/wire/machine.ts'
 
@@ -33,7 +34,7 @@ function wiring(
     terminal?: { id: string } | Error
     credentials?: Record<string, 'signed-in' | 'api-key' | 'env-key'>
     /** The accounts each harness reports, with the provider each declares. */
-    accounts?: { harness: string; provider: string | null; signedIn: boolean }[]
+    accounts?: { harness: string; provider: string | null; signedIn: boolean; ownName?: string }[]
     fails?: string
   } = {},
 ) {
@@ -61,6 +62,7 @@ function wiring(
         harness: one.harness,
         name: null,
         provider: one.provider,
+        ownName: one.ownName ?? null,
         status: { signedIn: one.signedIn, who: null, plan: null, problem: null },
       }))
     },
@@ -111,6 +113,11 @@ const deps = (did: Did[]) => ({
   },
   refreshModels: async () => {
     did.push({ what: 'refreshModels', with: [] })
+  },
+  writeSetting: async (path: string, value: string) => {
+    did.push({ what: 'writeSetting', with: [path, value] })
+    if (value === 'work') throw new Error('"work" is already a claude-code account')
+    return 'Saved. It applies now.'
   },
 })
 
@@ -349,6 +356,100 @@ describe('doing something to an account', () => {
     // A subscription token never passes through Tade: its own sign-in runs in
     // a terminal a person can see, and then the accounts are read again.
     expect(world.did.map((one) => one.what)).toEqual(['onScreenWith', 'refreshModels', 'accounts'])
+  })
+
+  it('asks what to call a harness’s own sign-in, starting from what it is called', async () => {
+    const world = wiring({
+      project: 'shop',
+      accounts: [
+        { harness: 'claude-code', provider: 'anthropic', signedIn: true, ownName: 'sentry' },
+      ],
+    })
+    const subject = machine(world)
+    await subject.loadAccountViews()
+    world.did.length = 0
+    await subject.accountAction('account:name:claude-code:')
+    const panel = world.at().panel as {
+      kind: string
+      purpose: string
+      title: string
+      text: string
+      target: string
+    }
+    expect(panel).toMatchObject({
+      kind: 'prompt',
+      purpose: 'account-own-name',
+      title: "Name Claude Code's own sign-in",
+      text: 'sentry',
+      target: 'claude-code',
+    })
+    // Nothing is written until a name comes back.
+    expect(world.did).toEqual([])
+  })
+
+  it('writes the name as the setting its Models row writes, and says so on the Accounts page', async () => {
+    const world = wiring({ project: 'shop' })
+    const prompt = machine(world).prompts()['account-own-name']
+    await prompt?.(
+      { ...promptPanel('account-own-name', 'Name it', 'NAME'), target: 'claude-code' },
+      'Sentry',
+      undefined,
+    )
+    expect(world.did[0]).toEqual({
+      what: 'writeSetting',
+      with: ['workers.default_names.claude-code', 'sentry'],
+    })
+    expect(world.at().panel).toMatchObject({ kind: 'settings', saved: 'Saved. It applies now.' })
+    // The page reads the accounts back, so the row says the new name.
+    expect(world.did.map((one) => one.what)).toEqual(['writeSetting', 'accounts'])
+  })
+
+  it('writes nothing for an empty name where there was none to take away', async () => {
+    const world = wiring({ project: 'shop' })
+    const prompt = machine(world).prompts()['account-own-name']
+    await prompt?.(
+      { ...promptPanel('account-own-name', 'Name it', 'NAME'), target: 'claude-code' },
+      '',
+      undefined,
+    )
+    expect(world.did).toEqual([])
+    expect(world.at().panel).toMatchObject({ kind: 'settings', saved: null })
+  })
+
+  it('takes a name away with an empty one', async () => {
+    const world = wiring({
+      project: 'shop',
+      accounts: [
+        { harness: 'claude-code', provider: 'anthropic', signedIn: true, ownName: 'sentry' },
+      ],
+    })
+    const subject = machine(world)
+    await subject.loadAccountViews()
+    world.did.length = 0
+    await subject
+      .prompts()
+      ['account-own-name']?.(
+        { ...promptPanel('account-own-name', 'Name it', 'NAME'), target: 'claude-code' },
+        '',
+        undefined,
+      )
+    expect(world.did[0]).toEqual({
+      what: 'writeSetting',
+      with: ['workers.default_names.claude-code', ''],
+    })
+  })
+
+  it('leaves the prompt to say why a name was refused, writing nothing else', async () => {
+    const world = wiring({ project: 'shop' })
+    const prompt = machine(world).prompts()['account-own-name']
+    await expect(
+      prompt?.(
+        { ...promptPanel('account-own-name', 'Name it', 'NAME'), target: 'claude-code' },
+        'work',
+        undefined,
+      ),
+    ).rejects.toThrow('already a claude-code account')
+    expect(world.did.map((one) => one.what)).toEqual(['writeSetting'])
   })
 
   it('says what went wrong on the page rather than throwing out of a click', async () => {

@@ -1393,6 +1393,8 @@ describe('the Accounts page', () => {
     expect(accountActions(accounts).map((action) => action.id)).toEqual([
       'account:sign-in:claude-code:',
       'account:sign-out:claude-code:',
+      // Its own sign-in can be called something, beside an account of its own.
+      'account:name:claude-code:',
       'account:sign-in:claude-code:work',
       'account:use:claude-code:work',
       'account:remove:claude-code:work',
@@ -1403,9 +1405,25 @@ describe('the Accounts page', () => {
     ])
   })
 
+  it('offers to name an own sign-in only where there is another to tell it from, or it has a name', () => {
+    const named = (list: ReturnType<typeof account>[]) =>
+      accountActions(list).find((action) => action.id.startsWith('account:name:'))
+    expect(named(accounts)).toMatchObject({
+      label: 'Name it…',
+      harness: 'claude-code',
+      account: null,
+    })
+    // pi keeps one set of sign-ins: there is nothing to tell it from.
+    expect(named([accounts[2] as ReturnType<typeof account>])).toBeUndefined()
+    // Unless somebody named it already, which is then a name to change.
+    expect(named([account({ harness: 'pi', canAdd: false, ownName: 'home' })])).toMatchObject({
+      id: 'account:name:pi:',
+    })
+  })
+
   it('asks twice before taking an account away', () => {
     const inputs = { accountActions: accountActions(accounts) }
-    const panel = { ...settingsPanel('accounts'), row: 4 }
+    const panel = { ...settingsPanel('accounts'), row: 5 }
     const once = panelKey(panel, 'enter', '\r', inputs)
     expect(once.submit).toBeFalsy()
     expect(once.panel).toMatchObject({ confirm: 'account:remove:claude-code:work' })
@@ -1422,5 +1440,15 @@ describe('the Accounts page', () => {
       ['', 'now'],
       ['work', 'not signed in'],
     ])
+  })
+
+  it('calls the own sign-in by the name somebody gave it in an agent’s Account menu', () => {
+    const own = account({ ownName: 'sentry' })
+    const items = accountMenuItems([own, accounts[1] as typeof own], 'claude-code', 'work')
+    expect(items.map((item) => item.label)).toEqual(['  sentry', '● work'])
+    // Still the own sign-in underneath: choosing it moves the agent there.
+    expect(items[0]?.id).toBe('')
+    // Unnamed, it is said for what it is.
+    expect(accountMenuItems(accounts, 'claude-code', '')[0]?.label).toBe('● its own sign-in')
   })
 })

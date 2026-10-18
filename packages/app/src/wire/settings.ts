@@ -9,6 +9,8 @@ import {
   heldSays,
   loadConfig,
   modelChosen,
+  orchestratorAccount,
+  ownSignInName,
   parseSetting,
   providerBeside,
   type SettingGroup,
@@ -635,13 +637,20 @@ export class Settings implements Subject {
           : beside !== null
             ? ` Its provider, ${beside.provider}, is cleared: the model names its own.`
             : ''
+      // Who it now runs as, read back rather than said as typed: what was
+      // written may be `default`, and its own sign-in has a name where somebody
+      // gave it one.
+      const runsAs =
+        orchestratorAccount(loaded.config) ??
+        ownSignInName(loaded.config, loaded.config.orchestrator.harness) ??
+        'its own sign-in'
       const told =
         setting?.live === false
           ? `Saved. ${setting.title} applies when Tade next starts.${reset}`
           : trouble
             ? `Saved. It applies when the orchestrator next starts: ${trouble}`
             : path === OWN_ACCOUNT
-              ? `Saved. The orchestrator starts again as ${value || 'its own sign-in'}${by === 'orchestrator' ? ' once this turn is over' : ' now'}, its conversation with it.`
+              ? `Saved. The orchestrator starts again as ${runsAs}${by === 'orchestrator' ? ' once this turn is over' : ' now'}, its conversation with it.`
               : `Saved. It applies now.${reset}${this.aboutKey(path, value)}${takingSays(taking)}`
       // Written down once it is true, with what it was: the config is one file
       // rewritten in place and nothing else remembers, so this line is what

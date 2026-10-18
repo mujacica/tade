@@ -82,6 +82,12 @@ export function accountActions(accounts: readonly AccountShown[]): AccountAction
           actions.push({ id: id('sign-out', harness, at), label: 'Sign out', harness, account: at })
         }
       }
+      // What its own sign-in is called (`workers.default_names`), for a harness
+      // that keeps accounts apart or one already named: a label, which signs
+      // nothing in and moves nobody.
+      if (at === null && (one.canAdd || one.ownName)) {
+        actions.push({ id: id('name', harness, at), label: 'Name it…', harness, account: at })
+      }
       if (!one.forNewAgents && (one.canAdd || mine.length > 1)) {
         actions.push({
           id: id('use', harness, at),
