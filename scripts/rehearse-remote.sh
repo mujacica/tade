@@ -290,9 +290,9 @@ hook() {
       fs.writeFileSync(p, String(d), { mode: 0o600 })"
     XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user restart tade'
   cat <<EOF
-   Turn its watch on at that machine: stop the service (systemctl --user stop tade), run \`tade\` there,
-   Extensions › Rehearsal intake › Turn on, quit, start the service. (From the Mac's tab it is refused
-   until a typed line there counts as the person's — see the rehearsal's leftovers.)
+   Turn its watch on from the Mac: on vps$n's orchestrator tab type
+     watch rehearsal-intake.requests on app, the rehearsal requests
+   (its title is what names it; or at that machine: Extensions › Rehearsal intake › Turn on).
    Then a request for it to find, and the delivery:
      ssh -F $DIR/ssh/config vps$n 'printf "[{\\"id\\":\\"req-7\\",\\"title\\":\\"Refunds double-charge\\"}]\\n" > ~/src/app/REQUESTS.json'
      ssh -F $DIR/ssh/config vps$n 'sh /opt/rehearsal/deliver.sh vps$n.rehearsal.example rehearsal-hook-secret https://vps$n/acme/app'
