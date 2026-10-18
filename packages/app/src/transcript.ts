@@ -13,7 +13,11 @@ import { unwrapped } from './inbox.ts'
 //
 // Pure: events in, entries out. The view wraps them to a width.
 
-export type ToolState = 'running' | 'ok' | 'failed'
+/**
+ * How a tool call went. `unknown` is one that answered in a record that does
+ * not say whether it worked (`HistoryItem.ok`): never drawn as ok.
+ */
+export type ToolState = 'running' | 'ok' | 'failed' | 'unknown'
 
 /** Who is speaking: the model you talk to, or Tade answering from its own grammar and its own work. */
 export type Speaker = 'orchestrator' | 'tade'
@@ -150,7 +154,8 @@ function push(transcript: Transcript, entry: Entry): Transcript {
  * said, so a sentence of Tade's is never drawn as somebody's.
  *
  * A tool whose answer was never recorded is drawn as one that did not answer,
- * which is the one thing about it that is known.
+ * which is the one thing about it that is known; one whose record does not say
+ * whether it worked is `unknown`, never ok.
  */
 export function withEarlier(
   transcript: Transcript,
@@ -175,8 +180,15 @@ export function withEarlier(
         tool: item.tool,
         detail: toolDetail(item.input),
         input: item.input,
-        state: item.ok === null ? 'failed' : item.ok ? 'ok' : 'failed',
-        result: item.ok === null ? 'no answer to it was recorded' : item.result,
+        state:
+          item.result === null
+            ? 'failed'
+            : item.ok === null
+              ? 'unknown'
+              : item.ok
+                ? 'ok'
+                : 'failed',
+        result: item.result ?? 'no answer to it was recorded',
         progress: null,
         at: item.at,
       })

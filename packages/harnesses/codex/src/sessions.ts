@@ -397,7 +397,7 @@ export function historyLine(text: string): HistoryLine | null {
       tool: String(payload.name ?? ''),
       input,
       ok: null,
-      result: '',
+      result: null,
       at,
     })
     return line
@@ -406,11 +406,11 @@ export function historyLine(text: string): HistoryLine | null {
     (payload.type === 'function_call_output' || payload.type === 'custom_tool_call_output') &&
     typeof payload.call_id === 'string'
   ) {
-    // Codex records what came back and not whether it worked: it answered.
+    const { text, code } = outputOf(payload.output)
     line.results.push({
       id: payload.call_id,
-      ok: true,
-      result: keptResult(outputText(payload.output)),
+      ok: code === null ? null : code === 0,
+      result: keptResult(text),
     })
     return line
   }
@@ -418,22 +418,55 @@ export function historyLine(text: string): HistoryLine | null {
 }
 
 /**
- * What a call answered, as words: a string in most rollouts, one wrapped as
- * `{"output": …}` in older ones, and a list of parts where it answered with
- * more than text — a picture is not history, so only the words are kept.
+ * What a call answered, as words, and the exit code it says it ended with —
+ * null where it does not say, which is a call nobody can call ok.
+ *
+ * The words are a string in most rollouts, one wrapped as `{"output": …,
+ * "metadata": {"exit_code": …}}` in older ones, and a list of parts where it
+ * answered with more than text — a picture is not history, so only the words
+ * are kept.
+ *
+ * The wrapper's `exit_code` is the one structured field a rollout has ever
+ * carried. Since it went, a `function_call_output` is `call_id` and `output`
+ * and nothing else (0.81 through 0.163), so the only place left that says how
+ * a command went is the header Codex prints above its output — `Exit code: N`
+ * from `shell`, `Process exited with code N` from unified exec — and it is
+ * read there, in the header alone, so a file that happens to say `Exit code: 1`
+ * in what it printed is not taken for the command's own.
  */
-function outputText(output: unknown): string {
+function outputOf(output: unknown): { text: string; code: number | null } {
   if (Array.isArray(output)) {
-    return output
+    const text = output
       .map((part) => {
         const said = record(part)
         return typeof said?.text === 'string' ? said.text : ''
       })
       .filter((text) => text !== '')
       .join('\n')
+    return { text, code: null }
   }
-  if (typeof output !== 'string') return ''
+  if (typeof output !== 'string') return { text: '', code: null }
   // Not the wrapper after all is the words as they came.
   const wrapped = output.startsWith('{"output":') ? record(jsonOf(output)) : null
-  return typeof wrapped?.output === 'string' ? wrapped.output : output
+  if (typeof wrapped?.output === 'string') {
+    const code = record(wrapped.metadata)?.exit_code
+    return { text: wrapped.output, code: Number.isInteger(code) ? (code as number) : null }
+  }
+  return { text: output, code: printedCode(output) }
+}
+
+/** The lines Codex prints above a command's output, before `Output:`. */
+const HEADER_LINES = 6
+const PRINTED_CODE = /^(?:Exit code:|Process exited with code) (-?\d+)$/
+
+/** The exit code in the header Codex printed above a command's output, or null. */
+function printedCode(text: string): number | null {
+  const lines = text.split('\n', HEADER_LINES + 1)
+  const end = lines.indexOf('Output:')
+  if (end < 0) return null
+  for (const one of lines.slice(0, end)) {
+    const found = PRINTED_CODE.exec(one)
+    if (found) return Number(found[1])
+  }
+  return null
 }

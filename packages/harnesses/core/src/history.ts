@@ -24,21 +24,24 @@ export type HistoryItem =
   | { kind: 'sent'; text: string; images: string[]; at: number }
   /** What the agent said back. */
   | { kind: 'reply'; text: string; at: number }
-  /**
-   * A tool it reached for. `ok` is null when no answer to it was recorded —
-   * a turn cut short, or a process that died with the call in the air.
-   */
+  /** A tool it reached for. */
   | {
       kind: 'tool'
       id: string
       tool: string
       input: unknown
+      /**
+       * Whether it worked, where the record says: null when no answer to it was
+       * recorded, and when the answer that was does not say — never read as ok.
+       */
       ok: boolean | null
       /**
        * What it answered — whether it worked or not — bounded by `keptResult`,
-       * with a line saying how much was left out.
+       * with a line saying how much was left out. `''` is a call that answered
+       * nothing; null is one whose answer was never recorded — a turn cut
+       * short, or a process that died with the call in the air. Two facts.
        */
-      result: string
+      result: string | null
       at: number
     }
 
@@ -67,8 +70,8 @@ export const NO_HISTORY: HistoryPage = { items: [], earlier: null }
  */
 export interface HistoryLine {
   items: HistoryItem[]
-  /** Answers to tool calls, matched to them by id. */
-  results: { id: string; ok: boolean; result: string }[]
+  /** Answers to tool calls, matched to them by id; `ok` null where the answer does not say. */
+  results: { id: string; ok: boolean | null; result: string }[]
   /**
    * Whether an exchange starts here — something was sent to it. A page starts
    * on one, so a tool and its answer are never split across two pages.
@@ -205,7 +208,7 @@ function safely(read: (line: string) => HistoryLine | null, text: string): Histo
 
 /** Each tool given the answer recorded for it, oldest first; an answer to nothing here is dropped. */
 function paired(lines: readonly HistoryLine[]): HistoryItem[] {
-  const answers = new Map<string, { ok: boolean; result: string }>()
+  const answers = new Map<string, { ok: boolean | null; result: string }>()
   for (const line of lines) for (const one of line.results) answers.set(one.id, one)
   return lines.flatMap((line) =>
     line.items.map((item) => {

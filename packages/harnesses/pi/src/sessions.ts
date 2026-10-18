@@ -324,7 +324,7 @@ export function historyLine(text: string): HistoryLine | null {
           tool: String(part.name ?? ''),
           input: part.arguments ?? {},
           ok: null,
-          result: '',
+          result: null,
           at,
         })
       }

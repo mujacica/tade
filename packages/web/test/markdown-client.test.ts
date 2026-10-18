@@ -422,6 +422,32 @@ describe('a tool call', () => {
     expect(row.querySelector('.ui-call-body').textContent).not.toContain('not written down')
   })
 
+  it('says a call that answered nothing answered nothing, and one nobody kept was not written down', () => {
+    const opened = (result: unknown, outcome = 'ok') => {
+      const row = callRow()
+      callIn(row, {
+        tool: 'shell',
+        outcome,
+        call: { brief: 'rm', input: { words: 'command: rm -r old', more: false }, result },
+      })
+      row.querySelector('button').click()
+      return row
+    }
+    const nothing = opened({ words: '', more: false })
+    expect(nothing.querySelector('.ui-call-body').textContent).toContain('It answered nothing')
+    expect(nothing.querySelector('.ui-call-body').textContent).not.toContain('not written down')
+    expect(
+      nothing.querySelectorAll('pre').filter((one: StillElement) => !one.parentElement?.hidden),
+    ).toHaveLength(1)
+    const unkept = opened(null, 'none')
+    expect(unkept.querySelector('.ui-call-body').textContent).toContain('not written down')
+    expect(unkept.querySelector('.ui-call-body').textContent).not.toContain('answered nothing')
+    // A record that does not say how it went is neither a tick nor a failure.
+    const unknown = opened({ words: 'Makefile', more: false }, 'unknown')
+    expect(unknown.querySelector('button').textContent).toContain('cannot tell')
+    expect(unknown.classList.contains('is-failed')).toBe(false)
+  })
+
   it('stays open while the call it is about answers, and is nothing to press with nothing to open', () => {
     const row = callRow()
     const one = {

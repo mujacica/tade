@@ -191,7 +191,8 @@ describe('a conversation read back', () => {
         id: 'c1',
         tool: 'shell',
         input: { input: 'rm -r test/old' },
-        ok: true,
+        // It answered nothing, and nothing in the record says how it went.
+        ok: null,
         result: '',
         at: Date.parse('2026-09-21T09:47:21.100Z'),
       },
@@ -215,6 +216,84 @@ describe('a conversation read back', () => {
   })
 })
 
+/** Every call in a rollout, with how it went and what it answered. */
+function callsIn(name: string): [string, boolean | null, string | null][] {
+  const lines = readFileSync(fixture(name), 'utf8').split('\n').filter(Boolean)
+  const results = new Map(
+    lines.flatMap((line) => historyLine(line)?.results ?? []).map((one) => [one.id, one]),
+  )
+  return lines
+    .flatMap((line) => historyLine(line)?.items ?? [])
+    .flatMap((item) => {
+      if (item.kind !== 'tool') return []
+      const answer = results.get(item.id)
+      return [[item.id, answer?.ok ?? null, answer?.result ?? null]]
+    })
+}
+
+describe('whether a call worked, read back', () => {
+  it('is the exit code Codex printed above the output, where the rollout has nothing else (0.81)', () => {
+    // A real 0.81 rollout: `rg` finding nothing exits 1, and the call failed.
+    expect(
+      callsIn('0.81/rollout-2026-01-19T09-19-12-019bd556-28e0-7ee1-9beb-95cfcb584c6a.jsonl'),
+    ).toEqual([
+      [
+        'call_WNMJ0eqvqEaQI31URmLdJbiD',
+        true,
+        'Exit code: 0\nWall time: 0 seconds\nOutput:\n/work/search',
+      ],
+      [
+        'call_frGG7K9WcouQjhqbODx8AMGT',
+        true,
+        'Exit code: 0\nWall time: 0 seconds\nOutput:\nMakefile\nREADME.md\napps',
+      ],
+      ['call_01dZZjqWj6UZqVI8EALUc8U5', false, 'Exit code: 1\nWall time: 0 seconds\nOutput:'],
+    ])
+  })
+
+  it("is the older wrapper's metadata.exit_code (0.30)", () => {
+    // Written in the shape 0.2x–0.3x serialised: no rollout of one is on this machine.
+    expect(
+      callsIn('0.30/rollout-2025-09-04T09-00-00-aaaaaaaa-0000-7000-8000-000000000030.jsonl'),
+    ).toEqual([
+      ['call_1', true, 'paginate.test.ts'],
+      ['call_2', false, 'FAIL test/paginate.test.ts\n  expected 20 rows, got 0'],
+    ])
+  })
+
+  it('is unknown where the answer does not say, never ok', () => {
+    // 0.104 answered `{}`, 0.154 answered nothing: neither says how it went.
+    expect(
+      callsIn('0.104/rollout-2026-09-11T09-00-00-aaaaaaaa-0000-7000-8000-000000000001.jsonl'),
+    ).toEqual([['c1', null, '{}']])
+    expect(callsIn(`0.154/${ROLLOUT}`)).toEqual([['c1', null, '']])
+  })
+
+  it('reads the exit code from the header alone, in either of the words Codex prints it in', () => {
+    const answer = (output: string) =>
+      historyLine(
+        JSON.stringify({
+          timestamp: '2026-10-18T10:00:00.000Z',
+          type: 'response_item',
+          payload: { type: 'function_call_output', call_id: 'c1', output },
+        }),
+      )?.results[0]?.ok
+    // Unified exec's header.
+    expect(
+      answer(
+        'Chunk ID: 1f\nWall time: 0.2 seconds\nProcess exited with code 1\nOriginal token count: 3\nOutput:\nno\n',
+      ),
+    ).toBe(false)
+    expect(answer('command timed out after 1000 milliseconds\nExit code: 124\nOutput:\n')).toBe(
+      false,
+    )
+    // A file that says it in what it printed is not the command's own code.
+    expect(answer('Exit code: 0\nOutput:\nExit code: 1\n')).toBe(true)
+    expect(answer('notes.md:\nExit code: 1\n')).toBeNull()
+    expect(answer('Process running with session ID 4\nOutput:\n')).toBeNull()
+  })
+})
+
 describe("a tool call's answer read back", () => {
   it('is what it answered, in each shape a rollout writes it, cut at the bound', () => {
     const answer = (output: unknown) =>
@@ -231,8 +310,9 @@ describe("a tool call's answer read back", () => {
     expect(answer(JSON.stringify({ output: 'Makefile', metadata: { exit_code: 0 } }))).toEqual([
       { id: 'c1', ok: true, result: 'Makefile' },
     ])
+    // A list of parts says nothing of how it went.
     expect(answer([{ type: 'input_text', text: 'seen' }, { type: 'input_image' }])).toEqual([
-      { id: 'c1', ok: true, result: 'seen' },
+      { id: 'c1', ok: null, result: 'seen' },
     ])
     const [kept] = answer('a\n'.repeat(100)) ?? []
     expect(kept?.result.split('\n').slice(0, -1)).toEqual(Array(RESULT_KEPT.lines).fill('a'))

@@ -655,7 +655,7 @@ const STRIPE: AgentIn = {
         tool: 'Bash',
         input: { command: 'npm i stripe@15', description: 'Install stripe v15' },
         ok: null,
-        result: '',
+        result: null,
         at: ago(3),
       },
     ],

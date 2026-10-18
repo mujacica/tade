@@ -390,7 +390,7 @@ describe('what was said before the window opened', () => {
       at: 5,
     },
     { kind: 'sent', text: 'check the build', images: ['/tmp/shot.png'], at: 6 },
-    { kind: 'tool', id: 't3', tool: 'Read', input: {}, ok: null, result: '', at: 7 },
+    { kind: 'tool', id: 't3', tool: 'Read', input: {}, ok: null, result: null, at: 7 },
   ]
   const theirs = (words: string) => words === 'check the build'
 
@@ -429,6 +429,17 @@ describe('what was said before the window opened', () => {
     })
     expect(back.earlier).toEqual({ cursor: '4096', asking: false })
     expect(back.thinking).toBeNull()
+  })
+
+  it('draws a call whose record does not say how it went as neither ok nor failed', () => {
+    const asked: HistoryItem[] = [
+      { kind: 'tool', id: 't9', tool: 'shell', input: {}, ok: null, result: 'Makefile', at: 1 },
+    ]
+    const back = withEarlier(emptyTranscript(), asked, null, theirs)
+    expect(back.entries[0]).toMatchObject({ state: 'unknown', result: 'Makefile' })
+    const drawn = transcriptLines(back, 60, PLAIN, pointer, 0).map((line) => line.text)
+    expect(drawn.some((line) => line.includes('✓') || line.includes('✗'))).toBe(false)
+    expect(drawn.some((line) => line.includes('Makefile'))).toBe(true)
   })
 
   it('says there is more above, and that it is being read', () => {

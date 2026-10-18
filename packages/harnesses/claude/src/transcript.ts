@@ -290,7 +290,7 @@ export function historyLine(
         tool: named(String(part.name ?? '')),
         input: part.input ?? {},
         ok: null,
-        result: '',
+        result: null,
         at,
       }
       line.items.push(item)

@@ -700,7 +700,11 @@ function chatLine(entry: Entry): Omit<ChatIn, 'id' | 'at'> {
         // What it was handed and what it answered, **as the window holds
         // them**: `@tade/web`'s `withCalls` cleans them and sends them only to
         // a device granted an agent's own bytes (`lanes`).
-        call: { input: entry.input ?? null, result: entry.result },
+        // A call still going has no answer yet, which is not one that answered nothing.
+        call: {
+          input: entry.input ?? null,
+          result: entry.state === 'running' ? null : entry.result,
+        },
       }
     case 'problem':
       return { ...plain, kind: 'problem', text: entry.text }

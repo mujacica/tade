@@ -429,9 +429,9 @@ export const CallSchema = z.strictObject({
   /** Everything it was handed, a line per argument. Null where it had none. */
   input: SaidSchema.nullable(),
   /**
-   * What it answered, where that was written down — the orchestrator's tools
-   * say what they answered, and a harness's record keeps the reason a call
-   * failed and nothing of one that worked. Null where nothing was.
+   * What it answered, where that was written down. Words of `''` are a call
+   * that answered nothing; null is one whose answer nobody kept, or that has
+   * not answered yet — two different facts, drawn as two.
    */
   result: SaidSchema.nullable(),
 })
@@ -462,7 +462,8 @@ export const ChatRowSchema = z.strictObject({
   text: SaidSchema.nullable(),
   /** The tool's **name**. */
   tool: z.string().nullable(),
-  outcome: z.enum(['running', 'ok', 'failed']).nullable(),
+  /** `unknown` is a call that answered where the record does not say whether it worked. */
+  outcome: z.enum(['running', 'ok', 'failed', 'unknown']).nullable(),
   /** A tool line's call, under `lanes` (`CallSchema`). Null on every other line, and without it. */
   call: CallSchema.nullable(),
   streaming: z.boolean(),
@@ -745,8 +746,12 @@ export const TurnRowSchema = z.strictObject({
   kind: z.enum(['sent', 'reply', 'tool']),
   text: SaidSchema.nullable(),
   tool: z.string().nullable(),
-  /** How a call went: `none` is a call nothing answered — cut short, or still going. */
-  outcome: z.enum(['ok', 'failed', 'none']).nullable(),
+  /**
+   * How a call went: `none` is a call nothing answered — cut short, or still
+   * going — and `unknown` one that answered where the record does not say
+   * whether it worked, which is never `ok`.
+   */
+  outcome: z.enum(['ok', 'failed', 'none', 'unknown']).nullable(),
   call: CallSchema.nullable(),
 })
 export type TurnRow = z.infer<typeof TurnRowSchema>

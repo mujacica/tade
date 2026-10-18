@@ -263,7 +263,7 @@ export function historyLine(text: string): HistoryLine | null {
             tool: line.tool,
             input: line.input,
             ok: null,
-            result: '',
+            result: null,
             at: line.at,
           },
         ],

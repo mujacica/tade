@@ -160,7 +160,7 @@ describe('a conversation read back', () => {
       ['reply', 'A paired device can only read, so I cannot stop it from there.'],
       ['sent', 'what is wrong here?'],
       // Cut short before it answered, which is all that is known about it.
-      ['tool', 'Read', null, ''],
+      ['tool', 'Read', null, null],
     ])
     const first = page.items[0]
     expect(first?.kind === 'sent' && first.text.startsWith('Since you last heard from Tade:')).toBe(

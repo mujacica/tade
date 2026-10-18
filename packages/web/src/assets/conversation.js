@@ -26,6 +26,8 @@ export const CALL_STATES = {
   ok: { glyph: '⌸', word: '', tone: 't-quiet' },
   failed: { glyph: '▲', word: 'failed', tone: 't-failed' },
   none: { glyph: '◌', word: 'no answer', tone: 't-quiet' },
+  // It answered, in a record that does not say whether it worked: never ok.
+  unknown: { glyph: '⌸', word: 'cannot tell', tone: 't-quiet' },
 }
 
 let calls = 0
@@ -114,9 +116,22 @@ function partsIn(body, call) {
   }
   const [handedLabel, handed, answeredLabel, answered, none] = body.children
   fill(handedLabel, handed, call.input)
-  fill(answeredLabel, answered, call.result)
-  textIn(none, call.result === null ? 'What it answered was not written down' : '')
-  none.hidden = call.result !== null
+  fill(
+    answeredLabel,
+    answered,
+    call.result === null || call.result.words === '' ? null : call.result,
+  )
+  textIn(none, noAnswer(call.result))
+  none.hidden = noAnswer(call.result) === ''
+}
+
+/**
+ * What to say where there are no words to show: a call that answered nothing
+ * and one whose answer nobody kept are two different facts.
+ */
+function noAnswer(result) {
+  if (result === null) return 'What it answered was not written down'
+  return result.words === '' ? 'It answered nothing' : ''
 }
 
 function fill(label, frame, said) {

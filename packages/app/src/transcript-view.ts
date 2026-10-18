@@ -181,7 +181,9 @@ function entryLines(entry: Entry, width: number, skin: Skin, now: number): Drawn
           ? skin.busy(spinner(now))
           : entry.state === 'ok'
             ? skin.done('✓')
-            : skin.bad('✗')
+            : entry.state === 'unknown'
+              ? skin.hint('·')
+              : skin.bad('✗')
       const name = printable(toolName(entry.tool))
       const head = `  ${mark} ${entry.state === 'failed' ? skin.bad(name) : skin.hint(name)}${
         entry.detail ? skin.hint(` · ${printable(entry.detail)}`) : ''
@@ -194,7 +196,7 @@ function entryLines(entry: Entry, width: number, skin: Skin, now: number): Drawn
         for (const text of wrapped(entry.result, width, '    ', skin.bad)) {
           out.push({ text, linkable: true })
         }
-      } else if (entry.state === 'ok' && entry.result) {
+      } else if ((entry.state === 'ok' || entry.state === 'unknown') && entry.result) {
         const first = entry.result.split('\n').find((line) => line.trim() !== '') ?? ''
         out.push({ text: `    ${skin.hint(printable(first).trim())}`, linkable: true })
       }

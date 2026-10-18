@@ -99,6 +99,23 @@ describe('a call, cleaned', () => {
   })
 })
 
+describe('an answer of nothing and an answer nobody kept', () => {
+  it('cross as two different facts', () => {
+    expect(callOf({ command: 'rm -r old' }, '', []).call.result).toEqual({ words: '', more: false })
+    expect(callOf({ command: 'rm -r old' }, null, []).call.result).toBeNull()
+  })
+
+  it('tell a call that answered where its record does not say how it went from one nothing answered', () => {
+    const turn = (ok: boolean | null, result: string | null) =>
+      turnsOf([{ kind: 'tool', id: 'c1', tool: 'shell', input: {}, ok, result, at: 1 }], [])
+        .turns[0]
+    expect(turn(null, '')).toMatchObject({ outcome: 'unknown', call: { result: { words: '' } } })
+    expect(turn(null, null)).toMatchObject({ outcome: 'none', call: { result: null } })
+    expect(turn(false, 'Exit code: 1')?.outcome).toBe('failed')
+    expect(turn(true, '')).toMatchObject({ outcome: 'ok', call: { result: { words: '' } } })
+  })
+})
+
 describe('the conversation with Tade, on the snapshot', () => {
   const tool = (granted: readonly (typeof EVERY)[number][]) =>
     snapshotOf(input({ reach: reach(granted), talk: talk() }), NOW).chat.find(

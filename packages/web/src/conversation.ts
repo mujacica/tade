@@ -85,15 +85,22 @@ export function inputText(input: unknown): string {
     .join('\n')
 }
 
-/** One call, cleaned and bounded, and how many things were taken out of it. */
+/**
+ * One call, cleaned and bounded, and how many things were taken out of it.
+ *
+ * An answer of `''` crosses as words of `''` — it answered nothing — and a
+ * `result` of null as null, an answer nobody kept: `cleanSaid` makes both
+ * null, and the page would say of a call that answered nothing that what it
+ * answered was not written down.
+ */
 export function callOf(
   input: unknown,
-  result: string,
+  result: string | null,
   known: readonly string[],
 ): { call: Call; taken: number } {
   const brief = cleanSaid(briefOf(input), CALL.brief, known)
   const asked = cleanSaid(inputText(input), CALL.input, known)
-  const answered = cleanSaid(result, CALL.result, known)
+  const answered = result === '' ? NOTHING : cleanSaid(result ?? '', CALL.result, known)
   return {
     call: {
       brief: brief.said === null ? null : brief.said.words,
@@ -104,10 +111,13 @@ export function callOf(
   }
 }
 
+/** An answer of nothing at all. */
+const NOTHING = { said: { words: '', more: false }, taken: 0 } as const
+
 /** One cleaned call, and what it was cleaned from. */
 interface Kept {
   input: unknown
-  result: string
+  result: string | null
   known: readonly string[]
   call: Call
 }
@@ -131,7 +141,7 @@ const kept = new Map<string, Kept>()
 export function callFor(
   id: string,
   input: unknown,
-  result: string,
+  result: string | null,
   known: readonly string[],
 ): Call {
   const was = kept.get(id)
@@ -166,7 +176,8 @@ export type TurnIn =
       tool: string
       input: unknown
       ok: boolean | null
-      result: string
+      /** `''` where it answered nothing; null where no answer was recorded. */
+      result: string | null
       at: number
     }
 
@@ -215,7 +226,8 @@ export function turnsOf(
       kind: 'tool',
       text: null,
       tool: oneLine(cleanText(one.tool, known).text) || 'a tool',
-      outcome: one.ok === null ? 'none' : one.ok ? 'ok' : 'failed',
+      outcome:
+        one.result === null ? 'none' : one.ok === null ? 'unknown' : one.ok ? 'ok' : 'failed',
       call: made.call,
     }
   })

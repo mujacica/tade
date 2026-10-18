@@ -511,14 +511,15 @@ export interface ChatIn {
   /** The tool's **name**, in Tade's own words for it. Empty for other lines. */
   tool: string
   /** How a tool line went, in one word. Empty where it is not a tool line. */
-  outcome: '' | 'running' | 'ok' | 'failed'
+  outcome: '' | 'running' | 'ok' | 'failed' | 'unknown'
   /**
    * A tool line's call as the window holds it: what the model handed the tool
    * and what the tool answered. **Untrusted and uncleaned** — `chatRows` is
    * the boundary that cleans it (`callOf`), and sends it at all only under
-   * `lanes`. Null on every other line.
+   * `lanes`. Null on every other line. `result` is `''` for a call that
+   * answered nothing and null for one with no answer yet or none kept.
    */
-  call: { input: unknown; result: string } | null
+  call: { input: unknown; result: string | null } | null
   /** Still arriving, so the page can draw it as such rather than as finished. */
   streaming: boolean
 }
