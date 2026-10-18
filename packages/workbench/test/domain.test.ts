@@ -351,6 +351,24 @@ describe('the look', () => {
     })
   })
 
+  it('says a name nobody registered, rather than calling the root its zone', async () => {
+    // `tade host domain` with a typo, or a stand-in name: the nearest SOA is
+    // the top-level domain's, or the root's, and its servers and signature
+    // were said as the name's own.
+    const at = await serving((asked) =>
+      asked.name === 'example'
+        ? { rcode: NXDOMAIN, authority: [soa('', 900)] }
+        : { rcode: NXDOMAIN, authenticated: true, authority: [soa('example', 900)] },
+    )
+    const seen = await lookAtDomain('tade.nowhere.example', from(at))
+    expect(seen.zone).toEqual({
+      cannot: 'nobody has registered it — the nearest zone that answers is .example',
+    })
+    expect(seen.dnssec).toEqual({
+      cannot: 'nobody has registered it — the nearest zone that answers is .example',
+    })
+  })
+
   it('asks a server that did not answer once, and says everything it could not ask', async () => {
     const at = await serving(() => null)
     const seen: DomainSeen = await lookAtDomain(

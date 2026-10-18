@@ -164,6 +164,15 @@ async function zoneOf(
     const alias = got.answers.some((one) => one.name === asking && one.data.type === 'CNAME')
     const soa = [...got.answers, ...got.authority].find((one) => one.data.type === 'SOA')
     if (!alias && soa !== undefined) {
+      // The nearest zone that answers is a top-level domain or the root
+      // itself: nobody registered the name, and the root's servers and its
+      // signature say nothing about it.
+      const apex = soa.name.replace(/\.$/, '')
+      if (!apex.includes('.')) {
+        return {
+          cannot: `nobody has registered it — the nearest zone that answers is ${apex === '' ? 'the root' : `.${apex}`}`,
+        }
+      }
       const ns = await world({ name: soa.name, type: 'NS', recurse: true, unchecked: true })
       const nameservers =
         'cannot' in ns ? [] : ns.answers.flatMap((one) => targetOf(one.data)).sort()
