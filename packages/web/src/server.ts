@@ -25,7 +25,7 @@ import {
 import { headersFor } from './headers.ts'
 import { HookDoor } from './hooked.ts'
 import { keepingOf } from './installable.ts'
-import { listenAll } from './listeners.ts'
+import { listenAll, listenPublic } from './listeners.ts'
 import { carryOwned, OWNED_DOOR } from './owned.ts'
 import { carryPairing } from './paired.ts'
 import { Passkeys } from './passkeyed.ts'
@@ -756,6 +756,25 @@ export function webServer(opts: ServerOptions): WebServer {
     },
     get publicTrouble() {
       return publicTrouble
+    },
+    async listenPublicAgain(): Promise<boolean> {
+      if (publicAt !== null) return true
+      if (stopping || publicTrouble === null || servers.length === 0) return false
+      const socket = opts.publicSocket ?? publicSocket()
+      const up = await listenPublic(handle, socket, (said) => warn(said, socket))
+      if (stopping) {
+        if (typeof up !== 'string') up.close()
+        return false
+      }
+      if (typeof up === 'string') {
+        if (up !== publicTrouble) warn(up, socket)
+        publicTrouble = up
+        return false
+      }
+      servers.push(up)
+      publicAt = socket
+      publicTrouble = null
+      return true
     },
     handle,
     async listen(): Promise<readonly string[]> {

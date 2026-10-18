@@ -59,6 +59,9 @@ import { heard, toldTo } from './web-told.ts'
 
 export type { AwayDeps }
 
+/** How often a public listener that did not come up is tried again: a stat each time. */
+const PUBLIC_AGAIN_MS = 15_000
+
 // The window's end of the away view: the server's lifetime, the pairing panel,
 // and the beat that moves the projection on.
 //
@@ -280,6 +283,39 @@ export class Away implements Subject {
     await this.push.open()
   }
 
+  /** When the public listener was last tried again, and whether a try is under way. */
+  private publicTried = 0
+  private publicTrying = false
+
+  /**
+   * The public listener tried again, every `PUBLIC_AGAIN_MS`, while a public
+   * name is set and it is not up: its directory is root's to make, and on a
+   * box being set up it is made after the away view was turned on, which
+   * otherwise needed a restart nobody was told about. A stat while it is not
+   * there, nothing once it is up, and said in the news when it comes up.
+   */
+  private publicAgain(now: number): void {
+    const server = this.server
+    if (server === null || server.public !== null || server.publicTrouble === null) return
+    if (this.publicTrying || now - this.publicTried < PUBLIC_AGAIN_MS) return
+    this.publicTried = now
+    this.publicTrying = true
+    void server
+      .listenPublicAgain()
+      .then((up) => {
+        if (!up || this.server !== server) return
+        const name = surfaceOf(this.config().surfaces.web).publicName
+        this.health.up(name)
+        this.deps.news(`the away view now answers Caddy for ${name ?? 'the public name'}`)
+      })
+      .catch((err: unknown) => {
+        this.deps.news(`the away view could not try Caddy's socket again: ${String(err)}`)
+      })
+      .finally(() => {
+        this.publicTrying = false
+      })
+  }
+
   /** Close every stream, then the listener; no code or question at the door outlives it. Safe twice. */
   async stop(): Promise<void> {
     const server = this.server
@@ -342,6 +378,7 @@ export class Away implements Subject {
     this.push.beat()
     // And the public listener's certificate and version, on clocks of their own.
     this.health.beat()
+    this.publicAgain(now)
     if (this.asking !== null || this.streams.listening().length !== this.readers) this.wire.draw()
   }
 

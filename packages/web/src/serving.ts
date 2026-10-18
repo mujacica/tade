@@ -329,6 +329,13 @@ export interface WebServer {
   readonly public: string | null
   /** Why there is no public listener where a public name is set: the warning's own words. */
   readonly publicTrouble: string | null
+  /**
+   * Try the public listener again, where it did not come up: its directory is
+   * made by root, often after the away view was turned on. True once it is up;
+   * false, with `publicTrouble` the newest reason, while it is not — said again
+   * as a warning only where the reason changed.
+   */
+  listenPublicAgain(): Promise<boolean>
   /** The live streams, for the window's beat and for closing them. */
   readonly streams: Streams
   /**

@@ -215,6 +215,23 @@ describe('the directory decides whether anything listens for Caddy', () => {
     expect(warnings(one).some((said) => said.includes('`tade host caddy`'))).toBe(true)
   })
 
+  it('comes up when tried again once root has made it, and says a new reason once', async () => {
+    // On a box being set up the directory is made after the away view is
+    // turned on: found rehearsing a fresh Debian box, where it then stayed
+    // down until a restart nobody was told about.
+    const dir = await dirFor(0o755)
+    const { one, socket } = await up(dir)
+    expect(one.server.public).toBeNull()
+    const before = warnings(one).length
+    expect(await one.server.listenPublicAgain()).toBe(false)
+    expect(warnings(one)).toHaveLength(before)
+    await chmod(dir, 0o2750)
+    expect(await one.server.listenPublicAgain()).toBe(true)
+    expect(one.server.public).toBe(socket)
+    expect(one.server.publicTrouble).toBeNull()
+    expect(await one.server.listenPublicAgain()).toBe(true)
+  })
+
   it('refuses one open to everybody, or with no setgid, and leaves it as it was', async () => {
     for (const mode of [0o2755, 0o750, 0o2700]) {
       const dir = await dirFor(mode)

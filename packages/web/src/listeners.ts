@@ -89,7 +89,7 @@ export async function listenAll(
  * one that something still answers on is not, and anything that is not a
  * socket is never removed.
  */
-async function listenPublic(
+export async function listenPublic(
   handle: Handle,
   socket: string,
   warn: (said: string) => void,
