@@ -11,12 +11,13 @@ import { fileURLToPath } from 'node:url'
 // what it answers is read off the conversation it is sent.
 //
 // - **The orchestrator** (its request offers `tade_task_create`) understands
-//   two sentences a person types on a machine's tab: `start <project>/<name>:
-//   <intent>` creates the task and starts its agent, and `hand <project>/<name>
-//   to <machine>` hands it over. Anything else is "Noted.".
+//   three sentences a person types on a machine's tab: `start <project>/<name>:
+//   <intent>` creates the task and starts its agent, `hand <project>/<name> to
+//   <machine>` hands it over, and `watch <extension>.<watch> on <project>`
+//   turns a watch on. Anything else is "Noted.".
 // - **An agent** (its request offers `bash`) waits `workSeconds`, so it is seen
-//   working, commits a line to WORK.md with its task's own trailer, then calls
-//   `tade_done`.
+//   working, commits a line to WORK.md with its task's own trailer, runs its
+//   checks where it is offered `checks_run`, then calls `tade_done`.
 //
 // The rehearsal test starts it in-process (`startStandIn`); on a box the
 // rehearsal script runs this file with Node: `node stand-in-model.ts`, with
@@ -43,7 +44,13 @@ function textOf(message: Message | undefined): string {
   return content.map((part) => (part as { text?: string }).text ?? '').join('\n')
 }
 
-/** What the orchestrator does with the newest thing the person said. */
+/** The first line of what the last tool answered, said back rather than claiming it worked. */
+function lastAnswer(messages: Message[]): string {
+  const answered = messages.findLast((one) => one.role === 'tool')
+  return textOf(answered).split('\n')[0]?.trim() || 'Done.'
+}
+
+/** What the orchestrator does with the newest thing the person said: start, hand over, or watch. */
 function orchestrate(messages: Message[]): Answer {
   const last = messages.map((one) => one.role).lastIndexOf('user')
   const said = textOf(messages[last])
@@ -55,21 +62,47 @@ function orchestrate(messages: Message[]): Answer {
     if (step === 1) {
       return { tool: 'tade_run_start', args: { task: `${project}/${name}`, prompt: intent } }
     }
-    return { text: `Started ${project}/${name}.` }
+    return { text: lastAnswer(messages) }
   }
   const hand = /(hand ([a-z0-9][\w-]*\/[a-z0-9][\w-]*) to ([a-z0-9][\w-]*)[^\n]*)/.exec(said)
   if (hand) {
     const [, asked = '', task = '', machine = ''] = hand
     if (step === 0) return { tool: 'tade_task_move', args: { task, machine, asked } }
-    return { text: `Handing ${task} to ${machine}.` }
+    return { text: lastAnswer(messages) }
+  }
+  const watch = /(watch ([a-z0-9][\w-]*\.[a-z0-9][\w-]*) on ([a-z0-9][\w-]*)[^\n]*)/.exec(said)
+  if (watch) {
+    const [, asked = '', id = '', project = ''] = watch
+    if (step === 0) {
+      return { tool: 'tade_watch_change', args: { watch: id, project, on: true, said: asked } }
+    }
+    return { text: lastAnswer(messages) }
   }
   return { text: 'Noted.' }
 }
 
-/** What an agent does, turn by turn: work and commit, say it is done, close. */
-function work(messages: Message[], seconds: number): Answer {
+/**
+ * What an agent does, turn by turn: work and commit, say it is done, close.
+ * Told to push for a hand-over (`hand-over.ts`: "push it with `git push origin
+ * HEAD:refs/heads/<branch>`"), it commits what it has, runs exactly that, and
+ * ends its turn there without saying it is done — the work carries on on the
+ * machine it was handed to.
+ */
+function work(messages: Message[], tools: readonly unknown[], seconds: number): Answer {
   const turns = messages.filter((one) => one.role === 'assistant').length
   const task = /Tade-Task: ([A-Za-z0-9_./-]+)/.exec(JSON.stringify(messages))?.[1] ?? 'unknown'
+  const told = messages
+    .filter((one) => one.role === 'user')
+    .slice(1)
+    .map(textOf)
+    .join('\n')
+  const push = /`(git push origin HEAD:refs\/heads\/[\w./-]+)`/.exec(told)?.[1]
+  if (push !== undefined) {
+    const pushed = JSON.stringify(messages.filter((one) => one.role === 'assistant')).includes(push)
+    if (pushed) return { text: 'Pushed: the work is on origin.' }
+    const commit = `git add -A && (git diff --cached --quiet || git commit -q -m 'Work in progress, handed over' -m 'Tade-Task: ${task}')`
+    return { tool: 'bash', args: { command: `${commit} && ${push}` } }
+  }
   if (turns === 0) {
     const command = [
       `sleep ${seconds}`,
@@ -79,7 +112,10 @@ function work(messages: Message[], seconds: number): Answer {
     ].join(' && ')
     return { tool: 'bash', args: { command } }
   }
-  if (turns === 1) {
+  // Its checks, where Tade offers them, as an agent is told to before it is done.
+  const checks = tools.includes('checks_run') ? 1 : 0
+  if (turns === 1 && checks === 1) return { tool: 'checks_run', args: { wait: 120 } }
+  if (turns === 1 + checks) {
     return { tool: 'tade_done', args: { summary: `rehearsal work on ${task}, committed` } }
   }
   return { text: 'Done: the work is committed.' }
@@ -122,7 +158,7 @@ export async function startStandIn(
         answer = orchestrate(messages)
       } else if (tools.includes('bash')) {
         asked.agent++
-        answer = work(messages, seconds)
+        answer = work(messages, tools, seconds)
       }
       const call =
         'tool' in answer

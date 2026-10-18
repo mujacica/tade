@@ -371,6 +371,14 @@ row, and the move off V1's unit with its window holding the home. From the Mac, 
 projection with the agent, attached it (a pty with `TERM=xterm-256color` — the box has no terminfo
 for this laptop's Ghostty) and came back on the restarted unit's new epoch with the agent working.
 
+**The whole story, rehearsed** (2026-10-18): `scripts/rehearse-remote.sh up` builds fresh Debian 12
+boxes (debootstrap where `docker pull` cannot reach the registry), installs the staged tarball the
+installer's way, and puts pi on the stand-in model (`test/fixtures/stand-in-model.ts`); `mac` is an
+isolated Mac with `tade remote add` for each; `hook` is the scripted intake source
+(`test/fixtures/rehearsal/`) and a signed delivery through Caddy. What CI holds of it is
+`packages/app/test/wire/rehearsal.test.ts`: two real `tade serve` through a real sshd, both paired
+by the real `tade remote add`, one window linked to both.
+
 Not proved: systemd below 246, where `systemd-notify` races; a distribution with
 `KillUserProcesses=yes`, where a tmux server started from an SSH login — by `tade setup`'s own proof
 lane, say — dies at logout; and a sign-in carried through to the end.
