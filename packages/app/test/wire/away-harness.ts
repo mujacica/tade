@@ -27,7 +27,7 @@ import {
 import { Workbench } from '@tade/workbench'
 import type { AccountView } from '@tade/workbench/accounts'
 import { parse } from 'yaml'
-import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
+import { copyRepo, mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import type { ActionsView } from '../../src/frame.ts'
 import type { Live } from '../../src/live.ts'
 import { type AppState, initialState } from '../../src/model.ts'
@@ -219,8 +219,12 @@ const ONLY_WHAT_IS_ASKED = {
   push_details: false,
 } as const
 
+/** The repository every machine starts from, built once a file and copied (`copyRepo`). */
+let template: ReturnType<typeof mkrepo> | null = null
+
 export async function machine(over: MachineOptions = {}): Promise<Machine> {
-  const repo = mkrepo()
+  template ??= mkrepo()
+  const repo = copyRepo(template)
   const home = tmp('tade-away-act-')
   writeFileSync(join(home, 'config.yaml'), homeConfig(repo.root, over.intake === true))
   const port = await freePort()

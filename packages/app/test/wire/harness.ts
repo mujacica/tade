@@ -3,9 +3,9 @@ import { join } from 'node:path'
 import { StdinBuffer, type Terminal } from '@earendil-works/pi-tui'
 import { ConfigSchema } from '@tade/core'
 import { Speaker } from '@tade/voice-tts'
-import { Workbench } from '@tade/workbench'
+import { recordAuthored, Workbench } from '@tade/workbench'
 import { afterEach, beforeEach } from 'vitest'
-import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
+import { copyRepo, mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { App, type AppOptions } from '../../src/app.ts'
 
 // The window against a real workbench and a real repository. Everything it
@@ -242,6 +242,23 @@ export interface Wired {
 }
 
 /**
+ * The repository every test here starts from: one commit past the first, and
+ * two tasks — and a home Tade has opened before, whose `skills` is already the
+ * repository Tade keeps there (`recordAuthored`, which makes it). Opening a home
+ * for the first time makes that repository, three git processes more on every
+ * open; a home somebody uses has had it since its first, and `authored.test.ts`
+ * is where the first time is tested.
+ */
+async function worldToCopy(): Promise<Repo> {
+  const repo = mkrepo()
+  repo.commit('first')
+  repo.addTask('refunds', { project: 'app', intent: 'refunds double-charge on retries' })
+  repo.addTask('search', { project: 'app', intent: 'search is slow above ten thousand rows' })
+  await recordAuthored(join(repo.home, 'skills'), 'lessons proposed since Tade was last open')
+  return repo
+}
+
+/**
  * A repository, a home, a workbench and a terminal, fresh for every test, and
  * the window started over them.
  *
@@ -252,6 +269,7 @@ export interface Wired {
  * silently when somebody moves a line.
  */
 export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
+  let template: Repo | null = null
   let repo: Repo
   let home: string
   let client: Workbench
@@ -372,10 +390,11 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
   }
 
   beforeEach(async () => {
-    repo = mkrepo()
-    repo.commit('first')
-    repo.addTask('refunds', { project: 'app', intent: 'refunds double-charge on retries' })
-    repo.addTask('search', { project: 'app', intent: 'search is slow above ten thousand rows' })
+    // Built once a file and copied for each test, which is a dozen git
+    // processes fewer every time (`copyRepo`): every test here starts from the
+    // same two tasks, and each still has a repository of its own to change.
+    template ??= await worldToCopy()
+    repo = copyRepo(template)
     // The fixture's own home, so status never reads the real machine's agent
     // transcripts — and so the tasks it just made are the ones it finds.
     home = repo.home

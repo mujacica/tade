@@ -1,5 +1,13 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  realpathSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { stringify } from 'yaml'
@@ -81,6 +89,59 @@ export function mkrepo(
   mkdirSync(home, { recursive: true })
   runGit(root, 'init', '-q', '-b', 'main')
 
+  const repo = repoAt(base, root, home)
+  repo.commit('initial', { 'README.md': '# fixture\n' })
+
+  if (opts.remote) {
+    const remote = join(base, 'remote.git')
+    runGit(base, 'init', '-q', '--bare', '-b', 'main', remote)
+    runGit(root, 'remote', 'add', 'origin', remote)
+    runGit(root, 'push', '-q', '-u', 'origin', 'main')
+    repo.remote = remote
+  }
+  return repo
+}
+
+/**
+ * Another repository exactly like `template`, made by copying its folder
+ * rather than by building it again: the same history, the same branches, the
+ * same worktrees and the same task files, at a path of its own.
+ *
+ * For a file whose every test starts from the same repository. Building one
+ * is a dozen git processes — init, the commits, a worktree each — and the
+ * window's tests built one per test, 392 times: about half a second each on a
+ * loaded laptop, which was the biggest part of most of those tests. A copy is
+ * one: what a copied worktree and its repository point at is an absolute path,
+ * the template's, so `git worktree repair` points them at each other again,
+ * and the result is what `git worktree add` would have made here. Nothing is
+ * left to a hand-written `.git` file, so the fixture is no kinder than one
+ * built from scratch.
+ *
+ * The template's home must be its own (no `home` given to `mkrepo`), since a
+ * shared one would be shared by every copy too, and it must have no remote,
+ * which every copy would push to.
+ */
+export function copyRepo(template: Repo & { remote?: string | null }): Repo & {
+  remote: null
+} {
+  const from = dirname(template.root)
+  if (template.home !== join(from, 'tade-home')) {
+    throw new Error('copyRepo copies a repository whose home is its own, and this one shares one')
+  }
+  if (template.remote) throw new Error('copyRepo copies a repository with no remote')
+  const base = tmp('tade-repo-')
+  cpSync(from, base, { recursive: true })
+  const root = join(base, 'repo')
+  const worktrees = join(base, 'worktrees')
+  const moved = existsSync(worktrees)
+    ? readdirSync(worktrees).map((name) => join(worktrees, name))
+    : []
+  if (moved.length > 0) runGit(root, 'worktree', 'repair', ...moved)
+  return { ...repoAt(base, root, join(base, 'tade-home')), remote: null }
+}
+
+/** The fixture's handle on a repository already made at `root`, with its worktrees under `base`. */
+function repoAt(base: string, root: string, home: string): Repo & { remote: string | null } {
   const repo: Repo & { remote: string | null } = {
     root,
     home,
@@ -125,16 +186,6 @@ export function mkrepo(
       writeFileSync(join(dir, 'task.yaml'), yaml)
       return path
     },
-  }
-
-  repo.commit('initial', { 'README.md': '# fixture\n' })
-
-  if (opts.remote) {
-    const remote = join(base, 'remote.git')
-    runGit(base, 'init', '-q', '--bare', '-b', 'main', remote)
-    runGit(root, 'remote', 'add', 'origin', remote)
-    runGit(root, 'push', '-q', '-u', 'origin', 'main')
-    repo.remote = remote
   }
   return repo
 }
