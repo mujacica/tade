@@ -69,8 +69,6 @@ interface Row {
   said?: string
 }
 
-let born = 0
-
 function run(parent: Node, rows: readonly Row[]) {
   const made: Node[] = []
   keyed(
@@ -78,7 +76,6 @@ function run(parent: Node, rows: readonly Row[]) {
     rows,
     (row: Row) => row.id,
     () => {
-      born += 1
       const one = new Node()
       made.push(one)
       return one as never
@@ -158,7 +155,7 @@ describe('reconciling a list by key', () => {
     run(parent, rows('d', 'b', 'a', 'c'))
     expect(ids(parent)).toEqual(['d', 'b', 'a', 'c'])
     // Every node is the one it was: a reorder is a move, never a rebuild.
-    for (const [id, one] of held) expect(parent.children).toContain(one)
+    for (const one of held.values()) expect(parent.children).toContain(one)
     expect(new Set(parent.children).size).toBe(4)
   })
 

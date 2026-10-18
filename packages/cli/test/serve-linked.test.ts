@@ -4,7 +4,7 @@ import { createServer } from 'node:net'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Remote } from '@tade/remotes-core'
-import { Workbench } from '@tade/workbench'
+import { heldBy, Workbench } from '@tade/workbench'
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { makeSshLink } from '../../remotes/ssh/src/index.ts'
@@ -26,10 +26,10 @@ afterAll(async () => {
   if (typeof sshd !== 'string') await sshd.stop()
 })
 
-const started: ChildProcess[] = []
+const started: ReturnType<typeof serve>[] = []
 let far: string | null = null
 afterEach(async () => {
-  for (const child of started.splice(0)) if (child.exitCode === null) child.kill('SIGKILL')
+  for (const { child } of started.splice(0)) if (child.exitCode === null) child.kill('SIGKILL')
   // Real processes in a real tmux: whatever is left is stopped.
   if (far === null) return
   const left = await Workbench.open({ home: far }).catch(() => null)
@@ -48,13 +48,14 @@ function serve(home: string): {
     env: { ...process.env, TADE_HOME: home, HOME: home },
     stdio: ['ignore', 'ignore', 'pipe'],
   })
-  started.push(child)
   let err = ''
   child.stderr?.setEncoding('utf8').on('data', (chunk: string) => {
     err += chunk
   })
   const exited = new Promise<number | null>((resolve) => child.on('exit', (code) => resolve(code)))
-  return { child, err: () => err, exited }
+  const one = { child, err: () => err, exited }
+  started.push(one)
+  return one
 }
 
 /** A port the machine has just said is free. */
@@ -176,12 +177,42 @@ describe.skipIf(cannot !== null)(
   },
 )
 
-/** Wait for a condition, with a ceiling, saying which it was. */
+/**
+ * Why a wait ran out: what each `tade serve` it started had printed and
+ * whether it is still running, and who holds the home — one of them, this
+ * test's own workbench that never let go, something else, or nobody — since
+ * "timed out" alone says nothing about which of them was slow or stuck.
+ */
+async function why(what: string): Promise<string> {
+  const said = started.map(({ child, err }, at) => {
+    const state =
+      child.exitCode !== null
+        ? `exited ${child.exitCode}`
+        : child.signalCode !== null
+          ? `ended by ${child.signalCode}`
+          : 'running'
+    return `tade serve ${at} (pid ${child.pid}, ${state}) printed:\n${err().slice(-4_000) || '(nothing)'}`
+  })
+  // A lock naming a process that is gone is nobody's (`heldBy`).
+  const holder = far === null ? null : await heldBy(far)
+  const ours = started.findIndex(({ child }) => child.pid === holder)
+  const holds =
+    holder === null
+      ? 'nobody holds the home'
+      : ours >= 0
+        ? `tade serve ${ours} holds the home (pid ${holder})`
+        : holder === process.pid
+          ? `this test's own process holds the home (pid ${holder})`
+          : `pid ${holder}, none of these, holds the home`
+  return [`timed out waiting for ${what}`, ...said, holds].join('\n\n')
+}
+
+/** Wait for a condition, with a ceiling, saying which it was and why. */
 async function until(what: string, ok: () => boolean): Promise<void> {
   const deadline = Date.now() + 60_000
   while (Date.now() < deadline) {
     if (ok()) return
     await new Promise((resolve) => setTimeout(resolve, 50))
   }
-  throw new Error(`timed out waiting for ${what}`)
+  throw new Error(await why(what))
 }

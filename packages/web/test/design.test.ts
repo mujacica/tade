@@ -54,7 +54,6 @@ const HTML = read('index.html')
 const SCRIPTS = ['boot.js', 'shell.js', 'controls.js', 'rows.js', 'dom.js', ...pageScripts()].map(
   read,
 )
-const EVERY = [CSS, HTML, ...SCRIPTS].join('\n')
 
 /**
  * The ground every ratio in `tokens.css` is quoted against: the terminal's
