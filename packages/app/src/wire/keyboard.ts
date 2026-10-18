@@ -109,7 +109,7 @@ export interface KeyboardDeps {
   /** Push-to-talk, held or toggled. */
   talkStart(): void
   talkStop(): void
-  /** Answering the agent in front: allowed, or not. */
+  /** Answering the agent in front, allowed or not — or opening the away panel on a device asking. */
   decide(allow: boolean): void
   /** ctrl+k: the box that finds anything. */
   openSearch(): void

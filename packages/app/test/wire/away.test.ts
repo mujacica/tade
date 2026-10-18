@@ -8,7 +8,7 @@ import { GRANTS, readDevices, SCOPES, writeDevices } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Live } from '../../src/live.ts'
 import { type AppState, initialState } from '../../src/model.ts'
-import { awayPanel } from '../../src/panels/away/state.ts'
+import { ASKING_FIRST, awayPanel } from '../../src/panels/away/state.ts'
 import { settingsPanel } from '../../src/panels/settings/state.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 import { Away } from '../../src/wire/web.ts'
@@ -482,6 +482,26 @@ describe('letting a device in', () => {
     const { away, decided } = await wiring({ web: { enabled: true } })
     await away.open()
     await away.decide(true)
+    expect(decided).toEqual([true])
+  })
+
+  it('opens the panel on a device asking from the window’s keys, and answers nothing', async () => {
+    const { away, at, decided } = await wiring({ web: { enabled: true } })
+    await away.open()
+    // Nothing asking: the agent in front is answered, as it always was.
+    await away.keyed(true)
+    expect(decided).toEqual([true])
+    let said: unknown = null
+    void asking(away).then((answer) => {
+      said = answer
+    })
+    for (const allow of [true, false]) {
+      await away.keyed(allow)
+      expect(at().panel).toEqual({ ...awayPanel(), said: ASKING_FIRST })
+      expect(away.inputs()).toMatchObject({ asking: true })
+    }
+    await Promise.resolve()
+    expect(said).toBeNull()
     expect(decided).toEqual([true])
   })
 

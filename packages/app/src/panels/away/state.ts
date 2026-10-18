@@ -62,6 +62,12 @@ export const ASKING_OUT_OF_VIEW =
   'Not answered: the device asking is out of view — press home, or scroll up to it.'
 
 /**
+ * Said when the window's own yes or no opened the panel, shut while a device
+ * asks: neither the device nor the agent in front was answered by that press.
+ */
+export const ASKING_FIRST = 'Nothing answered: a device is asking to be let in first.'
+
+/**
  * What the away panel's own controls are, by name.
  *
  * Written out so `wire/web.ts` and the drawing agree on one spelling, and so

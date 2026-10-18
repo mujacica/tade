@@ -31,7 +31,7 @@ import { lastUpdates } from '@tade/workbench/programs'
 import { awayCollections } from '../away.ts'
 import { activityIn } from '../away-activity.ts'
 import type { Frame } from '../frame.ts'
-import { AWAY_CONTROLS, awayPanel } from '../panels/away/state.ts'
+import { ASKING_FIRST, AWAY_CONTROLS, awayPanel } from '../panels/away/state.ts'
 import type { AwayView } from '../panels/away/view.ts'
 import type { PanelInputs } from '../panels.ts'
 import { type Actions, notify, type Subject, type Submits, type Wiring } from './context.ts'
@@ -394,13 +394,29 @@ export class Away implements Subject {
   }
 
   /**
-   * The window's own approve/deny keys, when a device is waiting.
+   * The window's own approve/deny keys, pressed with no panel open.
    *
    * Letting a device in is the same act in the same vocabulary as approving a
    * tool call, so it is the same pair of keys rather than a second pair to
    * learn — and it takes precedence while a device is asking, because that
    * question has a sixty-second deadline in front of you and an approval does
-   * not. With nothing asking, the keys go where they always went.
+   * not. **But its card is on no screen while the panel is shut**, so the key
+   * opens the panel on it and answers nothing: a yes to a device nobody can
+   * see is a device in your control room, and the card in front was the
+   * agent's. With nothing asking, the keys go where they always went.
+   */
+  async keyed(allow: boolean): Promise<void> {
+    if (this.asking === null) {
+      await this.deps.decided(allow)
+      return
+    }
+    this.wire.put({ ...this.wire.state, panel: { ...awayPanel(), said: ASKING_FIRST } })
+    this.wire.draw()
+  }
+
+  /**
+   * A yes or a no from the panel, which answers only while the card is drawn
+   * (`awayKey`). With nothing asking, the keys go where they always went.
    */
   async decide(allow: boolean): Promise<void> {
     const asking = this.asking

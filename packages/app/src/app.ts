@@ -322,10 +322,10 @@ export class App {
       askWhereImagesGo: (paths) => this.images.askWhere(paths),
       talkStart: () => void this.voice.talkStart(),
       talkStop: () => void this.voice.talkStop(),
-      // The away view first, because letting a device in is the same act in
-      // the same vocabulary and its question has a sixty-second deadline on
-      // it; with nothing asking it hands the keys straight to the agents.
-      decide: (allow) => void this.away.decide(allow),
+      // The away view first, because its question has a sixty-second deadline
+      // on it — opened on the device asking, never answering it unseen; with
+      // nothing asking it hands the keys straight to the agents.
+      decide: (allow) => void this.away.keyed(allow),
       openSearch: () => this.search.open(),
       run: (action) => void this.router.run(action),
       interrupt: () => void (this.remotes.interrupt() || this.orchestrator.interrupt()),
