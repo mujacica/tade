@@ -9,6 +9,7 @@ import type {
   Unsubscribe,
 } from '@tade/core'
 import { z } from 'zod'
+import type { ToolAnswer } from './answer.ts'
 import type { HistoryAsk, HistoryPage } from './history.ts'
 import type { HarnessFeature, ImageSupport, Support } from './offer.ts'
 import type { HarnessSession } from './sessions.ts'
@@ -694,6 +695,14 @@ export interface WorkerAdapter {
    * there and could not be read throws, because that is not an empty one.
    */
   history(task: TaskId, cwd: string, ask: HistoryAsk): Promise<HistoryPage>
+  /**
+   * The whole of what one call in a task's conversation answered, read out of
+   * the same record by the call's id (`answerIn`) — never cut, because a page
+   * of `history` holds only the start of each and this is what a person reads
+   * when they open one. Null where no answer to it was recorded; a record that
+   * is there and could not be read throws.
+   */
+  callAnswer(task: TaskId, cwd: string, call: string): Promise<ToolAnswer | null>
   /**
    * The conversations this harness keeps for a folder, newest first and at
    * most `SESSIONS_LISTED`: what a person could pick up again there. Read out

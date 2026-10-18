@@ -36,6 +36,7 @@ import {
   type SignIn,
   type SignInHere,
   signInHere,
+  type ToolAnswer,
   WORKER_ENV,
   type WorkerAdapter,
   type WorkerCapabilities,
@@ -53,6 +54,7 @@ import { carryThread, threadsIn } from './folder.ts'
 import { type Missed, takeMissed } from './missed.ts'
 import { askPlan } from './plan.ts'
 import {
+  answerOn,
   contextIn,
   conversationKey,
   defaultHome,
@@ -402,6 +404,10 @@ export class CodexAdapter implements WorkerAdapter {
 
   history(task: string, _cwd: string, ask: HistoryAsk): Promise<HistoryPage> {
     return historyOn(task, this.opts.runDir, this.opts.codexHome, ask)
+  }
+
+  callAnswer(task: string, _cwd: string, call: string): Promise<ToolAnswer | null> {
+    return answerOn(task, this.opts.runDir, this.opts.codexHome, call)
   }
 
   sessions(cwd: string, tasks: readonly TaskId[]): Promise<HarnessSession[]> {

@@ -350,6 +350,7 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
           items: [],
           earlier: null,
         })
+        expect(await one.callAnswer(fresh.task, fresh.cwd, 'call_1')).toBeNull()
       })
 
       it('keeps no conversation for a folder nothing ran in, and carries none it does not have', async () => {

@@ -104,6 +104,10 @@ export class FakeAdapter implements WorkerAdapter {
     return NO_HISTORY
   }
 
+  async callAnswer() {
+    return null
+  }
+
   async sessions() {
     return []
   }

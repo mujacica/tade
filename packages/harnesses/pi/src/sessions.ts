@@ -2,12 +2,14 @@ import { open, readdir, readFile, realpath } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import {
+  answerIn,
   type HistoryAsk,
   type HistoryLine,
   type HistoryPage,
   historyIn,
   keptResult,
   momentOf,
+  type ToolAnswer,
 } from '@tade/harnesses-core'
 import { sessionIdFor } from './adapter.ts'
 import { agentDir, homeExpanded } from './agent-dir.ts'
@@ -272,6 +274,25 @@ export async function historyOfTask(
   ask: HistoryAsk,
   opts: SessionsAt & { headless?: string } = {},
 ): Promise<HistoryPage> {
+  return historyIn(await conversationFileOf(task, cwd, opts), ask, historyLine)
+}
+
+/** One call's whole answer, out of the session file of a task's conversation (`answerIn`). */
+export async function answerOfTask(
+  task: string,
+  cwd: string,
+  call: string,
+  opts: SessionsAt & { headless?: string } = {},
+): Promise<ToolAnswer | null> {
+  return answerIn(await conversationFileOf(task, cwd, opts), call, historyLine)
+}
+
+/** The file a task's conversation is in: a headless run's, newest first, else its session's. */
+async function conversationFileOf(
+  task: string,
+  cwd: string,
+  opts: SessionsAt & { headless?: string },
+): Promise<string | null> {
   const suffix = `_${sessionIdFor(task)}.jsonl`
   const flat = opts.headless
     ? (await readdir(opts.headless).catch(() => [] as string[]))
@@ -279,8 +300,7 @@ export async function historyOfTask(
         .sort()
         .map((name) => join(opts.headless ?? '', name))
     : []
-  const file = flat.at(-1) ?? (await sessionFileFor(task, cwd, opts).catch(() => null))
-  return historyIn(file, ask, historyLine)
+  return flat.at(-1) ?? (await sessionFileFor(task, cwd, opts).catch(() => null))
 }
 
 /** What one session line says, or null for anything that is not a message of the conversation. */

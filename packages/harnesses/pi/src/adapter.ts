@@ -32,6 +32,7 @@ import {
   type SignIn,
   type SignInHere,
   signInHere,
+  type ToolAnswer,
   WORKER_ENV,
   type WorkerAdapter,
   type WorkerCapabilities,
@@ -46,6 +47,7 @@ import {
 import { carryHere, folderOf, sessionsHere } from './folder.ts'
 import { findModel, loggedInProviders, usableModels } from './models.ts'
 import {
+  answerOfTask,
   historyOfTask,
   type SessionsAt,
   sessionFileFor,
@@ -374,6 +376,13 @@ export class PiAdapter implements WorkerAdapter {
 
   history(task: string, cwd: string, ask: HistoryAsk): Promise<HistoryPage> {
     return historyOfTask(task, cwd, ask, {
+      ...this.recordsAt(),
+      headless: join(this.opts.runDir, 'sessions'),
+    })
+  }
+
+  callAnswer(task: string, cwd: string, call: string): Promise<ToolAnswer | null> {
+    return answerOfTask(task, cwd, call, {
       ...this.recordsAt(),
       headless: join(this.opts.runDir, 'sessions'),
     })

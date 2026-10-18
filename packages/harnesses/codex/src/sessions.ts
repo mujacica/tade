@@ -3,17 +3,19 @@ import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import {
+  answerIn,
   type HarnessSpend,
   type HistoryAsk,
   type HistoryLine,
   type HistoryPage,
   historyIn,
-  jsonOf,
   keptResult,
+  jsonOf,
   momentOf,
   NO_HISTORY,
   noHarnessSpend,
   type PlanLimits,
+  type ToolAnswer,
 } from '@tade/harnesses-core'
 
 // Reading what an agent did out of Codex's own records, rather than out of
@@ -340,6 +342,18 @@ export async function historyOn(
   const thread = await threadOf(task, stateDir)
   if (!thread) return NO_HISTORY
   return historyIn(await rolloutFor(thread, codexHome), ask, historyLine)
+}
+
+/** One call's whole answer, out of the rollout of a task's thread (`answerIn`). */
+export async function answerOn(
+  task: string,
+  stateDir: string,
+  codexHome: string,
+  call: string,
+): Promise<ToolAnswer | null> {
+  const thread = await threadOf(task, stateDir)
+  if (!thread) return null
+  return answerIn(await rolloutFor(thread, codexHome), call, historyLine)
 }
 
 /**

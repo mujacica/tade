@@ -28,6 +28,7 @@ import {
   type RunId,
   SignalChannel,
   type SignIn,
+  type ToolAnswer,
   WORKER_ENV,
   type WorkerAdapter,
   type WorkerCapabilities,
@@ -43,7 +44,7 @@ import {
 import { ACP_AGENTS, type AcpAgent, agentNamed, programsOf } from './agents.ts'
 import type { LaneLaunch } from './launch.ts'
 import type { McpServer } from './protocol.ts'
-import { conversationKey, historyOf, recordedIn, recordPath, spendOf } from './record.ts'
+import { answerOf, conversationKey, historyOf, recordedIn, recordPath, spendOf } from './record.ts'
 
 // Drives any agent that speaks the Agent Client Protocol as a Tade worker:
 // Gemini CLI, opencode, goose, Copilot CLI, Kiro CLI, Cursor CLI, Qwen Code —
@@ -244,6 +245,10 @@ export class AcpAdapter implements WorkerAdapter {
 
   history(task: string, _cwd: string, ask: HistoryAsk): Promise<HistoryPage> {
     return historyOf(this.recordOf(task), ask)
+  }
+
+  callAnswer(task: string, _cwd: string, call: string): Promise<ToolAnswer | null> {
+    return answerOf(this.recordOf(task), call)
   }
 
   /**

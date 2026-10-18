@@ -3,6 +3,7 @@ import { readdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import {
+  answerIn,
   type HarnessSpend,
   type HistoryAsk,
   type HistoryItem,
@@ -12,6 +13,7 @@ import {
   keptResult,
   momentOf,
   noHarnessSpend,
+  type ToolAnswer,
 } from '@tade/harnesses-core'
 
 // Reading what an agent did out of Claude Code's own transcript, rather than
@@ -210,6 +212,15 @@ export async function historyOn(
   named: (tool: string) => string,
 ): Promise<HistoryPage> {
   return historyIn(await transcriptFor(task, configDir), ask, (line) => historyLine(line, named))
+}
+
+/** One call's whole answer, out of the transcript of a task's conversation (`answerIn`). */
+export async function answerOn(
+  task: string,
+  configDir: string,
+  call: string,
+): Promise<ToolAnswer | null> {
+  return answerIn(await transcriptFor(task, configDir), call, (line) => historyLine(line))
 }
 
 /** A picture it was pointed at, as `promptWithImages` writes one. */

@@ -3,12 +3,14 @@ import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import {
+  answerIn,
   type HarnessSpend,
   type HistoryAsk,
   type HistoryLine,
   type HistoryPage,
   historyIn,
   noHarnessSpend,
+  type ToolAnswer,
 } from '@tade/harnesses-core'
 
 // What was said in an ACP agent's conversation, as Tade's lane heard it.
@@ -283,4 +285,9 @@ export function historyLine(text: string): HistoryLine | null {
 
 export function historyOf(path: string, ask: HistoryAsk): Promise<HistoryPage> {
   return historyIn(path, ask, historyLine)
+}
+
+/** One call's whole answer, out of Tade's own record of the conversation (`answerIn`). */
+export function answerOf(path: string, call: string): Promise<ToolAnswer | null> {
+  return answerIn(path, call, historyLine)
 }
