@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { SLOT_ENV, slotHolders, takeMachineSlot } from '@tade/checks-core'
 import { describe, expect, it } from 'vitest'
@@ -95,5 +95,33 @@ describe('what goes straight through', () => {
     const release = await turn(home, { env: { TADE_HOME: home, [SLOT_ENV]: gone.path } }).taking
     expect((await slotHolders(home)).map((one) => one.where)).toEqual(['/work/mine'])
     await release()
+  })
+})
+
+describe('the commit hook’s run', () => {
+  /** The test files a `vitest run` of these paths runs: each file named, and every test file under each folder. */
+  const filesIn = (root: string, paths: readonly string[]): number =>
+    paths
+      .map((path) => join(root, path))
+      .reduce(
+        (sum, path) =>
+          sum +
+          (statSync(path).isDirectory()
+            ? readdirSync(path, { recursive: true }).filter((name) =>
+                String(name).endsWith('.test.ts'),
+              ).length
+            : 1),
+        0,
+      )
+
+  it('stays well inside a narrow run, so no commit waits for the machine', () => {
+    const root = join(import.meta.dirname, '..')
+    const scripts = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).scripts
+    const [command, ...paths] = String(scripts['test:smoke']).split(/\s+/).slice(1)
+    expect(command).toBe('run')
+    const smoke = filesIn(root, paths)
+    // Counted, not assumed: the hook runs these, and `NARROW` says what passes.
+    expect(smoke).toBeGreaterThan(50)
+    expect(smoke).toBeLessThanOrEqual((NARROW * 3) / 4)
   })
 })

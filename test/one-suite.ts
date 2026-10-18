@@ -28,12 +28,20 @@ import { endWhatItStarted, onEnding, ownTmp } from './own-tmp.ts'
 //   machine for it would hold it all afternoon.
 
 /**
- * The most files a run may have and still not wait. The smoke tests are 94,
- * the whole suite is 750-odd and the window's own package alone is 240 — so
- * this lets the hook's run and most packages through and makes anything the
- * size of the suite take its turn.
+ * The most files a run may have and still not wait, set by the two runs it is
+ * for: the commit hook's (`test:smoke`), which must never queue behind a
+ * suite, and one package at a time while working on it.
+ *
+ * The smoke tests are 94 files and grow with `core`, whose tests are all of
+ * them but eleven; at 100 a few more would have made every commit's hook wait
+ * for the machine behind whatever full suite was running. So there is room
+ * over it on purpose — `one-suite.test.ts` fails once the hook's run passes
+ * three quarters of this, which is when to move something out of smoke or
+ * raise this with a reason — and the largest package after the window's
+ * (`web`, 109) fits. The window's own package, 240, and anything the size of
+ * the suite, 750-odd, take their turn.
  */
-export const NARROW = 100
+export const NARROW = 150
 
 /** How long a suite waits for its turn before giving up and saying who has the machine. */
 export const MOST_WAIT_MS = 60 * 60_000
