@@ -29,11 +29,11 @@ interface Running {
   exited: Promise<number | null>
 }
 
-const started: ChildProcess[] = []
+const started: Running[] = []
 let model: FakeModel | null = null
 
 afterEach(async () => {
-  for (const child of started.splice(0)) if (child.exitCode === null) child.kill('SIGKILL')
+  for (const { child } of started.splice(0)) if (child.exitCode === null) child.kill('SIGKILL')
   await model?.close()
   model = null
 })
@@ -43,7 +43,6 @@ function tade(args: string[], home: string, env: NodeJS.ProcessEnv = {}): Runnin
     env: { ...process.env, TADE_HOME: home, HOME: home, ...env },
     stdio: ['pipe', 'pipe', 'pipe'],
   })
-  started.push(child)
   let out = ''
   let err = ''
   child.stdout?.setEncoding('utf8').on('data', (chunk: string) => {
@@ -54,7 +53,23 @@ function tade(args: string[], home: string, env: NodeJS.ProcessEnv = {}): Runnin
   })
   // `close`, not `exit`: only then has everything it printed been read.
   const exited = new Promise<number | null>((resolve) => child.on('close', (code) => resolve(code)))
-  return { child, out: () => out, err: () => err, exited }
+  const running = { child, out: () => out, err: () => err, exited }
+  started.push(running)
+  return running
+}
+
+/**
+ * Why a wait ran out: what each `tade` it started had printed, and what the
+ * model was asked, since "timed out" alone says nothing about which half was
+ * slow — the command, pi starting, or the turn.
+ */
+function why(what: string): string {
+  const said = started.map(
+    ({ child, err }, at) =>
+      `tade ${at} (${child.exitCode === null ? 'running' : `exited ${child.exitCode}`}) printed:\n${err().slice(-4_000) || '(nothing)'}`,
+  )
+  const asked = `the model was asked ${model?.requests.length ?? 0} times`
+  return [`timed out waiting for ${what}`, ...said, asked].join('\n\n')
 }
 
 async function until(what: string, ok: () => boolean | Promise<boolean>): Promise<void> {
@@ -63,7 +78,7 @@ async function until(what: string, ok: () => boolean | Promise<boolean>): Promis
     if (await ok()) return
     await new Promise((resolve) => setTimeout(resolve, 50))
   }
-  throw new Error(`timed out waiting for ${what}`)
+  throw new Error(why(what))
 }
 
 /** A port the machine has just said is free. */
