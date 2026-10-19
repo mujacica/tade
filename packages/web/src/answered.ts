@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { PROTOCOL_VERSION } from './protocol.ts'
-import { cleanText } from './screen.ts'
 
 // One tool call's answer, whole, for the page that opened it.
 //
@@ -15,8 +14,9 @@ import { cleanText } from './screen.ts'
 // **The same reach as the conversation it is part of**: an agent's on `lanes`
 // for a task the device reads, the conversation with Tade's on `talk` and
 // `lanes` together (`withCalls`) — and the same rule at the boundary, every
-// path, key and credential taken out (`cleanText`). A device out of reach is
-// told only that, never whether the call is there.
+// path, key and credential taken out (`cleanText`, off the window's thread
+// for a long one: `cleanAway`). A device out of reach is told only that, never
+// whether the call is there.
 //
 // Pure: no `node:` import, no clock, nothing awaited.
 
@@ -69,18 +69,19 @@ export interface WebAnswers {
   known(): readonly string[]
 }
 
-/** One call's answer as a device is sent it. */
+/** What `cleanAway` made of an answer's words, which is all of them a device is sent. */
+export type CleanAnswer = { text: string; taken: number }
+
+/**
+ * One call's answer as a device is sent it. Words arrive already cleaned
+ * (`CleanAnswer`): an answer's own text is never an argument here.
+ */
 export function answerOut(
   call: string,
-  read: AnswerIn | 'not here' | 'not granted',
-  known: readonly string[],
+  read: CleanAnswer | null | 'nothing' | 'unread' | 'not here' | 'not granted',
 ): CallAnswer {
   const base = { v: PROTOCOL_VERSION, call, text: null, taken: 0 } as const
-  if (read === 'not here' || read === 'not granted' || read === 'unread') {
-    return { ...base, says: read }
-  }
   if (read === null) return { ...base, says: 'unrecorded' }
-  if (read.result === '') return { ...base, says: 'nothing' }
-  const clean = cleanText(read.result, known)
-  return { ...base, says: 'words', text: clean.text, taken: clean.taken }
+  if (typeof read === 'string') return { ...base, says: read }
+  return { ...base, says: 'words', text: read.text, taken: read.taken }
 }

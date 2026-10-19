@@ -1,4 +1,5 @@
 import { type AnswerIn, answerOut, CALL_ID, type CallAnswer } from './answered.ts'
+import { cleanAway } from './cleaning.ts'
 import { has, type Reach } from './reach.ts'
 import { inTime } from './request.ts'
 import type { ServerOptions } from './serving.ts'
@@ -24,16 +25,16 @@ export async function answerHere(
 ): Promise<CallAnswer> {
   const call = params.call ?? ''
   // Never echoed back as it came: a name that is not a call's is answered as none.
-  if (!CALL_ID.test(call)) return answerOut('', 'not here', [])
+  if (!CALL_ID.test(call)) return answerOut('', 'not here')
   const task = `${params.project ?? ''}/${params.task ?? ''}`
   if (route === 'agent answer') {
-    if (!opts.readingFor(reach).agent(task).here) return answerOut(call, 'not here', [])
-    if (!has(reach, 'lanes')) return answerOut(call, 'not granted', [])
+    if (!opts.readingFor(reach).agent(task).here) return answerOut(call, 'not here')
+    if (!has(reach, 'lanes')) return answerOut(call, 'not granted')
   } else if (!has(reach, 'talk') || !has(reach, 'lanes')) {
-    return answerOut(call, 'not granted', [])
+    return answerOut(call, 'not granted')
   }
   const answers = opts.answers
-  if (answers === undefined) return answerOut(call, 'unread', [])
+  if (answers === undefined) return answerOut(call, 'unread')
   const read = await inTime<AnswerIn>(
     // The window's half says what it could not read, where it happened, and
     // answers `unread`: nothing is caught here to be passed off as anything.
@@ -41,5 +42,10 @@ export async function answerHere(
     ANSWER_MS,
     'unread',
   )
-  return answerOut(call, read, read === null || read === 'unread' ? [] : answers.known())
+  if (read === null || read === 'unread') return answerOut(call, read)
+  if (read.result === '') return answerOut(call, 'nothing')
+  // Cleaned off the window's thread when it is long (`cleaning.ts`), and a
+  // cleaning that broke throws: the server says it at the machine, never a
+  // word of the answer uncleaned.
+  return answerOut(call, await cleanAway(read.result, answers.known()))
 }

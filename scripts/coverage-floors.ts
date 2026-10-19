@@ -268,6 +268,9 @@ export const UNSEEN: Record<string, string> = {
   // Driven for real by every pty test, on the thread the driver starts it on;
   // what it does with an order is `emulator.ts`, which is measured in place.
   'packages/drivers/pty/src/emulator-thread.ts': 'the thread the terminal emulators run on',
+  // Started for real by `cleaning.test.ts`, which holds what it says back to
+  // `cleanText` run in place; its three lines are that call.
+  'packages/web/src/cleaning-thread.ts': 'the thread a long answer is cleaned on',
 }
 
 /**
