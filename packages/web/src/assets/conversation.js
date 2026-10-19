@@ -23,6 +23,12 @@
 // `aria-expanded` says whether it is open. One the device was not granted the
 // call of, or one with nothing written down, is the same row with nothing to
 // open, and so is not a button.
+//
+// **The line that says which call it was is never cut** — not at the machine
+// (`briefOut`) and not here. It wraps, so a row reads in full; one so long
+// that it would take a screen of rows — a command of a hundred lines run
+// together — folds to its first three while the row is closed, with `more`
+// under it, and opening the row unfolds it.
 
 import { classOn, el, into, textIn, toneOn } from './dom.js'
 import { toolNamed } from './glyphs.js'
@@ -43,6 +49,13 @@ export const CALL_STATES = {
   // It answered, in a record that does not say whether it worked: never ok.
   unknown: { glyph: '·', word: 'cannot tell', tone: 't-quiet' },
 }
+
+/**
+ * How long a call's line may be before a closed row folds it to its first
+ * three lines (`.ui-call-words.is-folded`): the length a note folds at
+ * (`notes-shape.js`), three lines and more on a phone.
+ */
+export const BRIEF_FOLDS = 240
 
 let calls = 0
 
@@ -88,16 +101,15 @@ export function callRow() {
   })
   const glyph = el('span', { class: 'glyph', attrs: { 'aria-hidden': 'true' } })
   const name = el('span', { class: 'ui-call-name' })
-  const brief = el('span', { class: 'ui-call-brief' })
   const state = el('span', { class: 'ui-call-state' })
-  into(press, glyph, name, brief, state)
+  into(press, glyph, name, briefOf(), state)
   // The same row with nothing to open: the same four parts, as text.
   const still = el('div', { class: 'ui-call-press is-still' })
   into(
     still,
     el('span', { class: 'glyph', attrs: { 'aria-hidden': 'true' } }),
     el('span', { class: 'ui-call-name' }),
-    el('span', { class: 'ui-call-brief' }),
+    briefOf(),
     el('span', { class: 'ui-call-state' }),
   )
   const body = el('div', { class: 'ui-call-body', attrs: { id } })
@@ -105,10 +117,31 @@ export function callRow() {
   press.addEventListener('click', () => {
     body.hidden = !body.hidden
     press.setAttribute('aria-expanded', body.hidden ? 'false' : 'true')
+    foldIn(press, !body.hidden)
     if (!body.hidden) void answerIn(node)
   })
   into(node, press, still, body)
   return node
+}
+
+/** The line that says which call it was, and the mark that it is folded. */
+function briefOf() {
+  const brief = el('span', { class: 'ui-call-brief' })
+  const more = el('span', { class: 'ui-call-more', text: 'more' })
+  more.hidden = true
+  into(brief, el('span', { class: 'ui-call-words' }), more)
+  return brief
+}
+
+/**
+ * Fold a long line to its first lines while its row is closed, and say so with
+ * `more`; open, it is all there. A line the length of a row is never folded.
+ */
+function foldIn(row, open) {
+  const [words, more] = row.children[2].children
+  const folds = !open && (words.textContent ?? '').length > BRIEF_FOLDS
+  classOn(words, 'is-folded', folds)
+  more.hidden = !folds
 }
 
 /**
@@ -183,8 +216,9 @@ function partsOf(row, one, state, call) {
   textIn(glyph, state.glyph)
   classOn(glyph, 'is-spinning', one.outcome === 'running')
   textIn(name, toolNamed(one.tool))
-  textIn(brief, call?.brief ?? '')
+  textIn(brief.firstElementChild, call?.brief ?? '')
   brief.hidden = (call?.brief ?? '') === ''
+  foldIn(row, row.getAttribute('aria-expanded') === 'true')
   textIn(word, state.word)
   word.hidden = state.word === ''
   toneOn(glyph, state.tone)

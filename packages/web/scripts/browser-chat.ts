@@ -26,6 +26,12 @@ import { until } from './browser-until.ts'
 // And `call`: a call with no id to ask its answer by — one you ran yourself,
 // whose answer only the window holds — opened with a real tap, shows the whole
 // of the long answer it came with, and nothing says the rest is elsewhere.
+//
+// And `brief`: the line that names a call is never cut. A command of a hundred
+// and twenty lines — over two thousand characters on one line — is every
+// character in its row, folded to its first lines with `more` showing while
+// the row is closed, and a real tap opens it onto all of it; and no other
+// call's line is clipped, sideways or down.
 
 type Verdict = 'pass' | 'fail' | 'unrun'
 type Found = (check: string, where: string, verdict: Verdict, what: string) => void
@@ -55,6 +61,12 @@ const FILLER = 300
 const LONG_AT = FILLER - 1
 const LONG_ANSWER = Array.from({ length: 2_000 }, (_, n) => `planned step ${n + 1}`).join('\n')
 
+/** The call whose line is over two thousand characters: a command run together. */
+const BRIEF_AT = FILLER - 5
+const BRIEF_LINES = Array.from({ length: 120 }, (_, n) => `echo "brief line ${n} of the long one"`)
+/** What its row says, as the machine sends it: the command's lines on one, in quotes. */
+const LONG_BRIEF = `"${BRIEF_LINES.join(' ')}"`
+
 /**
  * The conversation the harness serves: forty lines of news and calls, then the
  * fixture's own four — whose paths and keys the other checks look for — and
@@ -76,17 +88,24 @@ export function harnessTalk(more = 0): TalkIn {
     ...over,
   })
   const filler = Array.from({ length: FILLER }, (_, n) =>
-    n % 4 === 3
+    n === BRIEF_AT
       ? lineAt(n, {
           kind: 'tool',
-          tool: 'tade_plan',
-          outcome: n % 8 === 7 ? 'failed' : 'ok',
-          call: {
-            input: { project: 'sentry', prompt: `step ${n}` },
-            result: n === LONG_AT ? LONG_ANSWER : 'planned',
-          },
+          tool: 'Bash',
+          outcome: 'ok',
+          call: { input: { command: BRIEF_LINES.join('\n') }, result: 'ran' },
         })
-      : lineAt(n, { kind: 'tade', text: `started sentry/step-${n}: there was room for it` }),
+      : n % 4 === 3
+        ? lineAt(n, {
+            kind: 'tool',
+            tool: 'tade_plan',
+            outcome: n % 8 === 7 ? 'failed' : 'ok',
+            call: {
+              input: { project: 'sentry', prompt: `step ${n}` },
+              result: n === LONG_AT ? LONG_ANSWER : 'planned',
+            },
+          })
+        : lineAt(n, { kind: 'tade', text: `started sentry/step-${n}: there was room for it` }),
   )
   const after = Array.from({ length: more }, (_, n) =>
     lineAt(10_000 + n, { kind: 'reply', text: `**Arrived** while you were reading, ${n + 1}.` }),
@@ -205,6 +224,96 @@ export async function chatAt(
     found('chat', where, 'fail', said(problem))
   }
   await callAt(page, where, found)
+  await briefAt(page, where, found)
+}
+
+/** The long call's row, its press brought into view, and how its line is drawn. */
+const BRIEF_ROW = `[...document.querySelectorAll('main ul.chat > li')].find((li) => li.textContent.includes('brief line 0 of the long one'))`
+
+const BRIEF_DRAWN = `(() => {
+  const press = ${BRIEF_ROW}?.querySelector('button.ui-call-press')
+  if (!press || press.hidden) return null
+  press.scrollIntoView({ block: 'center' })
+  const words = press.querySelector('.ui-call-words')
+  const more = press.querySelector('.ui-call-more')
+  const r = press.getBoundingClientRect()
+  const style = getComputedStyle(words)
+  return {
+    x: r.left + r.width / 2,
+    y: r.top + r.height / 2,
+    open: press.getAttribute('aria-expanded') === 'true',
+    text: words.textContent,
+    clipped: words.scrollHeight > words.clientHeight + 1,
+    sideways: words.scrollWidth > words.clientWidth + 1 || press.scrollWidth > press.clientWidth + 1,
+    ellipsis: style.textOverflow === 'ellipsis' || style.whiteSpace === 'nowrap',
+    more: !more.hidden && more.getBoundingClientRect().height > 0 && getComputedStyle(more).display !== 'none',
+    lines: Math.round(words.clientHeight / parseFloat(style.lineHeight)),
+  }
+})()`
+
+/** Every other call's line that is drawn cut: wider or taller than the room it shows. */
+const BRIEFS_CUT = `[...document.querySelectorAll('main ul.chat .ui-call-press:not([hidden]) .ui-call-words')]
+  .filter((words) => !words.classList.contains('is-folded') && words.textContent !== '')
+  .filter((words) => words.scrollWidth > words.clientWidth + 1 || words.scrollHeight > words.clientHeight + 1)
+  .map((words) => words.textContent.slice(0, 60))`
+
+interface BriefDrawn {
+  x: number
+  y: number
+  open: boolean
+  text: string
+  clipped: boolean
+  sideways: boolean
+  ellipsis: boolean
+  more: boolean
+  lines: number
+}
+
+/** `brief`: a call's line of over two thousand characters, folded with a mark, opened whole. */
+async function briefAt(page: Page, where: string, found: Found): Promise<void> {
+  try {
+    const closed = (await page.evaluate(BRIEF_DRAWN)) as BriefDrawn | null
+    if (closed === null) throw new Error(`no press for the call of step ${BRIEF_AT}`)
+    const drawnAs = (one: BriefDrawn) =>
+      one.text === LONG_BRIEF
+        ? null
+        : `its line is ${one.text.length} of ${LONG_BRIEF.length} characters`
+    const problems: string[] = []
+    const closedWrong = drawnAs(closed)
+    if (closedWrong !== null) problems.push(`closed, ${closedWrong}`)
+    if (closed.open) problems.push('it was open before anybody tapped it')
+    if (!closed.clipped) problems.push('closed, it is not folded')
+    if (!closed.more) problems.push('closed and folded, with no `more` showing')
+    if (closed.sideways) problems.push('closed, it runs off its row sideways')
+    if (closed.ellipsis) problems.push('it is drawn on one line with an ellipsis')
+    await page.mouse.click(closed.x, closed.y)
+    await until(page, `(${BRIEF_DRAWN})?.open === true`, 5_000).catch(() => {
+      throw new Error('tapped, and the call did not open')
+    })
+    const opened = (await page.evaluate(BRIEF_DRAWN)) as BriefDrawn
+    const openedWrong = drawnAs(opened)
+    if (openedWrong !== null) problems.push(`open, ${openedWrong}`)
+    if (opened.clipped) problems.push('open, it is still folded')
+    if (opened.sideways) problems.push('open, it runs off its row sideways')
+    if (opened.more) problems.push('open, it still says `more`')
+    const cut = (await page.evaluate(BRIEFS_CUT)) as string[]
+    if (cut.length > 0)
+      problems.push(
+        `${cut.length} other calls' lines drawn cut, the first ${JSON.stringify(cut[0])}`,
+      )
+    // Closed again, so the passes after this one find the row as it was.
+    await page.mouse.click(opened.x, opened.y)
+    found(
+      'brief',
+      where,
+      problems.length === 0 ? 'pass' : 'fail',
+      problems.length === 0
+        ? `a call's line of ${LONG_BRIEF.length} characters folds to ${closed.lines} lines with \`more\`, and a tap opens all ${opened.lines}`
+        : problems.join('; '),
+    )
+  } catch (problem) {
+    found('brief', where, 'fail', said(problem))
+  }
 }
 
 /** The row of the call with no id and a long answer, as the page drew it. */

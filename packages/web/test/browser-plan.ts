@@ -140,6 +140,10 @@ export const CHECKS = [
   // A call with no id to ask its answer by, opened with a tap: the whole of a
   // long answer it came with, and nothing saying the rest is elsewhere.
   'call',
+  // A call's line of over two thousand characters (`browser-chat.ts`): every
+  // character in its row, folded with `more` while closed and opened whole by
+  // a tap, and no other call's line clipped.
+  'brief',
   // The three a control owns, and none of them is answerable offline. A tap is
   // a real pointer on a real target; a keyboard is a real Tab order and a real
   // Enter on a `<button>`; and what somebody typed surviving a refusal is a

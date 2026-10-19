@@ -478,6 +478,41 @@ describe('a tool call', () => {
     expect(row.textContent).not.toMatch(/more than|not kept|more lines|not written down/)
   })
 
+  it('draws a brief of two thousand characters whole, folded with `more` while closed and all of it open', () => {
+    answering({})
+    const brief = `"${Array.from({ length: 80 }, (_, n) => `echo step ${n}`).join(' ')}" · ${'y'.repeat(1_200)}`
+    expect(brief.length).toBeGreaterThan(2_000)
+    const row = callRow()
+    const one = {
+      tool: 'Bash',
+      outcome: 'ok',
+      call: { brief, input: { words: 'command: x', more: false }, answered: 'nothing', id: 'c1' },
+    }
+    callIn(row, one, '/api/talk/answer')
+    const press = row.querySelector('button')
+    const words = press.querySelector('.ui-call-words')
+    const more = press.querySelector('.ui-call-more')
+    // Every character of it is in the row, closed or open: the fold is the stylesheet's.
+    expect(words.textContent).toBe(brief)
+    expect(words.classList.contains('is-folded')).toBe(true)
+    expect(more.hidden).toBe(false)
+    expect(more.textContent).toBe('more')
+    press.click()
+    expect(words.textContent).toBe(brief)
+    expect(words.classList.contains('is-folded')).toBe(false)
+    expect(more.hidden).toBe(true)
+    // Drawn again while open — the call answered — it stays unfolded.
+    callIn(row, one, '/api/talk/answer')
+    expect(words.classList.contains('is-folded')).toBe(false)
+    press.click()
+    expect(words.classList.contains('is-folded')).toBe(true)
+    expect(more.hidden).toBe(false)
+    // A brief a row can hold is never folded and never marked.
+    callIn(row, { ...one, call: { ...one.call, brief: '"git status"' } }, '/api/talk/answer')
+    expect(words.classList.contains('is-folded')).toBe(false)
+    expect(more.hidden).toBe(true)
+  })
+
   it('says a call that answered nothing answered nothing, and one nobody kept was not written down', async () => {
     answering({})
     const opened = (answered: string, outcome = 'ok') => {

@@ -166,7 +166,7 @@ describe('what a browser cannot be asked', () => {
   })
 
   it('names reading a conversation back to its first line, a timeline on to its first moment, and a long text whole', () => {
-    for (const check of ['chat', 'back', 'call', 'moments', 'whole'])
+    for (const check of ['chat', 'back', 'call', 'brief', 'moments', 'whole'])
       expect(CHECKS as readonly string[], check).toContain(check)
   })
 

@@ -307,14 +307,14 @@ describe('an agent’s conversation, on its own answer', () => {
 describe('the line that names a call', () => {
   const places = { work: null, tade: '/home/ann/.tade', home: '/home/ann' }
 
-  it('says which file, with the home as `~` and a long path cut in its middle', () => {
+  it('says which file, with the home as `~` and every name of a long path kept', () => {
     expect(
       briefOut(
         { file_path: '/home/ann/.tade/projects/tade/tasks/one/attachments/NAMES.md' },
         places,
         [],
       ),
-    ).toBe('~/.tade/…/NAMES.md')
+    ).toBe('~/.tade/projects/tade/tasks/one/attachments/NAMES.md')
     expect(briefOut({ file_path: '/home/ann/code/a.ts', limit: 20 }, places, [])).toBe(
       '~/code/a.ts · limit 20',
     )
@@ -336,5 +336,32 @@ describe('the line that names a call', () => {
     expect(brief.startsWith('"curl')).toBe(true)
     expect(briefOut({ project: 'tade', name: 'away-chat' }, places, [])).toBe('tade · away-chat')
     expect(callOf({ file_path: '/home/ann/a.ts' }, 'x', [], places).call.brief).toBe('~/a.ts')
+  })
+
+  it('goes out whole however long, a multi-line command on one line and nothing cut or marked', () => {
+    const lines = Array.from({ length: 120 }, (_, n) => `echo "step ${n} of the long one"`)
+    const command = lines.join('\n')
+    expect(command.length).toBeGreaterThan(2_000)
+    const made = callOf({ command, description: 'x'.repeat(300) }, null, [], places).call
+    const flat = lines.join(' ')
+    expect(made.brief).toBe(`"${flat}" · ${'x'.repeat(300)}`)
+    expect(made.brief?.length).toBeGreaterThan(2_000)
+    expect(made.brief).not.toContain('…')
+    // Every word it was handed is still there to open onto, as it was written.
+    expect(made.input?.words).toBe(`command:\n${command}\ndescription: ${'x'.repeat(300)}`)
+    // And it is what the protocol carries: no schema cuts it either.
+    const row = ChatRowSchema.parse({
+      id: '2026-10-19T09:00:00.000Z#0',
+      at: '2026-10-19T09:00:00.000Z',
+      kind: 'tool',
+      from: null,
+      text: null,
+      tool: 'Bash',
+      outcome: 'ok',
+      call: made,
+      streaming: false,
+      ask: null,
+    })
+    expect(row.call?.brief).toBe(made.brief)
   })
 })

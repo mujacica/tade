@@ -1,6 +1,5 @@
 import { callKey } from './answered.ts'
 import { commandOut, type Places } from './command.ts'
-import { textOf } from './page.ts'
 import type { Call, Said, TurnRow } from './protocol.ts'
 import { cleanText } from './screen.ts'
 
@@ -11,17 +10,10 @@ import { cleanText } from './screen.ts'
 // **Nobody's words, cleaned at this boundary.** What a model said and what a
 // tool was handed or answered can be anything — a command with a key in it, a
 // file's contents, a page an agent fetched with a `<script>` in it — so every
-// string here goes through the screen's own rule (`cleanText`) **before** it is
-// cut to a budget, and the page builds no markup out of any of it.
+// string here goes through the screen's own rule (`cleanText`), nothing of it
+// is cut, and the page builds no markup out of any of it.
 //
 // Pure: no `node:` import, no clock, nothing awaited.
-
-/**
- * How long the line that names a call may be: a label on a row, not the call.
- * What it was handed and what it answered are never cut — the first crosses
- * whole, the second is read whole when the call is opened (`answered.ts`).
- */
-export const CALL = { brief: 160 } as const
 
 /**
  * How many of an agent's turns one read of its record asks for: at least
@@ -46,8 +38,10 @@ export function cleanWhole(
 
 /**
  * The arguments that tell you which call it was, on one line: up to three
- * values, each cut short — `"git status" · checks 2`. The window's own reading
- * of a call (`toolDetail`), so a row on a phone names it as the window does.
+ * values — `"git status" · checks 2`. The window's own reading of a call
+ * (`toolDetail`), so a row on a phone names the same arguments the window does,
+ * except that **none is cut**: the window's strip has a terminal's width, and a
+ * page wraps the line and folds a long one behind a mark (`conversation.js`).
  */
 export function briefOf(input: unknown): string {
   if (typeof input === 'string') return oneLine(input)
@@ -56,8 +50,8 @@ export function briefOf(input: unknown): string {
   for (const [key, value] of Object.entries(input)) {
     if (parts.length >= 3) break
     if (typeof value === 'string' && value.trim() !== '') {
-      const cut = oneLine(value)
-      parts.push(/\s/.test(cut) || key === 'command' ? `"${cut}"` : cut)
+      const flat = oneLine(value)
+      parts.push(/\s/.test(flat) || key === 'command' ? `"${flat}"` : flat)
     } else if (typeof value === 'number' || typeof value === 'boolean') {
       parts.push(`${key} ${value}`)
     }
@@ -72,11 +66,11 @@ export const NOWHERE: Places = { work: null, tade: null, home: null }
  * The line that names a call, as a device reads it: `briefOf` over arguments
  * let out **by an approval's own rule** (`commandOut`) — credentials out, and
  * paths shortened rather than taken out, so a call that read a file says which
- * (`~/.tade/…/NAMES.md`) where the screen's rule would leave `…`. A path too
- * long for the line keeps its first two names and its last.
+ * (`~/.tade/projects/tade/NAMES.md`) where the screen's rule would leave `…`.
+ * Nothing else is taken out of it, and none of it is cut.
  */
 export function briefOut(input: unknown, places: Places, known: readonly string[]): string {
-  const out = (value: string) => pathCut(commandOut(value, places, known))
+  const out = (value: string) => commandOut(value, places, known)
   if (typeof input === 'string') return briefOf(out(input))
   if (!isRecord(input)) return ''
   const shown: Record<string, unknown> = {}
@@ -84,17 +78,6 @@ export function briefOut(input: unknown, places: Places, known: readonly string[
     shown[key] = typeof value === 'string' ? out(value) : value
   }
   return briefOf(shown)
-}
-
-/** A lone path longer than a brief's value, cut in its middle: `~/.tade/…/NAMES.md`. */
-function pathCut(value: string): string {
-  const flat = value.trim()
-  if (flat.length <= 48 || /\s/.test(flat) || !flat.includes('/')) return value
-  const names = flat.split('/')
-  const last = names.at(-1) ?? ''
-  const head = names.slice(0, 2).join('/')
-  const cut = `${head}/…/${last}`
-  return cut.length < flat.length ? cut : value
 }
 
 /**
@@ -134,14 +117,13 @@ export function callOf(
   places: Places = NOWHERE,
   call: string | null = null,
 ): { call: Call; taken: number } {
-  const words = briefOut(input, places, known)
-  const brief = textOf(words, CALL.brief)
+  const brief = briefOut(input, places, known)
   const asked = cleanWhole(inputText(input), known)
   const id = callKey(call)
   const answer = id === null && result !== null ? cleanWhole(result, known) : null
   return {
     call: {
-      brief: brief === null ? null : brief.words,
+      brief: brief === '' ? null : brief,
       input: asked.said,
       answered: result === null ? 'none' : result === '' ? 'nothing' : 'words',
       id,
@@ -357,9 +339,9 @@ function sameKeys(a: readonly string[], b: readonly string[]): boolean {
   return a === b || (a.length === b.length && a.every((one, at) => one === b[at]))
 }
 
+/** A value on the line: its white space one space each, every word of it kept. */
 function oneLine(text: string): string {
-  const flat = text.replace(/\s+/g, ' ').trim()
-  return flat.length > 48 ? `${flat.slice(0, 47)}…` : flat
+  return text.replace(/\s+/g, ' ').trim()
 }
 
 function jsonOf(value: unknown): string {

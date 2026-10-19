@@ -600,13 +600,18 @@ a.ui-card:hover,
   min-width: 0;
 }
 
+/*
+  A row's parts on the first line of its brief, which wraps: the padding
+  centres a row of one line in the tap height, as `align-items: center` did.
+*/
 .ui-call-press {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--s2);
   width: 100%;
   min-width: 0;
   min-height: var(--tap);
+  padding-block: var(--s3);
   padding-inline: var(--s3);
   border-radius: var(--r1);
   color: var(--body);
@@ -635,19 +640,41 @@ a.ui-card:hover,
   white-space: nowrap;
 }
 
+/*
+  Never cut: the brief wraps, a word longer than the row (a path, a hash)
+  breaks where it must, and a very long one folds to three lines with `more`
+  under it while its row is closed (`foldIn`, `conversation.js`).
+*/
 .ui-call-brief {
+  display: flex;
   flex: 1 1 auto;
+  flex-direction: column;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--heading);
   font-family: var(--font-mono);
   font-size: var(--step--1);
 }
 
-.ui-call-brief::before {
+.ui-call-words {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.ui-call-words::before {
   content: "· ";
+}
+
+.ui-call-words.is-folded {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.ui-call-more {
+  color: var(--amber);
+  font-family: var(--font-ui);
+  font-size: var(--step--1);
 }
 
 .ui-call-state {
