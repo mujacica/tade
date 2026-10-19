@@ -41,6 +41,7 @@ import { Exit, type Io } from '../io.ts'
 import { handOverOpening, unsayOpening } from '../opening.ts'
 import { orchestrating } from '../orchestrating.ts'
 import { closeAll, endSoon, hangingUp, leftBehind, onSignals } from '../quitting.ts'
+import { startAgain } from '../reloading.ts'
 import { reporterLater, reportJournal } from '../telemetry.ts'
 import { gather } from './setup-facts.ts'
 
@@ -221,8 +222,9 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       })
       // What closing gave up waiting for or could not close, the window's own and the rest.
       const late: Unclosed[] = []
+      // Asked for by the window, and done once everything below has closed.
+      let shouldReload = false
       try {
-        let shouldReload = false
         const app = await App.start({
           client,
           config: cfg.config,
@@ -340,13 +342,6 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           // took it is taken back too.
           unsayOpening()
         }
-        if (shouldReload) {
-          const child = spawn(process.execPath, process.argv.slice(1), {
-            stdio: 'inherit',
-            detached: true,
-          })
-          child.unref()
-        }
       } catch (err) {
         unsayOpening()
         io.err(err instanceof Error ? err.message : String(err))
@@ -373,6 +368,8 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           })),
         )
         for (const line of leftBehind(late)) io.err(line)
+        // In this process, so the terminal stays the window's (`reloading.ts`).
+        if (shouldReload) startAgain()
         // Whatever still holds the process open now — a child somebody let go
         // of without ending, a socket a reporter left — is not a reason to keep
         // the terminal: everything has had its chance to close.

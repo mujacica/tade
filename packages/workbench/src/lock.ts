@@ -1,3 +1,4 @@
+import { readFileSync, rmSync } from 'node:fs'
 import { open, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -37,7 +38,13 @@ export async function lockHome(home: string): Promise<HomeLock> {
       const fh = await open(path, 'wx')
       await fh.write(`${process.pid}\n`)
       await fh.close()
-      return { release: () => rm(path, { force: true }) }
+      holdUntilExit(path)
+      return {
+        release: () => {
+          held.delete(path)
+          return rm(path, { force: true })
+        },
+      }
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err
       // Our own pid counts: two windows in one process are still two windows,
@@ -71,4 +78,34 @@ async function holderOf(path: string): Promise<number | null> {
     // EPERM means someone else's process is there, which still counts.
     return (err as NodeJS.ErrnoException).code === 'EPERM' ? pid : null
   }
+}
+
+/** The homes this process has locked and not yet let go of. */
+const held = new Set<string>()
+let listening = false
+
+/**
+ * Given back however this process ends. A lock whose process is gone is
+ * already nobody's, but a reload keeps the pid — the CLI's `startAgain`
+ * replaces the process in place — and the window that comes back would find
+ * its home held by somebody alive, itself, and refuse to open. A workbench
+ * that did not finish closing in time is the case: its own release never ran.
+ */
+function holdUntilExit(path: string): void {
+  held.add(path)
+  if (listening) return
+  listening = true
+  process.on('exit', () => {
+    for (const one of held) {
+      try {
+        if (Number.parseInt(readFileSync(one, 'utf8'), 10) === process.pid)
+          rmSync(one, { force: true })
+      } catch (err) {
+        // Gone already is what was wanted; anything else leaves a lock behind, and says so.
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT')
+          process.stderr.write(`could not give back ${one}: ${(err as Error).message}\n`)
+      }
+    }
+    held.clear()
+  })
 }

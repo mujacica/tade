@@ -1,5 +1,6 @@
 import { mkdir, open, readFile, rm } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { holdUntilExit, letGoOf } from './held.ts'
 
 // One run at a time, per worktree.
 //
@@ -73,7 +74,14 @@ export async function claim(
       const fh = await open(path, 'wx', 0o600)
       await fh.write(`${JSON.stringify({ pid: process.pid, ...holder, at })}\n`)
       await fh.close()
-      return { release: () => rm(path, { force: true }) }
+      // Given back however this process ends, a reload included (`held.ts`).
+      holdUntilExit(path)
+      return {
+        release: () => {
+          letGoOf(path)
+          return rm(path, { force: true })
+        },
+      }
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err
       const held = await holderAt(path)

@@ -1,5 +1,6 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { holdUntilExit, letGoOf } from './held.ts'
 import type { CheckState } from './port.ts'
 
 // A run while it is still going, so a person can watch it.
@@ -56,6 +57,8 @@ export async function writeRunning(records: string, now: RunningNow): Promise<vo
   try {
     await mkdir(dirname(path), { recursive: true })
     await writeFile(path, `${JSON.stringify(now)}\n`, { mode: 0o600 })
+    // A run this process was in the middle of is not one after it ends (`held.ts`).
+    holdUntilExit(path)
   } catch {
     // Watching a run is not worth failing one over.
   }
@@ -65,6 +68,7 @@ export async function writeRunning(records: string, now: RunningNow): Promise<vo
 export async function clearRunning(records: string, now: RunningNow): Promise<void> {
   const held = await readRunning(records)
   if (held && tokenOf(held) !== tokenOf(now)) return
+  letGoOf(runningPath(records))
   await rm(runningPath(records), { force: true }).catch(() => {})
 }
 

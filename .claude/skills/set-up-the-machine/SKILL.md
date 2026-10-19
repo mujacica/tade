@@ -209,6 +209,14 @@ in under Tade by `programsNeeded`: `PROCESSES_PROGRAMS` (`ps`, `status/src/proce
   taken. `tade_reload` answers first and reloads half a second later, because the reload ends the
   turn its answer goes to; the orchestrator picks its conversation back up in the new window, by the
   session id that never changes.
+- **A reload is this process starting again, never a second one beside it** (`startAgain`,
+  `cli/src/reloading.ts`): once everything has closed, `execve` puts the new window in the same
+  pid, so it stays the terminal's foreground job. A new `tade` spawned detached was in a session of
+  its own; the shell took the terminal back, read half of every key and mouse report, and ctrl+c
+  went to it (`cli/test/reloading.test.ts`, a real shell in a real PTY). Keeping the pid means a
+  live pid no longer proves a holder, so what a process holds — the home lock, the check locks and
+  slots, a run in flight (`checks-core/src/held.ts`) — is given back on `exit`, which `startAgain`
+  says before it replaces the process.
 
 ## Preparing a new worktree
 
