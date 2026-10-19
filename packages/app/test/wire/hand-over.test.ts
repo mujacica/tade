@@ -64,6 +64,8 @@ async function handing(over: { workspace?: 'checkout' | 'worktree'; older?: bool
   let running = true
   /** Tade closing while the agent is being stopped: the stop never comes back. */
   let stopHangs = false
+  /** Stops asked while they hang: the window that closed has got as far as stopping. */
+  const hung: string[] = []
   const said: string[] = []
   let now = Date.now()
   const agent = {
@@ -73,7 +75,10 @@ async function handing(over: { workspace?: 'checkout' | 'worktree'; older?: bool
       told.push(message)
     },
     stopAgent: async (task: string) => {
-      if (stopHangs) return new Promise<void>(() => {})
+      if (stopHangs) {
+        hung.push(task)
+        return new Promise<void>(() => {})
+      }
       stopped.push(task)
       running = false
     },
@@ -128,6 +133,7 @@ async function handing(over: { workspace?: 'checkout' | 'worktree'; older?: bool
     made,
     told,
     stopped,
+    hung,
     said,
     /**
      * The window's beat, waited on until its look has finished: still there
@@ -519,7 +525,9 @@ describe('a running task, handed to another machine', () => {
     one.holdStop(true)
     one.later(6_000)
     one.moves.beat()
-    await until(() => one.far.taken.length === 2)
+    // Taken there is not yet stopped here: its answer has still to come back.
+    await until(() => one.hung.length > 0)
+    expect(one.far.taken).toHaveLength(2)
     const [asked] = await one.client.log.read({ types: ['task_handing'] })
     const id = asked?.detail.id
     expect(id).toEqual(expect.any(String))
@@ -548,7 +556,8 @@ describe('a running task, handed to another machine', () => {
     one.holdStop(true)
     one.later(6_000)
     one.moves.beat()
-    await until(() => one.far.taken.length === 2)
+    await until(() => one.hung.length > 0)
+    expect(one.far.taken).toHaveLength(2)
     // Refused with the id, and taken without it.
     expect(one.far.taken[1]?.take).toMatchObject({ check: false, name: 'refunds' })
     expect(one.far.taken[1]?.take.handOver).toBeUndefined()
