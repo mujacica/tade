@@ -338,7 +338,8 @@ describe('the stages', () => {
     ])
     const gappy = runRow(SHIP(), reach(EVERY, ['tade']), BUDGET)
     expect(stagesOf(gappy).map((one) => [one.name, one.said])).toEqual([
-      ['Stage 3', 'after steps not on this page'],
+      // What it waits on out of sight is named, never said to be elsewhere.
+      ['Stage 3', 'after sentry/ship-api and web/ship-client'],
       ['Stage 4', 'after stage 3'],
     ])
   })

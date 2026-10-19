@@ -59,7 +59,6 @@ export function boardOf(store) {
   const running = working.length - stalled
 
   const queue = queueIn(store, null)
-  const away = omitted(store, 'queue')
   const kinds = Object.fromEntries(QUEUE_KINDS.map((kind) => [kind, 0]))
   for (const row of queue) {
     const kind = row.state?.kind
@@ -96,15 +95,13 @@ export function boardOf(store) {
       ]),
     },
     queue: {
-      n: queue.length + away,
+      n: queue.length,
       ready: kinds.ready,
-      under:
-        partsSaid(...QUEUE_KINDS.map((kind) => [kinds[kind], kind]), [away, 'not on this page']) ||
-        'empty',
+      under: partsSaid(...QUEUE_KINDS.map((kind) => [kinds[kind], kind])) || 'empty',
       // Ready to start is a filled mark; anything still waiting on something is hollow.
       dots: dotsOf([
         { n: kinds.ready, tone: 'queued' },
-        { n: queue.length - kinds.ready + away, tone: 'queued', hollow: true },
+        { n: queue.length - kinds.ready, tone: 'queued', hollow: true },
       ]),
     },
     checks: {

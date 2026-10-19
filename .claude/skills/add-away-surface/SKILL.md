@@ -67,7 +67,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | motion, toasts, loading | `src/assets/motion.css` (every `@keyframes`, by name; only `pulse`, `shimmer` and `sweep` repeat — `test/design.test.ts`), `toasts.js` (pure `transitionsOf`: what crossed into wanting you, failing, finishing, merging or starting — never on arriving) |
 | live reload while working on the page | `src/reloading.ts` — only a listener running from the repository (its own module is a `.ts`; the tarball's are `.js`) watches `src/assets/`, drops what it read (`Files.reset`) and sends every stream a `reload` frame (`Streams.reloadAll`); the page reloads unless something is typed, and then it is a bar |
 | what a file costs on the wire | `src/files.ts` — brotli, then gzip, for text, each encoding its own etag; `test/installable.test.ts` budgets the compressed bytes |
-| the older pages of a list | the snapshot's `pages.<collection>.next` is the cursor; `GET /api/notes?after=` walks on (no `scope` is every note, as the snapshot lists them); the notes screen asks a page at a time. A conversation pages back by its oldest line (`/api/chat?before=`), above |
+| **how much of a list goes out**: all of it — every task, queued piece, plan, workflow, run, request (with its words), finding and note a device reads, and no line anywhere saying the rest is elsewhere | `BUDGET` in `src/page.ts` (every list `WHOLE`; `chat` the one stretch, read back on scroll); `pageOf` keeps the cap-and-count shape for a finite `most`, and `GET /api/notes?after=` still walks one for a caller that asks. A count on a page is a count of what it holds |
 | an icon, a chart | `src/assets/icons.js` (a `<use>` of the sprite in `index.html` — the parser puts it in the SVG namespace, so no module spells a URL), `charts.js` and `charts.css` — **the graphical components every page draws with** (stat and sparkline, gauge, stack and legend, donut, ranked bars, lanes, flow, heat strip, steps), geometry fed through the CSSOM and each with its text alternative; what to use when is `DESIGN.md` beside this file |
 | the agents list | `src/assets/agents.js` |
 | an agent's dev servers, as presses in an agent's and a project's bar | `TaskRow.servers` (ports, never an address), `src/assets/serving.js` (the page's own host in front) |
@@ -568,11 +568,10 @@ a device still has none of the scopes that change anything until somebody at thi
   have to be the same text. What stands instead is the grant, the budget, the
   heading (`MATERIAL_LABEL`, which travels **with** the body rather than being
   the page's to choose), and the page never building markup.
-- **A body crosses for the requests somebody is being asked to decide about,
-  and every other row says so.** `budget.materials` is a second budget over one
-  collection: a machine with forty requests would otherwise put a third of a
-  megabyte on every frame for a phone reading one of them. *Not granted*,
-  *nothing was written down* and *not on this page* are three different
+- **Every request's body crosses, framed as material** (`intakeIn`): a request
+  somebody opens on a phone is read there, waiting on anybody or not. A body is
+  bounded by `budget.material` and sent once, then only when it moved
+  (`delta.ts`). *Not granted* and *nothing was written down* are different
   answers and `materialSays` says which.
 - **An empty inbox has five meanings and four of them are somebody's to fix**,
   which is why the doors are their own collection (`sources`): off, ungranted,

@@ -4,7 +4,7 @@
 import { el, empty, into, keyed, textIn } from '../dom.js'
 import { count } from '../figures.js'
 import { createQueueRow, fillQueueRow, section } from '../rows.js'
-import { omitted, queueIn } from '../store.js'
+import { queueIn } from '../store.js'
 import { panel } from '../ui.js'
 
 /* ── the queue ─────────────────────────────────────────────────────────────── */
@@ -49,8 +49,7 @@ export function queueScreen() {
   const groups = el('div')
   const none = empty('nothing queued')
   into(made.body, chips, groups, none)
-  const left = el('p', { class: 'unknown' })
-  into(node, made.node, left)
+  into(node, made.node)
 
   const draw = (view) => {
     last = view
@@ -72,9 +71,6 @@ export function queueScreen() {
       createQueueGroup,
       (one, name) => fillQueueGroup(one, name, rows, view),
     )
-    const n = omitted(view.store, 'queue')
-    textIn(left, n === 0 ? '' : `${n} more pieces of queued work are not on this page`)
-    left.hidden = n === 0
     chips.hidden = every.length === 0
   }
 

@@ -61,7 +61,7 @@ import { icon } from '../icons.js'
 import { quickActs } from '../quick.js'
 import { pathOf, taskPath } from '../routes.js'
 import { section } from '../rows.js'
-import { closedOf, intakeWaiting, omitted, projectsOf, wantsYou } from '../store.js'
+import { closedOf, intakeWaiting, projectsOf, wantsYou } from '../store.js'
 import { changesSeen, KINDS } from '../toasts.js'
 import { meter, meterIn, panel, stateBox, stateBoxIn } from '../ui.js'
 import {
@@ -97,11 +97,10 @@ export function nowScreen(ctx = null) {
   foldable(projects, 'overview:projects')
   const table = projectTable()
   const projectsState = stateBox()
-  const left = el('p', { class: 'unknown' })
   const shut = el('div', { class: 'ov-closed' })
   const shutList = el('div', { class: 'ov-closed-list' })
   into(shut, el('span', { class: 'ov-closed-label', text: 'Closed' }), shutList)
-  into(projects.body, table.node, projectsState, left, shut)
+  into(projects.body, table.node, projectsState, shut)
 
   // Every agent at work, here on a phone and a tablet; at a desk the side
   // beside the work has the same list (`side.js`), and this one steps aside.
@@ -180,9 +179,6 @@ export function nowScreen(ctx = null) {
               )
             : null,
       )
-      const gone = leftOut(store)
-      textIn(left, gone)
-      left.hidden = gone === ''
       const closed = closedOf(store)
       shut.hidden = closed.length === 0
       keyed(
@@ -229,19 +225,6 @@ const countSaid = (n, one, many) => `${n} ${n === 1 ? one : many}`
 
 /** A region's state, in `stateBoxIn`'s shape. */
 const boxOf = (kind, title, line = null, drawn = undefined) => ({ kind, title, line, icon: drawn })
-
-/**
- * What the projection left out, said out loud: a flat cap that said nothing
- * would lose four repositories without a word.
- */
-function leftOut(store) {
-  const parts = []
-  for (const name of ['projects', 'tasks']) {
-    const n = omitted(store, name)
-    if (n > 0) parts.push(`${n} ${name}`)
-  }
-  return parts.length === 0 ? '' : `${parts.join(' and ')} not on this page`
-}
 
 /* ── the board ─────────────────────────────────────────────────────────────── */
 

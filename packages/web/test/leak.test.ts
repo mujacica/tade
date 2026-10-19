@@ -251,7 +251,6 @@ describe('what a person wrote', () => {
         sources: 9,
         runs: 9,
         workflows: 9,
-        materials: 9,
         warnings: 9,
         text: 4,
         material: 4,

@@ -60,7 +60,7 @@ export function glanceOf(store, project = null) {
       stalled,
     },
     queue: {
-      n: queue.length + (project === null ? omitted(store, 'queue') : 0),
+      n: queue.length,
       ready: queue.filter((row) => row.state?.kind === 'ready').length,
     },
     checks,

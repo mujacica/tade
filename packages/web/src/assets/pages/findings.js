@@ -43,7 +43,6 @@ import {
   ENOUGH,
   figureSaid,
   findingsPage,
-  omittedSaid,
   readSaid,
   rowLine,
   tallyUnder,
@@ -100,12 +99,8 @@ export function findingsScreen() {
       lead.node.hidden = !shown
       main.hidden = !shown
       questions.made.node.hidden = !shown
-      const gone = page === null ? null : omittedSaid(omitted(store, 'findings'), page.total)
-      left.hidden = !shown || (gone === null && !view.frozen)
-      if (!left.hidden) {
-        const clock = view.frozen ? `as of ${shortClockOf(new Date(view.asOf).toISOString())}` : ''
-        sayLeft(left, [clock, gone].filter(Boolean).join(' · '))
-      }
+      left.hidden = !shown || !view.frozen
+      if (!left.hidden) sayLeft(left, `as of ${shortClockOf(new Date(view.asOf).toISOString())}`)
       if (!shown) return
       lead.fill(page)
       yours.fill(page)

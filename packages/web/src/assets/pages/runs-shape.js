@@ -341,14 +341,19 @@ export function stagesOf(run) {
   })
 }
 
-/** What a stage as a whole waits on: the stages its steps' waits are in. */
+/**
+ * What a stage as a whole waits on: the stages its steps' waits are in, and by
+ * its task id each step waited on that is in none of them — one in a project
+ * this device does not read, which is still something the stage waits on.
+ */
 function stageWaits(steps, run) {
   const layerOf = new Map(run.steps.map((step) => [step.task, step.layer]))
-  const before = new Set(
-    steps.flatMap((step) => step.waits.map((wait) => layerOf.get(wait.task))).filter(isNumber),
-  )
-  if (before.size === 0) return 'after steps not on this page'
-  return `after ${joined([...before].sort((a, b) => a - b).map((one) => `stage ${one + 1}`))}`
+  const waits = steps.flatMap((step) => step.waits.map((wait) => wait.task))
+  const before = new Set(waits.map((task) => layerOf.get(task)).filter(isNumber))
+  const unseen = [...new Set(waits.filter((task) => !layerOf.has(task)))].sort()
+  const stages = [...before].sort((a, b) => a - b).map((one) => `stage ${one + 1}`)
+  const all = [...stages, ...unseen]
+  return all.length === 0 ? 'can go first' : `after ${joined(all)}`
 }
 
 /** A stage's own mark: finished when all of it is, its loudest step otherwise. */

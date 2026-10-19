@@ -348,15 +348,6 @@ export function settledSaid(n, open) {
 }
 
 /**
- * What the page says about the requests it does not hold: a page of the
- * projection is capped, and every figure here is of the ones it was sent.
- */
-export function omittedSaid(omitted, held) {
-  if (omitted <= 0) return null
-  return `${plural(omitted, 'more request')} not sent to this device; every figure here is of the ${held} it holds`
-}
-
-/**
  * What an empty inbox means, out of the doors' own sentences.
  *
  * `nothingHandedSays`' rule, and the same order: a door in trouble first

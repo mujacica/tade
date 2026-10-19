@@ -59,8 +59,7 @@ export function workflowsScreen() {
   const nothing = stateBox()
   const lead = leadOf()
   const groups = GROUPS.map((one) => groupOf(one))
-  const left = el('p', { class: 'unknown' })
-  into(made.body, coming, nothing, lead.node, ...groups.map((one) => one.made.node), left)
+  into(made.body, coming, nothing, lead.node, ...groups.map((one) => one.made.node))
   into(node, made.node)
 
   return {
@@ -82,8 +81,6 @@ export function workflowsScreen() {
       groups.forEach((one, at) => {
         one.fill(grouped[at].rows, runs)
       })
-      const n = rows.length === 0 ? 0 : omitted(view.store, 'workflows')
-      sayIn(left, n === 0 ? '' : `${n} more workflows are not on this page`)
     },
   }
 }

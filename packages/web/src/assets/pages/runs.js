@@ -21,7 +21,7 @@ import { el, glyphOf, into, keyed, markIn, skeleton, textIn, toneOn } from '../d
 import { count } from '../figures.js'
 import { pathOf } from '../routes.js'
 import { sayIn, section } from '../rows.js'
-import { omitted, runsOf } from '../store.js'
+import { runsOf } from '../store.js'
 import { panel, stateBox, stateBoxIn } from '../ui.js'
 import { runMap, runMapIn, track, trackIn } from './runs-draw.js'
 import {
@@ -48,8 +48,7 @@ export function runsScreen() {
   const nothing = stateBox()
   const lead = leadOf()
   const groups = GROUPS.map((one) => groupOf(one))
-  const left = el('p', { class: 'unknown' })
-  into(made.body, coming, nothing, lead.node, ...groups.map((one) => one.made.node), left)
+  into(made.body, coming, nothing, lead.node, ...groups.map((one) => one.made.node))
   into(node, made.node)
 
   return {
@@ -60,11 +59,9 @@ export function runsScreen() {
       textIn(made.figure, had ? count(rows.length) : '')
       made.figure.setAttribute('aria-label', `${rows.length} plans`)
       coming.hidden = had
-      // **Nothing is two sentences**: none at all, and none on this page while
-      // the machine has more. The second is the line under the list.
       stateBoxIn(
         nothing,
-        had && rows.length === 0 && omitted(view.store, 'runs') === 0
+        had && rows.length === 0
           ? stateOf(
               'empty',
               'No plans yet',
@@ -78,8 +75,6 @@ export function runsScreen() {
       groups.forEach((one, at) => {
         one.fill(grouped[at].runs, view)
       })
-      const n = omitted(view.store, 'runs')
-      sayIn(left, n === 0 ? '' : `${n} more plans are not on this page`)
     },
   }
 }

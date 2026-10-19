@@ -68,7 +68,6 @@ const facts = (over: Partial<Parameters<typeof intakeIn>[1]> = {}) => ({
   titles: new Map<string, string>(),
   efforts: new Map<string, string>(),
   would: new Map(),
-  most: 2,
   ...over,
 })
 
@@ -146,43 +145,32 @@ describe('which requests carry their words', () => {
     many.map((one) => [one.item, { body: `body of ${one.externalId}`, problem: null }]),
   )
 
-  it('carries the ones waiting on somebody first, then the newest', () => {
-    // A body is up to `material` long and forty requests would put a third of
-    // a megabyte on every frame, for a phone reading one of them. So the ones
-    // that cross are the ones somebody is being asked to decide about.
-    const out = intakeIn(many, facts({ bodies: byItem, most: 2 }))
-    const carried = out.filter((one) => one.material !== '').map((one) => one.item)
-    expect(carried.sort()).toEqual(['github:2', 'github:3'])
+  it('carries every request’s words, waiting on somebody or not', () => {
+    // Every screen shows everything it lists: a request somebody opens on a
+    // phone is read there, whether or not it is waiting on anybody.
+    const out = intakeIn(many, facts({ bodies: byItem }))
+    expect(out.map((one) => one.material)).toEqual(many.map((one) => `body of ${one.externalId}`))
+    expect(out.every((one) => one.materialProblem === '')).toBe(true)
     expect(bodies.size).toBe(4)
   })
 
-  it('says of every other row that its words are not on this page', () => {
-    const out = intakeIn(many, facts({ bodies: byItem, most: 2 }))
-    const left = out.filter((one) => one.material === '')
-    expect(left).toHaveLength(2)
-    for (const one of left) {
-      expect(one.materialProblem).toContain('not on this page')
-      expect(one.materialProblem).toContain('2 requests carry theirs')
-    }
+  it('says of no row that its words are somewhere else', () => {
+    const out = intakeIn(many, facts({ bodies: byItem }))
+    for (const one of out) expect(one.materialProblem).not.toMatch(/not on this page|carry theirs/)
   })
 
-  it('says a body nothing has read yet apart from one that is not carried', () => {
-    // Three nothings and the page says which: not granted (the projection's),
-    // not on this frame (above), and nothing here has read it.
-    const out = intakeIn([row()], facts({ most: 1 }))
+  it('says a body nothing has read yet', () => {
+    // Two nothings and the page says which: not granted (the projection's),
+    // and nothing here has read it.
+    const out = intakeIn([row()], facts())
     expect(out[0]?.material).toBe('')
     expect(out[0]?.materialProblem).toBe('nothing here has read it yet')
   })
 
   it('carries the reason a read failed, where one did', () => {
     const bodies = new Map([['github:1402', { body: null, problem: 'the context file is gone' }]])
-    const out = intakeIn([row()], facts({ bodies, most: 1 }))
+    const out = intakeIn([row()], facts({ bodies }))
     expect(out[0]?.materialProblem).toBe('the context file is gone')
-  })
-
-  it('carries none at all where the budget is nought', () => {
-    const out = intakeIn(many, facts({ bodies: byItem, most: 0 }))
-    expect(out.every((one) => one.material === '')).toBe(true)
   })
 })
 

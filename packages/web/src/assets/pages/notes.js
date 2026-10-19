@@ -25,8 +25,7 @@ import { count, shortClockOf } from '../figures.js'
 import { icon } from '../icons.js'
 import { section } from '../rows.js'
 import { notesOf, omitted, projectAt, taskAt } from '../store.js'
-import { troubleOf, UNKNOWN_TROUBLE } from '../trouble.js'
-import { answerIn, stateBox, stateBoxIn } from '../ui.js'
+import { stateBox, stateBoxIn } from '../ui.js'
 import {
   asOfLine,
   BANDS,
@@ -34,12 +33,8 @@ import {
   foldSaid,
   leadLine,
   notesPage,
-  olderAfter,
-  olderOffered,
-  rowsWith,
   shownOf,
   tallyOf,
-  UNWALKED,
   wholeOf,
 } from './notes-shape.js'
 
@@ -67,7 +62,7 @@ const GLYPHS = { everywhere: 'laptop', project: 'folder', task: 'agents' }
 
 let cards = 0
 
-export function notesScreen(ctx = null) {
+export function notesScreen() {
   const node = el('div')
   const made = section('NOTES', {
     top: true,
@@ -83,9 +78,8 @@ export function notesScreen(ctx = null) {
   const asof = el('div', { class: 'nt-asof' })
   const where = whereOf(state)
   const when = whenOf(state)
-  const older = olderOf(ctx, () => state.last !== null && draw(state.last))
   made.body.classList.add('nt-body')
-  into(made.body, coming, whole, lead.node, asof, where.node, when.node, older.node)
+  into(made.body, coming, whole, lead.node, asof, where.node, when.node)
   into(node, made.node)
 
   const draw = (view) => {
@@ -93,9 +87,8 @@ export function notesScreen(ctx = null) {
     const store = view.store
     const had = store.had === true
     const may = had && mayFor(store, 'notes')
-    const sent = may ? notesOf(store) : []
-    const rows = rowsWith(sent, older.held())
-    const total = may ? (store.pages.notes?.total ?? rows.length) : 0
+    const rows = may ? notesOf(store) : []
+    const total = rows.length
     const page = may ? notesPage(rows, view.asOf, placesIn(store)) : null
     const shut = view.standing === 'unreachable' || view.standing === 'closed'
     coming.hidden = had || shut
@@ -109,10 +102,8 @@ export function notesScreen(ctx = null) {
     lead.node.hidden = !drawn
     where.node.hidden = !drawn || state.by !== 'where'
     when.node.hidden = !drawn || state.by !== 'when'
-    const left = Math.max(0, total - rows.length)
-    const asking = older.fill(may && drawn ? left : 0, store.pages.notes?.next ?? null)
     const clock = shortClockOf(new Date(view.asOf).toISOString())
-    sayIn(asof, drawn ? asOfLine(view.frozen, clock, asking ? 0 : left) : '')
+    sayIn(asof, drawn ? asOfLine(view.frozen, clock) : '')
     if (!drawn) return
     lead.fill(page)
     if (state.by === 'where') where.fill(page)
@@ -436,48 +427,4 @@ function fillCard(item, note, inGroup) {
   }
   if (place.href === null) chip.removeAttribute('href')
   else chip.setAttribute('href', place.href)
-}
-
-/* ── the older pages: asked for, not sent ───────────────────────────────────── */
-
-/** The press that asks the machine for the page after the newest (`olderAfter`, `olderOffered`). */
-function olderOf(ctx, redraw) {
-  const node = el('div', { class: 'nt-older' })
-  const press = el('button', {
-    class: 'press quietly nt-older-press',
-    attrs: { type: 'button' },
-  })
-  const said = el('p', { class: 'nt-older-said', attrs: { role: 'status' } })
-  into(node, press, said)
-  let walk = UNWALKED
-  let cursor = null
-  let asking = false
-  press.addEventListener('click', async () => {
-    if (ctx === null || asking || cursor === null) return
-    asking = true
-    press.disabled = true
-    const answer = await ctx.ask('GET', `/api/notes?after=${encodeURIComponent(cursor)}`)
-    asking = false
-    press.disabled = false
-    if (answer.status !== 200 || answer.body === null) {
-      answerIn(said, '', troubleOf(answer) ?? UNKNOWN_TROUBLE)
-      return
-    }
-    walk = olderAfter(walk, answer.body)
-    answerIn(said, walk.restarted ? 'The notes moved; started again from the newest.' : '', null)
-    redraw()
-  })
-  return {
-    node,
-    held: () => walk.held,
-    /** Offer the next page where there is one and somebody to ask; true while it is offered. */
-    fill(left, next) {
-      const now = olderOffered(walk, left, next, ctx !== null)
-      cursor = now.cursor
-      press.hidden = !now.offered
-      node.hidden = !now.offered && said.textContent === ''
-      textIn(press, `Show older notes · ${left}`)
-      return now.offered
-    },
-  }
 }

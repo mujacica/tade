@@ -25,7 +25,7 @@ import { ageSaid, count } from './figures.js'
 import { rowMark, taskMark } from './glyphs.js'
 import { taskPath } from './routes.js'
 import { section } from './rows.js'
-import { agentsOf, omitted } from './store.js'
+import { agentsOf } from './store.js'
 import { panel } from './ui.js'
 
 /* ── every agent running ───────────────────────────────────────────────────── */
@@ -59,16 +59,13 @@ export function agentsScreen() {
         (one, group) => fillGroup(one, group, view),
       )
       const idle = view.store.rows.tasks.size - agents.length
-      const left = omitted(view.store, 'tasks')
       // **Counted, never left out in silence**: a page of four agents that did
-      // not say twelve tasks have none, or that some tasks are not on this
-      // page, would read as the whole of the work.
-      const parts = []
-      if (idle > 0)
-        parts.push(`${idle} other task${idle === 1 ? ' has' : 's have'} no agent running`)
-      if (left > 0) parts.push(`${left} tasks are not on this page`)
-      textIn(rest, parts.join(' · '))
-      rest.hidden = parts.length === 0
+      // not say twelve tasks have none would read as the whole of the work.
+      textIn(
+        rest,
+        idle > 0 ? `${idle} other task${idle === 1 ? ' has' : 's have'} no agent running` : '',
+      )
+      rest.hidden = idle === 0
     },
   }
 }

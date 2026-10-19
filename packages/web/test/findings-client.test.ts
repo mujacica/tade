@@ -7,7 +7,6 @@ import {
   ENOUGH,
   figureSaid,
   findingsPage,
-  omittedSaid,
   precisionLine,
   precisionSaid,
   probabilityOf,
@@ -299,13 +298,6 @@ describe('the words around it', () => {
       word: 'nothing waits on you',
       tone: null,
     })
-  })
-
-  it('says what was not sent, and that every figure is of what was', () => {
-    expect(omittedSaid(0, 100)).toBeNull()
-    expect(omittedSaid(3, 100)).toBe(
-      '3 more findings not sent to this device; every figure here is of the 100 it holds',
-    )
   })
 
   it('crosses no finding to a device that was not granted them', () => {

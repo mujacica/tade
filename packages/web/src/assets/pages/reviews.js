@@ -24,7 +24,7 @@ import { count } from '../figures.js'
 import { icon } from '../icons.js'
 import { quickActs } from '../quick.js'
 import { section } from '../rows.js'
-import { omitted, reviewsOf, taskAt } from '../store.js'
+import { reviewsOf, taskAt } from '../store.js'
 import { note, panel, stateBox, stateBoxIn } from '../ui.js'
 import {
   figureSaid,
@@ -101,7 +101,7 @@ export function reviewsScreen(ctx = null) {
       const shown = page !== null && page.total > 0
       lead.node.hidden = !shown
       scope.hidden = !shown || mayFor(store, 'tasks.review.url')
-      const said = shown ? leftSaid(view.frozen, view.asOf, omitted(store, 'tasks')) : null
+      const said = shown ? leftSaid(view.frozen, view.asOf) : null
       left.hidden = said === null
       if (said !== null) sayLeft(left, said)
       if (!shown) {

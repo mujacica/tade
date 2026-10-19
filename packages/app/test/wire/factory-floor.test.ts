@@ -123,7 +123,6 @@ async function foldOf(one: Machine): Promise<FactoryHeld> {
       titles: titlesOf(events),
       efforts,
       would: await wouldOf(reads, rows),
-      most: 8,
     }),
     sources: sourcesIn(
       doorsOf({

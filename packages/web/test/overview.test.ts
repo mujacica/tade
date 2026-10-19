@@ -125,12 +125,13 @@ describe('the board', () => {
     expect(boardOf(held({ queue: [] })).queue.under).toBe('empty')
   })
 
-  it('counts what the snapshot left out of the queue, and says it is not here', () => {
+  it('counts the queue on the page, and says nothing is somewhere else', () => {
+    // Every list goes out whole, so the figure is a count of what is drawn.
     const store = held()
     store.pages.queue = { total: 3, omitted: 2, next: null, restarted: false }
     const board = boardOf(store)
-    expect(board.queue.n).toBe(3)
-    expect(board.queue.under).toBe('1 waiting · 2 not on this page')
+    expect(board.queue.n).toBe(1)
+    expect(board.queue.under).toBe('1 waiting')
   })
 
   it('puts the red checks in the figure, and green only where nothing is unknown', () => {

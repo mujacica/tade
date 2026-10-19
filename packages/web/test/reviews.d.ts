@@ -80,7 +80,6 @@ declare module '*/assets/pages/reviews-shape.js' {
   }
   export function rowLine(card: Card): string
   export function settledSaid(n: number, open: boolean): string
-  export function omittedSaid(omitted: number): string | null
   export function wholeOf(had: boolean, shut: boolean, page: Page | null): State | null
-  export function leftSaid(frozen: boolean, asOf: number, omitted: number): string | null
+  export function leftSaid(frozen: boolean, asOf: number): string | null
 }

@@ -47,7 +47,7 @@ import { count, shortClockOf } from '../figures.js'
 import { intakeMark } from '../glyphs.js'
 import { icon } from '../icons.js'
 import { sayIn, section } from '../rows.js'
-import { intakeOf, omitted, sourcesOf } from '../store.js'
+import { intakeOf, sourcesOf } from '../store.js'
 import { TROUBLES } from '../trouble.js'
 import { panel, stateBox, stateBoxIn } from '../ui.js'
 import { sectionCount } from './inbox-request.js'
@@ -60,7 +60,6 @@ import {
   heroSaid,
   inboxPage,
   knownIn,
-  omittedSaid,
   settledSaid,
   stateOf,
   troubleOf,
@@ -120,12 +119,8 @@ export function inboxScreen() {
       main.hidden = !some
       grid.hidden = page === null
       classOn(grid, 'is-alone', !some)
-      const gone = page === null ? null : omittedSaid(omitted(store, 'intake'), page.total)
-      left.hidden = !some || (gone === null && !view.frozen)
-      if (!left.hidden) {
-        const clock = view.frozen ? `as of ${shortClockOf(new Date(view.asOf).toISOString())}` : ''
-        sayLeft(left, [clock, gone].filter(Boolean).join(' · '))
-      }
+      left.hidden = !some || !view.frozen
+      if (!left.hidden) sayLeft(left, `as of ${shortClockOf(new Date(view.asOf).toISOString())}`)
       if (page === null) return
       doors.fill(page)
       if (!some) return

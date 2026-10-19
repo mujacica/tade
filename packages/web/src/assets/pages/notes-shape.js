@@ -408,47 +408,6 @@ export function foldSaid(group, open) {
 }
 
 /**
- * The notes the page draws: the snapshot's, then whatever older pages were
- * asked for that the snapshot does not also carry — once each, by id.
- */
-export function rowsWith(sent, held) {
-  const seen = new Set(sent.map((row) => row.id))
-  return [...sent, ...held.filter((row) => !seen.has(row.id))]
-}
-
-/**
- * **The older pages, asked for, not sent.** The snapshot carries the newest
- * notes and a cursor past them (`pages.notes.next`); each ask walks on from the
- * cursor (`/api/notes?after=`) and what came is held beside the snapshot's.
- * Notes are append-only, so a page once read stays true — and a cursor the
- * machine no longer knows starts over (`restarted`), which throws what was held
- * away rather than drawing a note twice.
- */
-export const UNWALKED = { held: [], cursor: null, walked: false }
-
-/** Where the walk stands after the machine answered with one more page. */
-export function olderAfter(walk, page) {
-  const restarted = page.restarted === true
-  return {
-    held: restarted ? [...page.rows] : [...walk.held, ...page.rows],
-    cursor: page.next ?? null,
-    walked: true,
-    restarted,
-  }
-}
-
-/**
- * Whether the next page is offered, and from which cursor: the snapshot's own
- * until a page has been asked for, the walk's after — so a machine that said
- * there is no more is believed over a snapshot that still points on — and only
- * while notes are left and somebody can ask.
- */
-export function olderOffered(walk, left, next, canAsk) {
-  const cursor = walk.walked ? walk.cursor : next
-  return { cursor, offered: left > 0 && cursor !== null && canAsk }
-}
-
-/**
  * What the page says when there is nothing to draw: coming and unreachable,
  * not granted (with how many there are), or none — four sentences and never a
  * blank. Null when there are notes to draw.
@@ -483,13 +442,7 @@ export function wholeOf(had, shut, may, total, withheld) {
   }
 }
 
-/**
- * The line under the lead: the moment a page that is not live is as of, and
- * how many notes are older than this page and not on it.
- */
-export function asOfLine(frozen, clock, notHere) {
-  const parts = []
-  if (frozen) parts.push(`as of ${clock}`)
-  if (notHere > 0) parts.push(`${plural(notHere, 'older note')} not on this page`)
-  return parts.join(' · ')
+/** The line under the lead: the moment a page that is not live is as of. */
+export function asOfLine(frozen, clock) {
+  return frozen ? `as of ${clock}` : ''
 }

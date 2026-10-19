@@ -18,7 +18,7 @@ import {
   type Watched,
 } from '@tade/core'
 import type { WatchOffer } from '@tade/extensions-core'
-import { BUDGET, type IntakeIn, type SourceIn, type WorkflowIn, type WouldIn } from '@tade/web'
+import type { IntakeIn, SourceIn, WorkflowIn, WouldIn } from '@tade/web'
 import { intakeGrant, intakeWouldRun, materialOf, type TemplateDeps } from '@tade/workbench'
 import {
   type IntakeBody,
@@ -349,7 +349,6 @@ export function factoryHeld(parts: {
     titles: parts.titles,
     efforts: parts.efforts,
     would: parts.would,
-    most: BUDGET.materials,
   })
   const sources: readonly SourceIn[] = sourcesIn(parts.doors)
   const workflows: readonly WorkflowIn[] = workflowsIn(parts.workflows)

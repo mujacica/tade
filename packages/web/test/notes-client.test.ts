@@ -11,13 +11,9 @@ import {
   LONG,
   leadLine,
   notesPage,
-  olderAfter,
-  olderOffered,
-  rowsWith,
   scopeOf,
   shownOf,
   tallyOf,
-  UNWALKED,
   whenSaid,
   wholeOf,
 } from '../src/assets/pages/notes-shape.js'
@@ -354,11 +350,18 @@ describe('the page’s own states', () => {
     expect(wholeOf(true, false, true, 3, 0)).toBeNull()
   })
 
-  it('says the moment a page that is not live is as of, and what is older than this page', () => {
-    expect(asOfLine(false, '11:04', 0)).toBe('')
-    expect(asOfLine(true, '11:04', 0)).toBe('as of 11:04')
-    expect(asOfLine(true, '11:04', 1)).toBe('as of 11:04 · 1 older note not on this page')
-    expect(asOfLine(false, '11:04', 40)).toBe('40 older notes not on this page')
+  it('says the moment a page that is not live is as of, and nothing about notes elsewhere', () => {
+    expect(asOfLine(false, '11:04')).toBe('')
+    expect(asOfLine(true, '11:04')).toBe('as of 11:04')
+  })
+
+  it('carries every note a device may read, however many there are', () => {
+    // The person: every screen shows everything it lists. Three hundred notes
+    // is past what the snapshot used to carry, and every one of them is here.
+    const notes = Array.from({ length: 300 }, (_, at) => said(at % 2 === 0 ? null : 'tade', at))
+    const projected = snapshotOf(input({ reach: reach(EVERY), notes }), NOW)
+    expect(projected.notes).toHaveLength(300)
+    expect(projected.pages.notes).toMatchObject({ total: 300, omitted: 0, next: null })
   })
 
   it('withholds every note from a device not granted them, so the page has none to draw', () => {
@@ -366,41 +369,5 @@ describe('the page’s own states', () => {
     const projected = snapshotOf(input({ reach: reach([]), notes }), NOW)
     expect(projected.notes).toEqual([])
     expect(projected.pages.notes.total).toBe(2)
-  })
-})
-
-describe('the older pages, asked for', () => {
-  const [a, b, c, d] = rows([said(null, 1), said(null, 2), said(null, 3), said(null, 4)])
-  if (a === undefined || b === undefined || c === undefined || d === undefined) throw new Error()
-
-  it('draws the snapshot’s notes, then what was asked for that it does not also carry', () => {
-    expect(rowsWith([a, b], [b, c, d]).map((one) => one.id)).toEqual([a.id, b.id, c.id, d.id])
-    expect(rowsWith([], [c])).toEqual([c])
-  })
-
-  it('follows the snapshot’s cursor until a page has been asked for', () => {
-    expect(olderOffered(UNWALKED, 2, 'cur-1', true)).toEqual({ cursor: 'cur-1', offered: true })
-    expect(olderOffered(UNWALKED, 2, 'cur-2', true).cursor).toBe('cur-2')
-  })
-
-  it('walks on from its own cursor once asked, and believes a machine that says there is no more', () => {
-    const one = olderAfter(UNWALKED, { rows: [c], next: 'cur-3', restarted: false })
-    expect(one.held).toEqual([c])
-    expect(olderOffered(one, 1, 'cur-1', true)).toEqual({ cursor: 'cur-3', offered: true })
-    const two = olderAfter(one, { rows: [d], next: null, restarted: false })
-    expect(two.held).toEqual([c, d])
-    expect(olderOffered(two, 1, 'cur-1', true)).toEqual({ cursor: null, offered: false })
-  })
-
-  it('starts over from what the machine sent when it no longer knew the cursor', () => {
-    const one = olderAfter(UNWALKED, { rows: [c], next: 'cur-3', restarted: false })
-    const again = olderAfter(one, { rows: [a, b], next: 'cur-2', restarted: true })
-    expect([again.held, again.restarted]).toEqual([[a, b], true])
-  })
-
-  it('offers nothing when nothing is left or nobody can ask', () => {
-    expect(olderOffered(UNWALKED, 0, 'cur-1', true).offered).toBe(false)
-    expect(olderOffered(UNWALKED, 3, 'cur-1', false).offered).toBe(false)
-    expect(olderOffered(UNWALKED, 3, null, true).offered).toBe(false)
   })
 })

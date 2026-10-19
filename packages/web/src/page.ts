@@ -2,11 +2,15 @@ import type { Said } from './protocol.ts'
 
 // Budgets: how much of a collection goes out, and what is said about the rest.
 //
-// The shape is `composeBriefing`'s, deliberately — **a cap plus a count of
-// what it left out**, never a cap on its own. A flat cap that says nothing
-// loses four repositories without a word, and a page that quietly holds the
-// first twenty of ninety tasks is a page that answers "is anything waiting for
-// me" wrongly and looks complete doing it.
+// **Every list a device may read goes out whole** (`BUDGET`): the person asked
+// for every screen of the away view to show everything it lists, with no line
+// saying the rest is somewhere else. The conversation is the one collection
+// still sent a stretch at a time, and it reads back to its first line as the
+// reader scrolls (`earlier.ts`), so nothing said is only in the window.
+//
+// The machinery stays a cap plus a count of what it left out — `pageOf` with a
+// finite `most` is how the conversation's stretch is cut, and how a test pages
+// — because a cap that said nothing would lose rows without a word.
 //
 // Pure, and keyed to nothing but the rows it is handed.
 
@@ -23,10 +27,11 @@ export interface Budget {
   /**
    * Lines of the conversation.
    *
-   * Smaller than the notes budget and deliberately so: a conversation is read
-   * from the bottom, so what a phone needs is the last exchange and the one
-   * before it — and the whole of what has ever been said to Tade is the one
-   * collection that grows without bound while nobody is looking at it.
+   * The one list sent a stretch at a time, and deliberately so: a conversation
+   * is read from the bottom, so what a phone needs first is the last exchange —
+   * and the whole of what has ever been said to Tade is the one collection that
+   * grows without bound while nobody is looking at it. The rest is read back as
+   * the reader scrolls up (`earlier.ts`), never left in the window.
    */
   chat: number
   /** Requests handed to this machine, newest first. */
@@ -37,18 +42,6 @@ export interface Budget {
   runs: number
   /** Stored workflows. */
   workflows: number
-  /**
-   * How many request **bodies** cross on one snapshot.
-   *
-   * A second budget over the `intake` collection, and the only one of its kind
-   * here: every row goes out, and only this many carry the words somebody
-   * wrote. A body is `material` long and a machine with forty requests would
-   * otherwise put a third of a megabyte on every frame for a phone reading
-   * one of them — so the ones that carry theirs are the ones waiting on
-   * somebody (`intakeIn`), and every other row says *its words are not on this
-   * page*.
-   */
-  materials: number
   /**
    * Code points of one piece of free text somebody wrote.
    *
@@ -85,29 +78,33 @@ export interface Budget {
   warnings: number
 }
 
+/** No cap: the whole of a list goes out. */
+const WHOLE = Number.POSITIVE_INFINITY
+
 /**
- * The numbers, and they are a first guess rather than a measurement.
+ * The numbers. **Every list is whole**: a page holding the first twenty of
+ * ninety tasks, with a line saying seventy are elsewhere, is a page nobody can
+ * use from a phone — and a list on the wire is sent whole once and then only
+ * as the rows that moved (`delta.ts`), so the cost is the first snapshot.
+ * `packages/web/scripts/measure.ts` measures what that costs.
  *
- * `tasksPerProject: 60` is over twice what the owner's busiest project holds;
- * `notes: 200` is what the window already keeps. What makes them safe to be
- * wrong about is that every one of them is reported as a count of what was
- * left out, so being wrong is visible rather than silent. `packages/web/scripts/measure.ts`
- * is how they get replaced by measurements.
+ * `chat` is the conversation's newest stretch, the rest read back on scroll;
+ * `text`, `material` and `warnings` bound one piece of text or the freshness
+ * that rides on every frame, not a list.
  */
 export const BUDGET: Budget = {
-  projects: 40,
-  tasks: 400,
-  tasksPerProject: 60,
-  queue: 200,
-  findings: 100,
-  notes: 200,
-  plans: 20,
+  projects: WHOLE,
+  tasks: WHOLE,
+  tasksPerProject: WHOLE,
+  queue: WHOLE,
+  findings: WHOLE,
+  notes: WHOLE,
+  plans: WHOLE,
   chat: 120,
-  intake: 120,
-  sources: 20,
-  runs: 60,
-  workflows: 40,
-  materials: 8,
+  intake: WHOLE,
+  sources: WHOLE,
+  runs: WHOLE,
+  workflows: WHOLE,
   text: 600,
   material: 8_000,
   warnings: 10,

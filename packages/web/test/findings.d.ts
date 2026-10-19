@@ -85,7 +85,6 @@ declare module '*/assets/pages/findings-shape.js' {
   export function rowLine(row: Row): string
   export function readSaid(n: number, open: boolean): string
   export function verdictAside(row: Row): string
-  export function omittedSaid(omitted: number, held: number): string | null
 }
 
 /**

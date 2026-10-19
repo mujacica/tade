@@ -22,7 +22,6 @@ import {
   heroSaid,
   inboxPage,
   KINDS,
-  omittedSaid,
   provenanceOf,
   STANDS,
   settledSaid,
@@ -390,11 +389,7 @@ describe('the bar and the lines around the lead', () => {
     })
   })
 
-  it('says what the page was not sent, and that every figure is of what it holds', () => {
-    expect(omittedSaid(0, 12)).toBeNull()
-    expect(omittedSaid(3, 40)).toBe(
-      '3 more requests not sent to this device; every figure here is of the 40 it holds',
-    )
+  it('says how many settled requests a press shows or folds', () => {
     expect(settledSaid(1, false)).toBe('Show 1 settled request')
     expect(settledSaid(2, true)).toBe('Hide the 2 settled requests')
   })

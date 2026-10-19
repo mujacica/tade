@@ -374,23 +374,10 @@ a.nt-chip[href]:hover .nt-pill {
   transform: rotate(-90deg);
 }
 
-/* ── the folds and the older pages: a press the width of what it opens ────── */
+/* ── the folds: a press the width of what it opens ───────────────────────── */
 
 .nt-fold {
   width: 100%;
-}
-
-.nt-older {
-  display: grid;
-  gap: var(--s2);
-}
-
-.nt-older-press {
-  width: 100%;
-}
-
-.nt-older-said:empty {
-  display: none;
 }
 
 /* ── a tablet and wider: the picture beside the figure ─────────────────────── */

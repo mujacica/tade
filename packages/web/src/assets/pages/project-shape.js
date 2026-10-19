@@ -252,7 +252,9 @@ export function graphOf(store, project, clock = shortClockOf) {
       anchors.set(id, {
         id,
         label: shortName(id, project),
-        under: drawn === null ? 'not on this page' : drawn.word,
+        // Every task this device reads is on it, so one that is not is in a
+        // project it was not given, or gone: the agent page's own words.
+        under: drawn === null ? 'not on this device' : drawn.word,
         tone: drawn === null ? 'unknown' : (TONE_OF[drawn.tone] ?? 'quiet'),
         glyph: drawn === null ? '?' : drawn.glyph,
         href: taskPath(id),

@@ -1,6 +1,5 @@
 import type {
   InboxRow,
-  InboxState,
   SourceStanding,
   TaskState,
   Template,
@@ -76,35 +75,22 @@ export interface IntakeBody {
   problem: string | null
 }
 
-/** Which inbox states are somebody at this machine's to answer. */
-const WAITING: readonly InboxState[] = ['proposed', 'held', 'failure']
-
 /**
  * The requests, as the projection takes them.
  *
- * **The bodies are chosen rather than all carried**, and the choosing is the
- * part worth the words. A body is up to `budget.material` long and a machine
- * with forty requests would otherwise put a third of a megabyte on every
- * snapshot, for a phone that is reading one of them. So the ones that cross
- * are the requests somebody is being asked to decide about — waiting first,
- * then newest — and every other row says *its words are not on this page*
- * rather than drawing an empty request.
- *
- * `most` is the count, and it is the caller's: this file does not know what a
- * budget is.
+ * **Every row carries its body**, the words the window read when it folded the
+ * inbox: a request somebody opens on a phone is read there, whether or not it
+ * is waiting on anybody. What a device is shown of them is still its grant's
+ * (`material`), and they cross framed as material, never instruction.
  */
 export function intakeIn(rows: readonly InboxRow[], facts: IntakeFacts): IntakeIn[] {
-  const most = facts.most
-  const carried = new Set(chosen(rows, most))
-  return rows.map((row) =>
-    one(row, facts, { held: facts.bodies.get(row.item) ?? null, carried: carried.has(row.item) }),
-  )
+  return rows.map((row) => one(row, facts, facts.bodies.get(row.item) ?? null))
 }
 
 /**
  * What the window knows about the requests beyond their rows.
  *
- * Three maps and a count, and each of the three is a fold the window already
+ * Four maps, and each of them is a fold the window already
  * has: the bodies it read when it folded the inbox, the titles out of the
  * `watch_found` lines, and which effort each task named.
  *
@@ -129,29 +115,9 @@ export interface IntakeFacts {
   titles: ReadonlyMap<string, string>
   /** Task id → the effort it names, so a request can point at its run. */
   efforts: ReadonlyMap<string, string>
-  /** How many bodies may cross on one snapshot. The caller's budget. */
-  most: number
 }
 
-/** Which requests' bodies cross: waiting first, then newest, up to `most`. */
-function chosen(rows: readonly InboxRow[], most: number): string[] {
-  const waiting = rows.filter((row) => WAITING.includes(row.state))
-  const rest = rows.filter((row) => !WAITING.includes(row.state))
-  return [...waiting, ...rest]
-    .sort((a, b) => rank(a) - rank(b) || b.at - a.at)
-    .slice(0, Math.max(0, most))
-    .map((row) => row.item)
-}
-
-const rank = (row: InboxRow): number => (WAITING.includes(row.state) ? 0 : 1)
-
-function one(
-  row: InboxRow,
-  facts: IntakeFacts,
-  shown: { held: IntakeBody | null; carried: boolean },
-): IntakeIn {
-  const { carried } = shown
-  const body = carried ? shown.held : null
+function one(row: InboxRow, facts: IntakeFacts, body: IntakeBody | null): IntakeIn {
   return {
     item: row.item,
     source: row.source,
@@ -200,9 +166,7 @@ function one(
     who: row.requester,
     url: row.url,
     material: body?.body ?? '',
-    materialProblem: carried
-      ? (body?.problem ?? (body === null ? 'nothing here has read it yet' : ''))
-      : `its words are not on this page: ${facts.most} requests carry theirs, the ones waiting on somebody first`,
+    materialProblem: body?.problem ?? (body === null ? 'nothing here has read it yet' : ''),
     would: facts.would.get(row.item) ?? null,
   }
 }

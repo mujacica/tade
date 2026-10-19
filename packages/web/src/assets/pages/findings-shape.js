@@ -303,12 +303,3 @@ export function verdictAside(row) {
   const word = row.whose === 'confirmed' ? 'confirmed' : 'false positive'
   return row.since === null ? word : `${word} ${row.waitedSaid} ago`
 }
-
-/**
- * What the page says about the findings it does not hold: a page of the
- * projection is capped, and every figure here is of the ones it was sent.
- */
-export function omittedSaid(omitted, held) {
-  if (omitted <= 0) return null
-  return `${plural(omitted, 'more finding')} not sent to this device; every figure here is of the ${held} it holds`
-}

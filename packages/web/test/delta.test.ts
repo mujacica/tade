@@ -60,7 +60,6 @@ describe('a beat on which only the clock moved', () => {
         sources: 20,
         runs: 60,
         workflows: 40,
-        materials: 8,
         text: 600,
         material: 8_000,
         warnings: 10,

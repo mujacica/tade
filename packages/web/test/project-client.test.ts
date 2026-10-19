@@ -214,7 +214,7 @@ describe('the queue, as a graph', () => {
     expect(edges).toContain('sentry/away-auth-server>sentry/pairing:queued')
     expect(edges).toContain('acme/schema>sentry/pairing:null')
     const elsewhere = graph.nodes.find((one) => one.id === 'acme/schema')
-    expect(elsewhere).toMatchObject({ label: 'acme/schema', under: 'not on this page' })
+    expect(elsewhere).toMatchObject({ label: 'acme/schema', under: 'not on this device' })
     expect(elsewhere?.tone).toBe('unknown')
     // Each piece once, however many pieces wait on it.
     expect(new Set(graph.nodes.map((one) => one.id)).size).toBe(graph.nodes.length)

@@ -85,7 +85,7 @@ const DETAIL: Partial<MachineDetail> = {
         { task: 'tade/linear-door', parked: false, started: true, finished: false, held: null },
       ],
       material: null,
-      materialSays: 'not on this page: only the requests waiting on a decision carry their words',
+      materialSays: 'nothing here has read it yet',
       would: null,
     },
   ],

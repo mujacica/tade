@@ -91,7 +91,6 @@ declare module '*/assets/pages/inbox-shape.js' {
   export function calmSaid(page: Page): string
   export function groupSaid(group: Group): string
   export function settledSaid(n: number, open: boolean): string
-  export function omittedSaid(omitted: number, held: number): string | null
   export function emptySays(sources: readonly unknown[]): string
   export function troubleOf<T extends { state: string }>(sources: readonly T[]): T | undefined
   export function provenanceOf(row: unknown, may: boolean): Pair[]

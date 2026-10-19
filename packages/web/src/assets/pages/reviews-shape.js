@@ -297,12 +297,6 @@ export function settledSaid(n, open) {
   return `${open ? 'Hide' : 'Show'} ${plural(n, 'merged or closed review', 'merged or closed reviews')}`
 }
 
-/** What this device was not sent of the tasks, said rather than cut in silence; null where nothing. */
-export function omittedSaid(omitted) {
-  if (!(omitted > 0)) return null
-  return `${plural(omitted, 'task')} not sent to this device, so any review of ${omitted === 1 ? 'it' : 'theirs'} is not here`
-}
-
 /** A region's state, as `stateBoxIn` takes it, with this page's mark unless it says. */
 function stateOf(kind, title, line, icon = 'reviews') {
   return { kind, icon, title, line }
@@ -326,14 +320,7 @@ export function wholeOf(had, shut, page) {
   )
 }
 
-/**
- * The line under the lead: the moment a page that is not live was true at,
- * and what this device was not sent — or null where it has nothing to say.
- */
-export function leftSaid(frozen, asOf, omitted) {
-  const parts = [
-    frozen ? `as of ${shortClockOf(new Date(asOf).toISOString())}` : null,
-    omittedSaid(omitted),
-  ].filter(Boolean)
-  return parts.length === 0 ? null : parts.join(' · ')
+/** The line under the lead: the moment a page that is not live was true at, or null. */
+export function leftSaid(frozen, asOf) {
+  return frozen ? `as of ${shortClockOf(new Date(asOf).toISOString())}` : null
 }

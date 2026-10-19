@@ -688,9 +688,6 @@ function spendDetail() {
               line: `${countSaid(paid.unreported, 'agent', 'agents')} reported no spend`,
             }
           : null,
-        paid.partial
-          ? { key: 'partial', line: 'Some of its work is not on this page: this is a floor' }
-          : null,
       ].filter(Boolean)
       keyed(
         notes,

@@ -10,7 +10,6 @@ import {
   holdOf,
   leadSaid,
   leftSaid,
-  omittedSaid,
   reviewOf,
   reviewsPage,
   rowLine,
@@ -381,13 +380,9 @@ describe('the page’s own state', () => {
     expect(wholeOf(true, true, page([offered('a/one', 1)]))).toBeNull()
   })
 
-  it('says the moment a dead page was true at, and what was not sent, under the lead', () => {
-    expect(leftSaid(false, NOW, 0)).toBeNull()
-    expect(leftSaid(true, NOW, 0)).toMatch(/^as of \d\d:\d\d$/)
-    expect(leftSaid(false, NOW, 2)).toBe(
-      '2 tasks not sent to this device, so any review of theirs is not here',
-    )
-    expect(leftSaid(true, NOW, 1)).toMatch(/^as of \d\d:\d\d · 1 task not sent/)
+  it('says the moment a dead page was true at under the lead, and nothing else', () => {
+    expect(leftSaid(false, NOW)).toBeNull()
+    expect(leftSaid(true, NOW)).toMatch(/^as of \d\d:\d\d$/)
   })
 })
 
@@ -395,12 +390,6 @@ describe('the page’s own words', () => {
   it('folds what settled behind a press that says how many', () => {
     expect(settledSaid(1, false)).toBe('Show 1 merged or closed review')
     expect(settledSaid(3, true)).toBe('Hide 3 merged or closed reviews')
-  })
-
-  it('says what this device was not sent rather than cutting it in silence', () => {
-    expect(omittedSaid(0)).toBeNull()
-    expect(omittedSaid(1)).toBe('1 task not sent to this device, so any review of it is not here')
-    expect(omittedSaid(4)).toContain('4 tasks not sent')
   })
 
   it('gives every hold a text tone the sheet colours, and the unknown one grey', () => {
