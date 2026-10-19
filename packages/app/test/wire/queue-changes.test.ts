@@ -290,8 +290,16 @@ describe('changing work already queued', () => {
         },
       ],
     })
-    await until('the queue on screen', () =>
-      screenOf(terminal.written).some((row) => row.includes('SMART QUEUE')),
+    // Settled, not merely drawn: the two with nothing to wait on start at once
+    // and leave the queue, so its heading is on screen frames before the rows
+    // under it stop moving, and on a loaded machine later-step was not on the
+    // frame the press was aimed from.
+    await until(
+      'the queue settled',
+      () =>
+        client.runs().length === 2 &&
+        screenOf(terminal.written).some((row) => row.includes('SMART QUEUE (1)')),
+      SPAWNING_MS,
     )
     const menu = async (label: string) => {
       // With a space before it: the answer flashed after a change names app/later-step too.

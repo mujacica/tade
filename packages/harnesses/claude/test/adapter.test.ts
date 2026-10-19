@@ -1046,9 +1046,12 @@ describe('the conversation Tade draws itself, when the window closes', () => {
   const stubborn = (): string => {
     const bin = join(tmp('tade-claude-fake-'), 'claude')
     // Asked what it takes before it is started (`optionsOf`), it says nothing.
+    // Its pid is moved into place whole: `echo $$ > pid` is a file that exists
+    // before the number is in it, and an empty one read as pid 0 — which
+    // `kill(0, 0)` finds alive for ever, because it is this test's own group.
     writeFileSync(
       bin,
-      '#!/bin/sh\n[ "$1" = "--help" ] && exit 0\necho $$ > "$0.pid"\nexec sleep 600\n',
+      '#!/bin/sh\n[ "$1" = "--help" ] && exit 0\necho $$ > "$0.pid-"\nmv "$0.pid-" "$0.pid"\nexec sleep 600\n',
     )
     chmodSync(bin, 0o755)
     return bin

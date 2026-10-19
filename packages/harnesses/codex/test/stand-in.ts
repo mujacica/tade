@@ -23,7 +23,9 @@ export function stand(answers: { hello?: string; read?: string }): string {
       `#!${process.execPath}`,
       "const fs = require('node:fs')",
       "const beside = (what) => process.argv[1] + '.' + what",
-      "fs.writeFileSync(beside('pid'), String(process.pid))",
+      // Moved into place whole, so nobody reads a pid file with no pid in it yet.
+      "fs.writeFileSync(beside('pid-'), String(process.pid))",
+      "fs.renameSync(beside('pid-'), beside('pid'))",
       "if (process.argv[2] !== 'app-server') process.exit(2)",
       "const lines = require('node:readline').createInterface({ input: process.stdin })",
       'const say = (id, body) => body && console.log(JSON.stringify({ id, ...JSON.parse(body) }))',

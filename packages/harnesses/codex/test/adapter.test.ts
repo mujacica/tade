@@ -1087,7 +1087,10 @@ describe('a turn Tade draws itself, when the window closes', () => {
   /** A `codex` whose turn never ends by itself, and which writes down where it is. */
   const stubborn = (): string => {
     const bin = join(tmp('tade-codex-fake-'), 'codex')
-    writeFileSync(bin, '#!/bin/sh\necho $$ > "$0.pid"\nexec sleep 600\n')
+    // Its pid is moved into place whole: `echo $$ > pid` is a file that exists
+    // before the number is in it, and an empty one read as pid 0 — which
+    // `kill(0, 0)` finds alive for ever, because it is this test's own group.
+    writeFileSync(bin, '#!/bin/sh\necho $$ > "$0.pid-"\nmv "$0.pid-" "$0.pid"\nexec sleep 600\n')
     chmodSync(bin, 0o755)
     return bin
   }
