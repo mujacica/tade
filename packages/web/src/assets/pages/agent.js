@@ -213,6 +213,7 @@ export function taskScreen(where, ctx) {
     },
     leave() {
       pane?.leave()
+      said.leave()
     },
   }
 }

@@ -17,6 +17,11 @@ import { until } from './browser-until.ts'
 // - that scrolling up lets go — a line arriving then leaves the view where
 //   the reader put it — and draws the press back down;
 // - that the press goes back to the newest line, hides, and follows again.
+//
+// And `back`: a conversation longer than one page of the snapshot is read
+// back to its first line as the reader scrolls up — each page put above
+// without moving the line they were looking at, every line there once and in
+// the order it was said, and no line saying the rest is somewhere else.
 
 type Verdict = 'pass' | 'fail' | 'unrun'
 type Found = (check: string, where: string, verdict: Verdict, what: string) => void
@@ -34,8 +39,12 @@ interface Page {
   }
 }
 
-/** How many lines of Tade's own news go before the fixture's, so there is a conversation to scroll. */
-const FILLER = 40
+/**
+ * How many lines of Tade's own news go before the fixture's: more than one
+ * page of the snapshot (`BUDGET.chat`), so the page has to read back through
+ * the rest of it.
+ */
+const FILLER = 300
 
 /**
  * The conversation the harness serves: forty lines of news and calls, then the
@@ -106,6 +115,8 @@ export async function chatAt(
   at: string,
   arrive: () => Promise<void>,
   found: Found,
+  /** Every line's id the machine holds of this conversation now, oldest first. */
+  held: () => readonly string[],
 ): Promise<void> {
   const where = `the conversation @ ${at}`
   const read = async () => (await page.evaluate(WHERE)) as Where
@@ -137,13 +148,20 @@ export async function chatAt(
       )
     })
 
+    await backAt(page, where, found, held)
+
     // Scrolled up, as a person scrolls — the wheel over the conversation —
     // it lets go: the press shows, and what arrives moves nothing.
     const box = (await page.evaluate(
       `(() => { const r = document.querySelector('main ul.chat').getBoundingClientRect(); return { x: r.left + r.width / 2, y: Math.max(r.top, 0) + 120 } })()`,
     )) as { x: number; y: number }
     await page.mouse.move(box.x, box.y)
-    await page.mouse.wheel(0, -100_000)
+    // A long conversation is more than one turn of the wheel: as many as it takes.
+    for (let notch = 0; notch < 40; notch += 1) {
+      await page.mouse.wheel(0, -100_000)
+      await page.waitForTimeout(50)
+      if ((await read()).top <= 48) break
+    }
     await until(page, `(${WHERE}).press`, 5_000).catch(() => {
       throw new Error('scrolled up and no press back to the newest line')
     })
@@ -173,5 +191,128 @@ export async function chatAt(
     )
   } catch (problem) {
     found('chat', where, 'fail', said(problem))
+  }
+}
+
+/** The ids of the lines drawn, in the order they are drawn, and whether a page is being read. */
+const DRAWN = `(() => ({
+  ids: [...document.querySelectorAll('main ul.chat > li')].map((li) => li.getAttribute('data-key')),
+  reading: [...document.querySelectorAll('main .chat-reading')].some((one) => !one.hidden),
+  said: document.querySelector('main').textContent,
+}))()`
+
+/**
+ * Scroll up to near the top, as a script and not the wheel, and note the line
+ * at the top of the view and where it is — in the same task, so before any
+ * answer to the read this scroll asks for can have arrived.
+ */
+const NEAR_THE_TOP = `(() => {
+  const main = document.querySelector('main')
+  main.scrollTop = 120
+  const top = main.getBoundingClientRect().top
+  const rows = [...document.querySelectorAll('main ul.chat > li')]
+  const li = rows.find((one) => one.getBoundingClientRect().top >= top)
+  window.__anchor = { key: li.getAttribute('data-key'), y: li.getBoundingClientRect().top - top, lines: rows.length }
+  return window.__anchor
+})()`
+
+/** Where the noted line is now, from the top of the view. */
+const ANCHOR_NOW = `(() => {
+  const li = document.querySelector('main ul.chat > li[data-key="' + window.__anchor.key + '"]')
+  const top = document.querySelector('main').getBoundingClientRect().top
+  return li === null ? null : li.getBoundingClientRect().top - top
+})()`
+
+/**
+ * The screen at rest: built, at its newest line, and done rising in — a row
+ * measured while the screen's own entrance still moves it would read as the
+ * view having moved.
+ */
+const AT_REST = `(() => {
+  const main = document.querySelector('main')
+  const screen = main.querySelector('.enter')
+  const moving = screen !== null && screen.getAnimations().some((one) => one.playState === 'running')
+  return !moving && main.scrollHeight - main.scrollTop - main.clientHeight <= 48
+})()`
+
+interface Drawn {
+  ids: string[]
+  reading: boolean
+  said: string
+}
+
+/** The whole of `back` at one width: read back to the first line, the view held still. */
+async function backAt(
+  page: Page,
+  where: string,
+  found: Found,
+  held: () => readonly string[],
+): Promise<void> {
+  try {
+    const drawn = async () => (await page.evaluate(DRAWN)) as Drawn
+    const opened = await drawn()
+    const all = held()
+    if (opened.ids.length >= all.length) {
+      found(
+        'back',
+        where,
+        'unrun',
+        `all ${all.length} lines came on the snapshot: nothing to read back`,
+      )
+      return
+    }
+    // One page read back, and the line the reader was on did not move.
+    await until(page, AT_REST, 5_000)
+    await page.waitForTimeout(200)
+    const anchor = (await page.evaluate(NEAR_THE_TOP)) as { key: string; y: number; lines: number }
+    await until(
+      page,
+      `document.querySelectorAll('main ul.chat > li').length > ${anchor.lines}`,
+      5_000,
+    ).catch(() => {
+      throw new Error(
+        `scrolled near the top of ${anchor.lines} lines and nothing before them was read`,
+      )
+    })
+    await page.waitForTimeout(100)
+    const moved = (await page.evaluate(ANCHOR_NOW)) as number | null
+    if (moved === null) throw new Error('the line the reader was on is gone after reading back')
+    if (Math.abs(moved - anchor.y) > 2) {
+      throw new Error(
+        `reading back moved the line the reader was on by ${Math.round(moved - anchor.y)}px`,
+      )
+    }
+    // Then the wheel, as a person scrolls, until it reaches the first line said.
+    const box = (await page.evaluate(
+      `(() => { const r = document.querySelector('main ul.chat').getBoundingClientRect(); return { x: r.left + r.width / 2, y: Math.max(r.top, 0) + 120 } })()`,
+    )) as { x: number; y: number }
+    await page.mouse.move(box.x, box.y)
+    for (let notch = 0; notch < 80; notch += 1) {
+      const now = await drawn()
+      if (now.ids.length >= all.length && !now.reading) break
+      await page.mouse.wheel(0, -2_000)
+      await page.waitForTimeout(60)
+    }
+    const end = await drawn()
+    const missing = all.filter((id) => !end.ids.includes(id))
+    if (missing.length > 0) {
+      throw new Error(
+        `${missing.length} of ${all.length} lines never drawn, the first ${missing[0]}`,
+      )
+    }
+    if (end.ids.join('\n') !== all.join('\n')) {
+      throw new Error('every line is drawn, but not once each in the order it was said')
+    }
+    if (/earlier|in the window/.test(end.said)) {
+      throw new Error('a line says some of the conversation is elsewhere')
+    }
+    found(
+      'back',
+      where,
+      'pass',
+      `all ${all.length} lines read back from ${opened.ids.length} on the snapshot, the view held still`,
+    )
+  } catch (problem) {
+    found('back', where, 'fail', said(problem))
   }
 }

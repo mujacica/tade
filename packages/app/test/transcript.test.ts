@@ -9,6 +9,7 @@ import {
   fromTurn,
   interrupted,
   problem,
+  READ_FROM_END,
   REPEAT_MS,
   said,
   suggest,
@@ -470,7 +471,7 @@ describe('what was said before the window opened', () => {
     )
   })
 
-  it('keeps what was scrolled back for, and stops offering more once anything falls off the top', () => {
+  it('keeps what was scrolled back for, and offers what falls off the top again, read from the record’s end', () => {
     const many = Array.from(
       { length: TRANSCRIPT_MAX + 20 },
       (_, n): HistoryItem => ({
@@ -484,7 +485,9 @@ describe('what was said before the window opened', () => {
     const next = said(back, 'new', 999)
     expect(next.entries).toHaveLength(TRANSCRIPT_MAX + 20)
     expect(next.entries.at(-1)).toMatchObject({ text: 'new' })
-    expect(next.earlier).toBeNull()
+    // No cursor the record gave joins up with what is shown any more, so the
+    // next look back reads from its end, past what is still here.
+    expect(next.earlier).toEqual({ cursor: READ_FROM_END, asking: false })
     expect(said(emptyTranscript(), 'x', 1).earlier).toBeNull()
   })
 })

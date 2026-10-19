@@ -1,5 +1,6 @@
 import { TaskState } from '@tade/core'
-import { type TurnIn, turnsOf } from './conversation.ts'
+import type { Places } from './command.ts'
+import { NOWHERE, type TurnIn, turnsOf } from './conversation.ts'
 import { pathIn } from './fields.ts'
 import type { TaskIn } from './input.ts'
 import type {
@@ -8,6 +9,7 @@ import type {
   AgentOut,
   CONVERSATION_WHY,
   SCREEN_WHY,
+  TurnsPage,
 } from './protocol.ts'
 import { PROTOCOL_VERSION } from './protocol.ts'
 import { has, type Reach, sees } from './reach.ts'
@@ -73,8 +75,12 @@ export type ConversationIn =
       kind: 'read'
       /** The newest turns, oldest first. */
       turns: readonly TurnIn[]
-      /** Whether the record goes back further. */
-      earlier: boolean
+      /**
+       * Where the turns before these end in its record — the harness's own
+       * cursor, handed back as `before` for the page before — or null where
+       * these reach its beginning.
+       */
+      before: string | null
       /** Moves exactly when the turns did, so a page that has these is sent nothing. */
       rev: string
     }
@@ -93,6 +99,12 @@ export interface AgentIn {
    * environment every agent inherits. Taken off the screen exactly.
    */
   known: readonly string[]
+  /**
+   * Where a path in a call's brief is shortened to (`briefOut`): where the
+   * task works, Tade's home and the home directory — the conversation with
+   * Tade's own rule. Absent, every path is its last name.
+   */
+  places?: Places
 }
 
 /** How much of one agent an answer carries. */
@@ -199,7 +211,7 @@ export function agentOf(
   if (!has(reach, 'lanes')) {
     return { ...base, screen: null, why: 'not granted', conversation: null, unread: 'not granted' }
   }
-  const talked = conversationOut(held?.conversation, held?.known ?? [], seen)
+  const talked = conversationOut(held?.conversation, held?.known ?? [], seen, held?.places)
   // Nothing held and nothing running is *no agent*; nothing held and something
   // running is a window that has not read it yet, which the next beat answers.
   const idle = row.agents === 0 && row.lanes === 0
@@ -230,23 +242,65 @@ function conversationOut(
   held: ConversationIn | undefined,
   known: readonly string[],
   seen: string | null,
+  places: Places = NOWHERE,
 ): Pick<AgentOut, 'conversation' | 'unread'> {
   const talk = held ?? { kind: 'none', why: 'not read yet' }
   if (talk.kind === 'none') return { conversation: null, unread: talk.why }
+  const before = cursorOut(talk.before)
   if (seen === talk.rev) {
-    return {
-      conversation: { rev: talk.rev, turns: null, earlier: talk.earlier, taken: 0 },
-      unread: null,
-    }
+    return { conversation: { rev: talk.rev, turns: null, before, taken: 0 }, unread: null }
   }
-  const clean = turnsOf(talk.turns, known)
+  const clean = turnsOf(talk.turns, known, places)
   return {
-    conversation: {
-      rev: talk.rev,
-      turns: clean.turns,
-      earlier: talk.earlier || talk.turns.length > clean.turns.length,
-      taken: clean.taken,
-    },
+    conversation: { rev: talk.rev, turns: clean.turns, before, taken: clean.taken },
     unread: null,
+  }
+}
+
+/**
+ * What a record's cursor has to look like to leave the machine, or be asked
+ * with: a harness's is a byte offset into its record (`historyIn`), and
+ * anything else is answered as the beginning rather than carried.
+ */
+export const CURSOR = /^\d{1,15}$/
+
+const cursorOut = (cursor: string | null): string | null =>
+  cursor !== null && CURSOR.test(cursor) ? cursor : null
+
+/** What the window read of an agent's record before a cursor, or why it could not. */
+export type EarlierIn = { turns: readonly TurnIn[]; before: string | null } | 'unread'
+
+/**
+ * The turns before a cursor, as `GET /api/agent/:project/:task/earlier`
+ * answers them: within this device's reach and under `lanes`, as its
+ * conversation is, each whole and cleaned by the same rule.
+ */
+export function turnsBefore(
+  task: string,
+  here: boolean,
+  reach: Reach,
+  read: EarlierIn | null,
+  known: readonly string[],
+  places: Places = NOWHERE,
+): TurnsPage {
+  const none = (why: TurnsPage['why']): TurnsPage => ({
+    v: PROTOCOL_VERSION,
+    task,
+    turns: [],
+    before: null,
+    taken: 0,
+    why,
+  })
+  if (!here) return none('not here')
+  if (!has(reach, 'lanes')) return none('not granted')
+  if (read === null || read === 'unread') return none('unread')
+  const clean = turnsOf(read.turns, known, places)
+  return {
+    v: PROTOCOL_VERSION,
+    task,
+    turns: clean.turns,
+    before: cursorOut(read.before),
+    taken: clean.taken,
+    why: null,
   }
 }

@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { StillDocument, type StillElement } from '../scripts/still-dom.ts'
+import { answersWith } from '../src/assets/conversation.js'
 import { deskParts } from '../src/assets/desk.js'
+import { linesKept, NEAR_TOP, nearTop } from '../src/assets/earlier.js'
 import { atFoot } from '../src/assets/follow.js'
 import { toolNamed } from '../src/assets/glyphs.js'
 import { applySnapshot, emptyStore } from '../src/assets/store.js'
-import { callDoing, doingOf, lineMark, talkScreen } from '../src/assets/talk.js'
+import { callDoing, doingOf, lineMark, offerToAsk, talkScreen } from '../src/assets/talk.js'
 import type { ChatIn } from '../src/input.ts'
 import { projector } from '../src/reading.ts'
 import { input, NOW, reach, talk } from './fixtures.ts'
@@ -182,16 +184,102 @@ describe('a line of the conversation', () => {
     expect(last.textContent).toContain('git log --oneline')
   })
 
-  it('never draws the earlier lines as a line over the box', () => {
-    const many = Array.from({ length: 140 }, (_, n) => line(n, { kind: 'tade', text: `line ${n}` }))
+  it('reads back to the first line said, with nothing saying it is elsewhere', async () => {
+    // Longer than one page of the snapshot, so the rest is read as it is reached.
+    const all = Array.from({ length: 300 }, (_, n) => line(n, { kind: 'tade', text: `line ${n}` }))
+    const made = projector(
+      input({ talk: talk({ lines: all }), reach: reach(['talk', 'lanes']) }),
+      NOW,
+    )
+    const store = emptyStore()
+    expect(applySnapshot(store, made.snapshot())).toBeNull()
+    const asked: string[] = []
+    answersWith(async (_method, path) => {
+      asked.push(path)
+      const before = new URL(path, 'http://here').searchParams.get('before') ?? ''
+      return { status: 200, body: made.chat(before) }
+    })
+    const main = doc.createElement('main')
     const screen = talkScreen(ctx)
-    screen.update(view(storeOf(many)))
-    const dock = screen.node.querySelector('.composer-dock') as StillElement
-    expect(dock.textContent).not.toMatch(/earlier/)
-    // Said once, at the top of the conversation, where scrolling up reaches it.
-    const older = screen.node.querySelector('.chat-earlier') as StillElement
-    expect(older.hidden).toBe(false)
-    expect(older.textContent).toMatch(/^↑ \d+ earlier/)
+    main.append(screen.node)
+    screen.update(view(store))
+    // Nothing to scroll in a document with no layout: it reads on until the beginning.
+    for (let wait = 0; wait < 20 && asked.length < 2; wait += 1) await Promise.resolve()
+    await new Promise((done) => setTimeout(done, 0))
+    const words = (screen.node.querySelectorAll('ul.chat > li .said') as StillElement[]).map(
+      (one) => one.textContent,
+    )
+    expect(words).toEqual(all.map((one) => one.text))
+    expect(asked[0]).toBe(`/api/chat?before=${encodeURIComponent(all[180]?.id ?? '')}`)
+    expect(asked).toHaveLength(2)
+    expect(screen.node.textContent).not.toMatch(/earlier|in the window/)
+  })
+
+  it('keeps every line it was sent as the newest stretch moves on', () => {
+    const kept = linesKept<{ id: string }>((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    kept.newer([{ id: 'b' }, { id: 'c' }])
+    kept.older([{ id: 'a' }])
+    kept.newer([{ id: 'c' }, { id: 'd' }])
+    expect(kept.all().map((one) => one.id)).toEqual(['a', 'b', 'c', 'd'])
+    expect(kept.first()?.id).toBe('a')
+    // An agent's turns keep the order they arrived in: read back above, new below.
+    const turns = linesKept<{ id: string }>()
+    turns.newer([{ id: 'c:9' }, { id: 'reply:5#0' }])
+    turns.older([{ id: 'sent:1#0' }, { id: 'c:9' }])
+    turns.newer([{ id: 'reply:5#0' }, { id: 'c:2' }])
+    expect(turns.all().map((one) => one.id)).toEqual(['sent:1#0', 'c:9', 'reply:5#0', 'c:2'])
+  })
+
+  it('counts only going up near the top as reaching it', () => {
+    expect(nearTop(0)).toBe(true)
+    expect(nearTop(NEAR_TOP)).toBe(true)
+    expect(nearTop(NEAR_TOP + 1)).toBe(false)
+  })
+
+  it('draws Tade’s own answer bright, its news quiet, and each kind the strip draws apart', () => {
+    const lines = [
+      line(0, { kind: 'own', text: 'Started **tade/one**.' }),
+      line(1, { kind: 'tade', text: 'started tade/one: there was room for it' }),
+      line(2, { kind: 'routed', text: 'start · tade/one' }),
+      line(3, {
+        kind: 'suggestion',
+        text: 'Ask what is blocking it?',
+        ask: 'what is blocking tade/one?',
+      }),
+    ]
+    expect(lines.map((one) => lineMark(one).glyph)).toEqual(['●', '●', '→', '?'])
+    const screen = talkScreen(ctx)
+    screen.update(view(storeOf(lines, { mine: true })))
+    const items = screen.node.querySelectorAll('ul.chat > li') as StillElement[]
+    expect(
+      items.map((li) =>
+        ['own', 'tade', 'routed', 'suggestion'].find((k) => li.classList.contains(`is-${k}`)),
+      ),
+    ).toEqual(['own', 'tade', 'routed', 'suggestion'])
+    // Tade's own answer is markdown, as the model's is.
+    expect(items[0]?.querySelector('.said strong')?.textContent).toBe('tade/one')
+    const offer = items[3]?.querySelector('.chat-offer') as StillElement
+    expect(offer.hidden).toBe(false)
+    expect(items[0]?.querySelector('.chat-offer')?.hidden).toBe(true)
+  })
+
+  it('puts what a suggestion offers to ask in the box, for Send to send', () => {
+    const screen = talkScreen(ctx)
+    screen.update(
+      view(
+        storeOf([line(0, { kind: 'suggestion', text: 'Ask?', ask: 'what now?' })], { mine: true }),
+      ),
+    )
+    doc.body.append(screen.node)
+    ;(screen.node.querySelector('.chat-offer') as StillElement).click()
+    expect((screen.node.querySelector('textarea') as StillElement & { value: string }).value).toBe(
+      'what now?',
+    )
+    // Nothing to offer is nothing put in the box.
+    offerToAsk('')
+    expect((screen.node.querySelector('textarea') as StillElement & { value: string }).value).toBe(
+      'what now?',
+    )
   })
 })
 

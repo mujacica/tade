@@ -123,6 +123,12 @@ export const CHECKS = [
   'frame',
   'palette',
   'lanes',
+  // The conversation with Tade read as a chat (`browser-chat.ts`): it opens
+  // and follows at the newest line, lets go when scrolled up, and — `back` —
+  // a conversation longer than a page reads back to its first line, the view
+  // held still, with nothing missing and nothing saying it is elsewhere.
+  'chat',
+  'back',
   // The three a control owns, and none of them is answerable offline. A tap is
   // a real pointer on a real target; a keyboard is a real Tab order and a real
   // Enter on a `<button>`; and what somebody typed surviving a refusal is a

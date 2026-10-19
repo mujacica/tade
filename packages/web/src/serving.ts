@@ -9,6 +9,7 @@ import type { WebConfiguring } from './configuring.ts'
 import type { WebConnecting } from './connected.ts'
 import type { WebDocument } from './document.ts'
 import type { WebDrafting } from './drafting.ts'
+import type { WebEarlier } from './earlier.ts'
 import type { WebHooks } from './hooked.ts'
 import type { WebMachine } from './machine.ts'
 import type { WebOpening } from './opened.ts'
@@ -257,6 +258,12 @@ export interface ServerOptions {
    * (`answered.ts`). Absent, both answer routes say the record could not be read.
    */
   answers?: WebAnswers
+  /**
+   * A conversation's record read further back than a page holds
+   * (`earlier.ts`). Absent, Tade's conversation is paged through what the
+   * window holds and an agent's says its record could not be read.
+   */
+  earlier?: WebEarlier
   /**
    * This machine's public name's records, looked at now, for an owner's window
    * on another machine whose Settings › Remotes is open on it (`records.ts`).

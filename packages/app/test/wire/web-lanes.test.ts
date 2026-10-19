@@ -213,7 +213,7 @@ describe('the keys a screen is scrubbed of', () => {
 
 describe('its conversation', () => {
   /** A record that answers what it is told to, and counts every read. */
-  function recorded(answer: () => Promise<{ turns: TurnIn[]; earlier: boolean }>) {
+  function recorded(answer: () => Promise<{ turns: TurnIn[]; before: string | null }>) {
     let reads = 0
     let now = 1_000_000
     const troubles: string[] = []
@@ -240,7 +240,7 @@ describe('its conversation', () => {
   const said = (text: string): TurnIn => ({ kind: 'reply', text, at: 1 })
 
   it('is read on the beat while somebody looks, and not at all while nobody does', async () => {
-    const one = recorded(() => Promise.resolve({ turns: [said('hello')], earlier: false }))
+    const one = recorded(() => Promise.resolve({ turns: [said('hello')], before: null }))
     for (let n = 0; n < 10; n += 1) one.lanes.beat(one.at())
     expect(one.reads()).toBe(0)
     one.lanes.watch('dev', 'app/migration', one.at())
@@ -248,12 +248,12 @@ describe('its conversation', () => {
     one.lanes.beat(one.at())
     await tick()
     expect(one.reads()).toBe(1)
-    expect(one.lanes.talkFor('app/migration')).toMatchObject({ kind: 'read', earlier: false })
+    expect(one.lanes.talkFor('app/migration')).toMatchObject({ kind: 'read', before: null })
   })
 
   it('moves its revision only when the turns moved', async () => {
     let turns = [said('hello')]
-    const one = recorded(() => Promise.resolve({ turns, earlier: false }))
+    const one = recorded(() => Promise.resolve({ turns, before: null }))
     one.lanes.watch('dev', 'app/migration', one.at())
     one.lanes.beat(one.at())
     await tick()
@@ -273,7 +273,7 @@ describe('its conversation', () => {
     const one = recorded(() =>
       fail
         ? Promise.reject(new Error('EACCES'))
-        : Promise.resolve({ turns: [said('hi')], earlier: false }),
+        : Promise.resolve({ turns: [said('hi')], before: null }),
     )
     one.lanes.watch('dev', 'app/migration', one.at())
     one.lanes.beat(one.at())
@@ -296,7 +296,7 @@ describe('its conversation', () => {
   })
 
   it('keeps nothing once nobody is looking', async () => {
-    const one = recorded(() => Promise.resolve({ turns: [said('hi')], earlier: false }))
+    const one = recorded(() => Promise.resolve({ turns: [said('hi')], before: null }))
     one.lanes.watch('dev', 'app/migration', one.at())
     one.lanes.beat(one.at())
     await tick()

@@ -15,6 +15,7 @@ import {
   type Workspace,
   writeSetting,
 } from '@tade/core'
+import type { HistoryAsk, HistoryPage } from '@tade/harnesses-core'
 import {
   allowDevice,
   digestOf,
@@ -34,6 +35,7 @@ import { type AppState, initialState } from '../../src/model.ts'
 import { awayPanel } from '../../src/panels/away/state.ts'
 import type { Transcript } from '../../src/transcript.ts'
 import type { Wiring } from '../../src/wire/context.ts'
+import { Earlier } from '../../src/wire/earlier.ts'
 import { Away } from '../../src/wire/web.ts'
 import { type FactoryHeld, nothingHandedOver } from '../../src/wire/web-beat.ts'
 import { capabilities } from './away-capabilities.ts'
@@ -99,6 +101,8 @@ export async function freePort(): Promise<number> {
 export interface Machine {
   away: Away
   home: string
+  /** The project's checkout, which is where the world says its tasks work. */
+  root: string
   client: Workbench
   task: string
   port: number
@@ -208,6 +212,14 @@ export interface MachineOptions {
   realKeys?: boolean
   /** What the harnesses say of their sign-ins, where a test needs an answer. */
   accounts?: () => Promise<AccountView[]>
+  /**
+   * The orchestrator's record, read back a page at a time, where a test reads
+   * the conversation further back than the window holds — through the
+   * window's own scrollback (`Earlier`), as the heart wires it.
+   */
+  history?: (ask: HistoryAsk) => Promise<HistoryPage>
+  /** An agent's record, a page at a time, where a test reads its conversation. */
+  agentHistory?: (task: string, ask: HistoryAsk) => Promise<HistoryPage>
 }
 
 /** Off here unless a test turns one on, though each is on by default: nothing rides along. */
@@ -237,7 +249,10 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     intent: 'the migration keeps failing',
   })
 
-  let state: AppState = initialState()
+  let state: AppState =
+    over.transcript === undefined
+      ? initialState()
+      : { ...initialState(), transcript: over.transcript }
   const news: string[] = []
   const config =
     over.config?.({ root: repo.root, port }) ??
@@ -332,6 +347,7 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
   const wire = {
     opts: {
       home,
+      ...(over.history === undefined ? {} : { history: over.history }),
       get config() {
         return held
       },
@@ -352,6 +368,7 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
             return () => [...agents].map(([task, harness]) => ({ task, harness, run: task }))
           }
           if (name === 'accounts' && over.accounts !== undefined) return over.accounts
+          if (name === 'agentHistory' && over.agentHistory !== undefined) return over.agentHistory
           if (name === 'capabilitiesOf') {
             return () => capabilities(over.cannotSteer === true ? 'none' : 'live')
           }
@@ -394,7 +411,9 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
   const said: { text: string; device: string }[] = []
   const armed: Arm[] = []
   const theirs: string[] = []
+  const earlier = new Earlier(wire)
   const away = new Away(wire, {
+    ...(over.history === undefined ? {} : { earlier: () => earlier.more() }),
     decided: () => {},
     news: (one) => news.push(one),
     talk: {
@@ -446,6 +465,7 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
   const made: Machine = {
     away,
     home,
+    root: repo.root,
     client,
     task: first.id,
     port,

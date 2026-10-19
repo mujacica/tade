@@ -156,7 +156,7 @@ describe('an agent’s conversation, on its own answer', () => {
     expect(turns.map((one) => one.outcome)).toEqual([null, 'ok', 'failed', null])
     expect(turns[2]?.call).toMatchObject({ answered: 'words' })
     expect(turns[3]?.text?.words).toContain('| `snapshot.ts` | 120 |')
-    expect(answer.conversation?.earlier).toBe(true)
+    expect(answer.conversation?.before).toBe('2048')
     expect(answer.conversation?.taken).toBeGreaterThan(0)
     const said = JSON.stringify(answer)
     for (const one of SECRETS) expect(said, one).not.toContain(one)
@@ -164,7 +164,7 @@ describe('an agent’s conversation, on its own answer', () => {
 
   it('is sent with no turns to a page that already holds that revision', () => {
     const answer = agentOf(reach(['lanes']), tasks, TASK, agentHeld(), undefined, '7')
-    expect(answer.conversation).toEqual({ rev: '7', turns: null, earlier: true, taken: 0 })
+    expect(answer.conversation).toEqual({ rev: '7', turns: null, before: '2048', taken: 0 })
     const moved = agentOf(reach(['lanes']), tasks, TASK, agentHeld(), undefined, '6')
     expect(moved.conversation?.turns?.length).toBe(4)
   })
@@ -189,7 +189,7 @@ describe('an agent’s conversation, on its own answer', () => {
       reach(['lanes']),
       tasks,
       TASK,
-      agentHeld({ conversation: { kind: 'read', turns: [], earlier: false, rev: '1' } }),
+      agentHeld({ conversation: { kind: 'read', turns: [], before: null, rev: '1' } }),
     )
     expect(quiet.conversation?.turns).toEqual([])
     expect(quiet.unread).toBeNull()
@@ -215,14 +215,15 @@ describe('an agent’s conversation, on its own answer', () => {
     expect(odd?.id).toBe('tool:1#0')
   })
 
-  it('carries the newest turns and no more', () => {
+  it('carries every turn of a page of its record, none cut', () => {
     const many = Array.from({ length: TURNS.turns + 10 }, (_, n) => ({
       kind: 'reply' as const,
       text: `turn ${n}`,
       at: n + 1,
     }))
     const kept = turnsOf(many, []).turns
-    expect(kept.length).toBe(TURNS.turns)
+    expect(kept.length).toBe(TURNS.turns + 10)
+    expect(kept[0]?.text?.words).toBe('turn 0')
     expect(kept.at(-1)?.text?.words).toBe(`turn ${TURNS.turns + 9}`)
   })
 })

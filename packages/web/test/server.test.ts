@@ -3,12 +3,15 @@ import { createServer } from 'node:http'
 import { join, relative } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { allowDevice, grantDevice } from '../src/devices.ts'
+import type { WebEarlier } from '../src/earlier.ts'
 import { COMPANIONS, CSP } from '../src/headers.ts'
+import { ChatPageSchema, TurnsPageSchema } from '../src/protocol.ts'
 import { BODY_MAX, CSRF_HEADER, pathOf, queryOf } from '../src/request.ts'
 import type { Told } from '../src/server.ts'
 import { webServer } from '../src/server.ts'
 import { listenerAt, listenOn } from '../src/surface.ts'
 import { Tickets } from '../src/tickets.ts'
+import { conversationHeld, HELD_KEY } from './fixtures.ts'
 import {
   actingStub,
   ask,
@@ -368,6 +371,97 @@ describe("one call's whole answer, read when it is opened", () => {
     expect(
       await opened('/api/agent/sentry/away-projection/answer/%3Cscript%3E', ['lanes']),
     ).toMatchObject({ says: 'not here', call: '' })
+  })
+})
+
+describe('a conversation read further back than a page holds', () => {
+  const FOURTH = '2026-10-08T14:00:03.000Z#0'
+  const turns = conversationHeld().turns
+  const made = () => {
+    const asked = { talk: [] as string[], agent: [] as string[] }
+    const earlier: WebEarlier = {
+      talk: async (before) => {
+        asked.talk.push(before)
+        return before !== '2026-10-08T14:00:01.000Z#0'
+      },
+      agent: async (task, before) => {
+        asked.agent.push(`${task} ${before}`)
+        return before === '9' ? 'unread' : { turns, before: before === '2048' ? '512' : null }
+      },
+      known: () => [HELD_KEY],
+      places: () => ({ work: null, tade: null, home: null }),
+    }
+    return { asked, earlier }
+  }
+  const opened = async (path: string, grants: readonly string[], earlier: WebEarlier) => {
+    const one = await start({}, { owned: { earlier } })
+    const paired = await pair(one)
+    await grantDevice(one.home, paired.device, grants as never, new Date())
+    return said(await ask(one, path, { headers: { cookie: paired.cookie } }))
+  }
+
+  it('answers Tade’s lines before one the page holds, after the window was asked to hold them', async () => {
+    const { asked, earlier } = made()
+    const got = await opened(`/api/chat?before=${encodeURIComponent(FOURTH)}`, ['talk'], earlier)
+    expect(ChatPageSchema.parse(got).rows.map((row) => row.id)).toEqual([
+      '2026-10-08T14:00:00.000Z#0',
+      '2026-10-08T14:00:01.000Z#0',
+      '2026-10-08T14:00:02.000Z#0',
+    ])
+    expect(got).toMatchObject({ earlier: false, why: null })
+    expect(asked.talk).toEqual([FOURTH])
+  })
+
+  it('says the record could not be read now, and answers what is held', async () => {
+    const { earlier } = made()
+    const got = await opened('/api/chat?before=2026-10-08T14:00:01.000Z%230', ['talk'], earlier)
+    expect(got).toMatchObject({ why: 'unread', earlier: true })
+    expect(got.rows).toHaveLength(1)
+  })
+
+  it('reads nothing for a device not granted the conversation, and nothing for a cursor that is not a line’s', async () => {
+    const { asked, earlier } = made()
+    expect(
+      await opened(`/api/chat?before=${encodeURIComponent(FOURTH)}`, [], earlier),
+    ).toMatchObject({
+      rows: [],
+      why: 'not granted',
+    })
+    expect(await opened('/api/chat?before=../../etc/passwd', ['talk'], earlier)).toMatchObject({
+      rows: [],
+      earlier: false,
+    })
+    expect(asked.talk).toEqual([])
+  })
+
+  it('answers an agent’s turns before a cursor, cleaned, with where the ones before end', async () => {
+    const { asked, earlier } = made()
+    const got = await opened(
+      '/api/agent/sentry/away-projection/earlier?before=2048',
+      ['lanes'],
+      earlier,
+    )
+    expect(() => TurnsPageSchema.parse(got)).not.toThrow()
+    expect(got).toMatchObject({ task: 'sentry/away-projection', before: '512', why: null })
+    expect(got.turns).toHaveLength(turns.length)
+    expect(JSON.stringify(got)).not.toContain(HELD_KEY)
+    expect(asked.agent).toEqual(['sentry/away-projection 2048'])
+  })
+
+  it('reads no agent’s record without its screen, about a task out of reach, or by a cursor that is not one', async () => {
+    const { asked, earlier } = made()
+    const at = '/api/agent/sentry/away-projection/earlier'
+    expect(await opened(`${at}?before=2048`, [], earlier)).toMatchObject({ why: 'not granted' })
+    expect(
+      await opened('/api/agent/nobody/nothing/earlier?before=2048', ['lanes'], earlier),
+    ).toMatchObject({ why: 'not here' })
+    expect(await opened(`${at}?before=../2048`, ['lanes'], earlier)).toMatchObject({
+      turns: [],
+      before: null,
+      why: null,
+    })
+    expect(await opened(`${at}?before=9`, ['lanes'], earlier)).toMatchObject({ why: 'unread' })
+    expect(asked.agent).toEqual(['sentry/away-projection 9'])
   })
 })
 

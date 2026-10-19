@@ -37,6 +37,9 @@ const mark = (glyph, word, tone) => ({ glyph, word, tone })
  * - `◆` the orchestrator's answer, in amber (`skin.signal`), its words bright;
  * - `●` Tade's own news — a task started, a proposal decided — in amber
  *   (`skin.busy`), its words quiet (`skin.hint`), because it is the routine;
+ * - `●` Tade answering in its own words, the same amber, its words bright;
+ * - `→` where Tade's grammar sent something, all of it quiet;
+ * - `?` something worth asking, in amber (`skin.signal`), with its press;
  * - `✗` something that went wrong, in red, its words red (`skin.bad`).
  *
  * A tool's line takes its mark from how the call went (`CALL_STATES`): `✓`
@@ -49,6 +52,12 @@ export const CHAT_KINDS = {
   tool: mark('✓', 'used a tool', 't-done'),
   tade: mark('●', 'from Tade', 't-working'),
   problem: mark('✗', 'went wrong', 't-failed'),
+  // Tade answering in its own words — bright, as the model's are — beside its
+  // news, which is quiet; where its grammar sent something; and something
+  // worth asking. The window's marks for each (`entryLines`).
+  own: mark('●', 'Tade said', 't-working'),
+  routed: mark('→', 'sent on', 't-quiet'),
+  suggestion: mark('?', 'worth asking', 't-working'),
 }
 
 /**

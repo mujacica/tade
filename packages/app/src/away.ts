@@ -617,12 +617,12 @@ export function awayCollections(parts: AwayParts): AwayCollections {
 /**
  * The conversation, as a device may read it.
  *
- * **One line per entry, and `kind` is about who is speaking rather than how it
- * should look.** The window draws a routed line, a suggestion and a note
- * differently because it has the room; a phone does not, and a page that chose
- * a shape from a guess would be a second reading of the same entries. So the
- * five kinds are *asked*, *reply*, *tool*, *tade* (Tade's own words, whatever
- * prompted them) and *problem*, and `glyphs.js` has one rule for each.
+ * **One line per entry, of the kind the window's strip draws it as**
+ * (`entryLines`): *asked*, *reply* (the model's), *own* (Tade answering in its
+ * own words), *tade* (its news), *routed*, *suggestion*, *tool* and *problem*
+ * — so a page takes each line's mark and colour from its kind (`glyphs.js`)
+ * rather than choosing a shape from a guess, which would be a second reading
+ * of the same entries.
  *
  * **A tool entry's call goes as the window holds it, and the projection
  * decides.** Its arguments — a command, a path, a prompt — and what the tool
@@ -650,6 +650,9 @@ export function talkIn(from: {
     whose: from.whose,
     // When the turn in flight began, as the strip counts its own seconds.
     since: from.busy ? from.transcript.thinking : null,
+    // The record goes back further than what the window holds: a page read up
+    // to the top of its lines asks for what is before them (`/api/chat`).
+    earlier: from.transcript.earlier !== null,
     ...(from.places === undefined ? {} : { places: { work: null, ...from.places } }),
     // Raised per device by whoever knows that device's scopes. Never here.
     mine: false,
@@ -690,8 +693,9 @@ function chatLine(entry: Entry): Omit<ChatIn, 'id' | 'at'> {
         ...plain,
         // The model's words and Tade's own are different lines, because what
         // somebody may believe of them is different: one is a reply, the other
-        // is Tade stating something.
-        kind: entry.by === 'orchestrator' ? 'reply' : 'tade',
+        // is Tade answering in its own words — drawn as the strip draws it,
+        // bright and as markdown, never as its news.
+        kind: entry.by === 'orchestrator' ? 'reply' : 'own',
         text: entry.text,
         streaming: entry.streaming,
       }
@@ -716,10 +720,13 @@ function chatLine(entry: Entry): Omit<ChatIn, 'id' | 'at'> {
       }
     case 'problem':
       return { ...plain, kind: 'problem', text: entry.text }
-    // Tade's own lines: where its grammar sent something, what it did, and
-    // something it offered to ask. All three are Tade stating a fact, and a
-    // phone has room for the fact and not for three shapes of it.
-    default:
+    // Where Tade's grammar sent something, and something it offers to ask with
+    // the words a press would send: each its own kind, as the strip draws it.
+    case 'routed':
+      return { ...plain, kind: 'routed', text: entry.text }
+    case 'suggestion':
+      return { ...plain, kind: 'suggestion', text: entry.text, ask: entry.ask }
+    case 'tade':
       return { ...plain, kind: 'tade', text: entry.text }
   }
 }

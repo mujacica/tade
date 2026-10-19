@@ -10,9 +10,9 @@ import {
 } from './evaluations.ts'
 import type { SnapshotInput } from './input.ts'
 import { BUDGET, type Budget, type Page, pageOf, withheld } from './page.ts'
-import type { AgentOut, Delta, NoteRow, Snapshot } from './protocol.ts'
+import type { AgentOut, ChatPage, Delta, NoteRow, Snapshot } from './protocol.ts'
 import { has } from './reach.ts'
-import { type Cursors, noteRows } from './snapshot.ts'
+import { type Cursors, chatBefore, noteRows } from './snapshot.ts'
 
 // The whole of what the away view may read, declared in one place.
 //
@@ -75,6 +75,14 @@ export interface WebReading {
    * everything — the one scope a note can have that names no project.
    */
   notes(scope: string | null | undefined, after?: string | null): Page<NoteRow>
+  /**
+   * The lines of the conversation with Tade said before the line `before`
+   * names, oldest first (`chatBefore`): what a page reads as somebody scrolls
+   * up past what the snapshot carries. What the window holds — reading its
+   * record further back first is `WebEarlier`'s, which the route asks before
+   * this.
+   */
+  chat(before: string): ChatPage
   /**
    * One agent, for a device that has its page open: what it has been doing,
    * and — where this device was granted `lanes` — the last rows of its screen.
@@ -186,6 +194,9 @@ export function projector(
     },
     notes(scope: string | null | undefined, after: string | null = null): Page<NoteRow> {
       return notesOf(input, scope, budget, after)
+    },
+    chat(before: string): ChatPage {
+      return chatBefore(input.talk, input.reach, before, budget)
     },
     agent(task: string, seen: string | null = null): AgentOut {
       return agentOf(input.reach, input.tasks, task, opts.agent?.(task) ?? null, AGENT, seen)

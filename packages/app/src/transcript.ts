@@ -101,8 +101,8 @@ export interface Transcript {
   /**
    * More of the conversation than is shown, in its harness's own record:
    * where to read the page before the first entry from, and whether that is
-   * being read. Null when there is nothing earlier — or nothing that would
-   * join up with what is shown, once an entry has fallen off the top.
+   * being read. Null when there is nothing earlier. Once an entry has fallen
+   * off the top no cursor joins up, so it is `READ_FROM_END`.
    */
   earlier: { cursor: string; asking: boolean } | null
 }
@@ -134,13 +134,26 @@ export function emptyTranscript(): Transcript {
   return { entries: [], thinking: null, stopped: false, heard: {}, earlier: null }
 }
 
+/**
+ * The cursor that reads the record from its end (`Earlier`), passing over what
+ * is newer than the first line shown: lines fell off the top, so no cursor the
+ * record gave joins up with what is shown any more.
+ */
+export const READ_FROM_END = ''
+
 function push(transcript: Transcript, entry: Entry): Transcript {
   const entries = [...transcript.entries, entry]
   // What somebody scrolled back for is kept while they are reading it: only
   // what is said now makes the oldest fall off.
   const room = Math.max(TRANSCRIPT_MAX, transcript.entries.length)
   if (entries.length <= room) return { ...transcript, entries }
-  return { ...transcript, entries: entries.slice(-room), earlier: null }
+  // **What fell off is still there to read**, in the record: offered again,
+  // read from its end past what is still shown, so nothing said is only gone.
+  return {
+    ...transcript,
+    entries: entries.slice(-room),
+    earlier: { cursor: READ_FROM_END, asking: false },
+  }
 }
 
 /**

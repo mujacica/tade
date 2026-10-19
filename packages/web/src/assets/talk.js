@@ -34,8 +34,9 @@
 import { mayFor } from './access.js'
 import { afterAnswer, askBody, stopBody } from './acts.js'
 import { keyOf } from './controls.js'
-import { CALL_STATES, callIn, callRow, wordsIn } from './conversation.js'
+import { CALL_STATES, callIn, callRow, readFrom, wordsIn } from './conversation.js'
 import { classOn, el, empty, hintOf, into, keyed, textIn, toneOn } from './dom.js'
+import { linesKept, readBack } from './earlier.js'
 import { ageSaid } from './figures.js'
 import { followOf } from './follow.js'
 import { CHAT_KINDS, toolNamed } from './glyphs.js'
@@ -78,16 +79,64 @@ export function draftStore() {
 /** The one draft this page keeps, which is why it is made once and not per screen. */
 const draft = draftStore()
 
+/** Every box made to say something to Tade: the screen's and the strip's. */
+const boxes = new Set()
+
+/**
+ * What a suggestion offers to ask, put in the box for Send to send — the one
+ * door words go to Tade by, so a mis-tap sends nothing.
+ */
+export function offerToAsk(words) {
+  if (typeof words !== 'string' || words === '') return
+  draft.set(words)
+  let focused = false
+  for (const box of [...boxes]) {
+    if (!box.isConnected) {
+      boxes.delete(box)
+      continue
+    }
+    box.value = words
+    box.dispatchEvent(new Event('input'))
+    if (!focused && box.offsetParent !== null) {
+      box.focus?.()
+      focused = true
+    }
+  }
+}
+
 export function talkScreen(ctx) {
   const node = el('div')
   const made = section('TADE', { top: true })
-  // **What is older than this page is said once, at the top of the
-  // conversation**, where somebody scrolling up to it is looking for it — never
-  // as a line over the box, which every exchange would have to read past.
-  const older = el('p', { class: 'chat-earlier' })
   const list = el('ul', { class: 'rows chat' })
   const none = empty('nothing said yet')
-  into(made.body, older, list, none)
+
+  // **Every line it was sent, in the order they were said** (`linesKept`):
+  // the snapshot carries the newest stretch and moves on as Tade answers, and
+  // what was read further back stays above it with nothing between.
+  const kept = linesKept((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  /** What the last read back said: more before what is held, or null before one. */
+  let further = null
+  let seen = null
+  // **The whole of it can be read here**: scrolled up near the top of what is
+  // held, the lines before are read (`/api/chat`) and put above, and the view
+  // stays on what the reader was reading.
+  const back = readBack(
+    () => node.closest?.('main') ?? null,
+    async (keep) => {
+      const first = kept.first()
+      if (first === null) return 'none'
+      const got = await readFrom(`/api/chat?before=${encodeURIComponent(first.id)}`)
+      if (got.status !== 200 || got.body === null || got.body.v !== 1) return 'failed'
+      keep(() => {
+        kept.older(got.body.rows)
+        further = got.body.earlier === true
+        draw()
+      })
+      if (got.body.why === 'unread') return 'failed'
+      return got.body.earlier === true ? 'read' : 'none'
+    },
+  )
+  into(made.body, back.node, list, none)
 
   const composer = section('SAY SOMETHING')
   // Held at the foot of the screen as a chat's box is, over the tab bar on a
@@ -108,31 +157,46 @@ export function talkScreen(ctx) {
   composer.node.prepend(follow.press)
   into(node, made.node, composer.node)
 
+  function draw() {
+    if (seen === null) return
+    const view = seen
+    const lines = kept.all()
+    textIn(made.figure, lines.length === 0 ? '' : String(lines.length))
+    none.hidden = lines.length > 0
+    textIn(
+      none,
+      nothingSaid(mayFor(view.store, 'chat'), omitted(view.store, 'chat'), 'nothing said yet'),
+    )
+    keyed(
+      list,
+      lines,
+      (line) => line.id,
+      createChatLine,
+      (one, line) => fillChatLine(one, line, view),
+    )
+    // Before anything was read back, the snapshot says whether there is more:
+    // lines it left out, or a record that goes back past what the window holds.
+    const more =
+      further ?? (omitted(view.store, 'chat') > 0 || talkOf(view.store)?.earlier === true)
+    back.more(mayFor(view.store, 'chat') && lines.length > 0 && more)
+  }
+
   return {
     node,
     /** Left: `main` is the frame's and stays, so what listens to it goes. */
-    leave: () => follow.leave(),
+    leave: () => {
+      follow.leave()
+      back.leave()
+    },
     update(view) {
-      const lines = chatOf(view.store)
-      textIn(made.figure, lines.length === 0 ? '' : String(lines.length))
-      none.hidden = lines.length > 0
-      textIn(
-        none,
-        nothingSaid(mayFor(view.store, 'chat'), omitted(view.store, 'chat'), 'nothing said yet'),
-      )
-      keyed(
-        list,
-        lines,
-        (line) => line.id,
-        createChatLine,
-        (one, line) => fillChatLine(one, line, view),
-      )
-      const left = omitted(view.store, 'chat')
-      const more = left > 0 && mayFor(view.store, 'chat') && lines.length > 0
-      textIn(older, more ? `↑ ${left} earlier, in the window` : '')
-      older.hidden = !more
+      seen = view
+      kept.newer(chatOf(view.store))
+      draw()
       typing.update(talkOf(view.store), view)
-      if (lines.length > 0) follow.drawn()
+      if (kept.size > 0) {
+        follow.drawn()
+        back.drawn()
+      }
     },
   }
 }
@@ -166,6 +230,7 @@ export function composerOf(ctx, words) {
     },
   })
   box.value = draft.get()
+  boxes.add(box)
   // The box grows with what is typed, up to a few lines, and then scrolls:
   // a one-line box a paragraph is typed into hides the paragraph.
   const grow = () => {
@@ -327,7 +392,9 @@ export function doingOf(lines, talk = null) {
   if (last?.kind === 'tool' && last.outcome === 'running') {
     return `${callDoing(last.tool, last.call?.brief ?? null)}…${whose}`
   }
-  if (last?.kind === 'reply' && last.streaming === true) return `Writing its answer…${whose}`
+  if ((last?.kind === 'reply' || last?.kind === 'own') && last.streaming === true) {
+    return `Writing its answer…${whose}`
+  }
   return `Thinking…${whose}`
 }
 
@@ -428,7 +495,15 @@ export function createChatLine() {
   const mark = el('span', { class: 'line-mark' })
   into(mark, el('span', { attrs: { 'aria-hidden': 'true' } }), el('span', { class: 'sr-only' }))
   const body = el('div', { class: 'line-body' })
-  into(body, el('p', { class: 'aside' }), el('div'), callRow())
+  // What a suggestion offers to ask, one press away: into the box, as the
+  // window's `ask` press is beside the line, for Send to send.
+  const offer = el('button', {
+    class: 'press chat-offer',
+    text: 'Ask this',
+    attrs: { type: 'button' },
+  })
+  offer.addEventListener('click', () => offerToAsk(offer.dataset.ask ?? ''))
+  into(body, el('p', { class: 'aside' }), el('div'), callRow(), offer)
   into(node, mark, body)
   return node
 }
@@ -453,7 +528,7 @@ export function lineMark(line) {
 export function fillChatLine(node, line, view) {
   const [mark, body] = node.children
   const [glyph, word] = mark.children
-  const [head, words, call] = body.children
+  const [head, words, call, offer] = body.children
   const kind = CHAT_KINDS[line.kind] ?? CHAT_KINDS.tade
   const tool = line.kind === 'tool'
   const drawn = lineMark(line)
@@ -489,16 +564,22 @@ export function fillChatLine(node, line, view) {
   } else {
     wordsIn(words, line.text, marked(line))
   }
-  for (const one of ['asked', 'reply', 'tool', 'tade', 'problem']) {
-    classOn(node, `is-${one}`, line.kind === one)
-  }
+  for (const one of Object.keys(CHAT_KINDS)) classOn(node, `is-${one}`, line.kind === one)
+  // Only where this device may say something to Tade, and the box is there to take it.
+  const asks = line.kind === 'suggestion' && typeof line.ask === 'string' && line.ask !== ''
+  offer.hidden = !asks || talkOf(view.store)?.mine !== true
+  offer.dataset.ask = asks ? line.ask : ''
   classOn(node, 'is-failed', tool && line.outcome === 'failed')
   classOn(node, 'is-streaming', line.streaming === true)
 }
 
-/** The model's words and Tade's are markdown; a person's are as they typed them. */
+/**
+ * The model's words and Tade's are markdown; a person's are as they typed
+ * them, and so are where Tade's grammar sent something and what it offers to
+ * ask, which the window draws as they are.
+ */
 function marked(line) {
-  return line.kind === 'reply' || line.kind === 'tade'
+  return line.kind === 'reply' || line.kind === 'own' || line.kind === 'tade'
 }
 
 /**

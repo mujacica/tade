@@ -2,6 +2,7 @@ import type { AgentMark, DoneRule, PlanStanding, ReviewState, Spend, TaskState }
 import type { AgentLane, Can, Cannot, ProjectFacts, TaskFacts } from './acting.ts'
 import type { Places } from './command.ts'
 import type { IntakeIn, RunIn, SourceIn, WorkflowIn } from './factory.ts'
+import type { CHAT_LINE_KINDS } from './protocol.ts'
 import type { Reach } from './reach.ts'
 
 // What the away view is handed, and the reason it is handed this and not more.
@@ -480,11 +481,11 @@ export interface ChatIn {
   id: string
   at: number
   /**
-   * What kind of line it is. Five, and they are about *who is speaking*
-   * rather than about how it should look: a page that chose a shape from a
-   * guess is a second state machine.
+   * What kind of line it is: the kinds the window's strip draws apart
+   * (`CHAT_LINE_KINDS`), so a page draws each as the strip does rather than
+   * choosing a shape from a guess, which would be a second state machine.
    */
-  kind: 'asked' | 'reply' | 'tool' | 'tade' | 'problem'
+  kind: (typeof CHAT_LINE_KINDS)[number]
   /**
    * Who asked, as `byOf` writes it: `you` at the machine, `device <id>` from
    * away, or empty for Tade's own lines and the model's — which goes out as
@@ -525,6 +526,8 @@ export interface ChatIn {
   call: { id?: string; input: unknown; result: string | null } | null
   /** Still arriving, so the page can draw it as such rather than as finished. */
   streaming: boolean
+  /** What a `suggestion` offers to ask. Absent or empty on every other line. */
+  ask?: string
 }
 
 /**
@@ -569,6 +572,11 @@ export interface TalkIn {
    * its keys is not free.
    */
   known: readonly string[]
+  /**
+   * Whether the conversation goes back further than `lines`: the window holds
+   * the newest of it, and its record the rest (`WebEarlier`). Absent is no.
+   */
+  earlier?: boolean
   /**
    * Where a path in a call's brief may be shortened to (`briefOut`): Tade's
    * home and the home directory, as the window knows them. Absent where it

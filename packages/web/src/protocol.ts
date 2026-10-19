@@ -443,6 +443,18 @@ export const CallSchema = z.strictObject({
 })
 export type Call = z.infer<typeof CallSchema>
 
+/** The kinds of line in the conversation with Tade (`ChatRowSchema.kind`). */
+export const CHAT_LINE_KINDS = [
+  'asked',
+  'reply',
+  'tool',
+  'tade',
+  'problem',
+  'own',
+  'routed',
+  'suggestion',
+] as const
+
 /**
  * One line of the conversation with Tade.
  *
@@ -461,7 +473,13 @@ export const ChatRowSchema = z.strictObject({
   // contain: `said` is the one event type whose writer authorises a setting
   // change, and `test/protocol.test.ts` holds every source here to not naming
   // it. The line is Tade stating something either way.
-  kind: z.enum(['asked', 'reply', 'tool', 'tade', 'problem']),
+  //
+  // **The kinds the window's strip draws apart** (`entryLines`), so a line on
+  // a phone takes the strip's own mark and colour: `reply` is the model's
+  // (`◆`), `own` is Tade answering in its own words (`●`, bright, markdown),
+  // `tade` is Tade's news (`●`, quiet), `routed` where its grammar sent
+  // something (`→`), `suggestion` something worth asking (`?`, with `ask`).
+  kind: z.enum(CHAT_LINE_KINDS),
   /** `you` or `device <id>`. Null for Tade's own lines and the model's. */
   from: z.string().nullable(),
   /** The words. A person's verbatim; a model's with anything path-shaped taken out. */
@@ -473,8 +491,30 @@ export const ChatRowSchema = z.strictObject({
   /** A tool line's call, under `lanes` (`CallSchema`). Null on every other line, and without it. */
   call: CallSchema.nullable(),
   streaming: z.boolean(),
+  /** What a `suggestion` offers to ask, in Tade's words. Null on every other line. */
+  ask: z.string().nullable(),
 })
 export type ChatRow = z.infer<typeof ChatRowSchema>
+
+/**
+ * The lines of the conversation with Tade before one a page holds
+ * (`GET /api/chat?before=`), oldest first: what a page reads as somebody
+ * scrolls up, so the whole of it can be read here and none of it is only in
+ * the window.
+ */
+export const ChatPageSchema = z.strictObject({
+  v: z.literal(PROTOCOL_VERSION),
+  rows: z.array(ChatRowSchema),
+  /** Whether anything was said before the first of these — held, or in the record. */
+  earlier: z.boolean(),
+  /**
+   * Why there are none to read: talking is off, this device was not granted
+   * the conversation, or the record further back could not be read now —
+   * which is worth asking again, and never the beginning of the conversation.
+   */
+  why: z.enum(['off', 'not granted', 'unread']).nullable(),
+})
+export type ChatPage = z.infer<typeof ChatPageSchema>
 
 export const PlanRowSchema = z.strictObject({
   /**
@@ -546,6 +586,11 @@ export const YouSchema = z.strictObject({
       /** When the turn in flight began, so a page can say how long it has been. Null for none. */
       since: z.string().nullable(),
       mine: z.boolean(),
+      /**
+       * Whether the conversation goes back further than the window holds: its
+       * record does, and a page scrolled to the top asks for it (`ChatPageSchema`).
+       */
+      earlier: z.boolean(),
     })
     .nullable(),
 })
@@ -818,8 +863,12 @@ export const AgentOutSchema = z.strictObject({
     .strictObject({
       rev: z.string(),
       turns: z.array(TurnRowSchema).nullable(),
-      /** Whether the record goes back further than these: said, never a silent cut. */
-      earlier: z.boolean(),
+      /**
+       * Where the turns before these end in its record, to be asked for as
+       * `before` (`TurnsPageSchema`); null where these reach its beginning.
+       * Opaque: the harness's own cursor, which is a number.
+       */
+      before: z.string().nullable(),
       /** How many things were taken out. A count, never what. */
       taken: z.int().nonnegative(),
     })
@@ -828,3 +877,24 @@ export const AgentOutSchema = z.strictObject({
   unread: z.enum(CONVERSATION_WHY).nullable(),
 })
 export type AgentOut = z.infer<typeof AgentOutSchema>
+
+/**
+ * The turns of an agent's conversation before a cursor an answer gave
+ * (`GET /api/agent/:project/:task/earlier?before=`), oldest first and each
+ * whole: what its page reads as somebody scrolls up in it.
+ */
+export const TurnsPageSchema = z.strictObject({
+  v: z.literal(PROTOCOL_VERSION),
+  task: z.string(),
+  turns: z.array(TurnRowSchema),
+  /** Where the turns before these end, or null where these reach the beginning. */
+  before: z.string().nullable(),
+  /** How many things were taken out. A count, never what. */
+  taken: z.int().nonnegative(),
+  /**
+   * Why there are none: a task this device does not read, a screen it was not
+   * granted, or a record that could not be read now — worth asking again.
+   */
+  why: z.enum(['not here', 'not granted', 'unread']).nullable(),
+})
+export type TurnsPage = z.infer<typeof TurnsPageSchema>

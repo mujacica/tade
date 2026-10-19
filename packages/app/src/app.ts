@@ -25,7 +25,7 @@ import {
   type Wiring,
   type WorkerImageFile,
 } from './wire/context.ts'
-import { Earlier } from './wire/earlier.ts'
+import type { Earlier } from './wire/earlier.ts'
 import { Evaluations } from './wire/evaluations.ts'
 import { Extensions } from './wire/extensions.ts'
 import { Files } from './wire/files.ts'
@@ -412,7 +412,7 @@ export class App {
       openNote: (note) => this.notes.open(note),
       openAgent: () => void this.agents.openAgent(),
     })
-    this.earlier = new Earlier(this.wire)
+    this.earlier = this.heart.earlier
     this.subjects = [
       this.window,
       this.lanes,

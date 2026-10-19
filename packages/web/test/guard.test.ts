@@ -307,6 +307,39 @@ describe('the content type, so a form post is never a verb', () => {
   })
 })
 
+describe('reading a conversation further back', () => {
+  // `/api/chat` and an agent's `/earlier` are reads like the snapshot: a
+  // session bound to this host, a fetch from the page itself, and nothing
+  // above `read` — what a device may see of them is its grants', in the answer.
+  const BACK = [
+    { route: route('chat'), path: '/api/chat?before=2026-10-08T14:00:00.000Z%230' },
+    {
+      route: route('agent earlier'),
+      path: '/api/agent/sentry/away-projection/earlier?before=2048',
+    },
+  ]
+
+  it('is answered with a session, from the page itself', () => {
+    for (const one of BACK)
+      expect(allowed(asking({ path: one.path }), one.route, guarding()).ok, one.path).toBe(true)
+  })
+
+  it('is refused with no session, to another host, and to a fetch from another site', () => {
+    for (const one of BACK) {
+      const none = allowed(asking({ path: one.path }), one.route, guarding({ session: null }))
+      expect(none.ok, one.path).toBe(false)
+      if (!none.ok) expect(none.refusal.error).toBe('no_session')
+      expect(
+        allowed(asking({ path: one.path, host: 'evil.example' }), one.route, guarding()).ok,
+      ).toBe(false)
+      for (const site of ['cross-site', 'same-site', 'none'])
+        expect(allowed(asking({ path: one.path, site }), one.route, guarding()).ok, site).toBe(
+          false,
+        )
+    }
+  })
+})
+
 describe('the session', () => {
   it('refuses a data read with none', () => {
     const verdict = allowed(asking(), READ, guarding({ session: null }))

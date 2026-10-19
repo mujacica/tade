@@ -22,7 +22,7 @@
 import { mayFor } from './access.js'
 import { classOn, el, into, keyed, textIn, toneOn } from './dom.js'
 import { followOf } from './follow.js'
-import { toolNamed } from './glyphs.js'
+import { CHAT_KINDS, toolNamed } from './glyphs.js'
 import { icon } from './icons.js'
 import { navFor } from './routes.js'
 import { sideOf } from './side.js'
@@ -131,7 +131,7 @@ function dockIn(made, view) {
   textIn(made.lastMark, mark?.glyph ?? '')
   toneOn(made.lastMark, mark?.tone ?? '')
   made.lastMark.hidden = mark === null
-  for (const kind of ['asked', 'reply', 'tool', 'tade', 'problem', 'none']) {
+  for (const kind of [...Object.keys(CHAT_KINDS), 'none']) {
     classOn(made.last, `is-${kind}`, (end?.kind ?? 'none') === kind)
   }
   textIn(made.lastWords, end === undefined ? said : lastSaid(end))

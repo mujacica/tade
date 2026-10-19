@@ -375,13 +375,27 @@ a.pal-whole:hover {
   font-weight: var(--w-strong);
 }
 
-.rows.chat > li.is-reply .said {
+.rows.chat > li.is-reply .said,
+.rows.chat > li.is-own .said,
+.rows.chat > li.is-suggestion .said {
   color: var(--bright);
 }
 
-.rows.chat > li.is-tade .said {
+.rows.chat > li.is-tade .said,
+.rows.chat > li.is-routed .said,
+.rows.chat > li.is-routed .line-mark {
   color: var(--quiet);
   font-size: var(--step-0);
+}
+
+.rows.chat > li.is-suggestion .line-mark {
+  font-weight: var(--w-strong);
+}
+
+/* What a suggestion offers to ask: one press under it, into the box. */
+.chat-offer {
+  justify-self: start;
+  margin-block-start: var(--s1);
 }
 
 .rows.chat > li.is-problem .said {
@@ -429,9 +443,15 @@ a.pal-whole:hover {
   margin-block-start: calc(-1 * var(--s1));
 }
 
-/* What is older than this page, once, at the top of the conversation. */
-.chat-earlier {
+/*
+  The top of a conversation while what was said before is read, or a press to
+  read it again where it could not be (`earlier.js`) — the window's own words.
+*/
+.chat-back {
   margin-block-end: var(--s3);
+}
+
+.chat-reading {
   color: var(--heading);
   font-size: var(--step--1);
 }

@@ -54,6 +54,15 @@ export function answersWith(ask) {
 }
 
 /**
+ * Something read with the page's own `ask` — a conversation's lines before
+ * what a page holds (`earlier.js`) — or an unanswered read before `boot.js`
+ * handed it over.
+ */
+export function readFrom(path) {
+  return asking === null ? Promise.resolve({ status: 0, body: null }) : asking('GET', path)
+}
+
+/**
  * Words into a bubble: as markdown where they are a model's or an agent's,
  * and as they were typed where they are a person's — whose own `*` and `#`
  * are theirs to have meant literally.

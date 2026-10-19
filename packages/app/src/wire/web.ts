@@ -8,11 +8,13 @@ import {
   agentOf,
   type Confirmed,
   type ConnectWhere,
+  chatBefore,
   connectWhere,
   type Device,
   factsOf,
   has,
   type PairingAsk,
+  type Places,
   type Projector,
   projector,
   pusher,
@@ -26,13 +28,15 @@ import {
   type TaskFacts,
   Tickets,
   type Told,
+  TURNS,
   type WebAnswers,
+  type WebEarlier,
   type WebReading,
   type WebServer,
   webServer,
 } from '@tade/web'
 import { lastUpdates } from '@tade/workbench/programs'
-import { awayCollections } from '../away.ts'
+import { awayCollections, chatLines } from '../away.ts'
 import { activityIn } from '../away-activity.ts'
 import type { Frame } from '../frame.ts'
 import { approvalInFront } from '../model.ts'
@@ -60,6 +64,12 @@ import { PublicHealth } from './web-public.ts'
 import { pushFor, type WebPush } from './web-push.ts'
 import { letGoOfRevoked, revokeEvery, revokeOne, type Sessions } from './web-sessions.ts'
 import { heard, toldTo } from './web-told.ts'
+
+/**
+ * How many pages of the orchestrator's record one ask for earlier lines may
+ * read (`earlierHalf`): enough for a page of them, and then the page asks again.
+ */
+const EARLIER_ROUNDS = 4
 
 export type { AwayDeps }
 
@@ -150,7 +160,7 @@ export class Away implements Subject {
       capture: (lane, lines) => wire.opts.client.capture(lane as never, lines, false),
       history: async (task, limit) => {
         const page = await wire.opts.client.agentHistory(task, { limit })
-        return { turns: page.items, earlier: page.earlier !== null }
+        return { turns: page.items, before: page.earlier }
       },
       trouble: (task, err) =>
         wire.note(
@@ -246,6 +256,7 @@ export class Away implements Subject {
         now: () => this.wire.now(),
       }),
       answers: this.answers(),
+      earlier: this.earlierHalf(),
       present: (device, at) => this.presences.seen(device, at),
       looking: (device, at) => this.push.looking(device, at),
       since: this.presences.since(),
@@ -736,6 +747,9 @@ export class Away implements Subject {
         }
         return answer
       },
+      // **The conversation as it is now**, not as of the beat: what a look back
+      // just read out of the record (`earlier`) is in it, under this request's reach.
+      chat: (before) => chatBefore(this.talkNow(), reach, before),
       // **This request's reach**, like an agent's, and what the window already holds.
       settings: () =>
         settingsFor(this.deps.settings.rows(), reach, knownHere(this.wire, this.config())),
@@ -777,6 +791,60 @@ export class Away implements Subject {
   }
 
   /**
+   * A conversation read further back than a page holds (`@tade/web`'s
+   * `earlier.ts`): Tade's through the window's own scrollback (`Earlier`), so
+   * what is read is the window's as well, and an agent's out of its harness's
+   * record, a page before the cursor its newest page gave. A record that could
+   * not be read is said here, at the machine, and to the page as `unread`.
+   */
+  private earlierHalf(): WebEarlier {
+    return {
+      talk: async (before, want) => {
+        const more = this.deps.earlier
+        if (more === undefined) return true
+        for (let round = 0; round < EARLIER_ROUNDS; round += 1) {
+          const transcript = this.wire.state.transcript
+          if (transcript.earlier === null) return true
+          const held = chatLines(transcript).filter((line) => line.id < before).length
+          if (held >= want) return true
+          if (!(await more())) return false
+        }
+        return true
+      },
+      agent: async (task, before) => {
+        try {
+          const page = await this.wire.opts.client.agentHistory(task, {
+            limit: TURNS.turns,
+            before,
+          })
+          return { turns: page.items, before: page.earlier }
+        } catch (err) {
+          this.wire.note(
+            new Error(
+              `the away view could not read ${task}'s conversation further back: ${err instanceof Error ? err.message : String(err)}`,
+            ),
+          )
+          return 'unread'
+        }
+      },
+      known: () => this.lanes.keys(() => knownHere(this.wire, this.config())),
+      places: (task) => this.placesOf(task),
+    }
+  }
+
+  /**
+   * Where a path in one agent's call briefs is shortened to: where its task
+   * works (`.`), Tade's home and the home directory — the rule an approval's
+   * command and Tade's own conversation already go by.
+   */
+  private placesOf(task: string): Places {
+    const worked = this.wire.live?.world?.projects
+      .flatMap((project) => project.tasks)
+      .find((one) => one.id === task)?.worktree
+    return { work: worked ?? null, tade: this.wire.opts.home, home: homedir() }
+  }
+
+  /**
    * What the window holds of one agent: its activity out of the journal it
    * already has, and the lane as last read on a beat. Never a read now.
    */
@@ -786,6 +854,7 @@ export class Away implements Subject {
       activity: activityIn(this.wire.live?.events ?? [], task, AGENT.activity),
       lane: this.lanes.heldFor(task) ?? { kind: 'none', why: 'not read yet' },
       conversation: this.lanes.talkFor(task),
+      places: this.placesOf(task),
       // Only for a device that will be shown a screen: asking every extension
       // for its keys is not free, and an ungranted answer has no screen.
       known: has(reach, 'lanes') ? this.lanes.keys(keys) : [],

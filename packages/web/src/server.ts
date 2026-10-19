@@ -10,6 +10,7 @@ import { carryChange } from './configured.ts'
 import { ConnectStates, carryConnect, connectHere } from './connected.ts'
 import { appendDevice, type Device, listing, readDevices } from './devices.ts'
 import { carrySave } from './drafted.ts'
+import { chatHere, turnsHere } from './earlier.ts'
 import { bodyOf, type Refusal, refuse } from './errors.ts'
 import { filesFor } from './files.ts'
 import {
@@ -375,6 +376,15 @@ export function webServer(opts: ServerOptions): WebServer {
         // The conversation this page already holds, so an unmoved one is not sent again.
         const seen = queryOf(req.url ?? '/').get('seen')
         return json(res, opts.readingFor(reachOf(device)).agent(task, seen))
+      }
+      case 'chat':
+        return json(
+          res,
+          await chatHere(queryOf(req.url ?? '/').get('before'), reachOf(device), opts),
+        )
+      case 'agent earlier': {
+        const before = queryOf(req.url ?? '/').get('before')
+        return json(res, await turnsHere(found.params, before, reachOf(device), opts))
       }
       case 'agent answer':
       case 'talk answer':

@@ -148,6 +148,20 @@ async function serve() {
       held.set(reach.device, made)
       return made
     },
+    // **An agent's record further back than its page holds**, so its page
+    // reads back to its first turn as Tade's conversation does; Tade's own
+    // reads back through what the projection holds, which is all of it here.
+    earlier: {
+      talk: async () => true,
+      agent: async () => ({
+        turns: [
+          { kind: 'sent', text: 'Start with the projection.', images: [], at: NOW - 600_000 },
+        ],
+        before: null,
+      }),
+      known: () => [],
+      places: () => ({ work: null, tade: null, home: null }),
+    },
     tickets,
     tell: () => {},
     // The keypress at the machine, answered yes — which is the whole of what
@@ -422,12 +436,19 @@ async function asGranted(
   }
   await lookAll(at)
   await lanesSeen(page, origin, axe, shots, found)
-  await chatAt(page, origin, at, arrival(page, server, held), found)
+  await chatAt(page, origin, at, arrival(page, server, held), found, heldLines)
   if (phone !== undefined && phone !== desk) {
     await page.setViewportSize({ width: phone.width, height: phone.height })
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await lookAll(`${phone.name} granted`)
-    await chatAt(page, origin, `${phone.name} granted`, arrival(page, server, held), found)
+    await chatAt(
+      page,
+      origin,
+      `${phone.name} granted`,
+      arrival(page, server, held),
+      found,
+      heldLines,
+    )
   }
   await context.close()
   granting = []
@@ -631,6 +652,9 @@ async function nudge(
 
 /** How many lines `arrival` has sent after the harness's conversation, across every page. */
 let arrived = 0
+
+/** Every line's id of the conversation the harness serves now, oldest first. */
+const heldLines = () => harnessTalk(arrived).lines.map((line) => line.id)
 
 /** What each device may read, as the listener last asked: a delta is projected under its own. */
 const reaches = new Map<string, Reach>()

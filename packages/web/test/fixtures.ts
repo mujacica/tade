@@ -768,7 +768,7 @@ export function conversationHeld(): Extract<
   const at = (s: number) => Date.parse('2026-10-08T14:20:00.000Z') + s * 1000
   return {
     kind: 'read',
-    earlier: true,
+    before: '2048',
     rev: '7',
     turns: [
       {

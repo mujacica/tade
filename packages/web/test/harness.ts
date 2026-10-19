@@ -218,7 +218,15 @@ export async function start(
     /** What the window says this machine is, a document, a tool that reads, work it takes, and a carry. */
     owned?: Pick<
       ServerOptions,
-      'machine' | 'document' | 'tool' | 'records' | 'taking' | 'opening' | 'carrying' | 'answers'
+      | 'machine'
+      | 'document'
+      | 'tool'
+      | 'records'
+      | 'taking'
+      | 'opening'
+      | 'carrying'
+      | 'answers'
+      | 'earlier'
     >
     /** The window's half of the doorbells, for a test of a webhook delivery. */
     hooks?: ServerOptions['hooks']

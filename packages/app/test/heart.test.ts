@@ -107,6 +107,10 @@ describe('what is said where nothing draws it', () => {
     expect(saidSince(same, same)).toEqual([])
     // The oldest falling off the front is not a line said.
     expect(saidSince([one, two], [two])).toEqual([])
+    // Nor is what was read back out of the record and put above: it was said long ago.
+    const before = tade('read back')
+    expect(saidSince([one, two], [before, one, two])).toEqual([])
+    expect(saidSince([one, two], [before, one, two, asked])).toEqual([asked])
   })
 
   it("is the orchestrator's words once they are whole, and a tool once it has answered", () => {

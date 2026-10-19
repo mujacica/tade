@@ -496,11 +496,14 @@
 }
 
 .dock-last.is-reply,
+.dock-last.is-own,
+.dock-last.is-suggestion,
 .dock-last.is-asked {
   color: var(--bright);
 }
 
-.dock-last.is-tade {
+.dock-last.is-tade,
+.dock-last.is-routed {
   color: var(--heading);
   font-size: var(--step--1);
 }

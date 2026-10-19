@@ -260,6 +260,21 @@ declare module '*/assets/talk.js' {
   export function callDoing(tool: unknown, brief: string | null): string
   // biome-ignore lint/suspicious/noExplicitAny: a node of whichever document a test installs
   export function talkScreen(ctx: unknown): { node: any; update(view: unknown): void }
+  export function offerToAsk(words: string): void
+}
+
+declare module '*/assets/earlier.js' {
+  export const NEAR_TOP: number
+  export function nearTop(scrollTop: number, slack?: number): boolean
+  export function linesKept<T extends { id: string }>(
+    order?: (a: T, b: T) => number,
+  ): {
+    newer(rows: readonly T[]): void
+    older(rows: readonly T[]): void
+    all(): T[]
+    first(): T | null
+    readonly size: number
+  }
 }
 
 declare module '*/assets/follow.js' {

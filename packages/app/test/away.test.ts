@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ableOn,
   awayCollections,
+  chatLines,
   noteIn,
   nothingKnown,
   queueIn,
@@ -13,6 +14,7 @@ import {
 } from '../src/away.ts'
 import { checksIn } from '../src/away-checks.ts'
 import type { ActionsView } from '../src/frame.ts'
+import { type Entry, emptyTranscript } from '../src/transcript.ts'
 
 /** Every verb about a task, so a task's two lists are held to covering all of them. */
 const VERB_NAMES = VERBS.filter((verb) => verb.on === 'task').map((verb) => verb.name)
@@ -272,6 +274,45 @@ describe('the queue', () => {
     expect(queueIn([queued()], facts())[0]?.waitsOn).toEqual([
       { task: 'shop/first', why: 'the contracts come first' },
     ])
+  })
+})
+
+describe('the conversation’s lines', () => {
+  it('is each kind the strip draws apart, so a page draws it the same way', () => {
+    const transcript = {
+      ...emptyTranscript(),
+      entries: [
+        { kind: 'said', text: 'On it.', streaming: false, by: 'orchestrator', at: 1 },
+        { kind: 'said', text: 'Started **one**.', streaming: false, by: 'tade', at: 2 },
+        { kind: 'tade', text: 'started tade/one', at: 3 },
+        { kind: 'routed', text: 'start · tade/one', at: 4 },
+        { kind: 'suggestion', text: 'Ask what blocks it?', ask: 'what blocks one?', at: 5 },
+        { kind: 'problem', text: 'it stopped', at: 6 },
+      ] as Entry[],
+    }
+    const lines = chatLines(transcript)
+    expect(lines.map((one) => one.kind)).toEqual([
+      'reply',
+      'own',
+      'tade',
+      'routed',
+      'suggestion',
+      'problem',
+    ])
+    // A suggestion carries the words its press asks; no other line carries any.
+    expect(lines.map((one) => one.ask ?? '')).toEqual(['', '', '', '', 'what blocks one?', ''])
+    const snapshot = snapshotOf(
+      {
+        ...collections(),
+        reach: { device: 'dev_1', projects: { kind: 'every' }, granted: ['talk'] },
+        lifetime: { epoch: 'e', rev: 1, openedAt: 0 },
+        talk: { lines, rev: 'r', busy: false, whose: '', mine: true, known: [] },
+      },
+      Date.parse('2026-10-08T14:30:00.000Z'),
+    )
+    expect(() => SnapshotSchema.parse(snapshot)).not.toThrow()
+    expect(snapshot.chat.map((one) => one.kind)).toEqual(lines.map((one) => one.kind))
+    expect(snapshot.chat[4]?.ask).toBe('what blocks one?')
   })
 })
 

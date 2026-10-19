@@ -32,6 +32,13 @@ export interface AwayDeps {
    */
   talk: Talking
   /**
+   * Read the page of the conversation before what the window holds, out of
+   * the orchestrator's record (`Earlier.more`), for a page scrolled up past
+   * what it holds. False is a record that could not be read. Absent, a page
+   * reads only what the window holds.
+   */
+  earlier?: () => Promise<boolean>
+  /**
    * Why work that came from outside this machine may not go ahead now, or
    * null — the queue's own question (`intakeStands`), asked at the moment a
    * paired device asks to approve one.

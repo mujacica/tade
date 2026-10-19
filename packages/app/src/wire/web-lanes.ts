@@ -65,10 +65,11 @@ export interface LaneReading {
   /**
    * The newest turns of a task's agent's conversation, out of its harness's
    * own record (`Workbench.agentHistory`): at least `limit` of them, and
-   * whether the record goes back further. Throws for a record that is there
-   * and could not be read. Absent, no conversation is read.
+   * where the turns before them end in it — null where these reach its
+   * beginning. Throws for a record that is there and could not be read.
+   * Absent, no conversation is read.
    */
-  history?(task: string, limit: number): Promise<{ turns: TurnIn[]; earlier: boolean }>
+  history?(task: string, limit: number): Promise<{ turns: TurnIn[]; before: string | null }>
   /**
    * A conversation's record could not be read: said where somebody reads it,
    * once each time it goes from read to not, never once a beat.
@@ -209,7 +210,7 @@ export class Lanes {
     if (history === undefined) return
     this.talking.add(task)
     try {
-      const page = await inTime<{ turns: TurnIn[]; earlier: boolean } | typeof LATE>(
+      const page = await inTime<{ turns: TurnIn[]; before: string | null } | typeof LATE>(
         history(task, TURNS.turns),
         this.reading.deadline ?? READ_MS,
         LATE,
@@ -224,7 +225,7 @@ export class Lanes {
       if (was !== undefined && was.said.kind === 'read' && was.whole === whole) return
       this.moved += 1
       this.talks.set(task, {
-        said: { kind: 'read', turns: page.turns, earlier: page.earlier, rev: String(this.moved) },
+        said: { kind: 'read', turns: page.turns, before: page.before, rev: String(this.moved) },
         whole,
       })
     } catch (problem) {

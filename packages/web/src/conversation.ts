@@ -24,8 +24,10 @@ import { cleanText } from './screen.ts'
 export const CALL = { brief: 160 } as const
 
 /**
- * How many of an agent's turns one answer carries — the newest, each whole;
- * the page says where there are earlier ones.
+ * How many of an agent's turns one read of its record asks for: at least
+ * this many, back to the start of an exchange (`historyIn`). Every turn read
+ * crosses, each whole, and the ones before are the next page's — asked for as
+ * the reader scrolls up (`turnsBefore`).
  */
 export const TURNS = { turns: 40 } as const
 
@@ -223,7 +225,8 @@ export type TurnIn =
     }
 
 /**
- * An agent's turns as they cross: the newest `TURNS.turns`, each cleaned, with
+ * An agent's turns as they cross: every one of a page of its record, each
+ * cleaned and none cut, with
  * an id that does not move as the conversation grows — a call's own id, and
  * otherwise the moment it was written and how many before it in the same
  * millisecond — because the page keys its rows by it, and an id that moved
@@ -234,10 +237,9 @@ export function turnsOf(
   known: readonly string[],
   places: Places = NOWHERE,
 ): { turns: TurnRow[]; taken: number } {
-  const kept = turns.slice(-TURNS.turns)
   const same = new Map<number, number>()
   let taken = 0
-  const rows = kept.map((one): TurnRow => {
+  const rows = turns.map((one): TurnRow => {
     const n = same.get(one.at) ?? 0
     same.set(one.at, n + 1)
     // Never the record's own text as a key the page writes into an attribute

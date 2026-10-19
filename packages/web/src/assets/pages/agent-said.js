@@ -10,8 +10,9 @@
 // **Asked every two seconds, sent only when it moved** — the pane says which
 // revision it holds (`?seen=`), and the machine answers that one with no turns.
 
-import { CALL_STATES, callIn, callRow, wordsIn } from '../conversation.js'
+import { CALL_STATES, callIn, callRow, readFrom, wordsIn } from '../conversation.js'
 import { classOn, el, into, keyed, textIn, toneOn } from '../dom.js'
+import { linesKept, readBack } from '../earlier.js'
 import { ageSaid } from '../figures.js'
 import { followOf } from '../follow.js'
 import { section } from '../rows.js'
@@ -58,43 +59,95 @@ export function conversationView() {
     attrs: { tabindex: '0', 'aria-label': 'Its conversation' },
   })
   const follow = followOf(() => list)
+  // **Every turn it was sent, oldest first** (`linesKept`): the newest page of
+  // its record moves on as it works, and what was read further back stays
+  // above it with nothing between.
+  const kept = linesKept()
+  /** Where the turns before the oldest held end in its record; null at its beginning. */
+  let before = null
+  /** Whether any turns arrived yet: the first answer's cursor is where reading back starts. */
+  let started = false
+  let task = null
+  let seen = null
+  /** How many things cleaning took out of the newest turns, as their last answer said. */
+  let taken = 0
+  // **The whole of it can be read here**: scrolled up near the top of its
+  // region, the turns before are read out of its record and put above, and
+  // the view stays on what the reader was reading.
+  const back = readBack(
+    () => list,
+    async (keep) => {
+      if (before === null || task === null) return 'none'
+      const got = await readFrom(
+        `/api/agent/${agentPath(task)}/earlier?before=${encodeURIComponent(before)}`,
+      )
+      if (got.status !== 200 || got.body === null || got.body.v !== 1) return 'failed'
+      if (got.body.why !== null) return got.body.why === 'unread' ? 'failed' : 'none'
+      keep(() => {
+        kept.older(got.body.turns)
+        before = got.body.before
+        draw()
+      })
+      return before === null ? 'none' : 'read'
+    },
+  )
   const jump = el('div', { class: 'ag-said-jump' })
   into(jump, follow.press)
   const foot = el('p', { class: 'unknown' })
-  into(made.body, why, list, jump, foot)
+  into(made.body, why, back.node, list, jump, foot)
+
+  function draw() {
+    if (seen === null) return
+    const view = seen
+    const turns = kept.all()
+    textIn(made.figure, turns.length === 0 ? '' : String(turns.length))
+    keyed(
+      list,
+      turns,
+      (turn) => turn.id,
+      createTurn,
+      (node, turn) => fillTurn(node, turn, view, task),
+    )
+    back.more(before !== null && turns.length > 0)
+  }
 
   return {
     node: made.node,
+    leave: () => {
+      follow.leave()
+      back.leave()
+    },
     /** `heard` is the pane's: the last answer, whose conversation is the newest one held. */
     update(heard, view) {
       const answer = heard.answer
       const talk = answer?.conversation ?? null
       const turns = talk?.turns ?? []
-      textIn(made.figure, turns.length === 0 ? '' : String(turns.length))
+      seen = view
+      task = answer?.task ?? null
+      if (talk !== null && turns.length > 0 && !started) {
+        started = true
+        before = talk.before ?? null
+      }
+      kept.newer(turns)
       if (answer === null) {
         stateBoxIn(why, null)
-      } else if (talk === null) {
+      } else if (talk === null && kept.size === 0) {
         const [title, line] = UNREAD_SAID[answer.unread] ?? UNREAD_SAID['could not read']
         stateBoxIn(
           why,
           stateOf(answer.unread === 'could not read' ? 'error' : 'empty', title, line, 'agents'),
         )
       } else {
-        stateBoxIn(why, turns.length === 0 ? stateOf('empty', 'Nothing said yet', null) : null)
+        stateBoxIn(why, kept.size === 0 ? stateOf('empty', 'Nothing said yet', null) : null)
       }
-      keyed(
-        list,
-        turns,
-        (turn) => turn.id,
-        createTurn,
-        (node, turn) => fillTurn(node, turn, view, answer?.task ?? null),
-      )
-      if (turns.length > 0) follow.drawn()
-      const parts = []
-      if (talk?.earlier === true) parts.push('earlier turns are not on this page')
-      if ((talk?.taken ?? 0) > 0) parts.push(`${talk.taken} taken out`)
-      textIn(foot, parts.join(' · '))
-      foot.hidden = parts.length === 0
+      draw()
+      if (kept.size > 0) {
+        follow.drawn()
+        back.drawn()
+      }
+      if (talk !== null && talk.turns !== null) taken = talk.taken ?? 0
+      textIn(foot, taken > 0 ? `${taken} taken out` : '')
+      foot.hidden = taken === 0
     },
   }
 }

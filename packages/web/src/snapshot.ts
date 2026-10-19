@@ -21,6 +21,7 @@ import {
 } from './input.ts'
 import { BUDGET, type Budget, type Page, pageOf, textOf, withheld } from './page.ts'
 import type {
+  ChatPage,
   ChatRow,
   CheckRunOut,
   CheckTrackOut,
@@ -320,7 +321,39 @@ export function chatRows(lines: readonly ChatIn[]): ChatRow[] {
     outcome: line.outcome === '' ? null : line.outcome,
     call: null,
     streaming: line.streaming,
+    ask: line.ask === undefined || line.ask === '' ? null : withoutPaths(line.ask),
   }))
+}
+
+/**
+ * The lines said before `before`, as `GET /api/chat` answers them: the newest
+ * `budget.chat` of them, oldest first, each as the snapshot would carry it.
+ *
+ * `before` is a line's id and is only ever **compared**, never looked up:
+ * an id sorts in the order things were said (`chatLines`), so a page asks for
+ * what came before the oldest line it holds whether or not that line is still
+ * held here — nothing is skipped and nothing starts over.
+ */
+export function chatBefore(
+  talk: TalkIn | null,
+  reach: Reach,
+  before: string,
+  budget: Budget = BUDGET,
+): ChatPage {
+  if (talk === null) return { v: PROTOCOL_VERSION, rows: [], earlier: false, why: 'off' }
+  if (!has(reach, 'talk')) {
+    return { v: PROTOCOL_VERSION, rows: [], earlier: false, why: 'not granted' }
+  }
+  const older = chatRows(talk.lines.filter((line) => line.id < before)).sort((a, b) =>
+    byText(a.id, b.id),
+  )
+  const rows = older.slice(-budget.chat)
+  return {
+    v: PROTOCOL_VERSION,
+    rows: withCalls(rows, talk, has(reach, 'lanes')),
+    earlier: older.length > rows.length || talk.earlier === true,
+    why: null,
+  }
 }
 
 /**
@@ -618,6 +651,7 @@ export function snapshotOf(
               whose: SOME(input.talk.whose),
               since: input.talk.busy ? ISO_OR(input.talk.since ?? null) : null,
               mine: input.talk.mine,
+              earlier: input.talk.earlier === true,
             },
     },
     pages: {

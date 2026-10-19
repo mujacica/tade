@@ -25,6 +25,7 @@ import {
   type Wiring,
   wiringFor,
 } from './wire/context.ts'
+import { Earlier } from './wire/earlier.ts'
 import { type Tellable, tellNow, tellOrKeep } from './wire/handed.ts'
 import { Intake } from './wire/intake.ts'
 import { LinearTokens, lending } from './wire/linear-tokens.ts'
@@ -295,7 +296,11 @@ function settled(entry: Entry): entry is Said {
 export function saidSince(was: readonly Entry[], now: readonly Entry[]): Said[] {
   if (was === now) return []
   const before = new Set(was)
-  return now.filter((entry): entry is Said => !before.has(entry) && settled(entry))
+  // What was read back out of the record goes above what was there, and was
+  // said long ago: only what came after the last line there is new.
+  const last = was.at(-1)
+  const from = last === undefined ? -1 : now.indexOf(last)
+  return now.slice(from + 1).filter((entry): entry is Said => !before.has(entry) && settled(entry))
 }
 
 export class Heart {
@@ -335,6 +340,12 @@ export class Heart {
   readonly orchestrator: Orchestrator
   /** The away view and its notifications: who may read Tade from off this machine. */
   readonly away: Away
+  /**
+   * What was said to the orchestrator before what the conversation holds, read
+   * back out of its record: by a face scrolled to the top, and by a page on a
+   * phone scrolled past what it holds — so the heart's, with or without a face.
+   */
+  readonly earlier: Earlier
 
   constructor(opts: AppOptions, face: Face, said: ((line: Said) => void) | null = null) {
     this.opts = opts
@@ -412,7 +423,9 @@ export class Heart {
       told: (words) => this.told.note(words),
     })
     this.wire.opts.extensions?.useConnected(lending(this.linear))
+    this.earlier = new Earlier(this.wire)
     this.away = new Away(this.wire, {
+      earlier: () => this.earlier.more(),
       ...face.away,
       decided: (allow) => this.agents.decide(allow),
       news: (words) => this.told.note(words),

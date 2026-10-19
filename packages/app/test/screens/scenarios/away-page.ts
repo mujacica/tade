@@ -607,7 +607,7 @@ const STRIPE: AgentIn = {
   // markdown, a call as a row that opens.
   conversation: {
     kind: 'read',
-    earlier: false,
+    before: null,
     rev: '3',
     turns: [
       {

@@ -286,8 +286,11 @@ describe('the real folder', () => {
     // drawn as the window draws it (df27642f, about 421 at HEAD before the
     // next) and a call that is opened asked for its whole answer rather than
     // being sent a cut of it (about 1 KB: `answerIn` and its sentences in
-    // `conversation.js`) took it to 422.
-    expect(wire).toBeLessThan(426 * 1024)
+    // `conversation.js`) took it to 422. 426 until a conversation could be
+    // read back to its beginning on the page (about 2 KB: `earlier.js`, the
+    // lines it keeps and the read as the reader scrolls up, and a suggestion's
+    // press) took it to 427.
+    expect(wire).toBeLessThan(430 * 1024)
     // And the files as they sit, which is what a browser holds once it has
     // them: about a megabyte, with the comments every module carries. 768
     // until the pages were redrawn one at a time, each 40–90 KB as it sits.
@@ -319,6 +322,9 @@ describe('the real folder', () => {
     // (df27642f, 1350 at HEAD before the next) and a call that is opened
     // reading its whole answer rather than being sent a cut of it (3 KB as it
     // sits, most of it what each answer it can be told says) took it to 1353.
-    expect(raw).toBeLessThan(1360 * 1024)
+    // 1360 until a conversation could be read back to its beginning (7 KB as
+    // it sits: `earlier.js` and its reasons, and a suggestion's press) took it
+    // to 1365.
+    expect(raw).toBeLessThan(1372 * 1024)
   })
 })

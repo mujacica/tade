@@ -1,4 +1,4 @@
-import { askingEarlier, withEarlier } from '../transcript.ts'
+import { askingEarlier, READ_FROM_END, withEarlier } from '../transcript.ts'
 import { type Actions, notify, type Subject, type Wiring, why } from './context.ts'
 
 // What was said to the orchestrator before this window opened.
@@ -15,6 +15,13 @@ import { type Actions, notify, type Subject, type Wiring, why } from './context.
 /** How much one read brings back: a few exchanges, about a screen and a half of them. */
 export const EARLIER_PAGE = 60
 
+/**
+ * How many pages one look back may read past what is newer than what is
+ * shown, before it stops for now with its place kept: a record read from its
+ * end after lines fell off the top passes over everything still shown first.
+ */
+export const LOOKS = 40
+
 /** How many of the person's own sentences are looked through to tell theirs from Tade's. */
 const SAID_LOOKED_AT = 2_000
 
@@ -25,13 +32,15 @@ export class Earlier implements Subject {
    * that went under no heading can be told apart from one Tade composed.
    */
   private theirs: Set<string> | null = null
+  /** The look back in flight, which everybody asking meanwhile is answered by. */
+  private reading: Promise<boolean> | null = null
 
   constructor(wire: Wiring) {
     this.wire = wire
   }
 
   actions(): Actions {
-    return { 'transcript-earlier': () => this.more() }
+    return { 'transcript-earlier': () => void this.more() }
   }
 
   /**
@@ -43,32 +52,67 @@ export class Earlier implements Subject {
     await this.read(null)
   }
 
-  /** The page before what is shown, once, while nothing else is reading one. */
-  async more(): Promise<void> {
+  /**
+   * The page before what is shown — asked by somebody scrolling up here, or
+   * by a page on a phone scrolled up past what it holds (`web.ts`). One at a
+   * time: an ask while one is being read is answered by that one. False is a
+   * record that could not be read, which has been said where it happened.
+   */
+  more(): Promise<boolean> {
+    if (this.reading !== null) return this.reading
     const earlier = this.wire.state.transcript.earlier
-    if (!earlier || earlier.asking) return
+    if (!earlier) return Promise.resolve(true)
     this.put(askingEarlier(this.wire.state.transcript))
-    await this.read(earlier.cursor)
+    this.reading = this.read(earlier.cursor).finally(() => {
+      this.reading = null
+    })
+    return this.reading
   }
 
-  private async read(before: string | null): Promise<void> {
+  private async read(before: string | null): Promise<boolean> {
     const history = this.wire.opts.history
-    if (!history) return
-    try {
-      const [page, theirs] = await Promise.all([
-        history({ limit: EARLIER_PAGE, before }),
-        this.said(),
-      ])
+    if (!history) {
+      // Nothing to read it from: nothing is offered.
       const now = this.wire.state.transcript
-      // Something fell off the top while this was being read: what came back
-      // no longer joins up with what is shown.
-      if (before !== null && now.earlier?.cursor !== before) return
-      this.put(withEarlier(now, page.items, page.earlier, (text) => theirs.has(text)))
+      if (now.earlier) this.put({ ...now, earlier: null })
+      return true
+    }
+    try {
+      const theirs = await this.said()
+      // `''` is the record read from its end (`READ_FROM_END`): lines fell off
+      // the top of what is shown, so no cursor joins up with it, and what is
+      // newer than the first line shown is passed over on the way back.
+      let expected = before
+      let at = before === READ_FROM_END ? null : before
+      for (let looked = 0; looked < LOOKS; looked += 1) {
+        const page = await history({ limit: EARLIER_PAGE, before: at })
+        const now = this.wire.state.transcript
+        // Something fell off the top while this was being read: what came back
+        // no longer joins up with what is shown.
+        if (expected !== null && now.earlier?.cursor !== expected) return true
+        // Only what was said before the first line shown: on the way back
+        // from the record's end, the rest is already here.
+        const first = now.entries[0]?.at ?? Number.POSITIVE_INFINITY
+        const items = page.items.filter((item) => item.at < first)
+        const next = withEarlier(now, items, page.earlier, (text) => theirs.has(text))
+        if (items.length > 0 || page.earlier === null) {
+          this.put(next)
+          return true
+        }
+        // Nothing older on this page yet: carry on from where it ends.
+        this.put(askingEarlier(next))
+        expected = page.earlier
+        at = page.earlier
+      }
+      const now = this.wire.state.transcript
+      this.put({ ...now, earlier: now.earlier ? { ...now.earlier, asking: false } : null })
+      return true
     } catch (err) {
       const now = this.wire.state.transcript
       this.put({ ...now, earlier: now.earlier ? { ...now.earlier, asking: false } : null })
       notify(this.wire, `could not read what was said before: ${why(err)}`)
       this.wire.draw()
+      return false
     }
   }
 

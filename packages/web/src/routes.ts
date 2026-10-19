@@ -301,6 +301,12 @@ export const ROUTES: readonly Route[] = [
   // retrying rather than hammering a port it will never get into.
   { method: 'GET', path: '/api/stream', name: 'stream', needs: 'read', mutates: false },
   { method: 'GET', path: '/api/notes', name: 'notes', needs: 'read', mutates: false },
+  // **The conversation with Tade before a line the page holds** (`earlier.ts`),
+  // read as somebody scrolls up past what the snapshot carries, so every line
+  // of it can be read here. On the conversation's own grant, checked in the
+  // answer; asking may make the window read its record further back, which
+  // is the window's own scrollback and changes nothing about the work.
+  { method: 'GET', path: '/api/chat', name: 'chat', needs: 'read', mutates: false },
   // **One agent, read while somebody is looking at it.** A `GET`, like every
   // other read, and it changes nothing about the work: what asking does is
   // tell the window that a device is still looking, which is what keeps it
@@ -324,6 +330,15 @@ export const ROUTES: readonly Route[] = [
     method: 'GET',
     path: '/api/agent/:project/:task/answer/:call',
     name: 'agent answer',
+    needs: 'read',
+    mutates: false,
+  },
+  // **One agent's turns before a cursor its page holds**: the same, for an
+  // agent's conversation, on its own grants (`lanes`, a task it reads).
+  {
+    method: 'GET',
+    path: '/api/agent/:project/:task/earlier',
+    name: 'agent earlier',
     needs: 'read',
     mutates: false,
   },

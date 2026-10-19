@@ -165,6 +165,11 @@ describe('what a browser cannot be asked', () => {
     expect(counted).toContain(`${CHECKS.length} unrun`)
   })
 
+  it('names reading a conversation back to its first line', () => {
+    for (const check of ['chat', 'back'])
+      expect(CHECKS as readonly string[], check).toContain(check)
+  })
+
   it('names the three an installed shell owns', () => {
     for (const check of ['install', 'offline-cold', 'no-api-cache']) {
       expect(CHECKS as readonly string[], check).toContain(check)

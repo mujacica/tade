@@ -469,6 +469,24 @@ describe('the connect pages', () => {
   })
 })
 
+describe('reading a conversation further back', () => {
+  it('is two GETs at read, changing nothing, matched with their parameters', () => {
+    for (const name of ['chat', 'agent earlier']) {
+      const found = ROUTES.find((one) => one.name === name)
+      expect(found, name).toMatchObject({ method: 'GET', needs: 'read', mutates: false })
+      expect(found?.public, name).toBeUndefined()
+      expect(found?.here, name).toBeUndefined()
+    }
+    expect(routeFor('GET', '/api/chat')?.route.name).toBe('chat')
+    const agent = routeFor('GET', '/api/agent/sentry/away-projection/earlier')
+    expect(agent?.route.name).toBe('agent earlier')
+    expect(agent?.params).toMatchObject({ project: 'sentry', task: 'away-projection' })
+    // Nothing else reads a conversation, and nothing writes one.
+    expect(routeFor('POST', '/api/chat')).toBeNull()
+    expect(routeFor('GET', '/api/agent/sentry/away-projection/earlier/more')).toBeNull()
+  })
+})
+
 describe('matching a path to a route', () => {
   it('finds the route for a method and a path', () => {
     expect(routeFor('GET', '/')?.route.name).toBe('shell')

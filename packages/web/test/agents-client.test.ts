@@ -38,21 +38,21 @@ describe('its conversation, asked for again', () => {
 
   it('keeps the turns it holds where the machine says they have not moved', () => {
     const turns = [{ id: 'reply:1#0' }]
-    const was = { conversation: { rev: '7', turns, earlier: false, taken: 2 }, unread: null }
+    const was = { conversation: { rev: '7', turns, before: null, taken: 2 }, unread: null }
     const same = withHeld(was, {
       screen: null,
-      conversation: { rev: '7', turns: null, earlier: false, taken: 0 },
+      conversation: { rev: '7', turns: null, before: null, taken: 0 },
       unread: null,
     })
     expect(same.conversation).toEqual(was.conversation)
     // A revision it never held the turns of is not drawn as an empty conversation.
     const lost = withHeld(null, {
-      conversation: { rev: '8', turns: null, earlier: false, taken: 0 },
+      conversation: { rev: '8', turns: null, before: null, taken: 0 },
       unread: null,
     })
     expect(lost).toMatchObject({ conversation: null, unread: 'not read yet' })
     // A whole answer is taken as it is.
-    const next = { conversation: { rev: '8', turns: [], earlier: false, taken: 0 }, unread: null }
+    const next = { conversation: { rev: '8', turns: [], before: null, taken: 0 }, unread: null }
     expect(withHeld(was, next)).toBe(next)
   })
 })
