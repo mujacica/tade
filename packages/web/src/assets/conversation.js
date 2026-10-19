@@ -14,7 +14,8 @@
 // call answered and carries none of it; opening it asks the machine for the
 // whole of it (`/api/…/answer/<call>`, `answered.ts`), which is drawn in a box
 // that scrolls — five lines or five thousand, with nothing saying how much more
-// there was, because there is none.
+// there was, because there is none. A call with nothing to ask by came with
+// its whole answer instead, and opening it draws that in the same box.
 //
 // **A row that opens is a real button with its own words**: the tool's name,
 // the line that says which call it was, and how it went — so a screen reader,
@@ -136,9 +137,21 @@ export function callIn(node, one, at = null) {
     call.answered === 'words' && call.id !== null && at !== null
       ? `${at}/${encodeURIComponent(call.id)}`
       : null
+  // A call with nothing to ask by came with its whole answer (`CallSchema.answer`).
+  const carried = where === null && call.answered === 'words' ? (call.answer?.words ?? '') : null
   const was = node.tadeAnswer
-  if (was === undefined || was.where !== where || was.answered !== call.answered) {
-    node.tadeAnswer = { where, answered: call.answered, read: null }
+  if (
+    was === undefined ||
+    was.where !== where ||
+    was.answered !== call.answered ||
+    was.carried !== carried
+  ) {
+    node.tadeAnswer = {
+      where,
+      answered: call.answered,
+      carried,
+      read: carried === null ? null : { says: 'words', text: carried },
+    }
   }
   partsIn(body, call, node.tadeAnswer)
   if (!body.hidden) void answerIn(node)
@@ -208,7 +221,6 @@ function partsIn(body, call, held) {
 function noAnswer(held) {
   if (held.answered === 'nothing') return 'It answered nothing'
   if (held.answered !== 'words') return 'What it answered was not written down'
-  if (held.where === null) return 'What it answered is not on this page'
   return NO_ANSWER[held.read?.says ?? 'reading'] ?? ''
 }
 

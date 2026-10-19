@@ -20,8 +20,44 @@ import { PROTOCOL_VERSION } from './protocol.ts'
 //
 // Pure: no `node:` import, no clock, nothing awaited.
 
-/** What a call's id has to look like to be asked for: a harness's own, never a path. */
+/** What a call's id has to look like to be asked for as itself: a harness's own, never a path. */
 export const CALL_ID = /^[\w.:-]{1,120}$/
+
+/**
+ * How long an id may be, in bytes, and still be asked for by its spelling
+ * (`callKey`): far past any harness's, and short enough to sit in a URL.
+ */
+export const CALL_ID_BYTES = 2_048
+
+/** An id asked for by its spelling: `~` and its bytes in base64url, which no `CALL_ID` begins with. */
+const SPELT = /^~[\w-]{1,2731}$/
+
+/**
+ * What a page asks for a call's answer by. An id that looks like one is
+ * itself; any other — pi's on OpenAI's Responses API is `call_…|fc_…`, and an
+ * ACP agent's is whatever that agent chose — is spelt (`~` and base64url), so
+ * every call a harness recorded is one its whole answer can be read for, and
+ * the id itself is never a path or markup on the page. Null for an empty id,
+ * which no record can be searched by, and one past `CALL_ID_BYTES`.
+ */
+export function callKey(id: string | null): string | null {
+  if (id === null || id === '') return null
+  if (CALL_ID.test(id)) return id
+  const bytes = Buffer.from(id, 'utf8')
+  return bytes.length > CALL_ID_BYTES ? null : `~${bytes.toString('base64url')}`
+}
+
+/**
+ * The id a page's key asks for (`callKey`), or null for a key that is not
+ * one: a spelling must come back to exactly the bytes it was made of, so
+ * nothing but what `callKey` makes is ever read as an id.
+ */
+export function callAsked(key: string): string | null {
+  if (CALL_ID.test(key)) return key
+  if (!SPELT.test(key)) return null
+  const id = Buffer.from(key.slice(1), 'base64url').toString('utf8')
+  return callKey(id) === key ? id : null
+}
 
 export const ANSWER_SAYS = [
   /** `text` is the whole of what it answered. */

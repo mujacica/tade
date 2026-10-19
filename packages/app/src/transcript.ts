@@ -54,6 +54,12 @@ export type Entry =
        * before anything kept it.
        */
       input?: unknown
+      /**
+       * Something you ran yourself (`ran`): its answer is the window's alone and
+       * in no harness's record, so the away view carries it with the row
+       * rather than asking a record for it by `id`.
+       */
+      yours?: true
       state: ToolState
       /** What it answered: the reason, when it failed. */
       result: string
@@ -516,6 +522,8 @@ export function ran(
     id: run.id,
     tool: run.tool,
     detail: toolDetail(run.input),
+    input: run.input,
+    yours: true,
     state: 'running',
     result: '',
     progress: null,

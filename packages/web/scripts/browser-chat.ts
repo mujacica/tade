@@ -22,6 +22,10 @@ import { until } from './browser-until.ts'
 // back to its first line as the reader scrolls up — each page put above
 // without moving the line they were looking at, every line there once and in
 // the order it was said, and no line saying the rest is somewhere else.
+//
+// And `call`: a call with no id to ask its answer by — one you ran yourself,
+// whose answer only the window holds — opened with a real tap, shows the whole
+// of the long answer it came with, and nothing says the rest is elsewhere.
 
 type Verdict = 'pass' | 'fail' | 'unrun'
 type Found = (check: string, where: string, verdict: Verdict, what: string) => void
@@ -34,6 +38,7 @@ interface Page {
   evaluate: (body: string) => Promise<unknown>
   waitForTimeout: (ms: number) => Promise<void>
   mouse: {
+    click: (x: number, y: number) => Promise<void>
     move: (x: number, y: number) => Promise<void>
     wheel: (dx: number, dy: number) => Promise<void>
   }
@@ -45,6 +50,10 @@ interface Page {
  * the rest of it.
  */
 const FILLER = 300
+
+/** The last of the filler's calls: no id, and an answer two thousand lines long. */
+const LONG_AT = FILLER - 1
+const LONG_ANSWER = Array.from({ length: 2_000 }, (_, n) => `planned step ${n + 1}`).join('\n')
 
 /**
  * The conversation the harness serves: forty lines of news and calls, then the
@@ -72,7 +81,10 @@ export function harnessTalk(more = 0): TalkIn {
           kind: 'tool',
           tool: 'tade_plan',
           outcome: n % 8 === 7 ? 'failed' : 'ok',
-          call: { input: { project: 'sentry', prompt: `step ${n}` }, result: 'planned' },
+          call: {
+            input: { project: 'sentry', prompt: `step ${n}` },
+            result: n === LONG_AT ? LONG_ANSWER : 'planned',
+          },
         })
       : lineAt(n, { kind: 'tade', text: `started sentry/step-${n}: there was room for it` }),
   )
@@ -191,6 +203,53 @@ export async function chatAt(
     )
   } catch (problem) {
     found('chat', where, 'fail', said(problem))
+  }
+  await callAt(page, where, found)
+}
+
+/** The row of the call with no id and a long answer, as the page drew it. */
+const LONG_ROW = `[...document.querySelectorAll('main ul.chat > li')].find((li) => li.textContent.includes('"step ${LONG_AT}"'))`
+
+/** Where the long call's press is, brought into view, to be tapped where a thumb would. */
+const LONG_PRESS = `(() => {
+  const press = ${LONG_ROW}?.querySelector('button.ui-call-press')
+  if (!press || press.hidden) return null
+  press.scrollIntoView({ block: 'center' })
+  const r = press.getBoundingClientRect()
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+})()`
+
+/** What the opened row shows of what it answered. */
+const LONG_OPENED = `(() => {
+  const body = ${LONG_ROW}?.querySelector('.ui-call-body')
+  if (!body || body.hidden) return null
+  const shown = [...body.querySelectorAll('pre')].filter((pre) => !pre.parentElement.hidden)
+  return { answer: shown.at(-1)?.textContent ?? '', said: body.textContent }
+})()`
+
+/** `call`: the long answer of a call with no id, opened with a tap, whole. */
+async function callAt(page: Page, where: string, found: Found): Promise<void> {
+  try {
+    const press = (await page.evaluate(LONG_PRESS)) as { x: number; y: number } | null
+    if (press === null) throw new Error(`no press for the call of step ${LONG_AT}`)
+    await page.mouse.click(press.x, press.y)
+    await until(page, `${LONG_OPENED} !== null`, 5_000).catch(() => {
+      throw new Error('tapped, and the call did not open')
+    })
+    const opened = (await page.evaluate(LONG_OPENED)) as { answer: string; said: string }
+    const lines = opened.answer.split('\n')
+    if (opened.answer !== LONG_ANSWER) {
+      throw new Error(
+        `opened onto ${lines.length} of ${LONG_ANSWER.split('\n').length} lines, the last ${JSON.stringify(lines.at(-1))}`,
+      )
+    }
+    const elsewhere = /not on this page|not written down|Reading what it answered|more than/.exec(
+      opened.said,
+    )
+    if (elsewhere !== null) throw new Error(`the opened call says "${elsewhere[0]}"`)
+    found('call', where, 'pass', `a tap opens all ${lines.length} lines of an answer with no id`)
+  } catch (problem) {
+    found('call', where, 'fail', said(problem))
   }
 }
 

@@ -433,13 +433,22 @@ export const CallSchema = z.strictObject({
    * answered was nothing — or `none`, an answer nobody kept or one not given
    * yet. Two different facts from the last two, drawn as two.
    *
-   * **Never what it answered.** That is read whole, never cut, when somebody
-   * opens the call (`answered.ts`, by `id`), so no row carries a preview
-   * standing in for it and none is held for a row nobody opens.
+   * **Never what it answered** where there is an `id`: that is read whole,
+   * never cut, when somebody opens the call (`answered.ts`), so no row carries
+   * a preview standing in for it and none is held for a row nobody opens.
    */
   answered: z.enum(['words', 'nothing', 'none']),
-  /** The call's own id in its record, which its answer is asked for by. Null where it has none. */
+  /**
+   * What its answer is asked for by (`callKey`): the call's own id in its
+   * record, or that id spelt. Null where no record holds its answer by an id.
+   */
   id: z.string().nullable(),
+  /**
+   * Where there is no `id`, the whole of what it answered, cleaned — the one
+   * place a row carries an answer, because there is nowhere else to read it
+   * from. Null wherever there is an `id`, and where it answered no words.
+   */
+  answer: SaidSchema.nullable(),
 })
 export type Call = z.infer<typeof CallSchema>
 

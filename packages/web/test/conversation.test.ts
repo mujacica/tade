@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { agentOf } from '../src/agent.ts'
+import { CALL_ID_BYTES, callAsked, callKey } from '../src/answered.ts'
 import {
   briefOf,
   briefOut,
@@ -88,9 +89,84 @@ describe('a call, cleaned', () => {
     })
   })
 
-  it("names no call it cannot be asked about by: an id that is not a harness's is none", () => {
-    expect(callOf({}, 'a', [], undefined, '../../etc').call.id).toBeNull()
-    expect(callOf({}, 'a', []).call.id).toBeNull()
+  it('asks for every id a harness recorded, spelling the ones not shaped like one', () => {
+    // pi on OpenAI's Responses API, an ACP agent's own choice, and a path.
+    for (const id of ['call_0Kx|fc_68f0a1b2c3d4e5f6', 'read file 3', '../../etc', 'ü/<b>']) {
+      const key = callOf({}, 'a', [], undefined, id).call.id
+      expect(key, id).toMatch(/^~[\w-]+$/)
+      expect(callAsked(key ?? ''), id).toBe(id)
+    }
+    expect(callOf({}, 'a', [], undefined, 'toolu_1').call.id).toBe('toolu_1')
+    expect(callAsked('toolu_1')).toBe('toolu_1')
+    // Only what `callKey` makes is read as an id: no path, no other spelling.
+    expect(callAsked('../../etc')).toBeNull()
+    expect(callAsked('~')).toBeNull()
+    expect(callAsked(`~${Buffer.from('toolu_1').toString('base64url')}`)).toBeNull()
+    expect(callAsked('~_w')).toBeNull()
+    expect(callKey('x'.repeat(CALL_ID_BYTES + 1))).toBeNull()
+    const longest = callKey('|'.repeat(CALL_ID_BYTES)) ?? ''
+    expect(callAsked(longest)).toBe('|'.repeat(CALL_ID_BYTES))
+  })
+})
+
+describe('a call with nothing to ask its answer by', () => {
+  const long = Array.from(
+    { length: 5_000 },
+    (_, n) => `line ${n + 1} read ${PRIVATE.worktree}/a.ts with ${HELD_KEY}`,
+  ).join('\n')
+
+  it('carries the whole of its answer, however long, cleaned the way one read by id is', () => {
+    const made = callOf({ command: 'cat a.ts' }, long, [HELD_KEY])
+    expect(made.call.id).toBeNull()
+    const lines = made.call.answer?.words.split('\n') ?? []
+    expect(lines).toHaveLength(5_000)
+    expect(lines.at(-1)).toMatch(/^line 5000 read /)
+    expect(made.call.answer?.more).toBe(false)
+    const said = JSON.stringify(made.call)
+    for (const one of SECRETS) expect(said, one).not.toContain(one)
+    expect(made.taken).toBeGreaterThanOrEqual(10_000)
+    expect(said).not.toMatch(/not on this page|more lines|more than/)
+  })
+
+  it('carries nothing where it has an id, and nothing where it answered no words', () => {
+    expect(callOf({}, long, [], undefined, 'toolu_1').call.answer).toBeNull()
+    expect(callOf({}, '', []).call).toMatchObject({ answered: 'nothing', answer: null })
+    expect(callOf({}, null, []).call).toMatchObject({ answered: 'none', answer: null })
+  })
+
+  it('is an agent call with an empty id: what its page held, marked where that was only the start', () => {
+    const turn = (result: string, cut?: true) =>
+      turnsOf(
+        [
+          {
+            kind: 'tool',
+            id: '',
+            tool: 'shell',
+            input: {},
+            ok: true,
+            result,
+            at: 1,
+            ...(cut && { cut }),
+          },
+        ],
+        [],
+      ).turns[0]?.call
+    expect(turn('a\nb')).toMatchObject({ id: null, answer: { words: 'a\nb' } })
+    expect(turn('a\nb', true)?.answer?.words).toBe('a\nb\n…')
+  })
+
+  it('is a line of the conversation with Tade that has no id, its answer whole on the snapshot', () => {
+    const lines = talk().lines.map((line) =>
+      line.call === null ? line : { ...line, call: { input: line.call.input, result: long } },
+    )
+    const row = snapshotOf(
+      input({ reach: reach(EVERY), talk: talk({ lines, known: [PRIVATE.opaque, HELD_KEY] }) }),
+      NOW,
+    ).chat.find((one) => one.kind === 'tool')
+    expect(() => ChatRowSchema.parse(row)).not.toThrow()
+    expect(row?.call?.id).toBeNull()
+    expect(row?.call?.answer?.words.split('\n')).toHaveLength(5_000)
+    for (const one of SECRETS) expect(JSON.stringify(row), one).not.toContain(one)
   })
 })
 

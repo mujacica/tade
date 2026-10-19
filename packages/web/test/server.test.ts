@@ -2,6 +2,7 @@ import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { join, relative } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { callKey } from '../src/answered.ts'
 import { allowDevice, grantDevice } from '../src/devices.ts'
 import type { WebEarlier } from '../src/earlier.ts'
 import { COMPANIONS, CSP } from '../src/headers.ts'
@@ -318,12 +319,17 @@ describe('one agent, asked for again', () => {
 })
 
 describe("one call's whole answer, read when it is opened", () => {
+  const SPELT_ID = 'call_0Kx|fc_68f0a1b2c3d4e5f6'
   const long = Array.from({ length: 5_000 }, (_, n) => `line ${n + 1} at /Users/someone/x`).join(
     '\n',
   )
   const answers = {
     agent: async (_task: string, call: string) =>
-      call === 'toolu_long' ? { result: long } : call === 'toolu_empty' ? { result: '' } : null,
+      call === 'toolu_long' || call === SPELT_ID
+        ? { result: long }
+        : call === 'toolu_empty'
+          ? { result: '' }
+          : null,
     talk: async (call: string) => (call === 'call_sick' ? ('unread' as const) : null),
     known: () => [],
   }
@@ -343,6 +349,14 @@ describe("one call's whole answer, read when it is opened", () => {
     // Cleaned at the boundary like everything an agent wrote, and cut nowhere.
     expect(String(got.text)).not.toContain('/Users/someone')
     expect(String(got.text)).not.toMatch(/more than|not kept|more lines|more characters/)
+  })
+
+  it("is read by the id it was recorded under where that id is not spelt like one, as pi's on OpenAI is", async () => {
+    const key = callKey(SPELT_ID) ?? ''
+    expect(key.startsWith('~')).toBe(true)
+    const got = await opened(`/api/agent/sentry/away-projection/answer/${key}`, ['lanes'])
+    expect(got).toMatchObject({ call: key, says: 'words' })
+    expect(String(got.text).split('\n')).toHaveLength(5_000)
   })
 
   it('tells an answer of nothing, one nobody kept and one that could not be read apart', async () => {

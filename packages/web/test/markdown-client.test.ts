@@ -517,6 +517,35 @@ describe('a tool call', () => {
     expect(unknown.classList.contains('is-failed')).toBe(false)
   })
 
+  it('opens a call with no id onto the whole answer it came with, asking for nothing', async () => {
+    answering({})
+    const whole = Array.from({ length: 5_000 }, (_, n) => `<i>line ${n + 1}</i>`).join('\n')
+    const row = callRow()
+    callIn(
+      row,
+      {
+        tool: 'deps_check',
+        outcome: 'failed',
+        call: {
+          brief: null,
+          input: null,
+          answered: 'words',
+          id: null,
+          answer: { words: whole, more: false },
+        },
+      },
+      '/api/talk/answer',
+    )
+    row.querySelector('button').click()
+    await settled()
+    expect(asked).toEqual([])
+    expect(texts(row).at(-1)).toBe(whole)
+    expect(row.querySelectorAll('i')).toEqual([])
+    expect(row.querySelector('.ui-call-body').textContent).not.toMatch(
+      /not on this page|Reading|not written down|more than/,
+    )
+  })
+
   it('says an answer that could not be read, and reads it again the next time it is opened', async () => {
     answering({
       '/api/talk/answer/c1': { v: 1, call: 'c1', says: 'unread', text: null, taken: 0 },

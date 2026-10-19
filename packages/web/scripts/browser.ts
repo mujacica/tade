@@ -300,8 +300,12 @@ interface Page {
   /** One element, by what it is and what it says. The acting pass taps these. */
   locator: (selector: string, opts?: { hasText?: string }) => Thing
   keyboard: { press: (key: string) => Promise<void>; type: (text: string) => Promise<void> }
-  /** The conversation is scrolled up the way a person does it: the wheel over it. */
+  /**
+   * The conversation is scrolled up the way a person does it, the wheel over
+   * it, and a call in it opened with a tap where a thumb would be.
+   */
   mouse: {
+    click: (x: number, y: number) => Promise<void>
     move: (x: number, y: number) => Promise<void>
     wheel: (dx: number, dy: number) => Promise<void>
   }

@@ -1,4 +1,4 @@
-import { CALL_ID } from './answered.ts'
+import { callKey } from './answered.ts'
 import { commandOut, type Places } from './command.ts'
 import { textOf } from './page.ts'
 import type { Call, Said, TurnRow } from './protocol.ts'
@@ -119,11 +119,13 @@ export function inputText(input: unknown): string {
 /**
  * One call, cleaned, and how many things were taken out of it: everything it
  * was handed, whole, and whether it answered — words, nothing, or none kept —
- * with the id its whole answer is asked for by (`answered.ts`).
+ * with the key its whole answer is asked for by (`callKey`, `answered.ts`).
  *
- * **Never what it answered.** That is read whole when somebody opens the call,
- * so a conversation of a hundred test runs is not cut to fit a row, nor held
- * for a row nobody opens.
+ * **Never what it answered, where it has a key.** That is read whole when
+ * somebody opens the call, so a conversation of a hundred test runs is not cut
+ * to fit a row, nor held for a row nobody opens. A call with no key — no id,
+ * or an answer only the window holds — carries its answer whole instead,
+ * cleaned by the same rule, because opening it has nowhere else to read it.
  */
 export function callOf(
   input: unknown,
@@ -135,14 +137,17 @@ export function callOf(
   const words = briefOut(input, places, known)
   const brief = textOf(words, CALL.brief)
   const asked = cleanWhole(inputText(input), known)
+  const id = callKey(call)
+  const answer = id === null && result !== null ? cleanWhole(result, known) : null
   return {
     call: {
       brief: brief === null ? null : brief.words,
       input: asked.said,
       answered: result === null ? 'none' : result === '' ? 'nothing' : 'words',
-      id: call !== null && CALL_ID.test(call) ? call : null,
+      id,
+      answer: answer?.said ?? null,
     },
-    taken: asked.taken,
+    taken: asked.taken + (answer?.taken ?? 0),
   }
 }
 
@@ -221,6 +226,11 @@ export type TurnIn =
        * recorded. What a person reads is the whole, asked for by `id`.
        */
       result: string | null
+      /**
+       * Present where `result` is the start of the answer and not the whole
+       * (`HistoryItem.cut`): asked for by `id`, the whole is read then.
+       */
+      cut?: true
       at: number
     }
 
@@ -262,7 +272,13 @@ export function turnsOf(
         call: null,
       }
     }
-    const made = callOf(one.input, one.result, known, places, one.id)
+    // A call with nothing to ask by carries what the page of its record held,
+    // and where that was only the start, says so the way the window does.
+    const carried =
+      one.cut === true && one.result !== null && callKey(one.id) === null
+        ? `${one.result}\n…`
+        : one.result
+    const made = callOf(one.input, carried, known, places, one.id)
     taken += made.taken
     return {
       id,
