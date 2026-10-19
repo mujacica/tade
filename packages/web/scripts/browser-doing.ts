@@ -135,6 +135,10 @@ export async function doingAt(
   } finally {
     // The turn ends however this went, so the passes after it read the
     // conversation they were promised.
-    if (!idled) await idle().catch(() => {})
+    if (!idled) {
+      await idle().catch((problem) => {
+        found('doing', where, 'fail', `the turn could not be ended after: ${said(problem)}`)
+      })
+    }
   }
 }
