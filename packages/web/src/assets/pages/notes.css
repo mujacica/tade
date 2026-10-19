@@ -318,8 +318,8 @@ a.nt-chip[href]:hover .nt-pill {
 }
 
 .nt-pill > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .nt-of {

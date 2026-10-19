@@ -173,11 +173,9 @@ its words stand level with the label of the cell beside it.
 }
 
 .page-overview .ov-meter-name {
+  overflow-wrap: anywhere;
   min-width: 0;
-  overflow: hidden;
   color: var(--heading);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* Which dash it is is never cut: *not granted to this device* wraps rather than trails off. */
@@ -287,12 +285,10 @@ name, and the presses under that on a phone — beside it at a desk.
 }
 
 .page-overview .ov-want-name {
+  overflow-wrap: anywhere;
   min-width: 0;
-  overflow: hidden;
   font-size: var(--step-1);
   font-weight: var(--w-strong);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .page-overview .ov-want-project {
@@ -431,13 +427,11 @@ because a column is read down.
 }
 
 .page-overview .ov-proj-name {
+  overflow-wrap: anywhere;
   flex: 1 1 0;
   min-width: 0;
-  overflow: hidden;
   color: var(--bright);
   font-weight: var(--w-strong);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .page-overview .ov-proj-spend {

@@ -12,6 +12,7 @@ import { Tickets } from '../src/tickets.ts'
 import {
   allUnrun,
   axeRefused,
+  CUT_ALLOWED,
   exitFor,
   type Finding,
   LOOKS,
@@ -26,12 +27,14 @@ import {
 import { agentHeld, input, NOW, note, settingRows } from '../test/fixtures.ts'
 import { chatAt, harnessTalk } from './browser-chat.ts'
 import { deskAt, lanesSeen, paletteAt, unpairedAt } from './browser-desk.ts'
+import { doingAt, type Running } from './browser-doing.ts'
 import { frameAt } from './browser-frame.ts'
 import { momentsAt } from './browser-moments.ts'
 import { asPwa } from './browser-pwa.ts'
 import {
   AXE,
   CONTROLS,
+  CUT,
   HOLD,
   HOLD_AGAIN,
   RECEIVED,
@@ -477,6 +480,7 @@ async function asGranted(
   await momentsAt(page, origin, at, found, LIFE.length, AGENT.activity)
   await wholeAt(page, origin, at, found)
   await chatAt(page, origin, at, arrival(page, server, held), found, heldLines)
+  await doingAt(page, origin, at, busyWith(page, server, held), arrival(page, server, held), found)
   if (phone !== undefined && phone !== desk) {
     await page.setViewportSize({ width: phone.width, height: phone.height })
     await page.emulateMedia({ reducedMotion: 'reduce' })
@@ -490,6 +494,14 @@ async function asGranted(
       arrival(page, server, held),
       found,
       heldLines,
+    )
+    await doingAt(
+      page,
+      origin,
+      `${phone.name} granted`,
+      busyWith(page, server, held),
+      arrival(page, server, held),
+      found,
     )
   }
   await context.close()
@@ -730,6 +742,50 @@ function arrival(
   }
 }
 
+/**
+ * Tade answering, with a call still running as its last line: one more
+ * arrival, as `arrival` sends it, with the turn in flight and the call after
+ * it. The next `arrival` ends the turn, and the call is not in it.
+ */
+function busyWith(
+  page: Page,
+  server: Served,
+  held: Map<string, ReturnType<typeof projector>>,
+): (call: Running) => Promise<void> {
+  return async (call) => {
+    const device = await deviceIn(page)
+    if (device === null) throw new Error('the page never said which device this is')
+    const made = held.get(device)
+    if (made === undefined) throw new Error('no projector for this device')
+    arrived += 1
+    const reach = reaches.get(device)
+    const talking = harnessTalk(arrived)
+    // After every line `harnessTalk` makes, arrivals included, so it is the last.
+    const at = Date.parse('2026-10-08T13:00:00.000Z') + (20_000 + arrived) * 1000
+    const running = {
+      id: `${new Date(at).toISOString()}#0`,
+      at,
+      kind: 'tool' as const,
+      from: '',
+      text: '',
+      tool: call.tool,
+      outcome: 'running' as const,
+      call: { input: call.input, result: null },
+      streaming: false,
+    }
+    const delta = made.beat(
+      input({
+        ...(reach === undefined ? {} : { reach }),
+        talk: { ...talking, busy: true, whose: 'device aa', lines: [...talking.lines, running] },
+        notes: NOTES,
+      }),
+      NOW + 2_000 + arrived,
+    )
+    if (delta === null) throw new Error('the conversation did not move')
+    server.streams.push(device, delta as never, Date.now())
+  }
+}
+
 /** Which device this page is signed in as, out of the devices screen. */
 async function deviceIn(page: Page): Promise<string | null> {
   const got = await page.evaluate(`fetch('/api/devices').then((r) => r.json())`)
@@ -785,6 +841,13 @@ interface Shape {
   small: string[]
 }
 
+/** What `CUT` found: each element drawn cut, each rule asking to, and the folds with their mark. */
+interface Clipped {
+  cut: string[]
+  rules: string[]
+  folds: number
+}
+
 async function lookAt(
   page: Page,
   origin: string,
@@ -826,6 +889,12 @@ async function lookAt(
   } else {
     found('targets', where, 'pass', 'every control is at least 44px tall')
   }
+
+  // Nothing cut to fit, on this screen or in any rule it could draw with.
+  const cut = (await page.evaluate(CUT(CUT_ALLOWED))) as Clipped
+  const cuts = [...cut.cut, ...cut.rules.map((one) => `a rule asks for it: ${one}`)]
+  if (cuts.length > 0) found('cut', where, 'fail', cuts.slice(0, 4).join('; '))
+  else found('cut', where, 'pass', `nothing cut; ${cut.folds} folded with the mark that opens them`)
 
   const title = await page.title()
   if (title === '' || title === 'Tade') found('titles', where, 'fail', `the title is "${title}"`)

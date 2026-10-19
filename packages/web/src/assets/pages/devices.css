@@ -97,15 +97,14 @@
 }
 
 .dv-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
   margin: 0;
-  overflow: hidden;
   color: var(--bright);
   font-size: var(--step-2);
   font-weight: var(--w-strong);
   letter-spacing: var(--tight);
   line-height: var(--lead-tight);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .dv-pills {
@@ -382,14 +381,10 @@
   list-style: none;
 }
 
-/* Two lines of what was said, cut by the sheet and never by the words. */
+/* What was said, whole, wrapping: never cut by the sheet nor by the words. */
 .dv-said {
-  display: -webkit-box;
-  white-space: normal;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: var(--step--1);
   line-height: var(--lead);
 }

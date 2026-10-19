@@ -268,11 +268,9 @@
 }
 
 .rv-card-name {
+  overflow-wrap: anywhere;
   flex: 0 1 auto;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--bright);
   font-size: var(--step-1);
   font-weight: var(--w-strong);
@@ -283,11 +281,9 @@
 }
 
 .rv-card-project {
+  overflow-wrap: anywhere;
   flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--heading);
   font-size: var(--step--1);
   font-weight: var(--w-label);
@@ -307,15 +303,12 @@
   color: var(--heading);
 }
 
-/* What was asked for, in the body grey, two lines at most: the whole of it is one press away. */
+/* What was asked for, in the body grey, whole. */
 .rv-card-words {
-  display: -webkit-box;
+  min-width: 0;
+  overflow-wrap: anywhere;
   margin: 0;
   padding-inline: var(--inset);
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
   color: var(--body);
   font-size: var(--step-0);
 }
@@ -413,10 +406,8 @@
 }
 
 .rv-cell-name {
+  overflow-wrap: anywhere;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-family: var(--font-mono);
 }
 
@@ -455,12 +446,10 @@
   line-height: var(--lead-tight);
 }
 
-/* One line: a long branch is cut here and is whole on its agent's page, one press away. */
+/* A long branch wraps, whole, as git spells it. */
 .rv-branch-name {
+  overflow-wrap: anywhere;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--body);
   font-family: var(--font-mono);
 }
@@ -510,11 +499,9 @@
 }
 
 .rv-row-name {
+  overflow-wrap: anywhere;
   grid-area: name;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--bright);
   font-weight: var(--w-label);
 }

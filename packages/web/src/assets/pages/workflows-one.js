@@ -20,7 +20,6 @@
 
 import { mayFor } from '../access.js'
 import { savingOf } from '../acts.js'
-import { flow, flowIn } from '../charts.js'
 import {
   classOn,
   el,
@@ -33,6 +32,7 @@ import {
   textIn,
   toneOn,
 } from '../dom.js'
+import { flow, flowIn } from '../flow.js'
 import { pathOf } from '../routes.js'
 import { createSaidRow, fillSaidRow, pageBar, sayIn, section } from '../rows.js'
 import { runsOf, workflowAt } from '../store.js'

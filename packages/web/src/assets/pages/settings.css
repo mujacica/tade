@@ -126,11 +126,9 @@
 }
 
 .st-entry-name {
+  overflow-wrap: anywhere;
   flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .st-entry-n {
@@ -371,10 +369,8 @@
 }
 
 .st-said {
+  overflow-wrap: anywhere;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* Nothing set: what applies instead, a step quieter, and the word that says so. */

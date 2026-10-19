@@ -1,15 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import {
-  donutParts,
-  flowGeometry,
-  layered,
-  levelsOf,
-  placeOf,
-  sparkPath,
-  TONES,
-} from '../src/assets/charts.js'
+import { donutParts, levelsOf, placeOf, sparkPath, TONES } from '../src/assets/charts.js'
+import { flowGeometry, layered, linesOf } from '../src/assets/flow.js'
 import { assetsDir } from '../src/assets.ts'
 
 // The charts' arithmetic, which is the half of a chart a test can hold: where a
@@ -139,7 +132,7 @@ describe('a flow’s drawing', () => {
   it('lays layers left to right, and ends each edge on the side of the box it names', () => {
     const drawn = flowGeometry(nodes, edges, 'right')
     const { w, h, gapX } = drawn.size
-    expect(drawn.boxes.get('b')).toEqual({ x: w + gapX, y: 0 })
+    expect(drawn.boxes.get('b')).toEqual({ x: w + gapX, y: 0, h })
     expect(drawn.width).toBe(2 * w + gapX)
     expect(drawn.height).toBe(h)
     expect(drawn.paths[0]?.d.startsWith(`M${w} ${h / 2}`)).toBe(true)
@@ -149,9 +142,40 @@ describe('a flow’s drawing', () => {
   it('lays layers top to bottom on a phone', () => {
     const drawn = flowGeometry(nodes, edges, 'down')
     const { w, h, gapY } = drawn.size
-    expect(drawn.boxes.get('b')).toEqual({ x: 0, y: h + gapY })
+    expect(drawn.boxes.get('b')).toEqual({ x: 0, y: h + gapY, h })
     expect(drawn.width).toBe(w)
     expect(drawn.paths[0]?.d.startsWith(`M${w / 2} ${h}`)).toBe(true)
+  })
+
+  it('draws a box as tall as its words, and every box on its line as tall, so nothing is cut', () => {
+    const long = 'reproduce the failure on the checkout page and write the test that holds it'
+    const drawn = flowGeometry(
+      [{ id: 'a', label: long, under: 'working' }, { id: 'b', label: 'fix' }, { id: 'c' }],
+      [
+        { from: 'a', to: 'c' },
+        { from: 'b', to: 'c' },
+      ],
+      'right',
+    )
+    const { h, gapY } = drawn.size
+    const a = drawn.boxes.get('a')
+    const b = drawn.boxes.get('b')
+    expect(linesOf(long)).toBeGreaterThan(3)
+    expect(a?.h).toBeGreaterThan(h)
+    // `b` is on the next line down, under the whole of `a`, at its own height.
+    expect(b?.y).toBe((a?.h ?? 0) + gapY)
+    expect(b?.h).toBe(h)
+    expect(drawn.height).toBe((a?.h ?? 0) + gapY + h)
+    // The curve leaves `a` at the middle of its side, however tall it grew.
+    expect(drawn.paths[0]?.d.startsWith(`M${drawn.size.w} ${(a?.h ?? 0) / 2}`)).toBe(true)
+  })
+
+  it('counts lines as words laid into them, breaking one too long for a line', () => {
+    expect(linesOf('')).toBe(0)
+    expect(linesOf('fix')).toBe(1)
+    expect(linesOf('x'.repeat(100))).toBeGreaterThan(4)
+    // A wide character takes the room of two.
+    expect(linesOf('修'.repeat(17))).toBe(2)
   })
 
   it('is an empty canvas for an empty graph', () => {

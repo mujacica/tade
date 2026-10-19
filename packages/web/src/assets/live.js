@@ -91,7 +91,7 @@ export function outsideOf(status) {
  */
 export function partsOf(standing, connection, at, now, tight = false) {
   const age = Math.max(0, Math.round((now - (connection.sinceAt ?? now)) / 1000))
-  // At 360px the end of this line is what gets cut off, and the clock is the
+  // At 360px the header has a narrow column for this, and the clock is the
   // half that matters: `as of` is grammar, the time is the fact.
   const of = tight ? '' : 'as of '
   switch (standing) {
@@ -109,9 +109,12 @@ export function partsOf(standing, connection, at, now, tight = false) {
     case 'unpaired':
       return { glyph: '○', words: 'not paired' }
     default:
+      // At a phone's width the why is the bar's, under the header, whole.
       return {
         glyph: '○',
-        words: `unreachable since ${at} — the machine may be asleep, or Tade may be closed`,
+        words: tight
+          ? `unreachable since ${at}`
+          : `unreachable since ${at} — the machine may be asleep, or Tade may be closed`,
       }
   }
 }

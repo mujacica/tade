@@ -93,9 +93,7 @@
   min-width: 0;
   color: var(--bright);
   font-weight: var(--w-label);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .aside {

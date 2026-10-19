@@ -168,6 +168,7 @@ declare module '*/assets/store.js' {
   export function projectAt(store: Store, name: string): any
   export function queueIn(store: Store, project: string | null): readonly any[]
   export function notesOf(store: Store): readonly any[]
+  export function chatOf(store: Store): readonly any[]
   export function findingsOf(store: Store): readonly any[]
   export function findingsUnanswered(store: Store): readonly any[]
   export function plansOf(store: Store): readonly any[]
@@ -260,6 +261,7 @@ declare module '*/assets/talk.js' {
   export function lineMark(line: unknown): Mark
   export function doingOf(lines: readonly unknown[], talk?: unknown): string
   export function callDoing(tool: unknown, brief: string | null): string
+  export function doingBlock(lines: readonly unknown[]): string
   // biome-ignore lint/suspicious/noExplicitAny: a node of whichever document a test installs
   export function talkScreen(ctx: unknown): { node: any; update(view: unknown): void }
   export function offerToAsk(words: string): void
@@ -336,22 +338,27 @@ declare module '*/assets/charts.js' {
     gap?: number,
   ): ({ start: number; length: number } | null)[]
   export function placeOf(at: number | null, from: number, to: number): number | null
+  export function levelsOf(values: readonly (number | null)[], levels?: number): (number | null)[]
+}
+
+declare module '*/assets/flow.js' {
+  /** The layout of a flow, which is pure arithmetic a test can hold. */
   export function layered(
     nodes: readonly { id: string }[],
     edges: readonly { from: string; to: string }[],
   ): { at: Map<string, { layer: number; row: number }>; layers: number; rows: number }
+  export function linesOf(text: unknown): number
   export function flowGeometry(
-    nodes: readonly { id: string }[],
+    nodes: readonly { id: string; label?: string; under?: string }[],
     edges: readonly { from: string; to: string }[],
     direction?: 'right' | 'down',
   ): {
-    boxes: Map<string, { x: number; y: number }>
+    boxes: Map<string, { x: number; y: number; h: number }>
     paths: { from: string; to: string; d: string; head: string }[]
     width: number
     height: number
     size: { w: number; h: number; gapX: number; gapY: number }
   }
-  export function levelsOf(values: readonly (number | null)[], levels?: number): (number | null)[]
 }
 
 declare module '*/assets/commands.js' {

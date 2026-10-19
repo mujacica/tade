@@ -11,8 +11,8 @@
 // existing answer to show, never a new rule about when work is stuck.
 
 import { mayFor } from '../access.js'
-import { flowGeometry } from '../charts.js'
 import { money } from '../figures.js'
+import { flowGeometry } from '../flow.js'
 import { checkMark, joined, reviewMark, stepMark } from '../glyphs.js'
 import { taskPath } from '../routes.js'
 

@@ -76,12 +76,10 @@ a.ui-stat:hover {
   font-variant-numeric: tabular-nums;
 }
 
-/* A figure too long for its tile is cut at its end, never wrapped under its unit. */
+/* A figure too long for its tile wraps, whole, rather than being cut. */
 .ui-stat-value {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .ui-stat-figure.is-unknown {
@@ -349,17 +347,17 @@ a.ui-stat:hover {
   align-items: center;
 }
 
-/* One line with an ellipsis, a thumb's height from its line box (`a.name`'s way). */
+/* Whole, wrapping onto as many lines as it needs, and never shorter than a thumb. */
 .ui-bars-label {
-  display: block;
+  display: flex;
+  align-items: center;
   min-width: 0;
   min-height: var(--tap);
-  overflow: hidden;
+  padding-block: var(--s1);
   color: var(--body);
-  line-height: var(--tap);
+  line-height: var(--lead-tight);
+  overflow-wrap: anywhere;
   text-decoration: none;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 a.ui-bars-label[href]:hover {
@@ -422,15 +420,16 @@ a.ui-bars-label[href]:hover {
 }
 
 .ui-lanes-label {
-  display: block;
+  display: flex;
+  align-items: center;
+  min-width: 0;
   min-height: var(--tap);
-  overflow: hidden;
+  padding-block: var(--s1);
   color: var(--body);
   font-size: var(--step--1);
-  line-height: var(--tap);
+  line-height: var(--lead-tight);
+  overflow-wrap: anywhere;
   text-decoration: none;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 a.ui-lanes-label[href]:hover {
@@ -579,13 +578,14 @@ a.ui-flow-box[href]:hover {
   text-align: center;
 }
 
+/* Whole, wrapping: the box is laid out as tall as its words (`linesOf`). */
 .ui-flow-name,
 .ui-flow-under {
   grid-column: 2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: var(--step--1);
+  line-height: var(--lead-tight);
 }
 
 .ui-flow-name {

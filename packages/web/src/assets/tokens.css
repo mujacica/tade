@@ -303,7 +303,7 @@ button {
 }
 
 /*
-  The primitives, and three of them are load-bearing.
+  The primitives, and two of them are load-bearing.
 
   `.row`'s three columns are the same three everywhere in the product — a glyph,
   a name, a figure — so sections line up across the page without anybody
@@ -313,9 +313,9 @@ button {
   breakpoint at all: one column at 360px, two at 480, three on a desk, and the
   arithmetic is the browser's.
 
-  `.mono-1line` truncates with `text-overflow`, and **a truncated row is always
-  one tap from the whole of it** — a row that cannot say something in its width
-  says it elsewhere rather than cutting it into a lie.
+  **Nothing on this page is cut to fit**: no `text-overflow`, no line clamp but
+  a fold with `more` beside it (`CUT_ALLOWED`, held by the browser harness and
+  `wraps.test.ts`). Text too long for its width wraps.
 */
 
 .row {
@@ -334,13 +334,6 @@ button {
   display: grid;
   gap: var(--s3);
   grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
-}
-
-.mono-1line {
-  font-family: var(--font-mono);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .tap {

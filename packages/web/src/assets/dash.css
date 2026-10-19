@@ -54,11 +54,10 @@ main a.tile {
 }
 
 .tile-under {
+  min-width: 0;
   color: var(--heading);
   font-size: var(--step--1);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 /* A figure that is somebody's to act on wears its tone: its icon and its number. */
@@ -188,9 +187,7 @@ main a.proj {
   color: var(--bright);
   font-size: var(--step-1);
   font-weight: var(--w-strong);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 /* The places that are a count and a link: a list, each with its icon. */
@@ -280,8 +277,8 @@ main a.card-link {
 }
 
 /*
-  The approval's tool name, in mono. One line here, the whole of it on the task
-  page — a command cut mid-flag reads as a different command.
+  The approval's tool name, in mono, whole and wrapping — a command cut
+  mid-flag reads as a different command.
 */
 .card .asked {
   justify-self: start;

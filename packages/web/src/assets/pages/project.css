@@ -131,11 +131,10 @@ red wash are under AA, so the word a screen reader hears is in the text grey.
 }
 
 .page-project .pj-alert-words > span {
-  overflow: hidden;
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--body);
   font-size: var(--step--1);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .page-project .pj-go {
@@ -204,13 +203,12 @@ red wash are under AA, so the word a screen reader hears is in the text grey.
 }
 
 .page-project .pj-meter-figure {
-  overflow: hidden;
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--bright);
   font-size: var(--step-1);
-  text-overflow: ellipsis;
   font-weight: var(--w-strong);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
 .page-project .pj-meter-figure:is(.tone-failed, .tone-done, .tone-wants) {
@@ -371,17 +369,17 @@ phone — beside it where there is the room.
 }
 
 .page-project .pj-want-name {
+  display: flex;
+  align-items: center;
+  overflow-wrap: anywhere;
   grid-area: name;
   min-width: 0;
   min-height: var(--tap);
-  overflow: hidden;
   color: var(--bright);
   font-size: var(--step-1);
   font-weight: var(--w-strong);
-  line-height: var(--tap);
+  line-height: var(--lead-tight);
   text-decoration: none;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .page-project .pj-want-name::after {
@@ -473,12 +471,10 @@ that is over is quieter than the ones at work.
 }
 
 .page-project .pj-agent-words {
+  overflow-wrap: anywhere;
   min-width: 0;
-  overflow: hidden;
   color: var(--bright);
   font-weight: var(--w-strong);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .page-project .pj-agent.is-over .pj-agent-words {
@@ -569,13 +565,11 @@ that is over is quieter than the ones at work.
 }
 
 .page-project :is(.pj-check-name, .pj-finding-name) {
+  overflow-wrap: anywhere;
   grid-area: name;
   min-width: 0;
-  overflow: hidden;
   color: var(--bright);
   font-weight: var(--w-strong);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .page-project .pj-finding-name {
@@ -695,13 +689,11 @@ indented under it — on a phone, where the boxes would scroll sideways.
 }
 
 .page-project .pj-piece-name {
+  overflow-wrap: anywhere;
   grid-area: name;
   min-width: 0;
-  overflow: hidden;
   color: var(--bright);
   font-weight: var(--w-strong);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .page-project .pj-piece-at {
@@ -746,14 +738,12 @@ right, every branch to one scale — and the figures in words.
 }
 
 .page-project .pj-branch-name {
+  overflow-wrap: anywhere;
   grid-area: name;
   min-width: 0;
-  overflow: hidden;
   color: var(--bright);
   font-family: var(--font-mono);
   font-size: var(--step--1);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .page-project .pj-branch-review {

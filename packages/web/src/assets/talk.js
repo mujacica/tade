@@ -34,7 +34,7 @@
 import { mayFor } from './access.js'
 import { afterAnswer, askBody, stopBody } from './acts.js'
 import { keyOf } from './controls.js'
-import { CALL_STATES, callIn, callRow, readFrom, wordsIn } from './conversation.js'
+import { BRIEF_FOLDS, CALL_STATES, callIn, callRow, readFrom, wordsIn } from './conversation.js'
 import { classOn, el, empty, hintOf, into, keyed, textIn, toneOn } from './dom.js'
 import { linesKept, readBack } from './earlier.js'
 import { ageSaid } from './figures.js'
@@ -254,12 +254,22 @@ export function composerOf(ctx, words) {
   // in the window's own style (it turns one while the orchestrator thinks),
   // the call in flight in words, and how long it has been at it — with Stop
   // in the field where Send was, rather than a line and a press on their own.
-  const live = el('div', { class: 'ask-live', attrs: { role: 'status' } })
+  // A command of many lines is said whole in a box of its own under the
+  // spinner, scrolling in place, rather than squeezed onto the status line:
+  // outside the status, so a hundred lines are not read aloud as one.
+  const live = el('div', { class: 'ask-live' })
+  const now = el('div', { class: 'ask-now', attrs: { role: 'status' } })
   const spin = el('span', { class: 'ask-spin', attrs: { 'aria-hidden': 'true' } })
   const doing = el('span', { class: 'ask-doing' })
   const took = el('span', { class: 'ask-took' })
-  into(live, spin, doing, took)
+  const block = el('pre', {
+    class: 'ask-block',
+    attrs: { tabindex: '0', 'aria-label': 'What it is running, in full' },
+  })
+  into(now, spin, doing, took)
+  into(live, now, block)
   live.hidden = true
+  block.hidden = true
   const press = el('button', {
     class: 'press ask-send',
     attrs: { type: 'button', 'aria-label': words.send },
@@ -331,6 +341,9 @@ export function composerOf(ctx, words) {
     classOn(field, 'is-going', going)
     if (busy) {
       textIn(doing, doingOf(seen.lines, talk))
+      const whole = doingBlock(seen.lines)
+      textIn(block, whole)
+      block.hidden = whole === ''
       tookIn()
     }
     // A second hand only while something is being waited on, and only while
@@ -379,18 +392,22 @@ export function composerOf(ctx, words) {
 }
 
 /**
- * What Tade is doing now, in a few words: the call in flight — *Reading
- * NAMES.md*, *Creating a task* — or its answer being written, or thinking.
+ * What Tade is doing now, in words: the call in flight — *Reading
+ * ~/.tade/…/NAMES.md*, *Creating a task* — or its answer being written, or
+ * thinking.
  *
  * Out of the conversation's own last lines, so it is what the strip shows and
  * nothing the page guessed: a tool line still going is the call in flight, and
- * its `brief` (the arguments the window draws beside it) says which.
+ * its `brief` (the arguments the window draws beside it) says which — whole,
+ * because the status line wraps. A command of many lines is the verb alone
+ * here, and the command whole under it (`doingBlock`).
  */
 export function doingOf(lines, talk = null) {
   const last = lines.at(-1)
   const whose = talk?.whose === 'you' ? ' for you, at the machine' : ''
   if (last?.kind === 'tool' && last.outcome === 'running') {
-    return `${callDoing(last.tool, last.call?.brief ?? null)}…${whose}`
+    const brief = doingBlock(lines) === '' ? (last.call?.brief ?? null) : null
+    return `${callDoing(last.tool, brief)}…${whose}`
   }
   if ((last?.kind === 'reply' || last?.kind === 'own') && last.streaming === true) {
     return `Writing its answer…${whose}`
@@ -399,52 +416,64 @@ export function doingOf(lines, talk = null) {
 }
 
 /**
+ * Everything the call in flight was handed, where it is too much for a status
+ * line — an argument of many lines (a script, a heredoc, a file's contents) or
+ * a brief longer than a call's row folds at — or empty: what the box under the
+ * spinner shows, whole, as the machine wrote it (`inputText`: a line per
+ * argument, one of many lines as its name on a line of its own, then them).
+ */
+export function doingBlock(lines) {
+  const last = lines.at(-1)
+  if (last?.kind !== 'tool' || last.outcome !== 'running') return ''
+  const input = last.call?.input?.words
+  if (typeof input !== 'string' || input === '') return ''
+  const many = input.split('\n').some((line) => /^[\w.-]+:$/.test(line))
+  return many || (last.call?.brief ?? '').length > BRIEF_FOLDS ? input : ''
+}
+
+/**
  * A call in flight as what it is doing: a verb for the kinds of tool every
- * harness has, and Tade's own in its own words. Where nothing is known of it,
- * its name: *Using deps check*.
+ * harness has, and Tade's own in its own words, with what it was handed —
+ * whole. Where nothing is known of it, its name: *Using deps check*.
  */
 export function callDoing(tool, brief) {
   const name = toolNamed(tool)
-  const first = firstOf(brief)
-  for (const [shape, verb, object] of DOING) {
+  const what = briefSaid(brief)
+  for (const [shape, verb, names] of DOING) {
     if (!shape.test(name)) continue
-    const what = object === 'file' ? lastName(first) : object === 'whole' ? first : ''
-    return what === '' ? verb : `${verb} ${what}`
+    return names && what !== '' ? `${verb} ${what}` : verb
   }
   return `Using ${name}`
 }
 
-/** The verbs, by the name a tool reads as: what it does, and how much of its brief to name. */
+/** The verbs, by the name a tool reads as: what it does, and whether its brief says on what. */
 const DOING = [
-  [/^(read|view|cat|open)\b/i, 'Reading', 'file'],
-  [/^(write|create file)\b/i, 'Writing', 'file'],
-  [/^(edit|multi ?edit|apply ?patch|str replace)/i, 'Editing', 'file'],
-  [/^(bash|shell|exec|run|command|terminal run)\b/i, 'Running', 'whole'],
-  [/^(grep|glob|search|find|ls|list)\b/i, 'Searching', 'whole'],
-  [/^web ?fetch|^fetch\b/i, 'Fetching', 'whole'],
-  [/^web ?search/i, 'Searching the web for', 'whole'],
-  [/^task create\b|^run start\b|^start\b/i, 'Creating a task', ''],
-  [/^steer\b/i, 'Steering', 'whole'],
-  [/^plan\b/i, 'Planning', ''],
-  [/^proposal decide\b/i, 'Deciding a proposal', ''],
-  [/^(status|logs|summary|spend)\b/i, 'Looking at the work', ''],
-  [/^(note|memory remember|remember)\b/i, 'Writing a note', ''],
-  [/^(approve|deny)\b/i, 'Answering an approval', ''],
-  [/^(checks run|check)\b/i, 'Running the checks', ''],
-  [/^agent\b|^task\b/i, 'Starting an agent', ''],
+  [/^(read|view|cat|open)\b/i, 'Reading', true],
+  [/^(write|create file)\b/i, 'Writing', true],
+  [/^(edit|multi ?edit|apply ?patch|str replace)/i, 'Editing', true],
+  [/^(bash|shell|exec|run|command|terminal run)\b/i, 'Running', true],
+  [/^(grep|glob|search|find|ls|list)\b/i, 'Searching', true],
+  [/^web ?fetch|^fetch\b/i, 'Fetching', true],
+  [/^web ?search/i, 'Searching the web for', true],
+  [/^task create\b|^run start\b|^start\b/i, 'Creating a task', false],
+  [/^steer\b/i, 'Steering', true],
+  [/^plan\b/i, 'Planning', false],
+  [/^proposal decide\b/i, 'Deciding a proposal', false],
+  [/^(status|logs|summary|spend)\b/i, 'Looking at the work', false],
+  [/^(note|memory remember|remember)\b/i, 'Writing a note', false],
+  [/^(approve|deny)\b/i, 'Answering an approval', false],
+  [/^(checks run|check)\b/i, 'Running the checks', false],
+  [/^agent\b|^task\b/i, 'Starting an agent', false],
 ]
 
-/** The first of a brief's parts, its quotes off and cut to a few words. */
-function firstOf(brief) {
+/** A brief as words: every one of its parts, whole, each with its quotes off. */
+function briefSaid(brief) {
   if (typeof brief !== 'string' || brief === '') return ''
-  const first = (brief.split(' · ')[0] ?? '').replace(/^"|"$/g, '').trim()
-  return first.length > 40 ? `${first.slice(0, 39)}…` : first
-}
-
-/** A path's last name: `~/.tade/…/NAMES.md` is `NAMES.md`. */
-function lastName(path) {
-  const parts = path.split('/').filter((one) => one !== '')
-  return parts.at(-1) ?? ''
+  return brief
+    .split(' · ')
+    .map((part) => part.replace(/^"|"$/g, '').trim())
+    .filter((part) => part !== '')
+    .join(' · ')
 }
 
 /** The same three absences in a word or two, for where the sentence is behind a `?`. */

@@ -5,8 +5,15 @@ import { deskParts } from '../src/assets/desk.js'
 import { linesKept, NEAR_TOP, nearTop } from '../src/assets/earlier.js'
 import { atFoot } from '../src/assets/follow.js'
 import { toolNamed } from '../src/assets/glyphs.js'
-import { applySnapshot, emptyStore } from '../src/assets/store.js'
-import { callDoing, doingOf, lineMark, offerToAsk, talkScreen } from '../src/assets/talk.js'
+import { applySnapshot, chatOf, emptyStore } from '../src/assets/store.js'
+import {
+  callDoing,
+  doingBlock,
+  doingOf,
+  lineMark,
+  offerToAsk,
+  talkScreen,
+} from '../src/assets/talk.js'
 import type { ChatIn } from '../src/input.ts'
 import { projector } from '../src/reading.ts'
 import { input, NOW, reach, talk } from './fixtures.ts'
@@ -300,7 +307,9 @@ describe('the field, while Tade answers', () => {
     const live = field.querySelector('.ask-live') as StillElement
     expect(live.hidden).toBe(false)
     expect(live.querySelector('.ask-spin')).not.toBeNull()
-    expect(live.querySelector('.ask-doing')?.textContent).toBe('Reading NAMES.md…')
+    expect(live.querySelector('.ask-doing')?.textContent).toBe('Reading docs/NAMES.md…')
+    // A one-line call has no box under the spinner.
+    expect(live.querySelector('.ask-block')?.hidden).toBe(true)
     // Stop is in the field where Send was, and Send is gone until it ends.
     expect(field.querySelector('.ask-stop')?.hidden).toBe(false)
     expect(field.querySelector('.ask-send')?.hidden).toBe(true)
@@ -329,13 +338,18 @@ describe('the field, while Tade answers', () => {
     expect(field.querySelector('.ask-stop')?.hidden).toBe(true)
   })
 
-  it('names the call in flight in words', () => {
-    expect(callDoing('Read', '~/.tade/…/NAMES.md')).toBe('Reading NAMES.md')
+  it('names the call in flight in words, with the whole of what it was handed', () => {
+    expect(callDoing('Read', '~/.tade/…/NAMES.md')).toBe('Reading ~/.tade/…/NAMES.md')
     expect(callDoing('tade_task_create', 'tade · away-orchestrator')).toBe('Creating a task')
     expect(callDoing('Bash', '"git log --oneline -20" · "Show history"')).toBe(
-      'Running git log --oneline -20',
+      'Running git log --oneline -20 · Show history',
     )
-    expect(callDoing('tade_steer', 'tade/one · "and the dock"')).toBe('Steering tade/one')
+    expect(callDoing('tade_steer', 'tade/one · "and the dock"')).toBe(
+      'Steering tade/one · and the dock',
+    )
+    // Never cut: a brief of a hundred words is a hundred words on the line.
+    const long = Array.from({ length: 100 }, (_, n) => `word${n}`).join(' ')
+    expect(callDoing('Bash', `"${long}"`)).toBe(`Running ${long}`)
     expect(callDoing('tade_deps_check', null)).toBe('Using deps check')
     expect(doingOf([line(1, { kind: 'reply', text: 'so', streaming: true })])).toBe(
       'Writing its answer…',
@@ -343,6 +357,48 @@ describe('the field, while Tade answers', () => {
     expect(doingOf([])).toBe('Thinking…')
     expect(doingOf([], { whose: 'you' })).toBe('Thinking… for you, at the machine')
     expect(toolNamed('tade_proposal_decide')).toBe('proposal decide')
+  })
+})
+
+describe('a command of many lines, while Tade runs it', () => {
+  const COMMAND = Array.from({ length: 40 }, (_, n) => `echo "line ${n} of the script"`).join('\n')
+  const running = (input: unknown) =>
+    line(5, {
+      kind: 'tool',
+      tool: 'Bash',
+      outcome: 'running',
+      call: { input, result: null as unknown as string },
+    })
+
+  it('says the verb on the status line and the command whole in the box under it', () => {
+    const store = storeOf([...FOUR, running({ command: COMMAND, description: 'Run it' })], {
+      busy: true,
+      whose: 'device aa',
+    })
+    const screen = talkScreen(ctx)
+    screen.update(view(store))
+    const live = screen.node.querySelector('.ask-live') as StillElement
+    expect(live.querySelector('.ask-doing')?.textContent).toBe('Running…')
+    const block = live.querySelector('.ask-block') as StillElement
+    expect(block.hidden).toBe(false)
+    expect(block.textContent).toBe(`command:\n${COMMAND}\ndescription: Run it`)
+    // It scrolls in place, so the keyboard can reach it; and it is not read
+    // aloud as part of the status, which is the line above it.
+    expect(block.getAttribute('tabindex')).toBe('0')
+    expect(block.closest('[role="status"]')).toBeNull()
+    expect(live.querySelector('.ask-doing')?.closest('[role="status"]')).not.toBeNull()
+  })
+
+  it('takes a brief too long for a row into the box, and leaves a short one on the line', () => {
+    const long = `echo ${'x'.repeat(400)}`
+    const lines = chatOf(storeOf([...FOUR, running({ command: long })]))
+    expect(doingBlock(lines)).toBe(`command: ${long}`)
+    expect(doingOf(lines)).toBe('Running…')
+    const short = chatOf(storeOf([...FOUR, running({ command: 'git status' })]))
+    expect(doingBlock(short)).toBe('')
+    expect(doingOf(short)).toBe('Running git status…')
+    // Nothing running, nothing in a box.
+    expect(doingBlock(chatOf(storeOf(FOUR)))).toBe('')
   })
 })
 

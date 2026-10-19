@@ -92,14 +92,14 @@ main a {
 }
 
 /*
-  A row's own name, which has to stay one line with an ellipsis — so the height
-  comes from the line box rather than from flex centring, which `text-overflow`
-  does not survive.
+  A row's own name, whole: a thumb's height at least, centred in it, and as
+  many lines as it takes beyond that.
 */
 a.name {
-  display: block;
+  display: flex;
+  align-items: center;
   min-height: var(--tap);
-  line-height: var(--tap);
+  line-height: var(--lead-tight);
   /* A **name**, not a hyperlink in a document: the underline and the brand's
      amber belong to the one outbound link in the design. */
   color: var(--bright);
@@ -231,8 +231,7 @@ kbd {
 
 /*
   The clock, as a pill: a dot and the words. Pushed to the end of the header,
-  cut with an ellipsis at a phone's width, and whole a tap away in the bar under
-  it when there is something to say.
+  and whole at every width: at a phone's it wraps rather than being cut.
 */
 .fresh {
   flex: 1 1 auto;
@@ -245,12 +244,12 @@ kbd {
   font-variant-numeric: tabular-nums;
   font-size: var(--step--1);
   color: var(--heading);
-  white-space: nowrap;
 }
 
 .fresh-said {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: end;
 }
 
 /*
@@ -326,7 +325,7 @@ kbd {
   widest line's words, `nowrap` and all, so a bar whose lead was longer than a
   phone pushed its press past the edge — clipped, since the page never scrolls
   sideways, and so a press nobody could reach. `minmax(0, 1fr)` is the track
-  the frame gives it, and the lead's ellipsis is what gives way.
+  the frame gives it, and the lead wrapping is what gives way.
 */
 .bars {
   display: grid;
@@ -340,7 +339,7 @@ kbd {
 }
 
 /*
-  One line each: the glyph in its tone, the lead, a `?` for the rest, and a
+  One each: the glyph in its tone, the lead, a `?` for the rest, and a
   press where there is one — a panel like any other, its edge warmed by its
   tone.
 */
@@ -386,9 +385,7 @@ kbd {
   flex: 1 1 auto;
   min-width: 0;
   color: var(--bright);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .bar .under {

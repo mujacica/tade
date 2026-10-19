@@ -371,10 +371,8 @@
 
 .ib-card-name,
 .ib-row-name {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--bright);
 }
 
@@ -434,10 +432,8 @@
 }
 
 .ib-card-foot > strong {
+  overflow-wrap: anywhere;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .page-inbox .ib-card-foot > .ic {

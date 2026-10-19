@@ -322,9 +322,8 @@ a.toast.leaving {
 }
 
 .toast-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-weight: var(--w-strong);
 }
 

@@ -88,11 +88,8 @@ red wash are under AA, so every word on the line stays in the text greys.
 }
 
 .page-agent .ag-now-said {
+  min-width: 0;
   margin: 0;
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
   color: var(--bright);
   font-size: var(--step-1);
   font-weight: var(--w-strong);
@@ -110,12 +107,10 @@ red wash are under AA, so every word on the line stays in the text greys.
 }
 
 .page-agent .ag-now-on {
+  overflow-wrap: anywhere;
   min-width: 0;
-  overflow: hidden;
   color: var(--body);
   font-size: var(--step--1);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .page-agent .ag-now-age {
@@ -159,14 +154,13 @@ red wash are under AA, so every word on the line stays in the text greys.
 }
 
 .page-agent .ag-cell-value {
-  overflow: hidden;
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--bright);
   font-size: var(--step-1);
   font-variant-numeric: tabular-nums;
   font-weight: var(--w-strong);
   letter-spacing: var(--tight);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .page-agent .ag-cell-value.is-quiet {
@@ -186,10 +180,7 @@ red wash are under AA, so every word on the line stays in the text greys.
 }
 
 .page-agent .ag-cell-under {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  min-width: 0;
   color: var(--body);
   font-size: var(--step--1);
   overflow-wrap: anywhere;
@@ -479,14 +470,12 @@ when it takes effect at the start and its press at the end.
 }
 
 .page-agent .ag-track-name {
+  overflow-wrap: anywhere;
   grid-area: name;
   min-width: 0;
-  overflow: hidden;
   color: var(--bright);
   font-family: var(--font-mono);
   font-size: var(--step--1);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .page-agent .ag-track-strip {
@@ -524,14 +513,12 @@ when it takes effect at the start and its press at the end.
 }
 
 .page-agent .ag-branch-name {
+  overflow-wrap: anywhere;
   flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
   color: var(--bright);
   font-family: var(--font-mono);
   font-size: var(--step-0);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .page-agent .ag-branch-said {
@@ -556,11 +543,10 @@ when it takes effect at the start and its press at the end.
 }
 
 .page-agent .ag-run-name {
-  overflow: hidden;
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--bright);
   font-weight: var(--w-strong);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .page-agent .ag-run-link:hover .ag-run-name {

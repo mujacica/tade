@@ -192,10 +192,8 @@
 }
 
 .checks-red-by > strong {
+  overflow-wrap: anywhere;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--bright);
   font-weight: var(--w-strong);
 }
@@ -257,13 +255,11 @@
 }
 
 .checks-project-name {
+  overflow-wrap: anywhere;
   display: inline-flex;
   align-items: center;
   min-width: 1.5rem;
   min-height: var(--tap);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--bright);
   font-size: var(--step-1);
   font-weight: var(--w-strong);

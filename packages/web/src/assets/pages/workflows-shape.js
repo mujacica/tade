@@ -10,7 +10,7 @@
 // and a run's state is its steps' marks (`stepMark`). Every fold here starts
 // from one of those answers and only counts, orders or picks among them.
 
-import { flowGeometry } from '../charts.js'
+import { flowGeometry } from '../flow.js'
 import { joined, stepMark } from '../glyphs.js'
 
 /* ── where a workflow stands ───────────────────────────────────────────────── */

@@ -122,22 +122,22 @@
 
 /* The name is the link, and the whole card is what it answers to. */
 .runs-card-link {
+  display: flex;
+  align-items: center;
+  overflow-wrap: anywhere;
   flex: 1 1 auto;
   min-width: 0;
   min-height: var(--tap);
-  line-height: var(--tap);
+  line-height: var(--lead-tight);
   color: var(--bright);
   font-size: var(--step-1);
   font-weight: var(--w-strong);
   text-decoration: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-/* A block, as `main a`'s inline-flex would keep a long name from its ellipsis. */
+/* Centred in its thumb's height, wrapping whole: a long name is read, never trailed off. */
 .page-runs .runs-card-link {
-  display: block;
+  display: flex;
 }
 
 .runs-card-link::after {
@@ -303,11 +303,10 @@
 }
 
 .runs-now-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--bright);
   font-weight: var(--w-label);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .runs-now-said {
@@ -568,20 +567,20 @@
 }
 
 .runs-step-link {
+  display: flex;
+  align-items: center;
+  overflow-wrap: anywhere;
   flex: 1 1 auto;
   min-width: 0;
   min-height: var(--tap);
-  line-height: var(--tap);
+  line-height: var(--lead-tight);
   color: var(--bright);
   font-weight: var(--w-strong);
   text-decoration: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .page-runs .runs-step-link {
-  display: block;
+  display: flex;
 }
 
 .runs-step-link::after {

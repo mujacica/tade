@@ -47,9 +47,7 @@ main {
 .section-head.pg-bar h1 {
   flex: 0 1 auto;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   font-size: var(--step-0);
   font-weight: var(--w-strong);
   letter-spacing: normal;

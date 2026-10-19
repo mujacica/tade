@@ -144,6 +144,15 @@ export const CHECKS = [
   // character in its row, folded with `more` while closed and opened whole by
   // a tap, and no other call's line clipped.
   'brief',
+  // Nothing on any screen cut to fit (`CUT_ALLOWED`): no visible text with an
+  // ellipsis, a line clamp or a single line clipped at its box, and no rule in
+  // the page's stylesheets asking for one, but the folds the allow-list names —
+  // and each of those beside the mark that opens it.
+  'cut',
+  // What Tade is doing, while it answers (`browser-chat.ts`): a call's whole
+  // brief on the status line, wrapping, and a command of many lines whole in a
+  // box under the spinner that scrolls in place.
+  'doing',
   // The three a control owns, and none of them is answerable offline. A tap is
   // a real pointer on a real target; a keyboard is a real Tab order and a real
   // Enter on a `<button>`; and what somebody typed surviving a refusal is a
@@ -163,6 +172,45 @@ export const CHECKS = [
   'offline-cold',
   'no-api-cache',
 ] as const
+
+/** Text the page may draw cut, how, and what shows the whole of it. */
+export interface Cut {
+  /** The rule's selector, exactly as the stylesheet writes it. */
+  selector: string
+  /** A fold to a few lines, or one line with an ellipsis. */
+  how: 'clamp' | 'ellipsis'
+  /**
+   * The mark that must be drawn right after it, opening the whole — or null
+   * where the whole is somewhere a press takes you rather than beside it.
+   */
+  mark: string | null
+}
+
+/**
+ * **The only text the away view draws cut**, each a press from the whole of it.
+ *
+ * Everything else wraps: the person asked for no truncation on the web view
+ * or the phone, and the harness's `cut` check and `wraps.test.ts` fail on any
+ * other rule or element with `text-overflow: ellipsis` or a line clamp. An
+ * entry here is a decision, with its reason beside it — never a way to quiet
+ * the check.
+ */
+export const CUT_ALLOWED: readonly Cut[] = [
+  // A note folded to its first lines, with `more` under it that opens every
+  // character in place (`proseOf`, dom.js).
+  { selector: '.said.folded', how: 'clamp', mark: 'button.more' },
+  // A call's line of over 240 characters while its row is closed, with `more`
+  // beside it; opening the row opens the line whole (`foldIn`, conversation.js).
+  { selector: '.ui-call-words.is-folded', how: 'clamp', mark: '.ui-call-more' },
+  // A folded dock's heading: what was said last, on one line, because a
+  // paragraph wrapped into a heading is the dock unfolded. The fold beside it
+  // opens the dock onto that same line, drawn whole (`dockIn`, desk.js).
+  { selector: '.dock-last', how: 'ellipsis', mark: null },
+  // A step's name under its dot on a workflow's track, which is laid out at
+  // fixed places: two lines, and a cut one takes a tap or the pointer and is
+  // drawn whole over the track (`.is-cut`, `.is-open`, workflows-draw.js).
+  { selector: '.wf-track-name', how: 'clamp', mark: null },
+]
 
 /**
  * Sentences a page may not say to a device that was granted nothing.

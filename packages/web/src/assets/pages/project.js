@@ -32,8 +32,6 @@ import { PROJECT_SHOWN } from '../acts.js'
 import {
   donut,
   donutIn,
-  flow,
-  flowIn,
   legendIn,
   bars as rankedBars,
   barsIn as rankedBarsIn,
@@ -43,6 +41,7 @@ import {
 } from '../charts.js'
 import { actsIn } from '../controls.js'
 import { classOn, el, glyphOf, into, keyed, skeleton, textIn, toneOn, unknown } from '../dom.js'
+import { flow, flowIn } from '../flow.js'
 import { AGENT_MARKS, checkMark, findingMark } from '../glyphs.js'
 import { icon } from '../icons.js'
 import { pathOf } from '../routes.js'

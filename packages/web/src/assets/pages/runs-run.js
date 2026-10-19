@@ -7,8 +7,9 @@
 // on a phone, **stages** — a rail with a stop per layer, each step with what it
 // waits on and why. Both read the wire's `layer` and `waits`.
 
-import { flow, flowIn, legendIn } from '../charts.js'
+import { legendIn } from '../charts.js'
 import { el, glyphOf, into, keyed, markIn, skeleton, textIn, toneOn } from '../dom.js'
+import { flow, flowIn } from '../flow.js'
 import { checkMark } from '../glyphs.js'
 import { requestPath, taskPath } from '../routes.js'
 import { pageBar, section } from '../rows.js'

@@ -119,18 +119,16 @@
 
 /* The name is the link, and the whole card is what it answers to. */
 .page-workflows .wf-card-link {
+  overflow-wrap: anywhere;
   display: block;
   flex: 1 1 auto;
   min-width: 0;
   min-height: var(--tap);
-  line-height: var(--tap);
+  line-height: var(--lead-tight);
   color: var(--bright);
   font-size: var(--step-1);
   font-weight: var(--w-strong);
   text-decoration: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .wf-card-link::after {

@@ -125,9 +125,8 @@
 }
 
 .pal-sub {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--heading);
   font-size: var(--step--1);
 }
@@ -159,9 +158,8 @@
 }
 
 .pal-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .pal-kind {
@@ -215,9 +213,8 @@
 }
 
 .pal-lines .words {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--body);
 }
 
@@ -604,23 +601,51 @@ a.pal-whole:hover {
   opacity: 0.6;
 }
 
-/* What Tade is doing, in the box's place: the spinner, the call, how long. */
+/*
+  What Tade is doing, in the box's place: the spinner, the call, how long —
+  the call whole, wrapping onto as many lines as it has — and under them, for
+  a command of many lines, the command whole in a box that scrolls in place.
+*/
 .ask-live {
   flex: 1 1 auto;
   display: flex;
-  align-items: center;
-  gap: var(--s2);
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--s1);
   min-width: 0;
   min-height: var(--tap);
+  padding-block: var(--s1);
   color: var(--bright);
   font-size: var(--step-0);
 }
 
-.ask-doing {
+.ask-now {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.ask-doing {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ask-block {
+  max-height: 9rem;
+  margin: 0;
+  padding: var(--s1) var(--s2);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--r1);
+  background: var(--ground);
+  color: var(--body);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  line-height: var(--lead-tight);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .ask-took {

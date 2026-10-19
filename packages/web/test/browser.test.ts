@@ -170,6 +170,11 @@ describe('what a browser cannot be asked', () => {
       expect(CHECKS as readonly string[], check).toContain(check)
   })
 
+  it('names nothing cut to fit, and what Tade is doing said whole', () => {
+    for (const check of ['cut', 'doing'])
+      expect(CHECKS as readonly string[], check).toContain(check)
+  })
+
   it('names the three an installed shell owns', () => {
     for (const check of ['install', 'offline-cold', 'no-api-cache']) {
       expect(CHECKS as readonly string[], check).toContain(check)

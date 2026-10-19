@@ -146,15 +146,10 @@
   white-space: pre;
 }
 
-/*
-  What it runs on, under its name — one line, cut with an ellipsis, so a long account never makes a row
-  three lines tall; the whole of it is on the agent's own page.
-*/
+/* What it runs on, under its name — whole, wrapping, however long the account. */
 .runs {
   min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .setting {

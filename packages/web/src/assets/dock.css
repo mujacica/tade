@@ -43,9 +43,8 @@
 }
 
 .tree-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /*
@@ -290,9 +289,8 @@
 .side-agent .name,
 .side-piece .name {
   grid-column: 2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .side-piece .at {
@@ -305,9 +303,8 @@
 .side-agent .doing,
 .side-piece .why {
   grid-column: 2 / -1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: var(--step--1);
   color: var(--heading);
 }
@@ -359,9 +356,8 @@
 }
 
 .side-fact .fact-said {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .side-fact:hover {
@@ -477,6 +473,11 @@
   What was said last, on the heading line, with its mark: drawn only where the
   dock is folded to it, so folded it still says whether that was news, an
   answer, or a call that worked or failed.
+
+  **The one line on the page kept to one line** (`CUT_ALLOWED`): a folded dock
+  is a heading, and a paragraph wrapped into it would be the dock unfolded.
+  The whole of it is the fold's press away — the dock's own last line, drawn
+  whole — and its words are the line's, never cut by the page.
 */
 .dock-last {
   display: none;
@@ -548,18 +549,6 @@
 /* A line is as tall as its words: the column scrolls, it never squeezes one line into the next. */
 .dock .lines > li {
   flex: none;
-}
-
-/* Shorter, because the dock sits under the work: the whole of every line is one press away. */
-.dock .lines .said {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
-  overflow: hidden;
-}
-
-.dock .lines > li.is-tade .said {
-  -webkit-line-clamp: 2;
 }
 
 .dock .lines > li.is-asked {

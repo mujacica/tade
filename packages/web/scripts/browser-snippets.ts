@@ -215,3 +215,68 @@ export const HOLD_AGAIN = `(() => {
     rows: document.querySelectorAll('main .rows li').length,
   }
 })()`
+
+/**
+ * Every place the page cuts text, but the ones `allowed` names (`CUT_ALLOWED`).
+ *
+ * **Two halves, because either alone misses one.** What is drawn: every
+ * visible element with words of its own, asked for an ellipsis, a line clamp,
+ * or a single line clipped at its own box — the last because a rule that loses
+ * its ellipsis and keeps `nowrap` and `overflow: hidden` cuts as surely, only
+ * without saying so. And what could be: every rule in the page's own
+ * stylesheets, so a toast, a palette or a dock that is not open on this screen
+ * still answers. An allowed fold must be drawn with its mark right after it,
+ * or the whole of it is nobody's press away.
+ */
+export function CUT(allowed: readonly { selector: string; mark: string | null }[]): string {
+  return `${SETTLED}.then(() => {
+  const ALLOWED = ${JSON.stringify(allowed)}
+  const named = (one) => {
+    const classes = typeof one.className === 'string' && one.className !== '' ? '.' + one.className.trim().split(/\\s+/).join('.') : ''
+    return one.tagName.toLowerCase() + classes + ' "' + one.textContent.trim().slice(0, 40) + '"'
+  }
+  const ownWords = (one) => [...one.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim() !== '')
+  const cut = []
+  let folds = 0
+  for (const one of document.body.querySelectorAll('*')) {
+    if (one.closest('svg, script, style, template, textarea, input, select, .sr-only')) continue
+    if (one.textContent.trim() === '' || one.getClientRects().length === 0) continue
+    // Words kept for a screen reader alone, \`.sr-only\`'s way under another name: a pixel, clipped.
+    const box = one.getBoundingClientRect()
+    if (box.width <= 1 && box.height <= 1) continue
+    const style = getComputedStyle(one)
+    if (style.visibility === 'hidden') continue
+    const clamp = style.webkitLineClamp !== '' && style.webkitLineClamp !== 'none'
+    const ellipsis = style.textOverflow === 'ellipsis'
+    const hides = (value) => value === 'hidden' || value === 'clip'
+    const clipped = ownWords(one) && (
+      (hides(style.overflowX) && one.scrollWidth > one.clientWidth + 1) ||
+      (hides(style.overflowY) && one.scrollHeight > one.clientHeight + 1))
+    if (!clamp && !ellipsis && !clipped) continue
+    const allow = ALLOWED.find((rule) => one.matches(rule.selector))
+    if (allow === undefined) {
+      cut.push((clamp ? 'clamped ' : ellipsis ? 'ellipsis ' : 'clipped ') + named(one))
+      continue
+    }
+    if (allow.mark === null) continue
+    const mark = one.nextElementSibling
+    if (mark === null || !mark.matches(allow.mark) || mark.hidden || mark.getClientRects().length === 0) {
+      cut.push('folded with no mark ' + named(one))
+    } else folds += 1
+  }
+  const rules = []
+  const walk = (list) => {
+    for (const rule of list) {
+      if (rule.cssRules) walk(rule.cssRules)
+      if (!rule.style) continue
+      const clamp = rule.style.getPropertyValue('-webkit-line-clamp') || rule.style.getPropertyValue('line-clamp')
+      const asks = rule.style.textOverflow === 'ellipsis' || !['', 'none', 'unset', 'initial'].includes(clamp)
+      if (asks && !ALLOWED.some((one) => one.selector === rule.selectorText)) rules.push(rule.selectorText)
+    }
+  }
+  for (const sheet of document.styleSheets) {
+    try { walk(sheet.cssRules) } catch { rules.push('a stylesheet that could not be read: ' + sheet.href) }
+  }
+  return { cut, rules, folds }
+})`
+}
