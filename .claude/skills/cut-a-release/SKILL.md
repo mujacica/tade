@@ -119,8 +119,9 @@ add` it.
 one is a refusal that names both. It is conservative on purpose — a declared dependency nothing
 appears to import may still be reached in a way no regular expression sees. **`vitest` is the only
 thing dropped**, and only because the files that import it (the conformance suites) do not ship,
-which is why the run prints it as `left out:` rather than dropping it silently. `pnpm.onlyBuiltDependencies`
-is carried from the root manifest, because pnpm reads it from the project being installed *into*.
+which is why the run prints it as `left out:` rather than dropping it silently. No `pnpm` field is
+carried: pnpm reads which builds it allows from the project being installed *into*, and 12 reads no
+`pnpm` field at all, which is why `pnpm add -g` needs `pnpm approve-builds -g`.
 
 ## The types come off at publish, and that is not a build step
 
@@ -386,7 +387,7 @@ What it does flag in the contents is the product, and the first four are one ale
 - **`shellAccess`, `filesystemAccess`, `envVars`, `networkAccess`** — 25, 80, 41 and 11 of the 374
   shipped files. Tade opens terminals, reads config, reads `TADE_HOME` and talks to a forge. A
   control room for coding agents that did none of those would not be one.
-- **`hasNativeCode` (high)** — node-pty and better-sqlite3, declared in `onlyBuiltDependencies`.
+- **`hasNativeCode` (high)** — node-pty and better-sqlite3, the two native dependencies.
   **The tarball carries no binary of its own**: 374 `.js`, 2 `.mjs`, 8 `.md`, a `package.json` and
   `LICENSE`, no `eval`, nothing minified, nothing obfuscated.
 - **`deprecated` (low)** — `node-domexception`, five deep under the pi harness

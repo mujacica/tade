@@ -1,9 +1,11 @@
 import { execFileSync, spawnSync } from 'node:child_process'
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
+import { parse } from 'yaml'
 import { COMMAND, PUBLISHED, rootManifest } from '../scripts/release/repo.ts'
 
 // What has to be true of `curl -fsSL https://tade.sh/install.sh | sh`.
@@ -160,13 +162,51 @@ describe('what it says it will do', () => {
     expect(text).toContain(`NEEDS_NODE='${floor}'`)
   })
 
-  it('names the two native dependencies the manifest says are built', () => {
-    const built = rootManifest().pnpm.onlyBuiltDependencies
-    expect(built).toContain('node-pty')
-    expect(built).toContain('better-sqlite3')
-    for (const one of built) expect(text).toContain(`'${one}'`)
+  it('names what the workspace lets build, and both native dependencies', () => {
+    const built = Object.entries(allowBuilds())
+      .filter(([, allowed]) => allowed)
+      .map(([name]) => name)
+    expect(built).toEqual(['node-pty'])
+    for (const one of [...built, 'better-sqlite3']) expect(text).toContain(`'${one}'`)
   })
 })
+
+describe('what the workspace lets build', () => {
+  // `allowBuilds` says better-sqlite3 needs no install script, and this is
+  // what makes that true rather than remembered: a version that brought one
+  // back, or stopped shipping this machine's binding, would be held by
+  // `false` and leave the journal with no index and nothing said at install.
+  const fromWorkbench = createRequire(join(ROOT, 'packages/workbench/package.json'))
+  const manifestPath = fromWorkbench.resolve('better-sqlite3/package.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+    gypfile?: boolean
+    scripts?: Record<string, string>
+  }
+
+  it('holds better-sqlite3, which has no install script to run', () => {
+    expect(allowBuilds()['better-sqlite3']).toBe(false)
+    for (const hook of ['preinstall', 'install', 'postinstall'])
+      expect(manifest.scripts?.[hook]).toBeUndefined()
+    // It ships a `binding.gyp`, so without this a package manager would run
+    // `node-gyp rebuild` on its behalf.
+    expect(manifest.gypfile).toBe(false)
+  })
+
+  it('finds better-sqlite3 a binding for this machine already built', () => {
+    const binding = fromWorkbench(join(dirname(manifestPath), 'lib/binding.js')) as {
+      getPrebuildPath(): string | null
+    }
+    expect(binding.getPrebuildPath()).not.toBeNull()
+  })
+})
+
+/** `allowBuilds` from `pnpm-workspace.yaml`: which dependencies may run their install scripts. */
+function allowBuilds(): Record<string, boolean> {
+  const workspace = parse(readFileSync(join(ROOT, 'pnpm-workspace.yaml'), 'utf8')) as {
+    allowBuilds: Record<string, boolean>
+  }
+  return workspace.allowBuilds
+}
 
 describe('what it will not touch', () => {
   // Each of these is a thing an install script is routinely expected to do and

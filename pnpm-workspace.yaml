@@ -2,11 +2,17 @@ packages:
   - packages/*
   - packages/*/*
   - test
-# Which dependencies may run their install scripts. Only node-pty needs one
-# (its native binding); the rest were never built under pnpm 10's
-# `onlyBuiltDependencies` either, and work without theirs.
+# Which dependencies may run their install scripts, and the only place that
+# says so: pnpm 12 reads nothing of this from package.json. Only node-pty
+# needs one (its native binding). better-sqlite3 is native too but has no
+# script to run: 13.x ships an N-API binding per platform in `prebuilds/` and
+# sets `gypfile: false`, so not even the implicit `node-gyp rebuild` applies,
+# and a clean install opens a database with nothing built (measured, 13.0.3
+# on Node 26, 2026-10-19; `test/install.test.ts` holds it). The rest have
+# scripts Tade does not need, and work without theirs.
 allowBuilds:
   '@google/genai': false
+  better-sqlite3: false
   esbuild: false
   node-pty: true
   protobufjs: false

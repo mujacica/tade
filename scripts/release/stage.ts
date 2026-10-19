@@ -274,7 +274,6 @@ interface Published {
   keywords: string[]
   dependencies: Record<string, string>
   scripts: Record<string, string>
-  pnpm: { onlyBuiltDependencies: string[] }
 }
 
 function manifestFor(
@@ -309,14 +308,12 @@ function manifestFor(
       preinstall: `node scripts/${ON_INSTALL[0]}`,
       postinstall: `node scripts/${ON_INSTALL[1]}`,
     },
-    // Carried, and it is nobody's install that it fixes: pnpm reads
-    // `onlyBuiltDependencies` from the project being installed into and never
-    // from a dependency's own manifest, so on 10 and on 12 alike `pnpm add -g
-    // tade-sh` holds node-pty, better-sqlite3 and the postinstall above, and
-    // says so. What answers that is `pnpm approve-builds -g`, which is in the
-    // README, in `nativeTrouble` and in `helperProblem` — here is where
-    // somebody reading this field would otherwise conclude it was handled.
-    pnpm: root.pnpm,
+    // No `pnpm` field, and none would help: pnpm reads which builds it allows
+    // from the project being installed into, never from a dependency's own
+    // manifest — and 12 reads no `pnpm` field at all — so `pnpm add -g
+    // tade-sh` holds node-pty and the postinstall above, and says so. What
+    // answers that is `pnpm approve-builds -g`, which is in the README, in
+    // `nativeTrouble` and in `helperProblem`.
   }
 }
 

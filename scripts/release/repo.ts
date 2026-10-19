@@ -35,7 +35,6 @@ export interface RootManifest {
   repository: { type: string; url: string }
   homepage: string
   bugs: { url: string }
-  pnpm: { onlyBuiltDependencies: string[] }
   devDependencies: Record<string, string>
 }
 

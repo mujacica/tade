@@ -680,9 +680,10 @@ config. Do not make it an act: if it has to *run* something, it belongs where `w
 
 **A new native dependency.** `NATIVE` in `packages/cli/src/native.ts` so a load failure is a
 sentence, `nativeProblems` in `machine.ts` so a half-installed one is a checklist row with
-`blocking` answered honestly, and `pnpm.onlyBuiltDependencies` in the root manifest — which the
-published manifest carries. Whether its install needs a script of its own is `cut-a-release`'s
-question, and the answer has so far always been no.
+`blocking` answered honestly, and its line in `allowBuilds` in `pnpm-workspace.yaml` — `true` only
+if its install script is what makes the binding, with why beside it (`test/install.test.ts` holds
+better-sqlite3's `false`). Whether `tade-sh`'s install needs a script of its own is
+`cut-a-release`'s question, and the answer has so far always been no.
 
 **Anything drawn.** The Updates page and the reload panel are the window's: `change-the-window`, and
 `redraw-the-pictures` if it changes what a picture shows.
