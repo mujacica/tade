@@ -20,9 +20,6 @@ export const FRESH = DAY
 /** Past this many characters, words that are a card's main line fold behind `more`. */
 export const LONG = 240
 
-/** How many places the picture draws a lane for; the list below has every one. */
-export const LANES = 6
-
 /**
  * Where a note came from, in words. `by` is metadata the machine wrote, never
  * the note, so it may be said in a sentence; an unknown source says nothing
@@ -51,7 +48,9 @@ export const BANDS = [
 /**
  * The windows the picture may draw, smallest first: the first that holds every
  * note is the one drawn, so a morning's notes are not a cluster in a corner of
- * twelve weeks. Each tick is how long ago it is and what it says.
+ * twelve weeks. Each tick is how long ago it is and what it says. Notes older
+ * than the last are drawn too, over a window reaching back to the first of
+ * them (`widerThan`).
  */
 export const WINDOWS = [
   {
@@ -284,31 +283,53 @@ export function whenOf(cards) {
   })
 }
 
+const WEEK = 7 * DAY
+const YEAR = 365 * DAY
+
 /**
- * The picture: a lane per place — everywhere first, then the projects in the
+ * A window past the widest of `WINDOWS`, reaching back to the first note:
+ * whole quarters of a year up to a year, whole years past it, ticked in four.
+ */
+export function widerThan(reach) {
+  const unit = reach <= YEAR ? 13 * WEEK : YEAR
+  const n = Math.max(1, Math.ceil(reach / unit))
+  const span = n * unit
+  const tick = (ago) =>
+    unit === YEAR ? `${Math.round((ago / YEAR) * 10) / 10}y` : `${Math.round(ago / WEEK)}w`
+  const said =
+    unit === YEAR
+      ? n === 1
+        ? 'the last year'
+        : `the last ${n} years`
+      : `the last ${Math.round(span / WEEK)} weeks`
+  const ticks = [1, 0.75, 0.5, 0.25].map((part) => [span * part, tick(span * part)])
+  return { span, said, ticks: [...ticks, [0, 'now']] }
+}
+
+/** The lane of notes whose moment will not read, which keeps its own key. */
+export const UNDATED = 'undated'
+
+/**
+ * The picture: a lane per place — everywhere first, then every project in the
  * order the list has them — and a mark on it for every note, at the moment it
- * was said, over the smallest window that holds them all. Notes older than the
- * widest window are counted and not drawn (`left`), never piled at its edge,
- * and a note whose moment will not read is counted apart (`unplaced`) rather
- * than called old. A note said within `FRESH` is toned *now*; the rest quiet.
+ * was said, over the smallest window that holds them all, however old the
+ * first is. A note whose moment will not read is never called old: those are
+ * a lane of their own (`UNDATED`), drawn as the whole window, unknown, with how
+ * many. A note said within `FRESH` is toned *now*; the rest quiet. Nothing is
+ * left out of it, so it says nothing about what is not drawn.
  */
 export function chartOf(where, asOf) {
   const groups = [where.everywhere, ...where.projects].filter((group) => group.n > 0)
-  const oldest = groups
-    .flatMap((group) => group.cards)
-    .reduce(
-      (least, one) => (one.at !== null && (least === null || one.at < least) ? one.at : least),
-      null,
-    )
+  const cards = groups.flatMap((group) => group.cards)
+  const oldest = cards.reduce(
+    (least, one) => (one.at !== null && (least === null || one.at < least) ? one.at : least),
+    null,
+  )
   const reach = oldest === null ? 0 : asOf - oldest
-  const window = WINDOWS.find((one) => one.span >= reach) ?? WINDOWS[WINDOWS.length - 1]
+  const window = WINDOWS.find((one) => one.span >= reach) ?? widerThan(reach)
   const from = asOf - window.span
-  let left = 0
-  let unplaced = 0
-  const lanes = groups.slice(0, LANES).map((group) => {
-    const drawn = group.cards.filter((one) => one.at !== null && one.at >= from)
-    unplaced += group.cards.filter((one) => one.at === null).length
-    left += group.cards.filter((one) => one.at !== null && one.at < from).length
+  const lanes = groups.map((group) => {
+    const drawn = group.cards.filter((one) => one.at !== null)
     const newest = newestOf(drawn)
     const said =
       newest === null
@@ -325,6 +346,23 @@ export function chartOf(where, asOf) {
       })),
     }
   })
+  const undated = cards.filter((one) => one.at === null).length
+  if (undated > 0) {
+    lanes.push({
+      key: UNDATED,
+      label: `Undated · ${undated}`,
+      href: null,
+      spans: [
+        {
+          from,
+          to: asOf,
+          tone: 'unknown',
+          said: `${plural(undated, 'note')} whose moment is not recorded`,
+        },
+      ],
+      marks: [],
+    })
+  }
   return {
     from,
     to: asOf,
@@ -332,9 +370,6 @@ export function chartOf(where, asOf) {
     said: window.said,
     ticks: window.ticks.map(([ago, said]) => ({ at: asOf - ago, said })),
     lanes,
-    more: Math.max(0, groups.length - LANES),
-    left,
-    unplaced,
   }
 }
 
@@ -376,17 +411,6 @@ export function leadLine(page) {
 /** The lead's tally: how the notes divide between the three places, each with its count. */
 export function tallyOf(page) {
   return PLACES.map((place) => ({ ...place, n: page.counts[place.key] }))
-}
-
-/** The picture's foot: what it left out, or nothing. */
-export function chartFoot(chart) {
-  const parts = []
-  if (chart.more > 0) parts.push(`${plural(chart.more, 'more project')} in the list`)
-  if (chart.left > 0) {
-    parts.push(`${chart.left} older than ${chart.said.replace('the last ', '')} not drawn`)
-  }
-  if (chart.unplaced > 0) parts.push(`${chart.unplaced} with no moment recorded not drawn`)
-  return parts.join(' · ')
 }
 
 /**

@@ -199,37 +199,58 @@ export function unknown(word) {
 }
 
 /**
- * Free text somebody wrote, as much of it as the budget allowed, foldable.
+ * Free text somebody wrote, whole, foldable.
  *
- * **`more` and never an ellipsis.** The house rule about a note is that it is
- * never reworded, and three dots written into the text cannot be told from
- * three dots the person typed. So what the page draws is the prefix it was
- * given and a control that says there is more of it — and `white-space:
- * pre-wrap` keeps the shape they typed it in.
+ * **Whole, and never an ellipsis.** Every text crosses whole (`BUDGET` in
+ * `page.ts`), and the house rule about a note is that it is never reworded:
+ * three dots written into the text cannot be told from three dots the person
+ * typed. `white-space: pre-wrap` keeps the shape they typed it in and long
+ * lines wrap; a block taller than its box scrolls inside it (`.said.whole`),
+ * and that box takes the keyboard only while it has somewhere to scroll
+ * (`scrollsIn`), so a short note is not a tab stop.
  *
- * Two different "more" are deliberately told apart. The fold is **this page's**
- * and opens; `said.more` is **the budget's** and cannot, because the rest of
- * those words never left the machine. A page that offered to expand what it was
- * not sent would be a control that does nothing.
+ * The fold is **this page's** and opens onto all of it with one press.
  */
 export function proseOf(said, folded = false) {
   if (said === null || said === undefined) return null
   const node = el('div')
-  const body = el('p', { class: folded ? 'said folded' : 'said', text: said.words })
+  const body = el('p', { class: folded ? 'said whole folded' : 'said whole', text: said.words })
   into(node, body)
-  const capped = () =>
-    said.more ? el('p', { class: 'unknown', text: 'more than this was written down' }) : null
   if (folded) {
     const more = el('button', { class: 'more', text: 'more', attrs: { type: 'button' } })
     more.addEventListener('click', () => {
       classOn(body, 'folded', false)
-      more.replaceWith(capped() ?? el('span', { class: 'sr-only', text: 'shown in full' }))
+      more.replaceWith(el('span', { class: 'sr-only', text: 'shown in full' }))
     })
     into(node, more)
-  } else {
-    into(node, capped())
   }
+  scrollsIn(body)
   return node
+}
+
+let sizes = null
+
+/**
+ * Watch one box of prose, and let the keyboard into it exactly while it
+ * scrolls: a region that scrolls and cannot be reached from the keyboard is
+ * one a person without a pointer cannot read to its end. One observer for the
+ * page, and a box that left it is let go when its size falls to nothing.
+ */
+function scrollsIn(body) {
+  if (typeof ResizeObserver !== 'function') return
+  sizes ??= new ResizeObserver((seen) => {
+    for (const one of seen) {
+      const box = one.target
+      if (!box.isConnected) {
+        sizes.unobserve(box)
+        continue
+      }
+      const scrolls = !box.classList.contains('folded') && box.scrollHeight > box.clientHeight + 1
+      if (scrolls) box.setAttribute('tabindex', '0')
+      else box.removeAttribute('tabindex')
+    }
+  })
+  sizes.observe(body)
 }
 
 let hints = 0

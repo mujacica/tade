@@ -3,14 +3,13 @@ import {
   asOfLine,
   BANDS,
   bySaid,
-  chartFoot,
   DAY,
-  LANES,
   LONG,
   leadLine,
   notesPage,
   scopeOf,
   tallyOf,
+  UNDATED,
   whenSaid,
   wholeOf,
 } from '../src/assets/pages/notes-shape.js'
@@ -88,15 +87,7 @@ describe('a note is never reworded', () => {
     const own = (key: string, value: unknown) =>
       key === 'headline' || key === 'words' ? undefined : value
     const sentences = JSON.stringify(
-      [
-        made.where,
-        made.when,
-        made.chart,
-        leadLine(made),
-        tallyOf(made),
-        chartFoot(made.chart),
-        rest,
-      ],
+      [made.where, made.when, made.chart, leadLine(made), tallyOf(made), rest],
       own,
     )
     expect(sentences).not.toContain('ZEBRA')
@@ -268,34 +259,48 @@ describe('the picture', () => {
     expect([day.from, day.to, day.now]).toEqual([NOW - DAY, NOW, NOW])
   })
 
-  it('counts what is older than the widest window rather than piling it at the edge', () => {
+  it('reaches back to the first note, however old, rather than leaving the older ones out', () => {
     const chart = page([
       said(null, 5),
       said('tade', 100 * 24 * 60),
       said('tade', 200 * 24 * 60),
     ]).chart
-    expect(chart.said).toBe('the last twelve weeks')
-    expect(chart.lanes.map((one) => one.marks.length)).toEqual([1, 0])
-    expect(chart.lanes[1]?.marks).toEqual([])
-    expect(chart.left).toBe(2)
-    expect(chartFoot(chart)).toBe('2 older than twelve weeks not drawn')
+    expect(chart.said).toBe('the last 39 weeks')
+    expect(chart.ticks.map((one) => one.said)).toEqual(['39w', '29w', '20w', '10w', 'now'])
+    expect(chart.lanes.map((one) => one.marks.length)).toEqual([1, 2])
+    expect(chart.from).toBeLessThanOrEqual(minutes(200 * 24 * 60))
+    const years = page([said(null, 5), said(null, 900 * 24 * 60)]).chart
+    expect(years.said).toBe('the last 3 years')
+    expect(years.lanes[0]?.marks).toHaveLength(2)
+    expect(years.from).toBeLessThanOrEqual(minutes(900 * 24 * 60))
+    expect(page([said(null, 5), said(null, 300 * 24 * 60)]).chart.said).toBe('the last 52 weeks')
   })
 
-  it('counts a note whose moment will not read apart, never as an old one', () => {
-    const chart = page([said(null, 5), said(null, 0, { at: 'not a moment' })]).chart
-    expect(chart.lanes[0]?.marks).toHaveLength(1)
-    expect([chart.left, chart.unplaced]).toEqual([0, 1])
-    expect(chartFoot(chart)).toBe('1 with no moment recorded not drawn')
+  it('draws a note whose moment will not read in a lane of its own, never as an old one', () => {
+    const chart = page([
+      said(null, 5),
+      said(null, 0, { at: 'not a moment' }),
+      said('tade', 0, { at: 'not a moment' }),
+    ]).chart
+    expect(chart.said).toBe('the last day')
+    expect(chart.lanes.map((one) => [one.label, one.marks.length])).toEqual([
+      ['Everywhere', 1],
+      ['tade', 0],
+      ['Undated · 2', 0],
+    ])
+    const undated = chart.lanes.at(-1)
+    expect(undated?.key).toBe(UNDATED)
+    expect(undated?.spans).toEqual([
+      { from: chart.from, to: NOW, tone: 'unknown', said: '2 notes whose moment is not recorded' },
+    ])
   })
 
-  it('draws at most a few lanes and says how many more places the list has', () => {
-    const many = Array.from({ length: LANES + 2 }, (_, at) => said(`p${at}`, at + 1))
+  it('draws a lane for every place the list has, and says nothing about what is not drawn', () => {
+    const many = Array.from({ length: 14 }, (_, at) => said(`p${at}`, at + 1))
     const chart = page(many).chart
-    expect(chart.lanes).toHaveLength(LANES)
-    expect(chart.more).toBe(2)
-    // What is past the last lane is the list's to say, and is not counted twice.
-    expect(chart.left).toBe(0)
-    expect(chartFoot(chart)).toBe('2 more projects in the list')
+    expect(chart.lanes).toHaveLength(14)
+    expect(chart.lanes.every((one) => one.marks.length === 1)).toBe(true)
+    expect(JSON.stringify(chart)).not.toMatch(/not drawn|more project|in the list/)
   })
 })
 

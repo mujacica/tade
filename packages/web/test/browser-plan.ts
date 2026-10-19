@@ -133,6 +133,10 @@ export const CHECKS = [
   // scrolled with the wheel, every moment of its life is drawn, newest first,
   // down to its making, and nothing says older ones were not sent.
   'moments',
+  // A note of over ten thousand characters (`browser-whole.ts`): every
+  // character drawn, its box scrolling in place where the keyboard reaches it,
+  // and nothing saying more was written somewhere else.
+  'whole',
   // A call with no id to ask its answer by, opened with a tap: the whole of a
   // long answer it came with, and nothing saying the rest is elsewhere.
   'call',

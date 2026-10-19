@@ -214,6 +214,8 @@ declare module '*/assets/dom.js' {
     create: (row: R) => unknown,
     fill: (node: never, row: R) => void,
   ): void
+  /** Free text somebody wrote, drawn whole: a node, or null for nothing said. */
+  export function proseOf(said: { words: string; more: boolean } | null, folded?: boolean): never
 }
 
 declare module '*/assets/shell.js' {

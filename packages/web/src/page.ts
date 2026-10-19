@@ -43,27 +43,23 @@ export interface Budget {
   /** Stored workflows. */
   workflows: number
   /**
-   * Code points of one piece of free text somebody wrote.
+   * Code points of one piece of free text somebody wrote: a title, a note, a
+   * reason, an account.
    *
-   * Code points and not bytes or UTF-16 units: a cut in the middle of a
-   * surrogate pair is a broken character, and a cut by bytes makes the budget
-   * mean something different for every language.
+   * `WHOLE` in `BUDGET`: the person asked to read every answer whole on a
+   * phone, and a note is never shortened. Kept as a number, like the lists,
+   * so a test can still see what a cut would say (`textOf`'s `more`). Code
+   * points and not bytes or UTF-16 units, so a cut never breaks a character.
    */
   text: number
   /**
    * Code points of one *long* piece of text: a request's own body, a
-   * workflow step's prompt, and the command an approval asks about.
+   * workflow step's prompt, and the command an approval asks about. `WHOLE`
+   * too, framed as material on the page and never cut.
    *
-   * **A second bound and not a bigger `text`**, because the two are different
-   * things to be wrong about. `text` bounds a line on a row — a title, a
-   * handle, the reason beside a wait — and forty of them ride on one frame; a
-   * body is the thing somebody opened the page to read, and cutting it at 600
-   * characters makes the one screen that exists to show it useless. One of
-   * each is on screen at a time, so the bigger bound is paid once.
-   *
-   * It is still a bound. A ticket with a 400 KiB log pasted into it is a real
-   * ticket, and `more` is how the page says there is further to go
-   * (`textOf`) — never an ellipsis written into somebody's words.
+   * Whole costs the first snapshot and nothing after: a row that moved is
+   * sent as the top-level fields that moved (`delta.ts`), so a body nobody
+   * edited is not on any later frame.
    */
   material: number
   /**
@@ -88,9 +84,11 @@ const WHOLE = Number.POSITIVE_INFINITY
  * as the rows that moved (`delta.ts`), so the cost is the first snapshot.
  * `packages/web/scripts/measure.ts` measures what that costs.
  *
- * `chat` is the conversation's newest stretch, the rest read back on scroll;
- * `text`, `material` and `warnings` bound one piece of text or the freshness
- * that rides on every frame, not a list.
+ * Every piece of text goes out whole too — a note, a title, a request's body,
+ * a step's prompt, a command — and the page wraps it and scrolls a long one in
+ * its own box (`proseOf`). `chat` is the conversation's newest stretch, the
+ * rest read back on scroll; `warnings` bounds the freshness that rides on
+ * every frame, not anything somebody reads whole.
  */
 export const BUDGET: Budget = {
   projects: WHOLE,
@@ -105,8 +103,8 @@ export const BUDGET: Budget = {
   sources: WHOLE,
   runs: WHOLE,
   workflows: WHOLE,
-  text: 600,
-  material: 8_000,
+  text: WHOLE,
+  material: WHOLE,
   warnings: 10,
 }
 
@@ -177,23 +175,28 @@ export function pageOf<T>(
 }
 
 /**
- * As much of a piece of free text somebody wrote as the budget allows.
+ * A piece of free text somebody wrote, as the budget allows — whole, under
+ * `BUDGET`.
  *
  * `more` rather than an ellipsis, and that is the whole point of the type.
  * The house rule about a note is *never lowercase or reword one*, and an
  * ellipsis written into the text is a reword: whoever reads it next cannot
- * tell the three dots from three dots the person typed. So what goes out is a
- * prefix of what was said and a flag saying there is more, and the page is
- * what draws the affordance.
+ * tell the three dots from three dots the person typed. So a finite budget
+ * sends a prefix of what was said and a flag saying there is more.
  *
  * Null for nothing said at all, because `unknown` and `''` must not be the
  * same value on the wire (`UNRECORDED` is `''` in `@tade/core`, and one
  * spelling of "nobody said" is the only way a client can be written once).
  *
+ * Whole is answered without walking the text: a projection is built every
+ * beat, and a 400 KiB body split into code points on each would be paid for
+ * nothing. `length` counts UTF-16 units, never fewer than the code points.
+ *
  * The type is `protocol.ts`'s, which is the schema, so there is one of it.
  */
 export function textOf(text: string | null | undefined, most: number): Said | null {
   if (text === null || text === undefined || text === '') return null
+  if (text.length <= most) return { words: text, more: false }
   const points = Array.from(text)
   if (points.length <= most) return { words: text, more: false }
   return { words: points.slice(0, Math.max(most, 0)).join(''), more: true }

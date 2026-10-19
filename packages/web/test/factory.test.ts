@@ -84,12 +84,11 @@ describe('one request, as a device that was granted it reads it', () => {
     expect(row.materialSays).toBeNull()
   })
 
-  it('cuts a long body to the longer budget and says there is more', () => {
-    const long = 'x'.repeat(BUDGET.material + 10)
+  it('sends a long body whole, framed as material', () => {
+    const long = `${'x'.repeat(12_000)}\nthe last line`
     const row = intakeRow(intake({ material: long }), reach(EVERY), BUDGET)
-    expect(row.material?.words).toHaveLength(BUDGET.material)
-    // `more` and never an ellipsis written into somebody's words.
-    expect(row.material?.more).toBe(true)
+    expect(row.material).toEqual({ words: long, more: false })
+    expect(row.materialLabel).toBe(MATERIAL_LABEL)
   })
 
   it('says a body Tade never wrote down, rather than drawing an empty request', () => {
@@ -289,16 +288,15 @@ describe('one workflow', () => {
     expect(bare.warnings).toHaveLength(1)
   })
 
-  it('holds a step’s prompt to the longer budget, like a request’s body', () => {
-    const long = 'y'.repeat(BUDGET.material + 10)
+  it('sends a step’s prompt whole, like a request’s body', () => {
+    const long = `${'y'.repeat(12_000)}\nthe last line`
     const one = workflow()
     const row = workflowRow(
       workflow({ steps: [{ ...one.steps[0]!, prompt: long }] }),
       reach(EVERY),
       BUDGET,
     )
-    expect(row.steps[0]?.prompt?.words).toHaveLength(BUDGET.material)
-    expect(row.steps[0]?.prompt?.more).toBe(true)
+    expect(row.steps[0]?.prompt).toEqual({ words: long, more: false })
   })
 })
 

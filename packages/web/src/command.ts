@@ -65,8 +65,10 @@ export function commandOut(summary: string, places: Places, known: readonly stri
  * A command as much of it as `most` code points, and how many characters were
  * not sent — line breaks not counted, as the card at the machine counts them —
  * so a page says how much more there is rather than drawing it as whole.
+ * Under `BUDGET` `most` is whole and every command goes out as it is.
  */
 export function commandShown(text: string, most: number): { text: string; notShown: number } {
+  if (text.length <= most) return { text, notShown: 0 }
   const points = [...text]
   if (points.length <= most) return { text, notShown: 0 }
   const left = points.slice(most).filter((one) => one !== '\n').length

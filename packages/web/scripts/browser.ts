@@ -23,7 +23,7 @@ import {
   WIDTHS,
   worstOf,
 } from '../test/browser-plan.ts'
-import { agentHeld, input, NOW, settingRows } from '../test/fixtures.ts'
+import { agentHeld, input, NOW, note, settingRows } from '../test/fixtures.ts'
 import { chatAt, harnessTalk } from './browser-chat.ts'
 import { deskAt, lanesSeen, paletteAt, unpairedAt } from './browser-desk.ts'
 import { frameAt } from './browser-frame.ts'
@@ -41,6 +41,7 @@ import {
   STATUS,
 } from './browser-snippets.ts'
 import { until } from './browser-until.ts'
+import { WHOLE_NOTE, wholeAt } from './browser-whole.ts'
 
 // The away view, in a real browser, against the real server and the real files.
 //
@@ -143,7 +144,7 @@ async function serve() {
       reaches.set(reach.device, reach)
       const mine = held.get(reach.device)
       if (mine !== undefined) return mine
-      const made = projector(input({ reach, talk: harnessTalk() }), NOW, {
+      const made = projector(input({ reach, talk: harnessTalk(), notes: NOTES }), NOW, {
         agent: () =>
           agentHeld({
             activity: LIFE.slice(0, AGENT.activity),
@@ -233,6 +234,13 @@ function did(verb: string, call: { task: string; was: string }): Promise<Outcome
  * The agent's whole life as moments, newest first, down to its making: far
  * more than one answer carries, so its timeline has to read on to reach it.
  */
+/**
+ * **A note of over ten thousand characters** beside the fixture's own, with no
+ * summary so its card is its words: `whole` reads it back in full
+ * (`browser-whole.ts`). Every beat the harness makes carries it.
+ */
+const NOTES = [...input().notes, note({ text: WHOLE_NOTE, summary: '', scope: null })]
+
 const LIFE: ActivityIn[] = Array.from({ length: 240 }, (_, n) => {
   const id = 240 - n
   const at = NOW - (n + 1) * 60_000
@@ -467,12 +475,14 @@ async function asGranted(
   await lookAll(at)
   await lanesSeen(page, origin, axe, shots, found)
   await momentsAt(page, origin, at, found, LIFE.length, AGENT.activity)
+  await wholeAt(page, origin, at, found)
   await chatAt(page, origin, at, arrival(page, server, held), found, heldLines)
   if (phone !== undefined && phone !== desk) {
     await page.setViewportSize({ width: phone.width, height: phone.height })
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await lookAll(`${phone.name} granted`)
     await momentsAt(page, origin, `${phone.name} granted`, found, LIFE.length, AGENT.activity)
+    await wholeAt(page, origin, `${phone.name} granted`, found)
     await chatAt(
       page,
       origin,
@@ -708,7 +718,11 @@ function arrival(
     arrived += 1
     const reach = reaches.get(device)
     const delta = made.beat(
-      input({ ...(reach === undefined ? {} : { reach }), talk: harnessTalk(arrived) }),
+      input({
+        ...(reach === undefined ? {} : { reach }),
+        talk: harnessTalk(arrived),
+        notes: NOTES,
+      }),
       NOW + 2_000 + arrived,
     )
     if (delta === null) throw new Error('the conversation did not move')

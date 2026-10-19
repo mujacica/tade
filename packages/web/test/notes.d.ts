@@ -41,7 +41,8 @@ declare module '*/assets/pages/notes-shape.js' {
     tasks?: number
   }
   type Mark = { at: number; tone: string; said: string }
-  type Lane = { key: string; label: string; href: string | null; marks: Mark[] }
+  type Span = { from: number; to: number; tone: string; said: string }
+  type Lane = { key: string; label: string; href: string | null; marks: Mark[]; spans?: Span[] }
   type Chart = {
     from: number
     to: number
@@ -49,9 +50,6 @@ declare module '*/assets/pages/notes-shape.js' {
     said: string
     ticks: { at: number; said: string }[]
     lanes: Lane[]
-    more: number
-    left: number
-    unplaced: number
   }
   type Where = { everywhere: Group; projects: Group[] }
   type When = { key: Band; heading: string; n: number; cards: Card[] }
@@ -69,7 +67,7 @@ declare module '*/assets/pages/notes-shape.js' {
   export const DAY: number
   export const FRESH: number
   export const LONG: number
-  export const LANES: number
+  export const UNDATED: string
   export const BY_SAID: Record<string, string>
   export const BANDS: { key: Band; heading: string; most: number | null }[]
   export const WINDOWS: { span: number; said: string; ticks: [number, string][] }[]
@@ -87,7 +85,11 @@ declare module '*/assets/pages/notes-shape.js' {
   export function notesPage(rows: readonly Row[], asOf: number, places?: Places): Page
   export function leadLine(page: Page): string
   export function tallyOf(page: Page): { key: Kind; label: string; n: number }[]
-  export function chartFoot(chart: Chart): string
+  export function widerThan(reach: number): {
+    span: number
+    said: string
+    ticks: [number, string][]
+  }
   export function wholeOf(
     had: boolean,
     shut: boolean,

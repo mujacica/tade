@@ -26,7 +26,7 @@ import { icon } from '../icons.js'
 import { section } from '../rows.js'
 import { notesOf, omitted, projectAt, taskAt } from '../store.js'
 import { stateBox, stateBoxIn } from '../ui.js'
-import { asOfLine, BANDS, chartFoot, leadLine, notesPage, tallyOf, wholeOf } from './notes-shape.js'
+import { asOfLine, BANDS, leadLine, notesPage, tallyOf, wholeOf } from './notes-shape.js'
 
 /** A region's state, as `stateBoxIn` takes it, from the shape's own. */
 function stateOf(one) {
@@ -156,8 +156,7 @@ function leadOf() {
   const head = el('p', { class: 'nt-chart-head' })
   const drawing = lanes('Notes by where they apply and when they were said')
   drawing.classList.add('nt-lanes')
-  const foot = el('p', { class: 'nt-chart-foot' })
-  into(chart, head, drawing, foot)
+  into(chart, head, drawing)
   into(node, sum, chart)
   return {
     node,
@@ -170,9 +169,6 @@ function leadOf() {
       keyed(tally, tallyOf(page), (one) => one.key, createTally, fillTally)
       textIn(head, `Where and when · ${page.chart.said}`)
       lanesIn(drawing, page.chart)
-      const said = chartFoot(page.chart)
-      textIn(foot, said)
-      foot.hidden = said === ''
     },
   }
 }

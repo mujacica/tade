@@ -134,14 +134,16 @@
   border-block-start: var(--border);
 }
 
-.nt-chart-head,
-.nt-chart-foot {
+.nt-chart-head {
   color: var(--heading);
   font-size: var(--step--1);
+  font-weight: var(--w-label);
 }
 
-.nt-chart-head {
-  font-weight: var(--w-label);
+/* Every place has a lane, so a long list of them scrolls in its own region. */
+.page-notes .nt-lanes .ui-lanes-rows {
+  max-height: 20rem;
+  overflow-y: auto;
 }
 
 /* A quiet mark on the lanes is a note that is not new: grey enough to see. */
