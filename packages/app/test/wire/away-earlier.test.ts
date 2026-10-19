@@ -1,6 +1,13 @@
 import { request } from 'node:http'
 import type { HistoryAsk, HistoryItem, HistoryPage } from '@tade/harnesses-core'
-import { ChatPageSchema, SnapshotSchema, TurnsPageSchema } from '@tade/web'
+import {
+  AGENT,
+  AgentOutSchema,
+  ChatPageSchema,
+  MomentsPageSchema,
+  SnapshotSchema,
+  TurnsPageSchema,
+} from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import { type Entry, emptyTranscript, type Transcript } from '../../src/transcript.ts'
 import { COOKIE, closeAll, machine, paired } from './away-harness.ts'
@@ -177,5 +184,58 @@ describe('an agent’s conversation, further back than its page holds', () => {
     // Where the task works is `.`, as an approval's command and Tade's own
     // conversation say it — never a name behind `…/` alone.
     expect(page.turns[1]?.call?.brief).toBe('./db/NAMES.md')
+  })
+})
+
+describe('an agent’s timeline, further back than its newest stretch', () => {
+  it('reads on out of the journal, on a thread of its own, to the agent’s first moment', async () => {
+    const one = await machine()
+    const many = AGENT.activity * 3
+    for (let n = 0; n < many; n += 1) {
+      await one.client.log.append({ type: 'tool_call', task: one.task, detail: { tool: 'Edit' } })
+      await one.client.log.append({
+        type: 'tool_call',
+        task: 'app/other',
+        detail: { tool: 'Read' },
+      })
+    }
+    await one.refresh()
+    await paired(one.home, one.port, ['read'], [])
+    await one.away.open()
+
+    const answer = AgentOutSchema.parse((await get(one.port, `/api/agent/${one.task}`)).body)
+    expect(answer.activity).toHaveLength(AGENT.activity)
+    expect(answer.earlier).not.toBeNull()
+
+    // Read on by each page's cursor, as a phone does scrolling down its timeline.
+    const seen = answer.activity.map((row) => row.id)
+    let before = answer.earlier
+    for (let pages = 0; before !== null && pages < 10; pages += 1) {
+      const page = MomentsPageSchema.parse(
+        (await get(one.port, `/api/agent/${one.task}/moments?before=${before}`)).body,
+      )
+      expect(page.why).toBeNull()
+      seen.push(...page.activity.map((row) => row.id))
+      before = page.earlier
+    }
+    expect(before).toBeNull()
+    // Every moment it had, once each, newest first, down to its making.
+    expect(seen).toHaveLength(many + 1)
+    expect(new Set(seen).size).toBe(seen.length)
+    expect(seen.map(Number)).toEqual([...seen.map(Number)].sort((a, b) => b - a))
+    const first = MomentsPageSchema.parse(
+      (await get(one.port, `/api/agent/${one.task}/moments?before=${seen.at(-2)}`)).body,
+    )
+    expect(first.activity.map((row) => row.said)).toEqual(['was made'])
+  })
+
+  it('reads nothing for a task that is not on this device', async () => {
+    const one = await machine()
+    await paired(one.home, one.port, ['read'], [])
+    await one.away.open()
+    const page = MomentsPageSchema.parse(
+      (await get(one.port, '/api/agent/nobody/nothing/moments?before=99')).body,
+    )
+    expect(page).toMatchObject({ activity: [], earlier: null, why: 'not here' })
   })
 })

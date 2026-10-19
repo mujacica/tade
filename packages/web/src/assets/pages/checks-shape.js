@@ -90,7 +90,7 @@ export function stripSaid(track) {
     n.fail > 0 ? `${n.fail} failed` : null,
     n.other > 0 ? `${n.other} skipped or cancelled` : null,
   ].filter(Boolean)
-  const head = `${track.check}, the last ${plural(track.runs.length, 'run')}`
+  const head = `${track.check}, ${plural(track.runs.length, 'run')}`
   return parts.length === 0 ? `${track.check}: no run with a time` : `${head}: ${parts.join(', ')}`
 }
 
@@ -109,7 +109,7 @@ export function byOf(track) {
 export function trackOf(project, tree, track, asOf, frozen = false) {
   const answer = answerOf(track)
   const streak = track.streak
-  const last = track.runs.at(-1)?.at ?? null
+  const last = track.runs.findLast((run) => run.at !== null)?.at ?? null
   const ms = typicalMs(track)
   return {
     key: `${project}\u0000${tree.task ?? ''}\u0000${track.check}`,
@@ -131,7 +131,6 @@ export function trackOf(project, tree, track, asOf, frozen = false) {
     by: byOf(track),
     cells: track.runs.map((run) => ({ tone: CELLS[run.state]?.tone ?? 'unknown' })),
     said: stripSaid(track),
-    more: track.more,
   }
 }
 
@@ -313,8 +312,8 @@ export function quietSaid(n, open) {
 
 /** Why a track has no answer, so `—` is never left to mean nothing. */
 export function noneSaid(track) {
-  if (track.cells.length === 0) return 'no run with a time'
-  return 'skipped every time'
+  const skipped = track.cells.length > 0 && track.cells.every((cell) => cell.tone === 'quiet')
+  return skipped ? 'skipped every time' : 'no run with a time'
 }
 
 /** The word on a track's first line: its answer and how long it has stood. */

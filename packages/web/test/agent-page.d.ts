@@ -12,9 +12,7 @@ declare module '*/assets/pages/agent-shape.js' {
   type Span = { from: number; to: number | null; tone: string; said: string }
   /** One tree's record of runs, as the projection sends it. */
   type Tree = { task: string | null; checks: readonly unknown[] } | null
-  export const STRIP: number
   export const DOTS: number
-  export const FOLD: number
   export const SPAN_MIN: number
   export const ANSWERS: Record<'fail' | 'pass' | 'none', Mark>
   export const CELLS: Record<'pass' | 'fail' | 'other', string>
@@ -62,13 +60,13 @@ declare module '*/assets/pages/agent-shape.js' {
     typical: string | null
     cells: { tone: string }[]
     said: string
-    more: number
   }[]
   export function headOf(task: unknown): { mark: Mark; line: string; overruled: boolean }
-  export function recentOf(
-    tree: Tree,
-    most?: number,
-  ): { cells: { tone: string }[]; said: string; line: string | null }
+  export function recentOf(tree: Tree): {
+    cells: { tone: string }[]
+    said: string
+    line: string | null
+  }
   export function branchOf(task: unknown): {
     name: string | null
     value: string | null
@@ -125,7 +123,13 @@ declare module '*/assets/pages/agent-shape.js' {
   export function momentsOf(
     answer: unknown,
   ): { key: string; at: string; said: string; glyph: string; tone: string }[]
-  export function foldSaid(hidden: number, open: boolean): string
+  type Moment = { id: string; at: string; kind: string; said: string }
+  export function momentsKept(): {
+    newest(answer: { activity: Moment[]; earlier: string | null } | null): void
+    older(page: { activity: Moment[]; earlier: string | null }): void
+    held(): { activity: Moment[]; earlier: string | null }
+    readonly earlier: string | null
+  }
 }
 
 declare module '*/assets/pages/agent-said.js' {

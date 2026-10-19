@@ -100,6 +100,7 @@ import { type FoundWork, fireAgentSchedule, makeFoundWork } from './found.ts'
 import { accountKey, adapterKey, HARNESS_ADAPTERS, type HarnessOptions } from './harnesses.ts'
 import { takeBackOwnIgnore } from './ignore.ts'
 import { type Taken, takeIntake } from './intake.ts'
+import type { BeforeAsk } from './journal-away.ts'
 import { type HomeLock, lockHome } from './lock.ts'
 import { Memory, type Noted } from './memory.ts'
 import { type RetireRequest, retireNote, settleNotes } from './notes.ts'
@@ -2290,6 +2291,15 @@ export class Workbench {
 
   events(filter: EventFilter = {}): Promise<TadeEvent[]> {
     return this.log.read(filter)
+  }
+
+  /**
+   * One task's newest lines of some types from before a number in the journal,
+   * newest first, read on a thread of its own: what a page reads back as
+   * somebody scrolls an agent's timeline past what the window holds.
+   */
+  eventsBefore(ask: BeforeAsk): Promise<TadeEvent[]> {
+    return this.log.readBefore(ask)
   }
 
   subscribe(handler: (event: TadeEvent) => void, filter: EventFilter = {}): Unsubscribe {

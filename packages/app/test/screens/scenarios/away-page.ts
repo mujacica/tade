@@ -574,15 +574,16 @@ const WORKFLOWS: WorkflowIn[] = []
 /** What the window holds of the agent waiting on you: its screen, and what it has done. */
 const STRIPE: AgentIn = {
   activity: [
-    { at: ago(3), kind: 'asked', what: 'Bash', ok: null },
-    { at: ago(4), kind: 'used', what: 'Edit', ok: null },
-    { at: ago(6), kind: 'used', what: 'Read', ok: null },
-    { at: ago(8), kind: 'checked', what: 'tests', ok: false },
-    { at: ago(20), kind: 'checked', what: 'tests', ok: false },
-    { at: ago(31), kind: 'committed', what: '', ok: null },
-    { at: ago(43), kind: 'checked', what: 'tests', ok: true },
-    { at: ago(52), kind: 'started', what: '', ok: null },
+    { id: '908', at: ago(3), kind: 'asked', what: 'Bash', ok: null },
+    { id: '907', at: ago(4), kind: 'used', what: 'Edit', ok: null },
+    { id: '906', at: ago(6), kind: 'used', what: 'Read', ok: null },
+    { id: '905', at: ago(8), kind: 'checked', what: 'tests', ok: false },
+    { id: '904', at: ago(20), kind: 'checked', what: 'tests', ok: false },
+    { id: '903', at: ago(31), kind: 'committed', what: '', ok: null },
+    { id: '902', at: ago(43), kind: 'checked', what: 'tests', ok: true },
+    { id: '901', at: ago(52), kind: 'started', what: '', ok: null },
   ],
+  earlier: null,
   lane: {
     kind: 'read',
     at: NOW - 2_000,

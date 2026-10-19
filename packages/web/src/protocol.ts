@@ -144,8 +144,8 @@ export type ChecksOut = z.infer<typeof ChecksOutSchema>
 
 /** One finished run of one check, as its record says. */
 export const CheckRunOutSchema = z.strictObject({
-  /** When it finished, or when it started where that is all it wrote. */
-  at: z.string(),
+  /** When it finished, or when it started where that is all it wrote; null where it wrote neither. */
+  at: z.string().nullable(),
   /** `fail` takes in `timed out`; `other` is skipped or cancelled, which says nothing either way. */
   state: z.enum(['pass', 'fail', 'other']),
   ms: z.int().nonnegative().nullable(),
@@ -153,17 +153,15 @@ export const CheckRunOutSchema = z.strictObject({
 export type CheckRunOut = z.infer<typeof CheckRunOutSchema>
 
 /**
- * How one check has gone in one tree: its newest runs, and how it has been
+ * How one check has gone in one tree: every run, and how it has been
  * answering. **History, not a rollup** — a run is about the tree it read, so a
  * pass here is never this commit's pass; that is `ChecksOut`'s to say.
  */
 export const CheckTrackOutSchema = z.strictObject({
   check: z.string(),
   required: z.boolean(),
-  /** The newest runs, oldest first. */
+  /** Every run the record keeps of it, oldest first. */
   runs: z.array(CheckRunOutSchema),
-  /** Runs the record keeps of it beyond these. Said, never a silent cut. */
-  more: z.int().nonnegative(),
   /**
    * Who asked for its newest run: a task's id, `you`, the orchestrator — the
    * one somebody would go and tell. Null where the record does not say, or
@@ -172,8 +170,8 @@ export const CheckTrackOutSchema = z.strictObject({
   by: z.string().nullable(),
   /**
    * The newest answer that said anything, and since when it has said it: the
-   * first of the runs in a row that answered the same, over every run kept
-   * rather than only these. A skipped or cancelled run breaks no row. Null
+   * first of the runs in a row that answered the same, over every run that
+   * says when. A skipped or cancelled run breaks no row. Null
    * where no run of it ever passed or failed.
    */
   streak: z
@@ -820,6 +818,8 @@ export type TurnRow = z.infer<typeof TurnRowSchema>
 
 /** One moment in a task's life, in Tade's own words. */
 export const ActivityRowSchema = z.strictObject({
+  /** Its line's number in the journal, as text: what tells one moment from another. */
+  id: z.string(),
   at: z.string(),
   kind: z.enum(ACTIVITY_KINDS),
   /** Tade's sentence, from a closed list and a checked name. Metadata. */
@@ -842,10 +842,13 @@ export const AgentOutSchema = z.strictObject({
   task: z.string(),
   /** Whether this device may read this task at all. False is everything below empty. */
   here: z.boolean(),
-  /** Newest first, as much as the budget allows. */
+  /** Its newest moments, newest first. */
   activity: z.array(ActivityRowSchema),
-  /** Whether there was more activity than is here: said, never a silent cut. */
-  more: z.boolean(),
+  /**
+   * Where the moments before these are read from, to be asked for as `before`
+   * (`MomentsPageSchema`); null where these reach its first. Opaque: a number.
+   */
+  earlier: z.string().nullable(),
   screen: z
     .strictObject({
       /** The newest rows of what the agent's lane shows, cleaned (`screen.ts`). */
@@ -886,6 +889,22 @@ export const AgentOutSchema = z.strictObject({
   unread: z.enum(CONVERSATION_WHY).nullable(),
 })
 export type AgentOut = z.infer<typeof AgentOutSchema>
+
+/**
+ * An agent's moments before a cursor an answer gave
+ * (`GET /api/agent/:project/:task/moments?before=`), newest first: what its
+ * timeline reads as somebody scrolls on past what it holds, to its first.
+ */
+export const MomentsPageSchema = z.strictObject({
+  v: z.literal(PROTOCOL_VERSION),
+  task: z.string(),
+  activity: z.array(ActivityRowSchema),
+  /** Where the moments before these are read from, or null where these reach its first. */
+  earlier: z.string().nullable(),
+  /** Why there are none: a task this device does not read, or a journal that could not be read now. */
+  why: z.enum(['not here', 'unread']).nullable(),
+})
+export type MomentsPage = z.infer<typeof MomentsPageSchema>
 
 /**
  * The turns of an agent's conversation before a cursor an answer gave

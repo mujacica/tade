@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { activitySaid, agentOf } from '../src/agent.ts'
-import { AgentOutSchema } from '../src/protocol.ts'
+import { activitySaid, agentOf, momentsBefore } from '../src/agent.ts'
+import { AgentOutSchema, MomentsPageSchema } from '../src/protocol.ts'
 import { projector } from '../src/reading.ts'
-import { agentHeld, EVERY, HELD_KEY, input, NOW, PRIVATE, reach, task } from './fixtures.ts'
+import {
+  agentHeld,
+  EVERY,
+  earlierActivity,
+  HELD_KEY,
+  input,
+  NOW,
+  PRIVATE,
+  reach,
+  task,
+} from './fixtures.ts'
 
 // One agent, as a device looking at it may read it.
 
@@ -64,14 +74,51 @@ describe('one agent, for one device', () => {
     expect(gone.why).toBe('could not read')
   })
 
-  it('carries as much activity as the budget allows, and says there was more', () => {
+  it('carries as much activity as the budget allows, and where the moments before are read from', () => {
     const answer = agentOf(reach(), tasks, TASK, agentHeld(), {
       lines: 10,
       width: 80,
       activity: 2,
     })
-    expect(answer.activity).toHaveLength(2)
-    expect(answer.more).toBe(true)
+    expect(answer.activity.map((one) => one.id)).toEqual(['107', '106'])
+    // The number of the last one looked at: the moments before it are read by it.
+    expect(answer.earlier).toBe('106')
+    expect(agentOf(reach(), tasks, TASK, agentHeld()).earlier).toBe('100')
+    expect(agentOf(reach(), tasks, TASK, agentHeld({ earlier: null })).earlier).toBeNull()
+  })
+})
+
+describe('an agent’s moments before a cursor', () => {
+  it('are its moments read further back, said in Tade’s words, with where the ones before are', () => {
+    const page = momentsBefore(TASK, true, { activity: earlierActivity(), earlier: null })
+    expect(() => MomentsPageSchema.parse(page)).not.toThrow()
+    expect(page.activity.map((one) => [one.id, one.said])).toEqual([
+      ['60', 'its agent stopped'],
+      ['59', 'committed'],
+      ['58', 'tests failed'],
+      ['57', 'its agent started'],
+      ['56', 'was made'],
+    ])
+    expect(page).toMatchObject({ earlier: null, why: null })
+    expect(
+      momentsBefore(TASK, true, { activity: earlierActivity().slice(0, 2), earlier: '59' }).earlier,
+    ).toBe('59')
+  })
+
+  it('are nothing for a task out of reach, and say a journal that could not be read', () => {
+    expect(momentsBefore(TASK, false, { activity: earlierActivity(), earlier: '9' })).toMatchObject(
+      {
+        activity: [],
+        earlier: null,
+        why: 'not here',
+      },
+    )
+    expect(momentsBefore(TASK, true, 'unread')).toMatchObject({ activity: [], why: 'unread' })
+    expect(momentsBefore(TASK, true, null)).toMatchObject({
+      activity: [],
+      earlier: null,
+      why: null,
+    })
   })
 })
 

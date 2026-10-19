@@ -6,14 +6,14 @@
 //    `deriveState`'s own words beside its mark, washed violet where it is
 //    waiting on you and red where it failed — the one loud thing on the page —
 //    with what it runs on and how long since it moved; then four cells, each
-//    a figure, a drawing and a line: its checks and a strip of their newest
-//    runs, its branch as commits either side of where it started, what it
-//    cost and its share of its project's spend, and where it is in its run.
+//    a figure, a drawing and a line: its checks and a strip of every run,
+//    its branch as commits either side of where it started, what it cost and
+//    its share of its project's spend, and where it is in its run.
 // 2. **Its screen**, as the `lanes` grant has it, and under it the box to tell
 //    its agent something — look, then say.
 // 3. **Its timeline**: a lane each for the agent running, its turns, its
-//    tools, its checks and its commits over one axis ending at now, and the
-//    moments in words under it, the newest few shown (`agent-time.js`).
+//    tools, its checks and its commits over one axis ending at now, and every
+//    moment in words under it, read on to its first (`agent-time.js`).
 // 4. **The detail, in two bands of two columns at a desk**: every check's
 //    history beside its branch and its run; what was asked for beside the
 //    facts about it. One column on a phone, in that order.

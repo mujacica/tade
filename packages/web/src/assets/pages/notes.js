@@ -26,17 +26,7 @@ import { icon } from '../icons.js'
 import { section } from '../rows.js'
 import { notesOf, omitted, projectAt, taskAt } from '../store.js'
 import { stateBox, stateBoxIn } from '../ui.js'
-import {
-  asOfLine,
-  BANDS,
-  chartFoot,
-  foldSaid,
-  leadLine,
-  notesPage,
-  shownOf,
-  tallyOf,
-  wholeOf,
-} from './notes-shape.js'
+import { asOfLine, BANDS, chartFoot, leadLine, notesPage, tallyOf, wholeOf } from './notes-shape.js'
 
 /** A region's state, as `stateBoxIn` takes it, from the shape's own. */
 function stateOf(one) {
@@ -68,7 +58,7 @@ export function notesScreen() {
     top: true,
     hint: 'What you told Tade, word for word. Every agent is told the notes on everywhere, on its project and on its own task.',
   })
-  const state = { by: 'where', open: new Set(), last: null }
+  const state = { by: 'where', last: null }
   const by = byOf(state, () => state.last !== null && draw(state.last))
   made.tools.prepend(by.node)
   const coming = skeleton(4)
@@ -76,8 +66,8 @@ export function notesScreen() {
   whole.classList.add('nt-whole')
   const lead = leadOf()
   const asof = el('div', { class: 'nt-asof' })
-  const where = whereOf(state)
-  const when = whenOf(state)
+  const where = whereOf()
+  const when = whenOf()
   made.body.classList.add('nt-body')
   into(made.body, coming, whole, lead.node, asof, where.node, when.node)
   into(node, made.node)
@@ -203,49 +193,31 @@ function fillTally(item, one) {
   item.classList.toggle('is-none', one.n === 0)
 }
 
-/* ── a group of notes: a panel of cards, folded to its newest ───────────────── */
+/* ── a group of notes: a panel of every card in it ─────────────────────────── */
 
 function groupOf(label) {
-  const list = el('ul', { class: 'ui-panel nt-cards', attrs: { 'aria-label': label } })
-  const fold = el('button', {
-    class: 'press quietly small nt-fold',
-    attrs: { type: 'button' },
-  })
-  fold.hidden = true
-  return { list, fold }
+  return { list: el('ul', { class: 'ui-panel nt-cards', attrs: { 'aria-label': label } }) }
 }
 
-function groupIn(made, group, state, inGroup) {
-  const open = state.open.has(group.key)
-  const shown = shownOf(group, open)
+function groupIn(made, group, inGroup) {
   keyed(
     made.list,
-    shown.cards,
+    group.cards,
     (one) => one.id,
     createCard,
     (item, one) => fillCard(item, one, inGroup),
   )
-  const said = foldSaid(group, open)
-  made.fold.hidden = said === null
-  if (said === null) return
-  textIn(made.fold, said)
-  made.fold.setAttribute('aria-expanded', open ? 'true' : 'false')
-  made.fold.onclick = () => {
-    if (state.open.has(group.key)) state.open.delete(group.key)
-    else state.open.add(group.key)
-    groupIn(made, group, state, inGroup)
-  }
 }
 
 /* ── where: everywhere, then each project ───────────────────────────────────── */
 
-function whereOf(state) {
+function whereOf() {
   const node = el('div', { class: 'nt-view' })
   const every = section('EVERYWHERE', {
     hint: 'Told to every agent on this machine, whatever it works on.',
   })
   const everyGroup = groupOf('Notes on everywhere')
-  into(every.body, everyGroup.list, everyGroup.fold)
+  into(every.body, everyGroup.list)
   const projects = section('BY PROJECT', {
     hint: 'A note on a project is told to every agent in it, and a note on a task to that task’s agent.',
   })
@@ -258,7 +230,7 @@ function whereOf(state) {
       const one = page.where.everywhere
       every.node.hidden = one.n === 0
       figureIn(every.figure, one.n, 'notes')
-      groupIn(everyGroup, one, state, true)
+      groupIn(everyGroup, one, true)
       const all = page.where.projects
       projects.node.hidden = all.length === 0
       figureIn(
@@ -271,7 +243,7 @@ function whereOf(state) {
         all,
         (group) => group.key,
         createProject,
-        (item, group) => fillProject(item, group, state),
+        (item, group) => fillProject(item, group),
       )
     },
   }
@@ -284,7 +256,7 @@ function figureIn(figure, n, noun) {
   else figure.setAttribute('aria-label', `${n} ${noun}`)
 }
 
-/** Each project's panel and fold, by the item they are in. */
+/** Each project's panel, by the item it is in. */
 const groupsOf = new WeakMap()
 
 function createProject() {
@@ -294,12 +266,12 @@ function createProject() {
   into(name, icon('folder'), el('span'))
   into(head, name, el('span', { class: 'nt-group-n' }), el('span', { class: 'nt-group-under' }))
   const made = groupOf('Notes')
-  into(item, head, made.list, made.fold)
+  into(item, head, made.list)
   groupsOf.set(item, made)
   return item
 }
 
-function fillProject(item, group, state) {
+function fillProject(item, group) {
   const [head] = item.children
   const [name, n, under] = head.children
   textIn(name.lastChild, group.name)
@@ -310,18 +282,18 @@ function fillProject(item, group, state) {
   textIn(under, group.under)
   const made = groupsOf.get(item)
   made.list.setAttribute('aria-label', `Notes on ${group.name}`)
-  groupIn(made, group, state, true)
+  groupIn(made, group, true)
 }
 
 /* ── when: the last day, the week, the month, before ──────────────────────── */
 
-function whenOf(state) {
+function whenOf() {
   const node = el('div', { class: 'nt-view' })
   const bands = new Map()
   for (const band of BANDS) {
     const part = section(band.heading)
     const group = groupOf(`Notes, ${band.heading.toLowerCase()}`)
-    into(part.body, group.list, group.fold)
+    into(part.body, group.list)
     into(node, part.node)
     bands.set(band.key, { part, group })
   }
@@ -332,7 +304,7 @@ function whenOf(state) {
         const made = bands.get(band.key)
         made.part.node.hidden = band.n === 0
         figureIn(made.part.figure, band.n, 'notes')
-        groupIn(made.group, { ...band, key: `when:${band.key}` }, state, false)
+        groupIn(made.group, band, false)
       }
     },
   }

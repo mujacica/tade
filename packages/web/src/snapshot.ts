@@ -745,9 +745,6 @@ function projectRow(
   }
 }
 
-/** How many runs of one check in one tree cross: a strip a phone can read in one line. */
-export const CHECK_RUNS = 24
-
 /**
  * A project's trees of runs: its checkout first, then each worktree that has
  * any. Null where the checkout was not read — *not looked yet*, never *nothing
@@ -757,12 +754,11 @@ export function checkTreesOf(
   trees: readonly CheckTreeIn[] | null,
   project: string,
   reach: Reach,
-  most = CHECK_RUNS,
 ): CheckTreeOut[] | null {
   const mine = (trees ?? []).filter((tree) => tree.project === project)
   if (!mine.some((tree) => tree.task === null)) return null
   return mine
-    .map((tree) => ({ task: tree.task, checks: tracksOf(tree.runs, reach, most) }))
+    .map((tree) => ({ task: tree.task, checks: tracksOf(tree.runs, reach) }))
     .filter((tree) => tree.task === null || tree.checks.length > 0)
     .sort((a, b) => (a.task === null ? -1 : b.task === null ? 1 : byText(a.task, b.task)))
 }
@@ -774,37 +770,29 @@ function answerOf(state: string): CheckRunOut['state'] {
 }
 
 /**
- * Every check in one record, in the order it first ran, with its newest runs.
- * A run that wrote no time cannot be placed in a row of moments, so it is
- * counted in `more` rather than drawn somewhere it did not happen.
+ * Every check in one record, in the order it first ran, with **every run the
+ * record keeps**, oldest first — the strip scrolls sideways when it is long,
+ * and nothing is counted as left out. A run that wrote no time keeps its place
+ * with `at: null`; the streak is over the runs that say when.
  */
-export function tracksOf(
-  runs: readonly CheckRunIn[],
-  reach: Reach,
-  most = CHECK_RUNS,
-): CheckTrackOut[] {
+export function tracksOf(runs: readonly CheckRunIn[], reach: Reach): CheckTrackOut[] {
   const byCheck = new Map<string, CheckRunIn[]>()
   for (const run of runs) {
     const list = byCheck.get(run.check)
     if (list) list.push(run)
     else byCheck.set(run.check, [run])
   }
-  return [...byCheck].map(([check, all]) => {
-    const timed = all.filter((run) => run.at !== null)
-    const kept = timed.slice(-most)
-    return {
-      check,
-      required: all[all.length - 1]?.required ?? false,
-      runs: kept.map((run) => ({
-        at: ISO(run.at ?? 0),
-        state: answerOf(run.state),
-        ms: run.ms === null ? null : Math.max(0, Math.round(run.ms)),
-      })),
-      more: all.length - kept.length,
-      by: byOf(all[all.length - 1]?.by ?? null, reach),
-      streak: streakOf(timed),
-    }
-  })
+  return [...byCheck].map(([check, all]) => ({
+    check,
+    required: all[all.length - 1]?.required ?? false,
+    runs: all.map((run) => ({
+      at: run.at === null ? null : ISO(run.at),
+      state: answerOf(run.state),
+      ms: run.ms === null ? null : Math.max(0, Math.round(run.ms)),
+    })),
+    by: byOf(all[all.length - 1]?.by ?? null, reach),
+    streak: streakOf(all.filter((run) => run.at !== null)),
+  }))
 }
 
 /** Who asked, unless it is a task in a project this device may not read: a task's id is `<project>/<name>`. */

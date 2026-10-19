@@ -15,12 +15,8 @@ import { checkMark, originSaid, reviewMark, rowMark, stepMark } from '../glyphs.
 import { pathOf } from '../routes.js'
 import { projectAt, runAt, spendFold, spendSince, tasksIn } from '../store.js'
 
-/** How many of its newest check runs the lead's strip draws. */
-export const STRIP = 12
 /** How many commits a side of the branch's line draws before it says the rest. */
 export const DOTS = 8
-/** How many moments are listed before the rest fold behind a press. */
-export const FOLD = 6
 /** The narrowest stretch a timeline covers, so a minute's work is not one smear. */
 export const SPAN_MIN = 15 * 60_000
 
@@ -116,7 +112,7 @@ export function stripSaid(name, runs) {
     n.other > 0 ? `${n.other} skipped or cancelled` : null,
   ].filter(Boolean)
   if (parts.length === 0) return `${name}: no run with a time`
-  return `${name}, the last ${plural(runs.length, 'run')}: ${parts.join(', ')}`
+  return `${name}, ${plural(runs.length, 'run')}: ${parts.join(', ')}`
 }
 
 /**
@@ -141,7 +137,6 @@ export function tracksOf(tree, asOf, frozen = false) {
         typical: typicalOf(track.runs),
         cells: track.runs.map((run) => ({ tone: CELLS[run.state] ?? 'unknown' })),
         said: stripSaid(track.check, track.runs),
-        more: track.more,
       }
     })
     .sort(
@@ -164,20 +159,19 @@ export function headOf(task) {
 
 /**
  * Every run in its record, newest last, as one strip — how its checks have been
- * going lately, whichever check each run was.
+ * going, whichever check each run was. The strip scrolls sideways when long.
  */
-export function recentOf(tree, most = STRIP) {
+export function recentOf(tree) {
   if (tree === null) return { cells: [], said: 'no runs read', line: null }
   const runs = tree.checks
     .flatMap((track) => track.runs.map((run) => ({ ...run, check: track.check })))
     .filter((run) => !Number.isNaN(Date.parse(run.at)))
     .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
-    .slice(-most)
   const passed = runs.filter((run) => run.state === 'pass').length
   return {
     cells: runs.map((run) => ({ tone: CELLS[run.state] ?? 'unknown' })),
     said: stripSaid('its checks', runs),
-    line: runs.length === 0 ? null : `${passed} of the last ${runs.length} passed`,
+    line: runs.length === 0 ? null : `${passed} of ${runs.length} passed`,
   }
 }
 
@@ -414,7 +408,8 @@ export function timelineOf(answer, task, tree, own, asOf) {
   const oldest = moments[0]?.ms ?? null
   // From its making where everything since is here, else from the oldest
   // moment that is: the stretch is what was sent, and no wider.
-  const start = oldest === null || answer?.more ? oldest : Math.min(oldest, made)
+  const more = answer?.earlier !== null && answer?.earlier !== undefined
+  const start = oldest === null || more ? oldest : Math.min(oldest, made)
   const from = Math.min(known(start) ? start : asOf, asOf - SPAN_MIN)
   const to = asOf
   const when = (ms) => whenSaid(new Date(ms).toISOString(), asOf)
@@ -498,21 +493,59 @@ export function timelineOf(answer, task, tree, own, asOf) {
 }
 
 /**
- * The moments, newest first and each with a key of its own — two moments of
- * one kind in one second are two rows — and the glyph and tone each is drawn in.
+ * The moments, newest first, each keyed by its line's number in the journal,
+ * and the glyph and tone each is drawn in.
  */
 export function momentsOf(answer) {
-  const seen = new Map()
   return (answer?.activity ?? []).map((one) => {
-    const base = `${one.at}|${one.kind}|${one.said}`
-    const n = seen.get(base) ?? 0
-    seen.set(base, n + 1)
     const look = MOMENTS[one.kind] ?? { glyph: '·', tone: 't-quiet' }
-    return { key: `${base}|${n}`, at: one.at, said: one.said, glyph: look.glyph, tone: look.tone }
+    return { key: one.id, at: one.at, said: one.said, glyph: look.glyph, tone: look.tone }
   })
 }
 
-/** A count said the way the fold's press says it. */
-export function foldSaid(hidden, open) {
-  return open ? 'Show fewer' : `Show ${plural(hidden, 'earlier moment')}`
+/**
+ * Every moment a page was sent, by its number, and where the ones before the
+ * oldest are read from — so the timeline reads on to the agent's first moment
+ * and keeps everything it read on the way.
+ *
+ * `newest` takes each answer the page asks for: its moments go in by number,
+ * and the first one's cursor is where reading on starts. An answer whose
+ * stretch starts after the newest held — the page was away while more
+ * happened than one answer carries — would leave a hole between, so what is
+ * held is let go and reading on starts again from it. `older` takes a page
+ * read further back, and its cursor is the next.
+ */
+export function momentsKept() {
+  const byId = new Map()
+  let earlier = null
+  let started = false
+  const newestHeld = () => Math.max(...[...byId.keys()].map(Number))
+  const put = (rows) => {
+    for (const row of rows) byId.set(row.id, row)
+  }
+  return {
+    newest(answer) {
+      if (answer === null || answer === undefined) return
+      const after = answer.earlier
+      const hole = byId.size > 0 && after !== null && Number(after) > newestHeld()
+      if (!started || hole) {
+        byId.clear()
+        earlier = after
+        started = true
+      }
+      put(answer.activity)
+    },
+    older(page) {
+      put(page.activity)
+      earlier = page.earlier
+    },
+    /** Every moment held, newest first, and the cursor — the timeline's own answer. */
+    held() {
+      const activity = [...byId.values()].sort((a, b) => Number(b.id) - Number(a.id))
+      return { activity, earlier }
+    },
+    get earlier() {
+      return earlier
+    },
+  }
 }

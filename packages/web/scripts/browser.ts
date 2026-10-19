@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Moved, NotOffered, type Outcome, type WebActing } from '../src/acting.ts'
+import { type ActivityIn, AGENT, MOMENTS } from '../src/agent.ts'
 import { allowDevice } from '../src/devices.ts'
 import { GRANTS, type Grant, type Reach } from '../src/reach.ts'
 import { projector } from '../src/reading.ts'
@@ -26,6 +27,7 @@ import { agentHeld, input, NOW, settingRows } from '../test/fixtures.ts'
 import { chatAt, harnessTalk } from './browser-chat.ts'
 import { deskAt, lanesSeen, paletteAt, unpairedAt } from './browser-desk.ts'
 import { frameAt } from './browser-frame.ts'
+import { momentsAt } from './browser-moments.ts'
 import { asPwa } from './browser-pwa.ts'
 import {
   AXE,
@@ -142,7 +144,11 @@ async function serve() {
       const mine = held.get(reach.device)
       if (mine !== undefined) return mine
       const made = projector(input({ reach, talk: harnessTalk() }), NOW, {
-        agent: () => agentHeld(),
+        agent: () =>
+          agentHeld({
+            activity: LIFE.slice(0, AGENT.activity),
+            earlier: LIFE[AGENT.activity - 1]?.id ?? null,
+          }),
         settings: () => ({ groups: settingRows(), known: [] }),
       })
       held.set(reach.device, made)
@@ -159,6 +165,13 @@ async function serve() {
         ],
         before: null,
       }),
+      // **Its moments before the newest stretch**, a page at a time down to
+      // its making, so its timeline reads on to its first moment.
+      moments: async (_task, before) => {
+        const page = LIFE.filter((one) => Number(one.id) < Number(before)).slice(0, MOMENTS)
+        const first = page.length < MOMENTS || page.at(-1)?.kind === 'made'
+        return { activity: page, earlier: first ? null : (page.at(-1)?.id ?? null) }
+      },
       known: () => [],
       places: () => ({ work: null, tade: null, home: null }),
     },
@@ -216,6 +229,19 @@ function did(verb: string, call: { task: string; was: string }): Promise<Outcome
  * never installed it — which is every machine in CI, and is the state the
  * `unrun` report exists for.
  */
+/**
+ * The agent's whole life as moments, newest first, down to its making: far
+ * more than one answer carries, so its timeline has to read on to reach it.
+ */
+const LIFE: ActivityIn[] = Array.from({ length: 240 }, (_, n) => {
+  const id = 240 - n
+  const at = NOW - (n + 1) * 60_000
+  if (id === 1) return { id: '1', at, kind: 'made', what: '', ok: null }
+  const kind = (['used', 'turn', 'checked'] as const)[id % 3] ?? 'used'
+  const what = kind === 'used' ? 'Edit' : kind === 'checked' ? 'tests' : ''
+  return { id: String(id), at, kind, what, ok: kind === 'used' ? null : true }
+})
+
 const PLAYWRIGHT = 'playwright'
 
 async function browser(): Promise<{ made: Engine | null; why: string }> {
@@ -440,11 +466,13 @@ async function asGranted(
   }
   await lookAll(at)
   await lanesSeen(page, origin, axe, shots, found)
+  await momentsAt(page, origin, at, found, LIFE.length, AGENT.activity)
   await chatAt(page, origin, at, arrival(page, server, held), found, heldLines)
   if (phone !== undefined && phone !== desk) {
     await page.setViewportSize({ width: phone.width, height: phone.height })
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await lookAll(`${phone.name} granted`)
+    await momentsAt(page, origin, `${phone.name} granted`, found, LIFE.length, AGENT.activity)
     await chatAt(
       page,
       origin,

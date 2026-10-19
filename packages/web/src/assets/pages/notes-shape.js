@@ -17,9 +17,6 @@ export const DAY = 86_400_000
 /** A note said within this long is new, and drawn as *now* is. */
 export const FRESH = DAY
 
-/** How many notes a group shows before it is asked for the rest. */
-export const FOLD = 5
-
 /** Past this many characters, words that are a card's main line fold behind `more`. */
 export const LONG = 240
 
@@ -390,21 +387,6 @@ export function chartFoot(chart) {
   }
   if (chart.unplaced > 0) parts.push(`${chart.unplaced} with no moment recorded not drawn`)
   return parts.join(' · ')
-}
-
-/**
- * How many of a group are drawn: every one while it is open or short enough,
- * else its newest `FOLD` and a count of the rest.
- */
-export function shownOf(group, open) {
-  if (open || group.cards.length <= FOLD + 1) return { cards: group.cards, hidden: 0 }
-  return { cards: group.cards.slice(0, FOLD), hidden: group.cards.length - FOLD }
-}
-
-/** The fold press's words: open the rest, or close back to the newest. */
-export function foldSaid(group, open) {
-  if (group.cards.length <= FOLD + 1) return null
-  return open ? `Show the newest ${FOLD}` : `Show all ${group.cards.length}`
 }
 
 /**

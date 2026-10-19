@@ -13,6 +13,7 @@ import {
   type Device,
   factsOf,
   has,
+  MOMENTS,
   type PairingAsk,
   type Places,
   type Projector,
@@ -38,7 +39,7 @@ import {
 } from '@tade/web'
 import { lastUpdates } from '@tade/workbench/programs'
 import { awayCollections, chatLines } from '../away.ts'
-import { activityIn } from '../away-activity.ts'
+import { ACTIVITY_TYPES, activityIn, momentsOf } from '../away-activity.ts'
 import type { Frame } from '../frame.ts'
 import { approvalInFront } from '../model.ts'
 import { ASKING_FIRST, AWAY_CONTROLS, awayPanel, BEHIND_THE_PANEL } from '../panels/away/state.ts'
@@ -835,6 +836,26 @@ export class Away implements Subject {
           return 'unread'
         }
       },
+      // Out of the journal on a thread of its own (`Workbench.eventsBefore`):
+      // a page scrolled past the newest stretch never holds up a beat.
+      moments: async (task, before) => {
+        try {
+          const events = await this.wire.opts.client.eventsBefore({
+            task,
+            types: ACTIVITY_TYPES,
+            before: Number(before),
+            most: MOMENTS,
+          })
+          return momentsOf(events, MOMENTS)
+        } catch (err) {
+          this.wire.note(
+            new Error(
+              `the away view could not read what ${task} did further back: ${err instanceof Error ? err.message : String(err)}`,
+            ),
+          )
+          return 'unread'
+        }
+      },
       known: () => this.lanes.keys(() => knownHere(this.wire, this.config())),
       places: (task) => this.placesOf(task),
     }
@@ -859,7 +880,7 @@ export class Away implements Subject {
   private agentIn(reach: Reach, task: string): AgentIn {
     const keys = () => knownHere(this.wire, this.config())
     return {
-      activity: activityIn(this.wire.live?.events ?? [], task, AGENT.activity),
+      ...activityIn(this.wire.live?.events ?? [], task, AGENT.activity),
       lane: this.lanes.heldFor(task) ?? { kind: 'none', why: 'not read yet' },
       conversation: this.lanes.talkFor(task),
       places: this.placesOf(task),

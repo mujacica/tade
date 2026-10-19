@@ -374,12 +374,6 @@ a.nt-chip[href]:hover .nt-pill {
   transform: rotate(-90deg);
 }
 
-/* ── the folds: a press the width of what it opens ───────────────────────── */
-
-.nt-fold {
-  width: 100%;
-}
-
 /* ── a tablet and wider: the picture beside the figure ─────────────────────── */
 
 @media (min-width: 768px) {

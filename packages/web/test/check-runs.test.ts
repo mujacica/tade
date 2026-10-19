@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { SnapshotSchema } from '../src/protocol.ts'
-import { CHECK_RUNS, checkTreesOf, snapshotOf, tracksOf } from '../src/snapshot.ts'
+import { checkTreesOf, snapshotOf, tracksOf } from '../src/snapshot.ts'
 import { checkRun, checkTree, EVERY, input, NOW, project, reach } from './fixtures.ts'
 
 // What ran in each tree, as a project row carries it: the history the checks
@@ -79,12 +79,11 @@ describe('a check’s track', () => {
     })
   })
 
-  it('counts a run with no time in `more` rather than placing it, and has no streak with no answer', () => {
+  it('keeps a run with no time on the strip with no moment, and has no streak with no answer', () => {
     expect(of('types')).toEqual({
       check: 'types',
       required: true,
-      runs: [],
-      more: 1,
+      runs: [{ at: null, state: 'pass', ms: null }],
       by: 'sentry/away-projection',
       streak: null,
     })
@@ -96,17 +95,16 @@ describe('a check’s track', () => {
     expect(said[0]?.runs.map((one) => one.state)).toEqual(['other', 'other'])
   })
 
-  it('carries the newest runs and says how many are left out, while the streak reads all of them', () => {
-    const many = Array.from({ length: CHECK_RUNS + 6 }, (_, n) =>
+  it('carries every run the record keeps, the oldest first, and counts none as left out', () => {
+    const many = Array.from({ length: 200 }, (_, n) =>
       checkRun({ minute: n, state: n < 2 ? 'passed' : 'failed' }),
     )
     const [track] = tracksOf(many, reach(EVERY))
-    expect(track?.runs).toHaveLength(CHECK_RUNS)
-    expect(track?.runs[0]?.at).toBe(at(6).toISOString())
-    expect(track?.more).toBe(6)
-    // Red since the third run, which is off the strip: when it went red, not
-    // when the strip happens to start.
-    expect(track?.streak).toMatchObject({ state: 'fail', since: at(2).toISOString(), runs: 28 })
+    expect(track?.runs).toHaveLength(200)
+    expect(track?.runs[0]?.at).toBe(at(0).toISOString())
+    expect(track?.runs.at(-1)?.at).toBe(at(199).toISOString())
+    expect(track).not.toHaveProperty('more')
+    expect(track?.streak).toMatchObject({ state: 'fail', since: at(2).toISOString(), runs: 198 })
   })
 
   it('is required as its newest run says, and rounds a length to whole milliseconds', () => {

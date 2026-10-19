@@ -373,16 +373,19 @@ when it takes effect at the start and its press at the end.
   padding: var(--inset);
 }
 
-/* The moments sit in the timeline's panel, on its ground rather than a second card. */
+/*
+  The moments sit in the timeline's panel, on its ground rather than a second
+  card, and scroll in a region of their own: every one of them is here, read on
+  to its first as the reader nears the end (`agent-time.js`).
+*/
 .page-agent .ag-moments {
+  max-height: min(60dvh, 32rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border: 0;
   border-block-start: var(--border);
   border-radius: 0;
   background: none;
-}
-
-.page-agent .ag-moments > li.is-end > div::before {
-  inset-block-end: 50%;
 }
 
 .page-agent .ag-time-foot {
@@ -394,7 +397,7 @@ when it takes effect at the start and its press at the end.
   border-block-start: var(--border);
 }
 
-.page-agent .ag-older {
+.page-agent .ag-reading {
   color: var(--heading);
   font-size: var(--step--1);
 }

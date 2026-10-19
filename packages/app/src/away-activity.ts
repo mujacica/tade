@@ -1,4 +1,4 @@
-import type { TadeEvent } from '@tade/core'
+import { type ReadableEventType, type TadeEvent, typeNow } from '@tade/core'
 import type { ActivityIn, ActivityKind } from '@tade/web'
 
 // What one task has been doing, out of the journal the window already holds,
@@ -12,11 +12,14 @@ import type { ActivityIn, ActivityKind } from '@tade/web'
 // kind, a moment, and at most one *name* (a tool's, a check's, a state's),
 // which `@tade/web` holds to looking like one before it goes in a sentence.
 //
-// **Bounded twice, and newest first.** The window holds the whole journal, so
-// this walks it from the end and stops at `most + 1` lines about this task —
-// the one more is what lets the page say *there was more* — or after `SCAN`
-// lines of anything, so a task whose last word was a week of other tasks ago
-// costs a fixed amount to ask about rather than a fold over everything.
+// **The newest stretch out of what the window holds, and the rest by number.**
+// The window holds the journal's newest lines, so this walks them from the end
+// and stops at `most` moments about this task, or after `SCAN` lines of
+// anything — and says where it stopped: the number the moments before are read
+// from, out of the journal itself and off the window's thread
+// (`Workbench.eventsBefore`), as somebody scrolls the timeline on to the
+// task's first moment (`momentsOf`). Its making is its first, so nothing is
+// asked for before that.
 //
 // Pure: a function of the events, the task and the bounds.
 
@@ -41,6 +44,9 @@ const KINDS: Readonly<Partial<Record<TadeEvent['type'], ActivityKind>>> = {
   failed: 'failed',
 }
 
+/** The types a moment is made of, which a read further back asks the journal for. */
+export const ACTIVITY_TYPES = Object.keys(KINDS) as ReadableEventType[]
+
 /** The kinds that are about a name; every other kind carries none. */
 const NAMED = new Set<ActivityKind>(['used', 'asked', 'allowed', 'refused', 'state', 'checked'])
 
@@ -61,28 +67,73 @@ function okOf(event: TadeEvent, kind: ActivityKind): boolean | null {
   return null
 }
 
-/** The newest moments of one task's life, at most `most + 1` of them. */
+/** One line as a moment, or null for a line that is not one or says no time. */
+function momentOf(event: TadeEvent): ActivityIn | null {
+  const kind = KINDS[typeNow(event.type) as TadeEvent['type']]
+  if (kind === undefined) return null
+  const when = Date.parse(event.ts)
+  if (Number.isNaN(when)) return null
+  return {
+    id: String(event.seq),
+    at: when,
+    kind,
+    what: NAMED.has(kind) ? whatOf(event, kind) : '',
+    ok: okOf(event, kind),
+  }
+}
+
+/**
+ * One task's moments, and the cursor the ones before them are read from — a
+ * journal line's number, which a compaction never moves or hands out again, as
+ * text the page only hands back — or null at its first.
+ */
+export interface Moments {
+  activity: ActivityIn[]
+  earlier: string | null
+}
+
+/**
+ * The newest moments of one task's life the window holds, at most `most` of
+ * them, newest first, and where the ones before them are: the number of the
+ * oldest here where `most` stopped it, else of the oldest line looked at.
+ */
 export function activityIn(
   events: readonly TadeEvent[],
   task: string,
   most: number,
   scan: number = SCAN,
-): ActivityIn[] {
-  const out: ActivityIn[] = []
+): Moments {
+  const activity: ActivityIn[] = []
   const stop = Math.max(0, events.length - scan)
-  for (let at = events.length - 1; at >= stop && out.length <= most; at -= 1) {
+  for (let at = events.length - 1; at >= stop; at -= 1) {
     const event = events[at]
     if (event === undefined || event.task !== task) continue
-    const kind = KINDS[event.type]
-    if (kind === undefined) continue
-    const when = Date.parse(event.ts)
-    if (Number.isNaN(when)) continue
-    out.push({
-      at: when,
-      kind,
-      what: NAMED.has(kind) ? whatOf(event, kind) : '',
-      ok: okOf(event, kind),
-    })
+    const one = momentOf(event)
+    if (one === null) continue
+    activity.push(one)
+    if (one.kind === 'made') return { activity, earlier: null }
+    if (activity.length >= most) return { activity, earlier: one.id }
   }
-  return out
+  const from = events[stop]
+  return { activity, earlier: from === undefined ? null : String(from.seq) }
+}
+
+/**
+ * Lines read out of the journal before a number, newest first and at most
+ * `most` of them, as moments: fewer than were asked for, or its making, is
+ * its first.
+ */
+export function momentsOf(events: readonly TadeEvent[], most: number): Moments {
+  const activity: ActivityIn[] = []
+  for (const event of events) {
+    const one = momentOf(event)
+    if (one === null) continue
+    activity.push(one)
+    if (one.kind === 'made') return { activity, earlier: null }
+  }
+  const oldest = events.at(-1)
+  return {
+    activity,
+    earlier: events.length < most || oldest === undefined ? null : String(oldest.seq),
+  }
 }

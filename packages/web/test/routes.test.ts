@@ -469,9 +469,9 @@ describe('the connect pages', () => {
   })
 })
 
-describe('reading a conversation further back', () => {
-  it('is two GETs at read, changing nothing, matched with their parameters', () => {
-    for (const name of ['chat', 'agent earlier']) {
+describe('reading a conversation or a timeline further back', () => {
+  it('is three GETs at read, changing nothing, matched with their parameters', () => {
+    for (const name of ['chat', 'agent earlier', 'agent moments']) {
       const found = ROUTES.find((one) => one.name === name)
       expect(found, name).toMatchObject({ method: 'GET', needs: 'read', mutates: false })
       expect(found?.public, name).toBeUndefined()
@@ -481,9 +481,13 @@ describe('reading a conversation further back', () => {
     const agent = routeFor('GET', '/api/agent/sentry/away-projection/earlier')
     expect(agent?.route.name).toBe('agent earlier')
     expect(agent?.params).toMatchObject({ project: 'sentry', task: 'away-projection' })
+    const moments = routeFor('GET', '/api/agent/sentry/away-projection/moments')
+    expect(moments?.route.name).toBe('agent moments')
+    expect(moments?.params).toMatchObject({ project: 'sentry', task: 'away-projection' })
     // Nothing else reads a conversation, and nothing writes one.
     expect(routeFor('POST', '/api/chat')).toBeNull()
     expect(routeFor('GET', '/api/agent/sentry/away-projection/earlier/more')).toBeNull()
+    expect(routeFor('POST', '/api/agent/sentry/away-projection/moments')).toBeNull()
   })
 })
 

@@ -5,8 +5,9 @@
 // where, and for how long — so the page leads with three figures and a card
 // for each failing check, longest-red first, with the strip of its runs and the
 // agent that last asked for one. Then every project as a card: each tree it ran
-// in, each check a row of its newest runs, newest on the right, so a flaky
-// check and a broken one look different at a glance.
+// in, each check a row of every run its record keeps, newest on the right and
+// scrolled sideways when long, so a flaky check and a broken one look
+// different at a glance.
 //
 // **Two greens, never one.** A check whose last run passed is history; a head
 // whose every required check ran on its commit is the rollup. The strips are

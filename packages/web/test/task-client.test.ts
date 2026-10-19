@@ -8,16 +8,14 @@ import {
   branchOf,
   DONE_SAID,
   DOTS,
-  FOLD,
   findingsOf,
-  foldSaid,
   headOf,
+  momentsKept,
   momentsOf,
   nowOf,
   recentOf,
   runOf,
   SPAN_MIN,
-  STRIP,
   spendOf,
   stateOf,
   timelineOf,
@@ -170,15 +168,16 @@ describe('its checks', () => {
     expect(head.overruled).toBe(true)
   })
 
-  it('strips the newest runs across its checks, oldest first, and counts what passed', () => {
-    const runs = Array.from({ length: STRIP + 3 }, (_, at) =>
+  it('strips every run across its checks, oldest first, and counts what passed', () => {
+    const runs = Array.from({ length: 40 }, (_, at) =>
       checkRun({ minute: at, state: at % 4 === 0 ? 'failed' : 'passed' }),
     )
     const store = held({ checks: [checkTree({ runs })] })
     const recent = recentOf(treeOf(rowOf(store), store).tree)
-    expect(recent.cells).toHaveLength(STRIP)
+    expect(recent.cells).toHaveLength(40)
+    expect(recent.cells[0]?.tone).toBe('failed')
     expect(recent.cells.at(-1)?.tone).toBe('done')
-    expect(recent.line).toBe(`9 of the last ${STRIP} passed`)
+    expect(recent.line).toBe('30 of 40 passed')
     expect(recentOf(null)).toMatchObject({ cells: [], line: null })
   })
 })
@@ -335,16 +334,20 @@ describe('the facts about it', () => {
 
 describe('its timeline', () => {
   /** What the agent's own answer carries, through the real projection. */
-  function answerOf(activity: ActivityIn[]) {
-    return agentOf(reach(EVERY), [task()], 'sentry/away-projection', agentHeld({ activity }))
+  function answerOf(activity: ActivityIn[], earlier: string | null = null) {
+    return agentOf(
+      reach(EVERY),
+      [task()],
+      'sentry/away-projection',
+      agentHeld({ activity, earlier }),
+    )
   }
 
-  const moment = (n: number, kind: ActivityIn['kind'], what = '', ok: boolean | null = null) => ({
-    at: minute(n),
-    kind,
-    what,
-    ok,
-  })
+  let made = 0
+  const moment = (n: number, kind: ActivityIn['kind'], what = '', ok: boolean | null = null) => {
+    made += 1
+    return { id: String(1_000 - n * 10 - (made % 10)), at: minute(n), kind, what, ok }
+  }
 
   it('draws a lane each, the agent running from its start to now', () => {
     const answer = answerOf([
@@ -408,8 +411,11 @@ describe('its timeline', () => {
   })
 
   it('covers what was sent and no wider, and never less than a quarter hour', () => {
-    const more = answerOf(Array.from({ length: 40 }, (_, at) => moment(at, 'used', 'Bash')))
-    expect(more.more).toBe(true)
+    const more = answerOf(
+      Array.from({ length: 30 }, (_, at) => moment(at, 'used', 'Bash')),
+      '700',
+    )
+    expect(more.earlier).toBe('700')
     const line = timelineOf(more, rowOf(held()), null, false, NOW)
     expect(line.from).toBe(minute(29))
     const brief = timelineOf(
@@ -430,8 +436,53 @@ describe('its timeline', () => {
     expect(rows.map((one) => one.said)).toEqual(['finished a turn', 'finished a turn', 'committed'])
     expect(new Set(rows.map((one) => one.key)).size).toBe(3)
     expect(rows[2]).toMatchObject({ glyph: '●', tone: 't-working' })
-    expect(foldSaid(1, false)).toBe('Show 1 earlier moment')
-    expect(foldSaid(FOLD, true)).toBe('Show fewer')
+  })
+})
+
+describe('its timeline, read on to its first moment', () => {
+  const row = (id: number, said = 'finished a turn') => ({
+    id: String(id),
+    at: new Date(NOW - id * 1000).toISOString(),
+    kind: 'turn',
+    said,
+  })
+  const ids = (kept: ReturnType<typeof momentsKept>) => kept.held().activity.map((one) => one.id)
+
+  it('starts from the first answer’s cursor, and keeps every page read further back under it', () => {
+    const kept = momentsKept()
+    kept.newest({ activity: [row(50), row(40)], earlier: '40' })
+    expect(kept.earlier).toBe('40')
+    kept.older({ activity: [row(30), row(20)], earlier: '20' })
+    kept.older({ activity: [row(10)], earlier: null })
+    expect(ids(kept)).toEqual(['50', '40', '30', '20', '10'])
+    expect(kept.held().earlier).toBeNull()
+  })
+
+  it('keeps what fell out of the newest stretch while the page was asking', () => {
+    const kept = momentsKept()
+    kept.newest({ activity: [row(50), row(40)], earlier: '40' })
+    // Two more happened: the newest stretch moved on past 40, which is still held.
+    kept.newest({ activity: [row(70), row(60), row(50)], earlier: '50' })
+    expect(ids(kept)).toEqual(['70', '60', '50', '40'])
+    expect(kept.earlier).toBe('40')
+  })
+
+  it('lets go of what it held where a newest stretch starts after it, and reads on from there', () => {
+    const kept = momentsKept()
+    kept.newest({ activity: [row(50), row(40)], earlier: '40' })
+    kept.older({ activity: [row(30)], earlier: '30' })
+    // Away for longer than one answer carries: a hole between 50 and 90.
+    kept.newest({ activity: [row(100), row(90)], earlier: '90' })
+    expect(ids(kept)).toEqual(['100', '90'])
+    expect(kept.earlier).toBe('90')
+  })
+
+  it('reads nothing on from an answer that reaches its first', () => {
+    const kept = momentsKept()
+    kept.newest({ activity: [row(5), row(1, 'was made')], earlier: null })
+    kept.newest({ activity: [row(9), row(5), row(1, 'was made')], earlier: null })
+    expect(ids(kept)).toEqual(['9', '5', '1'])
+    expect(kept.earlier).toBeNull()
   })
 })
 

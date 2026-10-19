@@ -68,7 +68,6 @@ declare module '*/assets/pages/notes-shape.js' {
   type Whole = { kind: string; icon: string; heading: string; line: string }
   export const DAY: number
   export const FRESH: number
-  export const FOLD: number
   export const LONG: number
   export const LANES: number
   export const BY_SAID: Record<string, string>
@@ -89,11 +88,6 @@ declare module '*/assets/pages/notes-shape.js' {
   export function leadLine(page: Page): string
   export function tallyOf(page: Page): { key: Kind; label: string; n: number }[]
   export function chartFoot(chart: Chart): string
-  export function shownOf(
-    group: { cards: readonly Card[] },
-    open: boolean,
-  ): { cards: Card[]; hidden: number }
-  export function foldSaid(group: { cards: readonly Card[] }, open: boolean): string | null
   export function wholeOf(
     had: boolean,
     shut: boolean,

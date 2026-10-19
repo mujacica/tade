@@ -342,6 +342,17 @@ export const ROUTES: readonly Route[] = [
     needs: 'read',
     mutates: false,
   },
+  // **One agent's moments before a cursor its page holds**: its timeline read
+  // on past the newest stretch, to its first moment, out of the journal on a
+  // thread of the window's own. On no grant, as its newest moments are — what
+  // it did is Tade's sentences about metadata — and only for a task it reads.
+  {
+    method: 'GET',
+    path: '/api/agent/:project/:task/moments',
+    name: 'agent moments',
+    needs: 'read',
+    mutates: false,
+  },
   {
     method: 'GET',
     path: '/api/talk/answer/:call',

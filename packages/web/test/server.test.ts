@@ -6,13 +6,13 @@ import { callKey } from '../src/answered.ts'
 import { allowDevice, grantDevice } from '../src/devices.ts'
 import type { WebEarlier } from '../src/earlier.ts'
 import { COMPANIONS, CSP } from '../src/headers.ts'
-import { ChatPageSchema, TurnsPageSchema } from '../src/protocol.ts'
+import { ChatPageSchema, MomentsPageSchema, TurnsPageSchema } from '../src/protocol.ts'
 import { BODY_MAX, CSRF_HEADER, pathOf, queryOf } from '../src/request.ts'
 import type { Told } from '../src/server.ts'
 import { webServer } from '../src/server.ts'
 import { listenerAt, listenOn } from '../src/surface.ts'
 import { Tickets } from '../src/tickets.ts'
-import { conversationHeld, HELD_KEY } from './fixtures.ts'
+import { conversationHeld, earlierActivity, HELD_KEY } from './fixtures.ts'
 import {
   actingStub,
   ask,
@@ -392,7 +392,7 @@ describe('a conversation read further back than a page holds', () => {
   const FOURTH = '2026-10-08T14:00:03.000Z#0'
   const turns = conversationHeld().turns
   const made = () => {
-    const asked = { talk: [] as string[], agent: [] as string[] }
+    const asked = { talk: [] as string[], agent: [] as string[], moments: [] as string[] }
     const earlier: WebEarlier = {
       talk: async (before) => {
         asked.talk.push(before)
@@ -401,6 +401,10 @@ describe('a conversation read further back than a page holds', () => {
       agent: async (task, before) => {
         asked.agent.push(`${task} ${before}`)
         return before === '9' ? 'unread' : { turns, before: before === '2048' ? '512' : null }
+      },
+      moments: async (task, before) => {
+        asked.moments.push(`${task} ${before}`)
+        return before === '9' ? 'unread' : { activity: earlierActivity(), earlier: null }
       },
       known: () => [HELD_KEY],
       places: () => ({ work: null, tade: null, home: null }),
@@ -476,6 +480,57 @@ describe('a conversation read further back than a page holds', () => {
     })
     expect(await opened(`${at}?before=9`, ['lanes'], earlier)).toMatchObject({ why: 'unread' })
     expect(asked.agent).toEqual(['sentry/away-projection 9'])
+  })
+})
+
+describe('an agent’s timeline read further back than its page holds', () => {
+  const made = () => {
+    const asked: string[] = []
+    const earlier: WebEarlier = {
+      talk: async () => true,
+      agent: async () => 'unread',
+      moments: async (task, before) => {
+        asked.push(`${task} ${before}`)
+        return before === '9' ? 'unread' : { activity: earlierActivity(), earlier: null }
+      },
+      known: () => [],
+      places: () => ({ work: null, tade: null, home: null }),
+    }
+    return { asked, earlier }
+  }
+  const opened = async (path: string, earlier: WebEarlier) => {
+    const one = await start({}, { owned: { earlier } })
+    const paired = await pair(one)
+    return said(await ask(one, path, { headers: { cookie: paired.cookie } }))
+  }
+
+  it('answers its moments before a cursor, to its first, on no grant but reading its project', async () => {
+    const { asked, earlier } = made()
+    const got = await opened('/api/agent/sentry/away-projection/moments?before=100', earlier)
+    const page = MomentsPageSchema.parse(got)
+    expect(page).toMatchObject({ task: 'sentry/away-projection', earlier: null, why: null })
+    expect(page.activity.map((one) => one.said).at(-1)).toBe('was made')
+    expect(asked).toEqual(['sentry/away-projection 100'])
+  })
+
+  it('reads nothing about a task out of reach or by a cursor that is not a number, and says a journal it could not read', async () => {
+    const { asked, earlier } = made()
+    expect(await opened('/api/agent/nobody/nothing/moments?before=100', earlier)).toMatchObject({
+      activity: [],
+      why: 'not here',
+    })
+    expect(
+      await opened('/api/agent/sentry/away-projection/moments?before=../100', earlier),
+    ).toMatchObject({ activity: [], earlier: null, why: null })
+    expect(await opened('/api/agent/sentry/away-projection/moments', earlier)).toMatchObject({
+      activity: [],
+      earlier: null,
+      why: null,
+    })
+    expect(
+      await opened('/api/agent/sentry/away-projection/moments?before=9', earlier),
+    ).toMatchObject({ why: 'unread' })
+    expect(asked).toEqual(['sentry/away-projection 9'])
   })
 })
 

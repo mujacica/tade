@@ -836,11 +836,20 @@ export function levelsOf(values, levels = 4) {
  * as `levelsOf` makes them); unknown is a hatched cell. `role="img"`, and the
  * sentence is the caller's (`said`), because only the caller knows what the
  * cells add up to.
+ *
+ * **Every cell is drawn**: a strip longer than its room scrolls sideways, and
+ * opens at its newest end — which it keeps following as cells arrive, until the
+ * reader scrolls back, and again once they scroll to the end.
  */
 export function heat(label) {
-  const node = el('div', { class: 'ui-heat', attrs: { role: 'img', 'aria-label': label } })
+  const node = el('div', { class: 'ui-heat scrolls', attrs: { role: 'img', 'aria-label': label } })
+  node.addEventListener('scroll', () => {
+    node.dataset.held = atEnd(node) ? '' : 'held'
+  })
   return node
 }
+
+const atEnd = (node) => node.scrollLeft + node.clientWidth >= node.scrollWidth - 2
 
 /** Fill a heat strip: `[{ tone, level }]`, `{ rows, said, tone }`. */
 export function heatIn(node, cells, opts = {}) {
@@ -855,6 +864,13 @@ export function heatIn(node, cells, opts = {}) {
     for (let n = 0; n <= 4; n += 1) classOn(cell, `is-l${n}`, level === n)
   })
   if (opts.said !== undefined) saidIn(node, opts.said)
+  // After the cells are laid out: at the newest end unless the reader went
+  // back, and reachable by the keyboard only where there is somewhere to go.
+  globalThis.requestAnimationFrame?.(() => {
+    if (node.dataset.held !== 'held') node.scrollLeft = node.scrollWidth
+    if (node.scrollWidth > node.clientWidth) node.setAttribute('tabindex', '0')
+    else node.removeAttribute('tabindex')
+  })
 }
 
 /* ── steps: how far along something is ────────────────────────────────────── */

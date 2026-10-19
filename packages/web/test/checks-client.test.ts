@@ -289,7 +289,7 @@ describe('the words for a moment', () => {
         check: 'tests',
         runs: [{ state: 'pass' }, { state: 'fail' }, { state: 'fail' }, { state: 'other' }],
       }),
-    ).toBe('tests, the last 4 runs: 1 passed, 2 failed, 1 skipped or cancelled')
+    ).toBe('tests, 4 runs: 1 passed, 2 failed, 1 skipped or cancelled')
     expect(stripSaid({ check: 'types', runs: [] })).toBe('types: no run with a time')
   })
 

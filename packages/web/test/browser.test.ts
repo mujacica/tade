@@ -165,8 +165,8 @@ describe('what a browser cannot be asked', () => {
     expect(counted).toContain(`${CHECKS.length} unrun`)
   })
 
-  it('names reading a conversation back to its first line', () => {
-    for (const check of ['chat', 'back', 'call'])
+  it('names reading a conversation back to its first line, and a timeline on to its first moment', () => {
+    for (const check of ['chat', 'back', 'call', 'moments'])
       expect(CHECKS as readonly string[], check).toContain(check)
   })
 

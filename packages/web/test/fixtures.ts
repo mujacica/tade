@@ -732,15 +732,31 @@ export function activity(): ActivityIn[] {
   const at = (minute: number) =>
     Date.parse(`2026-10-08T14:${String(minute).padStart(2, '0')}:00.000Z`)
   return [
-    { at: at(29), kind: 'checked', what: 'tests', ok: true },
-    { at: at(28), kind: 'used', what: 'Bash', ok: null },
+    { id: '107', at: at(29), kind: 'checked', what: 'tests', ok: true },
+    { id: '106', at: at(28), kind: 'used', what: 'Bash', ok: null },
     // A harness that named a tool after the file it came from: a name that is
     // a path is dropped from the sentence, never carried in it.
-    { at: at(27), kind: 'used', what: `${PRIVATE.root}/bin/tool`, ok: null },
-    { at: at(26), kind: 'state', what: 'working', ok: null },
-    { at: at(25), kind: 'state', what: 'not-a-state', ok: null },
-    { at: at(24), kind: 'turn', what: '', ok: false },
-    { at: at(20), kind: 'started', what: '', ok: null },
+    { id: '105', at: at(27), kind: 'used', what: `${PRIVATE.root}/bin/tool`, ok: null },
+    { id: '104', at: at(26), kind: 'state', what: 'working', ok: null },
+    { id: '103', at: at(25), kind: 'state', what: 'not-a-state', ok: null },
+    { id: '102', at: at(24), kind: 'turn', what: '', ok: false },
+    { id: '101', at: at(20), kind: 'started', what: '', ok: null },
+  ]
+}
+
+/**
+ * The fixture's working task's moments before the window's stretch, newest
+ * first, down to its making: what a read further back finds in the journal.
+ */
+export function earlierActivity(): ActivityIn[] {
+  const at = (minute: number) =>
+    Date.parse(`2026-10-08T13:${String(minute).padStart(2, '0')}:00.000Z`)
+  return [
+    { id: '60', at: at(50), kind: 'stopped', what: '', ok: null },
+    { id: '59', at: at(40), kind: 'committed', what: '', ok: null },
+    { id: '58', at: at(30), kind: 'checked', what: 'tests', ok: false },
+    { id: '57', at: at(20), kind: 'started', what: '', ok: null },
+    { id: '56', at: at(10), kind: 'made', what: '', ok: null },
   ]
 }
 
@@ -748,6 +764,7 @@ export function activity(): ActivityIn[] {
 export function agentHeld(over: Partial<AgentIn> = {}): AgentIn {
   return {
     activity: activity(),
+    earlier: '100',
     lane: { kind: 'read', text: screenText(), at: Date.parse('2026-10-08T14:29:58.000Z') },
     conversation: conversationHeld(),
     known: [HELD_KEY, 'short'],

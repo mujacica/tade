@@ -8,6 +8,7 @@ import type {
   ActivityRow,
   AgentOut,
   CONVERSATION_WHY,
+  MomentsPage,
   SCREEN_WHY,
   TurnsPage,
 } from './protocol.ts'
@@ -47,6 +48,13 @@ import { cleanScreen, SCREEN, type ScreenBudget } from './screen.ts'
 
 /** One moment in a task's life, as the window read it out of the journal. */
 export interface ActivityIn {
+  /**
+   * What tells one moment from another, and what the moments before it are
+   * asked by (`momentsBefore`): **the window's own cursor, opaque here** —
+   * only ever compared, sent, and handed back to the window that made it, as a
+   * harness's record cursor is (`CURSOR`).
+   */
+  id: string
   at: number
   kind: ActivityKind
   /**
@@ -88,8 +96,13 @@ export type ConversationIn =
 
 /** Everything the window hands over about one agent. */
 export interface AgentIn {
-  /** Newest first, already bounded by the window to `activity` and one more. */
+  /** Its newest moments, newest first, as many as the window held of them. */
   activity: readonly ActivityIn[]
+  /**
+   * The window's cursor the moments before these are read from
+   * (`momentsBefore`), or null where these reach its first.
+   */
+  earlier: string | null
   lane: LaneIn
   /** Its conversation as last read. Absent is not read yet. */
   conversation?: ConversationIn
@@ -109,11 +122,18 @@ export interface AgentIn {
 
 /** How much of one agent an answer carries. */
 export interface AgentBudget extends ScreenBudget {
-  /** Moments of activity, newest first. */
+  /**
+   * Moments of activity, newest first: the newest stretch, and the page reads
+   * the ones before as somebody scrolls down its timeline (`momentsBefore`),
+   * a stretch of `MOMENTS` at a time, to its first.
+   */
   activity: number
 }
 
-export const AGENT: AgentBudget = { ...SCREEN, activity: 30 }
+export const AGENT: AgentBudget = { ...SCREEN, activity: 40 }
+
+/** How many moments one read further back brings. */
+export const MOMENTS = 80
 
 /**
  * What a name has to look like to be put in one of Tade's sentences.
@@ -130,7 +150,7 @@ const named = (what: string): string => (NAME.test(what) && pathIn(what) === nul
 const STATES = new Set<string>(TaskState.options)
 
 /** One moment, as Tade says it — or null for one there is nothing honest to say about. */
-export function activitySaid(one: ActivityIn): string | null {
+export function activitySaid(one: Omit<ActivityIn, 'id'>): string | null {
   const name = named(one.what)
   const tool = name === '' ? 'a tool' : name
   switch (one.kind) {
@@ -193,21 +213,15 @@ export function agentOf(
       task,
       here: false,
       activity: [],
-      more: false,
+      earlier: null,
       screen: null,
       why: 'not here',
       conversation: null,
       unread: null,
     }
   }
-  const activity: ActivityRow[] = []
-  for (const one of held?.activity ?? []) {
-    if (activity.length >= budget.activity) break
-    const said = activitySaid(one)
-    if (said !== null) activity.push({ at: new Date(one.at).toISOString(), kind: one.kind, said })
-  }
-  const more = (held?.activity.length ?? 0) > activity.length
-  const base = { v: PROTOCOL_VERSION, task, here: true, activity, more } as const
+  const { activity, earlier } = rowsOf(held?.activity ?? [], held?.earlier ?? null, budget.activity)
+  const base = { v: PROTOCOL_VERSION, task, here: true, activity, earlier } as const
   if (!has(reach, 'lanes')) {
     return { ...base, screen: null, why: 'not granted', conversation: null, unread: 'not granted' }
   }
@@ -230,6 +244,56 @@ export function agentOf(
     why: null,
     ...talked,
   }
+}
+
+/**
+ * Moments as a device is sent them, at most `most`, and the cursor the ones
+ * before are read by: the last one looked at where the budget stopped, else
+ * the one the window gave. A cursor that does not look like one is not carried
+ * (`CURSOR`), and a moment whose id does not is not sent.
+ */
+function rowsOf(
+  held: readonly ActivityIn[],
+  before: string | null,
+  most: number,
+): { activity: ActivityRow[]; earlier: string | null } {
+  const activity: ActivityRow[] = []
+  let earlier = before
+  for (const [at, one] of held.entries()) {
+    if (activity.length >= most) {
+      earlier = held[at - 1]?.id ?? earlier
+      break
+    }
+    const said = activitySaid(one)
+    if (said !== null && CURSOR.test(one.id)) {
+      activity.push({ id: one.id, at: new Date(one.at).toISOString(), kind: one.kind, said })
+    }
+  }
+  return { activity, earlier: cursorOut(earlier) }
+}
+
+/** What the window read of a task's moments before a cursor, or why it could not. */
+export type MomentsIn = { activity: readonly ActivityIn[]; earlier: string | null } | 'unread'
+
+/**
+ * One agent's moments before a cursor its page holds, as
+ * `GET /api/agent/:project/:task/moments?before=` answers them: within this
+ * device's reach and on no grant, as its newest moments are — Tade's own
+ * sentences about metadata — newest first, to its first moment.
+ */
+export function momentsBefore(task: string, here: boolean, read: MomentsIn | null): MomentsPage {
+  const none = (why: MomentsPage['why']): MomentsPage => ({
+    v: PROTOCOL_VERSION,
+    task,
+    activity: [],
+    earlier: null,
+    why,
+  })
+  if (!here) return none('not here')
+  if (read === null) return none(null)
+  if (read === 'unread') return none('unread')
+  const rows = rowsOf(read.activity, read.earlier, Number.POSITIVE_INFINITY)
+  return { v: PROTOCOL_VERSION, task, ...rows, why: null }
 }
 
 /**

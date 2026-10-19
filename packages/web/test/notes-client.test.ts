@@ -5,14 +5,11 @@ import {
   bySaid,
   chartFoot,
   DAY,
-  FOLD,
-  foldSaid,
   LANES,
   LONG,
   leadLine,
   notesPage,
   scopeOf,
-  shownOf,
   tallyOf,
   whenSaid,
   wholeOf,
@@ -315,23 +312,14 @@ describe('the lead', () => {
   })
 })
 
-describe('what a group shows', () => {
-  const cards = (n: number) =>
-    page(Array.from({ length: n }, (_, at) => said(null, at + 1))).where.everywhere
-
-  it('shows every note while a group is short, and never folds away a single one', () => {
-    expect(shownOf(cards(FOLD + 1), false).hidden).toBe(0)
-    expect(foldSaid(cards(FOLD + 1), false)).toBeNull()
-  })
-
-  it('folds a long group to its newest, and opens to all of it', () => {
-    const group = cards(FOLD + 4)
-    const shut = shownOf(group, false)
-    expect(shut.cards.map((one) => one.at)).toEqual(group.cards.slice(0, FOLD).map((one) => one.at))
-    expect(shut.hidden).toBe(4)
-    expect(foldSaid(group, false)).toBe(`Show all ${FOLD + 4}`)
-    expect(shownOf(group, true).cards).toHaveLength(FOLD + 4)
-    expect(foldSaid(group, true)).toBe(`Show the newest ${FOLD}`)
+describe('what a group holds', () => {
+  it('holds every note said there, newest first, and the page never folds one away', () => {
+    const many = Array.from({ length: 40 }, (_, at) => said(null, at + 1))
+    const group = page(many).where.everywhere
+    expect(group.n).toBe(40)
+    expect(group.cards.map((one) => one.at)).toEqual(
+      many.map((one) => Date.parse(one.at as string)),
+    )
   })
 })
 

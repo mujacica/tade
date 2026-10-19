@@ -10,7 +10,7 @@ import { carryChange } from './configured.ts'
 import { ConnectStates, carryConnect, connectHere } from './connected.ts'
 import { appendDevice, type Device, listing, readDevices } from './devices.ts'
 import { carrySave } from './drafted.ts'
-import { chatHere, turnsHere } from './earlier.ts'
+import { chatHere, momentsHere, turnsHere } from './earlier.ts'
 import { bodyOf, type Refusal, refuse } from './errors.ts'
 import { filesFor } from './files.ts'
 import {
@@ -385,6 +385,10 @@ export function webServer(opts: ServerOptions): WebServer {
       case 'agent earlier': {
         const before = queryOf(req.url ?? '/').get('before')
         return json(res, await turnsHere(found.params, before, reachOf(device), opts))
+      }
+      case 'agent moments': {
+        const before = queryOf(req.url ?? '/').get('before')
+        return json(res, await momentsHere(found.params, before, reachOf(device), opts))
       }
       case 'agent answer':
       case 'talk answer':

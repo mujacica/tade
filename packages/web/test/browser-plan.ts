@@ -129,6 +129,10 @@ export const CHECKS = [
   // held still, with nothing missing and nothing saying it is elsewhere.
   'chat',
   'back',
+  // An agent's timeline read on to its first moment (`browser-moments.ts`):
+  // scrolled with the wheel, every moment of its life is drawn, newest first,
+  // down to its making, and nothing says older ones were not sent.
+  'moments',
   // A call with no id to ask its answer by, opened with a tap: the whole of a
   // long answer it came with, and nothing saying the rest is elsewhere.
   'call',

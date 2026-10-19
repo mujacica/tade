@@ -602,13 +602,21 @@ a.ui-flow-box[href]:hover {
 
 /* ── a heat strip ──────────────────────────────────────────────────────────── */
 
-/* Cells square, never wider than a thumb's nail, shrinking before they overflow. */
+/*
+  Cells square, a thumb's nail wide, and every one of them: a strip longer than
+  its room scrolls sideways — it is `.scrolls`, the one way anything here is
+  wider than the page — opened at its newest end (`heatIn`), rather than
+  shrinking its cells to nothing or leaving runs off it.
+*/
 .ui-heat {
   display: grid;
   grid-auto-flow: column;
   grid-template-rows: repeat(var(--rows), auto);
-  grid-auto-columns: minmax(0, 0.875rem);
+  grid-auto-columns: 0.875rem;
   gap: 3px;
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
 }
 
 .ui-heat-cell {

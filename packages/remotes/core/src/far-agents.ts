@@ -118,6 +118,7 @@ export function farTask(agent: FarAgent, now: number): TaskIn {
 export function farLane(agent: FarAgent, now: number): AgentIn {
   return {
     activity: [],
+    earlier: null,
     lane:
       agent.screen === undefined
         ? { kind: 'none', why: 'no agent' }

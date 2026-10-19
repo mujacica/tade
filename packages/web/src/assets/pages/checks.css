@@ -3,8 +3,8 @@
   class only its modules draw (`test/pages.test.ts`).
 
   **A check is read as a row of moments**, so the page is drawn round one
-  picture — each check's newest runs as a strip of cells, newest on the right,
-  every strip in a card ending on the same line — and everything else is the
+  picture — each check's every run as a strip of cells, newest on the right
+  and scrolled sideways when long, every strip in a card ending on the same line — and everything else is the
   grey ladder. Red is where something is failing, and only there: the failing
   checks are the one card with a red edge, a failing row's name is the one
   name in red's company, and a check with no answer is grey and says so.
@@ -391,7 +391,7 @@
 
 .page-checks .checks-track > .ui-heat {
   grid-area: strip;
-  justify-content: end;
+  justify-content: safe end;
   gap: 2px;
 }
 

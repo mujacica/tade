@@ -26,7 +26,6 @@ declare module '*/assets/pages/checks-shape.js' {
     by: { name: string; href: string | null } | null
     cells: { tone: string }[]
     said: string
-    more: number
   }
   type Heads = {
     red: { id: string; name: string; href: string; failed: string[] }[]
