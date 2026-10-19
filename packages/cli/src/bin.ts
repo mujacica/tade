@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import { nodeTooOld } from './node.ts'
 import { opensWindow, sayOpening, unsayOpening } from './opening.ts'
+import { endsQuietly } from './pipe.ts'
 import { needsNode } from './version.ts'
 
-// Nothing below this line is imported at the top, and the three above it are
+// Nothing below this line is imported at the top, and the four above it are
 // each a file with no dependency of its own — but `opening.ts`'s drawing,
 // `splash.ts`, which has none either. A static import is evaluated
 // before any statement in this file, so anything imported here is code that
@@ -15,13 +16,10 @@ if (tooOld !== null) {
   process.exit(1)
 }
 
-// A reader that stops reading — `tade web status | head -2` — is the shell
-// saying it has enough, not an error: the same quiet end `head` gives `cat`,
-// rather than an unhandled EPIPE and a stack trace.
-process.stdout.on('error', (error: NodeJS.ErrnoException) => {
-  if (error.code !== 'EPIPE') throw error
-  process.exit(typeof process.exitCode === 'number' ? process.exitCode : 0)
-})
+// A reader that stops reading ends a command quietly (`pipe.ts`).
+endsQuietly(process.stdout, () =>
+  process.exit(typeof process.exitCode === 'number' ? process.exitCode : 0),
+)
 
 // Before the most of a second it takes to load the rest: a terminal left blank
 // that long reads as a command that did nothing, so the mark goes up at once

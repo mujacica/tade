@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import { appendFileSync, rmSync } from 'node:fs'
+import { endsQuietly } from '../../src/pipe.ts'
 import { closeAll, endSoon, hangingUp, onSignals } from '../../src/quitting.ts'
 
 // A process quitting the way `tade app` quits, with the piece that hung on a
@@ -50,6 +51,8 @@ if (process.argv[2] === 'hangup') {
   // `hangingUp` takes it, as the window does not touch it.
   const [log = '', folder = ''] = process.argv.slice(3)
   const wrote = (line: string) => appendFileSync(log, `${line}\n`)
+  // First on stdout, as `bin.ts` puts it there before `tade app` is loaded.
+  endsQuietly(process.stdout, () => process.exit(0))
   process.on('uncaughtExceptionMonitor', (error) => wrote(`threw ${error.message}`))
   process.on('exit', (code) => wrote(`exit ${code}`))
   process.stdin.setRawMode(true)
