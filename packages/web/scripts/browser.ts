@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { Moved, NotOffered, type Outcome, type WebActing } from '../src/acting.ts'
 import { type ActivityIn, AGENT, MOMENTS } from '../src/agent.ts'
 import { allowDevice } from '../src/devices.ts'
+import type { ChatIn, TalkIn } from '../src/input.ts'
 import { GRANTS, type Grant, type Reach } from '../src/reach.ts'
 import { projector } from '../src/reading.ts'
 import { webServer } from '../src/server.ts'
@@ -707,8 +708,22 @@ async function nudge(
 /** How many lines `arrival` has sent after the harness's conversation, across every page. */
 let arrived = 0
 
+/**
+ * Every call `busyWith` sent, as the window holds it once the turn moved on:
+ * answered, in place under the same id. The window never drops a call it sent,
+ * and the page keeps every line it was sent (`linesKept`), so a call left out
+ * of a later beat would stay drawn as still going.
+ */
+const answered: ChatIn[] = []
+
+/** The conversation the harness serves now: its own, the arrivals, and every call answered. */
+const harnessNow = (): TalkIn => {
+  const talking = harnessTalk(arrived)
+  return { ...talking, lines: [...talking.lines, ...answered].sort((a, b) => a.at - b.at) }
+}
+
 /** Every line's id of the conversation the harness serves now, oldest first. */
-const heldLines = () => harnessTalk(arrived).lines.map((line) => line.id)
+const heldLines = () => harnessNow().lines.map((line) => line.id)
 
 /** What each device may read, as the listener last asked: a delta is projected under its own. */
 const reaches = new Map<string, Reach>()
@@ -732,7 +747,7 @@ function arrival(
     const delta = made.beat(
       input({
         ...(reach === undefined ? {} : { reach }),
-        talk: harnessTalk(arrived),
+        talk: harnessNow(),
         notes: NOTES,
       }),
       NOW + 2_000 + arrived,
@@ -745,7 +760,7 @@ function arrival(
 /**
  * Tade answering, with a call still running as its last line: one more
  * arrival, as `arrival` sends it, with the turn in flight and the call after
- * it. The next `arrival` ends the turn, and the call is not in it.
+ * it. The next beat ends the turn, with the call in it answered.
  */
 function busyWith(
   page: Page,
@@ -759,17 +774,17 @@ function busyWith(
     if (made === undefined) throw new Error('no projector for this device')
     arrived += 1
     const reach = reaches.get(device)
-    const talking = harnessTalk(arrived)
-    // After every line `harnessTalk` makes, arrivals included, so it is the last.
-    const at = Date.parse('2026-10-08T13:00:00.000Z') + (20_000 + arrived) * 1000
-    const running = {
+    const talking = harnessNow()
+    // Half a second after this arrival's line, so it is the last until the next.
+    const at = Date.parse('2026-10-08T13:00:00.000Z') + (10_000 + arrived - 1) * 1000 + 500
+    const running: ChatIn = {
       id: `${new Date(at).toISOString()}#0`,
       at,
-      kind: 'tool' as const,
+      kind: 'tool',
       from: '',
       text: '',
       tool: call.tool,
-      outcome: 'running' as const,
+      outcome: 'running',
       call: { input: call.input, result: null },
       streaming: false,
     }
@@ -783,6 +798,7 @@ function busyWith(
     )
     if (delta === null) throw new Error('the conversation did not move')
     server.streams.push(device, delta as never, Date.now())
+    answered.push({ ...running, outcome: 'ok', call: { input: call.input, result: 'ran' } })
   }
 }
 

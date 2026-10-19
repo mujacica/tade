@@ -122,6 +122,16 @@ export async function doingAt(
     await idle()
     idled = true
     await until(page, `(${DRAWN}) === null`)
+    // Every call the turn ran is answered when it ends: the page keeps every
+    // line it was sent, so one left spinning is a call the machine dropped.
+    await until(page, `document.querySelector('main ul.chat .is-spinning') === null`, 5_000).catch(
+      async () => {
+        const still = await page.evaluate(
+          `[...document.querySelectorAll('main ul.chat > li')].filter((li) => li.querySelector('.is-spinning')).length`,
+        )
+        problems.push(`${String(still)} calls are still drawn running after the turn ended`)
+      },
+    )
     found(
       'doing',
       where,
