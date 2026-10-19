@@ -272,6 +272,39 @@ describe('its conversation', () => {
     expect(second?.kind === 'read' && first?.kind === 'read' && second.rev !== first.rev).toBe(true)
   })
 
+  it('reads a call handed something long as moved only where what it was handed did', async () => {
+    const big = 'x'.repeat(2_000_000)
+    const call = (content: string, ok: boolean | null): TurnIn => ({
+      kind: 'tool',
+      id: 'toolu_1',
+      tool: 'write',
+      input: { path: 'a.ts', edits: [{ content }] },
+      ok,
+      result: null,
+      at: 1,
+    })
+    // A page read again is a page made again: equal, and none of it the same object.
+    let page = () => ({ turns: [call(`${big}`, true)], before: null as string | null })
+    const one = recorded(() => Promise.resolve(page()))
+    one.lanes.watch('dev', 'app/migration', one.at())
+    const rev = async () => {
+      one.lanes.beat(one.at())
+      await tick()
+      const held = one.lanes.talkFor('app/migration')
+      return held?.kind === 'read' ? held.rev : null
+    }
+    const first = await rev()
+    expect(await rev()).toBe(first)
+    page = () => ({ turns: [call(`${big}y`, true)], before: null })
+    const deep = await rev()
+    expect(deep).not.toBe(first)
+    page = () => ({ turns: [call(`${big}y`, null)], before: null })
+    const settled = await rev()
+    expect(settled).not.toBe(deep)
+    page = () => ({ turns: [call(`${big}y`, null)], before: 'cursor-1' })
+    expect(await rev()).not.toBe(settled)
+  })
+
   it('says it could not be read, and keeps the last one known when a read fails after it', async () => {
     let fail = true
     const one = recorded(() =>

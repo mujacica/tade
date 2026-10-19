@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util'
 import { type Config, findSecret } from '@tade/core'
 import { LaneClosedError, LaneNotFoundError } from '@tade/drivers-core'
 import {
@@ -97,8 +98,8 @@ export class Lanes {
   private readonly watching = new Map<string, Map<string, number>>()
   private readonly held = new Map<string, LaneIn>()
   private readonly flying = new Set<string>()
-  /** What was last read of each watched agent's conversation, and what it was made from. */
-  private readonly talks = new Map<string, { said: ConversationIn; whole: string }>()
+  /** What was last read of each watched agent's conversation. */
+  private readonly talks = new Map<string, ConversationIn>()
   private readonly talking = new Set<string>()
   /** Counts every conversation that moved, so a revision is never one a page already holds. */
   private moved = 0
@@ -132,7 +133,7 @@ export class Lanes {
 
   /** What was last read of this task's agent's conversation; absent for nothing yet. */
   talkFor(task: string): ConversationIn | undefined {
-    return this.talks.get(task)?.said
+    return this.talks.get(task)
   }
 
   /**
@@ -228,24 +229,34 @@ export class Lanes {
         this.talkCouldNot(task)
         return
       }
-      const whole = JSON.stringify(page)
+      // Compared with the turns held, never serialized: a call's input crosses
+      // uncut, so a string of the whole page was megabytes made on the thread
+      // that draws, every beat, to find out that nothing moved.
       const was = this.talks.get(task)
-      if (was !== undefined && was.said.kind === 'read' && was.whole === whole) return
+      if (
+        was?.kind === 'read' &&
+        was.before === page.before &&
+        isDeepStrictEqual(was.turns, page.turns)
+      ) {
+        return
+      }
       // Not under `READ_MS`: that is the record's deadline, and cleaning a long
       // turn has its own. The turns are held only once they are ready.
       await this.reading.ready?.(task, page.turns)
       if (!this.watching.has(task)) return
       this.moved += 1
       this.talks.set(task, {
-        said: { kind: 'read', turns: page.turns, before: page.before, rev: String(this.moved) },
-        whole,
+        kind: 'read',
+        turns: page.turns,
+        before: page.before,
+        rev: String(this.moved),
       })
     } catch (problem) {
       // A record that is there and could not be read is said as that, never
       // as a conversation with nothing in it — to the page, and to the person
       // at the machine the first time it happens.
       if (!this.watching.has(task)) return
-      const was = this.talks.get(task)?.said
+      const was = this.talks.get(task)
       if (was === undefined || was.kind === 'read') this.reading.trouble?.(task, problem)
       this.talkCouldNot(task)
     } finally {
@@ -255,8 +266,8 @@ export class Lanes {
 
   private talkCouldNot(task: string): void {
     const was = this.talks.get(task)
-    if (was === undefined || was.said.kind === 'none') {
-      this.talks.set(task, { said: { kind: 'none', why: 'could not read' }, whole: '' })
+    if (was === undefined || was.kind === 'none') {
+      this.talks.set(task, { kind: 'none', why: 'could not read' })
     }
   }
 
