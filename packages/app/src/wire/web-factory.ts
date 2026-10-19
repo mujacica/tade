@@ -151,9 +151,11 @@ export class Bodies {
     for (const row of rows) {
       const key = `${row.item}@${row.hash}`
       if (this.held.has(key)) continue
+      // The whole sentence, never cut: the away view scrubs its paths
+      // (`withoutPaths`, in `@tade/web`'s factory) and shortens nothing.
       const read = await materialOf(home, row).catch((err: unknown) => ({
         body: null,
-        problem: `the request could not be read: ${String(err).slice(0, 200)}`,
+        problem: `the request could not be read: ${String(err)}`,
       }))
       this.held.set(key, { body: read.body, problem: read.problem })
     }
@@ -205,9 +207,7 @@ export async function wouldOf(
       limits: [],
       // Not swallowed: a preview that could not be worked out is a preview
       // nobody should read as *nothing would happen*.
-      problems: [
-        `what approving it would start could not be worked out: ${String(err).slice(0, 200)}`,
-      ],
+      problems: [`what approving it would start could not be worked out: ${String(err)}`],
       warnings: [],
     }))
     out.set(row.item, {

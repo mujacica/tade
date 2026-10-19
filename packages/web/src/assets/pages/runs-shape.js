@@ -574,7 +574,7 @@ export function paidOf(usd, view, hasCost = usd !== null) {
  * different answers to *why is this waiting*.
  */
 export function whySaid(wait, view) {
-  if (wait.why !== null) return wait.why.more ? `${wait.why.words}…` : wait.why.words
+  if (wait.why !== null) return wait.why.words
   return mayFor(view.store, 'runs.steps.waits.why') ? 'no reason given' : 'reason not granted'
 }
 

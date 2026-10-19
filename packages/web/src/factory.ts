@@ -329,7 +329,10 @@ export function intakeRow(one: IntakeIn, reach: Reach, budget: Budget): IntakeRo
     // row whose safety depended on one function in a browser.
     url: words && https(one.url) ? one.url : null,
     material: body ? textOf(one.material, budget.material) : null,
-    materialSays: body ? SOME(one.materialProblem) : notGranted(one),
+    // Why there is no body can name the context file it could not read, or
+    // carry an error that does: scrubbed of paths, like `problem` above, and
+    // never shortened.
+    materialSays: body ? SOME(withoutPaths(one.materialProblem)) : notGranted(one),
     // **The heading travels with the body and is not the page's to choose.**
     // A drawing that put its own word above a stranger's sentences would be
     // one word away from putting none there, and this is the repository's one
@@ -365,7 +368,8 @@ export function wouldOf(would: WouldIn, budget: Budget, money: boolean): Would {
     })),
     grant: [...would.grant],
     limits: money ? [...would.limits] : [],
-    problems: [...would.problems],
+    // A problem may carry an error the window caught, path and all.
+    problems: would.problems.map(withoutPaths),
     warnings: [...would.warnings],
   }
 }

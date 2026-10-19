@@ -607,8 +607,8 @@ export function saidOn(line) {
   if (line.text !== null && line.text !== undefined) {
     // On one line the marks are taken off rather than drawn: `**` and `#` in
     // a preview are noise, and a heading or a list has no room to be one.
-    const words = marked(line) ? plainOf(line.text.words) : line.text.words
-    return words + (line.text.more === true ? ' …' : '')
+    // Whole, and never marked as cut: the server sends every word (`BUDGET`).
+    return marked(line) ? plainOf(line.text.words) : line.text.words
   }
   if (line.kind === 'tool') {
     return line.outcome === 'running' ? 'still going' : ''

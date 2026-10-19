@@ -351,8 +351,8 @@ describe('a line of the conversation on one line', () => {
     expect(said('reply', '| a | b |\n|---|---|\n| 1 | 2 |\n\n```ts\nconst x = 1\n```')).toBe(
       'a b 1 2 const x = 1',
     )
-    // A mark the drawing would leave, it leaves; and a cut is still said.
-    expect(said('reply', '2 * 3 and a_b_c', true)).toBe('2 * 3 and a_b_c …')
+    // A mark the drawing would leave, it leaves; and nothing is marked as cut.
+    expect(said('reply', '2 * 3 and a_b_c', true)).toBe('2 * 3 and a_b_c')
     expect(plainOf('<script>x</script> ![a cat](https://x.dev/c.png)')).toBe(
       '<script>x</script> picture a cat',
     )

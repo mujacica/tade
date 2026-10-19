@@ -281,10 +281,10 @@ describe('what a step waits on', () => {
     expect(whySaid(waitsOf(withheld, bare)[1] as never, view([]))).toBe('reason not granted')
   })
 
-  it('marks a reason cut short as cut', () => {
-    expect(whySaid({ why: { words: 'the first part', more: true } }, view())).toBe(
-      'the first part…',
-    )
+  it('says a reason as it was given, never with three dots after it', () => {
+    const long = 'the review on the client has to land first, '.repeat(40)
+    expect(whySaid({ why: { words: long, more: false } }, view())).toBe(long)
+    expect(whySaid({ why: { words: long, more: true } }, view())).toBe(long)
   })
 
   it('still names a wait on a step this device cannot see, and never as finished', () => {

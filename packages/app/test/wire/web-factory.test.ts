@@ -20,6 +20,7 @@ import {
   runsFromOf,
   titlesOf,
   workflowsRead,
+  wouldOf,
 } from '../../src/wire/web-factory.ts'
 
 // The window's own fold of the factory floor: the doors, the bodies and the
@@ -232,6 +233,39 @@ describe('the request bodies', () => {
     const held = bodies.byItem([row()])
     expect(held.get('cli:one')?.body).toBeNull()
     expect(held.get('cli:one')?.problem).toContain('keeps no copy of a request')
+  })
+
+  it('keeps the whole of an error reading a request, however long', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'tade-bodies-threw-'))
+    const long = `the store went away: ${'and then more went wrong, '.repeat(40)}the end`
+    expect(long.length).toBeGreaterThan(200)
+    // A row whose tasks cannot be read throws inside the read, which is the
+    // catch this is about.
+    const threw = Object.defineProperty({ ...row() }, 'tasks', {
+      get: () => {
+        throw new Error(long)
+      },
+    }) as InboxRow
+    const bodies = new Bodies()
+    await bodies.fill(home, [threw])
+    const held = bodies.byItem([row()]).get('cli:one')
+    expect(held?.body).toBeNull()
+    expect(held?.problem).toBe(`the request could not be read: Error: ${long}`)
+  })
+
+  it('keeps the whole of an error working out what approving would start', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'tade-would-threw-'))
+    const long = `the journal went away: ${'and then more went wrong, '.repeat(40)}the end`
+    const threw = Object.defineProperty({ ...row({ state: 'proposed' }) }, 'tasks', {
+      get: () => {
+        throw new Error(long)
+      },
+    }) as InboxRow
+    const deps = { home, config: ConfigSchema.parse({}), events: async () => [] }
+    const would = (await wouldOf(deps, [threw])).get('cli:one')
+    expect(would?.problems).toEqual([
+      `what approving it would start could not be worked out: Error: ${long}`,
+    ])
   })
 
   it('drops what a request has moved past, so the map does not grow for ever', async () => {

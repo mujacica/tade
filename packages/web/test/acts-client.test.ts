@@ -583,11 +583,9 @@ describe('the conversation screen', () => {
     expect(saidOn({ kind: 'reply', text: { words: 'two are working', more: false } })).toBe(
       'two are working',
     )
-    // Over the budget, the page says there is more rather than writing three
-    // dots into somebody's words.
-    expect(saidOn({ kind: 'asked', text: { words: 'half of it', more: true } })).toBe(
-      'half of it …',
-    )
+    // Whole, whatever the flag says: nothing on the page writes three dots
+    // into somebody's words or marks them as cut.
+    expect(saidOn({ kind: 'asked', text: { words: 'all of it', more: true } })).toBe('all of it')
   })
 
   it('keeps a half-typed message across a navigation, and lets a send clear it', () => {

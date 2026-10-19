@@ -102,6 +102,17 @@ describe('one request, as a device that was granted it reads it', () => {
     expect(row.materialLabel).toBeNull()
   })
 
+  it('says a long reason there is no body whole, with its paths taken out', () => {
+    // An error the window caught reading a context file: the whole sentence
+    // goes out, and the path in it is this machine's, not the request's.
+    const tail = ' and the rest of what went wrong, word for word'.repeat(20)
+    const problem = `the request could not be read: Error: EACCES: permission denied, open '/Users/testperson/.tade/projects/sentry/tasks/one/context.md'${tail}`
+    const row = intakeRow(intake({ material: '', materialProblem: problem }), reach(EVERY), BUDGET)
+    expect(row.materialSays).not.toContain('/Users/testperson')
+    expect(row.materialSays).toContain("open '…'")
+    expect(row.materialSays?.endsWith(tail)).toBe(true)
+  })
+
   it('refuses a url that is not https, parsed rather than pattern-matched', () => {
     for (const url of ['javascript:alert(1)', 'http://x.invalid/1', 'not a url', '']) {
       expect(intakeRow(intake({ url }), reach(EVERY), BUDGET).url, url).toBeNull()
@@ -154,6 +165,16 @@ describe('what approving one request would start', () => {
     // one question rather than two rules for one sentence.
     const granted = intakeRow(intake(), reach(EVERY), BUDGET)
     expect(granted.would?.starts[0]?.after[0]?.why?.words).toContain('failing test')
+  })
+
+  it('says why it could not be worked out whole, with its paths taken out', () => {
+    const tail = ' then everything after it, every word'.repeat(20)
+    const problem = `what approving it would start could not be worked out: Error: ENOENT: no such file or directory, open '/Users/testperson/.tade/projects/sentry/tasks/one/task.yaml'${tail}`
+    const base = intake()
+    const would = { ...(base.would as NonNullable<typeof base.would>), problems: [problem] }
+    const row = intakeRow(intake({ would }), reach(EVERY), BUDGET)
+    expect(row.would?.problems[0]).not.toContain('/Users/testperson')
+    expect(row.would?.problems[0]?.endsWith(tail)).toBe(true)
   })
 
   it('is null where nothing worked one out, which is not *nothing would happen*', () => {
