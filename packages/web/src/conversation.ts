@@ -258,40 +258,94 @@ export function turnsOf(
       one.kind === 'tool' && /^[\w.:-]{1,80}$/.test(one.id)
         ? `c:${one.id}`
         : `${one.kind}:${one.at}#${n}`
-    const when = one.at > 0 ? new Date(one.at).toISOString() : null
-    if (one.kind !== 'tool') {
-      const words = cleanWhole(one.text, known)
-      taken += words.taken
-      return {
-        id,
-        at: when,
-        kind: one.kind,
-        text: words.said,
-        tool: null,
-        outcome: null,
-        call: null,
-      }
-    }
-    // A call with nothing to ask by carries what the page of its record held,
-    // and where that was only the start, says so the way the window does.
-    const carried =
-      one.cut === true && one.result !== null && callKey(one.id) === null
-        ? `${one.result}\n…`
-        : one.result
-    const made = callOf(one.input, carried, known, places, one.id)
+    const made = turnFor(one, known, places)
     taken += made.taken
-    return {
-      id,
-      at: when,
+    return { id, ...made.row }
+  })
+  return { turns: rows, taken }
+}
+
+/** One turn cleaned, all but the id its place among the others gives it. */
+export interface TurnMade {
+  row: Omit<TurnRow, 'id'>
+  taken: number
+}
+
+/**
+ * One turn, cleaned and never cut: what `turnsOf` makes of it. Its own
+ * function because a long one is made on a thread of its own (`turnsAway`).
+ */
+export function turnOf(one: TurnIn, known: readonly string[], places: Places): TurnMade {
+  const at = one.at > 0 ? new Date(one.at).toISOString() : null
+  if (one.kind !== 'tool') {
+    const words = cleanWhole(one.text, known)
+    const row = { at, kind: one.kind, text: words.said, tool: null, outcome: null, call: null }
+    return { row, taken: words.taken }
+  }
+  // A call with nothing to ask by carries what the page of its record held,
+  // and where that was only the start, says so the way the window does.
+  const carried =
+    one.cut === true && one.result !== null && callKey(one.id) === null
+      ? `${one.result}\n…`
+      : one.result
+  const made = callOf(one.input, carried, known, places, one.id)
+  return {
+    row: {
+      at,
       kind: 'tool',
       text: null,
       tool: oneLine(cleanText(one.tool, known).text) || 'a tool',
       outcome:
         one.result === null ? 'none' : one.ok === null ? 'unknown' : one.ok ? 'ok' : 'failed',
       call: made.call,
-    }
+    },
+    taken: made.taken,
+  }
+}
+
+/**
+ * How much of a turn there is to clean, in characters: what was said, or
+ * everything a call was handed and what it carries of its answer.
+ */
+export function turnSize(one: TurnIn): number {
+  if (one.kind !== 'tool') return one.text.length
+  return one.tool.length + inputText(one.input).length + (one.result?.length ?? 0)
+}
+
+/**
+ * Each turn as it was made, and what it was made with, for as long as the
+ * window holds the turn itself.
+ *
+ * **Every turn crosses whole, and the window answers on the thread that draws
+ * it**, so a call handed a two-megabyte file was a quarter of a second of
+ * frozen window on every ask once the conversation had moved. Kept by the turn
+ * the window holds, and used only where the keys and places are **the same**,
+ * so a key added in Settings is cleaned again; a long turn is put here off this
+ * thread before it is held (`turnsAway`), and so is never made here at all.
+ */
+const madeOf = new WeakMap<TurnIn, { known: readonly string[]; places: Places; made: TurnMade }>()
+
+function turnFor(one: TurnIn, known: readonly string[], places: Places): TurnMade {
+  const was = madeOf.get(one)
+  if (was !== undefined && sameKeys(was.known, known) && samePlaces(was.places, places)) {
+    return was.made
+  }
+  const made = turnOf(one, known, places)
+  madeOf.set(one, { known, places, made })
+  return made
+}
+
+/** Turns made elsewhere — on a thread of their own — kept as if made here. */
+export function madeAhead(
+  turns: readonly TurnIn[],
+  made: readonly TurnMade[],
+  known: readonly string[],
+  places: Places,
+): void {
+  turns.forEach((one, at) => {
+    const it = made[at]
+    if (it !== undefined) madeOf.set(one, { known, places, made: it })
   })
-  return { turns: rows, taken }
 }
 
 /** The same keys, compared by value: the window works them out again every beat. */

@@ -1,4 +1,5 @@
 import { CURSOR, type EarlierIn, turnsBefore } from './agent.ts'
+import { turnsAway } from './cleaning.ts'
 import type { Places } from './command.ts'
 import { BUDGET } from './page.ts'
 import type { ChatPage, TurnsPage } from './protocol.ts'
@@ -85,12 +86,11 @@ export async function turnsHere(
   if (opts.earlier === undefined) return turnsBefore(task, here, reach, 'unread', [])
   const earlier = opts.earlier
   const read = await inTime<EarlierIn>(earlier.agent(task, asked), EARLIER_MS, 'unread')
-  return turnsBefore(
-    task,
-    here,
-    reach,
-    read,
-    read === 'unread' ? [] : earlier.known(),
-    earlier.places(task),
-  )
+  if (read === 'unread') return turnsBefore(task, here, reach, read, [], earlier.places(task))
+  const known = earlier.known()
+  const places = earlier.places(task)
+  // A long turn is cleaned off the window's thread first (`turnsAway`), and one
+  // that could not be throws: the server says it at the machine.
+  await turnsAway(read.turns, known, places)
+  return turnsBefore(task, here, reach, read, known, places)
 }

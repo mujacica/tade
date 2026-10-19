@@ -29,6 +29,7 @@ import {
   Tickets,
   type Told,
   TURNS,
+  turnsAway,
   type WebAnswers,
   type WebEarlier,
   type WebReading,
@@ -162,6 +163,13 @@ export class Away implements Subject {
         const page = await wire.opts.client.agentHistory(task, { limit })
         return { turns: page.items, before: page.earlier }
       },
+      // With the keys and places an ask is answered with (`agentIn`), so it finds them made.
+      ready: (task, turns) =>
+        turnsAway(
+          turns,
+          this.lanes.keys(() => knownHere(this.wire, this.config())),
+          this.placesOf(task),
+        ),
       trouble: (task, err) =>
         wire.note(
           new Error(

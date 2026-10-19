@@ -37,7 +37,8 @@ import type { Wiring } from './context.ts'
 //
 // Nothing here cleans anything: what is held is the driver's text, as it came,
 // and `cleanScreen` in `@tade/web` is the boundary that decides what of it may
-// leave the machine — the same split `fresh.warnings` has.
+// leave the machine — the same split `fresh.warnings` has. A conversation's
+// long turns are made ready by the window's `ready` before they are held.
 
 /** How long one ask keeps a lane being read, without another. */
 export const WATCH_MS = 6_000
@@ -70,6 +71,13 @@ export interface LaneReading {
    * Absent, no conversation is read.
    */
   history?(task: string, limit: number): Promise<{ turns: TurnIn[]; before: string | null }>
+  /**
+   * Turns just read, made ready to cross before they are held: the long ones
+   * cleaned off the window's thread (`turnsAway`), so the ask that sends them
+   * finds them made. Throws where that could not be done, which is said as a
+   * record that could not be read. Absent, every turn is cleaned when asked.
+   */
+  ready?(task: string, turns: readonly TurnIn[]): Promise<void>
   /**
    * A conversation's record could not be read: said where somebody reads it,
    * once each time it goes from read to not, never once a beat.
@@ -223,6 +231,10 @@ export class Lanes {
       const whole = JSON.stringify(page)
       const was = this.talks.get(task)
       if (was !== undefined && was.said.kind === 'read' && was.whole === whole) return
+      // Not under `READ_MS`: that is the record's deadline, and cleaning a long
+      // turn has its own. The turns are held only once they are ready.
+      await this.reading.ready?.(task, page.turns)
+      if (!this.watching.has(task)) return
       this.moved += 1
       this.talks.set(task, {
         said: { kind: 'read', turns: page.turns, before: page.before, rev: String(this.moved) },

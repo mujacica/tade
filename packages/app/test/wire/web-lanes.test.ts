@@ -213,7 +213,10 @@ describe('the keys a screen is scrubbed of', () => {
 
 describe('its conversation', () => {
   /** A record that answers what it is told to, and counts every read. */
-  function recorded(answer: () => Promise<{ turns: TurnIn[]; before: string | null }>) {
+  function recorded(
+    answer: () => Promise<{ turns: TurnIn[]; before: string | null }>,
+    ready?: (task: string, turns: readonly TurnIn[]) => Promise<void>,
+  ) {
     let reads = 0
     let now = 1_000_000
     const troubles: string[] = []
@@ -223,6 +226,7 @@ describe('its conversation', () => {
         reads += 1
         return answer()
       },
+      ...(ready === undefined ? {} : { ready }),
       trouble: (task, err) => troubles.push(`${task}: ${(err as Error).message}`),
       now: () => now,
       deadline: SOON,
@@ -293,6 +297,40 @@ describe('its conversation', () => {
     await tick()
     expect(one.lanes.talkFor('app/migration')).toBe(known)
     expect(one.troubles).toHaveLength(2)
+  })
+
+  it('holds the turns only once they are made ready, and says where they could not be', async () => {
+    const making = { finish: () => {} }
+    const readied: string[] = []
+    const one = recorded(
+      () => Promise.resolve({ turns: [said('hello')], before: null }),
+      (task, turns) => {
+        readied.push(`${task}: ${turns.length}`)
+        return new Promise<void>((done) => {
+          making.finish = done
+        })
+      },
+    )
+    one.lanes.watch('dev', 'app/migration', one.at())
+    one.lanes.beat(one.at())
+    await tick()
+    expect(readied).toEqual(['app/migration: 1'])
+    // Read, and not held while it is being made ready — past the record's deadline too.
+    await pastDeadline()
+    expect(one.lanes.talkFor('app/migration')).toBeUndefined()
+    making.finish()
+    await tick()
+    expect(one.lanes.talkFor('app/migration')).toMatchObject({ kind: 'read', before: null })
+    // Turns that could not be made ready are a record that could not be read, said so.
+    const other = recorded(
+      () => Promise.resolve({ turns: [said('hello')], before: null }),
+      () => Promise.reject(new Error('cleaning 2.0 MB of a conversation failed')),
+    )
+    other.lanes.watch('dev', 'app/migration', other.at())
+    other.lanes.beat(other.at())
+    await tick()
+    expect(other.lanes.talkFor('app/migration')).toEqual({ kind: 'none', why: 'could not read' })
+    expect(other.troubles).toEqual(['app/migration: cleaning 2.0 MB of a conversation failed'])
   })
 
   it('keeps nothing once nobody is looking', async () => {
