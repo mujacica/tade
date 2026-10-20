@@ -1,7 +1,9 @@
 import { access, constants, stat } from 'node:fs/promises'
-import { resolve } from 'node:path'
-import { expandHome, type SettingGroup, settingLabel } from '@tade/core'
-import { grep, listFiles, type Match, type SearchRoot } from '../finder.ts'
+import { join, resolve } from 'node:path'
+import { documentsDir, expandHome, type SettingGroup, settingLabel } from '@tade/core'
+import { inTime } from '@tade/web'
+import { documentsOf } from '@tade/workbench'
+import { grep, listDocuments, listFiles, type Match, type SearchRoot } from '../finder.ts'
 import type { Frame } from '../frame.ts'
 import { happeningIn, happeningOn } from '../happening.ts'
 import type { Target } from '../hits.ts'
@@ -11,6 +13,8 @@ import { focusTask, glyph, MARK_TONES, markGlyph, markOf, projects } from '../mo
 import { searchPanel } from '../panels/search/state.ts'
 import { keysPanel } from '../panels/small/state.ts'
 import {
+  documentEntries,
+  type FoundDocument,
   looksLikePath,
   type PathLook,
   parseOpenId,
@@ -53,6 +57,14 @@ const MEANT_CHOICES = 24
 
 /** How long the list of files search looks through is good for. */
 const FILES_FOR_MS = 10_000
+
+/**
+ * How long listing the documents folders, and reading what the journal says
+ * of them, may take before search goes on without them. Neither is waited on
+ * by anything drawn — the deadline is what keeps a home on a mount that went
+ * away from holding the list open for ever.
+ */
+const DOCUMENTS_MS = 2_000
 
 /** How long after the last keystroke the files are looked inside. */
 const GREP_AFTER_MS = 150
@@ -120,6 +132,8 @@ export class Search implements Subject {
   private askTimer: NodeJS.Timeout | null = null
   /** Every file in every place search looks, and when they were listed. */
   private files: { at: number; files: SearchFile[] } | null = null
+  /** The rows the documents tasks produced make, and when they were listed. */
+  private documents: { at: number; entries: SearchEntry[] } | null = null
   /** What each terminal has printed, read when search opens. */
   private terminalTexts: { id: string; name: string; project: string; text: string }[] = []
   /**
@@ -184,6 +198,9 @@ export class Search implements Subject {
       this.results = null
       this.wire.draw()
     })
+    if (!this.documents || this.wire.now() - this.documents.at >= FILES_FOR_MS) {
+      void this.listDocuments()
+    }
     if (this.files && this.wire.now() - this.files.at < FILES_FOR_MS) return
     const roots = this.roots()
     void Promise.all(
@@ -208,6 +225,7 @@ export class Search implements Subject {
       this.looked ? `${this.looked.path}\u0001${this.looked.is}` : '',
       this.meant?.said === panel.query ? this.meant.entries.length : -1,
       this.files?.at ?? 0,
+      this.documents?.at ?? 0,
       this.grepped.text,
       matches.length,
       this.wire.state.panes.length,
@@ -235,6 +253,40 @@ export class Search implements Subject {
       }
     }
     return this.results.entries
+  }
+
+  /**
+   * Every document the open projects' tasks produced, as rows: what is in each
+   * one's documents folder, and where the journal says each stands. Once when
+   * search opens and the last list is old, never per keystroke or per frame.
+   */
+  private async listDocuments(): Promise<void> {
+    const home = this.wire.opts.home
+    // A list that could not be read is said, and search goes on with the
+    // rest: the rows it did find are still the ones somebody can open.
+    const said = (what: string) => (err: unknown) => {
+      notify(this.wire, `Search could not read ${what}: ${why(err)}`)
+      return []
+    }
+    const lists = await Promise.all(
+      projects(this.wire.state).map(async (project): Promise<FoundDocument[]> => {
+        const listed = async () => {
+          const dir = documentsDir(home, project)
+          const within = await inTime(listDocuments(dir), DOCUMENTS_MS, [])
+          return within.map((path) => ({ project, path: join(dir, path), within: path }))
+        }
+        return listed().catch(said(`${project}'s documents`))
+      }),
+    )
+    const journal = await inTime(
+      documentsOf(this.wire.opts.client).catch(said('what the journal says of documents')),
+      DOCUMENTS_MS,
+      [],
+    )
+    const now = this.wire.now()
+    this.documents = { at: now, entries: documentEntries(lists.flat(), journal, now) }
+    this.results = null
+    this.wire.draw()
   }
 
   /**
@@ -510,6 +562,7 @@ export class Search implements Subject {
     ] as const) {
       action(id, label)
     }
+    entries.push(...(this.documents?.entries ?? []))
     for (const pane of panes) {
       if (pane.lane) action(`stop:${pane.task}`, `Stop ${pane.name}`, '■')
       action(`changes:${pane.task}`, `Show the changes in ${pane.name}`, '±')

@@ -1,3 +1,5 @@
+import { readdir } from 'node:fs/promises'
+import { join, relative } from 'node:path'
 import { git } from '@tade/status'
 
 // Finding things in the places agents work: the files of each worktree, and
@@ -7,6 +9,9 @@ import { git } from '@tade/status'
 // that walked `node_modules` would be slow and would find the wrong things.
 // The parsing is pure and tested against real git output; asking is here too,
 // because it is two commands and nothing else.
+//
+// The one place search looks that is not a worktree is the documents tasks
+// produced (`listDocuments`), kept in Tade's home where git has nothing to say.
 
 /** A folder to search, and what to call it in the results: a project, or an agent in one. */
 export interface SearchRoot {
@@ -75,4 +80,34 @@ export async function grep(root: SearchRoot, text: string, max = 100): Promise<M
   ])
   // Exit 1 is "nothing found", which is an answer, not a failure.
   return matchesFrom(out.stdout, root, max)
+}
+
+/** Nobody reads a list longer than this of one project's documents; past it, the rest are not listed. */
+export const DOCUMENTS_MAX = 2_000
+
+/**
+ * Every file in a project's documents folder, as paths below it, in order.
+ *
+ * A listing of names and nothing read: what a document says is read when it is
+ * chosen. Hidden files — an editor's swap file, a `.DS_Store` — are not
+ * documents. A folder that is not there is a project none of whose tasks has
+ * produced one yet, which is an answer; any other failure to list it is not,
+ * and is thrown for whoever asked to say.
+ */
+export async function listDocuments(dir: string, max = DOCUMENTS_MAX): Promise<string[]> {
+  const found = await readdir(dir, { recursive: true, withFileTypes: true }).catch(
+    (err: NodeJS.ErrnoException) => {
+      // No folder is a project none of whose tasks has produced one yet.
+      if (err.code === 'ENOENT') return []
+      throw err
+    },
+  )
+  const files: string[] = []
+  for (const entry of found) {
+    if (!entry.isFile()) continue
+    const path = relative(dir, join(entry.parentPath, entry.name))
+    if (path.split('/').some((part) => part.startsWith('.'))) continue
+    files.push(path)
+  }
+  return files.sort().slice(0, max)
 }

@@ -1,7 +1,9 @@
+import { type Document, waitingDocuments } from '@tade/core'
 import type { Match, SearchRoot } from './finder.ts'
 
 // Search: one box for everything you might be looking for — an agent, a file
-// in any agent's worktree, a line inside one, something to do, a setting.
+// in any agent's worktree, a line inside one, a document a task produced,
+// something to do, a setting.
 //
 // Pure. What the box holds and what matches it is decided here; listing files
 // and grepping them is `finder.ts`, and carrying a choice out is the app's.
@@ -11,6 +13,7 @@ export type SearchKind =
   | 'approval'
   | 'meant'
   | 'agent'
+  | 'document'
   | 'file'
   | 'match'
   | 'terminal'
@@ -38,6 +41,12 @@ export interface SearchEntry {
   /** Which characters of the label matched, to show why it is here. */
   hits?: number[]
   /**
+   * Another name it answers to, matched by letters as the label is and ranked
+   * just below a label that matched as well: a document is called by its file,
+   * and found as often by the task that wrote it.
+   */
+  named?: string
+  /**
    * What is happening about it, in words: what an agent is doing, what it was
    * asked for, what queued work waits on and why, the notes about it. Derived
    * wherever this entry is made, from what the window already has — never a
@@ -59,6 +68,7 @@ export const GROUPS: readonly { kind: SearchKind; title: string }[] = [
   { kind: 'approval', title: 'WAITING ON YOU' },
   { kind: 'meant', title: 'MIGHT MEAN' },
   { kind: 'agent', title: 'AGENTS' },
+  { kind: 'document', title: 'DOCUMENTS' },
   { kind: 'file', title: 'FILES' },
   { kind: 'match', title: 'IN FILES' },
   { kind: 'terminal', title: 'IN TERMINALS' },
@@ -405,6 +415,89 @@ export function pathEntry(found: TypedPath, look: PathLook | null): SearchEntry 
   }
 }
 
+// ── Documents tasks produced ────────────────────────────────────────────────
+//
+// A task's document is kept in Tade's home, outside every project and every
+// worktree (`producesPath`), so the FILES rows never reach one: "open the
+// research vrolta wrote" had no answer but pasting its path. What is listed is
+// what is on disk in each open project's documents folder — waiting for a
+// decision or not, and whether or not its task is still there, because a
+// document outlives its task — and the journal only says where each one stands.
+
+/** A file found in a project's documents folder. */
+export interface FoundDocument {
+  project: string
+  /** Absolute: what is opened, and what the journal recorded it as. */
+  path: string
+  /** Below the documents folder: `<task folder>/<file>`. */
+  within: string
+}
+
+/** How much of a task's name a document's row says before it gives way. */
+const TASK_CELLS = 32
+
+/**
+ * The rows the documents found make, the ones waiting on somebody first and
+ * then the newest, each named by its file, said to be its task's and its
+ * project's, and saying where it stands.
+ *
+ * Where it stands is the journal's (`documentsIn`): waiting for a decision,
+ * decided — or approved — and nothing at all for a file the journal has no
+ * record of, which is an agent's extra file beside the one it handed over and
+ * not a document anybody was asked about. Its task comes from the journal
+ * where it has a record, and from the folder it is in otherwise.
+ */
+export function documentEntries(
+  found: readonly FoundDocument[],
+  journal: readonly Document[],
+  now: number,
+): SearchEntry[] {
+  const byPath = new Map(journal.map((one) => [one.path, one]))
+  const waiting = new Set(waitingDocuments(journal, now))
+  const rows = found.map((file) => {
+    const one = byPath.get(file.path)
+    const cut = file.within.indexOf('/')
+    const folder = cut < 0 ? '' : file.within.slice(0, cut)
+    const task = one?.task.slice(file.project.length + 1) || folder
+    const label = cut < 0 ? file.within : file.within.slice(cut + 1)
+    const waits = one !== undefined && waiting.has(one)
+    const note = waits
+      ? 'waiting on you'
+      : one?.triaged
+        ? one.triaged.approved
+          ? 'approved'
+          : 'decided'
+        : one && one.followed.length > 0
+          ? 'acted on'
+          : null
+    const entry: SearchEntry = {
+      id: openId(file.path, null, null),
+      kind: 'document',
+      label,
+      detail: task ? `${shortTask(task)} · ${file.project}` : file.project,
+      mark: '¶',
+      ...(waits ? { tone: 'waiting' as const } : {}),
+      ...(note ? { note } : {}),
+      ...(task ? { named: task } : {}),
+      complete: label,
+    }
+    return { entry, waits, at: one?.at ?? '' }
+  })
+  return rows
+    .sort(
+      (a, b) =>
+        Number(b.waits) - Number(a.waits) ||
+        b.at.localeCompare(a.at) ||
+        a.entry.label.localeCompare(b.entry.label),
+    )
+    .map((row) => row.entry)
+}
+
+/** A task's name cut to what a row has room for, at its end, saying that it was. */
+function shortTask(task: string): string {
+  return task.length <= TASK_CELLS ? task : `${task.slice(0, TASK_CELLS - 1)}…`
+}
+
 /** How many of each kind to show when not narrowed to it. */
 const SHOWN: Record<SearchKind, number> = {
   // One path was typed, so there is one row: a count here would be a cap on
@@ -413,6 +506,7 @@ const SHOWN: Record<SearchKind, number> = {
   approval: 5,
   meant: 4,
   agent: 6,
+  document: 6,
   file: 12,
   match: 12,
   terminal: 8,
@@ -439,7 +533,9 @@ export function searchResults(raw: string, sources: SearchSources): SearchEntry[
       case 'actions':
         return kind === 'action' || kind === 'setting' || kind === 'project' || kind === 'meant'
       default:
-        return query.text !== '' || kind !== 'file'
+        // A list of every file, or of every document, is not what anybody
+        // opened the box to read before they have typed a letter.
+        return query.text !== '' || (kind !== 'file' && kind !== 'document')
     }
   }
   const limit = (kind: SearchKind) => (query.scope === 'all' ? SHOWN[kind] : NARROWED)
@@ -518,6 +614,9 @@ export function searchResults(raw: string, sources: SearchSources): SearchEntry[
  */
 const ABOUT_SCORE = -10_000
 
+/** How far a match on the other name an entry answers to ranks below the same match on its label. */
+const NAMED_BELOW = 100
+
 /**
  * How well one entry answers what was typed: its name, and failing that, what
  * is happening about it.
@@ -533,6 +632,9 @@ function answers(
 ): { score: number; hits: number[]; preview?: string } | null {
   const named = fuzzy(text, entry.label)
   if (named) return named
+  const also = entry.named ? fuzzy(text, entry.named) : null
+  // Nothing lit: the letters are in a name the row does not draw as its label.
+  if (also) return { score: also.score - NAMED_BELOW, hits: [] }
   const said = saidIn(text, entry.about)
   return said === null ? null : { score: ABOUT_SCORE, hits: [], preview: said }
 }

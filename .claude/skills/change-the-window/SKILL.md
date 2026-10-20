@@ -1204,6 +1204,13 @@ the window's.
   checkout, and `openFile` asks git nothing. And it is **never a sentence** (`isSentence` asks
   `looksLikePath` first), which is the one guard that keeps a pasted path and everything under it away
   from whoever reads one.
+- **The documents tasks produced are a group of their own** (`DOCUMENTS`, `documentEntries`):
+  what is on disk in each open project's documents folder in Tade's home (`listDocuments`,
+  `finder.ts`), listed when search opens and not again for `FILES_FOR_MS`, with a deadline, never
+  per keystroke or frame. The disk says what there is — decided, waiting, or its task gone — and the
+  journal (`documentsOf`) only says where each stands. Named by its file, matched by its task's name
+  too (`SearchEntry.named`, ranked just below a label match and lit on nothing), opened through the
+  same `open` id. Names only: what a document says is never read until it is chosen.
 - **A result row that does not fit drops its right-hand group whole** (`Row.build`), so what the row
   says at its right edge is only said while the rest of it is short enough. The folder a path is in is
   sixty characters under Tade's home, and drawn in full it took `not there` off the edge — a row

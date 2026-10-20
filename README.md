@@ -521,8 +521,10 @@ handed to the editor you actually use.
 
 ## Context-rich search
 
-`ctrl+k` finds agents, files in every worktree, the lines inside them and the things Tade can do —
-each result saying which project and which agent it belongs to. `file:42` goes straight to a line.
+`ctrl+k` finds agents, files in every worktree, the lines inside them, the documents tasks produced
+and the things Tade can do — each result saying which project and which agent it belongs to.
+`file:42` goes straight to a line. A document is found by its file or by the task that wrote it,
+says whether it is waiting on you, and is found after its task is gone, because it outlives it.
 
 ![Search: files and matching lines across projects and worktrees, each labelled with its project and agent](https://raw.githubusercontent.com/mujacica/tade/main/images/search.svg)
 

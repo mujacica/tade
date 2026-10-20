@@ -5,7 +5,14 @@ import { ExtensionHost, type MeantRequest } from '@tade/extensions-core'
 import { describe, expect, it } from 'vitest'
 import { stringify } from 'yaml'
 import { asPaste } from '../../src/input.ts'
-import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
+import {
+  type FakeTerminal,
+  type Repo,
+  screenOf,
+  until,
+  type Wired,
+  windowUnderTest,
+} from './harness.ts'
 
 // Letters matched against what Tade already has, what is looked for inside
 // files, and what happens when the letters match nothing.
@@ -456,5 +463,68 @@ describe('the window, opening a path somebody pasted', () => {
     for (const char of '#refundtwice') terminal.press(char)
     await until('the line inside the file', () => terminal.written.includes('ledger.ts:1'))
     expect(terminal.written).not.toContain('THIS PATH')
+  })
+})
+
+describe('the window, finding the documents tasks produced', () => {
+  let terminal: FakeTerminal
+  let home: string
+  let client: Wired['client']
+  const { start } = windowUnderTest((wired) => {
+    terminal = wired.terminal
+    home = wired.home
+    client = wired.client
+  })
+
+  /** A document in the project's documents folder in Tade's home, in its task's folder. */
+  function produced(task: string, name: string, text: string): string {
+    const dir = join(home, 'projects', 'app', 'documents', task)
+    mkdirSync(dir, { recursive: true })
+    const path = join(dir, name)
+    writeFileSync(path, text)
+    return path
+  }
+
+  /** The row that says `what`, from the bottom, off the rebuilt screen. */
+  function row(what: string): string {
+    const lines = screenOf(terminal.written)
+    for (let at = lines.length - 1; at >= 0; at--) {
+      const line = lines[at] ?? ''
+      if (line.includes(what)) return line
+    }
+    return ''
+  }
+
+  it('finds one by its file, says whether it waits on you, and opens it to read', async () => {
+    const path = produced('research-roleplay', 'ROLEPLAY-SYSTEMS.md', '# Roleplay\n\nAn economy.\n')
+    await client.log.append({
+      type: 'document_ready',
+      task: 'app/research-roleplay',
+      detail: { produces: path, bytes: 24 },
+    })
+    // One whose task never was, and which nobody was asked about.
+    produced('gone-task', 'brief.md', '# Brief\n')
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\x0b')
+    await until('search', () => terminal.written.includes('Search'))
+    for (const char of 'ROLEPLAY-SYSTEMS') terminal.press(char)
+    await until('the documents heading', () => terminal.written.includes('DOCUMENTS'))
+    await until('its row', () => row('ROLEPLAY-SYSTEMS.md').includes('waiting on you'))
+    expect(row('ROLEPLAY-SYSTEMS.md')).toContain('research-roleplay · app')
+    terminal.written = ''
+    terminal.press('\r')
+    await until('the viewer', () => terminal.written.includes('Open in editor'))
+    await until('what it says', () => terminal.written.includes('An economy'))
+  })
+
+  it('finds one by its task’s name, whose task is gone', async () => {
+    produced('gone-task', 'brief.md', '# Brief\n')
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\x0b')
+    await until('search', () => terminal.written.includes('Search'))
+    for (const char of 'gone-task') terminal.press(char)
+    await until('its row', () => row('brief.md').includes('gone-task · app'))
   })
 })

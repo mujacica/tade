@@ -2,7 +2,7 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { mkrepo } from '../../../test/fixtures/mkrepo.ts'
-import { filesFrom, grep, listFiles, matchesFrom } from '../src/finder.ts'
+import { filesFrom, grep, listDocuments, listFiles, matchesFrom } from '../src/finder.ts'
 
 // Finding files and lines, against a real repository: git decides what is
 // ignored, so a fixture that did not use git would be kinder than reality.
@@ -56,5 +56,30 @@ describe('looking inside files', () => {
     expect(matchesFrom('a.ts\x0012\x00x: y\nbroken\n', root, 10)).toEqual([
       { root, path: 'a.ts', line: 12, text: 'x: y' },
     ])
+  })
+})
+
+describe('listing the documents tasks produced', () => {
+  it('lists every file below the folder, in order, and leaves out hidden ones', async () => {
+    const { mkdirSync, mkdtempSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const dir = mkdtempSync(join(tmpdir(), 'tade-documents-'))
+    mkdirSync(join(dir, 'research', 'notes'), { recursive: true })
+    mkdirSync(join(dir, 'plan', '.cache'), { recursive: true })
+    writeFileSync(join(dir, 'research', 'ROLEPLAY-SYSTEMS.md'), '# Roleplay\n')
+    writeFileSync(join(dir, 'research', 'notes', 'sources.md'), 'links\n')
+    writeFileSync(join(dir, 'plan', 'PLAN.md'), '# Plan\n')
+    writeFileSync(join(dir, 'plan', '.DS_Store'), '')
+    writeFileSync(join(dir, 'plan', '.cache', 'x'), '')
+    expect(await listDocuments(dir)).toEqual([
+      'plan/PLAN.md',
+      'research/ROLEPLAY-SYSTEMS.md',
+      'research/notes/sources.md',
+    ])
+    expect(await listDocuments(dir, 1)).toEqual(['plan/PLAN.md'])
+  })
+
+  it('finds nothing in a folder that is not there', async () => {
+    expect(await listDocuments('/no/such/documents/folder')).toEqual([])
   })
 })

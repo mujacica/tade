@@ -1,5 +1,10 @@
 import { searchPanel } from '../../../src/panels/search/state.ts'
-import { type SearchEntry, searchFile, searchResults } from '../../../src/search.ts'
+import {
+  documentEntries,
+  type SearchEntry,
+  searchFile,
+  searchResults,
+} from '../../../src/search.ts'
 import { base, checkout, frame, type Scenario } from './fixtures.ts'
 
 // Search: letters matched against what Tade already has, and the shortlist
@@ -95,6 +100,48 @@ function mightMean(): SearchEntry[] {
   })
 }
 
+/** Where the checkout project's tasks keep what they produced, in these pictures. */
+const DOCUMENTS = `${HOME}/.tade/projects/checkout/documents`
+
+/**
+ * Three documents tasks produced: one waiting on somebody, one decided about,
+ * and one whose task has gone and which the journal never asked anybody about.
+ */
+function documents(): SearchEntry[] {
+  const record = (task: string, within: string, at: string) => ({
+    task: `checkout/${task}`,
+    path: `${DOCUMENTS}/${within}`,
+    state: 'written' as const,
+    summary: '',
+    at,
+    asked: '',
+    finished: true,
+    removedAt: null,
+    missing: false,
+    bytes: 4_210,
+    followed: [],
+    reused: false,
+    triaged: null,
+    deleted: null,
+  })
+  const within = [
+    'stripe-v15-research/STRIPE-V15-RESEARCH.md',
+    'stripe-refund-audit/REFUND-AUDIT.md',
+    'old-stripe-spike/notes.md',
+  ]
+  return documentEntries(
+    within.map((one) => ({ project: 'checkout', path: `${DOCUMENTS}/${one}`, within: one })),
+    [
+      record('stripe-v15-research', within[0] ?? '', '2026-10-19T09:00:00.000Z'),
+      {
+        ...record('stripe-refund-audit', within[1] ?? '', '2026-10-12T09:00:00.000Z'),
+        triaged: { by: 'person', decided: 'keep', at: '2026-10-13T09:00:00.000Z', approved: false },
+      },
+    ],
+    Date.parse('2026-10-20T09:00:00.000Z'),
+  )
+}
+
 /** What somebody typed that no letter of matches anything Tade has. */
 const A_SENTENCE = 'stop whoever is doing the stripe upgrade'
 
@@ -131,6 +178,23 @@ export const SEARCH_SCREENS: Scenario[] = [
           matches: [],
           home: HOME,
           look: { path: `${HOME}${A_PATH.slice(1)}`, is: 'file' },
+        }),
+        searching: false,
+      },
+    }),
+  },
+  {
+    name: 'searching-documents',
+    about:
+      'The documents tasks produced, kept in Tade\u2019s home past their tasks: found by the file or by the task that wrote it, each saying its task and project and whether it waits on you, and opened in the viewer.',
+    state: { ...base(), panel: searchPanel('stripe') },
+    frame: frame({
+      panel: {
+        entries: searchResults('stripe', {
+          entries: documents(),
+          files: [],
+          matches: [],
+          home: HOME,
         }),
         searching: false,
       },

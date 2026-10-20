@@ -1,7 +1,10 @@
+import type { Document } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { ABOUT_ASKED, askedAbout, isSentence, shortlist, worthAsking } from '../src/meant.ts'
 import {
   completed,
+  documentEntries,
+  type FoundDocument,
   fuzzy,
   GROUPS,
   looksLikePath,
@@ -466,5 +469,121 @@ describe('a path somebody named outright', () => {
       'action',
       'setting',
     ])
+  })
+})
+
+describe('the documents tasks produced', () => {
+  const DIR = '/Users/sam/.tade/projects/vrolta/documents'
+  const found = (within: string): FoundDocument => ({
+    project: 'vrolta',
+    path: `${DIR}/${within}`,
+    within,
+  })
+  const record = (task: string, within: string, over: Partial<Document> = {}): Document => ({
+    task,
+    path: `${DIR}/${within}`,
+    state: 'written',
+    summary: '',
+    at: '2026-10-01T10:00:00.000Z',
+    asked: '',
+    finished: true,
+    removedAt: null,
+    missing: false,
+    bytes: 120,
+    followed: [],
+    reused: false,
+    triaged: null,
+    deleted: null,
+    ...over,
+  })
+  const NOW = Date.parse('2026-10-20T10:00:00.000Z')
+  const ROLEPLAY = 'research-roleplay-economy-and-systems/ROLEPLAY-SYSTEMS.md'
+  const PLAN = 'p3-09-closed-test-brief/PLAN.md'
+  const NOTES = 'research-roleplay-economy-and-systems/notes/sources.md'
+  const rows = documentEntries(
+    [found(ROLEPLAY), found(PLAN), found(NOTES)],
+    [
+      record('vrolta/research-roleplay-economy-and-systems', ROLEPLAY, {
+        triaged: {
+          by: 'person',
+          decided: 'keep it',
+          at: '2026-10-02T10:00:00.000Z',
+          approved: false,
+        },
+      }),
+      record('vrolta/p3-09-closed-test-brief', PLAN, { at: '2026-09-01T10:00:00.000Z' }),
+    ],
+    NOW,
+  )
+  const results = (raw: string) =>
+    searchResults(raw, { entries: [...entries, ...rows], files, matches: [] }).filter(
+      (entry) => entry.kind === 'document',
+    )
+
+  it('is named by its file, said to be its task’s and its project’s, and opened where it is', () => {
+    const [row] = results('ROLEPLAY-SYSTEMS.md')
+    expect(row?.label).toBe('ROLEPLAY-SYSTEMS.md')
+    expect(row?.detail).toBe('research-roleplay-economy-and-s… · vrolta')
+    expect(parseOpenId(row?.id ?? '')).toEqual({
+      path: `${DIR}/${ROLEPLAY}`,
+      line: null,
+      column: null,
+    })
+  })
+
+  it('says whether it waits for a decision, and puts the waiting ones first', () => {
+    expect(rows.map((one) => [one.label, one.note ?? null])).toEqual([
+      ['PLAN.md', 'waiting on you'],
+      ['ROLEPLAY-SYSTEMS.md', 'decided'],
+      // A file beside the one handed over is nobody's question.
+      ['notes/sources.md', null],
+    ])
+    expect(rows[0]?.tone).toBe('waiting')
+    const approved = documentEntries(
+      [found(PLAN)],
+      [
+        record('vrolta/p3-09-closed-test-brief', PLAN, {
+          triaged: { by: 'person', decided: 'go', at: '2026-10-02T10:00:00.000Z', approved: true },
+        }),
+      ],
+      NOW,
+    )
+    expect(approved[0]?.note).toBe('approved')
+  })
+
+  it('is found by part of its file name, and by its task’s name', () => {
+    // First, and lit: the letters are in its own name. Its sibling comes after,
+    // on its task's name, which spells them too.
+    const [first] = results('roleplay-sys')
+    expect(first?.label).toBe('ROLEPLAY-SYSTEMS.md')
+    expect(first?.hits?.length).toBeGreaterThan(0)
+    // The task's name: both files it wrote, and the letters lit on neither,
+    // because the label is not what they were found in.
+    const byTask = results('roleplay-economy')
+    expect(byTask.map((one) => one.label)).toEqual(['ROLEPLAY-SYSTEMS.md', 'notes/sources.md'])
+    expect(byTask.every((one) => one.hits?.length === 0)).toBe(true)
+  })
+
+  it('ranks a match on the file above the same match on a task', () => {
+    const both = documentEntries(
+      [found('plan-review/OTHER.md'), found('research/plan.md')],
+      [],
+      NOW,
+    )
+    const ranked = searchResults('plan', { entries: both, files: [], matches: [] })
+    expect(ranked.map((one) => one.label)).toEqual(['plan.md', 'OTHER.md'])
+  })
+
+  it('takes its task from the folder it is in where the journal has no record, even one whose task is gone', () => {
+    const [row] = documentEntries([found('gone-task/brief.md')], [], NOW)
+    expect(row?.detail).toBe('gone-task · vrolta')
+    expect(row?.note).toBeUndefined()
+    const [loose] = documentEntries([found('README.md')], [], NOW)
+    expect(loose?.detail).toBe('vrolta')
+  })
+
+  it('is not listed before anything is typed, and is under its own heading', () => {
+    expect(results('')).toEqual([])
+    expect(GROUPS.find((group) => group.kind === 'document')?.title).toBe('DOCUMENTS')
   })
 })
