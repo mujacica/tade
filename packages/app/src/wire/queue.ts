@@ -16,7 +16,7 @@ import {
   type StartSays,
   startFrom,
 } from '@tade/core'
-import { type HandedOn, handOnWaits } from '@tade/workbench'
+import { type HandedOn, handOnWaits, readTaskFile } from '@tade/workbench'
 import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
 import { type ScheduleView, showPlan, showQueue, withTranscript } from '../model.ts'
@@ -341,8 +341,14 @@ export class Queue implements Subject {
         this.deps.news(`started ${task}: ${because}`)
         this.said(`started ${task}: ${because}`)
       } catch (err) {
-        // Held with why, and said: work that silently never starts looks like waiting.
         this.starting.delete(task)
+        // Parked since this pass looked — a watch, a template or intake parks
+        // what it makes straight after making it — is refused by the start
+        // door and is not a failed start: the park already holds it, and a
+        // `start: failed` hold written for it outlives the park, so the work
+        // stayed held after it was decided and picked up.
+        if ((await readTaskFile(this.wire.opts.home, task))?.parked) continue
+        // Held with why, and said: work that silently never starts looks like waiting.
         await this.wire.opts.client.holdQueued(task, why(err), { start: 'failed' }).catch(() => {})
         this.said(`${task} could not start: ${why(err)}`)
         const held = { because: `it could not start: ${why(err)}` }

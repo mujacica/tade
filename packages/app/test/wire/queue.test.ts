@@ -631,4 +631,41 @@ describe('the window, and the work waiting in it', () => {
     )
     expect(client.runs().some((run) => run.task === 'app/second')).toBe(true)
   })
+
+  it('holds nothing for work parked between a look and its start, and starts it once picked up', async () => {
+    const window = await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    // A watch makes its work, then parks it: a pass that looked in between
+    // finds it ready, and the start door finds it parked. That refusal is the
+    // park's, and written down as a failed start it held the work for good.
+    const startQueued = client.startQueued.bind(client)
+    let refused = false
+    client.startQueued = async (req) => {
+      if (req.task === 'app/found-later' && !refused) {
+        refused = true
+        await client.parkTask(req.task, true, { by: 'schedule:rain' })
+      }
+      return startQueued(req)
+    }
+    await client.createTask({
+      project: 'app',
+      slug: 'found-later',
+      intent: 'found by a watch',
+      by: 'schedule:rain',
+      start: { after: [], prompt: 'Bring it in.', touches: [] },
+    })
+    await until('the start refused for the park', () => refused, SPAWNING_MS)
+    await window.queueTools().advance()
+    expect(await client.events({ types: ['queue_held'] })).toEqual([])
+
+    await client.parkTask('app/found-later', false, { by: 'orchestrator' })
+    await until(
+      'its agent started',
+      async () => {
+        await window.queueTools().advance()
+        return client.runs().some((run) => run.task === 'app/found-later')
+      },
+      SPAWNING_MS,
+    )
+  })
 })
