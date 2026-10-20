@@ -51,7 +51,7 @@ const BLOCKS: readonly (readonly [number, number])[] = [
  * The scattered rest, each one a glyph somewhere in the window — all of them in
  * the basic plane, which is the only place the scan below can see them.
  */
-const GLYPHS = '¢§«±·»×–—‖‘’“”•…‹›⌕⌘⎿⏎⏺✓✕✗✻❯'
+const GLYPHS = '¢§«±¶·»×–—‖‘’“”•…‹›⌕⌘⎿⏎⏺✓✕✗✻❯'
 
 const SINGLE = new Set([...GLYPHS].map((glyph) => glyph.codePointAt(0) as number))
 
