@@ -349,6 +349,10 @@ export function troubleStarting(
  *
  * Every change is an answer — a wait written on it and a retelling included —
  * so a hold after one is news again: whoever made it is told it did not take.
+ *
+ * So is what a hold was on running again: a run started clears the trouble
+ * before it (`troubleWith`), so the same words after one are a second failure,
+ * not the first said twice — `agent exited with code 1` reads the same every time.
  */
 export function holdSaid(
   task: string,
@@ -356,14 +360,19 @@ export function holdSaid(
   events: readonly TadeEvent[],
 ): boolean {
   let said = false
+  let on: string | null = null
   for (const event of events) {
+    if (event.type === 'run_started' && on !== null && event.task === on) said = false
     if (event.task !== task) continue
     const change = event.detail.change
     if (event.type === 'queue_changed' && change !== 'pause' && change !== 'order') {
       said = false
     }
     if (event.type !== 'queue_held') continue
-    if (event.detail.because === held.because) said = true
+    if (event.detail.because === held.because) {
+      said = true
+      on = typeof event.detail.on === 'string' ? event.detail.on : null
+    }
     if (held.changed && Array.isArray(event.detail.changed)) said = true
   }
   return said

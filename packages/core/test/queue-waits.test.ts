@@ -194,6 +194,18 @@ describe('how the queue reads a wait or a retelling', () => {
       holdSaid('tade/a', held, [first, event('queue_changed', 'tade/a', { change: 'pause' })]),
     ).toBe(true)
   })
+
+  it('says a hold on trouble again once what it waits on has run again, though the words are the same', () => {
+    const held = { because: 'tade/b failed: agent exited with code 1' }
+    const first = event('queue_held', 'tade/a', { because: held.because, on: 'tade/b' })
+    // Run again and failed the same way: a second failure, not the first said twice.
+    expect(holdSaid('tade/a', held, [first, event('run_started', 'tade/b')])).toBe(false)
+    // Said about the second failure, it is said until it runs again.
+    const again = event('queue_held', 'tade/a', { because: held.because, on: 'tade/b' })
+    expect(holdSaid('tade/a', held, [first, event('run_started', 'tade/b'), again])).toBe(true)
+    // Anything else running again is not news about this hold.
+    expect(holdSaid('tade/a', held, [first, event('run_started', 'tade/c')])).toBe(true)
+  })
 })
 
 describe('waits handed on by a removal', () => {
