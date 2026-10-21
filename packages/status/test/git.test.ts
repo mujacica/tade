@@ -1,7 +1,8 @@
-import { rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, runGit } from '../../../test/fixtures/mkrepo.ts'
+import { freshIndexFor, freshIndexRefreshing } from '../src/fresh-index.ts'
 import { newProbeGate } from '../src/gate.ts'
 import {
   gitLoad,
@@ -252,7 +253,8 @@ describe('probeGit on real repos', () => {
     expect(res.snapshot).toBeNull()
     expect(res.unread).toBe(
       'git took longer than 1s, which is a busy machine rather than a broken one',
-    )
+    ) // What running out of time started: not left running past the test.
+    await freshIndexRefreshing(r.root)
   })
 
   it('a look that could not see degrades to the last that could, and heals', async () => {
@@ -270,6 +272,45 @@ describe('probeGit on real repos', () => {
     const healed = await probeGit(r.root, { baseRef: null, ...noPr, gate, now: 3 })
     expect(healed.unread).toBeUndefined()
     expect(healed.snapshot?.dirty).toEqual(['.gitattributes'])
+  })
+
+  it('a look that ran out of time reads a refreshed copy of the index from then on, and never writes the index', async () => {
+    const r = withBin()
+    r.commit('a file no filter takes', { 'note.txt': 'one\n' })
+    // Three seconds a look through the index itself, for as long as it is behind big.bin.
+    lfsIsh(r, 'sleep 3; cat')
+    const index = join(r.root, '.git', 'index')
+    const before = statSync(index, { bigint: true })
+    const blind = await probeGit(r.root, { baseRef: null, ...noPr, statusMs: 500 })
+    expect(blind.unread).toMatch(/^git took longer than/)
+    expect(await freshIndexRefreshing(r.root)).toBe(true)
+    // Read through the copy, a look is quick, and still sees what changes.
+    writeFileSync(join(r.root, 'note.txt'), 'two\n')
+    const seen = await probeGit(r.root, { baseRef: null, ...noPr, statusMs: 2_500 })
+    expect(seen.unread).toBeUndefined()
+    expect(seen.snapshot?.dirty).toEqual(['.gitattributes', 'note.txt'])
+    expect(seen.snapshot?.xy?.['note.txt']).toBe('.M')
+    const after = statSync(index, { bigint: true })
+    expect([after.ino, after.mtimeNs]).toEqual([before.ino, before.mtimeNs])
+    // The index moving is the copy going: what it was a copy of is gone.
+    r.git('add', 'note.txt')
+    expect(await freshIndexFor(r.root)).toBeNull()
+  })
+
+  it('a copy of the index that could not be refreshed is said beside the look it would have helped', async () => {
+    const r = withBin()
+    // Slow through the index itself, and failing through a copy of it.
+    lfsIsh(r, 'test -n "$GIT_INDEX_FILE" && exit 1; sleep 3; cat')
+    await probeGit(r.root, { baseRef: null, ...noPr, statusMs: 500 })
+    expect(await freshIndexRefreshing(r.root)).toBe(false)
+    const again = await probeGit(r.root, { baseRef: null, ...noPr, statusMs: 500 })
+    expect(again.warnings).toEqual([
+      expect.stringMatching(
+        /could not look: git took longer than .*; a refreshed copy of the index could not be made: git update-index failed: /,
+      ),
+    ])
+    // Not tried again straight away: a refresh that failed does not mend itself.
+    expect(await freshIndexRefreshing(r.root)).toBe(false)
   })
 
   it('resolveBase prefers local main, falls back to master, then null', async () => {

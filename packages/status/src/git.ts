@@ -3,6 +3,7 @@ import { type GitSnapshot, located } from '@tade/core'
 import { ForgeError, repoOf } from '@tade/forges-core'
 import { execa } from 'execa'
 import { type ForgeChoice, forgeExec, forgeFor } from './forges.ts'
+import { freshIndexFor, freshIndexProblem, refreshIndexOf } from './fresh-index.ts'
 import type { GateKey, ProbeGate } from './gate.ts'
 import { problemWith } from './processes.ts'
 
@@ -59,19 +60,37 @@ export function resetGitLoad(): void {
   commands.clear()
 }
 
-export async function git(dir: string, args: string[], timeoutMs = GIT_MS): Promise<CmdResult> {
+export async function git(
+  dir: string,
+  args: string[],
+  timeoutMs = GIT_MS,
+  env: Readonly<Record<string, string>> = {},
+): Promise<CmdResult> {
   started++
   commands.set(args[0] ?? '', (commands.get(args[0] ?? '') ?? 0) + 1)
   running++
   if (running > peak) peak = running
   try {
-    return await run(dir, args, timeoutMs)
+    if (args[0] !== 'status') return await run(dir, args, timeoutMs, env)
+    // A status that ran out of time is, as often as not, an index far behind
+    // its files, which a status with optional locks off never mends: it reads
+    // a refreshed copy from then on, while the index stays as it is
+    // (`fresh-index.ts`).
+    const through = await freshIndexFor(dir)
+    const r = await run(dir, args, timeoutMs, { ...env, ...through })
+    if (r.timedOut) refreshIndexOf(dir, git)
+    return r
   } finally {
     running--
   }
 }
 
-async function run(dir: string, args: string[], timeoutMs: number): Promise<CmdResult> {
+async function run(
+  dir: string,
+  args: string[],
+  timeoutMs: number,
+  env: Readonly<Record<string, string>>,
+): Promise<CmdResult> {
   // In its own process group, so the terminal Tade runs in never takes git
   // for the program in front of it: Terminal.app retitles the window after
   // whatever is, and the window runs git every couple of seconds. From its
@@ -79,7 +98,7 @@ async function run(dir: string, args: string[], timeoutMs: number): Promise<CmdR
   // (`located`, in core's `run.ts`).
   const r = await execa(located('git'), ['-C', dir, ...args], {
     reject: false,
-    env: GIT_ENV,
+    env: { ...GIT_ENV, ...env },
     timeout: timeoutMs,
     detached: true,
     stripFinalNewline: false,
@@ -407,7 +426,12 @@ async function lookAtGit(worktree: string, opts: GitProbeOptions): Promise<GitPr
       }
     }
     const why = problemWith('git', st, statusMs) ?? 'git status failed'
-    return { snapshot: null, warnings: [`${worktree}: could not look: ${why}`], unread: why }
+    const copy = freshIndexProblem(worktree)
+    return {
+      snapshot: null,
+      warnings: [`${worktree}: could not look: ${why}${copy ? `; ${copy}` : ''}`],
+      unread: why,
+    }
   }
   const status = parseStatusV2(st.stdout)
 
