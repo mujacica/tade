@@ -1,7 +1,7 @@
 import { stat } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import type { Reality, Workspace } from '@tade/core'
-import { GIT_MS, git, newProbeGate, problemWith, REUSE_MS } from '@tade/status'
+import { GIT_MS, git, keepIndexesFresh, newProbeGate, problemWith, REUSE_MS } from '@tade/status'
 import { marksFrom, marksOf } from './files.ts'
 import type { Change } from './frame.ts'
 import { CHANGED_FORMAT, changedFrom, diffFrom, withUntracked } from './reality.ts'
@@ -75,6 +75,9 @@ export class CheckoutGate {
   /** `told` is what status last said of a checkout, and `''` where it says nothing of it. */
   constructor(told: (root: string) => string) {
     this.told = told
+    // The window looks again, so a look that ran out of time leaves the next
+    // one an index it can read in time, as status's poller does (`fresh-index.ts`).
+    keepIndexesFresh()
   }
 
   /**

@@ -7,6 +7,7 @@ import {
 } from '@tade/core'
 import { newTranscriptReads, type TranscriptReads } from './adoption.ts'
 import { type ConflictsHeld, newConflictsHeld } from './conflicts.ts'
+import { keepIndexesFresh } from './fresh-index.ts'
 import { newProbeGate, type ProbeGate } from './gate.ts'
 import { gitLoad } from './git.ts'
 import { newPortsHeld, type PortsHeld } from './ports.ts'
@@ -103,6 +104,8 @@ export function optionsOf(ask: StatusAsk, held: Held): StatusOptions {
  * are the same look by construction rather than by two copies agreeing.
  */
 export function lookHere(): StatusCollector {
+  // A look that runs out of time leaves the next one an index it can read in time (`fresh-index.ts`).
+  keepIndexesFresh()
   const held: Held = {
     gate: newProbeGate(),
     transcripts: newTranscriptReads(),

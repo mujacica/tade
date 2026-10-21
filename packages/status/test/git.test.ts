@@ -1,8 +1,8 @@
 import { rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, onTestFinished } from 'vitest'
 import { mkrepo, runGit } from '../../../test/fixtures/mkrepo.ts'
-import { freshIndexFor, freshIndexRefreshing } from '../src/fresh-index.ts'
+import { freshIndexFor, freshIndexRefreshing, keepIndexesFresh } from '../src/fresh-index.ts'
 import { newProbeGate } from '../src/gate.ts'
 import {
   gitLoad,
@@ -253,8 +253,10 @@ describe('probeGit on real repos', () => {
     expect(res.snapshot).toBeNull()
     expect(res.unread).toBe(
       'git took longer than 1s, which is a busy machine rather than a broken one',
-    ) // What running out of time started: not left running past the test.
-    await freshIndexRefreshing(r.root)
+    )
+    // A look nobody polls starts nothing to mend the next one, which there is
+    // not: a `tade status` would wait on it to exit.
+    expect(freshIndexRefreshing(r.root)).toBeNull()
   })
 
   it('a look that could not see degrades to the last that could, and heals', async () => {
@@ -275,6 +277,8 @@ describe('probeGit on real repos', () => {
   })
 
   it('a look that ran out of time reads a refreshed copy of the index from then on, and never writes the index', async () => {
+    keepIndexesFresh()
+    onTestFinished(() => keepIndexesFresh(false))
     const r = withBin()
     r.commit('a file no filter takes', { 'note.txt': 'one\n' })
     // Three seconds a look through the index itself, for as long as it is behind big.bin.
@@ -298,6 +302,8 @@ describe('probeGit on real repos', () => {
   })
 
   it('a copy of the index that could not be refreshed is said beside the look it would have helped', async () => {
+    keepIndexesFresh()
+    onTestFinished(() => keepIndexesFresh(false))
     const r = withBin()
     // Slow through the index itself, and failing through a copy of it.
     lfsIsh(r, 'test -n "$GIT_INDEX_FILE" && exit 1; sleep 3; cat')

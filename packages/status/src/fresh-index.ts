@@ -64,6 +64,17 @@ interface Refreshing {
 /** The refreshed copy each checkout's looks read through, by the folder git is run in. */
 const copies = new Map<string, Copy>()
 const refreshing = new Map<string, Refreshing>()
+let keeping = false
+
+/**
+ * Refresh copies in this process from now on: what whoever polls says, because
+ * a copy is for the next look and a one-shot `tade status` has none. It would
+ * only be kept from exiting, for as long as the refresh ran, by a child
+ * started for nobody.
+ */
+export function keepIndexesFresh(on = true): void {
+  keeping = on
+}
 
 /**
  * Where `git status` in `dir` should read the index from: a refreshed copy,
@@ -88,6 +99,7 @@ export async function freshIndexFor(dir: string): Promise<Record<string, string>
  * `freshIndexRefreshing`.
  */
 export function refreshIndexOf(dir: string, run: RunGit, now = Date.now()): void {
+  if (!keeping) return
   const was = refreshing.get(dir)
   if (was && now < was.until) return
   const entry: Refreshing = {
