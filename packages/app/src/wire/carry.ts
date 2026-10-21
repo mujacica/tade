@@ -35,6 +35,9 @@ import type { Ui } from '../screen.ts'
 // **Nothing waits on it.** A carry is a call over the link with a deadline,
 // started from the beat and never awaited by anything that draws, one at a
 // time per remote; what it answered is held, with when, and drawn from there.
+// A press while one is in flight waits for it and then makes its own, because
+// the button is drawn under "carrying…" too, and a press that came to nothing
+// would say nothing.
 
 /** How long a remote kept in step goes before it is carried to again anyway. */
 const AGAIN_MS = 60 * 60_000
@@ -68,7 +71,8 @@ interface Kept {
 export class Carries {
   private readonly deps: CarriesDeps
   private readonly kept = new Map<string, Kept>()
-  private readonly busy = new Set<string>()
+  /** Each remote's last carry asked for, in flight or queued: its turn, ended when it is. */
+  private readonly running = new Map<string, Promise<void>>()
   private readonly owed = new Set<string>()
   /** What each remote's last carry could not do, so it is said in the strip once and not hourly. */
   private readonly troubled = new Map<string, string>()
@@ -104,7 +108,7 @@ export class Carries {
     const now = this.deps.now()
     for (const name of names) {
       const held = this.deps.reach(name)
-      if (held === null || !held.live || this.busy.has(name)) continue
+      if (held === null || !held.live || this.running.has(name)) continue
       const kept = this.kept.get(name)
       const due = kept === undefined || now - kept.at >= AGAIN_MS
       if (!changed && !due && !this.owed.has(name)) continue
@@ -118,27 +122,42 @@ export class Carries {
    * where there was nothing to carry to. Written down where it sent anything.
    */
   async carry(name: string, opts: Omit<CarryPress, 'from'>): Promise<Checklist | null> {
-    const held = this.deps.reach(name)
-    if (held === null || this.busy.has(name)) return null
-    this.busy.add(name)
+    if (this.deps.reach(name) === null) return null
+    // A turn only ever resolves: what a carry threw is its own caller's, and
+    // the one queued behind it still goes.
+    let ended = () => {}
+    const turn = new Promise<void>((done) => {
+      ended = done
+    })
+    const before = this.running.get(name)
+    this.running.set(name, turn)
     this.deps.draw()
     try {
-      const setup = await setupOf(this.deps.home, this.deps.configPath, this.deps.secrets())
-      const { list, refused } = await this.answer(name, held, setup, opts)
-      this.kept.set(name, { list, at: this.deps.now() })
-      this.troubles(name, refused ? list.unreached : null)
-      const pressed = opts.keys || opts.talk === true
-      if (list.unreached === null && (list.written > 0 || pressed || changedAny(list))) {
-        await this.deps.log(carriedLine(name, 'window', list)).catch((err: unknown) => {
-          // It landed there; only this machine's record of it did not.
-          this.deps.said(null, `Carried to ${name}, and not written down here: ${String(err)}`)
-        })
-      }
-      return list
+      await before
+      return await this.once(name, opts)
     } finally {
-      this.busy.delete(name)
+      ended()
+      if (this.running.get(name) === turn) this.running.delete(name)
       this.deps.draw()
     }
+  }
+
+  /** One carry, once whatever was in flight to that remote has answered. */
+  private async once(name: string, opts: Omit<CarryPress, 'from'>): Promise<Checklist | null> {
+    const held = this.deps.reach(name)
+    if (held === null) return null
+    const setup = await setupOf(this.deps.home, this.deps.configPath, this.deps.secrets())
+    const { list, refused } = await this.answer(name, held, setup, opts)
+    this.kept.set(name, { list, at: this.deps.now() })
+    this.troubles(name, refused ? list.unreached : null)
+    const pressed = opts.keys || opts.talk === true
+    if (list.unreached === null && (list.written > 0 || pressed || changedAny(list))) {
+      await this.deps.log(carriedLine(name, 'window', list)).catch((err: unknown) => {
+        // It landed there; only this machine's record of it did not.
+        this.deps.said(null, `Carried to ${name}, and not written down here: ${String(err)}`)
+      })
+    }
+    return list
   }
 
   private async answer(
@@ -263,7 +282,7 @@ export class Carries {
         ...one,
         list: kept?.list ?? null,
         at: kept?.at ?? null,
-        busy: this.busy.has(one.name),
+        busy: this.running.has(one.name),
       }
     })
   }

@@ -466,6 +466,24 @@ describe('this machine’s setup, kept in step there', () => {
     expect(JSON.stringify(north.lines)).not.toContain(KEY)
   })
 
+  it('sends the keys on a press made while a carry is still in flight, after it', async () => {
+    // The far end's file can say a carry landed before its answer is back
+    // here, and the button is drawn under "carrying…" too: a press then once
+    // came to nothing and said nothing (red on macOS CI at 7b6d147f).
+    const north = await far(['api'])
+    const config = { vps: await block('north', north) }
+    const mine = `extensions:\n  jev:\n    enabled: true\n    key: ${KEY}\n`
+    const one = await rig(config, { mine, open: { settings: true } })
+    await until(one, 'the link up', live(one, 'vps'))
+    const inFlight = one.remotes.action('remote:again:vps')
+    expect(one.remotes.panel()?.remotes?.[0]?.busy).toBe(true)
+    await one.remotes.action('remote:keys:vps')
+    await inFlight
+    expect((await there(north)).extensions.jev?.key).toBe(KEY)
+    expect(one.said).toContain('Sent to vps: extensions.jev.key.')
+    expect(one.remotes.panel()?.remotes?.[0]?.busy).toBe(false)
+  })
+
   it('draws nothing of it while Settings is closed', async () => {
     const north = await far(['api'])
     const one = await rig({ vps: await block('north', north) })
