@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
+import { readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { homedir, userInfo } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -16,6 +16,7 @@ import {
   forgetPersonsTadeSpawns,
   HANDED_DOWN,
   inPersonsTade,
+  PROVIDER_KEYS,
   personsTadeSpawns,
 } from './own-home.ts'
 
@@ -86,6 +87,26 @@ describe("a test never reaches the person's own Tade home", () => {
     expect(tade).toContain('TADE_SOCKET')
     expect(tade.filter((name) => !(HANDED_DOWN as readonly string[]).includes(name))).toEqual([])
     for (const name of HANDED_DOWN) expect(process.env[name], name).toBeUndefined()
+  })
+
+  it("runs without the person's model credentials, so pi never reaches past the scripted model", () => {
+    // pi-ai sits beside pi-coding-agent in pnpm's store; its table is not
+    // exported, so its names are read from the file — a pi that adds a
+    // provider fails here with the name to add.
+    const pi = realpathSync(
+      fileURLToPath(
+        new URL(
+          '../packages/harnesses/pi/node_modules/@earendil-works/pi-coding-agent',
+          import.meta.url,
+        ),
+      ),
+    )
+    const table = readFileSync(join(pi, '..', 'pi-ai', 'dist', 'env-api-keys.js'), 'utf8')
+    const read = [...new Set([...table.matchAll(/"([A-Z][A-Z0-9_]+)"/g)].map((m) => m[1] ?? ''))]
+    expect(read).toContain('HF_TOKEN')
+    expect(read.filter((name) => !(PROVIDER_KEYS as readonly string[]).includes(name))).toEqual([])
+    if (process.env.TADE_LIVE !== '1')
+      for (const name of PROVIDER_KEYS) expect(process.env[name], name).toBeUndefined()
   })
 
   it('refuses a process started there, by its folder or by git -C', async () => {

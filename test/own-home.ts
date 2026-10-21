@@ -59,6 +59,70 @@ import { afterEach, expect } from 'vitest'
 // and pi's extension read them at import, so a test that loads one could mark
 // the running agent done. `own-home.test.ts` reads every launch's environment
 // and fails on a `TADE_` name missing here.
+//
+// Nor are the person's model credentials. A test that runs a real pi on the
+// scripted model (`fake-model.ts`) names `tade-test/fake`, which the empty
+// home's catalog cannot place, so pi runs on its own default: the provider of
+// any key in the environment. With `HF_TOKEN` exported on one laptop,
+// `serve.test.ts` and `rehearsal.test.ts` sent their turns to Hugging Face and
+// failed on its 402, not on anything of Tade's. A runner has no keys, so this
+// is reality again. The live test is the one that needs them (`TADE_LIVE=1`).
+
+/**
+ * Every environment variable pi reads a provider's credential from — pi-ai's
+ * own table (`env-api-keys.js`), which `own-home.test.ts` holds this to.
+ */
+export const PROVIDER_KEYS = [
+  'AI_GATEWAY_API_KEY',
+  'ANT_LING_API_KEY',
+  'ANTHROPIC_API_KEY',
+  'ANTHROPIC_AUTH_TOKEN',
+  'ANTHROPIC_OAUTH_TOKEN',
+  'AWS_ACCESS_KEY_ID',
+  'AWS_BEARER_TOKEN_BEDROCK',
+  'AWS_CONTAINER_CREDENTIALS_FULL_URI',
+  'AWS_CONTAINER_CREDENTIALS_RELATIVE_URI',
+  'AWS_PROFILE',
+  'AWS_SECRET_ACCESS_KEY',
+  'AWS_WEB_IDENTITY_TOKEN_FILE',
+  'AZURE_OPENAI_API_KEY',
+  'BASETEN_API_KEY',
+  'CEREBRAS_API_KEY',
+  'CLOUDFLARE_API_KEY',
+  'COPILOT_GITHUB_TOKEN',
+  'DEEPSEEK_API_KEY',
+  'FIREWORKS_API_KEY',
+  'GCLOUD_PROJECT',
+  'GEMINI_API_KEY',
+  'GOOGLE_APPLICATION_CREDENTIALS',
+  'GOOGLE_CLOUD_API_KEY',
+  'GOOGLE_CLOUD_LOCATION',
+  'GOOGLE_CLOUD_PROJECT',
+  'GROQ_API_KEY',
+  'HF_TOKEN',
+  'KIMI_API_KEY',
+  'META_API_KEY',
+  'MINIMAX_API_KEY',
+  'MINIMAX_CN_API_KEY',
+  'MISTRAL_API_KEY',
+  'MOONSHOT_API_KEY',
+  'NVIDIA_API_KEY',
+  'OPENAI_API_KEY',
+  'OPENCODE_API_KEY',
+  'OPENROUTER_API_KEY',
+  'QWEN_TOKEN_PLAN_API_KEY',
+  'QWEN_TOKEN_PLAN_CN_API_KEY',
+  'RADIUS_API_KEY',
+  'TOGETHER_API_KEY',
+  'TYPESAFE_API_KEY',
+  'XAI_API_KEY',
+  'XIAOMI_API_KEY',
+  'XIAOMI_TOKEN_PLAN_AMS_API_KEY',
+  'XIAOMI_TOKEN_PLAN_CN_API_KEY',
+  'XIAOMI_TOKEN_PLAN_SGP_API_KEY',
+  'ZAI_API_KEY',
+  'ZAI_CODING_CN_API_KEY',
+] as const
 
 /**
  * What a running Tade hands its children, and none of it the suite's: the
@@ -101,6 +165,7 @@ delete process.env.PI_CODING_AGENT_DIR
 delete process.env.PI_CODING_AGENT_SESSION_DIR
 delete process.env.CLAUDE_CONFIG_DIR
 for (const name of HANDED_DOWN) delete process.env[name]
+if (process.env.TADE_LIVE !== '1') for (const name of PROVIDER_KEYS) delete process.env[name]
 
 /** The home the account database gives, which no variable moves; none on a uid without an entry. */
 function passwdHome(): string | null {
