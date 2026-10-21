@@ -63,9 +63,13 @@ describe('picking what queued work waits on', () => {
       SPAWNING_MS,
     )
     await openWaits('later')
-    expect(onScreen('WAITS ON NOW')).toBe(true)
-    expect(onScreen('AGENTS AT WORK')).toBe(true)
-    expect(onScreen('it needs the gate')).toBe(true)
+    // A run started is not yet an agent at work: the panel lists busy-one there
+    // only once the window's next look at status says so, which can come after
+    // the panel opens on a loaded machine.
+    await until(
+      'the wait it has, and the agent at work',
+      () => onScreen('WAITS ON NOW') && onScreen('it needs the gate') && onScreen('AGENTS AT WORK'),
+    )
     // Narrowed by typing, and the one left picked with space.
     terminal.press('busy')
     await until('narrowed', () => !onScreen('WAITS ON NOW') && onScreen('busy-one'))
