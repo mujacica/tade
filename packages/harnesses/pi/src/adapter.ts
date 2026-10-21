@@ -1,12 +1,14 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
+import { mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   effectByName,
   type RequiredProgram,
+  runProgram,
   type TaskId,
   THINKING_LEVELS,
   type ThinkingLevel,
@@ -45,7 +47,13 @@ import {
   type WorkerSpec,
 } from '@tade/harnesses-core'
 import { carryHere, folderOf, sessionsHere } from './folder.ts'
-import { findModel, loggedInProviders, usableModels } from './models.ts'
+import {
+  type AvailableModel,
+  findModel,
+  listedModels,
+  loggedInProviders,
+  usableModels,
+} from './models.ts'
 import {
   answerOfTask,
   historyOfTask,
@@ -63,6 +71,9 @@ import { type Spent, spentBy, spentByMessage } from './usage.ts'
 export const EXTENSION_PATH = fileURLToPath(new URL('./tade.ts', import.meta.url))
 /** Rewrites requests a provider in between would refuse; loaded into every pi Tade starts. */
 export const COMPAT_PATH = fileURLToPath(new URL('./compat.ts', import.meta.url))
+
+/** How long pi is given to say what it can run: it loads its extensions first, which takes about half a second. */
+const LIST_MODELS_MS = 20_000
 
 /**
  * The session a task's agent talks in, for the life of the task.
@@ -482,8 +493,44 @@ export class PiAdapter implements WorkerAdapter {
     return usableModels(homedir(), this.opts.env).catch(() => [])
   }
 
+  /**
+   * A name the catalog cannot place is asked of pi itself before it is given
+   * up on. A provider a pi extension registers exists only once pi has loaded
+   * its extensions, so it is never in the files `models()` reads, and a
+   * configured `provider: tade-test` was stepped over for whatever pi ran by
+   * default: the provider of any key in the environment. Only a miss costs
+   * the run, so a name the catalog has is answered as quickly as ever.
+   */
   async resolveModel(said: string): Promise<ModelFound> {
-    return findModel(said, await this.models())
+    const usable = await this.models()
+    const found = findModel(said, usable)
+    if (found.ok) return found
+    const listed = await this.listedModels()
+    if (typeof listed === 'string') return { ok: false, reason: `${found.reason}; ${listed}` }
+    const known = new Set(usable.map((model) => model.id))
+    const more = listed.filter((model) => !known.has(model.id))
+    return more.length > 0 ? findModel(said, [...usable, ...more]) : found
+  }
+
+  /** What pi says it can run, its extensions loaded, or why it could not say. */
+  private async listedModels(): Promise<AvailableModel[] | string> {
+    const unmade = await mkdir(this.opts.runDir, { recursive: true }).then(
+      () => null,
+      (failed: Error) => failed.message,
+    )
+    if (unmade) return `pi could not be asked for its models: ${unmade}`
+    const ran = await runProgram(process.execPath, [this.opts.bin, '--list-models'], {
+      cwd: this.opts.runDir,
+      env: this.opts.env,
+      timeoutMs: LIST_MODELS_MS,
+    })
+    if (ran.timedOut) return `pi did not list its models within ${LIST_MODELS_MS / 1000} s`
+    const listed = ran.code === 0 ? listedModels(ran.stdout) : null
+    if (listed) return listed
+    // "No models available" is an answer, and the catalog's reason says it.
+    if (ran.code === 0) return []
+    const said = ran.stderr.trim().split('\n').at(-1)
+    return `pi could not list its models (exit ${ran.code}${said ? `: ${said}` : ''})`
   }
 
   /** Where this adapter's pi files sessions: read from the environment `runEnv` launches it with. */

@@ -208,6 +208,25 @@ export async function usableModels(
   return usable.length > 0 ? usable : models
 }
 
+/**
+ * The models `pi --list-models` printed: pi's own answer, given once its
+ * extensions have loaded, so a provider one registers (`registerProvider`) is
+ * in it, where the files `availableModels` reads never have it. A table under
+ * a `provider  model …` heading; null on any other shape.
+ */
+export function listedModels(printed: string): AvailableModel[] | null {
+  const lines = printed.split('\n').map((line) => line.trim())
+  const heading = lines.findIndex((line) => /^provider\s+model(\s|$)/.test(line))
+  if (heading < 0) return null
+  const out: AvailableModel[] = []
+  for (const line of lines.slice(heading + 1)) {
+    const [provider, id] = line.split(/\s+/)
+    if (!provider || !id) continue
+    out.push({ id: `${provider}/${id}`, provider, name: id })
+  }
+  return out
+}
+
 export type ModelChoice = { ok: true; provider: string; id: string } | { ok: false; reason: string }
 
 /**

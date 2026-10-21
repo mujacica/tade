@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { writeProviderExtension } from '../../../../test/fixtures/fake-model.ts'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { exitReason, PiAdapter } from '../src/adapter.ts'
 import {
@@ -9,6 +10,7 @@ import {
   chooseModel,
   credentials,
   findModel,
+  listedModels,
   loggedInProviders,
   usableModels,
 } from '../src/models.ts'
@@ -267,5 +269,48 @@ describe('the model someone meant', () => {
       /could be kimi-k3, kimi-k2.6|could be kimi-k2.6, kimi-k3/,
     )
     expect(findModel('gemini', catalog).ok).toBe(false)
+  })
+})
+
+describe('a model pi is taught by one of its own extensions', () => {
+  it('reads pi’s own listing, and nothing else for one', () => {
+    const printed = [
+      'provider   model                context  max-out  thinking  images',
+      'tade-test  fake                 128K     4.1K     no        no    ',
+      'ollama     qwen2.5-coder:7b     32K      8.2K     no        no    ',
+      '',
+    ].join('\n')
+    expect(listedModels(printed)).toEqual([
+      { id: 'tade-test/fake', provider: 'tade-test', name: 'fake' },
+      { id: 'ollama/qwen2.5-coder:7b', provider: 'ollama', name: 'qwen2.5-coder:7b' },
+    ])
+    expect(listedModels('No models available. Use /login to log into a provider')).toBeNull()
+    expect(listedModels('')).toBeNull()
+  })
+
+  it('is placed: a provider an extension registers is in no file Tade reads, so pi is asked', async () => {
+    // As serve.test.ts configures its orchestrator: `provider: tade-test`,
+    // `model: fake`, which the catalog cannot place and pi can.
+    const dir = tmp('pi-agent-')
+    const extensions = join(dir, 'extensions')
+    mkdirSync(extensions, { recursive: true })
+    writeProviderExtension(extensions)
+    const env = {
+      ...process.env,
+      PI_CODING_AGENT_DIR: dir,
+      TADE_TEST_BASE_URL: 'http://127.0.0.1:9',
+    }
+    const adapter = new PiAdapter({ runDir: tmp('tade-pi-'), env })
+    expect(await adapter.models()).toEqual([])
+    expect(await adapter.resolveModel('tade-test/fake')).toEqual({
+      ok: true,
+      provider: 'tade-test',
+      id: 'fake',
+    })
+    // And a name pi cannot place either is still not placed, for the
+    // catalog's reason.
+    const missing = await adapter.resolveModel('tade-test/surely-not-this-one')
+    expect(missing).toMatchObject({ ok: false })
+    expect(missing.ok ? '' : missing.reason).toMatch(/nothing you are signed in to offers/)
   })
 })
