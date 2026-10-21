@@ -1,7 +1,8 @@
-import { rmSync } from 'node:fs'
+import { rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, runGit } from '../../../test/fixtures/mkrepo.ts'
+import { newProbeGate } from '../src/gate.ts'
 import {
   gitLoad,
   listWorktrees,
@@ -216,6 +217,59 @@ describe('probeGit on real repos', () => {
     expect(warnings[0]).toMatch(/git status failed/)
     const list = await listWorktrees(r.root)
     expect(Array.isArray(list) && list.find((w) => w.path === wt)?.prunable).toBe(true)
+  })
+
+  // What a commit moving 1,008 files into Git LFS did to vrolta on 2026-10-21:
+  // `git status` ran the clean filter over every one past its budget, and the
+  // null that came back read as the checkout being gone. A filter git must run
+  // on a file whose stat moved is that, in a real repository.
+  function lfsIsh(r: ReturnType<typeof mkrepo>, clean: string) {
+    r.git('config', 'filter.lfs-ish.clean', clean)
+    r.git('config', 'filter.lfs-ish.required', 'true')
+    writeFileSync(join(r.root, '.gitattributes'), '*.bin filter=lfs-ish\n')
+    const at = new Date(Date.now() - 120_000)
+    utimesSync(join(r.root, 'big.bin'), at, at)
+  }
+  const withBin = () => {
+    const r = mkrepo()
+    r.commit('a file LFS will take', { 'big.bin': 'payload\n' })
+    return r
+  }
+
+  it('a checkout git cannot read is unread, never missing', async () => {
+    const r = withBin()
+    lfsIsh(r, 'false')
+    const res = await probeGit(r.root, { baseRef: null, ...noPr })
+    expect(res.snapshot).toBeNull()
+    expect(res.unread).toMatch(/^git exited 128: /)
+    expect(res.warnings).toEqual([`${r.root}: could not look: ${res.unread}`])
+  })
+
+  it('a checkout git ran out of time on is unread, and says it was time', async () => {
+    const r = withBin()
+    lfsIsh(r, 'sleep 3; cat')
+    const res = await probeGit(r.root, { baseRef: null, ...noPr, statusMs: 1_000 })
+    expect(res.snapshot).toBeNull()
+    expect(res.unread).toBe(
+      'git took longer than 1s, which is a busy machine rather than a broken one',
+    )
+  })
+
+  it('a look that could not see degrades to the last that could, and heals', async () => {
+    const r = withBin()
+    const gate = newProbeGate()
+    const first = await probeGit(r.root, { baseRef: null, ...noPr, gate, now: 1 })
+    expect(first.unread).toBeUndefined()
+    lfsIsh(r, 'false')
+    const blind = await probeGit(r.root, { baseRef: null, ...noPr, gate, now: 2 })
+    expect(blind.snapshot).toEqual(first.snapshot)
+    expect(blind.unread).toMatch(/^git exited 128/)
+    expect(blind.warnings.at(-1)).toMatch(/could not look: .*; this is the last look that could$/)
+    // The filter mended, the next look is git's own answer again.
+    r.git('config', 'filter.lfs-ish.clean', 'cat')
+    const healed = await probeGit(r.root, { baseRef: null, ...noPr, gate, now: 3 })
+    expect(healed.unread).toBeUndefined()
+    expect(healed.snapshot?.dirty).toEqual(['.gitattributes'])
   })
 
   it('resolveBase prefers local main, falls back to master, then null', async () => {

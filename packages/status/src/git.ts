@@ -1,8 +1,10 @@
+import { stat } from 'node:fs/promises'
 import { type GitSnapshot, located } from '@tade/core'
 import { ForgeError, repoOf } from '@tade/forges-core'
 import { execa } from 'execa'
 import { type ForgeChoice, forgeExec, forgeFor } from './forges.ts'
 import type { GateKey, ProbeGate } from './gate.ts'
+import { problemWith } from './processes.ts'
 
 // Git is invoked directly. `--porcelain=v2` and `-z` are stable contracts;
 // everything is NUL-delimited because paths contain spaces and newlines.
@@ -266,11 +268,25 @@ export interface GitProbeOptions {
   gate?: ProbeGate | undefined
   /** The clock the caller keeps, which bounds how long a reuse may stand. */
   now?: number | undefined
+  /** How long `git status` may take; `GIT_MS` unless said. */
+  statusMs?: number | undefined
 }
 
 export interface GitProbeResult {
+  /**
+   * What git says of the worktree. Null where the folder is not there — or
+   * where git could not look and nothing ever could before, which `unread`
+   * then says.
+   */
   snapshot: GitSnapshot | null
   warnings: string[]
+  /**
+   * Why git could not read a worktree whose folder is there: it failed, or ran
+   * out of time (`problemWith`). The snapshot is then the last look that could,
+   * or null where there was none — and either way it is not a checkout that is
+   * missing, which is what a null snapshot alone means.
+   */
+  unread?: string
 }
 
 /**
@@ -334,23 +350,64 @@ export async function probeGit(worktree: string, opts: GitProbeOptions): Promise
   // Only an answer is kept, never a failed look: a probe that could not look
   // says what is wrong with the worktree, and the gate must never stand in
   // front of that. It says it again next beat, for one spawn.
-  if (key && opts.gate && looked.snapshot) {
-    opts.gate.keep(key, { snapshot: looked.snapshot, warnings: looked.warnings })
+  if (opts.gate && looked.snapshot) {
+    const answer = { snapshot: looked.snapshot, warnings: looked.warnings }
+    if (key) opts.gate.keep(key, answer)
+    opts.gate.remember(worktree, answer)
+  }
+  // A look git could not answer degrades to the last one that could, said
+  // beside it. On 2026-10-21 a commit that moved 1,008 files into Git LFS had
+  // `git status` running LFS's clean filter over every one of them past its
+  // budget, and the null that came back was read as the checkout being gone:
+  // every task in vrolta `failed: checkout missing`, and every queued task
+  // waiting on them held.
+  const last = looked.unread !== undefined ? opts.gate?.last(worktree) : null
+  if (last) {
+    return {
+      snapshot: last.snapshot,
+      warnings: [
+        ...last.warnings,
+        ...looked.warnings.map((w) => `${w}; this is the last look that could`),
+      ],
+      unread: looked.unread,
+    }
   }
   return looked
 }
 
+/**
+ * Whether the folder git was asked about is not there, which is the one thing
+ * a failed `git status` may be read as absence on. Anything else that stops a
+ * `stat` — a permission, a disk — is a look that could not be made.
+ */
+async function gone(worktree: string): Promise<boolean> {
+  try {
+    return !(await stat(worktree)).isDirectory()
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code
+    return code === 'ENOENT' || code === 'ENOTDIR'
+  }
+}
+
 async function lookAtGit(worktree: string, opts: GitProbeOptions): Promise<GitProbeResult> {
   const warnings: string[] = []
-  const st = await git(worktree, [
-    'status',
-    '--porcelain=v2',
-    '-z',
-    '--branch',
-    '--untracked-files=all',
-  ])
+  const statusMs = opts.statusMs ?? GIT_MS
+  const st = await git(
+    worktree,
+    ['status', '--porcelain=v2', '-z', '--branch', '--untracked-files=all'],
+    statusMs,
+  )
   if (!st.ok) {
-    return { snapshot: null, warnings: [`${worktree}: git status failed: ${firstLine(st.stderr)}`] }
+    // Not there, or there and unreadable: two answers, because only the
+    // first may be read as a checkout that is missing (`deriveState`).
+    if (await gone(worktree)) {
+      return {
+        snapshot: null,
+        warnings: [`${worktree}: git status failed: ${firstLine(st.stderr)}`],
+      }
+    }
+    const why = problemWith('git', st, statusMs) ?? 'git status failed'
+    return { snapshot: null, warnings: [`${worktree}: could not look: ${why}`], unread: why }
   }
   const status = parseStatusV2(st.stdout)
 

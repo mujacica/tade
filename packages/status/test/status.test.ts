@@ -1,9 +1,9 @@
 import { cpSync, mkdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { type Config, ConfigSchema } from '@tade/core'
+import { type Config, ConfigSchema, type Queued, queueStateOf } from '@tade/core'
 import { describe, expect, it } from 'vitest'
-import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
+import { mkrepo, runGit, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { collectStatus, type StatusOptions } from '../src/status.ts'
 
 const NOW = Date.parse('2026-09-11T12:00:00Z')
@@ -228,6 +228,58 @@ describe('collectStatus', () => {
       ['app/refunds', 'checkout', r.root, 'main', 'queued'],
       ['app/search', 'checkout', r.root, 'main', 'queued'],
     ])
+  })
+
+  // vrolta, 2026-10-21: a commit that moved 1,008 files into Git LFS left
+  // `git status` running the clean filter over them past its budget, every task
+  // in the checkout read `failed: checkout missing`, and every queued task that
+  // waited on one was held. A required clean filter that fails is that look.
+  it('a checkout git cannot read is not a checkout missing, and holds no queue', async () => {
+    const r = mkrepo()
+    r.commit('a file LFS will take', { 'big.bin': 'payload\n' })
+    for (const slug of ['moving-to-lfs', 'after-lfs']) {
+      mkdirSync(join(r.home, 'projects', 'app', 'tasks', slug), { recursive: true })
+      writeFileSync(
+        join(r.home, 'projects', 'app', 'tasks', slug, 'task.yaml'),
+        `id: app/${slug}\nproject: app\nintent_spoken: "${slug}"\ncreated: 2026-09-11T11:00:00Z\nworkspace: checkout\n`,
+      )
+    }
+    r.git('config', 'filter.lfs-ish.clean', 'false')
+    r.git('config', 'filter.lfs-ish.required', 'true')
+    writeFileSync(join(r.root, '.gitattributes'), '*.bin filter=lfs-ish\n')
+    const at = new Date(Date.now() - 120_000)
+    utimesSync(join(r.root, 'big.bin'), at, at)
+
+    const ws = await collectStatus(opts({ config: config({ app: r.root }), tadeHome: r.home }))
+    expect(task(ws, 'app/moving-to-lfs')).toMatchObject({ state: 'queued' })
+    expect(ws.warnings.join('\n')).toMatch(/could not look: git exited 128/)
+    const tasks = new Map(
+      ws.projects.flatMap((p) => p.tasks).map((t) => [t.id, { state: t.state, reason: t.reason }]),
+    )
+    const waiter: Queued = {
+      task: 'app/after-lfs',
+      project: 'app',
+      parked: false,
+      start: { after: [{ task: 'app/moving-to-lfs', why: 'after' }], prompt: 'go', touches: [] },
+    }
+    expect(queueStateOf(waiter, { tasks, finished: new Map(), events: [], now: NOW })).toEqual({
+      kind: 'waiting',
+      on: ['app/moving-to-lfs'],
+    })
+  })
+
+  it('a worktree git cannot read is not a worktree missing', async () => {
+    const r = mkrepo()
+    const wt = r.addTask('blind', { project: 'app' })
+    r.commit('a file LFS will take', { 'big.bin': 'payload\n' }, wt)
+    runGit(wt, 'config', 'filter.lfs-ish.clean', 'false')
+    runGit(wt, 'config', 'filter.lfs-ish.required', 'true')
+    writeFileSync(join(wt, '.gitattributes'), '*.bin filter=lfs-ish\n')
+    const at = new Date(Date.now() - 120_000)
+    utimesSync(join(wt, 'big.bin'), at, at)
+    const ws = await collectStatus(opts({ config: config({ app: r.root }), tadeHome: r.home }))
+    expect(task(ws, 'app/blind')?.state).not.toBe('failed')
+    expect(ws.warnings.join('\n')).toMatch(/could not look: git exited 128/)
   })
 
   describe('never throws', () => {

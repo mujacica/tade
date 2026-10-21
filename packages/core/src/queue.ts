@@ -300,6 +300,15 @@ function troubleWith(dep: string, facts: QueueFacts, since: number): string | nu
   if (!now)
     return removed ? `${dep} was removed before it finished` : `${dep} is not there any more`
   // A failure somebody already chose to wait past holds nothing until it fails again.
+  //
+  // What status calls failed is read as it is now, never as it was when a hold
+  // was written: a `queue_held` from it is a sentence, not a state, so the hold
+  // goes by itself the moment status reads otherwise, and nobody owes it an
+  // answer. That, rather than waiting for a failure to be seen twice, is what
+  // keeps one bad look from holding the queue: a second look is no confirmation
+  // if the probe still cannot see, and status may only call a task failed on
+  // evidence (`ProbeBundle.unread` — a look git could not answer is never
+  // `checkout missing`, which on 2026-10-21 held every queued task in vrolta).
   if (now.state === 'failed' && (since === 0 || failed)) {
     return now.reason ? `${dep} failed: ${now.reason}` : `${dep} failed`
   }

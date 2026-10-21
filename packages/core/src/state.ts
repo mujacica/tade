@@ -7,8 +7,17 @@ import type { AgentSignal, GitSnapshot, TaskState, TestSignal } from './model.ts
 export interface ProbeBundle {
   now: number
   parked: boolean
-  /** `null` when the worktree is missing or unreadable. */
+  /**
+   * `null` when the worktree is missing — or, where `unread` says why, when
+   * git could not look and nothing ever could before.
+   */
   git: GitSnapshot | null
+  /**
+   * Why git could not read a worktree whose folder is there (failed, or ran
+   * out of time). `git` is then the last look that could, or null; never a
+   * worktree that is missing, which is the only thing a null `git` may fail on.
+   */
+  unread?: string
   agents: AgentSignal[]
   tests: TestSignal
   /**
@@ -72,7 +81,13 @@ export function deriveState(b: ProbeBundle): Derived {
 
   if (b.parked) return d('parked', 'parked by you')
 
-  if (git === null) return d('failed', 'worktree missing')
+  // A look that could not see is not a worktree that is gone: with nothing
+  // git said to go on, the task is where its agent is, as a shared one is.
+  if (git === null) {
+    return b.unread === undefined
+      ? d('failed', 'worktree missing')
+      : byAgents(b, 'agent stopped; git could not look')
+  }
 
   const live = b.agents.filter((a) => isLive(a, now))
   const dirty = git.dirty.length
@@ -124,7 +139,15 @@ export function deriveState(b: ProbeBundle): Derived {
  */
 function deriveShared(b: ProbeBundle): Derived {
   if (b.parked) return d('parked', 'parked by you')
-  if (b.git === null) return d('failed', 'checkout missing')
+  // Only a checkout that is not there. One git could not read — LFS filtering
+  // a thousand files past the budget — said this of every task in vrolta on
+  // 2026-10-21, and held everything queued behind them.
+  if (b.git === null && b.unread === undefined) return d('failed', 'checkout missing')
+  return byAgents(b, 'agent stopped: its work is in the checkout')
+}
+
+/** Where a task is by its agents alone, never its files: `stopped` is what a stopped agent is. */
+function byAgents(b: ProbeBundle, stopped: string): Derived {
   const live = b.agents.filter((a) => isLive(a, b.now))
   const pending = live.flatMap((a) => a.pendingPermissions)
   if (pending.length > 0) {
@@ -147,7 +170,7 @@ function deriveShared(b: ProbeBundle): Derived {
   if (dead?.exitCode !== null && dead?.exitCode !== undefined && dead.exitCode !== 0) {
     return d('failed', `agent exited with code ${dead.exitCode}`)
   }
-  if (dead) return d('review', 'agent stopped: its work is in the checkout')
+  if (dead) return d('review', stopped)
   return d('queued', 'no agent has started')
 }
 

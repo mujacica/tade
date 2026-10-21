@@ -122,6 +122,26 @@ describe('where queued work stands', () => {
     })
   })
 
+  // vrolta, 2026-10-21: one look git could not answer read every task in the
+  // checkout as failed, and ~75 holds were answered by hand with `wait`. A
+  // failure status derived is a query of what status says now, so the hold
+  // written from it is no answer anybody owes once it reads otherwise.
+  it('lets a hold on a failure status derived go by itself once it reads otherwise', () => {
+    const held = [
+      event('queue_held', 'shop/add-refunds', {
+        on: 'shop/fix-charge',
+        because: 'shop/fix-charge failed: checkout missing',
+      }),
+    ]
+    const blind = facts({
+      tasks: { 'shop/fix-charge': ['failed', 'checkout missing'] },
+      events: held,
+    })
+    expect(queueStateOf(refunds, blind)).toMatchObject({ kind: 'held', on: 'shop/fix-charge' })
+    const seen = facts({ tasks: { 'shop/fix-charge': 'working' }, events: held })
+    expect(queueStateOf(refunds, seen)).toEqual({ kind: 'waiting', on: ['shop/fix-charge'] })
+  })
+
   it('waits past a failure somebody chose to wait past, until it fails again', () => {
     const failure = [
       event('run_started', 'shop/fix-charge'),

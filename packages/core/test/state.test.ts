@@ -53,6 +53,7 @@ interface Case {
   want: TaskState
   reason?: RegExp
   stalled?: boolean
+  unread?: string
 }
 
 const cases: Case[] = [
@@ -108,6 +109,45 @@ const cases: Case[] = [
     git: null,
     agents: [lane()],
     want: 'failed',
+  },
+  // A look git could not answer is not a worktree that is gone.
+  {
+    name: 'git could not look, agent running',
+    git: null,
+    unread: 'git took longer than 5s',
+    agents: [lane()],
+    want: 'working',
+    reason: /^agent running$/,
+  },
+  {
+    name: 'git could not look, nothing started',
+    git: null,
+    unread: 'git exited 128: fatal: clean filter failed',
+    want: 'queued',
+  },
+  {
+    name: 'git could not look, agent stopped cleanly',
+    git: null,
+    unread: 'git took longer than 5s',
+    agents: [lane({ alive: false, exitCode: 0 })],
+    want: 'review',
+    reason: /git could not look/,
+  },
+  {
+    name: 'git could not look, agent exited non-zero',
+    git: null,
+    unread: 'git took longer than 5s',
+    agents: [lane({ alive: false, exitCode: 1 })],
+    want: 'failed',
+    reason: /exited with code 1/,
+  },
+  {
+    name: 'git could not look, last look that could stands',
+    git: git({ dirty: files(2) }),
+    unread: 'git took longer than 5s',
+    agents: [lane()],
+    want: 'working',
+    reason: /2 files touched/,
   },
   {
     name: 'review closed unmerged, clean ahead',
@@ -340,6 +380,24 @@ describe('a task sharing the checkout', () => {
     )
     expect(deriveState(shared({ parked: true })).state).toBe('parked')
   })
+
+  // vrolta, 2026-10-21: git ran LFS's clean filter over 1,008 files past its
+  // budget, and every task in the checkout read `failed: checkout missing`.
+  it('is missing only where the checkout is, never where git could not look', () => {
+    expect(deriveState(shared({ git: null }))).toMatchObject({
+      state: 'failed',
+      reason: 'checkout missing',
+    })
+    const blind = { git: null, unread: 'git took longer than 5s' }
+    expect(deriveState(shared(blind)).state).toBe('queued')
+    expect(deriveState(shared({ ...blind, agents: [lane({ turn: 'running' })] }))).toMatchObject({
+      state: 'working',
+      reason: 'agent running',
+    })
+    expect(deriveState(shared({ ...blind, agents: [lane({ turn: 'idle' })] })).state).toBe(
+      'blocked',
+    )
+  })
 })
 
 describe('deriveState', () => {
@@ -354,6 +412,7 @@ describe('deriveState', () => {
       git: c.git === undefined ? git() : c.git,
       agents: c.agents ?? [],
       tests: c.tests ?? 'unknown',
+      ...(c.unread !== undefined ? { unread: c.unread } : {}),
     }
     const got = deriveState(bundle)
     expect(got.state).toBe(c.want)

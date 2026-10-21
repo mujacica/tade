@@ -52,6 +52,15 @@ export interface ProbeGate {
   reuse(key: GateKey): Kept | null
   /** Keep this answer against this key. Only a snapshot, never a failed look. */
   keep(key: GateKey, kept: Kept): void
+  /**
+   * The last answer git gave about this worktree, whatever has moved since and
+   * however old: what a look git could not answer degrades to (`probeGit`),
+   * because an empty answer there is read as a checkout that is not there.
+   * Never a reuse — it is handed back only beside a warning that says so.
+   */
+  last(worktree: string): Kept | null
+  /** Remember an answer as the last one git gave, asked or not through a key. */
+  remember(worktree: string, kept: Kept): void
 }
 
 /**
@@ -87,6 +96,7 @@ export function newProbeGate(opts: { reuseMs?: number; kept?: number } = {}): Pr
   const reuseMs = opts.reuseMs ?? REUSE_MS
   const cap = Math.max(1, opts.kept ?? KEPT)
   const held = new Map<string, Held>()
+  const lastGood = new Map<string, Kept>()
   // Where each worktree keeps its own HEAD and index. A linked worktree's
   // `.git` is a file pointing at them and never moves, so this is read once
   // rather than on every beat — and it is the gate's own, not the module's, so
@@ -145,6 +155,17 @@ export function newProbeGate(opts: { reuseMs?: number; kept?: number } = {}): Pr
         snapshot: kept.snapshot,
         warnings: kept.warnings,
       })
+    },
+    last(worktree) {
+      return lastGood.get(worktree) ?? null
+    },
+    remember(worktree, kept) {
+      lastGood.delete(worktree)
+      if (lastGood.size >= cap) {
+        const oldest = lastGood.keys().next().value
+        if (oldest !== undefined) lastGood.delete(oldest)
+      }
+      lastGood.set(worktree, { snapshot: kept.snapshot, warnings: [...kept.warnings] })
     },
   }
 }

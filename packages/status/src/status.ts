@@ -335,7 +335,13 @@ async function probeOf(
     })
   } catch (err) {
     const why = err instanceof Error ? err.message : String(err)
-    return { snapshot: null, warnings: [`${one.id}: git probe failed: ${why.split('\n')[0]}`] }
+    const said = `git probe failed: ${why.split('\n')[0]}`
+    // A probe that threw could not look; only a worktree git says has gone is missing.
+    return {
+      snapshot: null,
+      warnings: [`${one.id}: ${said}`],
+      ...(one.wt.prunable ? {} : { unread: said }),
+    }
   }
 }
 
@@ -370,6 +376,7 @@ async function buildTask(
     now: opts.now,
     parked: tf?.parked ?? false,
     git: g.snapshot,
+    ...(g.unread !== undefined ? { unread: g.unread } : {}),
     agents,
     // Only counts for the commit it ran against; anything older is unknown.
     tests: await verifiedAt(wt.path, g.snapshot?.head ?? null, {
@@ -446,6 +453,7 @@ async function sharedTasks(
       now: opts.now,
       parked: tf.parked,
       git: g.snapshot,
+      ...(g.unread !== undefined ? { unread: g.unread } : {}),
       agents,
       tests: 'unknown',
       shared: true,
