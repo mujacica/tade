@@ -1,0 +1,60 @@
+ ▄▀   T A D E      checkout !⠋    search ✓    infra      +          ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2            +    ▕│ plans  3 plans · 1 needs you · 1 under way · 1 finished                                 
+                             ▕│─────────────────────────────────────────────────────────────────────────────────────────
+   ! stripe-v15   880k tok   ▕│                                                                                         
+     wants you to approve…   ▕│  ✓✓✓✓⠋⠋!◌◌  4/9 steps finished                                                          
+                             ▕│  4 finished · 2 working · 1 wants you · 0 failed · 2 waiting                            
+   ⠋ refunds         $0.62   ▕│                                                                                         
+     working                 ▕│  NEEDS YOU  1                                                                           
+                             ▕│                                                                                         
+ ▸ SMART QUEUE          none ▕│  ! checkout-v2                                                                     1/4  
+ ▸ SCHEDULES            none ▕│    checkout · web · v2-api working · cross-repo@3 · $1.60                               
+ ▸ INTAKE                off ▕│                                                                                         
+ ▸ CHANGES  3        vs main ▕│  STAGE 1                       STAGE 2                       STAGE 3                    
+ ▸ FILES                     ▕│  ╭──────────────────────╮      ╭──────────────────────╮      ╭──────────────────────╮   
+ ▸ NOTES  4             +    ▕│  │ ✓ schema       $0.42 │──┬──▶│ ⠋ api          $1.18 │─┬───▶│ ◌ page               │   
+ ▸ GIT                       ▕│  │   checkout · finish… │  │   │   checkout · working │ │    │   web · waiting      │   
+                             ▕│  ╰──────────────────────╯  │   ╰──────────────────────╯ │    ╰──────────────────────╯   
+                             ▕│                            │                            │                               
+                             ▕│                            │   ╭──────────────────────╮ │                               
+                             ▕│                            ╰──▶│ ! form               │─╯                               
+                             ▕│                                │   web · wants you    │                                 
+                             ▕│                                ╰──────────────────────╯                                 
+                             ▕│                                                                                         
+                             ▕│    ! form  wants you                                                                    
+                             ▕│    ⠋ api  working                                                                       
+                             ▕│    1 more open                                                                          
+                             ▕│                                                                                         
+                             ▕│  UNDER WAY  1                                                                           
+                             ▕│                                                                                         
+                             ▕│  ⠋ search-relevance                                                                1/3  
+                             ▕│    search · rank-boost working · $0.20                                                  
+                             ▕│                                                                                         
+                             ▕│  STAGE 1                       STAGE 2                       STAGE 3                    
+                             ▕│  ╭──────────────────────╮      ╭──────────────────────╮      ╭──────────────────────╮   
+                             ▕│  │ ✓ tests        $0.20 │─────▶│ ⠋ boost              │─────▶│ ◌ docs               │   
+                             ▕│  │   search · finished  │      │   search · working   │      │   search · waiting   │   
+                             ▕│  ╰──────────────────────╯      ╰──────────────────────╯      ╰──────────────────────╯   
+                             ▕│                                                                                         
+                             ▕│    ⠋ boost  working                                                                     
+                             ▕│    1 more open                                                                          
+                             ▕│                                                                                         
+                             ▕│  FINISHED  1                                                                            
+                             ▕│                                                                                         
+                             ▕│  ✓ release-notes                                                                   2/2  
+                             ▕│    infra · every step finished · $0.31                                                  
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
+                                                                                                                        
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

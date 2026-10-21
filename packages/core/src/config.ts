@@ -597,6 +597,7 @@ export const ConfigSchema = z
                 settings: z.string().min(1).default('ctrl+,'),
                 fill_bottom: z.string().min(1).default('ctrl+shift+f'),
                 keys_sheet: z.string().min(1).default('f1'),
+                plans: z.string().min(1).default('ctrl+shift+p'),
                 reload: z.string().min(1).default('ctrl+shift+r'),
                 approve: z.string().min(1).default('a'),
                 deny: z.string().min(1).default('d'),

@@ -903,6 +903,12 @@ export const KEY_BINDINGS: readonly {
   },
   { key: 'keys_sheet', title: 'Shortcuts', means: 'the sheet of every shortcut', fallback: 'f1' },
   {
+    key: 'plans',
+    title: 'Plans',
+    means: 'every plan, and its graph',
+    fallback: 'ctrl+shift+p',
+  },
+  {
     key: 'reload',
     title: 'Reload',
     means: 'restart with your changes',

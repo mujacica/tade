@@ -40,6 +40,7 @@ import { Mouse } from './wire/mouse.ts'
 import { Notes } from './wire/notes.ts'
 import type { Orchestrator } from './wire/orchestrator.ts'
 import { kittyActive, Repaint, repaintScreen, type Screen, screenFor } from './wire/paint.ts'
+import { Plans } from './wire/plans.ts'
 import type { Projects, ProjectTools } from './wire/projects.ts'
 import type { Queue, QueueTools } from './wire/queue.ts'
 import { Races } from './wire/race-panel.ts'
@@ -119,6 +120,7 @@ export class App {
   private readonly window: Window
   /** What `ctrl+k` finds, inside files and out, and where a result goes. */
   private readonly search: Search
+  private readonly plans: Plans
   /** What is due, what a watch found, and what one run of either does. */
   private readonly schedules: Schedules
   /** Queued work: what is ready, what is held, and what starts it. */
@@ -239,6 +241,7 @@ export class App {
     this.away = this.heart.away
     this.agents = this.heart.agents
     this.projects = this.heart.projects
+    this.plans = new Plans(this.wire, { from: () => this.intake.factory().runFrom })
     this.search = new Search(this.wire, {
       settings: () => this.settings.rows(),
       openFile: (path, line) => this.files.openFile(path, line),
@@ -252,6 +255,7 @@ export class App {
       quit: () => this.window.quit(),
       run: (action) => this.router.run(action),
       machines: () => this.remotes.machines(),
+      plans: () => this.plans.rows(),
     })
     this.window = new Window(this.wire, {
       setTitle: (title) => this.terminal.setTitle(title),
@@ -422,6 +426,7 @@ export class App {
       this.routes,
       this.checks,
       new Spend(this.wire),
+      this.plans,
       new Races(this.wire),
       new Evaluations(this.wire),
       this.notes,

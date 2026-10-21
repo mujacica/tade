@@ -36,6 +36,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `queue-view.ts` | What the SMART QUEUE shows (`QueueView`, `shownBy`) and nothing about what is in it | a terminal |
 | `queue.ts` | What the queue says in words, including what an empty list says (`queueEmptySays`) | a terminal |
 | `plan-graph.ts` | A plan as boxes and lines: a column per step of the resolved tree (`drawPlan`, `treeStems`, `drawWhy`) | a terminal |
+| `plans.ts` | The Plans screen's rules — a step's part, a plan's standing and group, what is happening in it now — the away page's (`runs-shape.js`), copied and held equal by `test/plans.test.ts`; `wire/plans.ts` folds the rows out of the away view's own `runsIn(runTasks(…))` | a terminal |
 | `projects.ts` | Recent projects, folder listing, `git init` for Open project | a real disk and git |
 | `files.ts` | The FILES tree: order, what is hidden, which folders are open | a disk (it takes a lister) |
 | `search.ts` | Search: reading a query, fuzzy matching, grouping results, tab completion, and the one path somebody named outright | a disk or git |
@@ -1148,6 +1149,12 @@ the window's.
   and shown through the room there is (`slid`, `ui.ts`), with the bar lying along the bottom
   (`barAcross`). What is pinned at the right of a row stays pinned to the **pane** and not to what
   scrolls under it: a button a deep chain put out of reach is a button that is gone.
+- **Every plan is one screen, and it is the away page's answer** (`state.plans`, `view/plans.ts`):
+  what wants you, then what is under way with each plan's whole graph, then what is done, and one
+  plan opened. Reached by `ctrl+shift+p`, `/plans`, an effort's heading down the side
+  (`plan:<name>`) and a PLANS group in search. Its rows are folded only while something looks
+  (`Plans.rows`, kept against `Live.revision`), and its rules are `runs-shape.js`'s: a word changed
+  on one is changed on both, or `plans.test.ts` says so.
 - **`drawPlan` never gives up and says a chain as a list of names** — the boxes and the arrows are what
   say what waits on what, and a list says none of it. Why a piece waits is drawn as that same tree
   (`drawWhy`), never as a list of edges sorted by name: the reasons hang off the waits they explain,

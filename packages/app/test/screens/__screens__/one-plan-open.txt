@@ -1,0 +1,90 @@
+ ▄▀   T A D E      checkout !⠋    search ✓    infra      +          ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2            +    ▕│   ‹ plans    checkout-v2  1/4 steps finished · wants you                                
+                             ▕│─────────────────────────────────────────────────────────────────────────────────────────
+   ! stripe-v15   880k tok   ▕│                                                                                         
+     wants you to approve…   ▕│  ✓⠋!◌  1/4 steps finished                                                               
+                             ▕│  1 finished · 1 working · 1 wants you · 0 failed · 1 waiting                            
+   ⠋ refunds         $0.62   ▕│                                                                                         
+     working                 ▕│  checks    not run here                                                                 
+                             ▕│  cost      $1.60                                                                        
+ ▸ SMART QUEUE          none ▕│  workflow  cross-repo@3                                                                 
+ ▸ SCHEDULES            none ▕│  projects  checkout, web                                                                
+ ▸ INTAKE                off ▕│                                                                                         
+ ▸ CHANGES  3        vs main ▕│  NEEDS YOU  1                                                                           
+ ▸ FILES                     ▕│    ! form  web                                                                          
+ ▸ NOTES  4             +    ▕│      wants you · checks not run here · 2 agents have been on it                         
+ ▸ GIT                       ▕│                                                                                         
+                             ▕│  THE GRAPH                                                                              
+                             ▕│  STAGE 1                       STAGE 2                       STAGE 3                    
+                             ▕│  ╭──────────────────────╮      ╭──────────────────────╮      ╭──────────────────────╮   
+                             ▕│  │ ✓ schema       $0.42 │──┬──▶│ ⠋ api          $1.18 │─┬───▶│ ◌ page               │   
+                             ▕│  │   checkout · finish… │  │   │   checkout · working │ │    │   web · waiting      │   
+                             ▕│  ╰──────────────────────╯  │   ╰──────────────────────╯ │    ╰──────────────────────╯   
+                             ▕│                            │                            │                               
+                             ▕│                            │   ╭──────────────────────╮ │                               
+                             ▕│                            ╰──▶│ ! form               │─╯                               
+                             ▕│                                │   web · wants you    │                                 
+                             ▕│                                ╰──────────────────────╯                                 
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│  WHY THIS ORDER                                                                         
+                             ▕│  ✓ schema                                                                               
+                             ▕│  ├─⠋ api  after schema                                                                  
+                             ▕│  │ │ the API reads the new columns                                                      
+                             ▕│  │ ╰─◌ page  after api                                                                  
+                             ▕│  │     it calls the new endpoint                                                        
+                             ▕│  │     also after form                                                                  
+                             ▕│  │     the page puts the form in                                                        
+                             ▕│  ╰─! form  after schema                                                                 
+                             ▕│      the form posts the new fields                                                      
+                             ▕│                                                                                         
+                             ▕│  STAGE BY STAGE  3                                                                      
+                             ▕│                                                                                         
+                             ▕│  ✓ Stage 1  can go first                                                           1/1  
+                             ▕│    ✓ schema  checkout                                                            $0.42  
+                             ▕│      finished · checks green · review merged                                            
+                             ▕│                                                                                         
+                             ▕│  2 Stage 2  after stage 1                                                          0/2  
+                             ▕│    ⠋ api  checkout                                                               $1.18  
+                             ▕│      working · checks not run here                                                      
+                             ▕│      ✓ after schema, finished                                                           
+                             ▕│        the API reads the new columns                                                    
+                             ▕│    ! form  web                                                                          
+                             ▕│      wants you · checks not run here · 2 agents have been on it                         
+                             ▕│      ✓ after schema, finished                                                           
+                             ▕│        the form posts the new fields                                                    
+                             ▕│                                                                                         
+                             ▕│  3 Stage 3  after stage 2                                                          0/1  
+                             ▕│    ◌ page  web                                                                          
+                             ▕│      waiting · checks not run here                                                      
+                             ▕│      ! after form, wants you                                                            
+                             ▕│        the page puts the form in                                                        
+                             ▕│      ⠋ after api, working                                                               
+                             ▕│        it calls the new endpoint                                                        
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
+                                                                                                                        
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

@@ -264,6 +264,16 @@ export const PICTURES: readonly Picture[] = [
       'with what it is doing, an arrow for every wait, and under it the reason for each one.',
   },
   {
+    file: 'plans.svg',
+    scenario: 'every-plan',
+    crop: { top: 2, left: 31, width: 89, height: 45 },
+    title: 'tade — plans',
+    about:
+      'Every plan at once: each step a mark with the parts counted under it, then the plans by ' +
+      'where they stand — the one that wants you first, with its whole graph and what is ' +
+      'happening in it, then the one under way, then a quiet row for the one that finished.',
+  },
+  {
     file: 'queue-held.svg',
     scenario: 'a-smart-queue',
     crop: { top: 2, left: 29, width: 91, height: 22 },

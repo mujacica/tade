@@ -60,6 +60,11 @@ export function actions(state: AppState): Action[] {
       ready: true,
     },
     {
+      name: '/plans',
+      about: 'every plan, what wants you in each and how far along it is: /plans name for one',
+      ready: true,
+    },
+    {
       name: '/race',
       about: 'compare the agents given one request side by side, and pick one',
       ready: true,

@@ -32,6 +32,7 @@ import {
   scrolledBar,
   typingIn,
 } from './lane.ts'
+import { renderPlans } from './plans.ts'
 import { renderPlan, renderQueued } from './queue.ts'
 import { gutterBeside, paged } from './rows.ts'
 import { renderSchedule } from './schedule.ts'
@@ -57,6 +58,7 @@ export function renderMain(
   if (away !== null) return renderElsewhere(frame, away, width, height, skin, pointer)
   const pane = state.panes.find((p) => p.task === state.focused)
   if (!pane && state.showingPlan) return renderPlan(state, frame, width, height, skin, pointer)
+  if (!pane && state.plans !== null) return renderPlans(state, frame, width, height, skin, pointer)
   const schedule = frame.schedules?.find((one) => one.id === state.schedule)
   if (!pane && schedule) {
     return renderSchedule(state, frame, schedule, width, height, skin, pointer)

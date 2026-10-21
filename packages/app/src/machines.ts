@@ -670,6 +670,7 @@ export function goElsewhere(state: AppState, place: Place): AppState {
     scroll: 0,
     across: 0,
     showingPlan: false,
+    plans: null,
     schedule: null,
   }
 }

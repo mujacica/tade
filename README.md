@@ -310,6 +310,14 @@ starts.
 
 ![The plan: a column per step, a box per task with what it is doing, an arrow for every wait, and the reason for each one under it](https://raw.githubusercontent.com/mujacica/tade/main/images/plan.svg)
 
+Work that spans projects is one **plan**, and `ctrl+shift+p` (or `/plans`, a plan's heading down
+the side, or its row in `ctrl+k`) shows every plan at once: what wants you first, then what is moving
+and how far along, then what is done — each with its whole graph, finished and running steps
+included. Open one for its facts, every wait's reason and each step stage by stage. It is the same
+answer the away view's Plans page gives, out of the same task files.
+
+![Every plan: each step a mark with the parts counted under it, then the plan that wants you with its whole graph, the one under way, and a quiet row for the one that finished](https://raw.githubusercontent.com/mujacica/tade/main/images/plans.svg)
+
 When something upstream fails, the work it feeds is **held**, not lost — and Tade says so and asks.
 
 ![Queued work held because what it waited on failed, with the choices: wait for a retry, start anyway, remove](https://raw.githubusercontent.com/mujacica/tade/main/images/queue-held.svg)

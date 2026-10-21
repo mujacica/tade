@@ -259,6 +259,12 @@ export interface AppState {
   hushed: string[]
   /** The plan is drawn where an agent's screen would be, while no agent is in front. */
   showingPlan: boolean
+  /**
+   * The Plans screen where an agent's screen would be, while no agent is in
+   * front: every plan, or — `effort` named — that one plan's own graph. Of no
+   * project, because a plan reaches into as many as it needs.
+   */
+  plans: { effort: string | null } | null
   /** The schedule open where an agent's screen would be, while no agent is in front. */
   schedule: string | null
   /** Folders opened in the FILES tree, relative to the folder it is of. */
@@ -416,6 +422,7 @@ export function initialState(): AppState {
     queueViews: {},
     hushed: [],
     showingPlan: false,
+    plans: null,
     schedule: null,
     expanded: [],
     scroll: 0,
@@ -606,6 +613,7 @@ export function selectProject(state: AppState, project: string): AppState {
     scroll: 0,
     across: 0,
     showingPlan: false,
+    plans: null,
     planAcross: 0,
     schedule: null,
   }
@@ -939,7 +947,11 @@ function refocus(state: AppState, panes: AgentPane[]): string | null {
       // the orchestrator for work and being left looking at the empty
       // project's own screen is the wrong end of the same bug. A project on
       // another machine is somewhere you went, like a plan.
-      const went = state.showingPlan || state.schedule !== null || state.elsewhere !== null
+      const went =
+        state.showingPlan ||
+        state.plans !== null ||
+        state.schedule !== null ||
+        state.elsewhere !== null
       return went ? null : (here[0]?.task ?? null)
     }
     return panes.some((pane) => pane.task === state.focused)
@@ -964,6 +976,7 @@ export function focusTask(state: AppState, task: string): AppState {
         // A different chain is a different picture: it is read from its front.
         planAcross: 0,
         showingPlan: false,
+        plans: null,
         schedule: null,
       }
     : state
@@ -977,6 +990,24 @@ export function showPlan(state: AppState): AppState {
     elsewhere: null,
     chose: true,
     showingPlan: true,
+    plans: null,
+    schedule: null,
+    planAcross: 0,
+  }
+}
+
+/**
+ * The Plans screen in front of you, where an agent's screen was: every plan,
+ * or one plan's own graph. Read from its front, like any other picture.
+ */
+export function showPlans(state: AppState, effort: string | null = null): AppState {
+  return {
+    ...state,
+    focused: null,
+    elsewhere: null,
+    chose: true,
+    showingPlan: false,
+    plans: { effort },
     schedule: null,
     planAcross: 0,
   }
@@ -984,7 +1015,15 @@ export function showPlan(state: AppState): AppState {
 
 /** A schedule in front of you, where an agent's screen was. */
 export function openSchedule(state: AppState, id: string): AppState {
-  return { ...state, focused: null, elsewhere: null, chose: true, showingPlan: false, schedule: id }
+  return {
+    ...state,
+    focused: null,
+    elsewhere: null,
+    chose: true,
+    showingPlan: false,
+    plans: null,
+    schedule: id,
+  }
 }
 
 /**
@@ -1337,7 +1376,13 @@ export function offsetOf(
  * to put it there.
  */
 export function pageOf(state: AppState): string {
-  return JSON.stringify([state.project, state.focused, state.showingPlan, state.schedule])
+  return JSON.stringify([
+    state.project,
+    state.focused,
+    state.showingPlan,
+    state.plans,
+    state.schedule,
+  ])
 }
 
 /**
@@ -1924,6 +1969,7 @@ const RUNS = new Set([
   'settings',
   'bottom-max',
   'reload',
+  'plans',
 ])
 
 /** `agent-3` and `project-2`, as the key names them. */

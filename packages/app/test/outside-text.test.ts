@@ -1,5 +1,6 @@
 import { type InboxRow, inboxProvenance } from '@tade/core'
 import { heldFor } from '@tade/remotes-core'
+import type { RunStepIn } from '@tade/web'
 import { describe, expect, it } from 'vitest'
 import type { Frame, IntakeOpenView } from '../src/frame.ts'
 import { machineThere } from '../src/machine-there.ts'
@@ -7,6 +8,7 @@ import { goElsewhere, machineOf, screenOf } from '../src/machines.ts'
 import {
   focusTask,
   initialState,
+  showPlans,
   toggleSection,
   viewActions,
   withProjects,
@@ -33,6 +35,7 @@ import {
   thinking,
   youSaid,
 } from '../src/transcript.ts'
+import { planRowsOf } from '../src/wire/plans.ts'
 import { listsShown, summaryShown } from '../src/wire/rows.ts'
 import { expectNoEscapes, expectOnlyText, hostile, notText, see } from './outside-text.ts'
 import { evals } from './screens/scenarios/evaluations.ts'
@@ -834,5 +837,75 @@ describe('what queued work could wait on', () => {
       'needs it',
       'refused',
     )
+  })
+})
+
+describe('the plans, which are task files anybody can write', () => {
+  const steps = (): RunStepIn[] => [
+    {
+      task: hostile('app/one'),
+      project: hostile('Proj'),
+      name: hostile('Alpha'),
+      state: 'working',
+      layer: 0,
+      waits: [],
+      finished: false,
+      parked: false,
+      runs: 1,
+      active: true,
+      checks: 'unknown',
+      review: null,
+      usd: null,
+    },
+    {
+      task: 'app/two',
+      project: 'app',
+      name: 'two',
+      state: 'queued',
+      layer: 1,
+      waits: [{ task: hostile('app/one'), why: hostile('Because') }],
+      finished: false,
+      parked: false,
+      runs: 0,
+      active: false,
+      checks: 'unknown',
+      review: null,
+      usd: null,
+    },
+  ]
+  const shown = () =>
+    planRowsOf([
+      {
+        run: hostile('Plan'),
+        projects: [hostile('Proj'), 'app'],
+        steps: steps(),
+        from: { item: hostile('Item'), source: 'github' },
+        stamp: { name: hostile('Flow'), version: 2 },
+        retries: 0,
+      },
+    ])
+
+  it('draws every plan, its steps and its graph as text', () => {
+    expectOnlyText(see(showPlans(base()), { plans: shown() }), 'Plan', 'Alpha', 'Proj')
+  })
+
+  it('draws one plan whole as text: its facts, its steps and why each waits', () => {
+    const [plan] = shown()
+    expectOnlyText(
+      see(showPlans(base(), plan?.run ?? ''), { plans: shown(), height: 120 }),
+      'Plan',
+      'Alpha',
+      'Because',
+      'Flow',
+      'Item',
+    )
+  })
+
+  it('draws its name down the side as text', () => {
+    const state = withTasks(withProjects(initialState(), ['app']), [
+      { task: 'app/one', state: 'working', effort: hostile('Plan') },
+      { task: 'app/two', state: 'working', effort: 'other' },
+    ])
+    expectOnlyText(see(focusTask(state, 'app/one')), 'PLAN')
   })
 })

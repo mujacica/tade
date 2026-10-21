@@ -20,6 +20,7 @@ import type { Machines, RemoteScreen } from './machines.ts'
 import type { ScheduleView } from './model.ts'
 import type { PanelContext } from './panels/context.ts'
 import type { AgentOffers, ThinkerOffers } from './panels/menu/state.ts'
+import type { PlanRow } from './plans.ts'
 import type { HeldLines } from './scroll.ts'
 import type { Skin } from './skin.ts'
 import type { SpendView } from './spend.ts'
@@ -658,6 +659,11 @@ export interface Frame {
   clock?: (at: number) => string
   /** Every schedule, as the SMART QUEUE shows it. */
   schedules?: readonly ScheduleView[]
+  /**
+   * Every plan, for the Plans screen (`wire/plans.ts`): asked only while it is
+   * open, and null before the first look at the tasks, which is not *no plans*.
+   */
+  plans?: readonly PlanRow[] | null
   /** A moment with its date, for where a time alone would be ambiguous: `Mon 7 Sep 09:00`. */
   date?: (at: number) => string
   /** How to divide the window. Defaults when absent. */

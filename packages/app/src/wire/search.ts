@@ -12,6 +12,7 @@ import { askedAbout, shortlist, worthAsking } from '../meant.ts'
 import { focusTask, glyph, MARK_TONES, markGlyph, markOf, projects } from '../model.ts'
 import { searchPanel } from '../panels/search/state.ts'
 import { keysPanel } from '../panels/small/state.ts'
+import { type PlanRow, standingOf } from '../plans.ts'
 import {
   documentEntries,
   type FoundDocument,
@@ -20,6 +21,7 @@ import {
   parseOpenId,
   parseQuery,
   pathTyped,
+  planEntries,
   type SearchEntry,
   type SearchFile,
   searchFile,
@@ -110,6 +112,8 @@ export interface SearchDeps {
   run(action: string): Promise<void>
   /** Other machines and their projects, where there are any (`Remotes.machines`). */
   machines(): Machines
+  /** Every plan, as the Plans screen folds them (`Plans.rows`), or null before the first look. */
+  plans(): readonly PlanRow[] | null
 }
 
 export class Search implements Subject {
@@ -234,6 +238,9 @@ export class Search implements Subject {
       // row matched from a minute ago.
       this.wire.state.panes
         .map((pane) => `${pane.task}${pane.state}${pane.waiting}${pane.reason ?? ''}`)
+        .join(),
+      (this.deps.plans() ?? [])
+        .map((plan) => `${plan.run}${plan.finished}/${plan.total}${standingOf(plan)}`)
         .join(),
     ].join('\0')
     if (this.results?.key !== key) {
@@ -491,6 +498,9 @@ export class Search implements Subject {
       case 'show-terminal':
         await this.deps.showTerminal(arg)
         return
+      case 'plan':
+        await this.deps.run(`plan:${arg}`)
+        return
       case 'run':
         if (arg === 'keys') this.wire.put({ ...this.wire.state, panel: keysPanel() })
         else if (arg === 'quit') this.deps.quit()
@@ -553,6 +563,7 @@ export class Search implements Subject {
       ['run:new-chat', 'New chat'],
       ['run:reopen-chat', 'Bring a chat back'],
       ['run:open-project', 'Open project'],
+      ['run:plans', 'Plans'],
       ['run:spend', 'Spend'],
       ['run:extensions', 'Extensions'],
       ['run:brief', 'Brief'],
@@ -562,6 +573,7 @@ export class Search implements Subject {
     ] as const) {
       action(id, label)
     }
+    entries.push(...planEntries(this.deps.plans() ?? [], this.wire.now()))
     entries.push(...(this.documents?.entries ?? []))
     for (const pane of panes) {
       if (pane.lane) action(`stop:${pane.task}`, `Stop ${pane.name}`, '■')

@@ -1,0 +1,24 @@
+ ▄▀   T A D E      checkout !⠋    search ✓    infra      +          ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2            +    █│ plans                                                                                   
+                             █│─────────────────────────────────────────────────────────────────────────────────────────
+   ! stripe-v15   880k tok   █│                                                                                         
+     wants you to approve…   █│  No plans yet.                                                                          
+                             █│  A workflow, or the orchestrator planning one, starts one.                              
+   ⠋ refunds         $0.62   █│                                                                                         
+     working                 █│                                                                                         
+                             █│                                                                                         
+ ▸ SMART QUEUE          none █│                                                                                         
+ ▸ SCHEDULES            none ▕│                                                                                         
+ ▸ INTAKE                off ▕│                                                                                         
+ ▸ CHANGES  3        vs main ▕│                                                                                         
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
+                                                                                                                        
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

@@ -54,6 +54,8 @@ describe('the window’s own keys', () => {
     expect(appKey('\x07', { ...held, bindings: { orchestrator: 'ctrl+g' } })).toBe('orchestrator')
     expect(appKey('\x1b[101;6u', held)).toBe('extensions')
     expect(appKey('\x1b[114;6u', held)).toBe('reload')
+    // ctrl+shift+p, as kitty sends it: the Plans screen.
+    expect(appKey('\x1b[112;6u', held)).toBe('plans')
   })
 
   // Laid out once per set of bindings rather than once a keystroke, so the set

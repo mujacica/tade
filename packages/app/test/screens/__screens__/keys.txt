@@ -16,15 +16,15 @@
   A …/webhooks│ Settings                     ctrl   +   ,    this panel                                 █│              
   M src/webhoo│ Bottom panel fills window    ctrl   +   shift   +   f    it takes the whole window      █│              
               │ Shortcuts                    F1    the sheet of every shortcut                          █│              
- ▾ FILES      │ Reload                       ctrl   +   shift   +   r    restart with your changes      █│              
-   ▾ src/     │ Allow                        a    allow what an agent asks, while one waits             █│              
+ ▾ FILES      │ Plans                        ctrl   +   shift   +   p    every plan, and its graph      █│              
+   ▾ src/     │ Reload                       ctrl   +   shift   +   r    restart with your changes      █│              
+       webhook│ Allow                        a    allow what an agent asks, while one waits             █│              
        webhook│ Deny                         d    deny what an agent asks, while one waits              █│              
-       webhook│                                                                                         █│              
-   ▸ test/    │ On the orchestrator line     ↑     ↓      ctrl   +   r    what you said before          █│              
-━   orchestrat│ Stop the orchestrator        esc    stops the turn it is on · what you typed stays      █│   ↑     ↓   ━
-              │ Discard what you typed       ctrl   +   c    the line and the pictures with it          ▕│              
+   ▸ test/    │                                                                                         █│              
+━   orchestrat│ On the orchestrator line     ↑     ↓      ctrl   +   r    what you said before          █│   ↑     ↓   ━
+              │ Stop the orchestrator        esc    stops the turn it is on · what you typed stays      ▕│              
+              │ Discard what you typed       ctrl   +   c    the line and the pictures with it          ▕│             ▕
               │ Quit                         ctrl   +   c    once there is nothing left to discard      ▕│             ▕
-              │ In a panel                   enter      esc      ↑     ↓    the wheel scrolls it        ▕│             ▕
               │                                                                                          │             ▕
               │                                                                     Change shortcuts…    │             ▕
  ❯ what you sa╰──────────────────────────────────────────────────────────────────────────────────────────╯             ▕

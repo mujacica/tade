@@ -162,9 +162,10 @@ export function renderSidebar(
               // The name it was given, not the sentence it came from: the side
               // is twenty-odd columns wide and a sentence cut to that says
               // less than the slug everything else already calls the work.
-              ...(group.effort
-                ? [row().space(3).text(group.effort.toUpperCase(), skin.hint).build()]
-                : []),
+              // A press on it opens that plan's own page on the Plans screen:
+              // the heading is where the side says the plan is, so it is the
+              // door to the rest of it — the steps in other projects too.
+              ...(group.effort ? [effortHeading(row(), group.effort, skin, pointer)] : []),
               ...tabList(
                 group.tasks.map((task) =>
                   taskRow(width, skin, pointer, task, spend[task.task], frame.now ?? 0),
@@ -781,4 +782,20 @@ function changeRow(
     text: hovered ? skin.hovered(built.text) : built.text,
     hits: [rowHit(0, row.width, target), ...built.hits.filter((hit) => hit.target.kind === 'menu')],
   }
+}
+
+/** An effort's heading down the side: its name, lit under the pointer, and a press to its plan. */
+function effortHeading(
+  r: Row,
+  effort: string,
+  skin: Skin,
+  pointer: Pointer,
+): { text: string; hits: Hit[] } {
+  const target: Target = { kind: 'action', name: `plan:${effort}` }
+  const lit = sameTarget(pointer.hover, target)
+  return r
+    .space(3)
+    .text(printable(effort).toUpperCase(), lit ? skin.link : skin.hint, target)
+    .text(' ›', lit ? skin.link : skin.faded, target)
+    .build()
 }

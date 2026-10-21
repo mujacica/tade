@@ -1,0 +1,30 @@
+ ▄▀   T A D E      checkout !⠋    search ✓    infra      +          ! 1  ⠋ 2   in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  3            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
+   CHECKOUT-V2 ›             █│─────────────────────────────────────────────────────────────────────────────────────────
+                             █│                                                                                         
+ ▌ ! stripe-v15   880k tok   █│                                                                                         
+ ▌   wants you to approve…   █│                                                                                         
+                             █│                                                                                         
+   ⠋ refunds         $0.62   █│  ● Upgrading stripe to v15. The webhook signature API changed,                          
+     working                 █│    so src/webhooks.ts needs the new constructEvent signature.                           
+                             █│                                                                                         
+   SEARCH-RELEVANCE ›        █│  ▸ Read src/webhooks.ts                                                                 
+                             █│  ▸ Edit src/webhooks.ts  +12 −4                                                         
+   ⠋ rank-hooks              █│  ▸ bash npm i stripe@15                                                                 
+     working                 █│  ╭─ wants approval ─────────────────────────────────────────────╮                       
+                             ▕│  │ bash  npm i stripe@15                                        │                       
+ ▸ SMART QUEUE          none ▕│  │   Allow once     Deny                                        │                       
+ ▸ SCHEDULES            none ▕│  ╰──────────────────────────────────────────────────────────────╯                       
+ ▸ INTAKE                off ▕│                                                                                         
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
+                                                                                                                        
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

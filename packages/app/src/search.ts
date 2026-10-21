@@ -1,5 +1,16 @@
-import { type Document, waitingDocuments } from '@tade/core'
+import { type Document, printable, waitingDocuments } from '@tade/core'
 import type { Match, SearchRoot } from './finder.ts'
+import {
+  groupsOf,
+  nowOf,
+  type PlanRow,
+  partGlyph,
+  partTone,
+  planSays,
+  STANDING_PART,
+  STANDINGS,
+  standingOf,
+} from './plans.ts'
 
 // Search: one box for everything you might be looking for — an agent, a file
 // in any agent's worktree, a line inside one, a document a task produced,
@@ -13,6 +24,7 @@ export type SearchKind =
   | 'approval'
   | 'meant'
   | 'agent'
+  | 'plan'
   | 'document'
   | 'file'
   | 'match'
@@ -68,6 +80,7 @@ export const GROUPS: readonly { kind: SearchKind; title: string }[] = [
   { kind: 'approval', title: 'WAITING ON YOU' },
   { kind: 'meant', title: 'MIGHT MEAN' },
   { kind: 'agent', title: 'AGENTS' },
+  { kind: 'plan', title: 'PLANS' },
   { kind: 'document', title: 'DOCUMENTS' },
   { kind: 'file', title: 'FILES' },
   { kind: 'match', title: 'IN FILES' },
@@ -493,6 +506,47 @@ export function documentEntries(
     .map((row) => row.entry)
 }
 
+/**
+ * A row per plan, what wants you first — the Plans screen's own order
+ * (`groupsOf`) — each marked as the screen marks it, saying how far along it is,
+ * and opening that plan's own page. What is happening in it and its steps' names
+ * are its `about`, so a step's name finds the plan it is in.
+ */
+export function planEntries(plans: readonly PlanRow[], now: number): SearchEntry[] {
+  return groupsOf(plans).flatMap((group) =>
+    group.plans.map((plan): SearchEntry => {
+      const standing = standingOf(plan)
+      const part = STANDING_PART[standing]
+      const tone = partTone(part)
+      const label = printable(plan.run)
+      const happening = nowOf(plan).lines.map((line) => `${line.name} ${line.said}`)
+      return {
+        id: `plan:${plan.run}`,
+        kind: 'plan',
+        label,
+        detail: plan.projects.map((one) => printable(one)).join(' · '),
+        note:
+          STANDINGS[standing].group === 'needs'
+            ? STANDINGS[standing].word
+            : `${plan.finished}/${plan.total}`,
+        mark: partGlyph(part, now),
+        ...(tone === 'faded' || tone === 'line' || tone === 'label' || tone === 'here'
+          ? {}
+          : { tone }),
+        about: printable(
+          [
+            `plan ${plan.run}`,
+            planSays(plan),
+            ...happening,
+            `steps ${plan.steps.map((step) => step.name).join(', ')}`,
+          ].join('. '),
+        ),
+        complete: label,
+      }
+    }),
+  )
+}
+
 /** A task's name cut to what a row has room for, at its end, saying that it was. */
 function shortTask(task: string): string {
   return task.length <= TASK_CELLS ? task : `${task.slice(0, TASK_CELLS - 1)}…`
@@ -506,6 +560,7 @@ const SHOWN: Record<SearchKind, number> = {
   approval: 5,
   meant: 4,
   agent: 6,
+  plan: 4,
   document: 6,
   file: 12,
   match: 12,
