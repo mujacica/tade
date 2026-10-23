@@ -152,8 +152,10 @@ describe('the window, and the work waiting in it', () => {
         },
       ],
     })
-    await until('the queue on screen', () =>
-      screenOf(terminal.written).some((row) => row.includes('SMART QUEUE')),
+    // The plan makes its tasks one at a time, and a beat between the two draws
+    // the queue with look-first alone and starts it: wait on the row itself.
+    await until('fix-after in the queue', () =>
+      screenOf(terminal.written).some((row) => row.includes('fix-after')),
     )
     const tab = find('fix-after')
     terminal.written = ''
@@ -196,8 +198,8 @@ describe('the window, and the work waiting in it', () => {
         },
       ],
     })
-    await until('the queue on screen', () =>
-      screenOf(terminal.written).some((row) => row.includes('SMART QUEUE')),
+    await until('fix-after in the queue', () =>
+      screenOf(terminal.written).some((row) => row.includes('fix-after')),
     )
     const tab = find('fix-after')
     click(tab.col + 1, tab.row)
