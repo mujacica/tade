@@ -17,9 +17,15 @@
       "trailingCommas": "all"
     }
   },
+  "yaml": {
+    "formatter": { "enabled": false }
+  },
   "linter": {
     "rules": {
       "preset": "recommended",
+      "correctness": {
+        "noInvalidGridAreas": "off"
+      },
       "style": {
         "noNonNullAssertion": "off"
       }
