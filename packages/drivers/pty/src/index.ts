@@ -22,8 +22,10 @@ import {
   wheelBytes,
 } from '@tade/drivers-core'
 import { type IPty, spawn } from 'node-pty'
+import { leakIn, mastersHeld } from './held.ts'
 import { helperAt, helperProblem } from './helper.ts'
 import { type Frame, type Order, type Report, WATCH_MS } from './protocol.ts'
+import { spawnClosingSpare } from './spare.ts'
 import { EMULATORS, EmulatorThread } from './thread.ts'
 
 // The default driver: Tade owns the PTYs and your terminal is just a
@@ -33,6 +35,22 @@ import { EMULATORS, EmulatorThread } from './thread.ts'
 // rendered state instead of a soup of escape sequences — on a thread of its
 // own (`emulator.ts`), so parsing what every agent prints is never the thread
 // that draws the window. The processes stay here (`thread.ts` says why).
+
+export { mastersHeld } from './held.ts'
+
+/**
+ * The ptys every driver in this process has spawned and not yet given back: a
+ * lane's from its spawn until its end has been read or it was closed. What a
+ * count of the masters this process holds is compared with (`held.ts`), across
+ * drivers because the count is the process's.
+ */
+const HOLDING = new Set<IPty>()
+
+/**
+ * What node-pty's terminals have and its types do not say: the master's
+ * descriptor (on Unix), and `destroy`, which lets the master go at once.
+ */
+type Pty = IPty & { fd?: number; destroy(): void }
 
 export interface PtyDriverOptions {
   /** Lines of scrollback kept per lane. */
@@ -166,6 +184,8 @@ export class PtyDriver implements WorkspaceDriver {
   }
 
   private readonly lanes = new Map<string, Lane>()
+  /** Whether a leak has been said and not yet seen to end, so it is said once. */
+  private leakSaid = false
   /** The lanes that still have a screen, by the key the emulators know them by. */
   private readonly keyed = new Map<number, Lane>()
   private keys = 0
@@ -225,19 +245,25 @@ export class PtyDriver implements WorkspaceDriver {
     const rows = spec.rows ?? DEFAULTS.rows
     let pty: IPty
     try {
-      pty = spawn(command, spec.args, {
-        name: env.TERM ?? 'xterm-256color',
-        cwd: spec.cwd,
-        cols,
-        rows,
-        env,
-      })
+      pty = spawnClosingSpare(
+        () =>
+          spawn(command, spec.args, {
+            name: env.TERM ?? 'xterm-256color',
+            cwd: spec.cwd,
+            cols,
+            rows,
+            env,
+          }),
+        (made) => (made as Pty).fd,
+      )
     } catch (error) {
       // `available()` says this too, and nothing is obliged to have asked it.
       const problem = helperProblem(helperAt())
       if (problem === null) throw error
       throw new Error(problem, { cause: error })
     }
+    HOLDING.add(pty)
+    this.lookForLeak()
     const lane: Lane = {
       handle: {
         id: spec.id,
@@ -305,6 +331,9 @@ export class PtyDriver implements WorkspaceDriver {
       for (const listener of lane.outputs) safely(() => listener(buf))
     })
     pty.onExit(({ exitCode, signal }) => {
+      // node-pty says a lane ended only once it has read the end of it and
+      // let the master go.
+      HOLDING.delete(pty)
       lane.handle.alive = false
       lane.handle.exitCode = exitCode
       const event = { code: exitCode, signal: signal ?? null }
@@ -440,12 +469,32 @@ export class PtyDriver implements WorkspaceDriver {
     if (!lane || lane.closed) return
     lane.closed = true
     lane.handle.alive = false
+    // Lets the master go before this returns and then hangs the program up,
+    // where `kill()` hung it up and left the master open until it went: a
+    // program that ignores the hangup kept the machine's pty for as long as
+    // it ran.
     try {
-      lane.pty.kill()
+      ;(lane.pty as Pty).destroy()
     } catch {
       // already gone
     }
+    HOLDING.delete(lane.pty)
     this.release(lane)
+  }
+
+  /**
+   * Say once, through `trouble`, when this process holds more ptys than the
+   * lanes it runs: after a spawn, the one moment a leak can grow (`held.ts`).
+   */
+  private lookForLeak(): void {
+    const said = leakIn(mastersHeld(), HOLDING.size)
+    if (said === null) {
+      this.leakSaid = false
+      return
+    }
+    if (this.leakSaid) return
+    this.leakSaid = true
+    this.opts.trouble?.(new Error(said))
   }
 
   onOutput(id: LaneId, listener: LaneOutputListener, opts: { replay?: boolean } = {}): Unsubscribe {
