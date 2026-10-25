@@ -17,6 +17,9 @@
       "trailingCommas": "all"
     }
   },
+  "yaml": {
+    "formatter": { "enabled": false }
+  },
   "linter": {
     "rules": {
       "preset": "recommended",
