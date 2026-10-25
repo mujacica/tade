@@ -203,7 +203,7 @@ export function workflowClick(
 function move(panel: WorkflowPanel, rows: readonly WorkflowRow[], by: number): PanelOutcome {
   if (rows.length === 0) return stay(panel)
   const here = rows.findIndex((one) => one.template === panel.template && one.step === panel.row)
-  const next = rows[Math.max(0, Math.min(rows.length - 1, (here < 0 ? 0 : here) + by))]
+  const next = rows[Math.max(0, Math.min(rows.length - 1, Math.max(here, 0) + by))]
   if (!next) return stay(panel)
   const moved: WorkflowPanel = {
     ...panel,

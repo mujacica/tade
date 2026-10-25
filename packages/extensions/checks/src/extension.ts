@@ -324,7 +324,7 @@ export const checksExtension: TadeExtension = {
         const reason = String(input.reason ?? '')
         const asked = input.task ? String(input.task) : null
         const mine = ctx.caller.kind === 'agent' ? ctx.caller.task : null
-        const hours = Number(input.hours) > 0 ? Number(input.hours) : 0
+        const hours = Math.max(0, Number(input.hours) || 0)
         const problem = overrideProblem({
           by:
             ctx.caller.kind === 'agent'

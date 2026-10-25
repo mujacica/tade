@@ -1133,7 +1133,7 @@ export function focusBy(state: AppState, delta: number): AppState {
   ]
   const here = state.dictation !== null ? null : state.focused
   const at = ring.indexOf(here)
-  const next = ((((at < 0 ? 0 : at) + delta) % ring.length) + ring.length) % ring.length
+  const next = (((Math.max(at, 0) + delta) % ring.length) + ring.length) % ring.length
   const focused = ring[next] ?? null
   if (focused === null) return openLine(state)
   const project = state.panes.find((pane) => pane.task === focused)?.project ?? state.project
