@@ -52,7 +52,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v5
         with:
-          node-version: "22"
+          node-version: '22'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # The tmux driver's conformance suite is not one that may be skipped: a

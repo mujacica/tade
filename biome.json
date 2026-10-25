@@ -2,7 +2,14 @@
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
   "files": {
-    "includes": ["**", "!**/*.md", "!test/fixtures/transcripts", "!**/test/golden", "!images"]
+    "includes": [
+      "**",
+      "!**/*.md",
+      "!test/fixtures/transcripts",
+      "!**/test/golden",
+      "!images",
+      "!pnpm-lock.yaml"
+    ]
   },
   "plugins": ["./biome/no-port-id-check.grit"],
   "formatter": {
@@ -15,6 +22,11 @@
       "quoteStyle": "single",
       "semicolons": "asNeeded",
       "trailingCommas": "all"
+    }
+  },
+  "yaml": {
+    "formatter": {
+      "quoteStyle": "single"
     }
   },
   "linter": {
