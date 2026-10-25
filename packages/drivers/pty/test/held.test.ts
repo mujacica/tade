@@ -1,7 +1,7 @@
 import { closeSync, openSync } from 'node:fs'
 import type { LaneId } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
-import { LEAK_SAID_AT, leakIn } from '../src/held.ts'
+import { isMaster, LEAK_SAID_AT, leakIn, mastersOpen } from '../src/held.ts'
 import { mastersHeld, PtyDriver } from '../src/index.ts'
 
 // What every way a lane ends gives back of the machine's pseudo-terminals,
@@ -132,5 +132,37 @@ describe('what is said about a count', () => {
 
   it('names how many are held and by how many lanes', () => {
     expect(leakIn(334, 12)).toContain('holds 334 pseudo-terminals and is running 12 lanes, so 322')
+  })
+})
+
+describe('which descriptors are masters', () => {
+  // macOS's `/dev/ptmx` is 15,1: major 15 in the top byte of 0x0f000001.
+  const macPtmx = 0x0f00_0001
+  // Linux's is 5,2, and so is every master opened through it.
+  const linuxPtmx = 0x0502
+
+  it('is every clone with /dev/ptmx’s major on macOS', () => {
+    expect(isMaster('darwin', macPtmx, 0x0f00_0007)).toBe(true)
+    // /dev/null is 3,2.
+    expect(isMaster('darwin', macPtmx, 0x0300_0002)).toBe(false)
+  })
+
+  it('is /dev/ptmx itself elsewhere, never another device with its major', () => {
+    expect(isMaster('linux', linuxPtmx, linuxPtmx)).toBe(true)
+    // /dev/tty is 5,0.
+    expect(isMaster('linux', linuxPtmx, 0x0500)).toBe(false)
+  })
+
+  it('is one this process opened through /dev/ptmx, and not one it opened elsewhere', () => {
+    const master = openSync('/dev/ptmx', 'r+')
+    const file = openSync('/dev/null', 'r')
+    try {
+      const open = mastersOpen()
+      expect(open?.has(master)).toBe(true)
+      expect(open?.has(file)).toBe(false)
+    } finally {
+      closeSync(master)
+      closeSync(file)
+    }
   })
 })

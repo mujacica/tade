@@ -22,14 +22,24 @@ import { codeOf, mastersOpen } from './held.ts'
 // opens one. Where the spawn threw, no new one is anybody's. A node-pty that
 // closes its spare leaves nothing new, so this then closes nothing.
 
+/** Where the spare is looked for, and how; the defaults are this machine's. */
+export interface Looking {
+  /**
+   * Whether node-pty leaves a spare here at all: only on macOS. Every other
+   * spawn is made without a look.
+   */
+  leaves?: boolean
+  /** The masters open in this process now (`mastersOpen`). */
+  look?: () => Set<number> | null
+}
+
 /**
  * Spawn through node-pty and close the pseudo-terminal it leaves behind,
  * whether the spawn worked or threw.
  *
  * `master` is the descriptor of the lane's own pty, read from what `spawn`
  * returned, or undefined where it does not say: then nothing is closed, since
- * nothing tells the spare from the lane's. Only on macOS, where the spare is
- * opened at all.
+ * nothing tells the spare from the lane's.
  *
  * Looking for the spare never stands in the way of the lane: where a look
  * fails, `trouble` is told that the spare may still be open, and the lane is
@@ -39,26 +49,30 @@ export function spawnClosingSpare<T>(
   spawn: () => T,
   master: (made: T) => number | undefined,
   trouble: (problem: Error) => void,
-  platform: string = process.platform,
+  { leaves = process.platform === 'darwin', look = () => mastersOpen() }: Looking = {},
 ): T {
-  if (platform !== 'darwin') return spawn()
-  const before = looked(() => mastersOpen(platform), trouble)
+  if (!leaves) return spawn()
+  const before = looked(look, trouble)
   let made: T
   try {
     made = spawn()
   } catch (error) {
-    looked(() => closeNew(before, null, platform), trouble)
+    looked(() => closeNew(before, null, look), trouble)
     throw error
   }
   const own = master(made)
-  if (own !== undefined) looked(() => closeNew(before, own, platform), trouble)
+  if (own !== undefined) looked(() => closeNew(before, own, look), trouble)
   return made
 }
 
 /** Close every master open now that was not before and is not `own`. */
-function closeNew(before: Set<number> | null, own: number | null, platform: string): void {
+function closeNew(
+  before: Set<number> | null,
+  own: number | null,
+  look: () => Set<number> | null,
+): void {
   if (before === null) return
-  for (const fd of mastersOpen(platform) ?? []) {
+  for (const fd of look() ?? []) {
     if (before.has(fd) || fd === own) continue
     try {
       closeSync(fd)

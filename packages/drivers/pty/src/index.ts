@@ -1,3 +1,4 @@
+import { write as writeTo } from 'node:fs'
 import { type LaneId, resolveCommand, stringEnv, type Unsubscribe } from '@tade/core'
 import {
   type AdoptHint,
@@ -22,7 +23,7 @@ import {
   wheelBytes,
 } from '@tade/drivers-core'
 import { type IPty, spawn } from 'node-pty'
-import { leakIn, mastersHeld } from './held.ts'
+import { codeOf, leakIn, mastersHeld } from './held.ts'
 import { helperAt, helperProblem } from './helper.ts'
 import { type Frame, type Order, type Report, WATCH_MS } from './protocol.ts'
 import { spawnClosingSpare } from './spare.ts'
@@ -48,9 +49,10 @@ const HOLDING = new Set<IPty>()
 
 /**
  * What node-pty's terminals have and its types do not say: the master's
- * descriptor (on Unix), and `destroy`, which lets the master go at once.
+ * descriptor (on Unix), `destroy`, which lets the master go at once, and
+ * `close`, said once it has let the master go by itself.
  */
-type Pty = IPty & { fd?: number; destroy(): void }
+type Pty = IPty & { fd?: number; destroy(): void; on(event: 'close', listener: () => void): void }
 
 export interface PtyDriverOptions {
   /** Lines of scrollback kept per lane. */
@@ -136,6 +138,13 @@ interface Lane {
   /** What the emulators were last told somebody is looking at, and when. */
   watching: (Asked & { at: number }) | null
   waiting: Set<Waiting>
+  /** What was typed into the lane and not yet all written: settled, never rejected (`put`). */
+  writing: Promise<void>
+  /**
+   * node-pty has closed the master by itself: once nothing in the lane holds
+   * its terminal, which is usually its end and may be long before it.
+   */
+  letGo: boolean
 }
 
 const DEFAULTS = {
@@ -294,6 +303,8 @@ export class PtyDriver implements WorkspaceDriver {
       whole: null,
       watching: null,
       waiting: new Set(),
+      writing: Promise.resolve(),
+      letGo: false,
     }
     // Only once the new one is running: a launch that fails leaves the old
     // screen where it was, to be read.
@@ -331,6 +342,9 @@ export class PtyDriver implements WorkspaceDriver {
       }
       for (const listener of lane.outputs) safely(() => listener(buf))
     })
+    ;(pty as Pty).on('close', () => {
+      lane.letGo = true
+    })
     pty.onExit(({ exitCode, signal }) => {
       // node-pty says a lane ended only once it has read the end of it and
       // let the master go.
@@ -345,7 +359,52 @@ export class PtyDriver implements WorkspaceDriver {
 
   async write(id: LaneId, data: Uint8Array): Promise<void> {
     const lane = this.live(id)
-    lane.pty.write(Buffer.from(data).toString('utf8'))
+    // A program that has ended takes nothing more, and its master is gone.
+    if (!lane.handle.alive || lane.letGo) return
+    const bytes = Buffer.from(data)
+    lane.writing = lane.writing.then(() => this.put(lane, bytes))
+  }
+
+  /**
+   * Hand what was typed to the lane's master until it has taken all of it, or
+   * the lane was closed or ended, or node-pty let the master go (`letGo`).
+   *
+   * Written here rather than by node-pty, whose queue writes on after
+   * `destroy()` has closed the descriptor: a write still queued when a lane
+   * was closed failed with EBADF ("Unhandled pty write error"), or went to
+   * whatever was opened next under the same number. So `close()` waits for the
+   * write in flight, which is one system call because the master does not
+   * block, and the rest are dropped.
+   */
+  private async put(lane: Lane, bytes: Buffer): Promise<void> {
+    const fd = (lane.pty as Pty).fd
+    let at = 0
+    try {
+      if (fd === undefined) return lane.pty.write(bytes.toString('utf8'))
+      while (at < bytes.byteLength && !lane.closed && lane.handle.alive && !lane.letGo) {
+        try {
+          at += await writeSome(fd, bytes, at)
+        } catch (error) {
+          // Full, as a program that is not reading leaves it: tried next turn.
+          if (codeOf(error) !== 'EAGAIN') throw error
+          await turn()
+        }
+      }
+    } catch (error) {
+      // Nothing in the lane held its terminal any more, and node-pty had not
+      // said so yet: there is nobody left to type to.
+      const code = codeOf(error)
+      if (code === 'EIO' || code === 'EBADF') return
+      const why = error instanceof Error ? error.message : String(error)
+      const left = bytes.byteLength - at
+      safely(() =>
+        this.opts.trouble?.(
+          new Error(`${left} bytes typed into ${lane.handle.id} could not be written: ${why}`, {
+            cause: error,
+          }),
+        ),
+      )
+    }
   }
 
   /**
@@ -470,6 +529,8 @@ export class PtyDriver implements WorkspaceDriver {
     if (!lane || lane.closed) return
     lane.closed = true
     lane.handle.alive = false
+    // Not under a write still in flight (`put`).
+    await lane.writing
     // Lets the master go before this returns and then hangs the program up,
     // where `kill()` hung it up and left the master open until it went: a
     // program that ignores the hangup kept the machine's pty for as long as
@@ -725,6 +786,15 @@ export class PtyDriver implements WorkspaceDriver {
     lane.exits.clear()
     for (const waiting of lane.waiting) waiting.done()
   }
+}
+
+/** Write what `bytes` holds from `at` on to `fd`, as much as it takes: how much. */
+function writeSome(fd: number, bytes: Buffer, at: number): Promise<number> {
+  return new Promise((resolve, reject) =>
+    writeTo(fd, bytes, at, bytes.byteLength - at, null, (error, written) =>
+      error ? reject(error) : resolve(written),
+    ),
+  )
 }
 
 /** Once round the event loop, after whatever I/O is waiting. */

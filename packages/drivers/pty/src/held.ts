@@ -20,9 +20,9 @@ export const codeOf = (error: unknown): string | undefined =>
  * null on a machine with no `/dev/ptmx` or `/dev/fd` to ask. Any other failure
  * to look is thrown: a look that failed is not a count of none.
  *
- * A master is a character device opened through `/dev/ptmx`. On macOS each one
- * is a clone with a minor of its own and `/dev/ptmx`'s major; elsewhere it is
- * `/dev/ptmx` itself, whose major Linux shares with `/dev/tty` and the console.
+ * A master is a character device opened through `/dev/ptmx` (`isMaster`).
+ * Linux numbers every one as `/dev/ptmx` itself, whose major it shares with
+ * `/dev/tty` and the console, so the whole number is compared there.
  */
 export function mastersOpen(platform: string = process.platform): Set<number> | null {
   let ptmx: number
@@ -34,16 +34,12 @@ export function mastersOpen(platform: string = process.platform): Set<number> | 
     if (codeOf(error) === 'ENOENT') return null
     throw error
   }
-  const isMaster =
-    platform === 'darwin'
-      ? (rdev: number) => rdev >>> 24 === ptmx >>> 24
-      : (rdev: number) => rdev === ptmx
   const open = new Set<number>()
   for (const name of fds) {
     const fd = Number(name)
     try {
       const it = fstatSync(fd)
-      if (it.isCharacterDevice() && isMaster(it.rdev)) open.add(fd)
+      if (it.isCharacterDevice() && isMaster(platform, ptmx, it.rdev)) open.add(fd)
     } catch (error) {
       // The descriptor the listing itself had open, closed by the time it is
       // looked at, is not one of anybody's.
@@ -51,6 +47,15 @@ export function mastersOpen(platform: string = process.platform): Set<number> | 
     }
   }
   return open
+}
+
+/**
+ * Whether a character device numbered `rdev` is a pseudo-terminal master, on
+ * a machine whose `/dev/ptmx` is numbered `ptmx`: a clone with `/dev/ptmx`'s
+ * major (the top byte) on macOS, and `/dev/ptmx` itself elsewhere.
+ */
+export function isMaster(platform: string, ptmx: number, rdev: number): boolean {
+  return platform === 'darwin' ? rdev >>> 24 === ptmx >>> 24 : rdev === ptmx
 }
 
 /** How many pseudo-terminal masters this process holds now: `mastersOpen`, counted. */

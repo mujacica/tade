@@ -22,7 +22,9 @@ async function until(check: () => boolean, what: () => string, ms = 10_000): Pro
   }
 }
 
-describe.runIf(process.platform === 'darwin')('the pseudo-terminals a lane holds', () => {
+// Run on every machine: node-pty leaves a spare only on macOS, and a lane that
+// gives every one back is what every machine is owed.
+describe('the pseudo-terminals a lane holds', () => {
   let driver: PtyDriver
   afterEach(async () => {
     await driver.shutdown()
@@ -59,8 +61,11 @@ describe.runIf(process.platform === 'darwin')('the pseudo-terminals a lane holds
   })
 })
 
-describe.runIf(process.platform === 'darwin')('what is closed as the spare', () => {
-  // Spawns that open what node-pty 1.1.0's does, without node-pty.
+// Run on every machine, as though node-pty left a spare there too: which
+// descriptors are masters is the machine's (`isMaster`), and what is done with
+// them is not.
+describe('what is closed as the spare', () => {
+  // Spawns that open what node-pty 1.1.0's does on macOS, without node-pty.
   const ptmx = () => openSync('/dev/ptmx', 'r+')
   const isOpen = (fd: number) => {
     try {
@@ -90,7 +95,7 @@ describe.runIf(process.platform === 'darwin')('what is closed as the spare', () 
       },
       (fd) => fd,
       say,
-      'darwin',
+      { leaves: true },
     )
     kept.push(own)
     expect(isOpen(spare)).toBe(false)
@@ -108,7 +113,7 @@ describe.runIf(process.platform === 'darwin')('what is closed as the spare', () 
       },
       (fd) => fd,
       say,
-      'darwin',
+      { leaves: true },
     )
     kept.push(own, file)
     expect([earlier, own, file].map(isOpen)).toEqual([true, true, true])
@@ -124,7 +129,7 @@ describe.runIf(process.platform === 'darwin')('what is closed as the spare', () 
         },
         () => 0,
         say,
-        'darwin',
+        { leaves: true },
       ),
     ).toThrow('posix_spawnp failed.')
     expect(isOpen(spare)).toBe(false)
@@ -139,7 +144,7 @@ describe.runIf(process.platform === 'darwin')('what is closed as the spare', () 
       },
       () => undefined,
       say,
-      'darwin',
+      { leaves: true },
     )
     kept.push(spare, own)
     expect([spare, own].map(isOpen)).toEqual([true, true])
@@ -154,9 +159,68 @@ describe.runIf(process.platform === 'darwin')('what is closed as the spare', () 
       },
       (fd) => fd,
       say,
-      'linux',
+      { leaves: false },
     )
     kept.push(spare, own)
     expect(isOpen(spare)).toBe(true)
+  })
+
+  it('is not looked for where a look fails, and the lane is opened all the same', () => {
+    let spare = -1
+    const own = spawnClosingSpare(
+      () => {
+        spare = ptmx()
+        return ptmx()
+      },
+      (fd) => fd,
+      say,
+      {
+        leaves: true,
+        look: () => {
+          throw new Error('EMFILE: too many open files')
+        },
+      },
+    )
+    kept.push(spare, own)
+    expect([spare, own].map(isOpen)).toEqual([true, true])
+    expect(said.splice(0).map((problem) => problem.message)).toEqual([
+      'The pseudo-terminal node-pty leaves open beside a lane could not be looked for, so it may still be open: EMFILE: too many open files',
+    ])
+  })
+
+  it('is nothing where the machine cannot be asked, and nothing is said', () => {
+    let spare = -1
+    const own = spawnClosingSpare(
+      () => {
+        spare = ptmx()
+        return ptmx()
+      },
+      (fd) => fd,
+      say,
+      { leaves: true, look: () => null },
+    )
+    kept.push(spare, own)
+    expect([spare, own].map(isOpen)).toEqual([true, true])
+  })
+
+  it('still throws what the spawn threw when the look after it fails', () => {
+    let looks = 0
+    expect(() =>
+      spawnClosingSpare(
+        () => {
+          throw new Error('posix_spawnp failed.')
+        },
+        () => 0,
+        say,
+        {
+          leaves: true,
+          look: () => {
+            if (++looks > 1) throw new Error('EMFILE: too many open files')
+            return new Set()
+          },
+        },
+      ),
+    ).toThrow('posix_spawnp failed.')
+    expect(said.splice(0)).toHaveLength(1)
   })
 })
