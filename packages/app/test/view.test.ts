@@ -561,9 +561,12 @@ describe('the focused agent', () => {
 
   it('says which project it is waiting in, where there is no room for the total', () => {
     // The tab carries its own project's mark, which is the answer a total at
-    // the right cannot give — so that is what a narrow window keeps.
-    const text = plain(renderApp(state(), frame()).join('\n'))
-    expect(text).toContain('checkout !')
+    // the right cannot give — so that is what a narrow window keeps. 90 columns
+    // is past the total and short of where the tab you are in trades its mark
+    // for its own `×` (`LADDER`, view/top.ts), which 80 already is.
+    const top = plain(renderApp(state(), frame({ width: 90 }))[0] ?? '')
+    expect(top).not.toContain('! 1')
+    expect(top).toContain('checkout !')
   })
 })
 
