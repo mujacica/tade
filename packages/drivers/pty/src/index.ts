@@ -255,6 +255,7 @@ export class PtyDriver implements WorkspaceDriver {
             env,
           }),
         (made) => (made as Pty).fd,
+        (problem) => this.opts.trouble?.(problem),
       )
     } catch (error) {
       // `available()` says this too, and nothing is obliged to have asked it.
@@ -487,7 +488,19 @@ export class PtyDriver implements WorkspaceDriver {
    * lanes it runs: after a spawn, the one moment a leak can grow (`held.ts`).
    */
   private lookForLeak(): void {
-    const said = leakIn(mastersHeld(), HOLDING.size)
+    let held: number | null
+    try {
+      held = mastersHeld()
+    } catch (error) {
+      const why = error instanceof Error ? error.message : String(error)
+      this.opts.trouble?.(
+        new Error(`How many pseudo-terminals this window holds could not be counted: ${why}`, {
+          cause: error,
+        }),
+      )
+      return
+    }
+    const said = leakIn(held, HOLDING.size)
     if (said === null) {
       this.leakSaid = false
       return

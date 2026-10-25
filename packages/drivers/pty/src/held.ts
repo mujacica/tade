@@ -11,9 +11,14 @@ import { fstatSync, readdirSync, statSync } from 'node:fs'
 // `kern.tty.ptmx_max`), and once they are gone every new lane, every test run
 // and every terminal window on the machine fails with `posix_spawnp failed.`
 
+/** The code a failed system call threw with, where it was one. */
+export const codeOf = (error: unknown): string | undefined =>
+  (error as NodeJS.ErrnoException | null)?.code
+
 /**
  * The descriptors of the pseudo-terminal masters this process holds now, or
- * null where it cannot tell.
+ * null on a machine with no `/dev/ptmx` or `/dev/fd` to ask. Any other failure
+ * to look is thrown: a look that failed is not a count of none.
  *
  * A master is a character device opened through `/dev/ptmx`. On macOS each one
  * is a clone with a minor of its own and `/dev/ptmx`'s major; elsewhere it is
@@ -25,8 +30,9 @@ export function mastersOpen(platform: string = process.platform): Set<number> | 
   try {
     ptmx = statSync('/dev/ptmx').rdev
     fds = readdirSync('/dev/fd')
-  } catch {
-    return null
+  } catch (error) {
+    if (codeOf(error) === 'ENOENT') return null
+    throw error
   }
   const isMaster =
     platform === 'darwin'
@@ -38,14 +44,16 @@ export function mastersOpen(platform: string = process.platform): Set<number> | 
     try {
       const it = fstatSync(fd)
       if (it.isCharacterDevice() && isMaster(it.rdev)) open.add(fd)
-    } catch {
-      // The descriptor the listing itself had open, gone by now.
+    } catch (error) {
+      // The descriptor the listing itself had open, closed by the time it is
+      // looked at, is not one of anybody's.
+      if (codeOf(error) !== 'EBADF') throw error
     }
   }
   return open
 }
 
-/** How many pseudo-terminal masters this process holds now, or null where it cannot tell. */
+/** How many pseudo-terminal masters this process holds now: `mastersOpen`, counted. */
 export function mastersHeld(platform: string = process.platform): number | null {
   return mastersOpen(platform)?.size ?? null
 }

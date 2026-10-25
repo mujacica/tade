@@ -71,8 +71,14 @@ describe.runIf(process.platform === 'darwin')('what is closed as the spare', () 
     }
   }
   const kept: number[] = []
+  /** What looking for the spare told `trouble`: nothing, where every look could be made. */
+  const said: Error[] = []
+  const say = (problem: Error) => {
+    said.push(problem)
+  }
   afterEach(() => {
     for (const fd of kept.splice(0)) if (isOpen(fd)) closeSync(fd)
+    expect(said.splice(0)).toEqual([])
   })
 
   it('is a pseudo-terminal the spawn opened beside the lane’s own', () => {
@@ -83,6 +89,7 @@ describe.runIf(process.platform === 'darwin')('what is closed as the spare', () 
         return ptmx()
       },
       (fd) => fd,
+      say,
       'darwin',
     )
     kept.push(own)
@@ -100,6 +107,7 @@ describe.runIf(process.platform === 'darwin')('what is closed as the spare', () 
         return ptmx()
       },
       (fd) => fd,
+      say,
       'darwin',
     )
     kept.push(own, file)
@@ -115,6 +123,7 @@ describe.runIf(process.platform === 'darwin')('what is closed as the spare', () 
           throw new Error('posix_spawnp failed.')
         },
         () => 0,
+        say,
         'darwin',
       ),
     ).toThrow('posix_spawnp failed.')
@@ -129,6 +138,7 @@ describe.runIf(process.platform === 'darwin')('what is closed as the spare', () 
         return ptmx()
       },
       () => undefined,
+      say,
       'darwin',
     )
     kept.push(spare, own)
@@ -143,6 +153,7 @@ describe.runIf(process.platform === 'darwin')('what is closed as the spare', () 
         return ptmx()
       },
       (fd) => fd,
+      say,
       'linux',
     )
     kept.push(spare, own)

@@ -1,5 +1,5 @@
 import { closeSync } from 'node:fs'
-import { mastersOpen } from './held.ts'
+import { codeOf, mastersOpen } from './held.ts'
 
 // Why a window that has been open a week leaves the machine with no
 // pseudo-terminals, and every lane after that fails with `posix_spawnp failed.`
@@ -30,23 +30,28 @@ import { mastersOpen } from './held.ts'
  * returned, or undefined where it does not say: then nothing is closed, since
  * nothing tells the spare from the lane's. Only on macOS, where the spare is
  * opened at all.
+ *
+ * Looking for the spare never stands in the way of the lane: where a look
+ * fails, `trouble` is told that the spare may still be open, and the lane is
+ * opened all the same.
  */
 export function spawnClosingSpare<T>(
   spawn: () => T,
   master: (made: T) => number | undefined,
+  trouble: (problem: Error) => void,
   platform: string = process.platform,
 ): T {
   if (platform !== 'darwin') return spawn()
-  const before = mastersOpen(platform)
+  const before = looked(() => mastersOpen(platform), trouble)
   let made: T
   try {
     made = spawn()
   } catch (error) {
-    closeNew(before, null, platform)
+    looked(() => closeNew(before, null, platform), trouble)
     throw error
   }
   const own = master(made)
-  if (own !== undefined) closeNew(before, own, platform)
+  if (own !== undefined) looked(() => closeNew(before, own, platform), trouble)
   return made
 }
 
@@ -57,8 +62,24 @@ function closeNew(before: Set<number> | null, own: number | null, platform: stri
     if (before.has(fd) || fd === own) continue
     try {
       closeSync(fd)
-    } catch {
-      // Gone already: nothing to give back.
+    } catch (error) {
+      // Closed already, between the look and now: nothing left to give back.
+      if (codeOf(error) !== 'EBADF') throw error
     }
+  }
+}
+
+/** What `look` answers, or null once `trouble` has been told why it could not. */
+function looked<T>(look: () => T, trouble: (problem: Error) => void): T | null {
+  try {
+    return look()
+  } catch (error) {
+    trouble(
+      new Error(
+        `The pseudo-terminal node-pty leaves open beside a lane could not be looked for, so it may still be open: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      ),
+    )
+    return null
   }
 }
