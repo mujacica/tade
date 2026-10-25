@@ -1,4 +1,4 @@
- ▄▀   T A D E     this Mac  checkout    search    infra      +      vps    tade    web          ctrl   +   space   talk 
+ ▄▀   T A D E     this Mac  checkout   ×  ≡   search    infra      +      vps    tade    web         ctrl   +   space   
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ ╭─ Evaluations ──────────────────────────────────────────────────────────────────────────────────────────── esc ─╮   
    │ 11 agents · 8 landed · merges from the journal and forge                                                       │───

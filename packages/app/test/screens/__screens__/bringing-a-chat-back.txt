@@ -1,4 +1,4 @@
- ▄▀   T A D E      checkout !⠋    search ✓    infra      +          ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+ ▄▀   T A D E      checkout !⠋   ×  ≡   search ✓    infra      +    ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2╭─ Bring a chat back ──────────────────────────────────────────────────────────────────── esc ─╮h ▾     ×   
             │ Each comes back on its own conversation, in its harness and folder.                          │────────────

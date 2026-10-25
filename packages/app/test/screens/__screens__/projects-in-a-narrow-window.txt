@@ -1,4 +1,4 @@
- ▄▀   T A D E      checkout !    search ●    infra !    docs ✓      +       ctrl   +   space   talk 
+ ▄▀   T A D E      checkout   ×  ≡   search    infra    docs      +         ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2        +    █│ refunds    agent    actions     +               claude-opus-5 ▾     ×   
                          █│─────────────────────────────────────────────────────────────────────────

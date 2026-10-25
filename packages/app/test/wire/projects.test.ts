@@ -171,24 +171,52 @@ describe('the window, closing a project', () => {
     expect(client.runs().map((run) => run.task)).toContain('app/charge-once')
   })
 
-  it('is still closable in a window too narrow to draw the × at all', async () => {
-    // The buttons are the first thing the top row gives up for space
-    // (`LADDER`), so in a narrow terminal there is no `×` and no `≡` — and the
-    // menu they are a shortcut to is a right-click on the tab, which is how a
-    // narrow window keeps the one act nothing else offers.
-    await over(['app', 'other'], 80)
+  /** Every `×` drawn among the tabs, up to the `+` where the tabs end. */
+  function closesDrawn(): number {
+    // The `×` beside the talk key is the mute mark and belongs to the window
+    // rather than to a project.
     const bar = tabs()
-    // Up to the `+`, which is where the tabs end: the `×` beside the talk key
-    // is the mute mark and belongs to the window rather than to a project.
-    expect(bar.text.slice(0, bar.text.indexOf('+'))).not.toContain('×')
-    const at = bar.text.indexOf('app')
+    return [...bar.text.slice(0, bar.text.indexOf('+'))].filter((c) => c === '×').length
+  }
+
+  // Six projects in 120 columns: too many for every tab to keep its own `×`
+  // and `≡`, which is the row somebody with a handful of projects open has.
+  // Before, the row gave every one of them up at once and the close was only
+  // a right-click nobody guesses; the tab you are in keeps its own now.
+  const CROWDED = ['app', 'checkout', 'payments', 'search', 'webhooks', 'other']
+
+  it('keeps the × on the tab you are in when the row is too crowded for every tab', async () => {
+    await over(CROWDED, 120)
+    // Every project still has its tab, the others' names cut with `…` to buy
+    // the room (`Fits.cut`), and the one you are in whole.
+    expect(tabs().text).toContain('[ app ]')
+    for (const project of CROWDED) expect(tabs().text).toContain(project.slice(0, 5))
+    expect(closesDrawn()).toBe(1)
+    const at = closeOf('app')
+    expect(at.col).toBeLessThan(tabs().text.indexOf('check'))
+    click(at.col, at.row)
+    await until('the project closed', () => client.config.projects.app === undefined)
+    expect(Object.keys(client.config.projects).sort()).toEqual(
+      CROWDED.filter((name) => name !== 'app').sort(),
+    )
+  })
+
+  it('closes the other tabs of a crowded row from their menu, a right-click on the tab', async () => {
+    // The tabs you are not in have no `×` in a crowded row, so the menu it is
+    // a shortcut to is a right-click on the tab — still every project closable
+    // from where its tab is.
+    await over(CROWDED, 120)
+    const bar = tabs()
+    const at = bar.text.indexOf('other')
+    expect(bar.text.slice(at, bar.text.indexOf('+'))).not.toContain('×')
     terminal.press(`\x1b[<2;${at + 1};${bar.row + 1}M`)
     terminal.press(`\x1b[<2;${at + 1};${bar.row + 1}m`)
     await until('the menu', () => terminal.written.includes('Close'))
     const lines = screenOf(terminal.written)
     const item = lines.findIndex((line) => line.includes('Close'))
     click(lines[item]?.indexOf('Close') ?? 0, item)
-    await until('the project closed', () => client.config.projects.app === undefined)
+    await until('the project closed', () => client.config.projects.other === undefined)
+    expect(client.config.projects.app).toBeDefined()
   })
 
   it('tells whoever asked for it which agents it left working', async () => {

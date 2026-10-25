@@ -23,7 +23,7 @@ import {
   remoteStanding,
   standingOf,
 } from './standing.ts'
-import { clock } from './text.ts'
+import { clock, shortened } from './text.ts'
 
 // Along the top: the projects you are in one of, the agent that needs you, and
 // the key you talk with.
@@ -214,10 +214,21 @@ type Counts = 'full' | 'short' | 'waiting' | 'none'
 const countedBy = (counts: Counts): readonly ProjectMark[] =>
   counts === 'waiting' ? ['needs-you'] : ['needs-you', 'working']
 
+/** Which tabs carry a close and a menu (`Fits.manage`). */
+type Manage = 'every' | 'here' | 'none'
+
 interface Fits {
   tabs: TabDetail
-  /** Each tab's own `×` and `≡`, in the six columns kept for them. */
-  manage: boolean
+  /**
+   * Which tabs carry their own `×` and `≡`, in the six columns kept for them:
+   * every tab, only the one you are in (`'here'`), or none.
+   */
+  manage: Manage
+  /**
+   * The most columns the name on a tab you are not in may take, cut with `…`
+   * past it; absent, every name is whole. The tab you are in is never cut.
+   */
+  cut?: number
   search: boolean
   counts: Counts
   word: boolean
@@ -231,13 +242,13 @@ interface Fits {
 
 /**
  * Room for the caps and nothing else, and a tab in the menu if even that will
- * not do. Dropping the word is the last thing left to drop, and it is the caps
- * that say what to press — a bar that gave up the talk key to keep the word
- * `talk` would have it backwards.
+ * not do. Dropping the word and the close on the tab you are in are the last
+ * things left to drop, and it is the caps that say what to press — a bar that
+ * gave up the talk key to keep the word `talk` would have it backwards.
  */
 const LAST: Fits = {
   tabs: 'none',
-  manage: false,
+  manage: 'none',
   search: false,
   counts: 'none',
   word: false,
@@ -248,8 +259,9 @@ const LAST: Fits = {
  * Everything along the top, in the order it gives ground.
  *
  * The talk key is the one thing here that must survive a narrow terminal;
- * search is next. The counts shorten, then go, and the very last thing to go
- * is the word beside the caps — never the caps.
+ * search is next. The counts shorten, then go, and the last things to go are
+ * the word beside the caps and then the close on the tab you are in — never
+ * the caps.
  *
  * The tabs are in the same ladder, and their marks outlive the total at the
  * right: the total is a sum of them, and a sum nobody can place is what sent
@@ -259,32 +271,56 @@ const LAST: Fits = {
  * the two ends of one row against each other.
  */
 const LADDER: readonly Fits[] = [
-  { tabs: 'counts', manage: true, search: true, counts: 'full', word: true, hide: false },
-  { tabs: 'counts', manage: true, search: true, counts: 'short', word: true, hide: false },
-  { tabs: 'counts', manage: true, search: true, counts: 'waiting', word: true, hide: false },
-  // Then the buttons, and giving them up buys the whole right-hand group
-  // back — the same trade giving up the search key makes further down. They go
-  // here, after the total at the right has shortened as far as it shortens and
-  // before a tab gives up a single mark, because six columns *a tab* is the
-  // most expensive thing on this row the moment more than one project is open,
-  // and they are the only thing here that is a second way to something: the
-  // menu is a right-click on the tab either way, and closing is in it. What a
-  // mark says is not reachable any other way, so every mark outlives them.
-  { tabs: 'counts', manage: false, search: true, counts: 'full', word: true, hide: false },
-  { tabs: 'counts', manage: false, search: true, counts: 'short', word: true, hide: false },
-  { tabs: 'counts', manage: false, search: true, counts: 'waiting', word: true, hide: false },
-  { tabs: 'marks', manage: false, search: true, counts: 'waiting', word: true, hide: false },
+  { tabs: 'counts', manage: 'every', search: true, counts: 'full', word: true, hide: false },
+  { tabs: 'counts', manage: 'every', search: true, counts: 'short', word: true, hide: false },
+  { tabs: 'counts', manage: 'every', search: true, counts: 'waiting', word: true, hide: false },
+  // Then the buttons on every tab but the one you are in, and giving them up
+  // buys the whole right-hand group back — the same trade giving up the search
+  // key makes further down. They go here, after the total at the right has
+  // shortened as far as it shortens and before a tab gives up a single mark,
+  // because six columns *a tab* is the most expensive thing on this row the
+  // moment more than one project is open.
+  //
+  // The tab you are in keeps its own, on every rung but the last. Giving them
+  // all up together is what made the `×` vanish the moment a fifth project was
+  // open in a terminal 180 columns wide, with nothing to say where it went: the
+  // menu was a right-click nobody guesses. Six columns once is cheap, the lit
+  // tab is never put in the `⋯`, so its buttons are always beside it, and they
+  // stay put while the pointer sweeps the row — which is why it is the tab you
+  // are in and not the one under the pointer, which would move every tab to
+  // its right as the hand went past.
+  { tabs: 'counts', manage: 'here', search: true, counts: 'full', word: true, hide: false },
+  { tabs: 'counts', manage: 'here', search: true, counts: 'short', word: true, hide: false },
+  { tabs: 'counts', manage: 'here', search: true, counts: 'waiting', word: true, hide: false },
+  { tabs: 'marks', manage: 'here', search: true, counts: 'waiting', word: true, hide: false },
   // Giving up search buys the working count back, as it always did: down here
   // the counts are worth more than a key that has a shortcut of its own.
-  { tabs: 'marks', manage: false, search: false, counts: 'short', word: true, hide: false },
-  { tabs: 'marks', manage: false, search: false, counts: 'waiting', word: true, hide: false },
-  { tabs: 'busiest', manage: false, search: false, counts: 'waiting', word: true, hide: false },
-  { tabs: 'busiest', manage: false, search: false, counts: 'none', word: true, hide: false },
-  { tabs: 'none', manage: false, search: false, counts: 'none', word: true, hide: false },
-  // The row at its poorest with every project still on it: names alone, and
-  // the word beside the caps gone. `LAST` is this rung again at the bottom,
-  // and the only thing between them is whether a tab may be put away.
-  { tabs: 'none', manage: false, search: false, counts: 'none', word: false, hide: false },
+  { tabs: 'marks', manage: 'here', search: false, counts: 'short', word: true, hide: false },
+  { tabs: 'marks', manage: 'here', search: false, counts: 'waiting', word: true, hide: false },
+  { tabs: 'busiest', manage: 'here', search: false, counts: 'waiting', word: true, hide: false },
+  { tabs: 'busiest', manage: 'here', search: false, counts: 'none', word: true, hide: false },
+  { tabs: 'none', manage: 'here', search: false, counts: 'none', word: true, hide: false },
+  { tabs: 'none', manage: 'here', search: false, counts: 'none', word: false, hide: false },
+  // Then the names of the tabs you are not in are cut, before the close on
+  // the one you are in goes: a name cut to `sentry-op…` still says which tab
+  // it is, and it is the same `…` an agent's name down the side is cut with.
+  // Never the one you are in.
+  {
+    tabs: 'none',
+    manage: 'here',
+    cut: 10,
+    search: false,
+    counts: 'none',
+    word: false,
+    hide: false,
+  },
+  { tabs: 'none', manage: 'here', cut: 6, search: false, counts: 'none', word: false, hide: false },
+  // The row at its poorest with every project still on it: whole names alone,
+  // and the word beside the caps gone. Every name whole and on the row is
+  // worth more than the close, which is still the right-click on a tab; once
+  // a tab has to go in the `⋯` anyway, the close comes back, below.
+  { tabs: 'none', manage: 'none', search: false, counts: 'none', word: true, hide: false },
+  { tabs: 'none', manage: 'none', search: false, counts: 'none', word: false, hide: false },
   // Everything above here draws every project there is. Below it a tab goes in
   // the `⋯` beside the `+`, which says how many went and the most urgent thing
   // in any of them, and whose menu is the list of them.
@@ -299,9 +335,15 @@ const LADDER: readonly Fits[] = [
   // is why these three are the three above them again, in the same order: by
   // the time a tab has gone there is room for the rest to say something, and a
   // tab that says nothing in a row that is already not showing everything
-  // would be giving up twice over.
-  { tabs: 'busiest', manage: false, search: false, counts: 'none', word: true, hide: true },
-  { tabs: 'none', manage: false, search: false, counts: 'none', word: true, hide: true },
+  // would be giving up twice over. The close on the tab you are in comes back
+  // with them: a row that is putting tabs away is one with too many projects
+  // in it, which is when closing one is what somebody came to do.
+  { tabs: 'busiest', manage: 'here', search: false, counts: 'none', word: true, hide: true },
+  { tabs: 'none', manage: 'here', search: false, counts: 'none', word: true, hide: true },
+  { tabs: 'none', manage: 'here', search: false, counts: 'none', word: false, hide: true },
+  // Only where even that will not fit does the tab you are in give its buttons
+  // up, and the close is the right-click on the tab: the talk key's caps are
+  // the one thing on this row that is never given up.
   LAST,
 ]
 
@@ -422,14 +464,17 @@ export function renderTop(
   // argument is that file's (`bottomTabs`, `view/foot.ts`): always there, so
   // the room is paid for once rather than taken out from under the hand
   // sweeping along the row, and the tab stays lit while the pointer is on
-  // either of them, so reaching for a close is never leaving the tab.
-  const tabOf = (r: Row, project: string, label: string, manage: boolean): void => {
+  // either of them, so reaching for a close is never leaving the tab. Short of
+  // room only the tab you are in keeps them (`Manage`).
+  const tabOf = (r: Row, project: string, label: string, manage: Manage): void => {
     const target: Target = { kind: 'project', project }
     const menu: Target = { kind: 'menu', subject: { kind: 'project', project } }
     const close: Target = { kind: 'action', name: `close-project:${project}` }
-    const within = manage && pointingIn(state.hover, [target, menu, close])
-    r.tab(label, target, away === null && project === state.project, within)
-    if (manage) r.icon('×', close, 'danger').icon('≡', menu)
+    const lit = away === null && project === state.project
+    const buttons = manage === 'every' || (manage === 'here' && lit)
+    const within = buttons && pointingIn(state.hover, [target, menu, close])
+    r.tab(label, target, lit, within)
+    if (buttons) r.icon('×', close, 'danger').icon('≡', menu)
   }
   // Where there are other machines, this one's tabs are said to be this
   // machine's, first: the same label the others carry, so no row of tabs
@@ -457,25 +502,30 @@ export function renderTop(
   // machine's name, which only the rungs that put tabs away give up.
   const chromeOf = (fits: Fits): number =>
     probed(wordmark) + probed(plus) + probed((r) => hereOf(r, fits))
-  // Four labellings and five costings at most — one per detail, one per detail
-  // and whether the buttons are there — and the ladder's sixteen rungs ask for
+  // Six labellings and eight costings at most — one per detail and cut, one per
+  // detail, cut and which tabs have the buttons — and the ladder's rungs ask for
   // them over and over.
-  const labelled = new Map<TabDetail, Map<string, string>>()
-  const labels = (detail: TabDetail): Map<string, string> => {
-    const already = labelled.get(detail)
+  const labelled = new Map<string, Map<string, string>>()
+  const labels = (fits: Fits): Map<string, string> => {
+    const key = `${fits.tabs}\u0000${fits.cut ?? ''}`
+    const already = labelled.get(key)
     if (already) return already
     const made = new Map<string, string>()
-    for (const project of open)
-      made.set(project, tabLabel(shownProject(state, project), standings.get(project), detail, now))
-    labelled.set(detail, made)
+    for (const project of open) {
+      const name = shownProject(state, project)
+      const whole = fits.cut === undefined || (away === null && project === state.project)
+      const shown = whole ? name : shortened(name, fits.cut ?? 0)
+      made.set(project, tabLabel(shown, standings.get(project), fits.tabs, now))
+    }
+    labelled.set(key, made)
     return made
   }
   const measured = new Map<string, Map<string, number>>()
   const costs = (fits: Fits): Map<string, number> => {
-    const key = `${fits.tabs}\u0000${fits.manage}`
+    const key = `${fits.tabs}\u0000${fits.manage}\u0000${fits.cut ?? ''}`
     const already = measured.get(key)
     if (already) return already
-    const label = labels(fits.tabs)
+    const label = labels(fits)
     const cost = new Map<string, number>()
     for (const project of open)
       cost.set(
@@ -575,7 +625,7 @@ export function renderTop(
   const row = new Row(width, skin, pointer)
   wordmark(row)
   hereOf(row, fits)
-  const label = labels(fits.tabs)
+  const label = labels(fits)
   for (const project of strip.shown) tabOf(row, project, label.get(project) ?? project, fits.manage)
   if (strip.hidden.length > 0) moreOf(row, strip.hidden, moreLabel(strip.hidden, standings, now))
   plus(row)

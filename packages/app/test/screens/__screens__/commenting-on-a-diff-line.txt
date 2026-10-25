@@ -1,4 +1,4 @@
- ▄▀   T A D E      checkout !⠋    search ✓    infra      +          ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+ ▄▀   T A D E      checkout !⠋   ×  ≡   search ✓    infra      +    ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2╭─ src/webhooks.ts · stripe-v15 ─────────────────────────────────────────────────── +3 −1 esc ─╮h ▾     ×   
             │ @@ -38,5 +38,7 @@ export async function handle(req, res) {                                  ▕│────────────

@@ -446,7 +446,8 @@ is the order you arranged them in, so Move left is how one stays.
 
 ![Twelve projects and room for eight, the rest in the `⋯` beside the `+`](https://raw.githubusercontent.com/mujacica/tade/main/images/project-tabs-more.svg)
 
-Each tab has an `×` and a `≡` of its own, like a terminal's. The menu is where a project is renamed
+Each tab has an `×` and a `≡` of its own, like a terminal's, and with more projects than room the
+tab you are in keeps them. The menu, a right-click on any tab, is where a project is renamed
 — what it is called here, never its name, which every task id, every `Tade-Task:` trailer and every
 line of the journal keeps — moved along the row, configured, or closed. **Closing one deletes
 nothing**: the folder, the git history, the branches, the worktrees and the journal all stay, and

@@ -1,4 +1,4 @@
- ▄▀   T A D E      checkout !    search ✓    infra      +      ○ vps ⋯2 !    lab ⋯1             ctrl   +   space   talk 
+ ▄▀   T A D E      checkout !   ×  ≡   search ✓    infra      +      ○ vps ⋯2 !    lab ⋯1       ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ ╭─ Evaluations ──────────────────────────────────────────────────────────────────────────────────────────── esc ─╮   
    │ 11 agents · 8 landed · merges from the journal and forge                                                       │───

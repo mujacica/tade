@@ -1,4 +1,4 @@
- ▄▀   T A D E      checkout !⠋    search ✓    infra      +          ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+ ▄▀   T A D E      checkout !⠋   ×  ≡   search ✓    infra      +    ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ ╭─ File ─────────────────────────────────────────────────────────────────────────────────────────────────── esc ─╮   
    │ ~/src/checkout/src/rates.ts  typescript · 139 lines · 3 KB  +2 −2                                     Changes  │───

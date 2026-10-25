@@ -673,9 +673,13 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   the Close in each tab's own menu greyed out beside them. Closing is about what Tade *lists*
   (`closeProject`, `wire/projects.ts`), so the agents keep working in their lanes and the count is
   **said** — in the notice, in the tool's answer, and as the Close item's note — rather than refused
-  on. The buttons are the first thing `LADDER` gives up for room, so in a narrow terminal there is
-  no `×` and no `≡` at all and the menu is a right-click on the tab; a `×` is therefore never drawn
-  for a project in the `⋯`, which is held over every width in `top.test.ts`.
+  on. The other tabs' buttons are the first thing `LADDER` gives up for room, and **the tab you are
+  in keeps its own** (`Fits.manage: 'here'`) down to the last rung, the other tabs' names cut with
+  `…` (`Fits.cut`) before it goes: giving every `×` up at once took the close away from anybody
+  with five projects open in 180 columns, leaving a right-click nobody guesses. A row of whole
+  names that fits is still worth more than it, and once tabs go in the `⋯` it comes back. A `×` is
+  never drawn for a project in the `⋯` — the tab you are in never goes there — and both are held
+  over every width in `top.test.ts`.
 - **A section's heading holds a set of controls, and the main one is a button.** `Section.actions`
   (`view/rows.ts`, fitted in `view/sidebar.ts`), the button last: the small ones are chips (`Row.chip`, `skin.chip`) — the same
   block two columns narrower, so they read as the same set without reading as wide as the `+`.

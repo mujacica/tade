@@ -452,23 +452,71 @@ describe('the × that closes a project', () => {
     }
   })
 
-  it('is given up before a tab says less, and claims no cell once it is', () => {
+  it('is given up on the other tabs before a tab says less, and claims no cell once it is', () => {
     // Six columns a tab is the most expensive thing on this row, so the
-    // buttons go before the marks do (`LADDER`). What must not happen is a
-    // button that is no longer drawn still answering for the cell it was on.
+    // buttons go before the marks do (`LADDER`) — on every tab but the one you
+    // are in. What must not happen is a button that is no longer drawn still
+    // answering for the cell it was on.
     const state = world([working, wantsYou, finished])
     expect(closers(drawn(state, 160)).length).toBe(3)
-    const narrow = drawn(state, 72)
-    expect(closers(narrow)).toEqual([])
-    for (let x = 0; x < 72; x++) {
+    const narrow = drawn(state, 100)
+    expect(closers(narrow).map((one) => one.project)).toEqual(['checkout'])
+    for (let x = 0; x < 100; x++) {
       const target = hitAt(narrow.hits, x, 0)
-      expect(target?.kind === 'action' && target.name.startsWith('close-project:')).toBe(false)
+      if (target?.kind !== 'action' || !target.name.startsWith('close-project:')) continue
+      expect(target.name).toBe('close-project:checkout')
     }
-    // And the tabs are still there to be pressed, which is what keeps the menu
-    // — where closing also lives — reachable at every width.
+    // And the other tabs are still there to be pressed, which is what keeps
+    // their menu — where closing also lives — reachable at every width.
     expect(
-      narrow.hits.some((hit) => hit.target.kind === 'project' && hit.target.project === 'checkout'),
+      narrow.hits.some((hit) => hit.target.kind === 'project' && hit.target.project === 'search'),
     ).toBe(true)
+  })
+
+  it('cuts the names of the other tabs before the one you are in gives it up', () => {
+    // Five projects, one with a long name, in 120 columns: every tab on the
+    // row and the close beside the one you are in, bought by cutting the names
+    // of the others with `…` — never the name of the one you are in.
+    const FIVE = ['tade', 'tade-web', 'vrolta', 'sentry', 'sentry-options-automator']
+    for (const here of ['tade', 'sentry-options-automator']) {
+      const state = selectProject(world([], FIVE), here)
+      const row = drawn(state, 120)
+      expect(closers(row).map((one) => one.project)).toEqual([here])
+      const tabbed = new Set(
+        row.hits.flatMap((hit) => (hit.target.kind === 'project' ? [hit.target.project] : [])),
+      )
+      expect([...tabbed].sort(), here).toEqual([...FIVE].sort())
+      expect(strip(state, 120), here).toContain(` ${here} `)
+    }
+    expect(strip(selectProject(world([], FIVE), 'tade'), 120)).toContain('sentry-op…')
+  })
+
+  it('stays on the tab you are in however many projects are open', () => {
+    // Every tab's `×` going at once is what took the close away from somebody
+    // with a fifth project open in a terminal 170 columns wide. However crowded
+    // the row, the project you are in — first, in the middle or last — keeps a
+    // `×` beside its own tab, and pressing that cell closes that project.
+    for (const here of ['checkout', 'billing', 'webhooks']) {
+      const state = selectProject(world([working, wantsYou, finished, held], TWELVE), here)
+      for (const width of [300, 260, 200, 177, 160, 143, 120, 100, 90, 80]) {
+        const row = drawn(state, width)
+        const own = closers(row).filter((one) => one.project === here)
+        expect(own.length, `${here} at ${width} columns`).toBe(1)
+        const at = own[0]?.at ?? -1
+        expect(pressing(state, width, at), `${here} at ${width} columns`).toEqual({
+          kind: 'action',
+          name: `close-project:${here}`,
+        })
+        // Beside its own tab: the nearest tab to its left is the project it closes.
+        const tab = row.hits
+          .filter((hit) => hit.target.kind === 'project' && hit.from < at)
+          .sort((a, b) => b.from - a.from)[0]
+        expect(tab?.target, `${here} at ${width} columns`).toEqual({
+          kind: 'project',
+          project: here,
+        })
+      }
+    }
   })
 })
 

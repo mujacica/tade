@@ -1,4 +1,4 @@
- ▄▀   T A D E      checkout !⠋    search ✓    infra      +          ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+ ▄▀   T A D E      checkout !⠋   ×  ≡   search ✓    infra      +    ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2╭─ Set up Sentry ──────────────────────────────────────────────────────────────────────── esc ─╮h ▾     ×   
             │ ◐ Needs setting up: no Sentry token                                                         ▕│────────────
