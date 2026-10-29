@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { againForToolsAt, TOOLS_AGAIN, TOOLS_AGAIN_MS } from '../src/orchestrating.ts'
+import { againForToolsAt, TOOLS_AGAIN, TOOLS_AGAIN_MS } from '../src/tools-again.ts'
 
 // How often the orchestrator is started again because its tools did not
 // connect. A server that missed its deadline on a loaded machine usually makes
