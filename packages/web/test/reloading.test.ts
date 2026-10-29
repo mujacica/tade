@@ -1,10 +1,11 @@
+import type { FSWatcher } from 'node:fs'
 import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Streams } from '../src/peers.ts'
 import { projector } from '../src/reading.ts'
-import { fromSource, watchFolder } from '../src/reloading.ts'
+import { fromSource, type Watch, watchFolder } from '../src/reloading.ts'
 import { STREAM_EVENTS } from '../src/stream.ts'
 import { input, NOW, reach } from './fixtures.ts'
 
@@ -21,42 +22,57 @@ describe('whether this is the repository’s copy', () => {
 })
 
 describe('watching the folder', () => {
-  it('says once per burst of writes, a beat after the last', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'tade-reload-'))
-    let said = 0
-    // A settle long enough that a loaded machine writing three files in a
-    // row still writes them inside it: the claim is one reload per burst.
-    const stop = watchFolder(dir, () => (said += 1), 400)
-    const pause = (ms: number) => new Promise((done) => setTimeout(done, ms))
-    try {
-      // Listening only once it has heard something: FSEvents starts its stream
-      // a moment after `watch` returns and never reports a write made before,
-      // so a burst written straight away went unheard on a loaded machine —
-      // `expected 0 to be 1`. Primed until it speaks, then let go quiet.
-      let until = Date.now() + 10_000
-      while (said === 0 && Date.now() < until) {
-        await writeFile(join(dir, 'primer.css'), String(Date.now()))
-        await pause(200)
-      }
-      let was = -1
-      while (was !== said) {
-        was = said
-        await pause(1_000)
-      }
-      const before = said
-      await Promise.all(['a.css', 'b.js', 'c.css'].map((name) => writeFile(join(dir, name), name)))
-      until = Date.now() + 10_000
-      while (said === before && Date.now() < until) await pause(20)
-      // Longer than the settle again, to see that the burst stayed one.
-      await pause(600)
-      expect(before).toBeGreaterThan(0)
-      expect(said - before).toBe(1)
-    } finally {
-      stop()
+  // The OS's word that a folder changed is stood in for, and the clock is
+  // faked: on a loaded Mac FSEvents said nothing for 16 s at a time, so the
+  // real one failed this as `expected 0 to be greater than 0` — about the OS's
+  // pace, never about the burst.
+  function standIn() {
+    const was = { dir: '', persistent: true as boolean, closed: false, heard: () => {} }
+    const on: Watch = (dir, options, heard) => {
+      Object.assign(was, { dir, persistent: options.persistent, heard })
+      return {
+        on: () => {},
+        close: () => {
+          was.closed = true
+        },
+      } as unknown as FSWatcher
     }
-    // A watched folder can take seconds to say anything on a loaded machine
-    // (FSEvents batches), so this one gets its own deadline.
-  }, 30_000)
+    return { was, on }
+  }
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('says once per burst of writes, a beat after the last', () => {
+    vi.useFakeTimers()
+    const { was, on } = standIn()
+    let said = 0
+    const stop = watchFolder('/served', () => (said += 1), 400, on)
+    expect(was).toMatchObject({ dir: '/served', persistent: false })
+    // Three writes, each inside the settle of the one before.
+    was.heard()
+    vi.advanceTimersByTime(300)
+    was.heard()
+    vi.advanceTimersByTime(300)
+    was.heard()
+    vi.advanceTimersByTime(399)
+    expect(said).toBe(0)
+    vi.advanceTimersByTime(1)
+    expect(said).toBe(1)
+    vi.advanceTimersByTime(10_000)
+    expect(said).toBe(1)
+    // A later burst is a reload of its own.
+    was.heard()
+    vi.advanceTimersByTime(400)
+    expect(said).toBe(2)
+    // And one cut off by stopping is never said.
+    was.heard()
+    stop()
+    vi.advanceTimersByTime(400)
+    expect(said).toBe(2)
+    expect(was.closed).toBe(true)
+  })
 
   it('stops when told, and a folder that is not there is quietly not watched', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tade-reload-'))

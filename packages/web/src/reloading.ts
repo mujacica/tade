@@ -25,18 +25,30 @@ export function fromSource(url: string = import.meta.url): boolean {
 /** How long after the last write in a burst the pages are told. */
 export const SETTLE_MS = 150
 
+/** What hears a folder change: `fs.watch`, or a test's stand-in for it. */
+export type Watch = (dir: string, options: { persistent: false }, heard: () => void) => FSWatcher
+
 /**
  * Watch a folder, and call `changed` once per burst of writes to it.
  *
  * Returns the way to stop. Never throws and never holds the process open: a
  * folder that cannot be watched is one that is not live-reloaded, which is
  * what an installed Tade is anyway.
+ *
+ * `on` is there for the test of the burst, because when the OS says a folder
+ * changed is not ours to pace: on a loaded Mac with fseventsd at full CPU, a
+ * plain `fs.watch` written to every 200 ms heard nothing in ten tries of 6–16 s.
  */
-export function watchFolder(dir: string, changed: () => void, settle = SETTLE_MS): () => void {
+export function watchFolder(
+  dir: string,
+  changed: () => void,
+  settle = SETTLE_MS,
+  on: Watch = watch,
+): () => void {
   let watcher: FSWatcher | null = null
   let pending: ReturnType<typeof setTimeout> | null = null
   try {
-    watcher = watch(dir, { persistent: false }, () => {
+    watcher = on(dir, { persistent: false }, () => {
       if (pending !== null) clearTimeout(pending)
       pending = setTimeout(() => {
         pending = null
