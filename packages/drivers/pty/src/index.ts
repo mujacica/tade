@@ -1,4 +1,4 @@
-import { write as writeTo } from 'node:fs'
+import { readSync, write as writeTo } from 'node:fs'
 import { type LaneId, resolveCommand, stringEnv, type Unsubscribe } from '@tade/core'
 import {
   type AdoptHint,
@@ -49,10 +49,16 @@ const HOLDING = new Set<IPty>()
 
 /**
  * What node-pty's terminals have and its types do not say: the master's
- * descriptor (on Unix), `destroy`, which lets the master go at once, and
- * `close`, said once it has let the master go by itself.
+ * descriptor (on Unix), `destroy`, which lets the master go at once, `close`,
+ * said once it has let the master go by itself, and the stream it reads the
+ * master with (on Unix).
  */
-type Pty = IPty & { fd?: number; destroy(): void; on(event: 'close', listener: () => void): void }
+type Pty = IPty & {
+  fd?: number
+  destroy(): void
+  on(event: 'close', listener: () => void): void
+  _socket?: NodeJS.EventEmitter
+}
 
 export interface PtyDriverOptions {
   /** Lines of scrollback kept per lane. */
@@ -324,7 +330,7 @@ export class PtyDriver implements WorkspaceDriver {
       seed: '',
     })
 
-    pty.onData((data) => {
+    const took = (data: string) => {
       if (lane.closed) return
       const at = Date.now()
       lane.handle.lastOutputAt = at
@@ -341,7 +347,30 @@ export class PtyDriver implements WorkspaceDriver {
         lane.replayBytes -= lane.replay.shift()!.byteLength
       }
       for (const listener of lane.outputs) safely(() => listener(buf))
-    })
+    }
+    pty.onData(took)
+    // On Linux a program that prints and ends at once can lose what it printed
+    // last: the master says it was hung up while those bytes are still on their
+    // way to it, and libuv takes a hangup after a short read for the end
+    // without reading again (`uv__stream_io`). So the rest is read here, ahead
+    // of node-pty letting the master go at the end. On Ubuntu 22.04, 367 of 400
+    // programs that printed 16 KB and ended lost their last line without it,
+    // and none with it (`ending.test.ts`).
+    const { fd, _socket: socket } = pty as Pty
+    if (fd !== undefined) {
+      socket?.prependListener('end', () => {
+        const rest = leftIn(fd, (error) =>
+          safely(() =>
+            this.opts.trouble?.(
+              new Error(`the end of what ${spec.id} printed could not be read: ${error}`, {
+                cause: error,
+              }),
+            ),
+          ),
+        )
+        if (rest) took(rest)
+      })
+    }
     ;(pty as Pty).on('close', () => {
       lane.letGo = true
     })
@@ -881,6 +910,32 @@ function encodingAfter(data: string, was: WheelEncoding): WheelEncoding {
     if ((params ?? '').split(';').includes('1006')) now = set === 'h' ? 'sgr' : 'legacy'
   }
   return now
+}
+
+/**
+ * What a lane's master still holds once its program has ended: read until the
+ * master says there is no more, which on Linux waits for the bytes still on
+ * their way. The master does not block, so this is a few system calls.
+ * Anything but the two ways a master says it has no more is said, with
+ * whatever was read before it.
+ */
+function leftIn(fd: number, said: (error: unknown) => void): string {
+  const chunk = Buffer.alloc(64 * 1024)
+  let rest = ''
+  for (;;) {
+    let n: number
+    try {
+      n = readSync(fd, chunk)
+    } catch (error) {
+      // EIO once the program's end is read, EAGAIN where the master has no
+      // more for now: either way, all there was.
+      const code = codeOf(error)
+      if (code !== 'EIO' && code !== 'EAGAIN') said(error)
+      return rest
+    }
+    if (n === 0) return rest
+    rest += chunk.toString('utf8', 0, n)
+  }
 }
 
 /** How much of a chunk is kept, to read a sequence cut across two of them. */

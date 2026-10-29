@@ -17,12 +17,6 @@ import { mastersHeld, PtyDriver } from '../src/index.ts'
 
 const sh = (script: string) => ({ cwd: process.cwd(), command: '/bin/sh', args: ['-c', script] })
 
-// What answers stays running after it answers. On Linux a program that prints
-// and ends at once can lose what it printed last: the master says it was hung
-// up while those bytes are still on their way to it, and libuv takes a hangup
-// after a short read for the end without reading again (`uv__stream_io`).
-const answering = 'read line; echo "got $line"; exec sleep 30'
-
 describe('what is typed into a lane', () => {
   let driver: PtyDriver
   let troubles: Error[]
@@ -41,10 +35,7 @@ describe('what is typed into a lane', () => {
   it('is all taken, however much more it is than the pseudo-terminal holds at once', async () => {
     const id = 'typing/paste' as LaneId
     const lines = 2000
-    await driver.open({
-      id,
-      ...sh(`stty -echo; head -n ${lines} >/dev/null; echo took-it; exec sleep 30`),
-    })
+    await driver.open({ id, ...sh(`stty -echo; head -n ${lines} >/dev/null; echo took-it`) })
     let out = ''
     driver.onOutput(id, (bytes) => (out += bytes.toString()), { replay: true })
     const paste = `${'x'.repeat(99)}\n`.repeat(lines)
@@ -67,13 +58,12 @@ describe('what is typed into a lane', () => {
       // One more lane typed into and answered, so whatever was in flight has
       // had its turn before the files are read.
       const echo = `typing/echo/${i}` as LaneId
-      await driver.open({ id: echo, ...sh(answering) })
+      await driver.open({ id: echo, ...sh('read line; echo "got $line"') })
       let out = ''
       driver.onOutput(echo, (bytes) => (out += bytes.toString()), { replay: true })
       await driver.write(echo, new TextEncoder().encode('it\n'))
       await until(async () => out.includes('got it'))
       closeSync(next)
-      await driver.close(echo)
       expect(readFileSync(path, 'utf8')).toBe('')
     }
     expect(said).not.toHaveBeenCalled()
@@ -105,7 +95,7 @@ describe('what is typed into a lane', () => {
       const next = openSync(path, 'w+')
       await driver.write(id, new TextEncoder().encode('stray\n'))
       const echo = 'typing/let-go/echo' as LaneId
-      await driver.open({ id: echo, ...sh(answering) })
+      await driver.open({ id: echo, ...sh('read line; echo "got $line"') })
       let out = ''
       driver.onOutput(echo, (bytes) => (out += bytes.toString()), { replay: true })
       await driver.write(echo, new TextEncoder().encode('it\n'))
