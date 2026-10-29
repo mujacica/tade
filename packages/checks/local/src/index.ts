@@ -15,6 +15,7 @@ import {
   summaryOf,
 } from '@tade/checks-core'
 import { givesWay, nicedLine } from '@tade/core'
+import { stop } from './stop.ts'
 
 // The commands, run the way you would type them.
 //
@@ -268,18 +269,4 @@ async function one(
   }
   ctx.onRun(run)
   return run
-}
-
-/** Signal the whole group: a command is a shell, and the work is its children. */
-function stop(pid: number | null, signal: NodeJS.Signals): void {
-  if (pid === null) return
-  try {
-    process.kill(-pid, signal)
-  } catch {
-    try {
-      process.kill(pid, signal)
-    } catch {
-      // Already gone, which is the outcome we wanted.
-    }
-  }
 }
