@@ -358,6 +358,20 @@ export class ToolHost {
       // and there is no method here that would, because which sign-in agents
       // run as is a person's.
       'plan/limits': async () => planReport(tade.planUsage(), Date.now()),
+      // The tools process's own trouble (`report` in `tools-mcp.ts`): a crash
+      // there is Tade's, so it is written where Tade's own trouble goes — the
+      // journal, and from there its reporter — in that process's words.
+      'trouble/report': async (p) => {
+        const where = String(p.where ?? '').slice(0, 200)
+        await tade.log.append({
+          type: 'warning',
+          task: null,
+          detail: {
+            message: `the orchestrator's tools: ${String(p.message ?? 'they broke').slice(0, 300)}${where ? ` (${where})` : ''}`,
+          },
+        })
+        return { ok: true }
+      },
       // **The gate itself**, asked by Tade's own tools extension before every
       // tool this session has — its own and the harness's alike. It answers a
       // decision and nothing else, which is why a remote turn may reach it:

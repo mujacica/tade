@@ -147,6 +147,10 @@ const READS_WIDE =
 // nobody ever saw waiting, which is the one failure the list exists to prevent.
 const DECIDES_FOR_SOMEBODY =
   'it writes down a decision, and a decision recorded from away is one the person never saw waiting'
+// Reached by no tool at all: the tools process reporting its own crash,
+// which no turn asks for, so nothing a phone says can write it.
+const NO_TURN =
+  'no tool reaches it: it is the tools process saying it broke, not anything a turn asks for'
 // The sixth, and the only one about another machine: what it carries is this
 // machine's owner session there, whose turns reach what that machine's keyboard
 // does (`@tade/web`'s `owner.ts`). The arm of the turn that calls it is not
@@ -474,6 +478,7 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
   'project/reorder': never(GRANTS),
   'project/configure': never(GRANTS),
   'plan/limits': never(GRANTS),
+  'trouble/report': never(NO_TURN),
   'extension/call': never(GRANTS),
   'worker/model': never(GRANTS),
   'worker/thinking': never(GRANTS),

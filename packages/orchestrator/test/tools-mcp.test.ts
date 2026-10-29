@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ConfigSchema } from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
@@ -7,7 +7,7 @@ import { Workbench } from '@tade/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { orchestratorExtensions } from '../src/extensions.ts'
-import { writeToolServer } from '../src/orchestrator.ts'
+import { TOOLS_MCP, writeToolServer } from '../src/orchestrator.ts'
 import { ToolHost } from '../src/tool-host.ts'
 
 // Tade's tools as a harness that speaks MCP is handed them: not the list the
@@ -138,5 +138,116 @@ describe("Tade's tools over MCP", () => {
       content: [{ type: 'text', text: 'Raining over app.' }],
       isError: false,
     })
+  }, 60_000)
+
+  /**
+   * The server as Claude Code starts it, from a folder of its own where the
+   * tools beside it are `tools` — so what the server does when they cannot be
+   * loaded, or break later, is shown rather than argued.
+   */
+  async function serveBeside(source: string) {
+    const dir = tmp('tade-mcp-beside-')
+    copyFileSync(TOOLS_MCP, join(dir, 'tools-mcp.ts'))
+    writeFileSync(join(dir, 'tools-extension.ts'), source)
+    writeFileSync(join(dir, 'package.json'), '{"type":"module"}\n')
+    const host = await ToolHost.listen({ tade, path: join(home, 'tools.sock') })
+    tools = host
+    const child = spawn(process.execPath, [join(dir, 'tools-mcp.ts')], {
+      env: { PATH: process.env.PATH ?? '', TADE_SOCKET: host.path, TADE_HOME: home },
+      stdio: 'pipe',
+    })
+    const answers: Array<{
+      id: number
+      result?: Record<string, unknown>
+      error?: { message: string }
+    }> = []
+    let rest = ''
+    child.stdout.on('data', (chunk: Buffer) => {
+      rest += chunk.toString('utf8')
+      for (let end = rest.indexOf('\n'); end >= 0; end = rest.indexOf('\n')) {
+        answers.push(JSON.parse(rest.slice(0, end)))
+        rest = rest.slice(end + 1)
+      }
+    })
+    let exited: number | null | undefined
+    child.on('exit', (code) => {
+      exited = code
+    })
+    const ask = (id: number, method: string, params: Record<string, unknown> = {}) =>
+      child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`)
+    /** What has been written down as a warning, once anything has. */
+    const warnings = async (): Promise<string[]> => {
+      const deadline = Date.now() + 30_000
+      for (;;) {
+        const said = (await tade.events({ types: ['warning'] })).map((event) =>
+          String((event.detail as { message?: unknown }).message),
+        )
+        if (said.length > 0 || Date.now() > deadline) return said
+        await new Promise((resolve) => setTimeout(resolve, 25))
+      }
+    }
+    return { child, answers, ask, warnings, exited: () => exited }
+  }
+
+  it('answers the handshake without its tools, and says why there are none', async () => {
+    // Claude Code gives up on a server for the whole session if `initialize`
+    // is late, so the handshake may not wait on loading the tools — shown by
+    // tools that never load at all.
+    const served = await serveBeside("throw new Error('broken on purpose')\n")
+    try {
+      served.ask(1, 'initialize', { protocolVersion: '2025-06-18' })
+      await until(() => served.answers.length === 1)
+      expect(served.answers[0]?.result).toMatchObject({ serverInfo: { name: 'tade' } })
+
+      served.ask(2, 'tools/list')
+      served.ask(3, 'tools/call', { name: 'tade_status', arguments: {} })
+      await until(() => served.answers.length === 3)
+      const by = (id: number) => served.answers.find((answer) => answer.id === id)
+      // An error and never an empty list: no tools reads as a server that has none.
+      expect(by(2)?.error?.message).toBe("Tade's own tools could not be loaded: broken on purpose")
+      expect(by(3)?.result).toEqual({
+        content: [
+          { type: 'text', text: "Tade's own tools could not be loaded: broken on purpose" },
+        ],
+        isError: true,
+      })
+      // And written down where Tade's own trouble goes, once.
+      const said = await served.warnings()
+      expect(said).toHaveLength(1)
+      // Where it broke, which is the line the module threw on.
+      expect(said[0]).toMatch(
+        /^the orchestrator's tools: Tade's own tools could not be loaded: broken on purpose \(at .*tools-extension\.ts:1:/,
+      )
+    } finally {
+      served.child.kill()
+    }
+  }, 60_000)
+
+  it('reports a crash of its own to the window, and ends', async () => {
+    // A throw nobody catches, from a tool that has already answered: the
+    // process is in a state nobody chose, so it ends — and says why first.
+    const served = await serveBeside(
+      [
+        'export function orchestratorTools() {',
+        '  return [{ name: "tade_status", label: "", description: "", parameters: {},',
+        '    run: async () => { setTimeout(() => { throw new Error("broke after answering") }); return "fine" } }]',
+        '}',
+        '',
+      ].join('\n'),
+    )
+    try {
+      served.ask(1, 'initialize', { protocolVersion: '2025-06-18' })
+      served.ask(2, 'tools/call', { name: 'tade_status', arguments: {} })
+      await until(() => served.exited() !== undefined)
+      expect(served.exited()).toBe(1)
+      expect(served.answers.find((answer) => answer.id === 2)?.result).toMatchObject({
+        isError: false,
+      })
+      const said = await served.warnings()
+      expect(said).toHaveLength(1)
+      expect(said[0]).toMatch(/^the orchestrator's tools: broke after answering \(at /)
+    } finally {
+      served.child.kill()
+    }
   }, 60_000)
 })

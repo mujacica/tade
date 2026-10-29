@@ -23,7 +23,9 @@ these: it is an extension (see `add-extension`), which agents can use too and th
 
 - **Self-contained file.** pi loads it directly under its own module resolution, so it imports
   nothing from the Tade workspace — that is why the JSON-RPC framing is hand-rolled at the bottom
-  of the file rather than imported. Keep it that way.
+  of the file rather than imported. Keep it that way. Over MCP (`tools-mcp.ts`) the handshake is
+  answered **before** the tools are imported, so keep that file's own imports to Node built-ins and
+  `import type`: a server that misses Claude Code's connect deadline is gone for the session.
 - **Actions go back through the `ToolHost`; questions about state go through `tade status`.** The
   orchestrator is pi in its own process, so a tool that *does* something calls back over the host
   socket (`packages/orchestrator/src/tool-host.ts`) to the window holding the workbench — `tade app`,
