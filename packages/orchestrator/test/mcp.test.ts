@@ -138,8 +138,8 @@ describe('its tools, as each harness is handed them', () => {
     const tools = writeToolList(host, 'orchestrator', home)
     expect(names(tools)).toContain('mcp_linear_searchissues')
     // And a harness that speaks MCP is served them from the file Tade wrote,
-    // which has to say so itself: nobody promises a harness passes its own
-    // environment down to a server it spawns.
+    // which has to say so itself rather than lean on the harness passing its
+    // own environment down to a server it spawns.
     const runDir = tmp('tade-orc-')
     const path = writeToolServer({
       home,

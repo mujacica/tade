@@ -27,36 +27,55 @@ export function skillsRoot(opts: { home: string }): string {
 }
 
 /**
- * What Tade's own tools are told, whichever harness loads them: where to call
- * back to, where Tade keeps things, how to run the CLI that answers "where
- * are we" exactly as a person would see it, and which extension tools this
+ * What Tade's own tools are told, and nothing else: where to call back to,
+ * where Tade keeps things, how to run the CLI that answers "where are we"
+ * exactly as a person would see it, and which extension tools this
  * orchestrator was given.
+ *
+ * **This is all that goes in the file a harness is handed**, because a key is
+ * never in a launch line or a file Tade writes for one (`withoutInherited`,
+ * `secretCommand`): copying the whole environment in put every key the shell
+ * that opened Tade exported into `tade-tools.mcp.json`. The rest reaches the
+ * server the way any environment does: the harness that spawns it passes its
+ * own down (Claude Code 2.1.308 does, the file's `env` laid over it), and the
+ * harness was itself started with `toolEnv`. Every agent's own Tade server,
+ * on every harness, has only ever been handed its `TADE_*` variables this way.
+ */
+export function toolsTold(opts: OrchestratorOptions): Record<string, string> {
+  return {
+    TADE_SOCKET: opts.socket,
+    TADE_HOME: opts.home,
+    // Where extensions live, so the tools do not have to guess at paths the
+    // config may have moved.
+    TADE_EXTENSIONS: extensionsRoot(opts.home, opts.config?.orchestrator.extensions),
+    TADE_SKILLS: skillsRoot(opts),
+    TADE_CLI: process.execPath,
+    TADE_CLI_ARGS: CLI_BIN,
+    // The extension tools listed for this run, said here rather than left to
+    // whatever a harness happens to pass down to a server it spawns: pi's
+    // adapter sets this from the same `extras`, and an orchestrator on one
+    // harness silently had fewer tools than on another — a capability
+    // difference nobody declared. Said as none rather than left out when
+    // there are none, because Tade opened from inside an agent inherits that
+    // agent's list, the server inherits it in turn, and the orchestrator's
+    // tools are not an agent's.
+    [WORKER_ENV.tools]: opts.extensions?.extras.tools ?? '',
+  }
+}
+
+/**
+ * The environment the orchestrator's harness is started with: the window's
+ * own, with what Tade's tools are told laid over it (`toolsTold`).
  */
 export function toolEnv(opts: OrchestratorOptions): Record<string, string> {
   const env: Record<string, string> = {}
   for (const [key, value] of Object.entries(opts.env ?? process.env)) {
     if (typeof value === 'string') env[key] = value
   }
-  env.TADE_SOCKET = opts.socket
-  env.TADE_HOME = opts.home
-  // Where extensions live, so the tools do not have to guess at paths the
-  // config may have moved.
-  env.TADE_EXTENSIONS = extensionsRoot(opts.home, opts.config?.orchestrator.extensions)
-  env.TADE_SKILLS = skillsRoot(opts)
-  env.TADE_CLI = process.execPath
-  env.TADE_CLI_ARGS = CLI_BIN
-  // The extension tools listed for this run, said here rather than left to
-  // whatever a harness happens to pass down to a server it spawns: pi's
-  // adapter sets this from the same `extras`, and nobody promises Claude Code
-  // hands its own environment to an MCP server, so an orchestrator on one
-  // silently had fewer tools than an orchestrator on the other — a capability
-  // difference nobody declared. Taken back out when there are none, because
-  // Tade opened from inside an agent inherits that agent's list, and the
-  // orchestrator's tools are not an agent's.
-  if (opts.extensions?.extras.tools) env[WORKER_ENV.tools] = opts.extensions.extras.tools
-  else delete env[WORKER_ENV.tools]
-  // And **not** another agent's supervision, for the same reason and with
-  // sharper teeth. Tade opened from inside an agent inherits that agent's
+  Object.assign(env, toolsTold(opts))
+  if (!env[WORKER_ENV.tools]) delete env[WORKER_ENV.tools]
+  // And **not** another agent's supervision, for the reason the tool list is
+  // said as none (`toolsTold`), and with sharper teeth. Tade opened from inside an agent inherits that agent's
   // `TADE_RUN_SOCKET`, `TADE_RUN_ID`, `TADE_TASK_ID` and `TADE_APPROVALS`, and
   // this environment is handed to the harness as `spec.env`, which wins over
   // the adapter's own. So the orchestrator's supervision channel would be the
@@ -94,7 +113,7 @@ export function writeToolServer(opts: OrchestratorOptions): string {
             type: 'stdio',
             command: process.execPath,
             args: [TOOLS_MCP],
-            env: toolEnv(opts),
+            env: toolsTold(opts),
           },
         },
       },

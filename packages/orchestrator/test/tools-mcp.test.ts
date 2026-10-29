@@ -15,9 +15,10 @@ import { ToolHost } from '../src/tool-host.ts'
 // nothing of this process's environment behind it.
 //
 // That last part is the whole point. The tools reach an orchestrator on
-// Claude Code through a server Claude Code spawns from this file, and nobody
-// promises it passes its own environment down — so anything the server needs
-// and the file does not say is a tool that quietly is not there. An
+// Claude Code through a server Claude Code spawns from this file. It passes
+// its own environment down today, but a harness that did not would leave
+// anything the server needs and the file does not say a tool that quietly is
+// not there — and the file says nothing else (`toolsTold`), so no key. An
 // orchestrator on Claude Code with fewer tools than one on pi is a capability
 // difference nobody declared.
 
