@@ -107,11 +107,16 @@ describe('the local runner', () => {
     // still the group leader and a group signal still reaches everything the
     // check started. A wrapper that forked instead would leave a build
     // running under a run recorded as `timed out`.
+    //
+    // Three seconds, not the 300 ms the unlowered test above gets: this line is
+    // two shells and an exec at a lower priority, and under the full suite a
+    // niced shell is exactly what the machine starves, so at 300 ms the limit
+    // fired before it reached `echo $$` and there was no pid to ask about.
     const root = tmp('tade-local-')
     const pidFile = join(root, 'pid')
     const [run] = await runIn(
       root,
-      [check('slow', `echo $$ > ${pidFile}; sleep 30`, { minutes: 0.005 })],
+      [check('slow', `echo $$ > ${pidFile}; sleep 30`, { minutes: 0.05 })],
       { giveWay: 3 },
     )
     expect(run?.state).toBe('timed out')
