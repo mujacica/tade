@@ -82,6 +82,32 @@ describe('the environment', () => {
     expect(env.TADE_TASK_ID).toBe(spec.task)
   })
 
+  it('carries none of the run Tade was opened from inside', () => {
+    // The parent agent's, in the window's environment, which is the account's
+    // too; `spec.env` is what `toolEnv` hands over, with these left out.
+    const parent = {
+      TADE_RUN_SOCKET: '/run/parent.sock',
+      TADE_APPROVALS: 'policy',
+      TADE_EXTENSION_TOOLS: '/run/parent-tools.json',
+      TADE_RUN_ID: 'other/agent',
+      TADE_TASK_ID: 'other',
+    }
+    const env = headlessEnv(parent, { ...spec, env: { HOME: '/caller' } })
+    expect(env).not.toHaveProperty('TADE_RUN_SOCKET')
+    expect(env).not.toHaveProperty('TADE_APPROVALS')
+    expect(env).not.toHaveProperty('TADE_EXTENSION_TOOLS')
+    expect(env.TADE_RUN_ID).toBe(spec.run)
+    expect(env.TADE_TASK_ID).toBe(spec.task)
+  })
+
+  it('says its own extension tools, and only those', () => {
+    const env = headlessEnv(
+      { TADE_EXTENSION_TOOLS: '/run/parent-tools.json' },
+      { ...spec, extras: { tools: '/run/own-tools.json' } },
+    )
+    expect(env.TADE_EXTENSION_TOOLS).toBe('/run/own-tools.json')
+  })
+
   it('gives its tool server three minutes to come up, and a call fifteen to answer', () => {
     // Thirty seconds is Claude Code's own, and a server that misses it is
     // given up on for the whole session: on a machine at a load average of a

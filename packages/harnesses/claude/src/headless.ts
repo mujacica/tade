@@ -106,9 +106,19 @@ export function headlessArgs(launch: HeadlessLaunch): string[] {
  * servers' with them. Set last, because `spec.env` is the window's whole
  * environment and a value inherited from wherever Tade was opened would
  * quietly undo it.
+ *
+ * **And none of another run's supervision.** The account is the window's
+ * environment too, so Tade opened from inside an agent hands this run that
+ * agent's channel, its approval mode and its extension tools. The caller can
+ * leave them out of `spec.env` (`toolEnv` does), but that only stops it
+ * adding them, so they are dropped here. A headless run has no channel to
+ * name: it has no hooks and not this adapter's server.
  */
 export function headlessEnv(account: NodeJS.ProcessEnv, spec: WorkerSpec): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...account }
+  for (const inherited of [WORKER_ENV.socket, WORKER_ENV.approvals, WORKER_ENV.tools]) {
+    delete env[inherited]
+  }
   env[WORKER_ENV.run] = spec.run
   env[WORKER_ENV.task] = spec.task
   Object.assign(env, MCP_WAITS)
