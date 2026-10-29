@@ -6,6 +6,7 @@ import {
   AccountName,
   type Asker,
   accountFor,
+  atOnceIn,
   type Caution,
   type Config,
   ConfigSchema,
@@ -14,6 +15,7 @@ import {
   type EventFilter,
   expandHome,
   extensionsRoot,
+  finishedFrom,
   HARNESS_CHOICES,
   type IntakeCandidate,
   type LaneId,
@@ -1443,7 +1445,7 @@ export class Workbench {
    * an agent is `reopenAgent`, which says nothing.
    */
   async startAgent(req: StartRunRequest): Promise<LaneRecord> {
-    this.guardParallel(req.task)
+    await this.guardParallel(req.task)
     await guardBudget(this, req.task, Date.now())
     const lane = `${req.task}/agent` as LaneId
     if (this.registry.get(lane)?.alive) {
@@ -2310,15 +2312,24 @@ export class Workbench {
    * Refuse to run more agents on a project than it allows. The setting existed
    * and nothing enforced it, so a project configured for one agent would
    * happily get five.
+   *
+   * Counted the way the queue counts its room (`atOnceIn`): a finished task's
+   * agent takes no slot, lane open or not — so neither does starting one again.
    */
-  private guardParallel(task: string): void {
+  private async guardParallel(task: string): Promise<void> {
     const project = task.split('/')[0] ?? ''
     const limit = this.config.projects[project]?.max_parallel
     if (!limit) return
-    const running = this.workers.list().filter((h) => h.task.startsWith(`${project}/`)).length
+    const finished = finishedFrom(await this.log.read({ types: ['task_done'] }))
+    if (finished.has(task)) return
+    const running = atOnceIn(
+      project,
+      this.workers.list().map((h) => h.task as string),
+      finished,
+    )
     if (running >= limit) {
       throw new Error(
-        `${project} already has ${running} agent${running === 1 ? '' : 's'} running, and max_parallel is ${limit}`,
+        `${project} already has ${running} unfinished agent${running === 1 ? '' : 's'} running, and max_parallel is ${limit}`,
       )
     }
   }

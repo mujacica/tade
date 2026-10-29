@@ -1,6 +1,6 @@
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { taskDir } from '@tade/core'
+import { ConfigSchema, taskDir } from '@tade/core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
 import type { Live } from '../../src/live.ts'
@@ -87,6 +87,34 @@ describe('the window, and the work waiting in it', () => {
         (await client.events({ types: ['queue_started'], task: 'app/refund-back' }))[0]?.detail
           .why === 'app/charge-once has finished',
     )
+  })
+
+  it('gives a finished task’s slot to queued work while its agent’s lane is still open', async () => {
+    // vrolta's three slots stayed taken until somebody closed three finished lanes.
+    const window = await start({
+      config: ConfigSchema.parse({ projects: { app: { root: repo.root, max_parallel: 1 } } }),
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const answer = await window.queueTools().plan({
+      project: 'app',
+      said: 'charge once, and give refunds back',
+      agents: [
+        { name: 'charge-once', said: 'charge once', prompt: '', after: [], touches: ['charge.ts'] },
+        { name: 'refund-back', said: 'refunds', prompt: '', after: [], touches: ['refund.ts'] },
+      ],
+    })
+    expect(answer).toContain('Started charge-once.')
+    await beats(3)
+    expect(client.runs().map((run) => run.task)).toEqual(['app/charge-once'])
+
+    await client.markDone('app/charge-once', { by: 'you', summary: 'charges once' })
+    await until(
+      'the second started',
+      () => client.runs().some((run) => run.task === 'app/refund-back'),
+      SPAWNING_MS,
+    )
+    // Nobody closed the first: it is there to read, and takes no slot.
+    expect(client.runs().map((run) => run.task)).toContain('app/charge-once')
   })
 
   it('begins work a watch said where to begin on that ref, never on the base', async () => {

@@ -724,6 +724,26 @@ describe('task and run RPC', () => {
       client.startAgent({ task: third.id, cwd: third.worktree, prompt: '' }),
     ).rejects.toThrow(/max_parallel is 2/)
   }, 90_000)
+
+  it('frees a finished task’s slot while its agent’s lane is still open', async () => {
+    const one = await client.createTask({ project: 'app', slug: 'one', intent: INTENT })
+    const two = await client.createTask({ project: 'app', slug: 'two', intent: INTENT })
+    for (const task of [one, two]) {
+      await client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' })
+    }
+    const third = await client.createTask({ project: 'app', slug: 'three', intent: INTENT })
+    await client.markDone(one.id, { by: 'you', summary: 'did it' })
+    // Still there to read, and no longer taking a slot.
+    expect(client.runs().map((run) => run.task)).toContain(one.id)
+    await expect(
+      client.startAgent({ task: third.id, cwd: third.worktree, prompt: '' }),
+    ).resolves.toMatchObject({ id: `${third.id}/agent` })
+    // Two unfinished agents again: the next is refused.
+    const fourth = await client.createTask({ project: 'app', slug: 'four', intent: INTENT })
+    await expect(
+      client.startAgent({ task: fourth.id, cwd: fourth.worktree, prompt: '' }),
+    ).rejects.toThrow(/2 unfinished agents running, and max_parallel is 2/)
+  }, 90_000)
 })
 
 describe('a config that names a setting Tade no longer has', () => {

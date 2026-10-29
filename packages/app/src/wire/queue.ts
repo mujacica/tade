@@ -1,4 +1,5 @@
 import {
+  atOnceIn,
   describeQueueState,
   expandHome,
   holdSaid,
@@ -254,14 +255,13 @@ export class Queue implements Subject {
       void this.deps.tell(heldMessage(item.task, state, told)).catch(() => {})
     }
     // Room only where a project says how many may run: the queue waits for a
-    // slot rather than failing the start the way a limit used to.
+    // slot rather than failing the start the way a limit used to. A finished
+    // task's agent is not counted, lane open or not (`atOnceIn`).
     const room = new Map<string, number>()
+    const running = this.wire.opts.client.runs().map((run) => run.task as string)
     for (const [project, settings] of Object.entries(this.wire.opts.config.projects)) {
       if (!settings.max_parallel) continue
-      const running = this.wire.opts.client
-        .runs()
-        .filter((run) => run.task.startsWith(`${project}/`)).length
-      room.set(project, settings.max_parallel - running)
+      room.set(project, settings.max_parallel - atOnceIn(project, running, facts.finished))
     }
     const started: string[] = []
     // What came from outside this machine is asked again here, for the reason

@@ -4,6 +4,7 @@ import { type EventType, type ReadableEventType, type TadeEvent, typeNow } from 
 import type { StartCondition, TaskState } from '../src/model.ts'
 import {
   AT_WORK_READS,
+  atOnceIn,
   atWorkFrom,
   collidesNow,
   describeQueueState,
@@ -282,6 +283,15 @@ describe('where queued work stands', () => {
       'search/d',
     ])
     expect(readyToStart(items, facts({}), new Map([['shop', 0]]))).toEqual(['search/d'])
+  })
+
+  it('counts against max_parallel only the agents of tasks that have not finished', () => {
+    const done: Finished = { at: new Date(NOW).toISOString(), by: 'agent', summary: '' }
+    const running = ['shop/a', 'shop/b', 'shop/c', 'search/d']
+    // A lane left open after its task finished takes no slot; a stopped one still does.
+    expect(atOnceIn('shop', running, new Map())).toBe(3)
+    expect(atOnceIn('shop', running, new Map([['shop/b', done]]))).toBe(2)
+    expect(atOnceIn('search', running, new Map([['shop/b', done]]))).toBe(1)
   })
 
   it('starts what is ready in the order last written for it, and nothing else changes', () => {

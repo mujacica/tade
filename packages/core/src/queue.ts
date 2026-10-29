@@ -535,6 +535,25 @@ function writtenCollision(
 }
 
 /**
+ * How many of a project's agents count against its `max_parallel`: each one
+ * running, by the task it runs, whose task the journal does not call finished.
+ *
+ * A finished task's lane is often left open for somebody to read, and counting
+ * it held vrolta's three slots until a person closed three lanes. An agent
+ * that stopped without finishing — `review`, a question asked — still counts,
+ * because an answer puts it back to work, and the only word for finished is
+ * `task_done` (`finishedFrom`), never a turn ending. One rule, read by the
+ * queue's room and by the refusal of a start by hand alike.
+ */
+export function atOnceIn(
+  project: string,
+  running: readonly string[],
+  finished: ReadonlyMap<string, Finished>,
+): number {
+  return running.filter((task) => task.startsWith(`${project}/`) && !finished.has(task)).length
+}
+
+/**
  * What to start now, in the order given: whatever is ready, as far as each
  * project has room. `room` is how many more agents a project may run; one it
  * does not name has no limit.
