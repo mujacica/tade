@@ -512,18 +512,22 @@ export class Orchestrator {
       } else if (signal.type === 'server_down') {
         // A conversation without its tools looks exactly like one that has
         // them until the model reaches for one, and then like a model that
-        // cannot do what it is asked. So said, in words, and written down.
+        // cannot do what it is asked. So said, in words.
         const ours = signal.server === TOOLS_SERVER
         const missing = ours
           ? `Tade's own tools did not connect (${harness} says their server ${signal.why}), so this conversation is running without them: no tade_status, no tade_run_start, nothing of Tade's.`
           : `The tool server ${signal.server} did not connect (${harness} says it ${signal.why}), so its tools are missing from this conversation.`
         const next = ours ? opts.onToolsMissing?.() : undefined
         emit({ type: 'problem', text: next ? `${missing} ${next}` : missing })
-        opts.onWarning?.(
-          ours
-            ? `its tools server did not connect (${signal.why}), so it started without Tade's own tools`
-            : `the tool server ${signal.server} did not connect (${signal.why})`,
-        )
+        // And written down — which is where Tade's own trouble is reported
+        // from — for Tade's own server alone. Any other is the account's: a
+        // server in the person's own Claude Code config is theirs to fix, and
+        // its name is theirs too (TADE-7).
+        if (ours) {
+          opts.onWarning?.(
+            `its tools server did not connect (${signal.why}), so it started without Tade's own tools`,
+          )
+        }
       } else if (signal.type === 'idle') {
         // The turn is over: nothing in flight and nothing queued, which is the
         // one moment the lease can be let go without re-widening the host

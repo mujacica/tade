@@ -141,6 +141,46 @@ describe.runIf(installed)('the orchestrator in Claude Code', () => {
     )
   }, 120_000)
 
+  it("says a server of the person's own that did not connect, and does not report it as Tade's", async () => {
+    // Claude Code lists every server it was configured with, the account's
+    // own beside the one Tade handed it: a person's MCP server that is down
+    // (TADE-7, `devinfra-docs`) is theirs to fix, not Tade's trouble.
+    writeFileSync(
+      join(account, '.claude.json'),
+      JSON.stringify({
+        hasCompletedOnboarding: true,
+        mcpServers: { 'their-docs': { type: 'stdio', command: 'false', args: [] } },
+      }),
+    )
+    const problems: string[] = []
+    const warnings: string[] = []
+    let asked = 0
+    let idle = false
+    const chat = await start(
+      { finalText: 'Two agents are working.' },
+      {
+        onWarning: (message) => warnings.push(message),
+        onToolsMissing: () => {
+          asked += 1
+          return 'Tade is starting it again.'
+        },
+      },
+    )
+    chat.onEvent((event) => {
+      if (event.type === 'problem') problems.push(event.text)
+    })
+    chat.onIdle(() => {
+      idle = true
+    })
+    await chat.ask('what is running?')
+    await until(() => idle, 90_000)
+    expect(problems).toEqual([
+      'The tool server their-docs did not connect (claude-code says it failed), so its tools are missing from this conversation.',
+    ])
+    expect(asked).toBe(0)
+    expect(warnings.filter((message) => message.includes('their-docs'))).toEqual([])
+  }, 120_000)
+
   it('answers in the same words the window draws for pi', async () => {
     const said: string[] = []
     const deltas: string[] = []

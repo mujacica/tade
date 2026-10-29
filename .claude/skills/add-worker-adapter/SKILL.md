@@ -34,7 +34,8 @@ closes, which is the thing this design exists to avoid.
   gave up on is `server_down`, said before the turn it begins: Claude Code drops one that misses
   its connect deadline (`MCP_WAITS`) for the whole session, and the orchestrator ran for hours with
   none of Tade's tools and nothing said, so the orchestrator says it and is started again
-  (`againForToolsAt`).
+  (`againForToolsAt`). Claude Code lists the account's own servers too: one of those is said in
+  the transcript and never written down as Tade's warning, which is reported (TADE-7).
 - **`idle` means the turn is over, not that it paused.** Tade reads it as the end, and a turn that
   reaches it having last emitted `tool_call` with nothing said after is reported to the person as
   having gone quiet (`NEVER_GO_QUIET`, `core/src/quiet.ts`) — the worst failure the conversation

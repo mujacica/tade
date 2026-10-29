@@ -195,8 +195,10 @@ export const WorkerSignal = z.discriminatedUnion('type', [
    */
   z.object({ type: z.literal('problem'), run: RunId, at: z.number(), text: z.string() }),
   /**
-   * A tool server it was given (`WorkerExtras.mcp`) did not connect, so this
-   * session has none of that server's tools — named as the config named it,
+   * A tool server did not connect, so this session has none of that server's
+   * tools: one it was given (`WorkerExtras.mcp`), or one of the account's own
+   * — a server the person put in the harness's config is listed beside
+   * Tade's, and is theirs rather than Tade's trouble. Named as the config named it,
    * with the harness's own word for how it stands. Said when it is first seen
    * down and again each time it goes down after being up: a harness that gives
    * up on a server for the session gives no other sign than tools missing.
