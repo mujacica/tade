@@ -74,6 +74,23 @@ describe('watching the folder', () => {
     expect(was.closed).toBe(true)
   })
 
+  // The stand-in proves the burst, and only a real folder proves a real write
+  // gets through `fs.watch` to `changed` at all. Linux only: inotify is
+  // listening when `watch` returns and says a write at once, where FSEvents
+  // on a loaded Mac said nothing for 16 s at a time.
+  it.runIf(process.platform === 'linux')('hears a real write to a real folder', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tade-reload-'))
+    let said = 0
+    const stop = watchFolder(dir, () => (said += 1), 20)
+    try {
+      await writeFile(join(dir, 'a.css'), 'a')
+      while (said === 0) await new Promise((done) => setTimeout(done, 20))
+      expect(said).toBe(1)
+    } finally {
+      stop()
+    }
+  })
+
   it('stops when told, and a folder that is not there is quietly not watched', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tade-reload-'))
     let said = 0
