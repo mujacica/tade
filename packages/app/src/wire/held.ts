@@ -130,7 +130,17 @@ export class Held {
     // split — has only its capture to count from.
     const read = { lane, lines, at: Math.max(at, lines.length), asked }
     this.kept = holding(this.kept, area, keeping(view) ? read : null)
-    return cutFrom(read, rows, back, read.at) ?? lines.slice(-rows).join('\n')
+    // Cut where the wheel is now, not where it was when the look began: a
+    // notch that landed during the read was drawn from the lines held, and
+    // this answer cut at the old depth painted the text a notch back over it
+    // until the next look. Where the read does not reach that far, the depth
+    // it was asked for.
+    const wheel = this.wire.state[which]
+    return (
+      cutFrom(read, rows, wheel, read.at) ??
+      cutFrom(read, rows, back, read.at) ??
+      lines.slice(-rows).join('\n')
+    )
   }
 
   /**
