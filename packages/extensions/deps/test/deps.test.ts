@@ -4,10 +4,10 @@ import { ExtensionHost } from '@tade/extensions-core'
 import { extensionConformance } from '@tade/extensions-core/conformance'
 import { describe, expect, it } from 'vitest'
 import { mkrepo } from '../../../../test/fixtures/mkrepo.ts'
-import { describeReport, installCommands, planUpdate } from '../src/check.ts'
+import { check, describeReport, installCommands, planUpdate } from '../src/check.ts'
 import { depsExtension } from '../src/extension.ts'
 import { readManifest, rewrite } from '../src/manifests.ts'
-import { goEscape } from '../src/registries.ts'
+import { goEscape, PUBLIC_REGISTRIES } from '../src/registries.ts'
 import { behind, parseVersion, readRequirement } from '../src/versions.ts'
 
 // Checking and updating dependencies. The registries are answered here, never
@@ -328,5 +328,123 @@ describe('checking and updating a project', () => {
     expect(
       describeReport('x', { manifests: [], findings: [], checkedVulnerabilities: false }),
     ).toContain('all current')
+  })
+})
+
+describe('a release younger than pnpm installs', () => {
+  // pnpm installs nothing younger than its `minimumReleaseAge` (a day unless
+  // the workspace says) without writing a permanent exemption for it into
+  // pnpm-workspace.yaml, so the newest release old enough is what is proposed.
+  const NOW = Date.parse('2026-10-29T09:00:00.000Z')
+  const hoursAgo = (hours: number) => new Date(NOW - hours * 3_600_000).toISOString()
+
+  /** react's documents: the abbreviated one, and the full one with publish times. */
+  function react(times: Record<string, number>, modified = Math.min(...Object.values(times))) {
+    const asked: string[] = []
+    const versions = Object.fromEntries(Object.keys(times).map((version) => [version, {}]))
+    const latest = Object.keys(times).at(-1) ?? ''
+    const fetcher = (async (_input: string | URL | Request, init?: RequestInit) => {
+      const accept = new Headers(init?.headers).get('accept') ?? ''
+      const full = accept === 'application/json'
+      asked.push(full ? 'full' : 'abbreviated')
+      return Response.json({
+        'dist-tags': { latest },
+        versions,
+        modified: hoursAgo(modified),
+        ...(full
+          ? {
+              time: Object.fromEntries(
+                Object.entries(times).map(([version, hours]) => [version, hoursAgo(hours)]),
+              ),
+            }
+          : {}),
+      })
+    }) as typeof fetch
+    return { fetcher, asked }
+  }
+
+  function shop(files: Record<string, string>) {
+    const repo = mkrepo()
+    repo.commit('manifests', {
+      'package.json': '{\n  "dependencies": {\n    "react": "^19.0.0"\n  }\n}\n',
+      ...files,
+    })
+    return repo
+  }
+
+  async function newest(
+    repo: ReturnType<typeof shop>,
+    fetcher: typeof fetch,
+  ): Promise<{ latest: string | null; problem: string | null }> {
+    const report = await check({
+      root: repo.root,
+      files: repo.git('ls-files').split('\n'),
+      fetch: fetcher,
+      registries: PUBLIC_REGISTRIES,
+      vulnerabilities: false,
+      now: NOW,
+    })
+    const [finding] = report.findings
+    return { latest: finding?.latest ?? null, problem: finding?.problem ?? null }
+  }
+
+  it('proposes the newest release older than a day, and not one published hours ago', async () => {
+    const repo = shop({ 'pnpm-lock.yaml': 'lockfileVersion: 9\n' })
+    const { fetcher, asked } = react({ '19.0.0': 900, '19.1.0': 72, '19.1.1': 9 }, 9)
+    expect(await newest(repo, fetcher)).toEqual({ latest: '19.1.0', problem: null })
+    expect(asked).toEqual(['abbreviated', 'full'])
+
+    // Through the tool too, on the window's clock rather than this machine's.
+    const extensions = await ExtensionHost.load({
+      builtin: [depsExtension],
+      config: { extensions: {}, projects: { shop: { root: repo.root } } },
+      home: repo.root,
+      env: {},
+      fetch: fetcher,
+      now: () => NOW,
+    })
+    const answer = await extensions.call(
+      'deps_check',
+      { project: 'shop' },
+      { caller: { kind: 'you' } },
+    )
+    expect(answer.text).toContain('react ^19.0.0 → 19.1.0 (minor)')
+  })
+
+  it('asks for publish times only when the package changed inside the cooldown', async () => {
+    const repo = shop({ 'pnpm-lock.yaml': 'lockfileVersion: 9\n' })
+    const { fetcher, asked } = react({ '19.0.0': 900, '19.1.0': 72 }, 30)
+    expect(await newest(repo, fetcher)).toEqual({ latest: '19.1.0', problem: null })
+    expect(asked).toEqual(['abbreviated'])
+  })
+
+  it("reads the workspace's own minimumReleaseAge", async () => {
+    const short = shop({
+      'pnpm-lock.yaml': 'lockfileVersion: 9\n',
+      'pnpm-workspace.yaml': 'packages:\n  - packages/*\nminimumReleaseAge: 60 # an hour\n',
+    })
+    expect(await newest(short, react({ '19.0.0': 900, '19.1.1': 9 }, 9).fetcher)).toEqual({
+      latest: '19.1.1',
+      problem: null,
+    })
+    const week = shop({
+      'pnpm-lock.yaml': 'lockfileVersion: 9\n',
+      'pnpm-workspace.yaml': 'minimumReleaseAge: 10080\n',
+    })
+    expect(
+      await newest(week, react({ '19.0.0': 900, '19.1.0': 72, '19.1.1': 9 }, 9).fetcher),
+    ).toEqual({ latest: '19.0.0', problem: null })
+  })
+
+  it('says so when every release is too young, and holds no project pnpm does not install', async () => {
+    const pnpm = shop({ 'pnpm-lock.yaml': 'lockfileVersion: 9\n' })
+    expect(await newest(pnpm, react({ '19.0.0': 5, '19.1.0': 2 }, 2).fetcher)).toEqual({
+      latest: null,
+      problem: "every release up to 19.1.0 is younger than 1440 minutes, pnpm's minimumReleaseAge",
+    })
+    const npmOnly = shop({ 'package-lock.json': '{}\n' })
+    const { fetcher, asked } = react({ '19.0.0': 900, '19.1.1': 9 }, 9)
+    expect(await newest(npmOnly, fetcher)).toEqual({ latest: '19.1.1', problem: null })
+    expect(asked).toEqual(['abbreviated'])
   })
 })

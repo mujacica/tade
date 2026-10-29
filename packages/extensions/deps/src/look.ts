@@ -51,6 +51,7 @@ export async function report(
       ignore: ignored(ctx),
       vulnerabilities: ctx.settings.vulnerabilities !== false,
       onProgress: progress,
+      now: ctx.now(),
     }),
   }
 }

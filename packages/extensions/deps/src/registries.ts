@@ -1,4 +1,4 @@
-import { type Ecosystem, isStable, parseVersion } from './versions.ts'
+import { compareVersions, type Ecosystem, isStable, parseVersion } from './versions.ts'
 
 // Asking each ecosystem's registry what the newest release is, and OSV which
 // versions have known vulnerabilities. Every question degrades to "could not
@@ -47,6 +47,16 @@ async function getJson(
   return response.json()
 }
 
+/**
+ * How old an npm release must be before it is proposed: pnpm installs nothing
+ * younger than its `minimumReleaseAge` without writing a permanent exemption
+ * for it into `pnpm-workspace.yaml`, so a younger one is not an update yet.
+ */
+export interface Cooldown {
+  minutes: number
+  now: number
+}
+
 /** The newest release of a package, and whether the version you use is deprecated. */
 export async function latest(
   fetcher: typeof fetch,
@@ -54,23 +64,32 @@ export async function latest(
   ecosystem: Ecosystem,
   name: string,
   current: string | null,
+  cooldown: Cooldown | null = null,
 ): Promise<Latest> {
   try {
     switch (ecosystem) {
       case 'npm': {
-        const doc = (await getJson(fetcher, `${registries.npm}/${name.replace('/', '%2f')}`, {
+        const url = `${registries.npm}/${name.replace('/', '%2f')}`
+        const doc = (await getJson(fetcher, url, {
           // The abbreviated document: versions and dist-tags, without every readme.
           accept: 'application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8',
         })) as {
           'dist-tags'?: { latest?: string }
           versions?: Record<string, { deprecated?: string }>
+          modified?: string
         }
-        const found = doc['dist-tags']?.latest ?? null
+        const tagged = doc['dist-tags']?.latest ?? null
         const deprecated = current ? (doc.versions?.[current]?.deprecated ?? null) : null
+        const found =
+          tagged && cooldown ? await settled(fetcher, url, doc, tagged, cooldown) : tagged
         return {
           version: found,
           deprecated: deprecated || null,
-          problem: found ? null : 'it lists no latest release',
+          problem: found
+            ? null
+            : tagged
+              ? `every release up to ${tagged} is younger than ${cooldown?.minutes} minutes, pnpm's minimumReleaseAge`
+              : 'it lists no latest release',
         }
       }
       case 'pypi': {
@@ -114,6 +133,47 @@ export async function latest(
       problem: err instanceof Error ? err.message : String(err),
     }
   }
+}
+
+/**
+ * The newest stable release up to `tagged` that is older than the cooldown,
+ * or null when none is. Only the full document says when each version was
+ * published, and it can be megabytes, so it is asked for only when the
+ * abbreviated one was modified inside the cooldown. A registry that says
+ * nothing of either is taken at its `latest`, as before.
+ */
+async function settled(
+  fetcher: typeof fetch,
+  url: string,
+  doc: { modified?: string },
+  tagged: string,
+  cooldown: Cooldown,
+): Promise<string | null> {
+  const cutoff = cooldown.now - cooldown.minutes * 60_000
+  const modified = doc.modified ? Date.parse(doc.modified) : Number.NaN
+  if (cooldown.minutes <= 0 || !(modified > cutoff)) return tagged
+  const full = (await getJson(fetcher, url, { accept: 'application/json' })) as {
+    time?: Record<string, string>
+    versions?: Record<string, unknown>
+  }
+  const time = full.time
+  const ceiling = parseVersion(tagged)
+  if (!time || !ceiling) return tagged
+  const old = Object.keys(full.versions ?? time)
+    .map((version) => ({
+      version,
+      parsed: parseVersion(version),
+      at: Date.parse(time[version] ?? ''),
+    }))
+    .filter(
+      (one) =>
+        one.parsed &&
+        isStable(one.parsed) &&
+        compareVersions(one.parsed, ceiling) <= 0 &&
+        one.at <= cutoff,
+    )
+  old.sort((a, b) => (a.parsed && b.parsed ? compareVersions(b.parsed, a.parsed) : 0))
+  return old[0]?.version ?? null
 }
 
 /** OSV's names for the ecosystems. */

@@ -1,7 +1,7 @@
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { type Dependency, ecosystemOf, readManifests, rewrite } from './manifests.ts'
-import { latest, type Registries, vulnerabilities } from './registries.ts'
+import { type Cooldown, latest, type Registries, vulnerabilities } from './registries.ts'
 import { type Behind, behind, type Ecosystem, parseVersion, readRequirement } from './versions.ts'
 
 // Checking a project's dependencies, and moving them forward.
@@ -39,6 +39,25 @@ const WITHIN: Record<Level, readonly Behind[]> = {
 /** At most this many registry questions at once. */
 const AT_ONCE = 8
 
+/** pnpm's own `minimumReleaseAge` when a workspace sets none: a day. */
+const PNPM_RELEASE_AGE_MINUTES = 1440
+
+/**
+ * How old an npm release must be before pnpm installs it, in a project pnpm
+ * installs: what its `pnpm-workspace.yaml` says, or pnpm's default. Null
+ * where pnpm is not what installs it.
+ */
+export function pnpmReleaseAge(root: string, files: readonly string[]): number | null {
+  if (!files.some((file) => file === 'pnpm-lock.yaml' || file.endsWith('/pnpm-lock.yaml')))
+    return null
+  const workspace = join(root, 'pnpm-workspace.yaml')
+  if (!existsSync(workspace)) return PNPM_RELEASE_AGE_MINUTES
+  const said = /^minimumReleaseAge:\s*['"]?(\d+)['"]?\s*(?:#.*)?$/m.exec(
+    readFileSync(workspace, 'utf8'),
+  )
+  return said?.[1] === undefined ? PNPM_RELEASE_AGE_MINUTES : Number(said[1])
+}
+
 export async function check(options: {
   root: string
   files: readonly string[]
@@ -47,6 +66,8 @@ export async function check(options: {
   ignore?: readonly string[]
   vulnerabilities?: boolean
   onProgress?: (text: string) => void
+  /** The time now, for how old a release is. */
+  now?: number
 }): Promise<Report> {
   const manifests = options.files.filter(
     (file) => ecosystemOf(file) !== null && !/(^|\/)node_modules\//.test(file),
@@ -54,6 +75,10 @@ export async function check(options: {
   const dependencies = readManifests(options.root, manifests).filter(
     (dependency) => !(options.ignore ?? []).includes(dependency.name),
   )
+
+  const age = pnpmReleaseAge(options.root, options.files)
+  const cooldown: Cooldown | null =
+    age === null ? null : { minutes: age, now: options.now ?? Date.now() }
 
   // One question per package, however many manifests name it.
   const asked = new Map<string, ReturnType<typeof latest>>()
@@ -66,7 +91,14 @@ export async function check(options: {
     const exact = dependencies.find((one) => one.ecosystem === ecosystem && one.name === name)
     const version = exact ? readRequirement(ecosystem, exact.spec)?.version : null
     const current = version ? `${version.major}.${version.minor}.${version.patch}` : null
-    const answer = latest(options.fetch, options.registries, ecosystem, name, current)
+    const answer = latest(
+      options.fetch,
+      options.registries,
+      ecosystem,
+      name,
+      current,
+      ecosystem === 'npm' ? cooldown : null,
+    )
     asked.set(key, answer)
     await answer
     done++
