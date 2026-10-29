@@ -99,6 +99,25 @@ export interface Orchestrating {
 
 const opening = () => new Error('Tade is still opening: ask again in a moment')
 
+/**
+ * How many times it is started again for tools that did not connect, within
+ * `TOOLS_AGAIN_MS`. A server that missed its deadline on a loaded machine
+ * usually makes the next one, and the session it missed is without its tools
+ * for good; a server that never comes up would be a restart a turn, for ever.
+ */
+export const TOOLS_AGAIN = 2
+/** The stretch `TOOLS_AGAIN` is counted over: long enough to stop a loop, short enough for a later spell of load. */
+export const TOOLS_AGAIN_MS = 60 * 60_000
+
+/**
+ * The times it was started again for its tools, with `now` among them — or
+ * null when that would be one time too many within `TOOLS_AGAIN_MS`.
+ */
+export function againForToolsAt(before: readonly number[], now: number): number[] | null {
+  const lately = before.filter((at) => at > now - TOOLS_AGAIN_MS)
+  return lately.length >= TOOLS_AGAIN ? null : [...lately, now]
+}
+
 /** What holds the home, and its tools as it handed them over: asked for once, as they hold their own state. */
 interface Held {
   holding: Holding
@@ -304,6 +323,7 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
           detail: { message: `the orchestrator: ${message}` },
         })
       },
+      onToolsMissing: () => againForTools(),
       extensions: orchestratorExtensions(extensions, home, config.orchestrator.harness),
       // What its conversation was told before, read for that alone: it may be
       // older than the briefing's two thousand lines.
@@ -391,6 +411,44 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
     orchestrator = null
     starting = startThinker(holding, before)
     await starting
+  }
+
+  // Started without its tools: started again on the same conversation once
+  // the turn that found out is over — never cut across, since that turn is
+  // answering somebody — and only so often (`TOOLS_AGAIN`).
+  let againAt: number[] = []
+  const againForTools = (): string => {
+    const next = againForToolsAt(againAt, Date.now())
+    if (!next) {
+      return `Tade has started it again ${TOOLS_AGAIN} times in the last hour and they still did not connect, so it will not again by itself: once the machine is less busy, start the orchestrator again (switch its model, or reopen Tade).`
+    }
+    againAt = next
+    const missing = orchestrator
+    void (async () => {
+      await starting
+      const on = missing ?? orchestrator
+      if (!on) return
+      if (on.busy) {
+        await new Promise<void>((resolve) => {
+          const off = on.onIdle(() => {
+            off()
+            resolve()
+          })
+        })
+      }
+      // Already started again, or stopped, by somebody else meanwhile.
+      if (orchestrator !== on || quitting.signal.aborted) return
+      await restart()
+    })().catch((err: unknown) => {
+      void client.log.append({
+        type: 'warning',
+        task: null,
+        detail: {
+          message: `the orchestrator: starting it again for its tools failed: ${err instanceof Error ? err.message : String(err)}`,
+        },
+      })
+    })
+    return `Tade is starting it again on the same conversation once this turn is over (${againAt.length} of ${TOOLS_AGAIN}); ask again then.`
   }
 
   return {

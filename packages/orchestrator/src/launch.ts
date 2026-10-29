@@ -16,6 +16,8 @@ import type { OrchestratorOptions } from './orchestrator.ts'
 
 /** The same tools, served over MCP to a harness that speaks it. */
 export const TOOLS_MCP = fileURLToPath(new URL('./tools-mcp.ts', import.meta.url))
+/** What that server is called in the config it is handed in: what a harness names it back by. */
+export const TOOLS_SERVER = 'tade'
 /** The `tade` CLI in a source checkout, which the status tool shells out to. */
 const CLI_BIN = fileURLToPath(new URL('../../cli/src/bin.ts', import.meta.url))
 
@@ -88,7 +90,12 @@ export function writeToolServer(opts: OrchestratorOptions): string {
     `${JSON.stringify(
       {
         mcpServers: {
-          tade: { type: 'stdio', command: process.execPath, args: [TOOLS_MCP], env: toolEnv(opts) },
+          [TOOLS_SERVER]: {
+            type: 'stdio',
+            command: process.execPath,
+            args: [TOOLS_MCP],
+            env: toolEnv(opts),
+          },
         },
       },
       null,

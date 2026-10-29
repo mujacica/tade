@@ -1,9 +1,17 @@
 import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { WorkerSignal } from '@tade/harnesses-core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { ClaudeAdapter } from '../src/adapter.ts'
-import { type HeadlessLaunch, headlessArgs, headlessEnv, SNAPSHOT_OPTION } from '../src/headless.ts'
+import {
+  type HeadlessLaunch,
+  headlessArgs,
+  headlessEnv,
+  SNAPSHOT_OPTION,
+  serverDown,
+  serversIn,
+} from '../src/headless.ts'
 import { optionsOf } from '../src/installed.ts'
 
 // The orchestrator's launch: a conversation whose id never changes, so
@@ -73,6 +81,46 @@ describe('the environment', () => {
     expect(env.TADE_RUN_ID).toBe(spec.run)
     expect(env.TADE_TASK_ID).toBe(spec.task)
   })
+
+  it('gives its tool server three minutes to come up, and a call fifteen to answer', () => {
+    // Thirty seconds is Claude Code's own, and a server that misses it is
+    // given up on for the whole session: on a machine at a load average of a
+    // hundred, Tade's took 41 to 54 seconds, and the orchestrator ran for
+    // hours with none of its tools.
+    const env = headlessEnv({}, spec)
+    expect(env.MCP_TIMEOUT).toBe('180000')
+    expect(env.MCP_TOOL_TIMEOUT).toBe('900000')
+  })
+})
+
+describe('the tool servers a turn begins with', () => {
+  // What a real 2.1.308 said in its `system/init` line, given a server that
+  // answered `initialize` after its deadline.
+  const init = {
+    type: 'system',
+    subtype: 'init',
+    mcp_servers: [
+      { name: 'tade', status: 'failed', source: 'dynamic' },
+      { name: 'linear', status: 'connected', source: 'dynamic' },
+      { name: 'slow', status: 'pending' },
+      { name: 7, status: 'failed' },
+    ],
+  }
+
+  it('reads each server and how it stands, and nothing it cannot place', () => {
+    expect(serversIn(init)).toEqual([
+      { name: 'tade', status: 'failed' },
+      { name: 'linear', status: 'connected' },
+      { name: 'slow', status: 'pending' },
+    ])
+    expect(serversIn({ type: 'system', subtype: 'init' })).toEqual([])
+    expect(serversIn({ mcp_servers: 'tade' })).toEqual([])
+  })
+
+  it('counts a server down unless it is up or still coming up', () => {
+    expect(serversIn(init).map(serverDown)).toEqual([true, false, false])
+    expect(serverDown({ name: 'tade', status: 'needs-auth' })).toBe(true)
+  })
 })
 
 /** Whether a process is there, a zombie included: one reaped is not. */
@@ -98,6 +146,7 @@ function fakeClaude(help: string[] | null): string {
       `if [ "$1" = "--help" ]; then ${said}; exit 0; fi`,
       'printf \'%s\\n\' "$@" > "$0.args.tmp"',
       'echo "$ENABLE_TOOL_SEARCH" > "$0.search"',
+      'echo "$MCP_TIMEOUT" > "$0.wait"',
       'mv "$0.args.tmp" "$0.args"',
       // Who started it — the reaper between it and the adapter — one a line.
       'echo "$PPID" >> "$0.parents"',
@@ -171,6 +220,7 @@ describe('starting the orchestrator', () => {
     return {
       args: readFileSync(`${bin}.args`, 'utf8').trimEnd().split('\n'),
       search: readFileSync(`${bin}.search`, 'utf8').trim(),
+      wait: readFileSync(`${bin}.wait`, 'utf8').trim(),
     }
   }
 
@@ -178,6 +228,12 @@ describe('starting the orchestrator', () => {
     const { args, search } = await started(HELP)
     expect(given(args, SNAPSHOT_OPTION)).toBe('off')
     expect(search).toBe('false')
+  })
+
+  it('starts it with time for its tools to come up, through whatever stands between', async () => {
+    // The reaper sits between the adapter and `claude`: what reaches the
+    // process is what counts, not what the adapter meant to pass.
+    expect((await started(HELP)).wait).toBe('180000')
   })
 
   it('still starts it on a Claude Code too old to be asked', async () => {
@@ -222,4 +278,80 @@ describe('starting the orchestrator', () => {
     expect(heard).toEqual([])
     expect((await adapter?.list())?.map((one) => one.run)).toEqual([run])
   })
+})
+
+/**
+ * A `claude` that speaks the protocol and begins each turn with the next of
+ * `states` as its tool server's standing, the way a real one lists its servers
+ * in the `system/init` line every turn begins with.
+ */
+function fakeTurns(states: string[]): string {
+  const bin = join(tmp('tade-claude-turns-'), 'claude')
+  writeFileSync(
+    bin,
+    [
+      '#!/usr/bin/env node',
+      "if (process.argv[2] === '--help') process.exit(0)",
+      `const states = ${JSON.stringify(states)}`,
+      'const say = (event) => process.stdout.write(JSON.stringify(event) + "\\n")',
+      "let rest = ''",
+      'let turn = 0',
+      "process.stdin.on('data', (chunk) => {",
+      '  rest += chunk',
+      "  for (let end = rest.indexOf('\\n'); end >= 0; end = rest.indexOf('\\n')) {",
+      '    rest = rest.slice(end + 1)',
+      '    const status = states[turn++] ?? "connected"',
+      "    say({ type: 'system', subtype: 'init', session_id: 'same', mcp_servers: [{ name: 'tade', status }, { name: 'linear', status: 'connected' }] })",
+      "    say({ type: 'assistant', message: { content: [{ type: 'text', text: 'Here.' }] } })",
+      "    say({ type: 'result', subtype: 'success', result: 'Here.', is_error: false })",
+      '  }',
+      '})',
+    ].join('\n'),
+  )
+  chmodSync(bin, 0o755)
+  return bin
+}
+
+describe('a tool server that did not connect', () => {
+  let adapter: ClaudeAdapter | null = null
+  afterEach(async () => {
+    await adapter?.shutdown()
+    adapter = null
+  })
+
+  it('is said when it is first seen down, and again only after it was up', async () => {
+    // Claude Code gives up on a server for the session and says so nowhere
+    // but here: the model finds out when a tool is not there.
+    adapter = new ClaudeAdapter({
+      runDir: tmp('tcc-'),
+      configDir: tmp('tade-claude-account-'),
+      home: tmp('tade-claude-home-'),
+      bin: fakeTurns(['failed', 'failed', 'connected', 'pending', 'failed']),
+      type: async () => {},
+    })
+    const run = 'tade/orchestrator/agent'
+    const signals: WorkerSignal[] = []
+    adapter.onSignal(run, (signal) => signals.push(signal))
+    await adapter.start({
+      run,
+      task: 'tade/orchestrator',
+      cwd: tmp('tade-claude-cwd-'),
+      prompt: '',
+    })
+    for (let turn = 1; turn <= 5; turn++) {
+      await adapter.prompt(run, 'where are we?')
+      const deadline = Date.now() + 10_000
+      while (signals.filter((signal) => signal.type === 'idle').length < turn) {
+        if (Date.now() > deadline) throw new Error(`turn ${turn} never ended`)
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+    }
+    const down = signals.flatMap((signal) =>
+      signal.type === 'server_down' ? [`${signal.server} ${signal.why}`] : [],
+    )
+    expect(down).toEqual(['tade failed', 'tade failed'])
+    // Said before the turn it begins, so whoever hears it knows the turn runs without.
+    const order = signals.map((signal) => signal.type)
+    expect(order.indexOf('server_down')).toBeLessThan(order.indexOf('turn_started'))
+  }, 60_000)
 })

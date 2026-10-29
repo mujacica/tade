@@ -84,6 +84,8 @@ export type ThinkerEvent =
   | { type: 'idle' }
   | { type: 'failed'; reason: string }
   | { type: 'error'; reason: string }
+  /** Something wrong with it that is not a turn's, said whole: tools it started without. */
+  | { type: 'problem'; text: string }
   | { type: 'exited'; code: number | null }
 
 export interface Transcript {
@@ -458,6 +460,10 @@ export function fromThinker(transcript: Transcript, event: ThinkerEvent, at: num
       // Still thinking: pi may be retrying, and `idle` says when it is not.
       return push(settleStreaming(transcript), { kind: 'problem', text, at })
     }
+    case 'problem':
+      // Its own sentence, and not "could not answer": the turn may well have
+      // answered — without the tools it would have answered with.
+      return push(settleStreaming(transcript), { kind: 'problem', text: event.text, at })
     case 'exited': {
       const running = entries.some((entry) => entry.kind === 'tool' && entry.state === 'running')
       let next: Transcript = { ...settleStreaming(transcript), thinking: null }

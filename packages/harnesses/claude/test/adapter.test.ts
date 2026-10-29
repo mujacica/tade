@@ -210,6 +210,10 @@ describe('ClaudeAdapter', () => {
       const mcp = JSON.parse(readFileSync(given('--mcp-config'), 'utf8'))
       expect(mcp.mcpServers.tade.args).toEqual([MCP_PATH])
       expect(mcp.mcpServers.tade.env.TADE_EXTENSION_TOOLS).toBe('/tools.json')
+      // Its tool server given time to come up on a loaded machine: missed, it
+      // is gone for the session (`MCP_WAITS`).
+      expect(launch.env.MCP_TIMEOUT).toBe('180000')
+      expect(launch.env.MCP_TOOL_TIMEOUT).toBe('900000')
       expect(readFileSync(given('--append-system-prompt-file'), 'utf8')).toBe(
         `You run in Tade.\n\n${BACKGROUNDED}`,
       )

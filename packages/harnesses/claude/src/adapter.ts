@@ -60,7 +60,14 @@ import {
   tokensIn,
   windowIn,
 } from './compact.ts'
-import { headlessArgs, headlessEnv, SNAPSHOT_OPTION } from './headless.ts'
+import {
+  headlessArgs,
+  headlessEnv,
+  MCP_WAITS,
+  SNAPSHOT_OPTION,
+  serverDown,
+  serversIn,
+} from './headless.ts'
 import { optionsOf } from './installed.ts'
 import { signedInUntil } from './login.ts'
 import { type Missed, takeMissed } from './missed.ts'
@@ -215,6 +222,8 @@ interface Run {
   child?: ChildProcess | null
   /** The last it wrote to standard error, which is where it says why it would not start. */
   stderr?: string
+  /** The tool servers already said to be down, so each is said once until it is up again. */
+  serversDown?: Set<string>
   /** Tade asked for the turn to stop, so the end of it is not a failure. */
   aborting?: boolean
   /**
@@ -862,6 +871,7 @@ export class ClaudeAdapter implements WorkerAdapter {
         if (run.compacting && aboutCompacting(event)) run.compacting.begun = true
         if (event.subtype !== 'init') return
         if (typeof event.model === 'string') run.model = event.model
+        this.sayServers(run, event)
         // A compaction begins with an init line too, and is not a turn: said
         // as one, it ended as a turn that said nothing — the very next thing
         // anybody asked was answered by its silence.
@@ -973,6 +983,24 @@ export class ClaudeAdapter implements WorkerAdapter {
    */
   private priceable(usd: number): number {
     return this.capabilities.spend.usd === 'none' ? 0 : usd
+  }
+
+  /**
+   * A tool server Claude Code gave up on, said once — until it is seen up
+   * again — rather than left for the model to find out by reaching for a tool
+   * that is not there. A headless run's alone: an agent in a lane draws its own
+   * `/mcp`, and its hooks are not told.
+   */
+  private sayServers(run: Run, event: Record<string, unknown>): void {
+    for (const server of serversIn(event)) {
+      run.serversDown ??= new Set()
+      if (!serverDown(server)) {
+        run.serversDown.delete(server.name)
+      } else if (!run.serversDown.has(server.name)) {
+        run.serversDown.add(server.name)
+        this.say(run, { type: 'server_down', server: server.name, why: server.status })
+      }
+    }
   }
 
   /** What a turn cost, as the protocol reports it when the turn ends. */
@@ -1535,8 +1563,9 @@ export class ClaudeAdapter implements WorkerAdapter {
       [WORKER_ENV.approvals]: this.opts.approvals,
       [WORKER_ENV.run]: spec.run,
       [WORKER_ENV.task]: spec.task,
-      // A tool Tade runs may take minutes: longer than Claude Code waits on an MCP call by default.
-      MCP_TOOL_TIMEOUT: String(15 * 60_000),
+      // Its tool server given time to come up on a loaded machine, and a tool
+      // Tade runs time to answer (`MCP_WAITS`).
+      ...MCP_WAITS,
     }
     if (spec.extras?.tools) env[WORKER_ENV.tools] = spec.extras.tools
     if (spec.title) env[WORKER_ENV.title] = spec.title

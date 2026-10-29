@@ -5,6 +5,27 @@ import { WORKER_ENV, type WorkerSpec } from '@tade/harnesses-core'
 // protocol and the signals are `ClaudeAdapter.start()`'s; this is only what
 // it is started with, so a test can hold the line without a `claude`.
 
+/**
+ * How long Claude Code waits on an MCP server, said to every `claude` Tade
+ * starts: the orchestrator's, and every agent's.
+ *
+ * **Connecting** (`MCP_TIMEOUT`) defaults to thirty seconds, and a server that
+ * misses it is given up on for the whole session — never retried — so every
+ * one of its tools reads "No such tool available" until the process starts
+ * again. Tade's own tool server is `node` on a `.ts` file, which answers in a
+ * fifth of a second on an idle machine and took 41, 54 and 48 seconds on one
+ * at a load average of a hundred and more (2026-10-29): the orchestrator spent
+ * whole sessions with none of its tools. Three minutes outlasts that, and a
+ * first turn only waits on it while the server has not answered.
+ *
+ * **A call** (`MCP_TOOL_TIMEOUT`) may take minutes, because some of Tade's run
+ * a suite or wait on a person: longer than Claude Code waits by default.
+ */
+export const MCP_WAITS = {
+  MCP_TIMEOUT: String(3 * 60_000),
+  MCP_TOOL_TIMEOUT: String(15 * 60_000),
+} as const
+
 /** The option that stops Claude Code pinning the system prompt, where it has one. */
 export const SNAPSHOT_OPTION = '--system-prompt-snapshot'
 
@@ -90,7 +111,42 @@ export function headlessEnv(account: NodeJS.ProcessEnv, spec: WorkerSpec): NodeJ
   const env: NodeJS.ProcessEnv = { ...account }
   env[WORKER_ENV.run] = spec.run
   env[WORKER_ENV.task] = spec.task
-  env.MCP_TOOL_TIMEOUT = String(15 * 60_000)
+  Object.assign(env, MCP_WAITS)
   if (spec.extras?.tools) env[WORKER_ENV.tools] = spec.extras.tools
   return { ...env, ...spec.env, ENABLE_TOOL_SEARCH: 'false' }
+}
+
+/** One tool server as a session's `system/init` line says it stands. */
+export interface ServerState {
+  name: string
+  /** Claude Code's own word: `connected`, `pending`, `failed`, `needs-auth`… */
+  status: string
+}
+
+/**
+ * The tool servers a `system/init` line lists, and how each stands — or none,
+ * for a line that lists none or lists them in a shape this does not know.
+ *
+ * Every turn begins with one, and it is the only place Claude Code says that
+ * it gave up on a server: the session goes on without that server's tools and
+ * says nothing else until the model reaches for one and is told there is no
+ * such tool.
+ */
+export function serversIn(event: Record<string, unknown>): ServerState[] {
+  const listed = event.mcp_servers
+  if (!Array.isArray(listed)) return []
+  return listed.flatMap((one) => {
+    const server = one as { name?: unknown; status?: unknown }
+    return typeof server?.name === 'string' && typeof server.status === 'string'
+      ? [{ name: server.name, status: server.status }]
+      : []
+  })
+}
+
+/**
+ * Whether a server's tools are missing from the session: anything but up or
+ * still coming up. `pending` is not down — the next line says how it went.
+ */
+export function serverDown(state: ServerState): boolean {
+  return state.status !== 'connected' && state.status !== 'pending'
 }

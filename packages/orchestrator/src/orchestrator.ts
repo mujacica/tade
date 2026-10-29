@@ -38,7 +38,7 @@ import { sessionIdFor } from '@tade/harnesses-pi'
 import { harnessAccount } from '@tade/workbench/accounts'
 import { HARNESS_ADAPTERS } from '@tade/workbench/harnesses'
 import { enabledTools } from './extensions.ts'
-import { TOOLS_MCP, toolEnv, writeToolServer } from './launch.ts'
+import { TOOLS_MCP, TOOLS_SERVER, toolEnv, writeToolServer } from './launch.ts'
 import { modelNamed, startingModel } from './model.ts'
 import { canBeArmed } from './origin.ts'
 import { tellingOf } from './told.ts'
@@ -136,6 +136,13 @@ export interface OrchestratorOptions {
   /** Something that went wrong but did not stop it: never swallowed. */
   onWarning?: (message: string) => void
   /**
+   * Its harness started it without Tade's own tools: their server did not
+   * connect (`server_down`). Whoever started it decides what happens next —
+   * starting it again, a bounded number of times — and answers with the
+   * sentence that says so, which goes after the one saying what is missing.
+   */
+  onToolsMissing?: () => string
+  /**
    * The journal's lines about what its conversation was told
    * (`TOLD_EVENTS`), read for that alone: a briefing's two thousand lines
    * can be a morning's, and what the conversation holds may be older.
@@ -191,6 +198,8 @@ export type OrchestratorEvent =
   | { type: 'failed'; reason: string }
   /** A turn the model could not finish — a refused request — while the harness keeps running. */
   | { type: 'error'; reason: string }
+  /** Something wrong with it that is not a turn's — tools it was started without — in Tade's words. */
+  | { type: 'problem'; text: string }
   | { type: 'exited'; code: number | null }
 
 /**
@@ -500,6 +509,21 @@ export class Orchestrator {
           signal.type === 'problem' ? signal.text : (signal.reason ?? 'the model returned an error')
         for (const listener of orchestrator.errorListeners) listener(reason)
         emit({ type: 'error', reason })
+      } else if (signal.type === 'server_down') {
+        // A conversation without its tools looks exactly like one that has
+        // them until the model reaches for one, and then like a model that
+        // cannot do what it is asked. So said, in words, and written down.
+        const ours = signal.server === TOOLS_SERVER
+        const missing = ours
+          ? `Tade's own tools did not connect (${harness} says their server ${signal.why}), so this conversation is running without them: no tade_status, no tade_run_start, nothing of Tade's.`
+          : `The tool server ${signal.server} did not connect (${harness} says it ${signal.why}), so its tools are missing from this conversation.`
+        const next = ours ? opts.onToolsMissing?.() : undefined
+        emit({ type: 'problem', text: next ? `${missing} ${next}` : missing })
+        opts.onWarning?.(
+          ours
+            ? `its tools server did not connect (${signal.why}), so it started without Tade's own tools`
+            : `the tool server ${signal.server} did not connect (${signal.why})`,
+        )
       } else if (signal.type === 'idle') {
         // The turn is over: nothing in flight and nothing queued, which is the
         // one moment the lease can be let go without re-widening the host

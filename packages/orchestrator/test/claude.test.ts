@@ -76,7 +76,11 @@ describe.runIf(installed)('the orchestrator in Claude Code', () => {
     model = null
   })
 
-  const start = async (options: Parameters<typeof startFakeAnthropic>[0] = {}) => {
+  const start = async (
+    options: Parameters<typeof startFakeAnthropic>[0] = {},
+    over: Partial<Parameters<typeof Orchestrator.start>[0]> & { more?: NodeJS.ProcessEnv } = {},
+  ) => {
+    const { more, ...rest } = over
     model = await startFakeAnthropic(options)
     orchestrator = await Orchestrator.start({
       home,
@@ -92,10 +96,50 @@ describe.runIf(installed)('the orchestrator in Claude Code', () => {
         CLAUDE_CONFIG_DIR: account,
         ANTHROPIC_BASE_URL: model.url,
         CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+        ...more,
       },
+      ...rest,
     })
     return orchestrator
   }
+
+  it('says when it was started without its tools, and asks whoever started it what next', async () => {
+    // A machine so loaded that Tade's tool server missed Claude Code's
+    // deadline: given up on for the whole session, with nothing said but a
+    // tool the model cannot find. A deadline of a millisecond is that machine.
+    const problems: string[] = []
+    const warnings: string[] = []
+    let asked = 0
+    let idle = false
+    const chat = await start(
+      { finalText: 'I cannot see anything.' },
+      {
+        more: { MCP_TIMEOUT: '1' },
+        onWarning: (message) => warnings.push(message),
+        onToolsMissing: () => {
+          asked += 1
+          return 'Tade is starting it again.'
+        },
+      },
+    )
+    chat.onEvent((event) => {
+      if (event.type === 'problem') problems.push(event.text)
+    })
+    chat.onIdle(() => {
+      idle = true
+    })
+    await chat.ask('what is running?')
+    await until(() => idle, 90_000)
+    expect(asked).toBe(1)
+    expect(problems).toHaveLength(1)
+    expect(problems[0]).toMatch(
+      /^Tade's own tools did not connect \(claude-code says their server failed\), so this conversation is running without them: .* Tade is starting it again\.$/,
+    )
+    // And written down, which is where Tade's own trouble is reported from.
+    expect(warnings).toContain(
+      "its tools server did not connect (failed), so it started without Tade's own tools",
+    )
+  }, 120_000)
 
   it('answers in the same words the window draws for pi', async () => {
     const said: string[] = []

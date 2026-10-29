@@ -24,13 +24,17 @@ closes, which is the thing this design exists to avoid.
 ## The contract
 
 - Emit `WorkerSignal`s: `started`, `turn_started`, `titled`, `message`, `message_delta`, `tool_call`,
-  `tool_result`, `extension_call`, `permission_request`, `turn_done`, `failed`, `problem`, `idle`,
-  `context`, `usage`, `exited`. These are zod schemas because they cross a socket. A process that
+  `tool_result`, `extension_call`, `permission_request`, `turn_done`, `failed`, `problem`,
+  `server_down`, `idle`, `context`, `usage`, `exited`. These are zod schemas because they cross a socket. A process that
   exits before it answers anything says why with `failed`, from what it wrote to stderr — never leave
   a caller to time out. A turn the provider refused is `turn_done` with `status: 'error'` and the
   provider's `reason`; anything else that goes wrong while the agent carries on (a retry, a harness
   extension that threw) is `problem`. Both end up in front of the person — the orchestrator's
-  refusals once ended in silence, because nothing carried the reason.
+  refusals once ended in silence, because nothing carried the reason. A tool server the harness
+  gave up on is `server_down`, said before the turn it begins: Claude Code drops one that misses
+  its connect deadline (`MCP_WAITS`) for the whole session, and the orchestrator ran for hours with
+  none of Tade's tools and nothing said, so the orchestrator says it and is started again
+  (`againForToolsAt`).
 - **`idle` means the turn is over, not that it paused.** Tade reads it as the end, and a turn that
   reaches it having last emitted `tool_call` with nothing said after is reported to the person as
   having gone quiet (`NEVER_GO_QUIET`, `core/src/quiet.ts`) — the worst failure the conversation

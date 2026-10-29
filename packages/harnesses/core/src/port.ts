@@ -194,6 +194,20 @@ export const WorkerSignal = z.discriminatedUnion('type', [
    * so a person can go and fix it, never swallowed.
    */
   z.object({ type: z.literal('problem'), run: RunId, at: z.number(), text: z.string() }),
+  /**
+   * A tool server it was given (`WorkerExtras.mcp`) did not connect, so this
+   * session has none of that server's tools — named as the config named it,
+   * with the harness's own word for how it stands. Said when it is first seen
+   * down and again each time it goes down after being up: a harness that gives
+   * up on a server for the session gives no other sign than tools missing.
+   */
+  z.object({
+    type: z.literal('server_down'),
+    run: RunId,
+    at: z.number(),
+    server: z.string(),
+    why: z.string(),
+  }),
   /** No turn in flight and nothing queued: the agent is waiting on a human. */
   z.object({ type: z.literal('idle'), run: RunId, at: z.number() }),
   z.object({

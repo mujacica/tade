@@ -108,6 +108,21 @@ describe('the conversation', () => {
     expect(fromThinker(current, { type: 'idle' }, 3).thinking).toBeNull()
   })
 
+  it('says in its own words that it is running without its tools, and keeps thinking', () => {
+    // Not "could not answer": the turn goes on, without what it would have
+    // answered with — which is the thing to be told.
+    let current = thinking(youSaid(emptyTranscript(), 'what is running?', 0), 0)
+    current = fromThinker(
+      current,
+      { type: 'problem', text: "Tade's own tools did not connect. Tade is starting it again." },
+      1,
+    )
+    const lines = text(current, 120).join('\n')
+    expect(lines).toContain("✗ Tade's own tools did not connect. Tade is starting it again.")
+    expect(lines).not.toContain('could not answer')
+    expect(current.thinking).not.toBeNull()
+  })
+
   it("routes Tade's own commands visibly, and does not repeat the orchestrator's answer", () => {
     const grammar = fromTurn(youSaid(emptyTranscript(), 'park the stripe one', 0), {
       utterance: 'park the stripe one',
