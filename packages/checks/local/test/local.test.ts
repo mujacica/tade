@@ -86,10 +86,14 @@ describe('the local runner', () => {
   })
 
   it('kills the whole process group when a check runs past its limit', async () => {
+    // Three seconds, not 300 ms: the limit has to outlast the shell getting to
+    // `echo $$` on a machine the full suite is loading, or it fires first and
+    // there is no pid to ask about — which is how the lowered test below went
+    // red at 300 ms.
     const root = tmp('tade-local-')
     const pidFile = join(root, 'pid')
     const [run] = await runIn(root, [
-      check('slow', `echo $$ > ${pidFile}; sleep 30`, { minutes: 0.005 }),
+      check('slow', `echo $$ > ${pidFile}; sleep 30`, { minutes: 0.05 }),
     ])
     expect(run?.state).toBe('timed out')
     const pid = Number.parseInt(readFileSync(pidFile, 'utf8').trim(), 10)
@@ -108,10 +112,10 @@ describe('the local runner', () => {
     // check started. A wrapper that forked instead would leave a build
     // running under a run recorded as `timed out`.
     //
-    // Three seconds, not the 300 ms the unlowered test above gets: this line is
-    // two shells and an exec at a lower priority, and under the full suite a
-    // niced shell is exactly what the machine starves, so at 300 ms the limit
-    // fired before it reached `echo $$` and there was no pid to ask about.
+    // Three seconds, as above, and here it is the more needed: this line is two
+    // shells and an exec at a lower priority, and under the full suite a niced
+    // shell is exactly what the machine starves, so at 300 ms the limit fired
+    // before it reached `echo $$` and there was no pid to ask about.
     const root = tmp('tade-local-')
     const pidFile = join(root, 'pid')
     const [run] = await runIn(
