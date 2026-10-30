@@ -41,7 +41,7 @@ function fakeTade() {
       return { id: 'x/y', worktree: '/wt/y' }
     },
     async startAgent() {
-      return { run: 'r1' }
+      return {}
     },
     async subscribe() {
       return () => calls.push('unsubscribed')

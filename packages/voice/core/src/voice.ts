@@ -7,7 +7,9 @@ import {
   describeEvent,
   type Intent,
   type KnownTask,
+  type PastLimit,
   parseUtterance,
+  pastLimitSays,
   REST_ON_SCREEN,
   type ResolveOptions,
   resolveAnswer,
@@ -59,7 +61,16 @@ export interface VoiceWorkbench {
     intent: string
     by?: string
   }): Promise<{ id: string; worktree: string }>
-  startAgent(request: { task: string; cwd: string; prompt: string }): Promise<unknown>
+  /**
+   * `pastLimit`: a start you asked for goes past the project's `max_parallel`,
+   * and `over` says by how much (`pastLimitSays`).
+   */
+  startAgent(request: {
+    task: string
+    cwd: string
+    prompt: string
+    pastLimit?: boolean
+  }): Promise<{ over?: PastLimit }>
   /**
    * Watch the journal. What comes back is how to stop watching: a surface
    * that cannot let go of the event stream leaks past its own lifetime, so
@@ -406,13 +417,17 @@ export class VoiceSurface {
           intent: intent.intent,
           by: 'you',
         })
-        await this.opts.tade.startAgent({
+        // Only your own line reaches here (`say`), so it is your start, and
+        // goes past the project's max_parallel the way the window's does.
+        const lane = await this.opts.tade.startAgent({
           task: created.id,
           cwd: created.worktree,
           prompt: intent.intent,
+          pastLimit: true,
         })
         this.lastAddressed = created.id
-        return `Starting ${slug} in ${intent.project}.`
+        const past = lane.over ? `, ${pastLimitSays(intent.project, lane.over)}` : ''
+        return `Starting ${slug} in ${intent.project}${past}.`
       }
 
       case 'terminal': {

@@ -27,6 +27,8 @@ function fakeTade() {
       tier: string
     }>,
     runs: [] as Array<{ run: string; task: string }>,
+    /** What the workbench answers a start past the project's max_parallel with. */
+    over: undefined as { limit: number; running: number } | undefined,
   }
   const decisions: Array<{ allow: boolean; reason?: string; said?: string }> = []
   const tade: VoiceWorkbench & {
@@ -61,8 +63,8 @@ function fakeTade() {
       return { id: `${request.project}/${request.slug}`, worktree: `/wt/${request.slug}` }
     },
     async startAgent(request) {
-      calls.push(`start ${request.task}`)
-      return { run: 'r1' }
+      calls.push(`start ${request.task}${request.pastLimit ? ' past the limit' : ''}`)
+      return state.over ? { over: state.over } : {}
     },
     async subscribe(fn) {
       handler = fn
@@ -181,7 +183,16 @@ describe('VoiceSurface', () => {
     expect(tade.calls[0]).toContain('create checkout/')
     // The task is named from the words, and the words are kept whole.
     expect(tade.calls[0]).toContain('the refund flow double-charges on retries')
-    expect(tade.calls[1]).toMatch(/^start checkout\//)
+    expect(tade.calls[1]).toMatch(/^start checkout\/\S+ past the limit$/)
+  })
+
+  it('a start you say goes past max_parallel, and says by how much', async () => {
+    tade.state.over = { limit: 1, running: 2 }
+    const { voice } = await surface(tade)
+    const said = await voice.handle('start the refund flow double-charges on retries in checkout')
+    expect(said).toMatch(
+      /^Starting .+ in checkout, started past checkout's limit of 1: 2 now running\.$/,
+    )
   })
 
   describe('approvals', () => {
