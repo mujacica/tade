@@ -326,6 +326,44 @@ describe('where every sign-in stands against its plan', () => {
   })
 })
 
+describe('a start of queued work, as it reaches the window', () => {
+  let host: ToolHost | null = null
+
+  afterEach(async () => {
+    await host?.close()
+    host = null
+  })
+
+  it('carries the person’s words that take it past max_parallel, and nothing when blank', async () => {
+    const path = join(tmp('tade-start-'), 'tools.sock')
+    const changes: Array<Record<string, unknown>> = []
+    host = await ToolHost.listen({
+      tade: {} as Workbench,
+      path,
+      queue: {
+        describe: async () => '',
+        change: async (req) => {
+          changes.push(req)
+          return 'Done.'
+        },
+        schedule: async () => '',
+        decide: async () => '',
+        plan: async () => '',
+      },
+    })
+    await call(path, 'queue/change', {
+      task: 'app/receipts',
+      change: 'start',
+      said: 'start receipts now',
+    })
+    await call(path, 'queue/change', { task: 'app/receipts', change: 'start', said: '  ' })
+    expect(changes).toEqual([
+      { task: 'app/receipts', change: 'start', said: 'start receipts now' },
+      { task: 'app/receipts', change: 'start' },
+    ])
+  })
+})
+
 describe('a plan that spans repositories, as it reaches the window', () => {
   let host: ToolHost | null = null
 

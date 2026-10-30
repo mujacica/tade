@@ -97,6 +97,8 @@ export interface ToolHostOptions {
       /** For `retell`: what it is told when it starts, and what it says it will change. */
       prompt?: string
       touches?: readonly string[]
+      /** For `start`: the person's words asking for it, which take it past `max_parallel`. */
+      said?: string
       /** For `remove`: what waited on it is held (the default), or waits on what it waited on. */
       dependents?: 'hold' | 'inherit'
     }): Promise<string>

@@ -185,6 +185,33 @@ describe('the window, and the work waiting in it', () => {
     ).toEqual(['app/charge-once', 'app/receipts', 'app/refund-back'])
   })
 
+  it('starts a new agent you ask for past max_parallel, and says by how much', async () => {
+    const config = ConfigSchema.parse({ projects: { app: { root: repo.root, max_parallel: 1 } } })
+    client.config = config
+    await start({ config })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const worktree = join(repo.root, '..', 'worktrees', 'app-refunds')
+    await client.startAgent({ task: 'app/refunds', cwd: worktree, prompt: '' })
+    // On the line, as a person gets there, and the command typed out.
+    terminal.press('\t')
+    terminal.press('\t')
+    terminal.type('/new tidy receipts')
+    await until('the typed line', () => terminal.written.includes('tidy receipts'))
+    terminal.press('\r')
+    // Waited on as written down: the run is listed a moment before its line lands.
+    await until(
+      'the new agent started',
+      async () =>
+        (await client.events({ types: ['run_started'], task: 'app/tidy-receipts' })).length > 0,
+      SPAWNING_MS,
+    )
+    const [started] = await client.events({ types: ['run_started'], task: 'app/tidy-receipts' })
+    expect(started?.detail.over).toEqual({ limit: 1, running: 2 })
+    await until('it said so', () =>
+      screenOf(terminal.written).some((row) => row.includes("past app's limit of 1")),
+    )
+  })
+
   it('begins work a watch said where to begin on that ref, never on the base', async () => {
     // A review that conflicts is merged into from its own head, so the watch's
     // work says where its tree begins, and it is the start that reads it.
