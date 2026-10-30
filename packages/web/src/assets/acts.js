@@ -97,7 +97,7 @@ export const NEEDS = {
 export const QUEUE_ASKS = [
   { change: 'pause', said: 'Pause' },
   { change: 'resume', said: 'Resume' },
-  { change: 'start', said: 'Start when there is room' },
+  { change: 'start', said: 'Start now' },
   { change: 'wait', said: 'Wait again' },
   { change: 'first', said: 'Do this first', ready: true },
 ]

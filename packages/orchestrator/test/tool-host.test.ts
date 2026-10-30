@@ -17,8 +17,14 @@ describe('starting an agent for the orchestrator', () => {
   let host: ToolHost | null = null
   const started: Array<Record<string, unknown>> = []
   let handedOff = 0
+  const theirs = ['Start refunds now, even past the limit']
 
   const tade = {
+    log: {
+      async read() {
+        return theirs.map((text) => ({ type: 'said', detail: { text } }))
+      },
+    },
     // Among what the task's own harness offers.
     async resolveModelFor(_task: string, said: string) {
       if (said === 'opus') return { provider: 'openrouter', id: 'anthropic/claude-opus-5' }
@@ -26,7 +32,8 @@ describe('starting an agent for the orchestrator', () => {
     },
     async startAgent(request: Record<string, unknown>) {
       started.push(request)
-      return { id: `${String(request.task)}/agent`, alive: true }
+      const over = request.pastLimit ? { over: { limit: 2, running: 3 } } : {}
+      return { id: `${String(request.task)}/agent`, alive: true, ...over }
     },
   } as unknown as Workbench
 
@@ -99,6 +106,28 @@ describe('starting an agent for the orchestrator', () => {
         'look at this\n\nAn attachment is at ~/.tade/projects/app/refunds/attachments/shot.png.',
       images: [{ mimeType: 'image/png' }],
     })
+  })
+
+  it('starts past max_parallel only on the person’s own words, and says by how much', async () => {
+    const path = await listen({ handOff: undefined })
+    const answer = await call(path, 'worker/start', {
+      task: 'app/refunds',
+      cwd: '/src/app',
+      prompt: '',
+      said: 'start refunds now',
+    })
+    expect(answer.error).toBeUndefined()
+    expect(started[0]).toMatchObject({ pastLimit: true })
+    expect(answer.result).toMatchObject({ said: "started past app's limit of 2: 3 now running" })
+    // Words passed as theirs that they never said start nothing.
+    const refused = await call(path, 'worker/start', {
+      task: 'app/refunds',
+      cwd: '/src/app',
+      prompt: '',
+      said: 'go past the limit',
+    })
+    expect(refused.error?.message).toMatch(/nothing the person has said lately/)
+    expect(started).toHaveLength(1)
   })
 
   it('sends nothing with a start that says nothing, which only opens the agent', async () => {

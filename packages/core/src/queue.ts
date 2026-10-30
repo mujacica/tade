@@ -203,11 +203,23 @@ export interface Choices {
    * before it does not hold; 0 where none stands.
    */
   startedAt: number
+  /**
+   * The start that stands is a person's, so it goes past its project's
+   * `max_parallel` (`past` on its line, written by `changeQueued`): a person
+   * saying "start now" means now, and the queue's own starts still wait.
+   */
+  past: boolean
 }
 
 /** Every choice a person has made about one piece of queued work. */
 export function choicesFor(task: string, events: readonly TadeEvent[]): Choices {
-  const choices: Choices = { paused: false, anyway: false, answeredAt: 0, startedAt: 0 }
+  const choices: Choices = {
+    paused: false,
+    anyway: false,
+    answeredAt: 0,
+    startedAt: 0,
+    past: false,
+  }
   for (const event of events) {
     if (event.type !== 'queue_changed' || event.task !== task) continue
     switch (event.detail.change) {
@@ -227,10 +239,12 @@ export function choicesFor(task: string, events: readonly TadeEvent[]): Choices 
         choices.paused = false
         choices.answeredAt = event.seq
         choices.startedAt = event.seq
+        choices.past = event.detail.past === true
         break
       case 'wait':
         choices.anyway = false
         choices.startedAt = 0
+        choices.past = false
         choices.answeredAt = event.seq
         break
       // A wait written down is newer than a start-anyway and says the
@@ -242,6 +256,7 @@ export function choicesFor(task: string, events: readonly TadeEvent[]): Choices 
         if (event.detail.inherited === undefined) {
           choices.anyway = false
           choices.startedAt = 0
+          choices.past = false
         }
         break
     }
@@ -543,7 +558,7 @@ function writtenCollision(
  * that stopped without finishing — `review`, a question asked — still counts,
  * because an answer puts it back to work, and the only word for finished is
  * `task_done` (`finishedFrom`), never a turn ending. One rule, read by the
- * queue's room and by the refusal of a start by hand alike.
+ * queue's room and by the workbench's guard on every start alike.
  */
 export function atOnceIn(
   project: string,
@@ -554,9 +569,29 @@ export function atOnceIn(
 }
 
 /**
+ * A start a person asked for that went past its project's `max_parallel`: the
+ * limit, and how many of its agents count against it with this one running.
+ * Written on `run_started` as `over`, so it is never silent.
+ */
+export interface PastLimit {
+  limit: number
+  running: number
+}
+
+/** The line that says a start went past the limit: "started past vrolta's limit of 3: 4 now running". */
+export function pastLimitSays(project: string, past: PastLimit): string {
+  return `started past ${project}'s limit of ${past.limit}: ${past.running} now running`
+}
+
+/**
  * What to start now, in the order given: whatever is ready, as far as each
  * project has room. `room` is how many more agents a project may run; one it
  * does not name has no limit.
+ *
+ * A start a person asked for (`Choices.past`) goes whether there is room or
+ * not, and takes a slot like any other, so nothing behind it starts in the
+ * room it went past. What the queue starts by its own rule — waits met, a
+ * schedule's work, a proposal the orchestrator decided — always waits.
  *
  * Evidence reaches this the only way it may: through `queueStateOf`, which
  * holds work the tree has moved under. Held work is not ready, so it never
@@ -574,7 +609,7 @@ export function readyToStart(
     if (queueStateOf(item, facts).kind !== 'ready') continue
     const free = left.get(item.project)
     if (free !== undefined) {
-      if (free <= 0) continue
+      if (free <= 0 && !choicesFor(item.task, facts.events).past) continue
       left.set(item.project, free - 1)
     }
     out.push(item.task)

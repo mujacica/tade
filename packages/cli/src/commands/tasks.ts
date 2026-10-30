@@ -3,6 +3,7 @@ import {
   defaultConfigPath,
   type LaneId,
   loadConfig,
+  pastLimitSays,
   printable,
   printableLines,
   type TaskId,
@@ -124,16 +125,21 @@ export function registerTasks(program: Command, io: Io, setExit: (code: number) 
           return
         }
         await withWorkbench(io, setExit, async (client) => {
+          // Yours, so past the project's max_parallel, and said when it is.
           const lane = await client.startAgent({
             task: taskId as TaskId,
             cwd,
             prompt: opts.prompt,
+            pastLimit: true,
             ...(opts.model
               ? { model: { id: opts.model, ...(opts.provider ? { provider: opts.provider } : {}) } }
               : {}),
           })
           if (opts.json) io.out(JSON.stringify(lane, null, 2))
           else io.out(`${lane.id}  started  ${client.attachCommand(lane.id as LaneId)}`)
+          if (lane.over && !opts.json) {
+            io.out(pastLimitSays(taskId.split('/')[0] ?? '', lane.over))
+          }
         })
       },
     )

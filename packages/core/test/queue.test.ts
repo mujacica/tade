@@ -6,8 +6,10 @@ import {
   AT_WORK_READS,
   atOnceIn,
   atWorkFrom,
+  choicesFor,
   collidesNow,
   describeQueueState,
+  pastLimitSays,
   type Queued,
   type QueueFacts,
   queueStanding,
@@ -283,6 +285,31 @@ describe('where queued work stands', () => {
       'search/d',
     ])
     expect(readyToStart(items, facts({}), new Map([['shop', 0]]))).toEqual(['search/d'])
+  })
+
+  it('starts a person’s start past max_parallel, and keeps the queue’s own waiting', () => {
+    const items = [queued('shop/a'), queued('shop/b'), queued('shop/c')]
+    const started = (task: string, detail: Record<string, unknown>) =>
+      event('queue_changed', task, { change: 'start', ...detail })
+    const asked = facts({
+      events: [
+        started('shop/b', { by: 'you', past: true }),
+        // The orchestrator's own start, with nothing of theirs, waits for room.
+        started('shop/c', { by: 'orchestrator' }),
+      ],
+    })
+    expect(readyToStart(items, asked, new Map([['shop', 0]]))).toEqual(['shop/b'])
+    // It takes a slot like any other, so nothing behind it starts in the room it went past.
+    expect(readyToStart(items, asked, new Map([['shop', 1]]))).toEqual(['shop/a', 'shop/b'])
+    // A wait written after it is newer and says the opposite: it waits for room again.
+    const waited = facts({
+      events: [...asked.events, event('queue_changed', 'shop/b', { change: 'wait', by: 'you' })],
+    })
+    expect(choicesFor('shop/b', waited.events).past).toBe(false)
+    expect(readyToStart(items, waited, new Map([['shop', 0]]))).toEqual([])
+    expect(pastLimitSays('vrolta', { limit: 3, running: 4 })).toBe(
+      "started past vrolta's limit of 3: 4 now running",
+    )
   })
 
   it('counts against max_parallel only the agents of tasks that have not finished', () => {

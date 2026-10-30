@@ -4,6 +4,7 @@ import {
   documentSize,
   documentsIn,
   expandHome,
+  pastLimitSays,
   waitingDocuments,
 } from '@tade/core'
 import { slugify } from '@tade/voice-core'
@@ -518,8 +519,10 @@ export class Agents implements Subject {
     flash(this.wire, `starting a new agent in ${project}…`)
     this.wire.draw()
     try {
-      const id = await this.startTask(project, intent)
-      this.wire.put(focusTask(acknowledge(this.wire.state, `${id} is ready`, this.wire.now()), id))
+      const { id, past } = await this.startTask(project, intent)
+      // Yours, so past the project's max_parallel, and said when it went past.
+      const ready = past ? `${id} is ready, ${past}` : `${id} is ready`
+      this.wire.put(focusTask(acknowledge(this.wire.state, ready, this.wire.now()), id))
     } catch (err) {
       notify(this.wire, why(err))
     } finally {
@@ -534,7 +537,10 @@ export class Agents implements Subject {
    * is refreshed before anything tries to focus it, because a pane you cannot
    * see yet cannot take focus.
    */
-  private async startTask(project: string, intent: string): Promise<string> {
+  private async startTask(
+    project: string,
+    intent: string,
+  ): Promise<{ id: string; past: string | null }> {
     // A name is never used twice: pi keeps a conversation by the task's name,
     // so a new agent given an old one's would carry on its conversation.
     const before = await this.wire.opts.client.events({ types: ['task_created'] }).catch(() => [])
@@ -565,9 +571,14 @@ export class Agents implements Subject {
         if (/already exists|used before/.test(why(err))) continue
         throw err
       }
-      await this.wire.opts.client.startAgent({ task: task.id, cwd: task.worktree, prompt: intent })
+      const lane = await this.wire.opts.client.startAgent({
+        task: task.id,
+        cwd: task.worktree,
+        prompt: intent,
+        pastLimit: true,
+      })
       await this.wire.live?.refresh()
-      return task.id
+      return { id: task.id, past: lane.over ? pastLimitSays(project, lane.over) : null }
     }
     throw new Error(`every name like ${stem} is taken in ${project}`)
   }

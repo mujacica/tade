@@ -725,6 +725,27 @@ describe('task and run RPC', () => {
     ).rejects.toThrow(/max_parallel is 2/)
   }, 90_000)
 
+  it('starts past the limit when a person asked for it, and writes by how much', async () => {
+    for (const slug of ['one', 'two']) {
+      const task = await client.createTask({ project: 'app', slug, intent: INTENT })
+      await client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' })
+    }
+    const third = await client.createTask({ project: 'app', slug: 'three', intent: INTENT })
+    const lane = await client.startAgent({
+      task: third.id,
+      cwd: third.worktree,
+      prompt: '',
+      pastLimit: true,
+    })
+    expect(lane.over).toEqual({ limit: 2, running: 3 })
+    expect(client.runs()).toHaveLength(3)
+    const [started] = await client.events({ types: ['run_started'], task: third.id })
+    expect(started?.detail.over).toEqual({ limit: 2, running: 3 })
+    // Under the limit it is an ordinary start, and nothing says it went over.
+    const [first] = await client.events({ types: ['run_started'], task: 'app/one' })
+    expect(first?.detail).not.toHaveProperty('over')
+  }, 90_000)
+
   it('frees a finished task’s slot while its agent’s lane is still open', async () => {
     const one = await client.createTask({ project: 'app', slug: 'one', intent: INTENT })
     const two = await client.createTask({ project: 'app', slug: 'two', intent: INTENT })

@@ -875,7 +875,7 @@
   },
   {
     "name": "tade_queue_change",
-    "description": "Change queued work or a schedule, as the human asked or as you decide when it is yours to. For queued work: start it now whatever it waits on, and past its own pause or its project's — parked work too, which starting picks up, so start parked work only when the person asks you to (what a schedule put to you is decided with tade_proposal_decide), and work from outside this machine is theirs to approve and is refused; pause or resume it; wait, which looks again from now past what held it and is not \"wait for the files\" — work held on files being changed is held again at once, and starts by itself once they settle; after, which makes it wait on other tasks Tade has, as well as what it waits on or, with replace: true, instead (none, with replace, waits on nothing); retell, which changes what its agent is told (prompt) or what it says it will change (touches) before it starts, and is the answer whenever they ask for something added to queued work; remove it, where dependents says what becomes of what waited on it — hold, the default, leaves each held until answered, and inherit has each wait on what the removed one waited on instead, so taking one task out of a chain holds nothing after it; or order (order: the tasks first to last), which is only a preference among work already ready and never jumps a wait, unholds a hold or starts anything. To change when existing queued work starts, write the wait with after: never remove it and plan it again, which uses its name up for good and holds everything waiting on it. Every change answers with where the work stands now. Name no task to pause or resume a whole project's queue. For a schedule: start runs it now, and it can be paused, resumed, renamed or removed.",
+    "description": "Change queued work or a schedule, as the human asked or as you decide when it is yours to. For queued work: start it now whatever it waits on, and past its own pause or its project's — past its project's max_parallel too when the person asked for this start, with their words as said; without them it starts as soon as there is room — parked work too, which starting picks up, so start parked work only when the person asks you to (what a schedule put to you is decided with tade_proposal_decide), and work from outside this machine is theirs to approve and is refused; pause or resume it; wait, which looks again from now past what held it and is not \"wait for the files\" — work held on files being changed is held again at once, and starts by itself once they settle; after, which makes it wait on other tasks Tade has, as well as what it waits on or, with replace: true, instead (none, with replace, waits on nothing); retell, which changes what its agent is told (prompt) or what it says it will change (touches) before it starts, and is the answer whenever they ask for something added to queued work; remove it, where dependents says what becomes of what waited on it — hold, the default, leaves each held until answered, and inherit has each wait on what the removed one waited on instead, so taking one task out of a chain holds nothing after it; or order (order: the tasks first to last), which is only a preference among work already ready and never jumps a wait, unholds a hold or starts anything. To change when existing queued work starts, write the wait with after: never remove it and plan it again, which uses its name up for good and holds everything waiting on it. Every change answers with where the work stands now. Name no task to pause or resume a whole project's queue. For a schedule: start runs it now, and it can be paused, resumed, renamed or removed.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -958,6 +958,10 @@
         "prompt": {
           "type": "string",
           "description": "for retell: what its agent is told when it starts, instead"
+        },
+        "said": {
+          "type": "string",
+          "description": "for start: their words asking for it, word for word, which take it past its project’s max_parallel"
         },
         "touches": {
           "type": "array",
@@ -1277,7 +1281,7 @@
   },
   {
     "name": "tade_run_start",
-    "description": "Start an agent working on an existing task. The prompt is what the agent is told first; files the human attached to what you are answering go with it. When they named a model for the work (\"use opus\"), pass it here so the agent starts on it: Tade finds it before anything starts, and when it cannot tell which model they meant nothing starts and it says what to ask them.",
+    "description": "Start an agent working on an existing task. The prompt is what the agent is told first; files the human attached to what you are answering go with it. When they named a model for the work (\"use opus\"), pass it here so the agent starts on it: Tade finds it before anything starts, and when it cannot tell which model they meant nothing starts and it says what to ask them. A project at its max_parallel refuses a start unless the person asked for this one: then pass their words as said, and it starts past the limit and says by how much.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -1292,6 +1296,10 @@
         "model": {
           "type": "string",
           "description": "the model to start it on, as the human said it: \"opus\", \"kimi k2.6\". Only when they named one."
+        },
+        "said": {
+          "type": "string",
+          "description": "their words asking for this start, word for word, which take it past its project’s max_parallel"
         }
       },
       "required": [

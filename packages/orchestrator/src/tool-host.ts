@@ -10,6 +10,7 @@ import {
   LOCAL,
   OWN_SIGN_IN,
   type Plan,
+  pastLimitSays,
   planReport,
   type When,
 } from '@tade/core'
@@ -24,6 +25,7 @@ import {
   openChat,
   readTaskFile,
   reopenClosedChat,
+  theirLine,
   type Workbench,
   wouldRunSays,
 } from '@tade/workbench'
@@ -298,6 +300,7 @@ export class ToolHost {
           ...(Array.isArray(p.after) ? { after: waitsOf(p.after) } : {}),
           ...(p.replace === true ? { replace: true } : {}),
           ...(typeof p.prompt === 'string' ? { prompt: p.prompt } : {}),
+          ...(typeof p.said === 'string' && p.said.trim() ? { said: p.said } : {}),
           ...(Array.isArray(p.touches) ? { touches: p.touches.map(String) } : {}),
           ...(p.dependents === undefined ? {} : { dependents: dependentsOf(p.dependents) }),
           change: String(p.change ?? ''),
@@ -454,13 +457,20 @@ export class ToolHost {
         // Files go with something to say about them. A start that says nothing
         // opens the agent, and must not set it working on a picture alone.
         const handed = prompt.trim() && opts.handOff ? await opts.handOff(String(p.task)) : null
-        return tade.startAgent({
+        // Past `max_parallel` only on the person's own words, checked against
+        // what they said and never taken from the tool (`theirLine`).
+        const said = typeof p.said === 'string' ? p.said.trim() : ''
+        const pastLimit = said !== '' && (await theirLine(tade, said, 'start')) !== ''
+        const lane = await tade.startAgent({
+          ...(pastLimit ? { pastLimit } : {}),
           task: String(p.task) as never,
           cwd,
           prompt: handed?.note ? `${prompt}\n\n${handed.note}` : prompt,
           ...(model ? { model } : {}),
           ...(handed?.images.length ? { images: handed.images } : {}),
         })
+        const project = String(p.task).split('/')[0] ?? ''
+        return lane.over ? { ...lane, said: pastLimitSays(project, lane.over) } : lane
       },
       'worker/list': () => tade.runs(),
       // Narrowed on the way out for a remote arm: the tool's name, the run and

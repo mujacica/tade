@@ -288,13 +288,16 @@ export function orchestratorTools(
 
   tool(
     'tade_run_start',
-    'Start an agent working on an existing task. The prompt is what the agent is told first; files the human attached to what you are answering go with it. When they named a model for the work ("use opus"), pass it here so the agent starts on it: Tade finds it before anything starts, and when it cannot tell which model they meant nothing starts and it says what to ask them.',
+    'Start an agent working on an existing task. The prompt is what the agent is told first; files the human attached to what you are answering go with it. When they named a model for the work ("use opus"), pass it here so the agent starts on it: Tade finds it before anything starts, and when it cannot tell which model they meant nothing starts and it says what to ask them. A project at its max_parallel refuses a start unless the person asked for this one: then pass their words as said, and it starts past the limit and says by how much.',
     object(
       {
         task: string('task id, like checkout/refunds'),
         prompt: string('what to tell the agent first'),
         model: string(
           'the model to start it on, as the human said it: "opus", "kimi k2.6". Only when they named one.',
+        ),
+        said: string(
+          'their words asking for this start, word for word, which take it past its project’s max_parallel',
         ),
       },
       ['task'],
@@ -308,6 +311,7 @@ export function orchestratorTools(
         cwd: worktree,
         prompt: String(p.prompt ?? ''),
         ...(p.model ? { model: String(p.model) } : {}),
+        ...(p.said ? { said: String(p.said) } : {}),
       })
     },
   )

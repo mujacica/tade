@@ -21,7 +21,7 @@ import { withWorkbench } from '../with-workbench.ts'
 
 /** What `changeQueued` was asked, said back the way the window says it. */
 const DONE: Record<Exclude<QueueChange, 'order' | 'after' | 'retell'>, string> = {
-  start: 'starts as soon as there is room, whatever it waits on',
+  start: 'starts now, whatever it waits on and past its project’s max_parallel',
   wait: 'waits again, past what held it',
   pause: 'is paused',
   resume: 'is back on',

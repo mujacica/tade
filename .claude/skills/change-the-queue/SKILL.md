@@ -220,6 +220,15 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   row's ▶ was a resume, which lifts no park, and six presses on 2026-10-16 started nothing. Nothing
   parked starts by rule (`queueStateOf` reads the park first, `startQueued` refuses one), and work
   from outside this machine is the one park a start lifts only for the person at it (`NotYours`).
+- **A person's start goes past `max_parallel`; the queue's own never does.** The limit is what the
+  queue waits under, and a person saying "start now" means now — the window's Start, `tade queue
+  start`, `tade run`, a device, and the orchestrator only with a line of theirs as `said`, checked
+  by `theirLine` in the window (`pastLimit`, `queue-changes.ts`). It is `past` on the `start` line,
+  read by `choicesFor` and `readyToStart` (still taking a slot, so nothing behind it goes in the room
+  it went past), and the agent's `run_started` carries `over` with the limit and how many now run,
+  said in a line (`pastLimitSays`). The orchestrator's own start — a hold it decided, a proposal it
+  started — waits for room as a rule's does, and is told what would take it past. Refused by hand
+  past it was a press that did nothing on a project somebody had capped for the queue's sake.
 - **Write it down, then do it.** `schedule_fired` before a schedule's task is made, so a window that
   stops half way never runs it twice; `watch_found` for every finding, a failed start included, so
   one finding never makes work twice; `watch_checked` for every look — how much it found, which was

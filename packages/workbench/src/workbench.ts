@@ -10,6 +10,7 @@ import {
   type Caution,
   type Config,
   ConfigSchema,
+  choicesFor,
   composeAgentPrompt,
   type DoneRule,
   type EventFilter,
@@ -28,6 +29,7 @@ import {
   OWN_SIGN_IN,
   orchestratorAccount,
   ownSignInName,
+  type PastLimit,
   type Plan,
   type PlanBusy,
   type PlanChoice,
@@ -1104,7 +1106,7 @@ export class Workbench {
     /** What it begins on top of, in a worktree: what it waited on, or the base. */
     from?: readonly string[]
     why: string
-  }): Promise<LaneRecord> {
+  }): Promise<LaneRecord & { over?: PastLimit }> {
     const file = await readTaskFile(this.home, req.task)
     if (!file?.start || file.parked) throw notStartable(req.task, file)
     if (file.workspace !== 'checkout' && req.from && req.from.length > 0) {
@@ -1112,12 +1114,17 @@ export class Workbench {
     }
     const { start } = file
     const told = await this.hasConversation(req.task, req.worktree)
+    // A start a person asked for goes past `max_parallel`, as the queue let it
+    // (`readyToStart`); one the queue made by its own rule never does.
+    const changed = await this.log.read({ types: ['queue_changed'], task: req.task })
+    const pastLimit = choicesFor(req.task, changed).past
     const lane = told
-      ? await this.reopenAgent({ task: req.task as TaskId, cwd: req.worktree })
+      ? await this.reopenAgent({ task: req.task as TaskId, cwd: req.worktree, pastLimit })
       : await this.startAgent({
           task: req.task as TaskId,
           cwd: req.worktree,
           prompt: start.prompt,
+          pastLimit,
           ...(start.model ? { model: start.model } : {}),
           ...(start.thinking && isThinkingLevel(start.thinking)
             ? { thinking: start.thinking }
@@ -1429,7 +1436,7 @@ export class Workbench {
    * An agent that was already told what to do must never be told again: it
    * would start the work over, on top of what it has already done.
    */
-  reopenAgent(req: Omit<StartRunRequest, 'prompt'>): Promise<LaneRecord> {
+  reopenAgent(req: Omit<StartRunRequest, 'prompt'>): Promise<LaneRecord & { over?: PastLimit }> {
     return this.startAgent({ ...req, prompt: '' })
   }
 
@@ -1444,8 +1451,8 @@ export class Workbench {
    * `prompt` is the opening instruction, which is said once. Coming back to
    * an agent is `reopenAgent`, which says nothing.
    */
-  async startAgent(req: StartRunRequest): Promise<LaneRecord> {
-    await this.guardParallel(req.task)
+  async startAgent(req: StartRunRequest): Promise<LaneRecord & { over?: PastLimit }> {
+    const over = await this.guardParallel(req.task, req.pastLimit === true)
     await guardBudget(this, req.task, Date.now())
     const lane = `${req.task}/agent` as LaneId
     if (this.registry.get(lane)?.alive) {
@@ -1502,6 +1509,7 @@ export class Workbench {
     await this.workers.start({
       ...req,
       run: lane as RunId,
+      ...(over ? { over } : {}),
       model: spec.model,
       ...(spec.thinking ? { thinking: spec.thinking } : {}),
       harness: adapterKey(harness, account),
@@ -1529,7 +1537,7 @@ export class Workbench {
         ...(req.openedAt !== undefined ? { openedAt: req.openedAt } : {}),
       })
       this.followExit(lane)
-      return record
+      return over ? { ...record, over } : record
     } catch (err) {
       // Nothing to supervise after all.
       await this.workers.stop(lane as RunId).catch(() => {})
@@ -2309,29 +2317,30 @@ export class Workbench {
   }
 
   /**
-   * Refuse to run more agents on a project than it allows. The setting existed
-   * and nothing enforced it, so a project configured for one agent would
-   * happily get five.
+   * Refuse to run more agents on a project than it allows — unless a person
+   * asked for this start (`pastLimit`), which goes past it and answers with by
+   * how much, for `run_started` to say. The queue's own starts never get here
+   * past the limit: it waits for room (`readyToStart`).
    *
    * Counted the way the queue counts its room (`atOnceIn`): a finished task's
    * agent takes no slot, lane open or not — so neither does starting one again.
    */
-  private async guardParallel(task: string): Promise<void> {
+  private async guardParallel(task: string, pastLimit: boolean): Promise<PastLimit | null> {
     const project = task.split('/')[0] ?? ''
     const limit = this.config.projects[project]?.max_parallel
-    if (!limit) return
+    if (!limit) return null
     const finished = finishedFrom(await this.log.read({ types: ['task_done'] }))
-    if (finished.has(task)) return
+    if (finished.has(task)) return null
     const running = atOnceIn(
       project,
       this.workers.list().map((h) => h.task as string),
       finished,
     )
-    if (running >= limit) {
-      throw new Error(
-        `${project} already has ${running} unfinished agent${running === 1 ? '' : 's'} running, and max_parallel is ${limit}`,
-      )
-    }
+    if (running < limit) return null
+    if (pastLimit) return { limit, running: running + 1 }
+    throw new Error(
+      `${project} already has ${running} unfinished agent${running === 1 ? '' : 's'} running, and max_parallel is ${limit}: a start the person asks for goes past it`,
+    )
   }
 
   /** How hard new agents in a task's project think, when a level was chosen. */

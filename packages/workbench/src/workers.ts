@@ -6,6 +6,7 @@ import {
   decideApproval,
   modelDetail,
   modelIdentity,
+  type PastLimit,
   type TaskId,
   type ThinkingLevel,
   type Tier,
@@ -58,6 +59,13 @@ export interface StartRunRequest {
    * tab was first opened, so its tab goes back where it was (`LaneRecord.openedAt`).
    */
   openedAt?: number
+  /**
+   * A person asked for this start, so it goes past its project's
+   * `max_parallel` rather than being refused (`guardParallel`).
+   */
+  pastLimit?: boolean
+  /** Written by the workbench when it did: the limit, and how many now run. */
+  over?: PastLimit
 }
 
 /** An agent running one of Tade's extension tools. */
@@ -352,6 +360,8 @@ export class WorkerSupervisor {
         account: facts.account,
         provider: facts.provider,
         approvals: this.approvals.mode,
+        // A person's start past `max_parallel`, and by how much, so it is never silent.
+        ...(request.over ? { over: request.over } : {}),
       },
     })
     return handle

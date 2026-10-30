@@ -96,7 +96,8 @@ describe('tade queue', () => {
     const ordered = await tade('queue', 'order', 'app/refund-back', 'app/charge-once')
     expect(ordered.stdout).toContain('app/refund-back and app/charge-once, in that order')
     expect(await changes()).toEqual([
-      { task: 'app/refund-back', change: 'start', by: 'you' },
+      // Yours, so it goes past the project's max_parallel.
+      { task: 'app/refund-back', change: 'start', by: 'you', past: true },
       { task: 'app/charge-once', change: 'pause', by: 'you' },
       // A whole project's queue, which is what pausing everything is read from.
       { task: null, change: 'resume', by: 'you', all: true, project: 'app' },

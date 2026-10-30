@@ -9,6 +9,7 @@ import {
   type Wait,
 } from '@tade/core'
 import { parse as parseYaml } from 'yaml'
+import { theirLine } from './documents.ts'
 import type { EventLog } from './events.ts'
 import { pickUpToStart } from './parked.ts'
 import { aloneOn, readTaskFile, rewriteTaskFile, taskFilePath } from './tasks.ts'
@@ -47,6 +48,12 @@ export interface QueueChangeRequest {
   prompt?: string
   /** For `retell`: what it now says it will change. */
   touches?: readonly string[]
+  /**
+   * For `start` by the orchestrator: the person's own words asking for it, as
+   * they said them, which lets it go past its project's `max_parallel` as
+   * their own press would (`pastLimit`).
+   */
+  said?: string
   by: Asker
 }
 
@@ -77,7 +84,9 @@ export async function changeQueued(
   if (req.task && req.change === 'retell') return retell(tade, { ...req, task: req.task })
   // Starting parked work picks it up first, as whoever asked, so one press is
   // the whole act (`pickUpToStart`); what refuses that refuses the start, and
-  // nothing is written.
+  // nothing is written — as do words passed as theirs that are not, checked
+  // before anything is picked up.
+  const past = req.change === 'start' && req.task ? await pastLimit(tade, req) : false
   if (req.change === 'start' && req.task) await pickUpToStart(tade, req.task, req.by)
   const order = (req.order ?? []).map((task) => task.trim()).filter((task) => task !== '')
   if (req.change === 'order' && order.length === 0) {
@@ -92,12 +101,27 @@ export async function changeQueued(
     detail: {
       change: req.change,
       by: req.by,
+      ...(past ? { past: true } : {}),
       ...(req.change === 'order' ? { order } : {}),
       ...(whole ? { all: true } : {}),
       ...(!req.task && req.project ? { project: req.project } : {}),
     },
   })
   return null
+}
+
+/**
+ * Whether a start goes past its project's `max_parallel`: a person's own
+ * start does — at the window, the CLI or a device — and the orchestrator's
+ * only with a line of theirs asking for it (`theirLine`), checked here and
+ * never in the tool, because a start it decided itself is the queue's to pace.
+ * Without one it starts as soon as there is room, as it always did.
+ */
+async function pastLimit(tade: QueueChanger, req: QueueChangeRequest): Promise<boolean> {
+  if (req.by !== 'orchestrator') return true
+  if (!req.said?.trim()) return false
+  await theirLine(tade, req.said, 'start')
+  return true
 }
 
 /**

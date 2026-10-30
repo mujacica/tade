@@ -117,6 +117,74 @@ describe('the window, and the work waiting in it', () => {
     expect(client.runs().map((run) => run.task)).toContain('app/charge-once')
   })
 
+  it('starts work a person starts past max_parallel, while the queue’s own starts wait', async () => {
+    // The workbench's own guard reads the limit too, as one config does in life.
+    const config = ConfigSchema.parse({ projects: { app: { root: repo.root, max_parallel: 1 } } })
+    client.config = config
+    const window = await start({ config })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    await window.queueTools().plan({
+      project: 'app',
+      said: 'charge once, refunds and receipts',
+      agents: [
+        { name: 'charge-once', said: 'charge once', prompt: '', after: [], touches: ['charge.ts'] },
+        { name: 'refund-back', said: 'refunds', prompt: '', after: [], touches: ['refund.ts'] },
+        { name: 'receipts', said: 'receipts', prompt: '', after: [], touches: ['receipt.ts'] },
+      ],
+    })
+    // The queue's own pass: one slot, and the rest wait for room.
+    await beats(3)
+    expect(client.runs().map((run) => run.task)).toEqual(['app/charge-once'])
+
+    // The orchestrator's start on its own judgement waits like the queue's,
+    // and is told what would take it past.
+    const waits = await window
+      .queueTools()
+      .change({ task: 'app/refund-back', change: 'start', by: 'orchestrator' })
+    expect(waits).toContain('app is at its limit of 1')
+    await beats(3)
+    expect(client.runs().map((run) => run.task)).toEqual(['app/charge-once'])
+
+    // Words passed as theirs that they never said start nothing.
+    await expect(
+      window.queueTools().change({
+        task: 'app/refund-back',
+        change: 'start',
+        said: 'start refund-back now',
+        by: 'orchestrator',
+      }),
+    ).rejects.toThrow(/nothing the person has said lately/)
+
+    // Start, pressed: it goes now, past the limit, and says by how much.
+    const answer = await window
+      .queueTools()
+      .change({ task: 'app/refund-back', change: 'start', by: 'you' })
+    expect(answer).toContain('Started app/refund-back.')
+    expect(answer).toContain("app/refund-back started past app's limit of 1: 2 now running.")
+    const [started] = await client.events({ types: ['run_started'], task: 'app/refund-back' })
+    expect(started?.detail.over).toEqual({ limit: 1, running: 2 })
+
+    // The orchestrator on the person's own words goes past it too.
+    await client.log.append({
+      type: 'said',
+      task: null,
+      detail: { text: 'Start receipts now, whatever the limit' },
+    })
+    const theirs = await window.queueTools().change({
+      task: 'app/receipts',
+      change: 'start',
+      said: 'start receipts now',
+      by: 'orchestrator',
+    })
+    expect(theirs).toContain("app/receipts started past app's limit of 1: 3 now running.")
+    expect(
+      client
+        .runs()
+        .map((run) => run.task)
+        .sort(),
+    ).toEqual(['app/charge-once', 'app/receipts', 'app/refund-back'])
+  })
+
   it('begins work a watch said where to begin on that ref, never on the base', async () => {
     // A review that conflicts is merged into from its own head, so the watch's
     // work says where its tree begins, and it is the start that reads it.

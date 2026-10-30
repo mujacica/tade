@@ -236,7 +236,10 @@ describe('a choice about queued work', () => {
 
     const answer = await act(one.port, 'queue', { ...every(one), change: 'start' })
     expect(answer.status).toBe(200)
-    expect(answer.body).toMatchObject({ did: true, said: 'starts as soon as there is room' })
+    expect(answer.body).toMatchObject({
+      did: true,
+      said: 'starts now, past its project’s limit if it must',
+    })
     // A line in the journal, by the device, and **no agent**: what starts is
     // `readyToStart`'s decision on the window's own next pass.
     const lines = await one.client.events({ types: ['queue_changed'] })
@@ -262,7 +265,7 @@ describe('a choice about queued work', () => {
     expect(answer.status).toBe(200)
     expect(answer.body).toMatchObject({
       did: true,
-      said: 'picked up, and starts as soon as there is room',
+      said: 'picked up, and starts now, past its project’s limit if it must',
     })
     expect(parkedIn(one.home, one.task)).toBe(false)
     const lines = await one.client.events({ types: ['state_change', 'queue_changed'] })

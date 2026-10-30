@@ -403,8 +403,9 @@ export function steer(deps: ActingDeps, call: SteerCall, _from: From): Promise<O
  *
  * The whole act is a `queue_changed` line, which is what every other door
  * writes too — so what starts is `readyToStart`'s decision on the window's own
- * next pass, with the park, the pause, the waits and `max_parallel` all still
- * in front of it. A `start` asked for here about work that is parked picks it
+ * next pass, with the park, the pause and the waits all still in front of it.
+ * A device's `start` is a person's, so it goes past `max_parallel`
+ * (`Choices.past`). A `start` asked for here about work that is parked picks it
  * up first, as this device, in `changeQueued` itself (`pickUpToStart`) — the
  * rule rather than a second copy of it — and work from outside this machine is
  * the one park it may not lift (`NotYours`), as with the `park` verb.
@@ -472,7 +473,7 @@ function saidQueued(change: QueueCall['change']): string {
     case 'resume':
       return 'back on'
     case 'start':
-      return 'starts as soon as there is room'
+      return 'starts now, past its project’s limit if it must'
     case 'wait':
       return 'waits again'
     case 'first':

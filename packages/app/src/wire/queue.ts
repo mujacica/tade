@@ -10,6 +10,7 @@ import {
   joined,
   orderFirst,
   type Plan,
+  pastLimitSays,
   projectsIn,
   QUEUE_CHANGES,
   queueStateOf,
@@ -117,6 +118,8 @@ export interface QueueTools {
     touches?: readonly string[]
     /** For `remove`: what waited on it is held (the default), or waits on what it waited on. */
     dependents?: 'hold' | 'inherit'
+    /** For `start` by the orchestrator: the person's words asking for it, which take it past `max_parallel`. */
+    said?: string
     by?: 'you' | 'orchestrator'
   }): Promise<string>
   plan(plan: Plan): Promise<string>
@@ -139,6 +142,8 @@ export class Queue implements Subject {
   /** How many starts any pass has made, and which that each task's was: what `settle` answers from. */
   private starts = 0
   private readonly startNumber = new Map<string, number>()
+  /** Starts a person asked for that went past `max_parallel`, and the line that says so. */
+  private readonly pastSaid = new Map<string, string>()
   /**
    * Queued work taking over the waits of a task being removed, which passes
    * leave alone until it has: one in between would hold each on a task that
@@ -323,7 +328,7 @@ export class Queue implements Subject {
           ? `${whyStarting(item, facts)} — ${says.because}`
           : whyStarting(item, facts)
       try {
-        await this.wire.opts.client.startQueued({
+        const lane = await this.wire.opts.client.startQueued({
           task,
           worktree,
           why: because,
@@ -338,8 +343,11 @@ export class Queue implements Subject {
         started.push(task)
         if (outside) probing ??= task
         this.startNumber.set(task, ++this.starts)
-        this.deps.news(`started ${task}: ${because}`)
-        this.said(`started ${task}: ${because}`)
+        // A person's start past the limit says so, beside the journal's `over`.
+        const past = lane.over ? pastLimitSays(item.project, lane.over) : null
+        if (past) this.pastSaid.set(task, `${task} ${past}`)
+        this.deps.news(`started ${task}: ${because}${past ? `; ${past}` : ''}`)
+        this.said(`started ${task}: ${because}${past ? `; ${past}` : ''}`)
       } catch (err) {
         this.starting.delete(task)
         // Parked since this pass looked — a watch, a template or intake parks
@@ -481,6 +489,7 @@ export class Queue implements Subject {
           ...(change === 'after' ? { after: req.after ?? [], replace: req.replace === true } : {}),
           ...(change === 'retell' && req.prompt !== undefined ? { prompt: req.prompt } : {}),
           ...(change === 'retell' && req.touches ? { touches: req.touches } : {}),
+          ...(change === 'start' && req.said ? { said: req.said } : {}),
           change,
           by: req.by ?? 'orchestrator',
         })
@@ -506,7 +515,18 @@ export class Queue implements Subject {
                 ? `Done: ${req.task} is picked up.`
                 : 'Done.'
               : `Done: ${req.project ? `${req.project}'s queue` : 'the queue'} is ${change === 'pause' ? 'paused' : 'back on'}.`
-        return changedSays(lead, started, this.nowOf(about.filter((one) => !started.includes(one))))
+        const now = this.nowOf(about.filter((one) => !started.includes(one)))
+        const past = started.flatMap((one) => {
+          const line = this.pastSaid.get(one)
+          return line ? [`${line}.`] : []
+        })
+        // The orchestrator's own start waits for room like the queue's: it is
+        // told what takes it past the limit, which is the person's to ask.
+        const room =
+          change === 'start' && req.task && !started.includes(req.task) && !req.said
+            ? this.roomSays(req.task)
+            : null
+        return [changedSays(lead, started, now), ...past, ...(room ? [room] : [])].join(' ')
       },
       plan: async (plan) => {
         // Checked against what the projects are already on, which no plan can
@@ -693,6 +713,19 @@ export class Queue implements Subject {
       .filter(([, number]) => number > since)
       .sort(([, one], [, other]) => one - other)
       .map(([task]) => task)
+  }
+
+  /**
+   * Why a start the orchestrator wrote waits where a person's would not: its
+   * project is at `max_parallel`, and only their words take it past.
+   */
+  private roomSays(task: string): string | null {
+    const live = this.wire.live
+    const item = live?.queued.find((one) => one.task === task)
+    const limit = item ? this.wire.opts.config.projects[item.project]?.max_parallel : undefined
+    if (!live || !item || !limit) return null
+    if (queueStateOf(item, live.queueFacts()).kind !== 'ready') return null
+    return `${item.project} is at its limit of ${limit}: a start the person asks for goes past it, so pass their words asking for it as said.`
   }
 
   /** Where each piece of queued work stands now, in a sentence each. */

@@ -200,7 +200,10 @@ export const ProjectConfigSchema = z.strictObject({
   push: z.enum(PUSH_MODES).optional(),
   /** Names a route in `workers.routes`. */
   worker: RouteName.optional(),
-  /** At most this many agents at once; as many as you start unless set. */
+  /**
+   * At most this many agents at once, which the queue waits under and a start
+   * a person asks for goes past; as many as you start unless set.
+   */
   max_parallel: z.int().positive().optional(),
   /**
    * How to check the work, for a project whose CI and commit hook cannot be
