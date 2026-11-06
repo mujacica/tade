@@ -107,7 +107,7 @@ export const FLOOR: Record<string, number> = {
   // most apps actually get. What is left is the half a hand-edited spool file
   // reaches.
   'packages/extensions/intake': 95,
-  'packages/extensions/deps': 91,
+  'packages/extensions/deps': 94,
   'packages/mcp/stdio': 91,
   'packages/drivers/tmux': 92,
   // 94.9 when it came in, driven over both links by the conformance suite: what
