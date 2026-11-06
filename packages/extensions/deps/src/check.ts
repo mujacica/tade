@@ -19,6 +19,8 @@ export interface Finding {
   deprecated: string | null
   /** Why nothing could be found out about it. */
   problem: string | null
+  /** What its newest release requires beside it, by name (`Latest.peers`). */
+  peers: Record<string, string>
 }
 
 export interface Report {
@@ -121,6 +123,7 @@ export async function check(options: {
         vulnerabilities: [],
         deprecated: null,
         problem: null,
+        peers: found?.peers ?? {},
       })
       continue
     }
@@ -140,6 +143,7 @@ export async function check(options: {
       vulnerabilities: [],
       deprecated: found?.deprecated ?? null,
       problem: found?.problem ?? null,
+      peers: found?.peers ?? {},
     })
   }
 

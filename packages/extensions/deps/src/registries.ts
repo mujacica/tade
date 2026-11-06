@@ -12,6 +12,12 @@ export interface Latest {
   deprecated: string | null
   /** Why there is no answer. */
   problem: string | null
+  /**
+   * What the newest release requires beside it, by name: npm's
+   * `peerDependencies` of that version, as written. Empty where its registry
+   * has no such thing or it names none.
+   */
+  peers: Record<string, string>
 }
 
 export interface Registries {
@@ -75,7 +81,10 @@ export async function latest(
           accept: 'application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8',
         })) as {
           'dist-tags'?: { latest?: string }
-          versions?: Record<string, { deprecated?: string }>
+          versions?: Record<
+            string,
+            { deprecated?: string; peerDependencies?: Record<string, string> }
+          >
           modified?: string
         }
         const tagged = doc['dist-tags']?.latest ?? null
@@ -85,6 +94,7 @@ export async function latest(
         return {
           version: found,
           deprecated: deprecated || null,
+          peers: (found ? doc.versions?.[found]?.peerDependencies : undefined) ?? {},
           problem: found
             ? null
             : tagged
@@ -106,7 +116,12 @@ export async function latest(
           .filter((one) => one.parsed && isStable(one.parsed))
         const newest = releases.sort((a, b) => compareParsed(b.parsed, a.parsed))[0]?.version
         const found = newest ?? doc.info?.version ?? null
-        return { version: found, deprecated: null, problem: found ? null : 'it lists no releases' }
+        return {
+          version: found,
+          deprecated: null,
+          problem: found ? null : 'it lists no releases',
+          peers: {},
+        }
       }
       case 'cargo': {
         const doc = (await getJson(
@@ -116,14 +131,24 @@ export async function latest(
           crate?: { max_stable_version?: string; newest_version?: string }
         }
         const found = doc.crate?.max_stable_version ?? doc.crate?.newest_version ?? null
-        return { version: found, deprecated: null, problem: found ? null : 'it lists no releases' }
+        return {
+          version: found,
+          deprecated: null,
+          problem: found ? null : 'it lists no releases',
+          peers: {},
+        }
       }
       case 'go': {
         const doc = (await getJson(fetcher, `${registries.go}/${goEscape(name)}/@latest`)) as {
           Version?: string
         }
         const found = doc.Version ?? null
-        return { version: found, deprecated: null, problem: found ? null : 'it lists no releases' }
+        return {
+          version: found,
+          deprecated: null,
+          problem: found ? null : 'it lists no releases',
+          peers: {},
+        }
       }
     }
   } catch (err) {
@@ -131,6 +156,7 @@ export async function latest(
       version: null,
       deprecated: null,
       problem: err instanceof Error ? err.message : String(err),
+      peers: {},
     }
   }
 }

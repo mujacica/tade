@@ -369,6 +369,110 @@ describe('what an agent on a bump is told', () => {
   })
 })
 
+describe('packages released in lockstep', () => {
+  /** A release of vitest's family whose new version requires the others at these peers. */
+  const family = (latest: string, peers: Record<string, string>) => ({
+    'dist-tags': { latest },
+    versions: { [latest]: { peerDependencies: peers } },
+  })
+
+  /** vitest and its coverage provider, as tade had them when coverage-v8 5.1.0 came out alone. */
+  function testing(answers: { vitest: unknown; coverage: unknown; react?: unknown }) {
+    const repo = mkrepo()
+    repo.commit('manifests', {
+      'package.json':
+        '{\n  "name": "shop",\n  "dependencies": {\n    "react": "^18.2.0"\n  },\n  "devDependencies": {\n    "@vitest/coverage-v8": "^4.0.5",\n    "vitest": "^4.0.5"\n  }\n}\n',
+      'pnpm-lock.yaml': 'lockfileVersion: 9\n',
+    })
+    const home = tmp('tade-deps-lockstep-')
+    writeFileSync(
+      join(home, 'config.yaml'),
+      `projects:\n  shop:\n    root: ${repo.root}\n    workspace: worktree\n`,
+      'utf8',
+    )
+    const fetcher = registry({
+      'https://registry.npmjs.org/react': answers.react ?? npm('18.2.0'),
+      'https://registry.npmjs.org/vitest': answers.vitest,
+      'https://registry.npmjs.org/@vitest%2fcoverage-v8': answers.coverage,
+    })
+    return { repo, home, fetcher }
+  }
+
+  it('is one finding, because neither half can land without the other', async () => {
+    const { repo, home, fetcher } = testing({
+      vitest: family('4.1.0', { '@vitest/coverage-v8': '4.1.0', vite: '^6.0.0' }),
+      coverage: family('4.1.0', { vitest: '4.1.0' }),
+    })
+    const looked = await look(await host(repo.root, home, fetcher))
+
+    expect(looked.found.map((one) => one.key)).toEqual([
+      'minor:@vitest/coverage-v8@4.1.0,vitest@4.1.0',
+    ])
+    const both = looked.found[0]
+    if (!both) throw new Error('nothing was found to bump')
+    expect(both.title).toBe('bump @vitest/coverage-v8 to 4.1.0 and vitest to 4.1.0')
+    expect(both.detail).toContain('- @vitest/coverage-v8 4.1.0 requires vitest 4.1.0')
+    expect(both.detail).toContain('- vitest 4.1.0 requires @vitest/coverage-v8 4.1.0')
+    expect(both.detail).toContain('- vitest: ^4.0.5 → ^4.1.0 (minor)')
+
+    const agent = await looked.agent(both)
+    expect(agent.title).toBe('bump @vitest/coverage-v8 and vitest')
+    expect(agent.prompt).toContain(
+      'deps_update with level minor and packages ["@vitest/coverage-v8","vitest"]',
+    )
+    expect(agent.prompt).toContain('none of them can land without the others')
+  })
+
+  it('pins only by an exact version: a peer range is not a reason to move together', async () => {
+    const { repo, home, fetcher } = testing({
+      vitest: family('4.1.0', { '@vitest/coverage-v8': '^4.0.0' }),
+      coverage: family('4.1.0', { vitest: '>=4.0.0' }),
+    })
+    const looked = await look(await host(repo.root, home, fetcher))
+    expect(looked.found.map((one) => one.key)).toEqual([
+      'minor:@vitest/coverage-v8@4.1.0',
+      'minor:vitest@4.1.0',
+    ])
+  })
+
+  it('keeps a patch that moves with a minor out of the batch and in the minor', async () => {
+    const { repo, home, fetcher } = testing({
+      // One side's pin is enough: coverage-v8 4.1.0 cannot be installed beside vitest 4.0.5.
+      vitest: family('4.0.6', {}),
+      coverage: family('4.1.0', { vitest: '4.0.6' }),
+      react: npm('18.2.1'),
+    })
+    const looked = await look(await host(repo.root, home, fetcher))
+    expect(looked.found.map((one) => one.key)).toEqual([
+      'patch:react@18.2.1',
+      'minor:@vitest/coverage-v8@4.1.0,vitest@4.0.6',
+    ])
+  })
+
+  it('is held together when one of them has run out of tries', async () => {
+    const { repo, home, fetcher } = testing({
+      vitest: family('4.1.0', { '@vitest/coverage-v8': '4.1.0' }),
+      coverage: family('4.1.0', { vitest: '4.1.0' }),
+    })
+    schedule(home)
+    // coverage-v8 tried on its own twice, as the watch once offered it.
+    alreadyBumped(home, ['minor:@vitest/coverage-v8@4.1.0', 'minor:@vitest/coverage-v8@4.1.0'])
+    const looked = await look(await host(repo.root, home, fetcher))
+
+    // vitest is not offered alone: it would be the other half that cannot land.
+    expect(looked.found.map((one) => one.key)).toEqual([
+      'held:@vitest/coverage-v8@4.1.0,vitest@4.1.0',
+    ])
+    const held = looked.found[0]
+    if (!held) throw new Error('nothing was held')
+    expect(held.title).toBe(
+      '@vitest/coverage-v8 and vitest, which move together, are still behind after 2 failed automatic bumps (shop/bump-0 and shop/bump-1)',
+    )
+    expect(held.detail).toContain('of @vitest/coverage-v8 to 4.1.0 and vitest to 4.1.0 in shop')
+    await expect(looked.agent(held)).rejects.toThrow(/somebody should move it by hand/)
+  })
+})
+
 describe('a package it has already tried', () => {
   it('is told about rather than bumped again, and is not in the batch', async () => {
     const { repo, home } = place()

@@ -39,7 +39,9 @@ import { files, report } from './look.ts'
 //     the checks it is left behind and named rather than taking the other
 //     nineteen down with it. A minor can change behaviour, so it gets its own
 //     branch and its own green-or-red, which is the whole of how anybody finds
-//     out which package did it.
+//     out which package did it — unless its release requires another at
+//     exactly the version that one moves to (`lockstep`), and then they are
+//     one finding, because neither half can land alone.
 //   · **It commits nothing red.** The value here is not the bump, it is the
 //     evidence that the project still works on it — so the agent runs the
 //     project's own checks through `checks_run`, and where it cannot make them
@@ -91,6 +93,59 @@ interface Bump {
   behind: 'patch' | 'minor'
   /** Every requirement that names it — one package can be in several manifests. */
   of: Dependency[]
+  /** What the release it moves to requires beside it (`Latest.peers`). */
+  peers: Record<string, string>
+}
+
+/** Whether one bump's release requires another package at exactly the version that one moves to. */
+function pins(one: Bump, other: Bump): boolean {
+  return one !== other && one.peers[other.name] === other.to
+}
+
+/**
+ * The bumps, as the packages that must move together.
+ *
+ * A release that requires another package at exactly the version it moves to
+ * cannot be installed beside that package's old version: @vitest/coverage-v8
+ * 5.1.0 requires vitest 5.1.0, and vitest 5.1.0 requires coverage-v8 5.1.0.
+ * Offered as two findings, that was two agents each bumping half, and neither
+ * could ever land green. So each is in a group with whatever it pins and
+ * whatever pins it, the groups in the order their first member came, and each
+ * group's members in theirs.
+ */
+function lockstep(bumps: readonly Bump[]): Bump[][] {
+  const groups = bumps.map((one) => [one])
+  const groupOf = new Map(groups.map((group) => [group[0] as Bump, group]))
+  for (const one of bumps) {
+    for (const other of bumps) {
+      if (!pins(one, other)) continue
+      const a = groupOf.get(one)
+      const b = groupOf.get(other)
+      if (!a || !b || a === b) continue
+      const [keep, gone] = groups.indexOf(a) < groups.indexOf(b) ? [a, b] : [b, a]
+      for (const member of gone) {
+        keep.push(member)
+        groupOf.set(member, keep)
+      }
+      groups.splice(groups.indexOf(gone), 1)
+    }
+  }
+  return groups.map((group) => group.sort((a, b) => bumps.indexOf(a) - bumps.indexOf(b)))
+}
+
+/** `- @vitest/coverage-v8 5.1.0 requires vitest 5.1.0`, for every pin among these bumps. */
+function lockstepLines(bumps: readonly Bump[]): string[] {
+  const lines = bumps.flatMap((one) =>
+    bumps
+      .filter((other) => pins(one, other))
+      .map((other) => `- ${one.name} ${one.to} requires ${other.name} ${other.to}`),
+  )
+  if (lines.length === 0) return []
+  return [
+    '',
+    'Released in lockstep, so these move in the same commit and none of them is left behind alone:',
+    ...lines,
+  ]
 }
 
 /**
@@ -321,6 +376,12 @@ function said(names: readonly string[]): string {
   return `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`
 }
 
+/** Every one of some names, as somebody would say them. */
+function listed(names: readonly string[]): string {
+  if (names.length <= 2) return names.join(' and ')
+  return `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`
+}
+
 /** `pnpm install` and `go mod tidy`, as a sentence, or how to say there is no such command. */
 function installing(commands: readonly string[]): string {
   return commands.length > 0
@@ -416,18 +477,33 @@ export const dependencyUpdates: ExtensionWatch = {
         to: one.latest,
         behind: one.behind,
         of: [one],
+        peers: one.peers,
       })
     }
 
     const limit = allowed(ctx)
     const failed = await failedTries(ctx, ctx.now() - TRYING_DAYS * 24 * 60 * 60_000)
     const tries = (one: Bump) => failed.get(`${one.name}@${one.to}`) ?? []
-    const under = [...byName.values()].filter((one) => tries(one).length < limit)
-    const held = [...byName.values()].filter((one) => tries(one).length >= limit)
-    const patches = under.filter((one) => one.behind === 'patch')
-    const minors = under.filter((one) => one.behind === 'minor')
-    const batch = patches.slice(0, BATCH)
-    const waiting = patches.length - batch.length
+    // What moves together is held together: the rest of a group cannot land
+    // without the member that has run out of tries.
+    const groups = lockstep([...byName.values()])
+    const isHeld = (group: readonly Bump[]) => group.some((one) => tries(one).length >= limit)
+    const under = groups.filter((group) => !isHeld(group))
+    const held = groups.filter(isHeld)
+    // A patch released in lockstep with a minor is part of that minor's change.
+    const patches = under.filter((group) => group.every((one) => one.behind === 'patch'))
+    const minors = under.filter((group) => group.some((one) => one.behind === 'minor'))
+    // Whole groups only, so the batch never takes half of one and leaves the
+    // other half for a look that would offer it alone.
+    const batch: Bump[] = []
+    let waiting = 0
+    for (const group of patches) {
+      if (waiting > 0 || (batch.length > 0 && batch.length + group.length > BATCH)) {
+        waiting += group.length
+      } else {
+        batch.push(...group)
+      }
+    }
     const couldNotAsk =
       unanswered.length > 0
         ? [
@@ -448,6 +524,7 @@ export const dependencyUpdates: ExtensionWatch = {
           'Each of these is a patch release of something already required here. Bump them together,',
           'in one commit, and leave behind any one of them that the checks say is the problem.',
           ...requirementLines(batch),
+          ...lockstepLines(batch),
           ...(waiting > 0
             ? [
                 '',
@@ -458,16 +535,20 @@ export const dependencyUpdates: ExtensionWatch = {
         ].join('\n'),
       })
     }
-    for (const one of minors) {
+    for (const group of minors) {
+      const at = group.map((one) => `${one.name} ${one.to}`)
       bumps.push({
-        key: keyOf('minor', [one]),
-        title: `bump ${one.name} to ${one.to}`,
+        key: keyOf('minor', group),
+        title: `bump ${said(group.map((one) => `${one.name} to ${one.to}`))}`,
         detail: [
-          `# ${one.name} ${one.to} is out`,
+          `# ${listed(at)} ${group.length === 1 ? 'is' : 'are'} out`,
           '',
-          'A minor release, so it promises not to break this project — the checks are what say',
-          'whether it kept the promise.',
-          ...requirementLines([one]),
+          group.length === 1
+            ? 'A minor release, so it promises not to break this project — the checks are what say'
+            : 'Minor releases that move together, so they promise not to break this project — the checks are what say',
+          `whether ${group.length === 1 ? 'it' : 'they'} kept the promise.`,
+          ...requirementLines(group),
+          ...lockstepLines(group),
           ...couldNotAsk,
         ].join('\n'),
       })
@@ -476,21 +557,33 @@ export const dependencyUpdates: ExtensionWatch = {
     // Said rather than tried again, and said again only when a release after
     // it makes the key new — naming the tries, because "held" with nothing
     // behind it is a sentence nobody can check.
-    for (const one of held) {
-      const these = tries(one)
+    for (const group of held) {
+      // Every try of any of them, once each: a try of the group is a try of each member.
+      const these = [...new Map(group.flatMap(tries).map((one) => [one.task, one])).values()].sort(
+        (a, b) => a.at - b.at,
+      )
       const bumps = `${these.length} failed automatic bump${these.length === 1 ? '' : 's'}`
+      const one = group[0] as Bump
+      const what =
+        group.length === 1
+          ? `${one.name} to ${one.to}`
+          : listed(group.map((member) => `${member.name} to ${member.to}`))
       told.push({
-        key: keyOf('held', [one]),
-        title: `${one.name} is still behind ${one.to} after ${bumps} to it (${said(these.map((at) => at.task))})`,
+        key: keyOf('held', group),
+        title:
+          group.length === 1
+            ? `${one.name} is still behind ${one.to} after ${bumps} to it (${said(these.map((at) => at.task))})`
+            : `${said(group.map((member) => member.name))}, which move together, are still behind after ${bumps} (${said(these.map((at) => at.task))})`,
         detail: [
-          `# ${one.name} → ${one.to}`,
+          `# ${group.map((member) => `${member.name} → ${member.to}`).join(', ')}`,
           '',
-          `In the last ${TRYING_DAYS} days this watch started ${bumps} of ${one.name} to ${one.to} in ${ctx.watching.name}. Each is over with nothing of it waiting on a branch, and ${one.name} is still behind:`,
+          `In the last ${TRYING_DAYS} days this watch started ${bumps} of ${what} in ${ctx.watching.name}. Each is over with nothing of it waiting on a branch, and ${group.length === 1 ? `${one.name} is` : 'they are'} still behind:`,
           '',
           ...these.map(
             (at) => `- ${at.task}, started ${new Date(at.at).toISOString().slice(0, 10)}`,
           ),
-          ...requirementLines([one]),
+          ...requirementLines(group),
+          ...lockstepLines(group),
         ].join('\n'),
       })
     }
@@ -545,12 +638,14 @@ export const dependencyUpdates: ExtensionWatch = {
     // project's own checkout is a tree whose other files are somebody else's.
     const shared = await inTheSharedCheckout(ctx)
     return {
-      title: patches ? `bump ${names.length} patch releases` : `bump ${names[0]}`,
+      title: patches ? `bump ${names.length} patch releases` : `bump ${said(names)}`,
       ...(shared ? {} : { alone: true as const }),
       prompt: [
         patches
           ? `The ${names.length} patch release${names.length === 1 ? '' : 's'} in your task’s context file are behind in this project.`
-          : `${names[0]} has a new minor release, in your task’s context file with what is required now and what it would be.`,
+          : names.length === 1
+            ? `${names[0]} has a new minor release, in your task’s context file with what is required now and what it would be.`
+            : `${listed(names)} have new minor releases that are released in lockstep — one requires another at exactly the version it moves to — in your task’s context file with what is required now and what each would be. They move in one commit or not at all: none of them can land without the others.`,
         `Call deps_update with level ${part.shape} and packages ${JSON.stringify(names)}: it moves those requirements ${shared ? 'where you work' : 'in your own worktree'} and nothing else, and leaves ranges and ceilings exactly as somebody wrote them.`,
         shared
           ? `You are working in ${ctx.watching.name}’s own checkout, which every other agent here shares: commit the manifests and lockfiles you moved and nothing else, each added by its path — never \`git add -A\`, \`git add .\` or \`git commit -a\`. If somebody else’s uncommitted work is in the tree when you get there, leave it exactly as it is and say so rather than bumping around it.`
