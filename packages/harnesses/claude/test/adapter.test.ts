@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
-import { connect, createServer } from 'node:net'
+import { connect, createServer, type Socket } from 'node:net'
 import { dirname, join } from 'node:path'
 import type { HarnessAccount, WorkerSignal } from '@tade/harnesses-core'
 import { TOOL_WAIT_MS } from '@tade/harnesses-core/agent-tools'
@@ -887,6 +887,55 @@ describe('ClaudeAdapter', () => {
       await new Promise((resolve) => listener.close(resolve))
       expect(await said(join(dir, 'nobody'))).toContain(
         'Tade is not open, so checks_run cannot run right now',
+      )
+    }, 60_000)
+
+    it('waits out a busy window on tade_done, and says Tade is closed only when nothing is listening', async () => {
+      const dir = tmp('tade-busy-')
+      const listen = async (name: string, onLine: (socket: Socket, line: string) => void) => {
+        const listener = createServer((socket) => {
+          socket.once('data', (chunk) => onLine(socket, chunk.toString('utf8')))
+        })
+        const path = join(dir, name)
+        await new Promise<void>((resolve) => listener.listen(path, resolve))
+        return { path, close: () => new Promise((resolve) => listener.close(resolve)) }
+      }
+      const busy = await listen('busy', (socket) => {
+        setTimeout(() => socket.end('{"ok":true}\n'), 5_500)
+      })
+      const hangsUp = await listen('hangs-up', (socket, line) => {
+        if (line.includes('"kind":"call"')) socket.end('{"ok":true,"text":"Left it."}\n')
+        else socket.destroy()
+      })
+      const said = async (socket: string, more: Record<string, unknown> = {}): Promise<string> => {
+        const server = spawn(process.execPath, [MCP_PATH], {
+          env: { ...process.env, TADE_RUN_SOCKET: socket },
+        })
+        let out = ''
+        server.stdout.on('data', (chunk: Buffer) => {
+          out += chunk.toString('utf8')
+        })
+        server.stdin.write(
+          `${JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'tools/call',
+            params: { name: 'tade_done', arguments: { summary: 'fixed it', ...more } },
+          })}\n`,
+        )
+        await until(() => out.includes('\n'), 30_000)
+        server.kill()
+        return out
+      }
+      expect(await said(busy.path)).toContain('Tade has it: this task is finished.')
+      const left = [{ title: 'a', where: 'src/a.ts:1', why: 'not mine', sure: 'certain' }]
+      const unheard = await said(hangsUp.path, { leftovers: left })
+      expect(unheard).toContain('Tade took tade_done and no answer came back')
+      expect(unheard).toContain('Left it.')
+      expect(unheard).not.toContain('Tade is not open')
+      await Promise.all([busy.close(), hangsUp.close()])
+      expect(await said(join(dir, 'nobody'))).toContain(
+        'Tade is not open, so it cannot be told yet',
       )
     }, 60_000)
 

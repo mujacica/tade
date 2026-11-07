@@ -22,6 +22,14 @@
 export const TOOL_CALL_MS = 125 * 60_000
 export const TOOL_WAIT_MS = 130 * 60_000
 
+/**
+ * How long `tade_done` waits to hear it was heard. The window has only to reach
+ * it, so a slow answer is a busy window: long enough not to call that closed, and
+ * far short of `TOOL_CALL_MS`, since no work is running that a wedged window
+ * would be holding an agent's last word for.
+ */
+export const DONE_CALL_MS = 60_000
+
 /** One thing found and not fixed, as the model fills it in. */
 export const LEFTOVER_ITEMS = {
   type: 'array',

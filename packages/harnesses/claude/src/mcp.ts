@@ -1,7 +1,12 @@
 import { readFileSync } from 'node:fs'
 import { createInterface } from 'node:readline'
-import { LEFTOVER_ITEMS, LEFTOVERS_TOOL, TOOL_CALL_MS } from '@tade/harnesses-core/agent-tools'
-import { ask, reach, SOCKET } from './ask.ts'
+import {
+  DONE_CALL_MS,
+  LEFTOVER_ITEMS,
+  LEFTOVERS_TOOL,
+  TOOL_CALL_MS,
+} from '@tade/harnesses-core/agent-tools'
+import { reach, SOCKET } from './ask.ts'
 
 // Tade's tools, lent to a Claude Code agent as an MCP server over stdio.
 //
@@ -151,10 +156,13 @@ async function call(id: unknown, params: Record<string, unknown>): Promise<void>
       }
       left = ` ${String(reply.text ?? '')}`
     }
-    const reply = await ask({ kind: 'done', summary: String(input.summary ?? '').trim() })
-    return reply
-      ? text(id, `Tade has it: this task is finished.${left}`)
-      : text(id, 'Tade is not open, so it cannot be told yet: say so instead', true)
+    const summary = String(input.summary ?? '').trim()
+    const { reply, reached } = await reach({ kind: 'done', summary }, DONE_CALL_MS)
+    if (reply) return text(id, `Tade has it: this task is finished.${left}`)
+    const why = reached
+      ? `Tade took ${name} and no answer came back, so it may have heard you or its window may have closed. Say so in your last message; calling ${name} again does no harm.${left}`
+      : 'Tade is not open, so it cannot be told yet: say so instead'
+    return text(id, why, true)
   }
   const { reply, reached } = await tade(callId, name, input)
   if (!reply) {
