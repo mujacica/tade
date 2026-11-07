@@ -191,7 +191,7 @@ staged tree could be wrong on a stranger's machine, which is the one place nobod
 behind `origin/main`, a tag that already exists, or no live-test receipt for this commit. Each is
 said in full rather than one at a time. The uncommitted-changes one matters most here — agents share
 this checkout, and a release must carry the changelog and the version and nobody else's work, which
-is why the commit is `git add --` by path and never `-a`. Being behind is best effort: a machine
+is why the commit names its paths (`git commit --only`) and is never `-a`. Being behind is best effort: a machine
 with no network still gets to cut a release, it just does not get told.
 
 ## What the workflow does with the tag

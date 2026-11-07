@@ -34,7 +34,8 @@ suite is broken from a run that shared the machine.
 safe shapes are a rate with a ceiling and a "said once" over a wait (`wire/frame.probe.test.ts`).
 
 **Agents share this checkout.** Read a file again immediately before editing it. Commit only files
-you changed yourself, each added by path — never `git add -A`, `git add .` or `git commit -a` — and
+you changed yourself, named in the commit — `git add` new ones, then `git commit --only -m … -- <paths>`,
+never `git add -A`, `git add .`, `git commit -a` or a commit naming no paths (`COMMIT_TELLS`) — and
 never run what throws others' work away: `git stash`, `git checkout`/`restore` of files,
 `git reset --hard`, `git clean`.
 

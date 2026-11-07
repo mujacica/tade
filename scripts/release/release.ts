@@ -205,9 +205,10 @@ function main(): number {
   if (!/"version": "\d/.test(readFileSync(join(ROOT, 'package.json'), 'utf8')))
     throw new Error('package.json has no version field to stamp')
   // By path, never `-a`: four agents can be working in this checkout, and a
-  // release must carry the changelog and the version and nothing else.
+  // release must carry the changelog and the version and nothing else. Named in
+  // the commit too, or what somebody stages while its hook runs goes in with it.
   git(['add', '--', CHANGELOG, 'package.json'])
-  git(['commit', '-m', `Release ${opts.version}`])
+  git(['commit', '--only', '-m', `Release ${opts.version}`, '--', CHANGELOG, 'package.json'])
   git(['tag', '-a', `v${opts.version}`, '-m', `${PUBLISHED} ${opts.version}`])
   say('')
   say(`Committed and tagged v${opts.version}. Nothing has left this machine.`)

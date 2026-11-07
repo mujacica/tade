@@ -712,7 +712,8 @@ describe('where the work goes', () => {
     expect(agent.alone).toBeUndefined()
     expect(agent.prompt).toContain('it moves those requirements where you work and nothing else')
     expect(agent.prompt).toContain('shop’s own checkout, which every other agent here shares')
-    expect(agent.prompt).toContain('each added by its path — never `git add -A`')
+    expect(agent.prompt).toContain('`git commit --only -m "…" -- <each path>`')
+    expect(agent.prompt).toContain('never `git add -A`')
     expect(agent.prompt).toContain('leave it exactly as it is and say so')
   })
 

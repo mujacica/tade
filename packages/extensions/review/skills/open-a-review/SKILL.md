@@ -37,9 +37,11 @@ work is going to the review or beside it.
    somebody else's machine. Nothing else has to be kept anywhere.
 2. **Get it green here first.** Run the project's checks (`tade_check_run`) before you push: CI
    minutes cost money, and a red review is a thing other people have to read past.
-3. **Commit your own files, by path.** `git add <path>` for each one — never `git add -A` or
-   `git commit -a`, which in a shared checkout sweep up whatever three other agents have
-   half-written. Nothing of Tade's is in the checkout at all, so nothing of its should appear in a
+3. **Commit your own files, by path.** `git add <path>` for each new one, then
+   `git commit --only -m "…" -- <each path>` — never `git add -A` or `git commit -a`, which in a
+   shared checkout sweep up whatever three other agents have half-written, and never a commit that
+   names no paths, which takes whatever they have staged by then. If git says `index.lock` exists,
+   another agent is committing: wait and try again, and do not delete it. Nothing of Tade's is in the checkout at all, so nothing of its should appear in a
    diff; if `git status` is offering you somebody's task file, a pasted screenshot or
    `checks.jsonl`, the project has not got the rules yet — leave them out and say so. Nothing under
    there belongs to the project: what it checks is read from its own CI workflows and its own

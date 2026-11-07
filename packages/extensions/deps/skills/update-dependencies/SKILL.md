@@ -27,7 +27,10 @@ cannot.
    them is what the checks are failing on, put that one back to the version it was, keep the rest,
    and say which you left behind and what it broke.
 6. **In a project's own checkout, commit the manifests and lockfiles you moved and nothing else**,
-   each added by its path — never `git add -A`, `git add .` or `git commit -a`. A bump normally gets
+   naming each in the commit: `git commit --only -m "…" -- <each path>`, after `git add` of any that
+   is new. Never `git add -A`, `git add .`, `git commit -a` or a commit that names no paths, which
+   takes whatever another agent has staged by then. If git says `index.lock` exists, another agent
+   is committing: wait and try again, and do not delete it. A bump normally gets
    a worktree of its own, where everything in the tree is yours; where your task's prompt says you
    are in the project's own checkout, every other change in it is somebody else's, and uncommitted
    work that was there before you is theirs to finish: leave it exactly as it is and say so.

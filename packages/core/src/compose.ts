@@ -271,12 +271,23 @@ const COMMIT_SAID: Record<'when-done' | 'own-files' | 'as-you-go' | 'never', str
   never: 'never to commit, so the person commits',
 }
 
-/** What an agent is told about committing, for each rule. */
+/**
+ * What an agent is told about committing, for each rule.
+ *
+ * `own-files` names the paths in the commit, because adding them and then
+ * committing does not keep anybody out: a plain `git commit` takes the index as
+ * it stands once its hook has finished, so a file another agent stages in those
+ * seconds goes in under this agent's `Tade-Task:` (f7e532a8 took four that way).
+ * `--only` commits the named paths from HEAD and leaves what others staged where
+ * it was, and holds `index.lock` through the hook, so somebody staging meanwhile
+ * is refused out loud rather than swept in: hence the sentence about waiting.
+ * A file git does not know yet still has to be added first, or `--only` refuses.
+ */
 export const COMMIT_TELLS: Record<'when-done' | 'own-files' | 'as-you-go' | 'never', string> = {
   'when-done':
     'When you have finished what you were asked and it passes its checks, commit all of it in one commit whose message says why.',
   'own-files':
-    'When you have finished and it passes its checks, commit only the files you changed yourself: add each by its path — never git add -A, git add . or git commit -a — and leave anyone else’s changes uncommitted.',
+    'When you have finished and it passes its checks, commit only the files you changed yourself, naming them in the commit: git add each file you created, by its path, then git commit --only -m "…" -- <each path>. Never git add -A, git add . or git commit -a, and never a git commit that names no paths: it takes whatever another agent has staged by then, under your name. If git says index.lock exists, another agent is committing: wait and try again, and do not delete it. Leave anyone else’s changes uncommitted.',
   'as-you-go':
     'Commit each piece of work as soon as it is done and passes its checks, in small commits whose messages say why. Tade shows the person your changes and commits, and treats a clean tree with commits as ready for review.',
   never: 'Do not commit. Leave your changes uncommitted: the person reviews and commits them.',
