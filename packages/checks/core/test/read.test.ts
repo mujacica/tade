@@ -182,6 +182,16 @@ describe('the tests a change touches', () => {
     })
   })
 
+  it('have time for a run the size of the suite, behind a suite that had the machine', async () => {
+    const read = await readChecks({
+      name: 'p',
+      root: related({ scripts: { 'test:related': 'node related.js' } }, { 'pnpm-lock.yaml': '' }),
+    })
+    const limit = (id: string) => read.checks.find((check) => check.id === id)?.minutes ?? 0
+    expect(limit('tests')).toBeGreaterThan(0)
+    expect(limit('related')).toBeGreaterThanOrEqual(2 * limit('tests'))
+  })
+
   it('believe a declared packageManager over a lockfile, and npm where nothing says', async () => {
     const declared = await readChecks({
       name: 'p',

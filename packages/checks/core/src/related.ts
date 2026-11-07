@@ -37,8 +37,13 @@ const MANAGERS: readonly (readonly [string, string])[] = [
 
 const KNOWN = new Set(MANAGERS.map(([, manager]) => manager))
 
-/** How long a related run is given: it is the quick look, and past this it has hung. */
-const MINUTES = 15
+/**
+ * How long a related run is given, and past this it has hung. A change to a hub
+ * file touches most of the suite (456 to 630 of 784 files for `core/src/config.ts`
+ * and its `index.ts`), which is given 20 minutes (`DEFAULT_MINUTES` in `ci.ts`), and a run that
+ * size waits for the machine on its own clock, behind a suite that may take as long.
+ */
+const MINUTES = 40
 
 /** What the reading found: the check, or nothing — and what it could not read, said. */
 export interface RelatedReading {
