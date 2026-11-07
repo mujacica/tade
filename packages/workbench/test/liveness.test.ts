@@ -1,6 +1,7 @@
-import { writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { deriveState, livenessOf } from '@tade/core'
+import { isRunning, until } from '@tade/drivers-core/conformance'
 import type { WorkerHandle } from '@tade/harnesses-core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -92,16 +93,38 @@ describe('runSignal', () => {
 describe('livenessFrom', () => {
   let repo: ReturnType<typeof mkrepo>
   let client: Workbench
+  let home: string
 
   beforeEach(async () => {
     repo = mkrepo()
-    const home = tmp('tade-liveness-')
+    home = tmp('tade-liveness-')
     writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
     client = await Workbench.open({ home })
   })
 
   afterEach(async () => {
     await client.close().catch(() => {})
+  })
+
+  it('has nothing running, and supervises nothing, when an agent could not be written down', async () => {
+    const task = await client.createTask({ project: 'app', slug: 'refused', intent: 'fix it' })
+    // Nothing can be renamed over a folder: the save fails with the home still writable.
+    rmSync(join(home, 'lanes.json'))
+    mkdirSync(join(home, 'lanes.json', 'in-the-way'), { recursive: true })
+    const start = client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' })
+    await expect(start).rejects.toThrow(/lanes\.json/)
+
+    const [opened] = await client.events({ types: ['lane_opened'], task: task.id })
+    await until(() => !isRunning(opened?.detail.pid as number), { timeout: 10_000 })
+    expect(client.runs()).toEqual([])
+    expect(await livenessFrom(client).lanes(task.id)).toEqual([])
+    const told = await client.events({ types: ['run_exited'], task: task.id })
+    expect(told.map((event) => event.detail.stopped)).toEqual([true])
+
+    // And it starts once the file can be written again.
+    rmSync(join(home, 'lanes.json'), { recursive: true })
+    const lane = await client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' })
+    expect(lane.alive).toBe(true)
   })
 
   it('reports an agent under its own task and nothing under others', async () => {

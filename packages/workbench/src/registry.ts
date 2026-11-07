@@ -342,6 +342,7 @@ export class LaneRegistry {
       ...(req.title ? { title: req.title } : {}),
     }
     const handle = await this.driver.open(spec)
+    const before = this.lanes.get(req.id)
     const record: LaneRecord = {
       id: req.id,
       task: req.task,
@@ -362,14 +363,58 @@ export class LaneRegistry {
     }
     this.lanes.set(req.id, record)
     this.watch(record)
-    await this.log.append({
-      type: 'lane_opened',
-      lane: req.id,
-      task: req.task,
-      detail: { command: spec.command, args: spec.args, cwd: spec.cwd, pid: handle.pid },
-    })
-    await this.save()
+    try {
+      await this.log.append({
+        type: 'lane_opened',
+        lane: req.id,
+        task: req.task,
+        detail: { command: spec.command, args: spec.args, cwd: spec.cwd, pid: handle.pid },
+      })
+      await this.save()
+    } catch (err) {
+      throw await this.takeBack(record, before, err as Error)
+    }
     return record
+  }
+
+  /**
+   * A lane that opened and could not be written down is closed again, and what
+   * was known under its id before stands: whoever asked hears that it did not
+   * start, so nothing may be running. Left up, 54 agents on a full disk worked
+   * unseen while the journal said each had stopped and the queue held each as
+   * never started, none counted against `max_parallel`.
+   *
+   * The error to throw is handed back, carrying whatever went wrong in here
+   * beside the failure that brought it here rather than in its place: writing
+   * this down may well fail too, the journal and the file being what just did.
+   * A lane that would not close is still running, so it stays listed as alive.
+   */
+  private async takeBack(
+    record: LaneRecord,
+    before: LaneRecord | undefined,
+    err: Error,
+  ): Promise<Error> {
+    const id = record.id as LaneId
+    try {
+      await this.driver.close(id)
+    } catch (closing) {
+      return new Error(`${err.message}; its lane is still running: ${(closing as Error).message}`)
+    }
+    this.flushOutput(id)
+    record.alive = false
+    for (const un of this.unsubscribes.get(id) ?? []) un()
+    this.unsubscribes.delete(id)
+    if (before) this.lanes.set(id, before)
+    else this.lanes.delete(id)
+    try {
+      await this.log.append({ type: 'lane_closed', lane: id, task: record.task })
+      await this.save()
+    } catch (writing) {
+      return new Error(
+        `${err.message}; its lane was closed, which could not be written down: ${(writing as Error).message}`,
+      )
+    }
+    return err
   }
 
   /**
@@ -387,7 +432,6 @@ export class LaneRegistry {
   async relaunch(id: LaneId): Promise<LaneRecord> {
     const record = this.require(id)
     if (record.alive) return record
-    this.lanes.delete(id)
     return this.spawn({
       id,
       task: record.task,

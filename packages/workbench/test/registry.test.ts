@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { chmodSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { type LaneId, taskDir } from '@tade/core'
-import { ECHO_CHILD, until } from '@tade/drivers-core/conformance'
+import { ECHO_CHILD, isRunning, until } from '@tade/drivers-core/conformance'
 import { PtyDriver } from '@tade/drivers-pty'
 import { TmuxDriver } from '@tade/drivers-tmux'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -283,8 +283,77 @@ describe('the lane registry, across a restart', () => {
       expect(saved.lanes.map((l: { id: string }) => l.id)).toEqual([
         'app/after/agent',
         'app/first/agent',
-        'app/refused/agent',
       ])
+    })
+
+    describe('a lane it could not write down', () => {
+      /** Saves fail while this runs: nothing can be renamed over a folder with something in it. */
+      const unsaved = async (act: () => Promise<unknown>): Promise<unknown> => {
+        rmSync(path)
+        mkdirSync(join(path, 'in-the-way'), { recursive: true })
+        try {
+          return await act().then(
+            () => null,
+            (err) => err,
+          )
+        } finally {
+          rmSync(path, { recursive: true })
+        }
+      }
+      const opened = async (id: string): Promise<number> => {
+        const events = await log.read({ types: ['lane_opened'] })
+        return events.filter((e) => e.lane === id).at(-1)?.detail.pid as number
+      }
+
+      it('is closed again, so a start that was refused has nothing running', async () => {
+        const registry = await session(new PtyDriver({ scrollback: 200 }))
+        const err = await unsaved(() => lane(registry, 'app/refused/agent'))
+        expect(String(err)).toMatch(/lanes\.json.*closed, which could not be written down/)
+        expect(registry.get('app/refused/agent' as LaneId)).toBeNull()
+        const pid = await opened('app/refused/agent')
+        await until(() => !isRunning(pid), { timeout: 10_000 })
+        const closed = await log.read({ types: ['lane_closed'] })
+        expect(closed.map((e) => e.lane)).toEqual(['app/refused/agent'])
+        // And the name is free to start again once the disk has room.
+        expect((await lane(registry, 'app/refused/agent')).alive).toBe(true)
+      })
+
+      it('leaves what was known under its id, so a lost lane is still there to reopen', async () => {
+        const first = await session(new PtyDriver({ scrollback: 200 }))
+        await lane(first, 'app/lost/agent')
+        await first.shutdown()
+        const registry = await session(new PtyDriver({ scrollback: 200 }))
+        const lost = registry.get('app/lost/agent' as LaneId)
+        expect(lost).toMatchObject({ alive: false, lost: true })
+        expect(String(await unsaved(() => lane(registry, 'app/lost/agent')))).toMatch(/lanes\.json/)
+        expect(registry.get('app/lost/agent' as LaneId)).toEqual(lost)
+      })
+
+      it('keeps the record of a lane run again from it, for the same reason', async () => {
+        const first = await session(new PtyDriver({ scrollback: 200 }))
+        await lane(first, 'app/dead/agent')
+        await first.shutdown()
+        const registry = await session(new PtyDriver({ scrollback: 200 }))
+        const err = await unsaved(() => registry.relaunch('app/dead/agent' as LaneId))
+        expect(String(err)).toMatch(/lanes\.json/)
+        expect(registry.get('app/dead/agent' as LaneId)?.alive).toBe(false)
+      })
+
+      it('says when it would not close, and goes on saying it is alive', async () => {
+        class WontClose extends PtyDriver {
+          refuse = true
+          override async close(id: LaneId): Promise<void> {
+            if (this.refuse) throw new Error('it would not close')
+            await super.close(id)
+          }
+        }
+        const driver = new WontClose({ scrollback: 200 })
+        const registry = await session(driver)
+        const err = await unsaved(() => lane(registry, 'app/stuck/agent'))
+        expect(String(err)).toMatch(/lanes\.json.*still running: it would not close/)
+        expect(registry.get('app/stuck/agent' as LaneId)?.alive).toBe(true)
+        driver.refuse = false
+      })
     })
 
     it('leaves the registry file readable by anything of yours that wants to look', async () => {
