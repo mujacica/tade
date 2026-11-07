@@ -38,7 +38,9 @@ step() {
 
 # Formatting and lint, including the Grit plugin that enforces R3 — the same
 # command CI runs, over the same files, so passing here means the same thing.
-step "style and lint" pnpm exec biome ci .
+# Only errors are drawn: warnings never fail it, and drawn here they were 480KB
+# on every commit, in front of whatever did. `pnpm lint` still lists them.
+step "style and lint" pnpm exec biome ci . --diagnostic-level=error
 
 # The whole project, not the staged files: a one-line change in a port breaks
 # types in packages nobody touched, which is exactly the breakage worth
