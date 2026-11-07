@@ -171,12 +171,15 @@ function fakeClaude(help: string[] | null): string {
       // Broken while `<bin>.broken` exists: a look that failed.
       'if [ "$1" = "--help" ] && [ -e "$0.broken" ]; then exit 2; fi',
       `if [ "$1" = "--help" ]; then ${said}; exit 0; fi`,
+      // Who started it — the reaper between it and the adapter — one a line.
+      // Before `.args`, which says it has started: stopped the moment that
+      // appears, it would otherwise never write this, and the first line would
+      // be the next one's, still running.
+      'echo "$PPID" >> "$0.parents"',
       'printf \'%s\\n\' "$@" > "$0.args.tmp"',
       'echo "$ENABLE_TOOL_SEARCH" > "$0.search"',
       'echo "$MCP_TIMEOUT" > "$0.wait"',
       'mv "$0.args.tmp" "$0.args"',
-      // Who started it — the reaper between it and the adapter — one a line.
-      'echo "$PPID" >> "$0.parents"',
       'exec sleep 600',
     ].join('\n'),
   )
