@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { SPINNER } from '../../src/model.ts'
 import type { ThinkerEvent } from '../../src/transcript.ts'
+import { Orchestrator } from '../../src/wire/orchestrator.ts'
 import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
 
 /**
@@ -20,6 +21,15 @@ const theirWords = (message: string | undefined): string =>
 
 // What reaches the thing you talk to, what it says back, and what it is told
 // while nobody is asking.
+
+describe('telling an orchestrator that is not there', () => {
+  it('fails rather than resolving as if it had been told', async () => {
+    const orchestrator = new Orchestrator({ opts: {} } as never, {} as never)
+    await expect(orchestrator.tell('a document was handed over')).rejects.toThrow(
+      'no orchestrator is running',
+    )
+  })
+})
 
 describe('the window, talking to the orchestrator', () => {
   let terminal: FakeTerminal

@@ -76,4 +76,31 @@ describe('the window, and work that would collide', () => {
     })
     expect(terminal.written).toContain('would conflict in charge.ts')
   })
+
+  it('keeps what it would have told while no orchestrator is running, once written down', async () => {
+    // Written down first, so it is never told again: resolved as if told, a
+    // collision seen while the orchestrator was starting was heard by nobody.
+    const refunds = join(repo.root, '..', 'worktrees', 'app-refunds')
+    const search = join(repo.root, '..', 'worktrees', 'app-search')
+    repo.commit('refunds', { 'charge.ts': 'charge once\n' }, refunds)
+    repo.commit('search', { 'charge.ts': 'charge twice\n' }, search)
+    const window = await start()
+    await until(
+      'the collision written down',
+      async () => (await client.events({ types: ['conflict_forecast'] })).length === 1,
+    )
+    const asked: string[] = []
+    window.attachThinker({
+      ask: async (text: string) => {
+        asked.push(text)
+        return 'ok'
+      },
+      tell: async () => {},
+    })
+    terminal.press('\x00')
+    for (const char of 'anything new') terminal.press(char)
+    terminal.press('\r')
+    await until('the orchestrator asked', () => asked.length === 1)
+    expect(asked[0]).toContain('app/refunds and app/search would conflict in charge.ts')
+  })
 })

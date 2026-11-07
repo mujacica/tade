@@ -713,11 +713,12 @@ export class Orchestrator implements Subject {
   /**
    * Tell the orchestrator something now rather than with the next thing you
    * say: after the turn it is on, never across it. Sent in the middle of your
-   * question, it used to be refused, and was lost.
+   * question, it used to be refused, and was lost. With nobody there it fails:
+   * only whoever called can keep what it was telling.
    */
   async tell(text: string): Promise<void> {
     const thinker = this.thinker
-    if (!thinker) return
+    if (!thinker) throw new Error('no orchestrator is running')
     // Whether anybody is here goes above Tade's words as where they stand goes
     // above theirs: a fact of this turn, derived now and never remembered.
     const above = this.deps.nobodyHere?.() ?? null

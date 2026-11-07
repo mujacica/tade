@@ -156,12 +156,11 @@ function nobodyToTell(
 }
 
 /**
- * The orchestrator as the heart tells it, written in the log too while it is
- * not running. Told then, it is kept as news rather than let go, so that one
- * coming up is told it.
+ * The orchestrator as the heart tells it, written in the log too, where there
+ * is one, while it is not running. Told then, it is kept as news rather than
+ * let go, so that one coming up is told it.
  */
 function toldOrSaid(orchestrator: Tellable, said: ((text: string) => void) | null): Tellable {
-  if (said === null) return orchestrator
   return {
     get started() {
       return orchestrator.started
@@ -169,11 +168,11 @@ function toldOrSaid(orchestrator: Tellable, said: ((text: string) => void) | nul
     tell: async (text) => {
       if (orchestrator.started) return orchestrator.tell(text)
       orchestrator.note(text)
-      said(text)
+      said?.(text)
     },
     note: (text) => {
       orchestrator.note(text)
-      if (!orchestrator.started) said(text)
+      if (!orchestrator.started) said?.(text)
     },
   }
 }
