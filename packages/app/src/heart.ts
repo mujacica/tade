@@ -390,6 +390,7 @@ export class Heart {
     this.queue = new Queue(this.wire, {
       news: (words) => this.told.note(words),
       tell: (text) => this.told.tell(text),
+      comingBack: () => this.agents.comingBack(),
       schedules: {
         views: () => this.schedules.views(),
         set: (req) => this.schedules.set(req),

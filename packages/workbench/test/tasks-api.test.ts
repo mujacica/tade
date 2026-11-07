@@ -746,6 +746,27 @@ describe('task and run RPC', () => {
     expect(first?.detail).not.toHaveProperty('over')
   }, 90_000)
 
+  it('counts starts made at once against each other', async () => {
+    // A window bringing back everything it left does this: no run is listed
+    // until a harness has been asked about, so each would see an empty project.
+    const tasks = await Promise.all(
+      ['one', 'two', 'three', 'four'].map((slug) =>
+        client.createTask({ project: 'app', slug, intent: INTENT }),
+      ),
+    )
+    const lanes = await Promise.all(
+      tasks.map((task) =>
+        client.startAgent({ task: task.id, cwd: task.worktree, prompt: '', pastLimit: true }),
+      ),
+    )
+    expect(lanes.map((lane) => lane.over?.running ?? null).sort()).toEqual([3, 4, null, null])
+    // And at the limit one nobody asked for is still refused.
+    const fifth = await client.createTask({ project: 'app', slug: 'five', intent: INTENT })
+    await expect(
+      client.startAgent({ task: fifth.id, cwd: fifth.worktree, prompt: '' }),
+    ).rejects.toThrow(/max_parallel is 2/)
+  }, 90_000)
+
   it('frees a finished task’s slot while its agent’s lane is still open', async () => {
     const one = await client.createTask({ project: 'app', slug: 'one', intent: INTENT })
     const two = await client.createTask({ project: 'app', slug: 'two', intent: INTENT })

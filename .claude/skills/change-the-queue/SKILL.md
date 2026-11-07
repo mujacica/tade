@@ -230,6 +230,20 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   said in a line (`pastLimitSays`). The orchestrator's own start — a hold it decided, a proposal it
   started — waits for room as a rule's does, and is told what would take it past. Refused by hand
   past it was a press that did nothing on a project somebody had capped for the queue's sake.
+- **An agent the closure stopped comes back past `max_parallel`, and the queue waits behind it.**
+  Coming back is not a new start, so `reopenLost` opens every lane marked `lost` with `pastLimit`, and
+  says once per project how far past that went (`run_started`'s `over` for each, `cameBackPast` on
+  screen). It never used to reach the limit's word: the first few filled the room and the rest were
+  refused with a sentence about a start a person asks for, which nobody had. **The queue counts
+  them from the first look** (`Agents.comingBack`, in `doAdvance`'s room): that look runs the queue
+  before `reopenLost` has run and before any of them is a run, so it would otherwise fill the project
+  and leave them past the limit by as many again. Each counted one is about to run, so a failed reopen
+  gives its slot back; and `lostSentFor` stops counting what `reopenLost` did not take, whose pane may
+  only appear later and would hold a slot for ever. Starts at once are counted against each other
+  (`pastGuard`, in `guardParallel`), or seven reopening together each see room and none says it went
+  past. A press and a device's reopen are a person's, so past it too and said (`pastLimitSays` with
+  `opened`). `reopenStopped` is neither, because looking at an agent is not asking: at the limit it
+  leaves a stopped one shut, says so once and keeps its button.
 - **Write it down, then do it.** `schedule_fired` before a schedule's task is made, so a window that
   stops half way never runs it twice; `watch_found` for every finding, a failed start included, so
   one finding never makes work twice; `watch_checked` for every look — how much it found, which was

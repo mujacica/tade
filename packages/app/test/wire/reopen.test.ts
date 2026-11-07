@@ -22,7 +22,7 @@ import type { Wiring } from '../../src/wire/context.ts'
 const TASK = 'app/refunds'
 
 /** One task, in front of you, as a look taken mid-removal saw it: failed, with no lane. */
-function windowWith() {
+function windowWith(opts: { limit?: number; running?: string[]; lost?: boolean } = {}) {
   let state: AppState = focusTask(
     withTasks(initialState(), [
       {
@@ -44,11 +44,21 @@ function windowWith() {
       asked.push(`remove ${req.task}`)
       return { removed: true, branchDeleted: true }
     },
-    reopenAgent: async (req: { task: string; cwd: string }) => {
+    reopenAgent: async (req: { task: string; cwd: string; pastLimit?: boolean }) => {
       asked.push(`reopen ${req.task} in ${req.cwd}`)
+      if (req.pastLimit !== true) throw new Error('refused')
+      if (reopenFails) throw new Error('the harness would not start')
       return {}
     },
+    runs: () => (opts.running ?? []).map((task) => ({ task })),
+    lane: () => (opts.lost ? { lost: true } : null),
+    resumeOf: () => ({ shown: true }),
+    lanes: () =>
+      opts.lost
+        ? [{ id: `${TASK}/agent`, task: TASK, kind: 'agent', alive: false, lost: true }]
+        : [],
   }
+  let reopenFails = false
   const live = {
     factsOf: () => ({
       project: 'app',
@@ -60,13 +70,21 @@ function windowWith() {
     worktreeOf: () => '/worktrees/app-refunds',
     changes: () => [],
     events: [],
+    queueFacts: () => ({ finished: new Map() }),
     // The look this hands back is the one already taken: the task still on it.
     refresh: async () => {},
   }
   const wire = {
     opts: {
       client,
-      config: ConfigSchema.parse({ projects: { app: { root: '/repos/app' } } }),
+      config: ConfigSchema.parse({
+        projects: {
+          app: {
+            root: '/repos/app',
+            ...(opts.limit ? { max_parallel: opts.limit } : {}),
+          },
+        },
+      }),
     },
     get state() {
       return state
@@ -81,7 +99,14 @@ function windowWith() {
     note: () => {},
   } as unknown as Wiring
   const agents = new Agents(wire, {} as AgentsDeps)
-  return { agents, asked }
+  return {
+    agents,
+    asked,
+    notice: () => state.notice,
+    failing: () => {
+      reopenFails = true
+    },
+  }
 }
 
 /** Whatever `reopenStopped` set going, finished. */
@@ -103,5 +128,42 @@ describe('opening an agent again by itself', () => {
     agents.reopenStopped()
     await settled()
     expect(asked).toEqual([`stop ${TASK}`, `remove ${TASK}`])
+  })
+
+  it('leaves a stopped one shut in a project at its limit, saying so once', async () => {
+    // Looking at an agent is not asking for it, and the refusal would be about
+    // a start nobody made.
+    const { agents, asked, notice } = windowWith({ limit: 1, running: ['app/search'] })
+    agents.reopenStopped()
+    agents.reopenStopped()
+    await settled()
+    expect(asked).toEqual([])
+    expect(notice()).toContain('app is at its limit')
+    expect(notice()).not.toContain('already has')
+  })
+
+  it('opens one the closure stopped whatever the limit, and a press whatever the limit', async () => {
+    const lost = windowWith({ limit: 1, running: ['app/search'], lost: true })
+    lost.agents.reopenStopped()
+    await settled()
+    expect(lost.asked).toEqual([`reopen ${TASK} in /worktrees/app-refunds`])
+
+    const pressed = windowWith({ limit: 1, running: ['app/search'] })
+    await pressed.agents.openAgent(TASK)
+    expect(pressed.asked).toEqual([`reopen ${TASK} in /worktrees/app-refunds`])
+    expect(pressed.notice()).toContain('opened app/refunds where it left off')
+  })
+
+  it('counts a lost agent as coming from before it is sent for until it has come or failed', async () => {
+    const { agents, failing } = windowWith({ limit: 1, lost: true })
+    expect(agents.comingBack()).toEqual([TASK])
+    failing()
+    agents.reopenLost()
+    // On its way, and only in the one list.
+    expect(agents.comingBack()).toEqual([TASK])
+    await settled()
+    await settled()
+    // It did not come back, so it is not holding the room any more.
+    expect(agents.comingBack()).toEqual([])
   })
 })

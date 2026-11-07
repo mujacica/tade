@@ -313,6 +313,8 @@ export class Workbench {
   private readonly extensions: WorkbenchExtensions | null
   /** A route's provider and model that disagree, said once a window (`modelFor`). */
   private readonly disagreeing = new Set<string>()
+  /** Agents past the limit's guard and not yet listed as running (`guardParallel`). */
+  private readonly pastGuard = new Set<string>()
 
   private constructor(opts: {
     home: string
@@ -1453,6 +1455,18 @@ export class Workbench {
    */
   async startAgent(req: StartRunRequest): Promise<LaneRecord & { over?: PastLimit }> {
     const over = await this.guardParallel(req.task, req.pastLimit === true)
+    try {
+      return await this.launchAgent(req, over)
+    } finally {
+      this.pastGuard.delete(req.task)
+    }
+  }
+
+  /** `startAgent` once the limit has answered. */
+  private async launchAgent(
+    req: StartRunRequest,
+    over: PastLimit | null,
+  ): Promise<LaneRecord & { over?: PastLimit }> {
     await guardBudget(this, req.task, Date.now())
     const lane = `${req.task}/agent` as LaneId
     if (this.registry.get(lane)?.alive) {
@@ -2324,6 +2338,10 @@ export class Workbench {
    *
    * Counted the way the queue counts its room (`atOnceIn`): a finished task's
    * agent takes no slot, lane open or not — so neither does starting one again.
+   * And with the starts already past this guard (`pastGuard`), which the
+   * supervisor lists only once a harness has been asked about: a window bringing
+   * back seven agents at once would otherwise see room seven times, say nothing
+   * of going past it, and let starts through that the limit would refuse.
    */
   private async guardParallel(task: string, pastLimit: boolean): Promise<PastLimit | null> {
     const project = task.split('/')[0] ?? ''
@@ -2333,11 +2351,13 @@ export class Workbench {
     if (finished.has(task)) return null
     const running = atOnceIn(
       project,
-      this.workers.list().map((h) => h.task as string),
+      [...this.workers.list().map((h) => h.task as string), ...this.pastGuard],
       finished,
     )
-    if (running < limit) return null
-    if (pastLimit) return { limit, running: running + 1 }
+    if (running < limit || pastLimit) {
+      this.pastGuard.add(task)
+      return running < limit ? null : { limit, running: running + 1 }
+    }
     throw new Error(
       `${project} already has ${running} unfinished agent${running === 1 ? '' : 's'} running, and max_parallel is ${limit}: a start the person asks for goes past it`,
     )

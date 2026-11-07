@@ -310,6 +310,9 @@ describe('where queued work stands', () => {
     expect(pastLimitSays('vrolta', { limit: 3, running: 4 })).toBe(
       "started past vrolta's limit of 3: 4 now running",
     )
+    expect(pastLimitSays('vrolta', { limit: 3, running: 4 }, 'opened')).toBe(
+      "opened past vrolta's limit of 3: 4 now running",
+    )
   })
 
   it('counts against max_parallel only the agents of tasks that have not finished', () => {
@@ -319,6 +322,8 @@ describe('where queued work stands', () => {
     expect(atOnceIn('shop', running, new Map())).toBe(3)
     expect(atOnceIn('shop', running, new Map([['shop/b', done]]))).toBe(2)
     expect(atOnceIn('search', running, new Map([['shop/b', done]]))).toBe(1)
+    // An agent on its way back is in two lists for a moment, and is one agent.
+    expect(atOnceIn('shop', [...running, 'shop/a', 'shop/e'], new Map())).toBe(4)
   })
 
   it('starts what is ready in the order last written for it, and nothing else changes', () => {

@@ -431,7 +431,7 @@ describe('a project opened, and the window opened again', () => {
   let client: Workbench
   let repo: Repo
   let home: string
-  const { start, newTerminal } = windowUnderTest((wired) => {
+  const { start, newTerminal, beats, find, click } = windowUnderTest((wired) => {
     terminal = wired.terminal
     client = wired.client
     repo = wired.repo
@@ -522,6 +522,87 @@ describe('a project opened, and the window opened again', () => {
       // no `agent-1` was invented beside them.
       expect(agentLanes(after).map((lane) => lane.task)).toEqual([refunds.task])
       expect(await after.events({ types: ['task_created'] })).toEqual([])
+    } finally {
+      await after.close().catch(() => {})
+    }
+  })
+
+  // vrolta, closed with more agents working than its limit: the first few came
+  // back and each of the rest was refused with a line about a start a person
+  // asks for. And the look that runs the queue is the one that sends for them,
+  // so anything queued could take the room they were on their way back to.
+  it('brings back every agent the closure stopped past max_parallel, with the queue behind them', async () => {
+    const config = ConfigSchema.parse({ projects: { app: { root: repo.root, max_parallel: 2 } } })
+    const working = ['refunds', 'search', 'receipts'].map((name) => {
+      if (name === 'receipts') repo.addTask(name, { project: 'app', intent: 'send receipts' })
+      return taskAt(name)
+    })
+    const stopped = taskAt('stopped')
+    repo.addTask('stopped', { project: 'app', intent: 'stopped by hand' })
+    for (const one of [...working, stopped]) {
+      await client.startAgent({ task: one.task as TaskId, cwd: one.worktree, prompt: '' })
+    }
+    await client.stopAgent(stopped.task)
+    await client.planTasks({
+      project: 'app',
+      said: 'later',
+      agents: [{ name: 'later', said: 'later', prompt: 'do it', after: [], touches: ['later.ts'] }],
+    })
+    await client.close()
+
+    const after = await Workbench.open({ home, harnesses: HARNESSES })
+    after.config = config
+    try {
+      const lostNow = agentLanes(after).filter((lane) => lane.lost === true)
+      expect(lostNow.map((lane) => lane.task).sort()).toEqual(working.map((w) => w.task).sort())
+      terminal = newTerminal()
+      await start({ client: after, config })
+      const running = () =>
+        after
+          .runs()
+          .map((run) => run.task as string)
+          .sort()
+      await until(
+        'all three back, where the limit is two',
+        () => running().length === 3,
+        SPAWNING_MS,
+      )
+      expect(running()).toEqual(working.map((w) => w.task).sort())
+      // Past it, and saying so in the journal and in the window.
+      // Waited on as written down: a run is listed a moment before its line lands.
+      const startedBefore = 4
+      await until(
+        'each written down',
+        async () => (await after.events({ types: ['run_started'] })).length === startedBefore + 3,
+      )
+      const since = (await after.events({ types: ['run_started'] })).slice(startedBefore)
+      expect(since.map((line) => line.detail.over ?? null)).toContainEqual({ limit: 2, running: 3 })
+      expect(since.every((line) => line.task !== stopped.task)).toBe(true)
+      await until('it said so', () => terminal.written.includes('came back past'))
+      expect(terminal.written).not.toContain('already has')
+
+      // Nothing new goes in the room they took, however many looks there are.
+      await beats(3)
+      expect(running()).not.toContain('app/later')
+      expect(await after.events({ types: ['queue_started'] })).toEqual([])
+      // Stopped by hand stays stopped, until somebody opens it: past the limit
+      // too, because they asked.
+      expect(after.lane(`${stopped.task}/agent` as never)?.alive).toBe(false)
+      const row = find('Stopped')
+      click(row.col, row.row)
+      await until(
+        'it opened, written down',
+        async () =>
+          (await after.events({ types: ['run_started'], task: stopped.task })).length === 2,
+        SPAWNING_MS,
+      )
+      const [, opened] = await after.events({ types: ['run_started'], task: stopped.task })
+      expect(opened?.detail.over).toEqual({ limit: 2, running: 4 })
+      expect(terminal.written).not.toContain('already has')
+
+      // Three finish, leaving one of two: now, and only now, the queue goes.
+      for (const one of working) await after.markDone(one.task, { by: 'you' })
+      await until('the queued work started', () => running().includes('app/later'), SPAWNING_MS)
     } finally {
       await after.close().catch(() => {})
     }

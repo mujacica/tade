@@ -558,14 +558,18 @@ function writtenCollision(
  * that stopped without finishing — `review`, a question asked — still counts,
  * because an answer puts it back to work, and the only word for finished is
  * `task_done` (`finishedFrom`), never a turn ending. One rule, read by the
- * queue's room and by the workbench's guard on every start alike.
+ * queue's room and by the workbench's guard on every start alike. A task is
+ * counted once, however many lists say it: an agent on its way back is listed
+ * as coming and, a moment before that ends, as running too.
  */
 export function atOnceIn(
   project: string,
   running: readonly string[],
   finished: ReadonlyMap<string, Finished>,
 ): number {
-  return running.filter((task) => task.startsWith(`${project}/`) && !finished.has(task)).length
+  return [...new Set(running)].filter(
+    (task) => task.startsWith(`${project}/`) && !finished.has(task),
+  ).length
 }
 
 /**
@@ -578,9 +582,12 @@ export interface PastLimit {
   running: number
 }
 
-/** The line that says a start went past the limit: "started past vrolta's limit of 3: 4 now running". */
-export function pastLimitSays(project: string, past: PastLimit): string {
-  return `started past ${project}'s limit of ${past.limit}: ${past.running} now running`
+/**
+ * The line that says an agent went past the limit: "started past vrolta's limit
+ * of 3: 4 now running", or what else it did where it was opened again.
+ */
+export function pastLimitSays(project: string, past: PastLimit, did = 'started'): string {
+  return `${did} past ${project}'s limit of ${past.limit}: ${past.running} now running`
 }
 
 /**

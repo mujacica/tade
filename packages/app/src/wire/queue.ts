@@ -89,6 +89,8 @@ export interface QueueDeps {
   news(said: string): void
   /** Tell the orchestrator now rather than with the next thing you say. */
   tell(text: string): Promise<void>
+  /** Agents about to take a slot that no run lists yet (`Agents.comingBack`). */
+  comingBack(): readonly string[]
   /** The schedules, which the queue's tools answer for as well. */
   schedules: {
     views(): readonly ScheduleView[]
@@ -261,9 +263,14 @@ export class Queue implements Subject {
     }
     // Room only where a project says how many may run: the queue waits for a
     // slot rather than failing the start the way a limit used to. A finished
-    // task's agent is not counted, lane open or not (`atOnceIn`).
+    // task's agent is not counted, lane open or not (`atOnceIn`). An agent on its
+    // way back is, which no run lists yet: what was working when the window
+    // closed gets its room back before anything new is given it.
     const room = new Map<string, number>()
-    const running = this.wire.opts.client.runs().map((run) => run.task as string)
+    const running = [
+      ...this.wire.opts.client.runs().map((run) => run.task as string),
+      ...this.deps.comingBack(),
+    ]
     for (const [project, settings] of Object.entries(this.wire.opts.config.projects)) {
       if (!settings.max_parallel) continue
       room.set(project, settings.max_parallel - atOnceIn(project, running, facts.finished))

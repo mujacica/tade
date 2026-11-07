@@ -1,14 +1,16 @@
 import {
+  atOnceIn,
   type Config,
   chatTaskOf,
   documentSize,
   documentsIn,
   expandHome,
+  type PastLimit,
   pastLimitSays,
   waitingDocuments,
 } from '@tade/core'
 import { slugify } from '@tade/voice-core'
-import { lostChats, reopenChat, type Workbench } from '@tade/workbench'
+import { type LaneRecord, lostChats, reopenChat, type Workbench } from '@tade/workbench'
 import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
 import { doneTasks, focusTask, nextWaiting, notice, shownName, whichProject } from '../model.ts'
@@ -98,6 +100,28 @@ export interface HandsOver {
   hand(task: string, machine: string): void
 }
 
+/** An agent opened again past its project's limit, and by how much. */
+interface LaneWentPast {
+  project: string
+  over: PastLimit
+}
+
+const projectOf = (task: string): string => task.split('/')[0] ?? ''
+
+/** One line per project for agents that came back past its limit, at the most any of them counted. */
+function cameBackPast(pasts: readonly (LaneWentPast | null)[]): string[] {
+  const most = new Map<string, PastLimit>()
+  for (const past of pasts) {
+    if (!past) continue
+    const was = most.get(past.project)
+    if (!was || past.over.running > was.running) most.set(past.project, past.over)
+  }
+  return [...most].map(
+    ([project, over]) =>
+      `the agents at work when Tade closed ${pastLimitSays(project, over, 'came back')}; queued work there waits for room`,
+  )
+}
+
 export class Agents implements Subject {
   private readonly wire: Wiring
   private readonly deps: AgentsDeps
@@ -107,6 +131,10 @@ export class Agents implements Subject {
   private readonly opening = new Set<string>()
   /** Agents this window has opened again on its own, so it never does it twice. */
   private readonly reopened = new Set<string>()
+  /** Whether what the last window left working has been sent for: once, on the first look. */
+  private lostSentFor = false
+  /** Stopped agents in front of you that a full project kept from opening, said once each. */
+  private readonly keptShut = new Set<string>()
   /** Agents whose branch is being named, so a slow git is not asked twice. */
   private readonly naming = new Set<string>()
   /**
@@ -617,6 +645,11 @@ export class Agents implements Subject {
    * removed, and not ended on their own — opened again where they left off, as
    * though the window had never gone. Once each per window, and without taking
    * you away from where you are.
+   *
+   * Coming back is not a new start, so `max_parallel` does not refuse it: the
+   * limit is what new work waits under, and these were at work before anybody
+   * closed anything. Where that puts a project past it, one line says so per
+   * project, and the queue starts nothing there until there is room.
    */
   reopenLost(): void {
     const lanes = this.wire.opts.client.lanes()
@@ -633,28 +666,67 @@ export class Agents implements Subject {
         .then(() => this.wire.draw())
         .catch((err: unknown) => this.wire.note(err))
     }
-    const lost = lanes.filter((lane) => lane.kind === 'agent' && !lane.alive && lane.lost === true)
-    for (const lane of lost) {
-      const pane = this.wire.state.panes.find((one) => one.task === lane.task)
-      if (!pane || pane.lane || this.reopened.has(lane.task) || this.opening.has(lane.task))
-        continue
-      if (!this.wire.live?.worktreeOf(lane.task)) continue
-      this.reopened.add(lane.task)
-      void this.openAgent(lane.task, false)
-    }
+    this.lostSentFor = true
+    const opened = this.lostToOpen(lanes).map((task) => {
+      this.reopened.add(task)
+      return this.openAgent(task, false)
+    })
+    void Promise.all(opened)
+      .then((pasts) => {
+        for (const line of cameBackPast(pasts)) notify(this.wire, line)
+        this.wire.draw()
+      })
+      .catch((err: unknown) => this.wire.note(err))
   }
 
-  async openAgent(task: string | null = this.wire.state.focused, focus = true): Promise<void> {
-    if (!task) return
+  /** The agents `reopenLost` opens, as the lanes say now. */
+  private lostToOpen(lanes: readonly LaneRecord[]): string[] {
+    return lanes
+      .filter((lane) => lane.kind === 'agent' && !lane.alive && lane.lost === true)
+      .map((lane) => lane.task as string)
+      .filter((task) => {
+        const pane = this.wire.state.panes.find((one) => one.task === task)
+        if (!pane || pane.lane || this.reopened.has(task) || this.opening.has(task)) return false
+        return Boolean(this.wire.live?.worktreeOf(task))
+      })
+  }
+
+  /**
+   * The agents about to take a slot that no run lists yet, which the queue
+   * counts in its room: those being opened now, and on a window's first look,
+   * before `reopenLost` has run, those it is about to open. That look is the
+   * one that also runs the queue, so without them the queue would see an empty
+   * project and fill it with the agents that were working still on their way
+   * back. A reopen that fails gives its slot back, since it is no longer here.
+   */
+  comingBack(): string[] {
+    const opening = [...this.opening]
+    if (this.lostSentFor) return opening
+    return [...opening, ...this.lostToOpen(this.wire.opts.client.lanes())]
+  }
+
+  /**
+   * Open an agent again, past the limit where that is what it takes: a press is
+   * a person asking, and `reopenLost` is an agent coming back. Whatever opens one
+   * without either goes through `reopenStopped`, which asks first. What it went
+   * past comes back for `reopenLost` to say once per project, and is in the line
+   * you see either way.
+   */
+  async openAgent(
+    task: string | null = this.wire.state.focused,
+    focus = true,
+  ): Promise<LaneWentPast | null> {
+    if (!task) return null
     const worktree = this.wire.live?.worktreeOf(task)
     if (!worktree) {
       notify(this.wire, `I do not know where ${task} works`)
       this.wire.draw()
-      return
+      return null
     }
     // Two clicks before the first agent has registered must not start two.
-    if (this.opening.has(task)) return
+    if (this.opening.has(task)) return null
     this.opening.add(task)
+    let wentPast: LaneWentPast | null = null
     // Said before anything is waited on, and again once it is open, before the
     // look that lists its lane: starting a harness is the slow part.
     flash(this.wire, `opening ${task} where it left off…`)
@@ -663,8 +735,16 @@ export class Agents implements Subject {
       // Reattached, never restarted: its lane and its conversation come back
       // exactly where they were, and nothing is said to it. An agent told its
       // first instruction a second time would do the work again.
-      await this.wire.opts.client.reopenAgent({ task: task as never, cwd: worktree })
-      const told = acknowledge(this.wire.state, this.cameBack(task), this.wire.now())
+      const lane = await this.wire.opts.client.reopenAgent({
+        task: task as never,
+        cwd: worktree,
+        pastLimit: true,
+      })
+      const project = projectOf(task)
+      if (lane.over) wentPast = { project, over: lane.over }
+      const past = lane.over ? `, ${pastLimitSays(project, lane.over, 'opened')}` : ''
+      const said = `${this.cameBack(task)}${past}`
+      const told = acknowledge(this.wire.state, said, this.wire.now())
       this.wire.put(focus ? focusTask(told, task) : told)
       this.wire.draw()
       await this.wire.live?.refresh()
@@ -676,6 +756,7 @@ export class Agents implements Subject {
       this.opening.delete(task)
     }
     this.wire.draw()
+    return wentPast
   }
 
   /**
@@ -702,6 +783,11 @@ export class Agents implements Subject {
    * it stopped — so open it again, where it left off, without being asked.
    * Once per agent per window: one that stops again straight away is left for
    * you to look at, with its button, rather than started in a loop.
+   *
+   * Looking at an agent is not asking for it to start, so in a project at its
+   * limit one that stopped stays stopped, its button there to go past it, and
+   * opens by itself if room comes while you are still looking at it. One the
+   * closure stopped is `reopenLost`'s, for which the limit is no reason.
    */
   reopenStopped(): void {
     const pane = this.wire.state.panes.find((one) => one.task === this.wire.state.focused)
@@ -710,8 +796,31 @@ export class Agents implements Subject {
     if (!pane || pane.lane || pane.state !== 'failed') return
     if (this.reopened.has(pane.task) || this.opening.has(pane.task)) return
     if (!this.wire.live?.worktreeOf(pane.task)) return
+    if (this.projectFullFor(pane.task)) {
+      if (!this.keptShut.has(pane.task)) {
+        this.keptShut.add(pane.task)
+        notify(
+          this.wire,
+          `${pane.task} stopped, and ${projectOf(pane.task)} is at its limit: opening it goes past that`,
+        )
+        this.wire.draw()
+      }
+      return
+    }
     this.reopened.add(pane.task)
     void this.openAgent(pane.task)
+  }
+
+  /** Whether opening this stopped agent, unasked, would go past its project's limit. */
+  private projectFullFor(task: string): boolean {
+    const project = projectOf(task)
+    const limit = this.wire.opts.config.projects[project]?.max_parallel
+    if (!limit) return false
+    const finished = this.wire.live?.queueFacts().finished
+    const client = this.wire.opts.client
+    if (!finished || finished.has(task) || client.lane(`${task}/agent` as never)?.lost) return false
+    const running = client.runs().map((run) => run.task as string)
+    return atOnceIn(project, [...running, ...this.comingBack()], finished) >= limit
   }
 
   /**
@@ -738,9 +847,15 @@ export class Agents implements Subject {
     if (this.opening.has(task)) return 'busy'
     this.opening.add(task)
     try {
-      await this.wire.opts.client.reopenAgent({ task: task as never, cwd: worktree })
+      // A person asked, from wherever they are, so the limit does not refuse it.
+      const lane = await this.wire.opts.client.reopenAgent({
+        task: task as never,
+        cwd: worktree,
+        pastLimit: true,
+      })
       await this.wire.live?.refresh()
-      notify(this.wire, `${by} opened ${task} where it left off`)
+      const past = lane.over ? `, ${pastLimitSays(projectOf(task), lane.over, 'opened')}` : ''
+      notify(this.wire, `${by} opened ${task} where it left off${past}`)
     } finally {
       this.opening.delete(task)
     }
