@@ -107,19 +107,6 @@ export function projectGroups(config: Config): SettingGroup[] {
           scope: name,
         },
         {
-          // A choice rather than a switch: empty follows the Agents setting,
-          // and a switch has no way back to that once somebody has pressed it.
-          path: `projects.${name}.close_when_done`,
-          title: 'Close agents when done',
-          means: `on: ${name}'s finished agents close by themselves; off: they stay open; unset follows the Agents setting. ${CLOSE_WHEN_DONE_MEANS}`,
-          value: project.close_when_done ?? '',
-          fallback: config.agents.close_when_done ? 'on' : 'off',
-          type: { kind: 'choice', options: ['', ...CLOSE_WHEN_DONE] } as const,
-          live: true,
-          keywords: [name, ...CLOSE_WHEN_DONE_WORDS],
-          scope: name,
-        },
-        {
           // The one row here whose `means` changes with another setting, and
           // deliberately: `branch-and-review` needs a branch of the agent's
           // own, so in a project whose agents share its checkout it cannot
@@ -195,6 +182,20 @@ export function projectGroups(config: Config): SettingGroup[] {
             'one at a time',
             'concurrency',
           ],
+          scope: name,
+        },
+        {
+          // A choice rather than a switch: empty follows the Agents setting,
+          // and a switch has no way back to that once somebody has pressed it.
+          path: `projects.${name}.close_when_done`,
+          title: 'Close agents when done',
+          means: `on: ${name}'s finished agents close by themselves; off: they stay open; unset follows the Agents setting. ${CLOSE_WHEN_DONE_MEANS}`,
+          short: `on or off for ${name}'s finished agents; unset follows the Agents setting`,
+          value: project.close_when_done ?? '',
+          fallback: config.agents.close_when_done ? 'on' : 'off',
+          type: { kind: 'choice', options: ['', ...CLOSE_WHEN_DONE] } as const,
+          live: true,
+          keywords: [name, ...CLOSE_WHEN_DONE_WORDS],
           scope: name,
         },
         {

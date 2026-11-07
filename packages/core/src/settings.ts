@@ -271,6 +271,8 @@ export function settingsOf(
           path: 'agents.close_when_done',
           title: 'Close agents when done',
           means: CLOSE_WHEN_DONE_MEANS,
+          short:
+            'a finished agent closes once its turn ends and the orchestrator is told; its work stays',
           value: String(config.agents.close_when_done),
           fallback: 'false',
           type: { kind: 'flag' },
