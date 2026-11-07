@@ -53,6 +53,7 @@ import {
   why,
 } from './context.ts'
 import { Forecast } from './forecast.ts'
+import { type Tellable, tellOrKeep } from './handed.ts'
 import { decideProposal, type ProposalRequest } from './proposals.ts'
 import { intakeSays, planHold, plansFor, probingNow, standsFor } from './queue-holds.ts'
 import { type RaceTools, raceTools } from './races.ts'
@@ -85,10 +86,11 @@ const ONE_PIECE: ReadonlySet<string> = new Set(['start', 'wait', 'after', 'retel
 
 /** What this subject needs from the rest of the window. */
 export interface QueueDeps {
-  /** Something happened the orchestrator has not heard yet: it goes with the next thing said. */
-  news(said: string): void
-  /** Tell the orchestrator now rather than with the next thing you say. */
-  tell(text: string): Promise<void>
+  /**
+   * The orchestrator: `note` what it has not heard yet, to go with the next
+   * thing said, and `tell` what it needs now rather than then.
+   */
+  orchestrator(): Tellable
   /** Agents about to take a slot that no run lists yet (`Agents.comingBack`). */
   comingBack(): readonly string[]
   /** The schedules, which the queue's tools answer for as well. */
@@ -171,8 +173,8 @@ export class Queue implements Subject {
     this.wire = wire
     this.deps = deps
     this.forecast = new Forecast(wire, {
-      tell: (text) => deps.tell(text),
-      news: (said) => deps.news(said),
+      tell: (text) => deps.orchestrator().tell(text),
+      news: (said) => deps.orchestrator().note(said),
       said: (text) => this.said(text),
     })
   }
@@ -235,7 +237,7 @@ export class Queue implements Subject {
       else if (!this.unread.has(project)) {
         this.unread.add(project)
         this.said(unreadSays(project, seen.unread))
-        this.deps.news(unreadSays(project, seen.unread))
+        this.deps.orchestrator().note(unreadSays(project, seen.unread))
       }
     }
     for (const item of items) {
@@ -259,7 +261,7 @@ export class Queue implements Subject {
         holds: this.wire.opts.config.queue.holds,
         working: facts.reality?.get(item.project)?.working ?? [],
       }
-      void this.deps.tell(heldMessage(item.task, state, told)).catch(() => {})
+      this.tellHeld(item.task, heldMessage(item.task, state, told))
     }
     // Room only where a project says how many may run: the queue waits for a
     // slot rather than failing the start the way a limit used to. A finished
@@ -310,7 +312,7 @@ export class Queue implements Subject {
         if (this.waitSaid.get(task) !== says.because) {
           this.waitSaid.set(task, says.because)
           this.said(`${task} waits: ${says.because}`)
-          this.deps.news(`${task} waits: ${says.because}`)
+          this.deps.orchestrator().note(`${task} waits: ${says.because}`)
         }
         continue
       }
@@ -324,7 +326,7 @@ export class Queue implements Subject {
           this.said(`${task} is held: ${hold}`)
           const told = { holds: this.wire.opts.config.queue.holds }
           const held = { because: hold, ...(plan ? { plan: true } : {}) }
-          void this.deps.tell(heldMessage(task, held, told)).catch(() => {})
+          this.tellHeld(task, heldMessage(task, held, told))
         }
         continue
       }
@@ -353,7 +355,7 @@ export class Queue implements Subject {
         // A person's start past the limit says so, beside the journal's `over`.
         const past = lane.over ? pastLimitSays(item.project, lane.over) : null
         if (past) this.pastSaid.set(task, `${task} ${past}`)
-        this.deps.news(`started ${task}: ${because}${past ? `; ${past}` : ''}`)
+        this.deps.orchestrator().note(`started ${task}: ${because}${past ? `; ${past}` : ''}`)
         this.said(`started ${task}: ${because}${past ? `; ${past}` : ''}`)
       } catch (err) {
         this.starting.delete(task)
@@ -368,7 +370,7 @@ export class Queue implements Subject {
         this.said(`${task} could not start: ${why(err)}`)
         const held = { because: `it could not start: ${why(err)}` }
         const told = { holds: this.wire.opts.config.queue.holds }
-        void this.deps.tell(heldMessage(task, held, told)).catch(() => {})
+        this.tellHeld(task, heldMessage(task, held, told))
       }
     }
     if (started.length > 0) await live.refresh()
@@ -841,6 +843,14 @@ export class Queue implements Subject {
         done(await this.tools().change({ task, change: 'retell', prompt: text, by: 'you' }))
       },
     }
+  }
+
+  /**
+   * A hold, told now or kept as news. It is written down by now, so no later
+   * look tells it again (`holdSaid`): lost here, nobody would ever hear it.
+   */
+  private tellHeld(task: string, text: string): void {
+    tellOrKeep(this.wire, this.deps.orchestrator(), text, `${task} is held`)
   }
 
   /** Something the queue did, where you would look for it. */

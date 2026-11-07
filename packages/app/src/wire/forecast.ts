@@ -55,8 +55,9 @@ export class Forecast {
 
   /**
    * Tell what is new in the last look's forecast, and write down what has gone.
-   * Never throws: what stops it is said once, in the conversation, and the next
-   * pass tries again — nothing it could not tell is counted as told.
+   * Never throws: what stops it is said once, in the conversation. What it could
+   * not write down the next pass tries again, and what it wrote down and could
+   * not tell goes as news — nothing it could not tell is counted as told.
    */
   async look(): Promise<void> {
     try {
@@ -80,9 +81,12 @@ export class Forecast {
       for (const conflict of tell) {
         if (!(await this.write(project.name, conflict, false))) continue
         this.deps.said(conflictLine(conflict))
-        void this.deps
-          .tell(this.says(conflict, project.name, project.tasks, live.queued))
-          .catch((err) => this.troubled(err))
+        const says = this.says(conflict, project.name, project.tasks, live.queued)
+        void this.deps.tell(says).catch((err) => {
+          // Written down above, so no later pass tells it again: kept, or lost.
+          this.deps.news(says)
+          this.troubled(err, ', so it goes with the next thing you say')
+        })
       }
     }
   }
@@ -146,10 +150,10 @@ export class Forecast {
   }
 
   /** Say what went wrong, once for as long as it keeps going wrong the same way. */
-  private troubled(err: unknown): void {
+  private troubled(err: unknown, after = ''): void {
     const why = err instanceof Error ? err.message : String(err)
     if (why === this.trouble) return
     this.trouble = why
-    this.deps.said(`could not tell the orchestrator about work that would collide: ${why}`)
+    this.deps.said(`could not tell the orchestrator about work that would collide: ${why}${after}`)
   }
 }

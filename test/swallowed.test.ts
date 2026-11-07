@@ -159,7 +159,7 @@ const ALLOWED: Record<string, number> = {
   'packages/app/src/wire/outbox.ts': 1,
   'packages/app/src/wire/projects.ts': 1,
   'packages/app/src/wire/proposals.ts': 3,
-  'packages/app/src/wire/queue.ts': 11,
+  'packages/app/src/wire/queue.ts': 8,
   'packages/app/src/wire/races.ts': 2,
   'packages/app/src/wire/replays.ts': 3,
   'packages/app/src/wire/routes.ts': 5,

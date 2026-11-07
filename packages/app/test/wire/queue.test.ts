@@ -757,6 +757,52 @@ describe('the window, and the work waiting in it', () => {
     expect(client.runs().some((run) => run.task === 'app/second')).toBe(true)
   })
 
+  it('keeps a hold it could not tell as news, and says so where the person will see it', async () => {
+    // Written down as said, so no later look tells it again: dropped here, a
+    // hold the orchestrator never received was heard by nobody.
+    const asked: string[] = []
+    const window = await start({
+      thinker: {
+        ask: async (text: string) => {
+          asked.push(text)
+          return 'ok'
+        },
+        tell: async () => {
+          throw new Error('the session is restarting')
+        },
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    await window.queueTools().plan({
+      project: 'app',
+      said: 'first, then second',
+      agents: [
+        { name: 'first', said: 'first', prompt: '', after: [], touches: [] },
+        {
+          name: 'second',
+          said: 'second',
+          prompt: '',
+          after: [{ agent: 'first', why: '' }],
+          touches: [],
+        },
+      ],
+    })
+    await client.stopAgent('app/first')
+    await until(
+      'the failure said',
+      () =>
+        screenOf(terminal.written).some((row) =>
+          row.includes('Could not tell the orchestrator app/second is held'),
+        ),
+      10_000,
+    )
+    terminal.press('\x00')
+    for (const char of 'anything new') terminal.press(char)
+    terminal.press('\r')
+    await until('the orchestrator asked', () => asked.length === 1)
+    expect(asked[0]).toContain('app/second is held')
+  })
+
   it('holds nothing for work parked between a look and its start, and starts it once picked up', async () => {
     const window = await start()
     await until('the first frame', () => terminal.written.includes('refunds'))
