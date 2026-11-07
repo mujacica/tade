@@ -38,6 +38,9 @@ tools registered by Tade's own pi extensions, which call back to Tade. What only
   says "only when asked". **A tool that changes nothing anywhere says `reads: true`**, and only then
   may another machine of the person's ask for it there, answered with that machine's settings and
   keys (`@tade/web`'s `tool-read.ts`) — declared, never guessed from a name.
+- **A call gets ten minutes, then it is stopped and given up on.** A tool that bounds its own work and
+  needs longer says so (`deadlineMs`, `checks_run` has one), below what an agent's side waits
+  (`TOOL_CALL_MS`).
 - **Work happens in agents.** A tool that changes a project calls `ctx.tade.startAgent(...)` with a
   `context` (becomes `context.md` in the task's own folder in Tade's home, so it is the agent's to read and
   nobody's to commit), `links` (kept in `task.yaml`, shown under GIT) and

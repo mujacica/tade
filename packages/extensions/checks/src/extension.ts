@@ -48,6 +48,16 @@ const projectInput = string(
   'project name, as configured; the one you are in when there is only one',
 )
 
+/**
+ * How long one `checks_run` may go on. Its `wait` alone may take ten minutes
+ * before anything starts, and each check stops itself at its own limit
+ * (`Check.minutes`), so this is only the last word on a run that hangs. Under
+ * the ten minutes every other tool gets, a slow run was cancelled halfway and
+ * the agent told Tade was closed: 144 times in this machine's journal by
+ * 2026-11-07, one related run having taken 614s from a shell.
+ */
+const CHECKS_RUN_MS = 2 * 60 * 60_000
+
 export const checksExtension: TadeExtension = {
   name: 'checks',
   title: 'Checks',
@@ -171,6 +181,7 @@ export const checksExtension: TadeExtension = {
         ),
       }),
       for: ['orchestrator', 'agent'],
+      deadlineMs: CHECKS_RUN_MS,
       async run(input, ctx) {
         const where = await workingIn(input, ctx)
         if (!where.commit) {

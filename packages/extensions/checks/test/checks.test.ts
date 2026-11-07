@@ -5,6 +5,7 @@ import { extensionConformance } from '@tade/extensions-core/conformance'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { CI_WORKFLOW, ciWorkflow } from '../../../../test/fixtures/workflow.ts'
+import { TOOL_CALL_MS, TOOL_WAIT_MS } from '../../../harnesses/core/src/agent-tools.ts'
 import { checksExtension } from '../src/extension.ts'
 
 // The checks, as an agent and the orchestrator reach them. Real commands in a
@@ -114,6 +115,17 @@ describe('reading what a project already says', () => {
 })
 
 describe('running them', () => {
+  it('may go on past a full wait and a slow suite, and stops before anybody stops waiting for it', () => {
+    // Ten minutes used to be the most a call got, which `wait` alone can use
+    // up: the run was cancelled and the agent told Tade was closed.
+    const run = checksExtension.tools?.find((tool) => tool.name === 'checks_run')
+    const waitAndEveryDefaultLimit = (10 + 10 + 20 + 20 + 20) * 60_000
+    expect(run?.deadlineMs).toBeGreaterThan(waitAndEveryDefaultLimit)
+    // In this order, so the first to fire is the one that knows what happened.
+    expect(run?.deadlineMs).toBeLessThan(TOOL_CALL_MS)
+    expect(TOOL_CALL_MS).toBeLessThan(TOOL_WAIT_MS)
+  })
+
   it('runs them here, keeps what failed, and writes it down against the commit', async () => {
     const where = project()
     const host = await load(where)

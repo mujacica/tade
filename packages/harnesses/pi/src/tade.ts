@@ -123,8 +123,8 @@ const RUN = process.env.TADE_RUN_ID ?? 'unknown'
 /** Where Tade listed the extension tools this agent may call. */
 const TOOLS = process.env.TADE_EXTENSION_TOOLS
 
-/** How long a tool Tade runs may take: a dependency update, a Seer analysis. */
-const EXTENSION_CALL_MS = 10 * 60_000
+/** How long a call waits for Tade's answer: `TOOL_CALL_MS`, whose reasons are there. */
+export const EXTENSION_CALL_MS = 125 * 60_000
 
 export default function tadeExtension(pi: PiApi): void {
   if (!SOCKET) return

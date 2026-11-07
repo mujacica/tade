@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { WorkerSignal } from '@tade/harnesses-core'
-import { LEFTOVER_ITEMS, LEFTOVERS_TOOL } from '@tade/harnesses-core/agent-tools'
+import { LEFTOVER_ITEMS, LEFTOVERS_TOOL, TOOL_CALL_MS } from '@tade/harnesses-core/agent-tools'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   type FakeModel,
@@ -11,7 +11,7 @@ import {
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { PiAdapter } from '../src/adapter.ts'
 import * as leftovers from '../src/leftovers.ts'
-import { readTools } from '../src/tade.ts'
+import { EXTENSION_CALL_MS, readTools } from '../src/tade.ts'
 
 // An agent calling one of Tade's extension tools, proven against a real pi
 // with a scripted model: pi registers the tool from the list it was launched
@@ -241,6 +241,10 @@ describe('extension tools in an agent', () => {
     const { label, ...tool } = leftovers.LEFTOVERS_TOOL
     expect(label).toBe('Leftovers')
     expect(tool).toEqual(LEFTOVERS_TOOL)
+  })
+
+  it('waits for an answer as long as every other harness’s tool server does', () => {
+    expect(EXTENSION_CALL_MS).toBe(TOOL_CALL_MS)
   })
 
   it('lists no tools from a list that is missing or not a list', () => {

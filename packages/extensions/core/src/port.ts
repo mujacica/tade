@@ -101,6 +101,13 @@ export interface ExtensionTool {
    * (`@tade/web`'s `tool-read.ts`). Declared, never guessed from a name.
    */
   reads?: true
+  /**
+   * How long a call may go on before it is stopped and given up on, for a tool
+   * that bounds its own work and needs more than the ten minutes every other
+   * tool gets. An agent's side waits only so long (`TOOL_CALL_MS`), so it stays
+   * below that.
+   */
+  deadlineMs?: number
   run(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolAnswer>
 }
 

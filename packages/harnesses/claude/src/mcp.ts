@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { createInterface } from 'node:readline'
-import { LEFTOVER_ITEMS, LEFTOVERS_TOOL } from '@tade/harnesses-core/agent-tools'
-import { ask, SOCKET } from './ask.ts'
+import { LEFTOVER_ITEMS, LEFTOVERS_TOOL, TOOL_CALL_MS } from '@tade/harnesses-core/agent-tools'
+import { ask, reach, SOCKET } from './ask.ts'
 
 // Tade's tools, lent to a Claude Code agent as an MCP server over stdio.
 //
@@ -18,9 +18,6 @@ interface ToolSpec {
   description: string
   parameters: Record<string, unknown>
 }
-
-/** How long a tool Tade runs may take: a dependency update, a Seer analysis. */
-const CALL_MS = 10 * 60_000
 
 const DONE: ToolSpec = {
   name: 'tade_done',
@@ -141,9 +138,13 @@ async function call(id: unknown, params: Record<string, unknown>): Promise<void>
     let left = ''
     if (Array.isArray(input.leftovers) && input.leftovers.length > 0) {
       const items = { items: input.leftovers, finishing: true }
-      const reply = await tade(`${callId}-leftovers`, LEFTOVERS_TOOL.name, items)
-      if (!reply)
-        return text(id, 'Tade is not open, so it cannot be told yet: say so instead', true)
+      const { reply, reached } = await tade(`${callId}-leftovers`, LEFTOVERS_TOOL.name, items)
+      if (!reply) {
+        const why = reached
+          ? `Nothing is finished yet: ${unanswered(LEFTOVERS_TOOL.name)}`
+          : 'Tade is not open, so it cannot be told yet: say so instead'
+        return text(id, why, true)
+      }
       if (reply.ok !== true) {
         const why = String(reply.text ?? '')
         return text(id, `Nothing is finished yet: what you left was not taken. ${why}`, true)
@@ -155,19 +156,27 @@ async function call(id: unknown, params: Record<string, unknown>): Promise<void>
       ? text(id, `Tade has it: this task is finished.${left}`)
       : text(id, 'Tade is not open, so it cannot be told yet: say so instead', true)
   }
-  const reply = await tade(callId, name, input)
-  if (!reply) return text(id, `Tade is not open, so ${name} cannot run right now`, true)
+  const { reply, reached } = await tade(callId, name, input)
+  if (!reply) {
+    const why = reached ? unanswered(name) : `Tade is not open, so ${name} cannot run right now`
+    return text(id, why, true)
+  }
   text(id, String(reply.text ?? ''), reply.ok !== true)
 }
 
-/** A tool Tade runs, asked over the run's socket: its answer, or null where it could not be asked. */
+/** What a call that Tade took and never answered was: not a Tade that is closed. */
+const unanswered = (tool: string): string =>
+  `Tade took ${tool} and no answer came back: its window may have closed. What it started may still be going, so look before running it again.`
+
+/**
+ * A tool Tade runs, asked over the run's socket: its answer, or null where none
+ * came, and whether the question got there at all.
+ */
 async function tade(
   callId: string,
   tool: string,
   input: Record<string, unknown>,
-): Promise<{ ok?: unknown; text?: unknown } | null> {
-  return (await ask({ kind: 'call', callId, tool, input }, CALL_MS)) as {
-    ok?: unknown
-    text?: unknown
-  } | null
+): Promise<{ reply: { ok?: unknown; text?: unknown } | null; reached: boolean }> {
+  const { reply, reached } = await reach({ kind: 'call', callId, tool, input }, TOOL_CALL_MS)
+  return { reply: reply as { ok?: unknown; text?: unknown } | null, reached }
 }

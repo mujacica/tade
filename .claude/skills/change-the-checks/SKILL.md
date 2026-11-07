@@ -132,6 +132,9 @@ and that record.
   is what lets a project's own runner take the same turn without queueing behind itself — Tade's
   does, in `test/one-suite.ts`, so `pnpm test` typed into a shell waits like `checks_run` does. That
   is the enforceable half; the sentence in the prompt (`checksTold`) is only the polite one.
+- **`checks_run` has its own deadline (`CHECKS_RUN_MS`), because a tool's ten minutes is less than
+  its `wait` plus any suite.** Every wait around it sits above that, in order (`TOOL_CALL_MS`,
+  `TOOL_WAIT_MS`), so what fires first is the one that can say what happened.
 - **A suite takes minutes, so a run says what it is doing while it is doing it.** `checks.jsonl`
   holds only what finished; what is going on now is a small file beside it
   (`checks.running.json`) that `runChecks` writes at every state change and takes back when

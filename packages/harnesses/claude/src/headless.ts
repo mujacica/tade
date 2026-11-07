@@ -1,4 +1,5 @@
 import { WORKER_ENV, type WorkerSpec } from '@tade/harnesses-core'
+import { TOOL_WAIT_MS } from '@tade/harnesses-core/agent-tools'
 
 // How Claude Code is started as the conversation Tade draws itself — the
 // orchestrator's: its command line and its environment. The process, the
@@ -18,12 +19,13 @@ import { WORKER_ENV, type WorkerSpec } from '@tade/harnesses-core'
  * whole sessions with none of its tools. Three minutes outlasts that, and a
  * first turn only waits on it while the server has not answered.
  *
- * **A call** (`MCP_TOOL_TIMEOUT`) may take minutes, because some of Tade's run
- * a suite or wait on a person: longer than Claude Code waits by default.
+ * **A call** (`MCP_TOOL_TIMEOUT`) may take a long time, because some of Tade's
+ * run a suite or wait on a person: longer than Claude Code waits by default,
+ * and longer than any of them may run (`TOOL_WAIT_MS`).
  */
 export const MCP_WAITS = {
   MCP_TIMEOUT: String(3 * 60_000),
-  MCP_TOOL_TIMEOUT: String(15 * 60_000),
+  MCP_TOOL_TIMEOUT: String(TOOL_WAIT_MS),
 } as const
 
 /** The option that stops Claude Code pinning the system prompt, where it has one. */

@@ -1082,6 +1082,7 @@ export class ExtensionHost {
     }
     const controller = new AbortController()
     options.signal?.addEventListener('abort', () => controller.abort(), { once: true })
+    const deadline = tool.deadlineMs ?? this.opts.timeoutMs ?? TOOL_TIMEOUT_MS
     emit('running', '')
     let timer: NodeJS.Timeout | undefined
     try {
@@ -1098,10 +1099,10 @@ export class ExtensionHost {
             controller.abort()
             reject(
               new Error(
-                `${name} took longer than ${Math.round((this.opts.timeoutMs ?? TOOL_TIMEOUT_MS) / 1000)}s and was given up on`,
+                `${name} took longer than ${Math.round(deadline / 1000)}s and was given up on`,
               ),
             )
-          }, this.opts.timeoutMs ?? TOOL_TIMEOUT_MS)
+          }, deadline)
           timer.unref?.()
         }),
       ])

@@ -11,6 +11,17 @@
 // `tade_done` sends its `leftovers` there first, as a call to `tade_leftovers`,
 // so a report that is refused is said before anything is finished.
 
+/**
+ * How long a tool server waits for Tade's answer to a call, and then how long
+ * the harness waits for the tool server's. Neither is what ends a call: a tool
+ * has its own deadline in the window, which stops its work and says so
+ * (`ExtensionTool.deadlineMs`), and the longest of those is `checks_run`'s two
+ * hours. These sit above it, in this order, so that the first to fire is the
+ * one that knows what happened; held there by `extensions/checks/test`.
+ */
+export const TOOL_CALL_MS = 125 * 60_000
+export const TOOL_WAIT_MS = 130 * 60_000
+
 /** One thing found and not fixed, as the model fills it in. */
 export const LEFTOVER_ITEMS = {
   type: 'array',

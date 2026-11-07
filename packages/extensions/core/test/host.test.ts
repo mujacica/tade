@@ -420,6 +420,46 @@ describe('running a tool', () => {
       loaded.call('weather_slow', {}, { caller: { kind: 'orchestrator' } }),
     ).rejects.toThrow('given up on')
   })
+
+  it('holds a tool to its own deadline, past what every other tool gets', async () => {
+    let stopped = false
+    const loaded = await ExtensionHost.load({
+      builtin: [
+        weather({
+          tools: [
+            {
+              name: 'weather_long',
+              description: 'Answers after the deadline every other tool gets.',
+              parameters: object({}),
+              for: ['orchestrator'],
+              deadlineMs: 60_000,
+              run: async (_input, ctx) => {
+                await new Promise((resolve) => setTimeout(resolve, 100))
+                stopped = ctx.signal.aborted
+                return { text: 'still here', said: 'Still here.' }
+              },
+            },
+            {
+              name: 'weather_short',
+              description: 'Never answers, and says how long that may go on.',
+              parameters: object({}),
+              for: ['orchestrator'],
+              deadlineMs: 20,
+              run: () => new Promise(() => {}),
+            },
+          ],
+          actions: [],
+        }),
+      ],
+      config: { extensions: { weather: { city: 'Vienna' } }, projects },
+      home: '/home',
+      timeoutMs: 10,
+    })
+    const caller = { caller: { kind: 'orchestrator' } } as const
+    expect((await loaded.call('weather_long', {}, caller)).text).toBe('still here')
+    expect(stopped).toBe(false)
+    await expect(loaded.call('weather_short', {}, caller)).rejects.toThrow('given up on')
+  })
 })
 
 describe('watching', () => {

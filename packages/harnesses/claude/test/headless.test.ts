@@ -1,6 +1,7 @@
 import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { WorkerSignal } from '@tade/harnesses-core'
+import { TOOL_WAIT_MS } from '@tade/harnesses-core/agent-tools'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { ClaudeAdapter } from '../src/adapter.ts'
@@ -108,14 +109,14 @@ describe('the environment', () => {
     expect(env.TADE_EXTENSION_TOOLS).toBe('/run/own-tools.json')
   })
 
-  it('gives its tool server three minutes to come up, and a call fifteen to answer', () => {
+  it('gives its tool server three minutes to come up, and a call longer than any tool may run', () => {
     // Thirty seconds is Claude Code's own, and a server that misses it is
     // given up on for the whole session: on a machine at a load average of a
     // hundred, Tade's took 41 to 54 seconds, and the orchestrator ran for
     // hours with none of its tools.
     const env = headlessEnv({}, spec)
     expect(env.MCP_TIMEOUT).toBe('180000')
-    expect(env.MCP_TOOL_TIMEOUT).toBe('900000')
+    expect(env.MCP_TOOL_TIMEOUT).toBe(String(TOOL_WAIT_MS))
   })
 })
 

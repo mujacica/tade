@@ -9,9 +9,10 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
-import { connect } from 'node:net'
+import { connect, createServer } from 'node:net'
 import { dirname, join } from 'node:path'
 import type { WorkerSignal } from '@tade/harnesses-core'
+import { TOOL_WAIT_MS } from '@tade/harnesses-core/agent-tools'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import {
@@ -202,6 +203,7 @@ describe('CodexAdapter', () => {
       const args = line().args.join(' ')
       expect(args).toContain('hooks=')
       expect(args).toContain('mcp_servers=')
+      expect(args).toContain(`"tool_timeout_sec"=${TOOL_WAIT_MS / 1_000}`)
       expect(args).toContain('projects={"/work/refunds"={"trust_level"="trusted"}}')
       expect(args).toContain('--sandbox danger-full-access')
       expect(args).toContain('--ask-for-approval never')
@@ -640,6 +642,40 @@ describe('CodexAdapter', () => {
   })
 
   describe('the tools Tade lends it', () => {
+    it('says Tade is closed only when nothing is listening, and not when it took the call and hung up', async () => {
+      const dir = tmp('tade-hangs-up-')
+      const listener = createServer((socket) => {
+        socket.once('data', () => socket.destroy())
+      })
+      const path = join(dir, 's')
+      await new Promise<void>((resolve) => listener.listen(path, resolve))
+      const said = async (socket: string): Promise<string> => {
+        const server = spawn(process.execPath, [MCP_PATH], {
+          env: { ...process.env, TADE_RUN_SOCKET: socket },
+        })
+        let out = ''
+        server.stdout.on('data', (chunk: Buffer) => {
+          out += chunk.toString('utf8')
+        })
+        server.stdin.write(
+          `${JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'tools/call',
+            params: { name: 'checks_run', arguments: {} },
+          })}\n`,
+        )
+        await until(() => out.includes('\n'), 30_000)
+        server.kill()
+        return out
+      }
+      expect(await said(path)).toContain('Tade took checks_run and no answer came back')
+      await new Promise((resolve) => listener.close(resolve))
+      expect(await said(join(dir, 'nobody'))).toContain(
+        'Tade is not open, so checks_run cannot run right now',
+      )
+    }, 60_000)
+
     it('offers tade_done, tade_document_ready, tade_leftovers and whatever an extension gave it, and answers a call', async () => {
       const { adapter: one, env, spec, signals } = await setUp()
       const a = { title: 'a', where: 'src/a.ts:1', why: 'not mine', sure: 'certain' }

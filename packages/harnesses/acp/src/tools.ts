@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { createInterface } from 'node:readline'
 import { WORKER_ENV } from '@tade/harnesses-core'
-import { LEFTOVER_ITEMS, LEFTOVERS_TOOL } from '@tade/harnesses-core/agent-tools'
+import { LEFTOVER_ITEMS, LEFTOVERS_TOOL, TOOL_CALL_MS } from '@tade/harnesses-core/agent-tools'
 import { Link } from './link.ts'
 
 // Tade's tools, lent to an ACP agent as an MCP server over stdio.
@@ -19,8 +19,6 @@ interface ToolSpec {
   parameters: Record<string, unknown>
 }
 
-/** How long a tool Tade runs may take: a dependency update, a check suite. */
-const CALL_MS = 10 * 60_000
 /** How long a call waits for the socket to Tade to come up. */
 const CONNECT_MS = 3_000
 
@@ -205,7 +203,7 @@ function tade(
     const timer = setTimeout(() => {
       waiting.delete(callId)
       resolve({ ok: false, text: `${name} did not answer in time` })
-    }, CALL_MS)
+    }, TOOL_CALL_MS)
     timer.unref?.()
     link.send({ type: 'extension_call', run: RUN, at: Date.now(), callId, tool: name, input })
   })

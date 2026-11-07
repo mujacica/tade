@@ -11,9 +11,10 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
-import { connect } from 'node:net'
+import { connect, createServer } from 'node:net'
 import { dirname, join } from 'node:path'
 import type { HarnessAccount, WorkerSignal } from '@tade/harnesses-core'
+import { TOOL_WAIT_MS } from '@tade/harnesses-core/agent-tools'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { ClaudeAdapter, HOOK_PATH, MCP_PATH, runSocket, writesOf } from '../src/adapter.ts'
@@ -213,7 +214,7 @@ describe('ClaudeAdapter', () => {
       // Its tool server given time to come up on a loaded machine: missed, it
       // is gone for the session (`MCP_WAITS`).
       expect(launch.env.MCP_TIMEOUT).toBe('180000')
-      expect(launch.env.MCP_TOOL_TIMEOUT).toBe('900000')
+      expect(launch.env.MCP_TOOL_TIMEOUT).toBe(String(TOOL_WAIT_MS))
       expect(readFileSync(given('--append-system-prompt-file'), 'utf8')).toBe(
         `You run in Tade.\n\n${BACKGROUNDED}`,
       )
@@ -854,6 +855,40 @@ describe('ClaudeAdapter', () => {
       })
       expect(signals.find((s) => s.type === 'done')).toMatchObject({ summary: 'fixed it' })
     })
+
+    it('says Tade is closed only when nothing is listening, and not when it took the call and hung up', async () => {
+      const dir = tmp('tade-hangs-up-')
+      const listener = createServer((socket) => {
+        socket.once('data', () => socket.destroy())
+      })
+      const path = join(dir, 's')
+      await new Promise<void>((resolve) => listener.listen(path, resolve))
+      const said = async (socket: string): Promise<string> => {
+        const server = spawn(process.execPath, [MCP_PATH], {
+          env: { ...process.env, TADE_RUN_SOCKET: socket },
+        })
+        let out = ''
+        server.stdout.on('data', (chunk: Buffer) => {
+          out += chunk.toString('utf8')
+        })
+        server.stdin.write(
+          `${JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'tools/call',
+            params: { name: 'checks_run', arguments: {} },
+          })}\n`,
+        )
+        await until(() => out.includes('\n'), 30_000)
+        server.kill()
+        return out
+      }
+      expect(await said(path)).toContain('Tade took checks_run and no answer came back')
+      await new Promise((resolve) => listener.close(resolve))
+      expect(await said(join(dir, 'nobody'))).toContain(
+        'Tade is not open, so checks_run cannot run right now',
+      )
+    }, 60_000)
 
     it('reports what it left before it says it is done, and is not done when Tade refuses it', async () => {
       const { adapter, env, signals, spec } = await setUp()

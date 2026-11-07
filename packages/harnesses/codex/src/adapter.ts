@@ -48,6 +48,7 @@ import {
   type WorkerSignalListener,
   type WorkerSpec,
 } from '@tade/harnesses-core'
+import { TOOL_WAIT_MS } from '@tade/harnesses-core/agent-tools'
 import { UNHEARD } from './ask.ts'
 import { type ChannelRequest, CodexChannel } from './channel.ts'
 import { carryThread, threadsIn } from './folder.ts'
@@ -1517,8 +1518,8 @@ export class CodexAdapter implements WorkerAdapter {
           ...(spec.extras?.tools ? { [WORKER_ENV.tools]: spec.extras.tools } : {}),
         },
         startup_timeout_sec: 60,
-        // A tool Tade runs may take minutes: longer than Codex waits by default.
-        tool_timeout_sec: 15 * 60,
+        // A tool Tade runs may take a long time: longer than Codex waits by default.
+        tool_timeout_sec: TOOL_WAIT_MS / 1_000,
       },
     }
     for (const file of spec.extras?.mcp ?? []) {
