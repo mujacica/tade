@@ -1,4 +1,4 @@
-import { readFileSync, utimesSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { stripTerminalSequences } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
@@ -20,6 +20,7 @@ import {
   matchesIn,
   readForView,
   saveEdited,
+  shownByItsApp,
   sourceLines,
   textLines,
   typeIn,
@@ -48,6 +49,28 @@ describe('reading a file to look at', () => {
     const file = readForView(join(dir, 'logo.png'))
     expect(file.binary).toBe(true)
     expect(sourceLines(file, true)).toEqual([])
+  })
+
+  it('leaves pictures and films to their app, and only those', () => {
+    const dir = tmp('tade-view-')
+    const nul = Buffer.from([0xff, 0xd8, 0, 0x10])
+    const read = (name: string, bytes: Buffer | string = nul) => {
+      writeFileSync(join(dir, name), bytes)
+      return shownByItsApp(readForView(join(dir, name)))
+    }
+    expect(read('sheet.jpg')).toBe(true)
+    expect(read('SHEET.PNG')).toBe(true)
+    expect(read('run.mp4')).toBe(true)
+    // Something else binary is not a thing to hand to the desktop.
+    expect(read('run.command')).toBe(false)
+    expect(read('blob.bin')).toBe(false)
+    // Under the name of a picture, what it holds still decides.
+    expect(read('notes.png', 'only words\n')).toBe(false)
+    expect(read('empty.jpg', '')).toBe(false)
+    // The viewer keeps its own words for these.
+    expect(shownByItsApp(readForView(join(dir, 'gone.jpg')))).toBe(false)
+    mkdirSync(join(dir, 'folder.png'))
+    expect(shownByItsApp(readForView(join(dir, 'folder.png')))).toBe(false)
   })
 
   it('reads only the start of a big file, and says so', () => {

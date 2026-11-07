@@ -537,11 +537,27 @@ describe('the window, finding the documents tasks produced', () => {
   let terminal: FakeTerminal
   let home: string
   let client: Wired['client']
-  const { start } = windowUnderTest((wired) => {
+  const { start, opened } = windowUnderTest((wired) => {
     terminal = wired.terminal
     home = wired.home
     client = wired.client
   })
+
+  /** Search, with `what` typed and its row on screen, and enter pressed on it. */
+  async function choose(what: string): Promise<void> {
+    terminal.press('\x0b')
+    await until('search', () => terminal.written.includes('Search'))
+    for (const char of what) terminal.press(char)
+    await until('its row', () => row(what).includes('app'))
+    terminal.written = ''
+    terminal.press('\r')
+  }
+
+  /** The command that opens a file with the machine's own app, here. */
+  const itsApp = (path: string) =>
+    process.platform === 'darwin'
+      ? { command: 'open', args: [path] }
+      : { command: 'xdg-open', args: [path] }
 
   /** A document in the project's documents folder in Tade's home, in its task's folder. */
   function produced(task: string, name: string, text: string): string {
@@ -583,6 +599,41 @@ describe('the window, finding the documents tasks produced', () => {
     terminal.press('\r')
     await until('the viewer', () => terminal.written.includes('Open in editor'))
     await until('what it says', () => terminal.written.includes('An economy'))
+  })
+
+  it('hands a picture and a film to their app, and shuts the box behind them', async () => {
+    const picture = produced('shots', 'rooms-sheet.jpg', '\xff\xd8\0\x10')
+    const film = produced('shots', 'chase-take.mp4', '\0\0\0\x20ftypisom')
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    await choose('rooms-sheet')
+    await until('the opener it would have run', () => opened.length === 1)
+    expect(opened[0]).toEqual(itsApp(picture))
+    await until('what it said', () =>
+      terminal.written.includes('opened rooms-sheet.jpg in its app'),
+    )
+    expect(terminal.written).not.toContain('Binary,')
+
+    await choose('chase-take')
+    await until('the opener it would have run', () => opened.length === 2)
+    expect(opened[1]).toEqual(itsApp(film))
+  })
+
+  it('keeps the viewer for a picture its app could not be started for, and says why', async () => {
+    produced('shots', 'rooms-sheet.jpg', '\xff\xd8\0\x10')
+    // Wide enough for the reason and the buttons on one row: a row with no room
+    // drops its right-hand group, and `e` is still the editor there.
+    terminal.columns = 120
+    await start({
+      open: async () => {
+        throw new Error('xdg-open is not installed, or not on PATH')
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    await choose('rooms-sheet')
+    await until('why', () => terminal.written.includes('xdg-open is not installed'))
+    await until('the viewer', () => terminal.written.includes('Open in editor'))
+    expect(screenOf(terminal.written).join('\n')).toContain('Binary,')
   })
 
   it('finds one by its task’s name, whose task is gone', async () => {

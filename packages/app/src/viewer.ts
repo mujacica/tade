@@ -1,4 +1,5 @@
 import { closeSync, openSync, readSync, statSync, writeFileSync } from 'node:fs'
+import { extname } from 'node:path'
 import { Markdown, type MarkdownTheme, visibleWidth } from '@earendil-works/pi-tui'
 import { printableLines } from '@tade/core'
 import { highlight, languageOf } from './highlight.ts'
@@ -19,6 +20,30 @@ import { QUIET } from './skin.ts'
 
 /** More than anyone reads in a terminal panel, and a bound on what one click can cost. */
 export const VIEW_BYTES = 1_000_000
+
+/**
+ * Pictures and films, by the extension a file has: a terminal panel cannot show
+ * one, and the app the machine opens it with can. A list rather than "anything
+ * binary", because handing a file to the desktop is also how a program gets run.
+ */
+const SHOWN_BY_ITS_APP: ReadonlySet<string> = new Set([
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.bmp',
+  '.tif',
+  '.tiff',
+  '.heic',
+  '.avif',
+  '.mp4',
+  '.m4v',
+  '.mov',
+  '.webm',
+  '.mkv',
+  '.avi',
+])
 
 export interface ViewedFile {
   /** Absolute. */
@@ -76,6 +101,17 @@ export function readForView(path: string, limit = VIEW_BYTES): ViewedFile {
             : String(err)
     return { ...empty, language, error }
   }
+}
+
+/**
+ * Whether what was read is a picture or a film, so its app is what shows it.
+ * Read first, so a file that is gone, a folder, or text under such a name keeps
+ * what the viewer has to say about it.
+ */
+export function shownByItsApp(file: ViewedFile): boolean {
+  return (
+    file.binary && file.error === null && SHOWN_BY_ITS_APP.has(extname(file.path).toLowerCase())
+  )
 }
 
 /** Whether a file can be shown formatted as well as as source. */

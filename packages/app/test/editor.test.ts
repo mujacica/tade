@@ -4,6 +4,7 @@ import {
   editorWeAreIn,
   findOpenable,
   openerFor,
+  openerForApp,
   openerForLink,
   openerForReveal,
 } from '../src/editor.ts'
@@ -83,6 +84,15 @@ describe('opening a place', () => {
   it('opens links with what the system opens links with', () => {
     expect(openerForLink('https://example.com', 'darwin').command).toBe('open')
     expect(openerForLink('https://example.com', 'linux').command).toBe('xdg-open')
+  })
+
+  it('opens a picture with what the system opens it with', () => {
+    expect(openerForApp('/docs/sheet.jpg', 'darwin')).toEqual({
+      kind: 'detached',
+      command: 'open',
+      args: ['/docs/sheet.jpg'],
+    })
+    expect(openerForApp('/docs/sheet.jpg', 'linux').command).toBe('xdg-open')
   })
 
   it('reveals a file in the folder it is in, picked out where the manager can', () => {

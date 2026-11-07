@@ -819,7 +819,10 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   (`editable`), and a save is refused outright when the file moved on disk underneath — agents are
   editing these files while you read them. An `Edited` remembers where each line came from, so a
   line nobody touched keeps the colour the whole-file pass gave it and only the line you changed is
-  coloured again: colouring a megabyte on every keystroke is tens of milliseconds.
+  coloured again: colouring a megabyte on every keystroke is tens of milliseconds. **A picture or a
+  film is not read here at all** (`shownByItsApp`, `Files.openFile`, every door but a change): it goes
+  to the machine's own app, by a list of extensions and never "anything binary", because handing a
+  file to the desktop is also how a program gets run; only where that fails is the viewer what is left.
 - **A changed file opens in that same panel, with what git says drawn into it** — one surface, so a
   diff you can read is a diff you can fix. Every door to a file's changes goes through
   `Files.openChange` (the CHANGES row, the two menus, an agent's `changes`), and the patch reader is
@@ -1210,7 +1213,8 @@ the window's.
   until the row is chosen** — a `stat` says whether it is a file, a folder, gone or unreadable, which
   is what the row needs and all of it, because a path pasted in is as likely to be a key as a
   document. Chosen, it goes through the same `open` id the FILES rows carry, into the same viewer,
-  with that viewer's own words for a file that is binary, truncated, gone or a folder. It is not the
+  with that viewer's own words for a file that is binary, truncated, gone or a folder — and a picture
+  or a film goes on to its app (see **A file is read in the window**). It is not the
   project's and is never given a diff or a base: `loadFileDiff` already refuses a file outside the
   checkout, and `openFile` asks git nothing. And it is **never a sentence** (`isSentence` asks
   `looksLikePath` first), which is the one guard that keeps a pasted path and everything under it away

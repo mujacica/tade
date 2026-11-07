@@ -7,6 +7,7 @@ import {
   launch,
   type Open,
   openerFor,
+  openerForApp,
   openerForLink,
   openerForReveal,
 } from '../editor.ts'
@@ -29,6 +30,7 @@ import { type BranchRow, branchPanel, promptPanel } from '../panels/small/state.
 import type { Panel } from '../panels.ts'
 import type { Ui } from '../screen.ts'
 import type { Skin } from '../skin.ts'
+import { shownByItsApp } from '../viewer.ts'
 import type { Shown } from './comments.ts'
 import {
   type Actions,
@@ -388,14 +390,43 @@ export class Files implements Subject {
 
   /**
    * Read a file into the viewer, at a line if there is one — and, where it was
-   * opened as a change, with git's answer in it from the first frame.
+   * opened as a change, with git's answer in it from the first frame. A picture
+   * or a film goes to its app instead, because all the viewer has for one is the
+   * word binary; opened as a change it stays, since what git says is why it was.
    */
   openFile(path: string, line: number | null = null, inline = false): void {
     this.viewed.open(path, !this.deps.skin.colour)
+    const file = this.viewed.file()
+    if (!inline && file && shownByItsApp(file)) {
+      void this.openInItsApp(path, line)
+      return
+    }
     this.wire.put({
       ...this.wire.state,
       panel: filePanel(path, line, this.viewed.markdown(), inline),
     })
+    this.wire.draw()
+  }
+
+  /**
+   * A picture or a film, handed to the app that shows it. Where that could not
+   * happen the viewer is what is left, with its button for your editor and the
+   * reason in it: said in the conversation, it would be behind the panel.
+   */
+  private async openInItsApp(path: string, line: number | null): Promise<void> {
+    this.wire.put({ ...this.wire.state, panel: null })
+    this.wire.draw()
+    try {
+      await this.open(openerForApp(path))
+      flash(this.wire, `opened ${basename(path)} in its app`)
+    } catch (err) {
+      if (this.viewed.has(path) && !this.wire.state.panel) {
+        const panel = { ...filePanel(path, line, false, false), said: why(err), warned: true }
+        this.wire.put({ ...this.wire.state, panel })
+      } else {
+        notify(this.wire, why(err))
+      }
+    }
     this.wire.draw()
   }
 

@@ -144,6 +144,18 @@ export function openerForLink(url: string, platform: NodeJS.Platform = process.p
 }
 
 /**
+ * A file in the app the system opens it with, whichever editor was chosen: an
+ * editor is for a file somebody edits, and a terminal one has no way to show a
+ * picture.
+ */
+export function openerForApp(
+  file: string,
+  platform: NodeJS.Platform = process.platform,
+): Extract<Opener, { kind: 'detached' }> {
+  return systemOpen(file, platform)
+}
+
+/**
  * A file shown in the system's file manager: the folder itself, or the folder
  * with the file picked out in it where the manager can do that. Here rather
  * than beside the caller so that every command that hands a path to the
@@ -161,7 +173,10 @@ export function openerForReveal(
   return { kind: 'detached', command: 'xdg-open', args: [folder ? path : dirname(path)] }
 }
 
-function systemOpen(target: string, platform: NodeJS.Platform): Opener {
+function systemOpen(
+  target: string,
+  platform: NodeJS.Platform,
+): Extract<Opener, { kind: 'detached' }> {
   if (platform === 'darwin') return { kind: 'detached', command: 'open', args: [target] }
   if (platform === 'win32')
     return { kind: 'detached', command: 'cmd', args: ['/c', 'start', '""', target] }
