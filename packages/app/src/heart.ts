@@ -215,7 +215,7 @@ export function screenless(heart: () => Beating): Face {
     },
     agents: {
       prefill: () => {},
-      openChange: nothing,
+      openChanges: async () => false,
       openPlace: nothing,
       copyToClipboard: async () => false,
       routes: () => ({ offersFor: () => null, openModels: nothing, openAccount: nothing }),

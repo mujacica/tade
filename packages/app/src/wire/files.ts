@@ -30,7 +30,7 @@ import { type BranchRow, branchPanel, promptPanel } from '../panels/small/state.
 import type { Panel } from '../panels.ts'
 import type { Ui } from '../screen.ts'
 import type { Skin } from '../skin.ts'
-import { shownByItsApp } from '../viewer.ts'
+import { onlyItsAppShows, shownByItsApp } from '../viewer.ts'
 import type { Shown } from './comments.ts'
 import {
   type Actions,
@@ -392,12 +392,13 @@ export class Files implements Subject {
    * Read a file into the viewer, at a line if there is one — and, where it was
    * opened as a change, with git's answer in it from the first frame. What only
    * its app can show goes there instead, a change too: all the viewer has for one
-   * is the word binary, and all git has is that it differs.
+   * is the word binary, and all git has is that it differs. Only where somebody
+   * chose that file, though: another program coming forward is an answer to that.
    */
-  openFile(path: string, line: number | null = null, inline = false): void {
+  openFile(path: string, line: number | null = null, inline = false, chosen = true): void {
     this.viewed.open(path, !this.deps.skin.colour)
     const file = this.viewed.file()
-    if (file && shownByItsApp(file)) {
+    if (chosen && file && shownByItsApp(file)) {
       void this.openInItsApp(path, line, inline)
       return
     }
@@ -637,9 +638,9 @@ export class Files implements Subject {
         return
       case 'changes': {
         if (!focused) break
-        const first = this.wire.live?.changes(focused.task)[0]
-        if (first) await this.openChange(focused.task, first.path)
-        else notify(this.wire, `${shownName(focused)} has not changed anything yet`)
+        if (!(await this.openChanges(focused.task))) {
+          notify(this.wire, `${shownName(focused)} has not changed anything yet`)
+        }
         break
       }
       default:
@@ -707,11 +708,25 @@ export class Files implements Subject {
    * and fixed in one place rather than read in one and fixed in another. The
    * task is whose changes these are, and nothing where they are the checkout's.
    */
-  async openChange(task: string | null, path: string): Promise<void> {
-    this.openFile(this.resolvePath(path), null, true)
+  async openChange(task: string | null, path: string, chosen = true): Promise<void> {
+    this.openFile(this.resolvePath(path), null, true, chosen)
     const opened = this.wire.state.panel
     await this.loadFileDiff(task, path)
     this.landOnChange(opened)
+  }
+
+  /**
+   * A task's changes, where nobody chose which of them: the first the viewer can
+   * show, and the first of all where it can show none, in the viewer either way.
+   * Whether there was anything to open, for the door to say so in its own words.
+   */
+  async openChanges(task: string): Promise<boolean> {
+    const changes = this.wire.live?.changes(task) ?? []
+    const first =
+      changes.find((change) => !onlyItsAppShows(this.resolvePath(change.path))) ?? changes[0]
+    if (!first) return false
+    await this.openChange(task, first.path, false)
+    return true
   }
 
   /**

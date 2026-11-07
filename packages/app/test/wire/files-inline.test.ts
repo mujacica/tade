@@ -103,11 +103,15 @@ describe('the window, and a changed file you clicked', () => {
   })
 
   /** A task whose worktree has changed a picture, with its CHANGES row on screen. */
-  async function changedPicture(options: Parameters<typeof start>[0] = {}) {
+  async function changedPicture({
+    before,
+    ...options
+  }: Parameters<typeof start>[0] & { before?: (worktree: string) => void } = {}) {
     repo.commit('a logo', { 'logo.png': '\x89PNG\0one' })
     const worktree = repo.addTask('logo', { project: 'app', intent: 'the logo is wrong' })
     const path = join(worktree, 'logo.png')
     writeFileSync(path, '\x89PNG\0two')
+    before?.(worktree)
     terminal.rows = 44
     terminal.columns = 120
     await start(options)
@@ -138,6 +142,37 @@ describe('the window, and a changed file you clicked', () => {
     await until('why', () => terminal.written.includes('xdg-open is not installed'))
     await until('the viewer', () => terminal.written.includes('Open in editor'))
     expect(screenOf(terminal.written).join('\n')).toContain('Binary,')
+  })
+
+  /** "Show the changes in logo", which is a door that picks the file itself. */
+  async function showTheChanges(): Promise<void> {
+    terminal.written = ''
+    terminal.press('\x0b')
+    await until('search', () => terminal.written.includes('Search'))
+    for (const char of 'show the changes in logo') terminal.press(char)
+    await until('the action', () => terminal.written.includes('Show the changes in logo'))
+    terminal.written = ''
+    terminal.press('\r')
+  }
+
+  it('leaves the desktop alone where nobody chose the picture, and shows the first change it can', async () => {
+    // After the picture by name, so the picture is the first of its changes.
+    repo.commit('some rates', { 'rates.ts': BEFORE })
+    await changedPicture({
+      before: (worktree) => writeFileSync(join(worktree, 'rates.ts'), AFTER),
+    })
+    await showTheChanges()
+    await until('the file panel', () => body().length === 4)
+    expect(body()[0]).toEqual({ mark: '−', number: '', text: 'export const rate = 1' })
+    expect(opened).toEqual([])
+  })
+
+  it('stays in the viewer where a picture is all that changed, since nobody chose it either', async () => {
+    await changedPicture()
+    await showTheChanges()
+    await until('the viewer', () => terminal.written.includes('Open in editor'))
+    await until('its word for it', () => screenOf(terminal.written).join('\n').includes('Binary,'))
+    expect(opened).toEqual([])
   })
 
   it('types into it with the diff drawn, and ctrl+s saves to the file', async () => {

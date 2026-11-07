@@ -199,7 +199,7 @@ export class App {
       },
       agents: {
         prefill: (line) => this.keyboard.prefill(line),
-        openChange: (task, path) => this.files.openChange(task, path),
+        openChanges: (task) => this.files.openChanges(task),
         openPlace: (target) => this.files.openPlace(target),
         copyToClipboard: (text) => copyText(text, (data) => this.terminal.write(data)),
         routes: () => this.routes,
@@ -249,7 +249,7 @@ export class App {
       clicked: (target) => this.mouse.clicked(target),
       decide: (allow) => this.agents.decide(allow),
       stopAgent: (task) => this.agents.stopAgent(task),
-      openChange: (task, path) => this.files.openChange(task, path),
+      openChanges: (task) => this.files.openChanges(task),
       openSettings: (category) => this.settings.open(category),
       showTerminal: (id) => this.lanes.showTerminal(id),
       quit: () => this.window.quit(),

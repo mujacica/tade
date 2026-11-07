@@ -18,6 +18,7 @@ import {
   formattedLines,
   leftOf,
   matchesIn,
+  onlyItsAppShows,
   readForView,
   saveEdited,
   shownByItsApp,
@@ -78,6 +79,15 @@ describe('reading a file to look at', () => {
     expect(shownByItsApp(readForView(join(dir, 'gone.jpg')))).toBe(false)
     mkdirSync(join(dir, 'folder.png'))
     expect(shownByItsApp(readForView(join(dir, 'folder.png')))).toBe(false)
+
+    // The same answer about a file nobody has opened, from only the start of it.
+    writeFileSync(join(dir, 'long.png'), Buffer.concat([nul, Buffer.alloc(100_000, 1)]))
+    writeFileSync(join(dir, 'late.pdf'), '%PDF-1.4\n'.padEnd(100_000, ' '))
+    writeFileSync(join(dir, 'note.png'), 'x'.repeat(100_000))
+    expect(onlyItsAppShows(join(dir, 'long.png'))).toBe(true)
+    expect(onlyItsAppShows(join(dir, 'late.pdf'))).toBe(true)
+    expect(onlyItsAppShows(join(dir, 'note.png'))).toBe(false)
+    expect(onlyItsAppShows(join(dir, 'gone.jpg'))).toBe(false)
   })
 
   it('reads only the start of a big file, and says so', () => {

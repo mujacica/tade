@@ -824,11 +824,13 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   change's too, since git says only that it differs): it goes to the machine's own app, by a list of
   extensions and never "anything binary", because handing a file to the desktop is also how a program
   gets run; only where that fails is the viewer what is left. A PDF is recognised by its `%PDF-` too,
-  since some have no NUL where the viewer looks for one.
+  since some have no NUL where the viewer looks for one. **Only a file somebody chose**: a door that
+  picks one itself (`Files.openChanges`) takes the first change the viewer can show and never starts
+  another program.
 - **A changed file opens in that same panel, with what git says drawn into it** — one surface, so a
   diff you can read is a diff you can fix. Every door to a file's changes goes through
-  `Files.openChange` (the CHANGES row, the two menus, an agent's `changes`), and the patch reader is
-  the other thing (`Read as a patch`): a whole task's changed files, stepped through, read-only.
+  `Files.openChange` (the CHANGES row, the two menus, and `openChanges` for an agent's), and the
+  patch reader is the other thing (`Read as a patch`): a whole task's changed files, stepped through, read-only.
   The rules the drawing turns on:
   - **The thing being edited is the working file, and nothing else is ever in the buffer.** A diff has
     a kind of line the file does not — one that is gone — so the inline view is a *list of rows over*

@@ -56,6 +56,9 @@ const SHOWN_BY_ITS_APP: ReadonlySet<string> = new Set([
   '.pdf',
 ])
 
+/** How far into a file the viewer looks to tell what it is. */
+const TELLS_ITS_KIND = 8000
+
 export interface ViewedFile {
   /** Absolute. */
   path: string
@@ -89,7 +92,7 @@ export function readForView(path: string, limit = VIEW_BYTES): ViewedFile {
       closeSync(fd)
     }
     // The test git itself uses: a NUL in the first 8000 bytes.
-    const binary = buffer.subarray(0, 8000).includes(0)
+    const binary = buffer.subarray(0, TELLS_ITS_KIND).includes(0)
     return {
       path,
       size,
@@ -125,6 +128,11 @@ export function shownByItsApp(file: ViewedFile): boolean {
   const extension = extname(file.path).toLowerCase()
   if (file.error !== null || !SHOWN_BY_ITS_APP.has(extension)) return false
   return file.binary || (extension === '.pdf' && file.text.startsWith('%PDF-'))
+}
+
+/** The same answer about a file not opened yet, from no more of it than that takes. */
+export function onlyItsAppShows(path: string): boolean {
+  return shownByItsApp(readForView(path, TELLS_ITS_KIND))
 }
 
 /** Whether a file can be shown formatted as well as as source. */
