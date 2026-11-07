@@ -58,7 +58,6 @@ export type Asking = (
   init?: {
     method?: string
     body?: unknown
-    accept?: string
     headers?: Record<string, string>
     /** The repository this reads, so an App installed on it may answer (`index.ts`). */
     about?: string

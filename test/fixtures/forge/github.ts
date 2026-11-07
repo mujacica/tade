@@ -407,6 +407,19 @@ export function githubReplay(options: ReplayOptions = {}): GithubReplay {
     }
     const log = /\/actions\/jobs\/(\d+)\/logs/.exec(url)
     if (log) {
+      // What comes back is text, and asking for text is refused all the same:
+      // the API in front of it only ever answers someone who can take JSON.
+      const accept = String((init?.headers as Record<string, string> | undefined)?.accept ?? '')
+      if (!/json|\*\/\*/.test(accept)) {
+        return answer(
+          {
+            message: `Unsupported 'Accept' header: '${accept}'. Must accept 'application/json'.`,
+            documentation_url: 'https://docs.github.com/v3/media',
+            status: '415',
+          },
+          415,
+        )
+      }
       const sha = String(lastHeadSha)
       const names = options.runs?.[sha]?.check_runs ?? (checkRuns.check_runs as { name: string }[])
       const name = String(names[Number(log[1]) - 900]?.name ?? '')

@@ -242,7 +242,6 @@ export function makeGithubForge(options: ForgeOptions): Forge {
     init: {
       method?: string
       body?: unknown
-      accept?: string
       /** Conditional-request headers: `if-none-match`, and nothing secret. */
       headers?: Record<string, string>
       /**
@@ -260,7 +259,7 @@ export function makeGithubForge(options: ForgeOptions): Forge {
         method: init.method ?? 'GET',
         headers: {
           authorization: `Bearer ${auth}`,
-          accept: init.accept ?? 'application/vnd.github+json',
+          accept: 'application/vnd.github+json',
           'user-agent': 'tade',
           ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
           ...init.headers,
@@ -613,8 +612,9 @@ export function makeGithubForge(options: ForgeOptions): Forge {
         ).body as { jobs?: { id?: number; name?: string }[] } | null
         const job = jobs?.jobs?.find((one) => one.name === check)
         if (!job?.id) continue
+        // Text comes back, and it is asked for like everything else: GitHub
+        // answers `accept: text/plain` here with a 415.
         const log = await request(rest(`/repos/${repo}/actions/jobs/${job.id}/logs`), {
-          accept: 'text/plain',
           about: repo,
         })
         return log.text.split('\n').slice(-lines).join('\n')

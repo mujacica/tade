@@ -616,6 +616,18 @@ describe('GitHub issues, as the port’s tickets', () => {
   })
 })
 
+describe('the log of a check', () => {
+  it('reads the tail of the job that ran it', async () => {
+    const commit = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678'
+    const { forge } = make({
+      logs: { [`${commit}:tests`]: 'setting up\nFAIL spend.test.ts\n8 failed' },
+    })
+    await expect(forge.checkLogOn('acme/api', commit, 'tests', 2)).resolves.toBe(
+      'FAIL spend.test.ts\n8 failed',
+    )
+  })
+})
+
 describe('the patch of a pull request', () => {
   it('reads it pinned to both ends, and hands over nothing for a file it was given none for', async () => {
     const { forge, replay } = make()
