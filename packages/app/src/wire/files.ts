@@ -390,15 +390,15 @@ export class Files implements Subject {
 
   /**
    * Read a file into the viewer, at a line if there is one — and, where it was
-   * opened as a change, with git's answer in it from the first frame. A picture
-   * or a film goes to its app instead, because all the viewer has for one is the
-   * word binary; opened as a change it stays, since what git says is why it was.
+   * opened as a change, with git's answer in it from the first frame. What only
+   * its app can show goes there instead, a change too: all the viewer has for one
+   * is the word binary, and all git has is that it differs.
    */
   openFile(path: string, line: number | null = null, inline = false): void {
     this.viewed.open(path, !this.deps.skin.colour)
     const file = this.viewed.file()
-    if (!inline && file && shownByItsApp(file)) {
-      void this.openInItsApp(path, line)
+    if (file && shownByItsApp(file)) {
+      void this.openInItsApp(path, line, inline)
       return
     }
     this.wire.put({
@@ -409,11 +409,11 @@ export class Files implements Subject {
   }
 
   /**
-   * A picture or a film, handed to the app that shows it. Where that could not
-   * happen the viewer is what is left, with its button for your editor and the
-   * reason in it: said in the conversation, it would be behind the panel.
+   * A file handed to the app that shows it. Where that could not happen the
+   * viewer is what is left, with its button for your editor and the reason in it:
+   * said in the conversation, it would be behind the panel.
    */
-  private async openInItsApp(path: string, line: number | null): Promise<void> {
+  private async openInItsApp(path: string, line: number | null, inline: boolean): Promise<void> {
     this.wire.put({ ...this.wire.state, panel: null })
     this.wire.draw()
     try {
@@ -421,7 +421,7 @@ export class Files implements Subject {
       flash(this.wire, `opened ${basename(path)} in its app`)
     } catch (err) {
       if (this.viewed.has(path) && !this.wire.state.panel) {
-        const panel = { ...filePanel(path, line, false, false), said: why(err), warned: true }
+        const panel = { ...filePanel(path, line, false, inline), said: why(err), warned: true }
         this.wire.put({ ...this.wire.state, panel })
       } else {
         notify(this.wire, why(err))

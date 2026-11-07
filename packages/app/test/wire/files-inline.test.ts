@@ -25,7 +25,7 @@ const AFTER = ['export const rate = 2', 'export const other = 2', 'export const 
 describe('the window, and a changed file you clicked', () => {
   let terminal: FakeTerminal
   let repo: Repo
-  const { start, click, find } = windowUnderTest((wired) => {
+  const { start, click, find, opened } = windowUnderTest((wired) => {
     terminal = wired.terminal
     repo = wired.repo
   })
@@ -100,6 +100,44 @@ describe('the window, and a changed file you clicked', () => {
       'the counts',
       () => terminal.written.includes('+2') && terminal.written.includes('−1'),
     )
+  })
+
+  /** A task whose worktree has changed a picture, with its CHANGES row on screen. */
+  async function changedPicture(options: Parameters<typeof start>[0] = {}) {
+    repo.commit('a logo', { 'logo.png': '\x89PNG\0one' })
+    const worktree = repo.addTask('logo', { project: 'app', intent: 'the logo is wrong' })
+    const path = join(worktree, 'logo.png')
+    writeFileSync(path, '\x89PNG\0two')
+    terminal.rows = 44
+    terminal.columns = 120
+    await start(options)
+    // The row in CHANGES and not the one in FILES: git has no counts for a picture,
+    // so what only the change has is its mark in front of the name.
+    await until('its changed file in CHANGES', () => terminal.written.includes('M logo.png'))
+    return { path, row: find('M logo.png') }
+  }
+
+  it('hands a changed picture to its app, where the viewer has only the word binary', async () => {
+    const { path, row } = await changedPicture()
+    terminal.written = ''
+    click(row.col, row.row)
+    await until('the opener it would have run', () => opened.length === 1)
+    expect(opened[0]?.args.at(-1)).toBe(path)
+    await until('what it said', () => terminal.written.includes('opened logo.png in its app'))
+    expect(terminal.written).not.toContain('Binary,')
+  })
+
+  it('keeps the viewer for a changed picture its app could not be started for', async () => {
+    const { row } = await changedPicture({
+      open: async () => {
+        throw new Error('xdg-open is not installed, or not on PATH')
+      },
+    })
+    terminal.written = ''
+    click(row.col, row.row)
+    await until('why', () => terminal.written.includes('xdg-open is not installed'))
+    await until('the viewer', () => terminal.written.includes('Open in editor'))
+    expect(screenOf(terminal.written).join('\n')).toContain('Binary,')
   })
 
   it('types into it with the diff drawn, and ctrl+s saves to the file', async () => {

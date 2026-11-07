@@ -51,7 +51,7 @@ describe('reading a file to look at', () => {
     expect(sourceLines(file, true)).toEqual([])
   })
 
-  it('leaves pictures and films to their app, and only those', () => {
+  it('leaves pictures, films, sounds and PDFs to their app, and only those', () => {
     const dir = tmp('tade-view-')
     const nul = Buffer.from([0xff, 0xd8, 0, 0x10])
     const read = (name: string, bytes: Buffer | string = nul) => {
@@ -61,11 +61,18 @@ describe('reading a file to look at', () => {
     expect(read('sheet.jpg')).toBe(true)
     expect(read('SHEET.PNG')).toBe(true)
     expect(read('run.mp4')).toBe(true)
+    expect(read('Take.WAV')).toBe(true)
+    expect(read('brief.pdf')).toBe(true)
+    // A PDF need not have a NUL where the viewer looks for one, and says what it is.
+    expect(read('deck.pdf', '%PDF-1.4\n%âãÏÓ\n1 0 obj\n')).toBe(true)
+    expect(read('deck.PDF', '%PDF-1.4\n')).toBe(true)
     // Something else binary is not a thing to hand to the desktop.
     expect(read('run.command')).toBe(false)
     expect(read('blob.bin')).toBe(false)
     // Under the name of a picture, what it holds still decides.
     expect(read('notes.png', 'only words\n')).toBe(false)
+    expect(read('notes.pdf', 'only words\n')).toBe(false)
+    expect(read('notes.wav', '%PDF-1.4\n')).toBe(false)
     expect(read('empty.jpg', '')).toBe(false)
     // The viewer keeps its own words for these.
     expect(shownByItsApp(readForView(join(dir, 'gone.jpg')))).toBe(false)

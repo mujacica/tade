@@ -619,6 +619,21 @@ describe('the window, finding the documents tasks produced', () => {
     expect(opened[1]).toEqual(itsApp(film))
   })
 
+  it('hands a sound and a PDF to their app too', async () => {
+    const sound = produced('takes', 'door-creak.wav', 'RIFF\0\0\0\0WAVEfmt ')
+    const pdf = produced('takes', 'sponsor-deck.pdf', '%PDF-1.4\n1 0 obj\n')
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    await choose('door-creak')
+    await until('the opener it would have run', () => opened.length === 1)
+    expect(opened[0]).toEqual(itsApp(sound))
+
+    await choose('sponsor-deck')
+    await until('the opener it would have run', () => opened.length === 2)
+    expect(opened[1]).toEqual(itsApp(pdf))
+    expect(terminal.written).not.toContain('1 0 obj')
+  })
+
   it('keeps the viewer for a picture its app could not be started for, and says why', async () => {
     produced('shots', 'rooms-sheet.jpg', '\xff\xd8\0\x10')
     // Wide enough for the reason and the buttons on one row: a row with no room
