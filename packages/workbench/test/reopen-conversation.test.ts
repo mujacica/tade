@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import type { LaneId, TadeEvent, TaskId } from '@tade/core'
 import { sessionIdFor } from '@tade/harnesses-claude'
 import { rememberThread } from '@tade/harnesses-codex'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { wasTold } from '../src/accounts.ts'
 import { Workbench } from '../src/workbench.ts'
@@ -275,6 +275,30 @@ describe('reopening an agent after new agents moved to another account', () => {
       await expect(client.reopenAgent({ task: task.id, cwd: task.worktree })).rejects.toThrow(
         /was told what to do, and pi keeps no record/,
       )
+    }, 60_000)
+  })
+
+  describe('told to carry on after the machine slept', () => {
+    it('is told through the account it runs on, not its harness’s own sign-in', async () => {
+      await client.addAccount({ name: 'personal', harness: 'claude-code' })
+      await client.useAccount('claude-code', 'personal')
+      const task = await client.createTask({ project: 'app', slug: 'slept', intent: 'fix it' })
+      await client.setAgentHarness({
+        task: task.id,
+        worktree: task.worktree,
+        harness: 'claude-code',
+      })
+      await client.startAgent({ task: task.id, cwd: task.worktree, prompt: 'its first prompt' })
+      expect((await lastRun(task.id))?.detail.account).toBe('personal')
+      const run = client.runs().find((one) => one.task === task.id)?.run
+      if (!run) throw new Error('no run for the agent')
+      // Only the channel is stood in for, which needs a real Claude to connect
+      // back. Its own sign-in's adapter is left real, and refuses a run it does
+      // not hold, as it did every agent on an account after a sleep.
+      const told = vi.spyOn(client.workers.adapterOf(run), 'prompt').mockResolvedValue()
+      await client.continueRun(run, 60 * 60_000)
+      expect(told).toHaveBeenCalledOnce()
+      expect(await client.events({ types: ['agent_continued'], task: task.id })).toHaveLength(1)
     }, 60_000)
   })
 })

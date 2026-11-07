@@ -2384,7 +2384,7 @@ export class Workbench {
   async continueRun(run: RunId, slept: number): Promise<void> {
     const handle = this.workers.list().find((one) => one.run === run)
     if (!handle) throw new WorkerNotFoundError(run)
-    const on = { adapter: this.adapterFor(handle.harness), task: handle.task, log: this.log }
+    const on = { adapter: this.workers.adapterOf(run), task: handle.task, log: this.log }
     await continueAgent(run, slept, on)
   }
 
