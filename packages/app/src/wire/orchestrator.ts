@@ -17,6 +17,7 @@ import {
   addNews,
   type Ended,
   machinesSaid,
+  NEWS_MAX,
   type News,
   TADE_WORDS,
   THEIR_WORDS,
@@ -721,9 +722,16 @@ export class Orchestrator implements Subject {
     // above theirs: a fact of this turn, derived now and never remembered.
     const above = this.deps.nobodyHere?.() ?? null
     const message = withNews(text, this.newsWaiting, clockOf, TADE_WORDS, above)
+    const carried = this.newsWaiting
     this.newsWaiting = []
-    if (thinker.tell) await thinker.tell(message)
-    else await thinker.ask(message)
+    try {
+      if (thinker.tell) await thinker.tell(message)
+      else await thinker.ask(message)
+    } catch (err) {
+      // Never heard, so it still waits: whoever called is told about `text`, not about this.
+      this.newsWaiting = [...carried, ...this.newsWaiting].slice(-NEWS_MAX)
+      throw err
+    }
   }
   /** What `status` answers: one agent's work, or the shape of everything (`orchestrator-status.ts`). */
   describe(scope: string | null): string {

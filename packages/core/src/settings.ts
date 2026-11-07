@@ -1,3 +1,4 @@
+import { CLOSE_WHEN_DONE_MEANS, CLOSE_WHEN_DONE_WORDS } from './close-when-done.ts'
 import {
   AGENT_WORKSPACES,
   COMMIT_RULES,
@@ -265,6 +266,16 @@ export function settingsOf(
           fallback: '',
           type: { kind: 'text', placeholder: 'run pnpm check before committing' },
           live: true,
+        },
+        {
+          path: 'agents.close_when_done',
+          title: 'Close agents when done',
+          means: CLOSE_WHEN_DONE_MEANS,
+          value: String(config.agents.close_when_done),
+          fallback: 'false',
+          type: { kind: 'flag' },
+          live: true,
+          keywords: CLOSE_WHEN_DONE_WORDS,
         },
         {
           path: 'agents.keep_awake',

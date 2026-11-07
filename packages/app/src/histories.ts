@@ -1,5 +1,6 @@
 import {
   AT_WORK_READS,
+  CLOSE_READS,
   DOCUMENT_EVENTS,
   INTAKE_EVENTS,
   OVERRIDE_TOOL,
@@ -68,7 +69,7 @@ export const QUEUE_READS = [
 export const RUNTIME_READS = RUNTIME_EVENTS
 
 /** Finishing, read whole: whether a task is done cannot depend on how busy the journal has been since. */
-export const TOLD_READS = ['task_done', 'run_started', 'turn_done'] as const
+export const TOLD_READS = ['task_done', 'run_started', 'turn_done', ...CLOSE_READS] as const
 
 /**
  * What the inbox folds (`inboxFrom`, `titlesOf`, the replies it says): what

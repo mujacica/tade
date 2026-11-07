@@ -1,4 +1,11 @@
-import { AGENT_WORKSPACES, type Config, type HarnessId, OWN_SIGN_IN } from './config.ts'
+import { CLOSE_WHEN_DONE_MEANS, CLOSE_WHEN_DONE_WORDS } from './close-when-done.ts'
+import {
+  AGENT_WORKSPACES,
+  CLOSE_WHEN_DONE,
+  type Config,
+  type HarnessId,
+  OWN_SIGN_IN,
+} from './config.ts'
 import { typedHome } from './home.ts'
 import { HARNESS_CHOICES } from './model.ts'
 import { PREPARE_DEADLINE_MINUTES } from './prepare.ts'
@@ -97,6 +104,19 @@ export function projectGroups(config: Config): SettingGroup[] {
           type: { kind: 'choice', options: ['', ...AGENT_WORKSPACES] } as const,
           live: true,
           keywords: [name, 'workspace', 'worktree', 'checkout'],
+          scope: name,
+        },
+        {
+          // A choice rather than a switch: empty follows the Agents setting,
+          // and a switch has no way back to that once somebody has pressed it.
+          path: `projects.${name}.close_when_done`,
+          title: 'Close agents when done',
+          means: `on: ${name}'s finished agents close by themselves; off: they stay open; unset follows the Agents setting. ${CLOSE_WHEN_DONE_MEANS}`,
+          value: project.close_when_done ?? '',
+          fallback: config.agents.close_when_done ? 'on' : 'off',
+          type: { kind: 'choice', options: ['', ...CLOSE_WHEN_DONE] } as const,
+          live: true,
+          keywords: [name, ...CLOSE_WHEN_DONE_WORDS],
           scope: name,
         },
         {

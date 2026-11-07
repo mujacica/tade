@@ -104,6 +104,9 @@ export const AGENT_WORKSPACES = ['checkout', 'worktree'] as const
 export type AgentWorkspace = (typeof AGENT_WORKSPACES)[number]
 
 /** When an agent commits: everything when done, only its own files, as it goes, or never. */
+/** A project's own answer to `agents.close_when_done`; unset follows it. */
+export const CLOSE_WHEN_DONE = ['on', 'off'] as const
+
 export const COMMIT_RULES = ['when-done', 'own-files', 'as-you-go', 'never'] as const
 export type CommitRule = (typeof COMMIT_RULES)[number]
 
@@ -205,6 +208,8 @@ export const ProjectConfigSchema = z.strictObject({
    * a person asks for goes past; as many as you start unless set.
    */
   max_parallel: z.int().positive().optional(),
+  /** Whether this project's finished agents close by themselves, over `agents.close_when_done`. */
+  close_when_done: z.enum(CLOSE_WHEN_DONE).optional(),
   /**
    * How to check the work, for a project whose CI and commit hook cannot be
    * read. Everything else reads its checks out of what the project already
@@ -641,6 +646,15 @@ export const ConfigSchema = z
         push: z.enum(PUSH_MODES).optional(),
         /** Anything else every agent should be told, in your words. */
         instructions: z.string().optional(),
+        /**
+         * Close an agent's lane by itself once its task is finished and its
+         * turn has ended, for a project that has not said
+         * (`closeWhenDoneFor`). The rule is `core/src/closing.ts`.
+         *
+         * Off by default: each one costs the orchestrator a turn, because
+         * what the agent reported has to reach it before the lane goes.
+         */
+        close_when_done: z.boolean().default(false),
         /**
          * Hold the machine awake while Tade is open, so a sleep never takes
          * the agents' turns down with it (`KEEP_AWAKE_MEANS`, `sleep.ts`).

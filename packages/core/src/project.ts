@@ -27,6 +27,16 @@ export function workspaceFor(config: Config, project: string | null): AgentWorks
 }
 
 /**
+ * Whether a project's finished agents close by themselves: its own answer, or
+ * the machine's. Asked when one is about to be closed rather than when it
+ * started, so changing it applies to agents already at work.
+ */
+export function closeWhenDoneFor(config: Config, project: string | null): boolean {
+  const own = project ? config.projects[project]?.close_when_done : undefined
+  return own ? own === 'on' : config.agents.close_when_done
+}
+
+/**
  * The account a project's new agents of one harness run as: the project's own
  * answer, else the machine's (`workers.accounts`), else null — the harness's
  * own sign-in, what you would get running it yourself. The one reader:

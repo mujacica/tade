@@ -105,6 +105,38 @@ describe('what there is to change', () => {
     expect(bare).toEqual([])
   })
 
+  it('finds closing finished agents by what somebody would say, on both of its rows', () => {
+    const groups = settingsOf(config({ projects: { app: { root: '/tmp/app' } } }))
+    const rowOf = (path: string) => {
+      const group = groups.find((one) => one.settings.some((s) => s.path === path))
+      const setting = group?.settings.find((one) => one.path === path)
+      if (!group || !setting) throw new Error(`no row for ${path}`)
+      return { group, setting }
+    }
+    const machine = rowOf('agents.close_when_done')
+    expect(machine.group.id).toBe('agents')
+    expect(machine.setting.value).toBe('false')
+    expect(machine.setting.live).toBe(true)
+    expect(parseSetting(machine.setting, 'yes')).toBe(true)
+    expect(parseSetting(machine.setting, 'no')).toBe(false)
+    for (const words of [
+      ['auto', 'close'],
+      ['close', 'done'],
+      ['finished', 'agents'],
+      ['cleanup'],
+    ]) {
+      expect(settingFound(machine.group, machine.setting, words)).toBe(true)
+    }
+    // Three answers, so there is a way back to following the machine.
+    const own = rowOf('projects.app.close_when_done')
+    expect(own.setting.type).toEqual({ kind: 'choice', options: ['', 'on', 'off'] })
+    expect(own.setting.value).toBe('')
+    expect(own.setting.fallback).toBe('off')
+    expect(parseSetting(own.setting, 'on')).toBe('on')
+    expect(parseSetting(own.setting, '')).toBeUndefined()
+    expect(settingFound(own.group, own.setting, ['auto', 'close'])).toBe(true)
+  })
+
   it('is found by the symptom, not only by the name of the setting', () => {
     // People reach for this one while complaining that the window is slow,
     // which is not a word in its title or its path. A setting nobody can find

@@ -2,7 +2,10 @@ import { readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import {
   atWorkFrom,
+  type CloseFacts,
   type Config,
+  closeFactsFrom,
+  closeStep,
   type DoneRule,
   type Effort,
   effortsIn,
@@ -242,6 +245,8 @@ export class Live {
   private readonly runtime = new RuntimeFold()
   /** Which tasks have finished, from the whole journal: the last 500 events forget. */
   private finished = new Map<string, Finished>()
+  /** Whose agent is owed closing, from the whole journal: `close_when_done`'s to read. */
+  private closes = new Map<string, CloseFacts>()
   /** Which tasks' agents have ended a turn since they last started. */
   private worked = new Set<string>()
   /** Tasks whose own rule is met and not yet written down, as the last refresh saw. */
@@ -319,11 +324,17 @@ export class Live {
     else if (event.seq > this.upTo) this.record(event)
   }
 
+  /** Whose agent is owed closing, and what the journal says of its turn. */
+  get closesOwed(): ReadonlyMap<string, CloseFacts> {
+    return this.closes
+  }
+
   /** The whole-history lists, read: kept, and what was heard meanwhile counted after them. */
   private use(read: Histories): void {
     this.journal.push(...read.recent)
     for (const event of read.usage) this.usage.add(event)
     this.finished = finishedFrom(read.told)
+    this.closes = closeFactsFrom(read.told)
     this.worked = workedFrom(read.told)
     for (const event of read.runs) this.runtime.add(event)
     for (const event of read.queue) {
@@ -1145,6 +1156,7 @@ export class Live {
     if (event.task && event.type === 'task_done') {
       for (const [task, done] of finishedFrom([event])) this.finished.set(task, done)
     }
+    closeStep(this.closes, event)
     if (event.task && event.type === 'run_started') {
       this.worked.delete(event.task)
       this.started.add(event.task)

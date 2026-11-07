@@ -247,6 +247,24 @@ projects:
     expect(bad.issues[0]?.path).toBe('agents.keep_awake')
   })
 
+  it('closes finished agents only where somebody said so', () => {
+    const none = parseConfig('')
+    expect(none.ok && none.config.agents.close_when_done).toBe(false)
+    const on = parseConfig('agents:\n  close_when_done: true\n')
+    expect(on.ok && on.config.agents.close_when_done).toBe(true)
+    const bad = parseConfig('agents:\n  close_when_done: sometimes\n')
+    expect(bad.ok).toBe(false)
+    if (bad.ok) return
+    expect(bad.issues[0]?.path).toBe('agents.close_when_done')
+    // A project's own word has three answers, and a switch has two.
+    const own = parseConfig('projects:\n  app:\n    root: /tmp/app\n    close_when_done: off\n')
+    expect(own.ok && own.config.projects.app?.close_when_done).toBe('off')
+    const wrong = parseConfig('projects:\n  app:\n    root: /tmp/app\n    close_when_done: maybe\n')
+    expect(wrong.ok).toBe(false)
+    if (wrong.ok) return
+    expect(wrong.issues[0]?.path).toBe('projects.app.close_when_done')
+  })
+
   it('lowers the agents only by as much as somebody asked for', () => {
     // Off is the decision again, and for a sharper reason than keep_awake's:
     // a lowered check suite takes longer under load, and a check with a

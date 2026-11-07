@@ -70,7 +70,7 @@ export const FLOOR: Record<string, number> = {
   'packages/app': 88,
   // 83 -> 87 at 88.7%, as the ratchet asked once agents running as a Unix
   // user of their own had taken 117 lines out of `src` (9b6725f6).
-  'packages/harnesses/codex': 87,
+  'packages/harnesses/codex': 90,
   // 93.9 when it came in, every line of it driven against the scripted ACP
   // agent: 90 leaves room for a slower runner, the same slack the others keep.
   'packages/harnesses/acp': 90,

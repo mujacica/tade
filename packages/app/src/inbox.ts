@@ -62,6 +62,11 @@ export function addNews(news: readonly News[], text: string, at: number): News[]
 export function agentEnded(event: TadeEvent): Ended | null {
   if (!event.task) return null
   const task = event.task
+  // Closed by rule once it finished, which says more than the stop and the
+  // lane going just before it, and the work is all still there.
+  if (event.type === 'agent_closed') {
+    return { task, why: 'it finished, and closed by itself; it can be opened again', knows: 2 }
+  }
   // Removal ends the agent and takes the work with it, which is the most any
   // of these events knows: it lands after the stop that precedes it.
   if (event.type === 'task_removed') {
@@ -148,7 +153,9 @@ export function taskNews(
     const why = task.reason ? `: ${task.reason}` : ''
     if (task.state === 'merged') out.push(`${task.task} was merged${why}`)
     else if (task.state === 'review') out.push(`${task.task} has work to review${why}`)
-    else if (task.state === 'failed') out.push(`${task.task} failed${why}`)
+    // A finished task whose agent has gone reads `failed` where it committed
+    // nothing, which is what finishing a document looks like: not news.
+    else if (task.state === 'failed' && !task.finished) out.push(`${task.task} failed${why}`)
   }
   return out
 }

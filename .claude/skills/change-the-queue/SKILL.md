@@ -13,6 +13,7 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 | Path | What |
 |---|---|
 | `packages/core/src/done.ts` | when a task is finished: `finishedFrom`, `ruleMet`, `workedFrom` |
+| `packages/core/src/close-when-done.ts`, `packages/app/src/wire/close-when-done.ts` | a finished agent's lane closing by itself: `closeWaitsOn`, and the window keeping to its order |
 | `packages/core/src/queue.ts` | `Queued`, `queueStateOf`, `readyToStart`, `choicesFor`, `startFrom`, `collidesNow`, `atWorkFrom`, `checkWaits`, `QUEUE_CHANGES` |
 | `packages/core/src/queue-order.ts` | the written order, only ever a preference among the ready: `writtenOrder`, `inWrittenOrder`, `orderFirst` |
 | `packages/core/src/plan.ts` | a plan before it is made: `checkPlan`, `overlaps`, `wholePackage` |
@@ -56,6 +57,12 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   takes facts and `now` and returns an answer. Test the rule in core; the window only applies it.
 - **Queued work is a task.** A task file with `start` — never a second store. It is made when it is
   planned, in the project's own workspace, and started by `startQueued`.
+- **A finished agent's lane closes by itself only where `close_when_done` says, and only the lane
+  goes.** One close per `task_done` (`closeStep`), so opening it again is not undone, and in this
+  order: told first (`tell`, not news, which can wait until tomorrow), its turn ended, nobody looking.
+  A report that could not be told keeps the lane open, is said once and is tried again. A finished
+  task with nothing committed reads `failed` once its lane has gone, so anything reading `failed`
+  asks `finished` too (`taskNews`, `reopenStopped`).
 - **A task is finished when the journal says so** (`task_done`), and the rule is the task's own:
   `done` in its task file — `said`, `idle`, `committed`, `merged`, `manual` (`DONE_RULES` and
   `DONE_RULE_MEANS` in `core/src/model.ts`) — chosen by whoever made the task. Its agent says it

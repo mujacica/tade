@@ -35,6 +35,7 @@ describe('what is carried', () => {
       'agents.commit',
       'agents.push',
       'agents.instructions',
+      'agents.close_when_done',
       'orchestrator.harness',
       'orchestrator.model',
       'workers.default',
@@ -60,6 +61,7 @@ describe('what is carried', () => {
     for (const path of [
       'projects.app.root',
       'projects.app.brief',
+      'projects.app.close_when_done',
       'workspace.driver',
       'drivers.pty.scrollback',
       'agents.workspace',

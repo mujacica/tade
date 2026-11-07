@@ -233,7 +233,8 @@ const NEVER: readonly (readonly [string, string])[] = [
  * which widens nothing an agent may do. `root` stays refused — moving it moves
  * every agent already in the project. `max_parallel` is the same shape: how
  * many of its agents work at once, which says when the next one starts and
- * nothing about what any of them may do.
+ * nothing about what any of them may do. `close_when_done` ends a lane whose
+ * task is finished, which `tade_run_stop` can do already, and loses nothing.
  *
  * `watches` is which machine's clock looks with the project's watches on
  * outside sources (`watch-where.ts`): naming a remote there sends that machine
@@ -317,6 +318,7 @@ const ALLOWED_UNDER: readonly RegExp[] = [
   /^projects\.[a-z0-9-]+\.checks\./,
   /^projects\.[a-z0-9-]+\.workspace$/,
   /^projects\.[a-z0-9-]+\.max_parallel$/,
+  /^projects\.[a-z0-9-]+\.close_when_done$/,
   /^projects\.[a-z0-9-]+\.watches$/,
   /^projects\.[a-z0-9-]+\.accounts\.[a-z0-9-]+$/,
   /^workers\.routes\.[a-z0-9-]+\.(model|thinking|harness)$/,

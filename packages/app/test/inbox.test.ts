@@ -54,6 +54,17 @@ describe('news for the orchestrator', () => {
     ])
   })
 
+  it('does not call a finished task failed because its agent has gone', () => {
+    // A task that finished with nothing committed reads `failed` once its lane
+    // has closed, which is what finishing a document looks like.
+    const before = [{ task: 'app/report', state: 'blocked' as const }]
+    const finished = { by: 'agent', summary: 'wrote it' }
+    const after = [
+      { task: 'app/report', state: 'failed' as const, reason: 'agent exited', finished },
+    ]
+    expect(taskNews(before, after)).toEqual([])
+  })
+
   it('says a task finished, and who said so', () => {
     const done = (detail: Record<string, unknown>) => ({
       seq: 1,
@@ -144,6 +155,10 @@ describe('news for the orchestrator', () => {
       why: 'stopped',
       knows: 1,
     })
+    // Closed by rule once it finished, which outranks the stop just before it.
+    const closed = agentEnded(event({ type: 'agent_closed', detail: { done_by: 'agent' } }))
+    expect(closed?.why).toContain('it finished')
+    expect(closed?.knows).toBeGreaterThan(1)
     // Nobody stopped it: it quit, crashed, or its lane went out from under it.
     expect(agentEnded(event({ type: 'run_exited', detail: { code: 1 } }))?.why).toBe(
       'it exited on its own, code 1',

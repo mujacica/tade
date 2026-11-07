@@ -126,6 +126,12 @@ export const EventType = z.enum([
    */
   'task_done',
   /**
+   * A finished agent's lane was closed by `close_when_done`: `done_by`, who
+   * finished it; `setting`, the key that said to; `lost`, that its process had
+   * already gone with the window. What is closed is the lane and nothing else.
+   */
+  'agent_closed',
+  /**
    * An agent handed over the document its task produces before finishing:
    * `produces` (the path), `bytes`, `missing`, `asked` — the one thing it needs
    * the person to decide, in its words — and `waits`, whether it has stopped
@@ -600,6 +606,8 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   replay_stopped: 'notable',
   state_change: 'notable',
   task_done: 'notable',
+  // Notable: an agent ending, by rule, with nobody having pressed anything.
+  agent_closed: 'notable',
   // Blocking: an agent has stopped until the person decides. One that hands a
   // draft over and carries on is written `notable` at the call.
   document_ready: 'blocking',

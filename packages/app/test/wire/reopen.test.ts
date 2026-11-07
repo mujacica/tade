@@ -22,7 +22,15 @@ import type { Wiring } from '../../src/wire/context.ts'
 const TASK = 'app/refunds'
 
 /** One task, in front of you, as a look taken mid-removal saw it: failed, with no lane. */
-function windowWith(opts: { limit?: number; running?: string[]; lost?: boolean } = {}) {
+function windowWith(
+  opts: {
+    limit?: number
+    running?: string[]
+    lost?: boolean
+    closing?: boolean
+    finished?: boolean
+  } = {},
+) {
   let state: AppState = focusTask(
     withTasks(initialState(), [
       {
@@ -31,6 +39,7 @@ function windowWith(opts: { limit?: number; running?: string[]; lost?: boolean }
         reason: 'worktree missing',
         branch: 'tade/refunds',
         lane: null,
+        ...(opts.finished ? { finished: { by: 'agent', summary: 'wrote it' } } : {}),
       },
     ]),
     TASK,
@@ -98,7 +107,9 @@ function windowWith(opts: { limit?: number; running?: string[]; lost?: boolean }
     draw: () => {},
     note: () => {},
   } as unknown as Wiring
-  const agents = new Agents(wire, {} as AgentsDeps)
+  const agents = new Agents(wire, {
+    closesWhenDone: () => opts.closing === true,
+  } as unknown as AgentsDeps)
   return {
     agents,
     asked,
@@ -152,6 +163,23 @@ describe('opening an agent again by itself', () => {
     await pressed.agents.openAgent(TASK)
     expect(pressed.asked).toEqual([`reopen ${TASK} in /worktrees/app-refunds`])
     expect(pressed.notice()).toContain('opened app/refunds where it left off')
+  })
+
+  it('does not open one in front of you that finished, however its state reads', async () => {
+    // Nothing committed and its lane closed reads `failed`, which is what
+    // finishing a document looks like: opening it would undo the close.
+    const { agents, asked } = windowWith({ finished: true })
+    agents.reopenStopped()
+    await settled()
+    expect(asked).toEqual([])
+  })
+
+  it('does not bring back one that is owed closing because it finished', async () => {
+    const { agents, asked } = windowWith({ lost: true, closing: true })
+    expect(agents.comingBack()).toEqual([])
+    agents.reopenLost()
+    await settled()
+    expect(asked).toEqual([])
   })
 
   it('counts a lost agent as coming from before it is sent for until it has come or failed', async () => {

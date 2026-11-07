@@ -53,6 +53,8 @@ export interface WorkSummary {
    * person's took it over, or handed it here (`task_moved`, `task_taken`).
    */
   moved: string | null
+  /** That its agent was closed once it had finished (`agent_closed`), which an agent gone does not say. */
+  closed: boolean
   state: TaskState | null
   lastAt: number | null
 }
@@ -74,6 +76,7 @@ export function summariseWork(
     failed: null,
     left: [],
     moved: null,
+    closed: false,
     state: null,
     lastAt: null,
   }
@@ -141,6 +144,12 @@ export function summariseWork(
       case 'leftovers_reported':
         summary.left.push(...leftoversIn(event).map((one) => one.task))
         break
+      case 'agent_closed':
+        summary.closed = true
+        break
+      case 'run_started':
+        summary.closed = false
+        break
       case 'task_moved':
         summary.moved = `It went to ${String(event.detail.to ?? 'another machine')}, where it is ${String(event.detail.as ?? 'a task of its own')}, and its conversation stayed here.`
         break
@@ -188,6 +197,8 @@ export function describeWork(summary: WorkSummary, now: number): string {
     )
   if (summary.failed) sentences.push(`It failed: ${summary.failed}.`)
   if (summary.moved) sentences.push(summary.moved)
+  if (summary.closed)
+    sentences.push('Its agent was closed once it had finished; it can be opened again.')
   if (summary.waiting) sentences.push(`It is waiting on ${summary.waiting}.`)
   if (summary.left.length > 0) {
     const things = summary.left.length === 1 ? 'something' : `${summary.left.length} things`

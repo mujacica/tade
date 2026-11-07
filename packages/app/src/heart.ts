@@ -17,6 +17,7 @@ import {
 import { type Entry, REPEAT_MS, tadeDid } from './transcript.ts'
 import { Agents, type AgentsDeps } from './wire/agents.ts'
 import { Batches } from './wire/batches.ts'
+import { CloseWhenDone } from './wire/close-when-done.ts'
 import {
   type AppOptions,
   clockOf,
@@ -62,7 +63,7 @@ import { talkingThrough } from './wire/web-asking.ts'
 /** The Settings page's half: what the accounts, models, sounds and clipboard of a screen answer. */
 export type SettingsFace = Omit<SettingsDeps, 'tellThinking' | 'moveThinker' | 'away'>
 /** An agent's menu and the line you type on: what a press in front of somebody reaches. */
-export type AgentsFace = Omit<AgentsDeps, 'useConfig' | 'changeQueue'>
+export type AgentsFace = Omit<AgentsDeps, 'useConfig' | 'changeQueue' | 'closesWhenDone'>
 /** Where the window was, written down as a project opens or closes. */
 export type ProjectsFace = Pick<ProjectsDeps, 'rememberWindow'>
 /** The conversation's screen: where it is scrolled, what is said aloud, the line it was typed on. */
@@ -330,6 +331,8 @@ export class Heart {
   readonly projects: Projects
   /** Making an agent, opening one again, stopping it, taking it away. */
   readonly agents: Agents
+  /** Finished agents' lanes, closed by themselves where the setting says (`close_when_done`). */
+  private readonly closing: CloseWhenDone
   /**
    * The Linear app's tokens, refreshed when a look or the connect page asks.
    * Held here rather than by the away view, which may be off: the watches read
@@ -416,6 +419,13 @@ export class Heart {
       ...face.agents,
       useConfig: (config) => this.settings.use(config),
       changeQueue: (task, change) => this.queue.change(task, change),
+      closesWhenDone: (task) => this.closing.owes(task),
+    })
+    this.closing = new CloseWhenDone(this.wire, {
+      orchestrator: this.orchestrator,
+      close: (task) => this.agents.closeFinished(task),
+      // Nobody is looking at anything where nothing draws, whatever is focused.
+      looking: (task) => said === null && this.current.focused === task,
     })
     this.linear = new LinearTokens({
       config: () => this.wire.opts.config,
@@ -508,6 +518,7 @@ export class Heart {
         this.orchestrator.noteTasks(tasks)
         face.sawTasks(tasks)
         void this.queue.recordRulesMet()
+        void this.closing.beat()
         void this.schedules.runDue().then(() => this.advanceQueue())
         void this.orchestrator.reflect(tasks)
         void this.batches.beat()
@@ -553,7 +564,7 @@ export class Heart {
    * for the orchestrator, so that is said.
    */
   private heard(event: TadeEvent): void {
-    const told = tellNow(this.wire, this.told, event)
+    const told = this.closing.heard(event) || tellNow(this.wire, this.told, event)
     const news = told ? null : eventNews(event)
     if (news) this.orchestrator.note(news)
     const ended = agentEnded(event)

@@ -68,6 +68,8 @@ import { type Waker, wakerOf } from './sleep.ts'
 export interface AgentsDeps {
   /** The config was written by somebody else's hand: read it back. */
   useConfig(config: Config): void
+  /** Whether this finished agent is owed closing, which is not coming back (`close-when-done.ts`). */
+  closesWhenDone(task: string): boolean
   /** Put a half-written command back on the line, ready to be finished. */
   prefill(line: string): void
   /** Where an agent's own menu leads. */
@@ -687,6 +689,7 @@ export class Agents implements Subject {
       .filter((task) => {
         const pane = this.wire.state.panes.find((one) => one.task === task)
         if (!pane || pane.lane || this.reopened.has(task) || this.opening.has(task)) return false
+        if (this.deps.closesWhenDone(task)) return false
         return Boolean(this.wire.live?.worktreeOf(task))
       })
   }
@@ -793,7 +796,9 @@ export class Agents implements Subject {
     const pane = this.wire.state.panes.find((one) => one.task === this.wire.state.focused)
     // Only an agent whose run stopped: one never started waits to be asked,
     // and one that finished is waiting for review, not for another run.
-    if (!pane || pane.lane || pane.state !== 'failed') return
+    // A task that finished with nothing committed reads `failed` once its lane
+    // has gone, so `finished` is what says it is the second of those.
+    if (!pane || pane.lane || pane.state !== 'failed' || pane.finished) return
     if (this.reopened.has(pane.task) || this.opening.has(pane.task)) return
     if (!this.wire.live?.worktreeOf(pane.task)) return
     if (this.projectFullFor(pane.task)) {
@@ -834,6 +839,16 @@ export class Agents implements Subject {
     await this.wire.live?.refresh()
     notify(this.wire, `${task} stopped by ${by} — its branch and worktree stay`)
     this.wire.draw()
+  }
+
+  /**
+   * Close a finished agent's lane, marked stopped on purpose so nothing opens it
+   * again behind anyone's back: the same stop as `/stop`. Throws; the rule and
+   * what is said about it are `close-when-done.ts`'s.
+   */
+  async closeFinished(task: string): Promise<void> {
+    this.reopened.add(task)
+    await this.wire.opts.client.stopAgent(task)
   }
 
   /**
