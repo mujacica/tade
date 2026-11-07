@@ -92,6 +92,28 @@ describe('the window, finding things', () => {
     await until('what it says', () => terminal.written.includes('Kept somewhere else'))
   })
 
+  it('says the journal did not answer, and still finds the document', async () => {
+    const dir = documentsDir(home, 'app')
+    mkdirSync(join(dir, 'city-market-research'), { recursive: true })
+    writeFileSync(join(dir, 'city-market-research', 'CITY-MARKET.md'), '# What the market said\n')
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    // After opening, which reads these lines to clean up what it may.
+    const read = client.log.read.bind(client.log)
+    client.log.read = (filter) =>
+      filter?.types?.includes('document_moved') ? new Promise(() => {}) : read(filter)
+    terminal.press('\x0b')
+    await until('search', () => terminal.written.includes('Search'))
+    for (const char of 'CITY-MARKET') terminal.press(char)
+    await until('the document', () => terminal.written.includes('¶ CITY-MARKET.md'), 8_000)
+    terminal.press('\x1b')
+    await until(
+      'the journal said to have given no answer',
+      () => terminal.written.includes('no answer in 5s'),
+      2_000,
+    )
+  }, 15_000)
+
   it('asks what a sentence means when the letters find nothing, and shows what comes back', async () => {
     const asked: { said: string; choices: string[] }[] = []
     const extensions = await ExtensionHost.load({

@@ -335,9 +335,12 @@ export class Search implements Subject {
         }
       }),
     )
-    let journal: Document[] = []
+    // Where it could not say, what it last said is still where each one stands.
+    let journal = this.told?.documents ?? []
     try {
-      journal = await inTime(this.saidOfDocuments(), DOCUMENTS_MS, [])
+      const said = await inTime(this.saidOfDocuments(), DOCUMENTS_MS, null)
+      if (said) journal = said
+      else couldNot('what the journal says of documents', `no answer in ${DOCUMENTS_MS / 1_000}s`)
     } catch (err) {
       couldNot('what the journal says of documents', err)
     }
