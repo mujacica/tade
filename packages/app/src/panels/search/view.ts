@@ -50,11 +50,13 @@ export function search(panel: SearchPanel, ctx: PanelContext): Drawn {
   // Headings between the groups, and every result a row: the list is laid out
   // whole, then the part around the chosen result is shown.
   const lines: { text: string; hits: Hit[]; at: number | null }[] = []
-  for (const group of GROUPS) {
+  // In the order they came, so the row the keyboard starts on is the top one:
+  // a document named outright goes above the agent that wrote it.
+  for (const kind of new Set(entries.map((entry) => entry.kind))) {
+    const group = { title: GROUPS.find((one) => one.kind === kind)?.title ?? kind }
     const members = entries
       .map((entry, at) => ({ entry, at }))
-      .filter(({ entry }) => entry.kind === group.kind)
-    if (members.length === 0) continue
+      .filter(({ entry }) => entry.kind === kind)
     lines.push({
       ...new Row(inner, skin)
         .space()

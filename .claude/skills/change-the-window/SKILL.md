@@ -1215,13 +1215,22 @@ the window's.
   checkout, and `openFile` asks git nothing. And it is **never a sentence** (`isSentence` asks
   `looksLikePath` first), which is the one guard that keeps a pasted path and everything under it away
   from whoever reads one.
-- **The documents tasks produced are a group of their own** (`DOCUMENTS`, `documentEntries`):
+- **The documents tasks produced are a group of their own** (`DOCUMENTS`, `searchDocuments`):
   what is on disk in each open project's documents folder in Tade's home (`listDocuments`,
-  `finder.ts`), listed when search opens and not again for `FILES_FOR_MS`, with a deadline, never
-  per keystroke or frame. The disk says what there is — decided, waiting, or its task gone — and the
-  journal (`documentsOf`) only says where each stands. Named by its file, matched by its task's name
-  too (`SearchEntry.named`, ranked just below a label match and lit on nothing), opened through the
-  same `open` id. Names only: what a document says is never read until it is chosen.
+  `finder.ts`), listed when search opens and not again for `FILES_FOR_MS`, a folder at a time with a
+  deadline, never per keystroke or frame; a look that could not say keeps what the folder last held.
+  The disk says what there is — decided, waiting, or its task gone — and the journal (`documentsOf`,
+  read again only where it has a newer line) says where each stands and adds what the folders did not
+  list. **The cap is per task, never per project**: one over the sorted whole let one task's 42,756
+  frames take every document sorted after them out of search. So a folder can hold tens of thousands,
+  and they are matched as files are (`documentResults`), kept lower-cased, made into rows only if
+  shown, and only the ones handed over are entries a sentence is put to. Named by its file, matched
+  by its task's name too (ranked just below a match on its own name and lit on nothing), opened
+  through the same `open` id. Names only: what a document says is never read until it is chosen.
+- **A document whose own name holds what was typed, whole, goes above what only spoke of it or
+  spelled it** (`documentsNamedFirst`), under a typed path and over WAITING ON YOU, MIGHT MEAN,
+  AGENTS and PLANS: the agent that wrote it says its name in what it is doing, and enter took you
+  there — or answered an approval. So the list is drawn in the order it came, never `GROUPS` again.
 - **A result row that does not fit drops its right-hand group whole** (`Row.build`), so what the row
   says at its right edge is only said while the rest of it is short enough. The folder a path is in is
   sixty characters under Tade's home, and drawn in full it took `not there` off the edge — a row

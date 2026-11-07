@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import { ABOUT_ASKED, askedAbout, isSentence, shortlist, worthAsking } from '../src/meant.ts'
 import {
   completed,
-  documentEntries,
   type FoundDocument,
   fuzzy,
   GROUPS,
@@ -14,6 +13,7 @@ import {
   parseQuery,
   pathTyped,
   type SearchEntry,
+  searchDocuments,
   searchFile,
   searchResults,
 } from '../src/search.ts'
@@ -500,7 +500,7 @@ describe('the documents tasks produced', () => {
   const ROLEPLAY = 'research-roleplay-economy-and-systems/ROLEPLAY-SYSTEMS.md'
   const PLAN = 'p3-09-closed-test-brief/PLAN.md'
   const NOTES = 'research-roleplay-economy-and-systems/notes/sources.md'
-  const rows = documentEntries(
+  const rows = searchDocuments(
     [found(ROLEPLAY), found(PLAN), found(NOTES)],
     [
       record('vrolta/research-roleplay-economy-and-systems', ROLEPLAY, {
@@ -516,7 +516,7 @@ describe('the documents tasks produced', () => {
     NOW,
   )
   const results = (raw: string) =>
-    searchResults(raw, { entries: [...entries, ...rows], files, matches: [] }).filter(
+    searchResults(raw, { entries, documents: rows, files, matches: [] }).filter(
       (entry) => entry.kind === 'document',
     )
 
@@ -532,14 +532,37 @@ describe('the documents tasks produced', () => {
   })
 
   it('says whether it waits for a decision, and puts the waiting ones first', () => {
-    expect(rows.map((one) => [one.label, one.note ?? null])).toEqual([
+    expect(results('.md').map((one) => [one.label, one.note ?? null])).toEqual([
       ['PLAN.md', 'waiting on you'],
       ['ROLEPLAY-SYSTEMS.md', 'decided'],
       // A file beside the one handed over is nobody's question.
       ['notes/sources.md', null],
     ])
-    expect(rows[0]?.tone).toBe('waiting')
-    const approved = documentEntries(
+    expect(results('.md')[0]?.tone).toBe('waiting')
+    // The same match on both: the one waiting on somebody comes first, older or not.
+    const decided = {
+      by: 'person',
+      decided: 'keep it',
+      at: '2026-10-02T10:00:00.000Z',
+      approved: false,
+    }
+    const tied = searchDocuments(
+      [found('a/SAME.md'), found('b/SAME.md')],
+      [
+        record('vrolta/a', 'a/SAME.md', {
+          at: '2026-10-05T10:00:00.000Z',
+          triaged: { ...decided, at: '2026-10-06T10:00:00.000Z' },
+        }),
+        record('vrolta/b', 'b/SAME.md', { at: '2026-10-01T10:00:00.000Z' }),
+      ],
+      NOW,
+    )
+    expect(
+      searchResults('SAME', { entries: [], documents: tied, files: [], matches: [] }).map(
+        (one) => one.detail,
+      ),
+    ).toEqual(['b · vrolta', 'a · vrolta'])
+    const approved = searchDocuments(
       [found(PLAN)],
       [
         record('vrolta/p3-09-closed-test-brief', PLAN, {
@@ -565,25 +588,110 @@ describe('the documents tasks produced', () => {
   })
 
   it('ranks a match on the file above the same match on a task', () => {
-    const both = documentEntries(
+    const both = searchDocuments(
       [found('plan-review/OTHER.md'), found('research/plan.md')],
       [],
       NOW,
     )
-    const ranked = searchResults('plan', { entries: both, files: [], matches: [] })
+    const ranked = searchResults('plan', { entries: [], documents: both, files: [], matches: [] })
     expect(ranked.map((one) => one.label)).toEqual(['plan.md', 'OTHER.md'])
   })
 
   it('takes its task from the folder it is in where the journal has no record, even one whose task is gone', () => {
-    const [row] = documentEntries([found('gone-task/brief.md')], [], NOW)
+    const ask = (within: string, raw: string) =>
+      searchResults(raw, {
+        entries: [],
+        documents: searchDocuments([found(within)], [], NOW),
+        files: [],
+        matches: [],
+      })[0]
+    const row = ask('gone-task/brief.md', 'brief')
     expect(row?.detail).toBe('gone-task · vrolta')
     expect(row?.note).toBeUndefined()
-    const [loose] = documentEntries([found('README.md')], [], NOW)
-    expect(loose?.detail).toBe('vrolta')
+    expect(ask('README.md', 'readme')?.detail).toBe('vrolta')
   })
 
   it('is not listed before anything is typed, and is under its own heading', () => {
     expect(results('')).toEqual([])
     expect(GROUPS.find((group) => group.kind === 'document')?.title).toBe('DOCUMENTS')
+  })
+
+  it('goes to a line of it when one is typed, and says so', () => {
+    const [row] = results('PLAN.md:42')
+    expect(parseOpenId(row?.id ?? '')).toEqual({ path: `${DIR}/${PLAN}`, line: 42, column: null })
+    expect(row?.note).toBe('line 42')
+  })
+
+  it('ranks what a task handed over above an extra file with the same name', () => {
+    const both = searchDocuments(
+      [found('aaa-frames/notes.md'), found('zzz-report/notes.md')],
+      [record('vrolta/zzz-report', 'zzz-report/notes.md')],
+      NOW,
+    )
+    const ranked = searchResults('notes', { entries: [], documents: both, files: [], matches: [] })
+    expect(ranked.map((one) => one.detail)).toEqual(['zzz-report · vrolta', 'aaa-frames · vrolta'])
+  })
+
+  describe('named outright', () => {
+    const named = searchDocuments([found('city-research/CITY-MARKET.md')], [], NOW)
+    const writer: SearchEntry = {
+      id: 'task:vrolta/city-research',
+      kind: 'agent',
+      label: 'city-research',
+      mark: '○',
+      about: 'finished: wrote CITY-MARKET.md',
+    }
+    const kinds = (raw: string, also: SearchEntry[]) =>
+      searchResults(raw, { entries: also, documents: named, files: [], matches: [] }).map(
+        (one) => one.kind,
+      )
+
+    it('comes above the agent that only spoke of it, so enter opens the document', () => {
+      expect(kinds('CITY-MARKET.md', [writer])).toEqual(['document', 'agent'])
+    })
+
+    it('comes above an approval that only spoke of it, which enter would have answered', () => {
+      const approval: SearchEntry = {
+        ...writer,
+        id: 'approve:vrolta/city-research',
+        kind: 'approval',
+        label: 'Allow once: rm',
+      }
+      expect(kinds('CITY-MARKET.md', [approval])).toEqual(['document', 'approval'])
+    })
+
+    it('comes above an agent whose name only spells it out along the way', () => {
+      const spells: SearchEntry = {
+        ...writer,
+        label: 'come-in-to-my-corner-at-my-market',
+        about: '',
+      }
+      expect(kinds('citymarket', [spells])).toEqual(['agent', 'document'])
+      const run = searchDocuments([found('t/citymarket.md')], [], NOW)
+      expect(
+        searchResults('citymarket', {
+          entries: [spells],
+          documents: run,
+          files: [],
+          matches: [],
+        }).map((one) => one.kind),
+      ).toEqual(['document', 'agent'])
+    })
+
+    it('stays below what holds the same letters whole in its own name', () => {
+      expect(kinds('city', [writer])).toEqual(['agent', 'document'])
+    })
+
+    it('stays below a path somebody typed', () => {
+      const typed = '/Users/sam/CITY-MARKET.md'
+      const out = searchResults(typed, {
+        entries: [writer],
+        documents: searchDocuments([found('t/Users-sam-CITY-MARKET.md')], [], NOW),
+        files: [],
+        matches: [],
+        home: '/Users/sam',
+      })
+      expect(out[0]?.kind).toBe('path')
+    })
   })
 })

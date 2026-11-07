@@ -1,5 +1,5 @@
 import { readdir } from 'node:fs/promises'
-import { join, relative } from 'node:path'
+import { join } from 'node:path'
 import { git } from '@tade/status'
 
 // Finding things in the places agents work: the files of each worktree, and
@@ -82,32 +82,64 @@ export async function grep(root: SearchRoot, text: string, max = 100): Promise<M
   return matchesFrom(out.stdout, root, max)
 }
 
-/** Nobody reads a list longer than this of one project's documents; past it, the rest are not listed. */
-export const DOCUMENTS_MAX = 2_000
+/**
+ * How much of one task's folder is listed. A cap per task and never per project:
+ * one over the whole folder, sorted, kept the first two thousand files of a
+ * folder holding forty-eight thousand, and one task's 42,756 frames took every
+ * document sorted after them out of search.
+ */
+export const DOCUMENTS_MAX = 50_000
 
 /**
- * Every file in a project's documents folder, as paths below it, in order.
+ * Every file in a project's documents folder, as paths below it: what is loose
+ * in it, then each task's folder, nearest the top first.
  *
  * A listing of names and nothing read: what a document says is read when it is
  * chosen. Hidden files — an editor's swap file, a `.DS_Store` — are not
- * documents. A folder that is not there is a project none of whose tasks has
- * produced one yet, which is an answer; any other failure to list it is not,
- * and is thrown for whoever asked to say.
+ * documents. Read a folder at a time, so tens of thousands of names reach the
+ * window's thread in pieces and not as one long turn of it. A folder that is
+ * not there is a project none of whose tasks has produced one yet, which is an
+ * answer; any other failure to list it is not, and is thrown for whoever asked
+ * to say.
  */
 export async function listDocuments(dir: string, max = DOCUMENTS_MAX): Promise<string[]> {
-  const found = await readdir(dir, { recursive: true, withFileTypes: true }).catch(
+  const { files, folders } = await namesIn(dir, '')
+  const below = await Promise.all(folders.map((folder) => listTask(dir, folder, max)))
+  return [...files, ...below.flat()]
+}
+
+/** One task's folder, breadth first: what is cut by `max` is what is buried deepest. */
+async function listTask(dir: string, task: string, max: number): Promise<string[]> {
+  const found: string[] = []
+  const waiting = [task]
+  for (let at = 0; at < waiting.length && found.length < max; at++) {
+    const { files, folders } = await namesIn(dir, waiting[at] ?? '')
+    found.push(...files.slice(0, max - found.length))
+    waiting.push(...folders)
+  }
+  return found
+}
+
+/** What is in one folder below `dir`, as paths below `dir`, each list in order. */
+async function namesIn(
+  dir: string,
+  within: string,
+): Promise<{ files: string[]; folders: string[] }> {
+  const entries = await readdir(join(dir, within), { withFileTypes: true }).catch(
     (err: NodeJS.ErrnoException) => {
-      // No folder is a project none of whose tasks has produced one yet.
+      // No folder is a project none of whose tasks has produced one yet, or
+      // one the cleanup took between being listed and being read.
       if (err.code === 'ENOENT') return []
       throw err
     },
   )
   const files: string[] = []
-  for (const entry of found) {
-    if (!entry.isFile()) continue
-    const path = relative(dir, join(entry.parentPath, entry.name))
-    if (path.split('/').some((part) => part.startsWith('.'))) continue
-    files.push(path)
+  const folders: string[] = []
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue
+    const path = within === '' ? entry.name : `${within}/${entry.name}`
+    if (entry.isFile()) files.push(path)
+    else if (entry.isDirectory()) folders.push(path)
   }
-  return files.sort().slice(0, max)
+  return { files: files.sort(), folders: folders.sort() }
 }

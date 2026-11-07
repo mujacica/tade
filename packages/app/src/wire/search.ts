@@ -1,6 +1,13 @@
 import { access, constants, stat } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
-import { documentsDir, expandHome, type SettingGroup, settingLabel } from '@tade/core'
+import { join, relative, resolve } from 'node:path'
+import {
+  DOCUMENT_EVENTS,
+  type Document,
+  documentsDir,
+  expandHome,
+  type SettingGroup,
+  settingLabel,
+} from '@tade/core'
 import { inTime } from '@tade/web'
 import { documentsOf } from '@tade/workbench'
 import { grep, listDocuments, listFiles, type Match, type SearchRoot } from '../finder.ts'
@@ -14,7 +21,7 @@ import { searchPanel } from '../panels/search/state.ts'
 import { keysPanel } from '../panels/small/state.ts'
 import { type PlanRow, standingOf } from '../plans.ts'
 import {
-  documentEntries,
+  documentEntry,
   type FoundDocument,
   looksLikePath,
   type PathLook,
@@ -22,8 +29,10 @@ import {
   parseQuery,
   pathTyped,
   planEntries,
+  type SearchDocument,
   type SearchEntry,
   type SearchFile,
+  searchDocuments,
   searchFile,
   searchResults,
   TEXT_MIN,
@@ -61,12 +70,12 @@ const MEANT_CHOICES = 24
 const FILES_FOR_MS = 10_000
 
 /**
- * How long listing the documents folders, and reading what the journal says
- * of them, may take before search goes on without them. Neither is waited on
- * by anything drawn — the deadline is what keeps a home on a mount that went
- * away from holding the list open for ever.
+ * How long listing a documents folder, or reading what the journal says of
+ * them, may take before search goes on without it. Neither is waited on by
+ * anything drawn — the deadline is what keeps a home on a mount that went away
+ * from holding the list open for ever.
  */
-const DOCUMENTS_MS = 2_000
+const DOCUMENTS_MS = 5_000
 
 /** How long after the last keystroke the files are looked inside. */
 const GREP_AFTER_MS = 150
@@ -136,8 +145,18 @@ export class Search implements Subject {
   private askTimer: NodeJS.Timeout | null = null
   /** Every file in every place search looks, and when they were listed. */
   private files: { at: number; files: SearchFile[] } | null = null
-  /** The rows the documents tasks produced make, and when they were listed. */
-  private documents: { at: number; entries: SearchEntry[] } | null = null
+  /**
+   * The documents tasks produced, and when they were listed. `handedOver` is
+   * those the journal has as rows, for what a sentence is put to: the rest are
+   * an agent's extra files, as many as forty thousand of them.
+   */
+  private documents: { at: number; all: SearchDocument[]; handedOver: SearchEntry[] } | null = null
+  /** Whether the documents are being listed now, so a second open does not list them twice. */
+  private listing = false
+  /** What each project's documents folder last held, for a look that could not say. */
+  private readonly listed = new Map<string, FoundDocument[]>()
+  /** What the journal said of documents, and the newest line it read to say so. */
+  private told: { seq: number; documents: Document[] } | null = null
   /** What each terminal has printed, read when search opens. */
   private terminalTexts: { id: string; name: string; project: string; text: string }[] = []
   /**
@@ -184,7 +203,7 @@ export class Search implements Subject {
 
   /** Whether a look inside files is going, for the panel to say so. */
   get searching(): boolean {
-    return this.grepping !== null
+    return this.grepping !== null || this.listing
   }
 
   /** Open search, listing the files it looks through again when that list is old. */
@@ -249,6 +268,7 @@ export class Search implements Subject {
         entries: searchResults(panel.query, {
           entries: this.searchable(),
           files: this.files?.files ?? [],
+          documents: this.documents?.all ?? [],
           matches,
           terminals: this.terminalTexts,
           // Core's own reading of what `~` means, so the box and a project
@@ -263,37 +283,122 @@ export class Search implements Subject {
   }
 
   /**
-   * Every document the open projects' tasks produced, as rows: what is in each
-   * one's documents folder, and where the journal says each stands. Once when
-   * search opens and the last list is old, never per keystroke or per frame.
+   * Every document the open projects' tasks produced: what is in each one's
+   * documents folder, and where the journal says each stands. Once when search
+   * opens and the last list is old, never per keystroke or per frame.
    */
   private async listDocuments(): Promise<void> {
+    if (this.listing) return
+    this.listing = true
+    this.wire.draw()
+    try {
+      const found = await this.foundDocuments()
+      const now = this.wire.now()
+      const all = searchDocuments(found.files, found.journal, now)
+      const handedOver = all
+        .filter((one) => one.handedOver)
+        .sort((a, b) => Number(b.waits) - Number(a.waits) || b.at.localeCompare(a.at))
+        .map((one) => documentEntry(one))
+      this.documents = { at: now, all, handedOver }
+      this.results = null
+    } finally {
+      this.listing = false
+      this.wire.draw()
+    }
+  }
+
+  /** What is in each open project's documents folder, and what the journal says of documents. */
+  private async foundDocuments(): Promise<{ files: FoundDocument[]; journal: Document[] }> {
     const home = this.wire.opts.home
+    const open = projects(this.wire.state)
     // A list that could not be read is said, and search goes on with the
     // rest: the rows it did find are still the ones somebody can open.
-    const said = (what: string) => (err: unknown) => {
-      notify(this.wire, `Search could not read ${what}: ${why(err)}`)
-      return []
-    }
+    const couldNot = (what: string, reason: unknown) =>
+      notify(this.wire, `Search could not read ${what}: ${why(reason)}`)
     const lists = await Promise.all(
-      projects(this.wire.state).map(async (project): Promise<FoundDocument[]> => {
-        const listed = async () => {
-          const dir = documentsDir(home, project)
-          const within = await inTime(listDocuments(dir), DOCUMENTS_MS, [])
-          return within.map((path) => ({ project, path: join(dir, path), within: path }))
+      open.map(async (project): Promise<FoundDocument[]> => {
+        const dir = documentsDir(home, project)
+        const last = this.listed.get(project) ?? []
+        try {
+          const within = await inTime(listDocuments(dir), DOCUMENTS_MS, null)
+          // Out of time is not an empty folder: what it held last is still there.
+          if (!within) {
+            couldNot(`${project}'s documents`, `no answer in ${DOCUMENTS_MS / 1_000}s`)
+            return last
+          }
+          const found = within.map((path) => ({ project, path: join(dir, path), within: path }))
+          this.listed.set(project, found)
+          return found
+        } catch (err) {
+          couldNot(`${project}'s documents`, err)
+          return last
         }
-        return listed().catch(said(`${project}'s documents`))
       }),
     )
-    const journal = await inTime(
-      documentsOf(this.wire.opts.client).catch(said('what the journal says of documents')),
-      DOCUMENTS_MS,
-      [],
+    let journal: Document[] = []
+    try {
+      journal = await inTime(this.saidOfDocuments(), DOCUMENTS_MS, [])
+    } catch (err) {
+      couldNot('what the journal says of documents', err)
+    }
+    const files = lists.flat()
+    return { files: [...files, ...(await this.handedOverElsewhere(files, journal, open))], journal }
+  }
+
+  /**
+   * What the journal says of documents, read again only where it has a line
+   * about them since. The index answers on the window's thread, and folding
+   * every task anybody ever started costs a frame or more; asking for the
+   * newest of those lines costs nothing.
+   */
+  private async saidOfDocuments(): Promise<Document[]> {
+    const client = this.wire.opts.client
+    const newest = await client.log.read({ types: [...DOCUMENT_EVENTS], limit: 1 })
+    const seq = newest[0]?.seq ?? 0
+    if (this.told?.seq === seq) return this.told.documents
+    const documents = await documentsOf(client)
+    this.told = { seq, documents }
+    return documents
+  }
+
+  /**
+   * The documents the journal has as handed over and the folders did not list:
+   * buried below `DOCUMENTS_MAX` or kept somewhere else. Whatever else a folder
+   * holds, these are what search is for, and it looks to see they are there.
+   */
+  private async handedOverElsewhere(
+    listed: readonly FoundDocument[],
+    journal: readonly Document[],
+    open: readonly string[],
+  ): Promise<FoundDocument[]> {
+    const seen = new Set(listed.map((one) => one.path))
+    const wanted = journal.filter(
+      (one) =>
+        one.state === 'written' &&
+        !seen.has(one.path) &&
+        open.includes(one.task.split('/')[0] ?? ''),
     )
-    const now = this.wire.now()
-    this.documents = { at: now, entries: documentEntries(lists.flat(), journal, now) }
-    this.results = null
-    this.wire.draw()
+    const home = this.wire.opts.home
+    const found = await Promise.all(
+      wanted.map(async (one): Promise<FoundDocument | null> => {
+        const project = one.task.split('/')[0] ?? ''
+        const there = await stat(one.path).catch((err: NodeJS.ErrnoException) => {
+          // Deleted by hand since it was handed over is not worth a word.
+          if (err.code !== 'ENOENT') {
+            notify(this.wire, `Search could not look at ${one.path}: ${why(err)}`)
+          }
+          return null
+        })
+        if (!there?.isFile()) return null
+        const within = relative(documentsDir(home, project), one.path)
+        return {
+          project,
+          path: one.path,
+          within: within.startsWith('..') ? (one.path.split('/').at(-1) ?? within) : within,
+        }
+      }),
+    )
+    return found.filter((one) => one !== null)
   }
 
   /**
@@ -574,7 +679,7 @@ export class Search implements Subject {
       action(id, label)
     }
     entries.push(...planEntries(this.deps.plans() ?? [], this.wire.now()))
-    entries.push(...(this.documents?.entries ?? []))
+    entries.push(...(this.documents?.handedOver ?? []))
     for (const pane of panes) {
       if (pane.lane) action(`stop:${pane.task}`, `Stop ${pane.name}`, '■')
       action(`changes:${pane.task}`, `Show the changes in ${pane.name}`, '±')

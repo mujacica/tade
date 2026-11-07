@@ -76,7 +76,23 @@ describe('listing the documents tasks produced', () => {
       'research/ROLEPLAY-SYSTEMS.md',
       'research/notes/sources.md',
     ])
-    expect(await listDocuments(dir, 1)).toEqual(['plan/PLAN.md'])
+  })
+
+  it('caps each task on its own, so one folder of frames takes nothing from the next', async () => {
+    const { mkdirSync, mkdtempSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const dir = mkdtempSync(join(tmpdir(), 'tade-documents-'))
+    mkdirSync(join(dir, 'a-frames', 'run'), { recursive: true })
+    mkdirSync(join(dir, 'z-research'))
+    writeFileSync(join(dir, 'a-frames', 'README.md'), '')
+    for (const n of [1, 2, 3]) writeFileSync(join(dir, 'a-frames', 'run', `${n}.jpg`), '')
+    writeFileSync(join(dir, 'z-research', 'MARKET.md'), '')
+    // Nearest the top first, so what a cap cuts is what is buried deepest.
+    expect(await listDocuments(dir, 2)).toEqual([
+      'a-frames/README.md',
+      'a-frames/run/1.jpg',
+      'z-research/MARKET.md',
+    ])
   })
 
   it('finds nothing in a folder that is not there', async () => {

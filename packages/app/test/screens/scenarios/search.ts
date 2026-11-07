@@ -1,7 +1,8 @@
 import { searchPanel } from '../../../src/panels/search/state.ts'
 import {
-  documentEntries,
+  type SearchDocument,
   type SearchEntry,
+  searchDocuments,
   searchFile,
   searchResults,
 } from '../../../src/search.ts'
@@ -107,7 +108,7 @@ const DOCUMENTS = `${HOME}/.tade/projects/checkout/documents`
  * Three documents tasks produced: one waiting on somebody, one decided about,
  * and one whose task has gone and which the journal never asked anybody about.
  */
-function documents(): SearchEntry[] {
+function documents(): SearchDocument[] {
   const record = (task: string, within: string, at: string) => ({
     task: `checkout/${task}`,
     path: `${DOCUMENTS}/${within}`,
@@ -129,7 +130,7 @@ function documents(): SearchEntry[] {
     'stripe-refund-audit/REFUND-AUDIT.md',
     'old-stripe-spike/notes.md',
   ]
-  return documentEntries(
+  return searchDocuments(
     within.map((one) => ({ project: 'checkout', path: `${DOCUMENTS}/${one}`, within: one })),
     [
       record('stripe-v15-research', within[0] ?? '', '2026-10-19T09:00:00.000Z'),
@@ -191,7 +192,8 @@ export const SEARCH_SCREENS: Scenario[] = [
     frame: frame({
       panel: {
         entries: searchResults('stripe', {
-          entries: documents(),
+          entries: [],
+          documents: documents(),
           files: [],
           matches: [],
           home: HOME,

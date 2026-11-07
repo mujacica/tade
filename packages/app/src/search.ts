@@ -53,12 +53,6 @@ export interface SearchEntry {
   /** Which characters of the label matched, to show why it is here. */
   hits?: number[]
   /**
-   * Another name it answers to, matched by letters as the label is and ranked
-   * just below a label that matched as well: a document is called by its file,
-   * and found as often by the task that wrote it.
-   */
-  named?: string
-  /**
    * What is happening about it, in words: what an agent is doing, what it was
    * asked for, what queued work waits on and why, the notes about it. Derived
    * wherever this entry is made, from what the window already has — never a
@@ -210,6 +204,8 @@ export interface SearchSources {
   entries: readonly SearchEntry[]
   /** Every file in every place searched. */
   files: readonly SearchFile[]
+  /** Every document the open projects' tasks produced, which are too many to be entries. */
+  documents?: readonly SearchDocument[]
   /** Lines found inside files for the text being searched, once git has answered. */
   matches: readonly Match[]
   /** What each terminal has printed, as plain text, for finding lines in. */
@@ -436,6 +432,10 @@ export function pathEntry(found: TypedPath, look: PathLook | null): SearchEntry 
 // what is on disk in each open project's documents folder — waiting for a
 // decision or not, and whether or not its task is still there, because a
 // document outlives its task — and the journal only says where each one stands.
+//
+// A folder can hold tens of thousands of an agent's frames beside the few
+// documents it handed over, so these are matched as the files are, each kept
+// lower-cased and made into a row only if it is shown, and never sorted whole.
 
 /** A file found in a project's documents folder. */
 export interface FoundDocument {
@@ -446,13 +446,31 @@ export interface FoundDocument {
   within: string
 }
 
+/** A document as search keeps it: what it is matched on, and where it stands. */
+export interface SearchDocument {
+  project: string
+  path: string
+  /** Its path below its task's folder, which is what its row is called. */
+  label: string
+  /** `label` in lower case, which is what the letters are matched against. */
+  lower: string
+  task: string
+  taskLower: string
+  /** The journal has it: one a task handed over, not an extra file beside one. */
+  handedOver: boolean
+  waits: boolean
+  /** Where it stands: `waiting on you`, `decided`. */
+  note: string | null
+  /** When it was handed over, so of two the same the newest comes first. */
+  at: string
+}
+
 /** How much of a task's name a document's row says before it gives way. */
 const TASK_CELLS = 32
 
 /**
- * The rows the documents found make, the ones waiting on somebody first and
- * then the newest, each named by its file, said to be its task's and its
- * project's, and saying where it stands.
+ * The documents found, as search keeps them, each said to be its task's and its
+ * project's and saying where it stands.
  *
  * Where it stands is the journal's (`documentsIn`): waiting for a decision,
  * decided — or approved — and nothing at all for a file the journal has no
@@ -460,14 +478,14 @@ const TASK_CELLS = 32
  * not a document anybody was asked about. Its task comes from the journal
  * where it has a record, and from the folder it is in otherwise.
  */
-export function documentEntries(
+export function searchDocuments(
   found: readonly FoundDocument[],
   journal: readonly Document[],
   now: number,
-): SearchEntry[] {
+): SearchDocument[] {
   const byPath = new Map(journal.map((one) => [one.path, one]))
   const waiting = new Set(waitingDocuments(journal, now))
-  const rows = found.map((file) => {
+  return found.map((file) => {
     const one = byPath.get(file.path)
     const cut = file.within.indexOf('/')
     const folder = cut < 0 ? '' : file.within.slice(0, cut)
@@ -483,27 +501,39 @@ export function documentEntries(
         : one && one.followed.length > 0
           ? 'acted on'
           : null
-    const entry: SearchEntry = {
-      id: openId(file.path, null, null),
-      kind: 'document',
+    return {
+      project: file.project,
+      path: file.path,
       label,
-      detail: task ? `${shortTask(task)} · ${file.project}` : file.project,
-      mark: '¶',
-      ...(waits ? { tone: 'waiting' as const } : {}),
-      ...(note ? { note } : {}),
-      ...(task ? { named: task } : {}),
-      complete: label,
+      lower: label.toLowerCase(),
+      task,
+      taskLower: task.toLowerCase(),
+      handedOver: one !== undefined,
+      waits,
+      note,
+      at: one?.at ?? '',
     }
-    return { entry, waits, at: one?.at ?? '' }
   })
-  return rows
-    .sort(
-      (a, b) =>
-        Number(b.waits) - Number(a.waits) ||
-        b.at.localeCompare(a.at) ||
-        a.entry.label.localeCompare(b.entry.label),
-    )
-    .map((row) => row.entry)
+}
+
+/** A document's row, opened where it is, at a line if one was typed. */
+export function documentEntry(
+  document: SearchDocument,
+  line: number | null = null,
+  column: number | null = null,
+): SearchEntry {
+  const { label, note, project, task } = document
+  const said = line ? `line ${line}` : note
+  return {
+    id: openId(document.path, line, column),
+    kind: 'document',
+    label,
+    detail: task ? `${shortTask(task)} · ${project}` : project,
+    mark: '¶',
+    ...(document.waits ? { tone: 'waiting' as const } : {}),
+    ...(said ? { note: said } : {}),
+    complete: label,
+  }
 }
 
 /**
@@ -561,7 +591,7 @@ const SHOWN: Record<SearchKind, number> = {
   meant: 4,
   agent: 6,
   plan: 4,
-  document: 6,
+  document: 12,
   file: 12,
   match: 12,
   terminal: 8,
@@ -621,6 +651,10 @@ export function searchResults(raw: string, sources: SearchSources): SearchEntry[
       out.push(...fileResults(query, sources.files, limit('file')))
       continue
     }
+    if (group.kind === 'document') {
+      out.push(...documentResults(query, sources.documents ?? [], limit('document')))
+      continue
+    }
     if (group.kind === 'terminal') {
       if (query.text.length >= TEXT_MIN) {
         out.push(...terminalResults(query.text, sources.terminals ?? [], limit('terminal')))
@@ -652,12 +686,48 @@ export function searchResults(raw: string, sources: SearchSources): SearchEntry[
       }))
     out.push(...ranked)
   }
+  const placed = documentsNamedFirst(out)
   // One row per thing: where the letters found what was also put forward as
   // what they might have meant, it is the same act either way, and the list
   // says it once.
-  if (!sources.meant?.length) return out
+  if (!sources.meant?.length) return placed
   const seen = new Set<string>()
-  return out.filter((entry) => !seen.has(entry.id) && seen.add(entry.id) !== undefined)
+  return placed.filter((entry) => !seen.has(entry.id) && seen.add(entry.id) !== undefined)
+}
+
+/** What a document may go above, where its name is what was typed. */
+const BELOW_A_NAMED_DOCUMENT: ReadonlySet<SearchKind> = new Set([
+  'approval',
+  'meant',
+  'agent',
+  'plan',
+])
+
+/**
+ * The documents above what only spoke of them, where one's own name holds what
+ * was typed, whole. The agent that wrote `MARKET.md` says so in what it is
+ * doing, so typing that name found the agent first, and enter on it went there
+ * — or, for a row in WAITING ON YOU, answered somebody's approval. Anything
+ * above that matched by a run of letters in its own name stays above.
+ */
+function documentsNamedFirst(out: SearchEntry[]): SearchEntry[] {
+  const first = out.find((entry) => entry.kind === 'document')
+  if (!first || !wholeRun(first.hits)) return out
+  const above = out.filter((entry) => BELOW_A_NAMED_DOCUMENT.has(entry.kind))
+  if (above.length === 0 || above.some((entry) => wholeRun(entry.hits))) return out
+  const documents = out.filter((entry) => entry.kind === 'document')
+  const rest = out.filter(
+    (entry) => entry.kind !== 'document' && !BELOW_A_NAMED_DOCUMENT.has(entry.kind),
+  )
+  const at = rest.findIndex((entry) => entry.kind !== 'path')
+  const paths = at < 0 ? rest.length : at
+  return [...rest.slice(0, paths), ...documents, ...above, ...rest.slice(paths)]
+}
+
+/** Whether the letters that matched are one run of `TEXT_MIN` or more, not letters spelled out along a name. */
+function wholeRun(hits: readonly number[] | undefined): boolean {
+  if (!hits || hits.length < TEXT_MIN) return false
+  return (hits.at(-1) ?? 0) - (hits[0] ?? 0) === hits.length - 1
 }
 
 /**
@@ -668,9 +738,6 @@ export function searchResults(raw: string, sources: SearchSources): SearchEntry[
  * about a thing whose name says nothing is the extra, never the answer.
  */
 const ABOUT_SCORE = -10_000
-
-/** How far a match on the other name an entry answers to ranks below the same match on its label. */
-const NAMED_BELOW = 100
 
 /**
  * How well one entry answers what was typed: its name, and failing that, what
@@ -687,9 +754,6 @@ function answers(
 ): { score: number; hits: number[]; preview?: string } | null {
   const named = fuzzy(text, entry.label)
   if (named) return named
-  const also = entry.named ? fuzzy(text, entry.named) : null
-  // Nothing lit: the letters are in a name the row does not draw as its label.
-  if (also) return { score: also.score - NAMED_BELOW, hits: [] }
   const said = saidIn(text, entry.about)
   return said === null ? null : { score: ABOUT_SCORE, hits: [], preview: said }
 }
@@ -744,6 +808,69 @@ function fileResults(query: Query, files: SearchSources['files'], limit: number)
     complete: file.path,
     hits,
   }))
+}
+
+/** How far a match on a document's task ranks below the same match on its own name. */
+const NAMED_BELOW = 100
+
+/** How far a document a task handed over ranks above an extra file with the same match. */
+const HANDED_OVER = 100
+
+/** A document that matched, and how well. */
+interface RankedDocument {
+  document: SearchDocument
+  score: number
+  hits: number[]
+}
+
+/**
+ * The documents that match, best first: by what its own name says or, with
+ * nothing lit, by its task's name. Only the best `limit` are held while
+ * scanning, as `fileResults` does, and a task's name is matched once for every
+ * file of its listed in a row.
+ */
+function documentResults(
+  query: Query,
+  documents: readonly SearchDocument[],
+  limit: number,
+): SearchEntry[] {
+  if (query.text === '') return []
+  const q = letters(query.text)
+  const best: RankedDocument[] = []
+  let task: string | null = null
+  let onTask: ReturnType<typeof matched> = null
+  for (const document of documents) {
+    if (document.task !== task) {
+      task = document.task
+      onTask = matched(q, document.task, document.taskLower)
+    }
+    const own = matched(q, document.label, document.lower)
+    if (!own && !onTask) continue
+    const score =
+      (own ? own.score : (onTask?.score ?? 0) - NAMED_BELOW) +
+      (document.handedOver ? HANDED_OVER : 0)
+    const one = { document, score, hits: own ? own.hits : [] }
+    const last = best.at(-1)
+    if (best.length >= limit && last && !aheadOf(one, last)) continue
+    const at = best.findIndex((kept) => aheadOf(one, kept))
+    if (at < 0) best.push(one)
+    else best.splice(at, 0, one)
+    if (best.length > limit) best.pop()
+  }
+  return best.map(({ document, hits }) => ({
+    ...documentEntry(document, query.line, query.column),
+    hits,
+  }))
+}
+
+/** Whether one document ranks above another: the better score, waiting on somebody, newer, the name. */
+function aheadOf(a: RankedDocument, b: RankedDocument): boolean {
+  return (
+    (a.score - b.score ||
+      Number(a.document.waits) - Number(b.document.waits) ||
+      (a.document.at > b.document.at ? 1 : a.document.at < b.document.at ? -1 : 0) ||
+      (a.document.label < b.document.label ? 1 : 0)) > 0
+  )
 }
 
 /**

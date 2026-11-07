@@ -1,6 +1,6 @@
 import { accessSync, chmodSync, constants, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ConfigSchema } from '@tade/core'
+import { ConfigSchema, documentsDir } from '@tade/core'
 import { ExtensionHost, type MeantRequest } from '@tade/extensions-core'
 import { describe, expect, it } from 'vitest'
 import { stringify } from 'yaml'
@@ -21,10 +21,12 @@ describe('the window, finding things', () => {
   let terminal: FakeTerminal
   let repo: Repo
   let home: string
+  let client: Wired['client']
   const { start } = windowUnderTest((wired) => {
     terminal = wired.terminal
     repo = wired.repo
     home = wired.home
+    client = wired.client
   })
 
   it('searches with ctrl+k, finding agents and files, and opens a file to read', async () => {
@@ -45,6 +47,49 @@ describe('the window, finding things', () => {
     terminal.press('\r')
     await until('the viewer', () => terminal.written.includes('Open in editor'))
     await until('what the file says', () => terminal.written.includes('fixture'))
+  })
+
+  it('finds a document by its file name past any folder of frames, and enter opens the document', async () => {
+    const dir = documentsDir(home, 'app')
+    // More files than the search ever listed for a project, sorted ahead of it.
+    mkdirSync(join(dir, 'a-frames'), { recursive: true })
+    for (let n = 0; n < 2_100; n++) writeFileSync(join(dir, 'a-frames', `${n}.jpg`), '')
+    // Its task long gone: nothing but the folder says whose it was.
+    mkdirSync(join(dir, 'city-market-research'), { recursive: true })
+    writeFileSync(join(dir, 'city-market-research', 'CITY-MARKET.md'), '# What the market said\n')
+    // An agent that speaks of it, found by what it was asked: that row must not be the one enter takes.
+    repo.addTask('speaks-of-it', { project: 'app', intent: 'read CITY-MARKET.md and act on it' })
+
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\x0b')
+    await until('search', () => terminal.written.includes('Search'))
+    for (const char of 'CITY-MARKET.md') terminal.press(char)
+    await until('the document', () => terminal.written.includes('city-market-research'))
+    terminal.written = ''
+    terminal.press('\r')
+    await until('the viewer', () => terminal.written.includes('Open in editor'))
+    await until('what it says', () => terminal.written.includes('What the market said'))
+  })
+
+  it('finds a document the journal has that no folder listed', async () => {
+    const elsewhere = join(home, 'kept-elsewhere')
+    mkdirSync(elsewhere, { recursive: true })
+    writeFileSync(join(elsewhere, 'MOVED-AWAY.md'), '# Kept somewhere else\n')
+    await client.log.append({
+      type: 'task_done',
+      urgency: 'notable',
+      task: 'app/moved-it',
+      detail: { by: 'agent', summary: 'wrote it', produces: join(elsewhere, 'MOVED-AWAY.md') },
+    })
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\x0b')
+    await until('search', () => terminal.written.includes('Search'))
+    for (const char of 'MOVED-AWAY') terminal.press(char)
+    await until('the document', () => terminal.written.includes('¶ MOVED-AWAY.md'))
+    terminal.press('\r')
+    await until('what it says', () => terminal.written.includes('Kept somewhere else'))
   })
 
   it('asks what a sentence means when the letters find nothing, and shows what comes back', async () => {
