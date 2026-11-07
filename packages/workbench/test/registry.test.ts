@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { chmodSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { type LaneId, taskDir } from '@tade/core'
 import { ECHO_CHILD, until } from '@tade/drivers-core/conformance'
 import { PtyDriver } from '@tade/drivers-pty'
@@ -265,6 +265,26 @@ describe('the lane registry, across a restart', () => {
       // And again, by a window after that one: `lost` is not a one-open grace.
       const third = await session(new PtyDriver({ scrollback: 200 }))
       expect(third.get('app/lost/agent' as LaneId)?.lost).toBe(true)
+    })
+
+    it('writes down a lane opened after a save that failed, rather than failing for ever', async () => {
+      const registry = await session(new PtyDriver({ scrollback: 200 }))
+      await lane(registry, 'app/first/agent')
+      // Nothing can be made in the folder: a full disk, as far as the save knows.
+      const folder = dirname(path)
+      chmodSync(folder, 0o500)
+      try {
+        await expect(lane(registry, 'app/refused/agent')).rejects.toThrow(/EACCES/)
+      } finally {
+        chmodSync(folder, 0o700)
+      }
+      await lane(registry, 'app/after/agent')
+      const saved = JSON.parse(readFileSync(path, 'utf8'))
+      expect(saved.lanes.map((l: { id: string }) => l.id)).toEqual([
+        'app/after/agent',
+        'app/first/agent',
+        'app/refused/agent',
+      ])
     })
 
     it('leaves the registry file readable by anything of yours that wants to look', async () => {

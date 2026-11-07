@@ -12,6 +12,7 @@ import {
   planStandings,
   secretCommand,
   signInUse,
+  type TadeEvent,
   windowLabel,
 } from '@tade/core'
 import type { AccountStatus, HarnessAccount, PlanLimits, WorkerAdapter } from '@tade/harnesses-core'
@@ -209,6 +210,38 @@ function paysFor(
 ): 'plan' | 'per-token' {
   if (name) return config.accounts[name]?.kind === 'api-key' ? 'per-token' : 'plan'
   return adapter.capabilities.spend.usd === 'none' ? 'plan' : 'per-token'
+}
+
+/**
+ * Whether a task's agent was ever told anything in this harness, off the
+ * journal's `run_started` and `turn_started`, oldest first: what makes a
+ * conversation that cannot be found one that has gone, or never got as far as
+ * being written, rather than one an agent opened with nothing to say has yet to
+ * have. A turn is the harness's whose run came before it, since a conversation
+ * does not move between harnesses.
+ */
+export function wasTold(events: readonly TadeEvent[], harness: string): boolean {
+  let on: unknown = null
+  for (const event of events) {
+    if (event.type === 'run_started') on = event.detail.adapter
+    if (on !== harness) continue
+    if (event.type === 'turn_started' || event.detail.told === true) return true
+  }
+  return false
+}
+
+/** What opening an agent says when its harness keeps no conversation for it on any sign-in. */
+export function noConversationSays(task: string, harness: string): string {
+  return `${task}'s agent was told what to do, and ${harness} keeps no record of its conversation on any account here, so there is nothing to open: nothing was started. Starting it with a prompt begins a new conversation, which will not remember the old one.`
+}
+
+/** What opening an agent says when its conversation could not come to the account it runs as. */
+export function carryRefused(
+  task: string,
+  from: string | undefined,
+  to: string | undefined,
+): string {
+  return `${task}'s conversation is on ${from ?? 'the own sign-in'} and could not be carried to ${to ?? 'the own sign-in'}, so nothing was started`
 }
 
 /**

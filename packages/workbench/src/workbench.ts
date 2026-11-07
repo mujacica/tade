@@ -91,7 +91,15 @@ import { git, readCommits } from '@tade/status'
 import type { Reporter } from '@tade/telemetry'
 import { parse as parseYaml } from 'yaml'
 import type { AccountView } from './accounts.ts'
-import { askPlans, harnessAccount, listAccounts, planSources } from './accounts.ts'
+import {
+  askPlans,
+  carryRefused,
+  harnessAccount,
+  listAccounts,
+  noConversationSays,
+  planSources,
+  wasTold,
+} from './accounts.ts'
 import { answerAgentTool } from './agent-tools.ts'
 import { recordAuthored } from './authored.ts'
 import { guardBudget } from './budget.ts'
@@ -1476,8 +1484,11 @@ export class Workbench {
     const harness = req.harness ?? (await this.harnessOf(req.task))
     // A name the own sign-in was given is the own sign-in (`signInChosen`).
     const named = req.account ? signInChosen(this.config, harness, req.account) : null
-    const account = req.account ? (named ?? undefined) : await this.accountOf(req.task, harness)
+    const account = req.account
+      ? (named ?? undefined)
+      : await this.accountOf(req.task, harness, req.cwd)
     const adapter = this.adapterFor(harness, account)
+    const resuming = await this.bringConversation(req, harness, account)
     const extras = withTade(
       req.extras ??
         this.extensions?.extras({
@@ -1494,7 +1505,6 @@ export class Workbench {
     // The model new agents start on is for new agents. One coming back to its
     // conversation keeps the model that conversation was on, which its session
     // remembers — told the default instead, it would quietly change models.
-    const resuming = await adapter.hasConversation(req.task, req.cwd)
     // Coming back, a harness that keeps its model is left on it; one that does
     // not is told again what it last ran on, as the journal heard it.
     const keeps = resuming && adapter.capabilities.resumeKeeps
@@ -1597,10 +1607,75 @@ export class Workbench {
    */
   private async hasConversation(task: string, cwd: string): Promise<boolean> {
     const harness = await this.harnessOf(task)
-    const account = await this.accountOf(task, harness)
-    return Promise.resolve()
-      .then(() => this.adapterFor(harness, account).hasConversation(task as TaskId, cwd))
-      .catch(() => false)
+    const account = await this.accountOf(task, harness, cwd)
+    return (await this.keptOn(task, cwd, harness, account)) !== null
+  }
+
+  /**
+   * The sign-in of its harness that keeps a task's conversation, `first` if it
+   * does, or null where none does. Asked of the adapters, because only a harness
+   * knows where its record is, and only of sign-ins it says it can have more of.
+   */
+  private async keptOn(
+    task: string,
+    cwd: string,
+    harness: string,
+    first: string | undefined,
+  ): Promise<{ account: string | undefined } | null> {
+    for (const account of [first, ...this.otherSignIns(harness, first)]) {
+      const has = await Promise.resolve()
+        .then(() => this.adapterFor(harness, account).hasConversation(task as TaskId, cwd))
+        .catch(() => false)
+      if (has) return { account }
+    }
+    return null
+  }
+
+  /** A harness's sign-ins other than this one: none for one that has only the one. */
+  private otherSignIns(harness: string, than: string | undefined): (string | undefined)[] {
+    if (!this.adapterFor(harness).capabilities.accounts) return []
+    const added = Object.keys(this.config.accounts).filter(
+      (name) => this.config.accounts[name]?.harness === harness,
+    )
+    return [undefined, ...added].filter((one) => one !== than)
+  }
+
+  /**
+   * Have an agent's conversation where it is about to run, and say whether it
+   * has one: an account chosen for it takes its conversation with it, from
+   * whichever sign-in keeps it. Asked to come back saying nothing, with no
+   * conversation anywhere, an agent that was told something is refused in words,
+   * because the empty session it would open reads exactly like an agent that
+   * never got its prompt.
+   */
+  private async bringConversation(
+    req: StartRunRequest,
+    harness: string,
+    account: string | undefined,
+  ): Promise<boolean> {
+    const adapter = this.adapterFor(harness, account)
+    const kept = await this.keptOn(req.task, req.cwd, harness, account)
+    if (kept) {
+      if (kept.account === account) return true
+      const from = this.adapterFor(harness, kept.account)
+      const carried = await from.carryConversation(req.task, req.cwd, adapter).catch((err) => {
+        throw new Error(
+          `${carryRefused(req.task, kept.account, account)}: ${(err as Error).message}`,
+        )
+      })
+      if (!carried) throw new Error(carryRefused(req.task, kept.account, account))
+      await this.log.append({
+        type: 'state_change',
+        task: req.task,
+        detail: { account: account ?? 'default', carried, by: 'reopen' },
+      })
+      return true
+    }
+    if (req.prompt === '' && adapter.capabilities.resume) {
+      const heard = await this.log.read({ types: ['run_started', 'turn_started'], task: req.task })
+      if (wasTold(heard, adapter.id)) throw new Error(noConversationSays(req.task, harness))
+    }
+    return false
   }
 
   /** What an agent starting on a task is told about where it is. */
@@ -1685,17 +1760,28 @@ export class Workbench {
    * after Tade closed, or started again on its task, goes back to the sign-in
    * its conversation is kept in, rather than to whichever one the project was
    * switched to meanwhile — where its conversation is not.
+   *
+   * That record can be missing or wrong (a save that failed, an agent that
+   * reopened on an empty session), and the harness's own record cannot: a
+   * conversation kept on another sign-in is where an agent nobody moved goes
+   * back to. One that is running is where it is, and is not looked for.
    */
-  private async accountOf(task: string, harness: string): Promise<string | undefined> {
+  private async accountOf(
+    task: string,
+    harness: string,
+    cwd?: string,
+  ): Promise<string | undefined> {
     const own = await this.taskAccount(task)
     if (own === OWN_SIGN_IN) return undefined
     if (own) return this.config.accounts[own]?.harness === harness ? own : undefined
     const ran = this.registry.get(`${task}/agent` as LaneId)
-    if (ran?.harness === harness) {
-      if (!ran.account) return undefined
-      if (this.config.accounts[ran.account]?.harness === harness) return ran.account
-    }
-    return this.accountUsing(harness, task.split('/')[0] ?? null)
+    const usable =
+      ran?.harness === harness &&
+      (!ran.account || this.config.accounts[ran.account]?.harness === harness)
+    const last = usable ? ran.account : this.accountUsing(harness, task.split('/')[0] ?? null)
+    if ((usable && ran.alive) || this.otherSignIns(harness, last).length === 0) return last
+    const kept = await this.keptOn(task, cwd ?? ran?.spec.cwd ?? '', harness, last)
+    return kept ? kept.account : last
   }
 
   /** The account a harness's new agents run as in a project, or on the machine where there is none. */
@@ -1969,13 +2055,16 @@ export class Workbench {
     if (req.account && this.config.accounts[req.account]?.harness !== harness) {
       throw new Error(`${req.account} is not a ${harness} account`)
     }
-    const from = this.adapterFor(harness, await this.accountOf(req.task, harness))
+    const current = await this.accountOf(req.task, harness, req.worktree)
+    // From wherever it is kept: the account last chosen may be one it never reached.
+    const kept = await this.keptOn(req.task, req.worktree, harness, current)
+    const from = this.adapterFor(harness, kept ? kept.account : current)
     const to = this.adapterFor(harness, req.account ?? undefined)
     const lane = `${req.task}/agent` as LaneId
     const running = this.registry.get(lane)?.alive === true
     if (running) await this.stopAgent(req.task)
     const carried =
-      from !== to
+      kept && from !== to
         ? await from.carryConversation(req.task as TaskId, req.worktree, to).catch(() => false)
         : false
     // Its own sign-in said as such, so a project or a machine that runs new

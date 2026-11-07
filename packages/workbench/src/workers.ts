@@ -362,6 +362,8 @@ export class WorkerSupervisor {
         approvals: this.approvals.mode,
         // A person's start past `max_parallel`, and by how much, so it is never silent.
         ...(request.over ? { over: request.over } : {}),
+        // Told something, so its conversation is one to come back to (`wasTold`).
+        ...(request.prompt ? { told: true } : {}),
       },
     })
     return handle
@@ -444,9 +446,12 @@ export class WorkerSupervisor {
   async stop(run: RunId): Promise<void> {
     const state = this.runs.get(run)
     if (!state) return
+    // Asked first: once forgotten, `adapterOf` is the default adapter, not this
+    // run's, and an account's adapter left holding it refuses its next start.
+    const adapter = this.adapterOf(run)
     // A refusal is scoped to the run it was given in, so this drops that too.
     this.forget(run)
-    await this.adapterOf(run).stop(run)
+    await adapter.stop(run)
     await this.log.append({ type: 'run_exited', task: state.task, run, detail: { stopped: true } })
   }
 

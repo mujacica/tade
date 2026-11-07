@@ -621,6 +621,34 @@ describe('WorkerSupervisor', () => {
     expect((await logged(log, 'run_exited')).length).toBeGreaterThan(0)
   })
 
+  it('stops a run in the adapter it started in, which may not be the default', async () => {
+    const log = await EventLog.open({ path: join(tmp('tade-workers-'), 'events.jsonl') })
+    close = () => log.close()
+    const own = new FakeAdapter()
+    const account = new FakeAdapter()
+    const supervisor = new WorkerSupervisor({
+      home: tmp('tade-workers-home-'),
+      adapter: own,
+      adapters: { fake: own, 'fake@work': account },
+      log,
+      approvals: { mode: 'bypass' },
+    })
+    await supervisor.start({
+      run: 'r1',
+      task: 'app/refunds',
+      cwd: WORKTREE,
+      prompt: 'go',
+      harness: 'fake@work',
+    })
+    await supervisor.stop('r1')
+    // Left holding it, an account's adapter refuses the run's next start with
+    // `run already started`, and the journal never hears that it ended.
+    expect(account.stopped).toEqual(['r1'])
+    expect(own.stopped).toEqual([])
+    expect(await logged(log, 'run_exited')).toHaveLength(1)
+    expect((await logged(log, 'run_started'))[0]?.detail.told).toBe(true)
+  })
+
   it('steering reaches the agent', async () => {
     const { log, adapter, supervisor } = await setup('bypass')
     close = () => log.close()

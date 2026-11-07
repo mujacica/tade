@@ -56,7 +56,7 @@ describe('an agent is titled by its work', () => {
     await client.startAgent({ task: task.id, cwd: task.worktree, prompt: OPENING })
     await client.renameAgent({ task: task.id, worktree: task.worktree, title: 'Window titles' })
     await client.stopAgent(task.id)
-    const lane = await client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' })
+    const lane = await client.startAgent({ task: task.id, cwd: task.worktree, prompt: 'go on' })
     expect(titleOf(task.id)).toBe('Window titles')
     expect(lane.spec.env?.TADE_TITLE).toBe('Window titles')
     expect(lane.spec.env?.TADE_CALLED).toBeUndefined()

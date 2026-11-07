@@ -587,6 +587,9 @@ describe('task and run RPC', () => {
   }, 60_000)
 
   it('says the opening instruction once: reopening an agent says nothing to it', async () => {
+    const sessionsRoot = tmp('tade-sessions-')
+    await client.close()
+    client = await Workbench.open({ home, version: '9.9.9', sessionsRoot })
     const task = await client.createTask({
       project: 'app',
       slug: 'refunds',
@@ -607,6 +610,10 @@ describe('task and run RPC', () => {
 
     // The window closed on it, and opens it again where it left off.
     await client.stopAgent(task.id)
+    // As far as it got: told something and with no record, it is not opened at all.
+    const dir = sessionDirFor(task.worktree, sessionsRoot)
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, `2026-09-13T04-14-42-404Z_${sessionIdFor(task.id)}.jsonl`), '{}\n')
     const back = await client.reopenAgent({ task: task.id, cwd: task.worktree })
     const again = (await client.driver.list()).find((one) => one.id === back.id)
     expect(again?.spec.args).not.toContain('start with the webhook')

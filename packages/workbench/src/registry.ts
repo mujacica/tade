@@ -599,7 +599,11 @@ export class LaneRegistry {
       driver: this.driver.id,
       lanes: this.list().map((lane) => ({ ...lane, spec: withoutInherited(lane.spec) })),
     }
-    this.saving = this.saving.then(() => writeJsonAtomic(this.path, snapshot))
+    // Whoever asked for a save that failed hears of it. Chained on as it stood, one
+    // full disk failed every save after it with the same error, for as long as
+    // the window stayed open, and every lane opened since was lost to the next one.
+    const write = () => writeJsonAtomic(this.path, snapshot)
+    this.saving = this.saving.then(write, write)
     await this.saving
   }
 }

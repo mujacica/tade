@@ -174,6 +174,16 @@ as `LaunchSpec.opening`, is appended at that launch only, and is never written i
 adapter that returned the opening prompt inside `args` would break exactly that, which is why the
 port has it come back in `opening` and nowhere else.
 
+**An agent keeps its conversation whichever account new agents run as.** Which account one runs as
+is `accountOf`: its own choice, else the lane's record, else the setting, and then the harness is asked
+(`hasConversation`, through `keptOn`), because a record can be lost to a failed save and a transcript
+cannot. One nobody moved goes back to the sign-in that keeps it; one somebody moved has it carried
+there before it launches (`bringConversation`, `carryConversation`). Only an adapter that says
+`capabilities.accounts` is asked about more than its own sign-in. Asked to come back with nothing to
+say, a harness with `resume` and no conversation anywhere refuses in words if the journal says it was
+told something (`wasTold`), because the empty session it would open reads as an agent that
+never got its prompt. Nothing was said to it yet is a first start, and opens.
+
 Queued work whose agent already has a conversation is brought back rather than told again
 (`hasConversation`, then `reopened` in `queue_started`): an agent that hears its first instruction
 twice does the work twice, on top of what it has already done.
