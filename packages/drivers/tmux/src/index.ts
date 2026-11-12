@@ -508,6 +508,13 @@ export class TmuxDriver implements WorkspaceDriver {
     await this.tmux(['kill-window', '-t', lane.window]).catch(() => {
       // Already gone, which is the state we wanted.
     })
+    // A killed window leaves no dead pane for `reap` to read a code from, so
+    // whoever waits on this lane's exit is told here that it ended, and how
+    // is not known — unless `reap` saw it end first and has told them already.
+    if (!lane.exited) {
+      const event = { code: null, signal: null }
+      for (const listener of lane.exits) safely(() => listener(event))
+    }
     lane.outputs.clear()
     lane.exits.clear()
     rmSync(lane.pipe, { force: true })

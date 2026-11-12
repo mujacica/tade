@@ -226,6 +226,11 @@ export interface WorkspaceDriver {
 
   /** Live output. Replays the buffered scrollback first when `replay` is set. */
   onOutput(lane: LaneId, listener: LaneOutputListener, opts?: { replay?: boolean }): Unsubscribe
+  /**
+   * Told once when the lane's program ends — closed by `close()` included,
+   * with `code` null where how it ended cannot be known. `detach()` ends
+   * nothing, so it tells nobody.
+   */
   onExit(lane: LaneId, listener: LaneExitListener): Unsubscribe
   /**
    * Let go of every lane without ending it: stop watching, release resources,

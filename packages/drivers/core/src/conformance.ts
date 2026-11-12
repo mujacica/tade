@@ -331,6 +331,27 @@ export function testWorkspaceDriver(
 
     testAttaching({ driver: () => driver, spec: () => spec(), waitFor })
 
+    // A lane closed is a lane that ended, and whoever waits on its exit — the
+    // run of an agent stopped by closing its lane — is told, or the run stays
+    // listed for ever. Under tmux a killed window leaves no code to read.
+    it('close tells whoever waits on the exit, once', async () => {
+      const s = spec()
+      await driver.open(s)
+      await waitFor(s.id, 'ready')
+      const exits: Array<{ code: number | null }> = []
+      driver.onExit(s.id, (e) => exits.push(e))
+      await driver.close(s.id)
+      await until(() => exits.length > 0)
+      await driver.close(s.id)
+      // Its end, not the one after it: opened again, the old listener hears nothing more.
+      await driver.open(s)
+      const again: unknown[] = []
+      driver.onExit(s.id, (e) => again.push(e))
+      await driver.close(s.id)
+      await until(() => again.length > 0)
+      expect(exits).toHaveLength(1)
+    })
+
     it('close is idempotent', async () => {
       const s = spec()
       await driver.open(s)
