@@ -371,6 +371,10 @@ export class PtyDriver implements WorkspaceDriver {
       lane.handle.exitCode = exitCode
       const event = { code: exitCode, signal: signal ?? null }
       for (const listener of lane.exits) safely(() => listener(event))
+      // Kept until now rather than let go of with the screen: a lane closed
+      // ends here, after `close()` has returned, and whoever waits on its exit
+      // — the run of an agent stopped by closing its lane — is told it ended.
+      lane.exits.clear()
     })
     return { ...lane.handle }
   }
@@ -801,7 +805,6 @@ export class PtyDriver implements WorkspaceDriver {
     lane.replay = []
     lane.replayBytes = 0
     lane.outputs.clear()
-    lane.exits.clear()
     for (const waiting of lane.waiting) waiting.done()
   }
 }
