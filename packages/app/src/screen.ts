@@ -834,6 +834,9 @@ export async function runScreen(
 
       const show = async () => {
         const screen = await driver.capture(id, { lines: rows }).catch(() => '')
+        // A look still on its way when the program ended or was left would
+        // draw its box back over whatever comes next, the next question cut.
+        if (lane !== id) return
         state = { ...state, running: { title, screen } }
         draw()
       }

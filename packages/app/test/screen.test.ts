@@ -481,6 +481,48 @@ describe('answering it', () => {
     expect(left).toBe(true)
   }, 30_000)
 
+  // A look at the program still on its way when it was left landed after the
+  // run had ended, drew its box back, and cut the next question off the screen.
+  it('draws nothing back of a program that has gone, whatever look was on its way', async () => {
+    const terminal = new FakeTerminal()
+    const slowed = new PtyDriver({ scrollback: 200 })
+    driver = slowed
+    const capture = slowed.capture.bind(slowed)
+    let held: Promise<void> | null = null
+    let flying = 0
+    slowed.capture = async (id, opts) => {
+      flying += 1
+      try {
+        const screen = await capture(id, opts)
+        await held
+        return screen
+      } finally {
+        flying -= 1
+      }
+    }
+    await runScreen({ title: 'Tade', terminal, driver }, async (ui: Ui) => {
+      const running = ui.run('pi', process.execPath, ['-e', KEYS_CHILD])
+      await until(() => terminal.written.includes('ready'))
+      let land = () => {}
+      held = new Promise((resolve) => {
+        land = resolve
+      })
+      await until(() => flying > 0)
+      terminal.press('\x1d')
+      await running
+      const asked = ui.ask('which branch', 'main')
+      await until(() => terminal.written.includes('which branch'))
+      const since = terminal.written.length
+      land()
+      await until(() => flying === 0)
+      terminal.press('x')
+      await until(() => terminal.written.slice(since).includes('x'))
+      expect(stripTerminalSequences(terminal.written.slice(since))).not.toContain('ready')
+      terminal.press('\r')
+      await asked
+    })
+  }, 30_000)
+
   /** A driver whose first close fails, as one that cannot let a program go; shutdown's works. */
   const closingFails = () => {
     const failing = new PtyDriver({ scrollback: 200 })
