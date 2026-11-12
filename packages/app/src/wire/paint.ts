@@ -289,6 +289,20 @@ class TimedScreen extends TuiAltScreen {
     super.stop(options)
   }
 
+  /**
+   * Whatever was asked for before the stop, the window comes back as a whole
+   * frame. pi-tui's `stop` cancels a frame waiting on its timer but leaves it
+   * asked for, so the `start` that puts the window back found one already
+   * asked for and asked for none — and every key after it the same: the
+   * window came back from a sign-in dark, and stayed dark until a resize,
+   * while Enter still pressed whatever the keyboard was on. Lending the screen
+   * is a click away from any frame, so a request in flight is the usual case.
+   */
+  override start(): void {
+    super.start()
+    this.requestRender(true)
+  }
+
   protected override doRender(): void {
     const timings = timing()
     const at = timings.start()

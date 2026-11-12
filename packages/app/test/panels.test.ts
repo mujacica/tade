@@ -1434,6 +1434,22 @@ describe('the Accounts page', () => {
     expect(use).toMatchObject({ submit: true, choice: 'account:use:claude-code:work' })
   })
 
+  // Signing Claude Code in again by clicking it left the keyboard on the row it
+  // was last on — the top, pi's sign-in on a page where pi comes first — so
+  // Enter on the window that came back opened pi's /login.
+  it('puts the keyboard on the button that was clicked, so Enter after it presses that one', () => {
+    const inputs = { accountActions: accountActions(accounts) }
+    const panel = { ...settingsPanel('accounts'), focus: 'categories' as const, row: 0 }
+    const clicked = panelClick(panel, 'account:sign-in:pi:', inputs)
+    expect(clicked).toMatchObject({ submit: true, choice: 'account:sign-in:pi:' })
+    expect(clicked.panel).toMatchObject({ row: 8, focus: 'form' })
+    const again = panelKey(clicked.panel as typeof panel, 'enter', '\r', inputs)
+    expect(again).toMatchObject({ submit: true, choice: 'account:sign-in:pi:' })
+    // And the one asked twice is asked about the row the hand is on.
+    const remove = panelClick(panel, 'account:remove:claude-code:work', inputs)
+    expect(remove.panel).toMatchObject({ row: 5, confirm: 'account:remove:claude-code:work' })
+  })
+
   it('moves an agent only to an account of its harness that is signed in', () => {
     const items = accountMenuItems(accounts, 'claude-code', '')
     expect(items.map((item) => [item.id, item.off ?? item.note ?? ''])).toEqual([

@@ -618,6 +618,16 @@ export function settingsClick(
   return write === null ? outcome : alsoWriting(panel, outcome, write)
 }
 
+/** The keyboard on the press that was clicked, where it is one the keys walk. */
+function underHand(
+  panel: SettingsPanel,
+  presses: readonly { id: string }[],
+  control: string,
+): SettingsPanel {
+  const at = presses.findIndex((press) => press.id === control)
+  return at < 0 || panel.search ? panel : { ...panel, row: at, focus: 'form' }
+}
+
 function clicked(
   panel: SettingsPanel,
   control: string,
@@ -635,10 +645,16 @@ function clicked(
       return close
     case 'open-file':
       return { panel, submit: true, choice: 'open-file' }
+    // A press puts the keyboard where the hand was, as Updates does below: left
+    // behind, the next Enter pressed whatever row the keyboard was last on —
+    // pi's sign-in, at the top of Accounts, after a click on Claude Code's.
     case 'account':
-      return accountChoice(panel, control)
+      return accountChoice(underHand(panel, inputs.accountActions ?? [], control), control)
     case 'remote':
-      return remoteChoice(panel, control)
+      return remoteChoice(
+        underHand(panel, remotePresses(inputs.remoteActions ?? [], panel), control),
+        control,
+      )
     case 'updates': {
       // Both the row and the button: clicking a button on a page of them
       // should put the keyboard where the click was, so the next Enter

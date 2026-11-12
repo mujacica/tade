@@ -331,6 +331,31 @@ describe('what the screen draws at once, and what it spreads out', () => {
     }
   })
 
+  // A press that lends the screen out — Sign in again… on the Accounts page —
+  // asks for its own frame and stops the window in the same turn. pi-tui's
+  // stop cancels the timer and keeps the frame asked for, so the start that
+  // puts the window back asked for none and every key after it the same: the
+  // window came back from a Claude sign-in dark, and Enter on it pressed
+  // whatever the keyboard was on.
+  it('comes back drawn when a frame was asked for just before another screen took it', async () => {
+    const { screen, frames } = screened()
+    try {
+      await until('the first frame', () => frames() > 0)
+      await new Promise((resolve) => setTimeout(resolve, NEWS_MS))
+      screen.requestRender()
+      screen.stop()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      const was = frames()
+      screen.start()
+      await until('a frame on coming back', () => frames() > was)
+      const back = frames()
+      screen.requestRender()
+      await until('a frame for whatever is asked for next', () => frames() > back)
+    } finally {
+      screen.stop()
+    }
+  })
+
   // An agent asking is news somebody is waiting on. It never waits behind
   // news that is only being spread out.
   it('never holds back news somebody is waiting on', async () => {

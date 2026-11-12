@@ -1,10 +1,12 @@
-import type { Terminal } from '@earendil-works/pi-tui'
+import { stripTerminalSequences, type Terminal } from '@earendil-works/pi-tui'
 import { ECHO_CHILD, until } from '@tade/drivers-core/conformance'
 import { PtyDriver } from '@tade/drivers-pty'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   drawScreen,
+  ESCAPE_HEARD_MS,
   initialScreen,
+  LEFT,
   PLAIN,
   paletteFor,
   renderScreen,
@@ -25,6 +27,21 @@ const context = [
   '· A model to think with — nothing set',
   '○ Speech, if you want it — no mic',
 ]
+
+/**
+ * A program that reads keys one at a time, as pi does: says each back, and
+ * with `answers` draws a line for an escape, as pi does closing a dialog.
+ */
+const KEYS_CHILD = `
+process.stdin.setRawMode(true)
+process.stdout.write('ready\\r\\n')
+let stopped = 0
+process.stdin.on('data', (data) => {
+  const key = data.toString()
+  if (key !== '\\x1b') process.stdout.write('got:' + JSON.stringify(key) + '\\r\\n')
+  else if (process.argv[1] === 'answers') process.stdout.write('stopped ' + ++stopped + '\\r\\n')
+})
+`
 
 class FakeTerminal implements Terminal {
   columns = 80
@@ -385,6 +402,104 @@ describe('answering it', () => {
     await until(() => terminal.written.includes('ready'))
     terminal.press('\x03')
     await expect(stopped).rejects.toThrow(ScreenCancelled)
+  }, 30_000)
+
+  // Tade's terminal is asked for the kitty protocol, so in Ghostty ctrl+] is
+  // `ESC[93;5u`, ctrl+c `ESC[99;5u` and every letter is followed by its
+  // release. Matched against the bytes alone, neither key left pi's sign-in.
+  it('leaves on ctrl+] as a kitty terminal sends it, and types no release into the program', async () => {
+    const terminal = new FakeTerminal()
+    driver = new PtyDriver({ scrollback: 200 })
+    await runScreen({ title: 'Tade', terminal, driver }, async (ui: Ui) => {
+      const running = ui.run('pi', process.execPath, ['-e', KEYS_CHILD])
+      await until(() => terminal.written.includes('ready'))
+      terminal.press('\x1b[97u')
+      terminal.press('\x1b[97;1:3u')
+      terminal.press('\x1b[98u')
+      await until(() => terminal.written.includes('got:"b"'))
+      terminal.press('\x1b[93;5u')
+      // Left, which is not the program finishing: an installer left is not installed.
+      expect(await running).toBe(LEFT)
+    })
+    expect(terminal.written).toContain('got:"a"')
+    expect(terminal.written).not.toContain('[97')
+  }, 30_000)
+
+  it('stops on ctrl+c as a kitty terminal sends it', async () => {
+    const terminal = new FakeTerminal()
+    driver = new PtyDriver({ scrollback: 200 })
+    const stopped = runScreen({ title: 'Tade', terminal, driver }, async (ui: Ui) => {
+      await ui.run('pi', process.execPath, ['-e', KEYS_CHILD])
+    })
+    await until(() => terminal.written.includes('ready'))
+    terminal.press('\x1b[99;5u')
+    await expect(stopped).rejects.toThrow(ScreenCancelled)
+  }, 30_000)
+
+  // A keyboard with no `]` has no ctrl+]: an escape the program shows no sign
+  // of having heard is the way out every keyboard has.
+  it('leaves on an escape the program did nothing with', async () => {
+    const terminal = new FakeTerminal()
+    driver = new PtyDriver({ scrollback: 200 })
+    await runScreen({ title: 'Tade', terminal, driver }, async (ui: Ui) => {
+      const running = ui.run('pi', process.execPath, ['-e', KEYS_CHILD])
+      await until(() => terminal.written.includes('ready'))
+      terminal.press('\x1b')
+      await running
+    })
+  }, 30_000)
+
+  // pi's /login choice is closed with escape, and a turn stopped with it: an
+  // escape that changed the screen was the program's.
+  it('leaves an escape to a program that answered it, and to one typed on after it', async () => {
+    const terminal = new FakeTerminal()
+    driver = new PtyDriver({ scrollback: 200 })
+    let left = false
+    await runScreen({ title: 'Tade', terminal, driver }, async (ui: Ui) => {
+      const running = ui.run('pi', process.execPath, ['-e', KEYS_CHILD, 'answers']).then(() => {
+        left = true
+      })
+      await until(() => terminal.written.includes('ready'))
+      terminal.press('\x1b')
+      await until(() => terminal.written.includes('stopped 1'))
+      await new Promise((resolve) => setTimeout(resolve, ESCAPE_HEARD_MS * 2))
+      expect(left, 'an escape the program answered').toBe(false)
+
+      terminal.press('\x1b[27u')
+      terminal.press('x')
+      await until(() => terminal.written.includes('got:"x"'))
+      await new Promise((resolve) => setTimeout(resolve, ESCAPE_HEARD_MS * 2))
+      expect(left, 'an escape somebody typed on after').toBe(false)
+      terminal.press('\x1d')
+      await running
+    })
+    expect(left).toBe(true)
+  }, 30_000)
+
+  it('leaves on a click on Back to Tade, in the foot and on the box', async () => {
+    const drawn = drawScreen(
+      { ...initialScreen('Tade'), running: { title: 'pi', screen: '' } },
+      { width: 80, height: 24 },
+    )
+    const backs = drawn.hits.filter((h) => h.target.kind === 'control' && h.target.id === 'back')
+    // The box's label and the foot's button, each where its words are drawn.
+    expect(backs).toHaveLength(2)
+    for (const hit of backs) {
+      const row = stripTerminalSequences(drawn.rows[hit.row] ?? '')
+      expect(row.slice(hit.from, hit.to + 1)).toMatch(/back to Tade/i)
+    }
+    for (const hit of backs) {
+      const terminal = new FakeTerminal()
+      driver = new PtyDriver({ scrollback: 200 })
+      await runScreen({ title: 'Tade', terminal, driver }, async (ui: Ui) => {
+        const running = ui.run('pi', process.execPath, ['-e', KEYS_CHILD])
+        await until(() => terminal.written.includes('ready'))
+        terminal.press(`\x1b[<0;${hit.from + 2};${hit.row + 1}M`)
+        terminal.press(`\x1b[<0;${hit.from + 2};${hit.row + 1}m`)
+        await running
+      })
+      await driver.shutdown()
+    }
   }, 30_000)
 
   it('waits to be told an explanation has been read', async () => {

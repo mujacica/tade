@@ -11,6 +11,7 @@ import {
 import type { LaneId } from '@tade/core'
 import { PtyDriver } from '@tade/drivers-pty'
 import { type Hit, hitAt } from './hits.ts'
+import { forLane } from './keys.ts'
 import { typed as typedText } from './panels/outcome.ts'
 import {
   COLOUR as COLOUR_SKIN,
@@ -279,9 +280,10 @@ export function drawScreen(
 
   // ── the keys ──
   rows.push({ text: skin.chrome('─'.repeat(width)), hits: [] })
+  const foot = new Row(width, skin).space()
+  if (state.running) foot.button('Back to Tade', { kind: 'control', id: BACK }, 'rest').space()
   rows.push(
-    new Row(width, skin)
-      .space()
+    foot
       .text(keys(state), skin.hint)
       .right((r) => r.text('ctrl+c quits — what you answered is saved', skin.hint).space())
       .build(),
@@ -358,13 +360,18 @@ function drawQuestion(
         hits: [],
       })
     }
-    const back = ' ctrl+] back to Tade '
-    body.push(
-      row()
+    // The way out is pressed as well as typed: on a keyboard with no `]` there
+    // is no ctrl+], and a program that keeps escape for itself never lets one go.
+    const back = ' back to Tade '
+    const run = Math.max(0, termWidth - 3 - back.length)
+    const label = { from: 2 + run, to: 1 + run + back.length }
+    body.push({
+      text: row()
         .space()
-        .text(`└${'─'.repeat(Math.max(0, termWidth - 3 - back.length))}${back}─┘`, skin.chrome)
-        .build(),
-    )
+        .text(`└${'─'.repeat(run)}${back}─┘`, skin.chrome)
+        .build().text,
+      hits: [{ row: 0, ...label, target: { kind: 'control', id: BACK } }],
+    })
   } else if (state.menu) {
     const menu = state.menu
     title = menu.question
@@ -478,7 +485,7 @@ function fitScreen(text: string, width: number): string {
 }
 
 function keys(state: ScreenState): string {
-  if (state.running) return 'ctrl+] back to Tade'
+  if (state.running) return 'or ctrl+], or esc while it waits'
   if (state.menu) return '↑↓ choose · enter continue'
   if (state.prompt) return 'enter continues, or takes the suggestion'
   return ''
@@ -502,7 +509,7 @@ export interface Ui {
   /**
    * Run something in a terminal inside the window, and wait for it. Every
    * keystroke goes to it while it runs, because Tade is the only thing
-   * reading the keyboard.
+   * reading the keyboard. Its exit code, or `LEFT` where somebody left it.
    */
   run(
     title: string,
@@ -529,6 +536,21 @@ export interface ScreenOptions {
 /** ctrl+] — the way out of an embedded program, as telnet has always had it. */
 const LEAVE = '\x1d'
 const INTERRUPT = '\x03'
+const ESCAPE = '\x1b'
+/**
+ * How long a program is given to answer an escape before it is taken to have
+ * had nothing to stop. Tade's own terminal is asked for the kitty protocol, so
+ * ctrl+] arrives as `ESC[93;5u` rather than its byte, and on a layout with no
+ * `]` key there is no ctrl+] at all: an escape the program shows no sign of
+ * having heard is the way out that every keyboard has. One that closed a
+ * dialog, stopped a turn or is drawn under a spinner changed the screen, so it
+ * stays the program's.
+ */
+export const ESCAPE_HEARD_MS = 400
+/** The press that leaves a program running here: the box's own label and the foot's button. */
+const BACK = 'back'
+/** What `run` answers for a program somebody left: a shell's code for one interrupted, never success. */
+export const LEFT = 130
 const UP = '\x1b[A'
 const DOWN = '\x1b[B'
 
@@ -572,18 +594,68 @@ export async function runScreen(
   // would take the process down with a stack trace instead of a sentence.
   cancelled.catch(() => {})
 
+  /** Close the program running here, and `run` answers with how it ended. */
+  const leave = () => {
+    const leaving = left
+    left = null
+    if (lane) void driver.close(lane).catch(() => {})
+    // Answered here and not by the program's exit: a driver tells nobody about
+    // a lane it was asked to close, so a `run` waiting for that exit waited for
+    // ever, on a screen with nothing left in it.
+    leaving?.(LEFT)
+  }
+  /** `run`'s answer for a program somebody left, while one runs. */
+  let left: ((code: number) => void) | null = null
+  /** The program's screen read now, while one runs. */
+  let look: (() => Promise<string>) | null = null
+  /** An escape waiting to be known as heard or not (`ESCAPE_HEARD_MS`). */
+  let escaping: NodeJS.Timeout | null = null
+  /** Keys sent to the program, so an escape followed by typing is the program's. */
+  let sent = 0
+  const forgetEscape = () => {
+    if (escaping !== null) clearTimeout(escaping)
+    escaping = null
+  }
+  /** Leave once an escape has changed nothing on the program's screen. */
+  const watchEscape = (before: string) => {
+    if (escaping !== null || !look) return
+    const watching = lane
+    const reading = look
+    const at = sent
+    escaping = setTimeout(() => {
+      escaping = null
+      void reading()
+        .then((after) => {
+          if (lane === watching && sent === at && after === before) leave()
+        })
+        .catch(() => {})
+    }, ESCAPE_HEARD_MS)
+    escaping.unref?.()
+  }
+
   const release = tui.addInputListener((data: string): TuiInputListenerResult => {
-    if (data.includes(INTERRUPT)) {
-      if (lane) void driver.close(lane).catch(() => {})
+    // As a terminal with no kitty protocol sends it (`forLane`): this one was
+    // asked for the protocol, so ctrl+c and ctrl+] came as `ESC[99;5u` and
+    // `ESC[93;5u`, matched neither byte and were typed into the program — and
+    // nothing on the screen led out of it. A release is nothing at all.
+    const pressed = forLane(data)
+    if (pressed.includes(INTERRUPT)) {
+      leave()
       cancel?.()
       return { consume: true }
     }
     if (lane) {
-      if (data.includes(LEAVE)) {
-        void driver.close(lane).catch(() => {})
+      if (pressed === '') return { consume: true }
+      if (pressed.includes(LEAVE)) {
+        leave()
         return { consume: true }
       }
-      void driver.write(lane, new TextEncoder().encode(data)).catch(() => {})
+      if (pressed === ESCAPE) watchEscape(state.running?.screen ?? '')
+      else {
+        sent += 1
+        forgetEscape()
+      }
+      void driver.write(lane, new TextEncoder().encode(pressed)).catch(() => {})
       return { consume: true }
     }
     if (state.menu) {
@@ -646,7 +718,11 @@ export async function runScreen(
 
   /** A click is the same answer the keyboard would have given. */
   const clicked = (id: string) => {
-    if (lane || !answer) return
+    if (lane) {
+      if (id === BACK) leave()
+      return
+    }
+    if (!answer) return
     const menu = state.menu
     if (menu && id.startsWith('option:')) {
       const found = matching(menu)
@@ -751,16 +827,23 @@ export async function runScreen(
       const stopOutput = driver.onOutput(id, () => void show())
       const ticking = setInterval(() => void show(), opts.frameMs ?? 80)
       ticking.unref?.()
+      look = () => driver.capture(id, { lines: rows })
       try {
         return await Promise.race([
           new Promise<number>((resolve) => {
             driver.onExit(id, (exit: { code: number | null }) => resolve(exit.code ?? 0))
           }),
+          new Promise<number>((resolve) => {
+            left = resolve
+          }),
           cancelled,
         ])
       } finally {
+        left = null
         clearInterval(ticking)
         stopOutput()
+        forgetEscape()
+        look = null
         lane = null
         state = { ...state, running: null }
         draw()

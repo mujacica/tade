@@ -435,7 +435,7 @@ export class PiAdapter implements WorkerAdapter {
       : 'Type /login and choose a provider: pi prints a link to open on any device, and asks for what that page gives you back.'
     return {
       launch: { command: process.execPath, args: [this.opts.bin], env: {} },
-      how: `${choose} A Claude subscription belongs in Claude Code: through pi, Anthropic bills it as extra usage. ctrl+] comes back here.`,
+      how: `${choose} A Claude subscription belongs in Claude Code: through pi, Anthropic bills it as extra usage. Esc once pi is waiting, or Back to Tade, comes back here.`,
     }
   }
 

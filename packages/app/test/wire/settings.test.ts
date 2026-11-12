@@ -99,6 +99,56 @@ describe('the window, and its settings', () => {
     )
   })
 
+  // Signing Claude Code in again from Accounts left the window dark when the
+  // sign-in closed, and Enter on the dark window pressed the row the keyboard
+  // was on — pi's sign-in, first on the page — which opened pi's /login.
+  it('comes back from a sign-in drawn, with Enter on the sign-in that was clicked', async () => {
+    const view = (harness: string, canAdd: boolean) => ({
+      harness,
+      name: null,
+      kind: 'subscription' as const,
+      canAdd,
+      why: null,
+      status: { signedIn: true, who: `${harness}@example.com`, plan: null, problem: null },
+      limits: null,
+      agents: 0,
+      forNewAgents: true,
+      canSignIn: true,
+    })
+    const views = [view('pi', false), view('claude-code', true)]
+    const signedIn: string[] = []
+    Object.assign(client, {
+      accounts: async () => views,
+      signInFor: (harness: string) => {
+        signedIn.push(harness)
+        return {
+          launch: { command: process.execPath, args: ['-e', ''], env: {} },
+          how: `${harness} signs in`,
+        }
+      },
+    })
+    terminal.resize(120, 60)
+    await start()
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const button = find('Settings ')
+    click(button.col + 1, button.row)
+    await until('the settings', () => terminal.written.includes('Accounts'))
+    const accounts = find('Accounts')
+    click(accounts.col + 1, accounts.row)
+    await until('both sign-ins', () => screenOf(terminal.written).join('\n').includes('pi@'))
+    // Found from the bottom: Claude Code's, under pi's.
+    const again = find('Sign in again')
+    terminal.written = ''
+    click(again.col + 1, again.row)
+    await until('the window drawn again after the sign-in', () =>
+      terminal.written.includes('signed in, as far as'),
+    )
+    expect(signedIn).toEqual(['claude-code'])
+    terminal.press('\r')
+    await until('a second sign-in', () => signedIn.length === 2)
+    expect(signedIn).toEqual(['claude-code', 'claude-code'])
+  })
+
   it('moves the orchestrator to another account from the Accounts page, and starts it again there', async () => {
     // The way off a plan it has used up: with no turns left it cannot be asked.
     await client.addAccount({ name: 'work', harness: 'claude-code' })
