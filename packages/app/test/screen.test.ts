@@ -31,15 +31,20 @@ const context = [
 /**
  * A program that reads keys one at a time, as pi does: says each back, and
  * with `answers` draws a line for an escape, as pi does closing a dialog.
+ *
+ * One read is split into keys, as pi splits it: two keys written one after the
+ * other arrive in one read on a busy machine, and taken as one key `"ab"` or
+ * `"\u001bx"` the test waited for a `got:"b"` that never came.
  */
 const KEYS_CHILD = `
 process.stdin.setRawMode(true)
 process.stdout.write('ready\\r\\n')
 let stopped = 0
 process.stdin.on('data', (data) => {
-  const key = data.toString()
-  if (key !== '\\x1b') process.stdout.write('got:' + JSON.stringify(key) + '\\r\\n')
-  else if (process.argv[1] === 'answers') process.stdout.write('stopped ' + ++stopped + '\\r\\n')
+  for (const key of data.toString().match(/\\x1b\\[[0-9;:?]*[\\x40-\\x7e]|[\\s\\S]/g) ?? []) {
+    if (key !== '\\x1b') process.stdout.write('got:' + JSON.stringify(key) + '\\r\\n')
+    else if (process.argv[1] === 'answers') process.stdout.write('stopped ' + ++stopped + '\\r\\n')
+  }
 })
 `
 
@@ -474,6 +479,54 @@ describe('answering it', () => {
       await running
     })
     expect(left).toBe(true)
+  }, 30_000)
+
+  /** A driver whose first close fails, as one that cannot let a program go; shutdown's works. */
+  const closingFails = () => {
+    const failing = new PtyDriver({ scrollback: 200 })
+    const close = failing.close.bind(failing)
+    let refused = false
+    failing.close = async (id) => {
+      if (refused) return close(id)
+      refused = true
+      throw new Error('the pty would not let go')
+    }
+    return failing
+  }
+
+  // A program left behind runs where nobody can see it, so leaving one that
+  // could not be closed says so, and the screen stays until that is read.
+  it('says so when the program it left could not be closed, and waits for that to be read', async () => {
+    const terminal = new FakeTerminal()
+    terminal.columns = 120
+    driver = closingFails()
+    let closed = false
+    const screen = runScreen({ title: 'Tade', terminal, driver }, async (ui: Ui) => {
+      const running = ui.run('pi', process.execPath, ['-e', KEYS_CHILD])
+      await until(() => terminal.written.includes('ready'))
+      terminal.press('\x1d')
+      expect(await running).toBe(LEFT)
+    }).then(() => {
+      closed = true
+    })
+    await until(() => terminal.written.includes('pi may still be running'))
+    expect(terminal.written).toContain('the pty would not let go')
+    await until(() => terminal.written.includes('press enter to go back'))
+    expect(closed).toBe(false)
+    terminal.press('\r')
+    await screen
+  }, 30_000)
+
+  it('names a program it could not close when ctrl+c closes the screen', async () => {
+    const terminal = new FakeTerminal()
+    driver = closingFails()
+    const stopped = runScreen({ title: 'Tade', terminal, driver }, async (ui: Ui) => {
+      await ui.run('pi', process.execPath, ['-e', KEYS_CHILD])
+    })
+    await until(() => terminal.written.includes('ready'))
+    terminal.press('\x03')
+    // Not `ScreenCancelled`, which every caller passes over without a word.
+    await expect(stopped).rejects.toThrow('pi may still be running: it could not be closed')
   }, 30_000)
 
   it('leaves on a click on Back to Tade, in the foot and on the box', async () => {

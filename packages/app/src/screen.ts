@@ -594,11 +594,28 @@ export async function runScreen(
   // would take the process down with a stack trace instead of a sentence.
   cancelled.catch(() => {})
 
+  /** Closes asked for by leaving a program, each settled once it has said how it went. */
+  const closing: Promise<void>[] = []
+  /** What was said of a program that could not be closed, and may still be running. */
+  const unclosed: string[] = []
   /** Close the program running here, and `run` answers with how it ended. */
   const leave = () => {
     const leaving = left
     left = null
-    if (lane) void driver.close(lane).catch(() => {})
+    if (lane) {
+      const title = state.running?.title ?? 'the program'
+      // Said, never swallowed: a close that failed leaves the program running
+      // where nobody can see it. The screen waits for it to be read before it
+      // closes, or names it in what it throws on ctrl+c (below).
+      closing.push(
+        driver.close(lane).catch((err: unknown) => {
+          const line = `  ${title} may still be running: it could not be closed (${err instanceof Error ? err.message : String(err)})`
+          unclosed.push(line)
+          state = { ...state, said: [...state.said, line] }
+          draw()
+        }),
+      )
+    }
     // Answered here and not by the program's exit: a driver tells nobody about
     // a lane it was asked to close, so a `run` waiting for that exit waited for
     // ever, on a screen with nothing left in it.
@@ -851,10 +868,27 @@ export async function runScreen(
     },
   }
 
+  /** A close that could not even say how it went leaves a program unclosed too. */
+  const unsaid = (err: unknown) => {
+    const line = `  a program may still be running: ${err instanceof Error ? err.message : String(err)}`
+    unclosed.push(line)
+    state = { ...state, said: [...state.said, line] }
+  }
   try {
     await Promise.race([flow(ui), cancelled])
+    // A program left running is read about before the screen goes, which
+    // would take the line saying so with it.
+    await Promise.all(closing).catch(unsaid)
+    if (unclosed.length > 0) await ui.ask('press enter to go back', ' ')
     state = { ...state, finished: 'Done.' }
     draw()
+  } catch (err) {
+    // ctrl+c closes the screen at once, and its callers say nothing of one.
+    if (err instanceof ScreenCancelled) {
+      await Promise.all(closing).catch(unsaid)
+      if (unclosed.length > 0) throw new Error(unclosed.map((line) => line.trim()).join('\n'))
+    }
+    throw err
   } finally {
     release()
     await driver.shutdown().catch(() => {})
