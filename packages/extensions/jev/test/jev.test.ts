@@ -575,29 +575,60 @@ describe('what the window shows', () => {
   })
 
   it('renders a large record quickly enough to draw on a timer', () => {
-    const reviews = Array.from({ length: 500 }, (_, index) => ({
-      at: new Date(NOW - index * 60_000).toISOString(),
-      project: 'shop',
-      unit: `shop/task-${index}`,
-      tasks: [`shop/task-${index}`],
-      base: 'a'.repeat(40),
-      head: 'b'.repeat(40),
-      version: 'jev-1.13.0',
-      rubric: RUBRIC,
-      files: 12,
-      part: null,
-      requests: 3,
-      cost_usd: 0.0011,
-      answers: { test_missing: 0.7, shell_injection: 0.1 },
-      where: { test_missing: 'src/thing.ts' },
-      raised: ['test_missing'],
-      account: {},
-      verdict: {},
-    }))
-    const record = { reviews, looks: [], findings: [], finished: new Set<string>(), now: NOW }
-    const started = performance.now()
-    for (let n = 0; n < 20; n++) findingsReport(record)
-    expect(performance.now() - started).toBeLessThan(500)
+    const recordOf = (length: number) => ({
+      reviews: Array.from({ length }, (_, index) => ({
+        at: new Date(NOW - index * 60_000).toISOString(),
+        project: 'shop',
+        unit: `shop/task-${index}`,
+        tasks: [`shop/task-${index}`],
+        base: 'a'.repeat(40),
+        head: 'b'.repeat(40),
+        version: 'jev-1.13.0',
+        rubric: RUBRIC,
+        files: 12,
+        part: null,
+        requests: 3,
+        cost_usd: 0.0011,
+        answers: { test_missing: 0.7, shell_injection: 0.1 },
+        where: { test_missing: 'src/thing.ts' },
+        raised: ['test_missing'],
+        account: {},
+        verdict: {},
+      })),
+      looks: [],
+      findings: [],
+      finished: new Set<string>(),
+      now: NOW,
+    })
+    // A ceiling counted against the same page drawn over a tenth of the record
+    // ten times, timed in the same moment, never against a stretch of clock: a
+    // loaded runner slows both, and 500ms for twenty pages was missed at 516.
+    // Linear is about one to one; a page that read every review once per
+    // review would be ten. The best of five each, taken in turn, because load
+    // only ever adds time and comes in bursts.
+    const large = recordOf(500)
+    const small = recordOf(50)
+    const took = (work: () => void) => {
+      const started = performance.now()
+      work()
+      return performance.now() - started
+    }
+    const once: number[] = []
+    const tenTimes: number[] = []
+    for (let n = 0; n < 5; n++) {
+      once.push(took(() => findingsReport(large)))
+      tenTimes.push(
+        took(() => {
+          for (let m = 0; m < 10; m++) findingsReport(small)
+        }),
+      )
+    }
+    const big = Math.min(...once)
+    const tenth = Math.min(...tenTimes)
+    expect(
+      big,
+      `500 reviews took ${big.toFixed(2)}ms, 50 reviews ten times ${tenth.toFixed(2)}ms`,
+    ).toBeLessThan(tenth * 4)
   })
 
   it('cuts a title at a word, so a title stays a title', () => {
