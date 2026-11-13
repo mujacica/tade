@@ -37,6 +37,28 @@ describe('the window, remembering itself', () => {
     expect(title).toMatch(/idle|working|waiting|nothing running/)
   })
 
+  // The harness's own word on a wait that never came true: what the window
+  // drew, so a red wait for something on screen carries its evidence.
+  it('says what it drew when a wait for something on it times out', async () => {
+    await expect(until('a frame', () => false, 20)).rejects.toThrow(
+      'timed out waiting for a frame, with nothing drawn on screen yet',
+    )
+    await start()
+    const error = await until('something never drawn', () => false, 20).catch((e: Error) => e)
+    expect(error?.message).toMatch(
+      /^timed out waiting for something never drawn, where the screen shows:\n/,
+    )
+    expect(error?.message).toContain('refunds')
+    // A wait that says what it saw says it alone.
+    await expect(
+      until(
+        () => 'what it saw',
+        () => false,
+        20,
+      ),
+    ).rejects.toThrow(/^timed out waiting for what it saw$/)
+  })
+
   it('comes back to the pane you were watching', async () => {
     const first = await start()
     await until('the first frame', () => terminal.written.includes('refunds'))

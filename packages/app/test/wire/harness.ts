@@ -157,6 +157,13 @@ export function screenOf(written: string): string[] {
 export const SPAWNING_MS = 90_000
 
 /**
+ * What the window under test has drawn, while a test of `windowUnderTest`'s is
+ * running, for `until` to say on a timeout. Tests in a file run one at a time,
+ * so there is one.
+ */
+let drawn: (() => string[]) | null = null
+
+/**
  * Wait for something to become true, rather than for a fixed time.
  *
  * The default is a liveness bound and not a measurement: nothing here is
@@ -183,7 +190,10 @@ export const SPAWNING_MS = 90_000
  * this, it is `SPAWNING_MS`.
  *
  * `what` may be a function, read once the deadline has passed, so a wait can
- * say what it saw instead of only what it wanted.
+ * say what it saw instead of only what it wanted. A plain one says what the
+ * window under test last drew, when there is one: `the queue on screen` went
+ * red with nothing else to go on, and it took a scratch reproduction to see
+ * the queue had been drawn without the chips it was waiting for.
  */
 export async function until(
   what: string | (() => string),
@@ -195,7 +205,14 @@ export async function until(
     if (await ok()) return
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
-  throw new Error(`timed out waiting for ${typeof what === 'string' ? what : what()}`)
+  if (typeof what !== 'string') throw new Error(`timed out waiting for ${what()}`)
+  const lines = drawn?.()
+  if (!lines) throw new Error(`timed out waiting for ${what}`)
+  throw new Error(
+    lines.every((line) => line.trim() === '')
+      ? `timed out waiting for ${what}, with nothing drawn on screen yet`
+      : `timed out waiting for ${what}, where the screen shows:\n${lines.join('\n')}`,
+  )
 }
 
 /**
@@ -494,6 +511,9 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
     opened.length = 0
     took.length = 0
     dropped = 0
+    // Read when asked rather than now, so a second window's terminal
+    // (`newTerminal`) is the one it reads.
+    drawn = () => screenOf(terminal.written)
     bind?.(wired)
   })
 
@@ -504,6 +524,7 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
     const [window, workbench] = [app, client as Workbench | undefined]
     const looking = collectors.splice(0)
     app = null
+    drawn = null
     await window?.stop().catch(() => {})
     await Promise.all(looking.map((one) => one.close().catch(() => {})))
     await workbench?.close().catch(() => {})
