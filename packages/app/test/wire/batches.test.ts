@@ -1,13 +1,13 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { readRuns } from '@tade/checks-core'
+import { type CheckRun, type CheckState, readRuns, SLEPT, writeRun } from '@tade/checks-core'
 import { ConfigSchema, recordsDir, SETTLE_MS } from '@tade/core'
 import { readTaskFile, Workbench } from '@tade/workbench'
 import { afterEach, describe, expect, it } from 'vitest'
 import { mkrepo } from '../../../../test/fixtures/mkrepo.ts'
 import { CI_WORKFLOW, ciWorkflow } from '../../../../test/fixtures/workflow.ts'
 import { type AppState, initialState } from '../../src/model.ts'
-import { BATCH_LOOK_MS, Batches } from '../../src/wire/batches.ts'
+import { answered, BATCH_LOOK_MS, Batches } from '../../src/wire/batches.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 
 // The full checks once a batch, from the window: nothing until HEAD has sat
@@ -139,6 +139,44 @@ describe('a batched project, from the window', () => {
     expect(await w.runs()).toHaveLength(1)
   })
 
+  it('runs a batch the machine slept through again, and once: a sleep is nobody’s red', async () => {
+    const w = await world()
+    const head = w.repo.head()
+    const at = new Date(1_000_000).toISOString()
+    await writeRun(recordsDir(w.repo.home, 'shop', null), {
+      id: `${head.slice(0, 7)}:tests:here:1`,
+      check: 'tests',
+      commit: head,
+      state: 'cancelled',
+      where: { kind: 'here', runner: 'local', host: 'here' },
+      required: true,
+      startedAt: at,
+      finishedAt: at,
+      code: null,
+      summary: SLEPT,
+      by: 'batch',
+      tail: '',
+    })
+    w.later(SETTLE_MS)
+    await w.batches.beat()
+    await w.batches.beat()
+    w.later(BATCH_LOOK_MS + SETTLE_MS)
+    await w.batches.beat()
+    expect(w.batches.running('shop')).toBe(head)
+    await until(
+      'the batch over',
+      async () => w.batches.running('shop') === null && (await w.runs()).length === 2,
+    )
+    expect((await w.runs()).map((run) => [run.state, run.summary])).toEqual([
+      ['cancelled', SLEPT],
+      ['passed', null],
+    ])
+    expect(w.told).toEqual([])
+    w.later(BATCH_LOOK_MS + SETTLE_MS)
+    await w.batches.beat()
+    expect(w.batches.running('shop')).toBeNull()
+  })
+
   it('sees HEAD settle while a batch runs, and starts the next one as soon as that is over', async () => {
     const w = await world({ held: true })
     w.later(SETTLE_MS)
@@ -199,5 +237,35 @@ describe('a batched project, from the window', () => {
     const file = await readTaskFile(w.repo.home, task)
     expect(file?.parked).toBe(true)
     expect(file?.by).toBe('extension:checks')
+  })
+})
+
+describe('whether a batch answered HEAD', () => {
+  const run = (state: CheckState, at: number, over: Partial<CheckRun> = {}): CheckRun => ({
+    id: `abc:tests:here:${at}`,
+    check: 'tests',
+    commit: 'abc',
+    state,
+    where: { kind: 'here', runner: 'local', host: 'here' },
+    required: true,
+    startedAt: new Date(at).toISOString(),
+    finishedAt: new Date(at).toISOString(),
+    code: null,
+    summary: state === 'cancelled' ? SLEPT : null,
+    by: 'batch',
+    ...over,
+  })
+
+  it('not by a batch the machine slept through, nor by nobody’s', () => {
+    expect(answered([], [], 'abc')).toBe(false)
+    expect(answered([], [run('passed', 1, { by: 'shop/a' })], 'abc')).toBe(false)
+    expect(answered([], [run('cancelled', 1)], 'abc')).toBe(false)
+  })
+
+  it('by the first batch after the sleep that stayed awake, red included', () => {
+    expect(answered([], [run('cancelled', 1), run('failed', 2)], 'abc')).toBe(true)
+    expect(answered([], [run('failed', 1)], 'abc')).toBe(true)
+    // Another reason a run was cancelled is still that batch's answer.
+    expect(answered([], [run('cancelled', 1, { summary: null })], 'abc')).toBe(true)
   })
 })

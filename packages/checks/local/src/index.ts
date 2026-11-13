@@ -12,9 +12,11 @@ import {
   RunnerError,
   type RunnerOptions,
   readChecks,
+  SLEPT,
   summaryOf,
 } from '@tade/checks-core'
 import { givesWay, nicedLine } from '@tade/core'
+import { awakeAt, startAwake } from './awake.ts'
 import { stop } from './stop.ts'
 
 // The commands, run the way you would type them.
@@ -41,6 +43,9 @@ const GRACE_MS = 2_000
  * left something behind holding the pipe open would otherwise never let go.
  */
 const DRAIN_MS = 2_000
+
+/** How often a running check's time awake is counted towards its limit. */
+const BEAT_MS = 1_000
 
 export function makeLocalRunner(options: RunnerOptions = {}): Runner {
   const now = options.now ?? Date.now
@@ -227,10 +232,26 @@ async function one(
     stop(child.pid ?? null, 'SIGKILL')
   }
 
-  let outcome: 'timed out' | 'cancelled' | null = null
+  // Cast rather than annotated: it is set inside `end`, and an annotated null
+  // is narrowed to null for good, as if nothing could ever stop the check.
+  let outcome = null as 'timed out' | 'cancelled' | null
+  // The limit is time awake (`awake.ts`), so it is beaten towards rather than
+  // set once: a single timer would count a closed lid against the check.
   const limit = Math.max(1, Math.round(check.minutes * 60_000))
-  const timer = setTimeout(() => void end('timed out'), limit)
-  timer.unref?.()
+  let clock = startAwake(opts.now())
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const watch = () => {
+    timer = setTimeout(
+      () => {
+        clock = awakeAt(clock, opts.now())
+        if (clock.awake >= limit) void end('timed out')
+        else watch()
+      },
+      Math.min(BEAT_MS, limit - clock.awake),
+    )
+    timer.unref?.()
+  }
+  watch()
   const onAbort = () => void end('cancelled')
   ctx.signal.addEventListener('abort', onAbort, { once: true })
   if (ctx.signal.aborted) onAbort()
@@ -258,13 +279,18 @@ async function one(
     }),
   ])
 
-  const state: CheckState = outcome ?? (code === 0 ? 'passed' : 'failed')
+  // One more beat at the end: a suite whose own timeouts fired on waking may be
+  // gone before the next one, and its failure is the sleep's, not the code's.
+  clock = awakeAt(clock, opts.now())
+  const said: CheckState = outcome ?? (code === 0 ? 'passed' : 'failed')
+  const slept = clock.slept && (said === 'failed' || said === 'timed out')
+  const state: CheckState = slept ? 'cancelled' : said
   const run: CheckLog = {
     ...base,
     state,
     finishedAt: new Date(opts.now()).toISOString(),
     code: outcome ? null : code,
-    summary: state === 'passed' ? null : summaryOf(tail),
+    summary: slept ? SLEPT : state === 'passed' ? null : summaryOf(tail),
     tail: tail.slice(-opts.tailKept),
   }
   ctx.onRun(run)
