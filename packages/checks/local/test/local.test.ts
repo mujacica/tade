@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Check } from '@tade/checks-core'
+import { type Check, SLEPT, sleptThrough } from '@tade/checks-core'
 import { testRunner } from '@tade/checks-core/conformance'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
@@ -222,5 +222,55 @@ describe('the local runner', () => {
       { commit: 'a1b2c3d4', changed: [] },
     )
     expect(plan.map((one) => one.id)).toEqual(['tests'])
+  })
+})
+
+describe('a check the machine slept through', () => {
+  // The clock is injected and the check closes the lid itself: when it prints
+  // `lid`, an hour passes on the clock and not a moment on the machine. Never
+  // a real sleep, and never a wait for one.
+  const HOUR = 3_600_000
+  const sleptIn = async (run: string, minutes: number) => {
+    let away = 0
+    const runner = makeLocalRunner({ now: () => Date.now() + away })
+    const [one] = await runner.run(
+      { name: 'demo', root: tmp('tade-local-') },
+      [check('tests', run, { minutes })],
+      {
+        commit: 'a1b2c3d4',
+        by: 'the test',
+        signal: new AbortController().signal,
+        onRun: () => {},
+        onOutput: (_, chunk) => {
+          if (chunk.includes('lid')) away = HOUR
+        },
+      },
+    )
+    return one
+  }
+
+  it('does not count the sleep against its limit', async () => {
+    // Three seconds of limit and an hour on the clock: a limit counted on the
+    // clock would have ended this the moment the lid opened.
+    const run = await sleptIn('echo lid; sleep 1.5; echo done', 0.05)
+    expect(run?.state).toBe('passed')
+    expect(run?.tail).toContain('done')
+  })
+
+  it('is not red when it then runs out of time, and says the machine slept', async () => {
+    const run = await sleptIn('echo lid; sleep 30', 0.05)
+    expect(run?.state).toBe('cancelled')
+    expect(run?.summary).toBe(SLEPT)
+    expect(run && sleptThrough(run)).toBe(true)
+  })
+
+  it('is not red when it then fails, because what failed may be its own clock', async () => {
+    // A suite's own timeouts count the sleep: scroll.test.ts failed at
+    // 1047932 ms, the length of the nap, and the run was blamed on a commit.
+    const run = await sleptIn('echo lid; sleep 0.2; echo "1 failed" >&2; exit 1', 1)
+    expect(run?.state).toBe('cancelled')
+    expect(run?.summary).toBe(SLEPT)
+    expect(run?.code).toBe(1)
+    expect(run?.tail).toContain('1 failed')
   })
 })

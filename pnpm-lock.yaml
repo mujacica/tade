@@ -532,8 +532,8 @@ importers:
         specifier: workspace:*
         version: link:../core
       better-sqlite3:
-        specifier: ^13.0.3
-        version: 13.0.3
+        specifier: ^13.1.1
+        version: 13.1.1
 
   packages/forges/core:
     dependencies:
@@ -969,8 +969,8 @@ importers:
         specifier: workspace:*
         version: link:../telemetry
       better-sqlite3:
-        specifier: ^13.0.3
-        version: 13.0.3
+        specifier: ^13.1.1
+        version: 13.1.1
       yaml:
         specifier: ^2.9.1
         version: 2.9.1
@@ -1921,8 +1921,8 @@ packages:
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
 
-  better-sqlite3@13.0.3:
-    resolution: {integrity: sha512-RbOBxmLBG8uvFUc15X9+9SFemKcQ0WBuISBVkpuiaUB2qblC8UWlHEjdWVoZ8AdhSwmoEgsiXKfopX0CQxaACQ==}
+  better-sqlite3@13.1.1:
+    resolution: {integrity: sha512-JjyLCATp+VLxZVFyWkicyzKYwpEFLCrV4MmshW97xv3JXdhw5jBDcsbEWRGm2L/96E+k7rtjON8q9nml05h3Pw==}
     engines: {node: '>=22'}
 
   bignumber.js@9.3.1:
@@ -3436,7 +3436,7 @@ snapshots:
 
   base64-js@1.5.1: {}
 
-  better-sqlite3@13.0.3:
+  better-sqlite3@13.1.1:
     dependencies:
       node-addon-api: 8.9.2
 

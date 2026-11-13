@@ -391,22 +391,23 @@ describe('the last look at a task, read without starting one', () => {
     // again says nothing and starts nothing, which is the whole point of it.
     const settled = changed
     for (let i = 0; i < 50; i++) expect(live.seenActions('app/refunds')).toBeNull()
+    // The first look at status landing, then a second more: neither one is a
+    // look at the task's work, and asking along the way started none.
+    await live.looked
+    for (let i = 0; i < 50; i++) expect(live.seenActions('app/refunds')).toBeNull()
     await new Promise((resolve) => setTimeout(resolve, 1_000))
     // Still nothing: a look that had run would have filled this and said so.
     // Both halves, because the cache is the fact and the callback is the clue.
     expect(live.seenActions('app/refunds')).toBeNull()
     expect(changed).toBe(settled)
 
-    // `actions` is the one that finds a look due, the window's next look
-    // starts it, and what it finds is what this reads.
-    live.actions('app/refunds')
-    live.lookAgain()
-    // Until it lands, not for a stretch of clock: the look is git and the
-    // disk, which another suite on the machine slows past any fixed wait.
-    for (const deadline = Date.now() + 20_000; Date.now() < deadline; ) {
-      if (live.seenActions('app/refunds') !== null) break
-      await new Promise((resolve) => setTimeout(resolve, 10))
-    }
+    // `actions` is the one that finds a look due — only once status has said
+    // where the task works, which is why the wait above is on `looked` and not
+    // a second: under load the first look took longer, `actions` found no
+    // worktree and queued nothing, and no deadline was long enough. The
+    // window's next look starts it, and what it finds is what this reads.
+    expect(live.actions('app/refunds')).toBeNull()
+    await live.lookAgain()
     expect(live.seenActions('app/refunds')).toEqual(live.actions('app/refunds'))
     expect(live.seenActions('app/refunds')?.task).toBe('app/refunds')
   }, 30_000)

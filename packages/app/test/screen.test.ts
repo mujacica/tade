@@ -1,7 +1,7 @@
 import { stripTerminalSequences, type Terminal } from '@earendil-works/pi-tui'
 import { ECHO_CHILD, until } from '@tade/drivers-core/conformance'
 import { PtyDriver } from '@tade/drivers-pty'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   drawScreen,
   ESCAPE_HEARD_MS,
@@ -571,6 +571,49 @@ describe('answering it', () => {
     // Not `ScreenCancelled`, which every caller passes over without a word.
     await expect(stopped).rejects.toThrow('pi may still be running: it could not be closed')
   }, 30_000)
+
+  /** A driver whose shutdown fails, as one that cannot stop what it ran. */
+  const stoppingFails = () => {
+    const failing = new PtyDriver({ scrollback: 200 })
+    const shutdown = failing.shutdown.bind(failing)
+    failing.shutdown = async () => {
+      await shutdown()
+      throw new Error('the pty would not stop')
+    }
+    return failing
+  }
+
+  // The screen has gone by then, so it cannot draw the line: it is told to
+  // whoever keeps Tade's trouble, and the screen still closes as it would.
+  it('tells its trouble when the driver cannot stop what it ran, once the screen has gone', async () => {
+    const terminal = new FakeTerminal()
+    const told: string[] = []
+    await runScreen(
+      { title: 'Tade', terminal, driver: stoppingFails(), trouble: (said) => void told.push(said) },
+      async () => {},
+    )
+    expect(told).toEqual([
+      'A program a screen ran may still be running: it could not be stopped (the pty would not stop)',
+    ])
+    expect(terminal.written).toContain('\x1b[?1049l')
+  })
+
+  it('tells it on stderr where nothing else keeps it', async () => {
+    const written: string[] = []
+    const write = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      written.push(String(chunk))
+      return true
+    })
+    try {
+      await runScreen(
+        { title: 'Tade', terminal: new FakeTerminal(), driver: stoppingFails() },
+        async () => {},
+      )
+    } finally {
+      write.mockRestore()
+    }
+    expect(written.join('')).toContain('it could not be stopped (the pty would not stop)')
+  })
 
   it('leaves on a click on Back to Tade, in the foot and on the box', async () => {
     const drawn = drawScreen(

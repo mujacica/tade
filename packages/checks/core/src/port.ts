@@ -102,6 +102,21 @@ export function settled(state: CheckState): boolean {
   return state !== 'queued' && state !== 'running'
 }
 
+/**
+ * The summary of a run the machine slept through and that did not pass.
+ *
+ * A suite's own timeouts count a closed lid as time, so what it says after a
+ * sleep is about the sleep, not the code: such a run is `cancelled` with this
+ * as its reason — `unknown` to the rollup, red to nobody, and no batch's
+ * answer (`sleptThrough`), so the batch runs again once the machine is awake.
+ */
+export const SLEPT = 'the machine slept'
+
+/** Whether a run is one the machine slept through, and so says nothing about the code. */
+export function sleptThrough(run: Pick<CheckRun, 'state' | 'summary'>): boolean {
+  return run.state === 'cancelled' && run.summary === SLEPT
+}
+
 /** Where a run happened. `here` is this machine; a forge names itself and its run. */
 export type RunPlace =
   | { kind: 'here'; runner: string; host: string }

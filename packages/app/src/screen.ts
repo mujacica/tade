@@ -531,6 +531,13 @@ export interface ScreenOptions {
   frameMs?: number
   /** Defaults to colour where the terminal shows it. */
   palette?: Palette
+  /**
+   * Where trouble is told that comes once the screen has gone: a driver that
+   * could not stop what it ran. The window writes it in the journal as a
+   * `warning`, which telemetry carries; without one it goes to stderr, on the
+   * terminal the screen has handed back. Never throws.
+   */
+  trouble?: (said: string) => void | Promise<void>
 }
 
 /** ctrl+] — the way out of an embedded program, as telnet has always had it. */
@@ -616,9 +623,11 @@ export async function runScreen(
         }),
       )
     }
-    // Answered here and not by the program's exit: a driver tells nobody about
-    // a lane it was asked to close, so a `run` waiting for that exit waited for
-    // ever, on a screen with nothing left in it.
+    // Answered here and not by the program's exit. The driver does tell its
+    // exit listeners of a lane it closed, but only once the program has gone —
+    // which a close that failed never brings — and with the code the close
+    // ended it with, which says nothing of somebody leaving and may read as
+    // success.
     leaving?.(LEFT)
   }
   /** `run`'s answer for a program somebody left, while one runs. */
@@ -894,12 +903,23 @@ export async function runScreen(
     throw err
   } finally {
     release()
-    await driver.shutdown().catch(() => {})
+    const stopped = await driver.shutdown().then(
+      () => null,
+      (err: unknown) =>
+        `A program a screen ran may still be running: it could not be stopped (${err instanceof Error ? err.message : String(err)})`,
+    )
     tui.stop()
     // Nothing of the screen is left behind: what somebody sees after it closes
     // is their own terminal, not the bottom half of a form.
     terminal.clearScreen()
+    // Told after the screen has gone, which would take a line drawn on it along.
+    if (stopped !== null) await (opts.trouble ?? toStderr)(stopped)
   }
+}
+
+/** What a screen with nowhere else to tell its trouble does with it. */
+function toStderr(said: string): void {
+  process.stderr.write(`${said}\n`)
 }
 
 /** node-pty rejects anything that is not a string, which test runners inject. */

@@ -20,6 +20,16 @@ import { notify, type Wiring, why } from './context.ts'
 // bug the whole design avoids, so while a form has the terminal the window
 // stops drawing and starts again where it left off.
 
+/**
+ * What a borrowed screen could not say once it had gone: a `warning`, which the
+ * journal keeps and telemetry carries — never stderr, under the window's drawing.
+ */
+export async function screenTrouble(wire: Wiring, said: string): Promise<void> {
+  await wire.opts.client.log
+    .append({ type: 'warning', detail: { message: said } })
+    .catch((err: unknown) => wire.note(err))
+}
+
 /** What lending the screen needs of the window. */
 export interface ScreensDeps {
   /** The terminal a borrowed screen is drawn on. */
@@ -70,7 +80,14 @@ export class Screens {
     this.borrowing = true
     this.deps.suspend()
     try {
-      await runScreen({ title: 'Tade', terminal: this.deps.terminal }, flow)
+      await runScreen(
+        {
+          title: 'Tade',
+          terminal: this.deps.terminal,
+          trouble: (said) => screenTrouble(this.wire, said),
+        },
+        flow,
+      )
     } catch (err) {
       if (!(err instanceof ScreenCancelled)) {
         notify(this.wire, why(err))
@@ -93,6 +110,7 @@ export class Screens {
           title: command,
           context: [join(this.wire.opts.home, 'config.yaml')],
           terminal: this.deps.terminal,
+          trouble: (said) => screenTrouble(this.wire, said),
         },
         async (ui) => {
           try {

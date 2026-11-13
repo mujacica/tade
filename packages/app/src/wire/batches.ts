@@ -1,5 +1,5 @@
 import { homedir } from 'node:os'
-import { type CheckLog, readChecks } from '@tade/checks-core'
+import { type CheckLog, type CheckRun, latestAt, readChecks, sleptThrough } from '@tade/checks-core'
 import { batchDue, type Culprit, expandHome, joined, workspaceFor } from '@tade/core'
 import { git } from '@tade/status'
 import {
@@ -125,9 +125,7 @@ export class Batches {
       head,
       rollup: stood.rollup.state,
       checks: stood.plan.length,
-      batched:
-        stood.at.some((run) => run.by === BATCH_BY) ||
-        stood.runs.some((run) => run.by === BATCH_BY && run.commit === head),
+      batched: answered(stood.at, stood.runs, head),
       running: stood.running !== null,
       stillMs: now - (this.still.get(project)?.since ?? now),
       tried: this.tried.get(project) ?? null,
@@ -207,6 +205,24 @@ export class Batches {
     await making.parkTask(task.id, true, { by: BY })
     putToOrchestrator(this.wire, this.orchestrator(), toldOf(facts, task.id), [task.id])
   }
+}
+
+/**
+ * Whether a batch has answered HEAD: one ran there, and the newest batch run of
+ * each check is not one the machine slept through. That one said nothing about
+ * the code (`SLEPT`), so the batch runs again now the machine is awake, and the
+ * first one that stays awake answers it, red or green.
+ */
+export function answered(
+  at: readonly CheckRun[],
+  runs: readonly CheckRun[],
+  head: string | null,
+): boolean {
+  const ours = (run: CheckRun) => run.by === BATCH_BY
+  const newest = latestAt(runs.filter(ours), head)
+  const carried = at.filter(ours)
+  if (newest.length === 0 && carried.length === 0) return false
+  return !newest.some(sleptThrough) && !carried.some(sleptThrough)
 }
 
 interface RedFacts {
