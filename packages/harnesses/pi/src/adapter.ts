@@ -568,6 +568,11 @@ export class PiAdapter implements WorkerAdapter {
         this.opts.bin,
         ...this.modelArgs(spec.model),
         ...(spec.thinking ? ['--thinking', spec.thinking] : []),
+        // pi has drawn fullscreen by default since 1.0, on the alternate
+        // screen, where a lane keeps no scrollback; an agent's lane keeps its
+        // history. pi before 1.0 exits on this flag.
+        '--tui-mode',
+        'regular',
         '--session-id',
         sessionIdFor(spec.task),
         '-e',
