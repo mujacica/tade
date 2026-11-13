@@ -9,6 +9,6 @@
   },
   "dependencies": {
     "@tade/extensions-core": "workspace:*",
-    "better-sqlite3": "^13.0.3"
+    "better-sqlite3": "^13.1.1"
   }
 }
