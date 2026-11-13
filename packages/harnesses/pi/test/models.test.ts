@@ -138,6 +138,9 @@ describe('the catalog', () => {
     // Launched without it, pi reads the home's, which has neither.
     expect(await usableModels(home, {})).toEqual([])
     expect(await credentials(home, {})).toEqual({})
+    // A key in the environment is filed under the provider pi calls it by:
+    // Azure has been `azure` since pi 1.0.3, not `azure-openai-responses`.
+    expect(await credentials(home, { AZURE_OPENAI_API_KEY: 'k' })).toEqual({ azure: 'env-key' })
   })
 })
 

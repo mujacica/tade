@@ -149,7 +149,7 @@ const ENV_KEYS: Readonly<Record<string, readonly string[]>> = {
   openai: ['OPENAI_API_KEY'],
   google: ['GEMINI_API_KEY'],
   'google-vertex': ['GOOGLE_CLOUD_API_KEY'],
-  'azure-openai-responses': ['AZURE_OPENAI_API_KEY'],
+  azure: ['AZURE_OPENAI_API_KEY'],
   'github-copilot': ['COPILOT_GITHUB_TOKEN'],
   openrouter: ['OPENROUTER_API_KEY'],
   'vercel-ai-gateway': ['AI_GATEWAY_API_KEY'],

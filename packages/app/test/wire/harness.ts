@@ -89,6 +89,7 @@ export class FakeTerminal implements Terminal {
     this.titles.push(title)
   }
   setProgress(): void {}
+  setProgramStatus(): void {}
 }
 
 /**

@@ -1,4 +1,4 @@
-import { type Terminal, TuiAltScreen } from '@earendil-works/pi-tui'
+import { type ProgramStatus, type Terminal, TuiAltScreen } from '@earendil-works/pi-tui'
 import {
   ECHO_OWED_MS,
   intervalOf,
@@ -458,6 +458,9 @@ class TimedTerminal implements Terminal {
   }
   setProgress(active: boolean): void {
     this.to.setProgress(active)
+  }
+  setProgramStatus(status: ProgramStatus): void {
+    this.to.setProgramStatus(status)
   }
 }
 

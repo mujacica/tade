@@ -43,6 +43,9 @@ describe('the window’s own keys', () => {
     expect(appKey('\x1b[57;5u', held)).toBe('agent-9')
     expect(appKey('\x1b[50;6u', held)).toBe('project-2')
     expect(appKey('\x1b[50:64;6u', held)).toBe('project-2')
+    // Where the terminal names the symbol a shifted number makes, and pi-tui reads that.
+    expect(appKey('\x1b[49:33;6u', held)).toBe('project-1')
+    expect(appKey('\x1b[49:33;6u', { ...held, bindings: { project_by_number: 'off' } })).toBeNull()
     // Held with something else, or turned off, a number is the agent's.
     expect(appKey('\x1b[49;5u', { ...held, bindings: { agent_by_number: 'off' } })).toBeNull()
     expect(appKey('\x1b[49;3u', held)).toBeNull()

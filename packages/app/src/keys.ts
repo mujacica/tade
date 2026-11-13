@@ -1,4 +1,11 @@
-import { getKeybindings, isKeyRelease, parseKey, TUI_KEYBINDINGS } from '@earendil-works/pi-tui'
+import {
+  getKeybindings,
+  isKeyRelease,
+  type KeyId,
+  matchesKey,
+  parseKey,
+  TUI_KEYBINDINGS,
+} from '@earendil-works/pi-tui'
 
 // Which keystrokes the shell claims, and what it calls them.
 //
@@ -123,9 +130,27 @@ export function appKey(data: string, ctx: KeyContext): string | null {
   if (number) {
     if (number[1] === bound.agent) return `agent-${number[2]}`
     if (number[1] === bound.project) return `project-${number[2]}`
+  } else if (pressed.includes('+')) {
+    const agent = shiftedNumber(data, bound.agent)
+    if (agent) return `agent-${agent}`
+    const project = shiftedNumber(data, bound.project)
+    if (project) return `project-${project}`
   }
   // Letters are only ever claimed while they mean something, which the model knows.
   return bound.pressed.get(pressed) ?? null
+}
+
+/**
+ * The number a keystroke held with shift was, where `parseKey` named the symbol
+ * it makes instead: a terminal that reports the shifted key too (Kitty, and
+ * pi-tui asks every one that speaks it) sends ctrl+shift+2 as `ctrl+@`.
+ * `matchesKey` still knows the key underneath, so the number is asked for by
+ * name — only for a shifted keystroke `parseKey` gave no number for.
+ */
+function shiftedNumber(data: string, held: string | null): string | null {
+  if (!held?.includes('shift')) return null
+  for (let n = 1; n <= 9; n++) if (matchesKey(data, `${held}+${n}` as KeyId)) return String(n)
+  return null
 }
 
 /** The window's keys as `appKey` looks a keystroke up in them. */
