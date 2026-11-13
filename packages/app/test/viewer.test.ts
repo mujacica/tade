@@ -305,11 +305,35 @@ describe('typing into a file', () => {
       // The presses it agrees with are quadratic — each copies the file's
       // lines — so a big selection is where the two part company, and where
       // typing over one used to stop the window for a second.
+      // So a ceiling counted against presses on the same file, timed on the
+      // same machine in the same moment, never against a stretch of clock: a
+      // loaded runner slows both, and 20ms was missed at 45 by a linear cut.
+      // The best of several cuts, because load only ever adds time. Linear is
+      // a handful of presses; the presses it replaced were a hundred thousand.
       const big = Array.from({ length: 4_000 }, (_, i) => `  const value${i} = compute(${i})`)
       const edit = editFrom(big, 0, 0)
-      const started = performance.now()
-      const cut = cutSelection(edit, { from: 0, to: big.join('\n').length })
-      expect(performance.now() - started).toBeLessThan(20)
+      const span = { from: 0, to: big.join('\n').length }
+      const atEnd = caretAt(edit, big.length - 1, (big.at(-1) ?? '').length)
+      const took = (work: () => void) => {
+        const started = performance.now()
+        work()
+        return performance.now() - started
+      }
+      let cut = editFrom([])
+      const best = Math.min(
+        ...Array.from({ length: 5 }, () =>
+          took(() => {
+            cut = cutSelection(edit, span)
+          }),
+        ),
+      )
+      const presses = took(() => {
+        for (let i = 0; i < 1_000; i++) editKey(atEnd, 'backspace')
+      })
+      expect(
+        best,
+        `a cut took ${best.toFixed(2)}ms, 1000 presses ${presses.toFixed(2)}ms`,
+      ).toBeLessThan(presses)
       expect(cut.lines).toEqual([''])
     })
 
