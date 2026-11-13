@@ -422,9 +422,14 @@ describe('the window, and the work waiting in it', () => {
     terminal.rows = 60
     const window = await start()
     await until('the first frame', () => terminal.written.includes('refunds'))
+    // Two that wait, not one: the scope is drawn only while more than one piece
+    // is queued, and a plan makes its tasks one at a time, so a look between
+    // first-one and second-one starts first-one — there was room for it — and
+    // left one queued and nothing to wait on for the 45 s a loaded run gave it.
+    // third-one waits on second-one, so two are queued whenever first-one starts.
     await window.queueTools().plan({
       project: 'app',
-      said: 'one now, one after',
+      said: 'one now, one after, one after that',
       agents: [
         { name: 'first-one', said: 'one now', prompt: '', after: [], touches: [] },
         {
@@ -432,6 +437,13 @@ describe('the window, and the work waiting in it', () => {
           said: 'one after',
           prompt: '',
           after: [{ agent: 'first-one', why: 'they touch the same thing' }],
+          touches: [],
+        },
+        {
+          name: 'third-one',
+          said: 'one after that',
+          prompt: '',
+          after: [{ agent: 'second-one', why: 'it builds on it' }],
           touches: [],
         },
       ],
