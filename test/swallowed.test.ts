@@ -141,7 +141,7 @@ const ALLOWED: Record<string, number> = {
   'packages/app/src/images.ts': 6,
   'packages/app/src/live.ts': 9,
   'packages/app/src/projects.ts': 5,
-  'packages/app/src/screen.ts': 5,
+  'packages/app/src/screen.ts': 4,
   'packages/app/src/wire/agents.ts': 2,
   'packages/app/src/wire/awake.ts': 1,
   'packages/app/src/wire/context.ts': 1,

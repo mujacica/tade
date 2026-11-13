@@ -3,6 +3,7 @@ import { appendDevice, type Device } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import { lostSessions } from '../../src/wire/web-sessions.ts'
 import { COOKIE, closeAll, DEVICE, type Machine, machine, paired, waitFor } from './away-harness.ts'
+import { until } from './harness.ts'
 
 // What revoking a device at the machine does to a page that is already open.
 //
@@ -124,9 +125,20 @@ async function listen(port: number): Promise<Listening> {
   })
 }
 
-/** Let the event loop deliver whatever the server has written. */
-function settle(): Promise<void> {
-  return new Promise((done) => setTimeout(done, 30))
+/**
+ * Wait for what the server writes, never for a time: a fixed 30 ms here went
+ * red at a load of fifty, because a starved loop delivers a write late.
+ */
+function opened(held: Listening): Promise<void> {
+  return until('the stream to open', () => held.text().includes('retry:'))
+}
+
+function heard(held: Listening, event: string): Promise<void> {
+  return until(`"${event}" on the stream`, () => held.text().includes(`event: ${event}`))
+}
+
+function closed(held: Listening): Promise<void> {
+  return until('the stream to be closed', () => held.ended())
 }
 
 describe('a device revoked somewhere other than the window', () => {
@@ -143,17 +155,16 @@ describe('a device revoked somewhere other than the window', () => {
   it('has its open stream closed, and is told why', async () => {
     const one = await ready()
     const held = await listen(one.port)
-    await settle()
+    await opened(held)
     // The stream is live: a change to the world reaches it.
     one.running(one.task)
     await one.refresh()
-    await settle()
-    expect(held.text()).toContain('event: delta')
+    await heard(held, 'delta')
 
     await revokeOutside(one.home)
     // One beat, which is what the terminal's own sentence promises.
     await one.refresh()
-    await settle()
+    await closed(held)
 
     expect(held.text()).toContain('event: revoked')
     expect(held.ended()).toBe(true)
@@ -163,24 +174,24 @@ describe('a device revoked somewhere other than the window', () => {
   it('is sent nothing more of the projection after that beat', async () => {
     const one = await ready()
     const held = await listen(one.port)
-    await settle()
+    await opened(held)
     one.running(one.task)
     await one.refresh()
-    await settle()
+    await heard(held, 'delta')
 
     await revokeOutside(one.home)
     await one.refresh()
-    await settle()
-    const closed = held.text()
+    await closed(held)
+    const said = held.text()
 
     // Whatever else happens in the world, nothing of it reaches this socket —
     // asked of what came **after** the refusal rather than of what came after
-    // a moment the test chose, which is the half a sleep can get wrong.
+    // a moment the test chose, which is the half a sleep can get wrong. The
+    // response has ended, so no wait could see more arrive on it.
     one.checked(one.task, 'fail')
     await one.refresh()
-    await settle()
-    expect(held.text()).toBe(closed)
-    const after = closed.slice(closed.indexOf('event: revoked'))
+    expect(held.text()).toBe(said)
+    const after = said.slice(said.indexOf('event: revoked'))
     expect(after).not.toContain('event: delta')
     held.close()
   })
@@ -188,10 +199,9 @@ describe('a device revoked somewhere other than the window', () => {
   it('is written down, so the journal says the stream was closed', async () => {
     const one = await ready()
     const held = await listen(one.port)
-    await settle()
+    await opened(held)
     await revokeOutside(one.home)
     await one.refresh()
-    await settle()
     const said = await waitFor(one.client, 'web_revoked')
     expect(said.length).toBeGreaterThan(0)
     held.close()
