@@ -14,11 +14,15 @@ import {
   writeRunning,
 } from '../src/running.ts'
 
-/** Wait for the file to say something, rather than for a fixed time. */
+/**
+ * Wait for the file to say something, rather than for a fixed time. The
+ * deadline is a ceiling for a run that never writes, not a pace: the run
+ * under test stays open until it is looked at.
+ */
 async function until(
   worktree: string,
   ok: (now: RunningNow) => boolean,
-  ms = 1_800,
+  ms = 60_000,
 ): Promise<RunningNow> {
   const deadline = Date.now() + ms
   for (;;) {
@@ -98,9 +102,11 @@ describe('a run while it is still going', () => {
 
   it('is written while the run goes, and is gone once it has', async () => {
     const worktree = tmp('tade-running-')
-    // Long enough that a machine running the whole suite beside this one still
-    // has time to look: the thing under test is the file, not the clock.
-    const runner = makeScriptedRunner({ answers: { format: { ms: 200 }, tests: { ms: 2_000 } } })
+    // `tests` would take its whole time limit, and is stopped once the file
+    // has been seen: a run that ended by itself after a fixed time would race
+    // a loaded machine's first look. The thing under test is the file.
+    const runner = makeScriptedRunner({ answers: { tests: { ms: 60_000 } } })
+    const stop = new AbortController()
     const going = runChecks({
       runner,
       project: { name: 'checkout', root: worktree },
@@ -108,12 +114,16 @@ describe('a run while it is still going', () => {
       checks: [a('format'), a('tests', { alone: true })],
       commit: 'd'.repeat(40),
       by: 'checkout/refunds',
+      signal: stop.signal,
     })
     // Watched from outside the run, which is the whole point of the file:
     // the window is not the process that started it.
-    const now = await until(worktree, (seen) => seen.checks.some((one) => one.state === 'running'))
+    const now = await until(worktree, (seen) =>
+      seen.checks.some((one) => one.check === 'tests' && one.state === 'running'),
+    )
     expect(now.by).toBe('checkout/refunds')
     expect(now.checks.map((one) => one.check).sort()).toEqual(['format', 'tests'])
+    stop.abort()
     await going
     expect(await runningIn(worktree)).toBeNull()
   })
