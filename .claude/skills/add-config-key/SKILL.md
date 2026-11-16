@@ -81,8 +81,10 @@ orchestrator's arm reaches into it, and whether a person can read back what they
    the group they would look for it in: a `title`, a `means` sentence saying what changing it does,
    a `kind` (`choice`, `flag`, `number` with a `unit` — `fraction` for a share of something, and
    whether it takes decimals is read from its schema (`withDecimals`, `settings-numbers.ts`) —
-   `text` (`pairs` for `a=b, c=d`, `list` for a key the schema holds as a list — without it every
-   save is refused, `expected array, received string`), `hours`, `key`, `model`), and
+   `text` (`pairs` for `a=b, c=d`, and `setUpIn` beside it where an extension's own page fills the
+   map in a row per name, so the row opens that page rather than a second editor; `list` for a key
+   the schema holds as a list — without it every save is refused, `expected array, received
+   string`), `hours`, `key`, `model`), and
    `live: false` if it is only read when Tade starts — the panel labels it *on restart*.
    - Name the group and the setting the words somebody would search for, and put the rest in
      `keywords`: the panel's search reads `findableBy`, which is the title, the `means`, the key

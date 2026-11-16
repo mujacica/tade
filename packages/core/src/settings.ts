@@ -49,6 +49,13 @@ export type SettingKind =
        */
       pairs?: boolean
       /**
+       * The extension whose own setup page fills this in, a row per name: in
+       * the window the row opens that page rather than a line, so one key has
+       * one editor there. `tade config` in a terminal has no such page and
+       * still takes it typed, as `pairs` reads it.
+       */
+      setUpIn?: string
+      /**
        * Read back as a list — `studio.ts.net tunnel.example.com`, spaces or
        * commas between — for a setting the schema holds as one, drawn the
        * same way with spaces between. A list row without it hands the schema
@@ -692,9 +699,16 @@ export function settingsOf(
           title: 'Sentry projects',
           means:
             'which Sentry project each Tade project reports to: tade=tade-app, + for more than one',
+          short:
+            'which Sentry project each Tade project reports to, filled in on Sentry’s own page',
           value: pairsText(sentry.projects),
           fallback: 'each project’s own name',
-          type: { kind: 'text', placeholder: 'tade=tade-app, web=web-a+web-b', pairs: true },
+          type: {
+            kind: 'text',
+            placeholder: 'tade=tade-app, web=web-a+web-b',
+            pairs: true,
+            setUpIn: 'sentry',
+          },
           live: true,
           keywords: ['sentry', 'project', 'slug', 'telemetry'],
         },

@@ -62,6 +62,7 @@ function world(over: { extensions?: boolean } = {}) {
     lookAtWhatIsInstalled: () => {},
     tellThinking: async () => null,
     setupChanged: () => void asked.push('setupChanged'),
+    openSetup: () => false,
     silence: () => {},
     holdSleep: () => {},
     away: () => ({ follow: () => {}, carry: async () => {} }),

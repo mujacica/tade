@@ -284,6 +284,24 @@ export function actsOf(choice: string): string[] {
   return choice.split(ALSO)
 }
 
+/**
+ * What opening a setting an extension's own page fills in (`setUpIn`) asks the
+ * window for: that page, where it is a row per name, rather than a line here.
+ */
+export const SET_UP = 'set-up:'
+
+/** A text setting opened: its line to type into, or the page that fills it in. */
+function typeInto(panel: SettingsPanel, setting: Setting): PanelOutcome {
+  if (setting.type.kind === 'text' && setting.type.setUpIn) {
+    return {
+      panel: { ...panel, editing: null, dropdown: null, saved: null, error: null },
+      submit: true,
+      choice: `${SET_UP}${setting.path}`,
+    }
+  }
+  return stay({ ...panel, editing: { path: setting.path, text: setting.value } })
+}
+
 const settle = (panel: SettingsPanel, path: string, value: string): PanelOutcome => ({
   panel: { ...panel, editing: null, dropdown: null, capture: null, error: null },
   submit: true,
@@ -573,9 +591,7 @@ function operate(panel: SettingsPanel, setting: Setting, key: string | undefined
     }
     case 'text':
     case 'hours':
-      return key === 'enter'
-        ? stay({ ...panel, editing: { path: setting.path, text: setting.value } })
-        : stay(panel)
+      return key === 'enter' ? typeInto(panel, setting) : stay(panel)
     case 'key':
       return key === 'enter'
         ? stay({ ...panel, capture: { path: setting.path, key: null } })
@@ -722,9 +738,7 @@ function clicked(
       // Clicking into the field you are already typing in is not a reason to
       // start it again: the text you have put there is the text that stays.
       if (panel.editing?.path === setting?.path) return stay(panel)
-      return setting
-        ? stay({ ...panel, editing: { path: setting.path, text: setting.value } })
-        : stay(panel)
+      return setting ? typeInto(panel, setting) : stay(panel)
     case 'drop':
       return setting
         ? stay({

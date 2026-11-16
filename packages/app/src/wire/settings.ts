@@ -30,6 +30,7 @@ import { LOOK_AGAIN } from '../panels/settings/domain.ts'
 import {
   actsOf,
   DONE,
+  SET_UP,
   type SettingsPanel,
   settingsPanel,
   UPDATES,
@@ -91,6 +92,8 @@ export interface SettingsDeps {
   moveThinker(afterTurn: boolean): void
   /** An extension has been handed the config again: its setup is read afresh. */
   setupChanged(): void
+  /** Open an extension's own setup page; false where it has none to open, off or not loaded. */
+  openSetup(extension: string): boolean
   /** Muted now: cut off what is being said and drop what was queued behind it. */
   silence(): void
   /** Add, sign into or forget an account, from the Accounts page. */
@@ -237,6 +240,10 @@ export class Settings implements Subject {
       await this.copied(panel, choice.slice('copy:'.length))
       return
     }
+    if (choice.startsWith(SET_UP)) {
+      this.setUp(panel, choice.slice(SET_UP.length))
+      return
+    }
     // Which account the orchestrator runs as is a setting, written by the
     // door every setting is, so the page's button and the row are one act.
     if (choice.startsWith('account:orchestrator:')) {
@@ -256,6 +263,28 @@ export class Settings implements Subject {
     if (choice === 'mic-test') await this.deps.testMicrophone()
     if (choice === LOOK_AGAIN) this.domain.again()
     if (choice.startsWith('away-')) await this.deps.away().carry(choice)
+  }
+
+  /**
+   * A setting an extension's own page fills in, a row per name: that page,
+   * so one key has one editor in the window. Where the extension has no page
+   * to open — turned off — the line it is typed into instead, and why.
+   */
+  private setUp(panel: SettingsPanel, path: string): void {
+    const setting = this.rows()
+      .flatMap((group) => group.settings)
+      .find((one) => one.path === path)
+    if (setting?.type.kind !== 'text' || !setting.type.setUpIn) return
+    if (this.deps.openSetup(setting.type.setUpIn)) return
+    this.wire.put({
+      ...this.wire.state,
+      panel: {
+        ...panel,
+        editing: { path, text: setting.value },
+        saved: `${setting.type.setUpIn} has no page to fill this in while it is off: typed here, like ${setting.type.placeholder}`,
+      },
+    })
+    this.wire.draw()
   }
 
   /**

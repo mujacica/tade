@@ -28,6 +28,7 @@ const NOTHING_ELSE: SettingsDeps = {
   tellThinking: () => Promise.resolve(null),
   moveThinker: () => {},
   setupChanged: () => {},
+  openSetup: () => false,
   silence: () => {},
   accountAction: () => Promise.resolve(),
   remoteAction: () => Promise.resolve(),

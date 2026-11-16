@@ -620,10 +620,10 @@ export class Extensions implements Subject {
     if (this.wire.state.panel?.kind === 'extension-view') this.wire.draw()
   }
 
-  /** Set an extension up, or change its settings, in a panel. */
-  openSetup(name: string): void {
+  /** Set an extension up, or change its settings, in a panel; false where it has none. */
+  openSetup(name: string): boolean {
     const setup = this.wire.opts.extensions?.setupOf(name)
-    if (!setup) return
+    if (!setup) return false
     this.setupChoices = {}
     // A map is filled in a row per name, read out of what the config holds.
     const maps = Object.fromEntries(
@@ -641,6 +641,7 @@ export class Extensions implements Subject {
         this.wire.draw()
       })
     }
+    return true
   }
 
   /** The setup panel's facts: the extension as it stands, and what its fields offer. */

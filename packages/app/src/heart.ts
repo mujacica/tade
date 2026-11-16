@@ -203,6 +203,7 @@ export function screenless(heart: () => Beating): Face {
       refreshModels: nothing,
       lookAtWhatIsInstalled: () => {},
       setupChanged: () => {},
+      openSetup: () => false,
       silence: () => {},
       accountAction: nothing,
       remoteAction: nothing,

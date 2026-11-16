@@ -279,3 +279,27 @@ describe('copying a setting', () => {
     expect(panel.capture?.key).toBe('ctrl+shift+c')
   })
 })
+
+// Sentry's projects are a row per project on Sentry's own page. The line here
+// was a second editor over the same key, so opening the row asks for that page.
+describe('a setting an extension’s own page fills in', () => {
+  const PROJECTS = 'extensions.sentry.projects'
+
+  it('asks for that page on enter and on a click, rather than opening a line', () => {
+    const panel = on(PROJECTS, { focus: 'form' })
+    for (const out of [
+      settingsKey(panel, 'enter', '', inputs),
+      settingsClick(panel, `edit:${PROJECTS}`, inputs),
+    ]) {
+      expect(out.submit).toBe(true)
+      expect(out.choice).toBe(`set-up:${PROJECTS}`)
+      expect(out.panel?.kind === 'settings' ? out.panel.editing : 'closed').toBeNull()
+    }
+  })
+
+  it('still opens a line for a text setting nobody else fills in', () => {
+    const out = settingsKey(on('telemetry.dsn', { focus: 'form' }), 'enter', '', inputs)
+    expect(out.submit).toBe(false)
+    expect(out.panel?.kind === 'settings' ? out.panel.editing?.path : null).toBe('telemetry.dsn')
+  })
+})

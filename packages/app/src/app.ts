@@ -187,6 +187,7 @@ export class App {
         refreshModels: () => this.routes.refreshModels(),
         lookAtWhatIsInstalled: () => void this.updates.lookAtWhatIsInstalled(),
         setupChanged: () => this.extensions.forgetSetup(),
+        openSetup: (extension) => this.extensions.openSetup(extension),
         silence: () => void this.voice.silence(),
         accountAction: (choice) => this.machine.accountAction(choice),
         remoteAction: (choice) => this.remotes.action(choice, this.projects),

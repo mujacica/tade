@@ -1,10 +1,12 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ConfigSchema, loadConfig, SEEN_BY_AGENTS, settingsOf, writeSetting } from '@tade/core'
+import { sentryExtension } from '@tade/extension-sentry'
 import { ExtensionHost, type TadeExtension } from '@tade/extensions-core'
 import type { Workbench } from '@tade/workbench'
 import { recordConfigChanges } from '@tade/workbench/config-changes'
 import { describe, expect, it } from 'vitest'
+import { stringify } from 'yaml'
 import { asPaste } from '../../src/input.ts'
 import type { Thinker } from '../../src/wire/context.ts'
 import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
@@ -660,7 +662,8 @@ describe('the window, and its settings', () => {
   })
 
   // `vrolta-web, vrolta-platform` is two names and no `=`. It used to be read
-  // as nothing at all, written as `{}`, and said to be saved.
+  // as nothing at all, written as `{}`, and said to be saved. With no Sentry
+  // loaded there is no page of its own to open, so the row is typed into.
   it('refuses Sentry projects it cannot read, saying which part, and writes nothing', async () => {
     terminal.columns = 140
     terminal.rows = 50
@@ -683,6 +686,42 @@ describe('the window, and its settings', () => {
       shown(terminal).includes('“vrolta-web” has no “=” in it'),
     )
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toBe(before)
+  })
+
+  // The same key had two editors: a row per project on Sentry's own page, and
+  // one line here that took them typed. With Sentry loaded, the row here opens
+  // that page, so there is one way to fill it in.
+  it('opens Sentry’s own page, a row per project, from its Sentry projects row', async () => {
+    terminal.columns = 140
+    terminal.rows = 50
+    const settings = {
+      projects: { 'vrolta-platform': { root: repo.root } },
+      extensions: { sentry: { enabled: true, token: 'sntryu_x', org: 'acme' } },
+    }
+    writeFileSync(join(home, 'config.yaml'), stringify(settings))
+    const config = ConfigSchema.parse(settings)
+    const extensions = await ExtensionHost.load({
+      builtin: [sentryExtension],
+      config: { extensions: config.extensions, projects: config.projects },
+      home,
+      env: {},
+    })
+    await start({ config, extensions })
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const button = find('Settings ')
+    click(button.col + 1, button.row)
+    await until('the settings', () => terminal.written.includes('Where agents run'))
+    const category = find('Telemetry')
+    click(category.col + 1, category.row)
+    await until('the field', () =>
+      screenOf(terminal.written).some((row) => row.includes('Sentry projects')),
+    )
+    const field = find('Sentry projects')
+    click(field.col + 42, field.row)
+    await until('Sentry’s page, offering the open project as a row', () =>
+      screenOf(terminal.written).some((row) => row.includes('+ vrolta-platform ]')),
+    )
+    expect(screenOf(terminal.written).join('\n')).not.toContain('Where agents run')
   })
 
   it('writes a key that is a key to the same file, as the setting it is', async () => {
