@@ -924,9 +924,15 @@ describe('the orchestrator, configuring Tade', () => {
       'vrolta-platform': ['vrolta-platform', 'vrolta-staff'],
     })
     expect(await changeWritten()).toMatchObject({ path: 'extensions.sentry.projects', said })
+    // A line about one project's Sentry is not a line about another's.
+    await expect(
+      config.change({ path: 'extensions.sentry.projects.tade', value: 'tade-app', said }),
+    ).rejects.toThrow(/Nothing they have said names Sentry projects/)
     // An entry already there changes in place, and empty takes it out.
-    await config.change({ path: 'extensions.sentry.projects.tade', value: 'tade-app', said })
-    await config.change({ path: 'extensions.sentry.projects.vrolta-web', value: '', said })
+    const tade = "tade's Sentry is only tade-app, and stop reading vrolta-web's sentry"
+    await theySaid(tade)
+    await config.change({ path: 'extensions.sentry.projects.tade', value: 'tade-app', said: tade })
+    await config.change({ path: 'extensions.sentry.projects.vrolta-web', value: '', said: tade })
     expect(await projects()).toEqual({
       tade: 'tade-app',
       'vrolta-platform': ['vrolta-platform', 'vrolta-staff'],

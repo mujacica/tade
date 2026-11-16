@@ -192,9 +192,26 @@ export async function askedSetting(
         `${setting.title} is only changed when somebody asks for it. Pass what they said, word for word.`,
       )
     }
-    await namedOrRefused(wire, setting, because)
+    await namedOrRefused(wire, setting, because, entriesChanged(setting, req.value))
   }
   return page.write(path, req.value, 'orchestrator', req.said.trim())
+}
+
+/**
+ * The entries of a map setting a write changes, adds or takes out — what a
+ * line may name an extension's map by (`namedBy`'s `entries`). Empty for
+ * anything that is no map, or a value that does not read, which the write
+ * refuses in its own words.
+ */
+function entriesChanged(setting: Setting, value: string): string[] {
+  if (setting.type.kind !== 'text' || !setting.type.pairs) return []
+  const was = readPairs(setting.value)
+  const now = readPairs(value)
+  if ('problem' in was || 'problem' in now) return []
+  const text = (one: string | string[] | undefined) => [one ?? []].flat().join('+')
+  return [...new Set([...Object.keys(was.pairs), ...Object.keys(now.pairs)])].filter(
+    (name) => text(was.pairs[name]) !== text(now.pairs[name]),
+  )
 }
 
 /**
@@ -237,8 +254,13 @@ function mapEntry(
 }
 
 /** Refuses unless a line of theirs names this setting: the half of `asked` that reads the journal. */
-async function namedOrRefused(wire: Wiring, setting: Setting, because = ''): Promise<void> {
-  if (!namedBy(setting, await saidLately(wire, LINES_LOOKED_BACK))) {
+async function namedOrRefused(
+  wire: Wiring,
+  setting: Setting,
+  because = '',
+  entries: readonly string[] = [],
+): Promise<void> {
+  if (!namedBy(setting, await saidLately(wire, LINES_LOOKED_BACK), entries)) {
     // An extension's own setting says why it waits for their words, and where
     // else a person changes it: its own page as well as Settings.
     const why = because ? ` It changes when they ask: ${because}.` : ''

@@ -853,6 +853,48 @@ describe('whether the person themselves named it', () => {
     expect(machine && namedBy(machine, [spokenAs(machine)])).not.toBeNull()
   })
 
+  it('names an extension’s setting by the extension with its key, never by either alone', () => {
+    // The extension is a section, and its keys are ordinary words: before
+    // this "how is sentry doing?" named which projects Sentry reads, and
+    // "ignore that warning" what deps leaves out.
+    const projects = {
+      path: 'extensions.sentry.projects',
+      title: 'Sentry projects',
+      keywords: ['sentry', 'project', 'slug', 'telemetry'],
+    }
+    const query = {
+      path: 'extensions.sentry.brief_query',
+      title: 'What the brief counts',
+      keywords: ['sentry', 'brief', 'query', 'telemetry'],
+    }
+    const ignore = { path: 'extensions.deps.ignore', title: 'Dependencies ignore' }
+    const include = { path: 'extensions.review.include', title: 'Review include' }
+    for (const row of [projects, query, ignore, include]) {
+      expect(wordsFor(row)).not.toContain(row.path.split('.')[1])
+    }
+    expect(namedBy(projects, ['how is sentry doing?'])).toBeNull()
+    expect(namedBy(projects, ['is the telemetry working?'])).toBeNull()
+    expect(namedBy(query, ['what is in the brief today?'])).toBeNull()
+    expect(namedBy(query, ['how is sentry doing?'])).toBeNull()
+    expect(namedBy(ignore, ['ignore that warning and carry on'])).toBeNull()
+    expect(namedBy(include, ['include the tests in that commit'])).toBeNull()
+    expect(namedBy(include, ['how is the review going?'])).toBeNull()
+    // The extension and the key together, or the title, or the path.
+    expect(namedBy(projects, ['have sentry read these projects'])).not.toBeNull()
+    expect(namedBy(projects, ['fix the sentry projects'])).not.toBeNull()
+    expect(namedBy(query, ['make the sentry brief query count everything'])).not.toBeNull()
+    expect(namedBy(query, ['change what the brief counts'])).not.toBeNull()
+    expect(namedBy(ignore, ['have deps ignore lodash'])).not.toBeNull()
+    expect(namedBy(include, ['set extensions.review.include to src'])).not.toBeNull()
+    // One entry of a map by the extension with the entry, and every entry a
+    // write changes: a line about one project's Sentry is not about another's.
+    const said = "point vrolta-platform's Sentry at vrolta-platform and vrolta-staff"
+    expect(namedBy(projects, [said])).toBeNull()
+    expect(namedBy(projects, [said], ['vrolta-platform'])).toBe(said)
+    expect(namedBy(projects, [said], ['vrolta-platform', 'tade'])).toBeNull()
+    expect(namedBy(projects, ['point tade at tade-app'], ['tade'])).toBeNull()
+  })
+
   it('leaves what the own sign-in is called to the person’s words, apart from the accounts no words reach', () => {
     // A label beside `workers.accounts`, not under `accounts`: naming one signs
     // nothing in, adds or removes nothing and hands nobody a credential.

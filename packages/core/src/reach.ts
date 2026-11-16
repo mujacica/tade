@@ -691,6 +691,18 @@ export function watchNamedBy(
  * letting it change what it runs in. Every other title, being specific, still
  * counts.
  *
+ * **An extension's own setting is the same shape a fifth time**
+ * (`extensions.<name>.<key>`). The extension's name is a section, so with it
+ * in "how is sentry doing?" named which projects Sentry reads, its brief and
+ * what the brief counts; and its keys are the ordinary words `ignore`,
+ * `include`, `brief`, so "ignore that warning" named what deps leaves out and
+ * "what is in the brief" every extension's brief. A line names one by the
+ * extension's name and the key together — "the deps ignore", "sentry's brief
+ * query" — and none of its keywords, which are what the panel's search finds
+ * it by. And one entry of a map by the extension's name and the entry's
+ * together (`namedBy`'s `entries`), which is how a person asks for one:
+ * "point vrolta-platform's Sentry at vrolta-platform and vrolta-staff".
+ *
  * Known looseness, said rather than hidden: a leaf that is an ordinary word of
  * this house — `checks.before`, `telemetry.agents` — is matched by a line that
  * meant something else by it. An English stop list is the kind of thing that
@@ -712,12 +724,15 @@ export function wordsFor(
   // A route's row is named by its words together, never one of them, and a
   // row whose title is only its kind by whose it is with it (`wordsTogether`).
   const owned = Object.hasOwn(OWNED_ROWS, setting.path)
+  const extension = EXTENSION_SETTING.test(setting.path)
   const together =
+    extension ||
     ROUTE_ROW.test(setting.path.toLowerCase()) ||
     ACCOUNT_ROW.test(setting.path) ||
     DEFAULT_NAME_ROW.test(setting.path)
   const segments = together ? [] : parts.slice(1).filter((part) => part.length >= 5)
-  const rest = (owned ? [] : [setting.title, ...(setting.keywords ?? []), ...segments])
+  const keywords = owned || extension ? [] : (setting.keywords ?? [])
+  const rest = (owned ? [] : [setting.title, ...keywords, ...segments])
     .map((word) => word.trim().toLowerCase())
     .filter((word) => word !== '' && !sections.has(word))
   return [setting.path.trim().toLowerCase(), ...rest]
@@ -803,12 +818,30 @@ interface Together {
  *
  * A row whose title is only its kind (`OWNED_ROWS`) is one phrase instead:
  * whose it is in front of the title, `your model`.
+ *
+ * An extension's own setting by the extension's name and its key, the key as
+ * written or with spaces for its underscores — `brief_query`, `brief query` —
+ * and by the extension's name and every one of `entries` where a write is to
+ * those entries of a map.
  */
-function wordsTogether(row: Pick<Setting, 'path' | 'title'>): Together[] {
+function wordsTogether(
+  row: Pick<Setting, 'path' | 'title'>,
+  entries: readonly string[] = [],
+): Together[] {
   const { path } = row
   if (Object.hasOwn(OWNED_ROWS, path)) {
     const title = row.title.trim().toLowerCase()
     return (OWNED_ROWS[path] ?? []).map((owner) => ({ all: [`${owner} ${title}`] }))
+  }
+  const extension = EXTENSION_SETTING.exec(path.trim().toLowerCase())
+  if (extension) {
+    const [, name = '', key = ''] = extension
+    const keys = [...new Set([key, key.replace(/_/g, ' ')])]
+    const named = entries.map((entry) => entry.trim().toLowerCase()).filter(Boolean)
+    return [...new Set([name, name.replace(/-/g, ' ')])].flatMap((said) => [
+      ...keys.map((one) => ({ all: [said, one] })),
+      ...(named.length > 0 ? [{ all: [said, ...named] }] : []),
+    ])
   }
   const account = ACCOUNT_ROW.exec(path.trim().toLowerCase())
   if (account) {
@@ -862,13 +895,19 @@ function saidIn(line: string, phrase: string): boolean {
  * who says "make the left bit wider" has named nothing and is refused. Both
  * are the safe direction — it can only ever refuse, never permit what the tier
  * did not already allow.
+ *
+ * `entries` are the names of the entries of a map a write changes, and name
+ * an extension's map only all of them together with the extension's name
+ * (`wordsTogether`): a line about one project's Sentry is not a line about
+ * another's.
  */
 export function namedBy(
   setting: Pick<Setting, 'path' | 'title' | 'keywords' | 'scope'>,
   lines: readonly string[],
+  entries: readonly string[] = [],
 ): string | null {
   const words = wordsFor(setting)
-  const together = wordsTogether(setting)
+  const together = wordsTogether(setting, entries)
   for (const line of lines) {
     const said = line.toLowerCase()
     const says = (word: string) => saidIn(said, word)

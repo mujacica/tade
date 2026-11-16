@@ -75,7 +75,9 @@ tools registered by Tade's own pi extensions, which call back to Tade. What only
 - **Every setting says how far the orchestrator reaches into it** (`reach`, beside the setting):
   `{ reach: 'asked', because }` for one that only says which of the person's own things the
   extension reads or names — in the same place, with the same credential (Sentry's `projects`,
-  `brief_query`) — which `tade_setting_change` then writes on their words naming it; `{ reach:
+  `brief_query`) — which `tade_setting_change` then writes on their words naming it: the
+  extension's name *with* the key ("deps ignore"), or with every map entry the write changes
+  ("vrolta-platform's Sentry"), never either alone (`wordsTogether`); `{ reach:
   'never', because }` for where it sends anything, whose it reads as, and what an agent or a watch
   may do on its own. `because` is the sentence the refusal says. Undeclared is `never`, and so are a
   `secret`, `enabled` and a `*_env` key whatever is declared (`declaredReach`, `core/src/reach.ts`;

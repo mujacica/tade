@@ -203,7 +203,8 @@ Two consequences when you add a key:
   costs nothing extra. A segment every row of its kind shares names none of them: a section, a
   project's name, a scope, and every word of a route's row, which a line names only by the route's
   or the harness's name *with* the setting's (`wordsTogether`) — "switch the model" names no
-  route's model, "make the default thinking high" names one row. A title counts on its own unless
+  route's model, "make the default thinking high" names one row; an extension's own setting
+  likewise by the extension's name with its key or the map entries it changes. A title counts on its own unless
   it is only the kind of setting it is: the orchestrator's own `Model`, `Thinking` and `Harness`
   need whose said in front (`OWNED_ROWS`, "your model"), and their `keywords` only find them on
   the panel, so a row whose title is that bare goes there too.
