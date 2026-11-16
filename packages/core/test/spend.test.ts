@@ -601,6 +601,19 @@ describe('pricing what a harness will not', () => {
     expect(onPlanOf(report.total)).toBe('listed')
   })
 
+  it('leaves a turn unpriced where its prompt may have been past its rate’s length', () => {
+    // A million tokens of prompt on Haiku 5.5 may have been one request over
+    // 100,000 or twenty under it, a factor of five apart.
+    const report = spendFrom([codex({ model: 'claude-haiku-5-5' })], { since: 0 })
+    expect(report.total.usd).toBe(0)
+    expect(report.total.usdListed).toBe(0)
+    expect(report.total.tokensUnpriced).toBe(1_000_000)
+    // And a plan's turn of it is what its list-price figure is missing.
+    const plan = spendFrom([onPlan({ model: 'claude-haiku-5-5' })], { since: 0 })
+    expect(plan.total.usdOnPlan).toBe(0)
+    expect(plan.total.tokensOnPlanUnrated).toBe(10_000_000)
+  })
+
   it('leaves an API-key run’s own figure alone, and estimates nothing beside it', () => {
     // Claude Code against an API key declares `estimate`: somebody is billed,
     // the harness is the thing that knows, and a second figure beside its own
@@ -737,6 +750,37 @@ describe('the price table', () => {
       cacheRead: 0.2,
       cacheWrite: 5,
     })
+  })
+
+  it('prices the current Claude models as the page states them', () => {
+    expect(priceFor('claude-fable-5-2')).toEqual({
+      input: 8,
+      output: 40,
+      cacheRead: 0.2,
+      cacheWrite: 10,
+    })
+    expect(priceFor('claude-mythos-5-2')).toEqual(priceFor('claude-fable-5-2'))
+    expect(priceFor('claude-mythos-5')).toEqual(priceFor('claude-fable-5'))
+    // A cache hit on Sonnet 5.5 is a twentieth of input, as on Opus 5.5.
+    expect(priceFor('claude-sonnet-5-5')).toEqual({
+      input: 2,
+      output: 10,
+      cacheRead: 0.1,
+      cacheWrite: 2.5,
+    })
+  })
+
+  it('prices a Haiku 5.5 turn only where none of its requests can have been the dearer kind', () => {
+    // Over 100,000 tokens of prompt a request costs five times as much, and a
+    // turn is many requests added up, so only a turn whose prompts came to no
+    // more than that is sure to have been charged the cheaper rate.
+    const price = priceFor('claude-haiku-5-5') as ModelPrice
+    const under = { input: 40_000, output: 1_000_000, cacheRead: 50_000, cacheWrite: 10_000 }
+    expect(estimateUsd(under, price)).toBeCloseTo(
+      (40_000 * 0.1 + 1_000_000 * 0.5 + 50_000 * 0.01 + 10_000 * 0.125) / 1_000_000,
+      9,
+    )
+    expect(estimateUsd({ ...under, cacheRead: 50_001 }, price)).toBeNull()
   })
 
   it('costs nothing for no tokens', () => {

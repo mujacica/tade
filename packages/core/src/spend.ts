@@ -571,7 +571,7 @@ function chargeOf(
   // handed back as its own figure, in no total (`Spend.usdOnPlan`).
   if (!isMoney(facts)) {
     const price = priceFor(model, over)
-    const onPlan = price ? estimateUsd(tokensIn(event), price) : 0
+    const onPlan = (price && estimateUsd(tokensIn(event), price)) ?? 0
     return { ...nothing, priced: false, onPlan, onPlanUnrated: onPlan <= 0, plan: true }
   }
   const reported = count('usd')
@@ -600,6 +600,7 @@ function chargeOf(
   const price = priceFor(model, over)
   if (!price) return { ...nothing, priced: false }
   const usd = estimateUsd(tokensIn(event), price)
+  if (usd === null) return { ...nothing, priced: false }
   return { ...nothing, usd, kind: usd > 0 ? 'listed' : null, priced: true }
 }
 

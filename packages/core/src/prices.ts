@@ -40,9 +40,11 @@ import { z } from 'zod'
  *
  * It rides with every figure this table produces, because a price is a fact
  * with a date on it and a dollar figure that cannot say when it was true is
- * one nobody can check.
+ * one nobody can check. One date for the whole table, so a row is never read
+ * on a different day from the rest: whoever adds one reads every other row
+ * off the same pages that day and moves this.
  */
-export const PRICES_TAKEN = '2026-09-27'
+export const PRICES_TAKEN = '2026-11-16'
 
 /**
  * What one model costs, in US dollars per million tokens, exactly as the
@@ -64,6 +66,11 @@ export interface ModelPrice {
   cacheRead: number
   /** Writing one. The input rate where the provider charges no premium. */
   cacheWrite: number
+  /**
+   * The longest prompt, in tokens, these rates hold for, where the provider
+   * charges more for a longer one. Absent where every length costs the same.
+   */
+  promptsUpTo?: number
 }
 
 /** Models to prices, by the model's own name — what `modelIdentity` calls `name`. */
@@ -107,19 +114,26 @@ const openai = (input: number, output: number, cacheRead: number): ModelPrice =>
  * a guess dressed as a figure is the one thing it may not be.
  */
 export const PRICES: PriceTable = {
-  // Anthropic, https://docs.claude.com/en/docs/about-claude/pricing
+  // Anthropic, https://platform.claude.com/docs/en/about-claude/pricing. A
+  // cache hit is 0.025x input on Fable and Mythos 5.1 and later, and 0.05x on
+  // Opus 5.5 and Sonnet 5.5, not a tenth.
+  'claude-fable-5-2': claude(8, 40, 0.2),
+  'claude-mythos-5-2': claude(8, 40, 0.2),
   'claude-fable-5-1': claude(10, 50, 0.25),
   'claude-mythos-5-1': claude(10, 50, 0.25),
   'claude-fable-5': claude(10, 50),
-  // Read off the page on 2026-11-16, after `PRICES_TAKEN`. A cache hit is
-  // 0.05x input on it, not a tenth.
+  'claude-mythos-5': claude(10, 50),
   'claude-opus-5-5': claude(4, 20, 0.2),
   'claude-opus-5': claude(5, 25),
   'claude-opus-4-8': claude(5, 25),
   'claude-opus-4-7': claude(5, 25),
   'claude-opus-4-6': claude(5, 25),
+  'claude-sonnet-5-5': claude(2, 10, 0.1),
   'claude-sonnet-5': claude(2, 10),
   'claude-sonnet-4-6': claude(3, 15),
+  // Five times this over 100,000 tokens of prompt, counted per request with
+  // the cache reads and writes in it.
+  'claude-haiku-5-5': { ...claude(0.1, 0.5), promptsUpTo: 100_000 },
   'claude-haiku-4-5': claude(1, 5),
   // OpenAI, https://platform.openai.com/docs/pricing
   'gpt-5.3-codex': openai(1.75, 14, 0.175),
@@ -209,13 +223,22 @@ export interface Tokens {
 }
 
 /**
- * What those tokens cost at those prices, in dollars.
+ * What those tokens cost at those prices, in dollars, or `null` where the
+ * prices may not be the ones charged.
  *
  * Per million, which is how every provider states them, and summed over the
  * four kinds rather than off a single total: the kinds differ by a factor of
  * fifty, and an agent's day is mostly the cheap one.
+ *
+ * A rate that holds only up to a prompt length is checked against the whole
+ * turn's prompt, because a turn is many requests added up and nothing says how
+ * long each one was. A turn whose prompts came to no more than that length
+ * cannot have had a request over it, so it is priced; a longer one may or may
+ * not have, and is `null` rather than a figure that could be five times out.
  */
-export function estimateUsd(tokens: Tokens, price: ModelPrice): number {
+export function estimateUsd(tokens: Tokens, price: ModelPrice): number | null {
+  const prompt = tokens.input + tokens.cacheRead + tokens.cacheWrite
+  if (price.promptsUpTo !== undefined && prompt > price.promptsUpTo) return null
   return (
     (tokens.input * price.input +
       tokens.output * price.output +
