@@ -104,10 +104,10 @@ export function headlessArgs(launch: HeadlessLaunch): string[] {
  * `tade_queue_change` with no `after` and no `retell`, and changed queued work
  * the only way it could see — removing it and planning it again, under a new
  * name each time. Inline, the tools are what the server says today: about
- * twenty thousand tokens of Tade's, cached between turns, and the person's own
- * servers' with them. Set last, because `spec.env` is the window's whole
- * environment and a value inherited from wherever Tade was opened would
- * quietly undo it.
+ * forty thousand tokens of Tade's and its extensions', cached between turns,
+ * and the person's own servers' with them. Set last, because `spec.env` is
+ * the window's whole environment and a value inherited from wherever Tade
+ * was opened would quietly undo it.
  *
  * **And none of another run's supervision.** The account is the window's
  * environment too, so Tade opened from inside an agent hands this run that
