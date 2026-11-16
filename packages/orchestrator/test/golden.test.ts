@@ -136,6 +136,16 @@ describe('the tools the orchestrator has', () => {
     }
   })
 
+  it('fits in what a harness shows of a description', () => {
+    // Claude Code (2.1.311, measured with a probe server) cuts an MCP tool's
+    // description somewhere between 4,000 and 4,100 characters and appends
+    // `… [truncated]`, so whatever is past that never reaches the model, and
+    // nothing says so. The longest today is under 2,000.
+    for (const tool of toolSurface()) {
+      expect(tool.description.length, tool.name).toBeLessThanOrEqual(4000)
+    }
+  })
+
   it('says in its own description when it is gated on the person’s own words', () => {
     // The gate itself is in the window, and what a model reads while it is
     // choosing is the description: `tade_project_close` said it only in the
