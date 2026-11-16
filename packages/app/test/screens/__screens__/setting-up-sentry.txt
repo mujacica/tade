@@ -17,10 +17,10 @@
   M src/webh│ Organization     acme                                                                       ▕│            
             │                 its slug, as in the URL                                                     ▕│            
  ▾ FILES    │                   acme     acme-labs                                                        ▕│            
-   ▾ src/   │ Projects         checkout: checkout-web                                                     ▕│            
-       webho│                 your project: its Sentry project, comma separated                           ▕│            
-       webho│                                                                                             ▕│            
-   ▸ test/  │                                                                                             ▕│            
+   ▾ src/   │ Projects         checkout                checkout-web checkout-api                     ×    ▕│            
+       webho│                  refunds                 refunds                                       ×    ▕│            
+       webho│                   + search     + Another                                                    ▕│            
+   ▸ test/  │                 only where a Sentry project is called something else                        ▕│            
 ━   orchestr│                                                                                             ▕│ ↑     ↓   ━
             │                                                                                             ▕│            
             │                                                                                             ▕│           ▕

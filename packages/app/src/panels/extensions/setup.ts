@@ -43,6 +43,13 @@ export interface ExtensionSetupPanel {
   following: boolean
   /** What is typed into each field, by key. */
   values: Record<string, string>
+  /**
+   * What is filled into each map field, a row per name, by key. A map is
+   * names each with its values — which Sentry projects each of yours reports
+   * to — and typed as one line of `a=b+c, d=e` it was a shape nobody could
+   * guess and that dropped what it could not read.
+   */
+  maps: Record<string, readonly MapRow[]>
   busy: boolean
   error: string | null
   /** What saving came to: ready, or what it still needs. */
@@ -56,8 +63,13 @@ export interface SetupFieldView {
   help: string
   placeholder: string
   kind: 'text' | 'list' | 'map' | 'flag' | 'secret'
-  /** What it offers to choose from, once looked up. */
+  /**
+   * What it offers to choose from, once looked up. For a map, the names it
+   * offers to add a row for: the open projects, where its names are those.
+   */
   choices: readonly string[]
+  /** For a map: whether one name may have several values beside it. */
+  several?: boolean
   /**
    * For a secret: where the one that is used comes from — `$TYPESAFE_API_KEY`
    * or `config.yaml` — or empty. The value is in `value` like any other
@@ -66,9 +78,16 @@ export interface SetupFieldView {
   have?: string
 }
 
+/** One row of a map field: a name, and its values as typed, a space between. */
+export interface MapRow {
+  key: string
+  value: string
+}
+
 export function extensionSetupPanel(
   extension: string,
   fields: readonly { key: string; value: string }[],
+  maps: Record<string, readonly MapRow[]> = {},
 ): ExtensionSetupPanel {
   return {
     kind: 'extension-setup',
@@ -77,22 +96,61 @@ export function extensionSetupPanel(
     scroll: 0,
     following: true,
     values: Object.fromEntries(fields.map((field) => [field.key, field.value])),
+    maps,
     busy: false,
     error: null,
     said: null,
   }
 }
 
-/** The setup panel's controls in keyboard order: each field, the choices it offers, then save and close. */
-export function setupControls(fields: readonly SetupFieldView[]): string[] {
+/**
+ * The setup panel's controls in keyboard order: each field, the choices it
+ * offers, then save and close. A map field is its rows — the name, the values
+ * and the `×` of each — then a row to add for each name offered that has none
+ * yet, then a row to add by typing its name.
+ */
+export function setupControls(
+  fields: readonly SetupFieldView[],
+  maps: Readonly<Record<string, readonly MapRow[]>> = {},
+): string[] {
   return [
-    ...fields.flatMap((field) => [
-      `field:${field.key}`,
-      ...field.choices.map((choice) => `pick:${field.key}:${choice}`),
-    ]),
+    ...fields.flatMap((field) =>
+      field.kind === 'map'
+        ? mapControls(field, maps[field.key] ?? [])
+        : [`field:${field.key}`, ...field.choices.map((choice) => `pick:${field.key}:${choice}`)],
+    ),
     'save',
     'cancel',
   ]
+}
+
+function mapControls(field: SetupFieldView, rows: readonly MapRow[]): string[] {
+  return [
+    ...rows.flatMap((_, i) => [
+      `map:${field.key}:${i}:key`,
+      `map:${field.key}:${i}:value`,
+      `map:${field.key}:${i}:remove`,
+    ]),
+    ...unmapped(field, rows).map((name) => `map:${field.key}:add:${name}`),
+    `map:${field.key}:add`,
+  ]
+}
+
+/** The names a map field offers that have no row yet, in the order offered. */
+export function unmapped(field: SetupFieldView, rows: readonly MapRow[]): string[] {
+  return field.choices.filter((name) => !rows.some((row) => row.key.trim() === name))
+}
+
+/** A map row's text box, read out of its control: which field, which row, which half. */
+function mapCell(at: string): { key: string; row: number; part: 'key' | 'value' } | null {
+  const [kind, key, row, part] = at.split(':')
+  if (kind !== 'map' || !key || !/^\d+$/.test(row ?? '')) return null
+  return part === 'key' || part === 'value' ? { key, row: Number(row), part } : null
+}
+
+/** Whether a control is somewhere to type, rather than something to press. */
+function typesInto(at: string): boolean {
+  return at.startsWith('field:') || mapCell(at) !== null
 }
 
 export function setupKey(
@@ -101,7 +159,7 @@ export function setupKey(
   data: string,
   fields: readonly SetupFieldView[],
 ): PanelOutcome {
-  const controls = setupControls(fields)
+  const controls = setupControls(fields, panel.maps)
   const at = controls[panel.index] ?? ''
   if (key === 'escape') return close
   if (panel.busy) return stay(panel)
@@ -120,8 +178,24 @@ export function setupKey(
     const by = pageBy(key)
     if (by !== null) return scrolled(panel, by)
   }
-  if (key === 'enter' || (key === 'space' && !at.startsWith('field:')))
-    return setupPress(panel, at, fields)
+  if (key === 'enter' || (key === 'space' && !typesInto(at))) return setupPress(panel, at, fields)
+  const cell = mapCell(at)
+  if (cell) {
+    const rows = panel.maps[cell.key] ?? []
+    const text = rows[cell.row]?.[cell.part] ?? ''
+    const put = (next: string) =>
+      stay(
+        setRows(
+          panel,
+          cell.key,
+          rows.map((row, i) => (i === cell.row ? { ...row, [cell.part]: next } : row)),
+        ),
+      )
+    if (key === 'backspace') return put([...text].slice(0, -1).join(''))
+    if (key === 'ctrl+u') return put('')
+    const typedHere = typed(data, key)
+    return typedHere ? put(text + typedHere) : stay(panel)
+  }
   if (at.startsWith('field:')) {
     const field = fields.find((one) => `field:${one.key}` === at)
     if (!field) return stay(panel)
@@ -160,6 +234,7 @@ export function setupPress(
     const [, key, ...rest] = at.split(':')
     return stay(setValue(panel, key ?? '', rest.join(':')))
   }
+  if (at.startsWith('map:') && mapCell(at) === null) return mapPress(panel, at, fields)
   const field = fields.find((one) => `field:${one.key}` === at)
   if (field?.kind === 'flag') {
     // Unset, on, off, and round again: unset is the extension's own default.
@@ -167,12 +242,54 @@ export function setupPress(
     return stay(setValue(panel, field.key, next))
   }
   // Enter in a text field moves on, as it would in a form.
-  const controls = setupControls(fields)
+  const controls = setupControls(fields, panel.maps)
   return stay({ ...panel, index: Math.min(controls.length - 1, panel.index + 1) })
 }
 
 function setValue(panel: ExtensionSetupPanel, key: string, value: string): ExtensionSetupPanel {
   return { ...panel, values: { ...panel.values, [key]: value }, error: null, said: null }
+}
+
+function setRows(
+  panel: ExtensionSetupPanel,
+  key: string,
+  rows: readonly MapRow[],
+): ExtensionSetupPanel {
+  return { ...panel, maps: { ...panel.maps, [key]: rows }, error: null, said: null }
+}
+
+/**
+ * Adding a row to a map or taking one out, and the keyboard put where the
+ * next thing to do is: a row added for a name offered is waiting for its
+ * values, one added by hand for its name, and the row after one taken out has
+ * its `×` under the keyboard, so pressing it again goes on down the list.
+ */
+function mapPress(
+  panel: ExtensionSetupPanel,
+  at: string,
+  fields: readonly SetupFieldView[],
+): PanelOutcome {
+  const [, key = '', which = '', ...rest] = at.split(':')
+  const rows = panel.maps[key] ?? []
+  const focus = (next: ExtensionSetupPanel, control: string) => {
+    const index = setupControls(fields, next.maps).indexOf(control)
+    return stay({ ...next, index: index < 0 ? panel.index : index, following: true })
+  }
+  if (which === 'add') {
+    const name = rest.join(':')
+    const next = setRows(panel, key, [...rows, { key: name, value: '' }])
+    return focus(next, `map:${key}:${rows.length}:${name === '' ? 'key' : 'value'}`)
+  }
+  const row = Number(which)
+  if (rest[0] === 'remove' && Number.isInteger(row) && row < rows.length) {
+    const left = rows.filter((_, i) => i !== row)
+    const next = setRows(panel, key, left)
+    return focus(
+      next,
+      left.length === 0 ? `map:${key}:add` : `map:${key}:${Math.min(row, left.length - 1)}:remove`,
+    )
+  }
+  return stay(panel)
 }
 
 /** The page an extension writes about itself: nothing to answer, only to read. */
@@ -249,11 +366,10 @@ export function setupClick(
   control: string,
   fields: readonly SetupFieldView[],
 ): PanelOutcome {
-  const index = setupControls(fields).indexOf(control)
+  const index = setupControls(fields, panel.maps).indexOf(control)
   if (index < 0) return stay(panel)
   // A field is clicked into; anything else is pressed.
-  return control.startsWith('field:') &&
-    fields.find((one) => `field:${one.key}` === control)?.kind !== 'flag'
+  return typesInto(control) && fields.find((one) => `field:${one.key}` === control)?.kind !== 'flag'
     ? stay({ ...panel, index })
     : setupPress({ ...panel, index }, control, fields)
 }

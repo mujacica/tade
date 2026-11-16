@@ -2,10 +2,10 @@ import {
   describeSetting,
   loadConfig,
   parseSetting,
+  refusedSays,
   type Setting,
   type SettingValue,
   settingsOf,
-  wantedInstead,
   writeSetting,
 } from '@tade/core'
 import { heldIn } from '@tade/workbench/config-changes'
@@ -86,7 +86,7 @@ async function change(ui: Ui, setting: Setting): Promise<SettingValue | null> {
   if (said === '' && setting.value === '') return null
   const parsed = parseSetting(setting, said)
   if (said !== '' && parsed === undefined) {
-    ui.say(`  that needs ${wantedInstead(setting)} — ${placeholder} is the shape of one`)
+    ui.say(`  ${refusedSays(setting, said)} ${placeholder} is the shape of one.`)
     return null
   }
   return parsed

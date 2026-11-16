@@ -205,11 +205,19 @@ export interface SetupField {
   placeholder?: string
   /**
    * `text` is one value; `list` is values separated by commas; `map` is
-   * `name=value` pairs separated by commas, like which Sentry project each of
-   * yours reports to; `flag` is on or off; `secret` is a credential, shown as
+   * names each with a value, like which Sentry project each of yours reports
+   * to, filled in a row each; `flag` is on or off; `secret` is a credential, shown as
    * itself so it can be checked — declare it as a `secret` setting too.
    */
   kind: 'text' | 'list' | 'map' | 'flag' | 'secret'
+  /**
+   * For a `map`: what its names are. `projects` is Tade's projects, so a
+   * surface offers the open ones as rows to add; unset, a name is whatever is
+   * typed (a host, say).
+   */
+  keys?: 'projects'
+  /** For a `map`: whether one name may have several values (`web=web-app+web-edge`). */
+  several?: boolean
   /** Values to offer, looked up when asked: the organizations a token can see. */
   choices?(ctx: ExtensionContext): Promise<readonly string[]>
 }

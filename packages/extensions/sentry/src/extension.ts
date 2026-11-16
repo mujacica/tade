@@ -628,7 +628,7 @@ export const sentryExtension: TadeExtension = {
         found.org
           ? `**Organization:** ${found.org}.`
           : '**Organization:** type its slug below — the part after `sentry.io/organizations/` — or, with a token, choose from the ones it can see.',
-        '**Projects:** a Tade project reports to the Sentry project with the same name. Where the names differ, say which: `checkout=checkout-api`, and `+` for more than one (`web=web-app+web-edge`).',
+        '**Projects:** a Tade project reports to the Sentry project with the same name. Where the names differ, add a row for it and put its Sentry projects beside it — as many as it reports to.',
         '**Your own Sentry:** leave Sentry empty for sentry.io; for a self-hosted or local one, give its address.',
       ],
       fields: [
@@ -663,7 +663,9 @@ export const sentryExtension: TadeExtension = {
           key: 'projects',
           label: 'Projects',
           kind: 'map',
-          placeholder: 'checkout=checkout-api',
+          keys: 'projects',
+          several: true,
+          placeholder: 'its Sentry projects',
           help: 'only where a Sentry project is called something else',
         },
         {

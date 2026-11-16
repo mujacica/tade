@@ -99,6 +99,10 @@ export interface SetupFieldView {
   placeholder: string
   kind: 'text' | 'list' | 'map' | 'flag' | 'secret'
   offers: boolean
+  /** For a map: what its names are, where the extension said (`SetupField.keys`). */
+  keys?: 'projects'
+  /** For a map: whether one name may have several values. */
+  several?: boolean
   /** What is in it now. Always empty for a secret: a credential is never drawn back. */
   value: string
   /** For a secret: where the one it has now is (`$SENTRY_AUTH_TOKEN`), or empty. */
@@ -576,6 +580,8 @@ export class ExtensionHost {
         placeholder: field.placeholder ?? '',
         kind: field.kind,
         offers: field.choices !== undefined,
+        ...(field.keys ? { keys: field.keys } : {}),
+        ...(field.several ? { several: true } : {}),
         // A credential is drawn like anything else: it is in the config, in
         // plain text, and a key you cannot read is a key you cannot check.
         value: written(entry.ctx.settings[field.key], field.kind),

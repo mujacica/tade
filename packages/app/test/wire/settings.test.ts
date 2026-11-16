@@ -659,6 +659,32 @@ describe('the window, and its settings', () => {
     expect(screenOf(terminal.written).join('\n')).toContain('Rules for every agent')
   })
 
+  // `vrolta-web, vrolta-platform` is two names and no `=`. It used to be read
+  // as nothing at all, written as `{}`, and said to be saved.
+  it('refuses Sentry projects it cannot read, saying which part, and writes nothing', async () => {
+    terminal.columns = 140
+    terminal.rows = 50
+    await start()
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const button = find('Settings ')
+    click(button.col + 1, button.row)
+    await until('the settings', () => terminal.written.includes('Where agents run'))
+    const category = find('Telemetry')
+    click(category.col + 1, category.row)
+    await until('the field', () =>
+      screenOf(terminal.written).some((row) => row.includes('Sentry projects')),
+    )
+    const before = readFileSync(join(home, 'config.yaml'), 'utf8')
+    const field = find('Sentry projects')
+    click(field.col + 42, field.row)
+    terminal.press(asPaste('vrolta-web, vrolta-platform'))
+    terminal.press('\r')
+    await until('the reason on the page', () =>
+      shown(terminal).includes('“vrolta-web” has no “=” in it'),
+    )
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toBe(before)
+  })
+
   it('writes a key that is a key to the same file, as the setting it is', async () => {
     // What the DSN's audit found is now true of both: a Sentry auth token and
     // a DSN are a line in `config.yaml` each, told apart by what they grant

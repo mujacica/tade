@@ -6,7 +6,7 @@ import { extensionConformance } from '../src/conformance.ts'
 import { ExtensionHost, type ExtensionRun } from '../src/host.ts'
 import type { TadeExtension } from '../src/port.ts'
 import { object, string } from '../src/schema.ts'
-import { settingFrom } from '../src/settings.ts'
+import { mapFrom, mapRows, settingFrom } from '../src/settings.ts'
 import { shapeProblem } from '../src/shape.ts'
 import type { ExtensionWatch } from '../src/watch.ts'
 
@@ -757,6 +757,64 @@ describe('changing extensions while the window is open', () => {
     expect(settingFrom('a, b', 'list')).toEqual(['a', 'b'])
     expect(settingFrom('', 'text')).toBeUndefined()
     expect(settingFrom('off', 'flag')).toBe(false)
+  })
+
+  // `web, platform` — two names and no `=` — came out as `{}`, was written,
+  // and the page said Saved: a setting that resets itself, with no reason.
+  it('refuses a map it cannot read, with a sentence, rather than writing what was left', () => {
+    expect(() => settingFrom('vrolta-web, vrolta-platform', 'map')).toThrow(
+      '“vrolta-web” has no “=” in it',
+    )
+    expect(() => settingFrom('a=b, junk', 'map')).toThrow('“junk” has no “=” in it')
+    expect(() => settingFrom('=x', 'map')).toThrow('nothing in front of its “=”')
+    expect(() => settingFrom('a=', 'map')).toThrow('nothing after its “=”')
+    expect(() => settingFrom('a=b, a=c', 'map')).toThrow('a is there twice')
+    expect(settingFrom('a=b,', 'map')).toEqual({ a: 'b' })
+  })
+
+  it('reads a map into a row per name and back, refusing a row it cannot write', () => {
+    const projects = { label: 'Projects', several: true }
+    const rows = mapRows('vrolta-platform=vrolta-platform+vrolta-staff, web=web')
+    expect(rows).toEqual([
+      { key: 'vrolta-platform', value: 'vrolta-platform vrolta-staff' },
+      { key: 'web', value: 'web' },
+    ])
+    expect(mapFrom(rows, projects)).toEqual({
+      'vrolta-platform': ['vrolta-platform', 'vrolta-staff'],
+      web: 'web',
+    })
+    // Typed with commas or `+` between, the same; a row nobody filled is passed.
+    expect(
+      mapFrom(
+        [
+          { key: ' web ', value: 'web-app, web-edge+web-api' },
+          { key: '', value: '' },
+        ],
+        projects,
+      ),
+    ).toEqual({ web: ['web-app', 'web-edge', 'web-api'] })
+    // No rows is no setting, so the key goes rather than staying as `{}`.
+    expect(mapFrom([], projects)).toBeUndefined()
+    expect(() => mapFrom([{ key: 'web', value: '' }], projects)).toThrow(
+      'Projects: web has nothing beside it',
+    )
+    expect(() => mapFrom([{ key: '', value: 'web-app' }], projects)).toThrow(
+      'Projects: web-app has no name in front of it',
+    )
+    expect(() =>
+      mapFrom(
+        [
+          { key: 'web', value: 'a' },
+          { key: 'web', value: 'b' },
+        ],
+        projects,
+      ),
+    ).toThrow('Projects: web is there twice')
+    expect(() => mapFrom([{ key: 'my web', value: 'a' }], projects)).toThrow('cannot be a name')
+    // One value a name, where that is all the reader takes.
+    expect(() => mapFrom([{ key: 'github.com', value: 'you me' }], { label: 'Accounts' })).toThrow(
+      'Accounts: github.com takes one value, and has 2',
+    )
   })
 
   it('keeps a sidebar section from the extension\u2019s own cache, and asks it no oftener than it says', async () => {

@@ -594,15 +594,24 @@ export const EXTENSION_SCREENS: Scenario[] = [
   {
     name: 'setting-up-sentry',
     about:
-      'Setting an extension up: why it is not working, a guide in steps, where to get what it needs, and a field for each thing — the key typed in as itself, written into config.yaml — with what the token can see offered to pick.',
+      'Setting an extension up: why it is not working, a guide in steps, where to get what it needs, and a field for each thing — the key typed in as itself, written into config.yaml — with what the token can see offered to pick, and which Sentry projects each of yours reports to a row each, the open projects with none yet offered to add.',
     state: {
       ...base(),
       panel: {
-        ...extensionSetupPanel('sentry', [
-          { key: 'token', value: 'sntryu_typed_just_now' },
-          { key: 'org', value: 'acme' },
-          { key: 'projects', value: 'checkout: checkout-web' },
-        ]),
+        ...extensionSetupPanel(
+          'sentry',
+          [
+            { key: 'token', value: 'sntryu_typed_just_now' },
+            { key: 'org', value: 'acme' },
+            { key: 'projects', value: '' },
+          ],
+          {
+            projects: [
+              { key: 'checkout', value: 'checkout-web checkout-api' },
+              { key: 'refunds', value: 'refunds' },
+            ],
+          },
+        ),
         index: 0,
       },
     },
@@ -642,10 +651,11 @@ export const EXTENSION_SCREENS: Scenario[] = [
             {
               key: 'projects',
               label: 'Projects',
-              help: 'your project: its Sentry project, comma separated',
-              placeholder: 'checkout: checkout-web',
+              help: 'only where a Sentry project is called something else',
+              placeholder: 'its Sentry projects',
               kind: 'map',
-              choices: [],
+              choices: ['checkout', 'refunds', 'search'],
+              several: true,
             },
           ],
         },

@@ -484,6 +484,75 @@ describe('the window, and its extensions', () => {
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('city: Graz')
   })
 
+  // Amir typed his Sentry projects into one line, pressed save, and the config
+  // still said `projects: {}`: a part with no `=` was dropped without a word, so
+  // `vrolta-web, vrolta-platform` was written as nothing and said Saved. A map
+  // is a row per project now, the open ones offered, and a row that cannot be
+  // read refuses the save with the reason on the page.
+  it('fills in which Sentry projects a project reports to, a row each, and refuses a half-filled one', async () => {
+    terminal.columns = 120
+    terminal.rows = 50
+    const settings = {
+      projects: { 'vrolta-platform': { root: repo.root } },
+      extensions: { sentry: { enabled: true, token: 'sntryu_x', org: 'acme', projects: {} } },
+    }
+    writeFileSync(join(home, 'config.yaml'), stringify(settings))
+    const config = ConfigSchema.parse(settings)
+    const extensions = await ExtensionHost.load({
+      builtin: [sentryExtension],
+      config: { extensions: config.extensions, projects: config.projects },
+      home,
+      env: {},
+    })
+    await start({ config, extensions })
+    await until('the footer', () =>
+      screenOf(terminal.written).some((row) => row.includes('Extensions ]')),
+    )
+    const button = find('Extensions ]')
+    click(button.col + 2, button.row)
+    await until('Sentry, in full', () =>
+      screenOf(terminal.written).some((row) => row.includes('Sentry  built-in')),
+    )
+    const open = find('Settings… ]')
+    click(open.col + 2, open.row)
+    // The open project is offered as a row to add, and nothing is filled in.
+    await until('the project offered', () =>
+      screenOf(terminal.written).some((row) => row.includes('+ vrolta-platform ]')),
+    )
+    const add = find('+ vrolta-platform ]')
+    click(add.col + 2, add.row)
+    // The keyboard is on what goes beside it, so typing fills that in.
+    for (const char of 'vrolta-platform vrolta-staff') terminal.press(char)
+    await until('the row filled in', () =>
+      screenOf(terminal.written).some((row) => row.includes('vrolta-platform vrolta-staff')),
+    )
+    let save = find('Save and check ]')
+    click(save.col + 2, save.row)
+    await until('saved', () => screenOf(terminal.written).some((row) => row.includes('Saved.')))
+    expect(written(home).extensions?.sentry).toMatchObject({
+      projects: { 'vrolta-platform': ['vrolta-platform', 'vrolta-staff'] },
+    })
+    expect(await changes(client, 1)).toEqual([
+      expect.objectContaining({ path: 'extensions.sentry.projects', by: 'window' }),
+    ])
+
+    // A row with a name and nothing beside it is refused, saying which, and
+    // nothing is written: not the row, and not what was there before it.
+    const another = find('+ Another ]')
+    click(another.col + 2, another.row)
+    for (const char of 'staff') terminal.press(char)
+    save = find('Save and check ]')
+    click(save.col + 2, save.row)
+    await until('the reason', () =>
+      screenOf(terminal.written).some((row) =>
+        row.includes('Projects: staff has nothing beside it'),
+      ),
+    )
+    expect(written(home).extensions?.sentry).toMatchObject({
+      projects: { 'vrolta-platform': ['vrolta-platform', 'vrolta-staff'] },
+    })
+  })
+
   it('takes a pasted key into the config, in plain sight, and works on it', async () => {
     terminal.columns = 120
     terminal.rows = 50

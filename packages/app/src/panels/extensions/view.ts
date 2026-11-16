@@ -22,7 +22,13 @@ import {
   tabRow,
 } from '../frame.ts'
 import { type ExtensionFacts, extensionBody } from './body.ts'
-import { type ExtensionSetupPanel, type ExtensionViewPanel, setupControls } from './setup.ts'
+import {
+  type ExtensionSetupPanel,
+  type ExtensionViewPanel,
+  type SetupFieldView,
+  setupControls,
+  unmapped,
+} from './setup.ts'
 import { chosenEntry, type ExtensionsPanel, extensionControls, extensionEntries } from './state.ts'
 
 // What the Extensions page looks like: the list down the side, one of them in
@@ -434,6 +440,85 @@ function viewHead(
 }
 
 /**
+ * A map field as rows: a name and its values in a box each, and `×` to take
+ * the row out; under them a button for each name offered that has no row yet
+ * — the open projects, for a map of them — and one to add a row by typing its
+ * name. The label is on the first line, as a field's is, and the help under
+ * the last. Nothing on screen is the `a=b+c` it is written as: that was the
+ * shape the page asked people to guess.
+ */
+function mapRows(
+  panel: ExtensionSetupPanel,
+  field: SetupFieldView,
+  at: {
+    inner: number
+    label: number
+    row: () => Row
+    chosen: string | null
+    skin: PanelContext['skin']
+    marking: (id: string, ahead: number) => void
+  },
+): Line[] {
+  const { inner, label, row, chosen, skin, marking } = at
+  const out: Line[] = []
+  const rows = panel.maps[field.key] ?? []
+  const name = printable(field.label).padEnd(label).slice(0, label)
+  const lit = chosen?.startsWith(`map:${field.key}:`) === true
+  const lead = (first: boolean) =>
+    first
+      ? row()
+          .space()
+          .text(name, lit ? skin.you : skin.label)
+      : row().text(' '.repeat(label + 1))
+  // The space the two boxes share: what a field takes, less the gaps and the
+  // `×`, which then ends where every other field does. The name gets a third
+  // of it and never under ten.
+  const both = Math.max(20, inner - label - 9)
+  const keyWidth = Math.max(10, Math.min(24, Math.round(both / 3)))
+  const valueWidth = Math.max(10, both - keyWidth)
+  const [keyGhost, valueGhost] = field.placeholder.includes('=')
+    ? field.placeholder.split('=', 2)
+    : [field.choices.length > 0 ? 'project' : 'name', field.placeholder]
+  rows.forEach((one, i) => {
+    const id = (part: string) => `map:${field.key}:${i}:${part}`
+    const r = lead(i === 0)
+    for (const [part, width, ghost] of [
+      ['key', keyWidth, keyGhost],
+      ['value', valueWidth, valueGhost],
+    ] as const) {
+      marking(id(part), out.length)
+      const value = one[part]
+      r.field(printable(value), width, {
+        caret: chosen === id(part),
+        target: { kind: 'control', id: id(part) },
+        ...(value === '' && ghost ? { ghost } : {}),
+      })
+      r.space()
+    }
+    marking(id('remove'), out.length)
+    out.push(r.icon('×', { kind: 'control', id: id('remove') }, 'danger').build())
+  })
+  // The rows to add, wrapped as a field's choices are.
+  let adds = lead(rows.length === 0)
+  const add = (text: string, control: string) => {
+    if (adds.used + visibleWidth(text) + 5 > inner) {
+      out.push(adds.build())
+      adds = lead(false)
+    }
+    marking(control, out.length)
+    adds.button(text, { kind: 'control', id: control }).space()
+  }
+  for (const one of unmapped(field, rows)) add(`+ ${printable(one)}`, `map:${field.key}:add:${one}`)
+  add(
+    rows.length === 0 && field.choices.length === 0 ? '+ Add' : '+ Another',
+    `map:${field.key}:add`,
+  )
+  out.push(adds.build())
+  if (field.help) out.push(lead(false).text(printable(field.help), skin.hint).build())
+  return out
+}
+
+/**
  * Setting an extension up: what it needs, in steps; links worth opening; the
  * fields to fill in, with what they can be chosen from; and what saving came
  * to — ready, or what is still missing.
@@ -446,7 +531,7 @@ export function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): D
   // Save button off the bottom, which is the one thing a foot may never do.
   const inner = width - 2 - BAR
   const setup = ctx.setup
-  const controls = setupControls(setup?.fields ?? [])
+  const controls = setupControls(setup?.fields ?? [], panel.maps)
   const chosen = controls[panel.index] ?? null
   const pointer =
     ctx.pointer.hover?.kind === 'control'
@@ -457,10 +542,11 @@ export function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): D
   /** Where the control the keyboard is on ended up, so tabbing keeps it in view. */
   let focusFrom = 0
   let focusTo = 0
-  const marking = (id: string) => {
+  // `ahead`: how many lines a drawing has made that are not in `rows` yet.
+  const marking = (id: string, ahead = 0) => {
     if (chosen === id) {
-      focusFrom = rows.length
-      focusTo = rows.length
+      focusFrom = rows.length + ahead
+      focusTo = rows.length + ahead
     }
   }
   if (!setup) {
@@ -508,6 +594,11 @@ export function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): D
   }
   const label = 16
   for (const field of setup.fields) {
+    if (field.kind === 'map') {
+      for (const line of mapRows(panel, field, { inner, label, row, chosen, skin, marking }))
+        rows.push(line)
+      continue
+    }
     const focused = chosen === `field:${field.key}`
     marking(`field:${field.key}`)
     const value = panel.values[field.key] ?? ''

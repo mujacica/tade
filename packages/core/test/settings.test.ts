@@ -7,6 +7,7 @@ import {
   applySetting,
   describeSetting,
   parseSetting,
+  refusedSays,
   type SettingGroup,
   settingFound,
   settingLabel,
@@ -338,6 +339,15 @@ describe('telemetry', () => {
     expect(() => config(file)).not.toThrow()
     // Nothing that reads as a pair leaves no setting at all, rather than {}.
     expect(parseSetting(setting, 'nonsense')).toBeUndefined()
+    // And a part that does not read is refused whole, never the rest kept:
+    // `web, platform` once wrote `{}` and said it was saved.
+    expect(parseSetting(setting, 'tade=tade-app, platform')).toBeUndefined()
+    expect(refusedSays(setting, 'vrolta-web, vrolta-platform')).toBe(
+      'Sentry projects: “vrolta-web” has no “=” in it — each one is name=value.',
+    )
+    expect(refusedSays(find('telemetry.traces'), '2')).toBe(
+      `How much of Tade is timed needs ${wantedInstead(find('telemetry.traces'))}.`,
+    )
   })
 
   it('takes the share of Tade that is timed as the fraction it is', () => {

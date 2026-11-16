@@ -1,3 +1,4 @@
+import { readPairs } from '@tade/core'
 import type { ExtensionSetting, TadeExtension } from './port.ts'
 
 // What an extension declares as a setting, and the one translation between a
@@ -52,6 +53,10 @@ export function written(value: unknown, kind: 'text' | 'list' | 'map' | 'flag' |
 /**
  * A field as typed, as the setting it becomes. Empty is no setting at all —
  * which for a credential is how one is taken back out.
+ *
+ * A map that does not read throws the sentence that says which part did not,
+ * rather than writing what was left: `web, platform` once became `{}` and the
+ * page said it was saved (`readPairs`).
  */
 export function settingFrom(
   text: string,
@@ -60,21 +65,74 @@ export function settingFrom(
   const trimmed = text.trim()
   if (trimmed === '') return undefined
   if (kind === 'flag') return trimmed === 'on'
-  const parts = trimmed
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean)
-  if (kind === 'list') return parts
   if (kind === 'map') {
-    return Object.fromEntries(
-      parts.flatMap((part) => {
-        const [key, ...rest] = part.split('=')
-        const value = rest.join('=').trim()
-        return key?.trim() && value
-          ? [[key.trim(), value.includes('+') ? value.split('+').map((one) => one.trim()) : value]]
-          : []
-      }),
-    )
+    const read = readPairs(trimmed)
+    if ('problem' in read) throw new Error(read.problem)
+    return Object.keys(read.pairs).length > 0 ? read.pairs : undefined
+  }
+  if (kind === 'list') {
+    return trimmed
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)
   }
   return trimmed
+}
+
+/** One row of a map being filled in: the name, and what it maps to as typed. */
+export interface MapRow {
+  key: string
+  value: string
+}
+
+/** What separates the values beside one name, as they are typed: spaces, commas or `+`. */
+const BETWEEN = /[\s,+]+/
+
+/**
+ * A map as it is written (`written`), as rows to fill in — the values beside
+ * each name with a space between, which is how they are typed back.
+ */
+export function mapRows(text: string): MapRow[] {
+  const read = readPairs(text)
+  if ('problem' in read) return []
+  return Object.entries(read.pairs).map(([key, value]) => ({
+    key,
+    value: Array.isArray(value) ? value.join(' ') : value,
+  }))
+}
+
+/**
+ * Rows filled in, as the map they become — or the sentence saying which row
+ * cannot be, thrown, with the field's `label` in front so it can be found.
+ *
+ * A row with nothing in it at all is a row nobody filled in yet and is passed;
+ * one with a name and nothing beside it, or values and no name, is refused,
+ * never dropped, because dropping it is a setting that resets itself. No rows
+ * is no setting, so the key goes away rather than staying as `{}`. Where the
+ * field takes one value per name (`several` unset), two are refused rather
+ * than handed to a reader expecting one.
+ */
+export function mapFrom(
+  rows: readonly MapRow[],
+  field: { label: string; several?: boolean },
+): Record<string, string | string[]> | undefined {
+  const out: Record<string, string | string[]> = {}
+  for (const row of rows) {
+    const key = row.key.trim()
+    const values = row.value
+      .trim()
+      .split(BETWEEN)
+      .filter((one) => one !== '')
+    if (key === '' && values.length === 0) continue
+    const refuse = (why: string) => new Error(`${field.label}: ${why}`)
+    if (key === '') throw refuse(`${values.join(' ')} has no name in front of it`)
+    if (/[\s,=]/.test(key)) throw refuse(`“${key}” cannot be a name: no spaces, commas or “=”`)
+    if (values.length === 0)
+      throw refuse(`${key} has nothing beside it — fill it in, or take the row out with ×`)
+    if (key in out) throw refuse(`${key} is there twice`)
+    if (values.length > 1 && field.several !== true)
+      throw refuse(`${key} takes one value, and has ${values.length}`)
+    out[key] = values.length === 1 ? (values[0] ?? '') : values
+  }
+  return Object.keys(out).length > 0 ? out : undefined
 }

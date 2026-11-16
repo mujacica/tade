@@ -4,6 +4,8 @@ import {
   type ListRow,
   type ListSection,
   type LoadedExtension,
+  mapFrom,
+  mapRows,
   settingFrom,
 } from '@tade/extensions-core'
 import type { Frame } from '../frame.ts'
@@ -623,7 +625,13 @@ export class Extensions implements Subject {
     const setup = this.wire.opts.extensions?.setupOf(name)
     if (!setup) return
     this.setupChoices = {}
-    this.wire.put({ ...this.wire.state, panel: extensionSetupPanel(name, setup.fields) })
+    // A map is filled in a row per name, read out of what the config holds.
+    const maps = Object.fromEntries(
+      setup.fields
+        .filter((field) => field.kind === 'map')
+        .map((field) => [field.key, mapRows(field.value)]),
+    )
+    this.wire.put({ ...this.wire.state, panel: extensionSetupPanel(name, setup.fields, maps) })
     this.wire.draw()
     // What a field offers — the organizations a token can see — is looked up
     // once the panel is open, rather than making it wait.
@@ -653,7 +661,13 @@ export class Extensions implements Subject {
         help: field.help,
         placeholder: field.placeholder,
         kind: field.kind,
-        choices: this.setupChoices[field.key] ?? [],
+        // A map of projects offers the open ones, a row each to add: which
+        // projects are open is the window's to say, never the extension's.
+        choices:
+          field.kind === 'map' && field.keys === 'projects'
+            ? Object.keys(this.wire.opts.config.projects)
+            : (this.setupChoices[field.key] ?? []),
+        ...(field.several ? { several: true } : {}),
         ...(field.have ? { have: field.have } : {}),
       })),
     }
@@ -675,7 +689,13 @@ export class Extensions implements Subject {
           const beaten = host.secretBeatenBy(panel.extension, field.key)
           if (beaten) kept.push(`${field.label} is saved, but ${beaten} is set and wins`)
         }
-        const value = settingFrom(typed, field.kind) as WindowWrite['value']
+        // A map is its rows, and a row that cannot be read refuses the whole
+        // save with the reason on the page (`mapFrom`): nothing is written.
+        const value = (
+          field.kind === 'map'
+            ? mapFrom(panel.maps[field.key] ?? [], field)
+            : settingFrom(typed, field.kind)
+        ) as WindowWrite['value']
         const secret = field.kind === 'secret'
         return { key: `extensions.${panel.extension}.${field.key}`, value, secret }
       })

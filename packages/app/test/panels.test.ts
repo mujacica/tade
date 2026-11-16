@@ -1251,6 +1251,67 @@ describe('setting an extension up', () => {
       choice: 'save',
     })
   })
+
+  // A map is names each with values: which Sentry projects each Tade project
+  // reports to. It was one line of `a=b+c, d=e` that nobody could guess the
+  // shape of, so it is a row per name now, the open projects offered.
+  it('fills a map in a row per project, adds the ones offered, and takes one out', () => {
+    const map: SetupFieldView[] = [
+      {
+        key: 'projects',
+        label: 'Projects',
+        help: '',
+        placeholder: 'its Sentry projects',
+        kind: 'map',
+        choices: ['vrolta-platform', 'vrolta-web'],
+        several: true,
+      },
+    ]
+    const at = { setupFields: map }
+    let panel = extensionSetupPanel('sentry', [{ key: 'projects', value: '' }], { projects: [] })
+    // Nothing filled in yet: a row to add for each open project, and one to type.
+    expect(setupControls(map, panel.maps)).toEqual([
+      'map:projects:add:vrolta-platform',
+      'map:projects:add:vrolta-web',
+      'map:projects:add',
+      'save',
+      'cancel',
+    ])
+    // Adding one puts the keyboard on what goes beside it, so typing fills it in.
+    panel = panelClick(panel, 'map:projects:add:vrolta-platform', at).panel as typeof panel
+    for (const char of 'vrolta-platform vrolta-staff')
+      panel = panelKey(panel, char === ' ' ? 'space' : undefined, char, at).panel as typeof panel
+    expect(panel.maps.projects).toEqual([
+      { key: 'vrolta-platform', value: 'vrolta-platform vrolta-staff' },
+    ])
+    // The project that has its row is no longer offered; the other still is.
+    expect(setupControls(map, panel.maps)).toEqual([
+      'map:projects:0:key',
+      'map:projects:0:value',
+      'map:projects:0:remove',
+      'map:projects:add:vrolta-web',
+      'map:projects:add',
+      'save',
+      'cancel',
+    ])
+    // Space on a box types; on a button it presses.
+    expect(setupControls(map, panel.maps)[panel.index]).toBe('map:projects:0:value')
+    // A row by hand waits for its name.
+    panel = panelClick(panel, 'map:projects:add', at).panel as typeof panel
+    expect(setupControls(map, panel.maps)[panel.index]).toBe('map:projects:1:key')
+    for (const char of 'tad') panel = panelKey(panel, undefined, char, at).panel as typeof panel
+    panel = panelKey(panel, 'backspace', '\x7f', at).panel as typeof panel
+    expect(panel.maps.projects?.[1]).toEqual({ key: 'ta', value: '' })
+    // Taken out, and the keyboard on the `×` of the row now there, if any.
+    panel = panelClick(panel, 'map:projects:1:remove', at).panel as typeof panel
+    expect(panel.maps.projects).toEqual([
+      { key: 'vrolta-platform', value: 'vrolta-platform vrolta-staff' },
+    ])
+    expect(setupControls(map, panel.maps)[panel.index]).toBe('map:projects:0:remove')
+    panel = panelKey(panel, 'space', ' ', at).panel as typeof panel
+    expect(panel.maps.projects).toEqual([])
+    expect(setupControls(map, panel.maps)[panel.index]).toBe('map:projects:add')
+  })
 })
 
 describe('closing every agent that has finished', () => {

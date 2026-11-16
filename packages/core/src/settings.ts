@@ -974,6 +974,20 @@ export function wantedInstead(setting: Setting): string {
   return 'a usable value'
 }
 
+/**
+ * Why `said` was refused for `setting`, as the sentence the page and the
+ * terminal say. Pairs say which part did not read, first, because "needs
+ * pairs" over a line with three of them right is a riddle, and a page that
+ * has one row for the reason cuts the end of it.
+ */
+export function refusedSays(setting: Setting, said: string): string {
+  const type = setting.type
+  const read = type.kind === 'text' && type.pairs ? readPairs(said) : null
+  return read && 'problem' in read
+    ? `${setting.title}: ${read.problem}.`
+    : `${setting.title} needs ${wantedInstead(setting)}.`
+}
+
 /** Whether a search — every word of it — finds this setting. */
 export function settingFound(
   group: SettingGroup,
@@ -1000,21 +1014,39 @@ export function pairsText(value: unknown): string {
     .join(', ')
 }
 
-/** Pairs as they were typed, as the map their reader wants. */
-export function pairsFrom(text: string): Record<string, string | string[]> {
-  return Object.fromEntries(
-    text
-      .split(',')
-      .map((part) => part.trim())
+/** Pairs read: the map their reader wants, or the sentence saying which part could not be. */
+export type PairsRead = { pairs: Record<string, string | string[]> } | { problem: string }
+
+/**
+ * Pairs as they were typed — `tade=tade-app, web=web-a+web-b` — as the map
+ * their reader wants.
+ *
+ * Every part has to read, or none of it is taken. This used to keep the parts
+ * that read and drop the rest without a word, so `web, platform` — two names
+ * and no `=` — came out as an empty map, was written as `{}`, and the page
+ * said it was saved: a setting that resets itself, and nothing to say why.
+ * An empty part (`a=b,`) is a stray comma rather than an entry, and is passed.
+ */
+export function readPairs(text: string): PairsRead {
+  const pairs: Record<string, string | string[]> = {}
+  for (const part of text
+    .split(',')
+    .map((one) => one.trim())
+    .filter(Boolean)) {
+    const at = part.indexOf('=')
+    if (at < 0) return { problem: `“${part}” has no “=” in it — each one is name=value` }
+    const key = part.slice(0, at).trim()
+    const values = part
+      .slice(at + 1)
+      .split('+')
+      .map((one) => one.trim())
       .filter(Boolean)
-      .flatMap((part) => {
-        const [key, ...rest] = part.split('=')
-        const value = rest.join('=').trim()
-        return key?.trim() && value
-          ? [[key.trim(), value.includes('+') ? value.split('+').map((one) => one.trim()) : value]]
-          : []
-      }),
-  )
+    if (key === '') return { problem: `“${part}” has nothing in front of its “=”` }
+    if (values.length === 0) return { problem: `“${part}” has nothing after its “=”` }
+    if (key in pairs) return { problem: `${key} is there twice` }
+    pairs[key] = values.length === 1 ? (values[0] ?? '') : values
+  }
+  return { pairs }
 }
 
 /** What the arrows on a number make of it, inside what the setting allows (`numberStepped`). */
@@ -1071,10 +1103,12 @@ export function parseSetting(setting: Setting, said: string): SettingValue {
         return items.length > 0 ? items : undefined
       }
       if (!setting.type.pairs) return text
-      // Nothing that reads as a pair is nothing to write: the key goes away
-      // rather than being left as an empty map.
-      const pairs = pairsFrom(text)
-      return Object.keys(pairs).length > 0 ? pairs : undefined
+      // A part that does not read is no value at all, and the writer says
+      // which part (`wantedInstead`); nothing that reads as a pair is nothing
+      // to write, so the key goes away rather than being left as an empty map.
+      const read = readPairs(text)
+      if ('problem' in read) return undefined
+      return Object.keys(read.pairs).length > 0 ? read.pairs : undefined
     }
     default:
       return text

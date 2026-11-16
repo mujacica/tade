@@ -13,11 +13,11 @@ import {
   ownSignInName,
   parseSetting,
   providerBeside,
+  refusedSays,
   type SettingGroup,
   settingsOf,
   type ThinkingLevel,
   tookBackSays,
-  wantedInstead,
   withoutCopies,
 } from '@tade/core'
 import { isCredential } from '@tade/web'
@@ -595,9 +595,7 @@ export class Settings implements Subject {
       } else {
         const typed = setting ? parseSetting(setting, value) : value
         if (value !== '' && typed === undefined)
-          throw new Error(
-            `${setting?.title ?? path} needs ${setting ? wantedInstead(setting) : 'a usable value'}.`,
-          )
+          throw new Error(setting ? refusedSays(setting, value) : `${path} needs a usable value.`)
         writeSetting(this.path, path, typed)
         // Choosing a harness resets what was chosen for the one before it: a
         // model belongs to the harness it was chosen in, and unset is the
