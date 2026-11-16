@@ -4,6 +4,8 @@ import { pathToFileURL } from 'node:url'
 import {
   appsKept,
   type ConnectSource,
+  type DeclaredReach,
+  type DeclaredReaches,
   extensionEnabled,
   findSecret,
   runProgram,
@@ -38,7 +40,13 @@ import type {
   ViewTab,
 } from './port.ts'
 import { inputProblem } from './schema.ts'
-import { unknownSettings, variablesFor, written } from './settings.ts'
+import {
+  type DeclaredSetting,
+  declaredSettings,
+  unknownSettings,
+  variablesFor,
+  written,
+} from './settings.ts'
 import { everyMs, intakeProblem, shapeProblem } from './shape.ts'
 import type { ExtensionWatch, Recheck, ReplyReceipt } from './watch.ts'
 import {
@@ -618,6 +626,24 @@ export class ExtensionHost {
         })
       }
     }
+    return out
+  }
+
+  /**
+   * Every setting the extensions declare but their credentials, with what each
+   * is now and how far it says the orchestrator reaches (`declaredSettings`).
+   */
+  declared(): DeclaredSetting[] {
+    return this.entries.flatMap((entry) => declaredSettings(entry.extension, entry.ctx.settings))
+  }
+
+  /**
+   * How far the orchestrator reaches into each extension's own settings, by
+   * path, as each declared it — what `settingReach` is handed by the window.
+   */
+  reaches(): DeclaredReaches {
+    const out: Record<string, DeclaredReach> = {}
+    for (const one of this.declared()) if (one.reach) out[one.path] = one.reach
     return out
   }
 

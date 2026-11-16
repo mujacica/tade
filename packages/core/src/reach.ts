@@ -125,6 +125,10 @@ const OPEN: readonly string[] = [
  */
 const OPEN_UNDER: readonly RegExp[] = [/^projects\.[a-z0-9-]+\.push$/]
 
+/** The `extensions` subtree's own clause, for a setting nothing declared otherwise. */
+const EXTENSIONS_NEVER =
+  'an extension is code your agents call, and its own key lives here — turning one on or pointing it somewhere else is a person’s act'
+
 /**
  * What no words reach, as a prefix and the clause said when it is refused.
  *
@@ -149,10 +153,9 @@ const NEVER: readonly (readonly [string, string])[] = [
     'workers.routes',
     'a route carries the provider an agent’s work is sent to, and where Tade sends something is not mine to move',
   ],
-  [
-    'extensions',
-    'an extension is code your agents call, and its own key lives here — turning one on or pointing it somewhere else is a person’s act',
-  ],
+  // All of it but what an extension declared `asked` beside its own setting
+  // (`declaredReach`), which is answered before this table.
+  ['extensions', EXTENSIONS_NEVER],
   [
     'mcp',
     'an MCP server is somebody else’s code with tools your agents will call, and only a person turns one on',
@@ -333,6 +336,67 @@ function under(path: string, prefix: string): boolean {
 }
 
 /**
+ * How far an extension says the orchestrator reaches into one of its own
+ * settings (`ExtensionSetting.reach`), and the sentence said when it refuses.
+ */
+export interface DeclaredReach {
+  reach: 'asked' | 'never'
+  because: string
+}
+
+/** What the loaded extensions declared, by the setting's path: `extensions.sentry.projects`. */
+export type DeclaredReaches = Readonly<Record<string, DeclaredReach>>
+
+/** One extension's own setting: `extensions.<name>.<key>`, and nothing under it. */
+const EXTENSION_SETTING = /^extensions\.([a-z0-9-]+)\.([a-z0-9_]+)$/
+
+/**
+ * The keys no declaration reaches: the switch, and a leaf that is a credential
+ * or names where one is read from. The same leaf rule `carryOf` keeps a key
+ * by, with `env` beside it for `token_env` and `key_env`.
+ */
+const NEVER_DECLARED = /^enabled$|(?:^|_)(?:key|token|secret|password|env)$/
+
+/**
+ * How far the orchestrator reaches into an extension's own setting, where the
+ * extension said (`ExtensionSetting.reach`), or null where nothing here does.
+ *
+ * **`extensions` stays a `never` subtree, and this is the one way under it**:
+ * an `asked` the extension itself declared, beside the setting, in its own
+ * words. It was the whole subtree, and "point vrolta-platform's Sentry at
+ * vrolta-platform and vrolta-staff" was refused as not mine to change. That
+ * setting says only which of the person's own Sentry projects the extension
+ * reads, in the organization it already reads with the token it already has,
+ * so the four things `never` is for are none of them in it. Which settings are
+ * that shape is the extension's to say, because only it knows what its keys
+ * do, and a list kept here would be a list nobody updates when one is added.
+ *
+ * **What a declaration cannot reach, whatever it says**: turning the extension
+ * on or off, and any key that is a credential or names where one is read from
+ * (`NEVER_DECLARED`). A declaration written as `asked` on one of those is
+ * `never` here, because whether code is loaded and which key it runs with are
+ * never one extension's to give away. A setting that declares nothing — one of
+ * yours written before this, a key added tomorrow — is the subtree's `never`.
+ *
+ * The declarations come from the extensions that are loaded, so the window
+ * passes them in and everything else asks without them: refused more, never
+ * less.
+ */
+function declaredReach(path: string, declared: DeclaredReaches): Reaches | null {
+  const found = EXTENSION_SETTING.exec(path)
+  if (!found || !Object.hasOwn(declared, path)) return null
+  const said = declared[path]
+  if (!said) return null
+  if (said.reach === 'asked' && !NEVER_DECLARED.test(found[2] ?? '')) {
+    return { reach: 'asked', because: said.because }
+  }
+  return {
+    reach: 'never',
+    because: said.reach === 'never' && said.because !== '' ? said.because : EXTENSIONS_NEVER,
+  }
+}
+
+/**
  * How far the orchestrator may go with this setting, and why.
  *
  * Anything unnamed is `asked`, which is the safe default for an ordinary key
@@ -341,13 +405,18 @@ function under(path: string, prefix: string): boolean {
  * to `approvals`, `extensions`, `mcp` or an account refused on the day it is
  * added, by somebody who never read this file. What a subtree cannot catch is
  * a whole new section of the config, and a test holds the list of those.
+ *
+ * `declared` is what the loaded extensions say about their own settings
+ * (`declaredReach`); without it every one of them is `never`.
  */
-export function settingReach(path: string): Reaches {
+export function settingReach(path: string, declared: DeclaredReaches = {}): Reaches {
   // `open` is answered first, so a path in it never has to be repeated in
   // `ALLOWED_UNDER` to escape the subtree it lives in.
   if (OPEN.includes(path) || OPEN_UNDER.some((allowed) => allowed.test(path))) {
     return { reach: 'open', because: '' }
   }
+  const extension = declaredReach(path, declared)
+  if (extension) return extension
   if (!ALLOWED_UNDER.some((allowed) => allowed.test(path))) {
     for (const [prefix, because] of NEVER) {
       if (under(path, prefix)) return { reach: 'never', because }

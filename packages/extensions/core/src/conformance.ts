@@ -306,6 +306,24 @@ export function extensionConformance(
       expect(new Set(keys).size).toBe(keys.length)
     })
 
+    it('says how far the orchestrator reaches into a setting with a sentence, and never asks for a key', () => {
+      // A reach is read where somebody is refused, so one without its sentence
+      // is a refusal that says nothing; and a credential, or the variable one
+      // is read from, is never the orchestrator's whatever an extension says
+      // (`declaredReach`) — declaring one `asked` is a mistake worth failing on.
+      for (const setting of extension.settings ?? []) {
+        if (!setting.reach) continue
+        expect(setting.reach.because.trim(), setting.key).not.toBe('')
+        if (setting.reach.reach !== 'asked') continue
+        expect(setting.kind, setting.key).not.toBe('secret')
+        expect(setting.key, setting.key).not.toMatch(
+          /^enabled$|(?:^|_)(?:key|token|secret|password|env)$/,
+        )
+        const named = (extension.settings ?? []).some((one) => one.envFrom === setting.key)
+        expect(named, `${setting.key} names where a credential is read from`).toBe(false)
+      }
+    })
+
     it('takes its credentials from the config, and from the environment first', async () => {
       const declared = (extension.settings ?? []).filter((setting) => setting.kind === 'secret')
       if (declared.length === 0) return

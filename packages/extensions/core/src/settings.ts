@@ -136,3 +136,56 @@ export function mapFrom(
   }
   return Object.keys(out).length > 0 ? out : undefined
 }
+
+/**
+ * One setting an extension declares, as the orchestrator reads and changes it
+ * (`tade_settings`, `tade_setting_change`): where it is, what it is now as it
+ * would be typed, and how far the extension says the orchestrator reaches
+ * into it. A credential is never one of these — it is `secrets()`, and only
+ * ever said as set or not.
+ */
+export interface DeclaredSetting {
+  /** `extensions.sentry.projects`. */
+  path: string
+  extension: string
+  /** The extension's title, for saying whose setting it is. */
+  title: string
+  key: string
+  kind: Exclude<ExtensionSetting['kind'], 'secret'>
+  means: string
+  /** What is written in the config, as it would be typed (`written`). */
+  value: string
+  /** What the extension declared (`ExtensionSetting.reach`), or null where it said nothing. */
+  reach: ExtensionSetting['reach'] | null
+}
+
+/** The field kind a declared setting is typed as. */
+const TYPED_AS = {
+  string: 'text',
+  boolean: 'flag',
+  number: 'text',
+  list: 'list',
+  map: 'map',
+} as const
+
+/** Every setting one extension declares but its credentials, as it stands in `settings`. */
+export function declaredSettings(
+  extension: TadeExtension,
+  settings: Readonly<Record<string, unknown>>,
+): DeclaredSetting[] {
+  const out: DeclaredSetting[] = []
+  for (const setting of extension.settings ?? []) {
+    if (setting.kind === 'secret') continue
+    out.push({
+      path: `extensions.${extension.name}.${setting.key}`,
+      extension: extension.name,
+      title: extension.title,
+      key: setting.key,
+      kind: setting.kind,
+      means: setting.means,
+      value: written(settings[setting.key], TYPED_AS[setting.kind]),
+      reach: setting.reach ?? null,
+    })
+  }
+  return out
+}

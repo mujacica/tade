@@ -1,4 +1,5 @@
 import {
+  type DeclaredReaches,
   LINES_LOOKED_BACK,
   modelChosen,
   namedBy,
@@ -46,11 +47,21 @@ export interface SettingWriting {
  */
 export function settingTools(wire: Wiring, page: SettingWriting): SettingTools {
   return {
-    settings: async (find) => settingsListed(page.rows(), find),
+    settings: async (find) => settingsListed(page.rows(), find, reachesOf(wire)),
     change: async (req) => askedSetting(wire, page, req),
     ownModelAsked: async () => ownModelAsked(wire, page),
     ownProviderHeld: (chosen) => ownProviderHeld(wire, chosen),
   }
+}
+
+/**
+ * What the loaded extensions say about how far I reach into their own
+ * settings (`ExtensionSetting.reach`), for `settingReach`. Asked at the moment
+ * of the call, so an extension reconfigured or turned off since is answered
+ * as it is now.
+ */
+function reachesOf(wire: Wiring): DeclaredReaches {
+  return wire.opts.extensions?.reaches() ?? {}
 }
 
 /**
@@ -62,7 +73,11 @@ export function settingTools(wire: Wiring, page: SettingWriting): SettingTools {
  * out loud to whoever is listening is not a thing a tool does, and the page
  * is where somebody checks one against the console that issued it.
  */
-function settingsListed(groups: readonly SettingGroup[], find: string): string {
+function settingsListed(
+  groups: readonly SettingGroup[],
+  find: string,
+  declared: DeclaredReaches,
+): string {
   const words = find.trim().toLowerCase().split(/\s+/).filter(Boolean)
   const lines: string[] = []
   for (const group of groups) {
@@ -71,7 +86,7 @@ function settingsListed(groups: readonly SettingGroup[], find: string): string {
     )
     if (found.length === 0) continue
     lines.push(`${group.title} — ${group.about}`)
-    for (const setting of found) lines.push(`  ${lineFor(group, setting)}`)
+    for (const setting of found) lines.push(`  ${lineFor(group, setting, declared)}`)
   }
   if (lines.length === 0) {
     return words.length === 0
@@ -82,8 +97,8 @@ function settingsListed(groups: readonly SettingGroup[], find: string): string {
 }
 
 /** One setting on one line: its path, what it is, what it means, how far I reach. */
-function lineFor(group: SettingGroup, setting: Setting): string {
-  const { reach, because } = settingReach(setting.path)
+function lineFor(group: SettingGroup, setting: Setting, declared: DeclaredReaches): string {
+  const { reach, because } = settingReach(setting.path, declared)
   // A key's fallback says where the one in use comes from; the notification
   // key's says it is made when first needed, which is only true while unset.
   const shown = isCredential(group, setting)
@@ -99,7 +114,9 @@ function lineFor(group: SettingGroup, setting: Setting): string {
     reach === 'never'
       ? `not mine to change: ${because}`
       : reach === 'asked'
-        ? 'only when they ask for it'
+        ? because
+          ? `only when they ask for it: ${because}`
+          : 'only when they ask for it'
         : 'changeable on request'
   return `${setting.path} = ${shown} — ${setting.means} [${may}]`
 }
@@ -140,11 +157,13 @@ export async function askedSetting(
     .rows()
     .flatMap((group) => group.settings)
     .find((one) => one.path === path)
-  const { reach, because } = settingReach(path)
+  const { reach, because } = settingReach(path, reachesOf(wire))
   if (reach === 'never') {
-    const where = setting
-      ? 'in Settings (ctrl+,) or with `tade config`'
-      : `in ${tilde(configPathOf(wire.opts))} themselves`
+    const where = !setting
+      ? `in ${tilde(configPathOf(wire.opts))} themselves`
+      : path.startsWith('extensions.')
+        ? 'on its extension’s page (ctrl+shift+e), in Settings (ctrl+,) or with `tade config`'
+        : 'in Settings (ctrl+,) or with `tade config`'
     throw new Error(
       `${setting?.title ?? path} is not mine to change: ${because}. A person changes it ${where} — say that rather than looking for another way.`,
     )
@@ -169,16 +188,22 @@ export async function askedSetting(
         `${setting.title} is only changed when somebody asks for it. Pass what they said, word for word.`,
       )
     }
-    await namedOrRefused(wire, setting)
+    await namedOrRefused(wire, setting, because)
   }
   return page.write(path, req.value, 'orchestrator', req.said.trim())
 }
 
 /** Refuses unless a line of theirs names this setting: the half of `asked` that reads the journal. */
-async function namedOrRefused(wire: Wiring, setting: Setting): Promise<void> {
+async function namedOrRefused(wire: Wiring, setting: Setting, because = ''): Promise<void> {
   if (!namedBy(setting, await saidLately(wire, LINES_LOOKED_BACK))) {
+    // An extension's own setting says why it waits for their words, and where
+    // else a person changes it: its own page as well as Settings.
+    const why = because ? ` It changes when they ask: ${because}.` : ''
+    const where = setting.path.startsWith('extensions.')
+      ? 'its extension’s page (ctrl+shift+e), Settings (ctrl+,)'
+      : 'Settings (ctrl+,)'
     throw new Error(
-      `Nothing they have said names ${setting.title}, so I will not change it. Ask them plainly — "${spokenAs(setting)}" said back to you is enough — or tell them it is Settings (ctrl+,) and \`tade config\`.`,
+      `Nothing they have said names ${setting.title}, so I will not change it.${why} Ask them plainly — "${spokenAs(setting)}" said back to you is enough — or tell them it is ${where} and \`tade config\`.`,
     )
   }
 }

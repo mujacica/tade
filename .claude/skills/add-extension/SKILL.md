@@ -72,6 +72,16 @@ tools registered by Tade's own pi extensions, which call back to Tade. What only
   eight tools, came to look like a thing that reviews diffs.
 - **Every setting is declared** in `settings`. A key under `extensions.<name>` that is not declared is
   reported as not read, in the panel and `tade extensions`.
+- **Every setting says how far the orchestrator reaches into it** (`reach`, beside the setting):
+  `{ reach: 'asked', because }` for one that only says which of the person's own things the
+  extension reads or names — in the same place, with the same credential (Sentry's `projects`,
+  `brief_query`) — which `tade_setting_change` then writes on their words naming it; `{ reach:
+  'never', because }` for where it sends anything, whose it reads as, and what an agent or a watch
+  may do on its own. `because` is the sentence the refusal says. Undeclared is `never`, and so are a
+  `secret`, `enabled` and a `*_env` key whatever is declared (`declaredReach`, `core/src/reach.ts`;
+  the conformance suite fails an `asked` on one). The window passes the loaded extensions'
+  declarations (`ExtensionHost.reaches`) to `settingReach`, and every declared setting is a row the
+  orchestrator reads (`extensionsGroup`, `Settings.reachable`) — not one the Settings page draws.
 - **A credential is a `secret` setting, never a string one.** Declare it once —
   `{ key: 'token', kind: 'secret', env: 'SENTRY_AUTH_TOKEN', envFrom: 'token_env', means: … }` — and
   read it with `ctx.secret('token')`, which answers `{ value, from }` or null. Tade gives you the

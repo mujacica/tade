@@ -219,6 +219,10 @@ async function linesFor(
   throw new Error(`${source} is not somewhere to read from: text, journal, file`)
 }
 
+/** Why the orchestrator never changes how the judge is asked or read (`ExtensionSetting.reach`). */
+const JUDGING =
+  'what a judge is asked and how its answers are read is what every finding rests on, and a judge may only ever add caution'
+
 export const jevExtension: TadeExtension = {
   name: 'jev',
   title: 'Jev',
@@ -251,58 +255,97 @@ export const jevExtension: TadeExtension = {
       key: 'judge',
       kind: 'string',
       means: 'which judge answers: jev (the default), or scripted, which answers from a table',
+      reach: { reach: 'never', because: JUDGING },
     },
     {
       key: 'model',
       kind: 'string',
       means:
         'the version that answers; pin one (jev-1.13.0), never an alias — thresholds are tuned against a version',
+      reach: { reach: 'never', because: JUDGING },
     },
     {
       key: 'key_env',
       kind: 'string',
       means:
         'the environment variable the TypeSafe key is in, when it is not TYPESAFE_API_KEY; whatever is there beats the pasted one',
+      reach: {
+        reach: 'never',
+        because: 'it says which credential the judge is asked with, and a credential is a person’s',
+      },
     },
-    { key: 'url', kind: 'string', means: 'the TypeSafe to ask, when it is not api.typesafe.ai' },
+    {
+      key: 'url',
+      kind: 'string',
+      means: 'the TypeSafe to ask, when it is not api.typesafe.ai',
+      reach: {
+        reach: 'never',
+        because:
+          'it is where your code and your key are sent, and where Tade sends something is not mine to move',
+      },
+    },
     {
       key: 'report',
       kind: 'number',
       means: 'the probability a question has to reach to be worth saying at all (0.6)',
+      reach: { reach: 'never', because: JUDGING },
     },
     {
       key: 'act',
       kind: 'number',
       means:
         'the probability at which a finding is worth starting work on rather than filing (0.85)',
+      reach: { reach: 'never', because: JUDGING },
     },
     {
       key: 'budget',
       kind: 'number',
       means: 'the most requests one look or tool call may make (200)',
+      reach: {
+        reach: 'never',
+        because: 'every request is one you pay TypeSafe for, and what may be spent is a person’s',
+      },
     },
     {
       key: 'projects',
       kind: 'list',
       means:
         'the projects it may read; nothing is sent from a project not named here (all of them unless set)',
+      reach: {
+        reach: 'never',
+        because:
+          'naming a project sends its code to TypeSafe, and what Tade sends somewhere is not mine to widen',
+      },
     },
     {
       key: 'brief',
       kind: 'boolean',
       means: 'mention what it flagged in the brief (true unless set false)',
+      reach: {
+        reach: 'asked',
+        because: 'it only says whether the brief mentions what the judge already flagged',
+      },
     },
     {
       key: 'search',
       kind: 'boolean',
       means:
         'answer a sentence typed into search that matched nothing, with which of the things already in the list it might mean (true unless set false)',
+      reach: {
+        reach: 'never',
+        because:
+          'on, what you type into search is sent to TypeSafe, and what Tade sends somewhere is a person’s',
+      },
     },
     {
       key: 'commands',
       kind: 'boolean',
       means:
         'read a command an agent is held at that the approval rules do not name, and raise what it takes to allow it (true unless set false); only ever stricter, and only where approvals.mode is policy — nothing is held under bypass',
+      reach: {
+        reach: 'never',
+        because: 'it is part of who is asked before an agent acts, and approvals are a person’s',
+      },
     },
   ],
   // Never the network, and never a guess: the judge itself says what it needs.

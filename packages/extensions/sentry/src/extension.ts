@@ -207,34 +207,62 @@ export const sentryExtension: TadeExtension = {
       key: 'org',
       kind: 'string',
       means: 'the Sentry organization slug (or $SENTRY_ORG, or sentry-cli’s default)',
+      reach: {
+        reach: 'never',
+        because:
+          'the organization is whose Sentry your token reads, and pointing it at somebody else’s is a person’s act',
+      },
     },
     {
       key: 'url',
       kind: 'string',
       means: 'your Sentry, when it is not sentry.io: a self-hosted one, or a local one you run',
+      reach: {
+        reach: 'never',
+        because:
+          'it is where Tade sends your Sentry token, and where Tade sends something is not mine to move',
+      },
     },
     {
       key: 'token_env',
       kind: 'string',
       means:
         'the environment variable the token is in, when it is not SENTRY_AUTH_TOKEN; whatever is there beats the pasted one',
+      reach: {
+        reach: 'never',
+        because: 'it says which credential Sentry is read with, and a credential is a person’s',
+      },
     },
     {
       key: 'projects',
       kind: 'map',
       means:
         'which Sentry project slugs each Tade project reports to; a project not listed is its own slug',
+      reach: {
+        reach: 'asked',
+        because:
+          'it only says which of your Sentry projects a project reads, in the same organization with the same token',
+      },
     },
     {
       key: 'brief',
       kind: 'boolean',
       means: 'mention new issues in the brief (true unless set false)',
+      reach: {
+        reach: 'asked',
+        because: 'it only says whether the brief counts the issues the extension already reads',
+      },
     },
     {
       key: 'brief_query',
       kind: 'string',
       means:
         'which issues the brief counts, as a Sentry search (is:unresolved firstSeen:-24h unless set)',
+      reach: {
+        reach: 'asked',
+        because:
+          'it only says which of the issues it already reads the brief counts, as a search in the same Sentry',
+      },
     },
   ],
   ready: (ctx) => {

@@ -1,9 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ConfigSchema, loadConfig, writeSetting } from '@tade/core'
-import { ExtensionHost } from '@tade/extensions-core'
+import { sentryExtension } from '@tade/extension-sentry'
+import { ExtensionHost, type TadeExtension } from '@tade/extensions-core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
+import { stringify } from 'yaml'
 import type { App } from '../../src/app.ts'
 import { type FakeTerminal, type Repo, until, windowUnderTest } from './harness.ts'
 
@@ -836,5 +838,145 @@ describe('the orchestrator, configuring Tade', () => {
     const said = await app.configTools().settings('signing key')
     expect(said).toContain('surfaces.web.push_key = set')
     expect(said).not.toContain('pk_secret_0123456789abcdef')
+  })
+
+  /** The window up with Sentry loaded as the config says, and the orchestrator's tools. */
+  async function withSentry(
+    sentry: Record<string, unknown>,
+  ): Promise<ReturnType<App['configTools']>> {
+    const settings = { projects: { app: { root: repo.root } }, extensions: { sentry } }
+    writeFileSync(join(home, 'config.yaml'), stringify(settings))
+    const config = ConfigSchema.parse(settings)
+    const extensions = await ExtensionHost.load({
+      builtin: [sentryExtension],
+      config: { extensions: config.extensions, projects: config.projects },
+      home,
+      // Never the machine's own: whoever runs the suite may have a token exported.
+      env: {},
+    })
+    const app = await start({ config, extensions })
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    return app.configTools()
+  }
+
+  it('points a project’s Sentry where the person said, and only once they said it', async () => {
+    // What was asked for, and refused as not mine to change while the whole of
+    // `extensions` was: which of their own Sentry projects one project reads,
+    // in the organization the extension already reads with the token it has.
+    const config = await withSentry({ org: 'vrolta', projects: { 'vrolta-web': 'vrolta-web' } })
+    const listed = await config.settings('sentry')
+    expect(listed).toMatch(
+      /extensions\.sentry\.projects = vrolta-web=vrolta-web — .*\[only when they ask for it: it only says which of your Sentry projects/,
+    )
+    expect(listed).toMatch(
+      /extensions\.sentry\.org = vrolta — .*\[not mine to change: the organization/,
+    )
+    const value = 'vrolta-web=vrolta-web, vrolta-platform=vrolta-platform+vrolta-staff'
+    // Nothing of theirs names it yet: refused, and nothing written.
+    await theySaid('how are the agents getting on?')
+    await expect(
+      config.change({ path: 'extensions.sentry.projects', value, said: 'they want it' }),
+    ).rejects.toThrow(/Nothing they have said names Sentry projects/)
+    expect(await changes()).toHaveLength(0)
+
+    const said = "point vrolta-platform's Sentry at vrolta-platform and vrolta-staff"
+    await theySaid(said)
+    expect(await config.change({ path: 'extensions.sentry.projects', value, said })).toContain(
+      'Saved',
+    )
+    const loaded = await loadConfig(join(home, 'config.yaml'))
+    expect(loaded.ok && loaded.config.extensions.sentry?.projects).toEqual({
+      'vrolta-web': 'vrolta-web',
+      'vrolta-platform': ['vrolta-platform', 'vrolta-staff'],
+    })
+    // Written down as every change is: what it was, who asked and their words.
+    expect(await changeWritten()).toMatchObject({
+      path: 'extensions.sentry.projects',
+      was: 'vrolta-web=vrolta-web',
+      now: value,
+      by: 'orchestrator',
+      said,
+    })
+  })
+
+  it('refuses where Sentry is read, as whom and whether at all, with their words or without', async () => {
+    const config = await withSentry({ org: 'vrolta' })
+    const refused: [string, string][] = [
+      ['extensions.sentry.org', 'acme'],
+      ['extensions.sentry.url', 'https://sentry.example.com'],
+      ['extensions.sentry.token_env', 'SOMEBODY_ELSES_TOKEN'],
+      ['extensions.sentry.enabled', 'false'],
+      ['extensions.sentry.token', 'sntrys_0123456789'],
+    ]
+    for (const words of [
+      null,
+      'point the sentry organization at acme, use the sentry url and token variable, and turn sentry off',
+    ]) {
+      if (words) await theySaid(words)
+      for (const [path, value] of refused) {
+        await expect(
+          config.change({ path, value, said: words ?? 'they asked' }),
+          path,
+        ).rejects.toThrow(/not mine to change/)
+      }
+    }
+    // The organization's refusal is Sentry's own sentence, and says where a person changes it.
+    await expect(
+      config.change({ path: 'extensions.sentry.org', value: 'acme', said: 'acme' }),
+    ).rejects.toThrow(/whose Sentry your token reads.*extension’s page/)
+    const loaded = await loadConfig(join(home, 'config.yaml'))
+    expect(loaded.ok && loaded.config.extensions.sentry?.org).toBe('vrolta')
+    expect(await changes()).toHaveLength(0)
+  })
+
+  it('reads and changes an extension’s setting that has no row on the Settings page', async () => {
+    // Most extensions' settings are filled in on their own page, and were
+    // "Tade has no setting called" here. Each is a row now, parsed as the
+    // extension declares it, and reached as far as it says.
+    const weather: TadeExtension = {
+      name: 'weather',
+      title: 'Weather',
+      description: 'Whether it is raining.',
+      settings: [
+        {
+          key: 'cities',
+          kind: 'list',
+          means: 'which cities it reads',
+          reach: { reach: 'asked', because: 'it only says which of your cities it reads' },
+        },
+        { key: 'station', kind: 'string', means: 'the station it asks' },
+      ],
+    }
+    const extensions = await ExtensionHost.load({
+      builtin: [weather],
+      config: { extensions: { weather: { cities: ['oslo'] } }, projects: {} },
+      home,
+      env: {},
+    })
+    const app = await start({ extensions })
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const config = app.configTools()
+    const listed = await config.settings('weather')
+    expect(listed).toContain('extensions.weather.cities = oslo')
+    // Undeclared is not mine, in the subtree's words.
+    expect(listed).toMatch(
+      /extensions\.weather\.station = .*\[not mine to change: an extension is code/,
+    )
+    const said = 'add bergen to the weather cities'
+    await theySaid(said)
+    await config.change({ path: 'extensions.weather.cities', value: 'oslo, bergen', said })
+    const loaded = await loadConfig(join(home, 'config.yaml'))
+    expect(loaded.ok && loaded.config.extensions.weather?.cities).toEqual(['oslo', 'bergen'])
+    expect(await changeWritten()).toMatchObject({
+      path: 'extensions.weather.cities',
+      by: 'orchestrator',
+    })
+    await expect(
+      config.change({
+        path: 'extensions.weather.station',
+        value: 'elsewhere',
+        said: 'weather station',
+      }),
+    ).rejects.toThrow(/not mine to change/)
   })
 })

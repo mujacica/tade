@@ -120,8 +120,9 @@ Three answers and no fourth:
 
 - **`never`** is everything that widens what an agent may do, hands a third party tools or a
   credential, changes who is asked, or changes where Tade sends something — `approvals`, `accounts`
-  (adding, removing, signing in and every key), a route's `provider` and the orchestrator's own, the whole of `extensions`
-  and `mcp`, `orchestrator.extensions`, `telemetry.dsn`, a project's `root`, and the whole of `remotes` (another
+  (adding, removing, signing in and every key), a route's `provider` and the orchestrator's own, `extensions` — all
+  but a setting its extension declared `asked` beside it (`ExtensionSetting.reach`, `declaredReach`; never
+  `enabled`, a secret or a `*_env` key) — the whole of `mcp`, `orchestrator.extensions`, `telemetry.dsn`, a project's `root`, and the whole of `remotes` (another
   machine this one drives, with a session that is your keyboard there: `core/src/remotes.ts`, written
   only by `tade remote add`). Each is a **subtree** and not
   a key, which is the whole point: a key added under one of them is refused on the day it is added,

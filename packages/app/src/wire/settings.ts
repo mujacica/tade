@@ -5,6 +5,7 @@ import {
   clearedByHarness,
   copiedHosts,
   copiesUnreadSays,
+  extensionsGroup,
   HARNESS_CHOICES,
   heldSays,
   loadConfig,
@@ -47,7 +48,12 @@ import {
   type Wiring,
   why,
 } from './context.ts'
-import { askedSetting, type SettingTools, settingTools } from './setting-tools.ts'
+import {
+  askedSetting,
+  type SettingTools,
+  type SettingWriting,
+  settingTools,
+} from './setting-tools.ts'
 import { DomainLook } from './web-domain.ts'
 
 // The Settings page, and the one path a setting is written by.
@@ -277,14 +283,34 @@ export class Settings implements Subject {
     return settingsOf(this.wire.opts.config, secrets, levels, this.wire.opts.keptBy ?? null)
   }
 
+  /**
+   * Every row a setting can be written by: the page's, and every extension's
+   * own settings beside them (`extensionsGroup`) — the orchestrator's to read
+   * and, as far as each extension declared, to change, through the same write.
+   */
+  reachable(): SettingGroup[] {
+    const rows = this.rows()
+    const shown = new Set(rows.flatMap((group) => group.settings.map((one) => one.path)))
+    const extensions = extensionsGroup(this.wire.opts.extensions?.declared() ?? [], shown)
+    return extensions ? [...rows, extensions] : rows
+  }
+
   /** What the orchestrator may do with the config, and the boundary it is held to (`settingTools`). */
   tools(): SettingTools {
-    return settingTools(this.wire, this)
+    return settingTools(this.wire, this.orchestrators())
   }
 
   /** Change one setting on somebody's behalf, or say why not (`askedSetting`). */
   async change(req: { path: string; value: string; said: string }): Promise<string> {
-    return askedSetting(this.wire, this, req)
+    return askedSetting(this.wire, this.orchestrators(), req)
+  }
+
+  /** The rows the orchestrator reads and the one write, for `settingTools`. */
+  private orchestrators(): SettingWriting {
+    return {
+      rows: () => this.reachable(),
+      write: (path, value, by, said) => this.write(path, value, by, said),
+    }
   }
 
   /** Where the config is, for the page that says so and the button that opens it. */
@@ -547,7 +573,7 @@ export class Settings implements Subject {
    * never `you` for a change from away.
    */
   async write(path: string, value: string, by = 'window', said = ''): Promise<string> {
-    const groups = this.rows()
+    const groups = this.reachable()
     const rows = groups.flatMap((group) => group.settings)
     const setting = rows.find((one) => one.path === path)
     // A key is never in the journal, so what a credential was and is is said

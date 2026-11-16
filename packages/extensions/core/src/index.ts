@@ -12,7 +12,13 @@ export {
 export type { WatchOffer } from './offer.ts'
 export type * from './port.ts'
 export { boolean, inputProblem, list, number, object, oneOf, string } from './schema.ts'
-export { type MapRow, mapFrom, mapRows, settingFrom } from './settings.ts'
+export {
+  type DeclaredSetting,
+  type MapRow,
+  mapFrom,
+  mapRows,
+  settingFrom,
+} from './settings.ts'
 export { intakeProblem, shapeProblem } from './shape.ts'
 export type * from './watch.ts'
 export { troubleOf, troubleUntil, Unreachable } from './watch.ts'

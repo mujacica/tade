@@ -523,6 +523,14 @@ export function grantedNow(grants: Grants): string {
     : `Granted now: ${said.join('; ')}.`
 }
 
+/** Why a grant is never the orchestrator's to change (`ExtensionSetting.reach`). */
+const GRANTED =
+  'a grant is which repositories an agent may review, post to, fix or push to on its own, and a grant is a person’s'
+
+/** Why a bound is never the orchestrator's either: it is what keeps a grant from becoming a loop. */
+const BOUNDED =
+  'it bounds how much a review does on its own in public, and loosening a bound is widening a grant'
+
 /**
  * The settings reviewing adds: one grant per act, and the three bounds.
  *
@@ -532,29 +540,38 @@ export function grantedNow(grants: Grants): string {
  * quotes.
  *
  * They are **unreachable to the orchestrator and to anything off this
- * machine** without a word being written here: every key under `extensions` is
- * in `settingReach`'s `never` subtree, and a device on the away view can never
- * change a setting at all. That is not a property of these keys, which is the
- * point — it holds for a key added next month by somebody who never read this.
+ * machine**: each says `never` beside it, and one that said nothing would be
+ * `never` anyway — every key under `extensions` is in `settingReach`'s `never`
+ * subtree unless its extension declares it `asked` — and a device on the away
+ * view can never change a setting at all. A grant is the plainest `never`
+ * there is: it is what an agent may post, fix and push on its own.
  */
 export const reviewerSettings: readonly ExtensionSetting[] = [
   ...REVIEW_ACTS.map((act) => ({
     key: ACT_SETTINGS[act].key,
     kind: 'list' as const,
     means: ACT_SETTINGS[act].means,
+    reach: { reach: 'never' as const, because: GRANTED },
   })),
   {
     key: 'rounds',
     kind: 'number',
     means: 'how many times one pull request may be reviewed, and fixed from a review, in a day (2)',
+    reach: { reach: 'never', because: BOUNDED },
   },
   {
     key: 'cooldown',
     kind: 'number',
     means:
       'minutes between two reviews of one pull request, so a push and a fix cannot chase each other (30)',
+    reach: { reach: 'never', because: BOUNDED },
   },
-  { key: 'notes', kind: 'number', means: 'the most line comments one review may post (20)' },
+  {
+    key: 'notes',
+    kind: 'number',
+    means: 'the most line comments one review may post (20)',
+    reach: { reach: 'never', because: BOUNDED },
+  },
 ]
 
 /** The two tools: one that reads a change, and the one place that writes a review back. */

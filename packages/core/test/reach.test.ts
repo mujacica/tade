@@ -81,6 +81,50 @@ describe('what no words reach', () => {
       expect(settingReach(path).reach, path).toBe('never')
   })
 
+  it('reaches an extension’s own setting only as far as the extension declared it', () => {
+    // What Sentry declares beside its settings, as the window hands it over.
+    const declared = {
+      'extensions.sentry.projects': { reach: 'asked', because: 'only which projects it reads' },
+      'extensions.sentry.brief_query': { reach: 'asked', because: 'only what the brief counts' },
+      'extensions.sentry.org': { reach: 'never', because: 'whose Sentry your token reads' },
+      'extensions.sentry.url': { reach: 'never', because: 'where your token is sent' },
+      // Declared `asked`, and no declaration reaches these: the switch, a
+      // credential, and the variable one is read from.
+      'extensions.sentry.enabled': { reach: 'asked', because: 'wrongly said' },
+      'extensions.sentry.token': { reach: 'asked', because: 'wrongly said' },
+      'extensions.sentry.token_env': { reach: 'asked', because: 'wrongly said' },
+      'extensions.jev.key': { reach: 'asked', because: 'wrongly said' },
+    } as const
+    expect(settingReach('extensions.sentry.projects', declared)).toEqual({
+      reach: 'asked',
+      because: 'only which projects it reads',
+    })
+    expect(settingReach('extensions.sentry.brief_query', declared).reach).toBe('asked')
+    // A `never` says its own sentence, which is what the refusal quotes.
+    expect(settingReach('extensions.sentry.org', declared)).toEqual({
+      reach: 'never',
+      because: 'whose Sentry your token reads',
+    })
+    expect(settingReach('extensions.sentry.url', declared).because).toBe('where your token is sent')
+    for (const path of [
+      'extensions.sentry.enabled',
+      'extensions.sentry.token',
+      'extensions.sentry.token_env',
+      'extensions.jev.key',
+    ]) {
+      expect(settingReach(path, declared).reach, path).toBe('never')
+      expect(settingReach(path, declared).because, path).not.toBe('wrongly said')
+    }
+    // Undeclared is the subtree's `never`: a key added tomorrow, one of yours.
+    expect(settingReach('extensions.sentry.brief', declared).reach).toBe('never')
+    expect(settingReach('extensions.weather.city', declared).reach).toBe('never')
+    // A declaration is about that setting and nothing under it or beside it.
+    expect(settingReach('extensions.sentry.projects.web', declared).reach).toBe('never')
+    expect(settingReach('extensions.sentry', declared).reach).toBe('never')
+    // And without the declarations — anything but the window asking — all of it.
+    expect(settingReach('extensions.sentry.projects').reach).toBe('never')
+  })
+
   it('refuses an MCP server, and the folder its own tools are read from', () => {
     expect(settingReach('mcp.servers.linear.enabled').reach).toBe('never')
     expect(settingReach('orchestrator.extensions').reach).toBe('never')

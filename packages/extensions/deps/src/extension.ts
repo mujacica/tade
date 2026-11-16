@@ -83,24 +83,53 @@ export const depsExtension: TadeExtension = {
       key: 'registry',
       kind: 'string',
       means: 'the npm registry to ask, when it is not the public one',
+      reach: {
+        reach: 'never',
+        because:
+          'it is where every project’s package names are sent, and where Tade sends something is not mine to move',
+      },
     },
-    { key: 'ignore', kind: 'list', means: 'packages never reported or updated' },
+    {
+      key: 'ignore',
+      kind: 'list',
+      means: 'packages never reported or updated',
+      reach: {
+        reach: 'asked',
+        because:
+          'it only says which of your packages are left out — and leaving one out is how a vulnerable one goes unsaid',
+      },
+    },
     {
       key: 'vulnerabilities',
       kind: 'boolean',
       means: 'look up known vulnerabilities in OSV (true unless set false)',
+      reach: {
+        reach: 'never',
+        because:
+          'on, it sends your package names to OSV; off, nothing says a dependency is vulnerable — either way it is a person’s',
+      },
     },
     {
       key: 'brief',
       kind: 'boolean',
       means:
         'mention vulnerable dependencies in the brief (it asks the network, so off unless set)',
+      reach: {
+        reach: 'asked',
+        because:
+          'it only says whether the brief mentions what the vulnerability look already finds, asking nowhere it does not',
+      },
     },
     {
       key: 'attempts',
       kind: 'number',
       means:
         'how many automatic bumps of one package to one release may fail in a project in a fortnight before the watch only says what is wrong (2)',
+      reach: {
+        reach: 'never',
+        because:
+          'it is how often a watch may start an agent again on its own, which is what keeps one failure from becoming a loop',
+      },
     },
   ],
   ready: async (ctx) => {

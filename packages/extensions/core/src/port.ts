@@ -1,4 +1,4 @@
-import type { ConnectSource, JudgeReplayScore } from '@tade/core'
+import type { ConnectSource, DeclaredReach, JudgeReplayScore } from '@tade/core'
 import type { ExtensionWatch } from './watch.ts'
 
 // The TadeExtension port: something Tade can do that it was not built
@@ -66,6 +66,16 @@ export interface ExtensionSetting {
    * variable in (`key_env`), for an extension that offers one.
    */
   envFrom?: string
+  /**
+   * How far the orchestrator reaches into it (`settingReach`, `declaredReach`),
+   * and the sentence said when it refuses. `asked` is for a setting that only
+   * says which of the person's own things this reads or names — in the same
+   * place, with the same credential — and it then changes it when their own
+   * words name it. `never` is everything else: where it sends anything, who it
+   * reads as, what an agent or a watch may do on its own. Undeclared is `never`,
+   * and so is a `secret`, the switch and a `*_env` key, whatever is said here.
+   */
+  reach?: DeclaredReach
 }
 
 /** A credential, and where it came from — the place, never a second copy of the value. */

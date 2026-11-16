@@ -76,6 +76,10 @@ const projectInput = string(
 /** The trailer that makes a review attributable, forever, by anybody. */
 export const TASK_TRAILER = 'Tade-Task'
 
+/** Why the orchestrator never changes what a review may do by itself (`ExtensionSetting.reach`). */
+const GRANT =
+  'what a review may do on its own — who it reads as, what it posts, fixes, pushes or merges, and how often — is a grant, and a grant is a person’s'
+
 export const reviewExtension: TadeExtension = {
   name: 'review',
   title: 'Reviews',
@@ -93,12 +97,22 @@ export const reviewExtension: TadeExtension = {
   root: ROOT,
 
   settings: [
-    { key: 'hosts', kind: 'map', means: 'which forge serves a host: git.acme.com=github' },
+    {
+      key: 'hosts',
+      kind: 'map',
+      means: 'which forge serves a host: git.acme.com=github',
+      reach: {
+        reach: 'never',
+        because:
+          'it says where a forge token is sent for a host, and where Tade sends something is not mine to move',
+      },
+    },
     {
       key: 'accounts',
       kind: 'map',
       means:
         'which signed-in account to use per host: github.com=you. A remote that names one — an ssh alias like github.com-you — is a fact about that project and wins over this',
+      reach: { reach: 'never', because: GRANT },
     },
     {
       key: 'token',
@@ -112,38 +126,86 @@ export const reviewExtension: TadeExtension = {
       kind: 'string',
       means:
         'the variable a token is in, when `gh` is not what you use; whatever is there beats the pasted one',
+      reach: {
+        reach: 'never',
+        because: 'it says which credential the forge is read with, and a credential is a person’s',
+      },
     },
-    { key: 'include', kind: 'list', means: 'owner/repo globs that are yours to watch: acme/*' },
-    { key: 'exclude', kind: 'list', means: 'globs never listed or watched, whatever include says' },
+    {
+      key: 'include',
+      kind: 'list',
+      means: 'owner/repo globs that are yours to watch: acme/*',
+      reach: {
+        reach: 'asked',
+        because:
+          'it only says which repositories the list shows and watches, on the same forge as the same account',
+      },
+    },
+    {
+      key: 'exclude',
+      kind: 'list',
+      means: 'globs never listed or watched, whatever include says',
+      reach: {
+        reach: 'asked',
+        because:
+          'it only says which repositories are left out — and leaving one out is how its red build goes unsaid',
+      },
+    },
     {
       key: 'who',
       kind: 'string',
       means: 'what the list shows unasked: mine, waiting on you, or both',
+      reach: { reach: 'asked', because: 'it only says which reviews the list shows you' },
     },
     {
       key: 'draft',
       kind: 'boolean',
       means:
         'open reviews as drafts rather than published; off, because an agent opens one on work it has already seen green',
+      reach: {
+        reach: 'asked',
+        because:
+          'it only says whether a review an agent opens is a draft or published, on the same branch',
+      },
     },
     {
       key: 'fix',
       kind: 'list',
       means:
         'what the loop may fix without asking: checks, bots, conflicts, humans (checks,bots,conflicts)',
+      reach: { reach: 'never', because: GRANT },
     },
     {
       key: 'attempts',
       kind: 'number',
       means: 'how many automatic fixes one review may get before Tade only tells you (2)',
+      reach: { reach: 'never', because: GRANT },
     },
     {
       key: 'merge',
       kind: 'string',
       means: 'never (the default), or "when green and approved" — and even then only when asked',
+      reach: { reach: 'never', because: 'merging is a person’s, and so is whether it ever may be' },
     },
-    { key: 'brief', kind: 'boolean', means: 'mention reviews in the brief' },
-    { key: 'body', kind: 'string', means: 'a path to a template for the review body' },
+    {
+      key: 'brief',
+      kind: 'boolean',
+      means: 'mention reviews in the brief',
+      reach: {
+        reach: 'asked',
+        because: 'it only says whether the brief mentions the reviews it already reads',
+      },
+    },
+    {
+      key: 'body',
+      kind: 'string',
+      means: 'a path to a template for the review body',
+      reach: {
+        reach: 'never',
+        because:
+          'what that file says is posted where everybody on the forge can read it, so which file it is is a person’s',
+      },
+    },
     ...reviewerSettings,
   ],
 

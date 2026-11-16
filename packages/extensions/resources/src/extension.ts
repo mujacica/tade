@@ -232,16 +232,28 @@ export function resourcesExtension(options: ResourcesOptions = {}): TadeExtensio
         key: 'every',
         kind: 'number',
         means: 'seconds between samples, at the least (5 unless set)',
+        reach: {
+          reach: 'asked',
+          because: 'it only says how often this machine’s own processes are looked at',
+        },
       },
       {
         key: 'warn_cpu',
         kind: 'number',
         means: 'CPU, in percent of one core, above which the status bar warns (150 unless set)',
+        reach: {
+          reach: 'asked',
+          because: 'it only says when the status bar warns about this machine',
+        },
       },
       {
         key: 'warn_memory',
         kind: 'number',
         means: 'memory, in MB, above which the status bar warns (4096 unless set)',
+        reach: {
+          reach: 'asked',
+          because: 'it only says when the status bar warns about this machine',
+        },
       },
     ],
     ready: () =>
