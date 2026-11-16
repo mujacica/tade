@@ -729,6 +729,16 @@ describe('the price table', () => {
     })
   })
 
+  it('prices the model the orchestrator runs on as its page states', () => {
+    // A cache hit on it is a twentieth of input, not the tenth `claude()` assumes.
+    expect(priceFor('claude-opus-5-5')).toEqual({
+      input: 4,
+      output: 20,
+      cacheRead: 0.2,
+      cacheWrite: 5,
+    })
+  })
+
   it('costs nothing for no tokens', () => {
     const price = priceFor('claude-opus-5')
     expect(price).not.toBeNull()

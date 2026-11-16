@@ -111,6 +111,9 @@ export const PRICES: PriceTable = {
   'claude-fable-5-1': claude(10, 50, 0.25),
   'claude-mythos-5-1': claude(10, 50, 0.25),
   'claude-fable-5': claude(10, 50),
+  // Read off the page on 2026-11-16, after `PRICES_TAKEN`. A cache hit is
+  // 0.05x input on it, not a tenth.
+  'claude-opus-5-5': claude(4, 20, 0.2),
   'claude-opus-5': claude(5, 25),
   'claude-opus-4-8': claude(5, 25),
   'claude-opus-4-7': claude(5, 25),
