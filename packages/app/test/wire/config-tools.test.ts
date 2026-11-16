@@ -899,6 +899,48 @@ describe('the orchestrator, configuring Tade', () => {
     })
   })
 
+  it('changes one project’s Sentry projects and keeps every other project’s', async () => {
+    const config = await withSentry({
+      org: 'vrolta',
+      projects: { 'vrolta-web': 'vrolta-web', tade: ['tade-app', 'tade-cli'] },
+    })
+    const path = 'extensions.sentry.projects.vrolta-platform'
+    const value = 'vrolta-platform+vrolta-staff'
+    // The entry is held to the map's own words: nothing of theirs names it yet.
+    await theySaid('how are the agents getting on?')
+    await expect(config.change({ path, value, said: 'they want it' })).rejects.toThrow(
+      /Nothing they have said names Sentry projects/,
+    )
+    const said = "point vrolta-platform's Sentry at vrolta-platform and vrolta-staff"
+    await theySaid(said)
+    expect(await config.change({ path, value, said })).toContain('Saved')
+    const projects = async (): Promise<unknown> => {
+      const loaded = await loadConfig(join(home, 'config.yaml'))
+      return loaded.ok && loaded.config.extensions.sentry?.projects
+    }
+    expect(await projects()).toEqual({
+      'vrolta-web': 'vrolta-web',
+      tade: ['tade-app', 'tade-cli'],
+      'vrolta-platform': ['vrolta-platform', 'vrolta-staff'],
+    })
+    expect(await changeWritten()).toMatchObject({ path: 'extensions.sentry.projects', said })
+    // An entry already there changes in place, and empty takes it out.
+    await config.change({ path: 'extensions.sentry.projects.tade', value: 'tade-app', said })
+    await config.change({ path: 'extensions.sentry.projects.vrolta-web', value: '', said })
+    expect(await projects()).toEqual({
+      tade: 'tade-app',
+      'vrolta-platform': ['vrolta-platform', 'vrolta-staff'],
+    })
+    // A value that would be more entries is refused rather than read as them.
+    await expect(
+      config.change({ path: 'extensions.sentry.projects.tade', value: 'a, web=b', said }),
+    ).rejects.toThrow(/one entry is extensions\.sentry\.projects\.<name>/)
+    // Under a setting that is no map, a path is no entry of it.
+    await expect(
+      config.change({ path: 'extensions.sentry.org.vrolta', value: 'acme', said: 'acme' }),
+    ).rejects.toThrow(/no setting called|not mine to change/)
+  })
+
   it('refuses where Sentry is read, as whom and whether at all, with their words or without', async () => {
     const config = await withSentry({ org: 'vrolta' })
     const refused: [string, string][] = [

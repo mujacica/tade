@@ -4,7 +4,9 @@ import {
   modelChosen,
   namedBy,
   ownProviderMoved,
+  pairsText,
   providerBeside,
+  readPairs,
   type Setting,
   type SettingGroup,
   settingFound,
@@ -152,6 +154,8 @@ export async function askedSetting(
   page: SettingWriting,
   req: { path: string; value: string; said: string },
 ): Promise<string> {
+  const entry = mapEntry(page.rows(), req.path.trim(), req.value)
+  if (entry !== null) return askedSetting(wire, page, { ...req, ...entry })
   const path = req.path.trim()
   const setting = page
     .rows()
@@ -191,6 +195,45 @@ export async function askedSetting(
     await namedOrRefused(wire, setting, because)
   }
   return page.write(path, req.value, 'orchestrator', req.said.trim())
+}
+
+/**
+ * One entry of a map setting, by the map's path and the entry's name —
+ * `extensions.sentry.projects.vrolta-platform` — as the whole map with only
+ * that entry changed, and empty taking it out. Null when the path is no map's
+ * entry.
+ *
+ * A map is written whole, so changing one project's Sentry projects meant
+ * restating every other project's, and an entry the orchestrator left out of
+ * what it typed was gone. This reads the rest from what is written now and
+ * hands the whole map to the one write, held to the map's own reach and words.
+ */
+function mapEntry(
+  groups: readonly SettingGroup[],
+  path: string,
+  value: string,
+): { path: string; value: string } | null {
+  const settings = groups.flatMap((group) => group.settings)
+  if (settings.some((one) => one.path === path)) return null
+  const map = settings.find(
+    (one) => one.type.kind === 'text' && one.type.pairs && path.startsWith(`${one.path}.`),
+  )
+  if (!map) return null
+  const name = path.slice(map.path.length + 1)
+  const values = value
+    .split('+')
+    .map((one) => one.trim())
+    .filter(Boolean)
+  if (/[=,+]/.test(name) || values.some((one) => /[=,]/.test(one))) {
+    throw new Error(
+      `${map.title}: one entry is ${map.path}.<name> set to one value, or several joined by +, and neither has a “,” or “=” in it.`,
+    )
+  }
+  const read = readPairs(map.value)
+  if ('problem' in read) throw new Error(`${map.title} as written does not read: ${read.problem}.`)
+  const pairs: Record<string, string | string[]> = { ...read.pairs, [name]: values }
+  if (values.length === 0) delete pairs[name]
+  return { path: map.path, value: pairsText(pairs) }
 }
 
 /** Refuses unless a line of theirs names this setting: the half of `asked` that reads the journal. */
