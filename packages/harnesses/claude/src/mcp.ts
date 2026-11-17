@@ -7,6 +7,7 @@ import {
   TOOL_CALL_MS,
 } from '@tade/harnesses-core/agent-tools'
 import { reach, SOCKET } from './ask.ts'
+import { stillWaiting } from './still.ts'
 
 // Tade's tools, lent to a Claude Code agent as an MCP server over stdio.
 //
@@ -137,12 +138,35 @@ async function call(id: unknown, params: Record<string, unknown>): Promise<void>
   if (!SOCKET) return text(id, `Tade is not supervising this agent, so ${name} cannot run`, true)
   const meta = params._meta as Record<string, unknown> | undefined
   const callId = String(meta?.['claudecode/toolUseId'] ?? `${Date.now()}-${name}`)
+  // Said once a minute until Tade answers, or Claude Code gives the call up
+  // after thirty silent minutes however long its deadline is (`still.ts`).
+  let waitingOn = `Tade is still running ${name}`
+  const stop = stillWaiting(meta?.progressToken, () => waitingOn, send)
+  try {
+    await answer(id, name, input, callId, (now) => {
+      waitingOn = now
+    })
+  } finally {
+    stop()
+  }
+}
+
+async function answer(
+  id: unknown,
+  name: string,
+  input: Record<string, unknown>,
+  callId: string,
+  waiting: (on: string) => void,
+): Promise<void> {
   if (name === DONE.name) {
     // What it left goes first, to the door `tade_leftovers` goes to: a report
     // that is refused is said while nothing is finished yet.
     let left = ''
     if (Array.isArray(input.leftovers) && input.leftovers.length > 0) {
       const items = { items: input.leftovers, finishing: true }
+      waiting(
+        `nothing is finished yet: Tade is still making what you left into parked work (${input.leftovers.length} ${input.leftovers.length === 1 ? 'item' : 'items'})`,
+      )
       const { reply, reached } = await tade(`${callId}-leftovers`, LEFTOVERS_TOOL.name, items)
       if (!reply) {
         const why = reached
@@ -157,6 +181,7 @@ async function call(id: unknown, params: Record<string, unknown>): Promise<void>
       left = ` ${String(reply.text ?? '')}`
     }
     const summary = String(input.summary ?? '').trim()
+    waiting('Tade has not yet said it heard this task is finished')
     const { reply, reached } = await reach({ kind: 'done', summary }, DONE_CALL_MS)
     if (reply) return text(id, `Tade has it: this task is finished.${left}`)
     const why = reached
