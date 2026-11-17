@@ -1,6 +1,6 @@
 # Tade — **T**erminal **A**gentic **D**evelopment **E**nvironment
 
-A control room in your terminal for running coding agents and landing what they make.
+A control room in your terminal for running coding agents and landing what they make — [tade.sh](https://tade.sh).
 
 ```sh
 curl -fsSL https://tade.sh/install.sh | sh

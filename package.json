@@ -2,7 +2,7 @@
   "name": "tade",
   "version": "0.3.0",
   "private": true,
-  "description": "A voice-first control room for running coding agents on your own machine.",
+  "description": "A control room in your terminal for running coding agents — Claude Code, Codex and pi — and landing what they make.",
   "license": "MIT",
   "repository": {
     "type": "git",

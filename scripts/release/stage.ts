@@ -296,7 +296,17 @@ function manifestFor(
     repository: root.repository,
     homepage: root.homepage,
     bugs: root.bugs,
-    keywords: ['agents', 'cli', 'terminal', 'tui', 'orchestrator', 'coding-agent'],
+    keywords: [
+      'agents',
+      'cli',
+      'terminal',
+      'tui',
+      'orchestrator',
+      'coding-agent',
+      'coding-agents',
+      'claude-code',
+      'codex',
+    ],
     dependencies,
     // Two, and both node-pty's. `preinstall` runs before the dependency build
     // and says what a Linux machine is missing rather than letting node-gyp
