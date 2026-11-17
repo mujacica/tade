@@ -128,6 +128,8 @@ interface Tade {
   path: string
   heard: Record<string, unknown>[]
   say(command: unknown): void
+  /** Bytes exactly as given, for what arrives in pieces. */
+  write(bytes: Uint8Array): void
   /** Hang up on the agent, the way closing the window does. */
   hangUp(): void
   connections: number
@@ -141,6 +143,7 @@ async function tadeListening(): Promise<Tade> {
     heard: [],
     connections: 0,
     say: (command) => live?.write(`${JSON.stringify(command)}\n`),
+    write: (bytes) => live?.write(bytes),
     hangUp: () => live?.destroy(),
   }
   let rest = ''
@@ -560,6 +563,17 @@ describe('what Tade can ask the agent to do', () => {
     at.say({ type: 'steer', message: 'two' })
     await vi.waitFor(() => expect(pi.api.messages).toHaveLength(2))
     expect(pi.api.messages.map((m) => m.content)).toEqual(['one', 'two'])
+  })
+
+  it('keeps a character whole when a command is cut through it', async () => {
+    const at = await tadeListening()
+    const { pi } = await running(at)
+    const bytes = Buffer.from(`${JSON.stringify({ type: 'steer', message: 'café' })}\n`)
+    const cut = bytes.indexOf(0xa9)
+    at.write(bytes.subarray(0, cut))
+    setTimeout(() => at.write(bytes.subarray(cut)), 10)
+    await vi.waitFor(() => expect(pi.api.messages).toHaveLength(1))
+    expect(pi.api.messages[0]?.content).toBe('café')
   })
 
   it('ignores a line it cannot read rather than falling over', async () => {
