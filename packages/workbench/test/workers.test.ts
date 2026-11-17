@@ -608,6 +608,47 @@ describe('WorkerSupervisor', () => {
     expect(failed?.urgency).toBe('blocking')
   })
 
+  it('writes down how full the plan was as a turn ends, once per reading', async () => {
+    // A harness holds only the last thing it was told about its plan, so a
+    // reading that is not written as the turn ends is gone with the next one.
+    const { log, adapter } = await setup('bypass')
+    close = () => log.close()
+    const turns = async (count: number) => {
+      adapter.emit('r1', { type: 'turn_done', status: 'ok' })
+      await until(async () => (await logged(log, 'turn_done')).length === count)
+    }
+    // Nothing told yet: nothing to write, and never a zero.
+    await turns(1)
+    adapter.plan = { at: 1_000, windows: [{ minutes: 300, used: 41, resetsAt: 9_000 }] }
+    await turns(2)
+    // The same reading again is not a second line.
+    await turns(3)
+    adapter.plan = {
+      at: 2_000,
+      windows: [
+        { minutes: 300, used: 88, resetsAt: 9_000 },
+        { minutes: 10_080, used: 30, resetsAt: 0 },
+      ],
+    }
+    await turns(4)
+    await until(async () => (await logged(log, 'plan_said')).length >= 2)
+
+    const said = await logged(log, 'plan_said')
+    expect(said.map((one) => one.detail.at)).toEqual([1_000, 2_000])
+    expect(said[1]).toMatchObject({
+      task: 'app/refunds',
+      run: 'r1',
+      urgency: 'routine',
+      detail: {
+        harness: 'fake',
+        windows: [
+          { minutes: 300, used: 88, resetsAt: 9_000 },
+          { minutes: 10_080, used: 30, resetsAt: 0 },
+        ],
+      },
+    })
+  })
+
   it('stopping a run clears its pending approvals and stops the agent', async () => {
     const { log, adapter, supervisor } = await setup('policy')
     close = () => log.close()

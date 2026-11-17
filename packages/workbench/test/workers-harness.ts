@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path'
 import { effectByName, taskDir, taskDocumentsDir } from '@tade/core'
 import type {
   PermissionDecision,
+  PlanLimits,
   RunId,
   WorkerAdapter,
   WorkerCapabilities,
@@ -138,8 +139,11 @@ export class FakeAdapter implements WorkerAdapter {
 
   async signOut() {}
 
+  /** What the service last told it about its plan, as `limits()` answers; null for nothing yet. */
+  plan: PlanLimits | null = null
+
   limits() {
-    return null
+    return this.plan
   }
 
   async askLimits() {

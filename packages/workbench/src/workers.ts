@@ -249,6 +249,11 @@ export class WorkerSupervisor {
 
   /** Each agent's turn while it is in it, as the work of a model. */
   private readonly timing: AgentTurns
+  /**
+   * When each adapter's plan reading that was last written down was said. By
+   * adapter, because one is made per account and its runs share one reading.
+   */
+  private readonly planWritten = new WeakMap<WorkerAdapter, number>()
 
   constructor(opts: WorkerSupervisorOptions) {
     this.home = opts.home
@@ -560,6 +565,7 @@ export class WorkerSupervisor {
         this.doing.ended(run, { at: signal.at, status: signal.status })
         this.timing.done(run, { status: signal.status, at: signal.at })
         await this.log.append({ type: 'turn_done', task, run, detail: { status: signal.status } })
+        await this.notePlan(run, state)
         return
       }
       case 'failed':
@@ -726,6 +732,35 @@ export class WorkerSupervisor {
       run,
       // With the harness that ran it, as on `usage`: a model is its harness's own.
       detail: { ...modelDetail(said), ...factsDetail(this.runs.get(run)?.facts) },
+    })
+  }
+
+  /**
+   * How much of its plan the run's account had used as the turn ended, written
+   * down when the harness has been told something new since the last line.
+   *
+   * `limits()` is the last thing the service said and nothing before it, so a
+   * reading not written here is gone once the next one arrives. Read as the
+   * turn ends because both subscription harnesses have heard their figure by
+   * then (`onStatus` as Claude Code replies, `sayUsage` before Codex settles),
+   * and a share only grows inside a window, so the last reading of a turn is
+   * the most that turn took it to.
+   */
+  private async notePlan(run: RunId, state: RunState | undefined): Promise<void> {
+    if (!state) return
+    const plan = state.adapter.limits()
+    if (!plan || plan.windows.length === 0) return
+    if (this.planWritten.get(state.adapter) === plan.at) return
+    this.planWritten.set(state.adapter, plan.at)
+    await this.log.append({
+      type: 'plan_said',
+      task: state.task,
+      run,
+      detail: {
+        at: plan.at,
+        windows: plan.windows.map(({ minutes, used, resetsAt }) => ({ minutes, used, resetsAt })),
+        ...factsDetail(state.facts),
+      },
     })
   }
 

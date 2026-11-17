@@ -344,6 +344,17 @@ export const EventType = z.enum([
   'agent_continued',
   /** What a turn consumed, in tokens and money. */
   'usage',
+  /**
+   * How much of a plan's windows was used as a turn ended, as the service told
+   * the harness: each window's length, share used and reset, and when it said.
+   *
+   * Written because it cannot be asked again. A harness holds only the last
+   * thing it was told, in memory, so before this "how close did that plan run
+   * to its ceiling last week" had no answer anywhere — the figure was replaced
+   * by the next one and gone when the window closed. One line per reading a
+   * turn ended on, and only when it is a new one.
+   */
+  'plan_said',
   /** A finished task was looked back over, so it is never looked at twice. */
   'reflected',
   /**
@@ -683,6 +694,9 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // Routine rather than trace: spend is read back out of the journal, and
   // trace is the first thing dropped when a subscriber falls behind.
   usage: 'routine',
+  // Routine, for the reason `usage` is: it is read back to answer how full a
+  // plan ran, and a reading dropped under backpressure is one nobody has.
+  plan_said: 'routine',
   // Nobody needs to be told that Tade thought about something.
   reflected: 'trace',
   orchestrator_told: 'routine',
