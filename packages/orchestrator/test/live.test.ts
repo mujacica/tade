@@ -564,8 +564,14 @@ describeLive('against a real model', () => {
         })
         const say = typeof choice.say === 'function' ? choice.say() : choice.say
         const said = await ask(ctx, say, choice.seed)
-        expect(said.tools).toContain(choice.reaches)
-        for (const wrong of choice.notThis ?? []) expect(said.tools).not.toContain(wrong)
+        // What it said goes with every failure: a provider that refused the
+        // turn (a 402, a key gone) reaches no tool at all, and without its
+        // answer that reads as eighteen wrong choices rather than one sign-in.
+        const answered = `it answered: ${said.answer}`
+        expect(said.tools, answered).toContain(choice.reaches)
+        for (const wrong of choice.notThis ?? []) {
+          expect(said.tools, answered).not.toContain(wrong)
+        }
         await choice.also?.(said)
         passed += 1
       },
