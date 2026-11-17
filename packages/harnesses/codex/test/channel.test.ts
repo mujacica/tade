@@ -1,4 +1,5 @@
 import { rmSync } from 'node:fs'
+import { connect } from 'node:net'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
@@ -85,5 +86,25 @@ describe('CodexChannel', () => {
       'an unreadable request from a Codex agent',
       'an unreadable request from a Codex agent',
     ])
+  })
+
+  it('keeps a character whole when the request arrives cut through it', async () => {
+    const { channel, heard, warned } = await opened()
+    const bytes = Buffer.from(`${JSON.stringify({ kind: 'hook', event: { prompt: 'café' } })}\n`)
+    const cut = bytes.indexOf(0xa9)
+    const socket = connect(channel.path)
+    const replied = new Promise<string>((resolve) => {
+      let text = ''
+      socket.setEncoding('utf8')
+      socket.on('data', (chunk: string) => {
+        text += chunk
+      })
+      socket.on('close', () => resolve(text))
+    })
+    socket.write(bytes.subarray(0, cut))
+    setTimeout(() => socket.write(bytes.subarray(cut)), 10)
+    expect(await replied).toBe('{"ok":true}\n')
+    expect(heard).toEqual([{ kind: 'hook', event: { prompt: 'café' } }])
+    expect(warned).toEqual([])
   })
 })

@@ -53,8 +53,12 @@ export class CodexChannel {
       channel.sockets.add(socket)
       let buffer = ''
       let answered = false
-      socket.on('data', (chunk: Buffer) => {
-        buffer += chunk.toString('utf8')
+      // Decoded by the stream rather than chunk by chunk: a large hook event
+      // arrives in pieces, and a character cut between two of them would be
+      // read as two U+FFFDs.
+      socket.setEncoding('utf8')
+      socket.on('data', (chunk: string) => {
+        buffer += chunk
         const end = buffer.indexOf('\n')
         if (end < 0 || answered) return
         answered = true

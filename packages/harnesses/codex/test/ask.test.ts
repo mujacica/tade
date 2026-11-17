@@ -62,7 +62,7 @@ interface Listening {
 
 /** A real unix socket, answering each line the way `answer` says. */
 async function listening(
-  answer: (line: string, say: (text: string) => void, hangUp: () => void) => void,
+  answer: (line: string, say: (text: string | Uint8Array) => void, hangUp: () => void) => void,
 ): Promise<Listening> {
   const dir = tmp('tade-ask-')
   dirs.push(dir)
@@ -179,6 +179,17 @@ describe('asking Tade', () => {
     })
     const { ask } = await launchedWith(at.path)
     expect(await ask({ kind: 'hook' })).toEqual({ output: { permissionDecision: 'allow' } })
+  })
+
+  it('keeps a character whole when the answer is cut through it', async () => {
+    const bytes = Buffer.from('{"output":{"reason":"café"}}\n')
+    const cut = bytes.indexOf(0xa9)
+    const at = await listening((_line, say) => {
+      say(bytes.subarray(0, cut))
+      setTimeout(() => say(bytes.subarray(cut)), 10)
+    })
+    const { ask } = await launchedWith(at.path)
+    expect(await ask({ kind: 'hook' })).toEqual({ output: { reason: 'café' } })
   })
 
   it('takes the first line when the window says more than one', async () => {

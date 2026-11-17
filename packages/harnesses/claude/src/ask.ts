@@ -55,8 +55,11 @@ export function reach(
       reached = true
       socket.write(`${JSON.stringify(request)}\n`)
     })
-    socket.on('data', (chunk: Buffer) => {
-      buffer += chunk.toString('utf8')
+    // Decoded by the stream, so a character cut between two pieces of a long
+    // answer stays one character rather than two U+FFFDs.
+    socket.setEncoding('utf8')
+    socket.on('data', (chunk: string) => {
+      buffer += chunk
       const end = buffer.indexOf('\n')
       if (end < 0) return
       let reply: unknown
