@@ -207,3 +207,57 @@ it('says what a plan’s own turns would have cost, and that nobody is billed it
   )
   expect(result.stdout).toContain('nobody is billed that and no figure above holds it')
 }, 30_000)
+
+it('says how close each plan ran to its ceiling, out of what was written down as turns ended', async () => {
+  const home = tmp('tade-cli-spend-peak-')
+  window = await Workbench.open({ home })
+  const now = Date.now()
+  const later = now + 3_600_000
+  await window.log.append({
+    type: 'usage',
+    task: 'app/refunds',
+    run: 'app/refunds/agent',
+    detail: { model: 'claude-opus-5', harness: 'claude-code', tokens: 1_000, usd: 0 },
+  })
+  // Two turns on one sign-in: the five-hour window filled from 40% to 93%.
+  for (const used of [40, 93]) {
+    await window.log.append({
+      type: 'plan_said',
+      task: 'app/refunds',
+      run: 'app/refunds/agent',
+      detail: {
+        at: now,
+        windows: [
+          { minutes: 300, used, resetsAt: later },
+          { minutes: 10_080, used: 20, resetsAt: later },
+        ],
+        harness: 'claude-code',
+      },
+    })
+  }
+  const spend = (args: string[]) =>
+    new Promise<{ code: number | null; stdout: string }>((resolve) => {
+      const child = spawn(process.execPath, [bin, 'spend', ...args], {
+        env: { ...process.env, TADE_HOME: home, HOME: home },
+      })
+      let stdout = ''
+      child.stdout.setEncoding('utf8')
+      child.stdout.on('data', (chunk: string) => {
+        stdout += chunk
+      })
+      child.on('exit', (code) => resolve({ code, stdout }))
+    })
+  const said = await spend([])
+  expect(said.code).toBe(0)
+  expect(said.stdout).toContain('plans, the fullest each window was seen as a turn ended')
+  expect(said.stdout).toMatch(/claude-code\s+5h\s+93%\s+just now\s+← tight/)
+  expect(said.stdout).toMatch(/claude-code\s+7d\s+20%\s+just now\n/)
+  // Never a dollar beside it: a share of a window is not money.
+  expect(said.stdout).not.toMatch(/93%.*\$/)
+  const json = await spend(['--json'])
+  const report = JSON.parse(json.stdout) as { plans: { label: string; used: number }[] }
+  expect(report.plans.map(({ label, used }) => ({ label, used }))).toEqual([
+    { label: '5h', used: 93 },
+    { label: '7d', used: 20 },
+  ])
+}, 30_000)

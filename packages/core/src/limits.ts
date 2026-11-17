@@ -1,4 +1,6 @@
+import type { TadeEvent } from './events.ts'
 import type { SignInUse } from './project.ts'
+import { noRunFacts, type RunFacts, runFactsOf } from './spend.ts'
 
 // How much of a subscription's plan has been used, and when it starts over.
 //
@@ -552,4 +554,80 @@ function standingSaid(standing: PlanStanding, now: number): PlanStandingSaid {
     saidAgo: standing.at === null ? null : Math.max(0, now - standing.at),
     uses: standing.uses ?? null,
   }
+}
+
+/**
+ * The most one of a sign-in's windows was seen used over a range: how close
+ * that plan ran to its ceiling.
+ *
+ * Read back out of `plan_said`, which the supervisor writes as a turn ends
+ * because `limits()` holds only the last reading and loses every one before
+ * it. A floor and never a measurement of the true peak: it is what the
+ * service had said by the end of each turn Tade ran, and work on the same
+ * account outside Tade fills the window without anything here being told.
+ */
+export interface PlanPeak {
+  /** The harness it was said in, or `UNRECORDED` where the line did not say. */
+  harness: string
+  /** The account, or null for the harness's own sign-in. */
+  account: string | null
+  /** How long the window is, in minutes. */
+  minutes: number
+  /** What it covers, as every surface says it: `5h`, `7d` (`windowLabel`). */
+  label: string
+  /** The most of it reported used, 0 to 100: the service's own number. */
+  used: number
+  /** When the service said that. */
+  at: number
+  pressure: PlanPressure
+}
+
+/**
+ * The fullest each sign-in's every window was seen over a range, fullest first.
+ *
+ * Windowed by when the service said it rather than when the line was written,
+ * since that is the moment the figure was true. By the window's length and
+ * never by its slot, for the reason `windowLabel` gives. `runs` fills in the
+ * harness and account a line did not carry, off the run that wrote it, as it
+ * does for `spendFrom`. A window that is not a number, or a share that is not
+ * one, is no reading and is skipped.
+ */
+export function planPeaksFrom(
+  events: readonly TadeEvent[],
+  window: { since: number; runs?: ReadonlyMap<string, RunFacts> } = { since: 0 },
+): PlanPeak[] {
+  const peaks = new Map<string, PlanPeak>()
+  for (const event of events) {
+    if (event.type !== 'plan_said') continue
+    const said = event.detail.at
+    const at = typeof said === 'number' && Number.isFinite(said) ? said : Date.parse(event.ts)
+    if (Number.isFinite(at) && at < window.since) continue
+    const windows = event.detail.windows
+    if (!Array.isArray(windows)) continue
+    const own = runFactsOf(event)
+    const run = (event.run && window.runs?.get(event.run)) || noRunFacts()
+    const harness = own.harness || run.harness
+    const account = own.account ?? run.account
+    for (const one of windows as unknown[]) {
+      if (typeof one !== 'object' || one === null) continue
+      const { minutes, used } = one as { minutes?: unknown; used?: unknown }
+      if (typeof minutes !== 'number' || !Number.isFinite(minutes) || minutes <= 0) continue
+      if (typeof used !== 'number' || !Number.isFinite(used) || used < 0) continue
+      const key = `${harness}\u0000${account ?? ''}\u0000${minutes}`
+      const was = peaks.get(key)
+      if (was && was.used >= used) continue
+      peaks.set(key, {
+        harness,
+        account,
+        minutes,
+        label: windowLabel(minutes),
+        used,
+        at,
+        pressure: planPressure(used),
+      })
+    }
+  }
+  return [...peaks.values()].sort(
+    (a, b) => b.used - a.used || planLabel(a).localeCompare(planLabel(b)) || a.minutes - b.minutes,
+  )
 }

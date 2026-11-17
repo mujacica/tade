@@ -1,4 +1,5 @@
 import {
+  ago,
   type Budget,
   checkBudget,
   defaultConfigPath,
@@ -7,7 +8,10 @@ import {
   modelsSaid,
   noSpend,
   onPlanOf,
+  type PlanPeak,
   PRICES_TAKEN,
+  planLabel,
+  planPeaksFrom,
   pricedOf,
   pricesFrom,
   RUNTIME_EVENTS,
@@ -71,9 +75,10 @@ export function registerSpend(program: Command, io: Io): void {
       // What each run was — harness, sign-in, provider — read off the
       // `run_started` that opened it, so usage written before it carried its
       // own still lands in the right bucket.
+      const facts = runFactsFrom(runs)
       const report = spendFrom(events, {
         since,
-        runs: runFactsFrom(runs),
+        runs: facts,
         prices: pricesFrom(cfg.ok ? cfg.config.prices : {}),
       })
       // Timed by what each run turned out to be on rather than by what its
@@ -82,11 +87,23 @@ export function registerSpend(program: Command, io: Io): void {
       // What the money bought: commits, the size of them, and how the
       // project's own checks have been going.
       const made = statsFrom(await readJournal(tadeHome(), { types: [...STATS_EVENTS] }), { since })
+      // How close each plan ran to its ceiling: the fullest every window was
+      // seen, out of the readings written down as turns ended.
+      const plans = planPeaksFrom(await readJournal(tadeHome(), { types: ['plan_said'] }), {
+        since,
+        runs: facts,
+      })
 
       if (opts.json) {
         io.out(
           JSON.stringify(
-            { since: new Date(since).toISOString(), ...report, runtime: ran, produced: made },
+            {
+              since: new Date(since).toISOString(),
+              ...report,
+              runtime: ran,
+              produced: made,
+              plans,
+            },
             null,
             2,
           ),
@@ -181,6 +198,16 @@ export function registerSpend(program: Command, io: Io): void {
         for (const name of agents) {
           const running = ran.byTask[name]?.running ? '  ← running' : ''
           io.out(`  ${line(name, width, report.byTask[name], ran.byTask[name])}${running}`)
+        }
+      }
+      // A plan's windows are their own currency, so their own list, and never
+      // a column beside the money.
+      if (plans.length > 0) {
+        io.out('')
+        io.out('plans, the fullest each window was seen as a turn ended')
+        const wide = Math.max(...plans.map((one) => shownPlan(one).length), 7)
+        for (const one of plans) {
+          io.out(`  ${peakLine(one, wide, now)}`)
         }
       }
       // What it produced. Kept beside what it cost rather than in a command of
@@ -314,6 +341,21 @@ export function onPlanSays(spend: Spend): string {
       ? `, and ${count(spend.tokensOnPlanUnrated)} of its tokens ran on a model nothing here has a rate for`
       : ''
   return `a plan's own turns would have cost ${floor}$${spend.usdOnPlan.toFixed(2)} at list prices of ${PRICES_TAKEN} — a subscription pays a flat fee, so nobody is billed that and no figure above holds it${missing}`
+}
+
+/** Whose plan a peak is, the way every surface labels a sign-in. */
+function shownPlan(peak: PlanPeak): string {
+  return peak.harness === UNRECORDED ? 'not recorded' : planLabel(peak)
+}
+
+/**
+ * One window's fullest, as `claude-code  5h  92%  3h ago  ← tight`. Warm and
+ * tight are said in a word, by `planPressure`, which the strip and the page
+ * colour by.
+ */
+function peakLine(peak: PlanPeak, width: number, now: number): string {
+  const pressed = peak.pressure === 'fine' ? '' : `  ← ${peak.pressure}`
+  return `${shownPlan(peak).padEnd(width)}  ${peak.label.padStart(4)}  ${`${Math.round(peak.used)}%`.padStart(4)}  ${ago(Math.max(0, now - peak.at))}${pressed}`
 }
 
 function line(name: string, width: number, spend?: Spend, ran?: Runtime): string {

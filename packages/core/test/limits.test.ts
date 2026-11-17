@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import type { TadeEvent } from '../src/events.ts'
 import {
   nextPlan,
   PLAN_TIGHT,
   PLAN_WARM,
   type PlanSource,
   planLabel,
+  planPeaksFrom,
   planPressure,
   planReport,
   planShown,
@@ -562,5 +564,84 @@ describe('what a window is called', () => {
       null,
     )
     expect(held?.because).toContain('codex has used 95% of its 30d window')
+  })
+})
+
+describe('how close a plan ran to its ceiling', () => {
+  const said = (
+    at: number,
+    windows: unknown,
+    detail: Record<string, unknown> = { harness: 'claude-code' },
+    run = 'app/a/agent',
+  ): TadeEvent => ({
+    seq: 0,
+    ts: new Date(at).toISOString(),
+    type: 'plan_said',
+    urgency: 'routine',
+    task: 'app/a',
+    lane: null,
+    run,
+    detail: { at, windows, ...detail },
+  })
+
+  it('keeps the fullest each window of each sign-in was seen, fullest first', () => {
+    const peaks = planPeaksFrom([
+      said(NOW - 3 * HOUR, [
+        { minutes: 300, used: 40, resetsAt: NOW },
+        { minutes: 10_080, used: 30, resetsAt: NOW },
+      ]),
+      said(NOW - 2 * HOUR, [
+        { minutes: 300, used: 91, resetsAt: NOW },
+        { minutes: 10_080, used: 33, resetsAt: NOW },
+      ]),
+      // A window that started over reads lower, and is not the peak.
+      said(NOW - HOUR, [{ minutes: 300, used: 5, resetsAt: NOW + 4 * HOUR }]),
+      said(NOW - HOUR, [{ minutes: 10_080, used: 80 }], { harness: 'codex', account: 'work' }),
+    ])
+    expect(
+      peaks.map(({ harness, account, label, used, at, pressure }) => ({
+        who: planLabel({ harness, account }),
+        label,
+        used,
+        at,
+        pressure,
+      })),
+    ).toEqual([
+      { who: 'claude-code', label: '5h', used: 91, at: NOW - 2 * HOUR, pressure: 'tight' },
+      { who: 'codex @work', label: '7d', used: 80, at: NOW - HOUR, pressure: 'warm' },
+      { who: 'claude-code', label: '7d', used: 33, at: NOW - 2 * HOUR, pressure: 'fine' },
+    ])
+  })
+
+  it('reads only what was said inside the range, by when the service said it', () => {
+    const peaks = planPeaksFrom(
+      [
+        said(NOW - 30 * HOUR, [{ minutes: 300, used: 99 }]),
+        said(NOW - HOUR, [{ minutes: 300, used: 12 }]),
+      ],
+      { since: NOW - 24 * HOUR },
+    )
+    expect(peaks.map((one) => one.used)).toEqual([12])
+  })
+
+  it('takes the sign-in a line did not carry from the run that wrote it', () => {
+    const peaks = planPeaksFrom([said(NOW, [{ minutes: 300, used: 50 }], {})], {
+      since: 0,
+      runs: new Map([['app/a/agent', { harness: 'codex', account: 'work', provider: 'openai' }]]),
+    })
+    expect(peaks[0]).toMatchObject({ harness: 'codex', account: 'work' })
+  })
+
+  it('skips a reading that is not one, rather than drawing it as nought', () => {
+    const peaks = planPeaksFrom([
+      said(NOW, 'not a list'),
+      said(NOW, [
+        null,
+        { minutes: 0, used: 50 },
+        { minutes: 300, used: Number.NaN },
+        { minutes: 300 },
+      ]),
+    ])
+    expect(peaks).toEqual([])
   })
 })
