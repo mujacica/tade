@@ -75,6 +75,21 @@ describe('statsFrom', () => {
     expect(report.checks[0]?.medianMs).toBe(3_000)
   })
 
+  it('counts a run once however many times the journal holds it', () => {
+    // Two looks that overlapped each wrote the same run before either had
+    // written it, and the journal is append-only, so the repeats stay in it.
+    const ran = (run: string | undefined, state: string) =>
+      event({ type: 'check_ran', detail: { check: 'related', state, ms: 500, run } })
+    const report = statsFrom([
+      ...Array.from({ length: 8 }, () => ran('806568a:related:here:1', 'cancelled')),
+      ran('806568a:related:here:2', 'passed'),
+      ran(undefined, 'passed'),
+      ran(undefined, 'passed'),
+    ])
+    // A line from before runs had ids is a run of its own.
+    expect(report.checks[0]).toMatchObject({ runs: 4, passed: 3, other: 1 })
+  })
+
   it('says nothing about how long a check takes when nothing was timed', () => {
     const report = statsFrom([
       event({ type: 'check_ran', detail: { check: 'e2e', state: 'skipped' } }),

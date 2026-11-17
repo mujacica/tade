@@ -58,6 +58,7 @@ export function statsFrom(
 ): StatsReport {
   const report: StatsReport = { produced: nothingProduced(), byProject: {}, checks: [] }
   const checks = new Map<string, { tally: CheckTally; times: number[] }>()
+  const counted = new Set<string>()
 
   for (const event of events) {
     // When it happened, which a commit knows better than the moment Tade
@@ -85,6 +86,7 @@ export function statsFrom(
     }
 
     if (event.type === 'check_ran') {
+      if (repeated(event, counted)) continue
       const id = String(event.detail.check ?? 'unknown')
       const found = checks.get(id) ?? {
         tally: { check: id, runs: 0, passed: 0, failed: 0, other: 0, medianMs: null },
@@ -130,6 +132,20 @@ export function sinceLastLook(written: readonly TadeEvent[], opens: readonly Tad
     .filter((one) => one > 0)
     .sort((one, other) => one - other)
   return at.length >= 2 ? (at[at.length - 2] ?? 0) : (at[at.length - 1] ?? 0)
+}
+
+/**
+ * Whether this `check_ran` is a run already counted. A run is written once by
+ * its id, but a journal from before two overlapping looks were joined holds
+ * some of them several times over, and the file is the truth, so it is the
+ * fold that reads each run once. A line with no id is counted as it stands.
+ */
+export function repeated(event: TadeEvent, counted: Set<string>): boolean {
+  const run = event.detail.run
+  if (typeof run !== 'string' || run === '') return false
+  if (counted.has(run)) return true
+  counted.add(run)
+  return false
 }
 
 /**

@@ -179,6 +179,12 @@ describe('outcomesFrom', () => {
     expect(one).toMatchObject({ checkedHere: 3, redsHere: 2 })
   })
 
+  it('counts a red once however many times the journal holds its run', () => {
+    const red = () => ran(null, 'failed', { by: 'shop/fix', run: 'abc1234:tests:here:1' })
+    const [one] = outcomesFrom([made('shop/fix'), red(), red(), red()], { since: 0 })
+    expect(one).toMatchObject({ checkedHere: 1, redsHere: 1 })
+  })
+
   it('reads a merge from the done rule, and from what a forge was asked again', () => {
     const outcomes = outcomesFrom(
       [
