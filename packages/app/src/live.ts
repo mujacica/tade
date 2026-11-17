@@ -237,6 +237,8 @@ export class Live {
    * has just done it, so the window's own first look is a minute away.
    */
   private lookedAtLanded = 0
+  /** The look at what landed still going, beside which no other begins. */
+  private landing: Promise<void> | null = null
   /**
    * How long anything has run, folded from the whole journal rather than a
    * window of it: a run that began last week and is still going is time spent
@@ -996,7 +998,7 @@ export class Live {
   }
 
   private async doRefresh(): Promise<void> {
-    void this.lookAtWhatLanded()
+    this.lookAtWhatLanded()
     try {
       const [answer, pending, lanes] = await Promise.all([
         livenessTableFrom(this.opts.client).then((table) =>
@@ -1132,11 +1134,21 @@ export class Live {
    * refresh beat is two seconds. Nothing waits on it and nothing fails
    * because of it: counting what was produced may never be why the window
    * stops drawing.
+   *
+   * One at a time, and the minute counted from when the last one finished: on
+   * a stalled machine a look outlasted its minute, and a new one every minute
+   * beside it piled looks up on the machine least able to carry them.
    */
-  private async lookAtWhatLanded(): Promise<void> {
-    const now = this.now()
-    if (now - this.lookedAtLanded < LANDED_MS) return
-    this.lookedAtLanded = now
+  private lookAtWhatLanded(): void {
+    if (this.landing) return
+    if (this.now() - this.lookedAtLanded < LANDED_MS) return
+    this.landing = this.landOnce().finally(() => {
+      this.lookedAtLanded = this.now()
+      this.landing = null
+    })
+  }
+
+  private async landOnce(): Promise<void> {
     // Through a promise rather than straight at it: a client that cannot do
     // this at all must be a look that found nothing, not an unhandled throw
     // out of the frame loop.

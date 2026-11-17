@@ -712,6 +712,59 @@ describe('opening before looking', () => {
     expect(live.tasks.map((one) => one.task)).toEqual(['checkout/refunds'])
   }, 30_000)
 
+  it('starts no look at what landed while the last one is still going', async () => {
+    // On a stalled machine a look at what landed took longer than its minute,
+    // and every minute started another beside it: looks piled up, each reading
+    // the journal before the others wrote.
+    const repo = mkrepo()
+    const home = tmp('tade-live-landed-')
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
+    const client = await Workbench.open({ home })
+    let looks = 0
+    let finish: () => void = () => {}
+    client.lookAtCommits = () => {
+      looks++
+      return new Promise((resolve) => (finish = resolve))
+    }
+    let checked = 0
+    client.lookAtChecks = async () => {
+      checked++
+    }
+    let clock = Date.now()
+    const live = await Live.start({
+      client,
+      config: ConfigSchema.parse({ projects: { app: { root: repo.root } } }),
+      home,
+      tadeHome: repo.home,
+      pollMs: 600_000,
+      now: () => clock,
+    })
+    opened.push({ live, client })
+    await live.refresh()
+    expect(looks).toBe(0)
+    clock += 61_000
+    await live.refresh()
+    expect(looks).toBe(1)
+    // Minutes go by and the look is still going: none begins beside it.
+    for (let minute = 0; minute < 5; minute++) {
+      clock += 61_000
+      await live.refresh()
+    }
+    expect(looks).toBe(1)
+    finish()
+    // Paced by the look's own last step, and a few turns for it to be let go of.
+    for (let turn = 0; turn < 50 && checked === 0; turn++) await aTurn()
+    for (let turn = 0; turn < 5; turn++) await aTurn()
+    expect(checked).toBe(1)
+    // The minute is counted from when it finished, not from when it began.
+    await live.refresh()
+    expect(looks).toBe(1)
+    clock += 61_000
+    await live.refresh()
+    expect(looks).toBe(2)
+    finish()
+  }, 30_000)
+
   it('counts an event appended while the journal is being read exactly once', async () => {
     const repo = mkrepo()
     const home = tmp('tade-live-once-')
