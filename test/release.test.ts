@@ -12,7 +12,7 @@ import { parseTemplate } from '../packages/core/src/templates-store.ts'
 // rather than at the checkout — which is the whole of what these two assert.
 import { assetFor, readAssets, WORKER_FILE } from '../packages/web/src/assets.ts'
 import { shellOf } from '../packages/web/src/installable.ts'
-import { changelogFor, notesFor } from '../scripts/release/changelog.ts'
+import { changelogFor, NOTES_LIMIT, notesFor } from '../scripts/release/changelog.ts'
 import { LIVE_RUN, liveTrouble, manifests, PUBLISHED } from '../scripts/release/repo.ts'
 import { exportsFor, notShipped, rewrite, stage } from '../scripts/release/stage.ts'
 
@@ -325,6 +325,34 @@ describe('the changelog', () => {
     const notes = notesFor(release, REPO)
     expect(notes.startsWith('- A pane that scrolls itself')).toBe(true)
     expect(notes).not.toContain('## ')
+    expect(notes).not.toContain('more, every one in')
+  })
+
+  it('cuts notes GitHub would refuse, and says how many more and where they are', () => {
+    // 0.3.0: 406 commits came to 194,996 characters, and the last step of the
+    // release failed with the package already on npm.
+    const subject = 'A sentence about a change, as long as the ones this repository writes'.repeat(
+      5,
+    )
+    const entries = Array.from({ length: 406 }, (_, index) => ({
+      sha: index.toString(16).padStart(40, '0'),
+      subject: `${subject} ${index}`,
+    }))
+    const big = { ...release, version: '0.3.0', since: '0.2.3', entries }
+    expect(changelogFor([big], REPO).length).toBeGreaterThan(NOTES_LIMIT)
+
+    const notes = notesFor(big, REPO)
+    expect(notes.length).toBeLessThanOrEqual(NOTES_LIMIT)
+    const kept = notes.split('\n').filter((line) => line.startsWith('- ')).length
+    expect(kept).toBeGreaterThan(0)
+    expect(kept).toBeLessThan(406)
+    // Newest first, so what is cut is the oldest.
+    expect(notes).toContain(`${subject} 0 (`)
+    expect(notes).not.toContain(`${subject} 405 (`)
+    expect(notes).toContain(
+      `…and ${406 - kept} more, every one in [CHANGELOG.md](${REPO}/blob/v0.3.0/CHANGELOG.md).`,
+    )
+    expect(notes).toContain(`(${REPO}/compare/v0.2.3...v0.3.0)`)
   })
 })
 

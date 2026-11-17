@@ -60,9 +60,44 @@ export function changelogFor(releases: readonly Release[], repo: string): string
   return `${parts.join('\n').trimEnd()}\n`
 }
 
-/** One release's own section, which is what a GitHub release's notes are. */
+/**
+ * The longest body GitHub takes for a release, in characters. 0.3.0 had 406
+ * commits, came to 194,996, and `gh release create` refused it as the last
+ * step of a release whose package was already on npm.
+ */
+export const NOTES_LIMIT = 125_000
+
+/**
+ * Room kept under the limit for the line that says what was left out, which
+ * is a few hundred characters at most.
+ */
+const TAIL_ROOM = 1_000
+
+/**
+ * One release's own section, which is what a GitHub release's notes are —
+ * as many of its entries as GitHub will take, newest first, then how many
+ * more there are and where every one of them is: CHANGELOG.md at the tag.
+ */
 export function notesFor(release: Release, repo: string): string {
-  return `${lines(release, repo).join('\n').trimEnd()}\n`
+  const all = lines(release, repo)
+  const kept: string[] = []
+  let length = 0
+  for (const line of all) {
+    if (length + line.length + 1 > NOTES_LIMIT - TAIL_ROOM) break
+    kept.push(line)
+    length += line.length + 1
+  }
+  if (kept.length < all.length) kept.push('', leftOut(release, repo, all.length - kept.length))
+  return `${kept.join('\n').trimEnd()}\n`
+}
+
+function leftOut(release: Release, repo: string, count: number): string {
+  const { version, since } = release
+  const ref = version === null ? 'HEAD' : `v${version}`
+  const changelog = `[${CHANGELOG}](${repo}/blob/${ref}/${CHANGELOG})`
+  const diff =
+    since === null ? '' : ` [Full diff: v${since}...${ref}](${repo}/compare/v${since}...${ref})`
+  return `…and ${count} more, every one in ${changelog}.${diff}`
 }
 
 function section(release: Release, repo: string): string {
