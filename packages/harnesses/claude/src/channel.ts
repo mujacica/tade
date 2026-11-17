@@ -1,6 +1,7 @@
 import { mkdir, rm } from 'node:fs/promises'
 import { createServer, type Server, type Socket } from 'node:net'
 import { dirname } from 'node:path'
+import { UNHEARD } from './ask.ts'
 
 // The Tade side of a Claude Code agent's supervision socket.
 //
@@ -64,6 +65,19 @@ export class ClaudeChannel {
           socket.end('{}\n')
           return
         }
+        // The agent's side is read off disk by each process it starts, and the
+        // window keeps the code it opened with: after an update, or an agent
+        // committing to Tade itself, a newer side asks an older window for what
+        // it was never taught. That is not garbage, and answering `{}` would
+        // tell the sender it was heard; `UNHEARD` keeps what a hook had to say
+        // for a window that knows it.
+        if ('unknown' in request) {
+          warn(
+            `a Claude Code agent asked for \`${request.unknown}\`, which this window does not know: the agent's side is newer than the window, so restart Tade to catch up`,
+          )
+          socket.end(`${JSON.stringify(UNHEARD)}\n`)
+          return
+        }
         opts
           .onRequest(request)
           .catch((err: unknown) => {
@@ -99,7 +113,11 @@ export class ClaudeChannel {
   }
 }
 
-function parse(line: string): ChannelRequest | null {
+/**
+ * A request, or the kind of one this window was never taught — named only when
+ * it is a word, since an agent's side sends nothing else as a kind.
+ */
+function parse(line: string): ChannelRequest | { unknown: string } | null {
   let raw: unknown
   try {
     raw = JSON.parse(line)
@@ -133,6 +151,6 @@ function parse(line: string): ChannelRequest | null {
       return typeof callId === 'string' ? { kind, callId } : null
     }
     default:
-      return null
+      return typeof kind === 'string' && /^[a-z_]{1,32}$/.test(kind) ? { unknown: kind } : null
   }
 }

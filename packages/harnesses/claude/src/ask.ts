@@ -12,8 +12,8 @@ export const SOCKET = process.env.TADE_RUN_SOCKET
 
 /**
  * What a window answers for a run it does not have — one it has let go of, or
- * has not taken back yet — so that nobody there to hear it is not taken for
- * having been heard.
+ * has not taken back yet — or for a request newer than it is, so that nobody
+ * there to hear it is not taken for having been heard.
  */
 export const UNHEARD = { unheard: true } as const
 
