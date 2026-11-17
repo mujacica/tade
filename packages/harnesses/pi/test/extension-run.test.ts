@@ -38,7 +38,11 @@ interface Ctx {
 
 interface Registered {
   name: string
-  execute(id: string, params: Record<string, unknown>): Promise<{ content: { text: string }[] }>
+  execute(
+    id: string,
+    params: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<{ content: { text: string }[] }>
 }
 
 /** A `pi` that records what was asked of it and fires events at what registered. */
@@ -502,6 +506,36 @@ describe('the tools Tade lends the agent', () => {
 
     at.hangUp()
     await expect(answer).rejects.toThrow('Tade closed before it answered')
+  })
+
+  it('gives a tool up in Tade too when pi gives it up, and only that one', async () => {
+    // A related `checks_run` given up in an agent ran on in the window for
+    // fourteen minutes for nobody to read.
+    const list = join(tmp('tade-pi-tools-'), 'tools.json')
+    writeFileSync(
+      list,
+      JSON.stringify([{ name: 'checks_run', label: 'C', description: 'c', parameters: {} }]),
+    )
+    const at = await tadeListening()
+    const { pi } = await running(at, { TADE_EXTENSION_TOOLS: list })
+    const pressed = new AbortController()
+    const givenUp = pi.tools.get('checks_run')?.execute('c1', {}, pressed.signal)
+    const later = new AbortController()
+    const waited = pi.tools.get('checks_run')?.execute('c2', {}, later.signal)
+    await vi.waitFor(() => expect(of(at, 'extension_call')).toHaveLength(2))
+
+    pressed.abort()
+    await expect(givenUp).rejects.toThrow('checks_run was given up')
+    await waitFor(at, 'extension_cancelled')
+    expect(of(at, 'extension_cancelled')).toEqual([expect.objectContaining({ callId: 'c1' })])
+    // What Tade answers once the tool has stopped is read by nobody, and the
+    // other call is answered as ever.
+    at.say({ type: 'extension_result', callId: 'c1', ok: false, text: 'stopped' })
+    at.say({ type: 'extension_result', callId: 'c2', ok: true, text: 'all green' })
+    expect((await waited)?.content[0]?.text).toBe('all green')
+    // One already answered has nothing left to give up.
+    later.abort()
+    expect(of(at, 'extension_cancelled')).toHaveLength(1)
   })
 })
 

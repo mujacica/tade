@@ -73,6 +73,7 @@ interface PiApi {
     execute(
       toolCallId: string,
       params: Record<string, unknown>,
+      signal?: AbortSignal,
     ): Promise<{ content: Array<{ type: 'text'; text: string }>; details: unknown }>
   }): void
   /** The name given to the session with `/name`, if one was. */
@@ -313,15 +314,36 @@ export default function tadeExtension(pi: PiApi): void {
 
   dial()
 
-  /** A tool Tade runs, asked over the socket, and its answer — a refusal, if it never came. */
-  const askTade = (callId: string, tool: string, input: Record<string, unknown>) =>
+  /**
+   * A tool Tade runs, asked over the socket, and its answer — a refusal, if it
+   * never came. One pi gives up on (Escape) is given up in Tade too, so what it
+   * started stops rather than running on in the window for nobody.
+   */
+  const askTade = (
+    callId: string,
+    tool: string,
+    input: Record<string, unknown>,
+    signal?: AbortSignal,
+  ) =>
     new Promise<{ ok: boolean; text: string }>((resolve) => {
-      calls.set(callId, resolve)
+      if (signal?.aborted) return resolve({ ok: false, text: `${tool} was given up` })
       const timer = setTimeout(() => {
         calls.delete(callId)
         resolve({ ok: false, text: `${tool} did not answer in time` })
       }, EXTENSION_CALL_MS)
       timer.unref?.()
+      const givenUp = () => {
+        if (!calls.delete(callId)) return
+        clearTimeout(timer)
+        send({ type: 'extension_cancelled', callId })
+        resolve({ ok: false, text: `${tool} was given up` })
+      }
+      calls.set(callId, (answer) => {
+        clearTimeout(timer)
+        signal?.removeEventListener('abort', givenUp)
+        resolve(answer)
+      })
+      signal?.addEventListener('abort', givenUp, { once: true })
       send({ type: 'extension_call', callId, tool, input })
     })
 
@@ -333,11 +355,11 @@ export default function tadeExtension(pi: PiApi): void {
       label: spec.label,
       description: spec.description,
       parameters: spec.parameters,
-      async execute(toolCallId, params) {
+      async execute(toolCallId, params, signal) {
         if (!connected) {
           throw new Error(`Tade is not open, so ${spec.name} cannot run right now`)
         }
-        const answer = await askTade(toolCallId, spec.name, params ?? {})
+        const answer = await askTade(toolCallId, spec.name, params ?? {}, signal)
         // Thrown, so pi marks the call failed and the model reads why.
         if (!answer.ok) throw new Error(answer.text)
         return { content: [{ type: 'text', text: answer.text }], details: {} }
@@ -365,7 +387,7 @@ export default function tadeExtension(pi: PiApi): void {
       required: ['summary'],
       additionalProperties: false,
     },
-    async execute(toolCallId, params) {
+    async execute(toolCallId, params, signal) {
       if (!connected) throw new Error('Tade is not open, so it cannot be told yet: say so instead')
       const given = (params ?? {}) as { summary?: unknown; leftovers?: unknown }
       // What it left goes first, to the door `tade_leftovers` goes to: a report
@@ -373,7 +395,7 @@ export default function tadeExtension(pi: PiApi): void {
       let left = ''
       if (Array.isArray(given.leftovers) && given.leftovers.length > 0) {
         const items = { items: given.leftovers, finishing: true }
-        const answer = await askTade(`${toolCallId}-leftovers`, LEFTOVERS.name, items)
+        const answer = await askTade(`${toolCallId}-leftovers`, LEFTOVERS.name, items, signal)
         if (!answer.ok) {
           throw new Error(`Nothing is finished yet: what you left was not taken. ${answer.text}`)
         }

@@ -263,4 +263,50 @@ describe('an ACP agent in a lane', () => {
     })
     expect(ready.content?.[0]?.text).toBe('the document is read')
   })
+
+  it('tells Tade when the agent gives one of its tools up, and answers nobody for it', async () => {
+    const s = await setup('bypass')
+    const lane = s.launch()
+    await until(s.signals, any('idle'))
+    const launch = JSON.parse(readFileSync(lane.spawnargs.at(-1) ?? '', 'utf8')) as LaneLaunch
+    const tade = launch.mcpServers[0]
+    if (!tade || 'type' in tade) throw new Error('no tools server')
+    const server = spawn(tade.command, tade.args, {
+      env: { ...ENV, ...Object.fromEntries(tade.env.map((e) => [e.name, e.value])) },
+      stdio: ['pipe', 'pipe', 'inherit'],
+    })
+    children.push(server)
+    const answers: Array<{ id: number; result: { content?: { text: string }[] } }> = []
+    createInterface({ input: server.stdout as NonNullable<typeof server.stdout> }).on(
+      'line',
+      (line) => answers.push(JSON.parse(line)),
+    )
+    const write = (line: unknown) => server.stdin?.write(`${JSON.stringify(line)}\n`)
+    const ask = (id: number) =>
+      write({
+        jsonrpc: '2.0',
+        id,
+        method: 'tools/call',
+        params: { name: 'tade_document_ready', arguments: { ask: `which ${id}?` } },
+      })
+    const calls = () => s.signals.filter((one) => one.type === 'extension_call')
+    const callId = (at: number) => (calls()[at] as { callId: string }).callId
+    ask(1)
+    await until(s.signals, () => calls().length === 1)
+    write({ jsonrpc: '2.0', method: 'notifications/cancelled', params: { requestId: 1 } })
+    await until(s.signals, any('extension_cancelled'))
+    expect(s.signals.find((one) => one.type === 'extension_cancelled')).toMatchObject({
+      callId: callId(0),
+    })
+    // What Tade answers once the tool has stopped reaches nobody, and the next
+    // call is answered as ever.
+    await s.adapter.answer(s.spec.run, callId(0), { ok: false, text: 'stopped' })
+    ask(2)
+    await until(s.signals, () => calls().length === 2)
+    await s.adapter.answer(s.spec.run, callId(1), { ok: true, text: 'the document is read' })
+    write({ jsonrpc: '2.0', id: 3, method: 'ping' })
+    await until(s.signals, () => answers.length === 2)
+    expect(answers.map((one) => one.id)).toEqual([2, 3])
+    expect(answers[0]?.result.content?.[0]?.text).toBe('the document is read')
+  })
 })

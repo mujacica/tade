@@ -808,6 +808,51 @@ describe('CodexAdapter', () => {
       expect(lines[2]).toContain(`Tade has it: this task is finished. ${said}`)
       server.kill()
     })
+
+    it('tells Tade when Codex gives a call up, and answers nobody for it', async () => {
+      const { adapter: one, env, spec, signals } = await setUp()
+      const server = spawn(process.execPath, [MCP_PATH], { env: { ...process.env, ...env } })
+      const answers: Array<{ id: number; result: Record<string, unknown> }> = []
+      let rest = ''
+      server.stdout.on('data', (chunk: Buffer) => {
+        rest += chunk.toString('utf8')
+        for (let end = rest.indexOf('\n'); end >= 0; end = rest.indexOf('\n')) {
+          answers.push(JSON.parse(rest.slice(0, end)))
+          rest = rest.slice(end + 1)
+        }
+      })
+      const write = (line: unknown) => server.stdin.write(`${JSON.stringify(line)}\n`)
+      const run = (id: number) =>
+        write({
+          jsonrpc: '2.0',
+          id,
+          method: 'tools/call',
+          params: { name: `checks_run_${id}`, arguments: {} },
+        })
+      const calls = () => signals.filter((signal) => signal.type === 'extension_call')
+      const callId = (at: number) => (calls()[at] as { callId: string }).callId
+      run(1)
+      await until(() => calls().length === 1)
+      write({ jsonrpc: '2.0', method: 'notifications/cancelled', params: { requestId: 1 } })
+      await until(() => signals.some((signal) => signal.type === 'extension_cancelled'))
+      expect(signals.find((signal) => signal.type === 'extension_cancelled')).toMatchObject({
+        callId: callId(0),
+      })
+      // What Tade answers once the tool has stopped reaches nobody, and the
+      // next call is answered as ever.
+      await one.answer(spec.run, callId(0), { ok: false, text: 'stopped' })
+      run(2)
+      await until(() => calls().length === 2)
+      await one.answer(spec.run, callId(1), { ok: true, text: 'all green' })
+      await until(() => answers.length === 1)
+      // A cancel for a call already answered stops nothing.
+      write({ jsonrpc: '2.0', method: 'notifications/cancelled', params: { requestId: 2 } })
+      write({ jsonrpc: '2.0', id: 3, method: 'ping' })
+      await until(() => answers.length === 2)
+      server.kill()
+      expect(answers[0]).toMatchObject({ id: 2, result: { isError: false } })
+      expect(signals.filter((signal) => signal.type === 'extension_cancelled')).toHaveLength(1)
+    })
   })
 
   describe('what Codex says about itself', () => {

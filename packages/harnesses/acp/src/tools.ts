@@ -103,11 +103,21 @@ const link = SOCKET
     })
   : null
 
+/**
+ * The calls the agent is still waiting on, by its own request id, and what
+ * each is asking Tade now: one it gives up on is given up in Tade too.
+ */
+const open = new Map<unknown, { asking: string | null }>()
+
 const send = (message: unknown): void => {
   process.stdout.write(`${JSON.stringify(message)}\n`)
 }
-const text = (id: unknown, said: string, isError = false): void =>
+// A call the agent gave up on is answered by nobody: it reads no answer to a
+// request it cancelled.
+const text = (id: unknown, said: string, isError = false): void => {
+  if (!open.delete(id)) return
   send({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: said }], isError } })
+}
 
 createInterface({ input: process.stdin }).on('line', (line) => {
   let message: { id?: unknown; method?: unknown; params?: Record<string, unknown> }
@@ -140,7 +150,10 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       },
     })
   } else if (method === 'tools/call') {
+    open.set(id, { asking: null })
     void call(id, params ?? {})
+  } else if (method === 'notifications/cancelled') {
+    cancel(params?.requestId)
   } else if (id !== undefined) {
     send({ jsonrpc: '2.0', id, result: {} })
   }
@@ -153,6 +166,20 @@ process.stdin.on('end', () => {
 })
 
 let calls = 0
+
+/**
+ * The agent gave a call up — the person stopped it, or it waited as long as it
+ * would — and Tade is told, so what it started for the call stops rather than
+ * running on in the window for nobody.
+ */
+function cancel(requestId: unknown): void {
+  const mine = open.get(requestId)
+  if (!mine) return
+  open.delete(requestId)
+  if (mine.asking) {
+    link?.send({ type: 'extension_cancelled', run: RUN, at: Date.now(), callId: mine.asking })
+  }
+}
 
 async function call(id: unknown, params: Record<string, unknown>): Promise<void> {
   const name = String(params.name ?? '')
@@ -169,7 +196,7 @@ async function call(id: unknown, params: Record<string, unknown>): Promise<void>
     let left = ''
     if (Array.isArray(input.leftovers) && input.leftovers.length > 0) {
       const items = { items: input.leftovers, finishing: true }
-      const answer = await tade(link, LEFTOVERS_TOOL.name, items)
+      const answer = await tade(id, link, LEFTOVERS_TOOL.name, items)
       if (!answer.ok) {
         return text(
           id,
@@ -187,17 +214,20 @@ async function call(id: unknown, params: Record<string, unknown>): Promise<void>
     })
     return text(id, `Tade has it: this task is finished.${left}`)
   }
-  const answer = await tade(link, name, input)
+  const answer = await tade(id, link, name, input)
   text(id, answer.text, !answer.ok)
 }
 
 /** A tool Tade runs, asked over the run's socket, and its answer — a refusal, if it never came. */
 function tade(
+  id: unknown,
   link: Link,
   name: string,
   input: Record<string, unknown>,
 ): Promise<{ ok: boolean; text: string }> {
   const callId = `${process.pid}-${++calls}-${name}`
+  const mine = open.get(id)
+  if (mine) mine.asking = callId
   return new Promise((resolve) => {
     waiting.set(callId, resolve)
     const timer = setTimeout(() => {

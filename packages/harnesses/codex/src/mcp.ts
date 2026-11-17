@@ -88,11 +88,21 @@ function listed(path: string | undefined): ToolSpec[] {
 
 const tools = [...listed(process.env.TADE_EXTENSION_TOOLS), DOCUMENT_READY, LEFTOVERS_TOOL, DONE]
 
+/**
+ * The calls Codex is still waiting on, by its own request id, and what each is
+ * asking Tade now: one it gives up on is given up in Tade too.
+ */
+const open = new Map<unknown, { asking: string | null }>()
+
 const send = (message: unknown): void => {
   process.stdout.write(`${JSON.stringify(message)}\n`)
 }
-const text = (id: unknown, said: string, isError = false): void =>
+// A call Codex gave up on is answered by nobody: it reads no answer to a
+// request it cancelled.
+const text = (id: unknown, said: string, isError = false): void => {
+  if (!open.delete(id)) return
   send({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: said }], isError } })
+}
 
 createInterface({ input: process.stdin }).on('line', (line) => {
   let message: { id?: unknown; method?: unknown; params?: Record<string, unknown> }
@@ -125,11 +135,26 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       },
     })
   } else if (method === 'tools/call') {
+    open.set(id, { asking: null })
     void call(id, params ?? {})
+  } else if (method === 'notifications/cancelled') {
+    cancel(params?.requestId)
   } else if (id !== undefined) {
     send({ jsonrpc: '2.0', id, result: {} })
   }
 })
+
+/**
+ * Codex gave a call up — the person interrupted the turn, or it waited as long
+ * as it would — and Tade is told, so what it started for the call stops rather
+ * than running on in the window for nobody.
+ */
+function cancel(requestId: unknown): void {
+  const mine = open.get(requestId)
+  if (!mine) return
+  open.delete(requestId)
+  if (mine.asking) void reach({ kind: 'cancel', callId: mine.asking })
+}
 
 async function call(id: unknown, params: Record<string, unknown>): Promise<void> {
   const name = String(params.name ?? '')
@@ -142,7 +167,7 @@ async function call(id: unknown, params: Record<string, unknown>): Promise<void>
     let left = ''
     if (Array.isArray(input.leftovers) && input.leftovers.length > 0) {
       const items = { items: input.leftovers, finishing: true }
-      const { reply, reached } = await tade(`${callId}-leftovers`, LEFTOVERS_TOOL.name, items)
+      const { reply, reached } = await tade(id, `${callId}-leftovers`, LEFTOVERS_TOOL.name, items)
       if (!reply) {
         const why = reached
           ? `Nothing is finished yet: ${unanswered(LEFTOVERS_TOOL.name)}`
@@ -163,7 +188,7 @@ async function call(id: unknown, params: Record<string, unknown>): Promise<void>
       : 'Tade is not open, so it cannot be told yet: say so instead'
     return text(id, why, true)
   }
-  const { reply, reached } = await tade(callId, name, input)
+  const { reply, reached } = await tade(id, callId, name, input)
   if (!reply) {
     const why = reached ? unanswered(name) : `Tade is not open, so ${name} cannot run right now`
     return text(id, why, true)
@@ -180,10 +205,13 @@ const unanswered = (tool: string): string =>
  * came, and whether the question got there at all.
  */
 async function tade(
+  id: unknown,
   callId: string,
   tool: string,
   input: Record<string, unknown>,
 ): Promise<{ reply: { ok?: unknown; text?: unknown } | null; reached: boolean }> {
+  const mine = open.get(id)
+  if (mine) mine.asking = callId
   const { reply, reached } = await reach({ kind: 'call', callId, tool, input }, TOOL_CALL_MS)
   return { reply: reply as { ok?: unknown; text?: unknown } | null, reached }
 }

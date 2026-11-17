@@ -912,6 +912,13 @@ export class CodexAdapter implements WorkerAdapter {
             input: request.input,
           })
         })
+      case 'cancel':
+        // Said only of a call still waiting: Tade's answer is what ends it,
+        // and that still comes, to a tool server that no longer wants it.
+        if (entry.calls.has(request.callId)) {
+          this.say(entry, { type: 'extension_cancelled', callId: request.callId })
+        }
+        return {}
     }
   }
 

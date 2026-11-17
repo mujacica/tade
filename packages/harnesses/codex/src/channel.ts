@@ -10,11 +10,15 @@ import { dirname } from 'node:path'
 // per connection — and a request that waits (a tool call held for a person)
 // holds only its own connection.
 
-/** What an agent's side sends: a hook that ran, a task it says is finished, or a tool call. */
+/**
+ * What an agent's side sends: a hook that ran, a task it says is finished, a
+ * tool call, or that Codex gave one up.
+ */
 export type ChannelRequest =
   | { kind: 'hook'; event: Record<string, unknown> }
   | { kind: 'done'; summary: string }
   | { kind: 'call'; callId: string; tool: string; input: Record<string, unknown> }
+  | { kind: 'cancel'; callId: string }
 
 export type ChannelHandler = (request: ChannelRequest) => Promise<unknown>
 
@@ -118,6 +122,10 @@ function parse(line: string): ChannelRequest | null {
       const { callId, tool, input } = raw as { callId?: unknown; tool?: unknown; input?: unknown }
       if (typeof callId !== 'string' || typeof tool !== 'string') return null
       return { kind, callId, tool, input: record(input) ?? {} }
+    }
+    case 'cancel': {
+      const { callId } = raw as { callId?: unknown }
+      return typeof callId === 'string' ? { kind, callId } : null
     }
     default:
       return null
