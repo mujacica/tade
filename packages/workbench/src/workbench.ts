@@ -323,6 +323,8 @@ export class Workbench {
   private readonly disagreeing = new Set<string>()
   /** Agents past the limit's guard and not yet listed as running (`guardParallel`). */
   private readonly pastGuard = new Set<string>()
+  /** The look at commits still going, which a second caller joins (`lookAtCommits`). */
+  private lookingAtCommits: Promise<void> | null = null
   /** The look at check runs still going, which a second caller joins (`lookAtChecks`). */
   private lookingAtChecks: Promise<void> | null = null
 
@@ -657,8 +659,19 @@ export class Workbench {
    * not a repository and a git that will not run are all the same answer as a
    * project with no new commits, because counting things may never be why a
    * window fails to open.
+   *
+   * One look at a time, as with check runs: a caller that comes while one is
+   * going joins it, or two looks that both read the journal before either
+   * wrote put the same commit in twice — 49 shas went in more than once.
    */
-  async lookAtCommits(): Promise<void> {
+  lookAtCommits(): Promise<void> {
+    this.lookingAtCommits ??= this.lookAtCommitsOnce().finally(() => {
+      this.lookingAtCommits = null
+    })
+    return this.lookingAtCommits
+  }
+
+  private async lookAtCommitsOnce(): Promise<void> {
     const written = await this.log.read({ types: ['commit_seen'] }).catch(() => [])
     const seen = new Set<string>()
     for (const event of written) {

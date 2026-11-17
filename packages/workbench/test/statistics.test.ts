@@ -55,6 +55,18 @@ describe('writing down what was produced', () => {
     expect(seen[0]?.detail).toMatchObject({ attributed: true, added: 2, removed: 0, files: 1 })
   })
 
+  it('writes a commit down once when two looks overlap', async () => {
+    // Each look reads the journal before it writes, so two that overlap both
+    // find the commit new: 49 shas went in more than once, one seven times.
+    tade = await open()
+    repo.commit('retry refunds\n\nTade-Task: shop/refunds', { 'refunds.ts': 'one\n' })
+
+    await Promise.all([tade.lookAtCommits(), tade.lookAtCommits(), tade.lookAtCommits()])
+    await tade.lookAtCommits()
+
+    expect(await tade.events({ types: ['commit_seen'] })).toHaveLength(1)
+  })
+
   it('leaves a commit with no trailer belonging to nobody, and still counts it', async () => {
     tade = await open()
     repo.commit('a person committing by hand', { 'by-hand.ts': 'x\n' })
