@@ -323,6 +323,8 @@ export class Workbench {
   private readonly disagreeing = new Set<string>()
   /** Agents past the limit's guard and not yet listed as running (`guardParallel`). */
   private readonly pastGuard = new Set<string>()
+  /** The look at check runs still going, which a second caller joins (`lookAtChecks`). */
+  private lookingAtChecks: Promise<void> | null = null
 
   private constructor(opts: {
     home: string
@@ -720,8 +722,20 @@ export class Workbench {
    * journal would interleave with the window's. The run it wrote is picked up
    * by whichever window opens next, keyed by the run's own id, so nothing is
    * counted twice and nothing is missed because nobody was watching.
+   *
+   * One look at a time: a caller that comes while one is going joins it. The
+   * window looks every minute whether or not the last look finished, and two
+   * looks that both read the journal before either wrote put the same run in
+   * twice — on a stalled machine, one cancelled run went in eight times.
    */
-  async lookAtChecks(): Promise<void> {
+  lookAtChecks(): Promise<void> {
+    this.lookingAtChecks ??= this.lookAtChecksOnce().finally(() => {
+      this.lookingAtChecks = null
+    })
+    return this.lookingAtChecks
+  }
+
+  private async lookAtChecksOnce(): Promise<void> {
     const written = await this.log.read({ types: ['check_ran'] }).catch(() => [])
     const seen = new Set<string>()
     for (const event of written) {

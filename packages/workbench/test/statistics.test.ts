@@ -149,6 +149,38 @@ describe('writing down what was produced', () => {
     })
   })
 
+  it('writes a check run down once when two looks overlap', async () => {
+    // The window looks again every minute whether or not the last look has
+    // finished, and on a stalled machine one look outlives several beats: each
+    // read the journal before any of the others had written, and one cancelled
+    // run went in eight times.
+    tade = await open()
+    mkdirSync(join(home, 'projects', 'shop'), { recursive: true })
+    writeFileSync(
+      join(home, 'projects', 'shop', 'checks.jsonl'),
+      `${JSON.stringify({
+        id: 'def5678:related:here:1',
+        check: 'related',
+        commit: 'def5678',
+        state: 'cancelled',
+        where: { kind: 'here', runner: 'local', host: '' },
+        required: false,
+        startedAt: '2026-09-20T10:00:00.000Z',
+        finishedAt: '2026-09-20T10:00:04.000Z',
+        code: null,
+        summary: '',
+        by: 'you',
+        tail: '',
+      })}\n`,
+      'utf8',
+    )
+
+    await Promise.all([tade.lookAtChecks(), tade.lookAtChecks(), tade.lookAtChecks()])
+    await tade.lookAtChecks()
+
+    expect(await tade.events({ types: ['check_ran'] })).toHaveLength(1)
+  })
+
   it('opens without trouble where a project root is not a repository', async () => {
     // Counting things may never be the reason a window fails to open.
     writeFileSync(join(home, 'config.yaml'), 'projects:\n  gone:\n    root: /not/here\n', 'utf8')
