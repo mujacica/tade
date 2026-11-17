@@ -1,5 +1,6 @@
-import { readdir } from 'node:fs/promises'
+import { mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { join, sep } from 'node:path'
+import { holdUntilExit, letGoOf } from './held.ts'
 import { claim, holderAt, type LockHolder, type RunLock } from './lock.ts'
 
 // How many suites this machine runs at once, whoever started them.
@@ -21,8 +22,15 @@ import { claim, holderAt, type LockHolder, type RunLock } from './lock.ts'
 // Tade started tells its commands which slot it already holds (`SLOT_ENV`), so
 // the suite inside it goes straight through rather than queueing behind
 // itself.
-
-/** The environment variable a run's commands are handed: the path of the slot their run holds. */
+//
+// Whoever waits longest goes first. Waiting used to be polling and nothing
+// else, so a slot that came free went to whoever looked next — a run that had
+// only just asked, as often as one that had waited ten minutes — and a
+// `checks_run` with `wait 600` lost it time after time to runs that started
+// after it did. So a wait takes a ticket (`queueDir`): a file named for when
+// it started, held by its pid the way a slot is, and a slot is only taken by
+// somebody with no live ticket older than theirs, fewer than there are slots
+// free. A taker that is not waiting counts every ticket as ahead of it. a run's commands are handed: the path of the slot their run holds. */
 export const SLOT_ENV = 'TADE_CHECKS_SLOT'
 
 /** Where the machine's slots are: Tade's own home, never a project. */
@@ -47,15 +55,26 @@ export type Holders = readonly LockHolder[]
  * `most` are tried in order, each exclusively, so two takers racing for the
  * last one cannot both have it.
  */
-export async function takeMachineSlot(
+export function takeMachineSlot(
   home: string,
   most: number,
   holder: { what: string; where: string },
   now: () => number = Date.now,
 ): Promise<MachineSlot | { held: Holders }> {
+  return takeInTurn(home, most, holder, now, null)
+}
+
+/** Take a slot as the holder of `ticket`, letting in first everybody who has waited longer. */
+async function takeInTurn(
+  home: string,
+  most: number,
+  holder: { what: string; where: string },
+  now: () => number,
+  ticket: string | null,
+): Promise<MachineSlot | { held: Holders }> {
   const slots = Math.max(1, Math.floor(most))
   const busy = await slotHolders(home)
-  if (busy.length >= slots) return { held: busy }
+  if (busy.length + (await waitingAhead(home, ticket)) >= slots) return { held: busy }
   for (let slot = 0; slot < slots; slot++) {
     const path = join(slotsDir(home), `slot-${slot}.lock`)
     const got = await claim(path, holder, now)
@@ -74,6 +93,71 @@ export async function slotHolders(home: string): Promise<LockHolder[]> {
       .map((name) => holderAt(join(slotsDir(home), name))),
   )
   return held.filter((one): one is LockHolder => one !== null)
+}
+
+/** Where those waiting for a slot hold their place, one ticket each. */
+export function queueDir(home: string): string {
+  return join(slotsDir(home), 'queue')
+}
+
+const TICKET = /^\d{16}-\d+-\d{6}\.wait$/
+let tickets = 0
+
+/**
+ * Take a place at the back of the queue. The name is the order — when it was
+ * taken, then whose, then which of this process's — so the oldest sorts first;
+ * one process holds several, because every `checks_run` an agent makes waits
+ * inside the window. It is written aside and renamed into place, so nobody
+ * reading the queue finds it half-written and takes it for a dead one.
+ */
+async function joinQueue(
+  home: string,
+  holder: { what: string; where: string },
+  now: () => number,
+): Promise<{ name: string; leave: () => Promise<void> }> {
+  const dir = queueDir(home)
+  await mkdir(dir, { recursive: true })
+  const at = now()
+  const name = `${String(at).padStart(16, '0')}-${process.pid}-${String(tickets++ % 1_000_000).padStart(6, '0')}.wait`
+  const path = join(dir, name)
+  const aside = `${path}.writing`
+  await writeFile(
+    aside,
+    `${JSON.stringify({ pid: process.pid, ...holder, at: new Date(at).toISOString() })}\n`,
+    { mode: 0o600 },
+  )
+  await rename(aside, path)
+  // Given back however this process ends, as a slot is (`held.ts`).
+  holdUntilExit(path)
+  return {
+    name,
+    leave: () => {
+      letGoOf(path)
+      return rm(path, { force: true })
+    },
+  }
+}
+
+/**
+ * How many live tickets are older than `ticket` — all of them, for a taker
+ * with none. A ticket whose process is gone is nobody, and is cleared away.
+ */
+async function waitingAhead(home: string, ticket: string | null): Promise<number> {
+  const dir = queueDir(home)
+  // No queue yet is nobody waiting; a queue that cannot be read is not, and is thrown.
+  const names = await readdir(dir).catch((err: unknown) => {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [] as string[]
+    throw err
+  })
+  const ahead = names.filter((name) => TICKET.test(name) && (ticket === null || name < ticket))
+  const live = await Promise.all(
+    ahead.map(async (name) => {
+      if (await holderAt(join(dir, name))) return true
+      await rm(join(dir, name), { force: true })
+      return false
+    }),
+  )
+  return live.filter(Boolean).length
 }
 
 /**
@@ -97,20 +181,28 @@ export async function waitForMachineSlot(
   const now = opts.now ?? Date.now
   const deadline = now() + (opts.waitMs ?? 0)
   let said = ''
-  for (;;) {
-    const got = await takeMachineSlot(home, most, holder, now)
-    if (!('held' in got)) return got
-    if (now() >= deadline || opts.signal?.aborted) return got
-    const ahead = got.held.map((one) => `${one.pid}:${one.at}`).join(' ')
-    if (ahead !== said) {
-      said = ahead
-      opts.onWait?.(got.held)
+  // Taken only once there is a wait, and given up however it ends: with the
+  // slot, at the deadline, or because whoever asked has gone.
+  let place: Awaited<ReturnType<typeof joinQueue>> | null = null
+  try {
+    for (;;) {
+      const got = await takeInTurn(home, most, holder, now, place?.name ?? null)
+      if (!('held' in got)) return got
+      if (now() >= deadline || opts.signal?.aborted) return got
+      place ??= await joinQueue(home, holder, now)
+      const ahead = got.held.map((one) => `${one.pid}:${one.at}`).join(' ')
+      if (ahead !== said) {
+        said = ahead
+        opts.onWait?.(got.held)
+      }
+      // A timer that holds the process open, unlike the worktree lock's: a
+      // process with nothing else left to do is waiting for exactly this, and an
+      // unref'd one let vitest's main process end mid-wait with exit code 0 and
+      // no tests run — a suite that looked like it passed.
+      await new Promise((done) => setTimeout(done, opts.everyMs ?? 250))
     }
-    // A timer that holds the process open, unlike the worktree lock's: a
-    // process with nothing else left to do is waiting for exactly this, and an
-    // unref'd one let vitest's main process end mid-wait with exit code 0 and
-    // no tests run — a suite that looked like it passed.
-    await new Promise((done) => setTimeout(done, opts.everyMs ?? 250))
+  } finally {
+    await place?.leave()
   }
 }
 

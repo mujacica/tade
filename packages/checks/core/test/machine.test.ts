@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -7,6 +7,7 @@ import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import {
   holdersSaid,
   insideHeldSlot,
+  queueDir,
   SLOT_ENV,
   slotHolders,
   slotsDir,
@@ -24,6 +25,15 @@ function slotFile(home: string, slot: number, pid: number): void {
   mkdirSync(slotsDir(home), { recursive: true })
   writeFileSync(
     join(slotsDir(home), `slot-${slot}.lock`),
+    `${JSON.stringify({ pid, what: 'tests', where: '/elsewhere', at: 'earlier' })}\n`,
+  )
+}
+
+/** A place in the queue as another waiter would have taken it, at `at`. */
+function queueFile(home: string, at: number, pid: number): void {
+  mkdirSync(queueDir(home), { recursive: true })
+  writeFileSync(
+    join(queueDir(home), `${String(at).padStart(16, '0')}-${pid}-000000.wait`),
     `${JSON.stringify({ pid, what: 'tests', where: '/elsewhere', at: 'earlier' })}\n`,
   )
 }
@@ -122,6 +132,65 @@ describe('the machine runs as many suites as it says, from any worktree', () => 
     })
     expect('held' in got).toBe(true)
     expect(Date.now() - started).toBeLessThan(10_000)
+  })
+
+  it('hands the slot to whoever has waited longest, not whoever looks next', async () => {
+    // A slot that came free went to whoever polled first, so a run that had
+    // waited ten minutes lost it to one that had only just asked. The second
+    // waiter here looks ten times as often, and a newcomer asks the moment it
+    // is free: neither may go before the first.
+    const home = tmp('tade-machine-')
+    const first = await takeMachineSlot(home, 1, holder('/work/one'))
+    if ('held' in first) throw new Error('the slot should have been free')
+    const order: string[] = []
+    const waiting = (where: string, everyMs: number) => {
+      let queued: () => void = () => {}
+      const inQueue = new Promise<void>((done) => {
+        queued = done
+      })
+      const got = waitForMachineSlot(home, 1, holder(where), {
+        waitMs: 20_000,
+        everyMs,
+        onWait: () => queued(),
+      }).then(async (slot) => {
+        order.push('held' in slot ? `${where} gave up` : where)
+        if (!('held' in slot)) await slot.release()
+      })
+      return { inQueue, got }
+    }
+    const longest = waiting('/work/longest', 50)
+    await longest.inQueue
+    const later = waiting('/work/later', 5)
+    await later.inQueue
+    await first.release()
+    expect('held' in (await takeMachineSlot(home, 1, holder('/work/newcomer')))).toBe(true)
+    await Promise.all([longest.got, later.got])
+    expect(order).toEqual(['/work/longest', '/work/later'])
+    expect(readdirSync(queueDir(home))).toEqual([])
+  })
+
+  it('counts a live waiter against the slots that are free, before a newcomer', async () => {
+    const home = tmp('tade-machine-')
+    await takeMachineSlot(home, 2, holder('/work/one'))
+    queueFile(home, 1, process.pid)
+    // One slot of two is free, and one live waiter is ahead: it is theirs.
+    expect('held' in (await takeMachineSlot(home, 2, holder('/work/two')))).toBe(true)
+  })
+
+  it('holds nobody up for a waiter whose process is gone, and clears its ticket', async () => {
+    const home = tmp('tade-machine-')
+    queueFile(home, 1, 999_999_9)
+    expect('held' in (await takeMachineSlot(home, 1, holder('/a')))).toBe(false)
+    expect(readdirSync(queueDir(home))).toEqual([])
+  })
+
+  it('gives up its place in the queue when it stops waiting', async () => {
+    const home = tmp('tade-machine-')
+    const first = await takeMachineSlot(home, 1, holder('/work/one'))
+    await waitForMachineSlot(home, 1, holder('/work/two'), { waitMs: 40, everyMs: 10 })
+    expect(readdirSync(queueDir(home))).toEqual([])
+    if (!('held' in first)) await first.release()
+    expect('held' in (await takeMachineSlot(home, 1, holder('/work/three')))).toBe(false)
   })
 
   it('gives up at its deadline, saying who still has the machine', async () => {
