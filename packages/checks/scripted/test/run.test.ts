@@ -99,11 +99,33 @@ describe('running a project\u2019s checks', () => {
       expect(err).toBeInstanceOf(RunnerError)
       expect((err as RunnerError).trouble).toBe('busy')
       expect((err as RunnerError).message).toContain('the suite')
+      expect((err as RunnerError).message).toContain('Wait for them')
     } finally {
       if (!('held' in held)) await held.release()
     }
     // And nothing was written: no run, no record claiming one happened.
     expect(await readRuns(root)).toEqual([])
+  })
+
+  it('says it waited when it gives up after a wait, so it never reads as refusing at once', async () => {
+    const root = tmp('tade-run-')
+    const held = await takeRunLock(root, 'the suite')
+    try {
+      const err = await runChecks({
+        runner: makeScriptedRunner({}),
+        project: { name: 'demo', root },
+        records: root,
+        checks: [check('tests', { alone: true })],
+        commit: 'a1b2c3d4e5',
+        by: 'you',
+        waitMs: 50,
+      }).catch((caught: unknown) => caught)
+      expect((err as RunnerError).trouble).toBe('busy')
+      expect((err as RunnerError).message).toMatch(/This run waited \d+s for them and gave up/)
+      expect((err as RunnerError).message).not.toContain('Wait for them')
+    } finally {
+      if (!('held' in held)) await held.release()
+    }
   })
 
   it('lets the lock go afterwards, so the next run is not blocked by the last', async () => {
@@ -142,6 +164,7 @@ describe('one suite on the machine, from any worktree', () => {
       expect((err as RunnerError).trouble).toBe('busy')
       expect((err as RunnerError).message).toContain('tests in /work/other')
       expect((err as RunnerError).message).toContain('checks.suites')
+      expect((err as RunnerError).message).toContain('Wait for them')
     } finally {
       if (!('held' in held)) await held.release()
     }
@@ -171,6 +194,29 @@ describe('one suite on the machine, from any worktree', () => {
     })
     expect(ran.map((one) => one.state)).toEqual(['passed'])
     expect(told).toEqual(['/work/other'])
+  })
+
+  it('says it waited when the machine stays held past the wait', async () => {
+    const home = tmp('tade-run-home-')
+    const root = tmp('tade-run-')
+    const held = await takeMachineSlot(home, 1, { what: 'tests', where: '/work/other' })
+    try {
+      const err = await runChecks({
+        runner: makeScriptedRunner({}),
+        project: { name: 'demo', root },
+        records: root,
+        checks: [check('tests', { alone: true })],
+        commit: 'a1b2c3d4e5',
+        by: 'you',
+        waitMs: 50,
+        machine: { home, most: 1 },
+      }).catch((caught: unknown) => caught)
+      expect((err as RunnerError).trouble).toBe('busy')
+      expect((err as RunnerError).message).toContain('checks.suites')
+      expect((err as RunnerError).message).toMatch(/This run waited \d+s for them and gave up/)
+    } finally {
+      if (!('held' in held)) await held.release()
+    }
   })
 
   it('tells its commands which slot they are under, and gives it back after', async () => {

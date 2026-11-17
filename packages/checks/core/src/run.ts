@@ -95,7 +95,8 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
   // and a worktree is not the machine.
   const needsMachine = toRun.some((check) => check.alone)
   const what = toRun.map((check) => check.id).join(', ')
-  const deadline = now() + (request.waitMs ?? 0)
+  const asked = now()
+  const deadline = asked + (request.waitMs ?? 0)
   const lock = needsMachine
     ? await waitForRunLock(records, what, { waitMs: request.waitMs ?? 0, now })
     : null
@@ -103,7 +104,7 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
     const since = lock.held.at ? ` (since ${lock.held.at})` : ''
     throw new RunnerError(
       'busy',
-      `checks are already running in ${project.root}: ${lock.held.what || 'something'}${since}. Wait for them rather than starting a second run.`,
+      `checks are already running in ${project.root}: ${lock.held.what || 'something'}${since}. ${waitedSaid(now() - asked, request.waitMs)}`,
     )
   }
   const slot =
@@ -130,7 +131,7 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
     const most = request.machine?.most ?? 1
     throw new RunnerError(
       'busy',
-      `this machine runs ${most === 1 ? 'one suite' : `${most} suites`} at a time (checks.suites), and ${holdersSaid(slot.held, request.home)} ${slot.held.length === 1 ? 'has' : 'have'} it. Wait for them rather than starting a second run.`,
+      `this machine runs ${most === 1 ? 'one suite' : `${most} suites`} at a time (checks.suites), and ${holdersSaid(slot.held, request.home)} ${slot.held.length === 1 ? 'has' : 'have'} it. ${waitedSaid(now() - asked, request.waitMs)}`,
     )
   }
 
@@ -195,6 +196,17 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
     if (slot && !('held' in slot)) await slot.release()
     if (lock && !('held' in lock)) await lock.release()
   }
+}
+
+/**
+ * The end of a busy refusal. One that came after a wait says how long, or
+ * "wait for them" reads as a refusal that never waited at all.
+ */
+function waitedSaid(waited: number, waitMs: number | undefined): string {
+  if (!waitMs) return 'Wait for them rather than starting a second run.'
+  const seconds = Math.round(waited / 1000)
+  const how = seconds < 60 ? `${seconds}s` : `${Math.round(seconds / 60)}m`
+  return `This run waited ${how} for them and gave up; try again when they finish rather than starting a second run.`
 }
 
 function asRunning(run: CheckRun): RunningCheck {
