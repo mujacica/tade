@@ -58,7 +58,8 @@ export function statsFrom(
 ): StatsReport {
   const report: StatsReport = { produced: nothingProduced(), byProject: {}, checks: [] }
   const checks = new Map<string, { tally: CheckTally; times: number[] }>()
-  const counted = new Set<string>()
+  const runs = new Set<string>()
+  const commits = new Set<string>()
 
   for (const event of events) {
     // When it happened, which a commit knows better than the moment Tade
@@ -70,6 +71,7 @@ export function statsFrom(
     if (Number.isFinite(at) && at < window.since) continue
 
     if (event.type === 'commit_seen') {
+      if (repeated(event.detail.sha, commits)) continue
       const project = String(event.detail.project ?? event.task?.split('/')[0] ?? 'elsewhere')
       const into = report.byProject[project] ?? nothingProduced()
       report.byProject[project] = into
@@ -86,7 +88,7 @@ export function statsFrom(
     }
 
     if (event.type === 'check_ran') {
-      if (repeated(event, counted)) continue
+      if (repeated(event.detail.run, runs)) continue
       const id = String(event.detail.check ?? 'unknown')
       const found = checks.get(id) ?? {
         tally: { check: id, runs: 0, passed: 0, failed: 0, other: 0, medianMs: null },
@@ -135,16 +137,16 @@ export function sinceLastLook(written: readonly TadeEvent[], opens: readonly Tad
 }
 
 /**
- * Whether this `check_ran` is a run already counted. A run is written once by
- * its id, but a journal from before two overlapping looks were joined holds
- * some of them several times over, and the file is the truth, so it is the
- * fold that reads each run once. A line with no id is counted as it stands.
+ * Whether this is a line already counted, by its id: a `check_ran`'s run or a
+ * `commit_seen`'s sha. Each is written once by its id, but a journal from
+ * before two overlapping looks were joined holds some of them several times
+ * over, and the file is the truth, so it is the fold that reads each once. A
+ * line with no id is counted as it stands.
  */
-export function repeated(event: TadeEvent, counted: Set<string>): boolean {
-  const run = event.detail.run
-  if (typeof run !== 'string' || run === '') return false
-  if (counted.has(run)) return true
-  counted.add(run)
+export function repeated(id: unknown, counted: Set<string>): boolean {
+  if (typeof id !== 'string' || id === '') return false
+  if (counted.has(id)) return true
+  counted.add(id)
   return false
 }
 

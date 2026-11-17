@@ -221,7 +221,8 @@ export function outcomesFrom(
    */
   const made = new Set<string>()
   const templates = new Map<string, { template: string; persona: string }>()
-  const counted = new Set<string>()
+  const runs = new Set<string>()
+  const commits = new Set<string>()
   const at = (event: TadeEvent) => Date.parse(event.ts) || 0
   const of = (task: string, event: TadeEvent): TaskOutcome => {
     const had = tasks.get(task)
@@ -283,6 +284,7 @@ export function outcomesFrom(
         break
       }
       case 'commit_seen':
+        if (repeated(event.detail.sha, commits)) break
         of(task, event).commits += 1
         break
       case 'run_started': {
@@ -328,7 +330,7 @@ export function outcomesFrom(
         break
       }
       case 'check_ran': {
-        if (event.detail.where !== 'here' || repeated(event, counted)) break
+        if (event.detail.where !== 'here' || repeated(event.detail.run, runs)) break
         const one = of(task, event)
         one.checkedHere += 1
         const state = text(event.detail.state)

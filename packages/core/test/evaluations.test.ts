@@ -185,6 +185,15 @@ describe('outcomesFrom', () => {
     expect(one).toMatchObject({ checkedHere: 1, redsHere: 1 })
   })
 
+  it('counts a commit once however many times the journal holds it', () => {
+    const commit = (sha: string) =>
+      event({ type: 'commit_seen', task: 'shop/fix', detail: { sha, attributed: true } })
+    const [one] = outcomesFrom([made('shop/fix'), commit('a'), commit('a'), commit('b')], {
+      since: 0,
+    })
+    expect(one).toMatchObject({ commits: 2 })
+  })
+
   it('reads a merge from the done rule, and from what a forge was asked again', () => {
     const outcomes = outcomesFrom(
       [

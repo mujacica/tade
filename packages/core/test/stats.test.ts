@@ -90,6 +90,25 @@ describe('statsFrom', () => {
     expect(report.checks[0]).toMatchObject({ runs: 4, passed: 3, other: 1 })
   })
 
+  it('counts a commit once however many times the journal holds it', () => {
+    // The same overlap wrote some commits more than once, one seven times.
+    const report = statsFrom([
+      ...Array.from({ length: 7 }, () => commit({ sha: 'ba93066', added: 1823, removed: 1537 })),
+      commit({ sha: 'c0ffee1' }),
+      commit({}),
+      commit({}),
+    ])
+    // A line with no sha is a commit of its own.
+    expect(report.produced).toEqual({
+      commits: 4,
+      attributed: 4,
+      added: 1853,
+      removed: 1543,
+      files: 4,
+    })
+    expect(report.byProject.shop).toEqual(report.produced)
+  })
+
   it('says nothing about how long a check takes when nothing was timed', () => {
     const report = statsFrom([
       event({ type: 'check_ran', detail: { check: 'e2e', state: 'skipped' } }),
