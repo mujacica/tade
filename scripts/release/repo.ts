@@ -125,9 +125,11 @@ function read(dir: string, at: string): Manifest | null {
  * writes is — and the home is worked out here rather than read from
  * `@tade/core` for the reason at the top of this file: a release script that
  * cannot run until `pnpm install` has succeeded cannot tell you why it failed.
+ * `TADE_LIVE_HOME` is that home as it was before a test worker moved it
+ * (`test/own-home.ts`), so the test writes where the release reads.
  */
 export const LIVE = join(
-  process.env.TADE_HOME ?? join(homedir(), '.tade'),
+  process.env.TADE_LIVE_HOME ?? process.env.TADE_HOME ?? join(homedir(), '.tade'),
   'projects',
   'tade',
   'live.json',

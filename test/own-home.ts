@@ -67,6 +67,17 @@ import { afterEach, expect } from 'vitest'
 // `serve.test.ts` and `rehearsal.test.ts` sent their turns to Hugging Face and
 // failed on its 402, not on anything of Tade's. A runner has no keys, so this
 // is reality again. The live test is the one that needs them (`TADE_LIVE=1`).
+//
+// And under `TADE_LIVE=1` it needs the sign-in too, which is not a variable:
+// pi keeps it in its agent folder (`auth.json`), and an empty home has none.
+// Without it every live case fell to the `HF_TOKEN` default above, answered a
+// 402 with no tool called, and the release had no receipt to read — red from
+// the day this file moved the home until somebody read the answer. So the live
+// test keeps the person's agent folder, where a refreshed token is written back
+// to the file it came from, and its sessions go in the empty home, never there.
+// Its receipt has the same trouble: `LIVE` (`scripts/release/repo.ts`) is in
+// the person's Tade home, which is named here before it moves as
+// `TADE_LIVE_HOME`, so a green run is written down where `pnpm release` reads.
 
 /**
  * Every environment variable pi reads a provider's credential from — pi-ai's
@@ -165,12 +176,26 @@ const PERSONS_TADE = [
 /** The checkout this suite runs from, which a batched full run keeps under the home. */
 const OWN_CHECKOUT = real(fileURLToPath(new URL('..', import.meta.url)))
 
+/** pi's agent folder as the person has it, read before anything here moves it. */
+const PERSONS_PI =
+  process.env.PI_CODING_AGENT_DIR || (process.env.HOME && join(process.env.HOME, '.pi', 'agent'))
+
+/** The person's Tade home as `LIVE` would name it, read before anything here moves it. */
+const PERSONS_HOME = process.env.TADE_HOME ?? (process.env.HOME && join(process.env.HOME, '.tade'))
+
 process.env.HOME = realpathSync(mkdtempSync(join(tmpdir(), 'tade-test-home-')))
 delete process.env.PI_CODING_AGENT_DIR
 delete process.env.PI_CODING_AGENT_SESSION_DIR
 delete process.env.CLAUDE_CONFIG_DIR
 for (const name of HANDED_DOWN) delete process.env[name]
 if (process.env.TADE_LIVE !== '1') for (const name of PROVIDER_KEYS) delete process.env[name]
+else {
+  if (PERSONS_PI) {
+    process.env.PI_CODING_AGENT_DIR = PERSONS_PI
+    process.env.PI_CODING_AGENT_SESSION_DIR = join(process.env.HOME, '.pi', 'agent', 'sessions')
+  }
+  if (PERSONS_HOME) process.env.TADE_LIVE_HOME = PERSONS_HOME
+}
 
 /** The home the account database gives, which no variable moves; none on a uid without an entry. */
 function passwdHome(): string | null {
