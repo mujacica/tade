@@ -37,6 +37,8 @@ describe('a replay', () => {
       'src/greet.txt': 'hello\n',
       'test/greet.test.sh': 'grep -q hello src/greet.txt\n',
     })
+    // A commit has one trailer, and the journal holds each sha once: its own.
+    const answered = repo.commit('Do it\n\nTade-Task: app/yes', { 'src/yes.txt': 'done\n' })
     repo.commit('later work by somebody else', { 'README.md': '# moved on\n' })
     const at = (task: string, type: string, detail: Record<string, unknown>) =>
       client.log.append({ type: type as never, task, detail })
@@ -58,7 +60,7 @@ describe('a replay', () => {
     await at('app/yes', 'task_created', { workspace: 'checkout', intent_spoken: 'yes do it', base })
     await at('app/yes', 'run_started', { harness: 'claude-code' })
     await at('app/yes', 'commit_seen', {
-      sha: landed,
+      sha: answered,
       project: 'app',
       at: '2026-10-09T10:00:00.000Z',
     })
