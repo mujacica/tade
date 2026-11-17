@@ -261,7 +261,7 @@ const SEQUENCES = [
  * The text without what a terminal would have eaten: colour, cursor moves and
  * the carriage returns a progress line rewrites itself with.
  */
-function plain(text: string): string {
+export function plain(text: string): string {
   let out = text
   for (const sequence of SEQUENCES) out = out.replace(sequence, '')
   return out.replace(/\r/g, '\n')

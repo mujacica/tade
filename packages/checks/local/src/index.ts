@@ -5,6 +5,7 @@ import {
   type Check,
   type CheckLog,
   type CheckState,
+  keepTail,
   type ProjectRef,
   planFor,
   type RunContext,
@@ -201,10 +202,9 @@ async function one(
     stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, ...ctx.env, CI: process.env.CI ?? '', TADE_CHECK: check.id },
   })
-  let tail = ''
+  const kept = keepTail(opts.tailKept)
   const keep = (chunk: string) => {
-    tail += chunk
-    if (tail.length > opts.tailKept * 4) tail = tail.slice(-opts.tailKept * 2)
+    kept.add(chunk)
     ctx.onOutput(check.id, chunk)
   }
   child.stdout?.setEncoding('utf8')
@@ -285,13 +285,14 @@ async function one(
   const said: CheckState = outcome ?? (code === 0 ? 'passed' : 'failed')
   const slept = clock.slept && (said === 'failed' || said === 'timed out')
   const state: CheckState = slept ? 'cancelled' : said
+  const tail = kept.text()
   const run: CheckLog = {
     ...base,
     state,
     finishedAt: new Date(opts.now()).toISOString(),
     code: outcome ? null : code,
     summary: slept ? SLEPT : state === 'passed' ? null : summaryOf(tail),
-    tail: tail.slice(-opts.tailKept),
+    tail,
   }
   ctx.onRun(run)
   return run

@@ -68,6 +68,20 @@ describe('the local runner', () => {
     expect(run?.summary).toBe('8 failed')
   })
 
+  it('keeps the failures a long run named above the end it keeps', async () => {
+    const root = tmp('tade-local-')
+    // Twenty failures, each followed by most of what the whole tail can hold.
+    const [run] = await runIn(root, [
+      check(
+        'tests',
+        'for i in $(seq 1 20); do echo " FAIL  test/f$i.test.ts > case $i"; head -c 3000 /dev/zero | tr "\\0" x; echo; done; exit 1',
+      ),
+    ])
+    expect(run?.tail.length).toBeLessThanOrEqual(4_000)
+    for (let i = 1; i <= 20; i++)
+      expect(run?.tail).toContain(` FAIL  test/f${i}.test.ts > case ${i}`)
+  })
+
   it('records what a vitest run counted as its summary, not the hint it ends on', async () => {
     const root = tmp('tade-local-')
     const [run] = await runIn(root, [
