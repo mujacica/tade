@@ -821,16 +821,21 @@ export class ClaudeAdapter implements WorkerAdapter {
     }
     this.runs.set(spec.run, run)
     let rest = ''
-    child.stdout?.on('data', (chunk: Buffer) => {
-      rest += chunk.toString('utf8')
+    // Decoded by the streams rather than chunk by chunk: a long line arrives
+    // in pieces, and a character cut between two of them would be read as two
+    // U+FFFDs.
+    child.stdout?.setEncoding('utf8')
+    child.stderr?.setEncoding('utf8')
+    child.stdout?.on('data', (chunk: string) => {
+      rest += chunk
       for (let end = rest.indexOf('\n'); end >= 0; end = rest.indexOf('\n')) {
         const line = rest.slice(0, end).trim()
         rest = rest.slice(end + 1)
         if (line) this.onProtocol(run, line)
       }
     })
-    child.stderr?.on('data', (chunk: Buffer) => {
-      run.stderr = (run.stderr + chunk.toString('utf8')).slice(-4_000)
+    child.stderr?.on('data', (chunk: string) => {
+      run.stderr = (run.stderr + chunk).slice(-4_000)
     })
     child.on('exit', (code) => {
       // Ended by us (`stop`, `detach`): let go of already, and its exit is the

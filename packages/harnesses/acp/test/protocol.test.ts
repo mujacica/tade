@@ -285,4 +285,24 @@ describe('JSON-RPC, one message a line', () => {
     await expect(waiting).rejects.toThrow('the agent closed its output')
     await expect(peer.request('again', {})).rejects.toThrow(/the agent is gone/)
   })
+
+  it('keeps a character whole when a line arrives cut through it', async () => {
+    const fromAgent = new PassThrough()
+    const told: unknown[] = []
+    new Peer({
+      input: fromAgent,
+      output: new PassThrough(),
+      onRequest: async () => null,
+      onNotification: (_method, params) => told.push(params),
+    })
+    const bytes = Buffer.from(
+      `${JSON.stringify({ jsonrpc: '2.0', method: 'session/update', params: { text: 'café' } })}\n`,
+    )
+    const cut = bytes.indexOf(0xa9)
+    fromAgent.write(bytes.subarray(0, cut))
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    fromAgent.write(bytes.subarray(cut))
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(told).toEqual([{ text: 'café' }])
+  })
 })

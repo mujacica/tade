@@ -87,8 +87,11 @@ export function askPlan(
     child.on('close', () => finish(null, 'it ended before it answered'))
     // A server that died before reading is a write into a closed pipe.
     child.stdin?.on('error', failed)
-    child.stdout?.on('data', (chunk: Buffer) => {
-      buffer += chunk.toString('utf8')
+    // Decoded by the stream rather than chunk by chunk, so a character cut
+    // between two pieces of an answer stays one character.
+    child.stdout?.setEncoding('utf8')
+    child.stdout?.on('data', (chunk: string) => {
+      buffer += chunk
       for (let at = buffer.indexOf('\n'); at >= 0; at = buffer.indexOf('\n')) {
         const line = buffer.slice(0, at).trim()
         buffer = buffer.slice(at + 1)

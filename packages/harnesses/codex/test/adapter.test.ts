@@ -996,6 +996,63 @@ describe('CodexAdapter', () => {
       expect(said).toBe('where are we')
     })
 
+    describe('with a character cut between two pieces of what it writes', () => {
+      /** A `codex` that runs `body` in the shell, which writes é as \303\251 with printf. */
+      const fakeWriting = (body: string[]): string => {
+        const bin = join(tmp('tade-codex-fake-'), 'codex')
+        writeFileSync(bin, ['#!/bin/sh', 'cat > /dev/null', ...body, ''].join('\n'))
+        chmodSync(bin, 0o755)
+        return bin
+      }
+      const heard = async (bin: string) => {
+        const made = new CodexAdapter({
+          runDir: tmp('tcx-'),
+          codexHome: tmp('tade-codex-account-'),
+          home: tmp('tade-codex-home-'),
+          bin,
+        })
+        adapter = made
+        const spec = {
+          run: 'tade/orchestrator/agent',
+          task: 'tade/orchestrator',
+          cwd: tmp('tade-codex-cwd-'),
+          prompt: '',
+        }
+        const signals: WorkerSignal[] = []
+        made.onSignal(spec.run, (signal) => signals.push(signal))
+        await made.start(spec)
+        await made.prompt(spec.run, 'where are we')
+        await until(() => signals.some((signal) => signal.type === 'idle'))
+        return signals
+      }
+
+      it('is one character in what it said', async () => {
+        const signals = await heard(
+          fakeWriting([
+            `printf '{"type":"item.completed","item":{"id":"i1","type":"agent_message","text":"caf\\303'`,
+            'sleep 0.05',
+            `printf '\\251"}}\\n'`,
+            `echo '{"type":"turn.completed","usage":{"output_tokens":1}}'`,
+          ]),
+        )
+        expect(signals.find((signal) => signal.type === 'message')).toMatchObject({ text: 'café' })
+      })
+
+      it('is one character in why it ended', async () => {
+        const signals = await heard(
+          fakeWriting([
+            `printf 'no caf\\303' >&2`,
+            'sleep 0.05',
+            `printf '\\251\\n' >&2`,
+            'exit 2',
+          ]),
+        )
+        expect(signals.find((signal) => signal.type === 'failed')).toMatchObject({
+          error: 'no café',
+        })
+      })
+    })
+
     it('ends a turn whose SessionStart hook ran inside it, as a real `codex exec` runs it', async () => {
       // Codex runs the hook as its own process, on the socket Tade gave it,
       // and reads what it prints, before the turn goes any further.

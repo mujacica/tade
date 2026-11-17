@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { CodexAdapter } from '../src/adapter.ts'
@@ -79,6 +80,26 @@ describe("asking Codex's app server for the plan", () => {
     const odd = JSON.stringify({ result: { rateLimits: { primary: { usedPercent: 'lots' } } } })
     expect(await ask(stand({ hello: HELLO, read: odd }))).toBeNull()
     expect(said.at(-1)).toBe('it answered in a shape Codex does not have')
+  })
+
+  it('keeps a character whole when an answer arrives cut through it', async () => {
+    const bin = join(tmp('tade-codex-plan-'), 'codex')
+    const answer = { id: 1, error: { message: 'not signed in at the café' } }
+    writeFileSync(
+      bin,
+      [
+        `#!${process.execPath}`,
+        `const line = Buffer.from(${JSON.stringify(`${JSON.stringify(answer)}\n`)})`,
+        'const cut = line.indexOf(0xa9)',
+        'process.stdout.write(line.subarray(0, cut))',
+        'setTimeout(() => process.stdout.write(line.subarray(cut)), 20)',
+        'setInterval(() => {}, 1_000)',
+        '',
+      ].join('\n'),
+    )
+    chmodSync(bin, 0o755)
+    expect(await ask(bin)).toBeNull()
+    expect(said).toEqual(['it refused to start talking: not signed in at the café'])
   })
 
   it('says nothing at all when there is no codex to ask', async () => {

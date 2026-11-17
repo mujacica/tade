@@ -448,8 +448,11 @@ export function resticHere(err: NodeJS.WriteStream = process.stderr): Restic {
       let pending = ''
       let saidAt = 0
       let drawn = false
-      child.stdout.on('data', (chunk: Buffer) => {
-        const text = chunk.toString('utf8')
+      // Decoded by the streams rather than chunk by chunk, so a character cut
+      // between two pieces stays one character rather than two U+FFFDs.
+      child.stdout.setEncoding('utf8')
+      child.stderr.setEncoding('utf8')
+      child.stdout.on('data', (text: string) => {
         stdout += text
         pending += text
         const lines = pending.split('\n')
@@ -471,8 +474,7 @@ export function resticHere(err: NodeJS.WriteStream = process.stderr): Restic {
           }
         }
       })
-      child.stderr.on('data', (chunk: Buffer) => {
-        const text = chunk.toString('utf8')
+      child.stderr.on('data', (text: string) => {
         stderr = (stderr + text).slice(-16_384)
         if (drawn) err.write('\n')
         drawn = false

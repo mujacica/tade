@@ -192,3 +192,60 @@ describe('describeToolCall', () => {
     expect(writesOf(call('bash', { command: 'echo > x' }))).toEqual([])
   })
 })
+
+describe('a character cut between two pieces of what pi writes', () => {
+  let adapter: PiAdapter | null = null
+  afterEach(async () => {
+    await adapter?.shutdown()
+    adapter = null
+  })
+
+  /** A pi that runs `body` as a Node program, with `cut(stream, text)` writing `text` in two pieces through its é. */
+  const fakePi = (body: string[]): string => {
+    const bin = join(tmp('tade-pi-bytes-'), 'pi.js')
+    writeFileSync(
+      bin,
+      [
+        'const cut = (stream, text, then = () => {}) => {',
+        '  const bytes = Buffer.from(text)',
+        '  const at = bytes.indexOf(0xa9)',
+        '  stream.write(bytes.subarray(0, at))',
+        '  setTimeout(() => { stream.write(bytes.subarray(at)); then() }, 20)',
+        '}',
+        ...body,
+      ].join('\n'),
+    )
+    return bin
+  }
+
+  it('is one character in what it answered', async () => {
+    const bin = fakePi([
+      "process.stdin.on('data', (chunk) => {",
+      '  const asked = JSON.parse(String(chunk).split("\\n")[0])',
+      "  const answer = { type: 'response', id: asked.id, command: asked.type, success: true, data: { sessionId: 'café-1' } }",
+      "  cut(process.stdout, JSON.stringify(answer) + '\\n')",
+      '})',
+    ])
+    adapter = new PiAdapter({ runDir: tmp('tade-pi-'), supervise: false, bin })
+    const handle = await adapter.start({
+      run: 'r1',
+      task: 'app/t',
+      cwd: tmp('tade-work-'),
+      prompt: '',
+    })
+    expect(handle.sessionId).toBe('café-1')
+  })
+
+  it('is one character in why it ended', async () => {
+    const bin = fakePi([
+      "cut(process.stderr, 'Error: no café\\n', () => setTimeout(() => process.exit(2), 100))",
+      'setInterval(() => {}, 1_000)',
+    ])
+    adapter = new PiAdapter({ runDir: tmp('tade-pi-'), supervise: false, bin })
+    const signals: WorkerSignal[] = []
+    adapter.onSignal('r1', (signal) => signals.push(signal))
+    await adapter.start({ run: 'r1', task: 'app/t', cwd: tmp('tade-work-'), prompt: '' })
+    await until(() => signals.some((signal) => signal.type === 'failed'))
+    expect(signals.find((signal) => signal.type === 'failed')).toMatchObject({ error: 'no café' })
+  })
+})

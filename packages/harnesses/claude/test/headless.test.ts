@@ -385,3 +385,87 @@ describe('a tool server that did not connect', () => {
     expect(order.indexOf('server_down')).toBeLessThan(order.indexOf('turn_started'))
   }, 60_000)
 })
+
+/**
+ * A `claude` that runs `body` as a Node program, `write(hex)` writing those
+ * bytes to its output and `whine(hex)` to its error, so a test can cut a
+ * character between two pieces.
+ */
+function fakeWriting(body: string[]): string {
+  const bin = join(tmp('tade-claude-bytes-'), 'claude')
+  writeFileSync(
+    bin,
+    [
+      '#!/usr/bin/env node',
+      "if (process.argv[2] === '--help') process.exit(0)",
+      "const write = (hex) => process.stdout.write(Buffer.from(hex, 'hex'))",
+      "const whine = (hex) => process.stderr.write(Buffer.from(hex, 'hex'))",
+      ...body,
+    ].join('\n'),
+  )
+  chmodSync(bin, 0o755)
+  return bin
+}
+
+/** `text` as bytes, cut through the first byte of its é. */
+const cutThrough = (text: string): [string, string] => {
+  const bytes = Buffer.from(text)
+  const cut = bytes.indexOf(0xa9)
+  return [bytes.subarray(0, cut).toString('hex'), bytes.subarray(cut).toString('hex')]
+}
+
+describe('a character cut between two pieces of what it writes', () => {
+  let adapter: ClaudeAdapter | null = null
+  afterEach(async () => {
+    await adapter?.shutdown()
+    adapter = null
+  })
+
+  const run = 'tade/orchestrator/agent'
+  const heard = async (bin: string, until: (signals: WorkerSignal[]) => boolean) => {
+    adapter = new ClaudeAdapter({
+      runDir: tmp('tcc-'),
+      configDir: tmp('tade-claude-account-'),
+      home: tmp('tade-claude-home-'),
+      bin,
+      type: async () => {},
+    })
+    const signals: WorkerSignal[] = []
+    adapter.onSignal(run, (signal) => signals.push(signal))
+    await adapter.start({
+      run,
+      task: 'tade/orchestrator',
+      cwd: tmp('tade-claude-cwd-'),
+      prompt: '',
+    })
+    const deadline = Date.now() + 10_000
+    while (!until(signals)) {
+      if (Date.now() > deadline) throw new Error('it never said it')
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    return signals
+  }
+
+  it('is one character in what it said', async () => {
+    const line = `${JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'café' }] } })}\n`
+    const [head, tail] = cutThrough(line)
+    const bin = fakeWriting([
+      `write('${head}')`,
+      `setTimeout(() => write('${tail}'), 20)`,
+      'setTimeout(() => {}, 600_000)',
+    ])
+    const signals = await heard(bin, (said) => said.some((one) => one.type === 'message'))
+    expect(signals.find((one) => one.type === 'message')).toMatchObject({ text: 'café' })
+  })
+
+  it('is one character in why it ended', async () => {
+    const [head, tail] = cutThrough('no café\n')
+    const bin = fakeWriting([
+      `whine('${head}')`,
+      `setTimeout(() => whine('${tail}'), 20)`,
+      'setTimeout(() => process.exit(2), 100)',
+    ])
+    const signals = await heard(bin, (said) => said.some((one) => one.type === 'failed'))
+    expect(signals.find((one) => one.type === 'failed')).toMatchObject({ error: 'no café' })
+  })
+})

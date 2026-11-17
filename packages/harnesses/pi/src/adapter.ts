@@ -699,9 +699,14 @@ export class PiAdapter implements WorkerAdapter {
     }
     this.runs.set(spec.run, run)
 
-    child.stdout?.on('data', (chunk: Buffer) => this.readStdout(run, chunk))
-    child.stderr?.on('data', (chunk: Buffer) => {
-      run.stderr = (run.stderr + chunk.toString('utf8')).slice(-4_000)
+    // Decoded by the streams rather than chunk by chunk: a long line arrives
+    // in pieces, and a character cut between two of them would be read as two
+    // U+FFFDs.
+    child.stdout?.setEncoding('utf8')
+    child.stderr?.setEncoding('utf8')
+    child.stdout?.on('data', (chunk: string) => this.readStdout(run, chunk))
+    child.stderr?.on('data', (chunk: string) => {
+      run.stderr = (run.stderr + chunk).slice(-4_000)
     })
     child.on('exit', (code) => {
       // Whatever was waiting on an answer will not get one, and should say
@@ -930,8 +935,8 @@ export class PiAdapter implements WorkerAdapter {
   }
 
   /** Strict LF framing: pi's own requirement, and JSON strings may contain U+2028. */
-  private readStdout(run: Run, chunk: Buffer): void {
-    run.stdout += chunk.toString('utf8')
+  private readStdout(run: Run, chunk: string): void {
+    run.stdout += chunk
     let index = run.stdout.indexOf('\n')
     while (index >= 0) {
       const line = run.stdout.slice(0, index).replace(/\r$/, '')

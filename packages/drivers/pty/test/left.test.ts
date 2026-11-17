@@ -30,6 +30,13 @@ describe('what a descriptor still holds', () => {
     expect(read(join(where, 'printed'))).toEqual({ rest: printed, said: [] })
   })
 
+  it('keeps a character whole that is cut between two reads', () => {
+    // The é's two bytes fall either side of the first read's 64 KiB.
+    const printed = `${'x'.repeat(64 * 1024 - 1)}é\n`
+    writeFileSync(join(where, 'cut'), printed)
+    expect(read(join(where, 'cut'))).toEqual({ rest: printed, said: [] })
+  })
+
   it('is nothing, and no trouble, where it has nothing for now', () => {
     // An empty pipe that does not block answers EAGAIN, as a master with
     // nothing more for now does.

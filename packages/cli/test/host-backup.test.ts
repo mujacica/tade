@@ -539,6 +539,25 @@ describe('restic in this terminal', () => {
     expect(written).toContain('warning: one file changed while it was read\n')
   })
 
+  it('keeps a character whole when restic writes it in two pieces', async () => {
+    // é is \303\251: each stream is cut between the two, a moment apart.
+    onPath(
+      [
+        `printf 'caf\\303'`,
+        `printf 'no caf\\303' >&2`,
+        'sleep 0.05',
+        `printf '\\251\\n'`,
+        `printf '\\251\\n' >&2`,
+      ].join('\n'),
+    )
+    const written: string[] = []
+    const err = { isTTY: false, write: (text: string) => written.push(text) }
+    const ran = await resticHere(err as unknown as NodeJS.WriteStream)(['snapshots'], {})
+    expect(ran.stdout).toBe('café\n')
+    expect(ran.stderr).toBe('no café\n')
+    expect(written.join('')).toBe('no café\n')
+  })
+
   it('says restic is missing where nothing on PATH answers to it', async () => {
     process.env.PATH = tmp('tade-empty-path-')
     const ran = await resticHere({

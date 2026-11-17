@@ -138,8 +138,10 @@ export class AcpClient {
       stdio: ['pipe', 'pipe', 'pipe'],
     })
     this.child = child
-    child.stderr?.on('data', (chunk: Buffer) => {
-      this.stderr = (this.stderr + chunk.toString()).slice(-4000)
+    // Decoded as a stream, so a character cut between two pieces stays one.
+    child.stderr?.setEncoding('utf8')
+    child.stderr?.on('data', (chunk: string) => {
+      this.stderr = (this.stderr + chunk).slice(-4000)
     })
     const gone = new Promise<never>((_, reject) => {
       child.once('error', (err) => {

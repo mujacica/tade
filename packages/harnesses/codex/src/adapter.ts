@@ -1167,16 +1167,21 @@ export class CodexAdapter implements WorkerAdapter {
     entry.turn = 'running'
     this.say(entry, { type: 'turn_started' })
     let rest = ''
-    child.stdout?.on('data', (chunk: Buffer) => {
-      rest += chunk.toString('utf8')
+    // Decoded by the streams rather than chunk by chunk: a long line arrives
+    // in pieces, and a character cut between two of them would be read as two
+    // U+FFFDs.
+    child.stdout?.setEncoding('utf8')
+    child.stderr?.setEncoding('utf8')
+    child.stdout?.on('data', (chunk: string) => {
+      rest += chunk
       for (let end = rest.indexOf('\n'); end >= 0; end = rest.indexOf('\n')) {
         const line = rest.slice(0, end).trim()
         rest = rest.slice(end + 1)
         if (line) entry.events = entry.events.then(() => this.onEvent(entry, line)).catch(() => {})
       }
     })
-    child.stderr?.on('data', (chunk: Buffer) => {
-      entry.stderr = (entry.stderr + chunk.toString('utf8')).slice(-4_000)
+    child.stderr?.on('data', (chunk: string) => {
+      entry.stderr = (entry.stderr + chunk).slice(-4_000)
     })
     // `close` rather than `exit`: the last of what a turn printed can still be
     // on its way when the process is already gone, and a turn that ended

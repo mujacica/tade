@@ -43,7 +43,11 @@ export class Peer {
 
   constructor(opts: PeerOptions) {
     this.opts = opts
-    opts.input.on('data', (chunk: Buffer | string) => this.read(chunk.toString()))
+    // Decoded by the stream rather than chunk by chunk: a long line arrives in
+    // pieces, and a character cut between two of them would be read as two
+    // U+FFFDs.
+    opts.input.setEncoding('utf8')
+    opts.input.on('data', (chunk: string) => this.read(chunk))
     opts.input.on('end', () => this.close('the agent closed its output'))
     opts.input.on('error', (err: Error) => this.close(`the agent's output failed: ${err.message}`))
   }

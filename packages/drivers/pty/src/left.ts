@@ -1,4 +1,5 @@
 import { readSync } from 'node:fs'
+import { StringDecoder } from 'node:string_decoder'
 import { codeOf } from './held.ts'
 
 // What a lane's master still holds once its program has ended. On Linux a
@@ -20,6 +21,9 @@ import { codeOf } from './held.ts'
  */
 export function leftIn(fd: number, lane: string, said: (trouble: Error) => void): string {
   const chunk = Buffer.alloc(64 * 1024)
+  // Decoded as a stream, so a character cut between two reads stays one
+  // character rather than two U+FFFDs.
+  const decoder = new StringDecoder('utf8')
   let rest = ''
   for (;;) {
     let n: number
@@ -35,9 +39,9 @@ export function leftIn(fd: number, lane: string, said: (trouble: Error) => void)
             cause: error,
           }),
         )
-      return rest
+      return rest + decoder.end()
     }
-    if (n === 0) return rest
-    rest += chunk.toString('utf8', 0, n)
+    if (n === 0) return rest + decoder.end()
+    rest += decoder.write(chunk.subarray(0, n))
   }
 }

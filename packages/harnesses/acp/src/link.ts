@@ -56,8 +56,12 @@ export class Link {
       this.buffer = ''
       this.opts.onConnect()
     })
-    socket.on('data', (chunk: Buffer) => {
-      this.buffer += chunk.toString('utf8')
+    // Decoded by the stream rather than chunk by chunk: a long command arrives
+    // in pieces, and a character cut between two of them would be read as two
+    // U+FFFDs.
+    socket.setEncoding('utf8')
+    socket.on('data', (chunk: string) => {
+      this.buffer += chunk
       let end = this.buffer.indexOf('\n')
       while (end >= 0) {
         this.receive(this.buffer.slice(0, end))

@@ -214,6 +214,20 @@ describe('an ACP agent driven by Tade', () => {
     expect(h.said.find((s) => s.type === 'turn_done')).toMatchObject({ status: 'error' })
   })
 
+  it('says what the agent said before it died, with a character cut between two pieces whole', async () => {
+    // "café" with the é split across two writes, apart in time so they are two
+    // pieces. Its output is held open past its exit by a second's `sleep`, so
+    // the exit is what start() hears rather than the output closing.
+    const script = [
+      "require('node:child_process').spawn('sleep', ['1'], { stdio: ['ignore', 1, 'ignore'] })",
+      "process.stderr.write(Buffer.from('caf\\xc3', 'latin1'))",
+      "setTimeout(() => process.stderr.write(Buffer.from('\\xa9\\n', 'latin1')), 50)",
+      'setTimeout(() => process.exit(3), 150)',
+    ].join(';')
+    const h = client({ command: process.execPath, args: ['-e', script] })
+    await expect(h.client.start()).rejects.toThrow('exited (3): café')
+  })
+
   it('says why when the agent cannot be started at all, rather than leaving anyone waiting', async () => {
     const h = client({ command: '/nonexistent/acp-agent' })
     await expect(h.client.start()).rejects.toThrow(/could not be started/)
