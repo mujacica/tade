@@ -856,6 +856,55 @@ describe('ClaudeAdapter', () => {
       expect(signals.find((s) => s.type === 'done')).toMatchObject({ summary: 'fixed it' })
     })
 
+    it('tells Tade when Claude Code gives a call up, and answers nobody for it', async () => {
+      const { adapter, env, signals, spec } = await setUp()
+      const server = spawn(process.execPath, [MCP_PATH], { env: { ...process.env, ...env } })
+      const answers: Array<{ id: number; result: Record<string, unknown> }> = []
+      let buffer = ''
+      server.stdout.on('data', (chunk: Buffer) => {
+        buffer += chunk.toString('utf8')
+        for (let end = buffer.indexOf('\n'); end >= 0; end = buffer.indexOf('\n')) {
+          answers.push(JSON.parse(buffer.slice(0, end)))
+          buffer = buffer.slice(end + 1)
+        }
+      })
+      const write = (line: unknown) => server.stdin.write(`${JSON.stringify(line)}\n`)
+      const run = (id: number) =>
+        write({
+          jsonrpc: '2.0',
+          id,
+          method: 'tools/call',
+          params: {
+            name: 'checks_run',
+            arguments: {},
+            _meta: { 'claudecode/toolUseId': `t${id}` },
+          },
+        })
+      run(1)
+      await until(() => signals.some((s) => s.type === 'extension_call'))
+      write({
+        jsonrpc: '2.0',
+        method: 'notifications/cancelled',
+        params: { requestId: 1, reason: 'sent no response or progress for 1800s; aborting' },
+      })
+      await until(() => signals.some((s) => s.type === 'extension_cancelled'))
+      expect(signals.find((s) => s.type === 'extension_cancelled')).toMatchObject({ callId: 't1' })
+      // What Tade answers once the tool has stopped reaches nobody, and the
+      // next call is answered as ever.
+      await adapter.answer(spec.run, 't1', { ok: false, text: 'stopped' })
+      run(2)
+      await until(() => signals.filter((s) => s.type === 'extension_call').length === 2)
+      await adapter.answer(spec.run, 't2', { ok: true, text: 'all green' })
+      await until(() => answers.length === 1)
+      // A cancel for a call already answered stops nothing.
+      write({ jsonrpc: '2.0', method: 'notifications/cancelled', params: { requestId: 2 } })
+      write({ jsonrpc: '2.0', id: 3, method: 'ping' })
+      await until(() => answers.length === 2)
+      server.kill()
+      expect(answers[0]).toMatchObject({ id: 2, result: { isError: false } })
+      expect(signals.filter((s) => s.type === 'extension_cancelled')).toHaveLength(1)
+    })
+
     it('says Tade is closed only when nothing is listening, and not when it took the call and hung up', async () => {
       const dir = tmp('tade-hangs-up-')
       const listener = createServer((socket) => {

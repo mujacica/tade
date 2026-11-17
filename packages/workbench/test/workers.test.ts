@@ -649,6 +649,40 @@ describe('WorkerSupervisor', () => {
     expect((await logged(log, 'run_started'))[0]?.detail.told).toBe(true)
   })
 
+  it('stops a tool an agent gave up on, and only that one', async () => {
+    // Claude Code gave up a related `checks_run`, and it ran on for fourteen
+    // minutes in the window for nobody to read.
+    const log = await EventLog.open({ path: join(tmp('tade-workers-'), 'events.jsonl') })
+    close = () => log.close()
+    const adapter = new FakeAdapter()
+    const asked = new Map<string, AbortSignal | undefined>()
+    const supervisor = new WorkerSupervisor({
+      home: tmp('tade-workers-home-'),
+      adapter,
+      log,
+      approvals: { mode: 'bypass' },
+      onExtensionCall: (call) =>
+        new Promise((resolve, reject) => {
+          asked.set(call.callId, call.signal)
+          call.signal?.addEventListener('abort', () => reject(new Error('stopped')))
+          if (call.callId === 'kept') resolve('all green')
+        }),
+    })
+    await supervisor.start({ run: 'r1', task: 'app/refunds', cwd: WORKTREE, prompt: 'go' })
+    adapter.emit('r1', { type: 'extension_call', callId: 'given-up', tool: 'checks_run' })
+    adapter.emit('r1', { type: 'extension_call', callId: 'waited', tool: 'checks_run' })
+    await until(() => asked.size === 2)
+    adapter.emit('r1', { type: 'extension_cancelled', callId: 'given-up' })
+    await until(() => adapter.answers.length === 1)
+    expect(adapter.answers).toEqual([{ run: 'r1', callId: 'given-up', ok: false, text: 'stopped' }])
+    expect(asked.get('waited')?.aborted).toBe(false)
+    // One already answered has nothing left to stop.
+    adapter.emit('r1', { type: 'extension_call', callId: 'kept', tool: 'checks_run' })
+    await until(() => adapter.answers.length === 2)
+    adapter.emit('r1', { type: 'extension_cancelled', callId: 'kept' })
+    expect(asked.get('kept')?.aborted).toBe(false)
+  })
+
   it('steering reaches the agent', async () => {
     const { log, adapter, supervisor } = await setup('bypass')
     close = () => log.close()

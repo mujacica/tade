@@ -435,6 +435,7 @@ export function workbenchExtensions(
           caller: { kind: 'agent', task: call.task, project: call.project, cwd: call.cwd },
           id: call.callId,
           tade: window(),
+          ...(call.signal ? { signal: call.signal } : {}),
         })
       ).text,
     // Asked with an agent held at the command, so it goes straight to the

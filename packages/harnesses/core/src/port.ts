@@ -152,6 +152,13 @@ export const WorkerSignal = z.discriminatedUnion('type', [
     tool: z.string(),
     input: z.record(z.string(), z.unknown()).default({}),
   }),
+  /** The agent gave that call up: nobody reads its answer, so what it started stops. */
+  z.object({
+    type: z.literal('extension_cancelled'),
+    run: RunId,
+    at: z.number(),
+    callId: z.string(),
+  }),
   z.object({
     type: z.literal('tool_result'),
     run: RunId,

@@ -77,6 +77,8 @@ export interface ExtensionCall {
   tool: string
   input: Record<string, unknown>
   callId: string
+  /** Aborted when the agent gives the call up: what the tool started can stop. */
+  signal?: AbortSignal
 }
 
 export interface PendingApproval {
@@ -232,6 +234,12 @@ export class WorkerSupervisor {
    * finishing a reading about, and whatever is answering is told to stop.
    */
   private readonly reading = new Map<string, Set<AbortController>>()
+  /**
+   * Extension tools an agent is waiting on, by `run:callId`: one it gives up
+   * on is told to stop, rather than running on for nobody (a related
+   * `checks_run` went on for fourteen minutes after Claude Code had let it go).
+   */
+  private readonly calling = new Map<string, AbortController>()
   /**
    * What went wrong asking for a second reading, per run, said once. A gate
    * that has stopped reading must be said — and saying it at every command an
@@ -607,6 +615,9 @@ export class WorkerSupervisor {
       case 'extension_call':
         await this.answerExtensionCall(run, signal, state)
         return
+      case 'extension_cancelled':
+        this.calling.get(`${run}:${signal.callId}`)?.abort()
+        return
       case 'usage':
         if (task && signal.model) this.noteVitals(task, { type: 'started', model: signal.model })
         // Before anything is awaited: the turn this belongs to ends in the
@@ -748,6 +759,9 @@ export class WorkerSupervisor {
     if (!this.onExtensionCall || !state) {
       result = { ok: false, text: 'Tade has no extension tools to run here' }
     } else {
+      const key = `${run}:${signal.callId}`
+      const controller = new AbortController()
+      this.calling.set(key, controller)
       try {
         const text = await this.onExtensionCall({
           run,
@@ -756,10 +770,13 @@ export class WorkerSupervisor {
           tool: signal.tool,
           input: signal.input,
           callId: signal.callId,
+          signal: controller.signal,
         })
         result = { ok: true, text }
       } catch (err) {
         result = { ok: false, text: err instanceof Error ? err.message : String(err) }
+      } finally {
+        this.calling.delete(key)
       }
     }
     // Written down: one of Tade's own tools called by an agent is an act with

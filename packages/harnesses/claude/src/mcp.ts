@@ -89,6 +89,15 @@ function listed(path: string | undefined): ToolSpec[] {
 
 const tools = [...listed(process.env.TADE_EXTENSION_TOOLS), DOCUMENT_READY, LEFTOVERS_TOOL, DONE]
 
+/** A call Claude Code is waiting on: what Tade is running for it now, and its word every minute. */
+interface Open {
+  asking: string | null
+  stop: () => void
+}
+
+/** The calls Claude Code is still waiting on, by its own request id. */
+const open = new Map<unknown, Open>()
+
 const send = (message: unknown): void => {
   process.stdout.write(`${JSON.stringify(message)}\n`)
 }
@@ -127,6 +136,8 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     })
   } else if (method === 'tools/call') {
     void call(id, params ?? {})
+  } else if (method === 'notifications/cancelled') {
+    cancel(params?.requestId)
   } else if (id !== undefined) {
     send({ jsonrpc: '2.0', id, result: {} })
   }
@@ -141,22 +152,57 @@ async function call(id: unknown, params: Record<string, unknown>): Promise<void>
   // Said once a minute until Tade answers, or Claude Code gives the call up
   // after thirty silent minutes however long its deadline is (`still.ts`).
   let waitingOn = `Tade is still running ${name}`
-  const stop = stillWaiting(meta?.progressToken, () => waitingOn, send)
+  const mine: Open = {
+    asking: null,
+    stop: stillWaiting(meta?.progressToken, () => waitingOn, send),
+  }
+  open.set(id, mine)
   try {
-    await answer(id, name, input, callId, (now) => {
-      waitingOn = now
+    await answer(name, input, callId, {
+      waiting: (now) => {
+        waitingOn = now
+      },
+      asking: (call) => {
+        mine.asking = call
+      },
+      // A call Claude Code gave up on is answered by nobody: it reads no
+      // answer to a request it cancelled.
+      say: (said, isError) => {
+        if (open.get(id) === mine) text(id, said, isError)
+      },
     })
   } finally {
-    stop()
+    mine.stop()
+    if (open.get(id) === mine) open.delete(id)
   }
 }
 
+/**
+ * Claude Code gave a call up: the person pressed Escape, or it waited as long
+ * as it would. Tade is told, so what it started for the call stops rather than
+ * running on for nobody — a related `checks_run` given up at 10:32 went on
+ * until 10:46.
+ */
+function cancel(requestId: unknown): void {
+  const mine = open.get(requestId)
+  if (!mine) return
+  open.delete(requestId)
+  mine.stop()
+  if (mine.asking) void reach({ kind: 'cancel', callId: mine.asking })
+}
+
+/** What a call says while it waits, what it is asking Tade, and its answer. */
+interface Saying {
+  waiting: (on: string) => void
+  asking: (callId: string) => void
+  say: (said: string, isError?: boolean) => void
+}
+
 async function answer(
-  id: unknown,
   name: string,
   input: Record<string, unknown>,
   callId: string,
-  waiting: (on: string) => void,
+  { waiting, asking, say }: Saying,
 ): Promise<void> {
   if (name === DONE.name) {
     // What it left goes first, to the door `tade_leftovers` goes to: a report
@@ -167,34 +213,36 @@ async function answer(
       waiting(
         `nothing is finished yet: Tade is still making what you left into parked work (${input.leftovers.length} ${input.leftovers.length === 1 ? 'item' : 'items'})`,
       )
+      asking(`${callId}-leftovers`)
       const { reply, reached } = await tade(`${callId}-leftovers`, LEFTOVERS_TOOL.name, items)
       if (!reply) {
         const why = reached
           ? `Nothing is finished yet: ${unanswered(LEFTOVERS_TOOL.name)}`
           : 'Tade is not open, so it cannot be told yet: say so instead'
-        return text(id, why, true)
+        return say(why, true)
       }
       if (reply.ok !== true) {
         const why = String(reply.text ?? '')
-        return text(id, `Nothing is finished yet: what you left was not taken. ${why}`, true)
+        return say(`Nothing is finished yet: what you left was not taken. ${why}`, true)
       }
       left = ` ${String(reply.text ?? '')}`
     }
     const summary = String(input.summary ?? '').trim()
     waiting('Tade has not yet said it heard this task is finished')
     const { reply, reached } = await reach({ kind: 'done', summary }, DONE_CALL_MS)
-    if (reply) return text(id, `Tade has it: this task is finished.${left}`)
+    if (reply) return say(`Tade has it: this task is finished.${left}`)
     const why = reached
       ? `Tade took ${name} and no answer came back, so it may have heard you or its window may have closed. Say so in your last message; calling ${name} again does no harm.${left}`
       : 'Tade is not open, so it cannot be told yet: say so instead'
-    return text(id, why, true)
+    return say(why, true)
   }
+  asking(callId)
   const { reply, reached } = await tade(callId, name, input)
   if (!reply) {
     const why = reached ? unanswered(name) : `Tade is not open, so ${name} cannot run right now`
-    return text(id, why, true)
+    return say(why, true)
   }
-  text(id, String(reply.text ?? ''), reply.ok !== true)
+  say(String(reply.text ?? ''), reply.ok !== true)
 }
 
 /** What a call that Tade took and never answered was: not a Tade that is closed. */
