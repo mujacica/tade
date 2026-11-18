@@ -72,8 +72,8 @@ export const FLOOR: Record<string, number> = {
   // user of their own had taken 117 lines out of `src` (9b6725f6).
   'packages/harnesses/codex': 90,
   // 93.9 when it came in, every line of it driven against the scripted ACP
-  // agent: 90 leaves room for a slower runner, the same slack the others keep.
-  'packages/harnesses/acp': 90,
+  // agent; 90 -> 93 when it read 94.0 and the ratchet asked.
+  'packages/harnesses/acp': 93,
   'packages/extensions/sentry': 84,
   // Went up when `checks_propose` went: what a project checks is read from its
   // own CI and its own hook, so the tool that wrote it down had nothing left to
