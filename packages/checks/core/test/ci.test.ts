@@ -254,6 +254,111 @@ describe('reading a gate workflow', () => {
     expect(read?.checks[0]?.skip).toContain('only the runner knows')
   })
 
+  it('runs a step in the folder it says, and skips one whose folder is not here to run in', async () => {
+    const read = await readWorkflows(
+      repoWith({
+        'site/package.json': '{}\n',
+        '.github/workflows/ci.yml': [
+          'on: [pull_request]',
+          'jobs:',
+          '  check:',
+          '    steps:',
+          '      - uses: actions/checkout@v5',
+          '      - name: site',
+          '        run: pnpm test',
+          '        working-directory: ./site/',
+          '      - name: root',
+          '        run: pnpm lint',
+          '        working-directory: .',
+          '      - uses: actions/checkout@v5',
+          '        with:',
+          '          repository: someone/game',
+          '          path: .ci/game',
+          '      - name: toolchain',
+          '        run: rustup toolchain install',
+          '        working-directory: .ci/game',
+          '      - name: botctl',
+          '        run: cargo build --bin botctl',
+          '        working-directory: .ci/game/server',
+          '      - name: gone',
+          '        run: make',
+          '        working-directory: native',
+          '      - name: away',
+          '        run: make',
+          '        working-directory: ../elsewhere',
+          '      - name: told',
+          '        run: make',
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: GitHub's own syntax
+          '        working-directory: ${{ matrix.dir }}',
+          '',
+        ].join('\n'),
+      }),
+    )
+    const byId = new Map((read?.checks ?? []).map((check) => [check.id, check]))
+    expect(byId.get('site')).toMatchObject({ cwd: 'site', required: true })
+    expect(byId.get('site')?.skip).toBeUndefined()
+    expect(byId.get('root')?.cwd).toBeUndefined()
+    expect(byId.get('root')?.skip).toBeUndefined()
+    // A folder a checkout action makes is the runner's, and a run at the root
+    // in its place is a red light about the wrong folder.
+    expect(byId.get('toolchain')).toMatchObject({
+      required: false,
+      skip: 'it runs in .ci/game, which the action actions/checkout@v5 makes',
+    })
+    expect(byId.get('botctl')).toMatchObject({
+      required: false,
+      skip: 'it runs in .ci/game/server, which the action actions/checkout@v5 makes',
+    })
+    expect(byId.get('gone')).toMatchObject({
+      required: false,
+      skip: 'it runs in native, which is not in this checkout',
+    })
+    expect(byId.get('away')).toMatchObject({
+      required: false,
+      skip: 'it runs in ../elsewhere, which is outside this checkout',
+    })
+    expect(byId.get('told')?.skip).toContain('only the runner knows')
+    // Turned on anyway (`run_here`), one still runs where CI says, never at the root.
+    expect(byId.get('botctl')?.cwd).toBe('.ci/game/server')
+    expect(byId.get('away')?.cwd).toBeUndefined()
+    expect(byId.get('told')?.cwd).toBeUndefined()
+  })
+
+  it("reads a job's or the workflow's default folder, and lets a step say its own", async () => {
+    const read = await readWorkflows(
+      repoWith({
+        'web/package.json': '{}\n',
+        'api/go.mod': 'module api\n',
+        '.github/workflows/ci.yml': [
+          'on: [pull_request]',
+          'defaults:',
+          '  run:',
+          '    working-directory: web',
+          'jobs:',
+          '  web:',
+          '    steps:',
+          '      - name: web',
+          '        run: pnpm test',
+          '  api:',
+          '    defaults:',
+          '      run:',
+          '        working-directory: api',
+          '    steps:',
+          '      - name: api',
+          '        run: go test ./...',
+          '      - name: docs',
+          '        run: make docs',
+          '        working-directory: docs',
+          '',
+        ].join('\n'),
+      }),
+    )
+    const byId = new Map((read?.checks ?? []).map((check) => [check.id, check]))
+    expect(byId.get('web')?.cwd).toBe('web')
+    expect(byId.get('api')?.cwd).toBe('api')
+    expect(byId.get('docs')?.skip).toBe('it runs in docs, which is not in this checkout')
+  })
+
   it('reads a declared timeout, and its own where there is none', async () => {
     const read = await readWorkflows(
       repoWith({

@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { type Check, SLEPT, sleptThrough } from '@tade/checks-core'
 import { testRunner } from '@tade/checks-core/conformance'
 import { describe, expect, it } from 'vitest'
-import { tmp } from '../../../../test/fixtures/mkrepo.ts'
+import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { CI_WORKFLOW, ciWorkflow } from '../../../../test/fixtures/workflow.ts'
 import { makeLocalRunner } from '../src/index.ts'
 
@@ -236,6 +236,49 @@ describe('the local runner', () => {
       { commit: 'a1b2c3d4', changed: [] },
     )
     expect(plan.map((one) => one.id)).toEqual(['tests'])
+  })
+
+  it('runs a step in the folder it names, and never runs one in a folder a checkout action makes', async () => {
+    // vrolta-web's shape: a second repository checked out under `.ci/` by an
+    // action, and a build that runs in it. Run at the root, that build failed
+    // here with "could not find Cargo.toml" and held every push.
+    const repo = mkrepo()
+    repo.commit('ci', {
+      'site/package.json': '{}\n',
+      [CI_WORKFLOW]: [
+        'on: [push, pull_request]',
+        'jobs:',
+        '  check:',
+        '    steps:',
+        '      - uses: actions/checkout@v5',
+        '      - name: where',
+        '        run: pwd',
+        '        working-directory: site',
+        '      - uses: actions/checkout@v5',
+        '        with:',
+        '          repository: someone/game',
+        '          path: .ci/game',
+        '      - name: botctl',
+        '        run: cargo build --locked --bin botctl',
+        '        working-directory: .ci/game/server',
+        '',
+      ].join('\n'),
+    })
+    const plan = await makeLocalRunner().plan(
+      { name: 'demo', root: repo.root },
+      { commit: repo.head(), changed: [] },
+    )
+    const byId = new Map(plan.map((one) => [one.id, one]))
+    expect(byId.get('botctl')).toMatchObject({
+      required: false,
+      skip: 'it runs in .ci/game/server, which the action actions/checkout@v5 makes',
+    })
+    const runs = await runIn(
+      repo.root,
+      plan.filter((one) => !one.skip),
+    )
+    expect(runs.map((run) => [run.check, run.state])).toEqual([['where', 'passed']])
+    expect(runs[0]?.tail.trim()).toBe(join(repo.root, 'site'))
   })
 })
 

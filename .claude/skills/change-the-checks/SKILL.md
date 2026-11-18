@@ -69,7 +69,8 @@ and that record.
   must fail towards `unknown`.
 - **A check that cannot run *here* keeps its row, with a `skip`, and is `required: false`.** The
   reading says which those are — a step interpolating `${{ … }}`, a step or job behind an `if:` only
-  CI can answer, a job with `services:` or `container:` — and they are drawn apart rather than
+  CI can answer, a job with `services:` or `container:`, a step whose `working-directory` an earlier
+  action made (a second checkout's `path:`), is missing here or is outside the checkout — and they are drawn apart rather than
   dropped, because a page that hides them is a page that quietly claims CI's coverage. Out of
   `required` because a rollup is what a run *here* adds up to: one `${{ secrets.… }}` step left
   required would leave every commit `unknown` for ever. The `skip` is the **bare reason** and never

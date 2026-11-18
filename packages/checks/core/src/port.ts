@@ -71,6 +71,12 @@ export interface Check {
   /** Where it was read: a workflow's job and step, or the hook's path. For the row that says so. */
   from?: string
   /**
+   * The folder it runs in, relative to the project's root, when that is not
+   * the root itself: a step's `working-directory`. Never outside the root, and
+   * never one the reading could not find here — that is a `skip` instead.
+   */
+  cwd?: string
+  /**
    * It runs only the tests a change touches (`related.ts`): an agent's quick
    * look before it commits, never a part of the full run and never required,
    * so no rollup can read one passing as the suite passing.

@@ -1,5 +1,5 @@
-import { readdir, readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { readdir, readFile, stat } from 'node:fs/promises'
+import { join, posix } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import { idFor } from './identity.ts'
 import type { Check } from './port.ts'
@@ -19,6 +19,7 @@ import type { Check } from './port.ts'
 //   services:                            it needs a database only CI has
 //   ${{ … }} in a run:                   it needs what only the runner knows
 //   no run:                              it is somebody's action
+//   working-directory: an action's path  it needs what only the runner made
 //
 // So the rule is a conjunction of declared facts, and the design principle
 // underneath it is one sentence:
@@ -188,20 +189,22 @@ export async function readWorkflows(root: string): Promise<Reading | null> {
       continue
     }
     const before = checks.length
-    readJobs(asObject(raw?.jobs), at, checks, unread, taken)
+    await readJobs(root, asObject(raw?.jobs), runDirOf(raw), at, checks, unread, taken)
     if (checks.length > before) from.push(at)
   }
   if (checks.length === 0 && unread.length === 0) return null
   return { checks, from, unread }
 }
 
-function readJobs(
+async function readJobs(
+  root: string,
   jobs: Record<string, unknown> | null,
+  workflowDir: string | null,
   at: string,
   checks: Check[],
   unread: string[],
   taken: Set<string>,
-): void {
+): Promise<void> {
   if (!jobs) return
   for (const [name, value] of Object.entries(jobs)) {
     const job = asObject(value)
@@ -227,18 +230,33 @@ function readJobs(
         : typeof job?.if === 'string'
           ? `its job runs only when \`${job.if}\`, which only CI can answer`
           : null
-    readSteps(Array.isArray(job?.steps) ? job.steps : [], where, checks, unread, taken, cannot)
+    await readSteps(
+      root,
+      Array.isArray(job?.steps) ? job.steps : [],
+      runDirOf(job) ?? workflowDir,
+      where,
+      checks,
+      unread,
+      taken,
+      cannot,
+    )
   }
 }
 
-function readSteps(
+async function readSteps(
+  root: string,
   steps: readonly unknown[],
+  jobDir: string | null,
   where: string,
   checks: Check[],
   unread: string[],
   taken: Set<string>,
   jobCannot: string | null,
-): void {
+): Promise<void> {
+  // The folders an earlier action in this job made — a second repository
+  // checked out beside this one, an artifact downloaded — which this checkout
+  // does not have, or has only as whatever a run here last left in them.
+  const made: { path: string; by: string }[] = []
   for (const entry of steps) {
     const step = asObject(entry)
     const name = typeof step?.name === 'string' ? step.name.trim() : ''
@@ -248,20 +266,29 @@ function readSteps(
       const uses = typeof step?.uses === 'string' ? step.uses : ''
       // An action prepares the machine or talks to the forge; either way there
       // is no command here to run.
-      if (uses) unread.push(`${said} is the action ${uses}, which only the runner can run`)
+      if (uses) {
+        unread.push(`${said} is the action ${uses}, which only the runner can run`)
+        for (const path of pathsOf(asObject(step?.with)?.path)) made.push({ path, by: uses })
+      }
       continue
     }
     if (SETUP.test(run)) {
       unread.push(`${said} prepares the machine rather than checking the code`)
       continue
     }
+    const own = step?.['working-directory']
+    const dir = typeof own === 'string' && own.trim() ? own.trim() : jobDir
     const cannot =
       jobCannot ??
-      (/\$\{\{/.test(run) || /\$\{\{/.test(JSON.stringify(step?.env ?? ''))
+      (/\$\{\{/.test(run) ||
+      /\$\{\{/.test(JSON.stringify(step?.env ?? '')) ||
+      /\$\{\{/.test(dir ?? '')
         ? 'it uses something only the runner knows'
-        : typeof step?.if === 'string'
-          ? `it runs only when \`${step.if}\`, which only CI can answer`
-          : null)
+        : ((dir ? await placeOf(root, dir, made) : null) ??
+          (typeof step?.if === 'string'
+            ? `it runs only when \`${step.if}\`, which only CI can answer`
+            : null)))
+    const cwd = dir && !/\$\{\{/.test(dir) ? inside(dir) : null
     checks.push({
       id: idFor(name, run, taken),
       title: name || run.split('\n')[0] || 'check',
@@ -283,9 +310,67 @@ function readSteps(
       // it is drawn, and it is out of what a local run adds up to.
       required: step?.['continue-on-error'] !== true && cannot === null,
       from: where,
+      ...(cwd ? { cwd } : {}),
       ...(cannot ? { skip: cannot } : {}),
     })
   }
+}
+
+/** `defaults.run.working-directory`, for a workflow or a job. */
+function runDirOf(raw: Record<string, unknown> | null): string | null {
+  const dir = asObject(asObject(raw?.defaults)?.run)?.['working-directory']
+  return typeof dir === 'string' && dir.trim() ? dir.trim() : null
+}
+
+/** A folder relative to the checkout, without `./` or a trailing `/`; null for the root itself or anywhere outside it. */
+function inside(dir: string): string | null {
+  const at = posix.normalize(dir.replaceAll('\\', '/')).replace(/\/+$/, '')
+  if (at === '.' || at === '') return null
+  if (posix.isAbsolute(at) || at === '..' || at.startsWith('../')) return null
+  return at
+}
+
+/** What an action's `with.path` names: one folder, or one per line (`actions/cache`). */
+function pathsOf(raw: unknown): string[] {
+  if (typeof raw !== 'string' || /\$\{\{/.test(raw)) return []
+  return raw
+    .split('\n')
+    .map((line) => inside(line.trim()))
+    .filter((line): line is string => line !== null)
+}
+
+/**
+ * Why a step cannot be run in the folder it says, or null when it can. Only
+ * ever a reason to run less: a folder outside the checkout, one an action
+ * makes on the runner, one this checkout has not got. Run at the root
+ * instead, any of them is a red light about the wrong folder.
+ */
+async function placeOf(
+  root: string,
+  dir: string,
+  made: readonly { path: string; by: string }[],
+): Promise<string | null> {
+  const at = inside(dir)
+  if (at === null) {
+    const normal = posix.normalize(dir.replaceAll('\\', '/'))
+    return normal === '.' || normal === './'
+      ? null
+      : `it runs in ${dir}, which is outside this checkout`
+  }
+  // Even when the folder is here: what is in it is whatever a run here last
+  // left, and not what the action puts there on the runner.
+  const by = made.find((one) => at === one.path || at.startsWith(`${one.path}/`))
+  if (by) return `it runs in ${at}, which the action ${by.by} makes`
+  try {
+    if ((await stat(join(root, at))).isDirectory()) return null
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code
+    // A folder that could not be looked at is not one that is missing: say which.
+    if (code !== 'ENOENT' && code !== 'ENOTDIR') {
+      return `it runs in ${at}, which could not be looked at here (${code ?? String(err)})`
+    }
+  }
+  return `it runs in ${at}, which is not in this checkout`
 }
 
 function minutesOf(step: Record<string, unknown> | null, fallback: number): number {

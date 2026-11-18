@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import { stat } from 'node:fs/promises'
 import { hostname } from 'node:os'
+import { join } from 'node:path'
 import {
   type Check,
   type CheckLog,
@@ -197,7 +198,7 @@ async function one(
   // ordinary case is the line the project wrote and nothing else.
   const child = spawn(nicedLine(check.run, opts.giveWay), {
     shell: true,
-    cwd: project.root,
+    cwd: check.cwd ? join(project.root, check.cwd) : project.root,
     detached: true,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, ...ctx.env, CI: process.env.CI ?? '', TADE_CHECK: check.id },
