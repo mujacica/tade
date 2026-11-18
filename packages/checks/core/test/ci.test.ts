@@ -115,6 +115,24 @@ describe('reading a gate workflow', () => {
     expect(read?.unread.join('\n')).toContain('prepares the machine')
   })
 
+  it('reads downloading a browser as setup, and the browser tests as a check', async () => {
+    const read = await readWorkflows(
+      repoWith({
+        '.github/workflows/ci.yml': [
+          'on: [pull_request]',
+          'jobs:',
+          '  e2e:',
+          '    steps:',
+          '      - run: pnpm exec playwright install --with-deps chromium',
+          '      - run: pnpm exec playwright test',
+          '',
+        ].join('\n'),
+      }),
+    )
+    expect(read?.checks.map((check) => check.run)).toEqual(['pnpm exec playwright test'])
+    expect(read?.unread.join('\n')).toContain('prepares the machine')
+  })
+
   it('names a whole workflow that ships something, and reads none of it', async () => {
     const read = await readWorkflows(
       repoWith({

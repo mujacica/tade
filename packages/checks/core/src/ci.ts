@@ -101,7 +101,7 @@ const MOST_MINUTES = 60
  * direction that makes Tade claim less.
  */
 const SETUP =
-  /(^|\s|&&|\|\||;)(?:sudo\s+)?(?:(?:pnpm|npm|yarn|bun)\s+(?:install|ci|i)\b|corepack\s+enable\b|(?:pip|pip3)\s+install\b|uv\s+sync\b|poetry\s+install\b|bundle\s+install\b|apt(?:-get)?\s+(?:update|install)\b|brew\s+(?:install|update)\b|choco\s+install\b|go\s+mod\s+download\b|cargo\s+fetch\b)/
+  /(^|\s|&&|\|\||;)(?:sudo\s+)?(?:(?:pnpm|npm|yarn|bun)\s+(?:install|ci|i)\b|corepack\s+enable\b|(?:pip|pip3)\s+install\b|uv\s+sync\b|poetry\s+install\b|bundle\s+install\b|apt(?:-get)?\s+(?:update|install)\b|brew\s+(?:install|update)\b|choco\s+install\b|go\s+mod\s+download\b|cargo\s+fetch\b|playwright\s+install\b)/
 
 /** Permissions that mean a job changes something outside the repository. */
 function publishes(permissions: unknown): string | null {
