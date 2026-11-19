@@ -11,6 +11,6 @@
   "dependencies": {
     "@sentry/node": "^11.13.0",
     "@tade/core": "workspace:*",
-    "vitest": "^5.1.0"
+    "vitest": "^5.1.1"
   }
 }
