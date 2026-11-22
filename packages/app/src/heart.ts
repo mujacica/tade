@@ -30,6 +30,7 @@ import { Earlier } from './wire/earlier.ts'
 import { type Tellable, tellNow, tellOrKeep } from './wire/handed.ts'
 import { Intake } from './wire/intake.ts'
 import { LinearTokens, lending } from './wire/linear-tokens.ts'
+import { type MachinesSeen, machinesSeenFor } from './wire/machines-seen.ts'
 import { Orchestrator, type OrchestratorDeps } from './wire/orchestrator.ts'
 import { Projects, type ProjectsDeps, type ProjectTools } from './wire/projects.ts'
 import { Queue, type QueueTools } from './wire/queue.ts'
@@ -83,6 +84,12 @@ export interface Face {
   due(): void
   /** What the links know of other machines' watches on one project's repository. */
   twins(project: string): WatchTwinsHere
+  /**
+   * What another machine a watch is left to has already found with it
+   * (`watch-seen.ts`), as it answered: asked over the link. Null where it has
+   * nothing to say about it (an older Tade); throws where it could not be asked.
+   */
+  watchThere?(machine: string, project: string, watch: string): Promise<unknown>
   /** What only the face's links know, handed to every look: other machines' branches here. */
   asked(): Pick<StatusAsk, 'elsewhere'>
   /** A beat's tasks, taken into the state, before the queue and the schedules have them. */
@@ -343,6 +350,8 @@ export class Heart {
   readonly orchestrator: Orchestrator
   /** The away view and its notifications: who may read Tade from off this machine. */
   readonly away: Away
+  /** The person's other machines as this one has seen them: up, asleep, closed, lost (`machines-seen.ts`). */
+  readonly machinesSeen: MachinesSeen
   /**
    * What was said to the orchestrator before what the conversation holds, read
    * back out of its record: by a face scrolled to the top, and by a page on a
@@ -375,6 +384,8 @@ export class Heart {
     })
     this.orchestrator = new Orchestrator(this.wire, {
       ...face.orchestrator,
+      // Read at each turn, by when the record of machines is made below.
+      seen: () => this.machinesSeen?.all() ?? [],
       useConfig: (config) => this.settings.use(config),
       nobodyHere: () => this.away.nobodyHere(),
     })
@@ -404,6 +415,10 @@ export class Heart {
       orchestrator: () => this.told,
       advanceQueue: () => void this.advanceQueue(),
       twins: (project) => face.twins(project),
+      ...(face.watchThere && {
+        watchThere: (machine: string, project: string, watch: string) =>
+          face.watchThere?.(machine, project, watch) ?? Promise.resolve(null),
+      }),
     })
     this.intake = new Intake(this.wire, { advanceQueue: () => void this.advanceQueue() })
     this.batches = new Batches(this.wire, () => this.told)
@@ -434,7 +449,9 @@ export class Heart {
     })
     this.wire.opts.extensions?.useConnected(lending(this.linear))
     this.earlier = new Earlier(this.wire)
+    this.machinesSeen = machinesSeenFor(this.wire)
     this.away = new Away(this.wire, {
+      machines: this.machinesSeen,
       earlier: () => this.earlier.more(),
       ...face.away,
       decided: (allow) => this.agents.decide(allow),
@@ -502,6 +519,8 @@ export class Heart {
     // tab you can be standing in when you start work.
     const config = this.opts.config
     this.put(withProjects(this.current, Object.keys(config.projects), titlesOf(config)))
+    // Which machines were up when this one last looked, read back before anything links.
+    void this.machinesSeen.seed()
     const live = await Live.start({
       client: this.opts.client,
       config: this.opts.config,
@@ -521,6 +540,7 @@ export class Heart {
         void this.schedules.runDue().then(() => this.advanceQueue())
         void this.orchestrator.reflect(tasks)
         void this.batches.beat()
+        this.machinesSeen.beat()
         this.away.beat()
         void this.settings.fold(() => this.serversMoved())
         face.beat(tasks, moved)

@@ -168,6 +168,7 @@ export class App {
       layout: () => this.window.layout(),
       due: () => this.looks.soonTick(),
       twins: (project) => this.remotes.watchTwins(project),
+      watchThere: (machine, project, watch) => this.remotes.watchThere(machine, project, watch),
       asked: () => ({ elsewhere: this.remotes.mirrored()?.elsewhere() ?? {} }),
       sawTasks: (tasks) => {
         // Focus can only be restored once there are panes to restore it to,
@@ -289,6 +290,7 @@ export class App {
     this.remotes = remotesFor(this.wire, {
       screens: () => this.screens,
       files: () => this.files,
+      seen: (held) => this.heart.machinesSeen.linked(held),
     })
     this.voice = new Voice(this.wire, {
       submit: () => this.keyboard.submit(),

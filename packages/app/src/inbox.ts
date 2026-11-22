@@ -2,7 +2,9 @@ import {
   AWAY_WORDS,
   documentSize,
   documentsIn,
+  type MachineSeen,
   producedClause,
+  seenSaid,
   type TadeEvent,
   THEIR_WORDS,
 } from '@tade/core'
@@ -348,6 +350,95 @@ export function machinesSaid(
     return `${machine.name}: not linked${at} — then, ${counts}`
   })
   return `Other machines, as each last said: ${each.join('; ')}.`
+}
+
+/** How many agents of one project there are said by name, before the rest are counted. */
+const TOLD_PER_PROJECT = 4
+/** How many agents of one machine are said by name, before the rest are counted. */
+const TOLD_PER_MACHINE = 12
+/** How many of a machine's projects are said, before the rest are counted. */
+const TOLD_PROJECTS = 8
+/** How long an agent's reason may be in the block: what it is doing, not its story. */
+const REASON_MOST = 100
+
+/**
+ * Every other machine's projection, as each last said, for the orchestrator:
+ * `machinesSaid`'s line, then under it each machine's projects with their
+ * agents by name and what each is doing, the machines it says it has seen,
+ * and the machines that link to this one with how each stands
+ * (`machines-seen.ts`) — so a question about the VPS is answered from what the
+ * VPS said, and a VPS whose Mac closed knows it closed.
+ *
+ * **A shape rather than a budget**, `composeBriefing`'s rule: a cap per
+ * project and per machine, and what each left out counted and said — a flat
+ * cap would drop the third machine *without a word*, which reads as nothing
+ * happening there. A remote's own `more` (tasks it held back) is counted with
+ * what this leaves out, never dropped. Null where there is no other machine.
+ */
+export function machinesTold(
+  machines: Machines | undefined,
+  seen: readonly MachineSeen[],
+  clock: (at: number) => string,
+): string | null {
+  const head = machinesSaid(machines, clock)
+  const linkingHere = seen.filter((one) => one.way === 'from')
+  if (head === null && linkingHere.length === 0) return null
+  const lines: string[] = head === null ? [] : [head]
+  for (const machine of machines?.remotes ?? []) {
+    if (!machine.heard || machine.link === 'ended') continue
+    const states = seen.find((one) => one.way === 'to' && one.machine === machine.name)
+    const how =
+      machine.link === 'live'
+        ? 'linked'
+        : `not linked${states ? `: ${seenSaid(states, clock)}` : ''}${machine.asOf === null ? '' : `; as of ${clock(machine.asOf)}`}`
+    lines.push(`- ${machine.name} (${how}):`)
+    let told = 0
+    let left = 0
+    const projects = machine.projects.filter((one) => one.agents.length > 0 || one.more > 0)
+    for (const [at, project] of projects.entries()) {
+      if (at >= TOLD_PROJECTS) {
+        left += project.agents.length + project.more
+        continue
+      }
+      const room = Math.max(0, Math.min(TOLD_PER_PROJECT, TOLD_PER_MACHINE - told))
+      const named = project.agents.slice(0, room)
+      told += named.length
+      const more = project.agents.length - named.length + project.more
+      left += more
+      const each = named.map((agent) => {
+        const reason = agent.reason === '' ? '' : ` — ${cutTo(agent.reason, REASON_MOST)}`
+        return `${agent.name} (${agent.queued ? 'queued' : agent.mark}${reason})`
+      })
+      const tail = more > 0 ? [`${more} more`] : []
+      lines.push(`  ${project.name}: ${[...each, ...tail].join('; ') || 'nothing running'}`)
+    }
+    if (projects.length > TOLD_PROJECTS) {
+      lines.push(
+        `  and ${projects.length - TOLD_PROJECTS} more projects there, ${left} agents in them and past the caps above`,
+      )
+    } else if (left > 0 && told >= TOLD_PER_MACHINE) {
+      lines.push(`  (${left} agents there not named above)`)
+    }
+    if (machine.seen.length > 0) {
+      const theirs = machine.seen.map((one) =>
+        one.since === null
+          ? `${one.name} ${one.state}`
+          : `${one.name} ${seenSaid({ state: one.state, at: one.since, since: null }, clock)}`,
+      )
+      lines.push(`  ${machine.name} has seen: ${theirs.join('; ')}`)
+    }
+  }
+  if (linkingHere.length > 0) {
+    const each = linkingHere.map((one) => `${one.machine} ${seenSaid(one, clock)}`)
+    lines.push(`Machines that link to this one: ${each.join('; ')}.`)
+  }
+  return lines.join('\n')
+}
+
+/** A reason cut to a length, by code points, with an ellipsis where it was cut. */
+function cutTo(text: string, most: number): string {
+  const points = [...text]
+  return points.length <= most ? text : `${points.slice(0, most - 1).join('')}…`
 }
 
 /** A machine's agents by what they are doing, as its own marks say. */

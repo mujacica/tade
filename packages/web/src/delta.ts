@@ -124,7 +124,8 @@ export function deltaBetween(was: Snapshot, is: Snapshot): Delta | null {
   }
   const fresh = freshMoved(was.fresh, is.fresh)
   const you = !same(was.you, is.you)
-  if (!moved && !fresh && !you) return null
+  const machines = !same(was.machines, is.machines)
+  if (!moved && !fresh && !you && !machines) return null
 
   // Six row types, one shape: the maps are built loosely and named once here.
   // The schema is what holds them (`DeltaSchema`), and the test that parses
@@ -145,6 +146,7 @@ export function deltaBetween(was: Snapshot, is: Snapshot): Delta | null {
   }
   if (Object.keys(pages).length > 0) delta.pages = pages
   if (you) delta.you = is.you
+  if (machines) delta.machines = is.machines
   return delta
 }
 
@@ -220,6 +222,7 @@ export function applyDelta(snapshot: Snapshot, delta: Delta): Snapshot {
     sources: merge(snapshot.sources, delta.set.sources, delta.del.sources, KEYED.sources),
     runs: merge(snapshot.runs, delta.set.runs, delta.del.runs, KEYED.runs),
     workflows: merge(snapshot.workflows, delta.set.workflows, delta.del.workflows, KEYED.workflows),
+    machines: delta.machines ?? snapshot.machines,
   }
 }
 

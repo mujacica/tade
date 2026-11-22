@@ -12,6 +12,7 @@ import type { App } from '../../src/app.ts'
 import { awayCollections } from '../../src/away.ts'
 import { watchControls } from '../../src/panels/extensions/state.ts'
 import type { Extensions } from '../../src/wire/extensions.ts'
+import { inputDigest } from '../../src/wire/watch-seen.ts'
 import { type Beatable, beatParts } from '../../src/wire/web-beat.ts'
 import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
 
@@ -34,7 +35,7 @@ interface Looked {
   turnedOn: string
 }
 
-function weather(looked: Looked[]): TadeExtension {
+function weather(looked: Looked[], storms: readonly string[] = []): TadeExtension {
   return {
     name: 'weather',
     title: 'Weather',
@@ -50,7 +51,10 @@ function weather(looked: Looked[]): TadeExtension {
         offers: 'ask',
         check: async (ctx) => {
           looked.push({ watch: 'rain', since: ctx.since, turnedOn: ctx.turnedOn })
-          return { found: [], since: 'radar-cursor' }
+          return {
+            found: storms.map((key) => ({ key, title: `a storm, ${key}` })),
+            since: 'radar-cursor',
+          }
         },
       },
       {
@@ -93,6 +97,7 @@ describe('one machine per repository, in this window', () => {
   async function linked(
     looked: Looked[],
     project: { watches?: string } = {},
+    storms: readonly string[] = [],
   ): Promise<{ far: FarEnd; window: App }> {
     repo.git('remote', 'add', 'origin', REPOSITORY)
     const there = join(tmp('tade-there-'), 'repo')
@@ -130,7 +135,7 @@ describe('one machine per repository, in this window', () => {
       ].join('\n'),
     )
     const extensions = await ExtensionHost.load({
-      builtin: [weather(looked)],
+      builtin: [weather(looked, storms)],
       config: { extensions: {}, projects: { app: { root: repo.root } } },
       home,
     })
@@ -271,6 +276,64 @@ describe('one machine per repository, in this window', () => {
     const lefts = await leftLooks()
     expect(looked).toHaveLength(2)
     expect(looked[1]).toEqual({ watch: 'rain', since: null, turnedOn: lefts.at(-1)?.ts })
+  })
+
+  it('taken back, never offers what the remote already found, and starts from its cursor where both look at the same thing', async () => {
+    const looked: Looked[] = []
+    const storms: string[] = []
+    const { far, window } = await linked(looked, { watches: 'here' }, storms)
+    // Heard from, and not looking with it: the watch is turned on here first.
+    far.watching.set('tade', ['weather.rain'])
+    await until(
+      'vps looking with it',
+      async () => (await listed(window, 'rain'))?.includes('on vps') === true,
+      30_000,
+    )
+    far.watching.set('tade', [])
+    await until(
+      'vps not looking with it',
+      async () => (await listed(window, 'rain'))?.includes('on vps') === false,
+      30_000,
+    )
+    const tools = window.queueTools()
+    await tools.schedule({
+      name: 'Rain',
+      project: 'app',
+      said: 'watch the rain',
+      watch: 'weather.rain',
+      by: 'you',
+    })
+    await tools.change({ schedule: 'rain', change: 'start', by: 'you' })
+    expect(looked).toHaveLength(1)
+
+    // vps takes it, and finds and acts on the first storm there.
+    far.found.set('tade weather.rain', {
+      at: new Date().toISOString(),
+      found: true,
+      since: 'vps-cursor',
+      input: inputDigest({}),
+      seen: ['storm-1'],
+      more: 0,
+    })
+    far.watching.set('tade', ['weather.rain'])
+    await until('the watch left to vps', async () => (await leftLooks()).length >= 1, 30_000)
+    const left = (await leftLooks()).at(-1)
+    // What vps found is written down with the look it was left to vps on.
+    expect(left?.detail).toMatchObject({ on: 'vps', since: 'vps-cursor', handed: ['storm-1'] })
+
+    // vps stops; the watch is this machine's again, from where vps had got to,
+    // and the storm vps acted on is not offered a second time.
+    storms.push('storm-1', 'storm-2')
+    far.watching.set('tade', [])
+    await until(
+      'vps not looking with it',
+      async () => (await listed(window, 'rain'))?.includes('on vps') === false,
+      30_000,
+    )
+    await tools.change({ schedule: 'rain', change: 'start', by: 'you' })
+    expect(looked.at(-1)).toEqual({ watch: 'rain', since: 'vps-cursor', turnedOn: left?.ts })
+    const found = await client.events({ types: ['watch_found'] })
+    expect(found.map((one) => one.detail.key)).toEqual(['storm-2'])
   })
 })
 

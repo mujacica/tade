@@ -224,12 +224,34 @@ describe.skipIf(cannot !== null)(
       )
       expect(vps1.journal()).toContain('"task":"app/refunds"')
       expect(vps2.journal()).toContain('"type":"person_present"')
+      // Each knows this Mac is up: its link beats there, and the first beat is a line.
+      expect(vps1.journal()).toMatch(/"type":"machine_seen"[^\n]*"way":"from","state":"up"/)
+
+      // 2b. A question passed on by this machine's orchestrator is answered here with vps1's words.
+      await wired.client.log.append({
+        type: 'said',
+        detail: { text: 'ask vps1 to start the audit' },
+      })
+      const answer = await window.remoteTools().tell({
+        machine: 'vps1',
+        said: 'start app/audit: audit the refunds log',
+        asked: 'ask vps1 to start the audit',
+      })
+      expect(answer).toContain('The orchestrator on vps1 answered')
+      expect(vps1.journal()).toContain('"task":"app/audit"')
 
       // 3. The window closed while more work finishes there, and a note is
       // taken on vps2; opened again, each says what happened since.
       await say('vps1', 'start app/ledger: reconcile the ledger nightly')
       await until('vps1 to start it', () => vps1.journal().includes('"task":"app/ledger"'), 60_000)
       await window.stop()
+      // The window said goodbye as it quit: closed there, within a beat, and not lost.
+      await until(
+        'vps1 to know this Mac closed',
+        () => /"type":"machine_seen"[^\n]*"way":"from","state":"closed"/.test(vps1.journal()),
+        10_000,
+      )
+      expect(vps1.journal()).not.toMatch(/"type":"machine_seen"[^\n]*"state":"lost"/)
       const noted = spawnSync(vps2.tade, ['remember', 'the faq answers come from support'], {
         encoding: 'utf8',
       })
@@ -285,6 +307,30 @@ describe.skipIf(cannot !== null)(
       const checks = await tools.tool({ machine: 'vps1', tool: 'checks_list', input: {} })
       expect(checks).toContain('app')
       expect(tabs()).toBeDefined()
-    }, 420_000)
+
+      // 6. vps2's Tade closes: this machine hears its goodbye, and a window
+      // opened while it is closed still draws what it last said, as of then.
+      vps2.serving.kill('SIGTERM')
+      await until(
+        'vps2 known closed here',
+        () =>
+          /"type":"machine_seen"[^\n]*"machine":"vps2","way":"to","state":"closed"/.test(
+            readFileSync(join(wired.home, 'events.jsonl'), 'utf8'),
+          ),
+        30_000,
+      )
+      await window.stop()
+      expect(existsSync(join(wired.home, 'machines', 'vps2', 'projection.json'))).toBe(true)
+      terminal = wired.newTerminal()
+      terminal.rows = 50
+      terminal.columns = 160
+      window = await open()
+      await until(
+        'vps2 drawn from what it last said, marked down',
+        () => /○ vps2\]?\s+site/.test(rows()[0] ?? ''),
+        60_000,
+      )
+      await window.stop()
+    }, 480_000)
   },
 )

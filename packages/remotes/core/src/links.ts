@@ -3,6 +3,7 @@ import type { Duplex } from 'node:stream'
 import { printable, type RequiredProgram, type Unsubscribe } from '@tade/core'
 import { callOver } from './call.ts'
 import { type Door, doorOf, Follower, type Reaching } from './follow.ts'
+import { readKept, writeKept } from './kept.ts'
 import { pagesOver } from './pages.ts'
 import {
   type Answer,
@@ -82,9 +83,27 @@ export function rootOk(root: string): boolean {
   return /^\/[A-Za-z0-9_.@+~/-]{0,4095}$/.test(root) && !root.split('/').includes('..')
 }
 
+/**
+ * How often what is held of one remote is written to disk while it moves
+ * (`kept.ts`): a projection moves on every beat that changed something, and
+ * a copy for drawing `as of` after a restart is worth a write every few
+ * seconds, not one per delta. The last one is written as a link is let go of.
+ */
+export const KEEP_EVERY_MS = 5_000
+
 /** A whole link out of a transport. */
 export function linkOver(transport: Transport, options: LinkOptions): RemoteLink {
-  return new Links(transport, options.now ?? Date.now)
+  return new Links(transport, options.now ?? Date.now, options.home)
+}
+
+/** What keeping one remote's projection on disk stands at. */
+interface Keeping {
+  /** The projection last written, by identity: an unchanged one is not written again. */
+  wrote: object | null
+  at: number | null
+  writing: boolean
+  /** A write held back by `KEEP_EVERY_MS`, waiting for its turn. */
+  waiting: ReturnType<typeof setTimeout> | null
 }
 
 class Links implements RemoteLink {
@@ -96,10 +115,13 @@ class Links implements RemoteLink {
   private pressedAt: number | null = null
   private readonly transport: Transport
   private readonly now: () => number
+  private readonly home: string
+  private readonly keeping = new Map<string, Keeping>()
 
-  constructor(transport: Transport, now: () => number) {
+  constructor(transport: Transport, now: () => number, home: string) {
     this.transport = transport
     this.now = now
+    this.home = home
     this.id = transport.id
     this.capabilities = transport.capabilities
     this.programs = transport.programs
@@ -189,6 +211,19 @@ class Links implements RemoteLink {
     follower.press(this.pressedAt)
     this.followers.set(remote.name, follower)
     this.told(remote.name)
+    // What an earlier window kept of it, drawn `as of` until it answers.
+    if (was === undefined) {
+      readKept(this.home, remote.name).then(
+        (kept) => {
+          if (kept !== null && this.followers.get(remote.name) === follower) {
+            this.keepingOf(remote.name).wrote = kept.projection
+            follower.seed(kept)
+          }
+        },
+        // Said on what is held, as a write that failed is; the next write replaces the file.
+        (err: unknown) => follower.keep(err instanceof Error ? err.message : String(err)),
+      )
+    }
   }
 
   async close(name: string): Promise<void> {
@@ -196,7 +231,13 @@ class Links implements RemoteLink {
     if (follower === undefined) return
     this.followers.delete(name)
     await follower.stop()
+    await this.keepNow(name, follower)
+    this.keeping.delete(name)
     this.told(name)
+  }
+
+  async goodbye(): Promise<void> {
+    await Promise.all([...this.followers.values()].map((follower) => follower.goodbye()))
   }
 
   held(name: string): Held | null {
@@ -218,8 +259,8 @@ class Links implements RemoteLink {
     for (const follower of this.followers.values()) follower.beat(now)
   }
 
-  wake(now: number): void {
-    for (const follower of this.followers.values()) follower.wake(now)
+  wake(now: number, went?: number): void {
+    for (const follower of this.followers.values()) follower.wake(now, went)
   }
 
   present(at: number | null): void {
@@ -247,7 +288,70 @@ class Links implements RemoteLink {
     }
   }
 
+  private keepingOf(name: string): Keeping {
+    const had = this.keeping.get(name)
+    if (had !== undefined) return had
+    const made: Keeping = { wrote: null, at: null, writing: false, waiting: null }
+    this.keeping.set(name, made)
+    return made
+  }
+
+  /**
+   * What is held of one remote moved: written to disk if its projection did,
+   * no oftener than `KEEP_EVERY_MS` — one held back is written when its turn
+   * comes, with whatever is held by then.
+   */
+  private keep(name: string): void {
+    const follower = this.followers.get(name)
+    const projection = follower?.value.projection ?? null
+    if (follower === undefined || projection === null) return
+    const keeping = this.keepingOf(name)
+    if (keeping.wrote === projection || keeping.waiting !== null || keeping.writing) return
+    const wait = keeping.at === null ? 0 : KEEP_EVERY_MS - (this.now() - keeping.at)
+    if (wait > 0) {
+      keeping.waiting = setTimeout(() => {
+        keeping.waiting = null
+        this.keep(name)
+      }, wait)
+      keeping.waiting.unref?.()
+      return
+    }
+    void this.keepNow(name, follower)
+  }
+
+  /** Write what is held of one remote now, if it moved since the last write; never throws. */
+  private async keepNow(name: string, follower: Follower): Promise<void> {
+    const keeping = this.keepingOf(name)
+    if (keeping.waiting !== null) clearTimeout(keeping.waiting)
+    keeping.waiting = null
+    const held = follower.value
+    if (held.projection === null || held.heardAt === null || keeping.wrote === held.projection) {
+      return
+    }
+    if (keeping.writing) return
+    keeping.writing = true
+    keeping.at = this.now()
+    try {
+      await writeKept(this.home, name, {
+        projection: held.projection,
+        heardAt: held.heardAt,
+        cursor: held.cursor,
+      })
+      keeping.wrote = held.projection
+      follower.keep(null)
+    } catch (err) {
+      follower.keep(
+        `what was last heard from ${name} could not be kept on this machine, so a window opened while it is down draws nothing of it: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    } finally {
+      keeping.writing = false
+    }
+    // What moved while it was being written is written in its turn.
+    if (this.followers.get(name) === follower) this.keep(name)
+  }
+
   private told(name: string): void {
+    this.keep(name)
     for (const listener of this.listeners) {
       try {
         listener(name)

@@ -1,7 +1,7 @@
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { type Evaluations, TALK_THERE, writeCarried, writeSetting } from '@tade/core'
+import { type Evaluations, type SeenWord, TALK_THERE, writeCarried, writeSetting } from '@tade/core'
 import {
   appendDevice,
   type CarryLine,
@@ -27,6 +27,7 @@ import {
   type TakeAnswer,
   Tickets,
   type ToolReadAnswer,
+  type WatchSeenAnswer,
   type WebConnecting,
   type WebServer,
   webServer,
@@ -161,6 +162,14 @@ export interface FarEnd {
    * opens it under the name asked for and shows it among its projects.
    */
   opening: ((open: Open) => OpenAnswer) | null
+  /**
+   * What its watches have already found, as its window answers an owner taking
+   * one back (`/api/watch/seen`), by `<project> <extension>.<watch>`. A test
+   * sets it; a watch not in it is one it has not got.
+   */
+  readonly found: Map<string, WatchSeenAnswer>
+  /** What machines that link to it said of themselves (`/api/seen`), oldest first, by their label. */
+  readonly seen: { label: string; word: SeenWord }[]
   /** Its window closed and opened again: the same home and port, another epoch. */
   restart(): Promise<void>
   /** Nothing answers on its port any more. Safe twice. */
@@ -229,6 +238,8 @@ class Far implements FarEnd {
   readonly opened: { open: Open; device: string }[] = []
   opening: ((open: Open) => OpenAnswer) | null = null
   readonly acted: FarAct[] = []
+  readonly found = new Map<string, WatchSeenAnswer>()
+  readonly seen: { label: string; word: SeenWord }[] = []
   readonly talk = new FarTalk()
   private agents: readonly FarAgent[] = []
   /** When the agents were last shown: their moments, fixed, so a beat finds nothing moved. */
@@ -333,6 +344,18 @@ class Far implements FarEnd {
           : { command: line }
       },
       repositories: async () => this.repositories,
+      seen: (device, word) => {
+        this.seen.push({ label: device.label, word })
+      },
+      watchSeen: async ({ project, watch }) =>
+        this.found.get(`${project} ${watch}`) ?? {
+          at: new Date().toISOString(),
+          found: false,
+          since: null,
+          input: '',
+          seen: [],
+          more: 0,
+        },
       machine: async () => {
         this.machineAsked++
         return this.machine ?? quietMachine()

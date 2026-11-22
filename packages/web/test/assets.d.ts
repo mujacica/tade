@@ -808,3 +808,16 @@ declare module '*/assets/pages/overview-figures.js' {
   export function failedOf(store: Record<string, any>): readonly any[]
   export function workingOf(store: Record<string, any>): readonly any[]
 }
+
+declare module '*/assets/machines.js' {
+  interface MachineRowIn {
+    name: string
+    way: 'to' | 'from'
+    state: 'up' | 'asleep' | 'closed' | 'lost'
+    since: string
+  }
+  export function machinesOf(store: { machines?: readonly MachineRowIn[] } | null): MachineRowIn[]
+  export function machineSaid(row: MachineRowIn): string
+  export function machineWay(row: MachineRowIn): string
+  export function machineTone(row: MachineRowIn): string
+}

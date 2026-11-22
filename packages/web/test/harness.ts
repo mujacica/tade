@@ -219,6 +219,8 @@ export async function start(
     owned?: Pick<
       ServerOptions,
       | 'machine'
+      | 'seen'
+      | 'watchSeen'
       | 'document'
       | 'tool'
       | 'records'

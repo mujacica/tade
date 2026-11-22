@@ -19,6 +19,8 @@ const vps: Machine = {
   said: null,
   asOf: NOW,
   heard: true,
+  closed: false,
+  seen: [],
   projects: [],
   spend: null,
   talk: { lines: [], rev: 'b0', busy: false, whose: null, mine: true, more: 0 },

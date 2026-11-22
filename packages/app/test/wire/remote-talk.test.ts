@@ -193,12 +193,17 @@ describe('another machine’s orchestrator, from this window', () => {
     expect(far.talk.said).toEqual([])
 
     await client.log.append({ type: 'said', detail: { text: 'ask the vps to start the release' } })
-    const answer = await tools.tell({
+    const told = tools.tell({
       machine: 'vps',
       said: 'start the release',
       asked: 'ask the vps to start the release',
     })
-    expect(answer).toContain('Passed on to the orchestrator on vps')
+    // It waits for that orchestrator to answer, and hands back its words.
+    await until('it to reach vps', () => far.talk.said.length === 1, 20_000)
+    far.talk.reply('Release 1.4 is building on vps; the deploy agent is running.')
+    const answer = await told
+    expect(answer).toContain('The orchestrator on vps answered')
+    expect(answer).toContain('Release 1.4 is building on vps; the deploy agent is running.')
     expect(far.talk.said).toHaveLength(1)
     // Said there as this machine's orchestrator's words, never as the person's.
     expect(far.talk.said[0]?.said).toMatch(

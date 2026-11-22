@@ -28,11 +28,12 @@ describe('the shape of the table', () => {
   it('has exactly the lifecycle routes as its non-GET routes, by name', () => {
     const changing = ROUTES.filter((route) => route.method !== 'GET')
     expect(changing.map((route) => route.name).sort()).toEqual([...LIFECYCLE].sort())
-    // All six are session lifecycle: this browser's own credential, created,
+    // All seven are session lifecycle: this browser's own credential, created,
     // destroyed and proved with its passkey, an owner's word that the person
-    // is at another of their screens (`presence.ts`), and a device's word that
-    // its own page is being looked at (`looking.ts`) — neither of which writes
-    // a file or touches a project. A seventh fails this test until somebody
+    // is at another of their screens (`presence.ts`), a machine link's word
+    // that its machine is up or closing (`seen.ts`), and a device's word that
+    // its own page is being looked at (`looking.ts`) — none of which touches a
+    // project or a task. An eighth fails this test until somebody
     // puts it in `LIFECYCLE` deliberately, which is the conversation the claim
     // is for.
     expect(changing.map((route) => `${route.method} ${route.path}`).sort()).toEqual([
@@ -42,6 +43,7 @@ describe('the shape of the table', () => {
       'POST /api/passkey/answer',
       'POST /api/passkey/challenge',
       'POST /api/presence',
+      'POST /api/seen',
     ])
   })
 
@@ -357,7 +359,7 @@ describe('the doorbells', () => {
 })
 
 describe('the owner’s table', () => {
-  it('is twelve routes, at this machine’s own door only, and none of the five jobs', () => {
+  it('is thirteen routes, at this machine’s own door only, and none of the five jobs', () => {
     // The one route that can write a key (`carried.ts`), and the exception to
     // "no route reaches a credential" above; the one answer that is a way
     // into a lane (`attached.ts`), which every row a phone reads promises
@@ -365,8 +367,9 @@ describe('the owner’s table', () => {
     // wrote (`since.ts`); the person's notes shared, written into what every
     // agent here is told (`shared-notes.ts`); and where each project is
     // checked out, a path no phone reads (`repositories.ts`); what this machine
-    // is, one of its documents, and one of its tools that only reads, run with
-    // this machine's own keys (`machine.ts`, `document.ts`, `tool-read.ts`); its
+    // is, what one of its watches has already found (`watch-seen.ts`), one of
+    // its documents, and one of its tools that only reads, run with this
+    // machine's own keys (`machine.ts`, `document.ts`, `tool-read.ts`); its
     // public name's records, looked at now, which asks the world (`records.ts`);
     // and work another machine hands this one, the one route that makes work
     // (`taken.ts`); and a project it moves here, cloned and opened
@@ -387,6 +390,7 @@ describe('the owner’s table', () => {
       'POST /api/notes/share',
       'POST /api/repositories',
       'POST /api/machine',
+      'POST /api/watch/seen',
       'POST /api/document',
       'POST /api/tool',
       'POST /api/records',

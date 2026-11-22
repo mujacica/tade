@@ -1,4 +1,11 @@
-import { AGENT_MARKS, DONE_RULES, ReviewState, TaskState } from '@tade/core'
+import {
+  AGENT_MARKS,
+  DONE_RULES,
+  MACHINE_STATES,
+  MACHINE_WAYS,
+  ReviewState,
+  TaskState,
+} from '@tade/core'
 import { z } from 'zod'
 import { AGENT_LANES, HOWS } from './acting.ts'
 import {
@@ -603,6 +610,25 @@ export const YouSchema = z.strictObject({
 })
 export type You = z.infer<typeof YouSchema>
 
+/**
+ * One of the person's other machines, as this machine has seen it
+ * (`machines-seen.ts`): one it links to (`to`) or one that links to it
+ * (`from`), up, asleep, closed or lost, and since when in this machine's
+ * clock — so a phone looking at the VPS is told the Mac is closed.
+ *
+ * **Not a collection**: a person has a handful of machines, so the whole list
+ * rides on a snapshot and, where it moved, whole on a delta (`delta.machines`),
+ * the way `you` does. A name and a state are metadata, sent to every device.
+ * An older Tade sends none, which a reader takes as an empty list.
+ */
+export const MachineRowSchema = z.strictObject({
+  name: z.string(),
+  way: z.enum(MACHINE_WAYS),
+  state: z.enum(MACHINE_STATES),
+  since: z.string(),
+})
+export type MachineRow = z.infer<typeof MachineRowSchema>
+
 export const SnapshotSchema = z.strictObject({
   v: z.literal(PROTOCOL_VERSION),
   fresh: FreshnessSchema,
@@ -632,6 +658,7 @@ export const SnapshotSchema = z.strictObject({
   sources: z.array(SourceRowSchema),
   runs: z.array(RunRowSchema),
   workflows: z.array(WorkflowRowSchema),
+  machines: z.array(MachineRowSchema),
 })
 export type Snapshot = z.infer<typeof SnapshotSchema>
 
@@ -695,6 +722,8 @@ export const DeltaSchema = z.strictObject({
     })
     .optional(),
   you: YouSchema.optional(),
+  /** Every machine, whole, whenever any of them moved. */
+  machines: z.array(MachineRowSchema).optional(),
 })
 export type Delta = z.infer<typeof DeltaSchema>
 

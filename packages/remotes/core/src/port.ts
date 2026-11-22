@@ -228,6 +228,21 @@ export interface Held {
    * said rather than left to be noticed.
    */
   presence: string | null
+  /**
+   * What the remote said as its stream last ended, or null where it said
+   * nothing: `closed`, its Tade was closing (the `closing` notice). Kept
+   * through the redials that follow, because a machine whose Tade closed is
+   * still closed while nothing answers, and cleared once it is live again —
+   * which is what tells a machine that closed from one lost without a word.
+   */
+  bye: 'closed' | null
+  /**
+   * Why what is held could not be kept on this machine's disk, or null where
+   * it was or nothing needed keeping. What is kept is what a window opened
+   * while the remote is down draws `as of` (`machineDir`), so a copy that is
+   * not being written is said rather than found out after a restart.
+   */
+  kept: string | null
 }
 
 /** Every way an implementation refuses, with a sentence somebody can act on. */
@@ -351,9 +366,19 @@ export interface RemoteLink {
   /**
    * The machine was away — a lid closed — so whatever is open may be dead
    * without having said so: let go of it and dial again at once, rather than
-   * waiting out a timeout. Holds every projection meanwhile.
+   * waiting out a timeout. Holds every projection meanwhile. `went` is when it
+   * went away, in this machine's clock, where that is known: each remote is
+   * told it once the link is back, so its record says this machine slept
+   * rather than that it was lost.
    */
-  wake(now: number): void
+  wake(now: number, went?: number): void
+  /**
+   * This machine's Tade is closing: say goodbye to every remote whose link is
+   * live, so each records it `closed` rather than lost. Each is given a short
+   * deadline and nothing is waited on past it; never throws. Not `shutdown`,
+   * which lets go of the links for any reason.
+   */
+  goodbye(): Promise<void>
   /**
    * The person last pressed a key here at this moment, in this machine's
    * clock, or null for never. Carried to each remote on a beat, as an age.

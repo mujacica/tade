@@ -185,6 +185,22 @@ export function remoteDocumentPath(
 }
 
 /**
+ * Where this machine keeps what it last heard from another machine of the
+ * person's, by the name it has here (`remotes.<name>`): its last projection
+ * (`projection.json`), so a window opened while that machine is down draws it
+ * `as of` when it was heard rather than as nothing. A copy of what that
+ * machine said about itself, never a second truth about it — and always safe
+ * to delete: the next time it is heard it is written again.
+ */
+export function machineDir(home: string, machine: string): string {
+  // Its name here is held by `RemoteName` in the config; said again so no other path can use it.
+  if (!/^[a-z0-9][a-z0-9-]{0,23}$/.test(machine)) {
+    throw new Error('a machine is kept only by a name `remotes.<name>` can hold')
+  }
+  return join(home, 'machines', machine)
+}
+
+/**
  * What was pasted to the orchestrator: a picture taken off the clipboard at
  * its line, kept in the orchestrator's own folder (`runDir`) beside what its
  * harness keeps there. It went to the temp folder, where nothing ever took one

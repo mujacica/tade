@@ -506,10 +506,14 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   machine's off whatever the key says, and the sentence says what to turn off where. A remote not
   heard from since the window opened holds what the last look said (`last`), as a tree's hold stands
   until a look can read it. Not looking is a quiet look (`notLooking`): `watch_checked` with `on` and
-  `said`, said when it starts being true or says something new, and **no cursor** — the first look
-  back here starts from the last moment the other machine had it (`Watched.elsewhereAt`, handed as
-  `turnedOn`), because what came before was that machine's to find and its keys are not this
-  machine's. A remote that starts looking is written down on the next pass (`handedOver`), not at
+  `said`, said when it starts being true or says something new — and **what that machine had found
+  by then** (`handed`, asked over the link at every such look through `/api/watch/seen`,
+  `app/src/wire/watch-seen.ts`), because the watch usually comes back when that machine stopped
+  answering, the one moment it cannot be asked. Handed keys join `seen` (`handedKeys`, held whole by
+  `ScheduleFold`, never in the newest-looks window), so a watch taken back never offers what the
+  other machine acted on; its cursor comes too only where both watches' inputs hash the same
+  (`inputDigest`), and otherwise the first look back starts from the last moment the other machine
+  had it (`Watched.elsewhereAt`, handed as `turnedOn`). A remote that starts looking is written down on the next pass (`handedOver`), not at
   the watch's next turn; `Schedules.set` and `turnWatch` refuse to turn on what another machine looks
   with, and `writeStanding` does not write it, so it is written the day it is this machine's. The
   row says `on vps` and the card `RUNS ON`; `tade_watches` says it per project; the Extensions page

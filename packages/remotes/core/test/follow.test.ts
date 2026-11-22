@@ -128,3 +128,67 @@ describe('a remote whose connection is cut', () => {
     expect(link.held('vps')?.link.kind).toBe('live')
   })
 })
+
+describe('this machine telling a remote it is up', () => {
+  /** A remote that writes down every body posted to `/api/seen`, and answers each. */
+  async function listening(): Promise<{ port: number; heard: unknown[] }> {
+    const heard: unknown[] = []
+    const port = await remote((res, path) => {
+      if (path !== '/api/seen') return
+      let body = ''
+      res.req.setEncoding('utf8')
+      res.req.on('data', (chunk: string) => {
+        body += chunk
+      })
+      res.req.on('end', () => {
+        heard.push(JSON.parse(body))
+        res.writeHead(200, { 'content-type': 'application/json' }).end('{}')
+      })
+    })
+    return { port, heard }
+  }
+
+  it('says so once the stream is up, how long it slept once it woke, and goodbye as its Tade closes', async () => {
+    const { port, heard } = await listening()
+    const link = linkTo(port)
+    link.open(REMOTE)
+    await until(link, 'the first word', () => heard.length >= 1)
+    expect(heard[0]).toEqual({ state: 'up' })
+    // A wake an hour long: the stream is let go of, dialled again, and the first word says the sleep.
+    const went = Date.now() - 3_600_000
+    link.wake(Date.now(), went)
+    await until(link, 'the word after the wake', () =>
+      heard.some((one) => (one as { slept?: number }).slept !== undefined),
+    )
+    const slept = heard.find((one) => (one as { slept?: number }).slept !== undefined) as {
+      slept: number
+    }
+    expect(slept.slept).toBeGreaterThanOrEqual(3_600_000)
+    await until(link, 'the link up again', () => link.held('vps')?.link.kind === 'live')
+    await link.goodbye()
+    expect(heard.at(-1)).toEqual({ state: 'closed' })
+  })
+
+  it('stops asking a remote that does not take it, and says goodbye to nothing there', async () => {
+    let asked = 0
+    const port = await remote((res, path) => {
+      if (path !== '/api/seen') return
+      asked++
+      res.writeHead(404).end()
+    })
+    const link = linkTo(port)
+    link.open(REMOTE)
+    await until(link, 'the first word refused', () => asked === 1)
+    for (let at = 0; at < 5; at++) link.beat(Date.now() + 60_000 * (at + 1))
+    await link.goodbye()
+    expect(asked).toBe(1)
+  })
+
+  it('says where what it heard could not be kept on this machine', async () => {
+    const { port } = await listening()
+    const link = linkTo(port)
+    link.open(REMOTE)
+    await until(link, 'the keeping said', () => (link.held('vps')?.kept ?? null) !== null)
+    expect(link.held('vps')?.kept).toContain('could not be kept')
+  })
+})

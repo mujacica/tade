@@ -1,4 +1,13 @@
-import type { AgentMark, DoneRule, PlanStanding, ReviewState, Spend, TaskState } from '@tade/core'
+import type {
+  AgentMark,
+  DoneRule,
+  MachineState,
+  MachineWay,
+  PlanStanding,
+  ReviewState,
+  Spend,
+  TaskState,
+} from '@tade/core'
 import type { AgentLane, Can, Cannot, ProjectFacts, TaskFacts } from './acting.ts'
 import type { Places } from './command.ts'
 import type { IntakeIn, RunIn, SourceIn, WorkflowIn } from './factory.ts'
@@ -649,4 +658,21 @@ export interface SnapshotInput {
    * nothing looked at.
    */
   checks: readonly CheckTreeIn[] | null
+  /**
+   * The person's other machines as this one has seen them (`machines-seen.ts`):
+   * the ones it links to and the ones that link to it, each with its state and
+   * since when. Absent is a window that keeps no such record, which projects as
+   * none.
+   */
+  machines?: readonly MachineIn[]
+}
+
+/** One of the person's other machines, as the window hands it over. */
+export interface MachineIn {
+  /** Its name here: `remotes.<name>`, or the label a machine that links here paired with. */
+  name: string
+  way: MachineWay
+  state: MachineState
+  /** Since when, in this machine's clock. */
+  since: number
 }

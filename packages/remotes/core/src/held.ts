@@ -61,6 +61,8 @@ export function heldFor(remote: string): Held {
     heardAt: null,
     cursor: null,
     presence: null,
+    bye: null,
+    kept: null,
   }
 }
 
@@ -145,7 +147,7 @@ export const SIGNED_OUT =
 export function answered(held: Held, status: number, type: string, now: number): Heard {
   if (status === 200 && type.startsWith('text/event-stream')) {
     return {
-      held: { ...held, heardAt: now, link: { kind: 'live', since: now } },
+      held: { ...held, heardAt: now, bye: null, link: { kind: 'live', since: now } },
       next: 'go on',
     }
   }
@@ -190,11 +192,20 @@ export function heard(held: Held, frame: StreamFrame, now: number): Heard {
     }
     case 'delta':
       return deltaHeard(held, frame, now)
-    case 'notice':
+    case 'notice': {
+      // `closing` is the remote's Tade saying goodbye as it closes (`NOTICES`):
+      // a machine that closed, which is not a machine lost without a word.
+      const bye = noticeKind(frame.data) === 'closing' ? 'closed' : held.bye
       return {
-        held: lost(held, 'failed', saidIn(frame.data, 'the remote ended the stream'), now),
+        held: lost(
+          { ...held, bye },
+          'failed',
+          saidIn(frame.data, 'the remote ended the stream'),
+          now,
+        ),
         next: 'drop',
       }
+    }
     case 'revoked':
       return { held: ended(held, saidIn(frame.data, SIGNED_OUT), now), next: 'drop' }
     case 'too_many':
@@ -236,6 +247,13 @@ function deltaHeard(held: Held, frame: StreamFrame, now: number): Heard {
   }
   const cursor = { epoch: at.epoch, rev: Math.max(held.cursor.rev, delta.rev) }
   return { held: { ...held, projection, cursor, heardAt: now }, next: 'go on' }
+}
+
+/** The `kind` a notice's data carries, or null. */
+function noticeKind(data: string): string | null {
+  const read = jsonOf(data)
+  if (!read.ok || !isObject(read.value)) return null
+  return typeof read.value.kind === 'string' ? read.value.kind : null
 }
 
 /** The `said` a frame's data carries, or what to say instead. */
@@ -304,6 +322,9 @@ export function readSnapshot(data: string): Snapshot | string {
   for (const collection of COLLECTIONS) {
     if (!Array.isArray(value[collection])) return `the remote sent a snapshot with no ${collection}`
   }
+  // The person's other machines came later than the protocol's version, so an
+  // older Tade sends none: read as none rather than refused.
+  if (!Array.isArray(value.machines)) return { ...value, machines: [] } as unknown as Snapshot
   return value as unknown as Snapshot
 }
 

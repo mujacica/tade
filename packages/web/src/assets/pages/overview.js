@@ -58,6 +58,7 @@ import {
 import { ageSaid } from '../figures.js'
 import { rowMark, taskMark } from '../glyphs.js'
 import { icon } from '../icons.js'
+import { machineSaid, machinesOf, machineTone, machineWay } from '../machines.js'
 import { quickActs } from '../quick.js'
 import { pathOf, taskPath } from '../routes.js'
 import { section } from '../rows.js'
@@ -120,7 +121,23 @@ export function nowScreen(ctx = null) {
   const recentList = panel('ul', 'rows')
   into(recent.body, recentWhy.body, recentList)
 
-  into(node, top.node, wants.node, failed.node, projects.node, working.node, recent.node)
+  // **The person's other machines**, as this one has seen them: which are up
+  // and which closed, slept or went quiet — only where there are any.
+  const machines = section('MACHINES')
+  foldable(machines, 'overview:machines')
+  const machineList = panel('ul', 'rows')
+  into(machines.body, machineList)
+
+  into(
+    node,
+    top.node,
+    wants.node,
+    failed.node,
+    projects.node,
+    machines.node,
+    working.node,
+    recent.node,
+  )
 
   return {
     node,
@@ -194,6 +211,17 @@ export function nowScreen(ctx = null) {
           one.setAttribute('href', pathOf({ view: 'project', project: row.name }))
           textIn(one.lastChild, row.name)
         },
+      )
+
+      const seen = machinesOf(store)
+      machines.node.hidden = seen.length === 0
+      textIn(machines.figure, seen.length === 0 ? '' : String(seen.length))
+      keyed(
+        machineList,
+        seen,
+        (row) => `${row.way} ${row.name}`,
+        createMachine,
+        (one, row) => fillMachine(one, row),
       )
 
       const agents = workingOf(store)
@@ -531,6 +559,27 @@ function fillProject(node, row) {
 }
 
 /* ── what changed ──────────────────────────────────────────────────────────── */
+
+function createMachine() {
+  const node = el('li')
+  into(
+    node,
+    el('span', { class: 'glyph' }),
+    el('span', { class: 'name' }),
+    el('span', { class: 'aside' }),
+    el('span', { class: 'under' }),
+  )
+  return node
+}
+
+function fillMachine(node, row) {
+  const [glyph, name, said, way] = node.children
+  textIn(glyph, row.state === 'up' ? '●' : '○')
+  toneOn(glyph, machineTone(row))
+  textIn(name, row.name)
+  textIn(said, machineSaid(row))
+  textIn(way, machineWay(row))
+}
 
 function createChange() {
   const node = el('li')

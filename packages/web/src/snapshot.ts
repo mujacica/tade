@@ -4,6 +4,7 @@ import { commandShown } from './command.ts'
 import { callFor } from './conversation.ts'
 import { intakeRow, runRow, sourceRow, type WorkflowIn, workflowRow } from './factory.ts'
 import { withoutPaths } from './fields.ts'
+import type { MachineIn } from './input.ts'
 import {
   type ChatIn,
   type CheckRunIn,
@@ -708,7 +709,21 @@ export function snapshotOf(
     sources: sourcePage.rows.map((one) => sourceRow(one, reach)),
     runs: runPage.rows.map((one) => runRow(one, reach, budget)),
     workflows: workflowPage.rows.map((one) => workflowRow(one, reach, budget)),
+    machines: machineRows(input.machines ?? []),
   }
+}
+
+/** The person's other machines, each named once a way, in name order, every name as text and bounded. */
+function machineRows(machines: readonly MachineIn[]): Snapshot['machines'] {
+  return machines
+    .map((one) => ({
+      name: [...one.name].slice(0, 60).join(''),
+      way: one.way,
+      state: one.state,
+      since: new Date(one.since).toISOString(),
+    }))
+    .filter((one) => one.name !== '')
+    .sort((a, b) => byText(`${a.way} ${a.name}`, `${b.way} ${b.name}`))
 }
 
 function info<T>(from: Page<T>): Snapshot['pages']['tasks'] {

@@ -473,7 +473,12 @@ write into this terminal.
 ![Projects on this Mac and on two servers, and an agent list read from the VPS](https://raw.githubusercontent.com/mujacica/tade/main/images/machines.svg)
 
 When a link drops, nothing goes blank: the machine's name wears `○`, its rows stay as it last said
-them with their ages as of then, and the side says `as of 13:52`.
+them with their ages as of then, and the side says `as of 13:52` — after a restart too, because
+what each machine last said is kept on disk. **Every machine knows which ones are down**: a window
+says goodbye as it quits, so the VPS records the Mac `closed` rather than guessing, a silence with
+no goodbye is `lost`, and a laptop that slept says so when it wakes. Each machine's states ride its
+projection, so a phone looking at the VPS is told the Mac is closed, and its orchestrator is told
+too.
 
 ![A remote whose link is down, its agents as it last said them](https://raw.githubusercontent.com/mujacica/tade/main/images/machines-down.svg)
 
@@ -887,7 +892,8 @@ and dials again by itself after a dropped network, and at once when the lid open
   while its link is down;
 - an agent there opened here: its screen, steer, park, stop, allow or deny, and Enter types into it
   over SSH, or mosh where both machines have it;
-- that machine's orchestrator on a tab beside the Mac's;
+- that machine's orchestrator on a tab beside the Mac's, and the Mac's orchestrator told every
+  machine's projects with each message — and when it passes a question on, given the answer;
 - its checks, schedules, documents and findings on its project tabs, and its spend as a row of its
   own;
 - notes shared both ways, and the collision forecast across both machines' branches of one

@@ -133,6 +133,8 @@ const vpsLinked: Machines = {
       said: null,
       asOf: Date.parse('2026-09-14T09:00:00Z'),
       heard: true,
+      closed: false,
+      seen: [],
       projects: [
         { name: 'checkout', title: null, more: 0, watching: ['sentry.new-errors'], agents: [] },
       ],

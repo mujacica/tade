@@ -21,6 +21,8 @@ afterEach(closeAll)
 /** The routes the person's own device is answered on any door that are asked with a body, by name. */
 const THEIRS = [
   'presence',
+  'seen',
+  'watch seen',
   'carry',
   'attach',
   'since',
@@ -286,6 +288,8 @@ async function wired(): Promise<{ one: Running; asked: string[] }> {
       repositories: heard('repositories'),
       owned: {
         machine: heard('machine'),
+        seen: heard('seen'),
+        watchSeen: heard('watch seen'),
         document: heard('document'),
         tool: heard('tool'),
         records: heard('records'),

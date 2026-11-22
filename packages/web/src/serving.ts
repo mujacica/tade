@@ -19,12 +19,14 @@ import type { Grant, Reach } from './reach.ts'
 import type { WebReading } from './reading.ts'
 import type { WebRecords } from './records.ts'
 import type { WebRepositories } from './repositories.ts'
+import type { WebSeen } from './seen.ts'
 import type { WebNotes } from './shared-notes.ts'
 import type { WebSince } from './since.ts'
 import type { Listener, Scope, Surface } from './surface.ts'
 import type { WebTaking } from './taken.ts'
 import type { Tickets } from './tickets.ts'
 import type { WebToolRead } from './tool-read.ts'
+import type { WebWatchSeen } from './watch-seen.ts'
 
 // What the window hands the away view, and what it hands back.
 //
@@ -211,6 +213,18 @@ export interface ServerOptions {
    * (`presence.ts`). Absent, the route is the `404` of a path nobody wired.
    */
   present?: (device: string, at: number) => void
+  /**
+   * Another machine of the person's said it is up, or that it is closing
+   * (`seen.ts`): a machine link's word about itself, at a moment in this
+   * machine's clock. Absent, the route is the `404` of a path nobody wired.
+   */
+  seen?: WebSeen
+  /**
+   * What one of this machine's watches has already found, for another machine
+   * taking it back (`watch-seen.ts`). Absent, the route is the `404` of a path
+   * nobody wired.
+   */
+  watchSeen?: WebWatchSeen
   /**
    * A paired device saying its own page is in front of somebody, as a moment
    * in this machine's clock (`looking.ts`): only ever about what that device

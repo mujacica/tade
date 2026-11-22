@@ -1,4 +1,13 @@
-import { AGENT_MARKS, type AgentMark, printable, printableLines } from '@tade/core'
+import {
+  AGENT_MARKS,
+  type AgentMark,
+  MACHINE_WAYS,
+  type MachineState,
+  type MachineWay,
+  machineStateOf,
+  printable,
+  printableLines,
+} from '@tade/core'
 import type { Held } from '@tade/remotes-core'
 import { whereYouWere } from './layout.ts'
 import type { MachineDetail } from './machine-there.ts'
@@ -120,11 +129,31 @@ export interface Machine {
    */
   talk: RemoteTalk | null
   /**
+   * It said goodbye as it went — its Tade was closing — so it is down because
+   * it closed, not lost without a word (`Held.bye`).
+   */
+  closed: boolean
+  /**
+   * The person's other machines as it has seen them (its projection's
+   * `machines`): what the VPS knows of the Mac, of a second server, and of
+   * this machine too. Read like everything it wrote; empty from an older Tade.
+   */
+  seen: readonly SeenThere[]
+  /**
    * Everything else it said about itself and its work — findings, requests,
    * plans, warnings, check runs, documents, and what it is (`machine-there.ts`,
    * which folds it): kept, like the rest, as of when it was last heard.
    */
   detail: MachineDetail
+}
+
+/** One of the person's machines as another machine has seen it, as text. */
+export interface SeenThere {
+  name: string
+  way: MachineWay
+  state: MachineState
+  /** Since when, in **this** machine's clock. Null where it did not say. */
+  since: number | null
 }
 
 /** A machine that has said nothing beyond its projects, or nothing at all. */
@@ -231,8 +260,24 @@ export function machineOf(held: Held, skew: number): Machine {
     projects: projection === null ? [] : projectsIn(projection, skew),
     spend: projection === null ? null : spendIn(projection),
     talk: projection === null ? null : talkIn(projection, skew),
+    closed: link.kind !== 'live' && held.bye === 'closed',
+    seen: projection === null ? [] : seenIn(projection, skew),
     detail: NO_DETAIL,
   }
+}
+
+/** The machines another machine says it has seen, every name as text and every word one this Tade knows. */
+function seenIn(projection: Record<string, unknown>, skew: number): SeenThere[] {
+  return listIn(projection.machines)
+    .slice(0, 32)
+    .flatMap((row): SeenThere[] => {
+      const name = text(row.name, NAME_MOST)
+      const state = machineStateOf(row.state)
+      const way = MACHINE_WAYS.find((one) => one === row.way)
+      if (name === '' || state === null || way === undefined) return []
+      const since = Date.parse(stringIn(row, 'since') ?? '')
+      return [{ name, way, state, since: Number.isFinite(since) ? since + skew : null }]
+    })
 }
 
 /** A remote no link here has opened yet, or that no link here can reach. */
@@ -247,6 +292,8 @@ export function unheard(name: string, said: string | null): Machine {
     projects: [],
     spend: null,
     talk: null,
+    closed: false,
+    seen: [],
     detail: NO_DETAIL,
   }
 }
@@ -692,6 +739,10 @@ export function linkWords(
   if (machine.link === 'live') return { note: `on ${machine.name}`, brief: machine.name }
   if (machine.link === 'ended')
     return { note: `✕ ${machine.name} · signed out`, brief: '✕ signed out' }
+  if (machine.link === 'down' && machine.closed && machine.asOf !== null) {
+    const at = clock(machine.asOf)
+    return { note: `○ ${machine.name} · closed · as of ${at}`, brief: `○ closed ${at}` }
+  }
   if (machine.link === 'down' && machine.asOf !== null) {
     const at = clock(machine.asOf)
     return { note: `○ ${machine.name} · as of ${at}`, brief: `○ as of ${at}` }

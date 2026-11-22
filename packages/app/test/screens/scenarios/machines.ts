@@ -55,6 +55,8 @@ const vps = (over: Partial<Machine> = {}): Machine => ({
   said: null,
   asOf: NOW - 3_000,
   heard: true,
+  closed: false,
+  seen: [],
   projects: [
     {
       name: 'tade',
@@ -156,6 +158,8 @@ const lab: Machine = {
   said: null,
   asOf: NOW - 9_000,
   heard: true,
+  closed: false,
+  seen: [],
   projects: [{ name: 'firmware', title: null, more: 0, watching: null, agents: [] }],
   spend: null,
   talk: null,

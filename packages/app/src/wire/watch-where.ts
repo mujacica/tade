@@ -8,6 +8,7 @@ import {
 } from '@tade/core'
 import { unhush } from '../schedules-view.ts'
 import type { Wiring } from './context.ts'
+import type { FoundThere } from './watch-seen.ts'
 
 // Which machine looks with a watch due here (core's `watch-where.ts` has the
 // rule and its argument), and the look that does not happen when it is not
@@ -64,11 +65,12 @@ export function whereNow(
  * Why a watch due here does not look, written down as the quiet look it is —
  * or null, and it looks.
  *
- * A look left to another machine writes no cursor (`since: null`), so the
- * first look back here starts from the last moment the other machine had it
- * (`Watched.elsewhereAt`): what came before that was that machine's to find,
- * and a key it dealt with is not one this machine has seen. A project that is
- * not open keeps its cursor, because nobody else was looking meanwhile.
+ * A look left to another machine carries what that machine had found by
+ * then (`handed`, `watch-seen.ts`) and, where its watch looks at the same
+ * thing, its cursor; with no cursor (`since: null`) the first look back here
+ * starts from the last moment the other machine had it (`Watched.elsewhereAt`),
+ * and either way a key it dealt with is one this machine has seen. A project
+ * that is not open keeps its cursor, because nobody else was looking meanwhile.
  */
 export async function notLooking(
   wire: Wiring,
@@ -76,6 +78,13 @@ export async function notLooking(
   watched: Watched,
   where: WatchWhere,
   asked: boolean,
+  /**
+   * What the machine it is left to had already found with it (`watch-seen.ts`),
+   * or null where that could not be asked: its keys go in the line, so a watch
+   * taken back never offers them again, and its cursor where the two watches
+   * look at the same thing, so the first look back starts where it got to.
+   */
+  foundThere: (machine: string) => Promise<FoundThere | null> = async () => null,
 ): Promise<{ said: string; news: boolean } | null> {
   const last = watched.looks[0]
   const nothing = nothingToWatch(one.project, Object.keys(wire.opts.config.projects))
@@ -92,13 +101,15 @@ export async function notLooking(
   }
   if (where.here) return null
   wire.put(unhush(wire.state, one.id))
+  const there = await foundThere(where.on)
   await wire.opts.client.watchChecked(one.id, {
     found: 0,
     fresh: [],
     left: 0,
-    since: null,
+    since: there?.since ?? null,
     said: where.said,
     on: where.on,
+    ...(there !== null && there.handed.length > 0 ? { handed: there.handed } : {}),
   })
   return {
     said: `${one.name} in ${one.project} is left to ${where.on}: ${where.said}`,

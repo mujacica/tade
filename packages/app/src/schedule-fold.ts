@@ -1,4 +1,11 @@
-import { type HookSource, rungFrom, type TadeEvent, type Watched, watchedFrom } from '@tade/core'
+import {
+  type HookSource,
+  handedKeys,
+  rungFrom,
+  type TadeEvent,
+  type Watched,
+  watchedFrom,
+} from '@tade/core'
 
 // What each schedule has done, folded as the journal says it rather than kept
 // a line apiece.
@@ -48,6 +55,12 @@ export class ScheduleFold {
   private readonly looked = new Map<string, { lines: TadeEvent[]; since: TadeEvent | null }>()
   private readonly found = new Map<string, TadeEvent[]>()
   /**
+   * What other machines had already found with each watch while it was left
+   * to them (`handedKeys`): held whole, because a look's own line scrolls out
+   * of the newest and a key handed over must not scroll out with it.
+   */
+  private readonly handed = new Map<string, Set<string>>()
+  /**
    * Each schedule's doorbell (`Bell`, `hooks.ts`): when a delivery that
    * verified last woke it and from where, and whether a look is owed to it —
    * the next look after a wake is the one the doorbell made, so a look that
@@ -92,6 +105,12 @@ export class ScheduleFold {
       // Held apart, because a look that has scrolled out of the newest is
       // still where the next one starts until another that worked says so.
       if (saysSince(event)) kept.since = event
+      const handed = handedKeys(event)
+      if (handed.length > 0) {
+        const held = this.handed.get(schedule) ?? new Set<string>()
+        this.handed.set(schedule, held)
+        for (const key of handed) held.add(key)
+      }
       this.counted(schedule, event)
       this.readOff(schedule, event)
     } else if (event.type === 'watch_found') {
@@ -166,9 +185,11 @@ export class ScheduleFold {
       watchedFrom([...lines, ...(this.found.get(schedule) ?? [])], schedule),
       schedule,
     )
-    if (!looked?.since || lines.includes(looked.since)) return watched
+    const handed = this.handed.get(schedule)
+    const seen = handed === undefined ? watched.seen : new Set([...watched.seen, ...handed])
+    if (!looked?.since || lines.includes(looked.since)) return { ...watched, seen }
     const { since, elsewhereAt } = watchedFrom([looked.since], schedule)
-    return { ...watched, since, ...(elsewhereAt ? { elsewhereAt } : {}) }
+    return { ...watched, seen, since, ...(elsewhereAt ? { elsewhereAt } : {}) }
   }
 
   /** A watch with its doorbell, where one has ever rung for it. */

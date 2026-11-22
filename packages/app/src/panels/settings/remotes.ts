@@ -500,6 +500,19 @@ function connection(
   const trip =
     about?.roundTrip === null || about === null ? '' : ` · ${about.roundTrip} ms there and back`
   line('Heard', `${heard}${trip}`, machine.link === 'live' ? skin.done : skin.waiting)
+  if (machine.closed)
+    under('it said goodbye as its Tade closed, so it is closed rather than lost', skin.hint)
+  // The person's other machines as it has seen them: whether it knows this Mac closed.
+  for (const one of machine.seen.slice(0, LISTED)) {
+    const when = one.since === null ? '' : ` ${ctx.date(one.since)}`
+    const lost = one.state === 'lost'
+    under(
+      `${one.state === 'up' ? '●' : '○'} it sees ${one.name} ${one.state}${when}${one.way === 'from' ? ', linking to it' : ''}`,
+      lost ? skin.waiting : skin.hint,
+    )
+  }
+  if (machine.seen.length > LISTED)
+    under(`and ${machine.seen.length - LISTED} more machines it sees`, skin.hint)
   if (about === null) {
     if (detail.aboutSaid !== null) under(detail.aboutSaid, skin.hint)
     return

@@ -42,6 +42,7 @@ import { type Tellable, tellOrKeep } from './handed.ts'
 import { Kept } from './kept.ts'
 import { mayRun, type Network, networkOf, wasOffline } from './network.ts'
 import { actOnFound, offerRun } from './proposals.ts'
+import { type FoundThere, foundThereOf } from './watch-seen.ts'
 import { mayWatch, type WatchTools, watchTools } from './watch-tools.ts'
 import { noTwins, notLooking, type WatchTwinsHere, whereNow } from './watch-where.ts'
 
@@ -103,6 +104,8 @@ export interface SchedulesDeps {
   advanceQueue(): void
   /** What the links know of other machines' watches on one project's repository; none without. */
   twins?(project: string): WatchTwinsHere
+  /** What another machine a watch is left to has already found with it (`watch-seen.ts`). */
+  watchThere?(machine: string, project: string, watch: string): Promise<unknown>
 }
 
 export class Schedules implements Subject {
@@ -126,6 +129,8 @@ export class Schedules implements Subject {
   private readonly network: Network
   /** What `views` last made, kept: the fold asks for it every frame. */
   private readonly shown = new Kept<readonly ScheduleView[]>()
+  /** Why a machine a watch is left to could not be asked what it found, by watch: said once. */
+  private readonly handTrouble = new Map<string, string>()
 
   constructor(wire: Wiring, deps: SchedulesDeps) {
     this.wire = wire
@@ -244,6 +249,33 @@ export class Schedules implements Subject {
   }
 
   /** Which machine looks with a watch in a project now (`watchWhere`): schedule `id`'s newest look, and the links. */
+  /**
+   * What the machine a watch is left to had already found with it, as this
+   * machine takes it (`watch-seen.ts`) — or null where it could not say, which
+   * is said once in the strip rather than at every look.
+   */
+  private async foundThere(
+    machine: string,
+    project: string,
+    watch: string,
+    input: Readonly<Record<string, unknown>>,
+    watched: Watched,
+  ): Promise<FoundThere | null> {
+    const ask = this.deps.watchThere
+    if (ask === undefined) return null
+    try {
+      const answer = await ask(machine, project, watch)
+      this.handTrouble.delete(`${machine} ${project} ${watch}`)
+      return answer === null ? null : foundThereOf(answer, watched, input)
+    } catch (err) {
+      const key = `${machine} ${project} ${watch}`
+      const said = `what ${machine} has already found with ${watch} in ${project} could not be asked (${why(err)}): if the watch comes back here, what ${machine} found since it was last asked may be offered again`
+      if (this.handTrouble.get(key) !== said) this.deps.news(said)
+      this.handTrouble.set(key, said)
+      return null
+    }
+  }
+
   where(project: string, watch: string, id: string, watched?: Watched): WatchWhere {
     const looks = () => watched ?? this.wire.live?.watchedOf(id) ?? null
     return whereNow(this.wire, project, watch, looks, this.deps.twins?.(project) ?? noTwins())
@@ -551,7 +583,9 @@ export class Schedules implements Subject {
     // as the quiet look it is rather than thrown as trouble, and said once
     // rather than a line every ten minutes (`watch-where.ts`).
     const where = this.where(one.project, does.watch, one.id, watched)
-    const quiet = await notLooking(this.wire, one, watched, where, asked)
+    const quiet = await notLooking(this.wire, one, watched, where, asked, (machine) =>
+      this.foundThere(machine, one.project, does.watch, does.input, watched),
+    )
     if (quiet) return quiet.news ? say(quiet.said) : quiet.said
     let looked: Awaited<ReturnType<ExtensionHost['look']>>
     // What deliveries named that no look has read: the fold's, out of the

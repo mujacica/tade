@@ -1276,6 +1276,12 @@ export class Workbench {
           on?: string
           /** What deliveries named that this look read, so the next is not handed it (`Watched.rang`). */
           read?: readonly string[]
+          /**
+           * Beside `on`: what the machine it was left to had already found,
+           * which this one had not (`handedKeys`), so a watch taken back never
+           * offers it again.
+           */
+          handed?: readonly string[]
         }
       // `trouble` is classified by the `catch` that held the error (`troubleOf`): that is
       // the only moment anything knows, and a classifier over `problem` breaks on a rewording.

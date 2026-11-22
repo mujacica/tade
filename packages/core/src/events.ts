@@ -585,6 +585,17 @@ export const EventType = z.enum([
   'notes_shared',
   /** Counted present here through an owner's link (`device`): the cursor `since.ts` folds from. */
   'person_present',
+  /**
+   * One of the person's machines changed state, as this one saw it
+   * (`machines-seen.ts`): which (`machine`), which way it is linked (`way`:
+   * `to`, a remote this one links to; `from`, a machine that links here), and
+   * what it is now (`state`: `up`, `asleep`, `closed`, `lost`), with `since`
+   * where it began before it was seen — a sleep said on waking, a silence
+   * counted from the last beat heard. **Transitions and never samples**, for
+   * `remote_linked`'s reason: "was the Mac open last night?" is when it went
+   * and when it came back.
+   */
+  'machine_seen',
   // you
   /** A line you said or typed to Tade, verbatim: what up and ctrl+r bring back. */
   'said',
@@ -757,6 +768,7 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // signed this machine out — is said in the strip as it happens.
   remote_linked: 'routine',
   remote_unlinked: 'routine',
+  machine_seen: 'routine',
   // Notable, as `config_changed` is: somebody changed how a machine is set up,
   // and the person who did not make the change is the one who needs to see it.
   remote_carried: 'notable',

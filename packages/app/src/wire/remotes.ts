@@ -139,6 +139,12 @@ export interface RemotesDeps {
   openLink?: (url: string) => Promise<void>
   /** This machine's Tade, which each remote's is held against: `runningVersion` unless a test says. */
   version?: string
+  /**
+   * A link moved: what it says of the machine at its other end, for the
+   * record of which machines are up (`machines-seen.ts`). Absent, nothing is
+   * written of it.
+   */
+  seen?: (held: Held) => void
 }
 
 export class Remotes implements Subject {
@@ -158,6 +164,8 @@ export class Remotes implements Subject {
   private readonly unreachable = new Set<string>()
   /** Each remote whose Tade was said to be behind this one's, and which two versions it was said of. */
   private readonly behindSaid = new Map<string, string>()
+  /** Why what is held of each remote could not be kept on disk, as last said: said once. */
+  private readonly keptSaid = new Map<string, string | null>()
   /** What reading the file last said went wrong, so it is said once and not every beat. */
   private trouble: string | null = null
   private stopped = false
@@ -563,7 +571,9 @@ export class Remotes implements Subject {
     const woke = this.waking.slept !== null
     for (const link of this.links.values()) {
       link.present(this.deps.lastInputAt())
-      if (woke) link.wake(now)
+      // When it went is told to each remote once the link is back, so its
+      // record says this machine slept rather than that it was lost.
+      if (woke) link.wake(now, now - (this.waking.slept ?? 0))
       link.beat(now)
     }
     this.carries.beat([...this.holder.keys()])
@@ -588,10 +598,40 @@ export class Remotes implements Subject {
     return all
   }
 
-  /** Every link closed. Safe twice. */
+  /**
+   * Every link closed, each remote told goodbye first — this machine's Tade is
+   * closing, so each records it `closed` rather than lost (`seen.ts`). The
+   * goodbye has its own short deadline and is never waited on past it. Safe
+   * twice.
+   */
   async stop(): Promise<void> {
+    if (!this.stopped) await Promise.all([...this.links.values()].map((link) => link.goodbye()))
     this.stopped = true
     await Promise.all([...this.links.values()].map((link) => link.shutdown()))
+  }
+
+  /**
+   * What another machine a watch is left to has already found with it, as it
+   * answered (`/api/watch/seen`): asked over its link, in its own project that
+   * is this one's repository. Null where it has nothing to say about it — an
+   * older Tade there — and a throw, in words, where it could not be asked.
+   */
+  async watchThere(machine: string, project: string, watch: string): Promise<unknown> {
+    const there = this.mirrors?.sameAs(project).find((one) => one.machine === machine)
+    if (there === undefined) {
+      throw new Error(
+        `${machine} has said of no project of its own that it is ${project}'s repository`,
+      )
+    }
+    const reach = this.reach(machine)
+    if (reach === null || !reach.live) throw new Error(`${machine} is not linked now`)
+    const answer = await reach.link.request(machine, '/api/watch/seen', {
+      project: there.project,
+      watch,
+    })
+    if (answer.status === 404) return null
+    if (answer.status !== 200) throw new Error(`${machine} answered ${answer.status}`)
+    return answer.body
   }
 
   /** Open what the config names, and close what it no longer does. */
@@ -638,6 +678,11 @@ export class Remotes implements Subject {
 
   private changed(link: RemoteLink, name: string): void {
     const held = link.held(name)
+    if (held !== null && !this.stopped) this.deps.seen?.(held)
+    if (held !== null && held.kept !== null && held.kept !== this.keptSaid.get(name)) {
+      this.deps.say(held.kept)
+    }
+    if (held !== null) this.keptSaid.set(name, held.kept)
     if (held !== null) this.talks?.moved(name, held)
     if (held !== null) this.agents?.moved(name, held)
     if (held !== null) this.notes?.moved(name, held)
@@ -722,6 +767,8 @@ export function remotesFor(
   subjects: {
     screens: () => { onScreenWith(flow: (ui: Ui) => Promise<void>): Promise<void> }
     files: () => { openFile(path: string): void; openLink(url: string): Promise<void> }
+    /** The record of which machines are up (`machines-seen.ts`), which a link's moves are written to. */
+    seen?: (held: Held) => void
   },
 ): Remotes {
   const say = (said: string) => {
@@ -771,6 +818,7 @@ export function remotesFor(
     configPath: configPathOf(wire.opts),
     lastInputAt: () => wire.state.lastKeyAt,
     now: () => wire.now(),
+    ...(subjects.seen && { seen: subjects.seen }),
     log: async (told) => {
       await wire.opts.client.log.append(told)
     },

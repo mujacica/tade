@@ -267,6 +267,9 @@ export class Away implements Subject {
       answers: this.answers(),
       earlier: this.earlierHalf(),
       present: (device, at) => this.presences.seen(device, at),
+      ...(this.deps.machines && {
+        seen: (device, word, at) => this.deps.machines?.heard(device.label, word, at),
+      }),
       looking: (device, at) => this.push.looking(device, at),
       since: this.presences.since(),
       carrying: carryingFor(this.wire, this.deps.settings),
@@ -930,6 +933,9 @@ export class Away implements Subject {
       // the conversation and unable to send one — a capability that stopped working rather than one
       // that was handed out.
       talk: parts.talk === null ? null : { ...parts.talk, mine: this.mayAsk(reach.device) },
+      // The person's other machines as this one has seen them: a phone looking at the VPS is told
+      // the Mac is closed.
+      machines: this.deps.machines?.rows() ?? [],
       reach,
       lifetime: {
         // The **server's** epoch, so a snapshot's freshness and a delta's `id`

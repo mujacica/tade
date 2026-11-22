@@ -1,4 +1,5 @@
 import { type ClientRequest, request } from 'node:http'
+import { SEEN_EVERY_MS } from '@tade/core'
 import { COOKIE, idFor } from '@tade/web'
 import { FRAME_MOST, framesIn } from './frames.ts'
 import {
@@ -49,6 +50,13 @@ export interface Reaching {
 /** How long one presence may take to be carried before it is given up on. */
 const POST_MS = 10_000
 
+/**
+ * How long a goodbye may take. The window is closing, and a remote that does
+ * not answer in this long is one that will record this machine `lost` instead
+ * — which is what `lost` exists for, and no reason to hold a quit.
+ */
+export const GOODBYE_MS = 2_000
+
 export class Follower {
   private held: Held
   /** The stream being read, while there is one. */
@@ -62,6 +70,17 @@ export class Follower {
   private sent: { pressedAt: number; at: number } | null = null
   private posting = false
   private closed = false
+  /**
+   * This machine's own word to the remote that it is up (`/api/seen`): when it
+   * was last said, whether one is on its way, and whether the remote takes it
+   * at all — an older Tade there does not, and is not asked again until its
+   * stream opens again.
+   */
+  private seenAt: number | null = null
+  private seenPosting = false
+  private seenRefused = false
+  /** When this machine went to sleep, where it woke from one: told once the link is back. */
+  private went: number | null = null
 
   private readonly remote: Remote
   private readonly reaching: Reaching
@@ -104,20 +123,84 @@ export class Follower {
     if (this.held.link.kind === 'live' && presenceDue(this.pressedAt, this.sent, now)) {
       void this.carryPresence(now)
     }
+    if (this.held.link.kind === 'live' && this.seenDue(now)) void this.carrySeen(now)
+  }
+
+  /**
+   * Whether this machine's word that it is up is due: every `SEEN_EVERY_MS`,
+   * and at once whenever a stream opens — a wake redials, so a sleep is told
+   * on the first beat back, and one that did not get through is asked again
+   * at the next interval rather than on every beat.
+   */
+  private seenDue(now: number): boolean {
+    if (this.seenPosting || this.seenRefused) return false
+    if (this.seenAt === null) return true
+    return now - this.seenAt >= SEEN_EVERY_MS
+  }
+
+  /**
+   * Say to the remote that this machine is up — and, the first time after a
+   * sleep, how long ago it went, so its record says it slept rather than that
+   * it was lost (`machines-seen.ts`). A `404` is an older Tade there: asked
+   * again only once its stream opens again.
+   */
+  private async carrySeen(now: number): Promise<void> {
+    const door = this.door
+    if (door === null) return
+    const went = this.went
+    this.seenPosting = true
+    try {
+      const body = went === null ? { state: 'up' } : { state: 'up', slept: Math.max(0, now - went) }
+      const status = await post(door, '/api/seen', body, this.remote)
+      if (status === 404) this.seenRefused = true
+      // Told, or never to be: either way it is not said again.
+      if (went !== null && (status === 200 || status === 404) && this.went === went)
+        this.went = null
+    } finally {
+      this.seenAt = now
+      this.seenPosting = false
+    }
+  }
+
+  /**
+   * This machine's Tade is closing: say so to the remote while the link is
+   * live, within `GOODBYE_MS`. Never throws; a remote that does not hear it
+   * records this machine `lost`, which is true enough.
+   */
+  async goodbye(): Promise<void> {
+    const door = this.reached
+    if (door === null || this.seenRefused) return
+    await post(door, '/api/seen', { state: 'closed' }, this.remote, GOODBYE_MS)
   }
 
   /**
    * The machine was away: whatever is open may be dead without knowing it, so
    * let go of it and dial again now. An ended link stays ended.
    */
-  wake(_now: number): void {
+  wake(_now: number, went?: number): void {
     if (this.closed || this.held.link.kind === 'ended') return
+    if (went !== undefined) this.went = went
     void this.dialNow(true)
   }
 
   /** The person last pressed a key here, then. */
   press(at: number | null): void {
     this.pressedAt = at
+  }
+
+  /**
+   * What this machine kept of the remote from an earlier window (`kept.ts`):
+   * drawn `as of` when it was heard, until the remote says anything itself. A
+   * projection already heard is newer, and is left as it is.
+   */
+  seed(kept: Pick<Held, 'projection' | 'heardAt' | 'cursor'>): void {
+    if (this.closed || this.held.projection !== null) return
+    this.set({ ...this.held, ...kept })
+  }
+
+  /** Why what is held could not be kept on disk, or null where it was: on what is held, for saying. */
+  keep(said: string | null): void {
+    if (said !== this.held.kept) this.set({ ...this.held, kept: said })
   }
 
   /** Stop: no more dials, the stream closed, whatever reaches it let go of. Safe twice. */
@@ -208,6 +291,10 @@ export class Follower {
         return
       }
       this.sent = null
+      // A stream opening is a remote that may have restarted: it is told this
+      // machine is up at once, and one that refused before is asked again.
+      this.seenAt = null
+      this.seenRefused = false
       res.setEncoding('utf8')
       let rest = ''
       res.on('data', (chunk: string) => {
@@ -288,7 +375,13 @@ export function doorOf(door: Door): { socketPath: string } | { host: string; por
 }
 
 /** A POST the guard takes: the exact origin, JSON, the session's token. The status, or 0. */
-function post(door: Door, path: string, body: unknown, remote: Remote): Promise<number> {
+function post(
+  door: Door,
+  path: string,
+  body: unknown,
+  remote: Remote,
+  within = POST_MS,
+): Promise<number> {
   const text = JSON.stringify(body)
   const session = remote.session
   return new Promise((done) => {
@@ -298,7 +391,7 @@ function post(door: Door, path: string, body: unknown, remote: Remote): Promise<
         path,
         method: 'POST',
         agent: false,
-        timeout: POST_MS,
+        timeout: within,
         headers: {
           host: session.host,
           origin: `http://${session.host}`,

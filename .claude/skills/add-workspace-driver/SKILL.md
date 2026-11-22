@@ -236,6 +236,21 @@ over loopback) and `ssh`.
 - **The window writes transitions, not tries** (`wire/remotes.ts`): `remote_linked` once it holds a
   cursor, `remote_unlinked` down or ended, nothing for a redial — and `tade remote status` folds those
   lines (`linksSeen`) rather than asking the window.
+- **Every machine knows which ones are down** (`@tade/core`'s `machines-seen.ts`, the window's
+  `wire/machines-seen.ts`): `machine_seen` transitions, `to` from a link's state (`closed` where the
+  remote's `closing` notice left `Held.bye`, `lost` where it went without one, and a closed machine
+  that still does not answer stays closed), `from` from what a machine that links here says at
+  `/api/seen` — a beat every `SEEN_EVERY_MS` while its window is open (`Follower.carrySeen`), a
+  `goodbye()` as it quits (the port's, with `GOODBYE_MS`; `shutdown` says none, because it lets go
+  for any reason), and on waking how long ago it slept (`wake(now, went)`). Silent past
+  `LOST_AFTER_MS` with no goodbye is `lost`, written by the machine that noticed. A lid closes
+  faster than anything can say so, so a sleep is said when it is over. The list rides the
+  projection whole (`Snapshot.machines`), so a phone on the VPS draws the Mac closed.
+- **What a link held survives a restart** (`kept.ts`): each projection, its `heardAt` and cursor in
+  `<home>/machines/<name>/projection.json`, `0600`, written no oftener than `KEEP_EVERY_MS` and
+  once more as the link is let go of, read back for its shape and seeded only while nothing newer is
+  held — so a window opened while a remote is down draws it `as of`. A write that fails is
+  `Held.kept`, said once.
 - **A call is not the stream** (`call`, `call.ts`): one owner's request, with a deadline on all of it
   and a bound on what is read, over a stream the implementation opens for that call alone
   (`Transport.connect`) — so the CLI with no window open can make one, and one made beside a held

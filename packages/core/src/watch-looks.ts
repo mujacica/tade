@@ -125,6 +125,10 @@ export function watchedFrom(events: readonly TadeEvent[], schedule: string): Wat
     const text = (value: unknown) => (typeof value === 'string' && value !== '' ? value : null)
     const count = (value: unknown) => (typeof value === 'number' ? value : 0)
     if (event.type === 'watch_checked') {
+      // What another machine that looked with it had already found, handed
+      // over while it was left there (`handedKeys`): seen, so a watch taken
+      // back never offers again what that machine acted on.
+      for (const key of handedKeys(event)) seen.add(key)
       const problem = text(event.detail.problem)
       const on = text(event.detail.on)
       if (!problem && 'since' in event.detail) {
@@ -164,6 +168,17 @@ export function watchedFrom(events: readonly TadeEvent[], schedule: string): Wat
   }
   const back = elsewhereAt ? { elsewhereAt } : {}
   return { since, ...back, seen, looks: looks.reverse(), findings: findings.reverse() }
+}
+
+/**
+ * The keys a `watch_checked` line says another machine had already found
+ * (`handed`), written while the watch was left to it (`wire/watch-where.ts`).
+ * Only strings, and only from a line that names the machine it was left to.
+ */
+export function handedKeys(event: TadeEvent): string[] {
+  const handed = event.detail.handed
+  if (!Array.isArray(handed) || typeof event.detail.on !== 'string') return []
+  return handed.filter((key): key is string => typeof key === 'string' && key !== '')
 }
 
 /** How one look went, in a few words: `found 3, 2 new, 1 waits for the next look`, or why it could not look. */

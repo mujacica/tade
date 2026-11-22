@@ -3,6 +3,7 @@ import {
   type Config,
   composeBrief,
   type LaneId,
+  type MachineSeen,
   needsReflection,
   orchestratorAccount,
   ownSignInName,
@@ -17,6 +18,7 @@ import {
   addNews,
   type Ended,
   machinesSaid,
+  machinesTold,
   NEWS_MAX,
   type News,
   TADE_WORDS,
@@ -104,8 +106,10 @@ export interface OrchestratorDeps {
    * nothing is — which is the usual answer, and the strip draws nothing for it.
    */
   credentialProblem(provider: string | null): string | null
-  /** Other machines this window links to, as each last said: a line said with every message. */
+  /** Other machines this window links to, as each last said: said with every message (`machinesTold`). */
   machines?: () => Machines | undefined
+  /** The person's other machines as this one has seen them, both ways (`machines-seen.ts`). */
+  seen?: () => readonly MachineSeen[]
   /** "Nobody is here", said above Tade's own words on a turn it starts (`nobodyHere`), or null. */
   nobodyHere?: () => string | null
 }
@@ -113,6 +117,8 @@ export interface OrchestratorDeps {
 export class Orchestrator implements Subject {
   private readonly wire: Wiring
   private readonly deps: OrchestratorDeps
+  /** The other machines' block as last told, and when: the same block is not told twice running. */
+  private machinesLast: { told: string; at: number } | null = null
   /**
    * Where free text goes, once there is something to send it to.
    *
@@ -442,6 +448,23 @@ export class Orchestrator implements Subject {
     }
     this.wire.draw()
   }
+  /**
+   * The other machines, for this turn: their whole projection the first time
+   * and whenever any of it moved (`machinesTold`), and otherwise the one line
+   * and a word that the rest is as it was told — a block it was already given
+   * is a block it would read again for nothing. Null where there is none.
+   */
+  private machinesNow(): string | null {
+    const told = machinesTold(this.deps.machines?.(), this.deps.seen?.() ?? [], clockOf)
+    if (told === null || told !== this.machinesLast?.told) {
+      this.machinesLast = told === null ? null : { told, at: this.wire.now() }
+      return told
+    }
+    const head = machinesSaid(this.deps.machines?.(), clockOf)
+    const unchanged = `The rest of what each machine said is as you were told at ${clockOf(this.machinesLast.at)}.`
+    return head === null ? unchanged : `${head} ${unchanged}`
+  }
+
   /** Free text, which only the orchestrator can answer; `about` is Tade's, above their words. */
   async ask(text: string, about: string | null = null): Promise<string> {
     if (!this.thinker) return 'The orchestrator is still starting.'
@@ -473,7 +496,7 @@ export class Orchestrator implements Subject {
       projects: this.wire.state.known,
       elsewhere: this.wire.state.elsewhere,
     })
-    const there = machinesSaid(this.deps.machines?.(), clockOf)
+    const there = this.machinesNow()
     const above = [here, there, about].filter(Boolean).join('\n\n') || null
     const message = withNews(text, this.newsWaiting, clockOf, THEIR_WORDS, above)
     this.newsWaiting = []

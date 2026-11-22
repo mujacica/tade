@@ -421,6 +421,22 @@ export const ROUTES: readonly Route[] = [
     theirs: true,
   },
 
+  // **Another machine of the person's is up, or closing** (`seen.ts`): its
+  // link's beat while its window is open, and its goodbye as that window
+  // quits, so this machine knows the Mac closed rather than guessing from a
+  // silence. Lifecycle like `presence`, and for its reasons: a machine link's
+  // word about itself, under the label it paired with, touching no project —
+  // or the person's own phone's (`theirs`), which may say it of itself.
+  {
+    method: 'POST',
+    path: '/api/seen',
+    name: 'seen',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
+
   // **This device's own page is in front of somebody** (`looking.ts`): any
   // paired device, from any listener, and only ever about what *it* is sent —
   // the push sender reads it for that device and no other. Lifecycle for the
@@ -444,6 +460,7 @@ export const LIFECYCLE = [
   'passkey challenge',
   'passkey answer',
   'presence',
+  'seen',
   'looking',
 ] as const
 
@@ -666,6 +683,19 @@ export const OWNED: readonly Route[] = [
     method: 'POST',
     path: '/api/machine',
     name: 'machine',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
+  // What one of this machine's watches has already found (`watch-seen.ts`):
+  // its keys and its cursor, for another machine of the person's taking back
+  // a watch it left here, so nothing this machine acted on is offered twice.
+  // A read of what `watch_found` wrote here, which an `ssh` already allows.
+  {
+    method: 'POST',
+    path: '/api/watch/seen',
+    name: 'watch seen',
     needs: 'read',
     mutates: true,
     here: true,

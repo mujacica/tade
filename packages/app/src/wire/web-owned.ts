@@ -1,5 +1,6 @@
 import type { Wiring } from './context.ts'
 import { notesFor } from './notes-shared.ts'
+import { watchSeenFrom } from './watch-seen.ts'
 import { attachingFor } from './web-attach.ts'
 import type { Lifecycle } from './web-lifecycle.ts'
 import { documentFrom, machineFrom, toolFrom } from './web-machine.ts'
@@ -15,7 +16,8 @@ import { takingFrom } from './web-take.ts'
 // a fetch over the same SSH, and what this machine is, one of its documents
 // and one of its tools that only reads (`web-machine.ts`) — the first out of
 // the away view's own facts, which only it holds — its public name's records
-// looked at now (`web-records.ts`), and work it hands this
+// looked at now (`web-records.ts`), what one of its watches has already
+// found, for a machine taking it back (`watch-seen.ts`), and work it hands this
 // machine to start (`web-take.ts`) and a project it moves here, opened
 // (`web-open.ts`). One place, so the away view's wiring names them once.
 
@@ -35,6 +37,7 @@ export function ownedFor(wire: Wiring, away: () => PanelFacts, lifecycle?: Lifec
     tool: toolFrom(wire),
     records: recordsFrom(wire),
     taking: takingFrom(wire),
+    watchSeen: watchSeenFrom(wire),
     ...(lifecycle === undefined ? {} : { opening: openingFrom(wire, lifecycle) }),
   }
 }

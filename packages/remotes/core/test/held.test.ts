@@ -175,6 +175,28 @@ describe('what a frame does', () => {
     expect(heard(live, frame('delta', delta(1, 'b'), `${EPOCH}:1`), NOW).next).toBe('redial')
   })
 
+  it('remembers a goodbye through the redials after it, and forgets it once the remote is back', () => {
+    const closing = heard(
+      upAt3(),
+      frame('notice', JSON.stringify({ kind: 'closing', said: 'Tade is closing' })),
+      NOW,
+    ).held
+    expect(closing.bye).toBe('closed')
+    // Nothing answers while its Tade is closed: still closed, not lost.
+    const redialled = lost(dialling(closing, NOW + 1_000), 'failed', 'nothing answers', NOW + 2_000)
+    expect(redialled.bye).toBe('closed')
+    // A notice that is not a goodbye — the away view turned off — is not one.
+    const off = heard(upAt3(), frame('notice', JSON.stringify({ kind: 'off', said: 'off' })), NOW)
+    expect(off.held.bye).toBeNull()
+    const back = answered(redialled, 200, 'text/event-stream', NOW + 3_000).held
+    expect(back.bye).toBeNull()
+  })
+
+  it('reads a snapshot from a Tade that names no machines as naming none', () => {
+    const read = readSnapshot(snapshot(3, ['a']))
+    expect(typeof read !== 'string' && read.machines).toEqual([])
+  })
+
   it('goes down on a notice or one stream too many, and ends on a revocation, in the remote’s words', () => {
     const closing = heard(
       upAt3(),

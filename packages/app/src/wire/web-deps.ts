@@ -1,6 +1,7 @@
 import type { InboxRow } from '@tade/core'
 import type { Waking } from './doorbell.ts'
 import type { LinearTokens } from './linear-tokens.ts'
+import type { MachinesSeen } from './machines-seen.ts'
 import type { Settings } from './settings.ts'
 import type { Talking } from './web-asking.ts'
 import type { FactoryHeld } from './web-beat.ts'
@@ -13,6 +14,13 @@ import type { Lifecycle } from './web-lifecycle.ts'
 
 /** What the away subject needs of the rest of the window. */
 export interface AwayDeps {
+  /**
+   * The person's other machines (`machines-seen.ts`): what one that links here
+   * said of itself (`/api/seen`), and every one as the projection draws it.
+   * Two methods, never the subject. Absent, the route is the `404` of a path
+   * nobody wired and the projection names no machine.
+   */
+  machines?: Pick<MachinesSeen, 'heard' | 'rows'>
   /** What the approve/deny keys do when no device is waiting to be let in. */
   decided(allow: boolean): void | Promise<void>
   /** Said in the strip, where somebody who was not looking at the panel sees it. */
