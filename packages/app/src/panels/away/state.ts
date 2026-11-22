@@ -115,7 +115,7 @@ export const AWAY_CONTROLS = {
    * Let one device act, or take it back: `away-act:<id>`.
    *
    * **The only door a scope widens through, and it is a keypress here.**
-   * DESIGN.md §9.1's *pairing and scopes are never remote*: the thing that
+   * *Pairing and scopes are never remote*: the thing that
    * grants authority is never reachable from inside the authority it granted,
    * so there is no route, no tool and no config key for this — it is a control
    * on this panel, at this machine, about one device. Drawn only where

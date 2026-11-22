@@ -133,7 +133,7 @@ describe('with acting turned on but nothing wired up', () => {
 
 describe('a crafted call', () => {
   it('cannot be a cross-site form post, whatever else it gets right', async () => {
-    // §8.6's decision, asserted on a verb: a simple-request `POST` with a form
+    // The cross-site rule, asserted on a verb: a simple-request `POST` with a form
     // content type is the shape that tries, and it is refused before anything
     // about the act is read.
     const { one, cookie, csrf } = await ready()
@@ -309,7 +309,7 @@ describe('off this machine', () => {
   })
 
   it('is refused over the same name in plain http, which is the downgrade', async () => {
-    // **DECISIONS §4.3, re-asked at the act.** A credential that crossed a
+    // **The plain-HTTP rule, re-asked at the act.** A credential that crossed a
     // network in the clear never buys an act — and the grant the person made
     // at the machine does not change that, because what is being checked is
     // the transport this particular request arrived on.

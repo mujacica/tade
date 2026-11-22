@@ -578,7 +578,7 @@ export function input(over: Partial<SnapshotInput> = {}): SnapshotInput {
       // warning is the only metadata field whose words are composed outside
       // this package, and a fixture whose warnings happen to have no path in
       // them is the leakage test passing while the claim is false — which is
-      // the failure DECISIONS.md §4.11 names, and is the one that happened.
+      // the failure that happened.
       `sentry: ${PRIVATE.root}: fatal: not a git repository (or any of the parent directories): .git`,
       `${PRIVATE.worktree}: could not compare with main`,
       `sentry/gone: no worktree of its own any more; its files are in ${PRIVATE.home}/projects/sentry/tasks/gone`,

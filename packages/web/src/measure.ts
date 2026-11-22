@@ -4,8 +4,8 @@ import { COLLECTIONS } from './protocol.ts'
 
 // How big a projection is, measured without printing a word of it.
 //
-// DESIGN.md §10.7 asks for numbers from the owner's own machine — bytes per
-// second for one viewer, for four, and the idle cost — and says plainly that an
+// The numbers that matter come from the owner's own machine — bytes per
+// second for one viewer, for four, and the idle cost — and an
 // RSS figure is a fact about one machine and not a test threshold. The problem
 // with getting those numbers is that the obvious way to get them is to dump a
 // real projection and look at it, which puts every task title, every note and

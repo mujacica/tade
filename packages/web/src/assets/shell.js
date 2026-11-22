@@ -2,7 +2,7 @@
 // navigation, the bars that say how the page stands to the machine, and the
 // region a screen reader is told about.
 //
-// **The freshness line is the most important thing on the page**, and §5.10 is
+// **The freshness line is the most important thing on the page**, and this is
 // why: when the stream drops, every row keeps its last state and the page gains
 // one bar. No row changes glyph, no count changes, nothing becomes nought.
 // *Unreachable is never stopped* — a sleeping laptop runs nothing, and a page

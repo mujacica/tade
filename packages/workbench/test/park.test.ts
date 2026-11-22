@@ -175,8 +175,8 @@ describe('a park expressed against the state it expects', () => {
   })
 
   it('refuses a replay of the act that already happened', async () => {
-    // **The guarantee the idempotency key is only a fast path for**
-    // (DECISIONS §4.6): the same request sent twice meets a target that has
+    // **The guarantee the idempotency key is only a fast path for**:
+    // the same request sent twice meets a target that has
     // moved on, whatever the key store remembers — so a captured `POST`
     // replayed after a restart, or after its key fell out of the window, is a
     // refusal rather than a second act.
@@ -226,7 +226,7 @@ describe('who asked for a park', () => {
   })
 
   it('is `you` at the keyboard, and the device\u2019s own id from away', async () => {
-    // **Provenance at the act, not in a prompt** (DECISIONS §4.5). A remote
+    // **Provenance at the act, not in a prompt.** A remote
     // park recorded as `you` would make `historyFrom` count it as the person's
     // own doing, and would put a line nobody said in front of anything that
     // reads the journal for what the person asked for.
@@ -274,7 +274,7 @@ describe('work that came from outside this machine', () => {
 
   it('is not picked up again by a request from off the machine', async () => {
     // **A proposed intake is a parked task**, so lifting one is approving it —
-    // DESIGN §9.1's *accept work from an outside source*, which is never
+    // *accept work from an outside source*, which is never
     // remote, and whose `answer`-tier cousin needs two re-checks nothing has
     // built. The verb does not reach it until something does.
     const id = await fromATicket()

@@ -107,7 +107,7 @@ export function headersFor(kind: Kind, type: string, etag?: string): Record<stri
     // host gets to be one (`NEVER_TRUSTED` is the other half). A proxy that buffers a
     // response until it has a few hundred bytes turns a live stream into a
     // page that says nothing for a minute, which is indistinguishable from a
-    // machine that went to sleep — and §5.10's whole job is telling those
+    // machine that went to sleep — and the freshness line's whole job is telling those
     // apart. Sent as hints and relied on by nothing: `STREAM_OPENING` pads
     // past the usual buffer, so the stream works through a proxy that ignores
     // both.

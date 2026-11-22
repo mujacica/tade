@@ -21,7 +21,7 @@ import type { Scope } from './surface.ts'
 // in — the nearest thing to one would be a route taking a verb and a payload
 // of `unknown`, and the table below is what it was replaced with.
 //
-// **Every verb is a target plus the state it expects.** DECISIONS §4.6: the
+// **Every verb is a target plus the state it expects.** The
 // idempotency key is a fast path and never the guarantee. What makes a captured
 // `POST` safe to replay — after the key has fallen out of memory, after a
 // restart, after the receipts file was deleted — is that the act names what it
@@ -182,7 +182,7 @@ export interface Verb {
   /** The last segment of its path, and the word in the journal. */
   name: string
   /**
-   * The scope a device needs for it, out of §9.1's matrix.
+   * The scope a device needs for it, out of the scope matrix.
    *
    * Declared per verb and not per route table, which is why there is a route
    * each: the guard's scope check is exact, so a device granted `answer` and
@@ -205,7 +205,7 @@ export interface Verb {
 
 export const PARK: Verb = {
   name: 'park',
-  // `steer` and not `answer`: §9.1's matrix puts park/unpark at the steer tier,
+  // `steer` and not `answer`: the scope matrix puts park/unpark at the steer tier,
   // because setting work aside changes what Tade will start by itself, and
   // answering a question that is already waiting does not.
   needs: 'steer',
@@ -236,7 +236,7 @@ export const PARK: Verb = {
 /**
  * Allow or deny what an agent is held on.
  *
- * `answer` and not `steer`: §9.1's matrix puts answering a question that is
+ * `answer` and not `steer`: the scope matrix puts answering a question that is
  * already waiting at the gentler tier, because it chooses between two things
  * the agent itself offered and changes nothing Tade would start by itself. A
  * device granted `answer` and nothing else can do this and cannot park, steer,
@@ -679,12 +679,12 @@ export const OPEN: Verb = {
  *
  * Twelve, and the order is the order they arrived in rather than a ranking:
  * park went first because it was the smallest act that proved the path, the
- * next seven are §9.1's matrix filled in, and the last four are the lifecycle
+ * next seven are the scope matrix filled in, and the last four are the lifecycle
  * — an agent stopped and opened again, a project closed and opened again. What
  * they have in common is the shape the first one established — a target, the
  * state it expects, and a method on `WebActing` — and what they have in common
  * is also the limit: **none of them takes a path, a command, a credential, a
- * setting or a prompt**, and the three §9.1 calls `never remote` are absent
+ * setting or a prompt**, and the three acts that are `never remote` are absent
  * rather than refused. There is no push, no merge, no check override, no
  * account change, no grant and no new agent, because there is no method here
  * one could be called through.

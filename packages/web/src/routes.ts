@@ -46,7 +46,7 @@ import { VERBS } from './verbs.ts'
 // the `ToolHost`. One
 // route reads the settings, behind a grant, and the one that writes one is
 // `SETTINGS`, built only where `surfaces.web.settings` says so and reaching
-// `settingReach`'s `open` tier and nothing else (`configuring.ts`). By §10.8 a path that is not in
+// `settingReach`'s `open` tier and nothing else (`configuring.ts`). A path that is not in
 // the table is a `404` and not a `403` — an off capability is not a thing to
 // probe — so the absences cost nothing to keep.
 
@@ -281,7 +281,7 @@ export const ROUTES: readonly Route[] = [
   },
 
   // Pairing: the one route that mints a credential, and the one route with no
-  // credential to present. DECISIONS §4.2.
+  // credential to present.
   {
     method: 'POST',
     path: '/api/pair',

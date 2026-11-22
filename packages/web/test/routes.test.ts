@@ -50,7 +50,7 @@ describe('the shape of the table', () => {
   })
 
   it('has exactly one route that mints a credential, and it is the pairing route', () => {
-    // DECISIONS §4.2: `/api/pair` cannot present a token it has not minted, so
+    // `/api/pair` cannot present a token it has not minted, so
     // it is the one route with no session to take one from. The exemption is
     // this route and no other, which is what this line is for.
     const opens = ROUTES.filter((route) => route.opens === true)
@@ -93,9 +93,9 @@ describe('the shape of the table', () => {
   })
 
   it('serves no route that reads, writes or publishes anything of the machine’s', () => {
-    // The absences, named: each of these is a `never remote` line of DESIGN
-    // §9.1 and a route somebody could add without noticing they had crossed
-    // one. By §10.8 a path not in the table is a `404`, so keeping them absent
+    // The absences, named: each of these is a `never remote` line
+    // and a route somebody could add without noticing they had crossed
+    // one. A path not in the table is a `404`, so keeping them absent
     // costs nothing.
     const paths = ROUTES.map((route) => route.path)
     for (const forbidden of [

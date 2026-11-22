@@ -13,8 +13,8 @@ import { readBody } from './request.ts'
 // `presence.ts` counts an owner only, and its reason stands: a phone's session
 // saying "the person is here" would be a copied session able to silence every
 // notification this machine sends, to every device, for as long as it kept
-// saying so. §5.3 still wants a phone with the page open in front of somebody
-// to count. Both are true at once only if what a phone says is **about that
+// saying so. Yet a phone with the page open in front of somebody still
+// has to count. Both are true at once only if what a phone says is **about that
 // phone and nothing else**:
 //
 // 1. **It quiets what this device is sent, and nothing anybody else is.** The

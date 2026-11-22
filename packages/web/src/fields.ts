@@ -17,7 +17,7 @@
 //
 // The claim the projection makes, exactly: *the away view adds no path and no
 // credential of its own, and it shows what you wrote as you wrote it.*
-// Anything stronger is a promise this design cannot keep (DECISIONS.md §4.11).
+// Anything stronger is a promise this design cannot keep.
 
 /** One string found in a projection, and where it was. */
 export interface Found {
@@ -135,8 +135,8 @@ export function outside(at: string): boolean {
  * This is the hook for whatever reads work in from outside later — a ticket, a
  * Slack thread, a review comment — and it is a hook in the only shape that
  * holds: **a name that fails a test**, not a reserved column. Nothing here
- * reserves a route, a key or a type for an intake; DECISIONS.md §1 is explicit
- * that a reserved thing nobody earned is a setting with no reader by another
+ * reserves a route, a key or a type for an intake: a reserved thing nobody
+ * earned is a setting with no reader by another
  * name. What this does is make the *shape* of the mistake fail.
  *
  * The mistake, specifically. A connector written months from now hands the
@@ -213,8 +213,8 @@ export const ELIDED = '…'
  * taken out of it.
  *
  * **Which sentences, and why one of them needed this.** The projection's claim
- * is *the away view adds no path and no credential of its own*
- * (DECISIONS.md §4.11), and every metadata field honours it by construction —
+ * is *the away view adds no path and no credential of its own*,
+ * and every metadata field honours it by construction —
  * `away.ts` writes each one out and `root`, `worktree` and `cwd` are names a
  * projection may never have. `Freshness.warnings` is the exception, and it is
  * the exception because it is the one metadata field whose text is **composed
@@ -222,7 +222,7 @@ export const ELIDED = '…'
  * when a project's checkout will not answer, and the away view carries what it
  * is handed. A leakage test over a fixture whose warning happens to have no
  * path in it passes while the claim is false — which is the failure
- * DECISIONS.md §4.11 names by name, and is the one that happened.
+ * that happened.
  *
  * So the claim is kept **here**, at the boundary that makes it, rather than by
  * asking every present and future warning to be written carefully. What a page

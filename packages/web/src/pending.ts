@@ -27,8 +27,8 @@ import { type NotClaimed, type Tickets, ticketValue } from './tickets.ts'
 // - **It is on the disk for `PENDING_MS`, readable by everything running as
 //   you** — an agent on this machine included. That agent can already append a
 //   `paired` line and let itself in (`DEVICES_AND_AGENTS`), so a digest it can
-//   read and cannot present widens nothing. Where agents run as another user
-//   (§8.4), it cannot read the file at all.
+//   read and cannot present widens nothing. Where agents run as another user,
+//   it cannot read the file at all.
 // - **One use, burned on the claim twice**: in memory first and synchronously
 //   (`Tickets.spend`), so two requests racing with one code never both mint;
 //   then on the disk, a `claimed` line written *before* the device is, so a

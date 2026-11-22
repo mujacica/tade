@@ -11,7 +11,7 @@
 // Everything a person wrote, every figure of money, every forge url and every
 // sign-in's name is a grant, made at the machine, per device.
 //
-// This **narrows** DESIGN.md §10.3, which decided `intent_spoken` and notes are
+// This **narrows** the first design, which decided `intent_spoken` and notes are
 // "shown" in Phase 1. That decision stands and is the right default for the
 // owner's own phone — but it is expressed here as a grant rather than as a
 // constant, for the reason the repository already gives about reading a

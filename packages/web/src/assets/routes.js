@@ -3,7 +3,7 @@
 // **Real paths, real history.** `pushState` over the paths the server itself
 // serves the shell at, so every screen is deep-linkable, the back button is
 // correct, and a reload lands on the same screen rather than at the top. No
-// hash routing: the fragment is where the pairing ticket lives (§8.2), and a
+// hash routing: the fragment is where the pairing ticket lives, and a
 // router that owned it would put a one-use credential into every navigation.
 //
 // **Every view here is a path in `src/routes.ts`.** A client route the server

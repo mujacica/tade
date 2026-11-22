@@ -60,7 +60,7 @@ describe('a cursor off the wire', () => {
 })
 
 describe('what to do about a cursor', () => {
-  // DESIGN §10.5, one row each. The three answers that are not `replay` all
+  // The answers, one row each. The three answers that are not `replay` all
   // end with the client holding a whole projection, which is what makes every
   // failure here recoverable rather than merely handled.
   const table: {

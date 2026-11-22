@@ -625,10 +625,10 @@ export interface Granted {
  *
  * There is deliberately no other door: no route, no orchestrator tool and no
  * config key, because the thing that grants authority is never reachable from
- * inside the authority it granted (DESIGN.md §9.1).
+ * inside the authority it granted.
  *
  * **What it grants is both tiers**, and that is a decision rather than a
- * convenience. §9.1's matrix has two — `answer` for choosing between things an
+ * convenience. The scope matrix has two — `answer` for choosing between things an
  * agent itself offered, `steer` for changing what gets done — and one control
  * that granted only the gentler one would mean a phone that can allow a
  * command and cannot set the work aside, which is the wrong half. A control

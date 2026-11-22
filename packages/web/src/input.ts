@@ -47,7 +47,7 @@ import type { Reach } from './reach.ts'
 //
 // So the projection's claim is exactly this and nothing stronger: **the away
 // view adds no path and no credential of its own, and it shows what you wrote
-// as you wrote it.** (DECISIONS.md §4.11.) Every field below says which of the
+// as you wrote it.** Every field below says which of the
 // two it is.
 
 /**
@@ -125,8 +125,8 @@ export interface CheckTreeIn {
  * characters of its JSON arguments. It is a raw tool payload with a machine
  * path in it, and it is the single most common reason a task is blocked.
  *
- * So DESIGN.md §10.2's rule 6 (*`reason` is verbatim*) and its rule 1 (*no
- * absolute path, ever*) contradict each other in the commonest case on the
+ * So the rules *`reason` is verbatim* and *no
+ * absolute path, ever* contradict each other in the commonest case on the
  * page, and the contradiction is settled here rather than left to whoever
  * writes the app's side: the summary **never arrives as a reason**, so there is
  * nothing to leave out by accident. The projection writes the same clause from
@@ -191,7 +191,7 @@ export interface TaskIn {
    * A moment and never an elapsed figure. An `ageMs` on a row changes on every
    * beat, which would make every row differ from the last beat's and turn a
    * tick of the clock into a resend of the whole tree — see `tick` in
-   * `delta.ts`. DESIGN.md §10.2 has `ageMs` on `TaskRow`; this is that field
+   * `delta.ts`. The first design had `ageMs` on `TaskRow`; this is that field
    * corrected.
    */
   movedAt: number | null
@@ -624,7 +624,7 @@ export interface SnapshotInput {
    * `budget.warnings`, and `test/leak.test.ts` holds it against a fixture
    * carrying the shapes status actually writes — because a fixture whose
    * warnings happen to have no path in them is that test passing while the
-   * claim is false, which is the failure DECISIONS.md §4.11 names.
+   * claim is false, which is the failure that happened.
    */
   warnings: readonly string[]
   /** When the machine came up, or null where it could not be read: `unknown`, not nought. */

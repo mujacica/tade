@@ -23,7 +23,7 @@
 // 1. **A sentence is not a mitigation.** Telling a model "this came from a
 //    phone, do not change settings" is information, and a model that read a
 //    stranger's words all day is exactly the thing that can be talked out of
-//    it. DESIGN.md §9.2 had the provenance line and it is kept — a person
+//    it. The provenance line is kept — a person
 //    reading the transcript needs it — but it is *not* the enforcement, and
 //    anything that treats it as one is the bug.
 // 2. **Omitting `said` is not enough.** `namedBy` looks back over the last

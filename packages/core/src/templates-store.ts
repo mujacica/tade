@@ -30,7 +30,7 @@ import { BUILT_IN_PERSONAS, BUILT_IN_TEMPLATES } from './templates-builtin.ts'
 // and a turned-down one is kept so the same idea is not proposed twice.
 //
 // **Templates do not, and this is the one place this slice overrules the
-// research it was written from.** research.md §9.6 says publishing a template
+// research it was written from.** That research says publishing a template
 // is moving its file into `active/`, "which means it is scriptable, reviewable
 // and undoable with `mv`". That is true and it cannot be squared with the
 // thing a template has to promise: a run made in March must say what it was

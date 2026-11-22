@@ -58,8 +58,8 @@ export interface IntakeDoors {
 // panel or an HTTP body. **One of the four is now reachable from off this
 // machine and three are not**: a paired device may *approve* through
 // `approveIntake`, under the `intake` verb, and it may not refuse, retry or
-// read a request's own text. That is the seam research.md asks for, used for
-// exactly what DECISIONS.md allows — *configuring intake is never remote*, so
+// read a request's own text. That is the seam, used for exactly what is
+// allowed — *configuring intake is never remote*, so
 // a phone approves what a local grant already allowed and may not create the
 // grant, widen it, or reply to anybody.
 //
@@ -239,8 +239,8 @@ async function rowFor(tade: IntakeDoors, item: string, act: InboxAct): Promise<I
  *
  * **And where the asking is not a person at this machine, the source is asked
  * too, here.** A keypress is somebody who has read the request deciding about
- * it; a request from a paired device is not, and the two re-checks DESIGN
- * §9.1 asks of approving one from away are the grant and *the source still
+ * it; a request from a paired device is not, and the two re-checks
+ * approving one from away needs are the grant and *the source still
  * saying what it said* (`parked.ts`'s `NotYours` has the argument). So a `by`
  * that is not `you` must bring `stands`, and one that does not is **refused**
  * rather than approved without it: a check nobody could make is not a check

@@ -463,7 +463,7 @@ describe('the clock an age is counted against', () => {
   })
 
   it('is the server’s last word whenever it is not, so ages stop', () => {
-    // The one rule §5.10 exists for. An age counting up against a snapshot
+    // The one rule the freshness line exists for. An age counting up against a snapshot
     // nothing can refresh is a page lying about somebody's morning.
     const { store } = held()
     for (const standing of ['stale', 'reconnecting', 'unreachable', 'closed']) {

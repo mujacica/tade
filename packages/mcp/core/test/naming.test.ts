@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest'
 
 // What a brokered tool is called, and what it may never be called.
 //
-// All of §6.1 lives here as tables, because this is the one piece of the
+// All of the naming rules live here as tables, because this is the one piece of the
 // design that a model notices going wrong: a name that moves is a tool an
 // agent reaches for and misses, and a name that shadows one of Tade's own is
 // a tool that quietly never wins.

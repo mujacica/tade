@@ -91,8 +91,8 @@ in step.
   Superseded, contradicted, no longer true are judgements: the orchestrator proposes them and
   retires one only on a line the person said lately (`theirLine`, the check a document approval
   uses), so it is never silent and never on something it read.
-- **Notes are shared between homes, as a union of lines** (§9.6;
-  `notes-shared.ts`, `Memory.shared`/`take`): every line but `came` is given to each machine the
+- **Notes are shared between homes, as a union of lines** (`notes-shared.ts`,
+  `Memory.shared`/`take`): every line but `came` is given to each machine the
   window is linked to and theirs are taken, so each `memory.jsonl` is the union of all of them. It
   is safe because nothing is rewritten and every later word names its note by `(at, text)`: **the
   fold reads every note first and every later word after**, so the same lines in any order are the

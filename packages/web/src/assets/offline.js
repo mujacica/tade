@@ -159,7 +159,7 @@ export async function forgetView() {
  *
  * The heading is the age and not a count, because the age is the thing that
  * decides whether any of the numbers under it are worth reading. The sentence
- * under them is the one §5.10 is about, said for a page that is not merely
+ * under them is the one the freshness line is about, said for a page that is not merely
  * stale but was drawn from a disk: nothing here is now, and nothing here can
  * be done.
  */

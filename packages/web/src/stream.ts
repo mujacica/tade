@@ -131,7 +131,7 @@ export type Resume =
  * never held anything — in which case the only client that can be caught up is
  * one already at `rev`.
  *
- * The order is the order of §10.5 and each line is a different kind of wrong:
+ * The order is deliberate, and each line is a different kind of wrong:
  * no cursor is a new tab; another epoch is a restart or a different machine;
  * a revision above ours is a cursor from the future, which is never trusted
  * because it would otherwise let a client talk the server into replaying
@@ -237,7 +237,7 @@ export const KEEP_ALIVE = ': keep-alive\n\n'
  *
  * Some proxies buffer a response until they have a couple of kilobytes, and a
  * stream that says nothing for a minute is indistinguishable from a machine
- * that went to sleep — which is the one distinction §5.10 exists to draw. Two
+ * that went to sleep — which is the one distinction the freshness line exists to draw. Two
  * kilobytes of a comment line flushes every buffer anybody has met, costs two
  * kilobytes once per connection, and is ignored by `EventSource` because a
  * line starting with `:` is a comment.

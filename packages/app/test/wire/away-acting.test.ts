@@ -113,7 +113,7 @@ describe('one park, all the way through', () => {
   it('refuses a replayed request, because the state it assumed has moved', async () => {
     // The same bytes twice, with the receipts deliberately out of the way: a
     // different key, so nothing about idempotency is doing the work and the
-    // state re-check is what refuses it. DECISIONS §4.6.
+    // state re-check is what refuses it.
     const one = await ready()
     const body = { task: one.task, parked: true, was: revOf(one, one.task), key: KEY, rev: 0 }
     expect((await act(one.port, body)).status).toBe(200)
@@ -181,7 +181,7 @@ describe('work that came from outside this machine', () => {
     // **A proposed intake *is* a parked task** — that is the shape the queue
     // fix chose, and approving one is `parkTask(id, false)`. So a device that
     // could lift any park could approve a stranger's ticket into an agent
-    // here, which is DESIGN §9.1's *accept work from an outside source* by a
+    // here, which is *accept work from an outside source* by a
     // longer route: an act with two re-checks of its own that no phase builds.
     // Until it is built, the verb does not reach it.
     const one = await ready()
@@ -263,7 +263,7 @@ describe('letting one device act, at the machine', () => {
   })
 
   it('grants both tiers, because one control that gave the gentler is the wrong half', async () => {
-    // **A widening said out loud and asserted.** §9.1's matrix has two tiers,
+    // **A widening said out loud and asserted.** The scope matrix has two tiers,
     // and a grant that gave only `answer` would mean a phone that can allow a
     // command and cannot set the work aside. A control per tier is the thing
     // to build for a narrower grant; until then the sentence beside this one

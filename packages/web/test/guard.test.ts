@@ -435,7 +435,8 @@ describe('the scope, and the trusted origin an act needs', () => {
   })
 
   it('refuses an act over plain HTTP off this machine, however it was granted', () => {
-    // DECISIONS §4.3, and the point of asking it here rather than at pairing:
+    // Plain HTTP buys no act, and the point of asking it here rather than at
+    // pairing:
     // the network a device is on changes, so a session that may steer on the
     // sofa may not steer from a cafe. A `locked`, which the page draws as
     // *that needs turning on at the machine*.
@@ -507,7 +508,7 @@ describe('this machine is the loopback listener and a loopback Host, both', () =
   // only where both say so. Every cell of {listener} × {Host} × {session} is
   // written out below, and a cell nobody wrote down fails rather than passing.
   //
-  // "Minted for this machine" is what the owner session of §4.4 will be: a
+  // "Minted for this machine" is what the owner session will be: a
   // session bound to a loopback host, the first one worth stealing from
   // another machine. It may only ever be used on the loopback listener.
 

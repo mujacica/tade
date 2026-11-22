@@ -21,7 +21,7 @@ import type { Asked } from './verbs.ts'
 // calls is a table (`test/acts.test.ts`), rather than a handful of requests
 // somebody remembered to make.
 //
-// **The order is the order DESIGN.md §9.3 gives**, and the ones most likely to
+// **The order is deliberate**, and the ones most likely to
 // be skipped are the last two. Step 5 — *the thing still exists and is still
 // in the state the act assumes* — cannot be asked here at all: it is a
 // question about a file at the moment of the write, so it belongs to the

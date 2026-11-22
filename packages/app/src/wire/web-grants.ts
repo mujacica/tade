@@ -36,7 +36,7 @@ export const EVERYTHING = { granted: [...GRANTS], scopes: [...SCOPES] } as const
 // fold it writes: `letOneAct` and `letOneTalk` in `web-acting.ts`, the reading
 // grant below.
 //
-// DESIGN.md §9.1's *pairing and scopes are never remote* holds for all three:
+// *Pairing and scopes are never remote* holds for all three:
 // the thing that grants authority is never reachable from inside the
 // authority it granted, so there is no route, no orchestrator tool and no
 // config key for any of them.

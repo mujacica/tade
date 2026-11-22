@@ -44,7 +44,7 @@ import { MCP_TRANSPORTS, makeTransport } from './registry.ts'
 //   `enabled: true` says is handed on, so turning one on cannot be an
 //   accident, and an off one is a row on a page with no process behind it.
 //
-//   A brokered extension fills in `tools`, and nothing else (§6.4, asserted
+//   A brokered extension fills in `tools`, and nothing else (asserted
 //   by `brokeredConformance`). No watch, no brief, no status, no linker, no
 //   caution, no harness pieces — none of that is a third party's to fill in.
 //

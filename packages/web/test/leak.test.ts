@@ -35,7 +35,7 @@ import {
 //
 // Anything stronger than those two is a promise this design cannot keep, and
 // a test that implied otherwise would be the most dangerous thing in the
-// package (DECISIONS.md §4.11).
+// package.
 //
 // **Nothing here keys on a word.** Every assertion looks for a value out of
 // `fixtures.ts` — including `PRIVATE.opaque`, which looks like nothing at all
@@ -146,7 +146,7 @@ describe('a raw tool payload never becomes a reason', () => {
   // The leak this projection exists to close, and it was real: a task blocked
   // on an approval reads `wants approval: <the harness's one-line summary>`,
   // and that summary is the tool call — `Bash: cat …/.ssh/id_rsa`. So
-  // DESIGN.md §10.2's "reason is verbatim" and its "no absolute path, ever"
+  // the rules "reason is verbatim" and "no absolute path, ever"
   // contradicted each other in the commonest reason a task is blocked.
 
   it('is what `deriveState` would have said, so the correction is not imaginary', () => {

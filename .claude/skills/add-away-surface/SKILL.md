@@ -398,7 +398,7 @@ a device still has none of the scopes that change anything until somebody at thi
   stays exact.
 - **Every verb is a target plus the state it expects**, and `test/verbs.test.ts` asserts it of
   every entry. The idempotency key is a *fast path*; the guarantee is that the window re-checks the
-  state at the moment of the write and a replay meets a target that has moved on (DECISIONS §4.6).
+  state at the moment of the write and a replay meets a target that has moved on.
   A verb that cannot be expressed that way does not ship.
 - **The claim is synchronous and the file append is what the answer waits on.** `Receipts.claim`
   decides and marks before its first `await`: the tempting shape — look, append, then answer
@@ -414,7 +414,7 @@ a device still has none of the scopes that change anything until somebody at thi
 - **Provenance is an argument, not a prompt line.** `From` is carried into the verb and `byOf`
   turns it into the `by` on the journal line — `you` at the keyboard, `device <id>` from away. A
   remote act recorded as `you` would make `historyFrom` count it as the person's own doing, and
-  DECISIONS §4.5 is why a sentence to a model is not a mitigation.
+  a sentence to a model is not a mitigation, because a model can be talked out of one.
 - **A device's scope widens at the machine and nowhere else.** `allowDevice` appends an `allowed`
   line; there is no route, no orchestrator tool and no config key for it, because the thing that
   grants authority is never reachable from inside the authority it granted. `read` survives every
@@ -623,7 +623,7 @@ a device still has none of the scopes that change anything until somebody at thi
   already exist (`keyed`, `textIn`), so focus, a half-made selection and the scroll position survive
   it — and **a delta never moves the current tab**, which only navigation does.
 - **An age freezes when the stream is not live** and gains the moment it was last true. An age
-  counting up against a snapshot nothing can refresh is the lie §5.10 exists to prevent, so `asOf`
+  counting up against a snapshot nothing can refresh is the lie the freshness line exists to prevent, so `asOf`
   hands the server's own last word to every row rather than the device's clock.
 - **Nothing in the client touches `innerHTML`**, the one Markdown reader (`markdown.js`) builds
   nodes from a closed list of tags with attributes it chose — every character a text node, a link
@@ -908,7 +908,7 @@ own table (`ASKS`), its own interface (`WebAsking`), its own event type
 **There are twelve verbs and they are the whole of what a device may ever do**: `park`, `answer`,
 `steer`, `queue`, `done`, `note`, `context` and `intake` — and the lifecycle, `stop`, `reopen`,
 `close` and `open`. Park went first because it is the smallest act that proves the whole path; the
-next seven are §9.1's matrix filled in, each a line in `VERBS`, a method on `WebActing`, and a
+next seven are the scope matrix filled in, each a line in `VERBS`, a method on `WebActing`, and a
 control in `acts.js`.
 
 **The lifecycle is two pairs at two scopes nothing implies** — `agents` and `projects`, a chip each
@@ -1076,5 +1076,5 @@ refused press on an open page brought the bar back. Safari, Firefox and a hardwa
 
 **A typed URL cannot pair.** The ticket is in the QR's fragment, so a person who types the address
 reaches the pairing page with nothing to present and is told to scan the code in the window.
-DESIGN §5.7 wanted a six-digit code as the typeable path; that is a second kind of credential with
+A six-digit code was once wanted as the typeable path; that is a second kind of credential with
 its own threat model, and it is **not built** — outstanding, not decided against.

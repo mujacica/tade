@@ -379,8 +379,7 @@ export function allowed(asking: Asking, route: Route, guarding: Guarding): Verdi
   //
   // **A public route is exempt from the token layer by construction, not by
   // choice**: a CSRF token is a value out of a session, and there is no session
-  // here to take one from. DECISIONS §4.2 is the argument for why that is
-  // sound rather than a hole; `routes.ts` carries `opens` so that
+  // here to take one from. `routes.ts` carries `opens` so that
   // `test/routes.test.ts` can assert the one route it is true of, and that no
   // route is ever public and mutating without being that one.
   if (route.public === true) {

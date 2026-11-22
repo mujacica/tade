@@ -91,7 +91,7 @@ export interface ParkedBy {
  * proposed intake *is* a parked task — that is the shape the queue fix chose,
  * and approving one is `parkTask(id, false)`. So a device that could lift any
  * park could approve a stranger's ticket into an agent on this machine, which
- * is DESIGN §9.1's *accept work from an outside source* by a longer route.
+ * is *accept work from an outside source* by a longer route.
  * That act is an `answer`-tier one with two re-checks of its own — the grant
  * must still allow it, and **the source must still say what it said** — and it
  * is not built by any phase. Until it is, the verb does not reach it.

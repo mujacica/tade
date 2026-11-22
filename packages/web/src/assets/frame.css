@@ -6,7 +6,7 @@
   desk's dock is `dock.css`.
 
   **The freshness line and the bars are the most important thing here**, and
-  §5.10 is why: when the stream drops, every row keeps its last state and the
+  this is why: when the stream drops, every row keeps its last state and the
   page gains one bar. No row changes glyph, no count changes, nothing becomes
   nought. *Unreachable is never stopped* — a sleeping laptop runs nothing, and a
   page that drew `0 working` because it could not ask would be lying about

@@ -144,8 +144,8 @@ const RenewedLine = z.strictObject({
  * `read`, because a keypress with one question on it cannot honestly grant
  * more than that; letting a device *act* is a second decision, made at the
  * machine, about one device, and this is the record of it. A request can never
- * write one: nothing in `routes.ts` grants anything, which is DESIGN.md
- * §9.1's *pairing and scopes are never remote* — the thing that grants
+ * write one: nothing in `routes.ts` grants anything, which is
+ * *pairing and scopes are never remote* — the thing that grants
  * authority is never reachable from inside the authority it granted.
  *
  * It is **not** a config key either, for the reason the read grants are not:

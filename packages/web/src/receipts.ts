@@ -29,14 +29,14 @@ import type { Outcome } from './acting.ts'
 //   client with a bug or somebody editing a captured request;
 // - a key from a **previous server lifetime** is answered from the record if
 //   there is a complete one, and `unsure` if there is only an `asked`. Either
-//   way it does not execute anew, which is the property DESIGN.md §9.3 step 3
+//   way it does not execute anew, which is the property the first design
 //   claimed for a ten-minute LRU and did not have.
 //
 // **And the thing this cannot promise, said plainly.** A key that has fallen
 // out of the kept window — past `KEPT`, or a file somebody deleted — is a key
 // with no record, so it is a *new* act, and it will run if the entity it names
 // is still in the state it expects. That is not a hole in the store: it is
-// DECISIONS §4.6, which is that the key is a fast path and the guarantee is
+// the rule that the key is a fast path and the guarantee is
 // the state re-check. What follows from it is a sentence nobody may quietly
 // drop: **nothing here promises exactly-once side effects**, and a verb whose
 // effect could not be made safe to repeat against a re-checked state is a verb

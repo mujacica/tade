@@ -16,8 +16,8 @@ import { awayCollections, nothingKnown } from '../src/away.ts'
 // nothing in this repository composes: `Workspace.warnings`. `collectStatus`
 // writes `<project>: <its root>: <what git said>` when a checkout will not
 // answer, and a fixture whose warnings happen to be a tidy sentence is the
-// leakage test passing while the claim is false. DECISIONS.md §4.11 names that
-// failure; this is the test that would have caught it.
+// leakage test passing while the claim is false. That is the failure that
+// happened; this is the test that would have caught it.
 //
 // Real git repositories and a real `collectStatus`, for the house reason: a
 // fixture must not be kinder than reality, and nothing here mocks git.

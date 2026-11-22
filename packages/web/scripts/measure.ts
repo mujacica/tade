@@ -13,8 +13,8 @@ import { inputFrom } from './home-input.ts'
 //
 // It prints counts, lengths and byte totals and **no value out of the
 // projection** — see `src/measure.ts` for why that matters and
-// `test/measure.test.ts` for what holds it. The numbers DESIGN.md §10.7 asks
-// for go in a commit message; this is what produces them without putting the
+// `test/measure.test.ts` for what holds it. The numbers it
+// prints go in a commit message; this is what produces them without putting the
 // person's own words on a terminal.
 
 const home = process.env.TADE_HOME ?? join(homedir(), '.tade')

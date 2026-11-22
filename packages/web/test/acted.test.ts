@@ -110,7 +110,7 @@ describe('an act that goes through', () => {
   })
 
   it('carries the device in as the provenance, never as the person', async () => {
-    // DECISIONS §4.5's correction, one layer down: a remote act recorded as
+    // Provenance at the act, one layer down: a remote act recorded as
     // `you` would make `historyFrom` count it as the person's own doing.
     const made = window_()
     const answered = await carryOut(ROUTE, BODY, await context(made.acting, {}, 'acted-from'))

@@ -496,7 +496,7 @@ describe('what a session minted on an origin may ever do', () => {
   })
 
   it('is read and nothing else over plain HTTP off this machine', () => {
-    // DECISIONS §4.3: `bind: lan` is a read-only transport. A credential that
+    // `bind: lan` is a read-only transport. A credential that
     // travelled in the clear across a network never buys an act, whatever is
     // turned on later — not a flag that could be raised, not a scope a grant
     // could widen.
@@ -611,8 +611,8 @@ describe('the sentences', () => {
 
   it('say what a device acting is, and name what it can never reach', () => {
     // **The list is the load-bearing half**, and it is asserted item by item:
-    // every one of these is a `never remote` line with an argument behind it
-    // (DESIGN §9.1), and a control that quietly stopped naming one would be
+    // every one of these is a `never remote` line with an argument behind it,
+    // and a control that quietly stopped naming one would be
     // the comfortable version of this sentence.
     // **Both halves, in one breath**, as talking has them: the person's own
     // device with full access acts as them, every other device's act is a

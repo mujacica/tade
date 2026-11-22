@@ -80,7 +80,7 @@ function broke(
   })
 }
 
-// §6.4: a brokered extension fills in `tools`, and nothing else.
+// A brokered extension fills in `tools`, and nothing else.
 brokeredConformance('the broker', () => broke().extensions)
 
 describe('a server that is on', () => {

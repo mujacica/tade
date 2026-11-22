@@ -11,8 +11,8 @@ import { type Cursors, snapshotOf } from './snapshot.ts'
 // differs from the last one in `fresh.at` and in nothing else — and
 // `deltaBetween` answers `null` to that. A row carrying an `ageMs` would
 // instead differ on every beat, and a tick of the clock would resend every
-// task in every project to every connected phone, for ever. (DESIGN.md §10.2
-// puts `ageMs` on `TaskRow`; `input.ts`'s `movedAt` is that field corrected,
+// task in every project to every connected phone, for ever. (The first
+// design put `ageMs` on `TaskRow`; `input.ts`'s `movedAt` is that field corrected,
 // and this is the reason.)
 //
 // When a client does need the server's own clock moved on, `tick` is a frame

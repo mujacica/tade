@@ -39,8 +39,8 @@ import { type Asked, boundTo, targetOf, verbFor } from './verbs.ts'
 // 4. **The key is claimed before anything runs**, bound to the device, the
 //    verb, the target and the canonical payload.
 // 5. **The window does it**, re-checking the state the act named against the
-//    file at the moment of the write — DESIGN.md §9.3's step 5, the one it
-//    says is most likely to be skipped, and the one the whole idempotency
+//    file at the moment of the write — the step most likely to be
+//    skipped, and the one the whole idempotency
 //    story rests on.
 // 6. **It is written down whatever happened**, a refusal included. Never as a
 //    `said` line: `namedBy` reads those to authorise a setting change, and a

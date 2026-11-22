@@ -108,7 +108,7 @@ describe('the verb table', () => {
   })
 
   it('expresses every verb as a target plus the state it expects', () => {
-    // DECISIONS §4.6, mechanically: a verb whose body has no `was` is a verb
+    // The state re-check, mechanically: a verb whose body has no `was` is a verb
     // whose replay cannot be refused by a state re-check, and the nonce is
     // only ever a fast path. This is the assertion that keeps the next verb
     // honest rather than the comment above it.
@@ -123,7 +123,7 @@ describe('the verb table', () => {
   })
 
   it('needs a scope out of the matrix, and each one is written down here', () => {
-    // §9.1's matrix, as a table, because a verb filed one tier too low is a
+    // The scope matrix, as a table, because a verb filed one tier too low is a
     // device granted `answer` doing something at the `steer` tier. The two
     // gentle ones are gentle for the same reason: they answer something that
     // is **already waiting** and change nothing Tade would start by itself.
@@ -530,8 +530,8 @@ describe('the route table', () => {
 
   it('takes no path, no command and no setting, in either table', () => {
     // The shape of every `never remote` line, asserted as the absence of a
-    // parameter it could arrive in. DESIGN §9.4's own test, extended to the
-    // acting half: a route with a `path`, `file`, `dir`, `cmd` or `setting`
+    // parameter it could arrive in, in the reading table and the
+    // acting one alike: a route with a `path`, `file`, `dir`, `cmd` or `setting`
     // parameter is the one that turns a verb into arbitrary execution.
     for (const route of [...ROUTES, ...ACTS]) {
       for (const name of [':path', ':file', ':dir', ':cmd', ':command', ':setting', ':key']) {

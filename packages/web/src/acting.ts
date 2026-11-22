@@ -16,7 +16,7 @@ import type { Scope } from './surface.ts'
 // its own, `configuring.ts`; nothing on this interface reaches it.)
 // A verb reaches the window only by somebody adding a method here and an entry
 // to `VERBS` (`verbs.ts`), which is two lines a reviewer reads in the same
-// diff as the argument for them. DESIGN.md §9.1's `never remote` lines are
+// diff as the argument for them. The `never remote` lines are
 // kept by this file having no shape they could arrive in:
 //
 // - no `startAgent`, which is the one verb that turns text into execution.
@@ -66,7 +66,7 @@ export interface Outcome {
  * What the act was about, and what the caller had seen.
  *
  * Every verb carries these four, because every verb is **a target plus the
- * state it expects** — DECISIONS §4.6: the idempotency key is a fast path and
+ * state it expects**: the idempotency key is a fast path and
  * never the guarantee, and what makes a replay safe is that it meets a target
  * that has moved on. A verb that cannot be expressed this way does not ship.
  */
@@ -285,8 +285,8 @@ export function projectRev(facts: ProjectFacts): string {
 /**
  * Where an act came from, carried **into** the thing that does it.
  *
- * **Not a prompt line and not a convention: an argument.** DECISIONS §4.5 is
- * the correction this answers — a sentence telling a model that a request came
+ * **Not a prompt line and not a convention: an argument.** What it
+ * answers: a sentence telling a model that a request came
  * from a phone is information, and the enforcement has to be code the model
  * cannot talk its way past. The same holds one layer down for the journal: a
  * remote park recorded as `you` would make `historyFrom` count it as the

@@ -19,7 +19,7 @@
 // `QueueStateOut` into words. Those words are **`@tade/core`'s**, out of
 // `describeQueueState`, copied here because a browser cannot import a `.ts`
 // file — and `test/glyphs.test.ts` runs the same table through both and asserts
-// they agree, so the two cannot drift. DESIGN §5.6's sketch says `ready` where
+// they agree, so the two cannot drift. An early sketch said `ready` where
 // the domain says `next`; the domain wins, because one wording of a state is
 // the whole point.
 //
@@ -323,7 +323,7 @@ export function stepMark(step) {
 }
 
 /**
- * The six ways the page can stand to the machine, as §5.10's state machine.
+ * The six ways the page can stand to the machine, as a state machine.
  *
  * `reconnecting` and `unreachable` are the same *connection* — not open — told
  * apart by whether the retries have got anywhere: a tunnel that blinked is

@@ -90,7 +90,7 @@ describe('what this package may not reach', () => {
     // machine. A page that could put words in somebody's mouth would inherit
     // authority over all of them. The guarantee on this side is that the away
     // view cannot reach `say()` or `remember()` at all; this is the cheap half
-    // of it, as DESIGN.md §13.3's test 2.
+    // of it.
     const guilty = sources().filter((path) => /['"]said['"]/.test(code(path)))
     expect(guilty).toEqual([])
   })

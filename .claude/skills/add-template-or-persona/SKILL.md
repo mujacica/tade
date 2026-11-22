@@ -48,7 +48,7 @@ is still the executor.
    snapshot; the draft goes on being a draft. The same bytes again is nothing, different bytes under
    the same version is **refused** naming the version to bump to, and the snapshot carries **no
    clock** — the hash has to be a pure function of the content or none of the above means anything.
-   This is where this slice overrules research.md §9.6, which made publishing `mv` into `active/`:
+   This is where this slice overrules the research it was written from, which made publishing `mv` into `active/`:
    that leaves the published thing editable, so a run's provenance would be a lie.
 4. **Publishing is a person at this machine, enforced by absence.** There is no `template/publish`
    method and no tool. The orchestrator lists, dry-runs and uses what is **already published**; a
@@ -131,8 +131,8 @@ would be a rule that is wrong twice a year and silent about it.
 ## Writing one in a form, which is a list and never a canvas
 
 `/workflows` opens the editor: the templates and their steps down the left, a form for whichever
-one you are on down the right, and under it the resolved tree. The comparison that decided this is
-in research.md §9.4 — a node canvas expresses a DAG natively and costs a layout engine, drag, hit
+one you are on down the right, and under it the resolved tree. The comparison that decided this:
+a node canvas expresses a DAG natively and costs a layout engine, drag, hit
 testing, zoom and an undo of *geometry*, and positions are noise in every diff; an intake template
 has three to five steps with one shape, and a canvas is for a graph you do not already know.
 

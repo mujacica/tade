@@ -478,7 +478,7 @@ export function omitted(store, collection) {
  *
  * Live: the device's own clock, so ages tick. Anything else: **the server's own
  * last word**, so they stop — an age counting up against a snapshot nothing can
- * refresh is the lie §5.10 exists to prevent.
+ * refresh is the lie the freshness line exists to prevent.
  */
 /**
  * The moment every money figure in this projection is counted from, or null.

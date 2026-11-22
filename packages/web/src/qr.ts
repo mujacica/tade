@@ -18,7 +18,7 @@ import qrcode from 'qrcode-generator'
 // millions of scans have been through and from a decoder written by somebody
 // else. `qrcode-generator` is Kazuhiko Arase's implementation, MIT, ~2,200
 // lines of pure JavaScript with no dependencies of its own and no native build
-// step, which is the line DECISIONS §4.9 draws: nothing about anybody's install
+// step, which is the line drawn for a dependency: nothing about anybody's install
 // changes, because there is nothing to compile.
 //
 // `test/qr.test.ts` decodes what this produces with `jsqr` — a **devDependency**

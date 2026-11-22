@@ -120,7 +120,7 @@ describe('across a restart', () => {
     // **Fail closed, and this is the case the whole file exists for.** The
     // window died between the `asked` line and the `came` line, so Tade cannot
     // tell whether the task was parked. It will not do it again and it says
-    // so — the alternative is the duplicate mutation DESIGN §9.3's LRU would
+    // so — the alternative is the duplicate mutation a ten-minute LRU would
     // have allowed.
     const home = await homeFor('receipts-restart-unsure')
     const first = await store(home, 'one')
@@ -159,7 +159,7 @@ describe('across a restart', () => {
   it('treats a key with no record at all as fresh, which is the honest limit', async () => {
     // **Nothing here promises exactly-once.** A key whose record is gone —
     // past `KEPT`, or a file somebody deleted — is a new act, and what stops
-    // it being a duplicate is the state re-check (DECISIONS §4.6). Said as a
+    // it being a duplicate is the state re-check. Said as a
     // test so that nobody reads the store as stronger than it is.
     const home = await homeFor('receipts-gone')
     const first = await store(home)
