@@ -159,6 +159,8 @@ describe('what is carried', () => {
     expect([...kinds].sort()).toEqual(['guided', 'here', 'kept', 'pressed'])
     const signIns = HOME_HOLDS.find((one) => one.carry === 'guided')
     expect(signIns?.how).toMatch(/never copied/)
+    // Shared both ways since notes went over the link (`notes-shared.ts`).
+    expect(HOME_HOLDS.find((one) => one.what === 'notes')?.carry).toBe('kept')
   })
 })
 

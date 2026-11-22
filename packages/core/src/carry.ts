@@ -478,7 +478,12 @@ export const HOME_HOLDS: readonly {
     how: 'each machine’s own',
   },
   {
-    what: 'notes, the journal, tasks, skills Tade learned, paired devices',
+    what: 'notes',
+    carry: 'kept',
+    how: 'shared both ways while the link is up: each machine holds every linked one’s, and one retired on either is retired on both',
+  },
+  {
+    what: 'the journal, tasks, skills Tade learned, paired devices',
     carry: 'here',
     how: 'each machine’s own record',
   },
