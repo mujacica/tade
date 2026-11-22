@@ -213,7 +213,6 @@ export const UNSEEN: Record<string, string> = {
   'packages/cli/src/format.ts': 'prints for `tade status`, which its test runs as a process',
   'packages/cli/src/with-workbench.ts': 'wraps a command in an open workbench',
   'packages/cli/src/orchestrating.ts': 'starts the orchestrator for `tade app` and `tade serve`',
-  'packages/cli/src/commands/accounts.ts': 'a command of the binary',
   'packages/cli/src/commands/app.ts': 'a command of the binary',
   'packages/cli/src/commands/brief.ts': 'a command of the binary',
   'packages/cli/src/commands/chat.ts': 'a command of the binary',
@@ -280,7 +279,7 @@ export const UNSEEN: Record<string, string> = {
  * `packages/cli/test/program.test.ts` loads every command to hold `COMMANDS`
  * to what each module registers. That runs a command's top level and its
  * `register…` function, and whatever that calls while it registers — `queue`'s
- * and `accounts`' little builders — but never a handler, which runs when its
+ * little builders — but never a handler, which runs when its
  * command is typed, in the binary. So a covered line in one says only that it
  * was loaded: counting them would put 2,028 lines in `packages/cli`'s figure,
  * 115 of them covered, and read it at 16.8% rather than 72.5% — a floor that
@@ -299,7 +298,6 @@ export const LOADED: Record<string, number> = {
   'packages/cli/src/attach.ts': 0,
   // Imported by `commands/app.ts` and `commands/serve.ts`: its top level.
   'packages/cli/src/orchestrating.ts': 0,
-  'packages/cli/src/commands/accounts.ts': 2,
   'packages/cli/src/commands/app.ts': 1,
   'packages/cli/src/commands/brief.ts': 1,
   'packages/cli/src/commands/chat.ts': 1,
