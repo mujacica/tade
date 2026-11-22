@@ -48,6 +48,8 @@ function answerOf(inventory: MachinesHeld): MachinesAnswer {
       asOf: one.asOf === null ? null : new Date(one.asOf).toISOString(),
       here: one.here,
       said: one.said,
+      // Only where the two were compared, so a page from before says what it did.
+      ...(one.synced ? { synced: one.synced } : {}),
     })),
     rows: shown.rows.map((row) => ({
       id: row.id,

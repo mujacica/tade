@@ -35,6 +35,8 @@ export interface MachinesColumn {
   here: boolean
   /** Why it has nothing to say, where it has not. */
   said: string | null
+  /** Where it and this machine stand (`syncSaid`): `in step`, `behind by 3 lines`. Null where not compared. */
+  synced?: string | null
 }
 
 /** One cell: `✓` set, `✗` missing, `≠` a different key, `—` not used there, `?` cannot tell. */

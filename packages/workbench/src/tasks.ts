@@ -883,6 +883,13 @@ export async function guardName(
     /** Each harness's own answer for what conversation a task name makes. */
     keyOf: readonly ((id: string) => string)[]
     created: () => Promise<readonly { task: string | null }[]>
+    /**
+     * Every name the person's other machines made, by which (`namesElsewhere`,
+     * out of the copies of their journals kept here): a name is never used
+     * twice across the fleet either, because a task moved between machines
+     * keeps its name. Absent, only this machine's own are asked.
+     */
+    elsewhere?: () => Promise<ReadonlyMap<string, string>>
   },
   id: string,
 ): Promise<void> {
@@ -892,12 +899,33 @@ export async function guardName(
     created.map((event) => event.task),
     id,
   )
-  if (!clash) return
-  throw new Error(
-    clash === id
-      ? `${id} was used before, and a task's name is never used twice: pick another`
-      : `${id} would carry on ${clash}'s conversation, which was used before: pick another name`,
-  )
+  if (clash) {
+    throw new Error(
+      clash === id
+        ? `${id} was used before, and a task's name is never used twice: pick another`
+        : `${id} would carry on ${clash}'s conversation, which was used before: pick another name`,
+    )
+  }
+  // Not caught: the copies are read by something that never throws over one it
+  // cannot read, so a throw here is trouble the caller says.
+  const elsewhere = (await deps.elsewhere?.()) ?? new Map<string, string>()
+  const there = sameConversation(deps.keyOf, [...elsewhere.keys()], id)
+  if (!there) return
+  throw new NameUsedElsewhere(id, there, elsewhere.get(there) ?? 'another machine')
+}
+
+/** A name another of the person's machines made already: a take renames the task rather than refusing it. */
+export class NameUsedElsewhere extends Error {
+  readonly machine: string
+  constructor(id: string, clash: string, machine: string) {
+    super(
+      clash === id
+        ? `${id} was used on ${machine} already, and a task's name is never used twice across your machines: pick another`
+        : `${id} would carry on ${clash}'s conversation, which was used on ${machine}: pick another name`,
+    )
+    this.name = 'NameUsedElsewhere'
+    this.machine = machine
+  }
 }
 
 /** The first of these names that is `id`, or makes the same conversation in some harness. */

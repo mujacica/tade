@@ -299,6 +299,8 @@ export class App {
       inventory: () => this.heart.inventory.latest(),
       synced: (project) => this.heart.sync.poke(project),
       settings: () => this.settings,
+      fold: () => this.heart.foldConfig(true),
+      feeds: this.heart.feeds,
     })
     this.voice = new Voice(this.wire, {
       submit: () => this.keyboard.submit(),

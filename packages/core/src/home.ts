@@ -201,6 +201,33 @@ export function machineDir(home: string, machine: string): string {
 }
 
 /**
+ * Who this machine is, to every other machine of the person's: its id, minted
+ * once and kept across renames, and its journal's epoch, minted when the
+ * journal is created and again by `tade host restore` (`@tade/workbench`'s
+ * `machine-file.ts`). Not derived — an id made again is a different machine to
+ * everybody holding a copy of this one's journal — so it is backed up with the
+ * home and never deleted.
+ */
+export function machineFile(home: string): string {
+  return join(home, 'machine.json')
+}
+
+/**
+ * Where a copy of another machine's journal is kept here, by that machine's id
+ * (`feeds.ts`): its lines in `events.jsonl`, what it is in `feed.json`, where
+ * this machine and it last stood in `sync.json`, and any copy set aside by a
+ * fork beside them. Beside the folders `machineDir` keeps by a remote's name,
+ * which an id — thirty-six characters — can never be. A copy, and always safe to
+ * delete: the next exchange fetches it again.
+ */
+export function feedDir(home: string, id: string): string {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)) {
+    throw new Error('a copy of a journal is kept only by a machine id')
+  }
+  return join(home, 'machines', id)
+}
+
+/**
  * What was pasted to the orchestrator: a picture taken off the clipboard at
  * its line, kept in the orchestrator's own folder (`runDir`) beside what its
  * harness keeps there. It went to the temp folder, where nothing ever took one

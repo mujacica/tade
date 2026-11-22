@@ -131,7 +131,15 @@ describe('tade remote', () => {
 
     const listed = await tade('remote', 'list', '--json')
     expect(JSON.parse(listed.stdout)).toEqual([
-      { name: 'vps', ssh: 'far', tade: farTade, device: there[0]?.id, host: 'localhost:7699' },
+      {
+        name: 'vps',
+        ssh: 'far',
+        tade: farTade,
+        device: there[0]?.id,
+        host: 'localhost:7699',
+        state: null,
+        seen: null,
+      },
     ])
     expect(listed.stdout).not.toContain(session)
 

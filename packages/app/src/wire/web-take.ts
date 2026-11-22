@@ -1,6 +1,7 @@
 import { expandHome, runProgram } from '@tade/core'
 import type { Take, TakeAnswer, WebTaking } from '@tade/web'
 import { guardName, TASK_BRANCH_PREFIX } from '@tade/workbench/tasks'
+import { notice } from '../model.ts'
 import { type Wiring, why } from './context.ts'
 
 // This machine's half of work another machine of the person's hands it
@@ -56,12 +57,16 @@ function no(said: string): TakeAnswer {
   return { took: false, said }
 }
 
-/** Why a name could not be a new task here, or null where it could. */
-async function nameRefused(wire: Wiring, id: string): Promise<string | null> {
+/** Why a name could not be a new task here, or null where it could. `from` is the machine handing it over. */
+async function nameRefused(wire: Wiring, id: string, from: string): Promise<string | null> {
   const client = wire.opts.client
   try {
     await guardName(
-      { keyOf: client.keyOf(), created: () => client.log.read({ types: ['task_created'] }) },
+      {
+        keyOf: client.keyOf(),
+        created: () => client.log.read({ types: ['task_created'] }),
+        elsewhere: () => client.namesElsewhere(from),
+      },
       id,
     )
     return null
@@ -71,22 +76,53 @@ async function nameRefused(wire: Wiring, id: string): Promise<string | null> {
 }
 
 /**
+ * The name a take is made under here: its own, or — where that name was made
+ * here or on another of the person's machines while the two could not see each
+ * other — the first free one after it, with why. A task name is never used
+ * twice across the fleet, and refusing the take would strand the work on a
+ * machine that may be closing. A name that came here by a take before is
+ * still refused: that is the same work arriving twice, not two machines that
+ * named two things alike.
+ */
+async function nameHere(
+  wire: Wiring,
+  id: string,
+  from: string,
+): Promise<{ id: string; renamed: string | null }> {
+  const refused = await nameRefused(wire, id, from)
+  if (refused === null) return { id, renamed: null }
+  const came = await wire.opts.client.log.read({ task: id, types: ['task_taken'] })
+  if (came.length > 0) throw new Error(refused)
+  for (let n = 2; n < 50; n++) {
+    const next = `${id}-${n}`
+    if ((await nameRefused(wire, next, from)) === null) {
+      return {
+        id: next,
+        renamed: `${refused.replace(/: pick another( name)?$/, '')}, so it is ${next} here`,
+      }
+    }
+  }
+  throw new Error(`${refused}, and no free name after it was found`)
+}
+
+/**
  * The answer to a hand-over this machine made already, or null where it made
  * none: what it made is `task_taken` with that hand-over's id.
  */
 async function takenBefore(wire: Wiring, id: string, handOver: string): Promise<TakeAnswer | null> {
-  let made: boolean
+  let made: string | null
   try {
-    const lines = await wire.opts.client.log.read({ task: id, types: ['task_taken'] })
-    made = lines.some((line) => line.detail.handOver === handOver)
+    // By the hand-over's id and not the name: a take renamed here (`nameHere`) is the same take.
+    const lines = await wire.opts.client.log.read({ types: ['task_taken'] })
+    made = lines.find((line) => line.detail.handOver === handOver)?.task ?? null
   } catch (err) {
     return no(`Whether ${id} was taken here before could not be read (${why(err)}).`)
   }
-  if (!made) return null
+  if (made === null) return null
   return {
     took: true,
-    task: id,
-    said: `${id} was taken here already.`,
+    task: made,
+    said: `${made} was taken here already.`,
     pushes: null,
     already: true,
   }
@@ -95,7 +131,7 @@ async function takenBefore(wire: Wiring, id: string, handOver: string): Promise<
 /** The window's `WebTaking`. */
 export function takingFrom(wire: Wiring): WebTaking {
   return async (take, device) => {
-    const id = `${take.project}/${take.name}`
+    const asked = `${take.project}/${take.name}`
     const projects = wire.opts.config.projects
     // `hasOwn`: `projects.__proto__` is truthy on any plain object.
     const configured = Object.hasOwn(projects, take.project) ? projects[take.project] : undefined
@@ -104,12 +140,23 @@ export function takingFrom(wire: Wiring): WebTaking {
     // The same hand-over asked again, by a window there that closed before it
     // heard the answer: the same answer, not a no for a name used.
     if (take.handOver !== undefined) {
-      const before = await takenBefore(wire, id, take.handOver)
+      const before = await takenBefore(wire, asked, take.handOver)
       if (before !== null) return before
     }
-    const named = await nameRefused(wire, id)
-    if (named !== null) return no(`${named}.`)
-    const branch = `${TASK_BRANCH_PREFIX}${take.name}`
+    let named: { id: string; renamed: string | null }
+    try {
+      named = await nameHere(wire, asked, take.from)
+    } catch (err) {
+      return no(`${why(err)}.`)
+    }
+    if (named.renamed !== null) {
+      // Said here as well as in the answer: the person may be at this machine.
+      wire.put(notice(wire.state, `${named.renamed}.`, wire.now()))
+      wire.draw()
+    }
+    const id = named.id
+    const name = id.slice(take.project.length + 1)
+    const branch = `${TASK_BRANCH_PREFIX}${name}`
     if (take.begins) {
       const there = await git(root, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`])
       if (there.code === 0) {
@@ -118,13 +165,17 @@ export function takingFrom(wire: Wiring): WebTaking {
         )
       }
     }
-    if (take.check) return { took: true, task: id, said: `${id} can be taken here.`, pushes: null }
+    const renamed = named.renamed === null ? '' : ` ${named.renamed}.`
+    if (take.check) {
+      return { took: true, task: id, said: `${id} can be taken here.${renamed}`, pushes: null }
+    }
     const begun = take.begins ? await begin(root, take.begins) : null
     if (begun !== null && 'refused' in begun) return no(begun.refused)
     try {
       await wire.opts.client.createTask({
         project: take.project,
-        slug: take.name,
+        slug: name,
+        takenFrom: take.from,
         intent: take.intent,
         ...(take.context.trim() === '' ? {} : { context: take.context }),
         ...(take.links.length > 0 ? { links: take.links } : {}),
@@ -150,6 +201,7 @@ export function takingFrom(wire: Wiring): WebTaking {
       detail: {
         from: take.from,
         was: take.was,
+        ...(named.renamed === null ? {} : { asked }),
         device,
         ...(take.begins ? { branch: take.begins.branch, head: take.begins.head } : {}),
         ...(take.handOver === undefined ? {} : { handOver: take.handOver }),
@@ -161,7 +213,7 @@ export function takingFrom(wire: Wiring): WebTaking {
     return {
       took: true,
       task: id,
-      said: saidOf(take, id, begun),
+      said: `${saidOf(take, id, begun)}${renamed}`,
       pushes,
     }
   }

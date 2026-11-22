@@ -55,6 +55,11 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 
 - **Rules are pure and live in core.** Whether work is ready, a schedule is due or a finding is new
   takes facts and `now` and returns an answer. Test the rule in core; the window only applies it.
+- **The queue reads this machine's own lines and nothing else** (`ownFacts` in `queue.ts`, over
+  `ownLines`): every fold here compares `seq`, and a number out of another machine's journal — a
+  copy kept under `<home>/machines/<id>/` (`feeds.ts`) — is a number in another file. A line from
+  another machine is told by its `machine` label; `core/test/feeds.test.ts` holds a foreign pause
+  that pauses nothing.
 - **Queued work is a task.** A task file with `start` — never a second store. It is made when it is
   planned, in the project's own workspace, and started by `startQueued`.
 - **A finished agent's lane closes by itself only where `close_when_done` says, and only the lane

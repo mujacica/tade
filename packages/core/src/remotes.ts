@@ -11,8 +11,11 @@ import { IN_CONFIG, SEEN_BY_AGENTS } from './secrets.ts'
 // `tade web pair --owner` minted there over SSH, bound to that machine's own
 // loopback address — and the link (`@tade/remotes-core`) carries the away
 // protocol's projection and verbs over one SSH connection. Nothing here is a
-// second protocol, and nothing here is merged: the other machine's journal
-// stays the truth there.
+// second protocol, and nothing here is merged into this machine's own record:
+// the other machine's journal stays the truth there. A copy of it is kept
+// here, apart, read-only and labelled with whose it is (`feeds.ts`) — a cache
+// of that truth, which is what lets this machine answer for the other when it
+// is closed, and never a second truth about it.
 //
 // **Every key is `never`** (`reach.ts`): a remote is where Tade sends
 // something, and the session is a credential whose reach is the keyboard's on

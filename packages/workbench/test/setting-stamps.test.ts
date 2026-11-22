@@ -1,8 +1,8 @@
 import { join } from 'node:path'
-import { compareStamps, stampOf, stampText } from '@tade/core'
+import { compareStamps, MAX_DRIFT_MS, StampAhead, stampOf, stampText } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
-import { EventLog } from '../src/events.ts'
+import { EventLog, readJournal } from '../src/events.ts'
 
 // Every `config_changed` line is stamped by the journal that writes it
 // (`setting-stamps.ts`): later than every stamp before it, the stamp the
@@ -37,8 +37,8 @@ describe('a setting’s stamp', () => {
   it('keeps another machine’s stamp as it came, and writes nothing earlier after it', async () => {
     const path = join(tmp('tade-stamps-'), 'events.jsonl')
     const log = await open(path)
-    // A machine whose clock is an hour ahead, carried here.
-    const ahead = stampText({ wall: Date.now() + 3_600_000, count: 4, machine: 'vps' })
+    // A machine whose clock is four minutes ahead, carried here: inside the bound.
+    const ahead = stampText({ wall: Date.now() + 4 * 60_000, count: 4, machine: 'vps' })
     const carried = await log.append(
       change('queue.holds', { carried: 'vps', hlc: ahead, origin: 'window' }),
     )
@@ -48,10 +48,34 @@ describe('a setting’s stamp', () => {
     await log.close()
   })
 
+  it('refuses a stamp from a clock further ahead than the bound, and moves nothing', async () => {
+    const path = join(tmp('tade-stamps-'), 'events.jsonl')
+    const log = await open(path)
+    // A machine whose clock is a day ahead: taking it would drag this clock,
+    // and every machine this one carries to, a day ahead for good.
+    const wrong = stampText({
+      wall: Date.now() + MAX_DRIFT_MS + 86_400_000,
+      count: 0,
+      machine: 'vps',
+    })
+    await expect(
+      log.append(change('queue.holds', { carried: 'vps', hlc: wrong })),
+    ).rejects.toBeInstanceOf(StampAhead)
+    const after = await log.append(change('agents.push'))
+    await log.close()
+    expect(stampOf(after.detail.hlc)?.wall ?? Number.POSITIVE_INFINITY).toBeLessThan(
+      Date.now() + MAX_DRIFT_MS,
+    )
+    const written = (await readJournal(join(path, '..'), { types: ['config_changed'] })).map(
+      (one) => one.detail.path,
+    )
+    expect(written).toEqual(['agents.push'])
+  })
+
   it('carries on from the journal it is opened on, rather than from its own clock', async () => {
     const path = join(tmp('tade-stamps-'), 'events.jsonl')
     let log = await open(path)
-    const ahead = stampText({ wall: Date.now() + 3_600_000, count: 0, machine: 'vps' })
+    const ahead = stampText({ wall: Date.now() + 4 * 60_000, count: 0, machine: 'vps' })
     await log.append(change('queue.holds', { carried: 'vps', hlc: ahead }))
     await log.close()
     log = await open(path)

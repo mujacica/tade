@@ -146,6 +146,31 @@ describe('what comes back newer', () => {
     pinned: ['checks'],
   })
 
+  it('is refused, and said, where its stamp is from a clock further ahead than the bound', () => {
+    const now = Date.parse('2026-11-22T10:00:00Z')
+    const back = takeBack(
+      mine,
+      answer([
+        {
+          path: 'queue.holds',
+          outcome: 'newer',
+          value: 'orchestrator',
+          hlc: stampText({ wall: now + 2 * 3_600_000, count: 0, machine: 'vps' }),
+          by: 'window',
+        },
+      ]),
+      'mac',
+      now,
+    )
+    expect(back.writes).toEqual([])
+    expect(back.refused).toEqual([
+      {
+        what: 'queue.holds',
+        why: expect.stringContaining('2 hours ahead of this machine’s clock'),
+      },
+    ])
+  })
+
   it('is taken where it is later, or where this machine has nothing, with the stamp it came with', () => {
     const back = takeBack(
       mine,

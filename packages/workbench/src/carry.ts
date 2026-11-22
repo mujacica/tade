@@ -30,6 +30,7 @@ import {
   settingReach,
   settle,
   shownValue,
+  stampAhead,
   stampOf,
   stampText,
   textOf,
@@ -429,7 +430,12 @@ export interface TakenBack {
  * And the conflicts of the whole carry, as this machine says them: the ones
  * that machine settled in this one's favour, and the ones settled here.
  */
-export function takeBack(setup: Setup, answer: CarryAnswer, me: string): TakenBack {
+export function takeBack(
+  setup: Setup,
+  answer: CarryAnswer,
+  me: string,
+  now: number = Date.now(),
+): TakenBack {
   const back: TakenBack = { writes: [], conflicts: [], refused: [], landed: [] }
   const there = answer.machine || 'that machine'
   for (const one of answer.settings) {
@@ -450,6 +456,12 @@ export function takeBack(setup: Setup, answer: CarryAnswer, me: string): TakenBa
       stamp: stampOf(one.hlc),
       over: stampOf(one.over),
       by: one.by ?? null,
+    }
+    // A stamp from a clock far ahead of this one is not a later change: refused, and said.
+    const ahead = stampAhead(theirs.stamp, now)
+    if (ahead !== null) {
+      back.refused.push({ what: one.path, why: ahead })
+      continue
     }
     const settled = settle(ours, theirs)
     if (settled.keep !== 'incoming') continue

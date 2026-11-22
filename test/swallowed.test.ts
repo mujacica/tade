@@ -345,6 +345,9 @@ const ALLOWED: Record<string, number> = {
   'packages/workbench/src/driver-choice.ts': 1,
   'packages/workbench/src/event-index.ts': 1,
   'packages/workbench/src/events.ts': 14,
+  // The queue that orders writes to a copy of another machine's journal: what
+  // a write threw is its caller's, on the promise `take` handed back.
+  'packages/workbench/src/feeds.ts': 1,
   'packages/workbench/src/ignore.ts': 1,
   'packages/workbench/src/intake-acts.ts': 3,
   'packages/workbench/src/intake.ts': 3,

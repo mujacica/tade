@@ -392,6 +392,7 @@ describe('the owner’s table', () => {
       'POST /api/attach',
       'POST /api/since',
       'POST /api/notes/share',
+      'POST /api/feeds/share',
       'POST /api/repositories',
       'POST /api/machine',
       'POST /api/machines',

@@ -72,6 +72,13 @@ export interface CarriesDeps {
   /** What this machine calls itself there. */
   from: () => string
   log: (line: ReturnType<typeof carriedLine>) => Promise<void>
+  /**
+   * What a terminal changed in the config while this window held the journal,
+   * written down by the window's own append (`Settings.fold`) — awaited before
+   * a carry reads a single line, so a setting set from a shell for the first
+   * time is never carried with no stamp ahead of its line.
+   */
+  fold: () => Promise<void>
   /** Every `config_changed` line here, oldest first: what each setting's stamp is read from. */
   lines: () => Promise<readonly CarryLine[]>
   /** Write down settings edited by hand since their newest line, as somebody's here. */
@@ -176,6 +183,15 @@ export class Carries {
     const held = this.deps.reach(name)
     if (held === null) return null
     const secrets = this.deps.secrets()
+    // The spool first: a terminal's change folded on the beat beside this
+    // carry would otherwise reach the file before its line reaches the
+    // journal, and go out as a value nobody stamped — which loses to every
+    // change anywhere, however much later it was made.
+    await this.deps.fold().catch((err: unknown) => {
+      this.deps.say(
+        `A terminal's change to the config may be carried without its stamp: ${String(err)}`,
+      )
+    })
     let lines = await this.deps.lines()
     const edits = await editsOf(this.deps.configPath, lines, secrets)
     if (edits.length > 0) {
@@ -231,7 +247,7 @@ export class Carries {
     answer: Parameters<typeof takeBack>[1],
     me: string,
   ): Promise<{ taken: string[]; failed: { what: string; why: string }[] }> {
-    const back = takeBack(setup, answer, me)
+    const back = takeBack(setup, answer, me, this.deps.now())
     const taken: string[] = []
     const failed: { what: string; why: string }[] = []
     for (const one of back.writes) {

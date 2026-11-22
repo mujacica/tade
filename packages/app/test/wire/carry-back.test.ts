@@ -35,6 +35,7 @@ function carrying(answer: CarryAnswer, conflicted: (c: SettingConflict) => Promi
     secrets: () => new Set(),
     from: () => 'mac',
     log: async () => {},
+    fold: async () => {},
     lines: async () => [
       {
         type: 'config_changed',

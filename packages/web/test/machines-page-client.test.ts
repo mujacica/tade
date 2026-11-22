@@ -86,6 +86,12 @@ describe('the Machines page’s words', () => {
     expect(columnSaid(mac, clock)).toBe('this machine, now')
     expect(columnSaid(vps, clock)).toBe('as of 10:00')
     expect(columnSaid(pi, clock)).toBe('an older Tade, which does not say')
+    // Where it and this machine stand, beside when it last said.
+    if (vps === undefined || mac === undefined) throw new Error('no columns')
+    expect(columnSaid({ ...vps, synced: 'behind by 3 lines' }, clock)).toBe(
+      'as of 10:00 · behind by 3 lines',
+    )
+    expect(columnSaid({ ...mac, synced: 'in step' }, clock)).toBe('this machine, now')
   })
 
   it('groups the rows by kind, in the grid’s order', () => {

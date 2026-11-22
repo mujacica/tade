@@ -95,6 +95,11 @@ export interface InventoriesDeps {
   remotes?: () => readonly InventoryThere[]
   /** Whether Settings is open: the Machines page is one of its categories. Absent, nobody ever looks. */
   settingsOpen?: () => boolean
+  /**
+   * Where each machine and this one stand, their journals, notes and settings
+   * compared (`feeds.ts`): drawn under each column. Absent, nothing is said of it.
+   */
+  synced?: () => readonly { name: string; said: string }[]
 }
 
 /** A machine that linked here and said what it has, by its folder here. */
@@ -390,11 +395,17 @@ export class Inventories implements Subject {
     if (this.latestHere === null && this.looking === null) return null
     const columns = this.columns()
     const there = this.deps.remotes?.() ?? []
+    const synced = this.deps.synced?.() ?? []
     return {
       columns: columns.map((one, at) => ({
         machine: one.machine,
         asOf: one.asOf,
         here: at === 0,
+        synced:
+          at === 0
+            ? null
+            : (synced.find((each) => each.name.toLowerCase() === one.machine.toLowerCase())?.said ??
+              null),
         said:
           one.inventory !== null
             ? null

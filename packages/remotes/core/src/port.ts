@@ -9,7 +9,9 @@ import type { Snapshot } from '@tade/web'
 // owner device of its away view, and what crosses is the away protocol — the
 // projection as a snapshot and then deltas, the `(epoch, rev)` cursor, the
 // verbs — carried over whatever this implementation is. Nothing here is a
-// second protocol and nothing is merged.
+// second protocol and nothing is merged; each machine's journal is kept on the
+// others as a copy apart from their own (`@tade/workbench`'s `feeds.ts`), over
+// the same owner requests.
 //
 // It is shaped like a `WorkspaceDriver` on purpose (`add-workspace-driver`):
 // one object holds any number of links the way a driver holds any number of

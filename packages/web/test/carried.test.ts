@@ -135,6 +135,35 @@ describe('carrying a setup here', () => {
     expect(answer.signIns).toEqual(signIns)
   })
 
+  it('refuses a setting stamped by a clock further ahead than the bound, and says so', async () => {
+    const now = Date.parse('2026-11-22T10:00:00Z')
+    const ahead = `${now + 3 * 3_600_000}:0:mac`
+    const answer = await applyCarry(
+      {
+        schema: CARRY_SCHEMA,
+        from: 'mac',
+        settings: [{ path: 'agents.commit', value: 'as-you-go', hlc: ahead }],
+        files: [],
+        force: [],
+      },
+      'd1',
+      carrying,
+      Promise.resolve(),
+      now,
+    )
+    expect(answer.settings).toEqual([
+      {
+        path: 'agents.commit',
+        outcome: 'refused',
+        why: expect.stringContaining(
+          '3 hours ahead of this machine’s clock, so mac’s clock is wrong',
+        ),
+      },
+    ])
+    expect(lines).toEqual([])
+    expect(told.flatMap((news) => news.refused.map((one) => one.path))).toEqual(['agents.commit'])
+  })
+
   it('refuses what is this machine’s own, whatever was sent', async () => {
     const answer = await carry({
       settings: [

@@ -14,6 +14,7 @@ import { type RecordsAnswer, recordsHere } from './records.ts'
 import { type RepositoriesAnswer, repositoriesHere } from './repositories.ts'
 import { seenHere } from './seen.ts'
 import type { ServerOptions } from './serving.ts'
+import { type FeedsShareAnswer, feedsHere } from './shared-feeds.ts'
 import { type NotesShareAnswer, shareHere } from './shared-notes.ts'
 import { type SinceAnswer, sinceHereFor } from './since.ts'
 import { type TakeAnswer, takeHere } from './taken.ts'
@@ -25,7 +26,8 @@ import { type WatchSeenAnswer, watchSeenHere } from './watch-seen.ts'
 // (`presence.ts`), that another machine is up or closing (`seen.ts`), another machine's setup carried here (`carried.ts`), what
 // to run here to be shown one of its agents (`attached.ts`), what they missed
 // while they were away (`since.ts`), their notes shared with another of their
-// machines (`shared-notes.ts`), where each project's work is, for a fetch
+// machines (`shared-notes.ts`), every machine's journal kept on every other
+// (`shared-feeds.ts`), where each project's work is, for a fetch
 // over the same SSH (`repositories.ts`), and what this machine is, one of its
 // documents and one of its tools that only reads (`machine.ts`, `document.ts`,
 // `tool-read.ts`), every machine's inventory and the press that moves the keys
@@ -50,6 +52,7 @@ export const OWNED_DOOR: ReadonlySet<string> = new Set([
   'attach',
   'since',
   'share notes',
+  'share feeds',
   'repositories',
   'carry',
   'machine',
@@ -79,6 +82,7 @@ export async function carryOwned(
     | 'attaching'
     | 'since'
     | 'notes'
+    | 'feeds'
     | 'repositories'
     | 'machine'
     | 'machines'
@@ -98,6 +102,7 @@ export async function carryOwned(
         | AttachAnswer
         | SinceAnswer
         | NotesShareAnswer
+        | FeedsShareAnswer
         | RepositoriesAnswer
         | MachineAnswer
         | MachinesAnswer
@@ -115,6 +120,7 @@ export async function carryOwned(
   if (route === 'attach') return attachHere(req, device, opts.attaching)
   if (route === 'since') return sinceHereFor(req, device, now, opts.since)
   if (route === 'share notes') return shareHere(req, device, opts.notes)
+  if (route === 'share feeds') return feedsHere(req, device, opts.feeds)
   if (route === 'repositories') return repositoriesHere(req, device, opts.repositories)
   if (route === 'machine') return machineHere(req, device, opts.machine)
   if (route === 'machines') return machinesHere(req, device, opts.machines)

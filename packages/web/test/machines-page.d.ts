@@ -7,7 +7,13 @@
 
 declare module '*/assets/pages/machines-shape.js' {
   type Cell = { mark: string; days: number | null; where: readonly string[]; said: string | null }
-  type Column = { machine: string; asOf: string | null; here: boolean; said: string | null }
+  type Column = {
+    machine: string
+    asOf: string | null
+    here: boolean
+    said: string | null
+    synced?: string | null
+  }
   type Tile = {
     key: string
     label: string

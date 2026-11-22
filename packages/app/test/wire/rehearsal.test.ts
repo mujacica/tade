@@ -5,11 +5,13 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   ConfigSchema,
+  feedDir,
   machineLabel,
   mirrorDir,
   mirrorMachine,
   mirrorRef,
   parseConfig,
+  travels,
   writeSetting,
 } from '@tade/core'
 import { heldIn } from '@tade/workbench/config-changes'
@@ -58,6 +60,10 @@ import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.t
 // window here was shut, the later of the two standing on both and said as a
 // conflict on both, a setting only the box had coming back here, the box's
 // own staying its own, and a section it pinned staying as it was.
+//
+// And each machine's journal kept on the other: the box's lines here and this
+// Mac's there, each a copy of what travels exactly as written, the two said to
+// be in step on both, and `tade machines` saying so from the files.
 
 const bin = fileURLToPath(new URL('../../../cli/src/bin.ts', import.meta.url))
 const sshd = await startSshd()
@@ -570,5 +576,81 @@ describe.skipIf(cannot !== null)(
       expect(configOf(wired.home).queue.holds).toBe('orchestrator')
       await window.stop()
     }, 300_000)
+
+    it('keeps each machine’s journal on the other, line for line, says they are in step, and `tade machines` says so', async () => {
+      if (typeof sshd === 'string') return
+      const vps = await box('vps', 'app', sshd.dir)
+      const remotes = pair(sshd, [vps])
+      const window = await wired.start({
+        config: ConfigSchema.parse({ projects: { app: { root: wired.repo.root } }, remotes }),
+        remoteLinks: { ssh: (options) => makeSshLink({ ...options, args: ['-F', sshd.config] }) },
+        thinker: { ask: async () => 'ok', tell: async () => {} },
+      })
+      const idOf = (home: string) =>
+        (JSON.parse(readFileSync(join(home, 'machine.json'), 'utf8')) as { id: string }).id
+      const linesOf = (path: string) =>
+        existsSync(path)
+          ? readFileSync(path, 'utf8')
+              .split('\n')
+              .filter((one) => one !== '')
+          : []
+      const copyHere = () => linesOf(join(feedDir(wired.home, idOf(vps.home)), 'events.jsonl'))
+      const copyThere = () => linesOf(join(feedDir(vps.home, idOf(wired.home)), 'events.jsonl'))
+      await until(
+        'the box’s journal kept here, and this Mac’s kept on the box',
+        () => copyHere().length > 0 && copyThere().length > 0,
+        150_000,
+      )
+      // A copy is the origin's own lines that travel, in order, exactly as written.
+      const travelling = (journal: string) =>
+        journal
+          .split('\n')
+          .filter((one) => one !== '' && travels((JSON.parse(one) as { type: string }).type))
+      const kept = copyHere()
+      expect(travelling(vps.journal()).slice(0, kept.length)).toEqual(kept)
+      expect(kept.some((one) => one.includes('"type":"tade_opened"'))).toBe(true)
+      expect(kept.some((one) => one.includes('"type":"output"'))).toBe(false)
+      // Where the two stand, written down on both once they are in step.
+      const inStep = (journal: string) =>
+        journal
+          .split('\n')
+          .filter((one) => one.includes('"type":"remote_synced"'))
+          .some(
+            (one) => (JSON.parse(one) as { detail: { word: string } }).detail.word === 'in step',
+          )
+      const here = () => readFileSync(join(wired.home, 'events.jsonl'), 'utf8')
+      await until(
+        'in step, written down here and on the box',
+        () => inStep(here()) && inStep(vps.journal()),
+        150_000,
+      )
+      const machines = spawnSync(process.execPath, [bin, 'machines', '--json'], {
+        encoding: 'utf8',
+        env: { ...process.env, TADE_HOME: wired.home, HOME: wired.home },
+        timeout: 60_000,
+      })
+      expect(machines.status, machines.stderr).toBe(0)
+      const fleet = JSON.parse(machines.stdout) as {
+        window: boolean
+        rows: {
+          name: string
+          way: string
+          id: string | null
+          state: string | null
+          sync: { word: string } | null
+        }[]
+      }
+      expect(fleet.window).toBe(true)
+      expect(fleet.rows).toEqual([
+        expect.objectContaining({
+          name: 'vps',
+          way: 'to',
+          id: idOf(vps.home),
+          state: 'up',
+          sync: expect.anything(),
+        }),
+      ])
+      await window.stop()
+    }, 360_000)
   },
 )

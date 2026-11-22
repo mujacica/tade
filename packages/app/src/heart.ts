@@ -27,6 +27,7 @@ import {
   wiringFor,
 } from './wire/context.ts'
 import { Earlier } from './wire/earlier.ts'
+import { type FleetFeeds, fleetFeedsFor } from './wire/feeds.ts'
 import { type Tellable, tellNow, tellOrKeep } from './wire/handed.ts'
 import { Intake } from './wire/intake.ts'
 import { Inventories, type InventoriesDeps, type InventoryTools } from './wire/inventory.ts'
@@ -367,6 +368,8 @@ export class Heart {
   readonly sync: ProjectSync
   /** What this machine has, and what each of the person's others said it has (`inventory.ts`). */
   readonly inventory: Inventories
+  /** Every machine's journal, kept here and handed on to the next (`feeds.ts`). */
+  readonly feeds: FleetFeeds
   /**
    * What was said to the orchestrator before what the conversation holds, read
    * back out of its record: by a face scrolled to the top, and by a page on a
@@ -469,11 +472,17 @@ export class Heart {
     this.sync = projectSyncFor(this.wire, () => this.told)
     this.inventory = new Inventories(this.wire, {
       news: (words) => this.told.note(words),
+      synced: () => this.feeds.synced(),
       ...(face.inventories ?? {}),
+    })
+    this.feeds = fleetFeedsFor(this.wire, (said) => {
+      this.put(notice(this.current, said, this.now()))
+      face.draw()
     })
     this.away = new Away(this.wire, {
       machines: this.machinesSeen,
       inventory: this.inventory,
+      feeds: this.feeds,
       earlier: () => this.earlier.more(),
       ...face.away,
       decided: (allow) => this.agents.decide(allow),
@@ -566,7 +575,7 @@ export class Heart {
         void this.sync.beat()
         this.inventory.beat()
         this.away.beat()
-        void this.settings.fold(() => this.serversMoved())
+        void this.foldConfig()
         face.beat(tasks, moved)
       },
       onEvent: (event) => {
@@ -674,6 +683,15 @@ export class Heart {
   }
 
   /** The heart's part of a look: the inbox folded where the journal grew, and what a reader found due. */
+  /**
+   * What a terminal changed in the config, folded into the journal: on every
+   * beat, and awaited before every carry (`Carries`), which waits out a fold
+   * already under way and then makes its own.
+   */
+  foldConfig(fresh = false): Promise<void> {
+    return this.settings.fold(() => this.serversMoved(), fresh)
+  }
+
   look(): void {
     this.intake.look()
     void this.looked?.lookAgain()

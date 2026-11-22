@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ConfigSchema, type TadeEvent } from '@tade/core'
 import { type Take, TakeSchema } from '@tade/web'
@@ -7,6 +7,7 @@ import { readTaskFile, taskContextPath } from '@tade/workbench/tasks'
 import { afterEach, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import { mkrepo, runGit, tmp } from '../../../../test/fixtures/mkrepo.ts'
+import { type AppState, initialState } from '../../src/model.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 import { takingFrom } from '../../src/wire/web-take.ts'
 
@@ -30,7 +31,15 @@ async function machines() {
   const client = await Workbench.open({ home })
   opened.push(client)
   let refreshed = 0
+  let state: AppState = initialState()
   const wire = {
+    get state() {
+      return state
+    },
+    put: (next: AppState) => {
+      state = next
+    },
+    draw: () => {},
     now: () => Date.now(),
     live: {
       refresh: async () => {
@@ -152,12 +161,59 @@ describe('work handed to this machine, as its window makes it', () => {
     expect(await readTaskFile(one.home, 'tade/fix-it')).toBeNull()
   })
 
-  it('refuses a name used here before, and a project it does not have', async () => {
+  it('renames a take whose name was made here while the two could not see each other, and says so', async () => {
     const one = await machines()
     await one.client.createTask({ project: 'tade', slug: 'fix-it', intent: 'an older one' })
     const used = await takingFrom(one.wire)(take(), 'ab12cd34ab12cd34')
-    expect(used).toMatchObject({ took: false })
-    if (!used.took) expect(used.said).toContain('never used twice')
+    expect(used).toMatchObject({ took: true, task: 'tade/fix-it-2' })
+    if (used.took) {
+      expect(used.said).toContain('tade/fix-it was used before')
+      expect(used.said).toContain('so it is tade/fix-it-2 here')
+    }
+    const taken = await lines(one.client, 'task_taken')
+    expect(taken.map((line) => [line.task, line.detail.asked])).toEqual([
+      ['tade/fix-it-2', 'tade/fix-it'],
+    ])
+    // The same work arriving again is refused, not renamed twice.
+    const again = await takingFrom(one.wire)(take({ name: 'fix-it-2' }), 'ab12cd34ab12cd34')
+    expect(again).toMatchObject({ took: false })
+  })
+
+  it('renames a take whose name another of the person’s machines made, out of the copy of its journal', async () => {
+    const one = await machines()
+    const id = '33333333-3333-4333-8333-333333333333'
+    const dir = join(one.home, 'machines', id)
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(
+      join(dir, 'feed.json'),
+      JSON.stringify({
+        machine: id,
+        name: 'laptop',
+        epoch: { id: '0123456789abcdef', at: '2026-11-22T10:00:00.000Z' },
+        forks: [],
+      }),
+    )
+    writeFileSync(
+      join(dir, 'events.jsonl'),
+      `${JSON.stringify({ seq: 1, ts: '2026-11-22T10:00:00.000Z', type: 'task_created', urgency: 'notable', task: 'tade/fix-it', lane: null, run: null, detail: {} })}\n`,
+    )
+    const used = await takingFrom(one.wire)(take(), 'ab12cd34ab12cd34')
+    expect(used).toMatchObject({ took: true, task: 'tade/fix-it-2' })
+    if (used.took) expect(used.said).toContain('was used on laptop already')
+    // And a task made here by hand under that name is refused at once.
+    await expect(
+      one.client.createTask({ project: 'tade', slug: 'fix-it', intent: 'again' }),
+    ).rejects.toThrow('used on laptop already')
+    // The machine a take comes from: its own name is the same task travelling.
+    const fromLaptop = await takingFrom(one.wire)(
+      take({ name: 'fix-it', from: 'laptop', was: 'tade/fix-it' }),
+      'd',
+    )
+    expect(fromLaptop).toMatchObject({ took: true, task: 'tade/fix-it' })
+  })
+
+  it('refuses a project it does not have', async () => {
+    const one = await machines()
     const none = await takingFrom(one.wire)(take({ project: 'shop' }), 'ab12cd34ab12cd34')
     expect(none).toEqual({ took: false, said: 'There is no project called shop here.' })
     expect(await lines(one.client, 'task_taken')).toEqual([])

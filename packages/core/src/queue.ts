@@ -1,5 +1,6 @@
 import type { Finished } from './done.ts'
 import { type EventType, type TadeEvent, typeNow } from './events.ts'
+import { ownLines } from './feeds.ts'
 import type { DoneRule, StartCondition, TaskState } from './model.ts'
 import { approvedFrom, type Triage } from './produces.ts'
 import { RuntimeFold } from './runtime.ts'
@@ -410,7 +411,21 @@ export function queueStateOf(item: Queued, facts: QueueFacts): QueueState {
   return stateOf(item, facts, true)
 }
 
-function stateOf(item: Queued, facts: QueueFacts, tree: boolean): QueueState {
+/**
+ * The facts with only this machine's own lines in them (`ownLines`). Every
+ * fold here compares `seq` — a pause after a start, trouble since an answer —
+ * and a number out of another machine's journal is a number in another file:
+ * set beside this one's it orders nothing, and a pause written on vps would
+ * hold a start made here hours later. The same facts where nothing is foreign,
+ * which is one pass and no copy.
+ */
+function ownFacts(facts: QueueFacts): QueueFacts {
+  const events = ownLines(facts.events)
+  return events === facts.events ? facts : { ...facts, events }
+}
+
+function stateOf(item: Queued, given: QueueFacts, tree: boolean): QueueState {
+  const facts = ownFacts(given)
   // Parked first, above the journal and above `anyway`. Parking is the only
   // thing read here that a person told Tade rather than Tade deriving it, and
   // the only way to undo it is to pick the task up again — so it is newer
@@ -610,6 +625,7 @@ export function readyToStart(
   facts: QueueFacts,
   room: ReadonlyMap<string, number>,
 ): string[] {
+  facts = ownFacts(facts)
   const left = new Map(room)
   const out: string[] = []
   for (const item of items) {

@@ -663,6 +663,20 @@ export const OWNED: readonly Route[] = [
     here: true,
     theirs: true,
   },
+  // Every machine's journal shared with the machine that asks (`shared-feeds.ts`):
+  // what it gives is kept as a copy in this home, apart from this machine's own
+  // journal and checked against each feed's hash chain; what it asks for is
+  // this machine's journal and the copies it holds — so an owner's, as an edit
+  // to a file in this home over SSH is.
+  {
+    method: 'POST',
+    path: '/api/feeds/share',
+    name: 'share feeds',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
   // Where each project is checked out here and the branches its work is on
   // (`repositories.ts`): a path on this machine, which no phone reads, for the
   // fetch another machine of the person's makes over the same SSH. A read.

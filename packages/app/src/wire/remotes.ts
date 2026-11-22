@@ -56,6 +56,7 @@ import {
   type Subject,
   type Wiring,
 } from './context.ts'
+import type { FleetFeeds, FleetSync } from './feeds.ts'
 import type { InventoryThere } from './inventory.ts'
 import { type Mirrors, mirrorsFor } from './mirrors.ts'
 import { Moves, type MoveTools } from './moves.ts'
@@ -139,6 +140,7 @@ export interface RemotesDeps {
     | 'onScreenWith'
     | 'said'
     | 'draw'
+    | 'fold'
     | 'lines'
     | 'found'
     | 'take'
@@ -207,6 +209,8 @@ export class Remotes implements Subject {
   private talks: RemoteTalks | null = null
   /** The person's notes, shared with each machine (`notes-shared.ts`), where the window has them. */
   private notes: SharedNotes | null = null
+  /** Every machine's journal, kept here and handed on (`feeds.ts`), where the heart keeps them. */
+  private feeds: FleetFeeds | null = null
   /** Each machine's branches, mirrored here (`mirrors.ts`), where the window has them. */
   private mirrors: Mirrors | null = null
   /** What each machine says it is, asked as its owner (`remote-machine.ts`), where the window asks. */
@@ -322,6 +326,17 @@ export class Remotes implements Subject {
   withNotes(make: (remotes: Remotes) => SharedNotes): this {
     this.notes = make(this)
     return this
+  }
+
+  /** Hand it the heart's journals of other machines, shared with each machine this one links to. */
+  withFeeds(feeds: FleetFeeds | undefined): this {
+    this.feeds = feeds ?? null
+    return this
+  }
+
+  /** Where this machine and one it links to last stood (`feeds.ts`), or null where they have not compared. */
+  syncedWith(name: string): FleetSync | null {
+    return this.feeds?.syncedWith(name) ?? null
   }
 
   /** Hand it what mirrors each machine's branches here, which reaches the links through it. */
@@ -622,6 +637,7 @@ export class Remotes implements Subject {
     }
     this.carries.beat([...this.holder.keys()])
     void this.notes?.beat([...this.holder.keys()])
+    void this.feeds?.beat([...this.holder.keys()], (name) => this.reachFor(name))
     void this.mirrors?.beat([...this.holder.keys()])
     this.about?.beat([...this.holder.keys()])
     this.sayBehind()
@@ -689,6 +705,7 @@ export class Remotes implements Subject {
       this.carries.forget(name)
       this.talks?.forget(name)
       this.notes?.forget(name)
+      this.feeds?.forget(name)
       this.mirrors?.forget(name)
       this.about?.forget(name)
       void this.links.get(kind)?.close(name)
@@ -746,6 +763,7 @@ export class Remotes implements Subject {
         }
         if (word === 'up') this.carries.up(name)
         if (word === 'up') this.notes?.up(name)
+        if (word === 'up') this.feeds?.up(name)
         if (word === 'up') this.mirrors?.up(name)
         if (word === 'up') this.about?.up(name)
       }
@@ -819,6 +837,10 @@ export function remotesFor(
     synced?: (project: string) => void
     /** The one door a setting is written by, for one that came back newer from another machine. */
     settings: () => Pick<Settings, 'writeKey'>
+    /** A terminal's changes to the config, folded into the journal now and awaited (`Heart.foldConfig`). */
+    fold: () => Promise<void>
+    /** The heart's journals of other machines (`feeds.ts`), shared with each machine linked here. */
+    feeds?: FleetFeeds
   },
 ): Remotes {
   const say = (said: string) => {
@@ -848,6 +870,7 @@ export function remotesFor(
         wire.draw()
       },
       draw: () => wire.draw(),
+      fold: () => subjects.fold(),
       lines: () => wire.opts.client.events({ types: ['config_changed'] }),
       found: async (edits) => {
         for (const one of edits) await recordChange(wire, { ...one, by: 'file' })
@@ -888,6 +911,7 @@ export function remotesFor(
     .withAgents((remotes) => new RemoteAgents(wire, reachingOf(remotes)))
     .withTalks((remotes) => new RemoteTalks(wire, reachingOf(remotes)))
     .withNotes((remotes) => sharedNotesFor(wire, (name) => remotes.reachFor(name), say))
+    .withFeeds(subjects.feeds)
     .withMirrors((remotes) =>
       mirrorsFor(wire, (name) => remotes.reachFor(name), say, subjects.synced),
     )

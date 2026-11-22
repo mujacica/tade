@@ -132,7 +132,7 @@ export class Settings implements Subject {
   /** The records the public name needs, under its row (`web-domain.ts`). */
   private readonly domain: DomainLook
   /** A fold under way, so a slow disk never stacks beats; and what last stopped one (`fold`). */
-  private folding = false
+  private folding: Promise<void> | null = null
   private foldTrouble: string | null = null
 
   constructor(wire: Wiring, deps: SettingsDeps) {
@@ -514,28 +514,38 @@ export class Settings implements Subject {
    * most of all under `tade serve`, where a terminal over SSH is the only
    * page there is (`taken`).
    */
-  async fold(switched?: () => Promise<void>): Promise<void> {
-    if (this.folding) return
-    this.folding = true
-    const paths: string[] = []
+  async fold(switched?: () => Promise<void>, fresh = false): Promise<void> {
+    // A beat skips a fold already under way. A carry (`fresh`) waits it out
+    // and folds again, because what a terminal wrote after that fold read the
+    // spool is what it is waiting for.
+    while (this.folding !== null) {
+      if (!fresh) return
+      // A fold that threw throws here too: the carry waiting on it says so.
+      await this.folding
+    }
+    const run = this.foldOnce(switched)
+    this.folding = run
     try {
-      const { trouble } = await foldConfigChanges(this.wire.opts.home, (line) => {
-        paths.push(String(line.detail?.path))
-        return this.wire.opts.client.log.append(line)
-      })
-      if (trouble !== null && trouble !== this.foldTrouble) {
-        this.said(
-          `The changes a terminal made to the config are not in the journal yet: ${trouble}`,
-        )
-      }
-      this.foldTrouble = trouble
-      if (paths.length > 0) {
-        await this.taken(paths, switched).catch((err: unknown) =>
-          this.said(`What a terminal changed in the config is not taken here: ${why(err)}`),
-        )
-      }
+      await run
     } finally {
-      this.folding = false
+      this.folding = null
+    }
+  }
+
+  private async foldOnce(switched?: () => Promise<void>): Promise<void> {
+    const paths: string[] = []
+    const { trouble } = await foldConfigChanges(this.wire.opts.home, (line) => {
+      paths.push(String(line.detail?.path))
+      return this.wire.opts.client.log.append(line)
+    })
+    if (trouble !== null && trouble !== this.foldTrouble) {
+      this.said(`The changes a terminal made to the config are not in the journal yet: ${trouble}`)
+    }
+    this.foldTrouble = trouble
+    if (paths.length > 0) {
+      await this.taken(paths, switched).catch((err: unknown) =>
+        this.said(`What a terminal changed in the config is not taken here: ${why(err)}`),
+      )
     }
   }
 

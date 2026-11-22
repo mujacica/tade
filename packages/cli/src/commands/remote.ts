@@ -9,10 +9,11 @@ import {
 } from '@tade/core'
 import { readJournal } from '@tade/workbench/events'
 import { heldBy } from '@tade/workbench/lock'
-import { type LinkSeen, linkOf, linksSeen, REMOTE_LINKS, remoteOf } from '@tade/workbench/remotes'
+import { linkOf, linksSeen, REMOTE_LINKS, remoteOf } from '@tade/workbench/remotes'
 import type { Command } from 'commander'
 import { writeFromShell } from '../config-write.ts'
 import { Exit, type Io } from '../io.ts'
+import { fleetOf, linkSaid } from './machines.ts'
 import {
   type AddOpts,
   addRemote,
@@ -41,9 +42,11 @@ import {
 // terminal, and it ends with a checklist of what was done and what is left.
 // `carry` does the same again later, for a remote added with nobody to ask.
 //
-// **`list` and `status` read files only** — the config, and the journal's
-// `remote_linked`/`remote_unlinked` lines — so they answer with the window open
-// or closed, and never open the workbench. The links themselves live in the
+// **`list` and `status` read files only** — the config, the journal's
+// `machine_seen` and `remote_linked`/`remote_unlinked` lines, and where each
+// machine and this one last stood (`sync.json`, `tade machines`) — so they say
+// a machine is closed or lost, and answer with the window open or closed,
+// never opening the workbench. The links themselves live in the
 // window, which is the one thing holding them; a window open on this home
 // picks up a remote added here within a beat (`wire/remotes.ts`).
 //
@@ -91,26 +94,34 @@ export function registerRemote(program: Command, io: Io, setExit: (code: number)
 
   remote
     .command('list')
-    .description('Every remote, where it is and which device this machine is there')
+    .description(
+      'Every remote, where it is, which device this machine is there, and how it was last seen',
+    )
     .option('--json', 'machine-readable output (never the session)')
     .action(async (opts: { json?: boolean }) => {
       const remotes = await configured(io, setExit)
       if (remotes === null) return
-      const rows = Object.entries(remotes).map(([name, one]) => listed(name, one))
+      const fleet = await fleetOf(tadeHome(), remotes)
+      const rows = Object.entries(remotes).map(([name, one]) => {
+        const row = fleet.rows.find((each) => each.way === 'to' && each.name === name)
+        return { ...listed(name, one), state: row?.state ?? null, seen: row?.seen ?? null }
+      })
       if (opts.json) {
         io.out(JSON.stringify(rows, null, 2))
         return
       }
       if (rows.length === 0)
         io.out('no remotes: `tade remote add <name> --ssh <host>` pairs with one')
-      for (const row of rows)
-        io.out(`${row.name}  ssh ${row.ssh}  device ${row.device}  ${row.host}`)
+      for (const row of rows) {
+        const seen = row.seen === null ? '' : `  ${row.seen}`
+        io.out(`${row.name}  ssh ${row.ssh}  device ${row.device}  ${row.host}${seen}`)
+      }
     })
 
   remote
     .command('status [name]')
     .description(
-      'How each remote’s link last stood, out of the journal, and whether a window holds the links now',
+      'How each remote was last seen — up, asleep, closed or lost — whether the two are in step, out of the journal, and whether a window holds the links now',
     )
     .option('--json', 'machine-readable output')
     .action(async (only: string | undefined, opts: { json?: boolean }) => {
@@ -126,16 +137,29 @@ export function registerRemote(program: Command, io: Io, setExit: (code: number)
       const seen = linksSeen(
         await readJournal(home, { types: ['remote_linked', 'remote_unlinked'] }),
       )
+      const fleet = await fleetOf(home, remotes)
       const rows = Object.entries(remotes)
         .filter(([name]) => only === undefined || name === only)
-        .map(([name, one]) => ({ ...listed(name, one), link: seen.get(name) ?? null }))
+        .map(([name, one]) => {
+          const row = fleet.rows.find((each) => each.way === 'to' && each.name === name)
+          return {
+            ...listed(name, one),
+            link: seen.get(name) ?? null,
+            state: row?.state ?? null,
+            seen: row?.seen ?? null,
+            synced: row?.synced ?? null,
+          }
+        })
       if (opts.json) {
         io.out(JSON.stringify({ window, remotes: rows }, null, 2))
         return
       }
       if (rows.length === 0)
         io.out('no remotes: `tade remote add <name> --ssh <host>` pairs with one')
-      for (const row of rows) io.out(`${row.name}  ${stood(row.link)}  (ssh ${row.ssh})`)
+      for (const row of rows) {
+        const words = [row.seen ?? linkSaid(row.link), row.synced].filter((one) => one !== null)
+        io.out(`${row.name}  ${words.join(' · ')}  (ssh ${row.ssh})`)
+      }
       if (rows.length > 0 && !window) {
         io.out(
           'no window is open on this home, so nothing is linked now: the window holds the links',
@@ -192,15 +216,6 @@ export function registerRemote(program: Command, io: Io, setExit: (code: number)
     .action(async (name: string) => {
       await removeOne(io, setExit, name)
     })
-}
-
-/** How a link last stood, in the words a terminal gets. */
-function stood(link: LinkSeen | null): string {
-  if (link === null) return 'not linked yet'
-  const at = link.at.slice(0, 16).replace('T', ' ')
-  if (link.word === 'up') return `up since ${at}`
-  if (link.word === 'ended') return `signed out there at ${at}: ${link.said}`
-  return `down since ${at}${link.said === '' ? '' : `: ${link.said}`}`
 }
 
 /** The remotes in the config, or null having said why there are none to read. */

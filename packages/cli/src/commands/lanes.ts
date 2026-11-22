@@ -5,6 +5,7 @@ import {
   type LaneId,
   type LaneKind,
   loadConfig,
+  machineLabel,
   printable,
   type TadeEvent,
   tadeHome,
@@ -12,6 +13,7 @@ import {
 import type { Workbench } from '@tade/workbench'
 import { weighJournal } from '@tade/workbench/compact'
 import { readJournal } from '@tade/workbench/events'
+import { readFeeds } from '@tade/workbench/feeds'
 import type { LaneRecord } from '@tade/workbench/registry'
 import type { Command } from 'commander'
 import { attachToLane } from '../attach.ts'
@@ -111,10 +113,15 @@ export function registerLanes(program: Command, io: Io, setExit: (code: number) 
     .option('--type <type...>', 'event types to include')
     .option('--min-urgency <urgency>', 'blocking | notable | routine | trace')
     .option('-n, --limit <n>', 'how many past events to show', '20')
+    .option(
+      '--fleet',
+      'every machine’s journal kept here too, each line labelled with its machine; another machine’s times are by its own clock (~)',
+    )
     .option('--json', 'machine-readable output')
     .action(
       async (opts: {
         follow?: boolean
+        fleet?: boolean
         size?: boolean
         task?: string
         lane?: string
@@ -135,6 +142,36 @@ export function registerLanes(program: Command, io: Io, setExit: (code: number) 
         // Read the file rather than take the workbench: what happened is a
         // question, and you must be able to ask it with a window open.
         const home = tadeHome()
+        if (opts.fleet) {
+          // Ordered by each line's time for reading, which across machines is
+          // two clocks: another machine's is marked `~`, and no number from
+          // one journal is ever compared with another's.
+          const { limit, ...all } = filter
+          const own = (await readJournal(home, all)).map((event) => ({
+            machine: machineLabel(),
+            event,
+            own: true,
+          }))
+          const theirs = (await readFeeds(home, all)).flatMap((feed) =>
+            feed.events.map((event) => ({ machine: feed.name, event, own: false })),
+          )
+          const merged = [...own, ...theirs]
+            .map((one, at) => ({ ...one, at, t: Date.parse(one.event.ts) }))
+            .sort((a, b) => a.t - b.t || a.at - b.at)
+            .slice(-(limit ?? 20))
+          for (const one of merged) {
+            io.out(
+              opts.json
+                ? JSON.stringify({ ...one.event, machine: one.machine })
+                : `${one.machine}  ${one.own ? '' : '~'}${formatEvent(one.event)}`,
+            )
+          }
+          if (opts.follow)
+            io.err(
+              '--follow follows this machine’s own journal only, so it is not followed with --fleet',
+            )
+          return
+        }
         let seen = 0
         for (const e of await readJournal(home, filter)) {
           show(e)

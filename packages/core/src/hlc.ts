@@ -68,6 +68,44 @@ export function tick(last: Stamp | null, now: number, machine: string): Stamp {
   return { wall, count, machine }
 }
 
+/**
+ * How far ahead of this machine's own clock a stamp from another may be and
+ * still be taken: five minutes, which no machine kept by NTP is ever off by.
+ *
+ * **Why there is a bound at all.** A hybrid clock moves up to every stamp it
+ * is handed, so without one a single machine whose clock runs a day ahead
+ * drags every other machine's clock a day ahead with it — through every carry,
+ * for good — and from then on a change made on any of them is stamped a day
+ * late against one made on a machine that never met it. A standard hybrid
+ * clock refuses a stamp more than its maximum offset ahead; so does this one,
+ * and says so rather than taking it.
+ */
+export const MAX_DRIFT_MS = 5 * 60_000
+
+/**
+ * Why a stamp may not be taken, or null where it may: one more than
+ * `MAX_DRIFT_MS` ahead of `now` is a clock that is wrong, not a change made
+ * later.
+ */
+export function stampAhead(stamp: Stamp | null, now: number): string | null {
+  if (stamp === null) return null
+  const ahead = stamp.wall - Math.trunc(now)
+  if (ahead <= MAX_DRIFT_MS) return null
+  const minutes = Math.round(ahead / 60_000)
+  const by = minutes >= 120 ? `${Math.round(minutes / 60)} hours` : `${minutes} minutes`
+  return `its stamp is ${by} ahead of this machine’s clock${stamp.machine ? `, so ${stamp.machine}’s clock is wrong` : ''}: set its time, and it is taken at the next carry`
+}
+
+/** A stamp handed to this clock that `stampAhead` refused: thrown, so the line is never written. */
+export class StampAhead extends Error {
+  readonly path: string
+  constructor(path: string, why: string) {
+    super(`${path} was not written: ${why}`)
+    this.name = 'StampAhead'
+    this.path = path
+  }
+}
+
 /** A line's stamp, or for a line from before stamps, its wall time and no machine. */
 export function lineStamp(detail: { hlc?: unknown } | undefined, ts?: string): Stamp | null {
   const stamped = stampOf(detail?.hlc)

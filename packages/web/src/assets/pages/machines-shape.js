@@ -43,12 +43,17 @@ export function cellSaid(cell) {
   return `${word} · ${cell.days} day${cell.days === 1 ? '' : 's'} left`
 }
 
-/** Under a machine's name: why it has nothing to say, when it last said, or that it is this one. */
+/**
+ * Under a machine's name: why it has nothing to say, when it last said, or
+ * that it is this one — and where it and this one stand, where they were
+ * compared: `as of 14:02 · in step`.
+ */
 export function columnSaid(column, clock) {
-  if (column.said) return column.said
+  const synced = column.synced ? ` · ${column.synced}` : ''
+  if (column.said) return `${column.said}${synced}`
   if (column.here) return 'this machine, now'
-  if (column.asOf) return `as of ${clock(column.asOf)}`
-  return 'it has not said what it has'
+  if (column.asOf) return `as of ${clock(column.asOf)}${synced}`
+  return `it has not said what it has${synced}`
 }
 
 /** The rows, a group per kind in the order the grid gives them. */

@@ -547,8 +547,11 @@ export const EventType = z.enum([
    * beat until it is back, and none of those tries is a line: the journal says
    * when it came up and when it went, which is what "was the VPS reachable last
    * night?" is asking. Nothing the remote sent is in it — its projection is
-   * that machine's journal, folded there, and copying any of it here would be
-   * two truths about one machine.
+   * that machine's journal, folded there, and copying any of it into this
+   * journal would be two truths about one machine. That machine's journal is
+   * kept here all the same, **apart from this one**: a read-only copy under
+   * `<home>/machines/<id>/`, labelled with whose it is (`feeds.ts`) — a cache
+   * of the one truth, never a second.
    */
   'remote_linked',
   /**
@@ -592,6 +595,27 @@ export const EventType = z.enum([
    * `note_retired`'s reason. Written only where something moved.
    */
   'notes_shared',
+  /**
+   * Another machine's journal, as this machine holds a copy of it
+   * (`feeds.ts`), stopped agreeing with what it was given: the same numbers
+   * with a different history (`why: chain`, a restore that kept its epoch or a
+   * copy edited by hand), or a new epoch begun there (`why: epoch`, `tade host
+   * restore`). Which feed (`machine`, its id; `name`, what it calls itself),
+   * the epoch, where the old copy was kept (`kept`, a path under this home)
+   * and who handed the other history (`from`). **Nothing is thrown away**: the
+   * copy is set aside whole and said once.
+   */
+  'feed_forked',
+  /**
+   * Where this machine and another of the person's stand after their journals,
+   * notes and settings were compared (`feeds.ts`, `syncStateOf`): with whom
+   * (`with`, its name here; `id`), the word (`in step`, `behind`, `ahead`,
+   * `apart`), the lines taken here and given there, forks found, conflicts,
+   * and which channels differ. Written only when the word changes or something
+   * forked — a line per exchange would be the journal recording that it is
+   * being copied. **Never travels in a feed**, for the same reason.
+   */
+  'remote_synced',
   /**
    * A branch of a project here was fast-forwarded to keep it in step with
    * origin or another machine (`sync.ts`): which (`project`, `branch`), to
@@ -837,6 +861,10 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // Routine: notes arriving from the person's other machine is what linking
   // one is for, and the notes say themselves where they are read.
   notes_shared: 'routine',
+  // Notable: two histories of one machine were found, and nothing else will ever say so.
+  feed_forked: 'notable',
+  // Routine: the word is drawn on Settings › Machines and said by `tade machines`.
+  remote_synced: 'routine',
   // Never trace: it is read back as a cursor, and trace is dropped first.
   person_present: 'routine',
   // Notable: the checkout moved under whoever works in it, and only this says so.

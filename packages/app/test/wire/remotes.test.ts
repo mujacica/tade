@@ -67,6 +67,7 @@ function carrying(
     draw: () => {},
     carrying: {
       config,
+      fold: async () => {},
       secrets: () => new Set(),
       from: () => 'mac',
       onScreenWith,

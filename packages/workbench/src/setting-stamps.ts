@@ -5,6 +5,8 @@ import {
   lineStamp,
   pathsMeet,
   type Stamp,
+  StampAhead,
+  stampAhead,
   stampOf,
   stampText,
   tick,
@@ -52,6 +54,12 @@ export class SettingStamps {
     const path = detail.path
     if (typeof path !== 'string') return { ...detail }
     const given = stampOf(detail.hlc)
+    // A stamp too far ahead of this clock is a wrong clock somewhere, and
+    // taking it would drag this one — and every machine this one carries to —
+    // ahead with it for good (`MAX_DRIFT_MS`). Refused by name: the carry that
+    // brought it says which setting and why.
+    const ahead = stampAhead(given, now)
+    if (ahead !== null) throw new StampAhead(path, ahead)
     if (given !== null) {
       this.last = laterOf(this.last, given)
       this.held.set(path, given)

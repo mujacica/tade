@@ -401,12 +401,14 @@ describe('restoring', () => {
           { name: 'local', root: '/srv/local', remote: null },
         ],
         links: ['/home/you/.tade/extensions'],
+        epoch: '0123456789abcdef',
       },
       '/home/you/.tade',
     )
     expect(lines).toEqual([
       '✓ restored /home/you/.tade, as vps had it at 2026-10-18T00:00:00.000Z under Tade 0.2.3',
       '  what was there is at /home/you/.tade.before-restore-x',
+      '  its journal begins a new epoch (0123456789abcdef): your other machines keep their copies of the old one beside it',
       '  pi’s conversations into /home/you/.pi/agent/sessions, leaving 2 this machine already had',
       '▲ codex as tade-agent’s conversations stayed where restic put them: nothing here keeps codex’s conversations for tade-agent',
       '  cut a torn last line (21 bytes) off /home/you/.tade/events.jsonl',
@@ -431,6 +433,7 @@ describe('restoring', () => {
           cut: [],
           missing: [],
           links: [],
+          epoch: null,
         },
         '/h',
       ),

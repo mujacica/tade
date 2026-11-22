@@ -33,6 +33,12 @@ export interface MachineColumn {
   here: boolean
   /** Why it has nothing to say, where it has not. */
   said: string | null
+  /**
+   * Where it and this machine stand — their journals, notes and settings
+   * compared (`syncSaid`): `in step`, `behind by 3 lines`, `1 conflict`.
+   * Absent for this machine, and for one they have not been compared with.
+   */
+  synced?: string | null
 }
 
 /** What moving the keys would do, shown before the press that does it. */
@@ -182,7 +188,8 @@ export function drawMachines(
   body.push(head.build())
   for (const one of drawn) {
     const asOf = one.said ?? (one.asOf === null ? null : `as of ${ctx.date(one.asOf)}`)
-    if (asOf) say(`${one.machine}: ${asOf}`, skin.hint, 3, 2)
+    const words = [asOf, one.synced ?? null].filter((part) => part !== null && part !== '')
+    if (words.length > 0) say(`${one.machine}: ${words.join(' · ')}`, skin.hint, 3, 2)
   }
   if (columns.length > drawn.length) {
     say(

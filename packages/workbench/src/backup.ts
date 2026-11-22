@@ -35,6 +35,7 @@ import {
   snapshotsSaid,
 } from '@tade/core'
 import { HARNESS_ADAPTERS } from './harnesses.ts'
+import { mintEpoch } from './machine-file.ts'
 import { runningVersion } from './programs.ts'
 
 // A backup of this machine's Tade, and putting one back: the half of
@@ -413,6 +414,12 @@ export interface Restored {
   missing: ProjectKept[]
   /** Symbolic links the restored home held, left in the restore's own folder rather than placed. */
   links: string[]
+  /**
+   * The journal's new epoch (`mintEpoch`), where it was put back: its numbers
+   * go on from the backup's, so every other machine holding a copy sets that
+   * copy aside and begins this life beside it. Null where nothing was restored.
+   */
+  epoch: string | null
 }
 
 /** A restore that did nothing, and why. */
@@ -427,6 +434,7 @@ function refused(said: string): Restored {
     cut: [],
     missing: [],
     links: [],
+    epoch: null,
   }
 }
 
@@ -517,6 +525,9 @@ export async function restoreInto(
     const bytes = await cutTornTail(path)
     if (bytes > 0) cut.push({ path, bytes })
   }
+  // The same machine come back, in a new life of its journal: what it numbers
+  // next was numbered once already, on the machine the backup was taken of.
+  const epoch = await mintEpoch(place.home, now)
 
   // Where each harness keeps its conversations here, by this machine's own
   // config as it was before the restore — never the one just put back, which
@@ -552,6 +563,7 @@ export async function restoreInto(
     cut,
     missing,
     links,
+    epoch: epoch.epoch.id,
   }
 }
 

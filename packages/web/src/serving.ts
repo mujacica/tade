@@ -22,6 +22,7 @@ import type { WebReading } from './reading.ts'
 import type { WebRecords } from './records.ts'
 import type { WebRepositories } from './repositories.ts'
 import type { WebSeen } from './seen.ts'
+import type { WebFeeds } from './shared-feeds.ts'
 import type { WebNotes } from './shared-notes.ts'
 import type { WebSince } from './since.ts'
 import type { Listener, Scope, Surface } from './surface.ts'
@@ -260,6 +261,12 @@ export interface ServerOptions {
    * (`shared-notes.ts`). Absent, the route is the `404` of a path nobody wired.
    */
   notes?: WebNotes
+  /**
+   * Every machine's journal kept on every other, shared with an owner's window
+   * on another machine (`shared-feeds.ts`). Absent, the route is the `404` of
+   * a path nobody wired.
+   */
+  feeds?: WebFeeds
   /**
    * Where each project is checked out here and the branches its work is on,
    * for an owner's window on another machine to fetch (`repositories.ts`).

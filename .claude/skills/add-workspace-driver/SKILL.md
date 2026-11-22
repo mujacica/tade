@@ -258,6 +258,24 @@ over loopback) and `ssh`.
   given*); the far end answers it as the real away view does. **Sharing notes rides the held link
   instead** (`request`, `app/src/wire/notes-shared.ts`): it happens only while one is up, again and
   again, so it asks over the connection that is already there.
+- **Every machine's journal is kept on every other** (`@tade/core`'s `feeds.ts` the rules,
+  `@tade/workbench`'s `feeds.ts` the store and the exchange, `app/src/wire/feeds.ts` the cadence, the
+  far half answered by the heart at `POST /api/feeds/share` so a screenless hub keeps and relays
+  them). A copy lives apart from this machine's journal under `<home>/machines/<id>/`, keyed by the
+  id in `machine.json` (never by a remote's name, which can change) and the journal's epoch, minted
+  with the journal and again by `tade host restore`. **Only `FEED_TYPES` travel** — every type is in
+  it or in `STAYS_HERE` with why (`core/test/feeds.test.ts`) — so the origin's compaction never moves
+  a cursor. The cursor is `(machine, epoch, seq)` and integrity a hash chain over the served lines;
+  **a fork is kept whole beside the new copy and said** (`feed_forked`), and between two relays that
+  disagree neither is believed until the origin is heard. **Anything that compares `seq` reads only
+  this machine's lines** (`ownLines`; the queue does it in `ownFacts`), and a fold across feeds labels
+  each line (`FleetEvent.machine`) and never adds what each machine counted by its own clock
+  (`tade stats --fleet` is a table per machine). Where two machines stand is the state hash over
+  feeds, notes and kept settings (`syncStateOf`): `remote_synced` only when the word changes, and
+  `sync.json` beside the copy for `tade machines`. A task name is checked against every copy
+  (`namesElsewhere`); a take whose name the two made apart is renamed and said, one that came by a
+  take before is refused. The property test and the 20,000-line ceilings are
+  `workbench/test/feeds.test.ts`; two real `tade serve` over sshd are the rehearsal's last case.
 - **A browser here reaches that machine's own `/connect` through `pages`** (`pages.ts`, `tade remote
   connect`): what a source's own page shows the person is pasted into that machine's page and never
   carried by an owner's ask, so a loopback port here passes `GET`/`POST` on `/connect` and below,

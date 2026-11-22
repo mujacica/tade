@@ -120,6 +120,7 @@ async function linked(
     draw: () => {},
     carrying: {
       config: () => config,
+      fold: async () => {},
       secrets: () => new Set(),
       from: () => 'mac',
       onScreenWith: async () => {},

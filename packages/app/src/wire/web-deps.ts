@@ -1,5 +1,6 @@
 import type { InboxRow } from '@tade/core'
 import type { Waking } from './doorbell.ts'
+import type { FleetFeeds } from './feeds.ts'
 import type { Inventories } from './inventory.ts'
 import type { LinearTokens } from './linear-tokens.ts'
 import type { MachinesSeen } from './machines-seen.ts'
@@ -32,6 +33,13 @@ export interface AwayDeps {
    * two are the `404` of a path nobody wired.
    */
   inventory?: Pick<Inventories, 'latest' | 'heard'> & MachinesHeld
+  /**
+   * Every machine's journal kept here and handed on (`feeds.ts`): the far half
+   * of `/api/feeds/share`, and where each machine stands for the phone's
+   * Machines page. Two methods, never the subject. Absent, the route is the
+   * `404` of a path nobody wired.
+   */
+  feeds?: Pick<FleetFeeds, 'web' | 'synced'>
   /** What the approve/deny keys do when no device is waiting to be let in. */
   decided(allow: boolean): void | Promise<void>
   /** Said in the strip, where somebody who was not looking at the panel sees it. */

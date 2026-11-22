@@ -25,6 +25,7 @@ import {
 } from '@tade/core'
 import { loadExtensions } from '@tade/orchestrator'
 import { readJournal } from '@tade/workbench/events'
+import { readFeeds } from '@tade/workbench/feeds'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 
@@ -52,105 +53,161 @@ export function registerStats(program: Command, io: Io, setExit: (code: number) 
     .option('--by <facet>', `group by ${EVAL_BY.map((one) => one.id).join(', ')}`, 'harness')
     .option('-d, --days <n>', 'only work made in the last n days (all of it when absent)')
     .option('--json', 'machine-readable output')
+    .option(
+      '--fleet',
+      'each of your other machines too, out of the copies of their journals kept here: a table each, never added to this one',
+    )
     .option('-c, --config <path>', 'config file path', defaultConfigPath())
-    .action(async (opts: { by: string; days?: string; json?: boolean; config: string }) => {
-      const by = EVAL_BY.find((one) => one.id === opts.by)?.id
-      if (!by) {
-        io.err(`--by is one of ${EVAL_BY.map((one) => one.id).join(', ')}, not ${opts.by}`)
-        setExit(Exit.invalidInput)
-        return
-      }
-      const days = opts.days === undefined ? 0 : Math.max(1, Number(opts.days) || 1)
-      const since = days === 0 ? 0 : startOfToday(Date.now()) - (days - 1) * 86_400_000
-      const cfg = await loadConfig(opts.config)
-      const home = tadeHome()
-      const events = await readJournal(home, { types: [...EVALUATION_EVENTS] })
-      // What each task cost over every run, whenever it ran: a task made this
-      // week may have been started again on an older run's id.
-      const usage = events.filter((event) => event.type === 'usage')
-      const runs = await readJournal(home, { types: [...RUNTIME_EVENTS] })
-      const spent = spendFrom(usage, {
-        since: 0,
-        runs: runFactsFrom(runs),
-        prices: pricesFrom(cfg.ok ? cfg.config.prices : {}),
-      }).byTask
-      const judged = cfg.ok ? await findingsHere(cfg.config, home) : null
-      const evals = evaluationsFrom(events, {
-        since,
-        spent,
-        findings: judged?.findings ?? null,
-      })
-      for (const problem of judged?.problems ?? []) io.err(`(could not ask ${problem})`)
-      const rows = scorecardsBy(evals, by)
+    .action(
+      async (opts: {
+        by: string
+        days?: string
+        json?: boolean
+        fleet?: boolean
+        config: string
+      }) => {
+        const by = EVAL_BY.find((one) => one.id === opts.by)?.id
+        if (!by) {
+          io.err(`--by is one of ${EVAL_BY.map((one) => one.id).join(', ')}, not ${opts.by}`)
+          setExit(Exit.invalidInput)
+          return
+        }
+        const days = opts.days === undefined ? 0 : Math.max(1, Number(opts.days) || 1)
+        const since = days === 0 ? 0 : startOfToday(Date.now()) - (days - 1) * 86_400_000
+        const cfg = await loadConfig(opts.config)
+        const home = tadeHome()
+        const events = await readJournal(home, { types: [...EVALUATION_EVENTS] })
+        // What each task cost over every run, whenever it ran: a task made this
+        // week may have been started again on an older run's id.
+        const usage = events.filter((event) => event.type === 'usage')
+        const runs = await readJournal(home, { types: [...RUNTIME_EVENTS] })
+        const spent = spendFrom(usage, {
+          since: 0,
+          runs: runFactsFrom(runs),
+          prices: pricesFrom(cfg.ok ? cfg.config.prices : {}),
+        }).byTask
+        const judged = cfg.ok ? await findingsHere(cfg.config, home) : null
+        const evals = evaluationsFrom(events, {
+          since,
+          spent,
+          findings: judged?.findings ?? null,
+        })
+        for (const problem of judged?.problems ?? []) io.err(`(could not ask ${problem})`)
+        const rows = scorecardsBy(evals, by)
+        // Every other machine's work, folded out of its own journal alone — a
+        // number out of one journal means nothing beside another's — and each
+        // its own table: what each spent was spent by its own clock and its own
+        // account, and is never added to this machine's.
+        const fleet = opts.fleet
+          ? (
+              await readFeeds(home, {
+                types: [...new Set([...EVALUATION_EVENTS, ...RUNTIME_EVENTS])],
+              })
+            ).map((feed) => {
+              const theirs = evaluationsFrom(feed.events, {
+                since,
+                spent: spendFrom(
+                  feed.events.filter((event) => event.type === 'usage'),
+                  {
+                    since: 0,
+                    runs: runFactsFrom(feed.events),
+                    prices: pricesFrom(cfg.ok ? cfg.config.prices : {}),
+                  },
+                ).byTask,
+                findings: null,
+              })
+              return { machine: feed.name, evals: theirs, rows: scorecardsBy(theirs, by) }
+            })
+          : []
 
-      if (opts.json) {
-        io.out(
-          JSON.stringify(
-            {
-              by,
-              since: since === 0 ? null : new Date(since).toISOString(),
-              mergedFrom: evals.mergedFrom,
-              total: withFigures(evals.total),
-              rows: rows.map(withFigures),
-              calibration: evals.calibration,
-            },
-            null,
-            2,
-          ),
-        )
-        return
-      }
+        if (opts.json) {
+          io.out(
+            JSON.stringify(
+              {
+                by,
+                since: since === 0 ? null : new Date(since).toISOString(),
+                mergedFrom: evals.mergedFrom,
+                total: withFigures(evals.total),
+                rows: rows.map(withFigures),
+                calibration: evals.calibration,
+                ...(opts.fleet
+                  ? {
+                      fleet: fleet.map((one) => ({
+                        machine: one.machine,
+                        total: withFigures(one.evals.total),
+                        rows: one.rows.map(withFigures),
+                      })),
+                    }
+                  : {}),
+              },
+              null,
+              2,
+            ),
+          )
+          return
+        }
 
-      if (rows.length === 0) {
-        io.out(days === 0 ? 'no work in the journal' : `no work made in ${days} days`)
-        return
-      }
-      const over = days === 0 ? 'all of the journal' : days === 1 ? 'today' : `${days} days`
-      io.out(`by ${by} · ${over} · merges from the ${evals.mergedFrom}`)
-      const table = [HEAD, ...rows.map((row) => cells(row, by)), cells(evals.total, by, 'all')]
-      const widths = HEAD.map((_, at) => Math.max(...table.map((row) => (row[at] ?? '').length)))
-      for (const row of table) {
+        if (rows.length === 0) {
+          io.out(days === 0 ? 'no work in the journal' : `no work made in ${days} days`)
+          return
+        }
+        const over = days === 0 ? 'all of the journal' : days === 1 ? 'today' : `${days} days`
+        io.out(`by ${by} · ${over} · merges from the ${evals.mergedFrom}`)
+        printTable(io, rows, evals.total, by)
+        for (const one of fleet) {
+          io.out('')
+          io.out(`on ${one.machine}, out of its journal as kept here`)
+          if (one.rows.length === 0) io.out('  no work in it')
+          else printTable(io, one.rows, one.evals.total, by)
+        }
+        const moved = evals.total.moved
+        if (moved > 0 && (by === 'harness' || by === 'model')) {
+          io.out(
+            `${moved} moved to another ${by} after their first run, and are counted where they began`,
+          )
+        }
+        io.out('')
+        const calibration = evals.calibration
+        if (calibration === null) {
+          io.out(
+            (judged?.problems.length ?? 0) > 0
+              ? 'judge: what the judges raised could not be read'
+              : 'judge: no judge reads anything here, so nothing was asked',
+          )
+          return
+        }
         io.out(
-          row
-            .map((cell, at) =>
-              at === 0 ? cell.padEnd(widths[at] ?? 0) : cell.padStart(widths[at] ?? 0),
-            )
-            .join('  ')
-            .trimEnd(),
+          `judge: ${calibration.total.fired} findings, ${calibration.total.open} with no verdict · precision ${precisionSaid(calibration.total)}`,
         )
-      }
-      const moved = evals.total.moved
-      if (moved > 0 && (by === 'harness' || by === 'model')) {
-        io.out(
-          `${moved} moved to another ${by} after their first run, and are counted where they began`,
+        for (const band of calibration.byBand) {
+          if (band.tally.fired === 0) continue
+          io.out(
+            `  at ${band.from.toFixed(1)}–${band.to.toFixed(1)}  ${band.tally.fired} fired · ${precisionSaid(band.tally)}`,
+          )
+        }
+        for (const row of calibration.byQuestion) {
+          const worth = worthSaid(row.worth, row.tally)
+          io.out(
+            `  ${row.question}  ${row.tally.fired} fired · ${precisionSaid(row.tally)}${worth ? ` · ${worth}` : ''}`,
+          )
+        }
+      },
+    )
+}
+
+function printTable(io: Io, rows: readonly Scorecard[], total: Scorecard, by: EvalBy): void {
+  const table = [HEAD, ...rows.map((row) => cells(row, by)), cells(total, by, 'all')]
+  const widths = HEAD.map((_, at) => Math.max(...table.map((row) => (row[at] ?? '').length)))
+  for (const row of table) {
+    io.out(
+      row
+        .map((cell, at) =>
+          at === 0 ? cell.padEnd(widths[at] ?? 0) : cell.padStart(widths[at] ?? 0),
         )
-      }
-      io.out('')
-      const calibration = evals.calibration
-      if (calibration === null) {
-        io.out(
-          (judged?.problems.length ?? 0) > 0
-            ? 'judge: what the judges raised could not be read'
-            : 'judge: no judge reads anything here, so nothing was asked',
-        )
-        return
-      }
-      io.out(
-        `judge: ${calibration.total.fired} findings, ${calibration.total.open} with no verdict · precision ${precisionSaid(calibration.total)}`,
-      )
-      for (const band of calibration.byBand) {
-        if (band.tally.fired === 0) continue
-        io.out(
-          `  at ${band.from.toFixed(1)}–${band.to.toFixed(1)}  ${band.tally.fired} fired · ${precisionSaid(band.tally)}`,
-        )
-      }
-      for (const row of calibration.byQuestion) {
-        const worth = worthSaid(row.worth, row.tally)
-        io.out(
-          `  ${row.question}  ${row.tally.fired} fired · ${precisionSaid(row.tally)}${worth ? ` · ${worth}` : ''}`,
-        )
-      }
-    })
+        .join('  ')
+        .trimEnd(),
+    )
+  }
 }
 
 const HEAD = [

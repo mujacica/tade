@@ -933,6 +933,19 @@ byte if anything differs. Any agent can read that file, as it can `config.yaml`;
 between machines is yours — chezmoi with age, `op inject`, Syncthing, or a private dotfiles
 repository with sops or git-crypt.
 
+**Every machine's history is on every machine.** Each one keeps a copy of the others' journals —
+tasks, checks, commits, turns and what they cost, what you said — beside its own and never mixed
+into it, so a box whose lid is shut is still answered for: `tade logs --fleet` reads every machine's
+lines labelled with whose they are, and `tade stats --fleet` folds each machine's work into a table of
+its own, never adding what one spent to another. A laptop that only ever reaches the always-on box
+gets the other laptop's history through it, checked line by line against a hash chain. A box
+restored from a backup begins a new life of its journal, and the copy of the old one is kept beside
+it and said. Your notes and settings are compared in the same pass, and **`tade machines`** says
+each machine as this one knows it: up, closed or lost and since when, `in step`, `behind by 3 lines`
+or `1 conflict`, and how much of its journal is kept here — as Settings › Machines and the phone's
+Machines page do under each machine's name. A task's name is never used twice across your machines:
+one made on two of them while they were apart is renamed when it moves, and said.
+
 **Several remotes**: run `tade remote add` once for each. `tade remote list` names them, `tade remote
 remove vps` signs this Mac out of one. While the window is open it holds one SSH connection to each
 and dials again by itself after a dropped network, and at once when the lid opens.

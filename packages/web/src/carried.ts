@@ -29,6 +29,7 @@ import {
   settingReach,
   settle,
   shownValue,
+  stampAhead,
   stampOf,
   stampText,
   textOf,
@@ -315,6 +316,7 @@ export async function applyCarry(
   device: string,
   carrying: WebCarrying,
   answered: Promise<void> = Promise.resolve(),
+  now: number = Date.now(),
 ): Promise<CarryAnswer> {
   const by: CarriedBy = { device, from: body.from }
   const secrets = carrying.secrets()
@@ -364,6 +366,14 @@ export async function applyCarry(
     }
     const mine = here.get(leaf.path) ?? registerAt(leaf.path, current, changes)
     const came = incomingOf(leaf)
+    // A stamp from a clock far ahead of this one is refused whole, never
+    // settled: winning by a wrong clock is not being later (`MAX_DRIFT_MS`).
+    const ahead = stampAhead(came.stamp, now)
+    if (ahead !== null) {
+      settings.push({ path: leaf.path, outcome: 'refused', why: ahead })
+      news.refused.push({ path: leaf.path, why: ahead })
+      continue
+    }
     // A press is the person choosing that machine's value over this one's.
     const settled: Settled = forced.has(leaf.path)
       ? { keep: textOf(mine.value) === textOf(came.value) ? 'same' : 'incoming', conflict: false }

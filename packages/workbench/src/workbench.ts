@@ -25,6 +25,7 @@ import {
   modelDetail,
   modelLastRunOn,
   type Note,
+  namesElsewhere,
   noSpend,
   OWN_SIGN_IN,
   orchestratorAccount,
@@ -108,12 +109,14 @@ import { type KeptWrite, keptIn, recordKept } from './config-kept.ts'
 import { documentsFolder, removedDocument, settleDocuments, waitedDetail } from './documents.ts'
 import { chooseDriver, troubleSaid } from './driver-choice.ts'
 import { EventLog, readJournal } from './events.ts'
+import { readFeeds } from './feeds.ts'
 import { type FoundWork, fireAgentSchedule, makeFoundWork } from './found.ts'
 import { accountKey, adapterKey, HARNESS_ADAPTERS, type HarnessOptions } from './harnesses.ts'
 import { takeBackOwnIgnore } from './ignore.ts'
 import { type Taken, takeIntake } from './intake.ts'
 import type { BeforeAsk } from './journal-away.ts'
 import { type HomeLock, lockHome } from './lock.ts'
+import { ensureMachine, type MachineFile } from './machine-file.ts'
 import { Memory, type Noted } from './memory.ts'
 import { type RetireRequest, retireNote, settleNotes } from './notes.ts'
 import { notStartable, type ParkedBy, park } from './parked.ts'
@@ -277,6 +280,11 @@ export interface CreateTaskRequest {
   start?: StartCondition
   /** Made as a proposal for the orchestrator to decide (`proposals.ts`), called this. */
   proposed?: { title: string }
+  /**
+   * The machine a take hands it from, as that machine calls itself: its own use
+   * of the name is this same task travelling, and not a second use of it.
+   */
+  takenFrom?: string
 }
 
 /**
@@ -306,6 +314,8 @@ export class Workbench {
   /** The config as it was opened, and as the window has changed it since. */
   config: Config
   readonly memory: Memory
+  /** Who this machine is to the person's others: its id and its journal's epoch (`machine-file.ts`). */
+  readonly machine: MachineFile
   /** The schedules as told: `kept` rather than `schedules`, which is the method that lists them. */
   private readonly kept: Schedules
   private readonly lock: HomeLock
@@ -341,8 +351,10 @@ export class Workbench {
     harnessOptions: HarnessOptions
     harnesses: Readonly<Record<string, (opts: HarnessOptions) => WorkerAdapter>>
     extensions?: WorkbenchExtensions
+    machine: MachineFile
   }) {
     this.home = opts.home
+    this.machine = opts.machine
     this.adapters = opts.adapters
     this.harnessOptions = opts.harnessOptions
     this.harnesses = opts.harnesses
@@ -371,11 +383,25 @@ export class Workbench {
       // where a typo gets reported, so here it degrades to defaults.
       const loaded = await loadConfig(join(opts.home, 'config.yaml'))
       const config = loaded.ok ? loaded.config : ConfigSchema.parse({})
+      // Who this home is, before its journal: a journal about to begin from
+      // nothing begins a new epoch, so a copy of the old one elsewhere is set
+      // aside rather than taken to go on (`machine-file.ts`).
+      const machine = await ensureMachine(opts.home, Date.now())
       const log = await EventLog.open({
         path: join(opts.home, 'events.jsonl'),
         journal: { maxBytes: config.journal.max_mb * 1_048_576 },
       })
       journal = log
+      // A home met for the first time is not news; a known one whose journal
+      // began again, or whose machine file would not read, is.
+      if (machine.newEpoch !== null) {
+        await log.append({
+          type: 'warning',
+          detail: {
+            message: `This machine's journal is a new epoch (${machine.file.epoch.id}), so its other machines set their copies of the old one aside: ${machine.newEpoch}`,
+          },
+        })
+      }
       const { driver, warning } = await chooseDriver({
         wanted: opts.driver ?? config.workspace.driver,
         config,
@@ -475,6 +501,7 @@ export class Workbench {
         harnessOptions,
         harnesses,
         ...(opts.extensions ? { extensions: opts.extensions } : {}),
+        machine: machine.file,
       })
       await log.append({
         type: 'tade_opened',
@@ -1040,7 +1067,8 @@ export class Workbench {
     }
     // Refuse a name any task has had: the rule, and the journal it is asked of, are `tasks.ts`'.
     const created = () => this.log.read({ types: ['task_created'] })
-    await guardName({ keyOf: this.keyOf(), created }, `${req.project}/${req.slug}`)
+    const elsewhere = () => this.namesElsewhere(req.takenFrom)
+    await guardName({ keyOf: this.keyOf(), created, elsewhere }, `${req.project}/${req.slug}`)
     const workspace = req.workspace ?? workspaceFor(this.config, req.project)
     if ((req.done === 'committed' || req.done === 'merged') && workspace !== 'worktree') {
       // In a shared checkout nothing is any one agent's to commit or merge.
@@ -1377,6 +1405,21 @@ export class Workbench {
         ...(await producedDetail(this.home, task)),
       },
     })
+  }
+
+  /**
+   * Every task name the person's other machines made, by which, out of the
+   * copies of their journals kept here (`feeds.ts`) — except a name that moved,
+   * and those of `from`, the machine a take hands a task from.
+   */
+  async namesElsewhere(from?: string): Promise<ReadonlyMap<string, string>> {
+    const feeds = await readFeeds(this.home, {
+      types: ['task_created', 'task_moved', 'task_taken'],
+    })
+    return namesElsewhere(
+      feeds.flatMap((one) => one.events),
+      from,
+    )
   }
 
   /** Each harness's own answer for what conversation a task name makes, for `guardName`'s rule. */

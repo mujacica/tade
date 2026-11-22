@@ -263,6 +263,11 @@ export function restoredLines(restored: Restored, home: string): string[] {
     `✓ restored ${tilde(home)}${manifest ? `, as ${manifest.machine} had it at ${manifest.at} under Tade ${manifest.tade}` : ''}`,
   ]
   if (restored.movedAside) out.push(`  what was there is at ${tilde(restored.movedAside)}`)
+  if (restored.epoch) {
+    out.push(
+      `  its journal begins a new epoch (${restored.epoch}): your other machines keep their copies of the old one beside it`,
+    )
+  }
   for (const one of restored.records) {
     const who = `${one.harness}${one.user ? ` as ${one.user}` : ''}`
     if (one.to === null) {
