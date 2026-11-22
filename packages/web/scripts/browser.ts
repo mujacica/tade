@@ -1,6 +1,6 @@
-import { mkdir, mkdtemp, readFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { Moved, NotOffered, type Outcome, type WebActing } from '../src/acting.ts'
 import { type ActivityIn, AGENT, MOMENTS } from '../src/agent.ts'
 import { allowDevice } from '../src/devices.ts'
@@ -87,6 +87,14 @@ import { WHOLE_NOTE, wholeAt } from './browser-whole.ts'
 // What it is pointed at is the projection's own fixtures, so no real work is on
 // screen and no picture of it can carry one. It binds loopback on port 0 and
 // closes the listener however it ends.
+//
+// **Its home and its pictures are not in the temp folder.** A `tade-` name
+// there is one the suite's own guard answers for (`test/own-tmp.ts`), so a run
+// of this beside a full suite turned it red; both go in `node_modules/.cache`,
+// and the home is removed when the run ends, however it ends.
+
+/** Where a run's home and its pictures are made: beside the dependencies, and never committed. */
+const SCRATCH = fileURLToPath(new URL('../../../node_modules/.cache/', import.meta.url))
 
 const shots = shotsDir(process.argv)
 const findings: Finding[] = []
@@ -104,7 +112,8 @@ let granting: Grant[] = []
 
 /** The real listener, the real pairing, and a ticket to walk in with. */
 async function serve() {
-  const home = await mkdtemp(join(tmpdir(), 'tade-away-browser-'))
+  await mkdir(SCRATCH, { recursive: true })
+  const home = await mkdtemp(join(SCRATCH, 'tade-away-browser-'))
   const tickets = new Tickets()
   const held = new Map<string, ReturnType<typeof projector>>()
   const server = webServer({
@@ -414,8 +423,12 @@ async function run(axe: Awaited<ReturnType<typeof axeSource>>) {
     await asGranted(made, origin, tickets, axe.source, server, held)
     await asActing(made, origin, tickets, home, server, held)
   } finally {
-    await made.close()
-    await server.close()
+    try {
+      await made.close()
+      await server.close()
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
   }
 }
 
@@ -1025,7 +1038,7 @@ async function deltaUnder(
 
 function shotsDir(argv: readonly string[]): string | null {
   const at = argv.indexOf('--shots')
-  return at < 0 ? null : (argv[at + 1] ?? join(tmpdir(), 'tade-away-shots'))
+  return at < 0 ? null : (argv[at + 1] ?? join(SCRATCH, 'tade-away-shots'))
 }
 
 // **Refused before a browser is started**, rather than run and reported: a

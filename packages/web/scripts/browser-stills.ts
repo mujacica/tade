@@ -1,6 +1,6 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { Grant } from '../src/reach.ts'
 import { projector } from '../src/reading.ts'
 import { webServer } from '../src/server.ts'
@@ -99,6 +99,13 @@ export function judged(at: string, picture: string, page: string): StillCheck {
   return { at, verdict: 'differs', said: shapes }
 }
 
+/**
+ * Where a run's home is made: beside the dependencies, and never committed —
+ * not the temp folder, where a `tade-` name is one the suite's own guard
+ * answers for (`test/own-tmp.ts`). It is removed when the run ends.
+ */
+const SCRATCH = fileURLToPath(new URL('../../../node_modules/.cache/', import.meta.url))
+
 /** Every screen of every visit, in a browser and as the picture has it. */
 export async function stillsInBrowser(
   at: WorldAt,
@@ -121,7 +128,8 @@ export async function stillsInBrowser(
     const why = `a browser could not be started: ${String(problem)}`
     return names.map((at) => ({ at, verdict: 'unrun', said: why }))
   }
-  const home = await mkdtemp(join(tmpdir(), 'tade-away-stills-'))
+  await mkdir(SCRATCH, { recursive: true })
+  const home = await mkdtemp(join(SCRATCH, 'tade-away-stills-'))
   const tickets = new Tickets()
   const server = webServer({
     home,
@@ -204,8 +212,12 @@ export async function stillsInBrowser(
     if (opts.dir !== undefined && opts.picture !== undefined)
       await photographed(made, opts.picture, opts.dir)
   } finally {
-    await made.close()
-    await server.close()
+    try {
+      await made.close()
+      await server.close()
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
   }
   return checks
 }
