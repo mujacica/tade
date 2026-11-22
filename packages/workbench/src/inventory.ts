@@ -73,6 +73,8 @@ export interface InventoryOpts {
   config: Config
   /** What this machine calls itself. */
   machine: string
+  /** Who it is (`machine.json`'s id); absent, the inventory does not say. */
+  id?: string
   now: number
   env: Readonly<Record<string, string | undefined>>
   /** Every account, as each harness says it stands (`listAccounts`). */
@@ -124,6 +126,7 @@ export async function inventoryHere(opts: InventoryOpts): Promise<Inventory> {
   ]
   return {
     machine: opts.machine,
+    ...(opts.id === undefined ? {} : { id: opts.id }),
     at: new Date(opts.now).toISOString(),
     items: items.slice(0, ITEMS_MOST),
     shell: shellName(env.SHELL),

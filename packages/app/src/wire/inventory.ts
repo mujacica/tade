@@ -97,9 +97,10 @@ export interface InventoriesDeps {
   settingsOpen?: () => boolean
   /**
    * Where each machine and this one stand, their journals, notes and settings
-   * compared (`feeds.ts`): drawn under each column. Absent, nothing is said of it.
+   * compared (`feeds.ts`), by each machine's id: drawn under each column.
+   * Absent, nothing is said of it.
    */
-  synced?: () => readonly { name: string; said: string }[]
+  synced?: () => readonly { id: string; said: string }[]
 }
 
 /** A machine that linked here and said what it has, by its folder here. */
@@ -213,6 +214,7 @@ export class Inventories implements Subject {
         inventoryHere({
           config,
           machine: machineLabel(),
+          id: this.wire.opts.client.machine?.id,
           now,
           env: process.env,
           accounts,
@@ -328,10 +330,18 @@ export class Inventories implements Subject {
       inventory: one.inventory,
       asOf: one.at,
     }))
+    // One that both links here and is linked to is one column, whatever each side calls it.
+    const id = (one: GridColumn) => one.inventory?.id
     return [
       here,
       ...there,
-      ...told.filter((one) => !there.some((each) => each.machine === one.machine)),
+      ...told.filter(
+        (one) =>
+          !there.some(
+            (each) =>
+              each.machine === one.machine || (id(one) !== undefined && id(each) === id(one)),
+          ),
+      ),
     ]
   }
 
@@ -402,9 +412,7 @@ export class Inventories implements Subject {
         asOf: one.asOf,
         here: at === 0,
         synced:
-          at === 0
-            ? null
-            : (synced.find((each) => sameMachine(each.name, one.machine))?.said ?? null),
+          at === 0 || this.deps.synced === undefined ? null : syncedFor(synced, one.inventory?.id),
         said:
           one.inventory !== null
             ? null
@@ -599,14 +607,18 @@ function secretsOf(wire: Wiring): SecretDeclared[] {
 }
 
 /**
- * Whether a sync state's name and a column are one machine. A machine that
- * links here is a column under its folder name (`heard`), lowercased, dashed
- * and cut short, while its sync state is under what it calls itself
- * (`machineLabel`): both are compared as folders.
+ * Where this machine and a column's stand, by the machine's id — never by
+ * name: a column is what it is called here (`remotes.<name>`) or its folder
+ * (`heard`), and a sync state what it calls itself, and the two need not
+ * agree. One whose id is not known yet cannot be told apart: `cannot tell`,
+ * never another machine's word. Null where the two were never compared.
  */
-function sameMachine(synced: string, column: string): boolean {
-  const folder = (name: string) => machineFolder(name) ?? name.toLowerCase()
-  return folder(synced) === folder(column)
+function syncedFor(
+  synced: readonly { id: string; said: string }[],
+  id: string | undefined,
+): string | null {
+  if (id === undefined) return 'cannot tell'
+  return synced.find((each) => each.id === id)?.said ?? null
 }
 
 function stringEnv(env: NodeJS.ProcessEnv): Record<string, string> {

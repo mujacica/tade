@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { TadeEvent } from './events.ts'
+import { MACHINE_ID } from './feeds.ts'
 
 // What a machine has, by name: which harness is signed in and until when,
 // which keys it holds and where each comes from, which environment keys its
@@ -72,6 +73,11 @@ export interface InventoryItem {
 export interface Inventory {
   /** What the machine calls itself. */
   machine: string
+  /**
+   * Who it is (`machine.json`'s id), kept across renames: what its column is
+   * matched to where the two stand by. Absent from an older Tade.
+   */
+  id?: string
   /** When it was looked at, in its own clock, as ISO. */
   at: string
   items: InventoryItem[]
@@ -106,6 +112,7 @@ export const InventoryItemSchema = z.object({
 /** An inventory, as another machine sent it. */
 export const InventorySchema = z.object({
   machine: z.string().max(120),
+  id: z.string().regex(MACHINE_ID).optional(),
   at: z.string().max(40),
   items: z.array(InventoryItemSchema).max(ITEMS_MOST),
   shell: z.string().max(40).nullable(),

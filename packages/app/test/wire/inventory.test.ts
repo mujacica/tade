@@ -12,6 +12,7 @@ import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { type AppState, initialState } from '../../src/model.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 import { Inventories, type InventoryThere } from '../../src/wire/inventory.ts'
+import { machinesFrom } from '../../src/wire/web-machines.ts'
 
 // What this machine has, as the window holds it (`inventory.ts`): looked at,
 // written to the journal an item at a time as set or missing and never again
@@ -21,6 +22,10 @@ import { Inventories, type InventoryThere } from '../../src/wire/inventory.ts'
 
 const NOW = Date.parse('2026-11-22T12:00:00.000Z')
 const DAY = 86_400_000
+/** This machine's id, and two others' (`machine.json`). */
+const HERE_ID = '00000000-0000-4000-8000-000000000001'
+const IPAX_ID = '00000000-0000-4000-8000-000000000002'
+const OTHER_ID = '00000000-0000-4000-8000-000000000003'
 
 /** The window as the subject reaches it: a home, a journal, a clock, and what it says. */
 function wired(said: string[] = []) {
@@ -44,6 +49,7 @@ function wired(said: string[] = []) {
       config: ConfigSchema.parse({}),
       extensions: undefined,
       client: {
+        machine: { id: HERE_ID, epoch: { id: 'epoch-1', at: new Date(NOW).toISOString() } },
         accounts: async () => [],
         events: async (filter: EventFilter) => [
           ...journal.filter(
@@ -103,7 +109,7 @@ describe('what this machine has, as the window holds it', () => {
     for (const one of lines) expect(Object.keys(one.detail).sort()).toEqual(['item', 'now'])
     await inventories.look()
     expect(journal.filter((one) => one.type === 'inventory_changed')).toHaveLength(lines.length)
-    expect(inventories.latest()).not.toBeNull()
+    expect(inventories.latest()?.id).toBe(HERE_ID)
   })
 
   it('finds a sign-in running out on another machine, and writes and says it once', async () => {
@@ -159,12 +165,13 @@ describe('what this machine has, as the window holds it', () => {
     const inventories = new Inventories(wire, {
       news: () => {},
       synced: () => [
-        { name: 'elsewhere', said: 'behind by 9 lines' },
-        { name: label, said: 'in step' },
+        { id: OTHER_ID, said: 'behind by 9 lines' },
+        { id: IPAX_ID, said: 'in step' },
       ],
     })
     const box: Inventory = {
       machine: label,
+      id: IPAX_ID,
       at: new Date(NOW).toISOString(),
       shell: 'bash',
       service: true,
@@ -175,6 +182,81 @@ describe('what this machine has, as the window holds it', () => {
     const column = inventories.shown()?.columns.find((one) => !one.here)
     expect(column?.machine).toBe('build-box-example-compan')
     expect(column?.synced).toBe('in step')
+  })
+
+  for (const said of ['in step', 'behind by 3 lines', '1 conflict']) {
+    it(`draws ${said} under a machine linked as vps that calls itself ipax, on Settings and the phone alike`, async () => {
+      const { wire } = wired()
+      const ipax: Inventory = {
+        machine: 'ipax',
+        id: IPAX_ID,
+        at: new Date(NOW).toISOString(),
+        shell: 'bash',
+        service: true,
+        items: [],
+      }
+      const inventories = new Inventories(wire, {
+        news: () => {},
+        remotes: () => [
+          { name: 'vps', inventory: ipax, at: NOW, said: null },
+          { name: 'never', inventory: null, at: null, said: 'it has not answered yet' },
+        ],
+        // Under what it calls itself, as a machine that links here is: never the name given it here.
+        synced: () => [
+          { id: OTHER_ID, said: 'in step' },
+          { id: IPAX_ID, said },
+        ],
+      })
+      await inventories.look()
+      const settings = inventories.shown()?.columns ?? []
+      expect(settings.map((one) => [one.machine, one.synced])).toEqual([
+        [expect.any(String), null],
+        ['vps', said],
+        ['never', 'cannot tell'],
+      ])
+      const phone = await machinesFrom(wire, inventories).shown()
+      expect(phone.columns?.map((one) => [one.machine, one.synced ?? null])).toEqual([
+        [expect.any(String), null],
+        ['vps', said],
+        ['never', 'cannot tell'],
+      ])
+    })
+  }
+
+  it('says cannot tell under a machine whose Tade does not say who it is, never another machine’s word', async () => {
+    const { wire } = wired()
+    const older: Inventory = {
+      machine: 'vps',
+      at: new Date(NOW).toISOString(),
+      shell: 'bash',
+      service: true,
+      items: [],
+    }
+    const inventories = new Inventories(wire, {
+      news: () => {},
+      remotes: () => [{ name: 'vps', inventory: older, at: NOW, said: null }],
+      synced: () => [{ id: OTHER_ID, said: 'in step' }],
+    })
+    await inventories.look()
+    expect(inventories.shown()?.columns[1]?.synced).toBe('cannot tell')
+  })
+
+  it('draws one column for a machine that both links here and is linked to, whatever each calls it', async () => {
+    const { wire } = wired()
+    const ipax: Inventory = {
+      machine: 'ipax',
+      id: IPAX_ID,
+      at: new Date(NOW).toISOString(),
+      shell: 'bash',
+      service: true,
+      items: [],
+    }
+    const inventories = new Inventories(wire, {
+      news: () => {},
+      remotes: () => [{ name: 'vps', inventory: ipax, at: NOW, said: null }],
+    })
+    expect(await inventories.heard(ipax, 'device-1')).toBe(true)
+    expect(inventories.columns().map((one) => one.machine)).toHaveLength(2)
   })
 
   it('refuses the orchestrator a move until the person’s own words ask for one, and says what it would do first', async () => {
