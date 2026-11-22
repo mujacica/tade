@@ -404,8 +404,7 @@ export class Inventories implements Subject {
         synced:
           at === 0
             ? null
-            : (synced.find((each) => each.name.toLowerCase() === one.machine.toLowerCase())?.said ??
-              null),
+            : (synced.find((each) => sameMachine(each.name, one.machine))?.said ?? null),
         said:
           one.inventory !== null
             ? null
@@ -597,6 +596,17 @@ function secretsOf(wire: Wiring): SecretDeclared[] {
     value: one.value,
     from: one.from,
   }))
+}
+
+/**
+ * Whether a sync state's name and a column are one machine. A machine that
+ * links here is a column under its folder name (`heard`), lowercased, dashed
+ * and cut short, while its sync state is under what it calls itself
+ * (`machineLabel`): both are compared as folders.
+ */
+function sameMachine(synced: string, column: string): boolean {
+  const folder = (name: string) => machineFolder(name) ?? name.toLowerCase()
+  return folder(synced) === folder(column)
 }
 
 function stringEnv(env: NodeJS.ProcessEnv): Record<string, string> {

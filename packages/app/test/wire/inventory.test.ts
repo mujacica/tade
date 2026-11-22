@@ -153,6 +153,30 @@ describe('what this machine has, as the window holds it', () => {
     ).toEqual(mac)
   })
 
+  it('draws where a machine that links here stands under its column, though the column is its folder name', async () => {
+    const { wire } = wired()
+    const label = 'Build_Box.example-company-lab'
+    const inventories = new Inventories(wire, {
+      news: () => {},
+      synced: () => [
+        { name: 'elsewhere', said: 'behind by 9 lines' },
+        { name: label, said: 'in step' },
+      ],
+    })
+    const box: Inventory = {
+      machine: label,
+      at: new Date(NOW).toISOString(),
+      shell: 'bash',
+      service: true,
+      items: [],
+    }
+    expect(await inventories.heard(box, 'device-1')).toBe(true)
+    await inventories.look()
+    const column = inventories.shown()?.columns.find((one) => !one.here)
+    expect(column?.machine).toBe('build-box-example-compan')
+    expect(column?.synced).toBe('in step')
+  })
+
   it('refuses the orchestrator a move until the person’s own words ask for one, and says what it would do first', async () => {
     const { wire } = wired(['how are the agents doing'])
     const tools = new Inventories(wire, { news: () => {} }).tools()
