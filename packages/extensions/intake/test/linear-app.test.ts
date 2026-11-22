@@ -13,7 +13,7 @@ import {
   linearWho,
 } from '../src/linear-app.ts'
 
-// The Linear app Connect Linear asks the person to make (REMOTE-TADE §6.3):
+// The Linear app Connect Linear asks the person to make:
 // the manifest, the addresses a browser is sent to, an install's code
 // exchanged with its proof key, and a refresh token traded for the next —
 // over the one Linear client, against a Linear that answers from a file. What

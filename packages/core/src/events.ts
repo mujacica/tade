@@ -50,7 +50,7 @@ export const EventType = z.enum([
   'task_named',
   'task_removed',
   /**
-   * The work went to another machine of the person's (REMOTE-TADE.md §9.2),
+   * The work went to another machine of the person's,
    * written on the task here: `to` (the machine, by its name here), `as` (its
    * id there), `how` (`queued`, started there instead of here; or `running`,
    * its agent committed and pushed, the work carries on there and the agent

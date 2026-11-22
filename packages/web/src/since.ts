@@ -9,7 +9,7 @@ import { readBody } from './request.ts'
 import { ownsOrTheirs } from './surface.ts'
 
 // "Since you were here": the card another machine of the person's draws once,
-// when its link to this one comes back (REMOTE-TADE.md §5.4) — what finished,
+// when its link to this one comes back — what finished,
 // what is waiting on them, what is waiting to be read, what is held, what was
 // put to this machine's orchestrator, and what it cost, folded here over this
 // machine's own journal from the last moment it counted them present

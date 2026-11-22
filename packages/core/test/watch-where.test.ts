@@ -10,7 +10,7 @@ import {
 } from '../src/index.ts'
 
 // One machine per repository for every watch on an outside source
-// (`watch-where.ts`, REMOTE-TADE.md §9.5): which machine looks, why, and what
+// (`watch-where.ts`): which machine looks, why, and what
 // the one that does not look says about it.
 
 const facts = (over: Partial<WatchWhereFacts> = {}): WatchWhereFacts => ({

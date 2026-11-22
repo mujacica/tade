@@ -7,7 +7,7 @@ import { sees } from './reach.ts'
 import { readBody } from './request.ts'
 import { ownsOrTheirs, reachOf } from './surface.ts'
 
-// Work another machine of the person's hands this one (REMOTE-TADE.md §9.2):
+// Work another machine of the person's hands this one:
 // queued work it was asked to start here instead ("start on vps"), and a task
 // whose agent there committed and pushed its branch so the work carries on
 // here ("hand to vps"). What arrives is made into queued work in one of this

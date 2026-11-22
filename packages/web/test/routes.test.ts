@@ -315,7 +315,7 @@ describe('the five tables a setting turns on', () => {
 
 describe('the doorbells', () => {
   // A webhook is a source's server reaching this one over the internet, which
-  // is what a public name is for and nothing else here is (REMOTE-TADE §6.2).
+  // is what a public name is for and nothing else here is.
   it('is one path a source, under /hooks and never /api, built only where a public name is', () => {
     expect(HOOKS.map((route) => `${route.method} ${route.path}`)).toEqual([
       'POST /hooks/github',
@@ -408,7 +408,7 @@ describe('the owner’s table', () => {
 })
 
 describe('the connect pages', () => {
-  // REMOTE-TADE §6.4: turning a source on is the person's, so the page and its
+  // Turning a source on is the person's, so the page and its
   // presses are this machine's alone, and where GitHub sends the browser back
   // is answered only for a word one of those presses minted (`connected.ts`).
   it('is a page, and each source’s presses and callbacks as its flow says, under /connect and never /api', () => {

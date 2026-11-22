@@ -5,7 +5,7 @@ import type { Origin, Surface } from './surface.ts'
 import { ALGORITHMS, relyingParty, userIdOf } from './webauthn.ts'
 
 // A passkey per device, and the proof it gives before acting from the public
-// name (REMOTE-TADE.md §4.4, V5): the challenges this machine sets, what a
+// name: the challenges this machine sets, what a
 // device is offered, and what the page is told about where it stands.
 //
 // **Made once, in the minutes after pairing, and never later** (`ENROL_MS`).

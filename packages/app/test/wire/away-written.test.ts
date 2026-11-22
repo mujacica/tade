@@ -3,8 +3,8 @@ import { GRANTS, SCOPES, writeCode } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import { closeAll, machine } from './away-harness.ts'
 
-// A code `tade web pair` wrote, claimed through the window's own listener
-// (REMOTE-TADE.md §11 item 3). Running the command was the yes, so the
+// A code `tade web pair` wrote, claimed through the window's own listener.
+// Running the command was the yes, so the
 // window's question never opens — and the strip is where somebody watching
 // this window hears that a device got in.
 

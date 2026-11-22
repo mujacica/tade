@@ -10,8 +10,8 @@ import { endedOf } from '../../src/wire/remote-terminals.ts'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
 import { pressRow, standingThere } from './standing-there.ts'
 
-// A terminal here that is an agent on another machine, kept up
-// (REMOTE-TADE.md §3.5): run again in its own tab when its connection is back
+// A terminal here that is an agent on another machine, kept up:
+// run again in its own tab when its connection is back
 // — and only one that lost it — and moved off a way that does not get
 // through. The far end is a real away view (`far.ts`), and the link the
 // scripted one, which runs that machine's line in a shell here, where it is:

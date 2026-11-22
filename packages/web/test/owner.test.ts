@@ -4,7 +4,7 @@ import { mintOwner, ownerHost } from '../src/owner.ts'
 import { CSRF_HEADER } from '../src/request.ts'
 import { ask, closeAll, homeFor, pair, start } from './harness.ts'
 
-// An owner device (`tade web pair --owner`, REMOTE-TADE.md §11 item 4): minted
+// An owner device (`tade web pair --owner`): minted
 // by a shell on this machine, bound to it, and usable only through it.
 //
 // The guard's own cross-product (`guard.test.ts`, "this machine is the

@@ -537,7 +537,7 @@ cannot read (restic's exit 3 is said, file by file), and pi sessions moved by
 
 ### Upgrading in place (`tade host upgrade`)
 
-The box's Tade moved forward without ending an agent (REMOTE-TADE.md §7.8). Its steps take every
+The box's Tade moved forward without ending an agent. Its steps take every
 answer of the machine as an argument (`UpgradePlace`), so `cli/test/host-upgrade.test.ts` drives
 each state a box can be in.
 

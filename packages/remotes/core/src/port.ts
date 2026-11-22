@@ -4,7 +4,7 @@ import type { Snapshot } from '@tade/web'
 // The RemoteLink port: how this machine's Tade reaches another machine's Tade
 // as one of its owner devices, and holds what that machine says about itself.
 //
-// **One Tade per machine, federated** (REMOTE-TADE.md §2.5). The other machine
+// **One Tade per machine, federated**. The other machine
 // is a whole Tade with its own home, journal and agents; this one is a paired
 // owner device of its away view, and what crosses is the away protocol — the
 // projection as a snapshot and then deltas, the `(epoch, rev)` cursor, the
@@ -22,7 +22,7 @@ import type { Snapshot } from '@tade/web'
 // *paired*, *opened*, *held*, *beaten*, *woken* and *closed*; what it reaches
 // is a *remote*, at an *address* in whatever form that implementation reads.
 //
-// **Nothing a frame draws waits on the network** (§3.2). A link answers into a
+// **Nothing a frame draws waits on the network**. A link answers into a
 // held value on its own schedule, every wait has a deadline, and a remote that
 // is not answering is held with its last projection and its age — never as an
 // empty world, because an empty one reads as "nothing is running" on a
@@ -82,7 +82,7 @@ export interface LinkCapabilities {
   /**
    * It can hand git here a way to fetch a repository there (`repository`),
    * over whatever reaches that machine: how this machine reads another's
-   * branches into its own mirror (REMOTE-TADE.md §9.3). Without it,
+   * branches into its own mirror. Without it,
    * `repository` is null and another machine's work is drawn but never read.
    */
   fetches: boolean

@@ -3,7 +3,7 @@ import { type HookAddress, type HookSource, slackItem } from '@tade/core'
 
 // What one webhook delivery is, checked before anything in it is believed: the
 // signature over its raw bytes, the window its source allows, and the address
-// it is about (REMOTE-TADE.md §6.1, §6.2).
+// it is about.
 //
 // **Pure, so every way a delivery can be wrong is a row** in
 // `test/hooks.test.ts` rather than a request somebody remembered to make —

@@ -167,8 +167,8 @@ export interface Route {
    */
   theirs?: true
   /**
-   * What this route is in connecting a source (REMOTE-TADE §6.4,
-   * `connected.ts`), where it is one of `CONNECTS`: the guided `page`, one
+   * What this route is in connecting a source
+   * (`connected.ts`), where it is one of `CONNECTS`: the guided `page`, one
    * `press` on it — each answered on this machine's door with no session,
    * because reaching that door is what a session would prove, and to the
    * person's own device on any other under its session (`theirs`) — or where the
@@ -743,7 +743,7 @@ export const OWNED: readonly Route[] = [
 ]
 
 /**
- * The guided pages that connect a source (REMOTE-TADE §6.4, `connected.ts`):
+ * The guided pages that connect a source (`connected.ts`):
  * the page, a press per thing it does — making the app, keeping what the
  * source's own page showed the person, installing it — and where the source
  * sends the browser back, a path apiece, and the table is each source's
@@ -810,7 +810,7 @@ export const CONNECTS: readonly Route[] = [
 ]
 
 /**
- * The doorbells (REMOTE-TADE §6.2): **one path per source a delivery may come
+ * The doorbells: **one path per source a delivery may come
  * from**, and the table is `HOOK_SOURCES`.
  *
  * A third kind of table beside `ROUTES` and the five a setting turns on, and

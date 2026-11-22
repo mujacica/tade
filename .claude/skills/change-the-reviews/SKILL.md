@@ -352,11 +352,11 @@ anything that writes, call `forget()` so the next reader polls. `for: ['orchestr
   about rather than one it calls merged; `snapshot` keeps `problem` so it is said once rather than at
   every look.
 - **An App reads, the person does everything else** (`capabilities.apps`, `ForgeOptions.app`).
-  Where the person connected one (REMOTE-TADE §6.3), a read **about a repository it is installed
+  Where the person connected one, a read **about a repository it is installed
   on** is asked with that installation's hour-long token and its own budget — said at each call
   with `about`, never worked out from a URL, because whether this sign-in can see a repository
   (`access`), whose a review is (`login`) and every search by `@me` are questions about the person.
-  Every write is the person's: the App is read-only for good (§14 decision 10). `forgeFor` binds
+  Every write is the person's: the App is read-only for good. `forgeFor` binds
   the App made on the host the remote places it on (`asItsAccount`), so an App on github.com never
   answers for an enterprise host. Not installed is an answer kept for ten minutes in the same
   `credentialCache`; what the App may not read (a `403`) is asked again as the person once; a key

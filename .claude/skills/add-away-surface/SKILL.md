@@ -194,7 +194,7 @@ a device still has none of the scopes that change anything until somebody at thi
   presence its link carried a breath before asking cannot empty it. Those lines are the window's,
   a line a stretch (`presenceLineDue`), never one per keystroke: an instant in this machine's own
   clock is a cursor a compaction, a restart and a restored journal cannot move, where `seq` and a
-  byte offset can (REMOTE-TADE §4.5). Each row is within what the device reads, money only with
+  byte offset can. Each row is within what the device reads, money only with
   `spend`, and each list a cap with a count. It writes nothing. **Why the owner's phone may**
   (`theirs`): it is a fold of what that phone's full-access snapshot already reads, and the person
   coming back to their phone is the same question as coming back to the Mac.
@@ -253,7 +253,7 @@ a device still has none of the scopes that change anything until somebody at thi
   project from the away view, and the person decided it may do what they can; off the door each
   is asked a trusted origin and the passkey, as acting is.
 - **Connecting a source is the owner's tenth, and its own table besides** (`/api/connect`,
-  `CONNECTS`; REMOTE-TADE §6.4). Turning a source on is `never`-tier, so the page and its presses
+  `CONNECTS`). Turning a source on is `never`-tier, so the page and its presses
   answer on this machine's own door (`here`) **and ask no session**: reaching that door is what a
   session would prove — the keyboard, or the SSH key that can already edit `config.yaml` — and
   every cross-site layer that can apply is still asked of a press (exact `Origin`, JSON,
@@ -991,7 +991,7 @@ again next week.
 surface or a `lan` bind a reason on standard error and exit 1 rather than a link to a refusal. It
 reads the config and the lock, opens nothing, and says nothing answers where no window is open.
 
-`pair` **writes a code, and needs no window to** (REMOTE-TADE.md §11 item 3, argued in
+`pair` **writes a code, and needs no window to** (argued in
 `src/pending.ts`). It used to only point at the panel: a ticket lived in the window's memory and the
 person at its screen was the yes. A box with no screen has nobody to ask that way, and a shell on the
 machine *is* the machine — over SSH, the SSH key. So the command is the yes: it writes the digest of a
@@ -1002,7 +1002,7 @@ the strip. Still **no channel from a shell into the window**: the file is the wh
 share, as it is for `revoke`. Every new code revokes the unclaimed ones, as the panel's do, and
 "Disconnect everything" and `tade web revoke <id>` end one.
 
-`pair --owner` mints an **owner device** (§11 item 4, `src/owner.ts`): a session for `localhost`,
+`pair --owner` mints an **owner device** (`src/owner.ts`): a session for `localhost`,
 printed once — `--json` is the credential alone, `OWNER_IS_YOUR_SSH_KEY` goes to standard error every
 time — for the Tade on the machine the person reached this one from. Refused on a `lan` bind, where
 there is no loopback listener for it to be answered on.

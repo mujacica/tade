@@ -381,8 +381,8 @@ export const PUSH_IS_WHILE_OPEN_SHORT =
  * The half `AWAY_IS_WHILE_OPEN` and `PUSH_IS_WHILE_OPEN` leave unsaid on a box
  * whose service manager keeps the window open (`keptByService`). Both stay
  * true word for word — "this window" — and there that window is always open,
- * which is what somebody deciding on that machine needs said plainly
- * (REMOTE-TADE.md §5.3): the away view answers and the phone is told through
+ * which is what somebody deciding on that machine needs said plainly:
+ * the away view answers and the phone is told through
  * the night, and the quiet hours are what stand between it and three in the
  * morning.
  */
@@ -555,8 +555,8 @@ export const WebSurface = z
      * Only the public listener asks, because it is the one a copied session
      * reaches from anywhere: this machine, an SSH forward and a tailnet name
      * are each already behind something of yours. Only acting asks — reading
-     * never does. Twelve hours is the person's decision (REMOTE-TADE §14,
-     * decision 7). `PASSKEY_BEFORE_ACTING` is what is said where it is set; a
+     * never does. Twelve hours is the person's decision.
+     * `PASSKEY_BEFORE_ACTING` is what is said where it is set; a
      * change builds the listener again, like every key here.
      */
     passkey_hours: z.int().min(0).max(720).default(12),

@@ -7,8 +7,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { App } from '../../src/app.ts'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
 
-// Another machine's orchestrator, from this window (REMOTE-TADE.md §5.4,
-// §9.4) — the whole of it through the window: a tab beside this machine's own
+// Another machine's orchestrator, from this window
+// — the whole of it through the window: a tab beside this machine's own
 // orchestrator, that machine's conversation on it, what is typed there sent to
 // that machine as its owner and to nothing here, escape stopping its turn
 // there, and when its link comes back, what it says happened while the person

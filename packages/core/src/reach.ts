@@ -533,8 +533,8 @@ export const RELOAD_REACH: Reaches = {
 
 /**
  * How far the orchestrator reaches into another machine's Tade: passing a
- * sentence to its orchestrator, as this machine's owner there (REMOTE-TADE.md
- * §9.4, `tade_remote_tell`).
+ * sentence to its orchestrator, as this machine's owner there
+ * (`tade_remote_tell`).
  *
  * `asked`, and what is asked for is **that machine, by its name**
  * (`remoteNamedBy`). The turn it starts there runs as an owner's — it reaches
@@ -554,7 +554,7 @@ export const REMOTE_TELL_REACH: Reaches = {
 
 /**
  * How far the orchestrator reaches into moving work to another machine of the
- * person's (REMOTE-TADE.md §9.2, `tade_task_move`): queued work started there
+ * person's (`tade_task_move`): queued work started there
  * instead of here, or a running task handed over — its agent told to commit
  * and push, the work made there, the agent here stopped.
  *

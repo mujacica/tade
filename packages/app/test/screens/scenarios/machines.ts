@@ -20,7 +20,7 @@ import { menuPanel, projectsMenuItems } from '../../../src/panels/menu/state.ts'
 import { showTalk, talkSays, talkTab, talkTabsOf, talkTranscript } from '../../../src/talk-tab.ts'
 import { frame, NOW, type Scenario, tasks } from './fixtures.ts'
 
-// Other machines' projects in this window (REMOTE-TADE.md §9.4): a tab per
+// Other machines' projects in this window: a tab per
 // project under the name of the machine it is on, the side listing a remote
 // project's agents with the marks and ages that machine gave them, and what
 // the window says while the link to one is down.

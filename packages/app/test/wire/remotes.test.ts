@@ -11,7 +11,7 @@ import { RemoteMachines } from '../../src/wire/remote-machine.ts'
 import { Remotes, type RemotesDeps } from '../../src/wire/remotes.ts'
 
 // The Mac's window linked to two other machines' Tades at once — the proof V6
-// asked for (REMOTE-TADE.md §13) — through the window's own wiring: the
+// asked for — through the window's own wiring: the
 // config's `remotes`, the beat, the wake, the presence and the journal. The
 // far ends are real away views (`far.ts`) and the link is the scripted one, so
 // what is here is the window's half; the ssh link through a real `sshd` is its

@@ -439,7 +439,7 @@ describe('who is in front of which screen', () => {
   })
 
   it('counts the person at another of their screens for every device, through the window’s own door', async () => {
-    // REMOTE-TADE.md §5.3: a VPS whose window nobody types into is told by the
+    // A VPS whose window nobody types into is told by the
     // Mac's link when a key was pressed there, and does not buzz the phone.
     const home = await mkdtemp(join(tmpdir(), 'tade-push-'))
     await subscribed(home)
@@ -702,7 +702,7 @@ describe('a device asking to be told', () => {
   })
 
   it('writes nothing for the same subscription told again on a visit, and a row where it moved', async () => {
-    // REMOTE-TADE.md §5.3: the page sends what its browser holds every time
+    // The page sends what its browser holds every time
     // it is opened, so a visit is not a change — and a browser that renewed
     // its subscription without saying so is, which iOS does.
     const it_ = await half()

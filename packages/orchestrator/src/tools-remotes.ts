@@ -1,8 +1,8 @@
 import type { OrchestratorTool } from './tools-extension.ts'
 
-// Another machine's orchestrator, reached from this one's (REMOTE-TADE.md
-// §9.4): one tool that passes a sentence on, over the owner channel this
-// machine holds there, and one that moves work from here to there (§9.2) —
+// Another machine's orchestrator, reached from this one's:
+// one tool that passes a sentence on, over the owner channel this
+// machine holds there, and one that moves work from here to there —
 // and no other door to that machine's work.
 //
 // Beside `tools-extension.ts` rather than in it, for `tools-machine.ts`'s

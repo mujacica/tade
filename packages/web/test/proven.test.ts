@@ -62,7 +62,7 @@ const READ = (() => {
 })()
 
 describe('a passkey before acting from the public listener', () => {
-  // REMOTE-TADE.md §4.4, V5: a session is a bearer credential for thirty days,
+  // A session is a bearer credential for thirty days,
   // so from the public name an act also needs a proof younger than the
   // setting — and reading never does. Every cell of {listener} × {setting} ×
   // {when it was last proved} × {read, act}, because the gate that is easy to

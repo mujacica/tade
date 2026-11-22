@@ -341,8 +341,8 @@ export interface ExtensionWatch {
    * Declared, never read off `network`: a judge reaches a model somewhere else
    * and reads this machine's agents. `repository` makes it one machine's where
    * the repository is a project on another of the person's machines too, so
-   * one red build is one finding there and not one on each (`watchWhere`,
-   * REMOTE-TADE.md §9.5). Unsaid is `machine`, which looks on every machine.
+   * one red build is one finding there and not one on each (`watchWhere`).
+   * Unsaid is `machine`, which looks on every machine.
    */
   about?: 'repository' | 'machine'
   /**
@@ -396,8 +396,7 @@ export interface ExtensionWatch {
   intake?: IntakeSource
   /**
    * What makes it look now rather than at its next turn: a delivery from a
-   * source outside this machine, to this machine's public name
-   * (REMOTE-TADE.md §6.1).
+   * source outside this machine, to this machine's public name.
    *
    * **A doorbell, and the watch is still the door.** A delivery only wakes the
    * schedule; what is found is what `check` reads, under the grant, with the

@@ -10,7 +10,7 @@ import { ownsOrTheirs, reachOf } from './surface.ts'
 
 // What to run on this machine to be shown one of its agents and type into it:
 // the far half of the terminal another machine's window opens over SSH and
-// draws as a pane (REMOTE-TADE.md §3.4).
+// draws as a pane.
 //
 // **The one answer in this package that is an attach line**, which every row a
 // phone reads promises never to be (`lanes: A COUNT … never an attach line`).

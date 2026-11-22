@@ -1,7 +1,7 @@
 import { findSecret } from './secrets.ts'
 
 // The apps the person made on a forge and connected to this machine, as the
-// config keeps them (REMOTE-TADE.md §6.3): today one, a GitHub App made from
+// config keeps them: today one, a GitHub App made from
 // the guided page (`/connect`), whose installation tokens the forge reads with
 // where it is installed (`@tade/forges-core`'s `apps.ts`).
 //

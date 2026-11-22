@@ -26,7 +26,7 @@ import { queryOf, readBody } from './request.ts'
 import type { Route } from './routes.ts'
 import { ownsOrTheirs } from './surface.ts'
 
-// The guided pages that connect a source (REMOTE-TADE.md §6.4): who may use
+// The guided pages that connect a source: who may use
 // them, the one-time word each press mints, and what a source sending the
 // browser back is answered with.
 //

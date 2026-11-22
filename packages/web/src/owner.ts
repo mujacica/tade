@@ -6,7 +6,7 @@ import { SCOPES } from './surface.ts'
 // An owner device: a session `tade web pair --owner` mints over SSH, bound to
 // this machine, whose turns reach what the keyboard reaches.
 //
-// **What changed, and why it is acceptable** (REMOTE-TADE.md §11 item 4). A
+// **What changed, and why it is acceptable**. A
 // turn from a paired device is narrowed (`@tade/orchestrator`'s `origin.ts`):
 // it may not start an agent, plan, schedule or create a task, because a
 // phone's session is a weaker credential than being at the keyboard. The Mac

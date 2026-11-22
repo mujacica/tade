@@ -8,11 +8,11 @@ import {
   type MadeApp,
 } from '@tade/forges-core'
 
-// A GitHub App the person makes from a manifest, and asking as it
-// (REMOTE-TADE.md §6.3): what the manifest says, the token an app signs for
+// A GitHub App the person makes from a manifest, and asking as it:
+// what the manifest says, the token an app signs for
 // itself, and reading back what GitHub handed over once.
 //
-// **Read-only, on purpose and for good** (§14 decision 10). The GitHub door has
+// **Read-only, on purpose and for good**. The GitHub door has
 // no way back — nothing Tade reads there can be something it wrote — and
 // agents push with the person's own git credentials, so every permission here
 // is `read` and there is no field a write could go in.

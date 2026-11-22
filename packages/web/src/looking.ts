@@ -6,7 +6,7 @@ import { readBody } from './request.ts'
 
 // This device's page is in front of somebody: a paired phone saying it is
 // being looked at, so this machine does not buzz the phone that already shows
-// what the buzz would say (REMOTE-TADE.md §5.3).
+// what the buzz would say.
 //
 // ## The decision, and why it is this narrow
 //

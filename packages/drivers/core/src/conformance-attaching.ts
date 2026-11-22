@@ -7,7 +7,7 @@ import { until } from './waiting.ts'
 // What the suite asks of `attachCommand`: the escape hatch that makes the rest
 // safe to rely on — whatever else is broken, a human can still see the lane —
 // and the far half of a lane on another machine drawn as a pane of this
-// machine's window (REMOTE-TADE.md §3.4). Apart from `conformance.ts` so both
+// machine's window. Apart from `conformance.ts` so both
 // have room; run from inside it, with its driver and its lanes — and, like it,
 // never shipped: it imports vitest (`conformance-*.ts`, `NOT_SHIPPED` in
 // `scripts/release/stage.ts`).

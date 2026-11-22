@@ -1,7 +1,7 @@
 import { linearIssues } from './linear.ts'
 import { LinearApi, type LinearGrant } from './linear-api.ts'
 
-// The Linear app Connect Linear asks the person to make (REMOTE-TADE.md §6.3):
+// The Linear app Connect Linear asks the person to make:
 // the manifest it is made from, what it asks Linear for and why, where
 // connecting it sends the browser back, and the code that comes back with
 // exchanged for its tokens — through the one Linear client there is

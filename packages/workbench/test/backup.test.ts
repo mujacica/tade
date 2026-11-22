@@ -34,7 +34,7 @@ import { Workbench } from '../src/workbench.ts'
 
 // A backup of this machine's Tade, and a restore of it — against a real
 // restic, real files, a real journal and a real workbench opened on what came
-// back, because a backup nobody restored is a hope (REMOTE-TADE.md §7.5).
+// back, because a backup nobody restored is a hope.
 //
 // restic is a program this machine may not have: CI installs it (`ci.yml`'s
 // `restic` step), and where it is missing the restore half says so in its

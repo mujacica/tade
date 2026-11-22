@@ -14,7 +14,7 @@ import { type CertificateLook, certificateSays, type Health, outdatedSays } from
 //
 // **Loud is said in the strip, once.** The panel draws every line on every
 // frame; what nobody may miss — a certificate running out, a renewal that has
-// been failing, Tade behind on a box the internet reaches (REMOTE-TADE §8.5) —
+// been failing, Tade behind on a box the internet reaches —
 // is also told to the person through `news`, once per thing to say, and again
 // only after it was fine in between.
 

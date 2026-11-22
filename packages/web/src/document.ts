@@ -7,7 +7,7 @@ import { readBody } from './request.ts'
 import { ownsOrTheirs, reachOf } from './surface.ts'
 
 // One document this machine's work produced, as text, for another machine of
-// the person's to read (REMOTE-TADE.md §9.6: documents stay the truth on the
+// the person's to read (documents stay the truth on the
 // machine that made them, and the other one reads them). The list of them is
 // `machine.ts`'s; this is the reading of one.
 //

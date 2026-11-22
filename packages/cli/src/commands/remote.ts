@@ -23,8 +23,7 @@ import {
   ttyAsking,
 } from './remote-guide.ts'
 
-// `tade remote` — the other machines' Tades this one is an owner of
-// (REMOTE-TADE.md §4.4, §13 V6).
+// `tade remote` — the other machines' Tades this one is an owner of.
 //
 // **`add` is the one way a remote gets into the config**: it runs `tade web
 // pair --owner` there over SSH, and writes what that printed — the session, a

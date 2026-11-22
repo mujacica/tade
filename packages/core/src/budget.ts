@@ -10,7 +10,7 @@ import type { Spend } from './spend.ts'
 // workbench before any agent starts), warned at 80%, never a run cut off half
 // way: a long run that dies at 100% is how people lose work.
 //
-// **Why the machine's, beside the project's** (REMOTE-TADE.md §5.2). A budget
+// **Why the machine's, beside the project's**. A budget
 // per project does not stop a schedule that fans out across six projects, each
 // well inside its own: on a machine that runs with nobody there, that is a
 // night's money with no line anywhere it stops at. One line in the same check

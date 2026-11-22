@@ -25,8 +25,8 @@ import {
 } from './context.ts'
 import { RemoteTerminals } from './remote-terminals.ts'
 
-// An agent on another machine, opened from this window (REMOTE-TADE.md §3.4,
-// §9.4): looked at, typed into, told something, and stopped, parked, answered
+// An agent on another machine, opened from this window:
+// looked at, typed into, told something, and stopped, parked, answered
 // or started — every one of them that machine's own act, asked over the link
 // this machine holds as its owner.
 //

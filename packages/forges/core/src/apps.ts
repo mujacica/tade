@@ -1,6 +1,5 @@
 // Apps: something the person makes on a forge, owns, installs on the
-// repositories they choose, and lets Tade read those repositories as
-// (REMOTE-TADE.md §6.3).
+// repositories they choose, and lets Tade read those repositories as.
 //
 // Its own file for the reason `tickets.ts` is one: a port within the port,
 // with its own objects and its own capability (`capabilities.apps`) and its own

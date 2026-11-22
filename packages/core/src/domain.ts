@@ -1,8 +1,8 @@
 import type { NetworkAddress } from './network.ts'
 import type { CertificateLook } from './public-listener.ts'
 
-// The records a public name needs, and what each one comes to (REMOTE-TADE
-// §7.3): `tade host domain` and the Public name row in Settings › Away view.
+// The records a public name needs, and what each one comes to:
+// `tade host domain` and the Public name row in Settings › Away view.
 //
 // Pure: what was resolved in, one line per record out, so the terminal and
 // the window say the same words about the same answers. The asking is

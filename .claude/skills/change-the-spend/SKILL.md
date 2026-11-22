@@ -405,7 +405,7 @@ orchestrator's own turns), each `usd_per_day` and `tokens_per_day`. `startBudget
 is the rule and `guardBudget` (`workbench/src/budget.ts`) asks it before any agent starts: refused past
 either, warned at 80%, never a run cut off half way.
 
-- **The machine's exists for the night that fans out** (REMOTE-TADE.md §5.2): six projects each inside
+- **The machine's exists for the night that fans out**: six projects each inside
   their own budget are one machine with no line anywhere, and on a box that runs with nobody there that
   is the money nobody watched. **It has no amount until somebody writes one** — any figure Tade chose is
   a cap that stops a wanted day at noon or one that never caps.

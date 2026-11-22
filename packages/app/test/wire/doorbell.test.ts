@@ -9,7 +9,7 @@ import { hooksFor } from '../../src/wire/doorbell.ts'
 import type { Schedules } from '../../src/wire/schedules.ts'
 import { type Repo, until, windowUnderTest } from './harness.ts'
 
-// A webhook delivery in this window (REMOTE-TADE §6.1): which schedules one is
+// A webhook delivery in this window: which schedules one is
 // for, that it makes them look through the look their clock uses — once more
 // after a look under way, however many ring — and that the window then polls
 // hourly and says why. The door in front of this is `@tade/web`'s

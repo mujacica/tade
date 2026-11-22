@@ -28,7 +28,7 @@ import {
 // of it, and is not half-built here: it must send a first activity inside 10
 // seconds of every session, its API is a Developer Preview, and subscribing
 // shows the agent to the whole workspace at once, so it is a later stage and a
-// switch of its own (REMOTE-TADE §6.3, V17), and `INTAKE_NOT_SUPPORTED` says
+// switch of its own, and `INTAKE_NOT_SUPPORTED` says
 // so where somebody is deciding. **Jira is not here at all**, and is likewise
 // not a switch somebody has to find.
 //

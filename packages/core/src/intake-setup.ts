@@ -97,7 +97,7 @@ export const INTAKE_SETUP: Readonly<Record<IntakeSource, readonly string[]>> = {
  * Both of these were looked at properly, which is why they are one sentence
  * each rather than a table. What used to stop Linear's was **a laptop cannot
  * promise to be awake**, and a server with a public name now can: Connect
- * Linear's app delivers its webhook there (REMOTE-TADE §6.3, V16). What still
+ * Linear's app delivers its webhook there. What still
  * stops Linear's agents is their own — a first activity inside ten seconds of
  * every session, a Developer Preview, and a subscription that shows the agent
  * to the whole workspace at once — so they are a later stage and their own

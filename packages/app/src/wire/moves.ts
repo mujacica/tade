@@ -31,7 +31,7 @@ import {
 import { ProjectMoves } from './project-moves.ts'
 import { askHanding, askThere, beginsOf, contextOf, removeHere } from './take-parts.ts'
 
-// Work moved to another machine of the person's (REMOTE-TADE.md §9.2): queued
+// Work moved to another machine of the person's: queued
 // work started there instead of here — "Start on vps" on its card, or the
 // orchestrator's `tade_task_move` — made over the owner channel this window
 // holds there (`/api/take`, `@tade/web`'s `taken.ts`), and gone from this
@@ -46,7 +46,7 @@ import { askHanding, askThere, beginsOf, contextOf, removeHere } from './take-pa
 // parked, which is a decision still to be made here; not a race's entrant or a
 // replay, which are measurements of this machine; waiting on nothing, and
 // nothing here waiting on it — no wait crosses machines, because there is no
-// shared journal to resolve one against (§9.4). Work that begins on a review's
+// shared journal to resolve one against. Work that begins on a review's
 // branch goes with that branch, as origin has it.
 //
 // **Set aside while it moves.** It is parked here before that machine is

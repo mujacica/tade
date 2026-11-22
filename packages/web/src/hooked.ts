@@ -6,7 +6,7 @@ import { checkDelivery, deliveryDigest, HOOK_BODY_MAX } from './hooks.ts'
 import { header, inTime } from './request.ts'
 import type { Told } from './serving.ts'
 
-// The doorbell's door (REMOTE-TADE.md §6.2): one delivery read, checked,
+// The doorbell's door: one delivery read, checked,
 // answered and rung, in that order and no other.
 //
 // 1. **A source with no secret is a path nobody built**: `404`, read at every

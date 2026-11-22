@@ -112,7 +112,7 @@ export const intakeExtension: TadeExtension = {
       means:
         'a Linear personal API key for the team watch, which only ever reads: there is no reply path to Linear at all, so nothing Tade does needs a scope to write — read only where no app made by Connect Linear (/connect) is connected',
     },
-    // The doorbells' secrets (REMOTE-TADE §6.2), one per source, declared here
+    // The doorbells' secrets, one per source, declared here
     // so they are settings like any key; the away view's door reads them
     // (`wire/doorbell.ts`) and no watch does. A source with none has no route.
     ...HOOK_SOURCES.map((source) => ({

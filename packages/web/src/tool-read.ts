@@ -8,7 +8,7 @@ import { ownsOrTheirs } from './surface.ts'
 // One of this machine's extension tools that only reads — its Sentry issues,
 // what its judge flagged — asked by another machine of the person's that links
 // to it as an owner, and answered with this machine's own settings and keys
-// (REMOTE-TADE.md §9.6: the VPS's Sentry token is the VPS's).
+// (the VPS's Sentry token is the VPS's).
 //
 // **An owner's, and only at this machine's own door** (`here`): whoever holds
 // the SSH key can already run this Tade's tools over the same connection — ask

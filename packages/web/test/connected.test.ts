@@ -20,8 +20,8 @@ import { mintOwner } from '../src/owner.ts'
 import { CSRF_HEADER } from '../src/request.ts'
 import { type Answer, ask, closeAll, pair, type Running, start } from './harness.ts'
 
-// The guided pages that connect a source, over a real listener (REMOTE-TADE
-// §6.4): the page and its presses answer on this machine's own door with no
+// The guided pages that connect a source, over a real listener:
+// the page and its presses answer on this machine's own door with no
 // session and every cross-site layer that can apply, a press mints a one-time
 // word for the host GitHub will send the browser back to, and a callback is
 // answered for that word alone — once, for that host, within ten minutes. The

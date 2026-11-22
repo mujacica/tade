@@ -10,7 +10,7 @@ import {
 import { inTime } from '@tade/web'
 import type { Settings } from './settings.ts'
 
-// The Linear app's tokens, as the window holds them (REMOTE-TADE.md §6.3): what
+// The Linear app's tokens, as the window holds them: what
 // Connect Linear kept, refreshed when a look needs it, and the refresh token
 // that replaces itself written back through the one write path each time.
 //

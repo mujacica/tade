@@ -14,7 +14,7 @@ import type { Wiring } from './context.ts'
 // owner's link carries (`@tade/web`'s `presence.ts`), held for push to read,
 // and written down once a stretch as `person_present` — the cursor the
 // catch-up card another machine of theirs asks for is folded from
-// (`since.ts`, REMOTE-TADE.md §5.4).
+// (`since.ts`).
 //
 // **Held in memory and written to the journal are two answers to two
 // questions.** Whether to buzz a phone is about the last couple of minutes,

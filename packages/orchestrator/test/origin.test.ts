@@ -118,7 +118,7 @@ describe('what a remote turn may reach', () => {
   })
 
   it('asks nothing of an owner device’s turn either, and still names the device', () => {
-    // REMOTE-TADE.md §11 item 4: minted over SSH, bound to this machine, and
+    // Minted over SSH, bound to this machine, and
     // answered with the local arm — every gate, both tables, every project.
     // Who asked stays the device's: a note it causes is the device's note.
     const owner: Arm = { how: 'owner', device: 'a1b2c3d4e5f60718' }
@@ -152,7 +152,7 @@ describe('what a remote turn may reach', () => {
   })
 
   it('never passes a phone’s words on to another machine, where they would be its owner’s', () => {
-    // REMOTE-TADE.md §9.4. This machine is an owner of another (`tade remote
+    // This machine is an owner of another (`tade remote
     // add`), so what it passes there runs with that machine's keyboard's
     // reach. A turn here that came from a paired device is narrowed; passing
     // its words on through the owner session would launder the phone's

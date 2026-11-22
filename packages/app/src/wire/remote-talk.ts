@@ -14,8 +14,8 @@ import { type TalkShown, talkingTo, talkSays, talkTabsOf, talkTranscript } from 
 import type { Entry } from '../transcript.ts'
 import { notify, saidLately, type Wiring, why } from './context.ts'
 
-// Another machine's orchestrator, talked to from this window (REMOTE-TADE.md
-// §5.4, §9.4): what is typed on its tab, sent to it as this machine's owner;
+// Another machine's orchestrator, talked to from this window:
+// what is typed on its tab, sent to it as this machine's owner;
 // escape on its tab, its turn stopped; and when its link comes back, what it
 // says happened while the person was away, asked once and drawn on its tab.
 //

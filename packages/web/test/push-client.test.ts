@@ -327,7 +327,7 @@ describe('subscribing, which only ever happens from a press', () => {
 })
 
 describe('telling the machine again, on every visit', () => {
-  // REMOTE-TADE.md §5.3: iOS may go on answering for a subscription it has
+  // iOS may go on answering for a subscription it has
   // replaced and never says so (WebKit bugs 249766, 294421), so the page tells
   // the machine what its browser holds each time it opens — and that may
   // never be a prompt or a new subscription, because it happens without a

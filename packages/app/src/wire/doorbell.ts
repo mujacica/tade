@@ -12,8 +12,8 @@ import { repositoryAt } from '@tade/status'
 import { inTime, type WebHooks } from '@tade/web'
 import type { Wiring } from './context.ts'
 
-// The window's half of the doorbell (`@tade/web`'s `hooked.ts`,
-// REMOTE-TADE.md §6.1): the secret each source signs with, which schedules a
+// The window's half of the doorbell (`@tade/web`'s `hooked.ts`):
+// the secret each source signs with, which schedules a
 // delivery that verified is for, and waking them.
 //
 // **A delivery makes a schedule look now, through the look its clock uses**

@@ -92,7 +92,7 @@ describe('one message, all the way through', () => {
   })
 
   it('gives an owner device the keyboard’s reach on this machine, and still writes it down as the device’s', async () => {
-    // REMOTE-TADE.md §11 item 4: a session `tade web pair --owner` minted,
+    // A session `tade web pair --owner` minted,
     // bound to this machine, presented on the loopback listener. Every gate
     // answers its turn as a local one; nothing records it as the person.
     const one = await machine({ talking: true })

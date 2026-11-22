@@ -11,7 +11,7 @@ import { runGit, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import type { App } from '../../src/app.ts'
 import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
 
-// Queued work started on another machine instead (REMOTE-TADE.md §9.2),
+// Queued work started on another machine instead,
 // through the whole window: "Start on vps" on its card where vps holds the
 // same repository as a project, the work handed there over the owner channel
 // with the person's words and its context, and gone from this queue — and

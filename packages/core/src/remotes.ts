@@ -5,8 +5,8 @@ import { IN_CONFIG, SEEN_BY_AGENTS } from './secrets.ts'
 // Another machine's Tade that this one is an owner of: `remotes.<name>` in the
 // config, written by `tade remote add` and by nothing else.
 //
-// **One Tade per machine, and this is how one of them reaches another**
-// (REMOTE-TADE.md §2.5). Each machine keeps its own home, journal and agents;
+// **One Tade per machine, and this is how one of them reaches another**.
+// Each machine keeps its own home, journal and agents;
 // this machine is a paired *owner device* of the other's away view — a session
 // `tade web pair --owner` minted there over SSH, bound to that machine's own
 // loopback address — and the link (`@tade/remotes-core`) carries the away

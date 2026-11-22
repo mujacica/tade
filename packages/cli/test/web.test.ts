@@ -240,7 +240,7 @@ describe('tade web', () => {
   })
 
   describe('pair, from a shell on this machine', () => {
-    // REMOTE-TADE.md §11 items 3 and 4: on a box with no screen the shell is
+    // On a box with no screen the shell is
     // the machine, so `pair` writes a code (and `--owner` a session) itself.
     // Neither needs a window to write; both say nothing answers until one is.
 

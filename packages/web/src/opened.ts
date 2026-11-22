@@ -5,8 +5,8 @@ import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
 import { ownsOrTheirs } from './surface.ts'
 
-// A project another machine of the person's is moving here (REMOTE-TADE.md
-// §9.2): "moving a whole project is closing it on one machine and opening it
+// A project another machine of the person's is moving here:
+// "moving a whole project is closing it on one machine and opening it
 // on the other", and this is the opening — the repository checked out here,
 // cloned with **this machine's own credentials** where there is no checkout of
 // it yet, and opened as a project through the window's own door

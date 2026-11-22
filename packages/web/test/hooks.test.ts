@@ -9,8 +9,8 @@ import {
   SLACK_WINDOW_MS,
 } from '../src/hooks.ts'
 
-// What a delivery is, checked before anything in it is believed (REMOTE-TADE
-// §6.2): every way one can be wrong, per source, as rows rather than requests.
+// What a delivery is, checked before anything in it is believed:
+// every way one can be wrong, per source, as rows rather than requests.
 // The signatures are made here the way each source documents making them, so a
 // check that agreed with itself and not with the source would fail.
 

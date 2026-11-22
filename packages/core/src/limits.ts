@@ -357,8 +357,8 @@ export interface StartSays {
  * outside (`outside`, always), where the trade is plainest: spending what is
  * left of a five-hour window on somebody else's ticket at three in the morning
  * is a person's call, not a rule's. And work a schedule or a watch made
- * (`scheduled`), where `queue.hold_scheduled` says so — on by default
- * (REMOTE-TADE.md §5.2, decision 15): a night of `deps` and `sentry` watches on
+ * (`scheduled`), where `queue.hold_scheduled` says so — on by default:
+ * a night of `deps` and `sentry` watches on
  * a machine with nobody there stops before the morning's window is gone,
  * rather than being found to have spent it. Work somebody asked for here is
  * never held by this: it is theirs to spend on. A window seen nearly full holds

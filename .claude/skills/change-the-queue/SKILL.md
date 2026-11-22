@@ -493,8 +493,8 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   (`reachedResolver`, `dns.resolve` and never `lookup`, whose cache answers the wrong question).
   The one line is said on the edge and only there (`reachSaid`), because a window that has quietly
   stopped looking must still be legible.
-- **A watch on an outside source looks from one machine per repository** (REMOTE-TADE.md §9.5,
-  `watchWhere`). Where one repository is a project here and on a remote, a review, a red build, a
+- **A watch on an outside source looks from one machine per repository**
+  (`watchWhere`). Where one repository is a project here and on a remote, a review, a red build, a
   Sentry issue or a Slack request is found from both, and "one red commit is one finding" is two
   proposals to two orchestrators. So a watch that says it looks at the repository (`about:
   'repository'` — declared, never read off `network`, because Jev reaches a model and reads this
@@ -517,8 +517,8 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   `Schedules.where`), because a press there could only be refused. **No remote is called `here`**,
   the word `watches` uses for this machine: `tade remote add` refuses it (`NewRemoteName`), and a
   config that has one keeps working without it, the block ignored and said (`gone.ts`).
-- **Work moves between machines by git, and the conversation never does** (REMOTE-TADE.md §9.2,
-  `wire/moves.ts`, `wire/hand-over.ts`; the far half is `web-take.ts` behind `/api/take`). Queued
+- **Work moves between machines by git, and the conversation never does**
+  (`wire/moves.ts`, `wire/hand-over.ts`; the far half is `web-take.ts` behind `/api/take`). Queued
   work started on a remote instead ("Start on vps" on its card, `tade_task_move`) is the same task
   file made there — words, prompt, context, links, done rule, `at` — and removed here once taken,
   **parked meanwhile** so this queue cannot start it in the gap. A running task is handed over:

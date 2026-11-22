@@ -1,4 +1,4 @@
-// Connecting a source of work, step by step (REMOTE-TADE.md §6.4): what the
+// Connecting a source of work, step by step: what the
 // guided page says and offers, as a pure fold over a look.
 //
 // **Each source's page is one fold over what is true now** — what is kept in
@@ -338,7 +338,7 @@ export interface SlackLook {
 }
 
 /**
- * Slack's page (REMOTE-TADE §6.3): make the app from a manifest, keep its
+ * Slack's page: make the app from a manifest, keep its
  * signing secret first, let Slack check the address, then install it — with
  * OAuth v2, whose redirect Slack sends only to HTTPS, so **with no public name
  * the app is made with no address and installed from its own page**, its
@@ -532,7 +532,7 @@ export interface LinearLook {
 }
 
 /**
- * Linear's page (REMOTE-TADE §6.3): make the app from a manifest, give this
+ * Linear's page: make the app from a manifest, give this
  * machine its client id — and its webhook's signing secret, where Linear can
  * deliver — then connect it with OAuth and PKCE, and hear its deliveries.
  *

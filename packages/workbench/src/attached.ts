@@ -2,7 +2,7 @@ import type { LaneRecord } from './registry.ts'
 
 // Terminals that are another machine's agents: a lane here running the line
 // that machine gave for one of its agents, over `ssh -t` or mosh
-// (REMOTE-TADE.md §3.4) — what pressing enter on an agent there opens.
+// — what pressing enter on an agent there opens.
 //
 // A lane like any terminal: the driver runs it, the registry keeps it, the
 // lower pane draws it, and under tmux it outlives the window. What makes one

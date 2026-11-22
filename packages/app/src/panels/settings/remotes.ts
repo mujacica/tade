@@ -29,7 +29,7 @@ import type { SettingsPanel } from './state.ts'
 // page was opened or Look again was pressed (`records`) — always as of when,
 // because a look at DNS is a moment.
 //
-// **And moving a project there** (`moves`, REMOTE-TADE.md §9.2): each project
+// **And moving a project there** (`moves`): each project
 // here with the one press that is next — open it there, hand its work over,
 // close it here — which is the whole guided flow, because the steps are only
 // ever taken in that order and each is a press somebody can see the result of.

@@ -8,7 +8,7 @@ import { ownsOrTheirs, reachOf } from './surface.ts'
 
 // Where this machine's projects are checked out, and the branches their work
 // is on: what another machine of the person's needs to fetch that work into a
-// mirror of its own (REMOTE-TADE.md §9.3) — for its conflict forecast.
+// mirror of its own — for its conflict forecast.
 //
 // **An owner's, and only at this machine's own door** (`here` in `routes.ts`):
 // the answer names a path on this machine for each project, which no row a

@@ -1020,7 +1020,7 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
 ## Projects on other machines
 
 Another machine's Tade this one is an owner of (`remotes.<name>`, linked by `wire/remotes.ts`) is
-drawn from what its away view sends — the projection the link holds (REMOTE-TADE.md §9.4).
+drawn from what its away view sends — the projection the link holds.
 
 - **`machines.ts` is the only reader of a projection**, and the drawing never sees one. A link
   reads it for its shape, not field by field, so a title can be anything; the fold reads each field

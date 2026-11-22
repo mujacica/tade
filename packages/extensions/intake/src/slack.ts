@@ -33,7 +33,7 @@ import {
 // inside it, no Socket Mode and no three-second clock: Tade asks the channel
 // what has been said every couple of minutes — and, where this machine has a
 // public name and the Slack app delivers its events there, a delivery makes it
-// ask at once (`doorbell`, REMOTE-TADE §6.1), which is still asking. Three
+// ask at once (`doorbell`), which is still asking. Three
 // consequences, all of them the kind a connector's README usually leaves out:
 //
 // 1. A mention is **noticed** — within a poll interval, or seconds after a

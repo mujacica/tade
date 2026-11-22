@@ -11,7 +11,7 @@ import {
   slackWho,
 } from '../src/slack-app.ts'
 
-// The Slack app Connect Slack asks the person to make (REMOTE-TADE §6.3): the
+// The Slack app Connect Slack asks the person to make: the
 // manifest, the addresses a browser is sent to, and an install's code
 // exchanged for its token over the one Slack client, against a Slack that
 // answers from a file. What the page and the window do with it is

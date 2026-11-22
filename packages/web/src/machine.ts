@@ -7,7 +7,7 @@ import { readBody } from './request.ts'
 import { ownsOrTheirs, reachOf } from './surface.ts'
 
 // What this machine is, for another machine of the person's that links to it
-// as an owner (REMOTE-TADE.md §9.4, §9.6): which Tade it runs, how its public
+// as an owner: which Tade it runs, how its public
 // name stands, what has gone wrong in it, what its schedules and watches last
 // found, and which documents its work produced — the half of "everything about
 // a remote" the projection does not carry, because a phone has no use for it

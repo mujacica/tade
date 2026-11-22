@@ -12,7 +12,7 @@ import { type SlackScript, slackScript } from '../../../../test/fixtures/slack/s
 import { LINEAR_CONNECTED_BY } from '../../src/wire/linear-tokens.ts'
 import { CONNECTED_BY, connectingFor, SLACK_CONNECTED_BY } from '../../src/wire/web-connect.ts'
 
-// The window's half of connecting GitHub (REMOTE-TADE §6.4): what the page
+// The window's half of connecting GitHub: what the page
 // reads — the App kept, where GitHub says it is installed, what the journal
 // heard — and keeping what GitHub hands back for a code, through the one
 // write path, in an order no window dying halfway can leave half of. Against

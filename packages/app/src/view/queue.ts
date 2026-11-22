@@ -694,7 +694,7 @@ export function renderQueued(
         line((r) => r.text('‖', skin.faded).space().text(said('Paused.')))
         break
     }
-    // Started on another machine instead (REMOTE-TADE.md §9.2): there, in its
+    // Started on another machine instead: there, in its
     // project that is this repository, and gone from this queue.
     const elsewhere = startsOnFor(state, frame.startsOn, pane.task)
     if (elsewhere.length > 0) {

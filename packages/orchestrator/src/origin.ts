@@ -155,8 +155,7 @@ const NO_TURN =
 // machine's owner session there, whose turns reach what that machine's keyboard
 // does (`@tade/web`'s `owner.ts`). The arm of the turn that calls it is not
 // carried with it — that machine sees its owner, not a phone — so a narrowed
-// turn passing its words on would leave the narrowing behind on this side
-// (REMOTE-TADE.md §9.4).
+// turn passing its words on would leave the narrowing behind on this side.
 const OWNS_ELSEWHERE =
   'it hands words to another machine’s Tade as its owner, where they reach what its keyboard does and no narrowing goes with them'
 const READS_ELSEWHERE =

@@ -33,7 +33,7 @@ import { z } from 'zod'
 //   {"retire":{at,text},because,by,at}   no longer told to anybody, still read on asking
 //   {"came":{at,text},from,at}           taken on another machine, and came from there
 //
-// **Shared between homes** (REMOTE-TADE.md §4.5, §9.6; `notes-shared.ts`):
+// **Shared between homes** (`notes-shared.ts`):
 // every line but `came` is given to the other machines this one is linked to,
 // and theirs are taken, so the file on each is the union of all of them. That
 // is safe because nothing here is ever rewritten and every word about a note

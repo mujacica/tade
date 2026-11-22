@@ -500,7 +500,7 @@ describe('the scope, and the trusted origin an act needs', () => {
 })
 
 describe('this machine is the loopback listener and a loopback Host, both', () => {
-  // REMOTE-TADE.md §4.6, and the OpenClaw gateways of January 2026 (openclaw
+  // The OpenClaw gateways of January 2026 (openclaw
   // issue #2245): a proxy on the same box made the internet arrive from
   // `127.0.0.1`, and loopback was trusted. Here the listener is the server's
   // own answer and the `Host` is the request's, and a request is this machine
@@ -671,7 +671,7 @@ describe('this machine is the loopback listener and a loopback Host, both', () =
 
 describe('a route for this machine alone', () => {
   // `presence` is one (`presence.test.ts` sends it), and the pages that
-  // connect a source are (REMOTE-TADE §6.4, below). So this is the shell,
+  // connect a source are (below). So this is the shell,
   // marked, as the shape every one of them has.
   const SETUP: Route = { ...SHELL, name: 'setup', path: '/setup', here: true }
   const MINE = guarding({ bound: ['127.0.0.1', '::1'] })
@@ -697,7 +697,7 @@ describe('a route for this machine alone', () => {
 })
 
 describe('the pages that connect a source', () => {
-  // REMOTE-TADE §6.4: the page and its presses are this machine's alone and
+  // The page and its presses are this machine's alone and
   // ask no session — reaching that door is what a session would prove — and a
   // press is asked every cross-site layer a mutation is; where GitHub sends
   // the browser back is answered on any door, for the word `connected.ts` asks.
@@ -778,7 +778,7 @@ describe('the pages that connect a source', () => {
 })
 
 describe('a webhook delivery', () => {
-  // A source's server and not a browser (REMOTE-TADE §6.2): what authenticates
+  // A source's server and not a browser: what authenticates
   // it is its signature, which `hooked.ts` checks over the raw body, so the
   // guard asks the `Host` of it and which listener it came in on, and nothing
   // a browser would have to send.

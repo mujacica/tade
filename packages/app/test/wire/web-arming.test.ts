@@ -64,7 +64,7 @@ describe('the arm, re-checked against the record', () => {
   })
 
   it('keeps an owner’s reach only while the record still says owner', () => {
-    // REMOTE-TADE.md §11 item 4. The lease can only ever take away: revoked is
+    // The lease can only ever take away: revoked is
     // a remote arm that reaches nothing, and a record that stopped saying owner
     // is the device's own grants — never wider than the keyboard it had.
     const owner: Arm = { how: 'owner', device: DEVICE }

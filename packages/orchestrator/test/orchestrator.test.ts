@@ -561,7 +561,7 @@ describe('Orchestrator', () => {
   }, 90_000)
 
   it('runs an owner device’s turn with the keyboard’s reach, told as the device’s', async () => {
-    // REMOTE-TADE.md §11 item 4, through a real pi: the harness's own `bash`
+    // Through a real pi: the harness's own `bash`
     // is held as every call is, and the host lets it through,
     // because an owner's turn is answered as a local one. What the model is
     // told still says whose words they are, and nothing writes a `said` line.

@@ -849,7 +849,7 @@ describe('which listener a request came in on', () => {
   })
 
   it('refuses this machine’s own name on a public listener, a session minted for it above all', async () => {
-    // REMOTE-TADE.md §4.6, over real sockets. The public listener is stood in
+    // Over real sockets. The public listener is stood in
     // for by a second `node:http` server on loopback handing every request to
     // the same handler as `public`, which is what a socket for a proxy in
     // front will be: binding a wildcard here would put a port on this

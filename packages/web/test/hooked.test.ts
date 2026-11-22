@@ -10,8 +10,8 @@ import { HOOK_TRIES, REFUSED_EVERY_MS, type WebHooks } from '../src/hooked.ts'
 import { HOOK_BODY_MAX } from '../src/hooks.ts'
 import { type Answer, ask, closeAll, type Running, start } from './harness.ts'
 
-// The doorbell's door over a real Unix socket, the way Caddy reaches it
-// (REMOTE-TADE §6.2): what is answered, what is written down, and that a
+// The doorbell's door over a real Unix socket, the way Caddy reaches it:
+// what is answered, what is written down, and that a
 // delivery only ever asks the window which schedules it is for and then wakes
 // them — after the line, and never for one that did not verify. Each
 // source's signature is `hooks.test.ts`'s; the guard's layer is

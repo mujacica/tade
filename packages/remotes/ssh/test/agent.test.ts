@@ -8,7 +8,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { makeSshLink, NO_AGENT } from '../src/index.ts'
 import { startSshd } from './sshd.ts'
 
-// The far end is never handed this machine's SSH agent (REMOTE-TADE.md §9.3),
+// The far end is never handed this machine's SSH agent,
 // held against a real `sshd` and a real `ssh-agent`, with the client config
 // saying `ForwardAgent yes` for the host as a person's often does — so what is
 // held is that the link's own options win, not that nobody asked.

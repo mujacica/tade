@@ -18,7 +18,7 @@ import type { Held, LinkProblem, LinkState } from './port.ts'
 // has to start (`stream.ts` is the same choice from the other end of the wire).
 //
 // **The cursor is `(epoch, rev)`, and nothing here reads `seq` or a byte
-// offset** (REMOTE-TADE.md §4.5). The remote's epoch is minted per server start
+// offset**. The remote's epoch is minted per server start
 // and its revision moves only on a beat that changed something, so a cursor is
 // correct over the remote's restarts, its journal's compaction and a backup
 // restored there, by construction: another epoch is a snapshot, a revision

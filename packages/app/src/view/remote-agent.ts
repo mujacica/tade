@@ -11,7 +11,7 @@ import { clockOf, shortened } from './text.ts'
 
 // An agent on another machine, in the pane: what it is and how it stands
 // there, what may be asked of it from here, and its screen there — read-only,
-// as that machine last read it (REMOTE-TADE.md §9.4). Typing into it is a
+// as that machine last read it. Typing into it is a
 // terminal in the lower pane, opened by the first control or by enter.
 //
 // **Only what that machine says may be asked of it now is a control** (its

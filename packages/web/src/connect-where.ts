@@ -1,7 +1,7 @@
 import type { Surface } from './surface.ts'
 
-// Where this machine's guided pages that connect a source answer (REMOTE-TADE
-// §6.4, `connected.ts`): the one answer `tade web connect` prints and Settings
+// Where this machine's guided pages that connect a source answer
+// (`connected.ts`): the one answer `tade web connect` prints and Settings
 // › Intake draws, so the terminal and the window cannot say two things about
 // the same listener.
 //

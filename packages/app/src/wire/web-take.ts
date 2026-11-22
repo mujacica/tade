@@ -4,7 +4,7 @@ import { guardName, TASK_BRANCH_PREFIX } from '@tade/workbench/tasks'
 import { type Wiring, why } from './context.ts'
 
 // This machine's half of work another machine of the person's hands it
-// (`@tade/web`'s `taken.ts`, REMOTE-TADE.md §9.2): made queued work in one of
+// (`@tade/web`'s `taken.ts`): made queued work in one of
 // this machine's projects, through the workbench's one write path for a task,
 // which this window's queue then starts by its own rule — as if it had been
 // planned at this keyboard, and by the person (`by: you`), because the person

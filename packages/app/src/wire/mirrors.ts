@@ -12,7 +12,7 @@ import { fetchMirror, mirrorHeads, repositoryAt } from '@tade/status'
 import { RepositoriesAnswerSchema } from '@tade/web'
 
 // Other machines' work in this machine's projects, kept in a mirror of each
-// in this home (REMOTE-TADE.md §9.3, §9.5; core's `elsewhere.ts` has the
+// in this home (core's `elsewhere.ts` has the
 // rules, status's `mirror.ts` the git).
 //
 // **Where one repository is a project here and on a remote**, by the name its

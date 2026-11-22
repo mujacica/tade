@@ -11,8 +11,8 @@ import { userIdOf } from '../src/webauthn.ts'
 import { type Ceremony, SoftAuthenticator } from './authenticator.ts'
 import { type Answer, actingStub, ask, closeAll, pair, type Running, start } from './harness.ts'
 
-// A passkey per device and the proof before acting from the public name
-// (REMOTE-TADE.md §4.4, V5), end to end: through the socket Caddy connects to,
+// A passkey per device and the proof before acting from the public name,
+// end to end: through the socket Caddy connects to,
 // over a real listener, with a software authenticator making real keys and
 // real signatures. `guard.test.ts` holds every cell of the gate;
 // `webauthn.test.ts` every check of an answer; this is that they are wired.

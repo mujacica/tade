@@ -7,7 +7,7 @@ import { ownsOrTheirs } from './surface.ts'
 
 // Somebody is at another of their screens: an owner's link saying how long ago
 // a key was pressed there, so this machine does not buzz a phone while the
-// person is sitting at the Mac (REMOTE-TADE.md §5.3).
+// person is sitting at the Mac.
 //
 // **Why it has to be told.** "Present" here means a key pressed in *this*
 // window in the last couple of minutes (`noticed.ts`, `focusWindowMs`), and on

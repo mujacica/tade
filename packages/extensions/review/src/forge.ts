@@ -25,8 +25,8 @@ export const POLL_MS = 60_000
 
 /**
  * What rings each review watch, where a GitHub App's webhook — or one somebody
- * pointed here by hand — delivers to this machine (`ExtensionWatch.doorbell`,
- * REMOTE-TADE §6.1): the kinds of delivery that can change what its look
+ * pointed here by hand — delivers to this machine (`ExtensionWatch.doorbell`):
+ * the kinds of delivery that can change what its look
  * finds, matched on the project's own repository. A delivery only makes the
  * watch look now, which still reads the forge; the poll stays as the safety
  * net and slows to hourly while deliveries arrive. Mergeability has no event

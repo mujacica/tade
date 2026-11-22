@@ -32,7 +32,7 @@ import { changedSays, identify, trust } from './known.ts'
 export { MOSH_PORTS, MOSH_PROGRAM, moshPortsSaid, NO_AGENT } from './attach.ts'
 
 // A RemoteLink over SSH: the one way there is to reach another machine's Tade
-// today (REMOTE-TADE.md §2.5, §4.1).
+// today.
 //
 // **One connection per remote, and everything rides it.** A ControlMaster is
 // started once (`ssh -M -f -N`) with a forward from a Unix socket here to the

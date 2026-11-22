@@ -64,7 +64,7 @@ import { MACHINE } from './web-panel.ts'
 export type RemoteTools = RemoteTalkTools & RemoteReads & MoveTools
 
 // The window's links to other machines' Tades it is an owner of: one link per
-// `remotes.<name>`, held while the window is open (REMOTE-TADE.md §2.5, §5.4).
+// `remotes.<name>`, held while the window is open.
 //
 // What it does on the window's beat, and nothing waits on any of it: carry the
 // person's last keypress (so the remote does not buzz a phone at them), let the

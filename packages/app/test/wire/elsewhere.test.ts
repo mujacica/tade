@@ -10,7 +10,7 @@ import { runGit, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
 
 // Another machine's work in this machine's repository, through the whole
-// window (REMOTE-TADE.md §9.3, §9.5): a branch there that would collide with
+// window: a branch there that would collide with
 // one here, told to the orchestrator once — and nothing of it written into the
 // checkout.
 //

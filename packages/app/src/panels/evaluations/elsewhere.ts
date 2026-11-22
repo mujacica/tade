@@ -7,7 +7,7 @@ import type { Line } from '../frame.ts'
 
 // The Judge tab's other machines: what each one's judge flagged about its own
 // agents' changes, what the agents said back, and what somebody there decided
-// (REMOTE-TADE.md §9.5: findings are about one agent's change and stay on the
+// (findings are about one agent's change and stay on the
 // machine that made it, so they are read here, never judged here).
 //
 // **Counts out of verdicts, and never a rate**: this machine has no `ENOUGH` to

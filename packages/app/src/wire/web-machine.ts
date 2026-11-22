@@ -21,8 +21,8 @@ import { scheduleViews } from '../queue.ts'
 import { configPathOf, type Wiring, why } from './context.ts'
 
 // This machine's half of what another machine of the person's reads about it
-// as an owner (`@tade/web`'s `machine.ts`, `document.ts`, `tool-read.ts`;
-// REMOTE-TADE.md §9.4): out of what the window already holds — the schedules
+// as an owner (`@tade/web`'s `machine.ts`, `document.ts`, `tool-read.ts`):
+// out of what the window already holds — the schedules
 // and what their looks found, the extensions, the public name's health — and
 // four small reads it does not keep, each with a deadline: the config's own
 // warnings, the journal's last warnings, its documents, and whether a newer

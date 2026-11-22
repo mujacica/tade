@@ -12,7 +12,7 @@ import { Exit } from '../io.ts'
 import type { Asker } from './host-service.ts'
 
 // `tade host upgrade`: this machine's Tade moved forward in place, without
-// ending an agent (REMOTE-TADE.md §7.8).
+// ending an agent.
 //
 // The install's own command — the one Settings › Updates and `tade update`
 // show, read off how Tade got here — run on a press where somebody can watch

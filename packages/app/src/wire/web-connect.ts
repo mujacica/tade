@@ -48,7 +48,7 @@ import { LINEAR_CONNECTED_BY, LinearTokens } from './linear-tokens.ts'
 import type { Settings } from './settings.ts'
 
 // The window's half of the guided pages that connect a source
-// (`@tade/web`'s `connected.ts`, REMOTE-TADE.md §6.4): what is true of each
+// (`@tade/web`'s `connected.ts`): what is true of each
 // source now, what making its app asks for, and keeping what comes back —
 // through the one write path, each key a `config_changed` line said as `set`,
 // a credential `0600` because the file is.

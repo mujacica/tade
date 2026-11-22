@@ -321,8 +321,7 @@ export function whereYouAre(here: {
  * Every other machine this window links to, as each last said, in one line:
  * `Other machines, as each last said: vps: 3 working, 1 wants you; lab:
  * nothing running.` — said with every message, beside where they are
- * standing, for the same reason that is: it is a fact about now (REMOTE-TADE.md
- * §9.4).
+ * standing, for the same reason that is: it is a fact about now.
  *
  * **Not in the briefing**, which is composed once as the window opens, before
  * any link has dialled: a line written then would say every machine was being

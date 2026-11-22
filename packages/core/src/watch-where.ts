@@ -1,10 +1,9 @@
 import { NOT_A_REMOTE, RemoteName } from './remotes.ts'
 import type { ScheduleDoes } from './schedule.ts'
 
-// Which machine looks with a project's watches on outside sources
-// (REMOTE-TADE.md §9.5, decision 12).
+// Which machine looks with a project's watches on outside sources.
 //
-// One repository may be a project here and on a remote (§9.1). A watch that
+// One repository may be a project here and on a remote. A watch that
 // reads an outside source — a review, a red build, a Sentry issue, a
 // dependency, a request in Slack or Linear — finds the same thing from either
 // machine, and "one red commit is one finding" holds only where one machine is

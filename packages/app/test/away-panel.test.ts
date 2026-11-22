@@ -595,7 +595,7 @@ describe('what the panel never carries', () => {
   })
 
   it('says an owner is one before anything else about it, and how it came in', () => {
-    // REMOTE-TADE.md §11 item 4: its turns reach what the keyboard does, which
+    // Its turns reach what the keyboard does, which
     // the boxes cannot say on their own — so the row's first word says it.
     const text = said(
       {

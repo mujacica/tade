@@ -123,7 +123,7 @@ export type Arm =
    * reaches, and what they type on it is a `said` line like what they type
    * here, which is what lets it name an `asked`-tier setting.
    *
-   * **A machine link** (`tade web pair --owner`, REMOTE-TADE.md §11 item 4)
+   * **A machine link** (`tade web pair --owner`)
    * reaches as far, used only on this machine's own door through the SSH key —
    * but what it carries may be another machine's model's words rather than
    * the person's, so it is `theirs` — a `said` line and the person's heading

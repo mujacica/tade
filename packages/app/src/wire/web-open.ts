@@ -8,7 +8,7 @@ import { tilde, type Wiring, why } from './context.ts'
 import type { Lifecycle } from './web-lifecycle.ts'
 
 // This machine's half of a project another machine of the person's is moving
-// here (`@tade/web`'s `opened.ts`, REMOTE-TADE.md §9.2): the repository found
+// here (`@tade/web`'s `opened.ts`): the repository found
 // among this machine's projects, or checked out beside them — cloned with
 // **this machine's own credentials**, never the other's — and opened through
 // the window's own door (`Projects.openAt`), which writes the config and the

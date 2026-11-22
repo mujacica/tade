@@ -8,8 +8,8 @@ import type { LaneRecord } from '@tade/workbench/registry'
 import { ORCHESTRATOR_TAB, showTerminal } from '../model.ts'
 import { flash, notify, type Wiring, why } from './context.ts'
 
-// A terminal here that is an agent on another machine, and kept that way
-// (REMOTE-TADE.md §3.4, §3.5): opened on enter, run again when its connection
+// A terminal here that is an agent on another machine, and kept that way:
+// opened on enter, run again when its connection
 // came back, and moved off a way that does not get through.
 //
 // **Opened** by asking that machine for its line (`/api/attach`) and the link

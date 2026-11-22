@@ -13,7 +13,7 @@ import {
 import type { Wiring } from './context.ts'
 
 // The person's notes, shared with every machine this window is linked to
-// (REMOTE-TADE.md §4.5, §9.6; `@tade/workbench`'s `notes-shared.ts` is the
+// (`@tade/workbench`'s `notes-shared.ts` is the
 // exchange): both halves of it from the window, because it is the window that
 // holds the links and the window that answers another machine's.
 //

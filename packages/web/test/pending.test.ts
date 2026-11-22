@@ -7,8 +7,8 @@ import { SCOPES } from '../src/surface.ts'
 import { Tickets } from '../src/tickets.ts'
 import { type Answer, ask, closeAll, homeFor, type Running, said, start } from './harness.ts'
 
-// A pairing code the terminal wrote (`tade web pair`, REMOTE-TADE.md §11 item
-// 3), claimed through a real listener.
+// A pairing code the terminal wrote (`tade web pair`),
+// claimed through a real listener.
 //
 // The window's ticket has `pairing.test.ts`; this is the one ticket that is on
 // a disk, and the questions are the same five — a replay, two requests racing,

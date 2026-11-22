@@ -13,7 +13,7 @@ import type { Wiring } from '../../src/wire/context.ts'
 import { withoutCredential } from '../../src/wire/hand-over.ts'
 import { Moves } from '../../src/wire/moves.ts'
 
-// A whole project moved to another machine (REMOTE-TADE.md §9.2: closing it
+// A whole project moved to another machine (closing it
 // on one machine and opening it on the other) as one guided flow on Settings ›
 // Remotes: each project with the one press that is next — open it there, hand
 // its work over, close it here — each refused with a sentence out of order.

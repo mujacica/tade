@@ -1,6 +1,6 @@
 import { SlackApi } from './slack-api.ts'
 
-// The Slack app Connect Slack asks the person to make (REMOTE-TADE.md §6.3):
+// The Slack app Connect Slack asks the person to make:
 // the manifest it is made from, what it asks Slack for and why, where its
 // install sends the browser back, and the code that install comes back with
 // exchanged for its bot token — through the one Slack client there is
@@ -13,7 +13,7 @@ import { SlackApi } from './slack-api.ts'
 // fifteen (`slack-api.ts`): an app each person makes from this manifest in
 // their own workspace is theirs, and nothing here is installed anywhere else.
 // Whether Slack counts a manifest Tade ships as "a templated custom app" is
-// not something anybody documents (REMOTE-TADE §15); what is checked is that
+// not something anybody documents; what is checked is that
 // the app is the person's, in their workspace, made by their press.
 //
 // **Over HTTP, where this machine has a public name**: events go to

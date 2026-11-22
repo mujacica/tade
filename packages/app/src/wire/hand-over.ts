@@ -1,8 +1,8 @@
 import { runProgram, type TadeEvent } from '@tade/core'
 import { CLONE_URL } from '@tade/web'
 
-// A running task handed to another machine of the person's (REMOTE-TADE.md
-// §9.2), the parts of it that are git and words: what its agent is told, how
+// A running task handed to another machine of the person's,
+// the parts of it that are git and words: what its agent is told, how
 // this window tells that the work is on origin, what the agent on the other
 // machine is told it is carrying on, and which hand-overs the journal says are
 // still in flight (`handOversOpen`). The flow — asking first, waiting, handing

@@ -1126,8 +1126,8 @@ describe('a sentence somebody typed into search', () => {
 })
 
 describe('a watch’s doorbell', () => {
-  // What makes a watch look now rather than at its next turn (REMOTE-TADE
-  // §6.1): declared, offered as declared, and refused where it could never
+  // What makes a watch look now rather than at its next turn:
+  // declared, offered as declared, and refused where it could never
   // ring — because one that silently never rings is a poll a little late,
   // which nobody would ever notice.
   const watch = (over: Partial<ExtensionWatch>): TadeExtension => ({

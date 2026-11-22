@@ -11,7 +11,7 @@ import {
   slackPage,
 } from '../src/connect.ts'
 
-// GitHub's guided page as a fold over a look (REMOTE-TADE §6.4): a step is
+// GitHub's guided page as a fold over a look: a step is
 // done when what it is for is true now, never because somebody once pressed
 // it, and each says one line with at most one press.
 
@@ -121,7 +121,7 @@ describe('GitHub’s page', () => {
   })
 })
 
-// Slack's page (REMOTE-TADE §6.3): make the app from a manifest, keep its
+// Slack's page: make the app from a manifest, keep its
 // signing secret before Slack checks the address, then install it with OAuth
 // v2 — and with no public name, made with no address, installed from its own
 // page and its token kept by hand, which is the poll's path.

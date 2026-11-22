@@ -3,7 +3,7 @@ import { isAbsolute, join, resolve } from 'node:path'
 import { mirrorRef, runProgram } from '@tade/core'
 import { git } from './git.ts'
 
-// The mirror (REMOTE-TADE.md §9.3): another machine's branches in one of this
+// The mirror: another machine's branches in one of this
 // machine's projects, kept in this home (`mirrorDir`) and read by the forecast.
 // The rules are core's `elsewhere.ts`.
 //

@@ -21,8 +21,8 @@ import { clockOf, shortened } from './text.ts'
 
 // Standing in a project on another machine: the side lists its agents and its
 // queued work — and under them its requests, checks, schedules and documents
-// (`elsewhere-more.ts`) — and the pane says what the project is, where, and how it stands
-// (REMOTE-TADE.md §9.4). Both draw from `machines.ts`, which is the only thing
+// (`elsewhere-more.ts`) — and the pane says what the project is, where, and how it stands.
+// Both draw from `machines.ts`, which is the only thing
 // that ever read what that machine wrote, so every word here is text.
 //
 // **A row here looks like a row of this machine's**, mark for mark — the mark

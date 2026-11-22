@@ -1,5 +1,4 @@
-// Another machine's work in a repository this machine has a project of
-// (REMOTE-TADE.md §9.3, §9.5).
+// Another machine's work in a repository this machine has a project of.
 //
 // One repository may be a project on two machines — two checkouts, two homes,
 // two journals, never merged — and the work on each is still one repository's

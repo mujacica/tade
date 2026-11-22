@@ -356,7 +356,7 @@ grant, because an allowlist of opaque ids nobody can find is an allowlist nobody
 ## A webhook is a doorbell, and the watch is still the door
 
 Where a machine has a public name, a delivery from GitHub, Slack or Linear makes the matching watch
-**look now** (REMOTE-TADE §6.1, §6.2). Nothing else about intake changes, and that is the design
+**look now**. Nothing else about intake changes, and that is the design
 rather than a caution:
 
 - **A delivery never becomes work.** It wakes a schedule (`Schedules.wake`), and the look is the
@@ -381,7 +381,7 @@ rather than a caution:
   source's window (Slack's five minutes, Linear's minute; GitHub sends none and never retries), the
   delivery id against a ring of verified ones only — or guesses could make the real one a repeat —
   then `200` at once, because Slack gives three seconds; and only then which schedules, and the wake.
-- **The poll stays, and slows** (§14 decision 13): a missed delivery is lost on GitHub and, after six
+- **The poll stays, and slows**: a missed delivery is lost on GitHub and, after six
   hours, on Linear. While the newest of three moments for a schedule is a verified wake — not a
   delivery from its source that did not verify, not a look nothing rang for that found something new
   — it polls hourly (`bellDue`), and the moments that skipped are never counted as missed runs. The
@@ -402,7 +402,7 @@ rather than a caution:
 
 ## Connecting a source, step by step
 
-Where a source needs an app of the person's own, the guided page makes it (REMOTE-TADE §6.4) —
+Where a source needs an app of the person's own, the guided page makes it —
 `/connect` on this machine, or Settings › Remotes for another one — and **connecting grants nobody
 anything**: it lets the forge read as the app and makes the doorbell ring, and `accept`, `from`,
 `reply` and `names` stay the person's to write, as before.

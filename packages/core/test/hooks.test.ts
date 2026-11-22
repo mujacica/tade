@@ -17,7 +17,7 @@ import {
 } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 
-// The doorbell's rules (REMOTE-TADE §6.1): which schedule one delivery rings,
+// The doorbell's rules: which schedule one delivery rings,
 // what its line says when it is read back, and how the poll beside a watch
 // slows while deliveries arrive — and never counts what a doorbell made
 // unnecessary as runs missed while Tade was closed.

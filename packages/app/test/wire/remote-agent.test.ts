@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
 import { pressRow, standingThere } from './standing-there.ts'
 
-// An agent on another machine, opened from this window (REMOTE-TADE.md §3.4,
-// §9.4) — the whole of it through the window: its row pressed down the side,
+// An agent on another machine, opened from this window
+// — the whole of it through the window: its row pressed down the side,
 // its screen read from that machine while it is looked at, a sentence sent as
 // its `steer`, a press that parks it or answers what it is held on, and a
 // terminal here that is the agent there. The far end is a real away view

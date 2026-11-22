@@ -12,7 +12,7 @@ import type { Machines } from '../../src/machines.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 import { HAND_MS, Moves } from '../../src/wire/moves.ts'
 
-// A running task handed to another machine (REMOTE-TADE.md §9.2): asked there
+// A running task handed to another machine: asked there
 // first, its agent told to commit and push, looked at on the beat until its
 // work is on origin and it has finished a turn, then made there on that branch
 // and stopped here. Real git with a real origin, a real far end over the

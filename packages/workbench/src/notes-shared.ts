@@ -3,7 +3,7 @@ import { MACHINE_NAMED, printable } from '@tade/core'
 import { type Answer, LinkError, SIGNED_OUT } from '@tade/remotes-core'
 import type { Given, Memory, Took } from './memory.ts'
 
-// Notes are shared between homes (REMOTE-TADE.md §4.5, §9.6): the person's
+// Notes are shared between homes: the person's
 // words reach both orchestrators and every agent on every machine they are
 // linked to, whichever machine they were said to. `memory.jsonl` on each is
 // the union of every one's lines — nothing is ever rewritten there and every

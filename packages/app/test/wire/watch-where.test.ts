@@ -16,7 +16,7 @@ import { type Beatable, beatParts } from '../../src/wire/web-beat.ts'
 import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
 
 // One machine per repository for every watch on an outside source, through
-// the whole window (REMOTE-TADE.md §9.5): a remote whose projection says it
+// the whole window: a remote whose projection says it
 // looks with a watch on the same repository keeps this machine's off, a watch
 // already on here is handed over the moment the remote starts looking and said
 // once, and taken back it starts from where the remote last had it.

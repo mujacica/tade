@@ -3,7 +3,7 @@ import type { IntakeSource } from './intake.ts'
 import { slackTs } from './intake-revisions.ts'
 import { type Due, dueNow, intervalOf, type When } from './schedule.ts'
 
-// Webhooks as a doorbell (REMOTE-TADE.md §6.1, §6.2): what a delivery from a
+// Webhooks as a doorbell: what a delivery from a
 // source outside this machine is, which watch it may wake, the line it leaves,
 // and how the poll beside it slows once deliveries are known to arrive.
 //
@@ -220,7 +220,7 @@ export function rungFrom(event: Pick<TadeEvent, 'type' | 'detail'>): HookRung | 
  * delivery that verified woke it; its source sent one that did not verify
  * (a secret rotated at one end, or somebody guessing); or a look the doorbell
  * did not ring for found something new — the poll finding what no delivery
- * said, which is the hook broken (REMOTE-TADE §6.4).
+ * said, which is the hook broken.
  */
 export interface Bell {
   source: HookSource
@@ -244,7 +244,6 @@ export function bellStands(bell: Bell | undefined): boolean {
 /**
  * How often a watch whose doorbell stands polls: once an hour, the safety
  * net, because a delivery missed is lost and the poll is what finds it.
- * REMOTE-TADE §14 decision 13.
  */
 export const BELL_EVERY = '1h'
 const BELL_MS = 3_600_000

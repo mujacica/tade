@@ -569,7 +569,7 @@ const MARK = MONEY_MARK
  * Agents, on every row alike: a remote's orchestrator is on none of its tasks,
  * so its figure leaves that out, and this machine's does too, so the rows are
  * one kind of claim. **No total under them**: two machines' figures added in
- * silence is the sum this page never draws (REMOTE-TADE.md §5.5). `≥` is a
+ * silence is the sum this page never draws. `≥` is a
  * remote that held some of its tasks back, and a remote that is not up says as
  * of when, or why there is nothing.
  */

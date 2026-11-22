@@ -6,8 +6,8 @@ import { type Cbor, type CborMap, decodeAll, decodeFirst, NotCbor } from './cbor
 // relying party's half (Web Authentication Level 3, §7.1 and §7.2), for the
 // shapes Tade asks for and nothing else.
 //
-// **Written here rather than taken from `@simplewebauthn/server`**, which
-// REMOTE-TADE.md §4.4 named. That library is good, and ten packages — an X.509
+// **Written here rather than taken from `@simplewebauthn/server`**, the
+// obvious choice. That library is good, and ten packages — an X.509
 // stack, ASN.1 schemas for Android and post-quantum keys, `reflect-metadata` —
 // almost all of it for checking *attestation*: which make of authenticator a
 // key came from. Tade asks for none (`attestation: 'none'`) and checks none,

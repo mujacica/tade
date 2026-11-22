@@ -7,8 +7,8 @@ import type { ProjectMove } from '../panels/settings/remotes.ts'
 import { type Wiring, why } from './context.ts'
 import { cloneUrlAt, projectOf } from './hand-over.ts'
 
-// A whole project moved to another machine of the person's (REMOTE-TADE.md
-// §9.2): "closing it on one machine and opening it on the other", made one
+// A whole project moved to another machine of the person's:
+// "closing it on one machine and opening it on the other", made one
 // guided flow on Settings › Remotes — a row per project here with the one
 // press that is next. **Open it there**: that machine's own door
 // (`/api/open`, `web-open.ts` there) finds it among its projects, opens a
@@ -59,8 +59,8 @@ export class ProjectMoves {
   }
 
   /**
-   * Each project here, as moving it to that machine stands (REMOTE-TADE.md
-   * §9.2: "close it on one machine, open it on the other", as one guided
+   * Each project here, as moving it to that machine stands
+   * ("close it on one machine, open it on the other", as one guided
    * flow): not there yet, so open it there; there, with work still here, so
    * hand that over; nothing of it working here, so close it here. One press
    * each, the next one only, and none while one is under way.

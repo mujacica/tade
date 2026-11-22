@@ -27,8 +27,8 @@ import {
 import type { LookHeld } from '../machine-looks.ts'
 import type { AboutHeld } from '../machine-there.ts'
 
-// What each other machine says it is, asked as its owner (REMOTE-TADE.md §9.4;
-// `@tade/web`'s `machine.ts` is the far side): its version, its public name's
+// What each other machine says it is, asked as its owner
+// (`@tade/web`'s `machine.ts` is the far side): its version, its public name's
 // health, its problems, its schedules and watches with their last looks, and
 // its documents — the half of "everything about a remote" its projection does
 // not carry. And, on a press or a tool call, one of its documents read into a
@@ -58,8 +58,8 @@ import type { AboutHeld } from '../machine-there.ts'
 // kept when the page closes or the link goes down, with when they came, so a
 // page opened again says as of when until the next answer.
 //
-// **And how connecting each source there stands** (`/api/connect`,
-// REMOTE-TADE §6.4), asked with the records — the same openings, the same Look
+// **And how connecting each source there stands** (`/api/connect`),
+// asked with the records — the same openings, the same Look
 // again — of a machine that said it has a public name, because that is where
 // each source can send a browser here back to. A press on one of its steps
 // asks that machine for the one-time word and the form (`connectPress`): this

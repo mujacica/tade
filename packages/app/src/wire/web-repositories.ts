@@ -3,7 +3,7 @@ import { repositoryAt, resolveBase } from '@tade/status'
 import { inTime, type RepositoryHere, type WebRepositories } from '@tade/web'
 
 // This machine's half of another machine's mirror of its work (`@tade/web`'s
-// `repositories.ts`, REMOTE-TADE.md §9.3): every open project with where it is
+// `repositories.ts`): every open project with where it is
 // checked out, what names its repository, the branch its work merges into, and
 // each task's own branch — out of status's last look, which already read every
 // head, plus the two small questions status does not keep, each with a

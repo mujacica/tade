@@ -4,7 +4,7 @@ import { whereYouWere } from './layout.ts'
 import type { MachineDetail } from './machine-there.ts'
 import type { AppState } from './model.ts'
 
-// The other machines' projects, as the window draws them (REMOTE-TADE.md §9.4).
+// The other machines' projects, as the window draws them.
 //
 // A remote's Tade sends its away view's projection over the link
 // (`Remotes.held`, `wire/remotes.ts`), and this is the one place that reads it
@@ -476,7 +476,7 @@ export interface MissedList {
 
 /**
  * "Since you were here": what a machine says happened from the last moment
- * it counted the person present (`/api/since`, REMOTE-TADE.md §5.4), read
+ * it counted the person present (`/api/since`), read
  * once when its link came back.
  */
 export interface Missed {
@@ -737,7 +737,7 @@ export function placeIn(
  * the frame says hold its project's repository and are linked now
  * (`startsOn`), and only for work that can leave — not parked, which is a
  * decision still to be made here; waiting on nothing, and nothing here waiting
- * on it, because no wait crosses machines (REMOTE-TADE.md §9.4). The window
+ * on it, because no wait crosses machines. The window
  * asks all of it again at the press (`wire/moves.ts`), with a sentence for each.
  */
 export function startsOnFor(

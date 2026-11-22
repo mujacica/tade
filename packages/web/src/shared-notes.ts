@@ -6,8 +6,8 @@ import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
 import { ownsOrTheirs } from './surface.ts'
 
-// Notes shared between this machine and another of the person's
-// (REMOTE-TADE.md §4.5, §9.6): the person's words reach both orchestrators and
+// Notes shared between this machine and another of the person's:
+// the person's words reach both orchestrators and
 // every agent, whichever machine they were said to. The window that holds the
 // link asks, because this machine can never call it; each request gives lines
 // this machine lacks and asks for lines that one lacks, and the window's half

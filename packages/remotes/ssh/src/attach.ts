@@ -2,12 +2,11 @@ import type { RequiredProgram } from '@tade/core'
 import type { TerminalThere } from '@tade/remotes-core'
 
 // A terminal here that is one of another machine's agents, typed into: the
-// line that machine gave for the agent's lane (`/api/attach`), run there
-// (REMOTE-TADE.md §3.4).
+// line that machine gave for the agent's lane (`/api/attach`), run there.
 //
 // **Over mosh where both machines have it**, and `ssh -t` everywhere else.
 // mosh shows what is typed before the far end answers and keeps the session
-// through a sleep and a change of network (§3.3), and both are what a terminal
+// through a sleep and a change of network, and both are what a terminal
 // to a machine 150 ms away needs; but it needs its server at the far end and
 // UDP 60000–61000 open there, which a firewall set up by the book closes. So
 // it is used only where this machine has `mosh` and the remote answers
@@ -34,8 +33,8 @@ import type { TerminalThere } from '@tade/remotes-core'
 // in ten seconds, rather than leaving a pane that looks alive.
 
 /**
- * **This machine's SSH agent is never handed to the far end** (REMOTE-TADE.md
- * §9.3), whatever the person's own ssh config says for that host — and
+ * **This machine's SSH agent is never handed to the far end**,
+ * whatever the person's own ssh config says for that host — and
  * `ForwardAgent yes` is a common line in one. An agent forwarded into a
  * session on an unattended box is this machine's keys in every process that
  * can find the socket there: an agent's lane started from an attached tmux

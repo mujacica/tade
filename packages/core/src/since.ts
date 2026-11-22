@@ -5,7 +5,7 @@ import { undecidedProposals } from './proposals.ts'
 import { duration } from './runtime.ts'
 import { type Spend, spendFrom } from './spend.ts'
 
-// "Since you were here" (REMOTE-TADE.md §5.4): what a machine's own journal
+// "Since you were here": what a machine's own journal
 // says happened from the last moment it counted the person present — what
 // finished, what was handed over to read, what is held, what was put to its
 // orchestrator to decide, and what it cost. Folded on the machine it is about,
@@ -13,7 +13,7 @@ import { type Spend, spendFrom } from './spend.ts'
 // answer and never reads the lines.
 //
 // **The cursor is an instant in this machine's clock, written by this
-// machine** (`person_present`), never a `seq` or a byte offset (§4.5): both
+// machine** (`person_present`), never a `seq` or a byte offset: both
 // move under a compaction, a restore or a journal begun again, and an instant
 // in the machine's own clock does not. It is written when an owner's link
 // carries a keypress (`@tade/web`'s `presence.ts`), a line per stretch of
@@ -48,7 +48,7 @@ export const AWAY_MS = 15 * 60_000
 
 /**
  * "Nobody is here", told to the orchestrator as a fact on a turn Tade starts
- * itself (REMOTE-TADE.md §5.2) — or null where somebody has been, lately.
+ * itself — or null where somebody has been, lately.
  *
  * **From the person's keyboards, and never the box's alone.** A key pressed in
  * this window, or at another screen of theirs as an owner's link carries it

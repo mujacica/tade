@@ -9,7 +9,7 @@ import {
   MARGIN_MS,
 } from '../../src/wire/linear-tokens.ts'
 
-// The Linear app's tokens as the window holds them (REMOTE-TADE §6.3): a day's
+// The Linear app's tokens as the window holds them: a day's
 // access token handed to whatever asks, refreshed near its end, one refresh at
 // a time, and the refresh token that replaces itself written back through the
 // one write path — against a Linear that answers from a file and spends a

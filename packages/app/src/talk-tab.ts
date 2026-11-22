@@ -9,8 +9,8 @@ import { type AppState, markGlyph, openLine } from './model.ts'
 import { type Entry, emptyTranscript, type Transcript } from './transcript.ts'
 import { dollars, tokens } from './view/text.ts'
 
-// Another machine's orchestrator, in this window's lower pane (REMOTE-TADE.md
-// §9.4): a tab per machine beside this one's own, its conversation as that
+// Another machine's orchestrator, in this window's lower pane:
+// a tab per machine beside this one's own, its conversation as that
 // machine's away view carries it, and the line you type on sending there.
 //
 // **A tab, not a second pane** (`change-the-window`'s lower pane): the

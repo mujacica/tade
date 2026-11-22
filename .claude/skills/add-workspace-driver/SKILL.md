@@ -200,7 +200,7 @@ node-pty's `spawn-helper` loses its executable bit during extraction, which is w
 ## A RemoteLink is the same shape
 
 `packages/remotes/core` is the other port this recipe covers: how this machine's Tade reaches
-another machine's, as an owner device of its away view (REMOTE-TADE.md §2.5). One object holds any
+another machine's, as an owner device of its away view. One object holds any
 number of remotes the way a driver holds any number of lanes; the registry is `REMOTE_LINKS` in
 `@tade/workbench/remotes` (the lowest package both the window and the CLI depend on); capabilities
 are declared (`pairs`, `identifies`, `terminals`, `fetches`); and `@tade/remotes-core/conformance` is the suite, run against **far ends

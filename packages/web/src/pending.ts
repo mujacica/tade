@@ -8,7 +8,7 @@ import { type NotClaimed, type Tickets, ticketValue } from './tickets.ts'
 // A pairing code the terminal wrote down: `tade web pair`, the one ticket that
 // is ever on a disk.
 //
-// **What changed, and why it is acceptable** (REMOTE-TADE.md §11 item 3). The
+// **What changed, and why it is acceptable**. The
 // rule was that a ticket lives in the memory of the process whose server has to
 // claim it, and so `tade web pair` could not mint one: there was no channel
 // from a shell into the window, and the window's ticket is worth something only

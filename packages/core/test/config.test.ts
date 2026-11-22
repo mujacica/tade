@@ -431,7 +431,7 @@ describe('who decides about held queued work', () => {
   })
 
   it('holds scheduled work on a full plan unless somebody turns that off', () => {
-    // On by default (REMOTE-TADE.md decision 15): it only ever holds.
+    // On by default: it only ever holds.
     const off = parseConfig('queue:\n  hold_scheduled: false\n')
     expect(off.ok && off.config.queue.hold_scheduled).toBe(false)
     const bad = parseConfig('queue:\n  hold_scheduled: sometimes\n')
