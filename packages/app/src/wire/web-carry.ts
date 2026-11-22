@@ -89,10 +89,15 @@ export function carryingFor(
  */
 async function toldHere(wire: Wiring, news: CarryNews): Promise<void> {
   for (const one of news.conflicts) {
-    await wire.opts.client.log
+    // Said either way, and where the line would not go in, that too: it is
+    // the only place the value that lost is kept.
+    const unwritten = await wire.opts.client.log
       .append({ type: 'settings_conflict', detail: conflictDetail(one, news.from) })
-      .catch(() => {})
-    notify(wire, `Changed on both ${news.from} and here: ${conflictSays(one, clockOf)}`)
+      .then(
+        () => '',
+        (err: unknown) => ` It is not written down here: ${why(err)}`,
+      )
+    notify(wire, `Changed on both ${news.from} and here: ${conflictSays(one, clockOf)}${unwritten}`)
   }
   for (const one of news.landed) {
     notify(

@@ -247,8 +247,14 @@ export class Carries {
       const key = `conflict ${one.path} ${stampOf(one.kept.at)} ${stampOf(one.lost.at)}`
       if (this.told.has(key)) continue
       this.told.add(key)
-      await this.deps.conflicted(one, name).catch(() => {})
-      this.deps.say(`Changed on both ${name} and here: ${conflictSays(one, clockOf)}`)
+      // Said either way; where the line would not go in, that is said too,
+      // because the line is the only place the value that lost is kept.
+      const unwritten = await this.deps.conflicted(one, name).then(
+        () => '',
+        (err: unknown) =>
+          ` It is not written down here: ${err instanceof Error ? err.message : String(err)}`,
+      )
+      this.deps.say(`Changed on both ${name} and here: ${conflictSays(one, clockOf)}${unwritten}`)
     }
     for (const one of back.landed) {
       if (!taken.includes(one.path)) continue
