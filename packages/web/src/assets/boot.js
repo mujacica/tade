@@ -39,6 +39,7 @@ import { devicesScreen } from './pages/devices.js'
 import { evaluationsScreen } from './pages/evaluations.js'
 import { findingsScreen } from './pages/findings.js'
 import { inboxScreen, requestScreen } from './pages/inbox.js'
+import { machinesScreen } from './pages/machines.js'
 import { moreScreen, nowhereScreen } from './pages/more.js'
 import { notesScreen } from './pages/notes.js'
 import { nowScreen } from './pages/overview.js'
@@ -273,6 +274,7 @@ const SCREENS = {
   talk: () => talkScreen(ctx),
   lastSeen: () => lastSeenScreen(held.lastView ?? {}, Date.now()),
   devices: () => devicesScreen(ctx),
+  machines: () => machinesScreen(ctx),
   settings: () => settingsScreen(ctx),
   pair: () => pairScreen(ctx),
   more: () => moreScreen(),

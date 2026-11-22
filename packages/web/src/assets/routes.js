@@ -94,6 +94,7 @@ const PLAIN = [
   'findings',
   'notes',
   'devices',
+  'machines',
   'settings',
   'more',
   'pair',
@@ -165,6 +166,7 @@ export const TITLES = {
   notes: 'Notes',
   talk: 'Tade',
   devices: 'Devices',
+  machines: 'Machines',
   settings: 'Settings',
   more: 'More',
   pair: 'Pair this device',
@@ -202,6 +204,7 @@ export const PAGE_OF = {
   spend: 'spend',
   notes: 'notes',
   devices: 'devices',
+  machines: 'machines',
   settings: 'settings',
   queue: 'queue',
   more: 'more',
@@ -253,6 +256,9 @@ export const MORE = [
   { view: 'workflows', icon: 'workflows', mark: '⌗', label: 'Workflows', counts: 'workflows' },
   { view: 'notes', icon: 'notes', mark: '✎', label: 'Notes', counts: 'notes' },
   { view: 'devices', icon: 'devices', mark: '⌸', label: 'Devices', counts: null },
+  // What each of the person's machines has, and moving the keys into one file:
+  // the window's Settings › Machines, for their own device with full access.
+  { view: 'machines', icon: 'laptop', mark: '▤', label: 'Machines', counts: null },
   // What Tade is set up with, behind a grant of its own — and the few settings
   // a device granted it may change. Last, because it is read least.
   { view: 'settings', icon: 'settings', mark: '⚙', label: 'Settings', counts: null },
@@ -284,7 +290,7 @@ export const GROUPS = [
   { key: 'work', title: 'Work', views: ['runs', 'reviews', 'findings', 'workflows'] },
   { key: 'insight', title: 'Insight', views: ['spend', 'checks', 'evals'] },
   { key: 'tade', title: 'Tade', views: ['notes'] },
-  { key: 'system', title: 'System', views: ['devices', 'settings'] },
+  { key: 'system', title: 'System', views: ['devices', 'machines', 'settings'] },
 ]
 
 /** The places that are the frame's own parts rather than menu entries: the side and the dock. */

@@ -6,6 +6,7 @@ import { watchSeenFrom } from './watch-seen.ts'
 import { attachingFor } from './web-attach.ts'
 import type { Lifecycle } from './web-lifecycle.ts'
 import { documentFrom, machineFrom, toolFrom } from './web-machine.ts'
+import { type MachinesHeld, machinesFrom } from './web-machines.ts'
 import { openingFrom } from './web-open.ts'
 import { type PanelFacts, publicOf } from './web-panel.ts'
 import { recordsFrom } from './web-records.ts'
@@ -22,13 +23,14 @@ import { takingFrom } from './web-take.ts'
 // found, for a machine taking it back (`watch-seen.ts`), and work it hands this
 // machine to start (`web-take.ts`) and a project it moves here, opened
 // (`web-open.ts`), and what another machine of theirs has, kept here
-// (`inventory.ts`). One place, so the away view's wiring names them once.
+// (`inventory.ts`) — and every machine's inventory with the press that moves
+// the keys, for the person's own phone (`web-machines.ts`). One place, so the away view's wiring names them once.
 
 export function ownedFor(
   wire: Wiring,
   away: () => PanelFacts,
   lifecycle?: Lifecycle,
-  inventory?: Pick<Inventories, 'latest' | 'heard'>,
+  inventory?: Pick<Inventories, 'latest' | 'heard'> & MachinesHeld,
 ) {
   return {
     attaching: attachingFor(wire.opts.client),
@@ -57,6 +59,7 @@ export function ownedFor(
     // What another machine of the person's has, kept here (`inventory.ts`).
     ...(inventory && {
       inventoryTold: (told: Inventory, device: string) => inventory.heard(told, device),
+      machines: machinesFrom(wire, inventory),
     }),
     ...(lifecycle === undefined ? {} : { opening: openingFrom(wire, lifecycle) }),
   }

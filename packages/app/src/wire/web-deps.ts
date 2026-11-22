@@ -7,6 +7,7 @@ import type { Settings } from './settings.ts'
 import type { Talking } from './web-asking.ts'
 import type { FactoryHeld } from './web-beat.ts'
 import type { Lifecycle } from './web-lifecycle.ts'
+import type { MachinesHeld } from './web-machines.ts'
 
 // What the away subject (`web.ts`) needs of the rest of the window, in a file
 // of its own so the list can be read without the subject: each one a method or
@@ -25,10 +26,12 @@ export interface AwayDeps {
   /**
    * What this machine has, as its last look found it, for `/api/machine`; and
    * what another machine of the person's tells it it has, kept here
-   * (`/api/inventory`). Two methods, never the subject. Absent, `/api/machine`
-   * says nothing of it and the told door is the `404` of a path nobody wired.
+   * (`/api/inventory`); and the Machines page the person's own phone draws and
+   * presses (`web-machines.ts`, `MachinesHeld`). Methods, never the subject.
+   * Absent, `/api/machine` says nothing of it and the told door and the page's
+   * two are the `404` of a path nobody wired.
    */
-  inventory?: Pick<Inventories, 'latest' | 'heard'>
+  inventory?: Pick<Inventories, 'latest' | 'heard'> & MachinesHeld
   /** What the approve/deny keys do when no device is waiting to be let in. */
   decided(allow: boolean): void | Promise<void>
   /** Said in the strip, where somebody who was not looking at the panel sees it. */

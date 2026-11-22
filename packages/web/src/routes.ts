@@ -246,6 +246,7 @@ export const ROUTES: readonly Route[] = [
   shellAt('/notes', 'notes page'),
   shellAt('/talk', 'talk page'),
   shellAt('/devices', 'devices page'),
+  shellAt('/machines', 'machines page'),
   shellAt('/settings', 'settings page'),
   shellAt('/more', 'more page'),
   // The service worker, at the root because that is what decides its scope: a
@@ -683,6 +684,29 @@ export const OWNED: readonly Route[] = [
     method: 'POST',
     path: '/api/machine',
     name: 'machine',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
+  // The Machines page, for the person's own phone (`machines.ts`): every
+  // machine's inventory as the window's Settings › Machines draws it, and a
+  // press there — look again, work out moving the keys into one file, move
+  // them, leave them. The move edits the person's shell files, which the same
+  // SSH key can edit; nothing else writes.
+  {
+    method: 'POST',
+    path: '/api/machines',
+    name: 'machines',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
+  {
+    method: 'POST',
+    path: '/api/machines/press',
+    name: 'machines press',
     needs: 'read',
     mutates: true,
     here: true,

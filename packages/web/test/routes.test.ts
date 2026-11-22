@@ -359,7 +359,7 @@ describe('the doorbells', () => {
 })
 
 describe('the owner’s table', () => {
-  it('is thirteen routes, at this machine’s own door only, and none of the five jobs', () => {
+  it('is sixteen routes, at this machine’s own door only, and none of the five jobs', () => {
     // The one route that can write a key (`carried.ts`), and the exception to
     // "no route reaches a credential" above; the one answer that is a way
     // into a lane (`attached.ts`), which every row a phone reads promises
@@ -367,7 +367,8 @@ describe('the owner’s table', () => {
     // wrote (`since.ts`); the person's notes shared, written into what every
     // agent here is told (`shared-notes.ts`); and where each project is
     // checked out, a path no phone reads (`repositories.ts`); what this machine
-    // is, what one of its watches has already found (`watch-seen.ts`), one of
+    // is, every machine's inventory and the press that moves the keys into one
+    // file (`machines.ts`), what one of its watches has already found (`watch-seen.ts`), one of
     // its documents, and one of its tools that only reads, run with this
     // machine's own keys (`machine.ts`, `document.ts`, `tool-read.ts`); what
     // another machine of the person's has, kept here as a copy
@@ -383,7 +384,8 @@ describe('the owner’s table', () => {
     // person's own phone on the eight `theirs` marks (`test/theirs.test.ts`);
     // each handler refuses every other session (`test/carried.test.ts`,
     // `test/attached.test.ts`, `test/since.test.ts`, `test/shared-notes.test.ts`,
-    // `test/repositories.test.ts`, `test/machine.test.ts`, `test/records.test.ts`,
+    // `test/repositories.test.ts`, `test/machine.test.ts`, `test/machines.test.ts`,
+    // `test/records.test.ts`,
     // `test/taken.test.ts`, `test/opened.test.ts`).
     expect(OWNED.map((route) => `${route.method} ${route.path}`)).toEqual([
       'POST /api/carry',
@@ -392,6 +394,8 @@ describe('the owner’s table', () => {
       'POST /api/notes/share',
       'POST /api/repositories',
       'POST /api/machine',
+      'POST /api/machines',
+      'POST /api/machines/press',
       'POST /api/inventory',
       'POST /api/watch/seen',
       'POST /api/document',

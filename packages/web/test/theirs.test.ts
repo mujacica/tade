@@ -29,6 +29,8 @@ const THEIRS = [
   'share notes',
   'repositories',
   'machine',
+  'machines',
+  'machines press',
   'inventory',
   'document',
   'tool',
@@ -289,6 +291,7 @@ async function wired(): Promise<{ one: Running; asked: string[] }> {
       repositories: heard('repositories'),
       owned: {
         machine: heard('machine'),
+        machines: { shown: heard('machines'), press: heard('machines press') },
         inventoryTold: heard('inventory'),
         seen: heard('seen'),
         watchSeen: heard('watch seen'),
