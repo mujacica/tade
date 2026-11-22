@@ -3,10 +3,17 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'n
 import { createServer } from 'node:net'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ConfigSchema, parseConfig } from '@tade/core'
+import {
+  ConfigSchema,
+  machineLabel,
+  mirrorDir,
+  mirrorMachine,
+  mirrorRef,
+  parseConfig,
+} from '@tade/core'
 import { readTaskFile } from '@tade/workbench/tasks'
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
-import { mkrepo, runGit } from '../../../../test/fixtures/mkrepo.ts'
+import { mkrepo, runGit, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import {
   STAND_IN,
   startStandIn,
@@ -32,6 +39,11 @@ import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.t
 // while more work finishes there, and opened again on "since you were here"
 // and the notes taken there; a task here handed to one of them; and what
 // each says of itself — status, documents, checks — read from here.
+//
+// And the project's branch kept in step across them: a VPS whose checkout is a
+// clone of the Mac's, a commit the Mac never pushed to origin handed into that
+// VPS's mirror over the same sshd, and that VPS's own `tade serve`
+// fast-forwarding its checkout to it with nobody there.
 
 const bin = fileURLToPath(new URL('../../../cli/src/bin.ts', import.meta.url))
 const sshd = await startSshd()
@@ -68,11 +80,19 @@ afterEach(() => {
   for (const child of started.splice(0)) if (child.exitCode === null) child.kill('SIGTERM')
 })
 
-async function box(name: string, project: string, dir: string): Promise<Box> {
+/** One box, its checkout a fresh repository or, given `from`, a clone of the checkout there. */
+async function box(name: string, project: string, dir: string, from?: string): Promise<Box> {
   const repo = mkrepo()
   repo.commit('first')
-  // One repository, as GitHub names it, on this box and (for `app`) the Mac.
-  runGit(repo.root, 'remote', 'add', 'origin', `git@github.com:acme/${project}.git`)
+  let root = repo.root
+  if (from === undefined) {
+    // One repository, as GitHub names it, on this box and (for `app`) the Mac.
+    runGit(root, 'remote', 'add', 'origin', `git@github.com:acme/${project}.git`)
+  } else {
+    root = join(tmp('tade-clone-'), 'repo')
+    runGit(repo.root, 'clone', '-q', from, root)
+    runGit(root, 'remote', 'set-url', 'origin', `git@github.com:acme/${project}.git`)
+  }
   const pi = join(repo.home, 'pi')
   writeStandInModels(pi, model.url)
   writeFileSync(
@@ -80,7 +100,7 @@ async function box(name: string, project: string, dir: string): Promise<Box> {
     [
       'projects:',
       `  ${project}:`,
-      `    root: ${repo.root}`,
+      `    root: ${root}`,
       'surfaces:',
       '  web:',
       '    enabled: true',
@@ -114,7 +134,7 @@ async function box(name: string, project: string, dir: string): Promise<Box> {
   return {
     name,
     home: repo.home,
-    root: repo.root,
+    root,
     tade,
     serving,
     journal: () => readFileSync(join(repo.home, 'events.jsonl'), 'utf8'),
@@ -157,19 +177,17 @@ describe.skipIf(cannot !== null)(
       terminal.press('\r')
     }
 
-    it('pairs with both, starts and sees their work, comes back to what happened, hands work over and reads them', async () => {
-      if (typeof sshd === 'string') return
-      const vps1 = await box('vps1', 'app', sshd.dir)
-      const vps2 = await box('vps2', 'site', sshd.dir)
-
-      // `tade remote add`, the real command, for each: ssh is the real one,
-      // told where this run's sshd and keys are.
+    /**
+     * `tade remote add`, the real command, for each box: ssh is the real one,
+     * told where this run's sshd and keys are. What it wrote is the remotes.
+     */
+    function pair(sshd: { dir: string; config: string }, boxes: readonly Box[]) {
       const shims = join(wired.home, 'shims')
       mkdirSync(shims, { recursive: true })
       const ssh = spawnSync('sh', ['-c', 'command -v ssh'], { encoding: 'utf8' }).stdout.trim()
       writeFileSync(join(shims, 'ssh'), `#!/bin/sh\nexec '${ssh}' -F '${sshd.config}' "$@"\n`)
       chmodSync(join(shims, 'ssh'), 0o755)
-      for (const one of [vps1, vps2]) {
+      for (const one of boxes) {
         const added = spawnSync(
           process.execPath,
           [bin, 'remote', 'add', one.name, '--ssh', 'far', '--tade', one.tade, '--json'],
@@ -190,7 +208,16 @@ describe.skipIf(cannot !== null)(
       }
       const written = parseConfig(readFileSync(join(wired.home, 'config.yaml'), 'utf8'))
       if (!written.ok) throw new Error('remote add wrote a config that does not read')
-      expect(Object.keys(written.config.remotes).sort()).toEqual(['vps1', 'vps2'])
+      return written.config.remotes
+    }
+
+    it('pairs with both, starts and sees their work, comes back to what happened, hands work over and reads them', async () => {
+      if (typeof sshd === 'string') return
+      const vps1 = await box('vps1', 'app', sshd.dir)
+      const vps2 = await box('vps2', 'site', sshd.dir)
+
+      const remotes = pair(sshd, [vps1, vps2])
+      expect(Object.keys(remotes).sort()).toEqual(['vps1', 'vps2'])
 
       // This Mac's window, holding both links over ssh.
       runGit(wired.repo.root, 'remote', 'add', 'origin', 'git@github.com:acme/app.git')
@@ -200,7 +227,7 @@ describe.skipIf(cannot !== null)(
         wired.start({
           config: ConfigSchema.parse({
             projects: { app: { root: wired.repo.root } },
-            remotes: written.config.remotes,
+            remotes,
           }),
           remoteLinks: { ssh: (options) => makeSshLink({ ...options, args: ['-F', sshd.config] }) },
           thinker: { ask: async () => 'ok', tell: async () => {} },
@@ -332,5 +359,64 @@ describe.skipIf(cannot !== null)(
       )
       await window.stop()
     }, 480_000)
+
+    it('hands the Mac’s commit into a VPS’s mirror over ssh, and that VPS keeps its checkout in step by itself', async () => {
+      if (typeof sshd === 'string') return
+      // One repository on both: the VPS's checkout a clone of the Mac's, then
+      // a commit on the Mac that never went to origin.
+      runGit(wired.repo.root, 'remote', 'add', 'origin', 'git@github.com:acme/app.git')
+      const vps = await box('vps', 'app', sshd.dir, wired.repo.root)
+      const was = runGit(vps.root, 'rev-parse', 'HEAD').trim()
+      const mine = wired.repo.commit('only on the Mac', { 'pricing.ts': 'never pushed\n' })
+      const remotes = pair(sshd, [vps])
+      const before = runGit(wired.repo.root, 'for-each-ref')
+
+      const window = await wired.start({
+        config: ConfigSchema.parse({ projects: { app: { root: wired.repo.root } }, remotes }),
+        remoteLinks: { ssh: (options) => makeSshLink({ ...options, args: ['-F', sshd.config] }) },
+        thinker: { ask: async () => 'ok', tell: async () => {} },
+      })
+      // Handed over the link into the mirror the VPS named, under this Mac's name.
+      const as = mirrorMachine(machineLabel())
+      const theirs = mirrorDir(vps.home, 'app')
+      await until(
+        'the Mac’s main in the VPS’s mirror',
+        () => {
+          const held = spawnSync(
+            'git',
+            ['-C', theirs, 'rev-parse', '--verify', '--quiet', mirrorRef(as, 'main')],
+            { encoding: 'utf8' },
+          )
+          return held.stdout.trim() === mine
+        },
+        90_000,
+      )
+      // Then the VPS's heart, on its own beat: its checkout fast-forwarded, written down.
+      await until(
+        'the VPS’s checkout moved to the Mac’s commit',
+        () => /"type":"project_synced"/.test(vps.journal()),
+        120_000,
+      )
+      expect(runGit(vps.root, 'rev-parse', 'HEAD').trim()).toBe(mine)
+      expect(readFileSync(join(vps.root, 'pricing.ts'), 'utf8')).toBe('never pushed\n')
+      const synced = vps
+        .journal()
+        .split('\n')
+        .filter((line) => line.includes('"type":"project_synced"'))
+        .map((line) => JSON.parse(line) as { detail: Record<string, unknown> })
+      expect(synced).toHaveLength(1)
+      expect(synced[0]?.detail).toMatchObject({
+        project: 'app',
+        branch: 'main',
+        from: as,
+        was,
+        now: mine,
+        files: ['pricing.ts'],
+      })
+      // Nothing written into the Mac's checkout by handing it over.
+      expect(runGit(wired.repo.root, 'for-each-ref')).toBe(before)
+      expect(wired.repo.head()).toBe(mine)
+      await window.stop()
+    }, 300_000)
   },
 )
