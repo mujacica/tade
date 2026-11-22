@@ -149,7 +149,7 @@
 }
 
 /* With room, the four side by side: each count over its word, the way a row of stats reads. */
-@container (min-width: 40rem) {
+@container (min-width: 38rem) {
   .fd-tally {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }

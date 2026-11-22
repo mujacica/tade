@@ -192,6 +192,9 @@ export function mediaAt(prelude: string, size: Size): boolean | null {
       else if (name === 'max-width') truth = truth === false ? false : truth && size.width <= px
       else if (name === 'min-height') truth = truth === false ? false : truth && size.height >= px
       else if (name === 'max-height') truth = truth === false ? false : truth && size.height <= px
+      else if (name === 'orientation')
+        truth =
+          truth === false ? false : truth && (value === 'landscape') === size.width > size.height
       else if (name === 'pointer') truth = truth === false ? false : truth && value === size.pointer
       else if (name === 'hover')
         truth = truth === false ? false : truth && (value === 'hover') === (size.pointer === 'fine')

@@ -46,14 +46,27 @@ export function followOf(scroller, words = 'Jump to latest') {
   /** Where the region was last scrolled to: what tells the reader going up from the lines growing. */
   let lastTop = 0
   let held = null
+  /**
+   * **The region growing shorter is not the reader leaving the foot**: the
+   * keyboard coming up (`room.js`), a phone opened onto its other screen. The
+   * newest line was in view and stays there while following.
+   */
+  const resized =
+    globalThis.ResizeObserver === undefined
+      ? null
+      : new ResizeObserver(() => {
+          if (following) toFoot(false)
+        })
 
   const region = () => {
     const now = scroller()
     if (now !== held && now !== null && now !== undefined) {
+      if (held !== null) resized?.unobserve(held)
       held = now
       lastTop = now.scrollTop
       // Passive: reading where somebody is never holds their scrolling up.
       now.addEventListener('scroll', heard, { passive: true })
+      resized?.observe(now)
     }
     return held
   }
@@ -113,6 +126,7 @@ export function followOf(scroller, words = 'Jump to latest') {
     /** The screen is gone: stop listening to a region that outlives it (the frame's `main`). */
     leave() {
       held?.removeEventListener('scroll', heard)
+      if (held !== null) resized?.unobserve(held)
       held = null
     },
     /** Whether it is following now: for a test, and for nothing that decides. */

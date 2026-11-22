@@ -696,7 +696,7 @@ be asked now one quiet line each with its reason, at the end.
   justify-self: end;
 }
 
-@container (min-width: 40rem) {
+@container (min-width: 38rem) {
   .page-agent :is(.ag-cells, .ag-about) {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }

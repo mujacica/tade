@@ -143,7 +143,9 @@ describe("the page's stylesheets, pinned to one size", () => {
     expect(mediaAt('(min-width: 1100px) and (pointer: fine)', desk)).toBe(true)
     expect(mediaAt('(min-width: 1100px) and (pointer: fine)', phone)).toBe(false)
     expect(mediaAt('(prefers-reduced-motion: reduce)', desk)).toBe(null)
-    expect(() => mediaAt('(orientation: portrait)', desk)).toThrow(/cannot answer/)
+    expect(mediaAt('(orientation: landscape)', desk)).toBe(true)
+    expect(mediaAt('(max-width: 767px) and (orientation: landscape)', phone)).toBe(false)
+    expect(() => mediaAt('(aspect-ratio: 16/9)', desk)).toThrow(/cannot answer/)
   })
 
   it('pins the viewport, renames the root, scopes every rule and leaves out what moves', () => {

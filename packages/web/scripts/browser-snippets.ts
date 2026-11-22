@@ -280,3 +280,138 @@ export function CUT(allowed: readonly { selector: string; mark: string | null }[
   return { cut, rules, folds }
 })`
 }
+
+/**
+ * One screen on the foldable Duo, measured as a thumb and an eye meet it
+ * (`browser-duo.ts`): what runs off an edge, what is under the phone's own
+ * bands, what is too small to hit, and what a tap at a press's middle does not
+ * reach because something else is drawn over it.
+ *
+ * **What is measured is what is seen**: each word's own boxes (a `Range` over
+ * its text, so a full-bleed bar whose padding holds the inset is not under it
+ * while its words are clear), each press, each drawing — clipped by every
+ * region that scrolls or clips it, so a row scrolled below the screen's foot is
+ * not under the home indicator, and the screen itself ending above the band is
+ * what holds it. Grounds and rules are not content and may reach the edge.
+ */
+export function DUO_SHAPE(
+  insets: { top: number; right: number; bottom: number; left: number },
+  room: number | null,
+): string {
+  return `${SETTLED}.then(() => (() => {
+  const I = ${JSON.stringify(insets)}
+  const W = innerWidth
+  // With the keyboard up the screen is the room above it, not the window.
+  const H = ${room === null ? 'innerHeight' : String(room)}
+  const TAP = 44
+  const named = (one) => one.tagName.toLowerCase() +
+    (typeof one.className === 'string' && one.className.trim() !== ''
+      ? '.' + one.className.trim().split(/\\s+/).slice(0, 2).join('.') : '') +
+    ' "' + (one.getAttribute('aria-label') || one.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 28) + '"'
+  const seen = (one) => one.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) &&
+    one.closest('[inert], [hidden], [aria-hidden="true"]:not(svg)') === null
+  // Every region between it and the page that clips it; the body is the screen.
+  const clipOf = (one, page) => {
+    let box = { l: -Infinity, t: -Infinity, r: Infinity, b: Infinity }
+    for (let up = one.parentElement; up !== null; up = up.parentElement) {
+      if (up === document.body || up === document.documentElement) break
+      const style = getComputedStyle(up)
+      if (style.overflowX === 'visible' && style.overflowY === 'visible') continue
+      const r = up.getBoundingClientRect()
+      box = { l: Math.max(box.l, r.left), t: Math.max(box.t, r.top), r: Math.min(box.r, r.right), b: Math.min(box.b, r.bottom) }
+    }
+    if (page) box = { l: Math.max(box.l, 0), t: Math.max(box.t, 0), r: Math.min(box.r, W), b: Math.min(box.b, H) }
+    return box
+  }
+  const within = (r, box) => {
+    const out = { l: Math.max(r.left, box.l), t: Math.max(r.top, box.t), r: Math.min(r.right, box.r), b: Math.min(r.bottom, box.b) }
+    return out.r - out.l > 0.5 && out.b - out.t > 0.5 ? out : null
+  }
+  const bands = (box) => [
+    box.t < I.top - 0.5 ? 'the status bar' : '',
+    box.b > H - I.bottom + 0.5 ? 'the home indicator' : '',
+    box.l < I.left - 0.5 ? 'the camera column' : '',
+    box.r > W - I.right + 0.5 ? 'the right edge band' : '',
+  ].filter((one) => one !== '')
+  const off = []
+  const under = []
+  const small = []
+  const covered = []
+  const squeezed = []
+  const note = (list, line) => { if (!list.includes(line) && list.length < 12) list.push(line) }
+  const look = (owner, rects) => {
+    const page = clipOf(owner, true)
+    const free = clipOf(owner, false)
+    for (const r of rects) {
+      if (r.width < 0.5 || r.height < 0.5) continue
+      const unclipped = within(r, free)
+      if (unclipped !== null && (unclipped.l < -1 || unclipped.r > W + 1)) {
+        note(off, named(owner) + ' reaches ' + Math.round(unclipped.l) + '…' + Math.round(unclipped.r))
+      }
+      const shown = within(r, page)
+      if (shown === null) continue
+      for (const band of bands(shown)) note(under, named(owner) + ' under ' + band)
+    }
+  }
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+  for (let text = walker.nextNode(); text !== null; text = walker.nextNode()) {
+    if (text.nodeValue.trim() === '') continue
+    const owner = text.parentElement
+    if (owner === null || owner.closest('svg.sprite, script, style') !== null || !seen(owner)) continue
+    const range = document.createRange()
+    range.selectNodeContents(text)
+    const boxes = range.getClientRects()
+    look(owner, boxes)
+    // A word given no room breaks a letter or two to a line: four lines and
+    // more, none of them wider than two letters, is a column too narrow to read.
+    const word = text.nodeValue.trim()
+    if (word.length >= 4 && boxes.length >= 4 && [...boxes].every((one) => one.width <= 20)) {
+      note(squeezed, named(owner))
+    }
+  }
+  const PRESSES = 'a[href], button, input:not([type="hidden"]), textarea, select, summary, [role="button"], [role="tab"], [role="option"]'
+  for (const one of document.querySelectorAll(PRESSES + ', main svg, header svg, nav svg, img, canvas')) {
+    if (!seen(one) || one.closest('svg.sprite') !== null) continue
+    look(one, [one.getBoundingClientRect()])
+  }
+  // A drawer or a sheet open over its scrim is the one layer a tap reaches;
+  // what is under it is meant to be.
+  const scrim = document.querySelector('.scrim')
+  const layer = scrim !== null && !scrim.hidden
+    ? document.querySelector('.side-open .side, .tade-open .dock')
+    : null
+  for (const one of document.querySelectorAll(PRESSES)) {
+    if (!seen(one)) continue
+    const r = one.getBoundingClientRect()
+    if (r.width === 0 && r.height === 0) continue
+    // A link inside somebody's own words is text, not a target.
+    if (one.closest('.said') !== null) continue
+    if (r.height < TAP - 0.5 || r.width < TAP - 0.5) {
+      note(small, named(one) + ' ' + Math.round(r.width * 10) / 10 + '×' + Math.round(r.height * 10) / 10)
+    }
+    const shown = within(r, clipOf(one, true))
+    if (shown === null || (layer !== null && !layer.contains(one))) continue
+    const x = (shown.l + shown.r) / 2
+    const y = (shown.t + shown.b) / 2
+    const hit = document.elementFromPoint(x, y)
+    if (hit === null || hit === one || one.contains(hit) || hit.contains(one)) continue
+    if (hit.closest('label') !== null && hit.closest('label').contains(one)) continue
+    note(covered, named(one) + ' under ' + named(hit))
+  }
+  const main = document.querySelector('main')
+  const sideways = Math.max(
+    (document.scrollingElement ? document.scrollingElement.scrollWidth : 0) - W,
+    main === null ? 0 : main.scrollWidth - main.clientWidth,
+  )
+  // The field being typed in and the header, both wholly in the room.
+  const whole = (one) => {
+    if (one === null) return false
+    const r = one.getBoundingClientRect()
+    return r.height > 0 && r.top >= -0.5 && r.bottom <= H + 0.5
+  }
+  const typing = document.activeElement instanceof HTMLTextAreaElement
+    ? { field: whole(document.activeElement), head: whole(document.querySelector('header.top')) }
+    : null
+  return { sideways, off, under, small, covered, squeezed, typing }
+})())`
+}

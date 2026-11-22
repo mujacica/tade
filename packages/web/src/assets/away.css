@@ -373,6 +373,7 @@ th.figure {
   display: inline-flex;
   align-items: center;
   min-height: var(--tap);
+  min-width: var(--tap);
   color: var(--amber);
   font-size: var(--step--1);
   cursor: pointer;

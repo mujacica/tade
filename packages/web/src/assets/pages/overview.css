@@ -556,18 +556,19 @@ because a column is read down.
 
 /* ── where the work has the room ───────────────────────────────────────────── */
 
-@container (min-width: 44rem) {
+/*
+  The board four across and the plans as gauges from the width of the Duo's
+  inner screen upright; the money beside where it went, a row's presses beside
+  its name and the projects as a table only from 44rem, or a name breaks a
+  letter to a line.
+*/
+@container (min-width: 38rem) {
   .page-overview .ov-cells {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .page-overview .ov-budget {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .page-overview .ov-money {
-    display: grid;
-    grid-template-columns: minmax(0, 12rem) minmax(0, 1fr);
   }
 
   .page-overview .ov-most,
@@ -577,6 +578,13 @@ because a column is read down.
 
   .page-overview .ov-meters {
     display: none;
+  }
+}
+
+@container (min-width: 44rem) {
+  .page-overview .ov-money {
+    display: grid;
+    grid-template-columns: minmax(0, 12rem) minmax(0, 1fr);
   }
 
   /* The presses beside the row, level with its name; how long ago after them. */

@@ -239,7 +239,7 @@
 }
 
 /* With room, the right rail: the tokens over the plans that have nothing to gauge. */
-@container (min-width: 44rem) {
+@container (min-width: 38rem) {
   .spend-money {
     grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 20rem);
   }

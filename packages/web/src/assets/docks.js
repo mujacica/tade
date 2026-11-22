@@ -18,9 +18,9 @@
 // script.
 //
 // **The one thing this page keeps in `localStorage`, and it is three words the
-// page wrote itself** — which of `menu`, `side` and `tade` are folded — read
-// back through `foldsFrom`, which knows no other word, so nothing else can ride
-// in on the key. Nothing about anybody's work: which *projects* are folded is
+// page wrote itself** — which of `menu`, `side` and `tade` are folded, or
+// `none` once somebody has opened them all — read back through `foldsFrom`,
+// which knows no other word, so nothing else can ride in on the key. Nothing about anybody's work: which *projects* are folded is
 // kept in memory only (`side.js`), because a name is text and what a device
 // keeps has none (`LAST_VIEW_IS_A_COPY`). Here rather than in Cache Storage
 // beside the last view, because that store is not there on a plain address,
@@ -59,6 +59,14 @@ export function forgetFolds() {
   keepFolds('')
 }
 
+/**
+ * **A touch screen too short to give Tade's lines a third of its height** —
+ * the Duo's inner screen held sideways is 669px tall — starts with Tade
+ * folded to its heading line and its last line, until somebody on this device
+ * opens it, which is kept like any other fold.
+ */
+const SHORT = '(pointer: coarse) and (max-height: 760px)'
+
 /** The widths at which a dock is a part of the frame rather than a drawer. Held equal to `dock.css`. */
 const DOCKED_FROM = { menu: 1100, side: 1280, tade: 768 }
 
@@ -71,7 +79,9 @@ const docked = (which) =>
  * keyboard, and `close()` for Escape, which says whether it closed anything.
  */
 export function docksOn(shown) {
-  const folds = foldsFrom(keptFolds())
+  const kept = keptFolds()
+  const folds = foldsFrom(kept)
+  if (kept === null && globalThis.matchMedia?.(SHORT).matches === true) folds.tade = true
   const frame = shown.frame
   const open = { side: false, tade: false }
   /** The press that opened a drawer, which is where the keyboard goes back to when it closes. */
@@ -132,7 +142,8 @@ export function docksOn(shown) {
       return
     }
     folds[which] = !folds[which]
-    keepFolds(foldsTo(folds))
+    // Everything open is kept as a word too, or a short screen folds Tade again.
+    keepFolds(foldsTo(folds) || 'none')
     paint()
   }
 

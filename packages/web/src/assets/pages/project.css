@@ -251,7 +251,7 @@ red wash are under AA, so the word a screen reader hears is in the text grey.
 At a desk: the ring down the left, the four meters two by two beside it, the
 money under them, and the strip across the whole.
 */
-@container (min-width: 44rem) {
+@container (min-width: 38rem) {
   .page-project .pj-lead {
     grid-template-columns: minmax(17rem, 1.05fr) repeat(2, minmax(0, 1fr));
     grid-template-areas:
@@ -623,7 +623,7 @@ indented under it — on a phone, where the boxes would scroll sideways.
   border-radius: var(--r2);
 }
 
-@container (min-width: 40rem) {
+@container (min-width: 38rem) {
   .page-project .pj-graph:not([hidden]) {
     display: block;
   }

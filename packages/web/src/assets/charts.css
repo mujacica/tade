@@ -360,6 +360,10 @@ a.ui-stat:hover {
   text-decoration: none;
 }
 
+a.ui-bars-label[href] {
+  min-width: var(--tap);
+}
+
 a.ui-bars-label[href]:hover {
   color: var(--bright);
 }

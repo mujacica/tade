@@ -278,7 +278,7 @@
   color: var(--bright);
 }
 
-@container (min-width: 40rem) {
+@container (min-width: 38rem) {
   .ib-lead {
     grid-template-columns: auto minmax(0, 1fr);
     align-items: center;

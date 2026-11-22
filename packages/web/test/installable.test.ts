@@ -289,8 +289,11 @@ describe('the real folder', () => {
     // `conversation.js`) took it to 422. 426 until a conversation could be
     // read back to its beginning on the page (about 2 KB: `earlier.js`, the
     // lines it keeps and the read as the reader scrolls up, and a suggestion's
-    // press) took it to 427.
-    expect(wire).toBeLessThan(430 * 1024)
+    // press) took it to 427. 430 until the page fitted the foldable iPhone Duo
+    // (about 2 KB: `room.js`, the shell fitted to the room above the keyboard,
+    // the tab bar stood down the edge of a phone held sideways, and the frame
+    // keeping the home indicator's band) took it to 432.
+    expect(wire).toBeLessThan(435 * 1024)
     // And the files as they sit, which is what a browser holds once it has
     // them: about a megabyte, with the comments every module carries. 768
     // until the pages were redrawn one at a time, each 40–90 KB as it sits.
@@ -324,7 +327,9 @@ describe('the real folder', () => {
     // sits, most of it what each answer it can be told says) took it to 1353.
     // 1360 until a conversation could be read back to its beginning (7 KB as
     // it sits: `earlier.js` and its reasons, and a suggestion's press) took it
-    // to 1365.
-    expect(raw).toBeLessThan(1372 * 1024)
+    // to 1365. 1372 until the page fitted the foldable iPhone Duo (8 KB as it
+    // sits, most of it why each band of the screen is kept by what it is kept
+    // by, and how the keyboard is read) took it to 1378.
+    expect(raw).toBeLessThan(1384 * 1024)
   })
 })

@@ -821,3 +821,14 @@ declare module '*/assets/machines.js' {
   export function machineWay(row: MachineRowIn): string
   export function machineTone(row: MachineRowIn): string
 }
+
+declare module '*/assets/room.js' {
+  interface RoomRoot {
+    classList: { toggle: (name: string, on: boolean) => boolean }
+    style: {
+      setProperty: (name: string, value: string) => void
+      removeProperty: (name: string) => string
+    }
+  }
+  export function roomOn(root?: RoomRoot): void
+}

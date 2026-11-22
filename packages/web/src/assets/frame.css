@@ -58,6 +58,25 @@ body {
   overscroll-behavior: none;
 }
 
+/*
+  **The keyboard up on a phone** (`room.js`): the body is the room above it,
+  not the screen, so the header stays at the top and the box being typed in
+  sits on the keyboard with the conversation between them. The tab bar steps
+  aside — it is under the keyboard — and the home indicator's band is behind
+  the keyboard too, so nothing keeps room for it.
+*/
+.keyboard-up body {
+  height: var(--room);
+}
+
+.keyboard-up .tabs {
+  display: none;
+}
+
+.keyboard-up .frame {
+  padding-block-end: 0;
+}
+
 .skip {
   position: absolute;
   left: var(--s4);
@@ -404,7 +423,7 @@ kbd {
   flex: 0 0 auto;
   display: inline-grid;
   place-items: center;
-  min-width: 2rem;
+  min-width: var(--tap);
   min-height: var(--tap);
   color: var(--heading);
   font-size: var(--step--1);
@@ -452,6 +471,16 @@ kbd {
   grid-template-rows: minmax(0, 1fr);
   margin-inline: calc(-1 * var(--s4));
   padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+}
+
+/*
+  **The home indicator's band is kept by whatever is at the foot.** On a
+  phone that is the tab bar; where there is none — a device not yet paired, a
+  phone held sideways, a tablet up — it is the frame, so no screen, menu or
+  dock rests under the band, where a tap is the system's swipe home.
+*/
+.frame.is-outside {
+  padding-block-end: env(safe-area-inset-bottom);
 }
 
 .rail {
@@ -530,6 +559,45 @@ kbd {
 
 .tab-ask {
   color: var(--amber);
+}
+
+/*
+  **A phone held sideways has width to spare and no height** — the Duo's outer
+  screen is 466px tall with the home indicator's band under that — so the tab
+  bar stands down the left edge, beside the camera's column, rather than
+  taking a fifth of the height across the foot. The same four presses, one
+  over another; the frame keeps the home indicator's band itself. Outside — a
+  device not yet paired — there is no bar, and nothing makes room for one.
+  With the keyboard up the bar steps aside as it does upright (`.keyboard-up`),
+  since four presses do not fit beside the room the keyboard leaves.
+*/
+@media (max-width: 767px) and (orientation: landscape) and (max-height: 540px) {
+  :root:not(.keyboard-up):has(.frame:not(.is-outside)) body {
+    padding-inline-start: calc(var(--s4) + var(--side-tabs) + env(safe-area-inset-left));
+  }
+
+  :root:not(.keyboard-up):has(.frame:not(.is-outside)) .top {
+    padding-inline-start: var(--s4);
+  }
+
+  :root:not(.keyboard-up) .frame:not(.is-outside) {
+    padding-inline-start: 0;
+    padding-block-end: env(safe-area-inset-bottom);
+  }
+
+  .tabs {
+    position: fixed;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: calc(var(--side-tabs) + env(safe-area-inset-left));
+    grid-template-columns: minmax(0, 1fr);
+    align-content: center;
+    gap: var(--s1);
+    margin: 0;
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) env(safe-area-inset-left);
+    border-block-start: 0;
+    border-inline-end: var(--border);
+  }
 }
 
 /* ── sections ──────────────────────────────────────────────────────────────── */
@@ -667,6 +735,7 @@ main[tabindex="-1"]:focus {
   align-items: center;
   gap: var(--s1);
   min-height: var(--tap);
+  min-width: var(--tap);
   color: var(--heading);
   text-decoration: none;
   font-size: var(--step-0);
@@ -722,9 +791,10 @@ main[tabindex="-1"]:focus {
     edges, so the menu's rule runs top to bottom with nothing past it.
   */
   .frame {
-    grid-template-columns: 3.5rem minmax(0, 1fr);
+    grid-template-columns: var(--rail) minmax(0, 1fr);
     gap: 0;
     margin-inline: calc(-1 * var(--s5));
+    padding-block-end: env(safe-area-inset-bottom);
   }
 
   /* Its own scroll, so a short screen never leaves it hanging from the header. */
@@ -733,7 +803,7 @@ main[tabindex="-1"]:focus {
     flex-direction: column;
     gap: 2px;
     min-height: 0;
-    padding: var(--s3) var(--s2) calc(var(--s3) + env(safe-area-inset-bottom));
+    padding: var(--s3) var(--s2);
     border-inline-end: var(--border);
     overflow-y: auto;
     overscroll-behavior: contain;

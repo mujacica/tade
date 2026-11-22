@@ -258,7 +258,7 @@
   overflow-wrap: anywhere;
   display: inline-flex;
   align-items: center;
-  min-width: 1.5rem;
+  min-width: var(--tap);
   min-height: var(--tap);
   color: var(--bright);
   font-size: var(--step-1);

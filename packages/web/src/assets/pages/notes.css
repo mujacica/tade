@@ -376,9 +376,10 @@ a.nt-chip[href]:hover .nt-pill {
   transform: rotate(-90deg);
 }
 
-/* ── a tablet and wider: the picture beside the figure ─────────────────────── */
+/* ── with room: the picture beside the figure ──────────────────────────────── */
 
-@media (min-width: 768px) {
+/* By the room the work has, as every page's columns are (`main` in `dash.css`). */
+@container (min-width: 38rem) {
   .nt-lead {
     grid-template-columns: minmax(10rem, 13rem) minmax(0, 1fr);
     gap: var(--s5);

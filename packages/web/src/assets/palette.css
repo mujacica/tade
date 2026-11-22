@@ -458,6 +458,11 @@ a.pal-whole:hover {
   over the tab bar on a phone, over Tade's own dock from a tablet up — on the
   page's own ground so lines scrolling under it do not show through.
 */
+/* The screen ends at the box: under it, lines would show through the screen's own foot padding. */
+main:has(> * > .section.composer-dock:last-child) {
+  padding-block-end: 0;
+}
+
 .section.composer-dock {
   position: sticky;
   bottom: 0;

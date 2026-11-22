@@ -38,6 +38,11 @@
   color: var(--bright);
 }
 
+/* In the drawer a thumb folds a project, so its twist is a thumb wide; at a desk it is a mouse's. */
+.side-open .tree-twist {
+  min-width: var(--tap);
+}
+
 .tree-twist[aria-expanded="true"] .twist {
   transform: rotate(90deg);
 }
@@ -108,6 +113,7 @@
   flex-direction: column;
   width: min(22rem, 88vw);
   padding-block: env(safe-area-inset-top) env(safe-area-inset-bottom);
+  padding-inline-end: env(safe-area-inset-right);
   background: var(--ground);
   border-inline-start: var(--border);
 }
@@ -121,8 +127,20 @@
   flex-direction: column;
   max-height: 85dvh;
   padding-block-end: env(safe-area-inset-bottom);
+  padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
   background: var(--ground);
   border-block-start: var(--border);
+}
+
+/*
+  With the keyboard up the sheet stands on it (`room.js`): a fixed box is
+  placed against the window, which the keyboard does not shrink, so its foot
+  is moved up to the room's and the home indicator's band is behind the keys.
+*/
+.keyboard-up .tade-open .dock {
+  inset-block-end: var(--keys);
+  max-height: calc(var(--room) - env(safe-area-inset-top) - var(--s5));
+  padding-block-end: 0;
 }
 
 .side-open .side-fold,
@@ -603,7 +621,6 @@
     flex: none;
     display: flex;
     flex-direction: column;
-    padding-block-end: env(safe-area-inset-bottom);
     background: var(--ground);
     border-block-start: var(--border);
   }
@@ -641,15 +658,15 @@
   }
 
   .frame.rail-mini:not(.side-mini) {
-    grid-template-columns: 3.5rem minmax(0, 1fr) 20rem;
+    grid-template-columns: var(--rail) minmax(0, 1fr) 20rem;
   }
 
   .frame:not(.rail-mini).side-mini {
-    grid-template-columns: 15rem minmax(0, 1fr) 3.5rem;
+    grid-template-columns: 15rem minmax(0, 1fr) var(--rail);
   }
 
   .frame.rail-mini.side-mini {
-    grid-template-columns: 3.5rem minmax(0, 1fr) 3.5rem;
+    grid-template-columns: var(--rail) minmax(0, 1fr) var(--rail);
   }
 
   /* From the header to the bottom of the screen, its own scroll, its fold at its foot. */
@@ -658,7 +675,6 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
-    padding-block-end: env(safe-area-inset-bottom);
     border-inline-start: var(--border);
   }
 
@@ -733,6 +749,6 @@
   }
 
   .frame.rail-mini:not(.side-mini) {
-    grid-template-columns: 3.5rem minmax(0, 1fr) 24rem;
+    grid-template-columns: var(--rail) minmax(0, 1fr) 24rem;
   }
 }

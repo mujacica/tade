@@ -79,6 +79,7 @@ main {
 /* Where this screen is one row of: quiet, then a slash, then the name. */
 .pg-crumb.back {
   min-height: var(--tap);
+  min-width: var(--tap);
   color: var(--heading);
   font-size: var(--step-0);
 }

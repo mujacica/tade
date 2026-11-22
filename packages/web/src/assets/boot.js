@@ -53,6 +53,7 @@ import { pairScreen } from './pair.js'
 import { palette } from './palette.js'
 import { passkeys } from './passkey.js'
 import { looking, resend } from './push.js'
+import { roomOn } from './room.js'
 import { movedFrom, PAGE_OF, viewOf } from './routes.js'
 import {
   barsFor,
@@ -928,6 +929,9 @@ async function install() {
     looking(held.shell, ask)
   }
 }
+
+// The keyboard's room is the page's whatever it draws: the pairing field is typed in too.
+roomOn()
 
 start().catch(() => {
   // The one failure this cannot draw around: the shell is up and the first

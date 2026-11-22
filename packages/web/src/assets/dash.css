@@ -451,7 +451,7 @@ main {
 .section-fold {
   display: grid;
   place-items: center;
-  min-width: 2rem;
+  min-width: var(--tap);
   min-height: var(--tap);
   margin-inline-end: calc(-1 * var(--s2));
   border-radius: var(--r1);

@@ -692,7 +692,7 @@
   }
 }
 
-@container (min-width: 40rem) {
+@container (min-width: 38rem) {
   .runs-hero {
     grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
     align-items: center;

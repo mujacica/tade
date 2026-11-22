@@ -154,7 +154,7 @@
   color: var(--amber);
 }
 
-@container (min-width: 44rem) {
+@container (min-width: 38rem) {
   .st-cols {
     grid-template-columns: 13rem minmax(0, 1fr);
   }

@@ -175,7 +175,7 @@
 }
 
 /* With room, the flow runs left to right: the stages centred in their columns, an arrow between. */
-@container (min-width: 44rem) {
+@container (min-width: 38rem) {
   .rv-lead {
     grid-template-columns: minmax(7rem, auto) auto minmax(0, 1fr) auto minmax(7rem, auto);
     grid-template-areas: "before to open from after";

@@ -149,6 +149,19 @@
   --inset: var(--s4);
   --stack: var(--s5);
   --bar: calc(var(--tap) + 2 * var(--s1));
+  /*
+    The icon rail's column: a press a thumb's width with the rail's own
+    padding either side and its rule, and never narrower than a mouse's 56px.
+  */
+  --rail: max(3.5rem, calc(var(--tap) + 2 * var(--s2) + 1px));
+  /* The tab bar stood down the left edge of a phone held sideways (`frame.css`). */
+  --side-tabs: 4.5rem;
+  /*
+    The room above the keyboard and how much the keys cover, which `room.js`
+    sets while the keyboard is up: the screen, and nothing, otherwise.
+  */
+  --room: 100dvh;
+  --keys: 0px;
 
   /*
     **Square, the way the terminal is**, with the corner only taken off: the
