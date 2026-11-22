@@ -13,6 +13,12 @@ import {
   writeSetting,
 } from '@tade/core'
 import { heldIn } from '@tade/workbench/config-changes'
+import {
+  keptInventoryPath,
+  machineFolder,
+  ownInventoryPath,
+  readInventory,
+} from '@tade/workbench/inventory'
 import { readTaskFile } from '@tade/workbench/tasks'
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import { mkrepo, runGit, tmp } from '../../../../test/fixtures/mkrepo.ts'
@@ -442,6 +448,60 @@ describe.skipIf(cannot !== null)(
       expect(wired.repo.head()).toBe(mine)
       await window.stop()
     }, 300_000)
+
+    it('reads what a VPS has over ssh and keeps a copy, and tells that VPS what this Mac has', async () => {
+      if (typeof sshd === 'string') return
+      const vps = await box('vps', 'app', sshd.dir)
+      const remotes = pair(sshd, [vps])
+      const window = await wired.start({
+        config: ConfigSchema.parse({ projects: { app: { root: wired.repo.root } }, remotes }),
+        remoteLinks: { ssh: (options) => makeSshLink({ ...options, args: ['-F', sshd.config] }) },
+        thinker: { ask: async () => 'ok', tell: async () => {} },
+      })
+      // One machine stands for both here, so each copy is told from the other
+      // by when it was looked at: the moment each machine kept for itself.
+      const ownAt = async (home: string) =>
+        (await readInventory(ownInventoryPath(home)))?.inventory.at
+
+      // What the VPS has, read over `/api/machine` through the real sshd: a
+      // column of its own in what the orchestrator reads, and a copy kept here.
+      const tools = window.inventoryTools()
+      const column = async () => {
+        const read = JSON.parse(await tools.read()) as {
+          machines: { machine: string; asOf: string | null; said: string | null }[]
+        }
+        return read.machines.find((one) => one.machine === 'vps')
+      }
+      await until(
+        'what the VPS has, read here',
+        async () => (await column())?.asOf != null,
+        150_000,
+      )
+      expect((await column())?.said).toBeNull()
+      const here = keptInventoryPath(wired.home, 'vps')
+      if (here === null) throw new Error('vps has no folder here')
+      await until(
+        'a copy of what the VPS has, kept here',
+        async () => (await readInventory(here)) !== null,
+      )
+      const read = await readInventory(here)
+      expect(read?.inventory.at).toBe(await ownAt(vps.home))
+
+      // What this Mac has, told the VPS over `/api/inventory` once it answered
+      // with an inventory of its own, and kept in the VPS's home under this Mac's name.
+      const mac = machineFolder(machineLabel())
+      const there = mac === null ? null : keptInventoryPath(vps.home, mac)
+      if (there === null) throw new Error('this Mac has no folder name')
+      await until(
+        'what this Mac has, kept on the VPS',
+        async () => (await readInventory(there)) !== null,
+        150_000,
+      )
+      const told = await readInventory(there)
+      expect(told?.inventory.machine).toBe(machineLabel())
+      expect(told?.inventory.at).toBe(await ownAt(wired.home))
+      await window.stop()
+    }, 360_000)
 
     it('keeps settings in step both ways: the later of two changes made apart stands on both, and is said', async () => {
       if (typeof sshd === 'string') return
