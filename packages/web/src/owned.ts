@@ -4,6 +4,7 @@ import { type Answering, type CarryAnswer, carryHere } from './carried.ts'
 import type { Device } from './devices.ts'
 import { type DocumentAnswer, documentHere } from './document.ts'
 import type { Refusal } from './errors.ts'
+import { type InventoryToldAnswer, inventoryToldHere } from './inventory-told.ts'
 import { carryLooking } from './looking.ts'
 import { type MachineAnswer, machineHere } from './machine.ts'
 import { type OpenAnswer, openHere } from './opened.ts'
@@ -26,7 +27,7 @@ import { type WatchSeenAnswer, watchSeenHere } from './watch-seen.ts'
 // machines (`shared-notes.ts`), where each project's work is, for a fetch
 // over the same SSH (`repositories.ts`), and what this machine is, one of its
 // documents and one of its tools that only reads (`machine.ts`, `document.ts`,
-// `tool-read.ts`), what one of its watches has already found (`watch-seen.ts`), its public name's records looked at now (`records.ts`),
+// `tool-read.ts`), what another machine of theirs has (`inventory-told.ts`), what one of its watches has already found (`watch-seen.ts`), its public name's records looked at now (`records.ts`),
 // work it hands this machine to start here (`taken.ts`), and
 // a project it is moving here, opened (`opened.ts`). One door in `server.ts` for all of them (`OWNED_DOOR`),
 // because each is the SSH key's word and nothing an ordinary phone's session
@@ -50,6 +51,7 @@ export const OWNED_DOOR: ReadonlySet<string> = new Set([
   'repositories',
   'carry',
   'machine',
+  'inventory',
   'watch seen',
   'document',
   'tool',
@@ -75,6 +77,7 @@ export async function carryOwned(
     | 'notes'
     | 'repositories'
     | 'machine'
+    | 'inventoryTold'
     | 'document'
     | 'tool'
     | 'records'
@@ -92,6 +95,7 @@ export async function carryOwned(
         | NotesShareAnswer
         | RepositoriesAnswer
         | MachineAnswer
+        | InventoryToldAnswer
         | WatchSeenAnswer
         | DocumentAnswer
         | ToolReadAnswer
@@ -107,6 +111,7 @@ export async function carryOwned(
   if (route === 'share notes') return shareHere(req, device, opts.notes)
   if (route === 'repositories') return repositoriesHere(req, device, opts.repositories)
   if (route === 'machine') return machineHere(req, device, opts.machine)
+  if (route === 'inventory') return inventoryToldHere(req, device, opts.inventoryTold, now)
   if (route === 'watch seen') return watchSeenHere(req, device, opts.watchSeen)
   if (route === 'seen') return seenHere(req, device, now, opts.seen)
   if (route === 'document') return documentHere(req, device, opts.document)

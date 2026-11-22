@@ -29,6 +29,7 @@ import {
 import { Earlier } from './wire/earlier.ts'
 import { type Tellable, tellNow, tellOrKeep } from './wire/handed.ts'
 import { Intake } from './wire/intake.ts'
+import { Inventories, type InventoriesDeps, type InventoryTools } from './wire/inventory.ts'
 import { LinearTokens, lending } from './wire/linear-tokens.ts'
 import { type MachinesSeen, machinesSeenFor } from './wire/machines-seen.ts'
 import { Orchestrator, type OrchestratorDeps } from './wire/orchestrator.ts'
@@ -63,7 +64,10 @@ import { talkingThrough } from './wire/web-asking.ts'
 // every member with nothing (`screenless`), and the work goes on the same.
 
 /** The Settings page's half: what the accounts, models, sounds and clipboard of a screen answer. */
-export type SettingsFace = Omit<SettingsDeps, 'tellThinking' | 'moveThinker' | 'away'>
+export type SettingsFace = Omit<
+  SettingsDeps,
+  'tellThinking' | 'moveThinker' | 'away' | 'machineAction'
+>
 /** An agent's menu and the line you type on: what a press in front of somebody reaches. */
 export type AgentsFace = Omit<AgentsDeps, 'useConfig' | 'changeQueue' | 'closesWhenDone'>
 /** Where the window was, written down as a project opens or closes. */
@@ -105,6 +109,12 @@ export interface Face {
    * shows of the extensions, asked again.
    */
   serversMoved(): void
+  /**
+   * What the face holds of the machines this one links to, for what each has
+   * (`inventory.ts`), and whether its Machines page is open. Absent with no
+   * screen: this machine's own, and what machines that link here told it.
+   */
+  inventories?: Pick<InventoriesDeps, 'remotes' | 'settingsOpen'>
   settings: SettingsFace
   agents: AgentsFace
   projects: ProjectsFace
@@ -355,6 +365,8 @@ export class Heart {
   readonly machinesSeen: MachinesSeen
   /** Each project's branch kept in step with origin and the person's other machines (`project-sync.ts`). */
   readonly sync: ProjectSync
+  /** What this machine has, and what each of the person's others said it has (`inventory.ts`). */
+  readonly inventory: Inventories
   /**
    * What was said to the orchestrator before what the conversation holds, read
    * back out of its record: by a face scrolled to the top, and by a page on a
@@ -384,6 +396,7 @@ export class Heart {
         face.settings.silence()
       },
       away: () => this.away,
+      machineAction: (choice) => this.inventory.action(choice),
     })
     this.orchestrator = new Orchestrator(this.wire, {
       ...face.orchestrator,
@@ -454,8 +467,13 @@ export class Heart {
     this.earlier = new Earlier(this.wire)
     this.machinesSeen = machinesSeenFor(this.wire)
     this.sync = projectSyncFor(this.wire, () => this.told)
+    this.inventory = new Inventories(this.wire, {
+      news: (words) => this.told.note(words),
+      ...(face.inventories ?? {}),
+    })
     this.away = new Away(this.wire, {
       machines: this.machinesSeen,
+      inventory: this.inventory,
       earlier: () => this.earlier.more(),
       ...face.away,
       decided: (allow) => this.agents.decide(allow),
@@ -546,6 +564,7 @@ export class Heart {
         void this.batches.beat()
         this.machinesSeen.beat()
         void this.sync.beat()
+        this.inventory.beat()
         this.away.beat()
         void this.settings.fold(() => this.serversMoved())
         face.beat(tasks, moved)
@@ -687,6 +706,11 @@ export class Heart {
   /** What the `ToolHost` asks at every call. `Away.arming` has the argument. */
   awayTools(): Arming {
     return this.away.arming()
+  }
+
+  /** What the orchestrator's `tade_machines` and `tade_env_move` do, answered here. */
+  inventoryTools(): InventoryTools {
+    return this.inventory.tools()
   }
 
   /**

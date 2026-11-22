@@ -6,6 +6,7 @@ import {
   CONNECT_SOURCES,
   CONNECT_TITLES,
   type ConnectSource,
+  type Inventory,
   printable,
   printableLines,
   remoteDocumentPath,
@@ -23,6 +24,7 @@ import {
   type RecordsAnswer,
   RecordsAnswerSchema,
   ToolAnswerSchema,
+  toldBody,
 } from '@tade/web'
 import type { LookHeld } from '../machine-looks.ts'
 import type { AboutHeld } from '../machine-there.ts'
@@ -81,6 +83,7 @@ const TOOL_DOOR = '/api/tool'
 const RECORDS_DOOR = '/api/records'
 const CARDS_DOOR = '/api/evaluations'
 const CONNECT_DOOR = '/api/connect'
+const INVENTORY_DOOR = '/api/inventory'
 
 export interface RemoteMachinesDeps {
   home: string
@@ -94,6 +97,12 @@ export interface RemoteMachinesDeps {
    * /evals on a grouping (`scorecards`). Absent, nobody ever is.
    */
   looking?: () => { records: boolean; scorecards: boolean }
+  /**
+   * What this machine has, as its last look found it: told each remote that
+   * asks after it answers with an inventory of its own — a Tade new enough to
+   * keep one — whenever it is newer than the last told it (`/api/inventory`).
+   */
+  inventory?: () => Inventory | null
 }
 
 interface Kept extends AboutHeld {
@@ -123,6 +132,8 @@ export class RemoteMachines {
   private was = { records: false, scorecards: false }
   /** Moved whenever something held moved, so what folds it folds again. */
   private moved = 0
+  /** When the inventory last told each remote was looked at, by its name. */
+  private readonly toldAt = new Map<string, string>()
 
   constructor(deps: RemoteMachinesDeps) {
     this.deps = deps
@@ -340,6 +351,27 @@ export class RemoteMachines {
     }
   }
 
+  /**
+   * This machine's inventory, told one remote where it is newer than the last
+   * told it. Never throws: one that could not be told is told on the next ask.
+   */
+  private async tellInventory(name: string, link: RemoteLink): Promise<void> {
+    const mine = this.deps.inventory?.() ?? null
+    if (mine === null || this.toldAt.get(name) === mine.at) return
+    this.toldAt.set(name, mine.at)
+    try {
+      const answer = await link.request(name, INVENTORY_DOOR, toldBody(mine))
+      if (answer.status !== 200) this.toldAt.delete(name)
+    } catch (err) {
+      this.toldAt.delete(name)
+      // A link that went down is the link's news; anything else is said beside what it is.
+      const one = this.kept.get(name)
+      if (one !== undefined && this.deps.reach(name)?.live === true) {
+        one.said = `${name} could not be told what this machine has: ${printable(why(err))}`
+      }
+    }
+  }
+
   /** A link came up: what it is, is asked on the next beat. */
   up(name: string): void {
     const one = this.kept.get(name)
@@ -393,6 +425,7 @@ export class RemoteMachines {
       one.at = back
       one.roundTrip = Math.max(0, back - from)
       one.said = null
+      if (read.data.inventory !== undefined) void this.tellInventory(name, reach.link)
     } catch (err) {
       // A link that went down is the link's news, and the last answer stands.
       if (this.deps.reach(name)?.live === true) {

@@ -59,7 +59,7 @@ export type Holding = Pick<
   | 'thinkerMovedTo'
   | 'thinkerFailed'
 > &
-  Partial<Pick<App, 'updateTools' | 'remoteTools' | 'handOff' | 'showTerminal'>>
+  Partial<Pick<App, 'updateTools' | 'inventoryTools' | 'remoteTools' | 'handOff' | 'showTerminal'>>
 
 export interface OrchestratingOptions {
   client: Workbench
@@ -107,6 +107,7 @@ interface Held {
   settings: ReturnType<Holding['configTools']>
   watches: ReturnType<Holding['watchTools']>
   updates: ReturnType<NonNullable<Holding['updateTools']>> | undefined
+  inventory: ReturnType<NonNullable<Holding['inventoryTools']>> | undefined
   remotes: ReturnType<NonNullable<Holding['remoteTools']>> | undefined
   away: ReturnType<Holding['awayTools']>
 }
@@ -132,6 +133,8 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
   // in front, and the person's words are checked there.
   const updates = () => part((one) => one.updates, 'updating and reloading Tade')
   const remotes = () => part((one) => one.remotes, 'linking to other machines')
+  // What each machine has is the heart's, so a box with no screen answers it too.
+  const inventory = () => part((one) => one.inventory, 'what each machine has')
   const status = async () => {
     const answer = await o.looking.collect({
       config: client.config,
@@ -221,6 +224,10 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
       read: async (check) => updates().read(check),
       run: async (req) => updates().run(req),
       reload: async (req) => updates().reload(req),
+    },
+    inventory: {
+      read: async () => inventory().read(),
+      move: async (req) => inventory().move(req),
     },
     status,
     // How far the turn in flight reaches, and what a narrowed one is answered
@@ -443,6 +450,7 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
         settings: holding.configTools(),
         watches: holding.watchTools(),
         updates: holding.updateTools?.(),
+        inventory: holding.inventoryTools?.(),
         remotes: holding.remoteTools?.(),
         away: holding.awayTools(),
       }

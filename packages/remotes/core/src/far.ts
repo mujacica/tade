@@ -127,6 +127,8 @@ export interface FarEnd {
   machine: MachineAnswer | null
   /** How many times an owner has asked what it is. */
   readonly machineAsked: number
+  /** What machines that link to it told it they have (`/api/inventory`), oldest first, with the device. */
+  readonly inventories: readonly { machine: string; device: string }[]
   /**
    * What its window answers an owner asking it to look at its public name's
    * records (`/api/records`): a test sets it; null, a machine with no public name.
@@ -226,6 +228,7 @@ class Far implements FarEnd {
   readonly watching = new Map<string, readonly string[]>()
   machine: MachineAnswer | null = null
   machineAsked = 0
+  readonly inventories: { machine: string; device: string }[] = []
   records: RecordsAnswer | null = null
   recordsAsked = 0
   connecting: WebConnecting | null = null
@@ -359,6 +362,10 @@ class Far implements FarEnd {
       machine: async () => {
         this.machineAsked++
         return this.machine ?? quietMachine()
+      },
+      inventoryTold: async (inventory, device) => {
+        this.inventories.push({ machine: inventory.machine, device })
+        return true
       },
       document: async ({ task, name }) => {
         const one = this.documents.get(`${task}/${name}`)

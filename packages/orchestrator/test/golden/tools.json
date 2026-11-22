@@ -348,6 +348,27 @@
     }
   },
   {
+    "name": "tade_env_move",
+    "description": "Move the keys the person’s shell files set (`~/.zshenv`, `~/.zshrc`, `~/.bashrc`, `~/.profile`…) into one file, `~/.config/tade/env` (0600), which their login shell and `tade serve` both read — so a key that works in their terminal is also one the service has. Without `move` it changes nothing and answers the diff, every value hidden, and which keys stay where they are and why: say that to them first. With `move` it does it: each file is copied beside itself, a fresh login shell is asked which variables it sets before and after, and every file is put back byte for byte if anything differs — the answer says which happened. Refused unless they asked for it in their own words — pass their sentence in `said`. Never edit a shell file yourself, and never read one aloud: it holds their keys.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "move": {
+          "type": "boolean",
+          "description": "do it; left out, only say what it would do"
+        },
+        "said": {
+          "type": "string",
+          "description": "what the person said that asked for this, word for word. Tade checks it against what they actually said, so pass their sentence and never your own summary of it"
+        }
+      },
+      "required": [
+        "said"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "tade_intake",
     "description": "What has been handed to this machine from outside — a ticket somebody filed, a line typed at the local door — and where each one stands: noticed, proposed (a task is made and parked, waiting for a person), accepted, started, held, refused, or given up on. Also what each source’s grant says and when it last looked. Read it when somebody asks what came in, or what is waiting for them. **You cannot approve, refuse or retry one, and you cannot turn a source on or put anybody on its list** — each of those is a person at this machine, in the window or with `tade intake`; say that rather than offering. The request itself is not in this answer at any length: it is in the task’s own context file, as material, for the agent doing the work. With `machine`, what was handed to another machine this one is linked to and where each stands there, as it last said, with its doors.",
     "parameters": {
@@ -416,6 +437,16 @@
           "description": "how many events, newest last"
         }
       },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "tade_machines",
+    "description": "What each of the person’s machines has, by name and never by value: every harness sign-in and the days it has left, every key Tade’s extensions and accounts use and where it comes from, every environment key their shell files, the service unit or launchd set — by file and line — MCP servers, the git identity, `gh`, whether origin answers with that machine’s own credentials, per-machine apps and the public name; for this machine and each one it links to or that told it, with what each lacks against this one (`✗`), holds differently (`≠`), or could not say (`?`). The same as Settings › Machines. Use it when they ask what a machine is missing, why something works here and not on the VPS, where a key is set, or whether `tade serve` sees a key. Keys are compared by digest: you never see one, and never ask for one.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
       "required": [],
       "additionalProperties": false
     }

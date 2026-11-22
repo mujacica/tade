@@ -64,6 +64,10 @@ describe('the unit', () => {
     expect(unit).toContain('Keys exported in your shell do not reach a service')
   })
 
+  it('reads the one file a login shell reads keys from too, and starts without it', () => {
+    expect(line('EnvironmentFile')).toEqual(['EnvironmentFile=-%h/.config/tade/env'])
+  })
+
   it('names a home only where it is not the default', () => {
     expect(serviceUnit({ ...facts, home: '/srv/tade' })).toContain(
       'Environment=TADE_HOME=/srv/tade',

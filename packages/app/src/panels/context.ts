@@ -37,6 +37,7 @@ import { search } from './search/view.ts'
 import type { AccountShown } from './settings/accounts.ts'
 import type { ConnectView } from './settings/connect.ts'
 import type { DomainView } from './settings/domain.ts'
+import type { MachinesShown } from './settings/machines.ts'
 import type { RemoteShown } from './settings/remotes.ts'
 import type { Choice, UpdatesShown } from './settings/state.ts'
 import { settings } from './settings/view.ts'
@@ -135,6 +136,8 @@ export interface PanelContext {
   updatesBusy: boolean
   /** The other machines' Tades this one is an owner of, for the Remotes page; empty for none. */
   remotes?: readonly RemoteShown[]
+  /** What each of the person's machines has, for the Machines page; null before the first look. */
+  inventories?: MachinesShown | null
   /**
    * Whether agents outlive this window — `capabilities.detach`, never the
    * driver's name. It is what decides whether reloading to pick up a new Tade

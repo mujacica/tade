@@ -522,6 +522,7 @@ export interface Frame {
       | 'updates'
       | 'updatesBusy'
       | 'remotes'
+      | 'inventories'
       | 'lanesSurvive'
       | 'configPath'
       | 'releases'

@@ -688,6 +688,19 @@ export const OWNED: readonly Route[] = [
     here: true,
     theirs: true,
   },
+  // What another machine of the person's has, told here (`inventory-told.ts`):
+  // its sign-ins and keys by name and digest, kept as a copy in this home so
+  // a guided setup run here can walk it. A file written in this home, which
+  // an edit over the same SSH already is; nothing in the journal.
+  {
+    method: 'POST',
+    path: '/api/inventory',
+    name: 'inventory',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
   // What one of this machine's watches has already found (`watch-seen.ts`):
   // its keys and its cursor, for another machine of the person's taking back
   // a watch it left here, so nothing this machine acted on is offered twice.

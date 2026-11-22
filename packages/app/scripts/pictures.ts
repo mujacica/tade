@@ -606,6 +606,15 @@ export const PICTURES: readonly Picture[] = [
       'what it means beside it — here the talk key, the speech engine, the microphone and quiet hours.',
   },
   {
+    file: 'machines-inventory.svg',
+    scenario: 'settings-machines',
+    crop: 'panel',
+    about:
+      'Settings › Machines: a row per sign-in, key, environment key, git setting and origin, a ' +
+      'column per machine, each ✓, ✗ or ≠ with the days a sign-in has left and where each key is ' +
+      'set here — and moving the keys into one file shown as a diff with every value hidden.',
+  },
+  {
     file: 'updates.svg',
     scenario: 'settings-updates',
     crop: 'panel',

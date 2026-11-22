@@ -31,7 +31,12 @@ import {
 } from '@tade/workbench'
 import { documentMethods } from './host-documents.ts'
 import { lessonMethods } from './host-lessons.ts'
-import { machineMethods, type UpdateHost } from './host-machine.ts'
+import {
+  type InventoryHost,
+  inventoryMethods,
+  machineMethods,
+  type UpdateHost,
+} from './host-machine.ts'
 import { noteMethods } from './host-notes.ts'
 import { doneRuleOf, scheduleMethods } from './host-queue.ts'
 import { type RaceHost, raceMethods } from './host-race.ts'
@@ -178,6 +183,8 @@ export interface ToolHostOptions {
   remote?: Arming
   /** Updating what Tade runs, and reloading the window: the window's (`host-machine.ts`). */
   updates?: UpdateHost
+  /** What each machine has, and moving keys into one file: the window's (`host-machine.ts`). */
+  inventory?: InventoryHost
   /** Starting, reading and picking a race: the window's (`host-race.ts`). */
   race?: RaceHost
   /** Starting a replay and reading one: the window's (`host-replay.ts`). */
@@ -247,6 +254,7 @@ export class ToolHost {
       ...lessonMethods(tade),
       // Updating what Tade runs and reloading the window: `host-machine.ts`.
       ...machineMethods(() => opts.updates),
+      ...inventoryMethods(() => opts.inventory),
       'queue/plan': async (p) => queueOf(opts).plan(planOf(p)),
       'queue/list': async () => queueOf(opts).describe(),
       // Stored workflows: `host-templates.ts`, where the boundary is.

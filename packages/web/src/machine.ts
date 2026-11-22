@@ -1,4 +1,5 @@
 import type { IncomingMessage } from 'node:http'
+import { type Inventory, InventorySchema } from '@tade/core'
 import { z } from 'zod'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
@@ -142,6 +143,13 @@ export const MachineAnswerSchema = z.object({
   problems: z.array(ProblemSchema).max(PROBLEMS_MOST),
   schedules: z.array(ScheduleSchema).max(SCHEDULES_MOST),
   documents: z.array(DocumentSchema).max(DOCUMENTS_MOST),
+  /**
+   * What it has (`@tade/core`'s `inventory.ts`): sign-ins, keys and where each
+   * is set, by name and digest and never by value — live here, and kept off
+   * the journal there. Null where it has not looked yet; absent from an older
+   * Tade, which says nothing of it.
+   */
+  inventory: InventorySchema.nullable().optional(),
 })
 export type MachineAnswer = z.infer<typeof MachineAnswerSchema>
 export type ScheduleHere = MachineAnswer['schedules'][number]
@@ -217,6 +225,32 @@ export function machineFor(all: MachineAnswer, reach: Reach): MachineAnswer {
       .filter((one) => sees(reach, one.project))
       .slice(0, DOCUMENTS_MOST)
       .map((one) => ({ ...one, name: cut(one.name, 200) })),
+    inventory: all.inventory ? inventoryFor(all.inventory, reach) : null,
+  }
+}
+
+/**
+ * The inventory as one device is told it: origin only of the projects it
+ * reads, and every value within what the other machine reads — cut rather
+ * than refused, so a long path never costs the whole answer.
+ */
+function inventoryFor(all: Inventory, reach: Reach): Inventory {
+  return {
+    machine: cut(all.machine, 120),
+    at: all.at,
+    shell: all.shell === null ? null : cut(all.shell, 40),
+    service: all.service,
+    items: all.items
+      .filter((one) => one.kind !== 'origin' || sees(reach, one.id.slice('origin:'.length)))
+      .slice(0, 400)
+      .map((one) => ({
+        ...one,
+        id: cut(one.id, 300),
+        label: cut(one.label, 300),
+        where: one.where.slice(0, 16).map((place) => cut(place, 300)),
+        said: one.said === null ? null : cut(one.said, 600),
+        variables: one.variables.slice(0, 8).map((name) => cut(name, 120)),
+      })),
   }
 }
 

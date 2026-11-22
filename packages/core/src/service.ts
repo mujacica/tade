@@ -19,6 +19,8 @@
 // Pure: the facts come in, the text goes out. Where it is written, and whether
 // systemd and linger are here, is the workbench's to look at.
 
+import { UNIT_ENVIRONMENT_FILE } from './env-files.ts'
+
 /** The unit's name, under `~/.config/systemd/user/`. */
 export const SERVICE = 'tade.service'
 
@@ -70,7 +72,8 @@ export function serviceUnit(facts: ServiceFacts): string {
     '# Agents run on a tmux server of their own, in a scope of their own, so stopping or',
     '# restarting this service never ends one: the Tade that comes back adopts them.',
     '# Keys exported in your shell do not reach a service: put them in Tade’s config',
-    '# (`tade config`, or sent from your Mac), or in an EnvironmentFile= of your own.',
+    '# (`tade config`, or sent from your Mac), or in ~/.config/tade/env, which it reads',
+    '# below and your login shell can read too (`tade machine env --move` puts them there).',
     '',
     '[Unit]',
     'Description=Tade, the control room for coding agents',
@@ -89,6 +92,9 @@ export function serviceUnit(facts: ServiceFacts): string {
     // handed the socket: it takes it out of what everything it starts inherits.
     'NotifyAccess=all',
     ...env,
+    // The one file a login shell and this unit both read keys from: optional,
+    // so a box with none starts all the same (`env-files.ts`).
+    UNIT_ENVIRONMENT_FILE,
     `ExecStart=${[...facts.tade, SERVE].map((word) => quoted(word, true)).join(' ')}`,
     // Its log reads `tade:` rather than `node:`.
     'SyslogIdentifier=tade',

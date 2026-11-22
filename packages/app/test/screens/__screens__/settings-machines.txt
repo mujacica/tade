@@ -1,0 +1,60 @@
+ ▄▀   T A D E      checkout !⠋   ×  ≡   search ✓    infra      +    ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ A╭─ Settings ─────────────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮×   
+    │  search settings            │ Machines                                                                       │────
+ ▌ !│                             │                                                                                │    
+ ▌  │  Agents             bypass ▕│ What each of your machines has, by name: ✓ set, ✗ missing, ≠ a different key, ▕│    
+    │                            ▕│ — not used there, ? cannot tell. Values never leave the machine they are on;  ▕│    
+   ⠋│  Models                    ▕│ keys are compared by digest.                                                  ▕│    
+    │                            ▕│     Look again                                                                ▕│    
+    │  Orchestrator              ▕│                                                              mac     vps      ▕│    
+ ▸ S│                            ▕│   vps: as of Sun 13 Sep 13:59                                                 ▕│    
+ ▸ S│  Queue                     ▕│ Sign-ins                                                                      ▕│    
+ ▸ I│                            ▕│   claude-code                                                ✓ 27d   ✓ 3d     ▕│    
+ ▾ C│  Checks                    ▕│ Keys                                                                          ▕│    
+  M │                            ▕│   Jev’s API key                                              ✓       ≠        ▕│    
+  A │  Voice                     ▕│     config.yaml                                                               ▕│    
+  M │                            ▕│ Environment keys                                                              ▕│    
+    │  Window                    ▕│   OPENROUTER_API_KEY                                         ✓       ✗        ▕│    
+ ▾ F│                            ▕│     ~/.zshenv:14                                                              ▕│    
+   ▾│  Away view                 ▕│ Git                                                                           ▕│    
+    │                            ▕│   git identity (user.email)                                  ✓       ✓        ▕│    
+    │  Intake                    ▕│     ~/.gitconfig                                                              ▕│    
+   ▸│                            ▕│   GitHub CLI (gh auth)                                       —       ✗        ▕│    
+    │  Projects              ● 1 ▕│ Origin, with this machine’s credentials                                       ▕│    
+    │                            ▕│   origin of checkout                                         ✓       ✓        ▕│    
+    │  Journal                   ▕│     origin                                                                    ▕│    
+ ▸ N│                            ▕│                                                                               ▕│    
+ ▾ G│  Telemetry                 ▕│ Keys in one file                                                              ▕│    
+   r│                            ▕│   Your shell’s files can keep their keys in ~/.config/tade/env instead: one   ▕│    
+   b│  Shortcuts                 ▕│   file your login shell and `tade serve` both read, which you keep in step    ▕│    
+   f│                            ▕│   between machines yourself (chezmoi with age, op inject, Syncthing, a        ▕│    
+   w│  Accounts              ● 3 ▕│   private dotfiles repository with sops or git-crypt). Shown first as a diff  ▕│    
+   p│                            ▕│   with every value hidden; each file is copied beside itself, a fresh login   ▕│    
+    │▌ Machines                  ▕│   shell is asked before and after, and anything different puts every file     ▕│    
+    │▌                           ▕│   back byte for byte.                                                         ▕│    
+    │  Updates                   ▕│   ~/.zshenv                                                                   ▕│    
+    │                            ▕│       14 - export OPENROUTER_API_KEY=‹hidden›                                 ▕│    
+    │                            ▕│       14 + [ -f "$HOME/.config/tade/env" ] && { set -a; . "$HOME/.config/tad… ▕│    
+    │                            ▕│   ~/.config/tade/env (new, 0600)                                              ▕│    
+    │                            ▕│          + OPENROUTER_API_KEY=‹hidden›                                        ▕│    
+    │                            ▕│   left: WORK_TOKEN at ~/.zshrc:8 — its value is worked out by the shell       ▕│    
+    │                            ▕│     Move them     Leave them                                                  ▕│    
+    │                            ▕│                                                                               ▕│    
+    │                            ▕│                                                                               ▕│    
+    │                            ▕│                                                                               ▕│    
+    │                            ▕│                                                                               ▕│    
+    │                            ▕│                                                                               ▕│    
+    │                            ▕│                                                                               ▕│    
+    │                            ▕│                                                                               ▕│    
+━   │                            ▕│                                                                               ▕│   ━
+    │                            ▕│                                                                               ▕│    
+    │                            ▕│                                                                               ▕│   ▕
+    │                            ▕│                                                                               ▕│   ▕
+    │                            ▕│ ● Saved as you change it.                                                      │   ▕
+    │                            ▕│                                                   Open config.yaml     Done    │   ▕
+ ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

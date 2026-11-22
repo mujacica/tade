@@ -47,6 +47,7 @@ import { type OpenProjectPanel, type OpenRow, openClick, openKey } from './panel
 import { type RacePanel, raceClick, raceKey } from './panels/race/state.ts'
 import { type SearchPanel, searchClick, searchKey } from './panels/search/state.ts'
 import type { AccountAction } from './panels/settings/accounts.ts'
+import type { MachineAction } from './panels/settings/machines.ts'
 import type { RemoteAction } from './panels/settings/remotes.ts'
 import {
   type Choice,
@@ -146,6 +147,8 @@ export interface PanelInputs {
   updateActions?: readonly UpdateAction[]
   /** What can be pressed on the Remotes page, in the order the keyboard walks it. */
   remoteActions?: readonly RemoteAction[]
+  /** What can be pressed on the Machines page, in the order the keyboard walks it. */
+  machineActions?: readonly MachineAction[]
   /** The Open project list, as it stands for the query. */
   rows?: readonly OpenRow[]
   /** What search shows for the query as it stands. */

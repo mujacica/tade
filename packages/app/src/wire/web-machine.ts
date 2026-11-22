@@ -1,6 +1,6 @@
 import { open } from 'node:fs/promises'
 import { basename } from 'node:path'
-import { type Document, loadConfig, type TadeEvent } from '@tade/core'
+import { type Document, type Inventory, loadConfig, type TadeEvent } from '@tade/core'
 import type { ExtensionHost } from '@tade/extensions-core'
 import {
   DOCUMENT_MOST,
@@ -41,6 +41,8 @@ export interface AwayStanding {
   public(): MachineAnswer['public']
   /** Why the away view could not do something, or null. */
   problem(): string | null
+  /** What this machine has, as its last look found it; absent, nothing is said of it. */
+  inventory?(): Inventory | null
 }
 
 /** The window's `WebMachine`: what this machine is, now. */
@@ -80,6 +82,8 @@ export function machineFrom(wire: Wiring, away: AwayStanding): WebMachine {
         scheduleHere,
       ),
       documents: documentsHere(documents),
+      // The last look, never one started for this answer: nothing here waits on a child.
+      inventory: away.inventory?.() ?? null,
     }
   }
 }

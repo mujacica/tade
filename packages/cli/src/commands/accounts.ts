@@ -44,7 +44,8 @@ async function acting(
   await withWorkbench(io, setExit, act, THERE)
 }
 
-function adapterFor(config: Config, home: string, harness: string, chosen: string | null) {
+/** The adapter for one harness's sign-in, made as `tade accounts` makes it: never the workbench. */
+export function adapterFor(config: Config, home: string, harness: string, chosen: string | null) {
   const make = HARNESS_ADAPTERS[harness]
   if (!make)
     throw new Error(

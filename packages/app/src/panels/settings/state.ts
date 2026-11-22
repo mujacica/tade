@@ -6,6 +6,7 @@ import type { PanelInputs } from '../../panels.ts'
 import { close, type PanelOutcome, scrolled, stay, typed } from '../outcome.ts'
 import { accountChoice } from './accounts.ts'
 import { LOOK_AGAIN } from './domain.ts'
+import { MACHINES, machineChoice } from './machines.ts'
 import { REMOTES, remoteChoice, remotePresses } from './remotes.ts'
 import { scopedGroup, scopedRows, scopeHere, scopesOf } from './scopes.ts'
 
@@ -520,7 +521,9 @@ function settingsPress(
   if (panel.focus === 'categories') {
     // Remotes is a page only while there is one: every remote has a press.
     const remotes = (inputs.remoteActions ?? []).length > 0 ? [REMOTES] : []
-    const ids = [...groups.map((group) => group.id), ACCOUNTS, ...remotes, UPDATES]
+    // Machines too, while there is another machine to compare with.
+    const machines = (inputs.machineActions ?? []).length > 0 ? [MACHINES] : []
+    const ids = [...groups.map((group) => group.id), ACCOUNTS, ...remotes, ...machines, UPDATES]
     const at = Math.max(0, ids.indexOf(panel.category))
     if (key === 'down' || key === 'up') {
       const next = ids[(at + (key === 'down' ? 1 : -1) + ids.length) % ids.length] ?? panel.category
@@ -538,9 +541,11 @@ function settingsPress(
       ? (inputs.accountActions ?? []).length
       : panel.category === REMOTES
         ? remotePresses(inputs.remoteActions ?? [], panel).length
-        : panel.category === UPDATES
-          ? (inputs.updateActions ?? []).length
-          : rows.length
+        : panel.category === MACHINES
+          ? (inputs.machineActions ?? []).length
+          : panel.category === UPDATES
+            ? (inputs.updateActions ?? []).length
+            : rows.length
   if (key === 'tab' || key === 'shift+tab') return stay({ ...panel, focus: 'categories' })
   // A page key reads on rather than walking: the form goes by a screenful and
   // the keyboard stays where it was, which is the wheel's half of the move
@@ -562,6 +567,10 @@ function settingsPress(
   if (panel.category === REMOTES && !panel.search) {
     const action = remotePresses(inputs.remoteActions ?? [], panel)[panel.row]
     return key === 'enter' && action ? remoteChoice(panel, action.id) : stay(panel)
+  }
+  if (panel.category === MACHINES && !panel.search) {
+    const action = (inputs.machineActions ?? [])[panel.row]
+    return key === 'enter' && action ? machineChoice(panel, action.id) : stay(panel)
   }
   if (panel.category === UPDATES && !panel.search) {
     const action = (inputs.updateActions ?? [])[panel.row]
@@ -666,6 +675,8 @@ function clicked(
     // pi's sign-in, at the top of Accounts, after a click on Claude Code's.
     case 'account':
       return accountChoice(underHand(panel, inputs.accountActions ?? [], control), control)
+    case 'machine':
+      return machineChoice(underHand(panel, inputs.machineActions ?? [], control), control)
     case 'remote':
       return remoteChoice(
         underHand(panel, remotePresses(inputs.remoteActions ?? [], panel), control),

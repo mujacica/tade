@@ -17,6 +17,7 @@ import {
   writeSetting,
 } from '@tade/core'
 import { LinkError, type PagesHere, type Remote, type RemoteLink } from '@tade/remotes-core'
+import { MachineAnswerSchema } from '@tade/web'
 import {
   type CarryPress,
   type Checklist,
@@ -32,13 +33,17 @@ import {
 } from '@tade/workbench/carry'
 import { HomeBusyError, heldBy } from '@tade/workbench/lock'
 import { linkOf, moshPortsSaid, remoteOf } from '@tade/workbench/remotes'
+import { setupWalk, type Walk, walkLines } from '@tade/workbench/setup-walk'
 import { heldIn, recordFromShell } from '../config-write.ts'
 import { Exit, type Io } from '../io.ts'
+import { inventoryFromShell } from './machine-here.ts'
 
 // The guided half of `tade remote add` and `tade remote carry`: meeting a
 // machine never met, carrying this one's setup there, offering the keys and
-// talking to Tade from here on a press, walking each harness's sign-in, and the
-// checklist at the end
+// talking to Tade from here on a press, walking each harness's sign-in, the
+// checklist at the end, and everything else this machine has walked against
+// what that machine has (`guideInventory`: keys, environment keys, MCP
+// servers, per-machine apps, the git identity and origin)
 // (`@tade/workbench/carry`; `@tade/core`'s `carry.ts` decides every key). And
 // `tade remote connect`, which serves that machine's own pages that connect a
 // source here, for what is pasted into them (`connectRemote`).
@@ -306,6 +311,51 @@ export async function guideSignIns(c: Carrying, setup: Setup, list: Checklist): 
   return ran ? carryOnce(c, setup, { keys: false }) : list
 }
 
+/**
+ * Everything else this machine has, walked against what that machine says it
+ * has (`/api/machine`'s inventory, `setup-walk.ts`): each key with its three
+ * ways there, each environment key by name, MCP servers, per-machine apps, the
+ * git identity and each origin — the sign-ins the checklist already walked
+ * left out. Null where that machine could not say, with why said.
+ */
+export async function guideInventory(
+  c: Carrying,
+  how: { address: string; tade: string },
+): Promise<{ walk: Walk; lines: string[] } | null> {
+  let there = null
+  try {
+    const answer = await c.link.call(c.remote, '/api/machine', {})
+    const read = MachineAnswerSchema.safeParse(answer.body)
+    if (answer.status === 200 && read.success) there = read.data.inventory ?? null
+    if (there === null) {
+      c.io.err(
+        answer.status === 200
+          ? `${c.remote.name} does not say what it has yet: once its Tade is newer, Settings › Machines compares the two`
+          : `${c.remote.name} did not say what it has (${answer.status}): Settings › Machines compares the two once it does`,
+      )
+      return null
+    }
+  } catch (err) {
+    c.io.err(
+      `${c.remote.name} could not be asked what it has: ${err instanceof Error ? err.message : String(err)}`,
+    )
+    return null
+  }
+  const mine = await inventoryFromShell(c.config, c.home)
+  const say = {
+    target: c.remote.name,
+    source: 'this machine',
+    there: (command: string) =>
+      `\`ssh -t ${how.address} ${command.replace(/^tade /, `${how.tade} `)}\``,
+    sendKeys: `\`tade remote carry ${c.remote.name} --keys\``,
+    connect: `\`tade remote connect ${c.remote.name}\``,
+  }
+  const full = setupWalk(mine, there, say)
+  // The sign-ins are the checklist's, walked in this terminal already.
+  const walk = { ...full, steps: full.steps.filter((one) => one.kind !== 'sign-in') }
+  return { walk, lines: walkLines(walk, say) }
+}
+
 /** The checklist, said: to standard output, or as JSON beside what else the command answers. */
 export function sayChecklist(
   io: Io,
@@ -449,11 +499,20 @@ export async function addRemote(place: Place, name: string, opts: AddOpts): Prom
   list = await offerKeys(c, setup, list, false)
   list = await offerTalk(c, setup, list, false)
   list = await guideSignIns(c, setup, list)
+  const walked =
+    list.unreached === null ? await guideInventory(c, { address: opts.ssh, tade: opts.tade }) : null
   if (opts.json) {
-    io.out(JSON.stringify({ ...listed(name, written), window, checklist: list }, null, 2))
+    io.out(
+      JSON.stringify(
+        { ...listed(name, written), window, checklist: list, walk: walked?.walk ?? null },
+        null,
+        2,
+      ),
+    )
     return
   }
   sayChecklist(io, list, { address: opts.ssh, tade: opts.tade })
+  for (const line of walked?.lines ?? []) io.out(line)
   if (link.capabilities.terminals) io.out(moshPortsSaid(opts.ssh))
   io.out(
     window
@@ -488,8 +547,13 @@ export async function carryRemote(
   if (opts.keys) list = await offerKeys(c, setup, list, opts.yes === true)
   if (opts.talk) list = await offerTalk(c, setup, list, opts.yes === true)
   list = await guideSignIns(c, setup, list)
-  if (opts.json) io.out(JSON.stringify(list, null, 2))
-  else sayChecklist(io, list, { address: one.ssh, tade: one.tade })
+  const walked =
+    list.unreached === null ? await guideInventory(c, { address: one.ssh, tade: one.tade }) : null
+  if (opts.json) io.out(JSON.stringify({ ...list, walk: walked?.walk ?? null }, null, 2))
+  else {
+    sayChecklist(io, list, { address: one.ssh, tade: one.tade })
+    for (const line of walked?.lines ?? []) io.out(line)
+  }
   if (list.unreached !== null) setExit(Exit.error)
 }
 

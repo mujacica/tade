@@ -587,6 +587,39 @@ export function updateNamedBy(lines: readonly string[]): string | null {
   return namedBy({ path: 'update', title: 'upgrade', keywords: ['updates', 'updating'] }, lines)
 }
 
+/**
+ * How far the orchestrator reaches into moving the keys a person's shell files
+ * set into `~/.config/tade/env` (`consolidate.ts`).
+ *
+ * `asked`, because it edits the person's own dotfiles: only on their word, and
+ * what makes it no worse than that is everything the move does on its own — a
+ * diff first with every value hidden, a copy of each file beside itself, a
+ * fresh login shell asked before and after, and every file put back byte for
+ * byte where anything differs.
+ */
+export const ENV_MOVE_REACH: Reaches = {
+  reach: 'asked',
+  because: 'it edits your own shell files, so it happens when you ask for it',
+}
+
+/** The line of theirs that asks for their keys to be moved into one file, or null when none does. */
+export function envMoveNamedBy(lines: readonly string[]): string | null {
+  return namedBy(
+    {
+      path: 'consolidate',
+      title: 'move my keys',
+      keywords: [
+        'consolidating',
+        'move the keys',
+        'keys into one file',
+        'config/tade/env',
+        'env file',
+      ],
+    },
+    lines,
+  )
+}
+
 /** The line of theirs that asks for the window to reload, or null when none does. */
 export function reloadNamedBy(lines: readonly string[]): string | null {
   return namedBy(

@@ -1,6 +1,7 @@
-import { ConfigSchema, settingsOf } from '@tade/core'
+import { ConfigSchema, type Inventory, machineGrid, settingsOf } from '@tade/core'
 import { blocksFor, codeFor } from '@tade/web'
 import { NO_DETAIL, unheard } from '../../../src/machines.ts'
+import type { MachinesShown } from '../../../src/panels/settings/machines.ts'
 import type { RemoteShown } from '../../../src/panels/settings/remotes.ts'
 import { settingsPanel } from '../../../src/panels/settings/state.ts'
 import { awayFixture } from './away.ts'
@@ -473,6 +474,128 @@ function vpsShown(): RemoteShown {
   }
 }
 
+/**
+ * What the Mac and the VPS have, as Settings › Machines folds them: a sign-in
+ * running out on the VPS, a key set to something else there, an environment
+ * key only the Mac's shell sets — and the VPS's service never reading one of
+ * its own — and what moving the Mac's keys into one file would do, shown.
+ */
+function machinesShown(): MachinesShown {
+  const item = (
+    fields: Partial<Inventory['items'][number]> & {
+      id: string
+      kind: Inventory['items'][number]['kind']
+    },
+  ) => ({
+    label: fields.id.split(':').slice(1).join(' · ') || fields.id,
+    state: 'set' as const,
+    digest: null,
+    until: null,
+    where: [],
+    said: null,
+    variables: [],
+    service: null,
+    ...fields,
+  })
+  const digest = (n: number) => String(n).repeat(64)
+  const mac: Inventory = {
+    machine: 'mac',
+    at: new Date(NOW).toISOString(),
+    shell: 'zsh',
+    service: false,
+    items: [
+      item({
+        id: 'sign-in:claude-code',
+        kind: 'sign-in',
+        label: 'claude-code',
+        until: NOW + 27 * 86_400_000,
+      }),
+      item({
+        id: 'secret:extensions.jev.key',
+        kind: 'secret',
+        label: 'Jev’s API key',
+        digest: digest(1),
+        where: ['config.yaml'],
+      }),
+      item({
+        id: 'env:OPENROUTER_API_KEY',
+        kind: 'env',
+        label: 'OPENROUTER_API_KEY',
+        digest: digest(2),
+        where: ['~/.zshenv:14'],
+      }),
+      item({
+        id: 'git:identity',
+        kind: 'git',
+        label: 'git identity (user.email)',
+        digest: digest(3),
+        where: ['~/.gitconfig'],
+      }),
+      item({
+        id: 'origin:checkout',
+        kind: 'origin',
+        label: 'origin of checkout',
+        where: ['origin'],
+      }),
+    ],
+  }
+  const vps: Inventory = {
+    ...mac,
+    machine: 'vps',
+    shell: 'bash',
+    service: true,
+    items: [
+      item({
+        id: 'sign-in:claude-code',
+        kind: 'sign-in',
+        label: 'claude-code',
+        until: NOW + 3 * 86_400_000,
+      }),
+      item({
+        id: 'secret:extensions.jev.key',
+        kind: 'secret',
+        label: 'Jev’s API key',
+        digest: digest(4),
+      }),
+      item({
+        id: 'git:identity',
+        kind: 'git',
+        label: 'git identity (user.email)',
+        digest: digest(3),
+      }),
+      item({ id: 'git:github', kind: 'git', label: 'GitHub CLI (gh auth)', state: 'missing' }),
+      item({ id: 'origin:checkout', kind: 'origin', label: 'origin of checkout' }),
+    ],
+  }
+  const columns = [
+    { machine: 'mac', inventory: mac, asOf: null },
+    { machine: 'vps', inventory: vps, asOf: NOW - 60_000 },
+  ]
+  return {
+    columns: [
+      { machine: 'mac', asOf: null, here: true, said: null },
+      { machine: 'vps', asOf: NOW - 60_000, here: false, said: null },
+    ],
+    rows: machineGrid(columns, NOW),
+    looking: false,
+    plan: {
+      diff: [
+        '~/.zshenv',
+        '    14 - export OPENROUTER_API_KEY=‹hidden›',
+        '    14 + [ -f "$HOME/.config/tade/env" ] && { set -a; . "$HOME/.config/tade/env"; set +a; }',
+        '~/.config/tade/env (new, 0600)',
+        '       + OPENROUTER_API_KEY=‹hidden›',
+      ],
+      moved: ['OPENROUTER_API_KEY'],
+      left: [
+        { name: 'WORK_TOKEN', where: '~/.zshrc:8', why: 'its value is worked out by the shell' },
+      ],
+    },
+    busy: false,
+    said: null,
+  }
+}
+
 /** The away view as the Away page of Settings is handed it: on, on this machine, one phone paired. */
 function awayOn() {
   const url = 'http://localhost:7654/pair#t=Qp3vNn1bXg7kQ2mPvR4tLz8'
@@ -544,6 +667,20 @@ export const SETTINGS_SCREENS: Scenario[] = [
         ...settingsFacts(),
         remotes: [{ ...vpsShown(), machine: null, list: { ...vpsShown().list!, talk: 'off' } }],
       },
+    }),
+  },
+  {
+    name: 'settings-machines',
+    about:
+      'Settings › Machines: what the Mac and the VPS each have, by name — a sign-in and the days ' +
+      'it has left, a key set to something else on the VPS, an environment key only the Mac’s ' +
+      'shell sets, where each is set here — and what moving the Mac’s keys into one file would ' +
+      'do, shown as a diff with every value hidden before the press that does it.',
+    state: { ...base(), panel: { ...settingsPanel('machines'), row: 2 } },
+    frame: frame({
+      height: 60,
+      date: utcDate,
+      panel: { ...settingsFacts(), inventories: machinesShown() },
     }),
   },
   {

@@ -369,7 +369,9 @@ describe('the owner’s table', () => {
     // checked out, a path no phone reads (`repositories.ts`); what this machine
     // is, what one of its watches has already found (`watch-seen.ts`), one of
     // its documents, and one of its tools that only reads, run with this
-    // machine's own keys (`machine.ts`, `document.ts`, `tool-read.ts`); its
+    // machine's own keys (`machine.ts`, `document.ts`, `tool-read.ts`); what
+    // another machine of the person's has, kept here as a copy
+    // (`inventory-told.ts`); its
     // public name's records, looked at now, which asks the world (`records.ts`);
     // and work another machine hands this one, the one route that makes work
     // (`taken.ts`); and a project it moves here, cloned and opened
@@ -390,6 +392,7 @@ describe('the owner’s table', () => {
       'POST /api/notes/share',
       'POST /api/repositories',
       'POST /api/machine',
+      'POST /api/inventory',
       'POST /api/watch/seen',
       'POST /api/document',
       'POST /api/tool',

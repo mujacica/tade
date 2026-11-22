@@ -15,6 +15,7 @@ export {
   findModel,
   loggedInProviders,
   type ModelChoice,
+  PROVIDER_ENV_KEYS,
   usableModels,
 } from './models.ts'
 export {

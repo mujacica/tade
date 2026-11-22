@@ -1,5 +1,7 @@
+import type { Inventory } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { DOCUMENT_MOST, DocumentAnswerSchema, documentReadable } from '../src/document.ts'
+import { InventoryToldAnswerSchema, toldBody } from '../src/inventory-told.ts'
 import { type MachineAnswer, MachineAnswerSchema, machineFor } from '../src/machine.ts'
 import { mintOwner } from '../src/owner.ts'
 import { CSRF_HEADER } from '../src/request.ts'
@@ -75,6 +77,52 @@ const MACHINE: MachineAnswer = {
       triaged: true,
     },
   ],
+  inventory: null,
+}
+
+const INVENTORY: Inventory = {
+  machine: 'vps',
+  at: AT,
+  shell: 'bash',
+  service: true,
+  items: [
+    {
+      id: 'env:OPENROUTER_API_KEY',
+      kind: 'env',
+      label: 'OPENROUTER_API_KEY',
+      state: 'set',
+      digest: 'a'.repeat(64),
+      until: null,
+      where: ['~/.zshenv:14'],
+      said: '`tade serve` never reads ~/.zshenv, so the service here does not have it',
+      variables: ['OPENROUTER_API_KEY'],
+      service: false,
+    },
+    {
+      id: 'origin:tade',
+      kind: 'origin',
+      label: 'origin of tade',
+      state: 'set',
+      digest: null,
+      until: null,
+      where: ['origin'],
+      said: null,
+      variables: [],
+      service: null,
+    },
+    {
+      id: 'origin:other',
+      kind: 'origin',
+      label: 'origin of other',
+      state: 'missing',
+      digest: null,
+      until: null,
+      where: [],
+      said: 'origin would not answer',
+      variables: [],
+      service: null,
+    },
+  ],
 }
 
 async function machine(owned: Pick<ServerOptions, 'machine' | 'document' | 'tool'>) {
@@ -118,6 +166,86 @@ async function asPhone(one: Running, path: string, body: unknown) {
     body: JSON.stringify(body),
   })
 }
+
+describe('what this machine has', () => {
+  it('rides the answer, origin only of the projects the device reads, every value within bounds', () => {
+    const answer = machineFor(
+      { ...MACHINE, inventory: INVENTORY },
+      reachOf({ id: 'd', projects: ['tade'], granted: [] }),
+    )
+    expect(answer.inventory?.items.map((one) => one.id)).toEqual([
+      'env:OPENROUTER_API_KEY',
+      'origin:tade',
+    ])
+    const long = machineFor(
+      {
+        ...MACHINE,
+        inventory: {
+          ...INVENTORY,
+          items: [{ ...INVENTORY.items[0]!, where: ['x'.repeat(900)], said: 'y'.repeat(900) }],
+        },
+      },
+      reachOf({ id: 'd', projects: null, granted: [] }),
+    )
+    expect(MachineAnswerSchema.safeParse(long).success).toBe(true)
+  })
+
+  it('reads an older Tade that says nothing of it, and refuses one that is not an inventory', () => {
+    const { inventory: _, ...older } = MACHINE
+    expect(MachineAnswerSchema.parse(older).inventory).toBeUndefined()
+    expect(MachineAnswerSchema.safeParse({ ...MACHINE, inventory: { machine: 'x' } }).success).toBe(
+      false,
+    )
+  })
+
+  it('is told by another machine at this one’s own door, and kept, as an owner’s and never a phone’s', async () => {
+    const told: { machine: string; device: string }[] = []
+    const one = await start(
+      {},
+      {
+        owned: {
+          inventoryTold: async (inventory, device) => {
+            told.push({ machine: inventory.machine, device })
+            return true
+          },
+        },
+      },
+    )
+    const made = await owner(one)
+    const said = await asOwner(one, made, '/api/inventory', { inventory: INVENTORY })
+    expect(said.status, said.text).toBe(200)
+    expect(InventoryToldAnswerSchema.parse(JSON.parse(said.text)).kept).toBe(true)
+    expect(told).toEqual([{ machine: 'vps', device: made.device }])
+    expect((await asOwner(one, made, '/api/inventory', { inventory: { machine: 1 } })).status).toBe(
+      400,
+    )
+    expect((await asPhone(one, '/api/inventory', { inventory: INVENTORY })).status).toBe(403)
+    const none = await start()
+    expect(
+      (await asOwner(none, await owner(none), '/api/inventory', { inventory: INVENTORY })).status,
+    ).toBe(404)
+    expect(OWNED.find((route) => route.name === 'inventory')).toMatchObject({
+      here: true,
+      theirs: true,
+    })
+  })
+
+  it('is cut to what one body carries, keeping which items it has', () => {
+    const many: Inventory = {
+      ...INVENTORY,
+      items: Array.from({ length: 400 }, (_, at) => ({
+        ...INVENTORY.items[0]!,
+        id: `env:KEY_${at}_TOKEN`,
+        where: ['w'.repeat(290)],
+        said: 's'.repeat(590),
+      })),
+    }
+    const body = toldBody(many)
+    expect(JSON.stringify(body).length).toBeLessThanOrEqual(56 * 1024)
+    expect(body.inventory.items.length).toBeGreaterThan(100)
+    expect(toldBody(INVENTORY).inventory).toBe(INVENTORY)
+  })
+})
 
 describe('what this machine is', () => {
   it('answers an owner, in the shape another machine reads', async () => {

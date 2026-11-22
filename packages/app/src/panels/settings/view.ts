@@ -38,6 +38,7 @@ import {
   valueTooWide,
 } from './control.ts'
 import { domainLines } from './domain.ts'
+import { drawMachines, MACHINES } from './machines.ts'
 import { drawRemotes, REMOTES } from './remotes.ts'
 import { scopedGroup, scopeHere } from './scopes.ts'
 import { ACCOUNTS, type SettingsPanel, UPDATES, visibleSettings } from './state.ts'
@@ -195,6 +196,7 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
     ...ctx.settings.map((group) => ({ id: group.id, title: group.title })),
     { id: ACCOUNTS, title: 'Accounts' },
     ...((ctx.remotes ?? []).length > 0 ? [{ id: REMOTES, title: 'Remotes' }] : []),
+    ...(ctx.inventories ? [{ id: MACHINES, title: 'Machines' }] : []),
     { id: UPDATES, title: 'Updates' },
   ]
   for (const category of categories) {
@@ -224,9 +226,11 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
       ? 'Accounts'
       : panel.category === REMOTES
         ? 'Remotes'
-        : panel.category === UPDATES
-          ? 'Updates'
-          : (group?.title ?? '')
+        : panel.category === MACHINES
+          ? 'Machines'
+          : panel.category === UPDATES
+            ? 'Updates'
+            : (group?.title ?? '')
   const formHead: Line[] = [
     new Row(form, skin)
       .space()
@@ -410,6 +414,11 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
     })
   } else if (panel.category === REMOTES && !panel.search) {
     drawRemotes(panel, ctx, form, body, (from, to) => {
+      focusFrom = from
+      focusTo = to
+    })
+  } else if (panel.category === MACHINES && !panel.search) {
+    drawMachines(panel, ctx, form, body, (from, to) => {
       focusFrom = from
       focusTo = to
     })

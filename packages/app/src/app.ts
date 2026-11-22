@@ -32,6 +32,7 @@ import { Files } from './wire/files.ts'
 import { frameOf } from './wire/frame.ts'
 import { Images } from './wire/images.ts'
 import type { Intake } from './wire/intake.ts'
+import { type InventoryTools, settingsOpen } from './wire/inventory.ts'
 import { Keyboard } from './wire/keyboard.ts'
 import { Lanes } from './wire/lanes.ts'
 import { Looks, slowLook } from './wire/looks.ts'
@@ -183,6 +184,10 @@ export class App {
       },
       heard: (event) => this.tui.requestNews(event.urgency === 'blocking'),
       serversMoved: () => this.extensions.askAgain(),
+      inventories: {
+        remotes: () => this.remotes.inventories(),
+        settingsOpen: () => settingsOpen(this.wire.state.panel),
+      },
       settings: {
         loadAccounts: () => void this.machine.loadAccountViews(),
         refreshModels: () => this.routes.refreshModels(),
@@ -291,6 +296,7 @@ export class App {
       screens: () => this.screens,
       files: () => this.files,
       seen: (held) => this.heart.machinesSeen.linked(held),
+      inventory: () => this.heart.inventory.latest(),
       synced: (project) => this.heart.sync.poke(project),
     })
     this.voice = new Voice(this.wire, {
@@ -446,6 +452,7 @@ export class App {
       this.machine,
       this.updates,
       this.remotes,
+      this.heart.inventory,
       this.projects,
       this.voice,
       this.awake,
@@ -707,6 +714,11 @@ export class App {
   /** What the `ToolHost` asks at every call. `Away.arming` has the argument. */
   awayTools(): Arming {
     return this.heart.awayTools()
+  }
+
+  /** What the orchestrator's `tade_machines` and `tade_env_move` do. */
+  inventoryTools(): InventoryTools {
+    return this.heart.inventoryTools()
   }
 
   /** What the orchestrator's `tade_remote_tell` does, over this window's links. */

@@ -6,6 +6,7 @@ import {
   defaultConfigPath,
   loadConfig,
   printable,
+  recentFindings,
   tadeHome,
   waitingOn,
 } from '@tade/core'
@@ -39,7 +40,11 @@ export function registerBrief(program: Command, io: Io, setExit: (code: number) 
       // What is waiting on a human comes out of the journal, so the brief is
       // the same whether a window is open or not.
       const home = tadeHome()
-      const waiting = waitingOn(await readJournal(home))
+      const journal = await readJournal(home)
+      const waiting = waitingOn(journal)
+      // What was found about the person's machines this week — a sign-in
+      // running out, a key changed on one machine and not another — each once.
+      const machines = recentFindings(journal, Date.now())
 
       {
         const workspace = await collectStatus({
@@ -73,7 +78,7 @@ export function registerBrief(program: Command, io: Io, setExit: (code: number) 
         const found = await extensions.brief()
         const brief = composeBrief(tasks, {
           localHour: new Date().getHours(),
-          extras: found.items.map((item) => item.said),
+          extras: [...machines, ...found.items.map((item) => item.said)],
           ...(waitingSkill
             ? // No full stop: the brief joins its clauses and ends the sentence
               // itself, and two in a row is the sort of thing you hear.

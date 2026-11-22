@@ -33,6 +33,7 @@ const NOTHING_ELSE: SettingsDeps = {
   accountAction: () => Promise.resolve(),
   remoteAction: () => Promise.resolve(),
   updateAction: () => Promise.resolve(),
+  machineAction: () => Promise.resolve(),
   testMicrophone: () => Promise.resolve(),
   openFile: () => Promise.resolve(),
   copy: () => Promise.resolve(false),

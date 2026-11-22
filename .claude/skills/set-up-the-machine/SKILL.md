@@ -335,7 +335,9 @@ tade.service` is the file; written on a press or with `--write`. What it says, a
   (`LOG`, `journalctl --user -u tade.service -f`) reads `tade[pid]:`.
 - **The PATH of the shell it was made in**, because a service's own has none of Node, the
   harnesses or an npm prefix — and no key: a key exported in a shell does not reach a service, and
-  the unit says so.
+  the unit says so. **`EnvironmentFile=-%h/.config/tade/env`** is the one file a login shell can
+  read keys from too (`UNIT_ENVIRONMENT_FILE`, `env-files.ts`); `-` because a box with none must
+  still start.
 - **`StartLimitBurst=5` in 300 s**: a Tade refused its home fails at once, and five of those is a
   reason to stop. The limit counts **every** start, a person's restarts included — six in five
   minutes and `restart` is refused — so `START` runs `reset-failed` before `restart`: somebody
@@ -576,6 +578,34 @@ each state a box can be in.
 **Not proved**: a real upgrade from npm under systemd — the restart that keeps agents is the unit's
 own, proved in `tade-vps-jammy` ("Proving it"), and the journal's `tade_opened` after it is the new
 part, held by `workbench/test/upgrade.test.ts` against a real workbench.
+
+## What a machine has, and setting one up from another
+
+The inventory (`core/src/inventory.ts`, gathered by `workbench/src/inventory.ts` and the env-file
+scan `env-scan.ts`) is what each machine has **by name**: harness sign-ins and until when, declared
+keys, environment keys with every `file:line` that sets them, MCP servers, the git identity, `gh`,
+whether origin answers with this machine's credentials, per-machine apps and the public name. The
+window looks every ten minutes (origin hourly), serves it on `/api/machine`, tells each remote it
+links to (`/api/inventory`, kept under `<home>/machines/<name>/`), and draws Settings › Machines.
+`tade machine` reads the same from a shell; `tade machine setup --from <m>` and `tade remote add`
+walk one machine's against another's (`setup-walk.ts`, pure).
+
+- **A value never leaves the line it was parsed from.** The scan digests a literal and drops it;
+  the inventory holds digests (`keyDigest`, the one a carry compares keys by), the journal only
+  `set`/`missing` per item (`inventory_changed`), telemetry nothing (none of its keys are `KEPT`),
+  and a terminal not even the digest. A diff a person is shown says `‹hidden›` (`hiddenLine`).
+- **Every look has a deadline and every parser returns null.** `gh auth status`, `git config`,
+  `git ls-remote`, `launchctl getenv`, a login shell: each through `runProgram` with a timeout, and
+  what it could not say is `unknown`, drawn `?` — never `✗` (`ghStatusIn`, `emailIn`,
+  `setNamesIn`, `assignmentsIn` all read what they know and nothing else).
+- **Consolidating keys is the riskiest thing Tade does to a machine** (`consolidate.ts`): only on a
+  press or the person's word; only a literal set the same everywhere outside any block moves; the
+  files are read again before anything is written and a change since the diff refuses; a fresh
+  login shell (interactive, Tade's environment left out) is asked which names it sets before and
+  after; each file is copied beside itself `wx`; anything different puts every file back from the
+  bytes read and proves it by reading them again. `env_consolidated` says what happened either way.
+- **Expiry and drift are findings written once and said once** (`machine_finding`, keyed so the
+  same thing found again is the same key); `tade brief` says the week's.
 
 ## Setting up ends with a lane
 

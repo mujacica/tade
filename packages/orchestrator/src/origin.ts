@@ -219,6 +219,8 @@ export const REMOTE_TOOLS: Readonly<Record<string, Reaching>> = {
   // person at it asks for in their own words (`UPDATE_REACH`, `RELOAD_REACH`).
   tade_updates_run: { kind: 'local', because: EXECUTES },
   tade_reload: { kind: 'local', because: EXECUTES },
+  // Edits the person's own shell files, on their word (`ENV_MOVE_REACH`).
+  tade_env_move: { kind: 'local', because: EXECUTES },
   // A phone's words, passed on through an owner session, would arrive on the
   // other machine with the keyboard's reach.
   tade_remote_tell: { kind: 'local', because: OWNS_ELSEWHERE },
@@ -264,6 +266,8 @@ export const REMOTE_TOOLS: Readonly<Record<string, Reaching>> = {
   // already serves what it has decided to serve. A tool that reads round a
   // grant is a grant that does not hold.
   tade_logs: { kind: 'local', because: READS_WIDE },
+  // Every machine's sign-ins and keys by name, and where each is set: paths on this machine.
+  tade_machines: { kind: 'local', because: READS_WIDE },
   // A path in Tade's home, and a task id for tasks the away view no longer
   // draws: a read wider than a read grant, like the rest of this group.
   tade_documents: { kind: 'local', because: READS_WIDE },
@@ -491,6 +495,8 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
   'updates/read': never(PUBLISHES),
   'updates/run': never(EXECUTES),
   'window/reload': never(EXECUTES),
+  'machines/read': never(READS_WIDE),
+  'machines/env-move': never(EXECUTES),
   'remote/tell': never(OWNS_ELSEWHERE),
   'remote/move': never(OWNS_ELSEWHERE),
   'remote/status': never(READS_ELSEWHERE),

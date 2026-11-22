@@ -235,6 +235,13 @@ a device still has none of the scopes that change anything until somebody at thi
   each is within what a full-access device already reads, a tool that only reads is no more than
   what its snapshot shows, and the person decided their own phone may do what their SSH key may;
   off the door each is asked a trusted origin and the passkey, as acting is.
+- **What another machine of the person's has is told here and kept** (`OWNED`'s `inventory`, `POST
+  /api/inventory`, `src/inventory-told.ts`): its inventory by name and digest, written to
+  `<home>/machines/<name>/inventory.json` `0600` and nowhere else — nothing in the journal — so a
+  `tade machine setup --from` run here can walk it. The same SSH key can write that file, which is
+  why it is an owner's. The asking side sends it only to a Tade whose `/api/machine` answered with
+  an `inventory` of its own, and only when it is newer than the last told (`toldBody` keeps it under
+  the body's bound). **Why the owner's phone may** (`theirs`): it is a file in the person's home.
 - **Its public name's records are the owner's ninth** (`OWNED`'s `records`), what `tade host
   domain` over the same SSH already gives the key — and the one owner's read that **asks the
   world**, so it keeps the look's own rule: asked when somebody is looking, never on a clock. The

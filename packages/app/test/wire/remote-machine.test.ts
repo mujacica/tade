@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import {
   ConfigSchema,
   evaluationsFrom,
+  type Inventory,
   type RemoteConfig,
   remoteDocumentPath,
   type TadeEvent,
@@ -74,6 +75,8 @@ async function linked(
   /** What somebody here is looking at: changed by a test as a person would open a page. */
   looking = { records: false, scorecards: false },
   there: { publicName?: string } = {},
+  /** What this machine has, told the far end after it answers with one of its own. */
+  mine: Inventory | null = null,
 ) {
   const far = await startFarEnd({ projects: ['far'], ...there })
   made.fars.push(far)
@@ -132,6 +135,7 @@ async function linked(
         now: () => Date.now(),
         draw: () => {},
         looking: () => ({ ...looking }),
+        inventory: () => mine,
       }),
   )
   made.remotes.push(remotes)
@@ -154,6 +158,52 @@ async function linked(
   }
   return { far, home, remotes, until, beats, vpsNow, opened, said, shown, links }
 }
+
+describe('what another machine has', () => {
+  const inventory = (machine: string, at: string): Inventory => ({
+    machine,
+    at,
+    shell: 'zsh',
+    service: false,
+    items: [
+      {
+        id: 'secret:extensions.jev.key',
+        kind: 'secret',
+        label: "Jev's API key",
+        state: 'set',
+        digest: 'b'.repeat(64),
+        until: null,
+        where: ['config.yaml'],
+        said: null,
+        variables: ['JEV_API_KEY'],
+        service: null,
+      },
+    ],
+  })
+
+  it('is held from its answer, and this machine’s is told it once, again only once it is newer', async () => {
+    const mine = inventory('mac', AT)
+    const { far, remotes, until } = await linked(undefined, undefined, mine)
+    far.machine = { ...MACHINE, inventory: inventory('vps', AT) }
+    await until('vps said what it has', () => remotes.inventories()[0]?.inventory !== null)
+    expect(remotes.inventories()[0]).toMatchObject({ name: 'vps', said: null })
+    expect(remotes.inventories()[0]?.inventory?.machine).toBe('vps')
+    await until('this machine’s told', () => far.inventories.length === 1)
+    await remotes.asked()?.ask('vps')
+    expect(far.inventories).toHaveLength(1)
+    mine.at = new Date(Date.parse(AT) + 1000).toISOString()
+    await remotes.asked()?.ask('vps')
+    await until('the newer one told', () => far.inventories.length === 2)
+    expect(far.inventories.map((one) => one.machine)).toEqual(['mac', 'mac'])
+  })
+
+  it('tells a Tade that has not looked at itself yet, which is new enough to keep it', async () => {
+    const { far, remotes, until, vpsNow } = await linked(undefined, undefined, inventory('mac', AT))
+    await until('vps said what it is', () => vpsNow()?.detail.about !== null)
+    await until('this machine’s told', () => far.inventories.length === 1)
+    expect(remotes.inventories()[0]).toMatchObject({ name: 'vps', inventory: null, at: null })
+  })
+})
 
 describe('what another machine says it is', () => {
   it('is asked when the link comes up and folded into the machine, with the round trip', async () => {

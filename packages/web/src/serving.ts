@@ -11,6 +11,7 @@ import type { WebDocument } from './document.ts'
 import type { WebDrafting } from './drafting.ts'
 import type { WebEarlier } from './earlier.ts'
 import type { WebHooks } from './hooked.ts'
+import type { WebInventoryTold } from './inventory-told.ts'
 import type { WebMachine } from './machine.ts'
 import type { WebOpening } from './opened.ts'
 import type { Streams } from './peers.ts'
@@ -225,6 +226,11 @@ export interface ServerOptions {
    * nobody wired.
    */
   watchSeen?: WebWatchSeen
+  /**
+   * What another machine of the person's has, told here to be kept
+   * (`inventory-told.ts`). Absent, the route is the `404` of a path nobody wired.
+   */
+  inventoryTold?: WebInventoryTold
   /**
    * A paired device saying its own page is in front of somebody, as a moment
    * in this machine's clock (`looking.ts`): only ever about what that device

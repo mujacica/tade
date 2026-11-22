@@ -1,5 +1,6 @@
 import type { InboxRow } from '@tade/core'
 import type { Waking } from './doorbell.ts'
+import type { Inventories } from './inventory.ts'
 import type { LinearTokens } from './linear-tokens.ts'
 import type { MachinesSeen } from './machines-seen.ts'
 import type { Settings } from './settings.ts'
@@ -21,6 +22,13 @@ export interface AwayDeps {
    * nobody wired and the projection names no machine.
    */
   machines?: Pick<MachinesSeen, 'heard' | 'rows'>
+  /**
+   * What this machine has, as its last look found it, for `/api/machine`; and
+   * what another machine of the person's tells it it has, kept here
+   * (`/api/inventory`). Two methods, never the subject. Absent, `/api/machine`
+   * says nothing of it and the told door is the `404` of a path nobody wired.
+   */
+  inventory?: Pick<Inventories, 'latest' | 'heard'>
   /** What the approve/deny keys do when no device is waiting to be let in. */
   decided(allow: boolean): void | Promise<void>
   /** Said in the strip, where somebody who was not looking at the panel sees it. */

@@ -1,4 +1,6 @@
+import type { Inventory } from '@tade/core'
 import type { Wiring } from './context.ts'
+import type { Inventories } from './inventory.ts'
 import { notesFor } from './notes-shared.ts'
 import { watchSeenFrom } from './watch-seen.ts'
 import { attachingFor } from './web-attach.ts'
@@ -19,9 +21,15 @@ import { takingFrom } from './web-take.ts'
 // looked at now (`web-records.ts`), what one of its watches has already
 // found, for a machine taking it back (`watch-seen.ts`), and work it hands this
 // machine to start (`web-take.ts`) and a project it moves here, opened
-// (`web-open.ts`). One place, so the away view's wiring names them once.
+// (`web-open.ts`), and what another machine of theirs has, kept here
+// (`inventory.ts`). One place, so the away view's wiring names them once.
 
-export function ownedFor(wire: Wiring, away: () => PanelFacts, lifecycle?: Lifecycle) {
+export function ownedFor(
+  wire: Wiring,
+  away: () => PanelFacts,
+  lifecycle?: Lifecycle,
+  inventory?: Pick<Inventories, 'latest' | 'heard'>,
+) {
   return {
     attaching: attachingFor(wire.opts.client),
     notes: notesFor(wire),
@@ -32,12 +40,17 @@ export function ownedFor(wire: Wiring, away: () => PanelFacts, lifecycle?: Lifec
         return shown === null ? null : { name: shown.name, up: shown.up, health: [...shown.lines] }
       },
       problem: () => away().problem,
+      ...(inventory && { inventory: () => inventory.latest() }),
     }),
     document: documentFrom(wire),
     tool: toolFrom(wire),
     records: recordsFrom(wire),
     taking: takingFrom(wire),
     watchSeen: watchSeenFrom(wire),
+    // What another machine of the person's has, kept here (`inventory.ts`).
+    ...(inventory && {
+      inventoryTold: (told: Inventory, device: string) => inventory.heard(told, device),
+    }),
     ...(lifecycle === undefined ? {} : { opening: openingFrom(wire, lifecycle) }),
   }
 }

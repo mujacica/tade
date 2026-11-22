@@ -894,6 +894,32 @@ checklist of what was carried and what still needs you; Settings › Remotes sho
 MCP servers, the telemetry DSN and intake's grants wait on a press. A box whose `tade` is not on the
 PATH an SSH command gets takes `--tade ~/.local/bin/tade`.
 
+**Everything else a machine has is walked too, by name and never by value.** After the carry, the
+two machines compare what each has — every key and where it comes from, the environment keys your
+shell's files set, MCP servers, per-machine apps, the git identity and whether origin answers with
+that box's own credentials — and for each the VPS lacks you are told what to do there: send a key
+on a press, or set it in that machine's environment; set an environment key by its name, since its
+value is never read; connect an app at that machine's own `/connect`; sign `gh` in, or give origin a
+deploy key, checked by a dry-run push. `tade machine setup --from mac`, run on the box, walks the
+same list from its side, each harness signed in through its own flow in that terminal. **Settings ›
+Machines** keeps it: a row per item, a column per machine, `✓`, `✗`, `≠` for a different key, `—`
+for not used there and the days a sign-in has left. A sign-in about to run out, or a key changed on
+one machine and not the other, is said once. Keys are compared by digest, and the journal is told
+only `set` or `missing`.
+
+![Settings › Machines: each machine's sign-ins and keys, and moving keys into one file](https://raw.githubusercontent.com/mujacica/tade/main/images/machines-inventory.svg)
+
+**`tade serve` never reads `~/.zshenv` or `~/.zshrc`**, so a key that works in the Mac's terminal can
+be missing on the VPS though the dotfiles were copied. `tade machine env` says where each key is
+set, by file and line — your shell's files, `environment.d`, the unit, `launchctl`, each project's
+`.envrc` and `.env` — and which ones the service never sees. `tade machine env --move`, or a press in
+Settings › Machines, moves the ones it can into `~/.config/tade/env`, `0600`, which your login shell
+and the unit both read: a diff first with every value hidden, a copy of each file beside itself, a
+fresh login shell asked which variables it sets before and after, and every file put back byte for
+byte if anything differs. Any agent can read that file, as it can `config.yaml`; keeping it in step
+between machines is yours — chezmoi with age, `op inject`, Syncthing, or a private dotfiles
+repository with sops or git-crypt.
+
 **Several remotes**: run `tade remote add` once for each. `tade remote list` names them, `tade remote
 remove vps` signs this Mac out of one. While the window is open it holds one SSH connection to each
 and dials again by itself after a dropped network, and at once when the lid opens.

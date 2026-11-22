@@ -2,6 +2,9 @@ import type { OrchestratorTool } from './tools-extension.ts'
 
 // Keeping what Tade runs current, and starting the window again on a new Tade:
 // what is out of date, running the updates, and the reload that follows one.
+// And what each of the person's machines has, and moving this one's keys into
+// one file (`ENV_MOVE_REACH`): the other act here that changes the machine
+// itself, on the person's word.
 //
 // Beside `tools-extension.ts` rather than in it, for `tools-config.ts`'s two
 // reasons: that file is at its budget, and these are the tools that install
@@ -93,6 +96,36 @@ export function machineTools(
     'Start the window again, on the Tade that is on disk now — after Tade itself was updated, when they ask for it ("reload", "restart Tade"). Agents keep working where the driver’s lanes outlive the window; where they would stop, the reload panel asks them instead and the press is theirs. Your conversation carries on in the new window: it is the same conversation, and you are not introduced again, but the turn this is called in ends with the window. Refused unless they asked for a reload in their own words — pass their sentence in `said`. Say what you are doing before you call it.',
     object({ said }, ['said']),
     async (p) => rpc('window/reload', { said: String(p.said ?? '') }),
+  )
+
+  tool(
+    'tade_machines',
+    'What each of the person’s machines has, by name and never by value: every harness sign-in and the days it has left, every key Tade’s extensions and accounts use and where it comes from, every environment key their shell files, the service unit or launchd set — by file and line — MCP servers, the git identity, `gh`, whether origin answers with that machine’s own credentials, per-machine apps and the public name; for this machine and each one it links to or that told it, with what each lacks against this one (`✗`), holds differently (`≠`), or could not say (`?`). The same as Settings › Machines. Use it when they ask what a machine is missing, why something works here and not on the VPS, where a key is set, or whether `tade serve` sees a key. Keys are compared by digest: you never see one, and never ask for one.',
+    object({}),
+    async () => {
+      // From the window when there is one; where there is none, from a shell,
+      // saying why the window could not answer if that cannot either.
+      const read = await rpc('machines/read', {}).catch((err: unknown) => ({ unread: String(err) }))
+      if (typeof read === 'string') return read
+      return runTade(['machine', '--json']).catch((err: unknown) => {
+        throw new Error(
+          `${(read as { unread?: string }).unread ?? 'the window did not answer'}; and \`tade machine\` could not either: ${String(err)}`,
+        )
+      })
+    },
+  )
+
+  tool(
+    'tade_env_move',
+    'Move the keys the person’s shell files set (`~/.zshenv`, `~/.zshrc`, `~/.bashrc`, `~/.profile`…) into one file, `~/.config/tade/env` (0600), which their login shell and `tade serve` both read — so a key that works in their terminal is also one the service has. Without `move` it changes nothing and answers the diff, every value hidden, and which keys stay where they are and why: say that to them first. With `move` it does it: each file is copied beside itself, a fresh login shell is asked which variables it sets before and after, and every file is put back byte for byte if anything differs — the answer says which happened. Refused unless they asked for it in their own words — pass their sentence in `said`. Never edit a shell file yourself, and never read one aloud: it holds their keys.',
+    object(
+      {
+        move: { type: 'boolean', description: 'do it; left out, only say what it would do' },
+        said,
+      },
+      ['said'],
+    ),
+    async (p) => rpc('machines/env-move', { said: String(p.said ?? ''), move: p.move === true }),
   )
 
   return tools

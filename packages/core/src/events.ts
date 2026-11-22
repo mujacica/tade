@@ -616,6 +616,32 @@ export const EventType = z.enum([
    * and when it came back.
    */
   'machine_seen',
+  /**
+   * One item of this machine's inventory (`inventory.ts`) is now `set` or
+   * `missing` (`now`), and what it was (`was`, absent for the first line):
+   * `item` is its id — a harness, an account's name, a setting's path, an
+   * environment variable's name, a project — and **nothing else**: never a
+   * value, never a digest, never where it is set. Transitions only; a look
+   * that could not be had writes nothing.
+   */
+  'inventory_changed',
+  /**
+   * Something about the person's machines worth saying once
+   * (`expiryFindings`, `driftFindings`): `key`, the same for the same thing
+   * found again, so it is written and said once; `kind` (`expiry`, `drift`),
+   * the `machine` and `item`, and what was `said` — names and days, never a
+   * value or a digest.
+   */
+  'machine_finding',
+  /**
+   * Keys moved out of the person's shell files into `~/.config/tade/env`, on
+   * their press or their word (`consolidate.ts`): `by`, the variables moved
+   * (`names`, space-separated), the files changed (`files`, `~`-relative),
+   * and `outcome` — `moved`, or `rolled back` with `why`, the login shell no
+   * longer setting what it set before, every file put back byte for byte.
+   * **Never a value.**
+   */
+  'env_consolidated',
   // you
   /** A line you said or typed to Tade, verbatim: what up and ctrl+r bring back. */
   'said',
@@ -789,6 +815,9 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   remote_linked: 'routine',
   remote_unlinked: 'routine',
   machine_seen: 'routine',
+  inventory_changed: 'routine',
+  machine_finding: 'notable',
+  env_consolidated: 'notable',
   // Notable, as `config_changed` is: somebody changed how a machine is set up,
   // and the person who did not make the change is the one who needs to see it.
   remote_carried: 'notable',

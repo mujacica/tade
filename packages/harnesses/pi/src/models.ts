@@ -167,6 +167,9 @@ const ENV_KEYS: Readonly<Record<string, readonly string[]>> = {
   nvidia: ['NVIDIA_API_KEY'],
 }
 
+/** Every environment variable pi reads a provider's key from: what a machine's inventory names. */
+export const PROVIDER_ENV_KEYS: readonly string[] = [...new Set(Object.values(ENV_KEYS).flat())]
+
 /**
  * Each provider with credentials, and what kind. What the harness stored wins
  * over the environment, because that is the order the harness itself asks in.

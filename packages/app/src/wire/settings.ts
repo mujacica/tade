@@ -102,6 +102,8 @@ export interface SettingsDeps {
   remoteAction(choice: string): Promise<void>
   /** Install or reload, from the Updates page. */
   updateAction(choice: string): Promise<void>
+  /** Look again, or move the keys into one file, from the Machines page (`inventory.ts`). */
+  machineAction(choice: string): Promise<void>
   /** Three seconds that say whether this terminal may use the microphone. */
   testMicrophone(): Promise<void>
   /** Open a file in your editor: the config, from the button that says where it is. */
@@ -260,6 +262,7 @@ export class Settings implements Subject {
     }
     if (choice.startsWith('remote:')) await this.deps.remoteAction(choice)
     if (choice.startsWith('updates:')) await this.deps.updateAction(choice)
+    if (choice.startsWith('machine:')) await this.deps.machineAction(choice)
     if (choice === 'mic-test') await this.deps.testMicrophone()
     if (choice === LOOK_AGAIN) this.domain.again()
     if (choice.startsWith('away-')) await this.deps.away().carry(choice)

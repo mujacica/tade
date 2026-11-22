@@ -6,6 +6,7 @@ import {
   CONNECT_TITLES,
   type Config,
   type ConnectSource,
+  type Inventory,
   loadConfig,
   machineLabel,
   printable,
@@ -49,6 +50,7 @@ import {
   type Subject,
   type Wiring,
 } from './context.ts'
+import type { InventoryThere } from './inventory.ts'
 import { type Mirrors, mirrorsFor } from './mirrors.ts'
 import { Moves, type MoveTools } from './moves.ts'
 import { type SharedNotes, sharedNotesFor } from './notes-shared.ts'
@@ -324,6 +326,29 @@ export class Remotes implements Subject {
   /** What asks each machine what it is, reads its documents and runs its tools that read; or null. */
   asked(): RemoteMachines | null {
     return this.about
+  }
+
+  /**
+   * What each remote last said it has (`/api/machine`'s inventory), with when
+   * — kept when its link goes down, so it is drawn as of then.
+   */
+  inventories(): InventoryThere[] {
+    return Object.keys(this.fromFile ?? this.deps.remotes()).map((name) => {
+      const held = this.about?.held(name) ?? null
+      const answer = held?.answer ?? null
+      return {
+        name,
+        inventory: answer?.inventory ?? null,
+        at: answer?.inventory ? (held?.at ?? null) : null,
+        said:
+          held?.said ??
+          (answer === null
+            ? 'it has not answered yet'
+            : answer.inventory === undefined
+              ? 'it runs a Tade that does not say what it has yet: update it there'
+              : null),
+      }
+    })
   }
 
   /** What moves work to another machine, for an agent's own menu; or null. */
@@ -769,6 +794,8 @@ export function remotesFor(
     files: () => { openFile(path: string): void; openLink(url: string): Promise<void> }
     /** The record of which machines are up (`machines-seen.ts`), which a link's moves are written to. */
     seen?: (held: Held) => void
+    /** What this machine has, as its last look found it: told each remote that asks (`inventory.ts`). */
+    inventory?: () => Inventory | null
     /** A remote's branches in one project's mirror moved: that project's branch is looked at again. */
     synced?: (project: string) => void
   },
@@ -849,6 +876,7 @@ export function remotesFor(
           now: () => wire.now(),
           draw: () => wire.draw(),
           looking: () => lookingAt(wire.state.panel),
+          ...(subjects.inventory && { inventory: subjects.inventory }),
         }),
     )
 }

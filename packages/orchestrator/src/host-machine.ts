@@ -33,3 +33,27 @@ export function machineMethods(host: () => UpdateHost | undefined): Record<strin
     'window/reload': async (p) => of().reload({ said: String(p.said ?? '') }),
   }
 }
+
+/**
+ * What each of the person's machines has, and moving this one's keys into one
+ * file (`tools-machine.ts`'s `tade_machines`, `tade_env_move`): the window's,
+ * which holds every machine's inventory and checks the person's words for a
+ * move against the journal (`ENV_MOVE_REACH`).
+ */
+export interface InventoryHost {
+  read(): Promise<string>
+  move(req: { said: string; move: boolean }): Promise<string>
+}
+
+export function inventoryMethods(host: () => InventoryHost | undefined): Record<string, Handler> {
+  const of = (): InventoryHost => {
+    const found = host()
+    if (!found) throw new Error('what each machine has is the window’s, and no window is open')
+    return found
+  }
+  return {
+    'machines/read': async () => of().read(),
+    'machines/env-move': async (p) =>
+      of().move({ said: String(p.said ?? ''), move: p.move === true }),
+  }
+}
