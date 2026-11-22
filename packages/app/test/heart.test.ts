@@ -3,16 +3,16 @@ import { request } from 'node:http'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readRuns } from '@tade/checks-core'
-import { ConfigSchema, recordsDir, type TaskId } from '@tade/core'
+import { ConfigSchema, mirrorDir, proposalsIn, recordsDir, type TaskId } from '@tade/core'
 import { LINEAR_APP, LINEAR_APP_IN } from '@tade/extension-intake'
 import { ExtensionHost } from '@tade/extensions-core'
-import { makeCollector, type StatusCollector } from '@tade/status'
+import { fetchMirror, makeCollector, type StatusCollector } from '@tade/status'
 import { AUTH_BYTES, appendPush, generateVapid, P256DH_BYTES, scriptedPusher } from '@tade/web'
 import { BATCH_BY, readTaskFile, Workbench } from '@tade/workbench'
 import { recordConfigChanges } from '@tade/workbench/config-changes'
 import { afterEach, beforeEach, describe, expect, it, onTestFinished } from 'vitest'
 import { parse, stringify } from 'yaml'
-import { mkrepo } from '../../../test/fixtures/mkrepo.ts'
+import { mkrepo, runGit, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { CI_WORKFLOW, ciWorkflow } from '../../../test/fixtures/workflow.ts'
 import {
   Heart,
@@ -268,6 +268,62 @@ describe('the heart, with no screen', () => {
   // the server off the way the Extensions page's own switch does — then and
   // there, not at a restart — and the orchestrator is started again on what it
   // can still call.
+  /** Another machine's main, a commit ahead of this one's, in this home's mirror as a link would fetch it. */
+  const vpsAhead = async (): Promise<string> => {
+    const there = join(tmp('tade-there-'), 'repo')
+    runGit(repo.root, 'clone', '-q', repo.root, there)
+    writeFileSync(join(there, 'vps.ts'), 'from the vps\n')
+    runGit(there, 'add', '-A')
+    runGit(there, 'commit', '-q', '-m', 'on the vps')
+    expect(
+      await fetchMirror(mirrorDir(home, 'app'), repo.root, 'vps', { url: there, env: {} }),
+    ).toBeNull()
+    return runGit(there, 'rev-parse', 'HEAD').trim()
+  }
+
+  it('keeps a project in step with another machine’s mirrored branch by itself, and writes it down', async () => {
+    const theirs = await vpsAhead()
+    const was = repo.head()
+    const one = await alone()
+    // Its own beat, with nobody asking: `ff` is the default.
+    await until(
+      'the move',
+      async () => (await client.events({ types: ['project_synced'] })).length > 0,
+    )
+    expect(repo.head()).toBe(theirs)
+    const synced = await client.events({ types: ['project_synced'] })
+    expect(synced).toHaveLength(1)
+    expect(synced[0]?.detail).toMatchObject({
+      project: 'app',
+      from: 'vps',
+      was,
+      now: theirs,
+      files: ['vps.ts'],
+    })
+    // And asked now, the same rules say there is nothing to do.
+    expect(await one.configTools().syncProject({ project: 'app' })).toContain('main is in step')
+  })
+
+  it('parks one merge proposal for a parted branch, in a worktree, and moves nothing', async () => {
+    const theirs = await vpsAhead()
+    const mine = repo.commit('only here')
+    const one = await alone()
+    await until('a look', () => one.live?.world != null)
+    await one.configTools().syncProject({ project: 'app' })
+    await one.configTools().syncProject({ project: 'app' })
+    expect(repo.head()).toBe(mine)
+    const id = `app/merge-vps-main-${theirs.slice(0, 7)}`
+    const made = (await client.events({ types: ['task_created'] })).filter((e) => e.task === id)
+    expect(made).toHaveLength(1)
+    expect(made[0]?.detail).toMatchObject({ workspace: 'worktree', proposed: true })
+    // Parked, and the orchestrator's one tool for proposals sees it waiting.
+    expect((await readTaskFile(home, id))?.parked).toBe(true)
+    const all = await client.events({})
+    expect(proposalsIn(all).find((one) => one.proposal.task === id)?.settled).toBeNull()
+    const held = await client.events({ types: ['project_sync_held'] })
+    expect(held.map((line) => line.detail.held)).toEqual(['diverged'])
+  })
+
   it('writes the person’s own words down as theirs, with no keyboard to do it', async () => {
     // Their own device's line, or one typed on this machine's tab from
     // another of theirs, reaches the orchestrator as `theirSaid`: under
