@@ -1,11 +1,13 @@
-import { mkdir, mkdtemp } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { Outcome, WebActing } from '../src/acting.ts'
+import { allowDevice } from '../src/devices.ts'
+import type { TaskIn } from '../src/input.ts'
 import { GRANTS, type Reach } from '../src/reach.ts'
 import { projector } from '../src/reading.ts'
 import { webServer } from '../src/server.ts'
-import { OFF } from '../src/surface.ts'
+import { OFF, SCOPES } from '../src/surface.ts'
 import { Tickets } from '../src/tickets.ts'
 import {
   DUO,
@@ -16,7 +18,7 @@ import {
   insetsAsVars,
 } from '../test/browser-duo-plan.ts'
 import { exitFor, type Finding, said, sayReport, worstOf } from '../test/browser-plan.ts'
-import { agentHeld, input, NOW, settingRows } from '../test/fixtures.ts'
+import { agentHeld, blocked, input, NOW, pasted, settingRows, task } from '../test/fixtures.ts'
 import { harnessTalk } from './browser-chat.ts'
 import { DUO_SHAPE } from './browser-snippets.ts'
 
@@ -42,7 +44,16 @@ import { DUO_SHAPE } from './browser-snippets.ts'
 // else changed, and a rule that forgot its inset is drawn under the band.
 //
 // Every page is looked at for a device granted everything, because the person's
-// phone is: a dash fits anywhere and a figure is what runs off an edge.
+// phone is: a dash fits anywhere and a figure is what runs off an edge. Every
+// read *and every scope*: pairing grants `read` alone, and a device with
+// nothing more draws no press on any page, so a row's presses squeezing its
+// name were never on the glass to be measured. The scopes are `allowDevice`,
+// the keypress at the machine, as `browser.ts` grants them.
+//
+// **Its home is not in the temp folder.** A `tade-` name there is one the
+// suite's own guard answers for (`test/own-tmp.ts`), so a run of this beside a
+// full suite turned it red; it goes in `node_modules/.cache` and is removed
+// when the run ends, however it ends.
 
 const PLAYWRIGHT = 'playwright'
 
@@ -128,8 +139,41 @@ function did(call: { was: string }): Promise<Outcome> {
   return Promise.resolve({ did: true, rev: call.was, said: 'done' })
 }
 
-async function serve() {
-  const home = await mkdtemp(join(tmpdir(), 'tade-away-duo-'))
+/**
+ * **A row that needs you with every press it can have**, because that is the
+ * row a name is squeezed in: Allow, Deny, Done, Set aside and Tell beside it.
+ * The shared fixture's blocked task keeps the working task's verbs, `answer`
+ * among the ones it cannot, so its row drew three presses and a name had room
+ * to spare. Here it is what the window's `ableOn` hands over for an agent
+ * held on a command, under the README's own name for it.
+ */
+function waiting(): TaskIn {
+  const held = blocked()
+  return {
+    ...held,
+    id: 'sentry/stripe-v15',
+    approval: held.approval && { ...held.approval, command: 'Bash: npm i stripe@15' },
+    can: [
+      { verb: 'park', how: 'now' },
+      { verb: 'answer', how: 'now' },
+      { verb: 'steer', how: 'now' },
+      { verb: 'done', how: 'now' },
+      { verb: 'note', how: 'now' },
+      { verb: 'context', how: 'now' },
+      { verb: 'stop', how: 'now' },
+    ],
+    cannot: [
+      { verb: 'queue', why: 'it is not queued work' },
+      { verb: 'intake', why: 'it did not come from outside this machine' },
+      { verb: 'reopen', why: 'its agent is running' },
+    ],
+  }
+}
+
+/** Where a run's home is made: beside the dependencies, and never committed. */
+const SCRATCH = fileURLToPath(new URL('../../../node_modules/.cache/', import.meta.url))
+
+async function serve(home: string) {
   const tickets = new Tickets()
   const held = new Map<string, ReturnType<typeof projector>>()
   const server = webServer({
@@ -144,7 +188,8 @@ async function serve() {
     readingFor: (reach: Reach) => {
       const mine = held.get(reach.device)
       if (mine !== undefined) return mine
-      const made = projector(input({ reach, talk: harnessTalk(12) }), NOW, {
+      const tasks = [task(), pasted(), waiting(), task({ id: 'tade/window', project: 'tade' })]
+      const made = projector(input({ reach, tasks, talk: harnessTalk(12) }), NOW, {
         agent: () => agentHeld(),
         settings: () => ({ groups: settingRows(), known: [] }),
       })
@@ -220,13 +265,20 @@ const KEYBOARD = `(() => {
   window.__duoKeyboard = (px) => { covered = px; view.dispatchEvent(new Event('resize')) }
 })()`
 
-async function pairIn(page: Page, origin: string, ticket: string): Promise<void> {
+async function pairIn(page: Page, origin: string, ticket: string, home: string): Promise<void> {
   await page.goto(`${origin}/pair#t=${ticket}`, { waitUntil: 'load' })
   await page.waitForSelector('#label', { timeout: 10_000 })
   await page.fill('#label', 'the duo')
   await page.click('button.pair-press')
   await page.waitForURL(`${origin}/`, { timeout: 15_000 })
   await page.waitForSelector('header .brand', { timeout: 10_000 })
+  const you = (await page.evaluate(`fetch('/api/devices').then((r) => r.json())`)) as {
+    you?: { device?: string }
+  } | null
+  const device = you?.you?.device
+  if (typeof device !== 'string' || device === '')
+    throw new Error('the page never said which device it is')
+  await allowDevice(home, device, [...SCOPES], new Date())
 }
 
 /**
@@ -403,7 +455,23 @@ export async function duo(playwright: Playwright | null, why = ''): Promise<Find
       },
     ]
   }
-  const { server, origin, tickets } = await serve()
+  await mkdir(SCRATCH, { recursive: true })
+  const home = await mkdtemp(join(SCRATCH, 'tade-away-duo-'))
+  try {
+    await looked(engine, home, found)
+  } finally {
+    try {
+      await engine.close()
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
+  }
+  return found
+}
+
+/** Every look, against one server over `home`. */
+async function looked(engine: Engine, home: string, found: Finding[]): Promise<void> {
+  const { server, origin, tickets } = await serve(home)
   try {
     // The pairing page first, as the phone sees it with the code just scanned.
     const pairing = DUO_LOOKS.find((one) => one.paired === false)
@@ -415,18 +483,17 @@ export async function duo(playwright: Playwright | null, why = ''): Promise<Find
       await context.close()
     }
     const first = DUO[0]
-    if (first === undefined) return found
+    if (first === undefined) return
     const context = await phoneAt(engine, first)
-    await pairIn(await context.newPage(), origin, tickets.mint(`${origin}/pair`, Date.now()).value)
+    const ticket = tickets.mint(`${origin}/pair`, Date.now()).value
+    await pairIn(await context.newPage(), origin, ticket, home)
     const state = await context.storageState()
     await context.close()
     for (const screen of DUO) await lookAll(engine, origin, screen, state, found)
     await folded(engine, origin, state, found)
   } finally {
-    await engine.close()
     await server.close()
   }
-  return found
 }
 
 async function main(): Promise<void> {
