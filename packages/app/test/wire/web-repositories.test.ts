@@ -1,4 +1,6 @@
-import type { GitSnapshot, Task, Workspace } from '@tade/core'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+import { type GitSnapshot, mirrorDir, type Task, type Workspace } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { mkrepo } from '../../../../test/fixtures/mkrepo.ts'
 import { repositoriesFrom } from '../../src/wire/web-repositories.ts'
@@ -6,7 +8,8 @@ import { repositoriesFrom } from '../../src/wire/web-repositories.ts'
 // This machine's half of another machine's mirror of its work
 // (`wire/web-repositories.ts`): out of status's last look, each open project's
 // root, what names its repository — never the URL, which may hold a
-// credential — its base, and each task's own branch.
+// credential — its base, each task's own branch, and its own mirror of the
+// project, made ready for another machine to push its branches into.
 
 const HEAD = 'b'.repeat(40)
 
@@ -59,9 +62,11 @@ describe('where this machine’s work is, for another machine', () => {
         },
       ],
     } as unknown as Workspace
-    const answer = await repositoriesFrom(() => world)()
+    const answer = await repositoriesFrom(() => world, repo.home)()
+    const mirror = mirrorDir(repo.home, 'app')
     expect(answer).toEqual([
       {
+        mirror,
         project: 'app',
         root: repo.root,
         repository: 'github.com/acme/app',
@@ -73,9 +78,12 @@ describe('where this machine’s work is, for another machine', () => {
       },
     ])
     expect(JSON.stringify(answer)).not.toContain('secret')
+    // Made ready, bare, in this home: never inside the checkout.
+    expect(existsSync(join(mirror, 'HEAD'))).toBe(true)
+    expect(mirror.startsWith(repo.home)).toBe(true)
   })
 
   it('answers nothing before status has looked, rather than a world with nothing in it', async () => {
-    expect(await repositoriesFrom(() => null)()).toEqual([])
+    expect(await repositoriesFrom(() => null, '/nowhere')()).toEqual([])
   })
 })

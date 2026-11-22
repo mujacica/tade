@@ -25,7 +25,7 @@ export function ownedFor(wire: Wiring, away: () => PanelFacts, lifecycle?: Lifec
   return {
     attaching: attachingFor(wire.opts.client),
     notes: notesFor(wire),
-    repositories: repositoriesFrom(() => wire.live?.world ?? null),
+    repositories: repositoriesFrom(() => wire.live?.world ?? null, wire.opts.home),
     machine: machineFrom(wire, {
       public: () => {
         const shown = publicOf(away())

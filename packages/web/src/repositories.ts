@@ -25,7 +25,10 @@ import { ownsOrTheirs, reachOf } from './surface.ts'
 //
 // **No credential in it.** What names each repository is `repositoryNamed`'s
 // answer — `github.com/owner/name` — never the remote URL, which may hold one.
-// It changes nothing and writes nothing.
+// It changes nothing in a project. Where it can, it says where this machine's
+// mirror of the project is (`mirror`), made ready in this home if it was not:
+// the bare repository another machine pushes its own branches into, under its
+// own name, for this machine to keep its checkout in step from (`sync.ts`).
 
 /** How many projects, and branches in each, one answer carries; past that, the rest wait. */
 export const REPOSITORIES_MOST = 64
@@ -57,6 +60,11 @@ const RepositorySchema = z.object({
   /** The branch its work merges into, or null where none could be found. */
   base: z.string().regex(BRANCH).nullable(),
   branches: z.array(BranchSchema).max(BRANCHES_MOST),
+  /**
+   * This machine's mirror of the project, in its home, ready to be pushed
+   * into; absent from an older Tade, or where it could not be made.
+   */
+  mirror: z.string().min(1).max(4096).optional(),
 })
 
 /**

@@ -150,6 +150,8 @@ export interface ToolHostOptions {
       value: string
       said: string
     }): Promise<string>
+    /** Its branch kept in step now, by the same rules a look keeps it by (`tade_project_sync`). */
+    syncProject(req: { project: string; machine?: string; said?: string }): Promise<string>
   }
   /**
    * What Tade is watching for, and turning one watch on or off.
@@ -357,6 +359,12 @@ export class ToolHost {
           setting: String(p.setting ?? ''),
           value: String(p.value ?? ''),
           said: String(p.said ?? ''),
+        }),
+      'project/sync': async (p) =>
+        configOf(opts).syncProject({
+          project: String(p.project ?? ''),
+          ...(typeof p.machine === 'string' && p.machine !== '' ? { machine: p.machine } : {}),
+          ...(typeof p.said === 'string' && p.said.trim() !== '' ? { said: p.said } : {}),
         }),
       // Where each sign-in stands against its plan. Read from what the
       // harnesses already hold, so it asks nobody anything; it changes nothing

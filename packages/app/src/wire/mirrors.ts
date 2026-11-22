@@ -3,12 +3,14 @@ import {
   type Elsewhere,
   fetchDue,
   liveThere,
+  machineLabel,
   mirrorDir,
+  mirrorMachine,
   printable,
   sameRepository,
 } from '@tade/core'
 import type { Held, Remote, RemoteLink } from '@tade/remotes-core'
-import { fetchMirror, mirrorHeads, repositoryAt } from '@tade/status'
+import { fetchMirror, headsHere, mirrorHeads, pushMirror, repositoryAt } from '@tade/status'
 import { RepositoriesAnswerSchema } from '@tade/web'
 
 // Other machines' work in this machine's projects, kept in a mirror of each
@@ -36,6 +38,14 @@ import { RepositoriesAnswerSchema } from '@tade/web'
 // not be done is said once in the strip for as long as it stays the same
 // trouble, and what was fetched before stands meanwhile: a remote that cannot
 // be asked is not a remote with no branches.
+//
+// **And the other way, into the remote's own mirror.** A remote that says
+// where its mirror of the project is (`RepositoryHere.mirror`) is handed this
+// machine's branches there, under this machine's name, over the same link —
+// because it cannot dial this machine, and an agent's commits here that never
+// reached origin are what it needs to keep its checkout in step
+// (`project-sync.ts`). Only when a branch here moved since the last push. A
+// fetch that brought a remote's heads here pokes this machine's own sync.
 
 /** How long a linked remote goes before where its work is, is asked again anyway. */
 export const AGAIN_MS = 2 * 60_000
@@ -77,6 +87,10 @@ export interface MirrorsDeps {
   now: () => number
   /** What the mirrors hold moved: a frame, to draw what reads it. */
   draw: () => void
+  /** A remote's branches in one project's mirror moved: its branch here is looked at again (`ProjectSync.poke`). */
+  fetched?: (project: string) => void
+  /** This machine's name in another machine's mirror (`mirrorMachine`); its host name made one by default. */
+  as?: () => string
 }
 
 export class Mirrors {
@@ -95,6 +109,8 @@ export class Mirrors {
   private readonly held = new Map<string, Mirrored>()
   /** One fetch at a time into each mirror, whichever machine it is from. */
   private readonly turns = new Map<string, Promise<unknown>>()
+  /** This machine's branches as last pushed into each remote's mirror of each project, by remote and project. */
+  private readonly pushed = new Map<string, string>()
   private handed: Readonly<Record<string, Elsewhere>> | null = null
 
   constructor(deps: MirrorsDeps) {
@@ -236,15 +252,25 @@ export class Mirrors {
     }
   }
 
-  /** One remote project into one project here's mirror: fetched where a head moved, its heads read. */
+  /**
+   * One remote project into one project here's mirror: fetched where a head
+   * moved, its heads read — and this machine's branches pushed into that
+   * machine's own mirror, where it said where that is and one moved here.
+   */
   private async mirrorOne(
     machine: string,
     held: { link: RemoteLink; remote: Remote },
     here: { name: string; root: string },
-    there: { project: string; root: string; base: string | null; branches: readonly BranchThere[] },
+    there: {
+      project: string
+      root: string
+      base: string | null
+      branches: readonly BranchThere[]
+      mirror?: string | undefined
+    },
   ): Promise<string | null> {
     const mirror = mirrorDir(this.deps.home, here.name)
-    return this.inTurn(mirror, async () => {
+    const fetched = await this.inTurn(mirror, async () => {
       const before = await mirrorHeads(mirror, machine)
       if (before !== null && !fetchDue(machine, there.branches, before)) {
         this.heads(here.name, mirror, await mirrorHeads(mirror))
@@ -259,8 +285,38 @@ export class Mirrors {
       if (from === null) return `a ${held.link.id} link cannot fetch from it`
       const failed = await fetchMirror(mirror, here.root, machine, from)
       this.heads(here.name, mirror, await mirrorHeads(mirror))
+      if (failed === null) this.deps.fetched?.(here.name)
       return failed === null ? null : `${there.project} could not be fetched: ${printable(failed)}`
     })
+    const pushed =
+      there.mirror === undefined ? null : await this.pushOne(machine, held, here, there.mirror)
+    return [fetched, pushed].filter((one) => one !== null).join('; ') || null
+  }
+
+  /** This machine's branches into a remote's mirror of one project, where one moved since the last push. */
+  private async pushOne(
+    machine: string,
+    held: { link: RemoteLink; remote: Remote },
+    here: { name: string; root: string },
+    mirror: string,
+  ): Promise<string | null> {
+    const heads = await headsHere(here.root)
+    if (heads === null) return `${here.name}'s branches here could not be read to hand ${machine}`
+    const key = `${machine}\0${here.name}`
+    if (this.pushed.get(key) === heads) return null
+    let to: ReturnType<RemoteLink['repository']>
+    try {
+      to = held.link.repository(held.remote, mirror)
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err)
+    }
+    if (to === null) return null
+    const as = this.deps.as?.() ?? mirrorMachine(machineLabel())
+    const failed = await pushMirror(here.root, as, to)
+    if (failed !== null)
+      return `${here.name}'s branches could not be handed to ${machine}: ${printable(failed)}`
+    this.pushed.set(key, heads)
+    return null
   }
 
   /** What one remote's projects are in one project here's mirror, from now on. */
@@ -322,6 +378,7 @@ export function mirrorsFor(
   },
   reach: MirrorsDeps['reach'],
   say: MirrorsDeps['say'],
+  fetched?: MirrorsDeps['fetched'],
 ): Mirrors {
   return new Mirrors({
     home: wire.opts.home,
@@ -330,5 +387,6 @@ export function mirrorsFor(
     say,
     now: () => wire.now(),
     draw: () => wire.draw(),
+    ...(fetched ? { fetched } : {}),
   })
 }

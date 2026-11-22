@@ -19,6 +19,7 @@ import {
 } from './project.ts'
 import type { Setting, SettingGroup } from './settings.ts'
 import { accountsAbout, ownSignInSaid } from './settings-models.ts'
+import { PROJECT_SYNC, SYNC_BY_DEFAULT, SYNC_MEANS } from './sync.ts'
 import { WATCHES_HERE } from './watch-where.ts'
 
 // What one project answers for itself, as a person changes it.
@@ -213,6 +214,31 @@ export function projectGroups(config: Config): SettingGroup[] {
           } as const,
           live: true,
           keywords: [name, 'watch', 'watches', 'remote', 'vps', 'machine', 'duplicate'],
+          scope: name,
+        },
+        {
+          // Read at every look the window takes at this checkout
+          // (`wire/project-sync.ts`), so it is live. This checkout's own, so a
+          // remote is never handed it (`carryOf`: `projects` is `here`).
+          path: `projects.${name}.sync`,
+          title: 'Keep in step',
+          means: `whether ${name}'s branch here is fast-forwarded to origin's and your other machines' — ${SYNC_MEANS}. Nobody's uncommitted work is ever touched: a move it would collide with is refused, naming the files`,
+          short: `ff, ask or off for ${name}'s branch; unset is ${SYNC_BY_DEFAULT}`,
+          value: project.sync ?? '',
+          fallback: SYNC_BY_DEFAULT,
+          type: { kind: 'choice', options: ['', ...PROJECT_SYNC] } as const,
+          live: true,
+          keywords: [
+            name,
+            'sync',
+            'pull',
+            'fast-forward',
+            'in step',
+            'remote',
+            'vps',
+            'machine',
+            'origin',
+          ],
           scope: name,
         },
         ...accountRows(config, name),

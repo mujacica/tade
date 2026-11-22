@@ -235,6 +235,8 @@ export const REMOTE_TOOLS: Readonly<Record<string, Reaching>> = {
   tade_project_rename: { kind: 'local', because: GRANTS },
   tade_project_configure: { kind: 'local', because: GRANTS },
   tade_project_reorder: { kind: 'local', because: GRANTS },
+  // Moves a checkout's branch on this machine: git run here, as you.
+  tade_project_sync: { kind: 'local', because: EXECUTES },
   tade_agent_model: { kind: 'local', because: GRANTS },
   tade_agent_thinking: { kind: 'local', because: GRANTS },
   tade_agent_harness: { kind: 'local', because: GRANTS },
@@ -476,6 +478,7 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
   'project/rename': never(GRANTS),
   'project/reorder': never(GRANTS),
   'project/configure': never(GRANTS),
+  'project/sync': never(EXECUTES),
   'plan/limits': never(GRANTS),
   'trouble/report': never(NO_TURN),
   'extension/call': never(GRANTS),

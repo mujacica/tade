@@ -89,6 +89,7 @@ describe('what a call from away may reach, over the socket', () => {
         renameProject: async () => '',
         reorderProjects: async () => '',
         configureProject: async () => '',
+        syncProject: async () => '',
       },
       remote: {
         arm: () => arm,
@@ -253,6 +254,7 @@ describe('what a call from away may reach, over the socket', () => {
         renameProject: async () => '',
         reorderProjects: async () => '',
         configureProject: async () => '',
+        syncProject: async () => '',
       },
     })
     changed.length = 0

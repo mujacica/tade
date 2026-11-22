@@ -10,6 +10,7 @@ import { ModelPriceSchema } from './prices.ts'
 import { GIVE_WAY_MAX } from './priority.ts'
 import { PUSH_MODES } from './project.ts'
 import { RemotesSchema } from './remotes.ts'
+import { PROJECT_SYNC } from './sync.ts'
 import { WatchesOn } from './watch-where.ts'
 
 // Schema for ~/.tade/config.yaml. Objects are strict so a typo'd key is named
@@ -226,6 +227,12 @@ export const ProjectConfigSchema = z.strictObject({
   prepare: PrepareConfigSchema.optional(),
   /** Which machine looks with its watches on outside sources: `here` or a remote (`watch-where.ts`). */
   watches: WatchesOn.optional(),
+  /**
+   * Whether this checkout is kept in step with origin and the person's other
+   * machines (`sync.ts`): fast-forwarded by itself when every rule passes,
+   * asked first, or never. This checkout's own answer, so never carried.
+   */
+  sync: z.enum(PROJECT_SYNC).optional(),
   /**
    * Which account this project's new agents run as, by harness, over
    * `workers.accounts`: a personal repository on your own sign-in and a

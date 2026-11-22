@@ -87,6 +87,17 @@ description: Add a new signal to `tade status` (e.g. test results, context usage
   mirror's branch leaned on — makes the mirror again from nothing, once (`whole`), because it is
   derived and safe to delete. `test/mirror.test.ts` holds the checkout's refs, config and objects
   byte-identical across a fetch and a merge.
+- **Keeping a branch in step is the one move into a checkout, and it is git's own fast-forward.**
+  The rules are core's `sync.ts` (pure: `targetOf`, `syncVerdict`), the git is `src/sync.ts`
+  (`lookSync`, `moveSync`), and the beat, the run lock across the move, `project_synced`, the tell to
+  every agent in the checkout and a parted branch's parked merge proposal are the heart's
+  `app/src/wire/project-sync.ts`. A look reads uncommitted work with the probe's own environment
+  (never the index lock), brings another machine's commits out of the mirror as objects alone, and
+  never moves without `--ff-only`; anything it cannot read waits or holds rather than reading as
+  clean. The Mac's `wire/mirrors.ts` pushes its own branches into a remote's mirror under its name
+  (`pushMirror`), which is how a VPS that cannot dial it keeps in step. A quiet project is five git
+  calls a minute and nothing else (`app/test/wire/project-sync.test.ts`); ancestry is kept by commit
+  pair, because commits never change.
 - **A probe that costs a spawn every beat is asked for, and held by whoever asks.** Which ports
   each lane listens on (`src/ports.ts`, `lsof` plus `ps`) is `StatusOptions.ports` /
   `StatusAsk.ports`: `tade status` asks once, and the window asks every beat while `PortsHeld` (in

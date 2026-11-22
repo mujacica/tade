@@ -186,6 +186,7 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
       renameProject: async (req) => settings().renameProject(req),
       reorderProjects: async (req) => settings().reorderProjects(req),
       configureProject: async (req) => settings().configureProject(req),
+      syncProject: async (req) => settings().syncProject(req),
     },
     watches: {
       list: async (find) => watches().watches(find),

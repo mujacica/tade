@@ -32,6 +32,7 @@ import { Intake } from './wire/intake.ts'
 import { LinearTokens, lending } from './wire/linear-tokens.ts'
 import { type MachinesSeen, machinesSeenFor } from './wire/machines-seen.ts'
 import { Orchestrator, type OrchestratorDeps } from './wire/orchestrator.ts'
+import { type ProjectSync, projectSyncFor } from './wire/project-sync.ts'
 import { Projects, type ProjectsDeps, type ProjectTools } from './wire/projects.ts'
 import { Queue, type QueueTools } from './wire/queue.ts'
 import { Schedules, type WatchTools } from './wire/schedules.ts'
@@ -352,6 +353,8 @@ export class Heart {
   readonly away: Away
   /** The person's other machines as this one has seen them: up, asleep, closed, lost (`machines-seen.ts`). */
   readonly machinesSeen: MachinesSeen
+  /** Each project's branch kept in step with origin and the person's other machines (`project-sync.ts`). */
+  readonly sync: ProjectSync
   /**
    * What was said to the orchestrator before what the conversation holds, read
    * back out of its record: by a face scrolled to the top, and by a page on a
@@ -450,6 +453,7 @@ export class Heart {
     this.wire.opts.extensions?.useConnected(lending(this.linear))
     this.earlier = new Earlier(this.wire)
     this.machinesSeen = machinesSeenFor(this.wire)
+    this.sync = projectSyncFor(this.wire, () => this.told)
     this.away = new Away(this.wire, {
       machines: this.machinesSeen,
       earlier: () => this.earlier.more(),
@@ -541,6 +545,7 @@ export class Heart {
         void this.orchestrator.reflect(tasks)
         void this.batches.beat()
         this.machinesSeen.beat()
+        void this.sync.beat()
         this.away.beat()
         void this.settings.fold(() => this.serversMoved())
         face.beat(tasks, moved)
@@ -672,7 +677,11 @@ export class Heart {
 
   /** What the orchestrator's settings and project tools do, answered here. */
   configTools(): SettingTools & ProjectTools {
-    return { ...this.settings.tools(), ...this.projects.tools() }
+    return {
+      ...this.settings.tools(),
+      ...this.projects.tools(),
+      syncProject: (req) => this.sync.now(req),
+    }
   }
 
   /** What the `ToolHost` asks at every call. `Away.arming` has the argument. */

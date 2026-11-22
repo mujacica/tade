@@ -47,7 +47,7 @@ const said = string(
 )
 
 /**
- * Tade configuring itself: nine tools, the same list every harness is handed.
+ * Tade configuring itself: ten tools, the same list every harness is handed.
  *
  * `rpc` is the way back to the window that holds the config — nothing here can
  * write a file itself, because a change has to be read back, validated and
@@ -222,6 +222,32 @@ export function configTools(
         setting: String(p.setting),
         value: String(p.value ?? ''),
         said: String(p.said ?? ''),
+      }),
+  )
+
+  tool(
+    'tade_project_sync',
+    [
+      'Bring a project’s branch here up to date with origin’s and the person’s other machines’ now, rather than on Tade’s next look — "pull vps’s commits into tade", "sync the app project", "is tade in step with the vps?".',
+      'Tade keeps every project in step by itself (`projects.<name>.sync`, ff unless set): it only ever fast-forwards, to whichever of origin’s branch and each machine’s has all the others’ commits, and refuses rather than touch anybody’s uncommitted work — the answer names every file in the way. Somebody mid-commit or a checks run means it waits and looks again. A branch here with commits the other side lacks is never merged in the shared checkout: a merge is proposed, parked for you to decide with tade_proposal_decide. Every agent working in the checkout is told HEAD moved and which files changed.',
+      'Where the project says ask or off, it moves only when the person asked for it in their own words, naming the project: pass their sentence as `said`. With ff, nothing needs to be said.',
+      'Nothing is pushed anywhere: origin is only fetched from, and pushing stays an agent’s act. Say what the answer says — what moved, or why not.',
+    ].join(' '),
+    object(
+      {
+        project: string('the project name, as configured'),
+        machine: string(
+          'only from this source: `origin`, or another machine by the name it has here. Every source when left out',
+        ),
+        said,
+      },
+      ['project'],
+    ),
+    (p) =>
+      rpc('project/sync', {
+        project: String(p.project),
+        ...(p.machine ? { machine: String(p.machine) } : {}),
+        ...(p.said ? { said: String(p.said) } : {}),
       }),
   )
 

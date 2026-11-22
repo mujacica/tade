@@ -87,6 +87,8 @@ export interface ProjectTools {
     value: string
     said: string
   }): Promise<string>
+  /** Its branch kept in step now (`tade_project_sync`), by the rules a look keeps it by: the heart's `ProjectSync`. */
+  syncProject(req: { project: string; machine?: string; said?: string }): Promise<string>
 }
 
 /** What this subject needs from the rest of the window. */
@@ -331,7 +333,7 @@ export class Projects implements Subject {
    * project opened by somebody who was not at the keyboard is a line in the
    * journal saying so.
    */
-  tools(): ProjectTools {
+  tools(): Omit<ProjectTools, 'syncProject'> {
     return {
       openProject: (req) => this.openAt({ ...req, by: 'orchestrator' }),
       // Through the one writer, so the reach, the person's own words and the

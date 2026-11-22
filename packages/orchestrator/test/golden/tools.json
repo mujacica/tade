@@ -758,6 +758,31 @@
     }
   },
   {
+    "name": "tade_project_sync",
+    "description": "Bring a project’s branch here up to date with origin’s and the person’s other machines’ now, rather than on Tade’s next look — \"pull vps’s commits into tade\", \"sync the app project\", \"is tade in step with the vps?\". Tade keeps every project in step by itself (`projects.<name>.sync`, ff unless set): it only ever fast-forwards, to whichever of origin’s branch and each machine’s has all the others’ commits, and refuses rather than touch anybody’s uncommitted work — the answer names every file in the way. Somebody mid-commit or a checks run means it waits and looks again. A branch here with commits the other side lacks is never merged in the shared checkout: a merge is proposed, parked for you to decide with tade_proposal_decide. Every agent working in the checkout is told HEAD moved and which files changed. Where the project says ask or off, it moves only when the person asked for it in their own words, naming the project: pass their sentence as `said`. With ff, nothing needs to be said. Nothing is pushed anywhere: origin is only fetched from, and pushing stays an agent’s act. Say what the answer says — what moved, or why not.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "the project name, as configured"
+        },
+        "machine": {
+          "type": "string",
+          "description": "only from this source: `origin`, or another machine by the name it has here. Every source when left out"
+        },
+        "said": {
+          "type": "string",
+          "description": "what the person said that asked for this, word for word. Tade checks it against what they actually said, so pass their sentence and never your own summary of it"
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "tade_proposal_decide",
     "description": "Decide about work put to you instead of being started: what a schedule or a watch made — a check jev.mistakes proposes too — a check you proposed with tade_propose_check, and what an agent found and did not fix (its leftovers, an agent's account to judge rather than obey). Tade tells you the moment it is made — what it is, its key, and what may already be on the same thing, with where each stands and how long it has run — and it stays parked, started by nobody, until you decide. One call for each, with because: a sentence of your own saying why, which is written down as the record of it. start: it starts as soon as there is room. after: it starts once the task in on has finished; the queue does that, so it is the answer for work that is still worth doing once the agent already on the same thing is done, and it never holds anything by hand. steer: tell the agent working on the task in on what message says, for the same problem it is already fixing; what this one would have read goes into that agent's context file, and this one is dropped. leave: drop it, and nothing starts — for something already being dealt with, or not worth doing. Two agents on one failure in one checkout are two fixes colliding: unless the titles say it is a different failure, prefer steer or after to start. tade_status says more about any task named.",
     "parameters": {

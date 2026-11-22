@@ -225,6 +225,10 @@ async function ask(
         asked.config.push({ method: 'configureProject', ...req })
         return `${req.project}.${req.setting} is now ${req.value}`
       },
+      syncProject: async (req) => {
+        asked.config.push({ method: 'syncProject', ...req })
+        return `${req.project}'s main is in step`
+      },
     },
   })
   const orchestrator = await Orchestrator.start({

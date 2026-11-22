@@ -291,6 +291,7 @@ export class App {
       screens: () => this.screens,
       files: () => this.files,
       seen: (held) => this.heart.machinesSeen.linked(held),
+      synced: (project) => this.heart.sync.poke(project),
     })
     this.voice = new Voice(this.wire, {
       submit: () => this.keyboard.submit(),

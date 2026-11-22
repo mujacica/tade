@@ -769,6 +769,8 @@ export function remotesFor(
     files: () => { openFile(path: string): void; openLink(url: string): Promise<void> }
     /** The record of which machines are up (`machines-seen.ts`), which a link's moves are written to. */
     seen?: (held: Held) => void
+    /** A remote's branches in one project's mirror moved: that project's branch is looked at again. */
+    synced?: (project: string) => void
   },
 ): Remotes {
   const say = (said: string) => {
@@ -827,7 +829,9 @@ export function remotesFor(
     .withAgents((remotes) => new RemoteAgents(wire, reachingOf(remotes)))
     .withTalks((remotes) => new RemoteTalks(wire, reachingOf(remotes)))
     .withNotes((remotes) => sharedNotesFor(wire, (name) => remotes.reachFor(name), say))
-    .withMirrors((remotes) => mirrorsFor(wire, (name) => remotes.reachFor(name), say))
+    .withMirrors((remotes) =>
+      mirrorsFor(wire, (name) => remotes.reachFor(name), say, subjects.synced),
+    )
     .withMoves(
       (remotes) =>
         new Moves(wire, {

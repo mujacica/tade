@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { mirrorDir, mirrorRef } from '@tade/core'
 import { type FarEnd, startFarEnd } from '@tade/remotes-core/far'
 import { makeScriptedLink } from '@tade/remotes-scripted'
+import { readyMirror } from '@tade/status'
 import { afterEach, describe, expect, it } from 'vitest'
 import { mkrepo, runGit, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { AGAIN_MS, Mirrors } from '../../src/wire/mirrors.ts'
@@ -71,6 +72,7 @@ async function linked() {
     await new Promise((done) => setTimeout(done, 25))
   }
   const said: string[] = []
+  const pokes: string[] = []
   let now = Date.parse('2026-10-17T09:00:00Z')
   const mirrors = new Mirrors({
     home: here.home,
@@ -79,6 +81,8 @@ async function linked() {
     say: (one) => said.push(one),
     now: () => now,
     draw: () => {},
+    fetched: (project) => pokes.push(project),
+    as: () => 'mac',
   })
   return {
     here,
@@ -87,6 +91,7 @@ async function linked() {
     head,
     link,
     said,
+    pokes,
     mirrors,
     later: (ms: number) => {
       now += ms
@@ -179,6 +184,56 @@ describe('another machine’s branches, mirrored here', () => {
     const mirror = mirrorDir(one.here.home, 'app')
     expect(runGit(mirror, 'rev-parse', mirrorRef('vps', 'tade/theirs')).trim()).toBe(one.head)
     expect(one.mirrors.elsewhere()).toEqual({})
+    await one.close()
+  })
+
+  it('pokes this machine’s sync when a fetch brought a remote’s heads here', async () => {
+    const one = await linked()
+    await one.mirrors.beat(['vps'])
+    expect(one.pokes).toEqual(['app'])
+    // A quiet remote fetches nothing, and pokes nothing.
+    one.later(AGAIN_MS)
+    await one.mirrors.beat(['vps'])
+    expect(one.pokes).toEqual(['app'])
+    await one.close()
+  })
+
+  it('hands this machine’s branches to the remote’s own mirror, under this machine’s name, once per move', async () => {
+    const one = await linked()
+    // The far end says where its mirror of the project is, as a Tade there makes it ready.
+    const theirMirror = join(tmp('tade-their-home-'), 'mirror.git')
+    expect(await readyMirror(theirMirror, one.there)).toBeNull()
+    one.far.repositories = [
+      {
+        ...(one.far.repositories[0] as (typeof one.far.repositories)[number]),
+        mirror: theirMirror,
+      },
+    ]
+    const mine = one.here.commit('only here', { 'mine.ts': 'never pushed to origin\n' })
+    await one.mirrors.beat(['vps'])
+    expect(one.said).toEqual([])
+    expect(runGit(theirMirror, 'rev-parse', mirrorRef('mac', 'main')).trim()).toBe(mine)
+    // Its commits are there to be read, not only its ref.
+    expect(runGit(theirMirror, 'cat-file', '-t', mine).trim()).toBe('commit')
+    // Nothing here was touched by handing it over.
+    expect(one.here.head()).toBe(mine)
+
+    // Nothing moved here: nothing pushed, so a ref changed there stays changed.
+    runGit(theirMirror, 'update-ref', '-d', mirrorRef('mac', 'main'))
+    one.later(AGAIN_MS)
+    await one.mirrors.beat(['vps'])
+    expect(runGit(theirMirror, 'for-each-ref', 'refs/remotes/mac/')).toBe('')
+    // A branch here moved: pushed again, and a branch gone here is gone there.
+    one.here.git('branch', 'side')
+    const again = one.here.commit('more here', { 'more.ts': 'more\n' })
+    one.later(AGAIN_MS)
+    await one.mirrors.beat(['vps'])
+    expect(runGit(theirMirror, 'rev-parse', mirrorRef('mac', 'main')).trim()).toBe(again)
+    one.here.git('branch', '-D', 'side')
+    one.here.commit('and more', { 'yet.ts': 'yet\n' })
+    one.later(AGAIN_MS)
+    await one.mirrors.beat(['vps'])
+    expect(heldIn(theirMirror)).toEqual([mirrorRef('mac', 'main')])
     await one.close()
   })
 

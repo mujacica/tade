@@ -676,6 +676,10 @@ describe('changing how Tade is set up', () => {
           asked.push({ configure: req })
           return 'Saved.'
         },
+        syncProject: async (req) => {
+          asked.push({ sync: req })
+          return 'payments was fast-forwarded.'
+        },
       },
     })
     expect((await call(path, 'config/settings', { find: 'commit' })).result).toContain(
@@ -728,6 +732,19 @@ describe('changing how Tade is set up', () => {
         })
       ).result,
     ).toBe('Saved.')
+    // Only what was given is carried: no empty machine or said in their place.
+    expect((await call(path, 'project/sync', { project: 'payments' })).result).toBe(
+      'payments was fast-forwarded.',
+    )
+    expect(
+      (
+        await call(path, 'project/sync', {
+          project: 'payments',
+          machine: 'vps',
+          said: 'pull the vps commits into payments',
+        })
+      ).result,
+    ).toBe('payments was fast-forwarded.')
     expect(asked).toEqual([
       { settings: 'commit' },
       { change: { path: 'agents.commit', value: 'as-you-go', said: 'commit as you go' } },
@@ -744,6 +761,14 @@ describe('changing how Tade is set up', () => {
           said: 'give payments a budget of 20 a day',
         },
       },
+      { sync: { project: 'payments' } },
+      {
+        sync: {
+          project: 'payments',
+          machine: 'vps',
+          said: 'pull the vps commits into payments',
+        },
+      },
     ])
   })
 
@@ -758,6 +783,7 @@ describe('changing how Tade is set up', () => {
       'project/rename',
       'project/reorder',
       'project/configure',
+      'project/sync',
     ]) {
       expect((await call(path, method, {})).error?.message, method).toMatch(/window open/)
     }

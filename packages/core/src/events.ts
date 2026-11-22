@@ -583,6 +583,26 @@ export const EventType = z.enum([
    * `note_retired`'s reason. Written only where something moved.
    */
   'notes_shared',
+  /**
+   * A branch of a project here was fast-forwarded to keep it in step with
+   * origin or another machine (`sync.ts`): which (`project`, `branch`), to
+   * whose (`from`, the sources that had it), the commits it moved between
+   * (`was`, `now`), the files that changed (`files`, the first `FILES_TOLD`,
+   * and `more` past them), the agents told to read again (`told`), and
+   * whether only the ref moved because nothing had it checked out (`byRef`).
+   * The checkout's HEAD moved under its agents, so it is a record.
+   */
+  'project_synced',
+  /**
+   * A branch was not moved for a reason that stands until somebody acts
+   * (`sync.ts`): uncommitted work in the way (`refused`, with every one of
+   * its `paths`), the branch here parted from the target (`diverged`, with
+   * the merge proposed as `proposal`), or two sources parted from each other
+   * (`apart`); `why` in Tade's words. Written once per reason and target,
+   * never per look; a wait for somebody mid-commit or a checks run is never a
+   * line.
+   */
+  'project_sync_held',
   /** Counted present here through an owner's link (`device`): the cursor `since.ts` folds from. */
   'person_present',
   /**
@@ -778,6 +798,11 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   notes_shared: 'routine',
   // Never trace: it is read back as a cursor, and trace is dropped first.
   person_present: 'routine',
+  // Notable: the checkout moved under whoever works in it, and only this says so.
+  project_synced: 'notable',
+  // Routine: the reason is said in the strip as it happens, and a diverged
+  // branch's proposal is its own notable `task_created`.
+  project_sync_held: 'routine',
   said: 'routine',
   tade_opened: 'notable',
   tade_closing: 'notable',

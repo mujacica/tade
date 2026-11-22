@@ -16,7 +16,7 @@
   A │  Voice                     █│     ○ worktree                                                                █│    
   M │                            █│                                                                               █│    
     │  Window                    █│▌What is pushed            never                                ▾              █│    
- ▾ F│                            █│▌                         never: nothing of search reaches its remote; branch: █│    
+ ▾ F│                            █│▌                         never: nothing of search reaches its remote; branch: ▕│    
    ▾│  Away view                 █│▌                         agents push the branch they are on; branch-and-revi… ▕│    
     │                            █│▌                                                                              ▕│    
     │  Intake                    █│ Worktree setup            what the project says                               ▕│    

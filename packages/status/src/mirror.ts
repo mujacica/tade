@@ -192,6 +192,61 @@ async function fetchOnce(
 }
 
 /**
+ * This machine's branches pushed into another machine's mirror of the same
+ * repository, under this machine's name there (`refs/remotes/<machine>/*`):
+ * what that machine keeps its own checkout in step from, for commits this
+ * one has not pushed to origin (`sync.ts`). Its namespace is this machine's
+ * alone, so it is forced and pruned to match; nothing else there is touched,
+ * and no hook of the project's runs, because nothing is offered for review.
+ * Null when it went, or why not.
+ */
+export async function pushMirror(
+  checkout: string,
+  machine: string,
+  to: FetchFrom,
+  timeoutMs = FETCH_MS,
+): Promise<string | null> {
+  if (!MACHINE.test(machine)) return `${JSON.stringify(machine)} is not a machine's name`
+  const ran = await runProgram(
+    'git',
+    [
+      '-C',
+      checkout,
+      'push',
+      '--quiet',
+      '--no-verify',
+      '--no-follow-tags',
+      '--prune',
+      to.url,
+      `+refs/heads/*:${mirrorRef(machine, '*')}`,
+    ],
+    {
+      timeoutMs,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', ...to.env },
+    },
+  )
+  if (ran.missing) return 'there is no git on this machine'
+  if (ran.timedOut) return `pushing to ${machine}'s mirror did not finish in ${timeoutMs / 1000}s`
+  if (ran.code === 0) return null
+  const said = ran.stderr
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+  const why = said.find((line) => /^(fatal|error):/.test(line)) ?? said[0]
+  return why?.replace(/^(fatal|error):\s*/, '').slice(0, 300) || `git push exited ${ran.code}`
+}
+
+/** This checkout's own branches and the commit each is on: what a push into a mirror would carry. */
+export async function headsHere(checkout: string): Promise<string | null> {
+  const out = await git(checkout, [
+    'for-each-ref',
+    '--format=%(objectname) %(refname)',
+    'refs/heads/',
+  ])
+  return out.ok ? out.stdout : null
+}
+
+/**
  * The commit each of a machine's branches is on in the mirror, by ref — every
  * machine's where none is named — or null where git could not say, which is
  * never the same as none: a mirror nothing was fetched into answers an empty map.

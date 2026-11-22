@@ -512,11 +512,23 @@ one when you ask for something there by its name — never when the words came f
 
 **Where one repository is a project on both machines**, the VPS's branches come to the Mac over
 the same SSH connection, into a mirror in Tade's home that borrows your checkout's objects — so it
-costs only what the VPS added, and nothing is ever written into your checkout. Two machines are the
+costs only what the VPS added. Two machines are the
 same repository when their `origin` names the same one, whatever the projects are called. From it
 the collision forecast adds the VPS's live branches: a branch here that would conflict with one
 there wears `⇄`, and the Mac's orchestrator is told once, with where to fetch the other branch from
 to merge it in — the side on the VPS is that machine's own.
+
+**And each machine keeps its checkout in step.** When `main` moves on origin or on the other
+machine, this one fast-forwards its own — and only ever fast-forwards: never a `git pull`, never a
+merge or a rebase in a checkout agents share, never a stash. Somebody mid-commit or a checks run
+means it waits and looks again; a file the incoming commits change that is uncommitted here —
+modified, staged, untracked, even ignored — means it refuses, naming every such file, and touches
+nothing. Every agent working in that checkout is told HEAD moved and which files changed. Where the
+two branches have parted, the merge comes to the orchestrator as a proposal, worked in a worktree
+of its own. The Mac also hands its own branches to the VPS's mirror over the same connection, so
+commits nobody pushed to origin reach a VPS that cannot dial the Mac. Each project says whether
+(Settings › Projects › Keep in step: `ff` by default, `ask`, `off`), and "sync tade with the vps"
+does it now.
 
 **And its watches run on one of them.** A watch on GitHub, Slack, Linear, Sentry or your
 dependencies finds the same thing from either machine, so one red build would be two findings and

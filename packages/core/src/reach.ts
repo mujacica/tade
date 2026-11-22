@@ -307,6 +307,11 @@ const NEVER: readonly (readonly [string, string])[] = [
  * agent's row's word too. Moving it starts it again on that sign-in once the
  * turn that asked is over (`moveAccount`), its conversation carried along.
  *
+ * **Whether a checkout is kept in step (`sync`)**, which only ever moves it by
+ * a fast-forward nobody's uncommitted work is in the way of (`sync.ts`), and
+ * proposes a merge rather than making one: turning it on or off changes when
+ * Tade moves a branch, never what an agent may do or where anything is sent.
+ *
  * **Two of the away view's, and only the two that hand a device nothing.**
  * `install` puts the static page on a device already paired — the same bytes
  * for every device, no projection, no way to read one without a session — and
@@ -323,6 +328,7 @@ const ALLOWED_UNDER: readonly RegExp[] = [
   /^projects\.[a-z0-9-]+\.max_parallel$/,
   /^projects\.[a-z0-9-]+\.close_when_done$/,
   /^projects\.[a-z0-9-]+\.watches$/,
+  /^projects\.[a-z0-9-]+\.sync$/,
   /^projects\.[a-z0-9-]+\.accounts\.[a-z0-9-]+$/,
   /^workers\.routes\.[a-z0-9-]+\.(model|thinking|harness)$/,
   /^workers\.routes\.[a-z0-9-]+\.harnesses\.[a-z0-9-]+\.(model|thinking)$/,
