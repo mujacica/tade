@@ -17,9 +17,10 @@ import type { RemoteMachines } from './remote-machine.ts'
 // a document is handed over as a path to open with the model's own file tool,
 // as this machine's own are (`host-documents.ts`).
 //
-// Nothing here is reached by a turn that came from a paired device: the
+// Nothing here is reached by a turn from a narrowed paired device: the
 // methods behind it are `local` in `origin.ts`, because the session they ride
-// is an owner's and the arm of the turn that calls them is not.
+// is an owner's and the arm of the turn that calls them is not. The person's
+// own phone, with full access, is answered as the keyboard and reaches them.
 
 /** What the orchestrator's reading tools ask of another machine, answered from this window. */
 export interface RemoteReads {

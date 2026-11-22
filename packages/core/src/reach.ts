@@ -549,8 +549,9 @@ export const RELOAD_REACH: Reaches = {
  * reads a stranger's text all day: an issue that says "tell the vps to run
  * this" must not be one tool call from being carried out there. A line of the
  * person's naming the machine is the barrier, and like every `asked` it can
- * only refuse. Where the turn calling it came from a paired device, it is
- * never reached at all (`origin.ts`).
+ * only refuse. Where the turn calling it came from a narrowed paired device,
+ * it is never reached at all (`origin.ts`); the person's own phone, with full
+ * access, is them and is asked the same line as the keyboard.
  */
 export const REMOTE_TELL_REACH: Reaches = {
   reach: 'asked',

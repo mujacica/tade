@@ -7,6 +7,8 @@ import { PASSKEY_BEFORE_ACTING, PASSKEY_BEFORE_ACTING_SHORT } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { appendDevice, readDevices } from '../src/devices.ts'
 import { ENROL_MS, PROVE_TRIES } from '../src/passkeys.ts'
+import { GRANTS } from '../src/reach.ts'
+import { SCOPES } from '../src/surface.ts'
 import { userIdOf } from '../src/webauthn.ts'
 import { type Ceremony, SoftAuthenticator } from './authenticator.ts'
 import { type Answer, actingStub, ask, closeAll, pair, type Running, start } from './harness.ts'
@@ -32,8 +34,8 @@ interface Phone {
   clock: { at: number }
 }
 
-/** A machine with a public name, and a phone paired through it that may steer. */
-async function phone(hours = 12): Promise<Phone> {
+/** A machine with a public name, and a phone paired through it that may steer — or do everything. */
+async function phone(hours = 12, full = false): Promise<Phone> {
   const dir = await mkdtemp(join(tmpdir(), 'tade-pk-'))
   // This user's own group first: a folder in `/tmp` is `wheel`'s, and a setgid
   // bit on a group its owner is not in is dropped without a word.
@@ -42,10 +44,19 @@ async function phone(hours = 12): Promise<Phone> {
   const socket = join(dir, 'away.sock')
   const clock = { at: Date.now() }
   const one = await start(
-    { publicName: NAME, trustedHosts: [NAME], passkeyMs: hours * HOUR, acting: true },
+    {
+      publicName: NAME,
+      trustedHosts: [NAME],
+      passkeyMs: hours * HOUR,
+      acting: true,
+      talking: full,
+    },
     { publicSocket: socket, acting: actingStub(), now: () => clock.at },
   )
-  one.answer = async () => ({ let: true, projects: null, granted: [], scopes: ['read', 'steer'] })
+  one.answer = async () =>
+    full
+      ? { let: true, projects: null, granted: [...GRANTS], scopes: [...SCOPES] }
+      : { let: true, projects: null, granted: [], scopes: ['read', 'steer'] }
   const paired = await viaCaddy(socket, '/api/pair', {
     method: 'POST',
     body: { ticket: one.tickets.mint(`${ORIGIN}/pair`, clock.at).value, label: 'iPhone' },
@@ -223,6 +234,21 @@ describe('a passkey, made in the minutes after pairing', () => {
     expect(set.status).toBe(404)
     expect(await park(p)).toEqual({ status: 403, error: 'unproven' })
     expect((await as(p, '/api/snapshot')).status).toBe(200)
+  })
+
+  it('stands in front of the person’s own phone talking to Tade, which reaches what the Mac does', async () => {
+    // Full access answers a phone's message with the keyboard's reach, so the
+    // public name asks the same proof of it as of any act: a session copied
+    // off the phone reads and cannot start, sync or change anything.
+    const p = await phone(12, true)
+    const ask = async () => {
+      const got = await as(p, '/api/ask/ask', { said: 'sync sentry', was: 'idle' })
+      return (JSON.parse(got.text) as { error?: string }).error ?? ''
+    }
+    expect(await ask()).toBe('unproven')
+    expect((await enrol(p)).status).toBe(200)
+    // Past the gate: refused now only because no window was handed this server to answer it.
+    expect(await ask()).toBe('no_such')
   })
 
   it('is one per device: a second is never made over the first', async () => {

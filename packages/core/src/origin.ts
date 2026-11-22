@@ -312,17 +312,19 @@ export const OWNER_IS_YOUR_SSH_KEY =
   '`tade web revoke <device>` ends it, with no window and no network.'
 
 /**
- * What a remote request is told when it asked for something only the machine
+ * What a narrowed request is told when it asked for something only the person
  * can do.
  *
  * One sentence, and it says the *requirement* rather than naming the setting
- * or the tool: an off capability is not a thing to probe, and the person who
- * needs to know is standing at the machine. It is deliberately not "you are
- * not allowed" — the honest shape is that the act exists and needs a person
- * here, which is a thing somebody can act on.
+ * or the tool: an off capability is not a thing to probe. It is deliberately
+ * not "you are not allowed" — the honest shape is that the act exists and
+ * needs the person, which is a thing somebody can act on. **Both places the
+ * person is**, because a narrowed device is never their only screen: their own
+ * device with full access is answered as the keyboard (`Arm`'s owner variant),
+ * so "only at the machine" would send them home for something their phone does.
  */
 export function needsYouHere(what: string): string {
-  return `${what} needs the person at the machine. Nothing a paired device asks for can do it, so say that rather than trying another way.`
+  return `${what} needs the person at the machine, or on their own device with full access. Nothing this device asks for can do it, so say that rather than trying another way.`
 }
 
 /**

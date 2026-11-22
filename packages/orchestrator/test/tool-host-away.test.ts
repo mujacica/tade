@@ -20,6 +20,7 @@ describe('what a call from away may reach, over the socket', () => {
   const told: Array<{ task: string; said: string }> = []
   const refused: Array<{ device: string; method: string }> = []
   const decided: Array<{ run: string; requestId: string }> = []
+  const synced: Array<Record<string, unknown>> = []
   let arm: Arm = LOCAL
   let statusAsked = 0
 
@@ -67,6 +68,7 @@ describe('what a call from away may reach, over the socket', () => {
     told.length = 0
     refused.length = 0
     decided.length = 0
+    synced.length = 0
     statusAsked = 0
     held = [waitingOn({ run: 'sentry/flake/agent', task: 'sentry/flake', requestId: 'perm_1' })]
     arm = LOCAL
@@ -89,7 +91,10 @@ describe('what a call from away may reach, over the socket', () => {
         renameProject: async () => '',
         reorderProjects: async () => '',
         configureProject: async () => '',
-        syncProject: async () => '',
+        syncProject: async (req) => {
+          synced.push(req)
+          return 'synced'
+        },
       },
       remote: {
         arm: () => arm,
@@ -132,6 +137,44 @@ describe('what a call from away may reach, over the socket', () => {
     expect(said.error?.message).toContain('needs the person at the machine')
     expect(changed).toEqual([])
     expect(refused).toEqual([{ device: 'a1b2c3d4e5f60718', method: 'config/change' }])
+  })
+
+  it('lets the person’s own phone sync a project and change a setting, as the keyboard does', async () => {
+    // **Their remote view reaches what the Mac does.** A device with full
+    // access is answered as the keyboard at both gates — the harness's
+    // (`origin/allow`) and this socket's — so `tade_project_sync` reaches the
+    // window, which then asks what it asks of a keyboard turn too (a line of
+    // theirs naming the project, `namedBy`). Nothing is written as refused.
+    const path = await listen()
+    arm = { how: 'owner', device: 'a1b2c3d4e5f60718', theirs: true }
+    expect((await call(path, 'origin/allow', { tool: 'tade_project_sync' })).result).toEqual({
+      allow: true,
+    })
+    const said = await call(path, 'project/sync', { project: 'sentry', said: 'sync sentry' })
+    expect(said.result).toBe('synced')
+    expect(synced).toEqual([{ project: 'sentry', said: 'sync sentry' }])
+    const set = await call(path, 'config/change', { path: 'checks.before', value: 'false' })
+    expect(set.error).toBeUndefined()
+    expect(changed).toHaveLength(1)
+    expect(refused).toEqual([])
+  })
+
+  it('keeps project sync from a narrowed device and a read-only one, and says so', async () => {
+    const path = await listen()
+    for (const narrow of [away({ may: ['answer', 'steer'] }), away()]) {
+      arm = narrow
+      const gate = await call(path, 'origin/allow', { tool: 'tade_project_sync' })
+      expect(gate.result).toMatchObject({ allow: false })
+      const said = await call(path, 'project/sync', { project: 'sentry', said: 'sync sentry' })
+      expect(said.error?.message).toContain('on their own device with full access')
+    }
+    expect(synced).toEqual([])
+    expect(refused.map((one) => one.method)).toEqual([
+      'tade_project_sync',
+      'project/sync',
+      'tade_project_sync',
+      'project/sync',
+    ])
   })
 
   it('answers “where are we” with that device’s own projection, never with status', async () => {

@@ -506,7 +506,8 @@ the laptop opens and the link comes back after a while, the tab says what the VP
 since this Mac last told it you were at the keyboard: what waits on you, what finished, what is
 waiting to be read, what is held, what it cost. The Mac's orchestrator is told a line about each
 machine with everything you say to it (`vps: 3 working, 1 wants you`), and passes a sentence on to
-one when you ask for something there by its name — never when the words came from a phone.
+one when you ask for something there by its name — from your own phone too, whose words are yours, but
+never when they came from a device with anything unticked.
 
 ![The VPS's orchestrator on a tab beside the Mac's, with what happened there since you were last here](https://raw.githubusercontent.com/mujacica/tade/main/images/remote-orchestrator.svg)
 
@@ -630,7 +631,9 @@ a box each, ticked where it was granted, and pointing at a box says in one line 
 **Your own phone is you.** Paired with full access — every box ticked, which is what pairing gives
 unless you untick one — it does whatever you can at the machine Tade runs on: what you type there
 is your own words, it changes any setting, a key included (typed, never shown), and the orchestrator
-answers it with the reach your keyboard has. Pulling the plug is revoking it — **Sign out** beside it in the
+answers it with the reach your keyboard has — starting and planning work, syncing a project, opening a
+terminal, passing a sentence on to another machine. What it cannot ask for, the keyboard cannot
+either: a `never` setting, and anything an agent's own output asks for. Pulling the plug is revoking it — **Sign out** beside it in the
 device list, or `tade web revoke` — and that takes it back at its next press. A device with anything
 unticked keeps exactly what is ticked, its messages are never your words, and Tade's tools are
 narrowed in code to its view. Every device acts only from this machine or an `https` name you

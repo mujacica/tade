@@ -502,7 +502,13 @@ a device still has none of the scopes that change anything until somebody at thi
   `theirs`, from any door the guard let it through, on any harness; what they type is `said`. It is
   answered every `Route.theirs` route — all of `OWNED`, presence, the connect page and presses —
   from any door (`sessionOf` marks the session, `ownsOrTheirs` gates each owner's handler), and
-  every other device keeps exactly what it had.
+  every other device keeps exactly what it had. Its orchestrator turn reaches **every** tool and
+  method `origin.ts` holds `local` — `tade_project_sync`, starting work, a terminal, a setting, a
+  sentence to another machine — because neither table is asked of an owner arm; a `local` clause
+  is a reason the words might not be the person's, so never add one that would hold their own phone
+  (`origin.test.ts` asserts every `local` line is open to it, `tool-host-away.test.ts` over the
+  socket). What it still cannot reach is what the keyboard cannot either, held in the window for
+  every arm: a `never` setting, and an act needing a `said` line an agent's output never is.
   Unticking any box makes it a device with exactly what is left, and revoking is read at every call.
 - **A body of `null` is a body.** `readBody` returns a discriminated answer, because `unknown | null`
   made a four-byte `null` indistinguishable from "already refused" and held the request open for ever.
@@ -865,6 +871,8 @@ So: its own setting, its own scope (`ask`, implied by neither acting tier), its
 own table (`ASKS`), its own interface (`WebAsking`), its own event type
 (`web_asked`) and its own grant control in the panel.
 
+- **The gates are a narrowed device's.** A device with full access is the owner arm (`theirs`),
+  answered as the keyboard at both, on any harness; everything below is about every other device.
 - **What makes it safe is two gates and a closed list, not the sentence Tade
   prepends.** `cameFromAway` is kept because a person reading the transcript
   needs it and because it tells the model why a refusal is correct — it is

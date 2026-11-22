@@ -124,7 +124,11 @@ export type Reaching =
   | { kind: 'read' }
   /** Reachable where the device was granted this. */
   | { kind: 'needs'; grant: RemoteGrant }
-  /** Never from a remote turn, and the clause saying why. */
+  /**
+   * Never from a narrowed turn, and the clause saying why. The person's own
+   * device with full access is not narrowed, so it reaches these as the
+   * keyboard does (`narrowedArm`): every clause is about a device that is not them.
+   */
   | { kind: 'local'; because: string }
 
 /** The decision: a sentence the caller is given when it is no. */
@@ -175,6 +179,16 @@ const READS_ELSEWHERE =
  * ask Tade for in words, it could already have pressed — which is the property
  * worth having, because it means talking to Tade adds no authority to a phone,
  * only a way to use what it has.
+ *
+ * **It is a narrowed device's table, and the person's own phone never reads
+ * it.** A device paired with full access is them (`Arm`'s owner variant with
+ * `theirs`), so `allowTool` and `allowMethod` answer its turn as the keyboard's
+ * and every `local` line below is open to it — `tade_project_sync`, starting
+ * work, a terminal, a setting — because the only reason each is held is that
+ * the words might not be the person's. What stays out of reach from their phone
+ * is what stays out of reach from the Mac too, and is enforced in the window
+ * for every arm: a `never` setting (`settingReach`), and an act that needs a
+ * line the person said, which an agent's output never is (`namedBy`).
  */
 export const REMOTE_TOOLS: Readonly<Record<string, Reaching>> = {
   // The one read, and it is narrowed rather than trusted: under a remote arm

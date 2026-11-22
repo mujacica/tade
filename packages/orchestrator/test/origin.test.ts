@@ -151,7 +151,34 @@ describe('what a remote turn may reach', () => {
     expect(wordsHeading(LOCAL)).toBe(THEIR_WORDS)
   })
 
-  it('never passes a phone’s words on to another machine, where they would be its owner’s', () => {
+  it('opens every tool and method to the person’s own phone that a narrowed one is kept from', () => {
+    // **The phone is their remote view, so it reaches what the Mac does.**
+    // Every `local` line is held because the words might not be the person's;
+    // a device with full access is them, so not one of those holds for it —
+    // `tade_project_sync` and the rest of the executing, granting, publishing
+    // and wide-reading tools included. The narrowed device beside it, granted
+    // both tiers and every project, is still refused each one.
+    const yours: Arm = { how: 'owner', device: 'a1b2c3d4e5f60718', theirs: true }
+    const everything = arm({ may: ['answer', 'steer'] })
+    const held = Object.entries(REMOTE_TOOLS).filter(([, reach]) => reach.kind === 'local')
+    expect(held.map(([tool]) => tool)).toContain('tade_project_sync')
+    for (const [tool] of held) {
+      expect(allowTool(tool, yours), tool).toEqual({ ok: true })
+      expect(allowTool(tool, everything).ok, tool).toBe(false)
+    }
+    const kept = Object.entries(REMOTE_METHODS).filter(([, m]) => m.reaching.kind === 'local')
+    expect(kept.map(([method]) => method)).toContain('project/sync')
+    for (const [method] of kept) {
+      expect(allowMethod(method, { project: 'sentry' }, yours), method).toEqual({ ok: true })
+      expect(allowMethod(method, { project: 'sentry' }, everything).ok, method).toBe(false)
+    }
+    // And what a narrowed one is told says where the person can do it.
+    const refused = allowTool('tade_project_sync', everything)
+    expect(refused.ok).toBe(false)
+    if (!refused.ok) expect(refused.said).toContain('on their own device with full access')
+  })
+
+  it('never passes a narrowed phone’s words on to another machine, where they would be its owner’s', () => {
     // This machine is an owner of another (`tade remote
     // add`), so what it passes there runs with that machine's keyboard's
     // reach. A turn here that came from a paired device is narrowed; passing
@@ -170,10 +197,13 @@ describe('what a remote turn may reach', () => {
     const method = allowMethod('remote/tell', { machine: 'vps', said: 'start the release' }, phone)
     expect(method.ok).toBe(false)
     if (!method.ok) expect(method.said).toContain('no narrowing goes with them')
-    // The person at the keyboard, and an owner of this machine, pass it on.
+    // The person at the keyboard, an owner of this machine, and the person's
+    // own phone — whose words are theirs, so nothing is laundered — pass it on.
     expect(allowTool('tade_remote_tell', LOCAL)).toEqual({ ok: true })
     const owner: Arm = { how: 'owner', device: 'a1b2c3d4e5f60718' }
     expect(allowMethod('remote/tell', { machine: 'vps' }, owner)).toEqual({ ok: true })
+    const yours: Arm = { ...owner, theirs: true }
+    expect(allowTool('tade_remote_tell', yours)).toEqual({ ok: true })
   })
 
   it('refuses a setting change however the request is worded', () => {
