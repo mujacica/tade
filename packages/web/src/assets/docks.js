@@ -67,11 +67,18 @@ export function forgetFolds() {
  */
 const SHORT = '(pointer: coarse) and (max-height: 760px)'
 
-/** The widths at which a dock is a part of the frame rather than a drawer. Held equal to `dock.css`. */
-const DOCKED_FROM = { menu: 1100, side: 1280, tade: 768 }
+/**
+ * Where a dock is a part of the frame rather than a drawer. Held equal to
+ * `dock.css`: Tade from a tablet's width, except on a phone held sideways,
+ * which is a touch screen as wide as a tablet and too short to dock anything.
+ */
+const DOCKED_AT = {
+  menu: '(min-width: 1100px)',
+  side: '(min-width: 1280px)',
+  tade: '(min-width: 768px) and (min-height: 541px), (min-width: 768px) and (pointer: fine)',
+}
 
-const docked = (which) =>
-  globalThis.matchMedia?.(`(min-width: ${DOCKED_FROM[which]}px)`).matches === true
+const docked = (which) => globalThis.matchMedia?.(DOCKED_AT[which]).matches === true
 
 /**
  * The folds wired to the frame: the kept state put back, every press that
@@ -164,13 +171,11 @@ export function docksOn(shown) {
   shown.scrim.addEventListener('click', close)
   // A drawer left open while the window grew into a desk is a part of the frame
   // now: the class goes, and the words on every press follow the width.
-  for (const which of Object.keys(DOCKED_FROM)) {
-    globalThis
-      .matchMedia?.(`(min-width: ${DOCKED_FROM[which]}px)`)
-      .addEventListener?.('change', () => {
-        if (which !== 'menu') open[which] = false
-        paint()
-      })
+  for (const which of Object.keys(DOCKED_AT)) {
+    globalThis.matchMedia?.(DOCKED_AT[which]).addEventListener?.('change', () => {
+      if (which !== 'menu') open[which] = false
+      paint()
+    })
   }
   // Following a link out of a drawer is leaving it.
   for (const part of [shown.side, shown.dock]) {

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { mediaAt } from '../scripts/still-css.ts'
 import { assetsDir } from '../src/assets.ts'
 import { scripts, sheets } from './asset-files.ts'
 import { contrast, hexOf } from './colour.ts'
@@ -307,6 +308,34 @@ describe('the layout', () => {
   it('keeps room for the tab bar and the phone’s own safe area', () => {
     expect(AWAY).toContain('env(safe-area-inset-bottom)')
     expect(HTML).toContain('viewport-fit=cover')
+  })
+
+  it('gives a phone held sideways a phone’s frame, however wide it is', () => {
+    // An iPhone sideways is 844 to 932 wide and under 430 tall: past the
+    // tablet's width, it got the icon rail, a two-line command field and Tade
+    // docked under half a screen. The tablet's query is one, in three files.
+    const tablet = [...read('frame.css').matchAll(/@media (\(min-width: 768px\)[^{]*)\{/g)]
+    const tablets = [
+      ...tablet,
+      ...read('dock.css').matchAll(/@media (\(min-width: 768px\)[^{]*)\{/g),
+    ]
+    const query = tablets[0]?.[1]?.trim() ?? ''
+    expect(tablets.map((one) => one[1]?.trim())).toEqual([query, query, query])
+    expect(read('docks.js')).toContain(`tade: '${query}'`)
+    const sideways =
+      /@media ([^{]*\(orientation: landscape\)[^{]*)\{/.exec(read('frame.css'))?.[1] ?? ''
+    const at = (width: number, height: number, pointer: 'fine' | 'coarse') => ({
+      tablet: mediaAt(query, { width, height, pointer, scope: 'x' }),
+      sideways: mediaAt(sideways, { width, height, pointer, scope: 'x' }),
+    })
+    expect(at(932, 430, 'coarse')).toEqual({ tablet: false, sideways: true })
+    expect(at(852, 393, 'coarse')).toEqual({ tablet: false, sideways: true })
+    expect(at(678, 466, 'coarse')).toEqual({ tablet: false, sideways: true })
+    // The Duo's inner screen sideways and a tablet either way up keep the tablet's.
+    expect(at(951, 669, 'coarse')).toEqual({ tablet: true, sideways: false })
+    expect(at(1024, 768, 'coarse')).toEqual({ tablet: true, sideways: false })
+    // A desk's short window has a pointer, and keeps its rail.
+    expect(at(1280, 500, 'fine')).toEqual({ tablet: true, sideways: false })
   })
 
   it('pins the frame to the screen, and scrolls only the regions inside it', () => {

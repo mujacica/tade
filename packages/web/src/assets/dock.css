@@ -606,7 +606,8 @@
 
 /* ── a tablet: Tade docked at the foot of the work, the side a drawer ──────── */
 
-@media (min-width: 768px) {
+/* Not a phone held sideways, which keeps Tade a sheet (`frame.css`'s tablet). */
+@media (min-width: 768px) and (min-height: 541px), (min-width: 768px) and (pointer: fine) {
   .work > .bars {
     padding-inline: var(--s5);
   }

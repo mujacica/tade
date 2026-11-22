@@ -274,9 +274,10 @@ kbd {
 /*
   From a tablet up the clock is the header's quiet status: the dot and the
   words, pushed to the end, with a hairline pill round them so it reads as one
-  thing. The dot says how the page stands; the words say since when.
+  thing. The dot says how the page stands; the words say since when. Not on
+  a phone held sideways, which keeps a phone's header (the tablet's frame below).
 */
-@media (min-width: 768px) {
+@media (min-width: 768px) and (min-height: 541px), (min-width: 768px) and (pointer: fine) {
   .fresh {
     flex: 0 1 auto;
     margin-inline-start: auto;
@@ -570,8 +571,13 @@ kbd {
   device not yet paired — there is no bar, and nothing makes room for one.
   With the keyboard up the bar steps aside as it does upright (`.keyboard-up`),
   since four presses do not fit beside the room the keyboard leaves.
+
+  **Every phone sideways, not only the Duo's outer screen**: an iPhone held
+  sideways is 844 to 932px wide and under 430 tall, so a short touch screen is
+  a phone whatever its width, and the tablet's frame stands down for it.
 */
-@media (max-width: 767px) and (orientation: landscape) and (max-height: 540px) {
+@media (max-width: 767px) and (orientation: landscape) and (max-height: 540px),
+  (orientation: landscape) and (max-height: 540px) and (pointer: coarse) {
   :root:not(.keyboard-up):has(.frame:not(.is-outside)) body {
     padding-inline-start: calc(var(--s4) + var(--side-tabs) + env(safe-area-inset-left));
   }
@@ -747,7 +753,12 @@ main[tabindex="-1"]:focus {
 
 /* ── tablet: an icon rail, Tade docked at the foot, and no tab bar ─────────── */
 
-@media (min-width: 768px) {
+/*
+  From 768px wide, unless it is a touch screen 540px tall or less: that is a
+  phone held sideways, and it keeps the phone's frame with its tab bar down the
+  left edge (above). The same query is the tablet's in `dock.css` and `docks.js`.
+*/
+@media (min-width: 768px) and (min-height: 541px), (min-width: 768px) and (pointer: fine) {
   body {
     padding-inline: var(--s5);
   }
