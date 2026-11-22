@@ -228,7 +228,6 @@ export const UNSEEN: Record<string, string> = {
   'packages/cli/src/commands/notes.ts': 'a command of the binary',
   'packages/cli/src/commands/proposals.ts': 'a command of the binary',
   'packages/cli/src/commands/queue.ts': 'a command of the binary',
-  'packages/cli/src/commands/remote.ts': 'a command of the binary',
   'packages/cli/src/commands/schedules.ts': 'a command of the binary',
   'packages/cli/src/commands/serve.ts': 'a command of the binary',
   'packages/cli/src/commands/setup.ts': 'a command of the binary',
@@ -313,8 +312,6 @@ export const LOADED: Record<string, number> = {
   'packages/cli/src/commands/notes.ts': 1,
   'packages/cli/src/commands/proposals.ts': 2,
   'packages/cli/src/commands/queue.ts': 3,
-  // Two: registering it runs the arrow that names the connect pages in its help.
-  'packages/cli/src/commands/remote.ts': 2,
   'packages/cli/src/commands/schedules.ts': 1,
   'packages/cli/src/commands/serve.ts': 1,
   'packages/cli/src/commands/setup.ts': 1,
@@ -325,7 +322,7 @@ export const LOADED: Record<string, number> = {
   'packages/cli/src/commands/tasks.ts': 1,
   'packages/cli/src/commands/templates.ts': 2,
   'packages/cli/src/commands/update.ts': 1,
-  // Two, as `remote.ts`: the arrow that names the connect pages in its help.
+  // Two: registering it runs the arrow that names the connect pages in its help.
   'packages/cli/src/commands/web.ts': 2,
 }
 
