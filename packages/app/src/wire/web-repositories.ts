@@ -16,10 +16,22 @@ import { inTime, type RepositoryHere, type WebRepositories } from '@tade/web'
 /** How long either question about a checkout may take before it is answered as unknown. */
 const LOOK_MS = 5_000
 
-/** The window's `WebRepositories`, over whatever status last looked at. */
-export function repositoriesFrom(world: () => Workspace | null, home: string): WebRepositories {
+/**
+ * The window's `WebRepositories`, over whatever status last looked at. `said`
+ * is told why a project's mirror could not be made ready — once for each reason
+ * until it is made — because the answer then leaves `mirror` out without a
+ * word, and the other machine stops pushing into it, so this machine is the one
+ * place it can be said, and it may have no screen.
+ */
+export function repositoriesFrom(
+  world: () => Workspace | null,
+  home: string,
+  said?: (message: string) => void,
+): WebRepositories {
   // Each project's mirror, made ready once while this window is open: by its root, which is what it borrows from.
   const ready = new Map<string, Promise<string | null>>()
+  // The last reason said for each, so another machine asking every minute is not a warning every minute.
+  const told = new Map<string, string>()
   const mirrorOf = (project: Workspace['projects'][number]): Promise<string | null> => {
     const mirror = mirrorDir(home, project.name)
     const key = `${mirror}\0${project.root}`
@@ -28,8 +40,18 @@ export function repositoriesFrom(world: () => Workspace | null, home: string): W
       // One that could not be made is asked again next time, not remembered as none.
       made = readyMirror(mirror, project.root).then(
         (problem) => {
-          if (problem !== null) ready.delete(key)
-          return problem === null ? mirror : null
+          if (problem === null) {
+            told.delete(key)
+            return mirror
+          }
+          ready.delete(key)
+          if (told.get(key) !== problem) {
+            told.set(key, problem)
+            said?.(
+              `${project.name}'s mirror could not be made ready, so another machine cannot hand its branches here: ${problem}`,
+            )
+          }
+          return null
         },
         (err: unknown) => {
           ready.delete(key)

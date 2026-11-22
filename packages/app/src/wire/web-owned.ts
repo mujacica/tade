@@ -33,7 +33,14 @@ export function ownedFor(
   return {
     attaching: attachingFor(wire.opts.client),
     notes: notesFor(wire),
-    repositories: repositoriesFrom(() => wire.live?.world ?? null, wire.opts.home),
+    repositories: repositoriesFrom(
+      () => wire.live?.world ?? null,
+      wire.opts.home,
+      (message) =>
+        void wire.opts.client.log
+          .append({ type: 'warning', detail: { message } })
+          .catch((err: unknown) => wire.note(err)),
+    ),
     machine: machineFrom(wire, {
       public: () => {
         const shown = publicOf(away())

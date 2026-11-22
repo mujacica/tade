@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { type GitSnapshot, mirrorDir, type Task, type Workspace } from '@tade/core'
 import { describe, expect, it } from 'vitest'
@@ -81,6 +81,30 @@ describe('where this machine’s work is, for another machine', () => {
     // Made ready, bare, in this home: never inside the checkout.
     expect(existsSync(join(mirror, 'HEAD'))).toBe(true)
     expect(mirror.startsWith(repo.home)).toBe(true)
+  })
+
+  it('says why a mirror could not be made ready, once for each reason, and answers it once it can be', async () => {
+    const repo = mkrepo()
+    const root = join(repo.home, 'not-yet-a-checkout')
+    mkdirSync(root)
+    const world = { projects: [{ name: 'app', root, tasks: [] }] } as unknown as Workspace
+    const said: string[] = []
+    const repositories = repositoriesFrom(
+      () => world,
+      repo.home,
+      (message) => said.push(message),
+    )
+    const first = await repositories()
+    const again = await repositories()
+    expect(first[0]).not.toHaveProperty('mirror')
+    expect(again[0]).not.toHaveProperty('mirror')
+    expect(said).toHaveLength(1)
+    expect(said[0]).toContain(`app's mirror could not be made ready`)
+    expect(said[0]).toContain(`${root} is not a checkout git can read`)
+    // Asked again rather than remembered as none: once git can read it, the mirror is there.
+    repo.git('init', '--quiet', root)
+    expect((await repositories())[0]?.mirror).toBe(mirrorDir(repo.home, 'app'))
+    expect(said).toHaveLength(1)
   })
 
   it('answers nothing before status has looked, rather than a world with nothing in it', async () => {
