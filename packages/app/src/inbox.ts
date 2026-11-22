@@ -353,11 +353,11 @@ export function machinesSaid(
 }
 
 /** How many agents of one project there are said by name, before the rest are counted. */
-const TOLD_PER_PROJECT = 4
+export const TOLD_PER_PROJECT = 4
 /** How many agents of one machine are said by name, before the rest are counted. */
-const TOLD_PER_MACHINE = 12
+export const TOLD_PER_MACHINE = 12
 /** How many of a machine's projects are said, before the rest are counted. */
-const TOLD_PROJECTS = 8
+export const TOLD_PROJECTS = 8
 /** How long an agent's reason may be in the block: what it is doing, not its story. */
 const REASON_MOST = 100
 

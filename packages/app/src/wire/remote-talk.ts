@@ -59,7 +59,7 @@ export const TELL_WAIT_MS = 10 * 60_000
 type Came = { kind: 'answered'; text: string } | { kind: 'down'; said: string } | { kind: 'waited' }
 
 /** The most of an answer handed back: a reply, not a book. */
-const ANSWER_MOST = 16_000
+export const ANSWER_MOST = 16_000
 
 /**
  * The answer in a conversation to the line this machine asked, or null before
