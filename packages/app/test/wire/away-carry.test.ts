@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { keyDigest, type SettingGroup } from '@tade/core'
+import { CARRY_SCHEMA, keyDigest, type SettingGroup } from '@tade/core'
 import { digestOf, GRANTS, SCOPES, writeDevices } from '@tade/web'
 import type { AccountView } from '@tade/workbench/accounts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -77,7 +77,7 @@ describe('a carry into this window', () => {
     await one.away.open()
     const answer = await carried(one.port, {
       from: 'mac',
-      complete: false,
+      schema: CARRY_SCHEMA,
       settings: [
         { path: 'agents.commit', value: 'as-you-go' },
         { path: 'extensions.jev.key', digest: keyDigest('jev-1') },
@@ -94,7 +94,15 @@ describe('a carry into this window', () => {
     expect(fileOf(one.home).extensions?.jev?.key).toBeUndefined()
     const changed = await waitFor(one.client, 'config_changed')
     expect(changed.map((line) => line.detail)).toEqual([
-      { path: 'agents.commit', was: '', now: 'as-you-go', by: `device ${DEVICE}`, carried: 'mac' },
+      {
+        path: 'agents.commit',
+        was: '',
+        now: 'as-you-go',
+        by: `device ${DEVICE}`,
+        carried: 'mac',
+        // Sent with no stamp, so stamped where it landed, by this journal.
+        hlc: expect.any(String),
+      },
     ])
     // Whether each harness is signed in, and until when — never who as, never a token.
     expect(answer.body.signIns).toEqual([
@@ -115,7 +123,7 @@ describe('a carry into this window', () => {
     await one.away.open()
     const answer = await carried(one.port, {
       from: 'mac',
-      complete: false,
+      schema: CARRY_SCHEMA,
       settings: [{ path: 'extensions.jev.key', value: 'jev-0123456789' }],
     })
     expect(answer.body.settings).toEqual([{ path: 'extensions.jev.key', outcome: 'written' }])
@@ -131,7 +139,7 @@ describe('a carry into this window', () => {
     await one.away.open()
     const body = {
       from: 'mac',
-      complete: false,
+      schema: CARRY_SCHEMA,
       settings: [
         { path: 'notes.keep_days', value: 9 },
         { path: 'agents.commit', value: 'as-you-go' },
@@ -163,7 +171,7 @@ describe('a carry into this window', () => {
     try {
       const answer = await carried(one.port, {
         from: 'mac',
-        complete: false,
+        schema: CARRY_SCHEMA,
         settings: [{ path: 'agents.commit', value: 'as-you-go' }],
       })
       expect(answer.body.settings).toEqual([{ path: 'agents.commit', outcome: 'written' }])
@@ -188,7 +196,7 @@ describe('a carry into this window', () => {
     await one.away.open()
     const answer = await carried(one.port, {
       from: 'phone',
-      complete: false,
+      schema: CARRY_SCHEMA,
       settings: [{ path: 'agents.commit', value: 'never' }],
     })
     expect(answer.status).toBe(200)
@@ -201,7 +209,7 @@ describe('a carry into this window', () => {
     await one.away.open()
     const answer = await carried(one.port, {
       from: 'phone',
-      complete: false,
+      schema: CARRY_SCHEMA,
       settings: [{ path: 'agents.commit', value: 'never' }],
     })
     expect(answer.status).toBe(403)
@@ -305,7 +313,7 @@ describe('talking to Tade from another screen, turned on from the machine that o
     const one = await machine({ realKeys: true, accounts: async () => [] })
     await owner(one.home, one.port)
     await one.away.open()
-    const body = { from: 'mac', complete: false, settings: [] }
+    const body = { schema: CARRY_SCHEMA, from: 'mac', settings: [] }
     const told = await carried(one.port, body)
     expect(told.body.talk).toBe('off')
     const pressed = await carried(one.port, { ...body, talk: true })
@@ -313,7 +321,13 @@ describe('talking to Tade from another screen, turned on from the machine that o
     expect(pressed.body.talk).toBe('turning on')
     const changed = await waitFor(one.client, 'config_changed')
     expect(changed.map((line) => line.detail)).toEqual([
-      { path: 'surfaces.web.orchestrator', was: 'false', now: 'true', by: `device ${DEVICE}` },
+      {
+        path: 'surfaces.web.orchestrator',
+        was: 'false',
+        now: 'true',
+        by: `device ${DEVICE}`,
+        hlc: expect.any(String),
+      },
     ])
     const file = parse(readFileSync(join(one.home, 'config.yaml'), 'utf8')) as {
       surfaces?: { web?: { orchestrator?: boolean } }

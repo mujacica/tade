@@ -2,7 +2,16 @@ import { EventEmitter } from 'node:events'
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
-import { fileHash, keyDigest, personaDirs, templateDirs, writeCarried } from '@tade/core'
+import {
+  CARRY_SCHEMA,
+  fileHash,
+  keyDigest,
+  personaDirs,
+  type SettingConflict,
+  stampText,
+  templateDirs,
+  writeCarried,
+} from '@tade/core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import {
@@ -10,9 +19,11 @@ import {
   type CarryAnswer,
   type CarryBody,
   type CarryLine,
+  type CarryNews,
   carryHere,
   carryingAt,
   changesIn,
+  SCHEMA_SAID,
   type SignInHere,
   type WebCarrying,
 } from '../src/carried.ts'
@@ -21,7 +32,8 @@ import type { Device } from '../src/devices.ts'
 // Another machine's setup carried here (`carried.ts`), against a real home: a
 // config file written by `writeSetting` and read back, a journal of lines, and
 // the decisions `@tade/core`'s `carry.ts` makes — which is what a remote does
-// when the Mac that added it carries its preferences over.
+// when the Mac that added it carries its preferences over, and what it says
+// back of its own where those are newer.
 
 const PERSONA = `---
 persona: reviewer
@@ -51,6 +63,7 @@ describe('carrying a setup here', () => {
   let config: string
   let lines: CarryLine[]
   let carrying: WebCarrying
+  let told: CarryNews[]
   const signIns: SignInHere[] = [
     {
       harness: 'claude-code',
@@ -63,7 +76,7 @@ describe('carrying a setup here', () => {
 
   const carry = (body: Partial<CarryBody>, device = 'd1') =>
     applyCarry(
-      { from: 'mac', complete: false, settings: [], files: [], force: [], ...body },
+      { schema: CARRY_SCHEMA, from: 'mac', settings: [], files: [], force: [], ...body },
       device,
       carrying,
     )
@@ -75,6 +88,7 @@ describe('carrying a setup here', () => {
     home = tmp('tade-carried-')
     config = join(home, 'config.yaml')
     lines = []
+    told = []
     const log = async (line: CarryLine) => {
       lines.push(line)
     }
@@ -84,6 +98,10 @@ describe('carrying a setup here', () => {
       lines: async () => lines,
       write: (path, value, carry, by) => writeCarried(config, { path, value, carry, by }, log),
       log,
+      record: log,
+      told: async (news) => {
+        told.push(news)
+      },
       signIns: async () => signIns,
       machine: 'vps',
     })
@@ -93,7 +111,8 @@ describe('carrying a setup here', () => {
     const answer = await carry({
       settings: [
         { path: 'agents.commit', value: 'as-you-go' },
-        { path: 'approvals.auto_allow', value: ['read'] },
+        // Approvals widen what agents may do here: taken because the person set them.
+        { path: 'approvals.auto_allow', value: ['read'], by: 'window' },
       ],
     })
     expect(outcomes(answer)).toEqual({
@@ -103,7 +122,14 @@ describe('carrying a setup here', () => {
     expect(file()).toContain('commit: as-you-go')
     expect(lines.map((one) => one.detail)).toEqual([
       { path: 'agents.commit', was: '', now: 'as-you-go', by: 'device d1', carried: 'mac' },
-      { path: 'approvals.auto_allow', was: '', now: '["read"]', by: 'device d1', carried: 'mac' },
+      {
+        path: 'approvals.auto_allow',
+        was: '',
+        now: '["read"]',
+        by: 'device d1',
+        carried: 'mac',
+        origin: 'window',
+      },
     ])
     expect(answer.machine).toBe('vps')
     expect(answer.signIns).toEqual(signIns)
@@ -125,40 +151,168 @@ describe('carrying a setup here', () => {
     expect(() => file()).toThrow()
   })
 
-  it('leaves a value somebody here changed, says it back, and writes it on a press', async () => {
-    writeFileSync(config, 'agents:\n  commit: never\n')
+  const at = (wall: number, machine: string) => stampText({ wall, count: 0, machine })
+  const changed = (path: string, now: string, hlc: string, more: Record<string, string> = {}) =>
     lines.push({
       type: 'config_changed',
-      detail: { path: 'agents.commit', was: '', now: 'never', by: 'window' },
+      detail: { path, was: '', now, by: 'window', hlc, ...more },
     })
-    const left = await carry({ settings: [{ path: 'agents.commit', value: 'as-you-go' }] })
-    expect(left.settings).toEqual([{ path: 'agents.commit', outcome: 'theirs', theirs: 'never' }])
-    expect(file()).toContain('commit: never')
-    const pressed = await carry({
-      settings: [{ path: 'agents.commit', value: 'as-you-go' }],
-      force: ['agents.commit'],
-    })
-    expect(outcomes(pressed)).toEqual({ 'agents.commit': 'written' })
-    expect(file()).toContain('commit: as-you-go')
-  })
 
-  it('keeps carried values in step, and takes one away only while it is still the carried one', async () => {
-    await carry({
+  it('keeps whichever change is later, and says its own back where it is', async () => {
+    writeFileSync(config, 'agents:\n  commit: never\n')
+    changed('agents.commit', 'never', at(5_000, 'vps'))
+    // Older than the change here: this machine's stands and goes back.
+    const older = await carry({
+      settings: [{ path: 'agents.commit', value: 'as-you-go', hlc: at(2_000, 'mac') }],
+    })
+    expect(older.settings).toEqual([
+      {
+        path: 'agents.commit',
+        outcome: 'newer',
+        value: 'never',
+        hlc: at(5_000, 'vps'),
+        by: 'window',
+        conflict: { value: 'as-you-go', hlc: at(2_000, 'mac') },
+      },
+    ])
+    expect(file()).toContain('commit: never')
+    // Later, and made over the change here: written, with the stamp it came with.
+    const later = await carry({
       settings: [
-        { path: 'agents.commit', value: 'as-you-go' },
-        { path: 'queue.holds', value: 'ask' },
+        {
+          path: 'agents.commit',
+          value: 'as-you-go',
+          hlc: at(9_000, 'mac'),
+          over: at(5_000, 'vps'),
+          by: 'window',
+        },
       ],
     })
-    // Somebody edits one of them by hand; the Mac then stops setting both.
+    expect(later.settings).toEqual([{ path: 'agents.commit', outcome: 'written' }])
+    expect(file()).toContain('commit: as-you-go')
+    expect(lines.at(-1)?.detail).toMatchObject({
+      path: 'agents.commit',
+      now: 'as-you-go',
+      carried: 'mac',
+      hlc: at(9_000, 'mac'),
+      over: at(5_000, 'vps'),
+      origin: 'window',
+    })
+    // The same again is nothing to do.
+    const same = await carry({
+      settings: [{ path: 'agents.commit', value: 'as-you-go', hlc: at(9_000, 'mac') }],
+    })
+    expect(outcomes(same)).toEqual({ 'agents.commit': 'same' })
+  })
+
+  it('writes down and says a change both made apart, whichever stood', async () => {
+    writeFileSync(config, 'queue:\n  holds: ask\n')
+    changed('queue.holds', 'ask', at(2_000, 'vps'))
+    const answer = await carry({
+      settings: [{ path: 'queue.holds', value: 'orchestrator', hlc: at(3_000, 'mac') }],
+    })
+    expect(answer.settings).toEqual([
+      {
+        path: 'queue.holds',
+        outcome: 'written',
+        conflict: { value: 'ask', hlc: at(2_000, 'vps') },
+      },
+    ])
+    const conflict: SettingConflict = {
+      path: 'queue.holds',
+      kept: {
+        value: 'orchestrator',
+        machine: 'mac',
+        at: { wall: 3_000, count: 0, machine: 'mac' },
+      },
+      lost: { value: 'ask', machine: 'vps', at: { wall: 2_000, count: 0, machine: 'vps' } },
+    }
+    expect(told).toEqual([{ from: 'mac', conflicts: [conflict], landed: [], refused: [] }])
+  })
+
+  it('takes a value away as a change, and an edit by hand since is somebody here’s now', async () => {
+    writeFileSync(config, 'agents:\n  push: never\nqueue:\n  holds: ask\n')
+    changed('agents.push', 'never', at(1_000, 'mac'), { carried: 'mac', by: 'device d1' })
+    changed('queue.holds', 'ask', at(1_000, 'mac'), { carried: 'mac', by: 'device d1' })
+    // Somebody edits one by hand here; the Mac then takes both away.
     writeFileSync(config, file().replace('holds: ask', 'holds: orchestrator'))
-    const answer = await carry({ settings: [], complete: true })
-    expect(outcomes(answer)).toEqual({ 'agents.commit': 'written' })
-    expect(file()).not.toContain('commit:')
+    // The journal stamps a line it is handed; here nothing does, so the edit is stamped as now.
+    const answer = await applyCarry(
+      {
+        schema: CARRY_SCHEMA,
+        from: 'mac',
+        settings: [
+          { path: 'agents.push', value: null, hlc: at(4_000, 'mac') },
+          { path: 'queue.holds', value: null, hlc: at(4_000, 'mac') },
+        ],
+        files: [],
+        force: [],
+      },
+      'd1',
+      {
+        ...carrying,
+        found: async (edits) => {
+          for (const one of edits)
+            changed(one.path, one.now, at(5_000, 'vps'), { by: 'file', was: one.was })
+        },
+      },
+    )
+    const recorded = lines.find((one) => one.detail?.by === 'file')
+    expect(recorded?.detail).toMatchObject({ path: 'queue.holds', was: 'ask', now: 'orchestrator' })
+    expect(outcomes(answer)).toEqual({ 'agents.push': 'written', 'queue.holds': 'newer' })
+    expect(file()).not.toContain('push:')
     expect(file()).toContain('holds: orchestrator')
-    // Another device's carry is never taken away by this one's.
-    await carry({ settings: [{ path: 'agents.push', value: 'never' }] }, 'd2')
-    expect(outcomes(await carry({ complete: true }))).toEqual({})
-    expect(file()).toContain('push: never')
+  })
+
+  it('offers back what it has that the carry did not name, and never a key or its own', async () => {
+    writeFileSync(
+      config,
+      'queue:\n  holds: ask\nextensions:\n  jev:\n    key: jev_secret\n  acme:\n    auth: sekrit\nworkspace:\n  driver: tmux\n',
+    )
+    changed('queue.holds', 'ask', at(2_000, 'vps'))
+    const answer = await applyCarry(
+      { schema: CARRY_SCHEMA, from: 'mac', settings: [], files: [], force: [] },
+      'd1',
+      { ...carrying, secrets: () => new Set(['extensions.acme.auth']) },
+    )
+    expect(answer.settings).toEqual([
+      { path: 'queue.holds', outcome: 'newer', value: 'ask', hlc: at(2_000, 'vps'), by: 'window' },
+    ])
+    expect(JSON.stringify(answer)).not.toContain('secret')
+    expect(JSON.stringify(answer)).not.toContain('sekrit')
+  })
+
+  it('neither takes nor sends back what it keeps to itself', async () => {
+    writeFileSync(config, 'machine:\n  pinned: [checks]\nchecks:\n  before: push\n')
+    changed('checks.before', 'push', at(1_000, 'vps'))
+    const answer = await carry({
+      settings: [{ path: 'checks.before', value: 'commit', hlc: at(9_000, 'mac') }],
+    })
+    expect(answer.settings).toEqual([{ path: 'checks.before', outcome: 'pinned' }])
+    expect(file()).toContain('before: push')
+  })
+
+  it('takes a change to what widens agents here only where the person made it, and says so', async () => {
+    const answer = await carry({
+      settings: [
+        { path: 'approvals.mode', value: 'auto', hlc: at(4_000, 'mac'), by: 'orchestrator' },
+        { path: 'extensions.sentry.enabled', value: true, hlc: at(4_000, 'mac'), by: 'window' },
+      ],
+    })
+    expect(outcomes(answer)).toEqual({
+      'approvals.mode': 'refused',
+      'extensions.sentry.enabled': 'written',
+    })
+    expect(answer.settings[0]?.why).toMatch(/only on your word.*its orchestrator/)
+    expect(file()).not.toContain('mode: auto')
+    expect(told).toEqual([
+      {
+        from: 'mac',
+        conflicts: [],
+        landed: [{ path: 'extensions.sentry.enabled', now: 'true', by: 'window' }],
+        refused: [{ path: 'approvals.mode', why: answer.settings[0]?.why }],
+      },
+    ])
   })
 
   it('says back what is here and not in use yet, where it is read only when Tade next starts', async () => {
@@ -247,7 +401,7 @@ describe('carrying a setup here', () => {
     const answer = await carry({
       settings: [
         { path: 'workers.default', value: 'fast' },
-        { path: 'workers.routes.fast.harness', value: 'claude-code' },
+        { path: 'workers.routes.fast.harness', value: 'claude-code', by: 'window' },
         { path: 'agents.commit', value: 'whenever' },
       ],
     })
@@ -313,9 +467,17 @@ describe('carrying a setup here', () => {
         },
         { type: 'config_changed', ts: 'not a time', detail: { path: 'd', now: 'w', by: 'window' } },
       ]),
-    ).toEqual([
-      { path: 'a', now: 'y', carried: false, device: null, at: null },
-      { path: 'c', now: 'z', carried: false, device: null, at: Date.UTC(2026, 9, 17, 10) },
+    ).toMatchObject([
+      { path: 'a', now: 'y', carried: false, device: null, at: null, stamp: null },
+      {
+        path: 'c',
+        now: 'z',
+        carried: false,
+        device: null,
+        at: Date.UTC(2026, 9, 17, 10),
+        stamp: { wall: Date.UTC(2026, 9, 17, 10), count: 0, machine: '' },
+        by: 'window',
+      },
       { path: 'd', now: 'w', carried: false, device: null, at: null },
     ])
   })
@@ -337,14 +499,17 @@ describe('the route', () => {
     machine: () => 'vps',
     started: () => 0,
     waiting: () => new Set(),
+    secrets: () => new Set(),
+    found: async () => {},
+    told: async () => {},
   }
-  const body = { from: 'mac', complete: false, settings: [] }
+  const body = { schema: CARRY_SCHEMA, from: 'mac', settings: [] }
   /** The answer's response, as far as the route reads one: when it has gone. */
   const answering = () => new EventEmitter()
 
   it('answers an owner, and nobody else', async () => {
     expect(await carryHere(asking(body), owner, nothing, answering())).toEqual({
-      body: { machine: 'vps', settings: [], files: [], signIns: [] },
+      body: { schema: CARRY_SCHEMA, machine: 'vps', settings: [], files: [], signIns: [] },
     })
     const refused = await carryHere(asking(body), phone, nothing, answering())
     expect('refusal' in refused && refused.refusal.error).toBe('out_of_scope')
@@ -382,12 +547,31 @@ describe('the route', () => {
     expect(turned).toHaveLength(1)
     // A window that says nothing of it is answered nothing of it, pressed or not.
     const older = await carryHere(asking({ ...body, talk: true }), owner, nothing, answering())
-    expect(older).toEqual({ body: { machine: 'vps', settings: [], files: [], signIns: [] } })
+    expect(older).toEqual({
+      body: { schema: CARRY_SCHEMA, machine: 'vps', settings: [], files: [], signIns: [] },
+    })
   })
 
   it('is a path nobody built where the window did not wire it', async () => {
     const refused = await carryHere(asking(body), owner, undefined, answering())
     expect('refusal' in refused && refused.refusal.error).toBe('no_such')
+  })
+
+  it('refuses a carry from a Tade that settles settings another way, before writing anything', async () => {
+    let wrote = 0
+    const counting: WebCarrying = { ...nothing, write: async () => void wrote++ }
+    for (const schema of [undefined, CARRY_SCHEMA + 1]) {
+      const sent = { from: 'mac', settings: [{ path: 'agents.commit', value: 'never' }], schema }
+      const refused = await carryHere(asking(sent), owner, counting, answering())
+      expect('refusal' in refused && refused.refusal).toEqual({
+        status: 426,
+        error: 'malformed',
+        said: SCHEMA_SAID,
+      })
+    }
+    // What an older Tade says of it is something to do there.
+    expect(SCHEMA_SAID).toMatch(/older — update it/)
+    expect(wrote).toBe(0)
   })
 
   it('refuses a body that is not a carry', async () => {

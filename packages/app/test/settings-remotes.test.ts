@@ -15,9 +15,10 @@ import { type SettingsPanel, settingsKey } from '../src/panels/settings/state.ts
 import { drawnAt, panelFor, plainRows, WIDTHS } from './settings-panel.ts'
 
 // Settings › Remotes: each other machine's Tade this one is an owner of, and
-// the checklist `tade remote add` ends with — what was carried, what that
-// machine changed itself, what waits on a press, whether its tab here takes a
-// message, and each harness's own sign-in there — with the presses beside each.
+// the checklist `tade remote add` ends with — what was carried, what came back
+// newer and what both changed apart, a persona that machine changed itself,
+// what waits on a press, whether its tab here takes a message, and each
+// harness's own sign-in there — with the presses beside each.
 
 const LIST: Checklist = {
   remote: 'vps',
@@ -25,7 +26,25 @@ const LIST: Checklist = {
   unreached: null,
   carried: ['agents.commit', 'approvals.mode', 'persona reviewer'],
   written: 1,
-  theirs: [{ what: 'queue.holds', theirs: 'ask', ours: 'orchestrator' }],
+  theirs: [{ what: 'persona reviewer', theirs: null, ours: null }],
+  taken: ['notes.keep_days'],
+  newer: [],
+  conflicts: [
+    {
+      path: 'queue.holds',
+      kept: {
+        value: 'orchestrator',
+        machine: 'mac',
+        at: { wall: Date.UTC(2026, 9, 17, 14, 5), count: 0, machine: 'mac' },
+      },
+      lost: {
+        value: 'ask',
+        machine: 'box-1',
+        at: { wall: Date.UTC(2026, 9, 17, 14, 0), count: 0, machine: 'box-1' },
+      },
+    },
+  ],
+  pinned: [{ what: 'checks', where: 'there' }],
   refused: [],
   waiting: ['extensions.jev.key', 'telemetry.dsn'],
   sent: [],
@@ -163,7 +182,7 @@ describe('Settings › Remotes', () => {
     expect(side([VPS])).toContain('Remotes')
   })
 
-  it('draws the checklist: carried, what waits for a start there, changed there, on a press, each sign-in, and this machine’s own', () => {
+  it('draws the checklist: carried, both ways, what waits for a start there, changed there, on a press, each sign-in, and this machine’s own', () => {
     const drawn = page([VPS])
     expect(drawn).toContain('vps')
     expect(drawn).toContain('● linked')
@@ -172,7 +191,13 @@ describe('Settings › Remotes', () => {
     )
     expect(drawn).toContain('3 settings and files, kept in step')
     expect(drawn).toMatch(/Next start +approvals\.mode/)
-    expect(drawn).toContain('queue.holds — there ask · here orchestrator')
+    expect(drawn).toMatch(/Both changed +queue\.holds/)
+    expect(drawn.replace(/[│▕█\s]+/g, ' ')).toMatch(
+      /box-1 set ask at .+, mac set orchestrator at .+; mac’s kept\./,
+    )
+    expect(drawn).toMatch(/Taken here +notes\.keep_days/)
+    expect(drawn).toMatch(/Kept there +checks/)
+    expect(drawn).toMatch(/Changed there +persona reviewer/)
     expect(drawn).toContain('Send this machine’s')
     expect(drawn).toContain('extensions.jev.key, telemetry.dsn')
     expect(drawn).toContain('Send them…')
@@ -186,7 +211,7 @@ describe('Settings › Remotes', () => {
   it('offers a sign-in only where that machine said there is none', () => {
     const ids = remoteActions([VPS]).map((one) => one.id)
     expect(ids).toEqual([
-      'remote:ours:vps:queue.holds',
+      'remote:ours:vps:persona reviewer',
       'remote:keys:vps',
       'remote:sign-in:vps:codex:',
       'remote:again:vps',

@@ -55,6 +55,8 @@ export interface MachinesShown {
   busy: boolean
   /** What the last move said, whatever happened. */
   said: string | null
+  /** What this machine keeps to itself of the settings it shares (`machine.pinned`). */
+  pinned: readonly string[]
 }
 
 /** One press on the page: `machine:<verb>`. */
@@ -158,6 +160,16 @@ export function drawMachines(
     4,
   )
   buttons([LOOK])
+  // A pin is never a surprise: listed here, where the machines are compared,
+  // and drawn only where there is one.
+  if (shown.pinned.length > 0) {
+    say(
+      `Kept to this machine, neither sent to the others nor taken from them: ${shown.pinned.join(', ')} — Kept to this machine on the Agents page changes it.`,
+      skin.hint,
+      1,
+      3,
+    )
+  }
 
   // The heading: a column per machine, as of when each last said.
   const columns = shown.columns

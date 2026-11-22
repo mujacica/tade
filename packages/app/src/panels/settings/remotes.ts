@@ -1,4 +1,10 @@
-import { type ConnectSource, duration, KEYS_TO_REMOTE, TALK_TO_REMOTE } from '@tade/core'
+import {
+  type ConnectSource,
+  conflictSays,
+  duration,
+  KEYS_TO_REMOTE,
+  TALK_TO_REMOTE,
+} from '@tade/core'
 // Type-only, so the pure panel model never loads what makes a checklist.
 import type { Checklist } from '@tade/workbench/carry'
 import type { Hit } from '../../hits.ts'
@@ -425,6 +431,21 @@ export function drawRemotes(
       say(`○ ${list.unreached}`, skin.waiting)
     } else {
       line('Carried', `${list.carried.length} settings and files, kept in step`, skin.done)
+    }
+    // Both ways: what came back newer, taken here; what both changed apart,
+    // and whose stood, said whole under it; what was not taken, and why.
+    for (const one of list?.conflicts ?? []) {
+      line('Both changed', one.path, skin.waiting)
+      say(conflictSays(one, ctx.date), skin.hint, deep, 3)
+    }
+    if (list !== null && list.taken.length > 0) line('Taken here', list.taken.join(', '), skin.done)
+    for (const one of list?.newer ?? []) {
+      line('Newer there', one.what, skin.hint)
+      say(one.why, skin.hint, deep, 3)
+    }
+    const pinnedThere = (list?.pinned ?? []).filter((one) => one.where === 'there')
+    if (pinnedThere.length > 0) {
+      line('Kept there', pinnedThere.map((one) => one.what).join(', '), skin.hint)
     }
     for (const one of list?.theirs ?? []) {
       const values =

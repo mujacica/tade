@@ -19,7 +19,7 @@ import { HomeBusyError, lockHome } from './lock.ts'
 // the spool in, like a window opening — and otherwise the window, on its next
 // beat, by its own append (`Settings.fold`). Either way every number is the
 // holder's, and the window's `config_changed` lines and the terminal's read
-// alike: `copiedHosts` and `changedThere` fold over both.
+// alike: `copiedHosts` and `changesIn` fold over both.
 //
 // **A spool file is the whole of one write**, renamed into place once complete,
 // so a fold never reads half of one, and the keys one command wrote stay next

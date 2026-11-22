@@ -415,6 +415,7 @@ export class Inventories implements Subject {
             },
       busy: this.busy,
       said: this.said,
+      pinned: this.wire.opts.config.machine.pinned,
     }
   }
 

@@ -136,7 +136,9 @@ describe('accounts', () => {
     expect(config().projects.app.accounts?.['claude-code']).toBeUndefined()
     expect((await client.agentHarness(task.id)).account).toBe('work')
     await expect(client.useAccount('claude-code', 'home', 'ghost')).rejects.toThrow(/no project/)
-    const lines = (await client.events({ types: ['config_changed'] })).map(({ detail }) => detail)
+    const lines = (await client.events({ types: ['config_changed'] })).map(({ detail }) =>
+      unstamped(detail),
+    )
     expect(lines.filter((one) => String(one.path).startsWith('projects.'))).toEqual([
       { path: 'projects.app.accounts.claude-code', was: '', now: 'home', by: 'window' },
       { path: 'projects.app.accounts.claude-code', was: 'home', now: 'default', by: 'window' },
@@ -316,7 +318,9 @@ describe('accounts', () => {
     await client.useAccount('claude-code', 'paid')
     await client.saveAccountKey('paid', '')
     await client.removeAccount('paid')
-    const lines = (await client.events({ types: ['config_changed'] })).map(({ detail }) => detail)
+    const lines = (await client.events({ types: ['config_changed'] })).map(({ detail }) =>
+      unstamped(detail),
+    )
     // What it was, what it is and who asked: what makes a change somebody was
     // not watching one they can find and undo. A key only as whether there is one.
     expect(lines).toEqual([
@@ -467,3 +471,9 @@ describe('a harness made the way the workbench is told', () => {
     }
   })
 })
+
+/** A line's detail without the stamp the journal puts on every setting's line (`setting-stamps.ts`). */
+function unstamped(detail: Record<string, unknown>): Record<string, unknown> {
+  const { hlc: _hlc, over: _over, ...said } = detail
+  return said
+}

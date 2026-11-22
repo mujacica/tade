@@ -59,9 +59,10 @@ describe('a config change made from a terminal', () => {
     const at = new Date(Date.UTC(2026, 9, 17, 9))
     expect(await recordConfigChanges(home, [PUBLIC, TRUSTED], at)).toBe('journal')
     const lines = journal(home).filter((line) => line.type === 'config_changed')
+    // Each stamped by the journal that wrote it (`setting-stamps.ts`).
     expect(lines.map((line) => line.detail)).toEqual([
-      { ...PUBLIC, at: at.getTime() },
-      { ...TRUSTED, at: at.getTime() },
+      { ...PUBLIC, at: at.getTime(), hlc: expect.any(String) },
+      { ...TRUSTED, at: at.getTime(), hlc: expect.any(String) },
     ])
     // One press, two lines, numbered one after the other.
     expect(lines[1]?.seq).toBe((lines[0]?.seq ?? 0) + 1)

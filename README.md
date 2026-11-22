@@ -897,6 +897,16 @@ checklist of what was carried and what still needs you; Settings › Remotes sho
 MCP servers, the telemetry DSN and intake's grants wait on a press. A box whose `tade` is not on the
 PATH an SSH command gets takes `--tade ~/.local/bin/tade`.
 
+**From then on, your preferences are one set on both machines.** A setting changed on either — at
+the keyboard, from your phone, by the orchestrator on your word — reaches the other the next time
+the window here links, and the latest change stands on both. Two made while the machines were apart
+are both written down and said, with whose was kept. Each machine's own — its projects, driver,
+away view, voice hardware, budget — never travels, and **Kept to this machine** (`machine.pinned`)
+keeps any other section or setting to one machine, listed on Settings › Machines. A change to what
+agents may do (approvals, accounts, extensions) lands on the other machine only when you made it,
+and is said when it does. Two Tades that keep settings differently refuse to carry rather than guess,
+and say which one to update.
+
 **Everything else a machine has is walked too, by name and never by value.** After the carry, the
 two machines compare what each has — every key and where it comes from, the environment keys your
 shell's files set, MCP servers, per-machine apps, the git identity and whether origin answers with

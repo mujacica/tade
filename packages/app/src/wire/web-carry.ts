@@ -1,6 +1,8 @@
 import {
   type Config,
   carriedSays,
+  conflictDetail,
+  conflictSays,
   extensionEnabled,
   machineLabel,
   type SettingGroup,
@@ -10,6 +12,7 @@ import {
 import type { LoadedExtension } from '@tade/extensions-core'
 import {
   type CarriedBy,
+  type CarryNews,
   carryingAt,
   inTime,
   type SignInHere,
@@ -17,6 +20,8 @@ import {
   type WebCarrying,
 } from '@tade/web'
 import type { AccountView } from '@tade/workbench/accounts'
+import { clockOf } from '@tade/workbench/carry'
+import { recordChange } from './config-written.ts'
 import { configPathOf, notify, type Wiring, why } from './context.ts'
 import type { Settings } from './settings.ts'
 
@@ -52,8 +57,12 @@ export function carryingFor(
         by: `device ${by.device}`,
         now: carriedSays(carry, value),
         carried: by.from,
+        ...by.stamp,
       })
     },
+    secrets: () => new Set((wire.opts.extensions?.secrets() ?? []).map((one) => one.path)),
+    record: (line) => recordChange(wire, line.detail),
+    told: (news) => toldHere(wire, news),
     log: async (line) => {
       await wire.opts.client.log.append(line)
     },
@@ -70,6 +79,30 @@ export function carryingFor(
     },
   })
   return carrying
+}
+
+/**
+ * What another machine's carry did here that is news: each conflict written
+ * down (`settings_conflict`) and said, a change to what widens agents here
+ * said as it lands, and one refused said with why — in this window's strip,
+ * which a phone paired here reads too. Never throws: the carry has landed.
+ */
+async function toldHere(wire: Wiring, news: CarryNews): Promise<void> {
+  for (const one of news.conflicts) {
+    await wire.opts.client.log
+      .append({ type: 'settings_conflict', detail: conflictDetail(one, news.from) })
+      .catch(() => {})
+    notify(wire, `Changed on both ${news.from} and here: ${conflictSays(one, clockOf)}`)
+  }
+  for (const one of news.landed) {
+    notify(
+      wire,
+      `${news.from} changed ${one.path} to ${one.now || 'nothing'} (${one.by} there): applied here.`,
+    )
+  }
+  for (const one of news.refused)
+    notify(wire, `Not taken from ${news.from}: ${one.path} — ${one.why}.`)
+  wire.draw()
 }
 
 /**

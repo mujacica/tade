@@ -291,7 +291,7 @@ describe('an agent an extension starts', () => {
     })
     expect(said).toEqual([])
     const lines = (await readJournal(home, { types: ['config_changed'] })).map(({ detail }) => {
-      const { at: _at, ...rest } = detail
+      const { at: _at, hlc: _hlc, over: _over, ...rest } = detail
       return rest
     })
     expect(lines).toEqual([

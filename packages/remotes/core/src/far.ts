@@ -322,6 +322,9 @@ class Far implements FarEnd {
         log: async (line) => {
           this.lines.push(line)
         },
+        record: async (line) => {
+          this.lines.push(line)
+        },
         signIns: async () => this.signIns,
         machine: 'far',
         talk: {

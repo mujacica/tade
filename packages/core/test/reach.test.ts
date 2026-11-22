@@ -163,6 +163,12 @@ describe('what no words reach', () => {
       expect(settingReach(path).reach, path).toBe('never')
   })
 
+  it('refuses pinning a setting to this machine', () => {
+    // A pin on approvals is a machine that no longer hears the person tighten
+    // them on another one: who decides what agents may do here.
+    expect(settingReach('machine.pinned').reach).toBe('never')
+  })
+
   it('refuses moving a project, and allows the rest of its block', () => {
     expect(settingReach('projects.checkout.root').reach).toBe('never')
     expect(settingReach('projects.checkout.brief').reach).toBe('asked')
@@ -407,6 +413,7 @@ describe('the shape of the rule', () => {
       'drivers',
       'extensions',
       'journal',
+      'machine',
       'mcp',
       'notes',
       'orchestrator',
@@ -455,6 +462,9 @@ describe('the shape of the rule', () => {
       'extensions.sentry.projects',
       'extensions.sentry.token_env',
       'extensions.sentry.url',
+      // Which settings this machine keeps out of the ones it shares: a pin
+      // decides whose word reaches it from the person's other machines.
+      'machine.pinned',
       // A command run as you before an agent starts, and how long it may
       // run: `projects` is `never` because of `root`, and neither of these is
       // in `ALLOWED_UNDER`, because what a worktree runs is not a sentence a

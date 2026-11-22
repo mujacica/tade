@@ -255,6 +255,10 @@ function vpsShown(): RemoteShown {
       carried: ['agents.commit', 'approvals.mode', 'persona reviewer'],
       written: 0,
       theirs: [],
+      taken: [],
+      newer: [],
+      conflicts: [],
+      pinned: [],
       refused: [],
       waiting: [],
       sent: [],
@@ -593,6 +597,7 @@ function machinesShown(): MachinesShown {
     },
     busy: false,
     said: null,
+    pinned: [],
   }
 }
 

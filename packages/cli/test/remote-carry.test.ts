@@ -1,9 +1,10 @@
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { loadConfig, personaDirs, TALK_TO_REMOTE, writeSetting } from '@tade/core'
+import { loadConfig, personaDirs, stampText, TALK_TO_REMOTE, writeSetting } from '@tade/core'
 import type { LinkOptions, RemoteLink } from '@tade/remotes-core'
 import { type FarEnd, startFarEnd } from '@tade/remotes-core/far'
 import { readDevices } from '@tade/web'
+import { WINDOW_TAKES } from '@tade/workbench/carry'
 import { readJournal } from '@tade/workbench/events'
 import { lockHome } from '@tade/workbench/lock'
 import { REMOTE_LINKS } from '@tade/workbench/remotes'
@@ -298,19 +299,25 @@ describe('tade remote add, carrying this machine’s setup', () => {
     expect(exit).toBe(0)
   })
 
-  it('carries again later: leaves what that machine changed itself until told, and sends keys when told', async () => {
+  it('carries again later: says what changed there since, which the window takes, and sends keys when told', async () => {
     await add()
-    // Somebody on the server changes one of the carried preferences there.
+    // Somebody on the server changes one of the carried preferences there,
+    // later than anything here says it was changed.
     writeSetting(join(far.home, 'config.yaml'), 'agents.commit', 'never')
     far.lines.push({
       type: 'config_changed',
-      detail: { path: 'agents.commit', was: 'as-you-go', now: 'never', by: 'window' },
+      detail: {
+        path: 'agents.commit',
+        was: 'as-you-go',
+        now: 'never',
+        by: 'window',
+        hlc: stampText({ wall: Date.now(), count: 0, machine: 'far' }),
+      },
     })
     out = []
     await carryRemote(place(), 'vps', {})
-    expect(out.join('\n')).toContain(
-      'changed there, so left as it is: agents.commit (there: never; here: as-you-go)',
-    )
+    // A shell carries and does not take back: it says the window will.
+    expect(out.join('\n')).toContain(`  agents.commit: ${WINDOW_TAKES}`)
     expect((await there()).agents.commit).toBe('never')
     await carryRemote(place(), 'vps', { ours: ['agents.commit'] })
     expect((await there()).agents.commit).toBe('as-you-go')

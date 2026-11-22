@@ -26,9 +26,11 @@ function unsaid(said: string): void {
   throw new Error(`said that it could not be written down: ${said}`)
 }
 
+// What the journal adds of its own — when, and the stamp every setting's line
+// carries (`setting-stamps.ts`, held there) — set aside: this is what was said.
 const details = async (home: string) =>
   (await readJournal(home, { types: ['config_changed'] })).map(({ detail }) => {
-    const { at: _at, ...rest } = detail
+    const { at: _at, hlc: _hlc, over: _over, ...rest } = detail
     return rest
   })
 

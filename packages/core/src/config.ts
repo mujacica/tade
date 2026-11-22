@@ -794,6 +794,29 @@ export const ConfigSchema = z
     projects: z.record(z.string().regex(/^[a-z0-9][a-z0-9-]*$/), ProjectConfigSchema).default({}),
     /** Other machines' Tades this one is an owner of, by name (`remotes.ts`). */
     remotes: RemotesSchema,
+    /**
+     * This machine, as against the others it keeps in step with. `pinned`
+     * names settings it keeps as its own — a section (`checks`), or a path
+     * inside one (`queue.holds`, or `checks.*` for the same as `checks`) —
+     * which a carry neither sends nor takes in either direction
+     * (`pinnedHere`, `carry.ts`): a slow box's checks, a room's queue. Its
+     * own, so never carried itself, and listed on Settings › Machines so a
+     * pin is never a surprise.
+     */
+    machine: z
+      .strictObject({
+        pinned: z
+          .array(
+            z
+              .string()
+              .regex(
+                /^[a-z][a-z0-9_]*(?:\.[A-Za-z0-9_-]+)*(?:\.\*)?$/,
+                'a setting’s dotted path, like checks or queue.holds',
+              ),
+          )
+          .default([]),
+      })
+      .prefault({}),
     /** Where `tade host backup` keeps this machine's Tade, and its password (`backup.ts`). */
     backup: BackupConfigSchema,
     /**

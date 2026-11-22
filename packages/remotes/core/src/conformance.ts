@@ -1,6 +1,6 @@
 import { mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { CONNECT_TITLES, runProgram } from '@tade/core'
+import { CARRY_SCHEMA, CONNECT_TITLES, runProgram } from '@tade/core'
 import type { WebConnecting } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import { type FarEnd, startFarEnd } from './far.ts'
@@ -327,8 +327,8 @@ export function testRemoteLink(name: string, make: MakeRig, opts: { skip?: strin
       ]
       const remote = await paired(one)
       const answer = await link.call(remote, '/api/carry', {
+        schema: CARRY_SCHEMA,
         from: 'conformance',
-        complete: false,
         settings: [{ path: 'agents.commit', value: 'as-you-go' }],
       })
       expect(answer.status).toBe(200)
@@ -353,8 +353,8 @@ export function testRemoteLink(name: string, make: MakeRig, opts: { skip?: strin
       const remote = await paired(one)
       await one.revoke(remote.session.device)
       const answer = await link.call(remote, '/api/carry', {
+        schema: CARRY_SCHEMA,
         from: 'conformance',
-        complete: false,
         settings: [],
       })
       expect(answer.status).toBe(401)

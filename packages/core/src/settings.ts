@@ -326,6 +326,19 @@ export function settingsOf(
           ],
         },
         {
+          // Read at every carry, so it is live: the next one neither sends
+          // nor takes what it names (`pinnedHere`).
+          path: 'machine.pinned',
+          title: 'Kept to this machine',
+          means:
+            'settings this machine keeps as its own rather than in step with your other machines — a section like checks, or a setting like queue.holds',
+          value: config.machine.pinned.join(' '),
+          fallback: 'none',
+          type: { kind: 'text', placeholder: 'checks queue.holds', list: true },
+          live: true,
+          keywords: ['pin', 'pinned', 'sync', 'machines', 'remote', 'carry', 'own', 'in step'],
+        },
+        {
           // The machine's, beside each project's on its own tab: every
           // project's agents together and the orchestrator's turns, held at
           // each start (`budget.ts`). Empty until somebody writes an amount.

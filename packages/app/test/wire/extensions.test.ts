@@ -60,7 +60,10 @@ function written(home: string): {
  */
 async function changes(client: Workbench, count: number): Promise<Record<string, unknown>[]> {
   const read = async () =>
-    (await client.events({ types: ['config_changed'] })).map(({ detail }) => detail)
+    (await client.events({ types: ['config_changed'] })).map(
+      // Without the stamp the journal puts on every setting's line (`setting-stamps.ts`).
+      ({ detail: { hlc: _hlc, over: _over, ...said } }) => said,
+    )
   await until(`${count} config_changed lines`, async () => (await read()).length >= count)
   return read()
 }

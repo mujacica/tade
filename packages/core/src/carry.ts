@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto'
+import { compareStamps, lineStamp, type Stamp, stampOf, stampText } from './hlc.ts'
 import { TALKING_IS_NOT_YOU_SHORT } from './origin.ts'
+import { settingReach } from './reach.ts'
 import { heldSays, IN_CONFIG, SEEN_BY_AGENTS } from './secrets.ts'
 
 // What another machine's Tade is given of this one's: the decision for every
@@ -10,12 +12,18 @@ import { heldSays, IN_CONFIG, SEEN_BY_AGENTS } from './secrets.ts'
 // this one up should not have to set it up twice, so what can travel does,
 // and what cannot is said with what to do instead. Four answers:
 //
-// - `kept`    — carried when a remote is added and kept in step after:
-//               ordinary preferences, the attention settings, which
-//               extensions are on, the personas and published templates.
-//               Written there through that machine's own write path, as a
-//               change somebody can read and undo, and **never over a value
-//               that machine changed itself** (`carryDecision`).
+// - `kept`    — kept in step both ways: ordinary preferences, the attention
+//               settings, which extensions are on, the personas and
+//               published templates. Each setting is a register whose last
+//               writer wins (`settle`), by the hybrid-clock stamp on its
+//               `config_changed` line (`hlc.ts`), written on each machine
+//               through its own write path as a change somebody can read and
+//               undo. The value that lost is written down and said
+//               (`settings_conflict`) where both machines had changed it
+//               without seeing the other's. A machine may keep one as its
+//               own (`machine.pinned`), and a peer's change to what widens
+//               agents (`never` to the orchestrator) lands only where the
+//               person made it (`peerMayWrite`).
 // - `pressed` — carried on one press, never by itself: a key, an MCP server
 //               (somebody else's code, with what it is handed), the
 //               telemetry DSN, intake's grants. Each is `never` to the
@@ -66,6 +74,11 @@ const NOT_DECIDED =
  */
 const RULES: readonly Rule[] = [
   // ── this machine's own ──
+  {
+    at: 'machine',
+    carry: 'here',
+    because: 'what this machine keeps to itself is decided on this machine',
+  },
   { at: 'workspace', carry: 'here', because: MACHINE_DRIVER },
   { at: 'drivers', carry: 'here', because: MACHINE_DRIVER },
   {
@@ -326,12 +339,26 @@ export type CarryOutcome =
   | 'replaced'
   /** It was already so. */
   | 'same'
-  /** That machine changed it itself, so it was left — and said. */
+  /** A file that machine changed itself, so it was left — and said. */
   | 'theirs'
+  /** A setting changed there later than here: theirs stands, and comes back with the answer. */
+  | 'newer'
+  /** A setting that machine keeps as its own (`machine.pinned`), so neither is taken. */
+  | 'pinned'
   /** Not sent, because it waits on a press. */
   | 'waiting'
-  /** That machine would not take it: `here` there, or it would not load. */
+  /** That machine would not take it: `here` there, not the person's, or it would not load. */
   | 'refused'
+
+/**
+ * What two machines exchanging settings speak: a Tade that speaks another
+ * refuses rather than guesses. 1 was the one-way carry, where the receiver
+ * left whatever it had changed itself; 2 is both ways, every kept setting a
+ * register with a stamp. An older Tade parsing a newer one's carry would read
+ * stamps it does not know as values it does, so it is refused and said, never
+ * half taken (`@tade/web`'s `carried.ts`, `@tade/workbench`'s `carryTo`).
+ */
+export const CARRY_SCHEMA = 2
 
 /** The last line that machine wrote about one path, as much as deciding needs. */
 export interface LastChange {
@@ -342,37 +369,15 @@ export interface LastChange {
 }
 
 /**
- * Whether that machine changed a value itself: the one question that decides
- * whether a carry may write over it.
- *
- * Read off what is there and the last line its journal wrote about the path,
- * never off a memory of what was sent:
- *
- * - **The last line is somebody there** — the Settings page, the
- *   orchestrator, a device — so it is theirs, whatever it says now.
- * - **The last line is a carry, and the file says something else** — it was
- *   edited by hand since — so it is theirs.
- * - **No line at all, and something is written** — by hand, or before
- *   anything wrote lines — so it is theirs. Nothing written is nobody's.
- */
-export function changedThere(current: unknown, last: LastChange | null): boolean {
-  if (last === null) return current !== undefined && current !== null
-  if (!last.carried) return true
-  return textOf(current) !== last.now
-}
-
-/**
- * What a carry does with one setting there. Pure: what is there, what came,
- * the last line about it, and whether the person pressed for theirs to go.
+ * What a carry compares once both ends have it: a key, by its digest, and
+ * this machine's own, refused. A key goes only on a press — and the press is
+ * the decision, because the person was told it replaces what is there.
  */
 export function carryDecision(req: {
-  carry: Carry
+  carry: Exclude<Carry, 'kept'>
   /** What came: a value, `null` to take one away, or only a digest to compare. */
   incoming: { value: unknown } | { digest: string }
   current: unknown
-  last: LastChange | null
-  /** The person pressed for this machine's value to go over theirs. */
-  force: boolean
 }): CarryOutcome {
   if (req.carry === 'here') return 'refused'
   const there = req.current === null ? undefined : req.current
@@ -381,10 +386,232 @@ export function carryDecision(req: {
   }
   const value = req.incoming.value === null ? undefined : req.incoming.value
   if (textOf(there) === textOf(value)) return 'same'
-  // A press is the decision: the person was told it replaces what is there.
-  if (req.carry === 'pressed') return there === undefined ? 'written' : 'replaced'
-  if (!req.force && changedThere(there, req.last)) return 'theirs'
-  return 'written'
+  return there === undefined ? 'written' : 'replaced'
+}
+
+/**
+ * One kept setting on one machine: its value, and the newest line about it —
+ * when (`stamp`), what the writer held when it changed it (`over`), and who
+ * changed it first, passed on from machine to machine (`by`).
+ */
+export interface Register {
+  /** Undefined where nothing is set: taking one away is a change like any other. */
+  value: unknown
+  /** Null where no line says when: a value from before lines, earlier than any change. */
+  stamp: Stamp | null
+  over: Stamp | null
+  by: string | null
+}
+
+/** Whose value stands, and whether both had changed it without seeing the other's. */
+export interface Settled {
+  keep: 'same' | 'here' | 'incoming'
+  conflict: boolean
+}
+
+/**
+ * Last writer wins: the later stamp's value stands on both machines, and two
+ * machines settling the same pair always agree — a tie of stamps (two values
+ * nobody wrote a line for) goes to the value that sorts later.
+ *
+ * **A conflict is two changes neither saw**: the winner was made over a stamp
+ * earlier than the loser's (`over`), so the loser was a change of its own and
+ * not simply behind. A machine catching up on what it missed is not one.
+ */
+export function settle(here: Register, incoming: Register): Settled {
+  if (textOf(here.value) === textOf(incoming.value)) return { keep: 'same', conflict: false }
+  let order = compareStamps(incoming.stamp, here.stamp)
+  if (order === 0) order = textOf(incoming.value) > textOf(here.value) ? 1 : -1
+  const [won, lost] = order > 0 ? [incoming, here] : [here, incoming]
+  // A value nobody set, with no line about it, is not a change that lost.
+  const nothing = lost.stamp === null && textOf(lost.value) === ''
+  return {
+    keep: order > 0 ? 'incoming' : 'here',
+    conflict: !nothing && compareStamps(won.over, lost.stamp) < 0,
+  }
+}
+
+/** Whether a line at one path is about a setting at the other: the same, inside it, or around it. */
+export function pathsMeet(a: string, b: string): boolean {
+  return a === b || a.startsWith(`${b}.`) || b.startsWith(`${a}.`)
+}
+
+/**
+ * The newest `config_changed` line about one path here, out of the journal's
+ * fold: one written at the path, at a block around it (an account written
+ * whole) or inside it (a model's price in `prices`), whichever is latest.
+ */
+export function registerAt(path: string, value: unknown, changes: readonly ChangeSeen[]): Register {
+  let newest: ChangeSeen | null = null
+  for (const one of changes) {
+    if (!pathsMeet(one.path, path)) continue
+    if (newest === null || compareStamps(one.stamp, newest.stamp) > 0) newest = one
+  }
+  // A value no line was ever written about was written into the file — by
+  // hand, or before lines — which is somebody at the machine, never the
+  // orchestrator: every one of its changes is a line.
+  return {
+    value: value === null ? undefined : value,
+    stamp: newest?.stamp ?? null,
+    over: newest?.over ?? null,
+    by: newest === null ? 'file' : newest.by,
+  }
+}
+
+/**
+ * Whether the file says something other than the newest line written at a
+ * path, so it was edited by hand since: there where the line took it away, or
+ * gone where it set one — or, for a carry's line, which says the value as
+ * `textOf` does, anything else. A line written here says it as it was typed,
+ * so only whether there is one is compared. No line is no news: a value
+ * nobody wrote one for is one from before lines.
+ */
+export function editedSince(current: unknown, last: LastChange | null): boolean {
+  if (last === null) return false
+  const there = textOf(current) !== ''
+  if (there !== (last.now !== '')) return true
+  return last.carried && textOf(current) !== last.now
+}
+
+/** Who changed a setting, as a carry passes it on: the line's own `by`, or for a carried one, its `origin`. */
+export function whoChanged(detail: Readonly<Record<string, unknown>> | undefined): string | null {
+  if (typeof detail?.carried === 'string') {
+    return typeof detail.origin === 'string' ? detail.origin : null
+  }
+  return typeof detail?.by === 'string' ? detail.by : null
+}
+
+/**
+ * Who is the person, as a line says who changed something: the window's own
+ * Settings, a terminal's `tade config`, an edit to the file found by a carry,
+ * and a device — which only reaches past `open` when it is theirs, with full
+ * access (`web-settings.ts`). Never `orchestrator`, never Tade itself, never a
+ * line that does not say.
+ */
+const THE_PERSON: ReadonlySet<string> = new Set(['window', 'you', 'cli', 'file'])
+
+export function personBy(by: string | null): boolean {
+  return by !== null && (THE_PERSON.has(by) || /^device [^\s]+$/.test(by))
+}
+
+/**
+ * Whether another machine's change at this path may land here. A `never`
+ * path widens what agents may do on the machine it lands on — approvals,
+ * accounts, which extensions are on, a route's provider — so a peer's change
+ * to one lands only where the person made it, and is said where it does
+ * (3.4 of the shared-brain plan, Q3: applied and said, never waiting on a
+ * press, which would take the phone's "do everything" away).
+ */
+export function peerMayWrite(path: string, by: string | null): boolean {
+  return settingReach(path).reach !== 'never' || personBy(by)
+}
+
+/** Why a peer's change was not taken here, in one clause. */
+export function notThePersonSays(by: string | null, from: string): string {
+  const who = by === null ? 'nothing says who' : by === 'orchestrator' ? 'its orchestrator' : by
+  return `what agents may do here changes only on your word, and on ${from} ${who} changed it`
+}
+
+/** Whether `machine.pinned` keeps this path to this machine: names it, a section it is in, or a part of it. */
+export function pinnedHere(path: string, pinned: readonly string[]): boolean {
+  return pinned.some((one) => pathsMeet(path, one.replace(/\.\*$/, '')))
+}
+
+/** One value that lost, as both machines write it down and say it. */
+export interface SettingConflict {
+  path: string
+  kept: { value: string; machine: string; at: Stamp | null }
+  lost: { value: string; machine: string; at: Stamp | null }
+}
+
+/**
+ * The conflict as said, once, on each machine: "approvals.mode: vps set ask
+ * at 14:02, mac set auto at 14:05; mac's kept". `hm` is the clock face of a
+ * stamp, the caller's, so this stays pure.
+ */
+export function conflictSays(c: SettingConflict, hm: (wall: number) => string): string {
+  const one = (side: SettingConflict['kept']) =>
+    `${side.machine} set ${side.value === '' ? 'nothing' : side.value} ${side.at === null ? 'before anything wrote it down' : `at ${hm(side.at.wall)}`}`
+  return `${c.path}: ${one(c.lost)}, ${one(c.kept)}; ${c.kept.machine}’s kept.`
+}
+
+/**
+ * The `settings_conflict` line one machine writes: the path, whose value
+ * stood and whose lost, each with its stamp, and the machine it was settled
+ * with. Never a key: only kept settings are registers.
+ */
+export function conflictDetail(c: SettingConflict, other: string): Record<string, string> {
+  return {
+    path: c.path,
+    with: other,
+    kept: c.kept.value,
+    kept_by: c.kept.machine,
+    kept_at: c.kept.at === null ? '' : stampText(c.kept.at),
+    lost: c.lost.value,
+    lost_by: c.lost.machine,
+    lost_at: c.lost.at === null ? '' : stampText(c.lost.at),
+  }
+}
+
+/** A value as a conflict says it: one line, cut. */
+export function shownValue(value: unknown): string {
+  const text = textOf(value).replace(/\s+/g, ' ')
+  return text.length > 120 ? `${text.slice(0, 119)}…` : text
+}
+
+/** A journal line, as much of one as the folds below read. */
+export interface CarryLine {
+  type: string
+  /** When it was written, as the journal stamps it. */
+  ts?: string
+  detail?: Readonly<Record<string, unknown>>
+}
+
+/** The last line this machine wrote about one path, with when and by whom. */
+export interface ChangeSeen extends LastChange {
+  path: string
+  /** The device whose carry wrote it, or null for anything else. */
+  device: string | null
+  /** When the line was written, in this machine's clock; null where it does not say. */
+  at: number | null
+  /** Its stamp (`hlc.ts`), or for a line from before stamps, its wall time. */
+  stamp: Stamp | null
+  /** The stamp this machine held for the path when it was changed. */
+  over: Stamp | null
+  /** Who changed it first (`whoChanged`). */
+  by: string | null
+}
+
+/** The device a `by` names, where it names one: `device <id>`. */
+function deviceIn(by: unknown): string | null {
+  return typeof by === 'string' && by.startsWith('device ') ? by.slice('device '.length) : null
+}
+
+/**
+ * The newest `config_changed` line per path, folded out of the journal —
+ * what every register here is read from (`registerAt`). A carry's own line
+ * says `carried`, which is what tells it from everyone else's.
+ */
+export function changesIn(lines: readonly CarryLine[]): ChangeSeen[] {
+  const newest = new Map<string, ChangeSeen>()
+  for (const line of lines) {
+    if (line.type !== 'config_changed') continue
+    const path = line.detail?.path
+    if (typeof path !== 'string' || path === '') continue
+    const carried = typeof line.detail?.carried === 'string'
+    const at = line.ts === undefined ? Number.NaN : Date.parse(line.ts)
+    newest.set(path, {
+      path,
+      now: typeof line.detail?.now === 'string' ? line.detail.now : String(line.detail?.now ?? ''),
+      carried,
+      device: carried ? deviceIn(line.detail?.by) : null,
+      at: Number.isNaN(at) ? null : at,
+      stamp: lineStamp(line.detail, line.ts),
+      over: stampOf(line.detail?.over),
+      by: whoChanged(line.detail),
+    })
+  }
+  return [...newest.values()]
 }
 
 /**
@@ -445,7 +672,7 @@ export const HOME_HOLDS: readonly {
   {
     what: 'preferences',
     carry: 'kept',
-    how: 'carried, and kept in step; a value changed there is left and said',
+    how: 'kept in step both ways: the latest change on either stands, two made apart are said, and a setting either pins stays its own',
   },
   { what: 'attention settings', carry: 'kept', how: 'carried with the preferences' },
   {
@@ -488,3 +715,62 @@ export const HOME_HOLDS: readonly {
     how: 'each machine’s own record',
   },
 ]
+
+/** A hand edit found where a carry looked: what its line said, and what the file says now. */
+export interface HandEdit {
+  path: string
+  was: string
+  now: string
+}
+
+/** This machine's `machine.pinned`, as written. */
+export function pinnedIn(written: unknown): string[] {
+  const pinned = writtenAt(written, 'machine.pinned')
+  return Array.isArray(pinned) ? pinned.filter((one): one is string => typeof one === 'string') : []
+}
+
+/**
+ * Every kept setting here as a register: each value written, cut where
+ * `carryOf` says it is one value, and each one taken away — a line about a
+ * kept path with nothing written there now — so taking one away travels as a
+ * change. Never a key, never this machine's own, never what it pinned.
+ */
+export function registersHere(
+  written: unknown,
+  changes: readonly ChangeSeen[],
+  secrets: ReadonlySet<string>,
+): Map<string, Register> {
+  const pinned = pinnedIn(written)
+  const registers = new Map<string, Register>()
+  for (const leaf of leavesOf(written, secrets)) {
+    if (leaf.carry !== 'kept' || pinnedHere(leaf.path, pinned)) continue
+    registers.set(leaf.path, registerAt(leaf.path, leaf.value, changes))
+  }
+  for (const change of changes) {
+    if (writtenAt(written, change.path) !== undefined) continue
+    if (carryOf(change.path, secrets.has(change.path)).carry !== 'kept') continue
+    if (pinnedHere(change.path, pinned)) continue
+    if ([...registers.keys()].some((path) => pathsMeet(path, change.path))) continue
+    registers.set(change.path, registerAt(change.path, undefined, changes))
+  }
+  return registers
+}
+
+/**
+ * Settings edited by hand since their newest line (`editedSince`): kept ones
+ * only, because only a register needs to know when it was changed.
+ */
+export function handEdits(
+  written: unknown,
+  changes: readonly ChangeSeen[],
+  secrets: ReadonlySet<string>,
+): HandEdit[] {
+  const edits: HandEdit[] = []
+  for (const change of changes) {
+    if (carryOf(change.path, secrets.has(change.path)).carry !== 'kept') continue
+    const current = writtenAt(written, change.path)
+    if (!editedSince(current, change)) continue
+    edits.push({ path: change.path, was: change.now, now: textOf(current) })
+  }
+  return edits
+}

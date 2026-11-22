@@ -219,6 +219,14 @@ const NEVER: readonly (readonly [string, string])[] = [
     'backup',
     'a backup is every key and every word Tade keeps, sent where it names — where it goes and the password that opens it are a person’s',
   ],
+  // What this machine keeps out of the settings it shares with the others
+  // (`machine.pinned`, `carry.ts`): a pin on `approvals` is a machine that no
+  // longer hears the person tighten them elsewhere, which changes who decides
+  // what agents may do here — so the person's.
+  [
+    'machine',
+    'which settings this machine keeps to itself decides whose word reaches it from your other machines, and that is yours to move',
+  ],
 ]
 
 /**

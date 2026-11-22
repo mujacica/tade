@@ -125,6 +125,10 @@ async function linked(
       onScreenWith: async () => {},
       said: () => {},
       draw: () => {},
+      lines: async () => [],
+      found: async () => {},
+      take: async () => {},
+      conflicted: async () => {},
     },
     settingsOpen: () => false,
   }).withMachines(

@@ -433,11 +433,13 @@ export class Settings implements Subject {
    * a typed one is — and a key whose write left the file unloadable puts it
    * back.
    *
-   * And the door another machine's carry comes in by (`web-carry.ts`): any
-   * value the file can hold, said on its line the way `how` says it — `by` the
-   * device it came from, `now` as the carry may say it (never a key), and
-   * `carried` naming the machine it came from, which is what tells it apart
-   * from a change somebody here made (`changedThere`).
+   * And the door another machine's carry comes in by (`web-carry.ts`), and
+   * what this window takes back from one (`takeHere`): any value the file can
+   * hold, said on its line the way `how` says it — `by` the device or machine
+   * it came from, `now` as the carry may say it (never a key), `carried`
+   * naming the machine it came from, and the register it came with: its stamp
+   * (`hlc`), what it was made over (`over`) and who changed it first
+   * (`origin`), so this machine's register is that machine's (`settle`).
    *
    * An extension's own key is handed to the extensions here too, as `write`
    * does from the page: a key Connect Slack kept, or a GitHub App it made, is
@@ -447,7 +449,14 @@ export class Settings implements Subject {
     key: string,
     value: Parameters<typeof writeSetting>[2],
     was: string,
-    how: { by?: string; now?: string; carried?: string } = {},
+    how: {
+      by?: string
+      now?: string
+      carried?: string
+      hlc?: string
+      over?: string
+      origin?: string
+    } = {},
   ): Promise<void> {
     let before: string | null = null
     try {
@@ -475,9 +484,12 @@ export class Settings implements Subject {
       now: how.now ?? said(key, value as boolean | string | undefined),
       by: how.by ?? 'window',
       ...(how.carried === undefined ? {} : { carried: how.carried }),
+      ...(how.hlc === undefined ? {} : { hlc: how.hlc }),
+      ...(how.over === undefined ? {} : { over: how.over }),
+      ...(how.origin === undefined ? {} : { origin: how.origin }),
     })
-    // A carried write is told apart from one made here by this line
-    // (`changedThere`), so the next carry must find it: it waits for it.
+    // A carried write's stamp is on this line, so the next carry must find
+    // it, or it reads as older here than it is: it waits for it.
     if (how.carried !== undefined) await written
   }
 

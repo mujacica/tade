@@ -94,7 +94,13 @@ describe('a device changing a setting a request is enough for', () => {
     await change(one.port, EDITOR)
     const changed = await waitFor(one.client, 'config_changed')
     expect(changed.map((line) => line.detail)).toEqual([
-      { path: 'surfaces.window.editor', was: '', now: 'zed', by: `device ${DEVICE}` },
+      {
+        path: 'surfaces.window.editor',
+        was: '',
+        now: 'zed',
+        by: `device ${DEVICE}`,
+        hlc: expect.any(String),
+      },
     ])
     const did = await waitFor(one.client, 'web_did')
     expect(did[0]?.detail).toMatchObject({

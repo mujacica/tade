@@ -1,4 +1,4 @@
-import { isText } from '@tade/core'
+import { CARRY_SCHEMA, isText } from '@tade/core'
 import type { Answer, RemoteLink } from '@tade/remotes-core'
 import { describe, expect, it } from 'vitest'
 import { CarryRefused, carryTo, type Setup } from '../src/carry.ts'
@@ -16,7 +16,16 @@ const remote = {
   session: { device: 'd', cookie: 'd.s', csrf: 'c', host: 'localhost:7654' },
 }
 
-const setup: Setup = { kept: [], pressed: [], here: [], files: [] }
+const setup: Setup = {
+  kept: [],
+  registers: new Map(),
+  changes: [],
+  pinned: [],
+  pressed: [],
+  here: [],
+  files: [],
+  secrets: new Set(),
+}
 
 /** A link that answers every call with the one answer, and does nothing else. */
 const answering = (answer: Answer) => ({ call: async () => answer }) as unknown as RemoteLink
@@ -34,6 +43,7 @@ describe('a carry answered with escapes', () => {
       answering({
         status: 200,
         body: {
+          schema: CARRY_SCHEMA,
           machine: `vps${ESCAPES}`,
           settings: [{ path: 'agents.keep_awake', outcome: `kept${ESCAPES}`, said: ESCAPES }],
           files: [{ name: `persona${ESCAPES}`, outcome: 'written' }],
@@ -50,6 +60,56 @@ describe('a carry answered with escapes', () => {
     expect(answer.machine).toBe('vps␛')
     expect(answer.unsaid).toBe('nothing said␛')
     expect(JSON.stringify(answer)).not.toContain('pwned')
+  })
+
+  it('keeps a setting’s value as it came, which goes into the config and onto no screen', async () => {
+    const rule = 'Read the change first.\nThen say what you found.'
+    const answer = await carryTo(
+      answering({
+        status: 200,
+        body: {
+          schema: CARRY_SCHEMA,
+          machine: 'vps',
+          settings: [
+            { path: 'agents.instructions', outcome: 'newer', value: rule, by: `window${ESCAPES}` },
+          ],
+          files: [],
+          signIns: [],
+        },
+      }),
+      remote,
+      setup,
+      { from: 'mac', keys: false },
+    )
+    expect(answer.settings[0]?.value).toBe(rule)
+    expect(answer.settings[0]?.by).toBe('window␛')
+  })
+
+  it('refuses to carry to an older Tade, or a newer one, and says which to update', async () => {
+    const older = await carryTo(
+      answering({
+        status: 400,
+        body: { error: 'malformed', said: 'that request did not make sense' },
+      }),
+      remote,
+      setup,
+      { from: 'mac', keys: false },
+    ).catch((err: unknown) => err)
+    expect((older as Error).message).toMatch(/vps's Tade is older than this one.*tade host upgrade/)
+    const unstamped = await carryTo(
+      answering({ status: 200, body: { machine: 'vps', settings: [], files: [], signIns: [] } }),
+      remote,
+      setup,
+      { from: 'mac', keys: false },
+    ).catch((err: unknown) => err)
+    expect((unstamped as Error).message).toMatch(/older than this one/)
+    const newer = await carryTo(
+      answering({ status: 426, body: { error: 'malformed', said: 'older' } }),
+      remote,
+      setup,
+      { from: 'mac', keys: false },
+    ).catch((err: unknown) => err)
+    expect((newer as Error).message).toMatch(/vps's Tade is newer than this one.*tade update/)
   })
 
   it('says why it was refused in the remote’s words, as text', async () => {

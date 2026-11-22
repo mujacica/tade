@@ -44,7 +44,10 @@ describe('the window, talking to the orchestrator', () => {
   })
   /** The config changes this window has written down. */
   const changes = async () =>
-    (await client.events({ types: ['config_changed'] })).map(({ detail }) => detail)
+    (await client.events({ types: ['config_changed'] })).map(
+      // Without the stamp the journal puts on every setting's line (`setting-stamps.ts`).
+      ({ detail: { hlc: _hlc, over: _over, ...said } }) => said,
+    )
 
   it('sends anything it does not recognise to the orchestrator', async () => {
     const asked: string[] = []

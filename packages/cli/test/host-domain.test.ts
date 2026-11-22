@@ -184,14 +184,23 @@ describe('the name, written down', () => {
       `surfaces:\n  web:\n    public: ${OLD}\n    trusted_hosts: [studio.ts.net, ${OLD}]\n`,
     )
     await writePublic(path, NAME, [OLD], unsaid)
+    // Each stamped by the journal, the second made over the first's block.
     expect((await lines(home)).map((line) => line.detail)).toEqual([
-      { path: 'surfaces.web.public', was: OLD, now: NAME, by: 'cli', at: expect.any(Number) },
+      {
+        path: 'surfaces.web.public',
+        was: OLD,
+        now: NAME,
+        by: 'cli',
+        at: expect.any(Number),
+        hlc: expect.any(String),
+      },
       {
         path: 'surfaces.web.trusted_hosts',
         was: `studio.ts.net ${OLD}`,
         now: 'studio.ts.net',
         by: 'cli',
         at: expect.any(Number),
+        hlc: expect.any(String),
       },
     ])
   })

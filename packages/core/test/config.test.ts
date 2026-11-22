@@ -57,6 +57,17 @@ describe('parseConfig', () => {
     expect(refused.issues[0]?.path).toBe('surfaces.voice.muted')
   })
 
+  it('pins nothing until somebody does, and takes only a setting’s path', () => {
+    const fresh = parseConfig('')
+    expect(fresh.ok && fresh.config.machine.pinned).toEqual([])
+    const pinned = parseConfig('machine: { pinned: [checks, queue.holds, prices.*] }')
+    expect(pinned.ok && pinned.config.machine.pinned).toEqual(['checks', 'queue.holds', 'prices.*'])
+    const refused = parseConfig('machine: { pinned: ["checks; rm -rf /"] }')
+    expect(refused.ok).toBe(false)
+    if (refused.ok) return
+    expect(refused.issues[0]?.path).toBe('machine.pinned.0')
+  })
+
   it('accepts a fully populated config', () => {
     const r = parseConfig(`
 workspace: { driver: tmux, adopt: true }

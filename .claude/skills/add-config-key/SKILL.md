@@ -21,7 +21,7 @@ orchestrator's arm reaches into it, and whether a person can read back what they
 | `packages/core/src/settings-queue.ts` | the Queue group — who decides what was held: `queue.holds` |
 | `packages/core/src/settings-models.ts` | the Models group — what new agents start on: each route's model, thinking and harness, and each other harness's model and thinking under it |
 | `packages/core/src/reach.ts` | `settingReach`, `Reach`, the `NEVER` table, `OPEN`, `OPEN_UNDER`, `ALLOWED_UNDER`, `namedBy`, `wordsFor`, `WATCH_REACH`, `watchNamedBy`, `LINES_LOOKED_BACK` |
-| `packages/core/src/carry.ts` | `carryOf` — what another machine's Tade is given of each key — `leavesOf`, `carryDecision`, `changedThere`, `HOME_HOLDS`, `KEYS_TO_REMOTE`; `carry-files.ts` for the personas and templates |
+| `packages/core/src/carry.ts` | `carryOf` — what another machine's Tade is given of each key — `leavesOf`, `settle`, `registerAt`, `peerMayWrite`, `pinnedHere`, `carryDecision` (keys), `HOME_HOLDS`, `KEYS_TO_REMOTE`; `hlc.ts` for the stamps, `carry-files.ts` for the personas and templates |
 | `packages/core/src/project.ts` | what one project answers for itself: `workspaceFor`, `pushFor`, `PUSH_MODES`, `pushProblems` |
 | `packages/core/src/secrets.ts` | a credential: `findSecret`, `secretPath`, `secretCommand`, `IN_CONFIG`, `KEYS_AND_AGENTS`, `SEEN_BY_AGENTS` |
 | `packages/core/src/gone.ts` | keys that are gone: the `GONE` table, `dropGone`, `SERVER_RUNS_AS_YOU`, `SERVER_HELD_BY_NOTHING`, `CHECKS_ARE_READ` |
@@ -232,7 +232,7 @@ is what the checklist at the end of `tade remote add` and Settings › Remotes r
 
 | What the home holds | Becomes | How |
 |---|---|---|
-| ordinary preferences — commit and push rules, instructions, the orchestrator and routes, accounts and which one agents use, approvals, the checks' rules, queue, notes, documents, prices, the window's sizes, editor and keys, search, the talk key, telemetry's switches, which extensions are on and their other settings — and the **attention** settings | **(a) carried, and kept in step** | `kept`: written there through that machine's `Settings.writeKey`, read back and applied, one `config_changed` each with `carried` and the device; again when a link comes up, when the config moves here, and hourly |
+| ordinary preferences — commit and push rules, instructions, the orchestrator and routes, accounts and which one agents use, approvals, the checks' rules, queue, notes, documents, prices, the window's sizes, editor and keys, search, the talk key, telemetry's switches, which extensions are on and their other settings — and the **attention** settings | **(a) kept in step both ways** | `kept`: the latest change on either machine stands (below), written through each machine's `Settings.writeKey`, read back and applied, one `config_changed` each with `carried`, the device or machine and the stamp it came with; again when a link comes up, when the config moves here, and hourly |
 | the **personas** you wrote, the **templates** you published | **(a) carried** | `carry-files.ts`: a persona is a preference; a published version is the same file there or none, never rewritten |
 | **keys** — any leaf named `key`, `token`, `secret` or `password`, and any an extension declared — **MCP servers**, the **telemetry DSN**, **intake**'s sources and grants | **(b) on one press** | `pressed`: sent as digests until the press, so that machine can say which it already has; `KEYS_TO_REMOTE` said where the press is; written `0600` there; `remote_carried` here and `config_changed` there, neither ever the value |
 | each harness's **sign-in** — Claude Code, Codex, pi | **(c) never copied: guided** | `ssh -t <host> tade accounts sign-in <harness>`, the harness's own headless sign-in, in a terminal the person types into, from `tade remote add` or Settings › Remotes; that machine answers whether each is signed in and until when, and never more |
@@ -242,11 +242,32 @@ The rules the table stands on:
 
 - **That machine decides, not the one sending.** It asks `carryOf` again for every path, so a path
   that is its own is refused there whatever a Mac sends.
-- **Never over a value somebody there changed** (`changedThere`): its last `config_changed` line is
-  somebody there, or a carry's line with the file saying otherwise (edited by hand), or no line and
-  something written. That is `theirs` — left, said back with its value, and written over only on a
-  press of *Send this machine's* (`--ours <path>`). A carried value this machine no longer has is
-  taken away there only while it is still exactly the one carried.
+- **Both ways, and the latest change stands** (`settle`, `core/src/carry.ts`). Every kept setting is
+  a register: its value and the newest `config_changed` line about it — at the path, around it or
+  inside it (`registerAt`) — whose hybrid-clock stamp (`core/src/hlc.ts`) the journal writes on every
+  such line (`workbench/src/setting-stamps.ts`, so no writer can forget one), with the stamp the
+  setting held when it changed (`over`). The later stamp wins on both machines; the receiver writes
+  what came, or answers `newer` with its own register, and the sender settles that the same way
+  (`takeBack`) and writes it through its window's `writeKey` **with the stamp it came with**, so it is
+  never carried back as news. A value with no line at all is the earliest there is, and a value taken
+  away travels as a register with nothing in it. A hand edit since the newest line is written down
+  first as `by: file`, so its stamp is now (`handEdits`). The CLI carries but never takes back: it
+  says what the window will take (`WINDOW_TAKES`). `--ours <path>` still forces this machine's.
+- **Two changes neither saw are a conflict**: the winner was made over a stamp earlier than the
+  loser's. Written on both machines as `settings_conflict` and said once on each (`conflictSays`);
+  catching up on a change already seen is not one.
+- **A machine keeps what it pins** — `machine.pinned` (itself `here`, `never` to the orchestrator),
+  a section or a path: neither sent nor taken, refused there as `pinned`, listed on Settings ›
+  Machines and the checklist.
+- **A peer's change to a `never` path lands only where the person made it** (`peerMayWrite`):
+  who changed it first travels with it (`by`, and `origin` on the carried line — `whoChanged`), and
+  only `window`, `cli`, `file`, `you` or a device (which reaches past `open` only with full access)
+  count. Landing is said in the strip; a refusal is said with why. Never a press: the phone does
+  everything.
+- **Two Tades that carry differently refuse rather than guess.** Every body says `schema`
+  (`CARRY_SCHEMA`); one that is not the receiver's own is refused `426` before anything is written,
+  an older receiver refuses the stamped body as malformed, and the sender says which machine to
+  update. Bump `CARRY_SCHEMA` whenever what a carry means changes.
 - **`never` to the orchestrator is not "never carried".** Approvals, which extensions are on, a
   route's provider and the accounts are the person's own preferences, written by the person's own
   config, and they go with them; what `never` carries on a press is a credential or a grant.
@@ -473,7 +494,7 @@ path, and it calls `ownerOnly` on every write.
 **From a terminal, never `writeSetting` alone**: `writeFromShell` (or `heldIn` then
 `recordFromShell`, where the command reads the file back first) in `cli/src/config-write.ts`, which
 writes `config_changed` `by: cli` through `changeOf` — a key as `set` or `not set`, a block as
-`set`, a list with spaces between — so `copiedHosts` and `changedThere` read it as they read Settings'. The CLI may not append beside
+`set`, a list with spaces between — so `copiedHosts` and `changesIn` read it as they read Settings'. The CLI may not append beside
 an open window, so the line goes through `recordConfigChanges` (`workbench/src/config-changes.ts`):
 folded in at once where nobody holds the home, and otherwise by the window on its beat
 (`Settings.fold`) — which also **takes** it, as it takes a change of its own: the config read back

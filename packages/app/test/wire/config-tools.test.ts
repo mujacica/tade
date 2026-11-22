@@ -45,7 +45,10 @@ describe('the orchestrator, configuring Tade', () => {
 
   /** Every config change written down, newest last. */
   async function changes(): Promise<Record<string, unknown>[]> {
-    return (await client.events({ types: ['config_changed'] })).map((event) => event.detail)
+    // Without the stamp the journal puts on every setting's line (`setting-stamps.ts`).
+    return (await client.events({ types: ['config_changed'] })).map(
+      ({ detail: { hlc: _hlc, over: _over, ...said } }) => said,
+    )
   }
 
   /**

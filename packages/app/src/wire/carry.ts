@@ -1,4 +1,11 @@
-import type { Config } from '@tade/core'
+import {
+  type CarryLine,
+  type Config,
+  conflictSays,
+  type HandEdit,
+  type SettingConflict,
+  stampText,
+} from '@tade/core'
 import type { Remote, RemoteLink } from '@tade/remotes-core'
 import {
   type CarryPress,
@@ -7,9 +14,13 @@ import {
   carriedLine,
   carryTo,
   checklistOf,
+  clockOf,
+  editsOf,
   harnessesInUse,
   type Setup,
   setupOf,
+  type TakenWrite,
+  takeBack,
 } from '@tade/workbench/carry'
 import type { RemoteShown } from '../panels/settings/remotes.ts'
 import type { Ui } from '../screen.ts'
@@ -22,6 +33,14 @@ import type { Ui } from '../screen.ts'
 // window holds changed — a setting written here, or the file edited by hand —
 // and once an hour while a link is up, which is what picks up a persona or a
 // template made in the meantime. Only what is `kept`: keys go only on a press.
+//
+// **Both ways.** What comes back newer is settled here as that machine settled
+// what it was sent (`takeBack`) and written through this window's own door
+// with the stamp it came with, so it is not carried back as news; a change
+// both made apart is written down here too (`settings_conflict`) and said
+// once, and a peer's change to what widens agents here is said whenever it
+// lands — or why it did not. An edit to the file since its newest line is
+// written down first, as somebody's here (`by: file`), so its stamp is now.
 //
 // **What a press does** (Settings › Remotes): send the keys, after
 // `KEYS_TO_REMOTE` was said and the button pressed twice; turn talking to Tade
@@ -53,6 +72,14 @@ export interface CarriesDeps {
   /** What this machine calls itself there. */
   from: () => string
   log: (line: ReturnType<typeof carriedLine>) => Promise<void>
+  /** Every `config_changed` line here, oldest first: what each setting's stamp is read from. */
+  lines: () => Promise<readonly CarryLine[]>
+  /** Write down settings edited by hand since their newest line, as somebody's here. */
+  found: (edits: readonly HandEdit[]) => Promise<void>
+  /** Write one setting that came back newer, through this window's own door, with its register. Throws the reason. */
+  take: (write: TakenWrite, from: string) => Promise<void>
+  /** Write down a change both machines made apart, and whose stood. */
+  conflicted: (conflict: SettingConflict, other: string) => Promise<void>
   /** A terminal the person types into, over the window, for a sign-in there. */
   onScreenWith: (flow: (ui: Ui) => Promise<void>) => Promise<void>
   /** Said on the Settings page, where the press was. */
@@ -78,6 +105,8 @@ export class Carries {
   private readonly troubled = new Map<string, string>()
   /** The config last carried from, by identity: `Settings.use` hands a new one on every change. */
   private config: Config | null = null
+  /** What was said in the strip about a setting that came back, so a carry an hour later is not news again. */
+  private readonly told = new Set<string>()
 
   constructor(deps: CarriesDeps) {
     this.deps = deps
@@ -146,7 +175,14 @@ export class Carries {
   private async once(name: string, opts: Omit<CarryPress, 'from'>): Promise<Checklist | null> {
     const held = this.deps.reach(name)
     if (held === null) return null
-    const setup = await setupOf(this.deps.home, this.deps.configPath, this.deps.secrets())
+    const secrets = this.deps.secrets()
+    let lines = await this.deps.lines()
+    const edits = await editsOf(this.deps.configPath, lines, secrets)
+    if (edits.length > 0) {
+      await this.deps.found(edits)
+      lines = await this.deps.lines()
+    }
+    const setup = await setupOf(this.deps.home, this.deps.configPath, secrets, lines)
     const { list, refused } = await this.answer(name, held, setup, opts)
     this.kept.set(name, { list, at: this.deps.now() })
     this.troubles(name, refused ? list.unreached : null)
@@ -169,11 +205,10 @@ export class Carries {
     const inUse = harnessesInUse(this.deps.config())
     const base = { remote: name, setup, inUse, now: this.deps.now() }
     try {
-      const answer = await carryTo(held.link, held.remote, setup, {
-        from: this.deps.from(),
-        ...opts,
-      })
-      return { list: checklistOf({ ...base, answer, unreached: null }), refused: false }
+      const me = this.deps.from()
+      const answer = await carryTo(held.link, held.remote, setup, { from: me, ...opts })
+      const took = await this.takeBack(name, setup, answer, me)
+      return { list: checklistOf({ ...base, answer, unreached: null, me, took }), refused: false }
     } catch (err) {
       const said = err instanceof Error ? err.message : String(err)
       // Not reaching it is the link's news, said as the link goes down; a
@@ -183,6 +218,51 @@ export class Carries {
         refused: err instanceof CarryRefused,
       }
     }
+  }
+
+  /**
+   * What came back newer, written here; the carry's conflicts written down;
+   * and each said in the strip once — a conflict, a change to what widens
+   * agents that landed, and one that did not, with why.
+   */
+  private async takeBack(
+    name: string,
+    setup: Setup,
+    answer: Parameters<typeof takeBack>[1],
+    me: string,
+  ): Promise<{ taken: string[]; failed: { what: string; why: string }[] }> {
+    const back = takeBack(setup, answer, me)
+    const taken: string[] = []
+    const failed: { what: string; why: string }[] = []
+    for (const one of back.writes) {
+      try {
+        await this.deps.take(one, name)
+        taken.push(one.path)
+      } catch (err) {
+        failed.push({ what: one.path, why: err instanceof Error ? err.message : String(err) })
+      }
+    }
+    for (const one of back.conflicts) {
+      if (failed.some((each) => each.what === one.path)) continue
+      const key = `conflict ${one.path} ${stampOf(one.kept.at)} ${stampOf(one.lost.at)}`
+      if (this.told.has(key)) continue
+      this.told.add(key)
+      await this.deps.conflicted(one, name).catch(() => {})
+      this.deps.say(`Changed on both ${name} and here: ${conflictSays(one, clockOf)}`)
+    }
+    for (const one of back.landed) {
+      if (!taken.includes(one.path)) continue
+      this.deps.say(
+        `${name} changed ${one.path} to ${one.now || 'nothing'} (${one.by} there): applied here.`,
+      )
+    }
+    for (const one of back.refused) {
+      const key = `refused ${name} ${one.what} ${one.why}`
+      if (this.told.has(key)) continue
+      this.told.add(key)
+      this.deps.say(`Not taken from ${name}: ${one.what} — ${one.why}.`)
+    }
+    return { taken, failed }
   }
 
   /** A carry that was refused, said once for as long as it is the same trouble. */
@@ -303,5 +383,15 @@ function talkPressed(name: string, list: Checklist): [string | null, string | nu
 
 /** Whether a carry changed anything there — a line's worth of news here. */
 function changedAny(list: Checklist): boolean {
-  return list.refused.length > 0 || list.theirs.length > 0
+  return (
+    list.refused.length > 0 ||
+    list.theirs.length > 0 ||
+    list.taken.length > 0 ||
+    list.conflicts.length > 0
+  )
+}
+
+/** A stamp as a key for what was said, or nothing. */
+function stampOf(stamp: SettingConflict['kept']['at']): string {
+  return stamp === null ? '-' : stampText(stamp)
 }

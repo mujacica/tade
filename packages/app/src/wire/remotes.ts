@@ -6,14 +6,19 @@ import {
   CONNECT_TITLES,
   type Config,
   type ConnectSource,
+  carriedSays,
+  conflictDetail,
   type Inventory,
   loadConfig,
   machineLabel,
   printable,
   type RemoteConfig,
   type Waking,
+  writtenAt,
 } from '@tade/core'
 import type { Held, MakeRemoteLink, Remote, RemoteLink } from '@tade/remotes-core'
+import type { TakenWrite } from '@tade/workbench/carry'
+import { heldIn } from '@tade/workbench/config-changes'
 import { runningVersion } from '@tade/workbench/programs'
 import {
   type LinkWord,
@@ -41,6 +46,7 @@ import type { Ui } from '../screen.ts'
 import { remoteStanding } from '../view/standing.ts'
 import { projectSays } from '../view/top.ts'
 import { Carries, type CarriesDeps } from './carry.ts'
+import { recordChange } from './config-written.ts'
 import {
   type Actions,
   clockOf,
@@ -59,6 +65,7 @@ import { RemoteAgents } from './remote-agent.ts'
 import { RemoteMachines } from './remote-machine.ts'
 import { type RemoteReads, remoteReads } from './remote-reads.ts'
 import { RemoteTalks, type RemoteTalkTools } from './remote-talk.ts'
+import type { Settings } from './settings.ts'
 import type { WatchTwinsHere } from './watch-where.ts'
 import { MACHINE } from './web-panel.ts'
 
@@ -124,7 +131,19 @@ export interface RemotesDeps {
   /** The registry, or a test's. */
   links?: Readonly<Record<string, MakeRemoteLink>>
   /** What carrying this machine's setup there needs beyond the links. */
-  carrying: Pick<CarriesDeps, 'config' | 'secrets' | 'from' | 'onScreenWith' | 'said' | 'draw'>
+  carrying: Pick<
+    CarriesDeps,
+    | 'config'
+    | 'secrets'
+    | 'from'
+    | 'onScreenWith'
+    | 'said'
+    | 'draw'
+    | 'lines'
+    | 'found'
+    | 'take'
+    | 'conflicted'
+  >
   /** Whether Settings is open, so its Remotes page is drawn. */
   settingsOpen: () => boolean
   /** What this machine is called in a sentence: `this Mac`. */
@@ -798,6 +817,8 @@ export function remotesFor(
     inventory?: () => Inventory | null
     /** A remote's branches in one project's mirror moved: that project's branch is looked at again. */
     synced?: (project: string) => void
+    /** The one door a setting is written by, for one that came back newer from another machine. */
+    settings: () => Pick<Settings, 'writeKey'>
   },
 ): Remotes {
   const say = (said: string) => {
@@ -827,6 +848,17 @@ export function remotesFor(
         wire.draw()
       },
       draw: () => wire.draw(),
+      lines: () => wire.opts.client.events({ types: ['config_changed'] }),
+      found: async (edits) => {
+        for (const one of edits) await recordChange(wire, { ...one, by: 'file' })
+      },
+      take: (write, from) => takeHere(wire, subjects.settings(), write, from),
+      conflicted: async (conflict, other) => {
+        await wire.opts.client.log.append({
+          type: 'settings_conflict',
+          detail: conflictDetail(conflict, other),
+        })
+      },
     },
     settingsOpen: () => wire.state.panel?.kind === 'settings',
     here: MACHINE,
@@ -903,4 +935,27 @@ function reachingOf(remotes: Remotes) {
     machines: () => remotes.machines(),
     skew: (name: string) => remotes.skewOf(name),
   }
+}
+
+/**
+ * One setting another machine's answer said is newer, written through the
+ * window's one door: read back, applied now, and written down as carried from
+ * that machine with the register it came with — its stamp, what it was made
+ * over and who changed it first — so the next carry finds both machines the
+ * same rather than this one newer.
+ */
+async function takeHere(
+  wire: Wiring,
+  settings: Pick<Settings, 'writeKey'>,
+  write: TakenWrite,
+  from: string,
+): Promise<void> {
+  const path = configPathOf(wire.opts)
+  const was = carriedSays('kept', writtenAt(heldIn(path), write.path))
+  await settings.writeKey(write.path, write.value as Parameters<Settings['writeKey']>[1], was, {
+    by: `machine ${from}`,
+    now: carriedSays('kept', write.value),
+    carried: from,
+    ...write.stamp,
+  })
 }

@@ -7,6 +7,7 @@ import {
   type EventFilter,
   type EventInput,
   type JournalPolicy,
+  machineLabel,
   matchesFilter,
   type TadeEvent,
   URGENCY_RANK,
@@ -15,6 +16,7 @@ import {
 import { type Compaction, compactJournal } from './compact.ts'
 import { EventIndex } from './event-index.ts'
 import { type BeforeAsk, readBeforeAway } from './journal-away.ts'
+import { SettingStamps } from './setting-stamps.ts'
 
 // events.jsonl is the truth: append-only, one JSON object per line. The SQLite
 // index is derived and rebuilt whenever it disagrees with the file — and a
@@ -57,6 +59,8 @@ export interface EventLogOptions {
    * without a config to read the numbers from.
    */
   journal?: JournalPolicy
+  /** What this machine calls itself on the stamp of a setting changed here (`setting-stamps.ts`). */
+  machine?: string
 }
 
 export type EventListener = (e: TadeEvent) => void
@@ -81,6 +85,8 @@ export class EventLog {
   readonly index: EventIndex | null
   /** Where the index is, while there is one: what a read on another thread opens. */
   private readonly indexAt: string | null
+  /** The clock every `config_changed` line is stamped by, caught up with the journal at open. */
+  private stamps: SettingStamps
 
   private constructor(
     path: string,
@@ -96,6 +102,7 @@ export class EventLog {
     this.index = index
     this.indexAt = index === null ? null : indexAt
     this.queueLimit = queueLimit
+    this.stamps = new SettingStamps(machineLabel())
   }
 
   static async open(opts: EventLogOptions): Promise<EventLog> {
@@ -151,6 +158,18 @@ export class EventLog {
       }
     }
     const log = new EventLog(opts.path, fh, from, index, indexPath, opts.subscriberQueue ?? 1_000)
+    // Before anything is appended, so the first setting changed after an open
+    // is stamped later than every one the journal already holds. A journal
+    // that could not be read for them still stamps by the wall clock, and says
+    // why, rather than refusing to open.
+    const machine = opts.machine ?? machineLabel()
+    let unstamped: string | null = null
+    try {
+      log.stamps = SettingStamps.from(await log.read({ types: ['config_changed'] }), machine)
+    } catch (cause) {
+      log.stamps = new SettingStamps(machine)
+      unstamped = `could not read the settings already changed in ${opts.path}, so a setting changed now is stamped by this machine’s clock alone: ${String(cause)}`
+    }
     if (corrupt > 0) {
       await log.append({
         type: 'warning',
@@ -159,6 +178,7 @@ export class EventLog {
     }
     if (trouble) await log.append({ type: 'warning', detail: { message: trouble } })
     if (unindexed) await log.append({ type: 'warning', detail: { message: unindexed } })
+    if (unstamped) await log.append({ type: 'warning', detail: { message: unstamped } })
     if (compacted) await log.recordCompaction(compacted)
     return log
   }
@@ -203,16 +223,21 @@ export class EventLog {
     // before `seq`, so a refusal leaves no gap in the numbering either.
     if (this.shut) throw new EventLogClosedError(this.path, input.type)
     const urgency = input.urgency ?? DEFAULT_URGENCY[input.type]
-    // seq is assigned synchronously, so ordering never depends on I/O timing.
+    const now = Date.now()
+    // seq is assigned synchronously, so ordering never depends on I/O timing —
+    // and a setting's stamp with it, so stamps are in the order of the lines.
     const event: TadeEvent = {
       seq: ++this.seq,
-      ts: new Date().toISOString(),
+      ts: new Date(now).toISOString(),
       type: input.type,
       urgency,
       task: input.task ?? null,
       lane: input.lane ?? null,
       run: input.run ?? null,
-      detail: input.detail ?? {},
+      detail:
+        input.type === 'config_changed'
+          ? this.stamps.stamp(input.detail ?? {}, now)
+          : (input.detail ?? {}),
     }
     const durable = URGENCY_RANK[urgency] <= URGENCY_RANK[FSYNC_AT]
     const write = this.writes.then(async () => {

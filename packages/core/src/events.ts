@@ -576,6 +576,15 @@ export const EventType = z.enum([
    */
   'carried_in',
   /**
+   * A setting both this machine and another had changed without seeing the
+   * other's, settled by a carry (`settle`, `carry.ts`): the path, the machine
+   * it was settled with (`with`), and whose value stood and whose lost, each
+   * as the value, the machine and its stamp. Written on both machines, said
+   * once on each — a change that was quietly replaced is the one somebody
+   * most needs to read back. A kept setting only, so **never a key**.
+   */
+  'settings_conflict',
+  /**
    * The person's notes shared with another machine (`notes-shared.ts`), both
    * ways: which machine (`with`), how many lines were taken here and of those
    * how many were notes, how many that machine took (on the side that asked),
@@ -822,6 +831,9 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // and the person who did not make the change is the one who needs to see it.
   remote_carried: 'notable',
   carried_in: 'notable',
+  // Notable: a decision somebody made was replaced by one they may not have
+  // seen, and this line is the only place what it was is kept.
+  settings_conflict: 'notable',
   // Routine: notes arriving from the person's other machine is what linking
   // one is for, and the notes say themselves where they are read.
   notes_shared: 'routine',

@@ -168,7 +168,12 @@ export async function writeCarried(
     path: string
     value: unknown
     carry: 'kept' | 'pressed'
-    by: { device: string; from: string }
+    by: {
+      device: string
+      from: string
+      /** The register a kept setting came with: written on its line as it came. */
+      stamp?: { hlc?: string; over?: string; origin?: string }
+    }
   },
   log: (line: { type: 'config_changed'; detail: Record<string, string> }) => Promise<void>,
 ): Promise<void> {
@@ -195,6 +200,7 @@ export async function writeCarried(
       now: carriedSays(write.carry, write.value),
       by: `device ${write.by.device}`,
       carried: write.by.from,
+      ...write.by.stamp,
     },
   })
 }

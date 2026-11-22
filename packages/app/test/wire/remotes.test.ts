@@ -74,6 +74,10 @@ function carrying(
         said.push(error ?? saved ?? '')
       },
       draw: () => {},
+      lines: async () => [],
+      found: async () => {},
+      take: async () => {},
+      conflicted: async () => {},
     },
     settingsOpen: () => open.settings,
   }

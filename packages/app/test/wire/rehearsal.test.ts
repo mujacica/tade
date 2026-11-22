@@ -10,7 +10,9 @@ import {
   mirrorMachine,
   mirrorRef,
   parseConfig,
+  writeSetting,
 } from '@tade/core'
+import { heldIn } from '@tade/workbench/config-changes'
 import { readTaskFile } from '@tade/workbench/tasks'
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import { mkrepo, runGit, tmp } from '../../../../test/fixtures/mkrepo.ts'
@@ -19,6 +21,7 @@ import {
   startStandIn,
   writeStandInModels,
 } from '../../../../test/fixtures/stand-in-model.ts'
+import { recordFromShell } from '../../../cli/src/config-write.ts'
 import { makeSshLink } from '../../../remotes/ssh/src/index.ts'
 import { startSshd } from '../../../remotes/ssh/test/sshd.ts'
 import type { App } from '../../src/app.ts'
@@ -44,6 +47,11 @@ import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.t
 // clone of the Mac's, a commit the Mac never pushed to origin handed into that
 // VPS's mirror over the same sshd, and that VPS's own `tade serve`
 // fast-forwarding its checkout to it with nobody there.
+//
+// And the settings kept in step both ways: a change made on each while the
+// window here was shut, the later of the two standing on both and said as a
+// conflict on both, a setting only the box had coming back here, the box's
+// own staying its own, and a section it pinned staying as it was.
 
 const bin = fileURLToPath(new URL('../../../cli/src/bin.ts', import.meta.url))
 const sshd = await startSshd()
@@ -139,6 +147,22 @@ async function box(name: string, project: string, dir: string, from?: string): P
     serving,
     journal: () => readFileSync(join(repo.home, 'events.jsonl'), 'utf8'),
   }
+}
+
+/** A setting changed from a terminal on one home, the way `tade config` writes one and its line. */
+async function changedFromShell(home: string, writes: { key: string; value: unknown }[]) {
+  const path = join(home, 'config.yaml')
+  const before = heldIn(path)
+  for (const one of writes) writeSetting(path, one.key, one.value as never)
+  await recordFromShell(
+    path,
+    before,
+    writes as never,
+    (said) => {
+      throw new Error(said)
+    },
+    home,
+  )
 }
 
 /** A home's notes file, or nothing where no note has been written there yet. */
@@ -416,6 +440,74 @@ describe.skipIf(cannot !== null)(
       // Nothing written into the Mac's checkout by handing it over.
       expect(runGit(wired.repo.root, 'for-each-ref')).toBe(before)
       expect(wired.repo.head()).toBe(mine)
+      await window.stop()
+    }, 300_000)
+
+    it('keeps settings in step both ways: the later of two changes made apart stands on both, and is said', async () => {
+      if (typeof sshd === 'string') return
+      const vps = await box('vps', 'app', sshd.dir)
+      const remotes = pair(sshd, [vps])
+      const configOf = (home: string) => {
+        const read = parseConfig(readFileSync(join(home, 'config.yaml'), 'utf8'))
+        if (!read.ok) throw new Error(`${home}'s config does not read`)
+        return read.config
+      }
+      // On the box, with the window here shut: a preference changed, one this
+      // Mac never had, and its checks pinned to itself.
+      await changedFromShell(vps.home, [
+        { key: 'queue.holds', value: 'ask' },
+        { key: 'notes.keep_days', value: 9 },
+        { key: 'machine.pinned', value: ['checks'] },
+        { key: 'checks.before', value: 'commit' },
+      ])
+      await until(
+        'the box to write down what its terminal changed',
+        () => (vps.journal().match(/"type":"config_changed"/g) ?? []).length >= 4,
+        60_000,
+      )
+      // Then here, later: the same preference another way, the checks, and this machine's own driver.
+      await changedFromShell(wired.home, [
+        { key: 'queue.holds', value: 'orchestrator' },
+        { key: 'checks.before', value: 'push' },
+        { key: 'workspace.driver', value: 'tmux' },
+      ])
+      const window = await wired.start({
+        config: ConfigSchema.parse({ remotes }),
+        remoteLinks: { ssh: (options) => makeSshLink({ ...options, args: ['-F', sshd.config] }) },
+        thinker: { ask: async () => 'ok', tell: async () => {} },
+      })
+      await until(
+        'the later change on the box, and the box’s own setting here',
+        () =>
+          configOf(vps.home).queue.holds === 'orchestrator' &&
+          configOf(wired.home).notes.keep_days === 9,
+        120_000,
+      )
+      // One conflict, written on both and said here; nothing else is one.
+      const conflicts = (journal: string) =>
+        journal
+          .split('\n')
+          .filter((line) => line.includes('"type":"settings_conflict"'))
+          .map((line) => (JSON.parse(line) as { detail: Record<string, string> }).detail)
+      const here = () => readFileSync(join(wired.home, 'events.jsonl'), 'utf8')
+      // Written once what came back is taken, so waited for rather than read at once.
+      await until(
+        'the conflict written down on both machines',
+        () => conflicts(here()).length > 0 && conflicts(vps.journal()).length > 0,
+        60_000,
+      )
+      expect(conflicts(here())).toEqual([
+        expect.objectContaining({ path: 'queue.holds', kept: 'orchestrator', lost: 'ask' }),
+      ])
+      expect(conflicts(vps.journal())).toEqual([
+        expect.objectContaining({ path: 'queue.holds', kept: 'orchestrator', lost: 'ask' }),
+      ])
+      await until('the conflict said here', () => shown('Changed on both vps and here'))
+      // The box's own stays its own, and so does what it pinned.
+      expect(configOf(vps.home).workspace.driver).toBe('pty')
+      expect(configOf(vps.home).checks.before).toBe('commit')
+      // And it settles: carried again, nothing more is taken or said.
+      expect(configOf(wired.home).queue.holds).toBe('orchestrator')
       await window.stop()
     }, 300_000)
   },

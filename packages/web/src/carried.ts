@@ -1,16 +1,36 @@
 import { readFile } from 'node:fs/promises'
 import type { IncomingMessage } from 'node:http'
 import {
+  CARRY_SCHEMA,
   type CarriedFile,
+  type CarryLine,
   type CarryOutcome,
+  type ChangeSeen,
   carryDecision,
   carryOf,
+  changesIn,
   fileDecision,
   fileHash,
   fileNamed,
   fileThere,
-  type LastChange,
+  type HandEdit,
+  handEdits,
+  notThePersonSays,
+  peerMayWrite,
+  pinnedHere,
+  pinnedIn,
   putFile,
+  type Register,
+  registerAt,
+  registersHere,
+  type SettingConflict,
+  type Settled,
+  type Stamp,
+  settingReach,
+  settle,
+  shownValue,
+  stampOf,
+  stampText,
   textOf,
   writtenAt,
 } from '@tade/core'
@@ -21,9 +41,12 @@ import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
 import { ownsOrTheirs } from './surface.ts'
 
-// Another machine's Tade giving this one what it was set up with — its
-// preferences, its personas and published templates, and on a press its keys —
-// so a remote somebody added works like the machine they set up
+export { type CarryLine, type ChangeSeen, changesIn, type HandEdit }
+
+// Another machine's Tade keeping its settings in step with this one's — its
+// preferences both ways, its personas and published templates, and on a press
+// its keys — so a remote somebody added works like the machine they set up,
+// and a preference changed on either is the preference on both
 // (`@tade/core`'s `carry.ts` has the decision for every key).
 //
 // **An owner's, and only on this machine's own door.** Like `presence`: the
@@ -42,16 +65,24 @@ import { ownsOrTheirs } from './surface.ts'
 //
 // **This machine decides, not the one sending.** Every path is asked of
 // `carryOf` again here, so a path that is this machine's own is refused
-// whatever arrived; a value somebody here changed is left and said back
-// (`theirs`) unless the person pressed for the other machine's to go over it;
-// and a key arrives only as a digest to compare until somebody pressed to send
-// it. Each write goes through the window's one write path, which writes the
-// `config_changed` line, with the device it came from and never a key.
+// whatever arrived. A kept setting is a register, and the later stamp wins
+// (`settle`): the one that came is written here, or this machine's is newer
+// and goes back with the answer (`newer`) for the other to settle the same
+// way. One this machine keeps to itself (`machine.pinned`) is neither, and a
+// change to what widens agents here lands only where the person made it
+// (`peerMayWrite`). A key arrives only as a digest to compare until somebody
+// pressed to send it. Each write goes through the window's one write path,
+// which writes the `config_changed` line with the stamp it came with, the
+// device and the machine it came from, and never a key.
 //
-// **What goes back is never a key and never a sign-in.** A setting somebody
-// changed here is said back as its value, unless it was carried on a press; a
-// harness's sign-in is said as whether there is one and until when, read off
-// the dates the harness wrote down — never the token beside them.
+// **Two Tades that carry settings differently refuse rather than guess**: a
+// carry says its `schema`, and one that is not this one's is refused before
+// anything is written (`CARRY_SCHEMA`), with a sentence an older sender says.
+//
+// **What goes back is never a key and never a sign-in.** A setting is said
+// back as its value only where it is kept, never where it was carried on a
+// press; a harness's sign-in is said as whether there is one and until when,
+// read off the dates the harness wrote down — never the token beside them.
 
 /** A dotted config path, as a carry names one. */
 const Path = z
@@ -59,9 +90,20 @@ const Path = z
   .max(200)
   .regex(/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/)
 
+/** A stamp as a line carries it (`hlc.ts`), and who changed it as a line says it. */
+const StampText = z.string().max(200)
+const Who = z.string().max(200)
+
 const Leaf = z.union([
   z.strictObject({ path: Path, digest: z.string().regex(/^[0-9a-f]{64}$/) }),
-  z.strictObject({ path: Path, value: z.unknown().refine((value) => value !== undefined) }),
+  z.strictObject({
+    path: Path,
+    /** `null` is a setting taken away there, which is a change like any other. */
+    value: z.unknown().refine((value) => value !== undefined),
+    hlc: StampText.optional(),
+    over: StampText.optional(),
+    by: Who.optional(),
+  }),
 ])
 
 const Name = z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/)
@@ -77,14 +119,10 @@ const FileIn = z.discriminatedUnion('kind', [
 ])
 
 const CarryBody = z.strictObject({
+  /** What the carry speaks (`CARRY_SCHEMA`): absent is a Tade from before settings went both ways. */
+  schema: z.int().positive().optional(),
   /** What the machine sending calls itself, for the line written here. */
   from: z.string().min(1).max(120),
-  /**
-   * Whether `settings` is every preference that machine keeps in step, so that
-   * one it no longer has is taken away here — where it is still the one it
-   * carried, and nowhere else.
-   */
-  complete: z.boolean(),
   settings: z.array(Leaf).max(1_000),
   files: z.array(FileIn).max(200).default([]),
   /** Paths the person pressed for that machine's value to go over this one's. */
@@ -103,10 +141,23 @@ export type CarryBody = z.infer<typeof CarryBody>
 export interface CarriedSetting {
   path: string
   outcome: CarryOutcome
-  /** What it is here, where it is ours and may be shown: never for anything carried on a press. */
-  theirs?: string
   /** Why not, where it was refused. Tade's own clause, or the config's. */
   why?: string
+  /**
+   * This machine's register, where it is `newer`: the value — kept, never a
+   * key — its stamp, what it was made over and who changed it, for the
+   * machine that asked to settle as this one did. `null` is taken away here.
+   */
+  value?: unknown
+  hlc?: string
+  over?: string
+  by?: string
+  /**
+   * Where both machines had changed it without seeing the other's: the value
+   * that lost and its stamp, as text — this machine's where the one that came
+   * was written, the one that came where this machine's is `newer`.
+   */
+  conflict?: { value: string; hlc: string | null }
   /**
    * Here, and not in use yet: written now, or already so since the Tade running
    * here started, and read only when it next starts. Absent is not said — what
@@ -138,6 +189,8 @@ export interface SignInHere {
 
 /** What `POST /api/carry` answers. */
 export interface CarryAnswer {
+  /** What it speaks (`CARRY_SCHEMA`). Absent from an older Tade. */
+  schema?: number
   /** What this machine calls itself. */
   machine: string
   settings: CarriedSetting[]
@@ -153,20 +206,29 @@ export interface CarryAnswer {
   talk?: 'on' | 'off' | 'turning on'
 }
 
-/** The last line this machine wrote about one path, and which device's carry it was. */
-export interface ChangeSeen extends LastChange {
-  path: string
-  /** The device whose carry wrote it, or null for anything else. */
-  device: string | null
-  /** When the line was written, in this machine's clock; null where it does not say. */
-  at: number | null
-}
-
 /** Who a carried write is from, as its line says it. */
 export interface CarriedBy {
   device: string
   /** What the machine that sent it calls itself. */
   from: string
+  /**
+   * The register it came with, for a kept setting: written on its line as it
+   * came, so this machine's register is the one that machine had — the same
+   * stamp, what it was made over, and who changed it first (`origin`).
+   */
+  stamp?: { hlc?: string; over?: string; origin?: string }
+}
+
+/** What a carry did here that is news on this machine, for the window to write down and say. */
+export interface CarryNews {
+  /** What the machine sending calls itself. */
+  from: string
+  /** Changes both machines made without seeing the other's, and whose stood. */
+  conflicts: SettingConflict[]
+  /** A peer's change to what widens agents here, made by the person, written: said whenever one lands. */
+  landed: { path: string; now: string; by: string }[]
+  /** One that was not the person's, refused, with why. */
+  refused: { path: string; why: string }[]
 }
 
 /**
@@ -188,6 +250,18 @@ export interface WebCarrying {
    * where the config would not load with it, having put the file back.
    */
   write(path: string, value: unknown, carry: 'kept' | 'pressed', by: CarriedBy): Promise<void>
+  /**
+   * Paths the extensions here declared as keys whatever they are called: never
+   * said back as a value, and a value that came for one is a key's.
+   */
+  secrets(): ReadonlySet<string>
+  /**
+   * Write down settings edited by hand since their newest line, as somebody at
+   * this machine's (`by: file`), so the stamp says they were changed now.
+   */
+  found(edits: readonly HandEdit[]): Promise<void>
+  /** What a carry did that is news here: written down and said by the window. Never throws. */
+  told(news: CarryNews): Promise<void>
   /** What is in this home under a file's name, or null. */
   file(file: Pick<CarriedFile, 'kind' | 'name'> & { version?: number }): Promise<string | null>
   /** Write one file into this home, with a line saying it was carried. Throws the reason. */
@@ -215,6 +289,21 @@ export interface WebCarrying {
   }
 }
 
+/** A leaf that came, as a register. */
+function incomingOf(leaf: { value: unknown; hlc?: string; over?: string; by?: string }): Register {
+  return {
+    value: leaf.value === null ? undefined : leaf.value,
+    stamp: stampOf(leaf.hlc),
+    over: stampOf(leaf.over),
+    by: leaf.by ?? null,
+  }
+}
+
+/** What a stamp is said as on a conflict's line: its text, or nothing. */
+function textOfStamp(stamp: Stamp | null): string | null {
+  return stamp === null ? null : stampText(stamp)
+}
+
 /**
  * Apply one carry: every setting and file decided here, the ones to write
  * written, and the answer. Pure apart from what `carrying` does, which is the
@@ -228,59 +317,125 @@ export async function applyCarry(
   answered: Promise<void> = Promise.resolve(),
 ): Promise<CarryAnswer> {
   const by: CarriedBy = { device, from: body.from }
+  const secrets = carrying.secrets()
   const written = await carrying.written()
-  const changes = new Map((await carrying.changes()).map((one) => [one.path, one]))
+  let changes = await carrying.changes()
+  // An edit to the file since its newest line is a change somebody made here
+  // now, and stamped as one before anything is compared with it.
+  const edits = handEdits(written, changes, secrets)
+  if (edits.length > 0) {
+    await carrying.found(edits)
+    changes = await carrying.changes()
+  }
+  const lastAt = new Map(changes.map((one) => [one.path, one]))
+  const pinned = pinnedIn(written)
+  const here = registersHere(written, changes, secrets)
   const forced = new Set(body.force)
   const settings: CarriedSetting[] = []
-  const toWrite: { path: string; value: unknown; carry: 'kept' | 'pressed' }[] = []
-  const sent = new Set(body.settings.map((one) => one.path))
+  const toWrite: Write[] = []
+  const news: CarryNews = { from: body.from, conflicts: [], landed: [], refused: [] }
+  const conflictOf = (path: string, kept: Side, lost: Side): void => {
+    news.conflicts.push({ path, kept, lost })
+  }
+  const me = carrying.machine()
   for (const leaf of body.settings) {
-    const decided = carryOf(leaf.path)
+    const decided = carryOf(leaf.path, secrets.has(leaf.path))
     const current = writtenAt(written, leaf.path)
-    const last = changes.get(leaf.path) ?? null
-    const outcome = carryDecision({
-      carry: decided.carry,
-      incoming: 'digest' in leaf ? { digest: leaf.digest } : { value: leaf.value },
-      current,
-      last,
-      force: forced.has(leaf.path),
-    })
-    if (outcome === 'refused') {
-      settings.push({ path: leaf.path, outcome, why: decided.because })
+    if (decided.carry === 'here') {
+      settings.push({ path: leaf.path, outcome: 'refused', why: decided.because })
       continue
     }
-    if ((outcome === 'written' || outcome === 'replaced') && 'value' in leaf) {
-      const carry = decided.carry === 'pressed' ? 'pressed' : 'kept'
-      toWrite.push({ path: leaf.path, value: leaf.value ?? undefined, carry })
+    if (decided.carry === 'pressed' || 'digest' in leaf) {
+      // A key: compared by its digest until the press that sends it.
+      const outcome = carryDecision({
+        carry: 'pressed',
+        incoming: 'digest' in leaf ? { digest: leaf.digest } : { value: leaf.value },
+        current,
+      })
+      if ((outcome === 'written' || outcome === 'replaced') && 'value' in leaf) {
+        toWrite.push({ path: leaf.path, value: leaf.value ?? undefined, carry: 'pressed', by })
+      }
       settings.push({ path: leaf.path, outcome })
       continue
     }
+    if (pinnedHere(leaf.path, pinned)) {
+      settings.push({ path: leaf.path, outcome: 'pinned' })
+      continue
+    }
+    const mine = here.get(leaf.path) ?? registerAt(leaf.path, current, changes)
+    const came = incomingOf(leaf)
+    // A press is the person choosing that machine's value over this one's.
+    const settled: Settled = forced.has(leaf.path)
+      ? { keep: textOf(mine.value) === textOf(came.value) ? 'same' : 'incoming', conflict: false }
+      : settle(mine, came)
+    if (settled.keep === 'same') {
+      settings.push({ path: leaf.path, outcome: 'same' })
+      continue
+    }
+    const theirSide: Side = { value: shownValue(came.value), machine: body.from, at: came.stamp }
+    const mySide: Side = { value: shownValue(mine.value), machine: me, at: mine.stamp }
+    if (settled.keep === 'here') {
+      settings.push({
+        ...newerOf(leaf.path, mine),
+        ...(settled.conflict
+          ? { conflict: { value: theirSide.value, hlc: textOfStamp(came.stamp) } }
+          : {}),
+      })
+      if (settled.conflict) conflictOf(leaf.path, mySide, theirSide)
+      continue
+    }
+    if (!peerMayWrite(leaf.path, came.by)) {
+      const why = notThePersonSays(came.by, body.from)
+      settings.push({ path: leaf.path, outcome: 'refused', why })
+      news.refused.push({ path: leaf.path, why })
+      continue
+    }
+    toWrite.push({
+      path: leaf.path,
+      value: came.value,
+      carry: 'kept',
+      by: {
+        ...by,
+        stamp: {
+          ...(leaf.hlc === undefined ? {} : { hlc: leaf.hlc }),
+          ...(leaf.over === undefined ? {} : { over: leaf.over }),
+          ...(leaf.by === undefined ? {} : { origin: leaf.by }),
+        },
+      },
+    })
     settings.push({
       path: leaf.path,
-      outcome,
-      ...(outcome === 'theirs' && decided.carry === 'kept' ? { theirs: shown(current) } : {}),
+      outcome: 'written',
+      ...(settled.conflict
+        ? { conflict: { value: mySide.value, hlc: textOfStamp(mine.stamp) } }
+        : {}),
     })
-  }
-  // One that machine kept in step and no longer has: taken away here, where it
-  // is still exactly what that device's carry wrote. Anything else is ours now.
-  if (body.complete) {
-    for (const change of changes.values()) {
-      if (sent.has(change.path) || change.device !== device || !change.carried) continue
-      if (carryOf(change.path).carry !== 'kept') continue
-      const current = writtenAt(written, change.path)
-      if (current === undefined || textOf(current) !== change.now) continue
-      toWrite.push({ path: change.path, value: undefined, carry: 'kept' })
-      settings.push({ path: change.path, outcome: 'written' })
+    if (settled.conflict) conflictOf(leaf.path, theirSide, mySide)
+    if (settingReach(leaf.path).reach === 'never' && came.by !== null) {
+      news.landed.push({ path: leaf.path, now: shownValue(came.value), by: came.by })
     }
   }
-  await writeAll(toWrite, settings, carrying, by)
+  // What this machine has that the carry did not name, offered back: that
+  // machine settles each against its own, as this one did what came.
+  const sent = new Set(body.settings.map((one) => one.path))
+  for (const [path, register] of here) {
+    if (sent.has(path) || register.value === undefined) continue
+    settings.push(newerOf(path, register))
+  }
+  await writeAll(toWrite, settings, carrying)
+  // What was refused at the write is not news that landed.
+  news.landed = news.landed.filter((one) => outcomeOf(settings, one.path) === 'written')
+  news.conflicts = news.conflicts.filter((one) => outcomeOf(settings, one.path) !== 'refused')
+  if (news.conflicts.length > 0 || news.landed.length > 0 || news.refused.length > 0) {
+    await carrying.told(news)
+  }
   // What is here and not in use yet — written now, or already so since the Tade
   // running here started — where it is read only at a start: said back, so the
   // machine that carried it says that rather than "kept in step" alone.
   const started = carrying.started()
   const landed = settings.filter((one) => {
     if (one.outcome === 'written' || one.outcome === 'replaced') return true
-    const at = changes.get(one.path)?.at ?? null
+    const at = lastAt.get(one.path)?.at ?? null
     return one.outcome === 'same' && at !== null && at >= started
   })
   const waiting = carrying.waiting(landed.map((one) => one.path))
@@ -295,12 +450,38 @@ export async function applyCarry(
     }),
   )
   return {
-    machine: carrying.machine(),
+    schema: CARRY_SCHEMA,
+    machine: me,
     settings,
     files,
     ...said,
     ...talkHere(body, carrying, by, answered),
   }
+}
+
+type Side = SettingConflict['kept']
+
+interface Write {
+  path: string
+  value: unknown
+  carry: 'kept' | 'pressed'
+  by: CarriedBy
+}
+
+/** This machine's register, said back as newer. */
+function newerOf(path: string, register: Register): CarriedSetting {
+  return {
+    path,
+    outcome: 'newer',
+    value: register.value ?? null,
+    ...(register.stamp === null ? {} : { hlc: stampText(register.stamp) }),
+    ...(register.over === null ? {} : { over: stampText(register.over) }),
+    ...(register.by === null ? {} : { by: register.by }),
+  }
+}
+
+function outcomeOf(settings: readonly CarriedSetting[], path: string): CarryOutcome | undefined {
+  return settings.find((one) => one.path === path)?.outcome
 }
 
 /**
@@ -329,17 +510,16 @@ function talkHere(
  * the config's own reason.
  */
 async function writeAll(
-  toWrite: readonly { path: string; value: unknown; carry: 'kept' | 'pressed' }[],
+  toWrite: readonly Write[],
   settings: CarriedSetting[],
   carrying: WebCarrying,
-  by: CarriedBy,
 ): Promise<void> {
   let waiting = [...toWrite]
   for (const round of [0, 1]) {
     const failed: typeof waiting = []
     for (const one of waiting) {
       try {
-        await carrying.write(one.path, one.value, one.carry, by)
+        await carrying.write(one.path, one.value, one.carry, one.by)
       } catch (err) {
         if (round === 0) {
           failed.push(one)
@@ -395,16 +575,17 @@ async function carryFiles(
   return out
 }
 
-/** Somebody's value here, as it may be said back: cut, and never more than a line. */
-function shown(value: unknown): string {
-  const text = textOf(value).replace(/\s+/g, ' ')
-  return text.length > 120 ? `${text.slice(0, 119)}…` : text
-}
-
 /** As much of the answer's response as waiting for it to have gone needs. */
 export interface Answering {
   once(event: 'close', listener: () => void): unknown
 }
+
+/**
+ * What a Tade that sent a carry this one does not speak is told: an older one
+ * reads it as it is, so it says what to do there.
+ */
+export const SCHEMA_SAID =
+  'this Tade keeps settings in step both ways, and the one sending is older — update it (tade update), and it carries again by itself'
 
 /**
  * The route: an owner's body read once, applied, answered. `carrying` absent
@@ -423,47 +604,16 @@ export async function carryHere(
   if (!got.read) return { refusal: got.refusal }
   const parsed = CarryBody.safeParse(got.body)
   if (!parsed.success) return { refusal: refuse('malformed') }
+  // Refused before anything is written: a carry from a Tade that settles
+  // settings another way would be half taken. `426` is what a newer sender
+  // reads as "that one is newer", and these words are what an older one says.
+  if (parsed.data.schema !== CARRY_SCHEMA) {
+    return { refusal: { status: 426, error: 'malformed', said: SCHEMA_SAID } }
+  }
   // Gone once it is written out, or once its connection is: either way nobody
   // is still reading it, and `close` comes for both.
   const answered = new Promise<void>((done) => res.once('close', () => done()))
   return { body: await applyCarry(parsed.data, device.id, carrying, answered) }
-}
-
-/** A journal line, as much of one as the folds below read. */
-export interface CarryLine {
-  type: string
-  /** When it was written, as the journal stamps it. */
-  ts?: string
-  detail?: Readonly<Record<string, unknown>>
-}
-
-/** The device a `by` names, where it names one: `device <id>`. */
-function deviceIn(by: unknown): string | null {
-  return typeof by === 'string' && by.startsWith('device ') ? by.slice('device '.length) : null
-}
-
-/**
- * The newest `config_changed` line per path, folded out of the journal — what
- * decides whether somebody here changed a value (`changedThere`). A carry's
- * own line says `carried`, which is what tells it from everyone else's.
- */
-export function changesIn(lines: readonly CarryLine[]): ChangeSeen[] {
-  const newest = new Map<string, ChangeSeen>()
-  for (const line of lines) {
-    if (line.type !== 'config_changed') continue
-    const path = line.detail?.path
-    if (typeof path !== 'string' || path === '') continue
-    const carried = typeof line.detail?.carried === 'string'
-    const at = line.ts === undefined ? Number.NaN : Date.parse(line.ts)
-    newest.set(path, {
-      path,
-      now: typeof line.detail?.now === 'string' ? line.detail.now : String(line.detail?.now ?? ''),
-      carried,
-      device: carried ? deviceIn(line.detail?.by) : null,
-      at: Number.isNaN(at) ? null : at,
-    })
-  }
-  return [...newest.values()]
 }
 
 /** The hash each file's newest carry here wrote, by `fileNamed`. */
@@ -502,6 +652,15 @@ export function carryingAt(opts: {
   waiting?: WebCarrying['waiting']
   /** Talking from another screen here, and turning it on. Absent, nothing is said of it. */
   talk?: WebCarrying['talk']
+  /** Paths the extensions here declared as keys. Absent, only a key's own name says it is one. */
+  secrets?: WebCarrying['secrets']
+  /**
+   * The journal's door for a `config_changed` line: a hand edit found is
+   * written down through it. Absent, one is compared as its old line says.
+   */
+  record?: (line: { type: 'config_changed'; detail: Record<string, string> }) => Promise<void>
+  /** What a carry did that is news here. Absent, it is in the answer and nowhere else. */
+  told?: WebCarrying['told']
 }): WebCarrying {
   return {
     written: async () => {
@@ -518,6 +677,13 @@ export function carryingAt(opts: {
     changes: async () => changesIn(await opts.lines()),
     carriedFiles: async () => filesCarriedIn(await opts.lines()),
     write: opts.write,
+    secrets: opts.secrets ?? (() => new Set()),
+    found: async (edits) => {
+      for (const one of edits) {
+        await opts.record?.({ type: 'config_changed', detail: { ...one, by: 'file' } })
+      }
+    },
+    told: opts.told ?? (async () => {}),
     file: (file) => fileThere(opts.home, file),
     put: async (file, by) => {
       await putFile(opts.home, file)
