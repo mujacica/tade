@@ -815,6 +815,14 @@ export const ConfigSchema = z
               ),
           )
           .default([]),
+        /**
+         * The machine that never sleeps, which queued work goes to when
+         * nothing ties it here (`placeQueued`): a remote by its name here, or
+         * `here` for none. Unset, the one remote this machine links to, where
+         * it links to exactly one — the laptop dials the box, so the box is
+         * the one it names; a server that links to another says `here`.
+         */
+        hub: z.string().min(1).optional(),
       })
       .prefault({}),
     /** Where `tade host backup` keeps this machine's Tade, and its password (`backup.ts`). */

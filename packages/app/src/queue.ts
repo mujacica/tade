@@ -699,6 +699,8 @@ export function planAnswer(result: {
   made: readonly string[]
   started: readonly string[]
   waiting: readonly { task: string; state: string }[]
+  /** Where each part that went to another machine, or was meant to, went and why. */
+  placed?: readonly string[]
   warnings: readonly string[]
 }): string {
   // A name only loses its project where there is one project to lose it to:
@@ -718,6 +720,7 @@ export function planAnswer(result: {
       `Queued ${result.waiting.map((one) => `${name(one.task)} (${one.state})`).join(', ')}.`,
     )
   }
+  for (const placed of result.placed ?? []) lines.push(placed)
   for (const warning of result.warnings) lines.push(`Watch out: ${warning}.`)
   return lines.join('\n')
 }

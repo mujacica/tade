@@ -2,10 +2,15 @@ import { randomUUID } from 'node:crypto'
 import {
   LINES_LOOKED_BACK,
   machineLabel,
+  machineNamed,
+  parseWait,
   printable,
   REMOTE_MOVE_REACH,
   remoteNamedBy,
   runProgram,
+  type Wait,
+  waitOn,
+  waitsElsewhere,
 } from '@tade/core'
 import type { Remote, RemoteLink } from '@tade/remotes-core'
 import { TAKE_CONTEXT_MOST, TAKE_WORDS_MOST, type Take, type TakeAnswer } from '@tade/web'
@@ -44,10 +49,17 @@ import { askHanding, askThere, beginsOf, contextOf, removeHere } from './take-pa
 //
 // **Only work that can leave is moved**, and each refusal is a sentence: not
 // parked, which is a decision still to be made here; not a race's entrant or a
-// replay, which are measurements of this machine; waiting on nothing, and
-// nothing here waiting on it — no wait crosses machines, because there is no
-// shared journal to resolve one against. Work that begins on a review's
-// branch goes with that branch, as origin has it.
+// replay, which are measurements of this machine; not waiting for the person
+// to approve a document, which is approved where it is kept. Work that begins
+// on a review's branch goes with that branch, as origin has it.
+//
+// **Waits cross machines** (`@tade/core`'s `fleet-waits.ts`), because every
+// machine keeps every other's journal (`feeds.ts`): what moving work waits on
+// goes with it, written as the machine there reads it — a task here as
+// `<this machine>:<project>/<task>` — and is released there only by this
+// machine's own `task_done`, as its copy of this journal holds it. What waits
+// on it here follows it there: `task_moved` here and `task_taken` there are a
+// forwarding pointer, and until both are seen the wait holds.
 //
 // **Set aside while it moves.** It is parked here before that machine is
 // asked, so this queue cannot start it in the moment between the other
@@ -142,6 +154,14 @@ interface Handing extends HandedFrom {
   resumed: boolean
   /** Told again since it was opened part way through (`retell`). */
   retold: boolean
+}
+
+/** Queued work sent to another machine by whoever made it, rather than by a press on its card. */
+export interface Placing {
+  /** Why it goes there, said on its card there (`placed` on the take). */
+  placed?: string
+  /** It was made parked so it could not start here first: nothing to set aside, and nothing to pick up. */
+  madeParked?: boolean
 }
 
 /** What the orchestrator's `tade_task_move` is answered with. */
@@ -421,14 +441,7 @@ export class Moves {
         `${task} is one entrant in a measurement made on this machine, so it stays here.`,
       )
     }
-    const waiting = (this.wire.live?.queued ?? [])
-      .filter((one) => one.start.after.some((dep) => dep.task === task))
-      .map((one) => one.task)
-    if (waiting.length > 0) {
-      throw new Error(
-        `${waiting.join(', ')} ${waiting.length === 1 ? 'waits' : 'wait'} on ${task} here, and no wait crosses machines: change ${waiting.length === 1 ? 'that wait' : 'those waits'} first, or let ${task} finish here.`,
-      )
-    }
+    // What waits on it here follows it there (`followWait`), so nothing is refused for it.
     const project = projectOf(task)
     const there = this.projectThere(project, machine)
     const reach = this.deps.reach(machine)
@@ -452,6 +465,7 @@ export class Moves {
       prompt: '',
       context: '',
       links: [],
+      after: [],
       begins: { branch, head },
       check: true,
     })
@@ -606,6 +620,8 @@ export class Moves {
       context: [context.context.trim(), note].filter((part) => part !== '').join('\n\n'),
       links: context.links,
       ...(file.done ? { done: file.done } : {}),
+      // Under way already: what it waited on has been waited for.
+      after: [],
       begins: { branch, head },
       check: false,
       ...(handing.id === null ? {} : { handOver: handing.id }),
@@ -660,18 +676,42 @@ export class Moves {
    * Queued work, started on that machine instead of here: asked there, and
    * removed here once it is taken. Answers what happened; throws why not.
    */
-  async startThere(task: string, machine: string, by: By): Promise<string> {
+  async startThere(task: string, machine: string, by: By, how: Placing = {}): Promise<string> {
     this.machineNamed(machine)
     if (this.moving.has(task)) throw new Error(`${task} is already being moved`)
     this.moving.add(task)
     try {
-      return await this.moveQueued(task, machine, by)
+      return await this.moveQueued(task, machine, by, how)
     } finally {
       this.moving.delete(task)
     }
   }
 
-  private async moveQueued(task: string, machine: string, by: By): Promise<string> {
+  /**
+   * What queued work waits on, written as `machine` reads it: a task of this
+   * machine's as `<this machine's label>:<task>`, one of that machine's bare,
+   * and one of a third machine's by the label it calls itself, which is the
+   * name every machine's copy of its journal is kept under.
+   */
+  private async waitsThere(after: readonly Wait[], machine: string): Promise<Take['after']> {
+    if (after.length === 0) return []
+    const self = machineLabel()
+    // Read only where a wait names another machine; one that cannot be read
+    // refuses the move with why, rather than send a wait nobody there can follow.
+    const fleet = after.some((dep) => waitsElsewhere(dep.task))
+      ? await this.wire.live?.readFleet()
+      : undefined
+    const target = machineNamed(fleet, machine)
+    return after.map((dep) => {
+      const { machine: on, task } = parseWait(dep.task)
+      if (on === null) return { task: waitOn(self, task), why: dep.why }
+      const named = machineNamed(fleet, on)
+      if (on === machine || (target !== null && named === target)) return { task, why: dep.why }
+      return { task: waitOn(named?.name ?? on, task), why: dep.why }
+    })
+  }
+
+  private async moveQueued(task: string, machine: string, by: By, how: Placing): Promise<string> {
     const home = this.wire.opts.home
     // Asked of the task file and the journal, never of the last look, which
     // may be a moment behind work planned just now.
@@ -683,7 +723,7 @@ export class Moves {
     if (file === null || !file.start || started) {
       throw new Error(`There is no queued work called ${task} here.`)
     }
-    if (file.parked) {
+    if (file.parked && !how.madeParked) {
       throw new Error(
         `${task} is parked here, which is a decision still to be made on this machine: pick it up, or decide about it, before it goes anywhere.`,
       )
@@ -693,20 +733,14 @@ export class Moves {
         `${task} is one entrant in a measurement made on this machine, so it stays here.`,
       )
     }
-    if (file.start.after.length > 0) {
-      const on = file.start.after.map((one) => one.task).join(', ')
+    // A document is approved on the machine that keeps it, so that wait cannot go.
+    const approval = file.start.after.filter((one) => one.approved).map((one) => one.task)
+    if (approval.length > 0) {
       throw new Error(
-        `${task} waits on ${on} here, and no wait crosses machines: take the wait off (Wait on… none) to start it on ${machine}, or let it start here.`,
+        `${task} waits for you to approve what ${approval.join(', ')} produced, which is approved on the machine that keeps it, so it stays here: approve it first, or change that wait.`,
       )
     }
-    const waiting = (this.wire.live?.queued ?? [])
-      .filter((one) => one.start.after.some((dep) => dep.task === task))
-      .map((one) => one.task)
-    if (waiting.length > 0) {
-      throw new Error(
-        `${waiting.join(', ')} ${waiting.length === 1 ? 'waits' : 'wait'} on ${task} here, and no wait crosses machines: move ${waiting.length === 1 ? 'it' : 'them'} first, or let ${task} start here.`,
-      )
-    }
+    // Whatever waits on it here follows it there (`followWait`).
     const project = projectOf(task)
     const there = this.projectThere(project, machine)
     const reach = this.deps.reach(machine)
@@ -722,6 +756,8 @@ export class Moves {
       ...(await contextOf(this.wire, task, file)),
       ...(file.done ? { done: file.done } : {}),
       ...(file.start.at ? { at: file.start.at } : {}),
+      after: await this.waitsThere(file.start.after, machine),
+      ...(how.placed ? { placed: how.placed } : {}),
       ...(file.start.from
         ? { begins: await beginsOf(this.wire, task, project, file.start.from) }
         : {}),
@@ -732,27 +768,37 @@ export class Moves {
     }
     // Set aside while it moves, so this queue cannot start it meanwhile —
     // against what was read, so a park somebody made since is not undone.
-    try {
-      await this.wire.opts.client.parkTask(task, true, { by, was: false })
-    } catch (err) {
-      throw new Error(`${task} could not be set aside to move: ${why(err)}`)
+    // Work made to be placed was made parked, and whoever made it decides what
+    // becomes of it where it is not taken.
+    if (!how.madeParked) {
+      try {
+        await this.wire.opts.client.parkTask(task, true, { by, was: false })
+      } catch (err) {
+        throw new Error(`${task} could not be set aside to move: ${why(err)}`)
+      }
     }
+    const back = async () => (how.madeParked ? '' : await this.pickUp(task, by))
     let answer: TakeAnswer
     try {
       answer = await askThere(reach, machine, take)
     } catch (err) {
-      throw new Error(`${why(err)}${await this.pickUp(task, by)}`)
+      throw new Error(`${why(err)}${await back()}`)
     }
     if (!answer.took) {
-      throw new Error(
-        `${machine} did not take ${task}: ${printable(answer.said)}${await this.pickUp(task, by)}`,
-      )
+      throw new Error(`${machine} did not take ${task}: ${printable(answer.said)}${await back()}`)
     }
     const as = printable(answer.task)
     await this.wire.opts.client.log.append({
       type: 'task_moved',
       task,
-      detail: { to: machine, as, how: 'queued', by },
+      detail: {
+        to: machine,
+        as,
+        how: 'queued',
+        by,
+        ...(how.placed ? { placed: how.placed } : {}),
+        ...(take.after.length > 0 ? { after: take.after.map((one) => one.task) } : {}),
+      },
     })
     const removed = await removeHere(this.wire, task, project)
     void this.wire.live?.refresh()

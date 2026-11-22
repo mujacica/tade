@@ -100,13 +100,17 @@ export const QUEUE_ASKS = [
   { change: 'start', said: 'Start now' },
   { change: 'wait', said: 'Wait again' },
   { change: 'first', said: 'Do this first', ready: true },
+  { change: 'drop', said: 'Drop the wait', silent: true },
 ]
 
 /** The queue choices worth offering on this row. */
 export function asksFor(row) {
-  if (row?.parked !== true) return QUEUE_ASKS
+  // Dropping a wait is offered only where a machine it waits on has been
+  // silent for days, and only ever tapped: nothing drops one by itself.
+  const asks = QUEUE_ASKS.filter((one) => one.silent !== true || row?.silentWaits === true)
+  if (row?.parked !== true) return asks
   const outside = row.origin?.kind === 'intake'
-  return QUEUE_ASKS.filter(
+  return asks.filter(
     (one) => one.ready !== true && one.change !== 'resume' && !(outside && one.change === 'start'),
   )
 }

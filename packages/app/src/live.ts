@@ -10,9 +10,11 @@ import {
   type Effort,
   effortsIn,
   type Finished,
+  type Fleet,
   finishedFrom,
   type HookSource,
   historyFrom,
+  machineLabel,
   pricesFrom,
   type Queued,
   type QueueFacts,
@@ -34,12 +36,14 @@ import {
   type WorkHistory,
   type WorkSummary,
   type Workspace,
+  waitsElsewhere,
   workedFrom,
   workspaceFor,
 } from '@tade/core'
 import type { LaneScreen } from '@tade/drivers-core'
 import { makeCollector, type StatusAsk, type StatusCollector } from '@tade/status'
 import type { Workbench } from '@tade/workbench'
+import { FleetWaits } from '@tade/workbench/fleet-waits'
 import { livenessTableFrom } from '@tade/workbench/lane-liveness'
 import type { PendingApproval } from '@tade/workbench/workers'
 import { aboutRoot } from './away-lifecycle.ts'
@@ -154,6 +158,8 @@ export interface LiveOptions {
   onTerminals?: (terminals: { id: string; project: string; name: string }[]) => void
   /** What only the window's links know, handed to every look: other machines' branches here. */
   asked?: () => Pick<StatusAsk, 'elsewhere'>
+  /** What this machine calls itself in the others' journals (`machineLabel`): what a wait on it reads as here. */
+  self?: () => string
 }
 
 export class Live {
@@ -288,11 +294,16 @@ export class Live {
   private landed: () => void = () => {}
   /** Where status is looked at, and the gate that lets a quiet worktree cost a `stat` (`collector.ts`). */
   private readonly looker: StatusCollector
+  /** The copies of the other machines' journals, as a wait on one of their tasks reads them. */
+  private readonly fleetWaits: FleetWaits
+  /** What the last look read of them, where queued work needed it (`fleetNeeded`). */
+  private fleet: Fleet | undefined = undefined
 
   private constructor(opts: LiveOptions) {
     this.opts = opts
     this.usage = new UsageFold(opts.openedAt ?? this.now())
     this.looker = opts.status ?? makeCollector('here')
+    this.fleetWaits = new FleetWaits(opts.tadeHome)
     this.looked = new Promise((resolve) => {
       this.landed = resolve
     })
@@ -411,7 +422,32 @@ export class Live {
       events: this.queueEvents,
       now: this.now(),
       reality: this.realities,
+      ...(this.fleet ? { elsewhere: this.fleet } : {}),
     }
+  }
+
+  /**
+   * The other machines, as a wait on one of their tasks reads them: read now,
+   * for whoever writes such a wait (`checkWaits`, a plan) and the queue's
+   * next look. Throws where the copies cannot be read at all.
+   */
+  async readFleet(): Promise<Fleet> {
+    this.fleet = await this.fleetWaits.read(this.opts.self?.() ?? machineLabel())
+    return this.fleet
+  }
+
+  /**
+   * Whether queued work waits on anything another machine's journal settles:
+   * a wait on one of its tasks, or on a task of this machine's that has gone
+   * from the look without finishing — moved, which only the journals can say.
+   */
+  private fleetNeeded(): boolean {
+    return this.queue.some((item) =>
+      item.start.after.some(
+        (dep) =>
+          waitsElsewhere(dep.task) || (!this.finished.has(dep.task) && !this.states.has(dep.task)),
+      ),
+    )
   }
 
   /**
@@ -1089,16 +1125,30 @@ export class Live {
           if (ruleMet(rule, facts)) this.met.push({ task: task.id, rule })
         }
       }
+      // Read only where queued work waits on another machine: a hub keeps
+      // every machine's journal, and nothing reads it for a queue that is not.
+      // One that cannot be read leaves those waits holding, and is said.
+      if (this.fleetNeeded()) {
+        await this.readFleet().catch((err: unknown) => {
+          this.fleet = undefined
+          this.opts.onWarning?.(
+            `Other machines' journals could not be read here, so every wait on their work holds: ${err instanceof Error ? err.message : String(err)}`,
+          )
+        })
+      }
       const facts = this.queueFacts()
       const queued = new Map<string, QueuedView>()
+      const placed = placedFrom(this.queueEvents)
       for (const item of this.queue) {
         const at = item.start.at ? Date.parse(item.start.at) : Number.NaN
+        const why = placed.get(item.task)
         queued.set(item.task, {
           state: queueStateOf(item, facts),
           after: item.start.after,
           prompt: item.start.prompt,
           touches: item.start.touches,
           at: Number.isFinite(at) ? at : null,
+          ...(why ? { placed: why } : {}),
         })
       }
       // News is a look that says something the last did not. One that found
@@ -1186,4 +1236,14 @@ export class Live {
   private now(): number {
     return this.opts.now?.() ?? Date.now()
   }
+}
+
+/** Why each task taken from another machine was placed here, where the take said (`placed`). */
+function placedFrom(events: readonly TadeEvent[]): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const event of events) {
+    if (event.type !== 'task_taken' || !event.task) continue
+    if (typeof event.detail.placed === 'string') out.set(event.task, event.detail.placed)
+  }
+  return out
 }

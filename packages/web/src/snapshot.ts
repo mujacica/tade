@@ -121,7 +121,13 @@ function spendOf(spend: Spend): SpendOut {
 function queueStateOf(state: QueueStateIn): QueueStateOut {
   switch (state.kind) {
     case 'waiting':
-      return { kind: 'waiting', on: [...state.on] }
+      return {
+        kind: 'waiting',
+        on: [...state.on],
+        ...(state.there && state.there.length > 0
+          ? { there: state.there.map((one) => ({ ...one, heardAt: ISO_OR(one.heardAt) })) }
+          : {}),
+      }
     case 'held':
       return {
         kind: 'held',

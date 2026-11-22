@@ -1,3 +1,4 @@
+import { type Fleet, waitsElsewhere, waitThereProblem } from './fleet-waits.ts'
 import type { DoneRule } from './model.ts'
 import { producesProblem } from './produces.ts'
 import { joined, type Wait } from './queue.ts'
@@ -32,6 +33,14 @@ export interface PlannedAgent {
    * refuses the plan rather than let the default route work to the wrong repo.
    */
   project?: string
+  /**
+   * The machine this one runs on, by its name here (`remotes.<name>`): its
+   * share goes there as a take once it is made, in that machine's project
+   * that is this one's repository, and its waits go with it, written as
+   * waits on this machine (`vps:…`). Unsaid, the window decides
+   * (`placeQueued`); `here` keeps it on this machine whatever the hub is.
+   */
+  machine?: string
   /** The words of the request this agent covers, verbatim. */
   said: string
   /** What its agent is told first. */
@@ -186,6 +195,80 @@ export interface PlanContext {
    * the plan's own agents are checked.
    */
   produces?: (task: string) => boolean
+  /** The machines a plan's agents may name, and what each has. Unsaid, an agent naming one is refused. */
+  fleet?: PlanFleet
+}
+
+/** The person's other machines, as a plan is checked against them. */
+export interface PlanFleet {
+  /** The machines this one links to, by their names here: where a part of a plan can go. */
+  machines: readonly string[]
+  /** The one project on that machine that is this project's repository, or null where it has none or several. */
+  projectThere: (machine: string, project: string) => string | null
+  /** The copies of their journals kept here, for a wait on a task of theirs (`vps:api/migrate`). */
+  elsewhere?: Fleet
+}
+
+/** The machine an agent names, or null for this one: unsaid, `here`, or this machine's own name. */
+export function agentMachine(agent: { machine?: string }, self?: string): string | null {
+  const said = agent.machine?.trim() ?? ''
+  if (said === '' || said === 'here' || (self !== undefined && said === self)) return null
+  return said
+}
+
+/**
+ * Why each agent's machine cannot be, in sentences: one this machine does not
+ * link to, one with no project that is this repository, a measurement of this
+ * machine sent elsewhere, or an approval waited for across two machines.
+ */
+function machineProblems(plan: Plan, context: PlanContext): string[] {
+  const problems: string[] = []
+  const fleet = context.fleet
+  const self = fleet?.elsewhere?.self
+  const where = new Map(plan.agents.map((agent) => [agent.name, agentMachine(agent, self)]))
+  for (const agent of plan.agents) {
+    const machine = where.get(agent.name) ?? null
+    if (machine === null) continue
+    if (plan.race !== undefined || plan.replay !== undefined) {
+      problems.push(
+        `${agent.name} cannot run on ${machine}: a ${plan.race !== undefined ? 'race' : 'replay'} is a measurement of this machine, so every entrant runs here`,
+      )
+      continue
+    }
+    if (!fleet?.machines.includes(machine)) {
+      const linked = fleet?.machines ?? []
+      problems.push(
+        `${agent.name} is for ${machine}, which is not a machine this one links to: ${
+          linked.length > 0
+            ? `the ones linked are ${joined([...linked])}`
+            : 'none is (tade remote add)'
+        }`,
+      )
+      continue
+    }
+    const project = projectOf(plan, agent)
+    if (fleet.projectThere(machine, project) === null) {
+      problems.push(
+        `${agent.name} is for ${machine}, which has no one project that is ${project}'s repository: move ${project} there first (Move to ${machine} on Settings › Remotes), or leave its machine unsaid`,
+      )
+    }
+  }
+  // A document is approved on the machine that holds it.
+  for (const agent of plan.agents) {
+    for (const dep of agent.after) {
+      if (!dep.approved || waitsElsewhere(dep.agent)) continue
+      const other = plan.agents.find((one) => one.name === dep.agent.split('/').at(-1))
+      if (!other) continue
+      const mine = where.get(agent.name) ?? null
+      const theirs = where.get(other.name) ?? null
+      if (mine !== theirs) {
+        problems.push(
+          `${agent.name} waits for ${other.name}'s document to be approved, and the two run on different machines: a document is approved on the machine that holds it, so put them on one, or wait for ${other.name} to finish`,
+        )
+      }
+    }
+  }
+  return problems
 }
 
 /**
@@ -245,6 +328,7 @@ export function checkPlan(plan: Plan, context: PlanContext): PlanCheck {
     if (produces) problems.push(`${agent.name} cannot produce that: ${produces}`)
   }
   problems.push(...placeholdersIn(plan))
+  problems.push(...machineProblems(plan, context))
 
   const byName = new Map<string, PlannedAgent[]>()
   for (const agent of plan.agents) {
@@ -258,6 +342,13 @@ export function checkPlan(plan: Plan, context: PlanContext): PlanCheck {
     const mine = idOf(agent)
     const deps: Wait[] = []
     for (const dep of agent.after) {
+      if (dep.approved && waitsElsewhere(dep.agent)) {
+        const problem = waitThereProblem(agent.name, dep.agent, context.fleet?.elsewhere, true)
+        if (problem) {
+          problems.push(problem)
+          continue
+        }
+      }
       const task = named(dep.agent)
       if (task === undefined) continue
       if (!task) {
@@ -294,6 +385,15 @@ export function checkPlan(plan: Plan, context: PlanContext): PlanCheck {
      * it could still mean two, it is refused rather than resolved by luck.
      */
     function named(said: string): string | null | undefined {
+      // On another machine: a task its journal kept here made or took.
+      if (waitsElsewhere(said)) {
+        const problem = waitThereProblem(agent.name, said, context.fleet?.elsewhere, false)
+        if (problem) {
+          problems.push(problem)
+          return undefined
+        }
+        return said
+      }
       if (said.includes('/')) return inPlan.has(said) || context.tasks.has(said) ? said : null
       const siblings = (byName.get(said) ?? []).filter((one) => one !== agent)
       const own = siblings.filter((one) => projectOf(plan, one) === here)

@@ -434,7 +434,22 @@ export function queueIn(
 function queueStateIn(state: QueueState): QueueStateIn {
   switch (state.kind) {
     case 'waiting':
-      return { kind: 'waiting', on: [...state.on] }
+      return {
+        kind: 'waiting',
+        on: [...state.on],
+        ...(state.there && state.there.length > 0
+          ? {
+              there: state.there.map((one) => ({
+                on: one.on,
+                machine: one.machine,
+                task: one.task,
+                heardAt: one.heardAt,
+                silentDays: one.silentDays,
+                why: one.why ?? null,
+              })),
+            }
+          : {}),
+      }
     case 'held':
       return {
         kind: 'held',

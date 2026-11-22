@@ -538,6 +538,14 @@ the VPS by default, since it never closes. Where the VPS already looks with a wa
 repository, the Mac's own stays off and says why, its row under SCHEDULES reading `on vps` — and
 taken back, it starts from the last moment the VPS had it.
 
+**And the night's queue waits where it never sleeps.** Work planned for later goes to the hub — the
+VPS by default, or whichever machine `machine.hub` names — when it has the project and nothing ties
+the work to the Mac, so closing the lid strands nothing; its card there says where it came from and
+why. Work can wait on work on another machine (`vps:api/migrate`): it starts the moment that
+machine's journal says the other finished, follows it if it moves on, and holds while the machine
+is out of reach — and a machine silent for days is said on the card, where you, and only you, can
+drop the wait.
+
 ## An IDE in the terminal
 
 The repository is right there while the agents work it: the file tree, the diffs, the branch, a

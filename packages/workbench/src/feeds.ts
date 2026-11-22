@@ -1180,34 +1180,60 @@ export async function readFeeds(
   const out: { name: string; machine: string; events: FleetEvent[] }[] = []
   for (const held of await copiesHeld(home)) {
     if (held.lines === 0) continue
-    const events: FleetEvent[] = []
-    // Asked for a few kinds, a line of any other is passed over on its head
-    // alone: a hub keeps every machine's journal, and a name is checked
-    // against all of them whenever a task is made.
-    const kinds =
-      filter.types === undefined ? null : new Set<string>(filter.types.map((one) => typeNow(one)))
-    try {
-      const input = createReadStream(join(home, 'machines', held.meta.machine, 'events.jsonl'))
-      for await (const line of createInterface({ input, crlfDelay: Infinity })) {
-        if (line.trim() === '') continue
-        if (kinds !== null) {
-          const head = headOf(line)
-          if (head !== null && !kinds.has(typeNow(head.type))) continue
-        }
-        try {
-          const event = JSON.parse(line) as TadeEvent
-          if (matchesFilter(event, filter)) events.push({ ...event, machine: held.meta.name })
-        } catch (err) {
-          // A line that will not parse is skipped, never thrown over.
-          if (!(err instanceof SyntaxError)) throw err
-        }
-      }
-    } catch (err) {
-      // A copy taken away while it was read is one this home does not hold.
-      ifMissing(null)(err)
-      continue
-    }
-    out.push({ name: held.meta.name, machine: held.meta.machine, events })
+    const events = await readCopy(home, held.meta, filter)
+    if (events !== null) out.push({ name: held.meta.name, machine: held.meta.machine, events })
   }
   return out
+}
+
+/**
+ * The lines of one copy held under a home, each labelled with the machine it
+ * came from; null where the copy was taken away while it was read. One there
+ * that cannot be read throws.
+ */
+export async function readCopy(
+  home: string,
+  meta: Pick<CopyMeta, 'machine' | 'name'>,
+  filter: Omit<EventFilter, 'limit' | 'since'> = {},
+): Promise<FleetEvent[] | null> {
+  const events: FleetEvent[] = []
+  // Asked for a few kinds, a line of any other is passed over on its head
+  // alone: a hub keeps every machine's journal, and a name is checked
+  // against all of them whenever a task is made.
+  const kinds =
+    filter.types === undefined ? null : new Set<string>(filter.types.map((one) => typeNow(one)))
+  try {
+    const input = createReadStream(join(home, 'machines', meta.machine, 'events.jsonl'))
+    for await (const line of createInterface({ input, crlfDelay: Infinity })) {
+      if (line.trim() === '') continue
+      if (kinds !== null) {
+        const head = headOf(line)
+        if (head !== null && !kinds.has(typeNow(head.type))) continue
+      }
+      try {
+        const event = JSON.parse(line) as TadeEvent
+        if (matchesFilter(event, filter)) events.push({ ...event, machine: meta.name })
+      } catch (err) {
+        // A line that will not parse is skipped, never thrown over.
+        if (!(err instanceof SyntaxError)) throw err
+      }
+    }
+  } catch (err) {
+    // A copy taken away while it was read is one this home does not hold.
+    return ifMissing(null)(err)
+  }
+  return events
+}
+
+/** Where one copy held under a home last stood, and what it calls itself; null where none is kept there. */
+export async function copyKept(
+  home: string,
+  machine: string,
+): Promise<{ meta: CopyMeta | null; sync: KeptSync | null }> {
+  const dir = join(home, 'machines', machine)
+  const meta = await readMeta(dir)
+  const sync = jsonOf<KeptSync>(
+    await readFile(join(dir, 'sync.json'), 'utf8').catch(ifMissing(null)),
+  )
+  return { meta, sync }
 }

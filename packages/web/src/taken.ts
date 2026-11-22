@@ -1,5 +1,5 @@
 import type { IncomingMessage } from 'node:http'
-import { DONE_RULES } from '@tade/core'
+import { DONE_RULES, WaitId } from '@tade/core'
 import { z } from 'zod'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
@@ -86,6 +86,18 @@ export const TakeSchema = z.strictObject({
   done: z.enum(DONE_RULES).optional(),
   /** Not before this moment, as an ISO time: absolute, so the same on both clocks. */
   at: z.iso.datetime({ offset: true }).optional(),
+  /**
+   * What it waits on, written as this machine reads it: a task of the machine
+   * handing it over is `<its label>:<project>/<task>`, one of this machine's is
+   * bare. Released here only by that machine's own `task_done`, as the copy of
+   * its journal here holds it (`followWait`): evidence may only ever hold.
+   */
+  after: z
+    .array(z.strictObject({ task: WaitId, why: z.string().max(500).default('') }))
+    .max(40)
+    .default([]),
+  /** Why it was sent here rather than asked for here — placed on the hub — said on its card here. */
+  placed: z.string().max(500).optional(),
   /**
    * Where it begins: a branch on the project's `origin`, and the commit the
    * machine handing it saw it pushed at. Absent, it begins where work here

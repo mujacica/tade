@@ -110,6 +110,21 @@ describe('work handed to this machine, as its window makes it', () => {
     expect(one.refreshed()).toBe(1)
   })
 
+  it('keeps what it waits on, as this machine reads it, and why it was placed here', async () => {
+    const one = await machines()
+    const placed = 'placed on vps from mac: it waits for later and nothing ties it to mac'
+    const answer = await takingFrom(one.wire)(
+      take({ after: [{ task: 'mac:tade/schema', why: 'it needs the new table' }], placed }),
+      'ab12cd34ab12cd34',
+    )
+    expect(answer).toMatchObject({ took: true, task: 'tade/fix-it' })
+    const file = await readTaskFile(one.home, 'tade/fix-it')
+    // Released here only by mac's own task_done, in the copy of mac's journal kept here.
+    expect(file?.start?.after).toEqual([{ task: 'mac:tade/schema', why: 'it needs the new table' }])
+    const [taken] = await lines(one.client, 'task_taken')
+    expect(taken?.detail).toMatchObject({ placed, after: ['mac:tade/schema'] })
+  })
+
   it('fetches a pushed branch with its own credentials and begins a worktree on it', async () => {
     const one = await machines()
     const head = pushed(one.mac, 'tade/fix-it')

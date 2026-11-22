@@ -185,7 +185,7 @@ export function takingFrom(wire: Wiring): WebTaking {
         // project's own answer: in a shared checkout `start.from` means nothing.
         ...(take.begins ? { workspace: 'worktree' as const } : {}),
         start: {
-          after: [],
+          after: take.after,
           prompt: take.prompt,
           touches: [],
           ...(take.at ? { at: take.at } : {}),
@@ -205,6 +205,8 @@ export function takingFrom(wire: Wiring): WebTaking {
         device,
         ...(take.begins ? { branch: take.begins.branch, head: take.begins.head } : {}),
         ...(take.handOver === undefined ? {} : { handOver: take.handOver }),
+        ...(take.placed === undefined ? {} : { placed: take.placed }),
+        ...(take.after.length > 0 ? { after: take.after.map((one) => one.task) } : {}),
       },
     })
     // The next look starts it, by the queue's own rule.

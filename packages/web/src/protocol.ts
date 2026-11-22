@@ -346,8 +346,26 @@ export const ProjectRowSchema = z.strictObject({
 export type ProjectRow = z.infer<typeof ProjectRowSchema>
 
 /** Why queued work has not started. A count of changed files, never their names. */
+/** A wait on another machine: where it stands there, and when that machine was last heard. */
+export const ThereOutSchema = z.strictObject({
+  /** The wait as written: `vps:api/migrate`. */
+  on: z.string(),
+  /** The machine it waits on now, every move followed, and the task there. */
+  machine: z.string(),
+  task: z.string(),
+  heardAt: z.string().nullable(),
+  /** Whole days unheard, where that is enough for the wait to be offered to be dropped. */
+  silentDays: z.int().nonnegative().nullable(),
+  /** Why it cannot be followed further, in Tade's words. */
+  why: z.string().nullable(),
+})
+
 export const QueueStateOutSchema = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('waiting'), on: z.array(z.string()) }),
+  z.strictObject({
+    kind: z.literal('waiting'),
+    on: z.array(z.string()),
+    there: z.array(ThereOutSchema).optional(),
+  }),
   z.strictObject({
     kind: z.literal('held'),
     on: z.string().nullable(),

@@ -61,6 +61,7 @@ import type { InventoryThere } from './inventory.ts'
 import { type Mirrors, mirrorsFor } from './mirrors.ts'
 import { Moves, type MoveTools } from './moves.ts'
 import { type SharedNotes, sharedNotesFor } from './notes-shared.ts'
+import type { Places } from './placing.ts'
 import type { ProjectDoor } from './project-moves.ts'
 import { RemoteAgents } from './remote-agent.ts'
 import { RemoteMachines } from './remote-machine.ts'
@@ -265,6 +266,25 @@ export class Remotes implements Subject {
         return this.moves.tools().move(req)
       },
       ...remoteReads(this, (at) => clockOf(at)),
+    }
+  }
+
+  /**
+   * Where a plan's work may go (`placing.ts`): the machines linked here, which
+   * are up, the one project each has that is a project here's repository, and
+   * sending queued work there as a take. Null where this window moves none.
+   */
+  places(): Places | null {
+    const moves = this.moves
+    if (moves === null) return null
+    return {
+      machines: () => this.machines().remotes.map((one) => one.name),
+      up: (machine) => this.reachFor(machine)?.live === true,
+      projectThere: (machine, project) => {
+        const there = (this.mirrors?.sameAs(project) ?? []).filter((one) => one.machine === machine)
+        return there.length === 1 && there[0] ? there[0].project : null
+      },
+      send: (task, machine, how) => moves.startThere(task, machine, 'orchestrator', how),
     }
   }
 

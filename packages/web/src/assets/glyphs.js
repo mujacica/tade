@@ -202,7 +202,7 @@ export function joined(items) {
 export function queueSaid(state, clock) {
   switch (state.kind) {
     case 'waiting':
-      return `after ${joined(state.on)}`
+      return `after ${joined(state.on)}${thereSaid(state.there ?? [], clock)}`
     case 'held':
       return `held: ${state.because}`
     case 'scheduled':
@@ -213,6 +213,20 @@ export function queueSaid(state, clock) {
     default:
       return 'next'
   }
+}
+
+/**
+ * Waits on another machine, as a clause: when each machine was last heard,
+ * or that it has been silent for days. `@tade/core`'s `thereSays`, over the
+ * wire's shape.
+ */
+function thereSaid(there, clock) {
+  const parts = there.map((one) => {
+    if (one.silentDays !== null) return `${one.machine} not heard from in ${one.silentDays} days`
+    if (one.heardAt === null) return `${one.machine} not heard from here yet`
+    return `${one.machine} last heard ${clock(one.heardAt)}`
+  })
+  return parts.length > 0 ? ` (${parts.join('; ')})` : ''
 }
 
 /**

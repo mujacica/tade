@@ -2,15 +2,20 @@ import { readFile } from 'node:fs/promises'
 import {
   type Asker,
   checkWaits,
+  followWait,
   inheritWaits,
+  machineLabel,
   type QueueChange,
   type StartCondition,
   TaskFile,
   type Wait,
+  waitsElsewhere,
+  waitThere,
 } from '@tade/core'
 import { parse as parseYaml } from 'yaml'
 import { theirLine } from './documents.ts'
 import type { EventLog } from './events.ts'
+import { FleetWaits } from './fleet-waits.ts'
 import { pickUpToStart } from './parked.ts'
 import { aloneOn, readTaskFile, rewriteTaskFile, taskFilePath } from './tasks.ts'
 
@@ -174,6 +179,10 @@ function waitOn(
       tasks,
       waits: (task) => waits.get(task) ?? [],
       produces: (task) => producing.get(task) ?? true,
+      // The other machines' journals kept here, read only where a wait names one.
+      ...((req.after ?? []).some((dep) => waitsElsewhere(dep.task))
+        ? { elsewhere: await new FleetWaits(tade.home).read(machineLabel()) }
+        : {}),
     })
     if (!checked.ok) throw new Error(checked.problems.join('; '))
     const start = await writeStart(tade.home, req.task, (kept) => {
@@ -191,6 +200,59 @@ function waitOn(
       },
     })
     return start
+  })
+}
+
+/**
+ * The waits of one piece of queued work on machines not heard from in days
+ * (`SILENT_DAYS`), dropped: the person's act — the card's Drop the wait, the
+ * phone's — and never the orchestrator's, nor anything Tade does by itself,
+ * because a machine that is only switched off would come back to find its work
+ * started on without it. Written as a wait replaced, `dropped` naming what
+ * went, so whoever was not watching can put it back. Answers what was dropped.
+ */
+export function dropSilentWaits(
+  tade: QueueChanger,
+  req: { task: string; by: string; now?: number },
+): Promise<string[]> {
+  if (req.by === 'orchestrator') {
+    return Promise.reject(
+      new Error(
+        `A wait on a machine gone quiet is dropped only by the person: tell them ${req.task} waits on one, and that its card offers to drop the wait.`,
+      ),
+    )
+  }
+  return aloneOn(`${tade.home}#waits`, async () => {
+    const file = (await readTaskFile(tade.home, req.task))?.start
+    if (!file) throw new Error(`there is no queued work called ${req.task}`)
+    const fleet = await new FleetWaits(tade.home).read(machineLabel())
+    const own = await tade.log.read({ types: ['task_moved', 'task_taken'] })
+    const now = req.now ?? Date.now()
+    const silent = file.after.filter((dep) => {
+      const followed = followWait(dep.task, fleet, own)
+      return followed.kind !== 'here' && waitThere(dep.task, followed, now).silentDays !== null
+    })
+    if (silent.length === 0) {
+      throw new Error(`${req.task} waits on no machine that has been silent for days`)
+    }
+    const gone = new Set(silent.map((dep) => dep.task))
+    const after = file.after.filter((dep) => !gone.has(dep.task))
+    await writeStart(tade.home, req.task, (kept) => {
+      kept.after = after
+    })
+    await tade.log.append({
+      type: 'queue_changed',
+      task: req.task,
+      detail: {
+        change: 'after',
+        by: req.by,
+        after,
+        replace: true,
+        was: file.after.map((dep) => dep.task),
+        dropped: [...gone],
+      },
+    })
+    return [...gone]
   })
 }
 

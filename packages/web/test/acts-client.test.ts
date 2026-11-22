@@ -100,7 +100,7 @@ describe('the scope each verb needs, written twice', () => {
 
   it('offers a start on parked work, which picks it up, but never on work from outside', () => {
     const changes = (row: unknown) => asksFor(row).map((one) => one.change)
-    const all = QUEUE_ASKS.map((one) => one.change)
+    const all = QUEUE_ASKS.map((one) => one.change).filter((one) => one !== 'drop')
     expect(changes({ parked: false, origin: { kind: 'schedule', name: 'jev' } })).toEqual(all)
     // A watch's parked work: a start is the person saying go, and an order
     // among what is ready is not something parked work can take.
@@ -114,6 +114,14 @@ describe('the scope each verb needs, written twice', () => {
     expect(outside).not.toContain('start')
     expect(outside).not.toContain('first')
     expect(outside).toContain('pause')
+  })
+
+  it('offers to drop a wait only where a machine it waits on has been silent for days', () => {
+    const changes = (row: unknown) => asksFor(row).map((one) => one.change)
+    expect(changes({ parked: false })).not.toContain('drop')
+    expect(changes({ parked: false, silentWaits: true })).toContain('drop')
+    // Parked work waiting on a quiet machine can still lose the wait.
+    expect(changes({ parked: true, silentWaits: true })).toContain('drop')
   })
 
   it('says what a wait means in words, for every way the wire can say one', () => {

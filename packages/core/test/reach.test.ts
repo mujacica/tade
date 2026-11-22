@@ -462,8 +462,10 @@ describe('the shape of the rule', () => {
       'extensions.sentry.projects',
       'extensions.sentry.token_env',
       'extensions.sentry.url',
-      // Which settings this machine keeps out of the ones it shares: a pin
-      // decides whose word reaches it from the person's other machines.
+      // Where queued work is sent, and which settings this machine keeps out
+      // of the ones it shares: where Tade sends something, and whose word
+      // reaches it from the person's other machines.
+      'machine.hub',
       'machine.pinned',
       // A command run as you before an agent starts, and how long it may
       // run: `projects` is `never` because of `root`, and neither of these is

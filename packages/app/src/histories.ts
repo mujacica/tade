@@ -58,6 +58,10 @@ export const QUEUE_READS = [
   'race_won',
   // What a replay took, graded and stopped at: its whole record, never a tail of it.
   ...REPLAY_EVENTS,
+  // Where a task went and where one came from (`followWait`): a wait on work
+  // that moved to another machine follows it there, a hand-over a week ago included.
+  'task_moved',
+  'task_taken',
 ] as const
 
 /**

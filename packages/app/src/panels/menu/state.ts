@@ -593,7 +593,12 @@ export function accountMenuItems(
  * change what it waits on or is told, rename or remove it.
  */
 export function queueMenuItems(queued: {
-  state: { kind: string; parked?: boolean; all?: boolean }
+  state: {
+    kind: string
+    parked?: boolean
+    all?: boolean
+    there?: readonly { machine: string; silentDays: number | null }[]
+  }
 }): MenuItem[] {
   const paused = queued.state.kind === 'paused'
   const held = queued.state.kind === 'held'
@@ -621,10 +626,23 @@ export function queueMenuItems(queued: {
     // work it made, never by removing and planning it again, which uses the
     // name up and holds what waited on it.
     { id: 'queue-after', label: 'Wait on…' },
+    // Offered only where a machine it waits on has gone quiet for days, and
+    // only ever pressed: a wait on a machine that is merely off is not dropped
+    // by anything but a person (`SILENT_DAYS`).
+    ...silentItem(queued.state.there ?? []),
     { id: 'queue-retell', label: 'Retell…' },
     { id: 'rename', label: 'Rename…' },
     { id: 'queue-remove', label: 'Remove', danger: true, divider: true },
   ]
+}
+
+/** "Drop the wait on vps", where a machine queued work waits on has been silent for days. */
+function silentItem(there: readonly { machine: string; silentDays: number | null }[]): MenuItem[] {
+  const silent = [
+    ...new Set(there.filter((one) => one.silentDays !== null).map((one) => one.machine)),
+  ]
+  if (silent.length === 0) return []
+  return [{ id: 'queue-drop', label: `Drop the wait on ${silent.join(', ')}` }]
 }
 
 /** A schedule's menu: open it, run it now, pause or resume it, rename or remove it. */

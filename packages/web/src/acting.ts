@@ -136,7 +136,7 @@ export interface QueueCall extends Target {
  * whether it is open at all and says nothing about its queue, so it is not
  * that one. Outstanding, not decided against.
  */
-export const QUEUE_ASKS = ['pause', 'resume', 'start', 'wait', 'first'] as const
+export const QUEUE_ASKS = ['pause', 'resume', 'start', 'wait', 'first', 'drop'] as const
 export type QueueAsk = (typeof QUEUE_ASKS)[number]
 
 /** Mark a task finished by hand, which is the one rule nothing derives. */

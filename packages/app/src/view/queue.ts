@@ -5,6 +5,7 @@ import {
   printable,
   printableLines,
   type QueueState,
+  thereSays,
 } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, type Target } from '../hits.ts'
@@ -675,6 +676,30 @@ export function renderQueued(
             .space()
             .text(said(`Waits on ${on.join(', ')}.`)),
         )
+        // On another machine: where it stands there, and when that machine
+        // was last heard — and, gone quiet for days, the wait offered to be
+        // dropped, which only a press does.
+        const there = queued.state.there ?? []
+        for (const one of there) {
+          line((r) =>
+            r
+              .space(2)
+              .text(
+                said(`${thereSays(one, clock)}.`),
+                one.silentDays !== null ? skin.waiting : skin.hint,
+              ),
+          )
+        }
+        if (there.some((one) => one.silentDays !== null)) {
+          rows.push(blank(width))
+          line((r) =>
+            r.button(
+              'Drop the wait',
+              { kind: 'action', name: `queue-drop:${pane.task}` },
+              'attention',
+            ),
+          )
+        }
         break
       }
       case 'ready':
@@ -693,6 +718,12 @@ export function renderQueued(
       case 'paused':
         line((r) => r.text('‖', skin.faded).space().text(said('Paused.')))
         break
+    }
+    // Sent here from the machine it was asked on, and why: the card is where
+    // somebody looking at this queue finds out why it is here at all.
+    if (queued.placed) {
+      rows.push(blank(width))
+      line((r) => r.text(said(`${queued.placed}.`), skin.hint))
     }
     // Started on another machine instead: there, in its
     // project that is this repository, and gone from this queue.

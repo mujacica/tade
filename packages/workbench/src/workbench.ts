@@ -34,6 +34,7 @@ import {
   type Plan,
   type PlanBusy,
   type PlanChoice,
+  type PlanFleet,
   type PlanSource,
   producesPath,
   producesProblem,
@@ -123,7 +124,13 @@ import { notStartable, type ParkedBy, park } from './parked.ts'
 import { makePlan, type PlanMade } from './plans.ts'
 import { preparedDetail, setupBefore, setupTold } from './prepare.ts'
 import { runningVersion } from './programs.ts'
-import { changeQueued, type HeldHow, holdQueued, type QueueChangeRequest } from './queue-changes.ts'
+import {
+  changeQueued,
+  dropSilentWaits,
+  type HeldHow,
+  holdQueued,
+  type QueueChangeRequest,
+} from './queue-changes.ts'
 import { type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
 import { settleRuns } from './run-files.ts'
 import { type KeptSchedule, Schedules } from './schedules.ts'
@@ -278,6 +285,8 @@ export interface CreateTaskRequest {
   produces?: string
   /** When it starts: after other tasks, not before a time. Made now, started by the queue. */
   start?: StartCondition
+  /** Made parked, for queued work on its way to another machine (`CreateTaskOptions.parked`). */
+  parked?: boolean
   /** Made as a proposal for the orchestrator to decide (`proposals.ts`), called this. */
   proposed?: { title: string }
   /**
@@ -1094,6 +1103,7 @@ export class Workbench {
       ...(req.done ? { done: req.done } : {}),
       ...(req.produces ? { produces: req.produces } : {}),
       ...(req.start ? { start: req.start } : {}),
+      ...(req.parked ? { parked: true } : {}),
       ...(req.effort ? { effort: req.effort } : {}),
       race: req.race,
       replay: req.replay,
@@ -1136,6 +1146,8 @@ export class Workbench {
     by = 'orchestrator',
     /** Work the projects already have, so the plan is checked against it too. */
     busy: readonly PlanBusy[] = [],
+    /** The person's other machines, for agents that name one and waits on their tasks. */
+    fleet?: PlanFleet,
   ): Promise<PlanMade> {
     return makePlan(
       {
@@ -1152,6 +1164,7 @@ export class Workbench {
       plan,
       by,
       busy,
+      fleet,
     )
   }
 
@@ -1377,6 +1390,11 @@ export class Workbench {
   /** A person's choice about queued work, written down for the queue to read: `queue-changes.ts`. */
   changeQueued(req: QueueChangeRequest): Promise<StartCondition | null> {
     return changeQueued({ home: this.home, log: this.log }, req)
+  }
+
+  /** A person dropping the waits of queued work on machines silent for days: `queue-changes.ts`. */
+  dropSilentWaits(task: string, by: string): Promise<string[]> {
+    return dropSilentWaits({ home: this.home, log: this.log }, { task, by })
   }
 
   /** Queued work that could not start, held with why until someone chooses: `queue-changes.ts`. */

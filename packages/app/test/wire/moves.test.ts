@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { ConfigSchema } from '@tade/core'
+import { ConfigSchema, machineLabel } from '@tade/core'
 import { type FarEnd, startFarEnd } from '@tade/remotes-core/far'
 import { makeScriptedLink, type ScriptedRemote } from '@tade/remotes-scripted'
 import type { Workbench } from '@tade/workbench'
@@ -84,7 +84,10 @@ describe('queued work, started on another machine instead', () => {
   }
 
   /** Queued work here, not before tomorrow, so nothing starts it meanwhile. */
-  async function queued(slug: string, after: { task: string; why: string }[] = []) {
+  async function queued(
+    slug: string,
+    after: { task: string; why: string; approved?: boolean }[] = [],
+  ) {
     await client.createTask({
       project: 'app',
       slug,
@@ -130,24 +133,126 @@ describe('queued work, started on another machine instead', () => {
     await until('said where it went', () => shown('went to vps as tade/landing'), 10_000)
   }, 90_000)
 
-  it('is not offered for work that waits on something, and the tool says why', async () => {
+  /** The orchestrator's move, tried until vps has said which of its projects is this repository. */
+  async function moveWhenKnown(window: App, task: string, asked: string): Promise<string> {
+    let said = ''
+    await until(`${task} moved`, async () => {
+      try {
+        said = await window.remoteTools().move({ task, machine: 'vps', asked })
+        return true
+      } catch (err) {
+        if (String(err).includes('has no project')) return false
+        throw err
+      }
+    })
+    return said
+  }
+
+  it('takes what it waits on with it, written as a wait on this machine, and what waits on it here holds until vps shows it taken', async () => {
     const { far, window } = await linked()
     await queued('landing', [{ task: 'app/refunds', why: 'the page shows refunds' }])
+    await queued('banner', [{ task: 'app/landing', why: 'it links to the landing page' }])
     await client.log.append({
       type: 'said',
       task: null,
       detail: { text: 'start the landing page on the vps' },
     })
-    await expect(
-      window.remoteTools().move({
-        task: 'app/landing',
-        machine: 'vps',
-        asked: 'start the landing page on the vps',
-      }),
-    ).rejects.toThrow('no wait crosses machines')
+    const said = await moveWhenKnown(window, 'app/landing', 'start the landing page on the vps')
+    expect(said).toContain('went to vps as tade/landing')
+    const [handed] = far.taken
+    // A task here, as vps reads it: this machine's own name in front.
+    expect(handed?.take.after).toEqual([
+      { task: `${machineLabel()}:app/refunds`, why: 'the page shows refunds' },
+    ])
+    const [moved] = await client.events({ types: ['task_moved'] })
+    expect(moved?.detail).toMatchObject({
+      to: 'vps',
+      as: 'tade/landing',
+      after: [`${machineLabel()}:app/refunds`],
+    })
+    // What waited on it here follows it, and holds — nothing of vps's journal
+    // is kept here to show it taken, so it never starts on a guess.
+    await until('the banner holds on where the landing page went', () =>
+      (window.queueTools().describe() as Promise<string>).then((said) =>
+        said.includes(
+          "app/banner — after app/landing (app/landing, now vps:tade/landing: app/landing moved to vps as tade/landing, and vps's journal here does not show it taken yet",
+        ),
+      ),
+    )
+  }, 90_000)
+
+  it('keeps here work that waits for the person to approve a document, and says why', async () => {
+    const { far, window } = await linked()
+    await queued('build', [{ task: 'app/plan', why: 'the plan says how', approved: true }])
+    await client.log.append({
+      type: 'said',
+      task: null,
+      detail: { text: 'start the build on the vps' },
+    })
+    await until('refused for the approval', async () => {
+      try {
+        await window
+          .remoteTools()
+          .move({ task: 'app/build', machine: 'vps', asked: 'start the build on the vps' })
+      } catch (err) {
+        return String(err).includes('which is approved on the machine that keeps it')
+      }
+      return false
+    })
     expect(far.taken).toEqual([])
-    // Still queued here, and not set aside by the try.
-    expect((await readTaskFile(home, 'app/landing'))?.parked).toBe(false)
+    expect((await readTaskFile(home, 'app/build'))?.parked).toBe(false)
+  }, 90_000)
+
+  it('places a plan’s later work on the hub where nothing ties it here, and says where and why', async () => {
+    const { far, window } = await linked()
+    await until('vps has said which project is this repository', async () => {
+      const answer = await window.queueTools().plan({
+        project: 'app',
+        said: 'the nightly page and the menu',
+        agents: [
+          {
+            name: `probe-${Date.now()}`,
+            said: 'probe',
+            prompt: 'probe',
+            after: [],
+            touches: [],
+            at: TOMORROW,
+          },
+        ],
+      })
+      return answer.includes('went to vps')
+    })
+    far.taken.length = 0
+    const answer = await window.queueTools().plan({
+      project: 'app',
+      said: 'the nightly page, and the menu here',
+      agents: [
+        {
+          name: 'nightly',
+          said: 'the nightly page',
+          prompt: 'Build it.',
+          after: [],
+          touches: [],
+          at: TOMORROW,
+        },
+        {
+          name: 'menu',
+          said: 'the menu',
+          prompt: 'Build it.',
+          after: [],
+          touches: [],
+          at: TOMORROW,
+          machine: 'here',
+        },
+      ],
+    })
+    expect(far.taken.map((one) => one.take.name)).toEqual(['nightly'])
+    expect(far.taken[0]?.take.placed).toBe(
+      `placed on vps from ${machineLabel()}: it waits for later and nothing ties it to ${machineLabel()}, and vps is the hub (it is the one machine this one links to), so closing the lid strands nothing`,
+    )
+    expect(answer).toContain('app/nightly went to vps as tade/nightly')
+    expect(await readTaskFile(home, 'app/nightly')).toBeNull()
+    expect((await readTaskFile(home, 'app/menu'))?.parked).toBe(false)
   }, 90_000)
 
   it('moves for the orchestrator only where a line of theirs names the machine', async () => {

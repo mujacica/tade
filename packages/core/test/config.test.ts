@@ -68,6 +68,17 @@ describe('parseConfig', () => {
     expect(refused.issues[0]?.path).toBe('machine.pinned.0')
   })
 
+  it('names no hub until somebody does, takes a name or here, and refuses an empty one', () => {
+    const fresh = parseConfig('')
+    expect(fresh.ok && fresh.config.machine.hub).toBeUndefined()
+    const named = parseConfig('machine: { hub: vps }')
+    expect(named.ok && named.config.machine.hub).toBe('vps')
+    const refused = parseConfig('machine: { hub: "" }')
+    expect(refused.ok).toBe(false)
+    if (refused.ok) return
+    expect(refused.issues[0]?.path).toBe('machine.hub')
+  })
+
   it('accepts a fully populated config', () => {
     const r = parseConfig(`
 workspace: { driver: tmux, adopt: true }

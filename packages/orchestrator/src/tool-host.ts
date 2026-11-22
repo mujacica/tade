@@ -752,6 +752,7 @@ function planOf(p: Record<string, unknown>): Plan {
       return {
         name: text(agent.name),
         ...(agent.project ? { project: text(agent.project) } : {}),
+        ...(agent.machine ? { machine: text(agent.machine) } : {}),
         said: text(agent.said),
         prompt: text(agent.prompt),
         ...(agent.done ? { done: doneRuleOf(agent.done) } : {}),

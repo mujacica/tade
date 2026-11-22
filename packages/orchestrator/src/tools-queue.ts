@@ -62,10 +62,12 @@ const APPROVED = {
 export const PLAN_AFTER = {
   type: 'array',
   description:
-    'what it waits on: other agents in this plan by name, or tasks Tade already has — in another project, as project/task',
+    'what it waits on: other agents in this plan by name, or tasks Tade already has — in another project, as project/task; on another machine, as machine:project/task, which starts once that machine says it finished',
   items: object(
     {
-      agent: string('an agent in this plan, or an existing task as project/task'),
+      agent: string(
+        'an agent in this plan, an existing task as project/task, or one on another machine as machine:project/task',
+      ),
       why: string('why it has to wait, in a few words'),
       approved: APPROVED,
     },
@@ -157,7 +159,9 @@ export function queueTools(
           description: 'for after: what it waits on, each a task tade_queue or tade_status lists',
           items: object(
             {
-              task: string('a bare name in its project, or project/task'),
+              task: string(
+                'a bare name in its project, project/task, or machine:project/task for a task on another machine',
+              ),
               why: string('why it has to wait, in a few words'),
               approved: APPROVED,
             },

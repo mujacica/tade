@@ -1,4 +1,5 @@
 import {
+  agentMachine,
   atOnceIn,
   describeQueueState,
   expandHome,
@@ -8,15 +9,18 @@ import {
   intakeOf,
   inWrittenOrder,
   joined,
+  machineLabel,
   orderFirst,
   type Plan,
   pastLimitSays,
+  projectOf,
   projectsIn,
   QUEUE_CHANGES,
   queueStateOf,
   readyToStart,
   type StartSays,
   startFrom,
+  waitsElsewhere,
 } from '@tade/core'
 import { type HandedOn, handOnWaits, readTaskFile } from '@tade/workbench'
 import { acknowledge } from '../flash.ts'
@@ -54,6 +58,7 @@ import {
 } from './context.ts'
 import { Forecast } from './forecast.ts'
 import { type Tellable, tellOrKeep } from './handed.ts'
+import { type Places, placePlan } from './placing.ts'
 import { decideProposal, type ProposalRequest } from './proposals.ts'
 import { intakeSays, planHold, plansFor, probingNow, standsFor } from './queue-holds.ts'
 import { type RaceTools, raceTools } from './races.ts'
@@ -79,10 +84,27 @@ import type { ScheduleRequest } from './schedules.ts'
  * `remove` are the window's words for an order written and a piece dropped.
  * `after` and `retell` ask for a line first — what it waits on, what it is told.
  */
-const CHANGES = ['start', 'first', 'pause', 'resume', 'wait', 'after', 'retell', 'remove'] as const
+const CHANGES = [
+  'start',
+  'first',
+  'pause',
+  'resume',
+  'wait',
+  'after',
+  'retell',
+  'remove',
+  'drop',
+] as const
 
 /** What is done to one piece of queued work and never to a whole project's queue. */
-const ONE_PIECE: ReadonlySet<string> = new Set(['start', 'wait', 'after', 'retell', 'remove'])
+const ONE_PIECE: ReadonlySet<string> = new Set([
+  'start',
+  'wait',
+  'after',
+  'retell',
+  'remove',
+  'drop',
+])
 
 /** What this subject needs from the rest of the window. */
 export interface QueueDeps {
@@ -99,6 +121,8 @@ export interface QueueDeps {
     set(req: ScheduleRequest): Promise<string>
     runNow(id: string, asked: boolean): Promise<string>
   }
+  /** The other machines a plan's work may go to (`placing.ts`); null where this window links to none. */
+  places?(): Places | null
 }
 
 /** What the orchestrator's queue tools do, answered from this window. */
@@ -396,6 +420,10 @@ export class Queue implements Subject {
       this.ask(task, change)
       return
     }
+    if (change === 'drop') {
+      await this.dropSilent(task)
+      return
+    }
     try {
       // "Do this one first" is an order written like any other: this task in
       // front of whatever order the queue is already in.
@@ -406,6 +434,24 @@ export class Queue implements Subject {
         change === 'first' ? { change: 'order', order, by: 'you' } : { task, change, by: 'you' },
       )
       notify(this.wire, answer)
+    } catch (err) {
+      this.wire.note(err)
+    }
+    this.wire.draw()
+  }
+
+  /**
+   * The waits of one piece of queued work on machines not heard from in days,
+   * dropped — a person's press on its card or its menu, and never anything
+   * Tade does by itself (`SILENT_DAYS`): a machine that is only switched off
+   * would come back to find its work started on without it. Written as the
+   * wait it is, through the queue's own door, so the journal says who and what.
+   */
+  private async dropSilent(task: string): Promise<void> {
+    try {
+      const dropped = await this.wire.opts.client.dropSilentWaits(task, 'you')
+      await this.wire.live?.refresh()
+      notify(this.wire, `${task} no longer waits on ${joined(dropped)}.`)
     } catch (err) {
       this.wire.note(err)
     }
@@ -537,20 +583,48 @@ export class Queue implements Subject {
             : null
         return [changedSays(lead, started, now), ...past, ...(room ? [room] : [])].join(' ')
       },
-      plan: async (plan) => {
+      plan: async (asked) => {
         // Checked against what the projects are already on, which no plan can
         // see: agents working now, and work an earlier plan left to start.
         // Every repository the plan reaches into, since it may reach several.
-        const reaches = projectsIn(plan)
+        const reaches = projectsIn(asked)
         const busy = planBusyOf(this.wire.live?.tasks ?? [], reaches)
-        const made = await this.wire.opts.client.planTasks(plan, 'orchestrator', busy)
+        // Where each agent waits — on the hub where nothing ties it here — and
+        // the other machines it may name or wait on, read before anything is made.
+        const places = this.deps.places?.() ?? null
+        // The other machines' journals, read only where a wait names one: one
+        // that cannot be read refuses the plan with why.
+        const elsewhere = asked.agents.some((agent) =>
+          agent.after.some((dep) => waitsElsewhere(dep.agent)),
+        )
+          ? await this.wire.live?.readFleet()
+          : undefined
+        const finished = this.wire.live?.queueFacts().finished
+        const {
+          plan,
+          why: reasons,
+          byRule,
+        } = placePlan(asked, {
+          config: this.wire.opts.config,
+          home: this.wire.opts.home,
+          self: machineLabel(),
+          places,
+          finished: (task) => finished?.has(task) === true,
+          now: this.wire.now(),
+        })
+        const made = await this.wire.opts.client.planTasks(plan, 'orchestrator', busy, {
+          machines: places?.machines() ?? [],
+          projectThere: (machine, project) => places?.projectThere(machine, project) ?? null,
+          ...(elsewhere ? { elsewhere } : {}),
+        })
+        const sent = await this.sendPlaced(plan, made.made, places, reasons, byRule)
         await this.wire.live?.refresh()
         const started = await this.advance()
         const live = this.wire.live
         const facts = live?.queueFacts()
         const waiting = made.made
           .map((task) => task.id)
-          .filter((task) => !started.includes(task))
+          .filter((task) => !started.includes(task) && !sent.gone.has(task))
           .map((task) => {
             const item = live?.queued.find((one) => one.task === task)
             return {
@@ -565,10 +639,66 @@ export class Queue implements Subject {
           made: made.made.map((task) => task.id),
           started,
           waiting,
+          placed: sent.said,
           warnings: made.warnings,
         })
       },
     }
+  }
+
+  /**
+   * A plan's parts bound for another machine, made parked here, sent there in
+   * the order they were made — so a part waiting on another goes after it and
+   * its wait is written as the bare id there. One not taken: placed by the rule,
+   * it is picked up and runs here, said; planned for that machine, it stays
+   * parked here, said, for somebody to decide.
+   */
+  private async sendPlaced(
+    plan: Plan,
+    made: readonly { id: string; project: string }[],
+    places: Places | null,
+    reasons: ReadonlyMap<string, string>,
+    byRule: ReadonlySet<string>,
+  ): Promise<{ said: string[]; gone: Set<string> }> {
+    const said: string[] = []
+    const gone = new Set<string>()
+    const self = machineLabel()
+    for (const task of made) {
+      const name = task.id.slice(task.project.length + 1)
+      const agent = plan.agents.find(
+        (one) => one.name === name && projectOf(plan, one) === task.project,
+      )
+      const machine = agent ? agentMachine(agent, self) : null
+      const reason = agent ? reasons.get(agent.name) : undefined
+      if (!agent || machine === null) {
+        if (reason) said.push(`${task.id} ${reason}.`)
+        continue
+      }
+      try {
+        if (!places) throw new Error('this window links to no other machine')
+        const went = await places.send(task.id, machine, {
+          placed: reason ?? `planned for ${machine} from ${self}`,
+          madeParked: true,
+        })
+        gone.add(task.id)
+        said.push(`${went}${reason ? ` (${reason})` : ''}`)
+      } catch (err) {
+        if (byRule.has(agent.name)) {
+          const back = await this.wire.opts.client
+            .parkTask(task.id, false, { by: 'orchestrator', was: true })
+            .then(
+              () => 'so it runs here',
+              (e: unknown) => `and could not be picked up here (${why(e)}): pick it up`,
+            )
+          said.push(`${task.id} was meant for ${machine} and did not go: ${why(err)} — ${back}.`)
+        } else {
+          said.push(
+            `${task.id} was planned for ${machine} and did not go: ${why(err)} — it is parked here: pick it up to run it here, or move it with Start on ${machine} once it can go.`,
+          )
+        }
+      }
+    }
+    return { said, gone }
   }
 
   /** What `queue_change` does when it names a schedule rather than a task. */

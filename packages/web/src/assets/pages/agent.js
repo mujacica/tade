@@ -206,7 +206,7 @@ export function taskScreen(where, ctx) {
       work.update(task, view)
       askedIn(asked, task, view.store)
       about.update(task, view)
-      controls?.update(task, view)
+      controls?.update(withSilentWaits(task, view.store), view)
       kindsIn(acts.body)
       // A block of controls nothing could be drawn in is not a heading.
       acts.node.hidden = [...acts.body.children].every((one) => one.hidden)
@@ -584,6 +584,16 @@ function workView() {
 }
 
 /* ── what was asked for, and the facts ─────────────────────────────────────── */
+
+/**
+ * The task with whether its queued work waits on a machine silent for days,
+ * read off its queue row: what offers Drop the wait (`asksFor`).
+ */
+function withSilentWaits(task, store) {
+  if (task === null || task === undefined) return task
+  const there = store.rows.queue.get(task.id)?.state?.there ?? []
+  return there.some((one) => one.silentDays !== null) ? { ...task, silentWaits: true } : task
+}
 
 /**
  * What somebody asked for, in their own words, folded to three lines —

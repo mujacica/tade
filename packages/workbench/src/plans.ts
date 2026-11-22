@@ -1,10 +1,12 @@
 import {
+  agentMachine,
   type Config,
   checkPlan,
   type EventFilter,
   joined,
   type Plan,
   type PlanBusy,
+  type PlanFleet,
   type PlannedAgent,
   projectOf,
   projectsIn,
@@ -72,6 +74,8 @@ export async function makePlan(
   by = 'orchestrator',
   /** Work the projects already have, so the plan is checked against it too. */
   busy: readonly PlanBusy[] = [],
+  /** The person's other machines, for agents that name one and waits on their tasks. */
+  fleet?: PlanFleet,
 ): Promise<PlanMade> {
   // Every repository it reaches into, not just the plan's own: a change that
   // spans three repos is refused whole if one of them is not a project here,
@@ -121,6 +125,7 @@ export async function makePlan(
     busy,
     packages: await packagesOf(deps.config, plan),
     produces: (task) => producing.has(task),
+    ...(fleet ? { fleet } : {}),
   })
   // Every reason in one answer, names included: asked one task at a time as
   // each was made, a plan made its first task and then threw on its second,
@@ -179,6 +184,9 @@ export async function makePlan(
           ...(agent.harness ? { harness: agent.harness } : {}),
           ...(agent.done ? { done: agent.done } : {}),
           ...(agent.produces ? { produces: agent.produces } : {}),
+          // Bound for another machine: made parked, so this queue cannot start
+          // it before the window sends it there (`Moves.startThere`).
+          ...(agentMachine(agent, fleet?.elsewhere?.self) !== null ? { parked: true } : {}),
           // Written beside the task file for its agent to read first, exactly
           // as a task made one at a time gets it. A template's plan puts what
           // it filled in here, never into the prompt below; the orchestrator's

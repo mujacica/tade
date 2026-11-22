@@ -339,6 +339,20 @@ export function settingsOf(
           keywords: ['pin', 'pinned', 'sync', 'machines', 'remote', 'carry', 'own', 'in step'],
         },
         {
+          // Read where work is planned (`hubOf`, `placeQueued`), so it is live.
+          // `never` to the orchestrator with the rest of `machine`: it is where
+          // Tade sends work.
+          path: 'machine.hub',
+          title: 'Hub',
+          means:
+            'the machine that never sleeps: work queued for later goes there when it has the project and nothing ties the work here, so closing the lid strands nothing — here sends none anywhere',
+          value: config.machine.hub ?? '',
+          fallback: 'the one remote, where this machine links to exactly one',
+          type: { kind: 'choice', options: ['', 'here', ...Object.keys(config.remotes)] } as const,
+          live: true,
+          keywords: ['hub', 'queue', 'queued', 'later', 'lid', 'vps', 'server', 'machine', 'night'],
+        },
+        {
           // The machine's, beside each project's on its own tab: every
           // project's agents together and the orchestrator's turns, held at
           // each start (`budget.ts`). Empty until somebody writes an amount.

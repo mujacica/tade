@@ -29,6 +29,18 @@ export type LaneKind = z.infer<typeof LaneKind>
 export const TaskId = z.string().regex(/^[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9._-]*$/)
 export type TaskId = z.infer<typeof TaskId>
 
+/**
+ * What queued work may wait on: a task here, `<project>/<task>`, or one on
+ * another of the person's machines, `<machine>:<project>/<task>` — the machine
+ * as this one calls it (`remotes.<name>`) or as it calls itself (the label its
+ * journal is kept under, `feeds.ts`). Released only by that machine's own
+ * `task_done`, seen in the copy of its journal kept here (`followWait`).
+ */
+export const WaitId = z
+  .string()
+  .regex(/^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,59}:)?[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9._-]*$/)
+export type WaitId = z.infer<typeof WaitId>
+
 /** `<project>/<task>/<lane>`. */
 export const LaneId = z
   .string()
@@ -59,13 +71,14 @@ export const DONE_RULE_MEANS: Readonly<Record<DoneRule, string>> = {
  */
 export const StartCondition = z.object({
   /**
-   * The tasks it waits on, each with why: it starts once every one has
-   * finished — and, for one marked `approved`, once the person has approved
-   * the document it produced too (`approvedFrom`): plan, you approve, build.
+   * The tasks it waits on, each with why, here or on another machine
+   * (`WaitId`): it starts once every one has finished — and, for one marked
+   * `approved`, once the person has approved the document it produced too
+   * (`approvedFrom`): plan, you approve, build.
    */
   after: z
     .array(
-      z.object({ task: TaskId, why: z.string().default(''), approved: z.boolean().optional() }),
+      z.object({ task: WaitId, why: z.string().default(''), approved: z.boolean().optional() }),
     )
     .default([]),
   /** Not before this moment, as an ISO time. */

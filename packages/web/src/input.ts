@@ -392,7 +392,17 @@ export function projectFactsOf(project: ProjectIn): ProjectFacts {
  * words, and metadata.
  */
 export type QueueStateIn =
-  | { kind: 'waiting'; on: readonly string[] }
+  | {
+      kind: 'waiting'
+      on: readonly string[]
+      /**
+       * Those it waits on that are on another of the person's machines: where
+       * each stands there, when that machine was last heard, and — silent for
+       * days — that the wait may be dropped, by the person (`dropSilentWaits`).
+       * Machine and task names and Tade's own words; nothing an agent wrote.
+       */
+      there?: readonly ThereIn[]
+    }
   | {
       kind: 'held'
       on: string | null
@@ -403,6 +413,16 @@ export type QueueStateIn =
   | { kind: 'scheduled'; at: number }
   | { kind: 'paused'; all: boolean; parked: boolean }
   | { kind: 'ready' }
+
+/** A wait on another machine, as the away view is told it (`@tade/core`'s `WaitThere`). */
+export interface ThereIn {
+  on: string
+  machine: string
+  task: string
+  heardAt: number | null
+  silentDays: number | null
+  why: string | null
+}
 
 /** One piece of queued work. */
 export interface QueueIn {

@@ -95,6 +95,12 @@ export interface CreateTaskOptions {
   produces?: string
   /** When it starts, for queued work: kept in the task file until it does. */
   start?: StartCondition
+  /**
+   * Made parked: queued work on its way to another machine (`placeQueued`, a
+   * plan's `machine`), which this queue must never start in the moment before
+   * it goes — and which stays here, parked and said, where it is not taken.
+   */
+  parked?: boolean
   /** The project's own answer about preparing a new worktree, over what it says (`prepare.ts`). */
   prepare?: PrepareConfig | undefined
   now?: Date
@@ -209,6 +215,7 @@ async function writeOwnFiles(
       done: opts.done,
       produces: opts.produces?.trim(),
       start: opts.start,
+      parked: opts.parked,
       effort: opts.effort,
       race: opts.race,
       replay: opts.replay,
@@ -283,7 +290,7 @@ async function writeTaskFile(
   links: readonly { title: string; url: string }[],
   kept: Pick<
     CreateTaskOptions,
-    'by' | 'done' | 'produces' | 'start' | 'effort' | 'race' | 'replay' | 'harness'
+    'by' | 'done' | 'produces' | 'start' | 'effort' | 'race' | 'replay' | 'harness' | 'parked'
   > & {
     setup?: Setup | null | undefined
   },
@@ -298,7 +305,7 @@ async function writeTaskFile(
       intent_spoken: intent,
       created: now.toISOString(),
       base: task.base,
-      parked: false,
+      parked: kept.parked === true,
       ...(task.workspace === 'checkout' ? { workspace: 'checkout' } : {}),
       ...(kept.effort ? { effort: kept.effort } : {}),
       ...(kept.race ? { race: kept.race } : {}),

@@ -49,8 +49,11 @@ async function call(
   take: Take,
 ): Promise<Answer> {
   let answer: Answer
+  // No waits are left out rather than sent empty: a Tade older than waits
+  // across machines reads its body strictly, and refuses a field it has not got.
+  const { after, ...bare } = take
   try {
-    answer = await reach.link.call(reach.remote, '/api/take', take)
+    answer = await reach.link.call(reach.remote, '/api/take', after.length > 0 ? take : bare)
   } catch (err) {
     throw new Error(
       `${machine}: ${printable(why(err))} — it may not have been taken there; look at its queue before moving it again`,
@@ -59,6 +62,11 @@ async function call(
   if (answer.status === 404) {
     throw new Error(
       `${machine}'s Tade cannot take work from another machine: it is older than this one. Update it there (tade update), then try again.`,
+    )
+  }
+  if (answer.status === 400 && after.length > 0) {
+    throw new Error(
+      `${machine}'s Tade could not read what this work waits on: it is older than waits across machines. Update it there (tade update), then try again.`,
     )
   }
   return answer

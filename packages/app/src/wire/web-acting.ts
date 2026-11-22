@@ -165,6 +165,8 @@ export interface ActingDoors extends IntakeDoors {
   /** A note, verbatim, with who wrote it. Never a `said` line. */
   remember(text: string, scope: string | null, by: string, summary: string | null): unknown
   steerAgent(task: string, message: string): Promise<void>
+  /** The person dropping waits on machines silent for days (`dropSilentWaits`); absent, the phone cannot. */
+  dropSilentWaits?(task: string, by: string): Promise<string[]>
   /** The lanes the registry holds, dead ones with their specs included: lane truth at the act. */
   lanes(task?: string): readonly { id: string; alive: boolean }[]
   pendingApprovals(task?: string): readonly { run: string; requestId: string; tool: string }[]
@@ -443,6 +445,19 @@ export function queued(deps: ActingDeps, call: QueueCall, from: From): Promise<O
       })
       return { did: true, rev: after(facts), said: 'goes first among the ready' }
     }
+    // A wait on a machine silent for days, dropped: the person's act, at the
+    // one door the window's card goes through too.
+    if (call.change === 'drop') {
+      if (deps.tade.dropSilentWaits === undefined) {
+        throw new NotOffered('this machine cannot drop a wait from here')
+      }
+      const dropped = await deps.tade.dropSilentWaits(call.task, by)
+      return {
+        did: true,
+        rev: after(facts, {}),
+        said: `no longer waits on ${dropped.join(', ')}`,
+      }
+    }
     await deps.tade.changeQueued({ task: call.task, change: call.change, by }).catch((err) => {
       // Picking up work that came from outside this machine is approving
       // somebody else's request: the `intake` verb's, as with `park`.
@@ -478,6 +493,8 @@ function saidQueued(change: QueueCall['change']): string {
       return 'waits again'
     case 'first':
       return 'goes first among the ready'
+    case 'drop':
+      return 'no longer waits on a machine silent for days'
   }
 }
 

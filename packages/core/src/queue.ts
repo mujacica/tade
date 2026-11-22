@@ -1,6 +1,15 @@
 import type { Finished } from './done.ts'
 import { type EventType, type TadeEvent, typeNow } from './events.ts'
 import { ownLines } from './feeds.ts'
+import {
+  type Fleet,
+  followWait,
+  thereSays,
+  type WaitThere,
+  waitsElsewhere,
+  waitThere,
+  waitThereProblem,
+} from './fleet-waits.ts'
 import type { DoneRule, StartCondition, TaskState } from './model.ts'
 import { approvedFrom, type Triage } from './produces.ts'
 import { RuntimeFold } from './runtime.ts'
@@ -48,6 +57,13 @@ export interface QueueFacts {
    * list: with no look, the last hold written stands until it is answered.
    */
   reality?: ReadonlyMap<string, Reality>
+  /**
+   * The person's other machines, out of the copies of their journals kept
+   * here (`fleet-waits.ts`): what a wait on `vps:api/migrate` is settled by,
+   * and what a wait on a task that moved away from here follows. Absent, every
+   * such wait holds — which is what evidence that was never read must do.
+   */
+  elsewhere?: Fleet
 }
 
 /**
@@ -150,7 +166,13 @@ export type QueueState =
    * What it waits on has not finished — or, for those in `approval`, the
    * person has not yet approved the document it produced.
    */
-  | { kind: 'waiting'; on: string[]; approval?: string[] }
+  | {
+      kind: 'waiting'
+      on: string[]
+      approval?: string[]
+      /** Those of `on` that wait on another machine: where each stands, and when it was last heard. */
+      there?: WaitThere[]
+    }
   /** Someone has to decide: what it waits on failed, stopped or went, or it could not start. */
   | {
       kind: 'held'
@@ -447,23 +469,59 @@ function stateOf(item: Queued, given: QueueFacts, tree: boolean): QueueState {
   if (choices.anyway) return { kind: 'ready' }
   const on: string[] = []
   const approval: string[] = []
+  const there: WaitThere[] = []
   // An approval wait waits on the person as well as on the work: finished and
   // approved, in either order, and neither stands in for the other.
   const approved: ReadonlyMap<string, Triage> | null = item.start.after.some((dep) => dep.approved)
     ? approvedFrom(facts.events)
     : null
   for (const dep of item.start.after) {
-    const finished = facts.finished.has(dep.task)
-    const unapproved = dep.approved === true && !approved?.has(dep.task)
+    // A task here that finished needs nothing followed; anything else may have
+    // moved, or be on another machine, and is read where it is now.
+    const followed =
+      !waitsElsewhere(dep.task) && facts.finished.has(dep.task)
+        ? ({ kind: 'here', task: dep.task } as const)
+        : followWait(dep.task, facts.elsewhere, facts.events)
+    if (followed.kind !== 'here') {
+      // Only that machine's own `task_done` releases it, and only its own
+      // removal holds it: a seq there orders nothing here, so no answer given
+      // here since can be weighed against it.
+      const finished = followed.kind === 'there' && followed.finished
+      const unapproved =
+        dep.approved === true &&
+        !(followed.kind === 'there' && approvedFrom(followed.machine.lines).has(followed.task))
+      if (finished && !unapproved) continue
+      if (followed.kind === 'there' && followed.removed) {
+        return {
+          kind: 'held',
+          on: dep.task,
+          because: `${dep.task} was removed on ${followed.machine.called ?? followed.machine.name} before it finished`,
+        }
+      }
+      on.push(dep.task)
+      if (unapproved) approval.push(dep.task)
+      there.push(waitThere(dep.task, followed, facts.now))
+      continue
+    }
+    const task = followed.task
+    const finished = facts.finished.has(task)
+    const unapproved = dep.approved === true && !approved?.has(task)
     if (finished && !unapproved) continue
     if (!finished) {
-      const trouble = troubleWith(dep.task, facts, choices.answeredAt)
+      const trouble = troubleWith(task, facts, choices.answeredAt)
       if (trouble) return { kind: 'held', on: dep.task, because: trouble }
     }
     on.push(dep.task)
     if (unapproved) approval.push(dep.task)
   }
-  if (on.length > 0) return { kind: 'waiting', on, ...(approval.length > 0 ? { approval } : {}) }
+  if (on.length > 0) {
+    return {
+      kind: 'waiting',
+      on,
+      ...(approval.length > 0 ? { approval } : {}),
+      ...(there.length > 0 ? { there } : {}),
+    }
+  }
   const at = item.start.at ? Date.parse(item.start.at) : Number.NaN
   if (Number.isFinite(at) && at > facts.now) return { kind: 'scheduled', at }
   if (!tree) return { kind: 'ready' }
@@ -678,12 +736,22 @@ export function checkWaits(req: {
   waits: (task: string) => readonly string[]
   /** Whether a task says it produces a document; unsaid, nothing is refused for it. */
   produces?: (task: string) => boolean
+  /** The person's other machines, for a wait on one (`vps:api/migrate`); unsaid, such a wait is refused. */
+  elsewhere?: Fleet
 }): WaitsCheck {
   const problems: string[] = []
   const here = req.task.split('/')[0] ?? req.task
   const added: Wait[] = []
   for (const dep of req.after) {
     const said = dep.task.trim()
+    if (waitsElsewhere(said)) {
+      const problem = waitThereProblem(req.task, said, req.elsewhere, dep.approved === true)
+      if (problem) problems.push(problem)
+      else if (!added.some((one) => one.task === said)) {
+        added.push({ task: said, why: dep.why.trim(), ...(dep.approved ? { approved: true } : {}) })
+      }
+      continue
+    }
     const task = said.includes('/') ? said : `${here}/${said}`
     if (task === req.task) {
       problems.push(`${req.task} cannot wait on itself`)
@@ -864,8 +932,12 @@ export function approvalSays(approval: readonly string[] | undefined): string {
 /** Where queued work stands, in a few words. */
 export function describeQueueState(state: QueueState, clock: (at: number) => string): string {
   switch (state.kind) {
-    case 'waiting':
-      return `after ${joined(state.on)}${approvalSays(state.approval)}`
+    case 'waiting': {
+      const there = (state.there ?? []).map((one) => thereSays(one, clock))
+      return `after ${joined(state.on)}${approvalSays(state.approval)}${
+        there.length > 0 ? ` (${there.join('; ')})` : ''
+      }`
+    }
     case 'held':
       return `held: ${state.because}`
     case 'scheduled':

@@ -335,6 +335,8 @@ function saidQueue(change: QueueAsk): string {
       return 'waits again'
     case 'first':
       return 'put first among the ready'
+    case 'drop':
+      return 'no longer waits on a machine silent for days'
   }
 }
 

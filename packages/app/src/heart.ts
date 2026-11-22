@@ -34,6 +34,7 @@ import { Inventories, type InventoriesDeps, type InventoryTools } from './wire/i
 import { LinearTokens, lending } from './wire/linear-tokens.ts'
 import { type MachinesSeen, machinesSeenFor } from './wire/machines-seen.ts'
 import { Orchestrator, type OrchestratorDeps } from './wire/orchestrator.ts'
+import type { Places } from './wire/placing.ts'
 import { type ProjectSync, projectSyncFor } from './wire/project-sync.ts'
 import { Projects, type ProjectsDeps, type ProjectTools } from './wire/projects.ts'
 import { Queue, type QueueTools } from './wire/queue.ts'
@@ -96,6 +97,8 @@ export interface Face {
    * nothing to say about it (an older Tade); throws where it could not be asked.
    */
   watchThere?(machine: string, project: string, watch: string): Promise<unknown>
+  /** Where a plan's work may go besides here (`placing.ts`): the face's links, or null for none. */
+  places?(): Places | null
   /** What only the face's links know, handed to every look: other machines' branches here. */
   asked(): Pick<StatusAsk, 'elsewhere'>
   /** A beat's tasks, taken into the state, before the queue and the schedules have them. */
@@ -423,6 +426,7 @@ export class Heart {
     this.queue = new Queue(this.wire, {
       orchestrator: () => this.told,
       comingBack: () => this.agents.comingBack(),
+      places: () => face.places?.() ?? null,
       schedules: {
         views: () => this.schedules.views(),
         set: (req) => this.schedules.set(req),

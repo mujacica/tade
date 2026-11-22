@@ -96,6 +96,8 @@ export interface QueuedView {
   touches: readonly string[]
   /** Not before this moment, when it waits for one. */
   at: number | null
+  /** Why it waits on this machine rather than the one it was asked on (`task_taken`'s `placed`). */
+  placed?: string
 }
 
 /** A schedule, as the SMART QUEUE shows it. */

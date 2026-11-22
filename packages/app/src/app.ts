@@ -170,6 +170,7 @@ export class App {
       due: () => this.looks.soonTick(),
       twins: (project) => this.remotes.watchTwins(project),
       watchThere: (machine, project, watch) => this.remotes.watchThere(machine, project, watch),
+      places: () => this.remotes.places(),
       asked: () => ({ elsewhere: this.remotes.mirrored()?.elsewhere() ?? {} }),
       sawTasks: (tasks) => {
         // Focus can only be restored once there are panes to restore it to,

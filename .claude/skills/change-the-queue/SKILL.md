@@ -16,7 +16,9 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 | `packages/core/src/close-when-done.ts`, `packages/app/src/wire/close-when-done.ts` | a finished agent's lane closing by itself: `closeWaitsOn`, and the window keeping to its order |
 | `packages/core/src/queue.ts` | `Queued`, `queueStateOf`, `readyToStart`, `choicesFor`, `startFrom`, `collidesNow`, `atWorkFrom`, `checkWaits`, `QUEUE_CHANGES` |
 | `packages/core/src/queue-order.ts` | the written order, only ever a preference among the ready: `writtenOrder`, `inWrittenOrder`, `orderFirst` |
-| `packages/core/src/plan.ts` | a plan before it is made: `checkPlan`, `overlaps`, `wholePackage` |
+| `packages/core/src/plan.ts` | a plan before it is made: `checkPlan`, `overlaps`, `wholePackage`, `agentMachine`, `PlanFleet` |
+| `packages/core/src/fleet-waits.ts`, `workbench/src/fleet-waits.ts` | a wait on another machine: `Fleet`, `followWait`, `WaitThere`, `thereSays`, `waitThereProblem`, `SILENT_DAYS`; `FleetWaits` reads the copies |
+| `packages/core/src/placement.ts`, `app/src/wire/placing.ts` | where queued work waits: `hubOf`, `placeQueued`; `placePlan`, `Places` |
 | `packages/workbench/src/packages.ts` | which folders a plan names are packages, looked up in the tree: `packagesOf` |
 | `packages/core/src/produces.ts` | what a task produces instead of code: `producesProblem`, `producesPath`, `documentsIn`, `documentsToCompact`, `producedClause` |
 | `packages/workbench/src/documents.ts` | triage (an approval needs the person's line), `deleteDocument`, `cleanupDocuments`, `settleDocuments` on open, `removedDocument` |
@@ -547,10 +549,35 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   answered `already` and finished as handed; a no from a Tade too old to read the id (asked again
   without it on its `400`) to a hand-over an earlier window may have asked is said as not known.
   The Mac finishes it, never the remote unasked — only this machine can tell the push was the last
-  and stop the agent here. **No wait crosses machines**: work that waits on
-  anything, or that anything waits on, stays, and the refusal says how to change that. The machine
-  there fetches with **its own credentials** and a dry-run push says whether it could push back;
-  the link never forwards an agent (`NO_AGENT`).
+  and stop the agent here. **Waits go with the work**: what it waits on travels in the take written
+  as the machine there reads it (`waitsThere` — a task here as `<this label>:<project>/<task>`), and
+  what waits on it here follows it there (below). Only a wait for an approval keeps it here, since a
+  document is approved where it is kept. The machine there fetches with **its own credentials** and a
+  dry-run push says whether it could push back; the link never forwards an agent (`NO_AGENT`).
+- **A wait may cross machines, and evidence may still only hold** (`core/src/fleet-waits.ts`). A
+  wait is `vps:<project>/<task>` (`WaitId`), the machine by its name here or the label its journal is
+  kept under, and it is released by one thing: that task's `task_done` in that machine's own
+  journal, as the copy here holds it (`feeds.ts`). The window folds the copies into a `Fleet`
+  (`workbench/src/fleet-waits.ts`, a `stat` per copy a look, read again only when one moved) and
+  hands it to the queue as `QueueFacts.elsewhere`, only while queued work waits on another machine or
+  on a task gone from the look (`Live.fleetNeeded`). **A move is a forwarding pointer**: `task_moved
+  {to, as}` where it left and `task_taken {from, was}` where it landed, followed across any number of
+  moves and back (`followWait`); until both halves are seen it holds, and a seq from another journal
+  is never compared with one here. No copy, a copy behind, the link down: it holds, and the card
+  says why and when that machine was last heard (`thereSays`). **A machine silent for
+  `SILENT_DAYS` is said on the card and the wait offered to be dropped** — the card's and the
+  phone's Drop the wait, `dropSilentWaits` — **the person's act alone**: the orchestrator is refused
+  it and nothing drops one by itself, because a machine that is only off would come back to find
+  its work started without it. `checkWaits` and `checkPlan` refuse a machine whose journal is not
+  kept here, a task its journal never made, and an approval across machines.
+- **Queued work waits where it never sleeps** (`core/src/placement.ts`, `app/src/wire/placing.ts`).
+  A plan's agent that waits for later goes to the hub — `machine.hub`, or the one remote — when the
+  hub has the project and nothing ties it here (`placeQueued`: a project only here, a wait on
+  unfinished work here, files only here, a measurement, the hub not linked), made **parked** here and
+  sent as a take once the plan is made (`sendPlaced`), with `placed` saying where and why on its card
+  there and in the plan's answer. Work that starts now stays where it was asked. An agent may name
+  its `machine` (`checkPlan` refuses one not linked, or one with no project that is this repository);
+  not taken there, work the rule placed runs here, and work the plan placed stays parked here, said.
 - **Which projects there are is asked at every look, and a project that is not open is nothing to
   watch.** A watch names its project and resolves it when it looks, so the list it is resolved
   against is read from the config each time (`projectsOf`; the window hands the host each new config
