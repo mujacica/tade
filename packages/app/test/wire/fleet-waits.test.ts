@@ -134,4 +134,35 @@ describe('queued work waiting on work on another machine', () => {
     const [changed] = await client.log.read({ types: ['queue_changed'], task: 'app/billing' })
     expect(changed?.detail).toMatchObject({ by: 'you', dropped: ['vps:api/migrate'] })
   }, 120_000)
+
+  it('says on the card of work placed here why it was sent from the machine it was asked on', async () => {
+    terminal.columns = 140
+    terminal.rows = 45
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const later = new Date(Date.now() + DAY).toISOString()
+    await client.createTask({
+      project: 'app',
+      slug: 'nightly',
+      intent: 'the nightly report',
+      by: 'you',
+      start: { after: [], prompt: 'Build it.', touches: [], at: later },
+    })
+    // What the take writes as it makes it (`web-take.ts`).
+    await client.log.append({
+      type: 'task_taken',
+      task: 'app/nightly',
+      detail: {
+        from: 'mac',
+        was: 'app/nightly',
+        placed: 'placed on vps from mac: it waits for later and nothing ties it to mac',
+      },
+    })
+    await until('nightly in the queue', () => onScreen('nightly'))
+    const row = find('nightly')
+    click(row.col + 2, row.row)
+    await until('its card says why it is here', () =>
+      onScreen('placed on vps from mac: it waits for later and nothing ties it to mac.'),
+    )
+  }, 120_000)
 })
