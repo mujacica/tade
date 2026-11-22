@@ -141,6 +141,52 @@ describe('orchestrator tools', () => {
     expect(JSON.stringify(model?.requests[1] ?? {})).toContain('0.2.3')
   }, 90_000)
 
+  it('reads what each machine has from the window, and the model is told it', async () => {
+    let reads = 0
+    await tools.close()
+    tools = await ToolHost.listen({
+      tade,
+      path: join(home, 'tools.sock'),
+      inventory: {
+        read: async () => {
+          reads += 1
+          return JSON.stringify({ machines: [{ name: 'vps', lacks: ['SENTRY_AUTH_TOKEN'] }] })
+        },
+        move: async () => '',
+      },
+    })
+    await runWithTool({ name: 'tade_machines', arguments: {} })
+    await until(() => (model?.requests.length ?? 0) >= 2)
+    expect(reads).toBe(1)
+    expect(JSON.stringify(model?.requests[1] ?? {})).toContain('SENTRY_AUTH_TOKEN')
+  }, 90_000)
+
+  it('hands a key move to the window with the person’s words, and its refusal reaches the model', async () => {
+    // The boundary is the window's (`ENV_MOVE_REACH`): what is held here is
+    // that the model's call arrives there as it was made, and a refusal comes
+    // back as a tool that failed rather than an empty answer.
+    const asked: { said: string; move: boolean }[] = []
+    await tools.close()
+    tools = await ToolHost.listen({
+      tade,
+      path: join(home, 'tools.sock'),
+      inventory: {
+        read: async () => '',
+        move: async (req) => {
+          asked.push(req)
+          throw new Error('Nothing they have said asks for their keys to move')
+        },
+      },
+    })
+    await runWithTool({
+      name: 'tade_env_move',
+      arguments: { said: 'the VPS is missing a key', move: true },
+    })
+    await until(() => (model?.requests.length ?? 0) >= 2)
+    expect(asked).toEqual([{ said: 'the VPS is missing a key', move: true }])
+    expect(JSON.stringify(model?.requests[1] ?? {})).toContain('asks for their keys to move')
+  }, 90_000)
+
   it('creates a real task through the tool, with the intent kept verbatim', async () => {
     const intent = 'the refund flow double-charges when the webhook retries'
     await runWithTool({
