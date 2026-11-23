@@ -10,7 +10,9 @@ import { fullAccessLacks, ownsOrTheirs } from './surface.ts'
 // key, environment key, MCP server, git identity, origin, app and public name,
 // a column per machine — and the one move that page offers beyond looking
 // again: the keys the shell's files set, moved into one file, shown first as a
-// diff with every value hidden and done only on a second press.
+// diff with every value hidden and done only on a second press. And a change
+// another machine gave to a note taken here, taken or left on a press
+// (`MachinesNote`).
 //
 // **Theirs, as `/api/machine` is** (`here` and `theirs` in `routes.ts`): what
 // it reads is what `tade machine` over the SSH key reads, and what the move
@@ -88,6 +90,26 @@ export interface MachinesAnswer {
   file: string
   /** What is said between the two presses: any agent can read a key written down. */
   agents: string
+  /** Changes to notes taken here, each waiting for Take it here or Leave it. */
+  notes: readonly MachinesNote[]
+}
+
+/**
+ * A change another machine gave to a note taken here, waiting for the
+ * person's press (`@tade/workbench`'s `Memory.held`) — on this page because a
+ * linked machine's word about a note is only that machine's, and the
+ * person's own phone is theirs: the same press the window's Settings ›
+ * Remotes offers.
+ */
+export interface MachinesNote {
+  /** What the press names. */
+  id: string
+  /** What it would do and where it was done: `Retired on vps`. */
+  label: string
+  /** The note's words. */
+  note: string
+  /** The whole of it in a sentence, whose word it is included. */
+  said: string
 }
 
 /** What a press on the page may ask: look again, work out the move, move, or leave them. */
@@ -103,6 +125,11 @@ export interface WebMachines {
    * `move` was asked with no plan shown — nothing is moved that nobody saw.
    */
   press(press: MachinesPress, by: string): boolean
+  /**
+   * Take a held change to a note here, or leave it; `by` is `device <id>`.
+   * False where it is not waiting any more — taken or left already.
+   */
+  settle(note: string, answer: 'take' | 'leave', by: string): boolean
 }
 
 /** `POST /api/machines`: the page. */
@@ -128,12 +155,17 @@ function notTheirs(device: Device): Refusal {
   return refuse('out_of_scope', { needs: fullAccessLacks(device) })
 }
 
-const PressSchema = z.strictObject({ press: z.enum(MACHINES_PRESSES) })
+const PressSchema = z.union([
+  z.strictObject({ press: z.enum(MACHINES_PRESSES) }),
+  // A held change to a note, by what names it.
+  z.strictObject({ note: z.string().regex(/^[0-9a-f]{16}$/), answer: z.enum(['take', 'leave']) }),
+])
 
 /**
  * `POST /api/machines/press`: one press, then the page as it stands. A move
  * with no plan shown is `gone` — the plan somebody saw was left or moved
- * while they looked — rather than worked out and done in one blind press.
+ * while they looked — rather than worked out and done in one blind press;
+ * so is a held change to a note that was taken or left meanwhile.
  */
 export async function machinesPressHere(
   req: IncomingMessage,
@@ -146,6 +178,11 @@ export async function machinesPressHere(
   if (!got.read) return { refusal: got.refusal }
   const parsed = PressSchema.safeParse(got.body)
   if (!parsed.success) return { refusal: refuse('malformed') }
-  if (!machines.press(parsed.data.press, `device ${device.id}`)) return { refusal: refuse('gone') }
+  const by = `device ${device.id}`
+  const done =
+    'press' in parsed.data
+      ? machines.press(parsed.data.press, by)
+      : machines.settle(parsed.data.note, parsed.data.answer, by)
+  if (!done) return { refusal: refuse('gone') }
   return { body: machines.shown() }
 }

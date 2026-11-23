@@ -184,6 +184,28 @@ describe('when a window shares by itself', () => {
     expect(far.all().map((n) => n.text)).toEqual(['taken here, from a shell'])
   })
 
+  it('holds a note taken here that the remote retired until a press here, and reads the file only when it moved', async () => {
+    const { near, far, notes } = sharing()
+    const kept = near.remember('deploys freeze on Fridays', null, 'voice', NOW)
+    await notes.beat(['vps'])
+    await notes.beat(['vps'])
+    far.retire({ at: kept.at }, 'the freeze was lifted', 'device phone', NOW + 1)
+    await notes.share('vps')
+    // Not yet looked at: what the page draws is the file as it last stood.
+    expect(notes.held()).toEqual([])
+    await notes.beat(['vps'])
+    const [held] = notes.held()
+    expect(held).toMatchObject({ kind: 'retire', from: 'vps', by: 'device phone' })
+    expect(near.all().map((one) => one.text)).toEqual([kept.text])
+
+    expect(notes.settle(held?.digest ?? '', 'take', 'window')).toBe(
+      'Took it here: vps would retire “deploys freeze on Fridays” — device phone: the freeze was lifted',
+    )
+    expect(notes.held()).toEqual([])
+    expect(near.all()).toEqual([])
+    expect(() => notes.settle(held?.digest ?? '', 'leave', 'window')).toThrow(/not waiting/)
+  })
+
   it('says once what it could not give: a note too long to share stays where it was taken', async () => {
     const { near, far, notes, state, said } = sharing()
     near.remember('x'.repeat(33_000), null, 'cli', NOW)

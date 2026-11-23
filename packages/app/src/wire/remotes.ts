@@ -19,6 +19,7 @@ import {
 import type { Held, MakeRemoteLink, Remote, RemoteLink } from '@tade/remotes-core'
 import type { TakenWrite } from '@tade/workbench/carry'
 import { heldIn } from '@tade/workbench/config-changes'
+import type { HeldChange } from '@tade/workbench/memory'
 import { runningVersion } from '@tade/workbench/programs'
 import {
   type LinkWord,
@@ -41,7 +42,12 @@ import {
 import { notice } from '../model.ts'
 import { type RequestTherePanel, requestTherePanel } from '../panels/intake/there.ts'
 import { projectsMenuItems } from '../panels/menu/state.ts'
-import { REMOTES, type RemoteShown, remoteActions } from '../panels/settings/remotes.ts'
+import {
+  type HeldNoteShown,
+  REMOTES,
+  type RemoteShown,
+  remoteActions,
+} from '../panels/settings/remotes.ts'
 import type { Ui } from '../screen.ts'
 import { remoteStanding } from '../view/standing.ts'
 import { projectSays } from '../view/top.ts'
@@ -60,7 +66,7 @@ import type { FleetFeeds, FleetSync } from './feeds.ts'
 import type { InventoryThere } from './inventory.ts'
 import { type Mirrors, mirrorsFor } from './mirrors.ts'
 import { Moves, type MoveTools } from './moves.ts'
-import { type SharedNotes, sharedNotesFor } from './notes-shared.ts'
+import { HELD_DOES, heldSaid, type SharedNotes, sharedNotesFor } from './notes-shared.ts'
 import type { Places } from './placing.ts'
 import type { ProjectDoor } from './project-moves.ts'
 import { RemoteAgents } from './remote-agent.ts'
@@ -169,6 +175,11 @@ export interface RemotesDeps {
    * written of it.
    */
   seen?: (held: Held) => void
+  /**
+   * This machine's own figures (`host-figures.ts`), said to every remote with
+   * this machine's word that it is up. Absent, none are said.
+   */
+  figures?: () => unknown
 }
 
 export class Remotes implements Subject {
@@ -544,6 +555,12 @@ export class Remotes implements Subject {
    * here, for the last step of moving one there (`moves.ts`).
    */
   action(choice: string, projects?: ProjectDoor): Promise<void> {
+    // A change that machine gave to a note taken here, taken or left on the person's press here.
+    const note = /^remote:note-(take|leave):[^:]+:([0-9a-f]{16})$/.exec(choice)
+    if (note?.[1] && note[2]) {
+      this.settleNote(note[2], note[1] === 'take' ? 'take' : 'leave')
+      return Promise.resolve()
+    }
     if (this.moves !== null && choice.startsWith('remote:move-')) {
       return this.moves.projects.step(choice, projects)
     }
@@ -559,6 +576,17 @@ export class Remotes implements Subject {
       return this.connect(connect[1], source, connect[3] as 'make' | 'install')
     }
     return this.carries.action(choice)
+  }
+
+  /** One press on a held change to a note, said on the page whatever came of it. */
+  private settleNote(digest: string, answer: 'take' | 'leave'): void {
+    if (this.notes === null) return
+    try {
+      this.deps.carrying.said(this.notes.settle(digest, answer, 'window'), null)
+    } catch (err) {
+      this.deps.carrying.said(null, err instanceof Error ? err.message : String(err))
+    }
+    this.deps.draw()
   }
 
   /** One press on connecting a source there, said where somebody is looking whatever came of it. */
@@ -604,6 +632,7 @@ export class Remotes implements Subject {
           machine: machines.find((machine) => machine.name === name) ?? null,
           versus: this.versusOf(machines.find((machine) => machine.name === name) ?? null),
           ...(this.moves === null ? {} : { moves: this.moves.projects.projectMoves(name) }),
+          held: heldShown(this.notes?.held() ?? [], name),
         }
       }),
     )
@@ -760,7 +789,11 @@ export class Remotes implements Subject {
     if (held !== undefined) return held
     const make = (this.deps.links ?? REMOTE_LINKS)[kind]
     if (make === undefined) return null
-    const link = make({ home: this.deps.home, now: this.deps.now })
+    const link = make({
+      home: this.deps.home,
+      now: this.deps.now,
+      ...(this.deps.figures && { figures: this.deps.figures }),
+    })
     link.watch((name) => this.changed(link, name))
     this.links.set(kind, link)
     return link
@@ -860,6 +893,8 @@ export function remotesFor(
     files: () => { openFile(path: string): void; openLink(url: string): Promise<void> }
     /** The record of which machines are up (`machines-seen.ts`), which a link's moves are written to. */
     seen?: (held: Held) => void
+    /** This machine's own figures, said to every remote with its word that it is up. */
+    figures?: () => unknown
     /** What this machine has, as its last look found it: told each remote that asks (`inventory.ts`). */
     inventory?: () => Inventory | null
     /** A remote's branches in one project's mirror moved: that project's branch is looked at again. */
@@ -934,6 +969,7 @@ export function remotesFor(
     lastInputAt: () => wire.state.lastKeyAt,
     now: () => wire.now(),
     ...(subjects.seen && { seen: subjects.seen }),
+    ...(subjects.figures && { figures: subjects.figures }),
     log: async (told) => {
       await wire.opts.client.log.append(told)
     },
@@ -1015,4 +1051,16 @@ async function takeHere(
     carried: from,
     ...write.stamp,
   })
+}
+
+/** The changes one remote gave to notes taken here, as its block on the Remotes page draws them. */
+export function heldShown(held: readonly HeldChange[], name: string): HeldNoteShown[] {
+  return held
+    .filter((one) => one.from === name)
+    .map((one) => ({
+      digest: one.digest,
+      label: `${HELD_DOES[one.kind]} there`,
+      note: printable(one.note.text),
+      said: heldSaid(one),
+    }))
 }

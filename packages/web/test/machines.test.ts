@@ -37,6 +37,14 @@ const SHOWN: MachinesAnswer = {
   said: null,
   file: '~/.config/tade/env',
   agents: 'any agent can read it',
+  notes: [
+    {
+      id: '0123456789abcdef',
+      label: 'Retired on vps',
+      note: 'deploys freeze on Fridays',
+      said: 'vps would retire “deploys freeze on Fridays” — device phone: lifted',
+    },
+  ],
 }
 
 /** A window half that records each press, with a plan shown or not. */
@@ -48,6 +56,11 @@ function half(planned: boolean): WebMachines & { pressed: string[] } {
     press: (press: MachinesPress, by: string) => {
       if (press === 'move' && !planned) return false
       pressed.push(`${press} ${by}`)
+      return true
+    },
+    settle: (note: string, answer: 'take' | 'leave', by: string) => {
+      if (note !== '0123456789abcdef') return false
+      pressed.push(`${answer} ${note} ${by}`)
       return true
     },
   }
@@ -98,6 +111,38 @@ describe('the Machines page, for the person’s own phone', () => {
     expect(machines.pressed).toEqual(
       ['look', 'plan', 'move', 'leave'].map((press) => `${press} device ${phone.device}`),
     )
+  })
+
+  it('takes or leaves a note another machine changed, as the device’s press, and refuses one not waiting', async () => {
+    const machines = half(false)
+    const one = await start({}, { owned: { machines } })
+    const phone = await theirs(one)
+    for (const answer of ['take', 'leave']) {
+      const said = await post(one, phone, '/api/machines/press', {
+        note: '0123456789abcdef',
+        answer,
+      })
+      expect(said.status, said.text).toBe(200)
+      expect(JSON.parse(said.text).notes).toEqual(SHOWN.notes)
+    }
+    expect(machines.pressed).toEqual([
+      `take 0123456789abcdef device ${phone.device}`,
+      `leave 0123456789abcdef device ${phone.device}`,
+    ])
+    const taken = await post(one, phone, '/api/machines/press', {
+      note: 'fedcba9876543210',
+      answer: 'take',
+    })
+    expect(taken.status).toBe(409)
+    expect(JSON.parse(taken.text).error).toBe('gone')
+    for (const body of [
+      { note: 'not a digest', answer: 'take' },
+      { note: '0123456789abcdef', answer: 'forget' },
+      { note: '0123456789abcdef', answer: 'take', press: 'look' },
+    ]) {
+      expect((await post(one, phone, '/api/machines/press', body)).status).toBe(400)
+    }
+    expect(machines.pressed).toHaveLength(2)
   })
 
   it('refuses a move nobody was shown the plan of, and a press it does not know', async () => {

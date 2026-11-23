@@ -21,7 +21,9 @@ import type { SettingsPanel } from './state.ts'
 // The Remotes page: each other machine's Tade this one is an owner of, and
 // what became of this one's setup there — what was carried and is kept in
 // step, what applies only when Tade next starts there, what that machine
-// changed itself, what waits on a press, whether its tab here takes a message,
+// changed itself, what waits on a press — a note taken here that it retired,
+// took back or told about more among them (`HeldNoteShown`) — whether its tab
+// here takes a message,
 // and each harness's own sign-in there (`@tade/workbench/carry`'s checklist,
 // the one `tade remote add` ends with).
 //
@@ -70,6 +72,20 @@ export interface RemoteShown {
   moves?: readonly ProjectMove[]
   /** Its Tade against this machine's (`versusHere`), or null where they are the same. */
   versus?: Versus | null
+  /** What it changed of notes taken here, waiting for a press here (`Memory.held`). */
+  held?: readonly HeldNoteShown[]
+}
+
+/** A change that machine gave to a note taken here, as the page draws it. */
+export interface HeldNoteShown {
+  /** What the press names (`Memory.settle`). */
+  digest: string
+  /** What it would do, as a label: `Retired there`. */
+  label: string
+  /** The note's words. */
+  note: string
+  /** The whole of it in a sentence, whose word it is included. */
+  said: string
 }
 
 /** One project here, as moving it to one machine stands: what it says, and the one press that is next. */
@@ -166,6 +182,15 @@ export function remoteActions(remotes: readonly RemoteShown[]): RemoteAction[] {
     for (const one of list?.newer ?? []) {
       if (one.press !== true) continue
       actions.push({ id: `remote:take:${at}:${one.what}`, label: 'Take it here', remote: at })
+    }
+    // A note taken here that it changed: taken or left only on a press here (`Memory.held`).
+    for (const one of remote.held ?? []) {
+      actions.push({
+        id: `remote:note-take:${at}:${one.digest}`,
+        label: 'Take it here',
+        remote: at,
+      })
+      actions.push({ id: `remote:note-leave:${at}:${one.digest}`, label: 'Leave it', remote: at })
     }
     for (const one of list?.theirs ?? []) {
       actions.push({
@@ -448,6 +473,11 @@ export function drawRemotes(
       line('Newer there', one.what, one.press === true ? skin.waiting : skin.hint)
       say(one.why, skin.hint, deep, 3)
       if (one.press === true) buttons([`remote:take:${at}:${one.what}`])
+    }
+    for (const one of remote.held ?? []) {
+      line(one.label, `“${one.note}”`, skin.waiting)
+      say(one.said, skin.hint, deep, 3)
+      buttons([`remote:note-take:${at}:${one.digest}`, `remote:note-leave:${at}:${one.digest}`])
     }
     const pinnedThere = (list?.pinned ?? []).filter((one) => one.where === 'there')
     if (pinnedThere.length > 0) {

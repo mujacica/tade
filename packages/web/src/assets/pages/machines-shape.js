@@ -148,6 +148,20 @@ export function pressesOf(answer) {
   return presses
 }
 
+/**
+ * The changes another machine gave to notes taken on this one, each waiting
+ * for a press here: none from a window older than them.
+ */
+export function notesOf(answer) {
+  return answer?.notes ?? []
+}
+
+/** The two presses on a held change to a note, as Settings › Remotes words them. */
+export const NOTE_PRESSES = [
+  { answer: 'take', word: 'Take it here' },
+  { answer: 'leave', word: 'Leave it' },
+]
+
 /** Whether something is under way, so the page asks again soon rather than in a while. */
 export function underWay(answer) {
   return answer === null || answer.columns === null || answer.looking || answer.busy

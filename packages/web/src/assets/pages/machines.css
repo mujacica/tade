@@ -149,6 +149,12 @@
   color: var(--amber);
 }
 
+/* A note another machine changed: its words, as they were said here. */
+.mc-note {
+  color: var(--body);
+  overflow-wrap: anywhere;
+}
+
 /* ── keys in one file ──────────────────────────────────────────────────────── */
 
 .page-machines .mc-plan {

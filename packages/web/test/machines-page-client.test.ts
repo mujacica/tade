@@ -11,6 +11,8 @@ import {
   leftSaid,
   MARK_SAID,
   markTone,
+  NOTE_PRESSES,
+  notesOf,
   pressesOf,
   underWay,
 } from '../src/assets/pages/machines-shape.js'
@@ -65,6 +67,7 @@ const ANSWER: MachinesAnswer = {
   said: null,
   file: '~/.config/tade/env',
   agents: 'any agent can read it',
+  notes: [],
 }
 
 describe('the Machines page’s words', () => {
@@ -126,6 +129,17 @@ describe('the Machines page’s words', () => {
       'leave',
     ])
     expect(pressesOf(null)).toEqual([])
+  })
+
+  it('lists the notes another machine changed with Take it here and Leave it, and none from an older window', () => {
+    const note = { id: '0123456789abcdef', label: 'Retired on vps', note: 'n', said: 's' }
+    expect(notesOf({ ...ANSWER, notes: [note] })).toEqual([note])
+    expect(notesOf(ANSWER)).toEqual([])
+    expect(notesOf(null)).toEqual([])
+    expect(NOTE_PRESSES.map((one) => [one.answer, one.word])).toEqual([
+      ['take', 'Take it here'],
+      ['leave', 'Leave it'],
+    ])
   })
 
   it('asks again soon only while something is under way', () => {

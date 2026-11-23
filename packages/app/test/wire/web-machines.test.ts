@@ -1,5 +1,7 @@
 import { ENV_FILE_SAID, KEYS_AND_AGENTS } from '@tade/core'
+import { Memory } from '@tade/workbench/memory'
 import { describe, expect, it } from 'vitest'
+import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { CANCEL, type MachinesShown } from '../../src/panels/settings/machines.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 import { type MachinesHeld, machinesFrom } from '../../src/wire/web-machines.ts'
@@ -59,9 +61,28 @@ function held(shown: MachinesShown | null, fail = false) {
   return { inventory, went }
 }
 
-function wiring() {
+function wiring(memory: Memory = Memory.open(tmp('tade-machines-'))) {
   const noted: unknown[] = []
-  return { wire: { note: (err: unknown) => noted.push(err) } as unknown as Wiring, noted }
+  const wire = {
+    note: (err: unknown) => noted.push(err),
+    now: () => AT,
+    opts: { client: { memory } },
+  } as unknown as Wiring
+  return { wire, noted }
+}
+
+/** A home with a note taken here that `vps` retired: waiting for a press here. */
+function retiredThere() {
+  const memory = Memory.open(tmp('tade-machines-'))
+  const kept = memory.remember('deploys freeze on Fridays', null, 'voice', AT)
+  const retire = {
+    retire: { at: kept.at, text: kept.text },
+    because: 'the freeze was lifted',
+    by: 'device phone',
+    at: new Date(AT + 1).toISOString(),
+  }
+  memory.take([{ line: JSON.stringify(retire) }], 'vps', AT + 2)
+  return memory
 }
 
 describe('the Machines page, as this window answers a phone', () => {
@@ -97,6 +118,29 @@ describe('the Machines page, as this window answers a phone', () => {
     const { inventory, went } = held(SHOWN)
     expect(machinesFrom(wiring().wire, inventory).press('move', 'device d1')).toBe(false)
     expect(went).toEqual([])
+  })
+
+  it('lists a note taken here that another machine changed, and takes or leaves it as the device’s press', () => {
+    const memory = retiredThere()
+    const machines = machinesFrom(wiring(memory).wire, held(SHOWN).inventory)
+    const [note] = machines.shown().notes
+    expect(note).toMatchObject({
+      label: 'Retired on vps',
+      note: 'deploys freeze on Fridays',
+      said: 'vps would retire “deploys freeze on Fridays” — device phone: the freeze was lifted',
+    })
+    expect(memory.all().map((one) => one.text)).toEqual(['deploys freeze on Fridays'])
+    expect(machines.settle(note?.id ?? '', 'take', 'device d1')).toBe(true)
+    expect(memory.all()).toEqual([])
+    expect(machines.shown().notes).toEqual([])
+    // Taken already: not waiting, so refused rather than written twice.
+    expect(machines.settle(note?.id ?? '', 'leave', 'device d1')).toBe(false)
+
+    const other = retiredThere()
+    const leaving = machinesFrom(wiring(other).wire, held(SHOWN).inventory)
+    expect(leaving.settle(leaving.shown().notes[0]?.id ?? '', 'leave', 'device d1')).toBe(true)
+    expect(other.all().map((one) => one.text)).toEqual(['deploys freeze on Fridays'])
+    expect(leaving.shown().notes).toEqual([])
   })
 
   it('says a press that failed rather than dropping it', async () => {

@@ -329,6 +329,57 @@ describe('the window’s remotes', () => {
     // That it is said once for as long as it is the same trouble is `notes-shared.test.ts`'s.
   })
 
+  it('takes or leaves a note taken here that a remote retired, on a press on its block', async () => {
+    const north = await far(['api'])
+    const one = await rig({ vps: await block('north', north) })
+    const memory = Memory.open(dirname(one.configPath))
+    const kept = memory.remember('deploys freeze on Fridays', null, 'voice')
+    const slip = memory.remember('a slip of the tongue', null, 'voice')
+    // What the box gave: its word about notes taken here, waiting for a press here.
+    const at = new Date().toISOString()
+    memory.take(
+      [
+        {
+          line: JSON.stringify({
+            retire: { at: kept.at, text: kept.text },
+            because: 'lifted',
+            by: 'device phone',
+            at,
+          }),
+        },
+        { line: JSON.stringify({ forget: { at: slip.at, text: slip.text }, by: 'window', at }) },
+      ],
+      'vps',
+    )
+    let notes: SharedNotes | null = null
+    one.remotes.withNotes((remotes) => {
+      notes = new SharedNotes({
+        memory: () => memory,
+        reach: (name) => remotes.reachFor(name),
+        from: () => 'mac',
+        log: async () => {},
+        say: () => {},
+        now: () => one.clock.at,
+      })
+      return notes
+    })
+    const held = () => (notes as SharedNotes | null)?.held() ?? []
+    await until(one, 'the held changes looked at', () => held().length === 2)
+    const [retire, forget] = held()
+
+    await one.remotes.action(`remote:note-take:vps:${retire?.digest}`)
+    await one.remotes.action(`remote:note-leave:vps:${forget?.digest}`)
+    expect(one.said).toContain(
+      'Took it here: vps would retire “deploys freeze on Fridays” — device phone: lifted',
+    )
+    expect(one.said).toContain('Left it: vps would take back “a slip of the tongue” — window')
+    expect(held()).toEqual([])
+    expect(memory.all().map((n) => n.text)).toEqual([slip.text])
+    // Pressed again, from a page drawn before: said, never written twice.
+    await one.remotes.action(`remote:note-take:vps:${retire?.digest}`)
+    expect(one.said.at(-1)).toMatch(/not waiting for a press/)
+  })
+
   it('follows the config: a remote removed is closed, and one added from a shell is linked', async () => {
     const north = await far(['api'])
     const south = await far(['infra'])

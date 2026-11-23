@@ -209,7 +209,7 @@ describe('an exchange between two homes', () => {
     }
   })
 
-  it('never lets another machine retire or take back a note taken here, and the next is one look', async () => {
+  it('holds another machine’s retirement or taking back of a note taken here for a press, and the next is one look', async () => {
     const mac = Memory.open(tmp('tade-mac-'))
     const vps = Memory.open(tmp('tade-vps-'))
     const kept = mac.remember('deploys freeze on Fridays', null, 'voice', NOW)
@@ -221,11 +221,14 @@ describe('an exchange between two homes', () => {
     vps.forget(also, 'window', NOW + 3)
     await shareNotes(mac, farAt(vps, 'vps'), { from: 'mac', name: 'vps' })
 
-    expect(
-      Memory.open(join(mac.path, '..'))
-        .all()
-        .map((n) => n.text),
-    ).toEqual([also.text, kept.text])
+    const reread = Memory.open(join(mac.path, '..'))
+    expect(reread.all().map((n) => n.text)).toEqual([also.text, kept.text])
+    // Waiting for the person's press here, each saying what it would do and whose word it is.
+    expect(reread.held().map((one) => [one.kind, one.note.text, one.from, one.by])).toEqual([
+      ['retire', kept.text, 'vps', 'orchestrator'],
+      ['forget', also.text, 'vps', 'window'],
+    ])
+    expect(reread.held()[0]?.because).toBe('not needed any more')
     // Held there, as that machine's own word, and the two files are one union.
     expect(vps.all({ retired: true }).map((n) => [n.text, n.retired?.because])).toEqual([
       [kept.text, 'not needed any more'],
@@ -237,9 +240,102 @@ describe('an exchange between two homes', () => {
     expect(again).toMatchObject({ same: true })
     expect(asked).toHaveLength(1)
 
-    // This machine's own word still does it.
+    // This machine's own word still does it, and a retirement of a retired note is no longer offered.
     mac.retire({ at: kept.at }, 'the freeze was lifted', 'cli', NOW + 4)
     expect(mac.all().map((n) => n.text)).toEqual([also.text])
+    expect(mac.held().map((one) => one.kind)).toEqual(['forget'])
+  })
+
+  it('takes a held retirement or taking back on the press, and leaves one on Leave', async () => {
+    const mac = Memory.open(tmp('tade-mac-'))
+    const vps = Memory.open(tmp('tade-vps-'))
+    const kept = mac.remember('deploys freeze on Fridays', null, 'voice', NOW)
+    const slip = mac.remember('a slip of the tongue', null, 'voice', NOW + 1)
+    const stays = mac.remember('refunds go through the ledger', null, 'voice', NOW + 2)
+    await shareNotes(mac, farAt(vps, 'vps'), { from: 'mac', name: 'vps' })
+    // The person, on their phone paired to the box.
+    vps.retire({ at: kept.at }, 'the freeze was lifted', 'device phone', NOW + 3)
+    vps.forget(slip, 'device phone', NOW + 4)
+    vps.retire({ at: stays.at }, 'not needed', 'orchestrator', NOW + 5)
+    await shareNotes(mac, farAt(vps, 'vps'), { from: 'mac', name: 'vps' })
+    const [retire, forget, leave] = mac.held()
+
+    expect(mac.settle(retire?.digest ?? '', 'take', 'device mac-phone', NOW + 6).kind).toBe(
+      'retire',
+    )
+    expect(mac.settle(forget?.digest ?? '', 'take', 'window', NOW + 7).kind).toBe('forget')
+    expect(mac.settle(leave?.digest ?? '', 'leave', 'window', NOW + 8).kind).toBe('retire')
+
+    const reread = Memory.open(join(mac.path, '..'))
+    expect(reread.held()).toEqual([])
+    expect(reread.all().map((n) => n.text)).toEqual([stays.text])
+    expect(reread.all({ retired: true }).find((n) => n.text === kept.text)?.retired).toEqual({
+      by: 'device phone',
+      at: new Date(NOW + 3).toISOString(),
+      because: 'the freeze was lifted',
+    })
+    // Taken or left once: a second press is refused, never written twice.
+    expect(() => reread.settle(leave?.digest ?? '', 'take', 'window', NOW + 9)).toThrow(
+      /not waiting/,
+    )
+    // The press is this home's own, never given, and the next exchange is one look.
+    expect(mac.shared().some((one) => /"took"|"left"/.test(one.line))).toBe(false)
+    const asked: NotesAsk[] = []
+    expect(
+      await shareNotes(mac, farAt(vps, 'vps', asked), { from: 'mac', name: 'vps' }),
+    ).toMatchObject({
+      same: true,
+    })
+  })
+
+  it('holds a note taken here told about more by another machine, until the press takes it', async () => {
+    const mac = Memory.open(tmp('tade-mac-'))
+    const vps = Memory.open(tmp('tade-vps-'))
+    const one = mac.remember('refunds go through the ledger', 'app/refunds', 'voice', NOW)
+    const two = mac.remember('deploys freeze on Fridays', 'app', 'voice', NOW + 1)
+    await shareNotes(mac, farAt(vps, 'vps'), { from: 'mac', name: 'vps' })
+    // Widened there: the same words said about more, which writes an `also` line.
+    vps.remember(one.text, null, 'orchestrator', NOW + 2)
+    vps.remember(two.text, 'api', 'device phone', NOW + 3)
+    await shareNotes(mac, farAt(vps, 'vps'), { from: 'mac', name: 'vps' })
+
+    expect(mac.all().map((n) => [n.text, n.scope, n.also ?? null])).toEqual([
+      [two.text, 'app', null],
+      [one.text, 'app/refunds', null],
+    ])
+    expect(vps.all().find((n) => n.text === one.text)?.scope).toBeNull()
+    const held = mac.held()
+    expect(held.map((h) => [h.kind, h.note.text, h.scopes])).toEqual([
+      ['also', one.text, null],
+      ['also', two.text, ['api']],
+    ])
+    mac.settle(held[1]?.digest ?? '', 'take', 'window', NOW + 4)
+    mac.settle(held[0]?.digest ?? '', 'leave', 'window', NOW + 5)
+    const reread = Memory.open(join(mac.path, '..'))
+    expect(reread.all().map((n) => [n.text, n.scope, n.also ?? null])).toEqual([
+      [two.text, 'app', ['api']],
+      [one.text, 'app/refunds', null],
+    ])
+    expect(reread.held()).toEqual([])
+  })
+
+  it('lets a note taken on the other machine take its changes freely, and holds nothing', async () => {
+    const mac = Memory.open(tmp('tade-mac-'))
+    const vps = Memory.open(tmp('tade-vps-'))
+    const gone = vps.remember('the nightly runs at two', 'vps/nightly', 'orchestrator', NOW)
+    const wide = vps.remember('pause the queue on deploys', 'vps', 'orchestrator', NOW + 1)
+    const slip = vps.remember('a slip of the tongue', null, 'voice', NOW + 2)
+    await shareNotes(mac, farAt(vps, 'vps'), { from: 'mac', name: 'vps' })
+    vps.retire({ at: gone.at }, 'the nightly moved', 'device phone', NOW + 3)
+    vps.remember(wide.text, null, 'device phone', NOW + 4)
+    vps.forget(slip, 'device phone', NOW + 5)
+    await shareNotes(mac, farAt(vps, 'vps'), { from: 'mac', name: 'vps' })
+
+    expect(mac.held()).toEqual([])
+    expect(mac.all().map((n) => [n.text, n.scope])).toEqual([[wide.text, null]])
+    expect(mac.all({ retired: true }).find((n) => n.text === gone.text)?.retired?.because).toBe(
+      'the nightly moved',
+    )
   })
 
   it('reaches a third machine through the one between, saying where it was taken', async () => {

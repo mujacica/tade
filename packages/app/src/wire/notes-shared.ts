@@ -1,8 +1,8 @@
 import { stat } from 'node:fs/promises'
-import { machineLabel } from '@tade/core'
+import { machineLabel, printable } from '@tade/core'
 import { type Held, LinkError, type Remote, type RemoteLink } from '@tade/remotes-core'
 import type { WebNotes } from '@tade/web'
-import type { Memory } from '@tade/workbench/memory'
+import type { HeldChange, Memory } from '@tade/workbench/memory'
 import {
   answerNotes,
   type Exchanged,
@@ -31,6 +31,12 @@ import type { Wiring } from './context.ts'
 // reached is its link's news; one that answered and would not share is said
 // in the strip once for as long as it is the same trouble. Each exchange that
 // moved anything is written down here as `notes_shared` — counts, never words.
+//
+// **A change another machine gave to a note taken here waits for a press**
+// (`Memory.held`): kept here as the file last stood, looked at again only when
+// it moved, so the Remotes page asks nothing of the disk four times a second;
+// taken or left from there (`settle`) or from the person's own phone
+// (`web-machines.ts`).
 
 /** How long a linked remote goes before its notes are looked at again anyway. */
 const AGAIN_MS = 10 * 60_000
@@ -66,6 +72,8 @@ export class SharedNotes {
   private looking = false
   /** What the last look at it could not do, so it is said once. */
   private unlooked: string | null = null
+  /** The changes to notes taken here waiting for a press, as the file last stood. */
+  private waiting: HeldChange[] = []
 
   constructor(deps: SharedNotesDeps) {
     this.deps = deps
@@ -152,6 +160,22 @@ export class SharedNotes {
     }
   }
 
+  /** The changes another machine gave to notes taken here, waiting for a press here. Never reads. */
+  held(): readonly HeldChange[] {
+    return this.waiting
+  }
+
+  /** The person's press on one, here: what it was, in a sentence, or why it could not be. */
+  settle(digest: string, answer: 'take' | 'leave', by: string): string {
+    const memory = this.deps.memory()
+    try {
+      const done = memory.settle(digest, answer, by, this.deps.now())
+      return answer === 'take' ? `Took it here: ${heldSaid(done)}` : `Left it: ${heldSaid(done)}`
+    } finally {
+      this.waiting = memory.held()
+    }
+  }
+
   /** This home's notes file, looked at: moved since the last look, every remote is owed a share. */
   private async look(names: readonly string[]): Promise<void> {
     if (this.looking) return
@@ -166,6 +190,7 @@ export class SharedNotes {
         },
       )
       if (this.file !== null && was !== this.file) for (const name of names) this.owed.add(name)
+      if (was !== this.file) this.waiting = this.deps.memory().held()
       this.file = was
       this.unlooked = null
     } catch (err) {
@@ -187,6 +212,27 @@ export class SharedNotes {
       this.deps.say(said)
     }
   }
+}
+
+/** What each kind of held change would do, as its label begins. */
+export const HELD_DOES = { retire: 'Retired', forget: 'Taken back', also: 'Widened' } as const
+
+/**
+ * A held change in words, whose word it is first: `vps would retire “…” —
+ * device phone: the freeze was lifted`. Another machine's text, so made
+ * printable here.
+ */
+export function heldSaid(change: HeldChange): string {
+  const note = `“${printable(change.note.text)}”`
+  const from = printable(change.from)
+  const by = printable(change.by)
+  if (change.kind === 'retire') {
+    return `${from} would retire ${note} — ${by}: ${printable(change.because ?? '')}`
+  }
+  if (change.kind === 'forget') return `${from} would take back ${note} — ${by}`
+  const more =
+    change.scopes == null ? 'everything' : change.scopes.map((one) => printable(one)).join(', ')
+  return `${from} would tell ${note} to ${more} too — ${by}`
 }
 
 /** What lines left unshared come to, in words: null for none. */

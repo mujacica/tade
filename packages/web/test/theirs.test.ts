@@ -299,7 +299,11 @@ async function wired(): Promise<{ one: Running; asked: string[] }> {
       repositories: heard('repositories'),
       owned: {
         machine: heard('machine'),
-        machines: { shown: heard('machines'), press: heard('machines press') },
+        machines: {
+          shown: heard('machines'),
+          press: heard('machines press'),
+          settle: heard('machines settle'),
+        },
         restarting: { standing: heard('restart'), restart: heard('restart') },
         inventoryTold: heard('inventory'),
         seen: heard('seen'),

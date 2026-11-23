@@ -7,6 +7,7 @@ import {
   type InventoryItem,
   type TadeEvent,
 } from '@tade/core'
+import { Memory } from '@tade/workbench/memory'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { type AppState, initialState } from '../../src/model.ts'
@@ -50,6 +51,8 @@ function wired(said: string[] = []) {
       extensions: undefined,
       client: {
         machine: { id: HERE_ID, epoch: { id: 'epoch-1', at: new Date(NOW).toISOString() } },
+        // The home's notes, which the phone's Machines page lists what waits on a press from.
+        memory: Memory.open(home),
         accounts: async () => [],
         events: async (filter: EventFilter) => [
           ...journal.filter(

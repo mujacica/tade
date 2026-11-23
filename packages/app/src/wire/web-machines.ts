@@ -1,8 +1,9 @@
-import { ENV_FILE_SAID, KEYS_AND_AGENTS } from '@tade/core'
+import { ENV_FILE_SAID, KEYS_AND_AGENTS, printable } from '@tade/core'
 import type { MachinesAnswer, WebMachines } from '@tade/web'
 import { CANCEL } from '../panels/settings/machines.ts'
 import { type Wiring, why } from './context.ts'
 import type { Inventories } from './inventory.ts'
+import { HELD_DOES, heldSaid } from './notes-shared.ts'
 
 // The Machines page as this window answers the person's own phone
 // (`@tade/web`'s `machines.ts`): what Settings › Machines draws, out of the
@@ -10,6 +11,11 @@ import type { Inventories } from './inventory.ts'
 // presses go through — so a phone and the keyboard never see two grids or
 // move the keys two ways. A move is written down as the device's
 // (`env_consolidated`'s `by`), never as `you`.
+//
+// **And a change another machine gave to a note taken here** (`Memory.held`),
+// taken or left from the phone as from Settings › Remotes, written in
+// `memory.jsonl` as the device's press. Read from the file each time the page
+// asks, which is a request and not a frame.
 
 /** What of the inventory subject the page reads and presses. */
 export type MachinesHeld = Pick<Inventories, 'shown' | 'look' | 'planMove' | 'move' | 'action'>
@@ -19,8 +25,9 @@ export function machinesFrom(wire: Wiring, inventory: MachinesHeld): WebMachines
     void doing.catch((err: unknown) =>
       wire.note(new Error(`A press from away failed: ${why(err)}`)),
     )
+  const memory = () => wire.opts.client.memory
   return {
-    shown: () => answerOf(inventory),
+    shown: () => ({ ...answerOf(inventory), notes: notesOf(wire) }),
     press: (press, by) => {
       if (press === 'look') started(inventory.look(true))
       else if (press === 'plan') started(inventory.planMove())
@@ -33,10 +40,30 @@ export function machinesFrom(wire: Wiring, inventory: MachinesHeld): WebMachines
       }
       return true
     },
+    settle: (note, answer, by) => {
+      if (
+        !memory()
+          .held()
+          .some((one) => one.digest === note)
+      )
+        return false
+      memory().settle(note, answer, by, wire.now())
+      return true
+    },
   }
 }
 
-function answerOf(inventory: MachinesHeld): MachinesAnswer {
+/** The changes to notes taken here waiting for a press, as the page says them. */
+function notesOf(wire: Wiring): MachinesAnswer['notes'] {
+  return wire.opts.client.memory.held().map((one) => ({
+    id: one.digest,
+    label: `${HELD_DOES[one.kind]} on ${printable(one.from)}`,
+    note: printable(one.note.text),
+    said: heldSaid(one),
+  }))
+}
+
+function answerOf(inventory: MachinesHeld): Omit<MachinesAnswer, 'notes'> {
   const shown = inventory.shown()
   const words = { file: ENV_FILE_SAID, agents: KEYS_AND_AGENTS }
   if (shown === null) {

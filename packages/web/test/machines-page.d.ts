@@ -34,6 +34,10 @@ declare module '*/assets/pages/machines-shape.js' {
   export function hereAt(answer: unknown): number
   export function leadOf(answer: unknown): Tile[]
   export function pressesOf(answer: unknown): Press[]
+  export function notesOf(
+    answer: unknown,
+  ): { id: string; label: string; note: string; said: string }[]
+  export const NOTE_PRESSES: readonly { answer: 'take' | 'leave'; word: string }[]
   export function underWay(answer: unknown): boolean
   export function diffTone(line: string): string
   export function leftSaid(one: { name: string; where: string; why: string }): string

@@ -2,7 +2,10 @@
 // window's Settings › Machines, on the phone — and the one move that page
 // offers beyond looking again: the keys the shell's files set, moved into one
 // file, shown first as a diff with every value hidden and done on a second
-// press, with what any agent can read said between the two.
+// press, with what any agent can read said between the two. And, first where
+// there are any, the notes taken on this machine that another one retired,
+// took back or widened, each waiting for Take it here or Leave it: a linked
+// machine's word about a note is only that machine's, and this phone is yours.
 //
 // **What somebody opening this wants first** is whether their machines agree:
 // how many there are, what is missing on this one and what differs between
@@ -33,6 +36,8 @@ import {
   leadOf,
   leftSaid,
   markTone,
+  NOTE_PRESSES,
+  notesOf,
   pressesOf,
   underWay,
 } from './machines-shape.js'
@@ -56,6 +61,10 @@ const FOR_GOOD = new Set(['out_of_scope', 'no_such', 'not_offered'])
 /** How often an open page asks again while something is under way, and while nothing is. */
 const SOON_MS = 1_500
 const AGAIN_MS = 30_000
+
+/** What a held change to a note is, behind its section's `?`. */
+const NOTES_HINT =
+  'Another machine retired, took back or widened a note that was taken on this one. Any agent there runs as you and could have written it, so it is only that machine’s word until you take it here. Leave it, and the note stays as it is.'
 
 /** What the move is, said once where somebody is deciding — behind its `?`. */
 const MOVE_HINT =
@@ -149,6 +158,11 @@ export function machinesScreen(ctx) {
     into(lead, tile)
   }
 
+  const changed = section('NOTES CHANGED ELSEWHERE', { hint: NOTES_HINT })
+  const noteList = panel('ul', 'mc-items')
+  const noteTrouble = problem()
+  into(changed.body, noteList, noteTrouble)
+
   const seen = section('EACH MACHINE')
   const columnList = panel('ul', 'mc-machines')
   into(seen.body, columnList)
@@ -177,7 +191,7 @@ export function machinesScreen(ctx) {
   into(top.tools, again)
 
   const body = el('div', { class: 'mc-body' })
-  into(body, lead, seen.node, nothing, items, moving.node)
+  into(body, lead, changed.node, seen.node, nothing, items, moving.node)
   into(top.body, coming, failed, body)
   into(node, top.node)
 
@@ -234,6 +248,11 @@ export function machinesScreen(ctx) {
       const tile = tiles.get(one.key)
       if (tile) statIn(tile, { value: one.value, under: one.under, tone: one.tone ?? null })
     }
+    // What waits on a press leads, and is not there at all while nothing does.
+    const notes = notesOf(answer)
+    changed.node.hidden = notes.length === 0
+    textIn(changed.figure, notes.length === 0 ? '' : String(notes.length))
+    keyed(noteList, notes, (one) => one.id, createNote, fillNote)
     seen.node.hidden = answer.columns === null
     keyed(columnList, columns, (one) => one.machine, createColumn, fillColumn)
 
@@ -297,6 +316,41 @@ export function machinesScreen(ctx) {
     saidLine.hidden = !answer.said
   }
 
+  /** One held change: what it would do and where, the note, the sentence, and its two presses. */
+  function createNote() {
+    const node = el('li', { class: 'mc-item' })
+    const presses = el('div', { class: 'mc-presses' })
+    for (const one of NOTE_PRESSES) {
+      const press = el('button', { class: 'press', attrs: { type: 'button' }, text: one.word })
+      press.classList.toggle('quietly', one.answer === 'leave')
+      press.dataset.answer = one.answer
+      into(presses, press)
+    }
+    into(
+      node,
+      el('span', { class: 'mc-label' }),
+      el('span', { class: 'mc-note' }),
+      el('span', { class: 'mc-said' }),
+      presses,
+    )
+    return node
+  }
+
+  function fillNote(node, one) {
+    const [label, note, said, presses] = node.children
+    textIn(label, one.label)
+    textIn(note, `“${one.note}”`)
+    textIn(said, one.said)
+    for (const press of presses.children) {
+      press.onclick = () => void settled(one.id, press.dataset.answer)
+    }
+  }
+
+  async function settled(note, answer) {
+    problemIn(noteTrouble, null)
+    await send({ note, answer }, noteTrouble)
+  }
+
   async function pressed(one) {
     // The move edits the person's own files, so it is asked twice.
     if (one.id === 'move' && armed !== 'move') {
@@ -306,10 +360,15 @@ export function machinesScreen(ctx) {
     }
     armed = null
     problemIn(trouble, null)
-    const got = await ctx.ask('POST', PRESS_PATH, { press: one.id })
+    await send({ press: one.id }, trouble)
+  }
+
+  /** One press to the machine, answered with the page as it stands, or why not where it was. */
+  async function send(body, where) {
+    const got = await ctx.ask('POST', PRESS_PATH, body)
     if (gone) return
     if (got.status === 200 && Array.isArray(got.body?.rows)) answer = got.body
-    else problemIn(trouble, theirsTrouble(got, ctx.session()) ?? UNKNOWN_TROUBLE)
+    else problemIn(where, theirsTrouble(got, ctx.session()) ?? UNKNOWN_TROUBLE)
     draw()
     later()
   }

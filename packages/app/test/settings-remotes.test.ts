@@ -12,6 +12,7 @@ import {
   remotePresses,
 } from '../src/panels/settings/remotes.ts'
 import { type SettingsPanel, settingsKey } from '../src/panels/settings/state.ts'
+import { heldShown } from '../src/wire/remotes.ts'
 import { drawnAt, panelFor, plainRows, WIDTHS } from './settings-panel.ts'
 
 // Settings › Remotes: each other machine's Tade this one is an owner of, and
@@ -234,6 +235,48 @@ describe('Settings › Remotes', () => {
     const drawn = page([taking]).replace(/ +/g, ' ')
     expect(drawn).toMatch(/Newer there approvals\.mode/)
     expect(drawn).toContain('Take it here')
+  })
+
+  it('lists a note taken here that the machine changed, with Take it here and Leave it under it', () => {
+    const held = heldShown(
+      [
+        {
+          digest: '0123456789abcdef',
+          kind: 'retire',
+          note: { at: '2026-10-17T09:00:00.000Z', text: 'deploys freeze on Fridays' },
+          from: 'vps',
+          by: 'device phone',
+          at: '2026-10-17T10:00:00.000Z',
+          heard: '2026-10-17T10:01:00.000Z',
+          because: 'the freeze was lifted',
+        },
+        {
+          digest: 'fedcba9876543210',
+          kind: 'also',
+          note: { at: '2026-10-17T09:00:00.000Z', text: 'refunds go through the ledger' },
+          from: 'box-two',
+          by: 'orchestrator',
+          at: '2026-10-17T10:00:00.000Z',
+          heard: '2026-10-17T10:01:00.000Z',
+          scopes: null,
+        },
+      ],
+      'vps',
+    )
+    // Only that machine's, under its own block.
+    expect(held.map((one) => one.label)).toEqual(['Retired there'])
+    const taking: RemoteShown = { ...VPS, held }
+    expect(remoteActions([taking]).map((one) => one.id)).toEqual(
+      expect.arrayContaining([
+        'remote:note-take:vps:0123456789abcdef',
+        'remote:note-leave:vps:0123456789abcdef',
+      ]),
+    )
+    const drawn = page([taking]).replace(/ +/g, ' ')
+    expect(drawn).toContain('Retired there “deploys freeze on Fridays”')
+    expect(drawn).toContain('vps would retire “deploys freeze on Fridays” — device')
+    expect(drawn).toContain('Take it here')
+    expect(drawn).toContain('Leave it')
   })
 
   it('walks moving a project there one press at a time, and asks twice before closing it here', () => {
