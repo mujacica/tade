@@ -4,9 +4,11 @@ import {
   machineLabel,
   printable,
   REMOTE_ACT_REACH,
+  type RemoteGrant,
   remoteNamedBy,
 } from '@tade/core'
 import { type Answer, LinkError, type Remote, type RemoteLink } from '@tade/remotes-core'
+import { readOutboxAnswer } from '@tade/web'
 import { actingFor } from './acting.ts'
 import { clockOf, saidLately, type Wiring, why } from './context.ts'
 import { seenName } from './machines-seen.ts'
@@ -39,6 +41,18 @@ import { seenName } from './machines-seen.ts'
 // <machine>` on what it changes. Words an agent wrote never become a `said`
 // line anywhere, so they never travel as one.
 //
+// **What comes back through an outbox is not an owner's.** The machine that
+// dials holds the SSH key to the hub; the hub holds nothing for it, and every
+// agent on the hub runs as the same user as its Tade — so anything that
+// controls the hub (an agent that read a hostile ticket included) can answer
+// the outbox ask with any act and any "person's words" it likes. So an act
+// taken from an outbox is read by the same schema as one sent to this
+// machine's door (`readOutboxAnswer`), run under a paired device's narrowed
+// arm with the steer tier only (`outboxArm`, judged by `allowMethod`), and the
+// lines it quotes are not read: a terminal, an agent started, an approval
+// answered or a setting changed here needs the person here, or their own
+// device paired here.
+//
 // **A machine that is down is said, with since when** (`machine_seen`), and
 // the act refused rather than queued for a machine that may never come back.
 
@@ -52,6 +66,22 @@ const ANSWERS_AT_ONCE = 6
 
 /** How long an answered act is kept by its key, so one asked again is answered and not done again. */
 const ANSWERS_KEPT_MS = 30 * 60_000
+
+/**
+ * What an act taken from a hub's outbox may reach here: a paired device's
+ * steer tier — steer, park, a note — in every project, and nothing a
+ * device's narrowed turn may not (`REMOTE_METHODS`). Not `answer`, because
+ * approving a command an agent here is waiting on is running it.
+ */
+export const OUTBOX_GRANTS: readonly RemoteGrant[] = ['steer']
+
+/** The arm an act from `from`'s outbox runs under here. */
+export function outboxArm(from: string): Arm {
+  return { how: 'remote', device: `machine ${from}`, projects: null, may: [...OUTBOX_GRANTS] }
+}
+
+/** Which door an act came in by: asked at this machine's own (an owner's), or taken from a hub's outbox. */
+export type ActDoor = 'asked' | 'outbox'
 
 /** One act, as it travels. */
 export interface Act {
@@ -228,31 +258,35 @@ export class MachineActs {
 
   /**
    * An act from another machine of the person's, run here through this
-   * machine's own gate under an owner's arm, with the words it carried read
-   * beside this machine's own. Done once per key; asked again, answered again.
+   * machine's own gate. Asked at this machine's own door — an owner's link —
+   * it runs under an owner's arm with the words it carried read beside this
+   * machine's own; taken from a hub's outbox, under `outboxArm` with none of
+   * them. Done once per key and door; asked again, answered again.
    */
-  async take(act: Act): Promise<ActAnswer> {
+  async take(act: Act, door: ActDoor = 'asked'): Promise<ActAnswer> {
     const now = this.wire.now()
     for (const [key, one] of this.answered)
       if (now - one.at > ANSWERS_KEPT_MS) this.answered.delete(key)
-    const done = this.answered.get(act.key)
+    // By door as well as key, so an outbox can never be handed what an owner's act was answered.
+    const kept = `${door}:${act.key}`
+    const done = this.answered.get(kept)
     if (done) return done.answer
-    const going = this.running.get(act.key)
+    const going = this.running.get(kept)
     if (going) return going
     const from = seenName(act.from)
-    const run = actingFor(act.quoted, from, async (): Promise<ActAnswer> => {
+    const arm: Arm =
+      door === 'outbox'
+        ? outboxArm(from)
+        : { how: 'owner', device: `machine ${from}`, theirs: true, typed: true }
+    const quoted = door === 'outbox' ? [] : act.quoted
+    const run = actingFor(quoted, from, async (): Promise<ActAnswer> => {
       try {
         const runner = this.runner
         if (!runner)
           throw new Error(
             'the orchestrator here is still starting, so nothing it can do is open yet',
           )
-        const result = await runner(act.method, act.params, {
-          how: 'owner',
-          device: `machine ${from}`,
-          theirs: true,
-          typed: true,
-        })
+        const result = await runner(act.method, act.params, arm)
         const text =
           typeof result === 'string' ? result : JSON.stringify(result ?? { ok: true }, null, 2)
         return { key: act.key, ok: true, text }
@@ -260,13 +294,13 @@ export class MachineActs {
         return { key: act.key, ok: false, text: err instanceof Error ? err.message : String(err) }
       }
     })
-    this.running.set(act.key, run)
+    this.running.set(kept, run)
     try {
       const answer = await run
-      this.answered.set(act.key, { answer, at: this.wire.now() })
+      this.answered.set(kept, { answer, at: this.wire.now() })
       return answer
     } finally {
-      this.running.delete(act.key)
+      this.running.delete(kept)
     }
   }
 
@@ -288,6 +322,8 @@ export class MachineActs {
   /** Answers to hand in on the next ask, by the machine they are for. */
   private readonly owed = new Map<string, ActAnswer[]>()
   private asking = new Set<string>()
+  /** Hubs whose last outbox answer was not one, so the strip says it once rather than every beat. */
+  private readonly malformed = new Set<string>()
 
   /** The beat: ask each machine this window links to for acts waiting here, and run them. Never throws. */
   beat(names: readonly string[]): void {
@@ -324,9 +360,19 @@ export class MachineActs {
     // An older Tade there has no outbox: nothing waits in one.
     if (answer.status !== 200) return
     this.owed.set(name, owed.slice(answers.length))
-    const acts = (answer.body as { acts?: unknown } | null)?.acts
-    for (const act of Array.isArray(acts) ? (acts as Act[]) : []) {
-      const done = await this.take({ ...act, from: name })
+    const acts = readOutboxAnswer(answer.body)
+    if (acts === null) {
+      if (!this.malformed.has(name)) {
+        this.malformed.add(name)
+        this.deps.say(
+          `${name}'s outbox answered with something that is not a list of acts, so nothing in it was done here`,
+        )
+      }
+      return
+    }
+    this.malformed.delete(name)
+    for (const act of acts) {
+      const done = await this.take({ ...act, from: name }, 'outbox')
       this.owed.set(name, [...(this.owed.get(name) ?? []), done])
     }
     // Answered at once rather than at the next ask, so whoever waits there hears now.

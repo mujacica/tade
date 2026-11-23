@@ -42,8 +42,24 @@ const AnswerText = z.strictObject({
 
 const OutboxText = z.strictObject({ answers: z.array(AnswerText).max(64) })
 
+/** What a hub's outbox answers with: what waits there, read by the same rule as an act here. */
+const OutboxAnswerText = z.strictObject({ acts: z.array(ActText).max(64) })
+
 export type ActBody = z.infer<typeof ActText>
 export type ActDone = z.infer<typeof AnswerText>
+
+/**
+ * The acts in a hub's answer to the outbox ask, or `null` where it is not one.
+ *
+ * Read on the machine that asks, because the hub is the one machine of a pair
+ * that holds no credential for the other: what it hands back is read exactly
+ * as an act sent to this machine's own door is, and nothing in it is taken on
+ * the strength of a cast.
+ */
+export function readOutboxAnswer(body: unknown): ActBody[] | null {
+  const parsed = OutboxAnswerText.safeParse(body)
+  return parsed.success ? parsed.data.acts : null
+}
 
 /** The window's half: an act run here, and the outbox for a machine that links here. Throws the reason. */
 export interface WebActs {

@@ -293,6 +293,28 @@ describe('what a remote turn may reach', () => {
     expect(said.ok).toBe(false)
   })
 
+  it('lets an act from a hub’s outbox steer and nothing that runs a command', () => {
+    // `@tade/app`'s `outboxArm`: every project, the steer tier, no owner's
+    // reach — because whoever controls the hub can write any act into it.
+    const outbox: Arm = { how: 'remote', device: 'machine vps', projects: null, may: ['steer'] }
+    for (const method of [
+      'terminal/open',
+      'terminal/run',
+      'lane/write',
+      'extension/call',
+      'worker/decide',
+      'worker/start',
+      'task/create',
+      'config/change',
+      'remote/act',
+    ]) {
+      expect(allowMethod(method, { task: 'sentry/flake' }, outbox).ok, method).toBe(false)
+    }
+    for (const method of ['worker/steer', 'task/park', 'memory/remember']) {
+      expect(allowMethod(method, { task: 'sentry/flake' }, outbox).ok, method).toBe(true)
+    }
+  })
+
   it('writes a remote note down as the device, never as the orchestrator', () => {
     expect(writtenBy(arm(), 'orchestrator')).toBe('device a1b2c3d4e5f60718')
     expect(writtenBy(LOCAL, 'orchestrator')).toBe('orchestrator')

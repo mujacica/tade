@@ -294,7 +294,10 @@ over loopback) and `ssh`.
   key. A machine that links here cannot be called, so its acts wait in this machine's outbox, asked
   for on that machine's beat (`POST /api/acts/outbox`) — the hub never holds a credential for the
   Mac. The person's `said` lines travel with an act and count there only while it runs
-  (`acting.ts`), and what it changes is written `orchestrator via <machine>`.
+  (`acting.ts`), and what it changes is written `orchestrator via <machine>`. **An act taken from an
+  outbox is not an owner's**: it is schema-read (`readOutboxAnswer`), run under `outboxArm` (a
+  device's steer tier, judged by `allowMethod`) and its quoted lines are not read — anything that
+  controls the hub, an injected agent there included, writes whatever it likes into its outbox.
 - **A browser here reaches that machine's own `/connect` through `pages`** (`pages.ts`, `tade remote
   connect`): what a source's own page shows the person is pasted into that machine's page and never
   carried by an owner's ask, so a loopback port here passes `GET`/`POST` on `/connect` and below,

@@ -964,8 +964,10 @@ they can again, what happened on the other is put after a marker in the conversa
 and nothing either side said is lost or rewritten. The orchestrator acts on any machine with its own
 tools — start, steer, park, approve, change a setting there — and each act runs through that
 machine's own rules, once, even over a link that dropped; a setting there that needs your words
-takes the ones you typed where you were. Its briefing, the queue it reads and search cover every
-machine, each labelled with its name.
+takes the ones you typed where you were. The other way round, from the always-on box to a Mac that
+links to it, an act only steers, parks or writes a note: whoever controls the box could write
+anything there, so the rest waits for you at the Mac. Its briefing, the queue it reads and search
+cover every machine, each labelled with its name.
 
 **Several remotes**: run `tade remote add` once for each. `tade remote list` names them, `tade remote
 remove vps` signs this Mac out of one. While the window is open it holds one SSH connection to each
