@@ -872,6 +872,8 @@ describe('the rest of what the gate and the copies say', () => {
     await one.before(true)
     await one.after()
     expect(said.filter((line) => line.includes('the same harness'))).toHaveLength(1)
+    // Refused, it took no lease at the hub, so the hub's own turns never wait on it.
+    expect(hub.one.lease.holder(Date.now())).toBeNull()
     // The beat says nothing new about it either.
     await one.idle(false)
     expect(said.filter((line) => line.includes('the same harness'))).toHaveLength(1)

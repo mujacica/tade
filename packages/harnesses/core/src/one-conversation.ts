@@ -253,12 +253,16 @@ export class OneConversation {
 
   /**
    * The hub's door: one request of a machine that links here, its lease asked
-   * of the lease this machine keeps.
+   * of the lease this machine keeps. A machine on another harness is refused
+   * (`SharedConversation.answer`) and never lets a lease go, because its turns
+   * are its own — so it is never given one, which would hold every other
+   * machine's turn until the lease ran out.
    */
   async answer(ask: ConversationAsk): Promise<ConversationAnswer> {
-    const lease = ask.lease
-      ? this.lease.ask(ask.lease.op, ask.from, ask.lease.key, this.opts.now())
-      : undefined
+    const lease =
+      ask.lease && ask.harness === this.opts.shared.harness
+        ? this.lease.ask(ask.lease.op, ask.from, ask.lease.key, this.opts.now())
+        : undefined
     const answer = await this.opts.shared.answer(ask)
     return lease ? { ...answer, lease } : answer
   }
