@@ -14,12 +14,28 @@ import { MACHINE_ID } from './feeds.ts'
 // keeps. Every count travels with the chain over the lines up to it, so a
 // count that does not mean what it meant is caught rather than trusted. A line
 // too long for one request goes in pieces, like a journal's.
+//
+// Beside the entries go the files a harness keeps beside its record that an
+// entry names — Claude Code's large tool results — by their name there: what
+// the asking machine lacks of the far side's, a piece of one the far side
+// lacks of its, and the ones it was asked for and has nowhere.
 
 /** The most of one line one request carries; a longer line goes in pieces. */
 export const SHARE_LINE = 48 * 1024
 
+/**
+ * A file kept beside a record, by its name there: one folder and one file,
+ * neither beginning with a dot, so no name a far machine sends can lead out
+ * of the folder it is written into.
+ */
+export const BESIDE_NAME = /^[a-z][a-z-]{0,31}\/[A-Za-z0-9_-][A-Za-z0-9_.-]{0,127}$/
+
+/** How many names one request says it wants, or has nowhere. */
+export const BESIDE_ASKED = 8
+
 const Count = z.int().nonnegative()
 const Hash = z.string().regex(/^[0-9a-f]{64}$/)
+const BesideName = z.string().regex(BESIDE_NAME)
 
 /** What a lease request asks of the hub. */
 export const LEASE_OPS = ['take', 'renew', 'release', 'look'] as const
@@ -40,6 +56,23 @@ export const ConversationBody = z.strictObject({
     })
     .optional(),
   want: z.strictObject({ after: Count, h: Hash, piece: Count.optional() }).optional(),
+  files: z
+    .strictObject({
+      /** What the asker lacks of the far side's files, each from the bytes it holds of it. */
+      want: z.array(z.strictObject({ name: BesideName, from: Count })).max(BESIDE_ASKED),
+      /** A piece of one the far side said it lacks, in base64. */
+      give: z
+        .strictObject({
+          name: BesideName,
+          from: Count,
+          data: z.base64().max(SHARE_LINE),
+          done: z.boolean(),
+        })
+        .optional(),
+      /** The ones the far side said it lacks that the asker has nowhere. */
+      gone: z.array(BesideName).max(BESIDE_ASKED),
+    })
+    .optional(),
   lease: z.strictObject({ op: z.enum(LEASE_OPS), key: z.string().min(1).max(64) }).optional(),
 })
 

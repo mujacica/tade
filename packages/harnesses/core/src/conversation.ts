@@ -57,6 +57,12 @@ export type ConversationLine =
       side: boolean
       /** The line with this machine's own fields blanked. */
       text: string
+      /**
+       * The files kept beside the record that it names, by their name there
+       * (`BESIDE_NAME`), each with where the line says it is on this machine —
+       * null in a canonical line, which says it nowhere.
+       */
+      beside?: readonly { name: string; path: string | null }[]
     }
   /** The harness's own bookkeeping, for this machine: never replicated, never merged. */
   | { kind: 'kept' }
@@ -74,8 +80,14 @@ export type ConversationEntry = Extract<ConversationLine, { kind: 'entry' }>
 export interface ConversationFormat {
   /** What one line is. */
   read(line: string): ConversationLine
-  /** A canonical line written back for this machine. */
-  localised(text: string, here: { cwd: string }): string
+  /** A canonical line written back for this machine, its files beside the record at `beside`. */
+  localised(text: string, here: { cwd: string; beside?: string }): string
+  /**
+   * The folder a record keeps the files its entries name in (`beside`), where
+   * the harness keeps any: they travel with the entries. Absent where it
+   * keeps none.
+   */
+  besideOf?(record: string): string
   /** A copy of an entry under another id and parent: every other byte as it was. */
   copied(text: string, to: { id: string; parent: string }): string
   /** The entry Tade writes before the copies, in the shape of `like` (the trunk's last entry). */

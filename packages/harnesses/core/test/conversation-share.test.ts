@@ -1,6 +1,7 @@
-import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { ConversationAsk } from '@tade/core'
+import { type ConversationAsk, ConversationBody } from '@tade/core'
 import { describe, expect, it, vi } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { type ConversationFormat, derivedHex, entriesOf } from '../src/conversation.ts'
@@ -8,6 +9,7 @@ import {
   type ConversationAnswer,
   conversationCopies,
   conversationCopyPath,
+  conversationFilesPath,
   LEASE_MS,
   RENEW_MS,
   SharedConversation,
@@ -62,8 +64,41 @@ interface Machine {
   leaf: string | null
 }
 
+/**
+ * The toy, keeping a file beside its record the way Claude Code keeps a large
+ * tool result: an entry names it by an absolute path here, blanked to `@/` in
+ * a canonical line and written back for wherever it lands.
+ */
+const BESIDE_TOY: ConversationFormat = {
+  ...TOY,
+  read(line) {
+    const read = TOY.read(line)
+    if (read.kind !== 'entry') return read
+    const entry = JSON.parse(read.text) as Record<string, unknown>
+    const result = entry.result
+    if (typeof result !== 'string') return read
+    const name = result.replace(/^.*\/(tool-results\/[^/]+)$/, '$1')
+    const here = result.startsWith('/')
+    return {
+      ...read,
+      text: JSON.stringify({ ...entry, result: `@/${name}` }),
+      beside: [{ name, path: here ? result : null }],
+    }
+  },
+  localised: (text, here) => {
+    const entry = JSON.parse(text) as Record<string, unknown>
+    const result = entry.result
+    return JSON.stringify({
+      ...entry,
+      cwd: here.cwd,
+      ...(typeof result === 'string' ? { result: result.replace('@', here.beside ?? '@') } : {}),
+    })
+  },
+  besideOf: (record) => record.replace(/\.jsonl$/, ''),
+}
+
 let made = 0
-function machine(name: string): Machine {
+function machine(name: string, format = TOY): Machine {
   const home = tmp(`tade-conv-${name}-`)
   const record = join(home, 'record', 'conversation.jsonl')
   mkdirSync(join(home, 'record'), { recursive: true })
@@ -78,13 +113,14 @@ function machine(name: string): Machine {
       home,
       me: { id, name },
       harness: 'toy',
-      format: TOY,
+      format,
       record,
       take: async (lines) => {
         if (lines.length === 0) return
+        const beside = format.besideOf?.(record)
         appendFileSync(
           record,
-          `${lines.map((line) => TOY.localised(line, { cwd: `/${name}` })).join('\n')}\n`,
+          `${lines.map((line) => format.localised(line, { cwd: `/${name}`, ...(beside ? { beside } : {}) })).join('\n')}\n`,
         )
       },
     }),
@@ -257,6 +293,126 @@ describe('each machine’s half of one conversation', () => {
     expect(refused[0]).toMatchObject({ from: 'mac', took: 0 })
     expect((refused[0] as { refused?: string }).refused).toContain('an entry of kind telepathy')
     expect(readFileSync(vps.record, 'utf8')).toBe(before)
+  })
+})
+
+describe('the files kept beside the record', () => {
+  /** A turn whose reply names a result kept beside the record, of `bytes` random bytes. */
+  function result(on: Machine, file: string, bytes: number, at: string): Buffer {
+    const body = randomBytes(bytes)
+    const path = join(on.record.replace(/\.jsonl$/, ''), 'tool-results', file)
+    mkdirSync(join(path, '..'), { recursive: true })
+    writeFileSync(path, body)
+    turn(on, file, at)
+    appendFileSync(
+      on.record,
+      `${JSON.stringify({ kind: 'say', role: 'user', id: `${on.name}-${file}-r`, parent: on.leaf, at, text: 'saved', result: path, cwd: `/${on.name}` })}\n`,
+    )
+    on.leaf = `${on.name}-${file}-r`
+    return body
+  }
+
+  /** The far side's door: every request checked as it checks one, and held to its 64 KB. */
+  function door(to: Machine, asked: ConversationAsk[] = []) {
+    return async (ask: ConversationAsk) => {
+      expect(JSON.stringify(ask).length).toBeLessThanOrEqual(64 * 1024)
+      asked.push(ConversationBody.parse(JSON.parse(JSON.stringify(ask))))
+      return via(to)(ask)
+    }
+  }
+
+  it('sends each machine’s files to the other in pieces, byte for byte, and puts them where the entries taken in say', async () => {
+    const mac = machine('mac', BESIDE_TOY)
+    const vps = machine('vps', BESIDE_TOY)
+    const fromMac = result(mac, 'bmac.txt', 100_000, '2026-11-23T10:00:00.000Z')
+    const fromVps = result(vps, 'toolu_vps.json', 900_000, '2026-11-23T10:05:00.000Z')
+    const done = await mac.shared.exchange(door(vps))
+    expect(done.complete).toBe(true)
+    expect(
+      readFileSync(join(conversationFilesPath(vps.home, mac.id), 'tool-results', 'bmac.txt')),
+    ).toEqual(fromMac)
+    expect(
+      readFileSync(join(conversationFilesPath(mac.home, vps.id), 'tool-results', 'toolu_vps.json')),
+    ).toEqual(fromVps)
+    // Nothing half-sent is left beside a copy.
+    expect(
+      existsSync(join(conversationFilesPath(vps.home, mac.id), 'tool-results', 'bmac.txt.part')),
+    ).toBe(false)
+    // Taken in — the two forked, so the entry is there and copied onto the trunk
+    // — every entry naming it names this machine's own folder, and the file is there.
+    await mac.shared.settle(true)
+    const named = readFileSync(mac.record, 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as { result?: string })
+      .map((entry) => entry.result)
+      .filter((path) => path?.endsWith('toolu_vps.json'))
+    expect(new Set(named)).toEqual(
+      new Set([join(mac.record.replace(/\.jsonl$/, ''), 'tool-results', 'toolu_vps.json')]),
+    )
+    expect(readFileSync(named[0] as string)).toEqual(fromVps)
+    // And nothing is sent twice: one request to say who it is, one to find nothing to give.
+    const asked: ConversationAsk[] = []
+    await mac.shared.exchange(door(vps, asked))
+    expect(asked).toHaveLength(2)
+  })
+
+  it('says once that a file is nowhere, and is not asked for it again', async () => {
+    const mac = machine('mac', BESIDE_TOY)
+    const vps = machine('vps', BESIDE_TOY)
+    result(mac, 'bgone.txt', 10, '2026-11-23T10:00:00.000Z')
+    const { rmSync } = await import('node:fs')
+    rmSync(join(mac.record.replace(/\.jsonl$/, ''), 'tool-results', 'bgone.txt'))
+    const asked: ConversationAsk[] = []
+    expect((await mac.shared.exchange(door(vps, asked))).complete).toBe(true)
+    expect(asked.flatMap((ask) => ask.files?.gone ?? [])).toEqual(['tool-results/bgone.txt'])
+    const again: ConversationAsk[] = []
+    await mac.shared.exchange(door(vps, again))
+    expect(again).toHaveLength(2)
+    expect(again.flatMap((ask) => ask.files?.gone ?? [])).toEqual([])
+  })
+
+  it('sends no files to a far side that never said what it lacks, whose door would refuse them', async () => {
+    const mac = machine('mac', BESIDE_TOY)
+    const vps = machine('vps', BESIDE_TOY)
+    result(mac, 'bold.txt', 1_000, '2026-11-23T10:00:00.000Z')
+    const asked: ConversationAsk[] = []
+    const older = async (ask: ConversationAsk) => {
+      asked.push(ask)
+      const { files: _, ...answer } = await via(vps)(ask)
+      return answer
+    }
+    expect((await mac.shared.exchange(older)).complete).toBe(true)
+    expect(asked.some((ask) => 'files' in ask)).toBe(false)
+  })
+
+  it('refuses a file whose name would lead out of the folder it is written into', async () => {
+    const mac = machine('mac', BESIDE_TOY)
+    const vps = machine('vps', BESIDE_TOY)
+    turn(vps, 'heron', '2026-11-23T10:00:00.000Z')
+    const hostile = async (ask: ConversationAsk) => {
+      const answer = await via(vps)(ask)
+      return {
+        ...answer,
+        files: {
+          lacks: [],
+          piece: { name: '../../escape.txt', from: 0, data: 'eA==', done: true },
+          gone: [],
+        },
+      }
+    }
+    await expect(mac.shared.exchange(hostile)).rejects.toThrow(
+      'vps sent a file that is not one kept beside the conversation',
+    )
+    expect(existsSync(join(mac.home, 'machines', 'escape.txt'))).toBe(false)
+    for (const name of ['../x.txt', 'tool-results/../x', '.hidden/x', 'tool-results/.x', 'x']) {
+      const body = {
+        from: { id: mac.id, name: 'mac' },
+        harness: 'toy',
+        files: { want: [{ name, from: 0 }], gone: [] },
+      }
+      expect(ConversationBody.safeParse(body).success).toBe(false)
+    }
   })
 })
 

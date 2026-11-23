@@ -137,6 +137,64 @@ describe("Claude Code's record, for one conversation on every machine", () => {
     expect(CLAUDE_CONVERSATION.read(meta)).toMatchObject({ message: false })
   })
 
+  it('blanks the path of a large result kept beside the record, names the file, and writes it back for here', () => {
+    const there = `/Users/me/.tade/accounts/personal/projects/-Users-me-tade/${SESSION}`
+    const saved = `${there}/tool-results/bbo2wfp9h.txt`
+    // As Claude Code 2.1.311 writes one: the path in what the model reads, and again in its own field.
+    const line = JSON.stringify({
+      parentUuid: id(1),
+      isSidechain: false,
+      type: 'user',
+      message: {
+        role: 'user',
+        content: [
+          {
+            tool_use_id: 'toolu_016mvt7MNzf1uqJebhD5GDJf',
+            type: 'tool_result',
+            content: `<persisted-output>\nOutput too large (34.9KB). Full output saved to: ${saved}\n\nPreview (first 2KB):\n x\n</persisted-output>`,
+            is_error: false,
+          },
+        ],
+      },
+      uuid: id(2),
+      timestamp: '2026-11-23T10:00:00.000Z',
+      toolUseResult: { stdout: 'x', persistedOutputPath: saved, persistedOutputSize: 35_712 },
+      cwd: '/Users/me/tade',
+      sessionId: SESSION,
+    })
+    const read = CLAUDE_CONVERSATION.read(line)
+    if (read.kind !== 'entry') throw new Error('not read as an entry')
+    expect(read.beside).toEqual([
+      { name: 'tool-results/bbo2wfp9h.txt', path: saved },
+      { name: 'tool-results/bbo2wfp9h.txt', path: saved },
+    ])
+    expect(read.text).not.toContain('/Users/me')
+    expect(read.text.match(/<tade:beside>\/tool-results\/bbo2wfp9h\.txt/g)).toHaveLength(2)
+    // A copy's line names the file and says nowhere it is, and reads back to itself.
+    const again = CLAUDE_CONVERSATION.read(read.text)
+    expect(again).toMatchObject({ text: read.text })
+    expect(again.kind === 'entry' && again.beside).toEqual([
+      { name: 'tool-results/bbo2wfp9h.txt', path: null },
+      { name: 'tool-results/bbo2wfp9h.txt', path: null },
+    ])
+    // Written for another machine: its own folder, and the same canonical line read back.
+    const record = `/root/.claude/projects/-srv-tade/${SESSION}.jsonl`
+    const beside = CLAUDE_CONVERSATION.besideOf?.(record)
+    expect(beside).toBe(`/root/.claude/projects/-srv-tade/${SESSION}`)
+    const here = CLAUDE_CONVERSATION.localised(read.text, { cwd: '/srv/tade', beside })
+    expect(here).toBe(
+      line
+        .replaceAll(there, beside as string)
+        .replace('"cwd":"/Users/me/tade"', '"cwd":"/srv/tade"'),
+    )
+    expect(CLAUDE_CONVERSATION.read(here)).toMatchObject({ text: read.text })
+    // A path it cannot place is left as it was, and names nothing.
+    const home = line.replaceAll(saved, `~/.claude/projects/-x/${SESSION}/tool-results/b.txt`)
+    const unplaced = CLAUDE_CONVERSATION.read(home)
+    expect(unplaced.kind === 'entry' && unplaced.beside).toBeUndefined()
+    expect(unplaced).toMatchObject({ text: home.replace('"cwd":"/Users/me/tade"', '"cwd":""') })
+  })
+
   it('does not guess at a shape it does not know', () => {
     expect(CLAUDE_CONVERSATION.read(JSON.stringify({ type: 'hologram', sessionId: 's' }))).toEqual({
       kind: 'unknown',

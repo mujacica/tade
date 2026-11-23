@@ -30,6 +30,7 @@ export async function shareConversation(
     format: replica.format,
     record: await replica.recordFor(ORCHESTRATOR_TASK, cwd),
     take: (lines, leaf) => replica.take(ORCHESTRATOR_TASK, cwd, lines, leaf),
+    warn: (text) => place.warn(text),
   })
   // The machines it already keeps a copy of, so a hub that restarted takes
   // their turns in before anybody asks it anything.

@@ -1,6 +1,25 @@
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import {
+  appendFile,
+  copyFile,
+  mkdir,
+  open,
+  readdir,
+  readFile,
+  rename,
+  stat,
+  writeFile,
+} from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { type ConversationAsk, feedDir, type LeaseOp, MACHINE_ID, SHARE_LINE } from '@tade/core'
+import {
+  BESIDE_ASKED,
+  BESIDE_NAME,
+  type ConversationAsk,
+  feedDir,
+  type LeaseOp,
+  MACHINE_ID,
+  SHARE_LINE,
+} from '@tade/core'
 import { appendixFor, type ConversationFormat, mergeConversations } from './conversation.ts'
 import {
   appendLines,
@@ -35,6 +54,20 @@ import { ifMissing } from './sessions.ts'
 // the turn lease held, so two machines never merge one fork twice. A line of a
 // shape nobody knows stops it, said in words, and both stay as they are.
 //
+// **The files beside a record travel with it** (`ConversationFormat.besideOf`,
+// Claude Code's large tool results): an entry names one by its name there,
+// and the model reads it when it needs more than the entry holds, so a copy
+// without it is a conversation that points at nothing. Each side says, every
+// request, which of the files the other's entries name it lacks — from the
+// bytes it holds of one, in `<copy>/<name>.part` until the last piece — and
+// the other gives a piece of the first it has, or says it has it nowhere,
+// once. A file is written once and never changes, so a name is all that is
+// compared. Files ride in a request only where it gives no entries, since a
+// request is the hub's 64 KB, and an exchange goes on while they move; whether
+// it is `complete` is still the entries', which is what a merge waits for.
+// Settling puts what came beside this machine's own record, where the entries
+// taken in name it.
+//
 // **The turn lease** (`TurnLease`) is the hub's: one turn at a time across
 // the fleet while machines can reach it. It runs out by itself (`LEASE_MS`)
 // unless renewed, so a machine that went away mid-turn holds nobody up long.
@@ -47,6 +80,10 @@ export const RENEW_MS = 20_000
 const GIVE_BYTES = 48 * 1024
 const ANSWER_BYTES = 512 * 1024
 
+/** How much of a file one request gives — `SHARE_LINE` in base64 — and one answer carries. */
+const GIVE_FILE = (SHARE_LINE / 4) * 3
+const ANSWER_FILE = (ANSWER_BYTES / 4) * 3
+
 /** A machine, by its id and what it calls itself. */
 export interface MachineNamed {
   id: string
@@ -57,6 +94,24 @@ export interface LeaseAnswer {
   granted: boolean
   /** Who holds it, where somebody else does, and since when. */
   holder?: { name: string; since: number }
+}
+
+/** A piece of a file beside a record, in base64. */
+export interface BesidePiece {
+  name: string
+  from: number
+  data: string
+  done: boolean
+}
+
+/** What one side of the exchange says of the files beside the records. */
+export interface BesideSaid {
+  /** What it lacks of the other's, each from the bytes it holds of it. */
+  lacks: { name: string; from: number }[]
+  /** A piece of one the other lacks. */
+  piece?: BesidePiece
+  /** The ones the other lacks that it has nowhere. */
+  gone: string[]
 }
 
 /** The far side's answer to one request of the exchange. */
@@ -76,6 +131,8 @@ export interface ConversationAnswer {
   lease?: LeaseAnswer
   /** Why nothing was taken or given: a harness that is not the asker's, a line it does not know. */
   refused?: string
+  /** The files beside the records, where the harness keeps any. */
+  files?: BesideSaid
 }
 
 /** The hub's lease on whose turn it is. In memory: a hub that restarts begins with nobody's turn. */
@@ -121,6 +178,8 @@ export interface SharedConversationOptions {
   record: string
   /** Canonical lines appended to this machine's own record, for this machine (`ConversationReplica.take`). */
   take: (lines: readonly string[], leaf: string | null) => Promise<void>
+  /** A file beside a record that could not be read or put in place: said, and the rest carries on. */
+  warn?: (text: string) => void
 }
 
 interface Copy {
@@ -128,6 +187,12 @@ interface Copy {
   record: ConversationRecord
   /** A line given in pieces, held until its last. */
   piece: string
+  /** Where the files its entries name are kept (`conversationFilesPath`). */
+  dir: string
+  /** The ones known to be there whole. */
+  have: Set<string>
+  /** The ones its machine said it has nowhere: not asked for again. */
+  gone: Set<string>
 }
 
 /**
@@ -137,6 +202,11 @@ interface Copy {
  */
 export function conversationCopyPath(home: string, machine: string): string {
   return join(feedDir(home, machine), 'conversation.jsonl')
+}
+
+/** Where a home keeps the files beside another machine's record its entries name, by their names there. */
+export function conversationFilesPath(home: string, machine: string): string {
+  return join(feedDir(home, machine), 'conversation')
 }
 
 /**
@@ -173,12 +243,23 @@ export class SharedConversation {
   private readonly copies = new Map<string, Copy>()
   /** What each far machine holds of this one's, as it last said. */
   private readonly hold = new Map<string, { after: number; h: string; piece: number }>()
+  /** Where this record keeps the files its entries name; null where the harness keeps none. */
+  private readonly beside: string | null
+  /** What each far machine lacks of the files this one's entries name, as it last said. */
+  private readonly lacking = new Map<string, { name: string; from: number }[]>()
+  /** The files already beside this record, so settling does not look again. */
+  private readonly placed = new Set<string>()
+  /** The files known to be here somewhere, so none is asked for again. */
+  private readonly held = new Set<string>()
+  /** What was said about a file, once each. */
+  private readonly warned = new Set<string>()
 
   constructor(opts: SharedConversationOptions) {
     this.opts = opts
     this.me = opts.me
     this.harness = opts.harness
     this.own = new ConversationRecord(opts.record, opts.format)
+    this.beside = opts.format.besideOf?.(opts.record) ?? null
   }
 
   /** The copy of one machine's, looked at now. */
@@ -189,7 +270,14 @@ export class SharedConversation {
         conversationCopyPath(this.opts.home, machine.id),
         this.opts.format,
       )
-      copy = { name: machine.name, record, piece: '' }
+      copy = {
+        name: machine.name,
+        record,
+        piece: '',
+        dir: conversationFilesPath(this.opts.home, machine.id),
+        have: new Set(),
+        gone: new Set(),
+      }
       this.copies.set(machine.id, copy)
     }
     if (copy.name !== machine.name || !copy.record.entries) await writeName(this.opts.home, machine)
@@ -222,6 +310,13 @@ export class SharedConversation {
     const copy = await this.copyOf(ask.from)
     const refused = ask.give ? await this.taken(copy, ask.give) : undefined
     const out = ask.want ? await this.give(this.own, ask.want, ANSWER_BYTES) : nothing
+    if (ask.files?.give) await this.takeFile(copy, ask.files.give)
+    for (const name of ask.files?.gone ?? []) copy.gone.add(name)
+    const files = await this.filesFor(
+      ask.from.id,
+      ask.files?.want ?? [],
+      out.lines.length === 0 && !('piece' in out) ? ANSWER_FILE : 0,
+    )
     return {
       machine: this.me,
       harness: this.harness,
@@ -229,6 +324,7 @@ export class SharedConversation {
       ...out,
       entries: this.own.entries,
       ...(refused ? { refused } : {}),
+      ...(this.beside ? { files: { lacks: await this.wanting(copy), ...files } } : {}),
     }
   }
 
@@ -337,20 +433,45 @@ export class SharedConversation {
     if (lease?.op === 'take' && opened.lease?.granted === false) {
       return { ...answered, took: 0, complete: false }
     }
+    const there = opened.machine.id
     const copy = await this.copyOf(opened.machine)
-    this.hold.set(opened.machine.id, { ...opened.held, piece: opened.held.piece ?? 0 })
+    this.hold.set(there, { ...opened.held, piece: opened.held.piece ?? 0 })
+    this.lacking.set(there, this.saidOf(opened, copy.name).lacks)
+    // Only a far side that said what it lacks reads files: an older one's door refuses the field.
+    const speaks = this.beside !== null && opened.files !== undefined
     let took = 0
+    let whole = false
     for (let round = 0; round < rounds; round++) {
       await this.own.look()
-      const give = await this.giving(opened.machine.id)
+      const give = await this.giving(there)
+      const files = speaks
+        ? await this.filesFor(
+            there,
+            this.lacking.get(there) ?? [],
+            give.lines.length === 0 && !give.piece ? GIVE_FILE : 0,
+          )
+        : null
       const answer = await send({
         from: this.me,
         harness: this.harness,
         give,
         want: holdOf(copy),
+        ...(files
+          ? {
+              files: {
+                want: await this.wanting(copy),
+                ...(files.piece ? { give: files.piece } : {}),
+                gone: files.gone,
+              },
+            }
+          : {}),
       })
       if (answer.refused) return { ...answered, took, complete: false, refused: answer.refused }
-      this.hold.set(opened.machine.id, { ...answer.held, piece: answer.held.piece ?? 0 })
+      this.hold.set(there, { ...answer.held, piece: answer.held.piece ?? 0 })
+      const said = this.saidOf(answer, copy.name)
+      this.lacking.set(there, said.lacks)
+      if (said.piece) await this.takeFile(copy, said.piece)
+      for (const name of said.gone) copy.gone.add(name)
       const before = copy.record.entries
       const refused = await this.taken(copy, {
         after: answer.after,
@@ -365,9 +486,20 @@ export class SharedConversation {
         answer.held.after === this.own.entries &&
         answer.held.h === this.own.chainAt(this.own.entries) &&
         !answer.held.piece
-      if (theyHold && !answer.more && !answer.piece) return { ...answered, took, complete: true }
+      whole = theyHold && !answer.more && !answer.piece
+      // Files go on moving after the entries are whole, until a round moves
+      // none and this side owes the far one nothing it said it lacks.
+      const moved =
+        files !== null &&
+        (files.piece !== undefined ||
+          files.gone.length > 0 ||
+          said.piece !== undefined ||
+          said.gone.length > 0)
+      if (whole && !moved && !(speaks && (await this.owes(there, said.lacks)))) {
+        return { ...answered, took, complete: true }
+      }
     }
-    return { ...answered, took, complete: false }
+    return { ...answered, took, complete: whole }
   }
 
   /** What to give: this record's lines after what the far side holds, or from the start where that does not agree. */
@@ -380,6 +512,182 @@ export class SharedConversation {
       lines: out.lines,
       ...(out.piece ? { piece: out.piece } : {}),
     }
+  }
+
+  // ── The files beside the records ──────────────────────────────────────────
+
+  /** What a far side said of the files, with nothing it sent that is not a name beside a record. */
+  private saidOf(answer: ConversationAnswer, from: string): BesideSaid {
+    const files = answer.files
+    if (!this.beside || !files) return { lacks: [], gone: [] }
+    const named = (name: unknown): name is string =>
+      typeof name === 'string' && BESIDE_NAME.test(name)
+    const piece = files.piece
+    if (piece && !(named(piece.name) && typeof piece.data === 'string')) {
+      throw new Error(`${from} sent a file that is not one kept beside the conversation`)
+    }
+    return {
+      lacks: (Array.isArray(files.lacks) ? files.lacks : [])
+        .filter((one) => named(one?.name) && Number.isInteger(one.from) && one.from >= 0)
+        .slice(0, BESIDE_ASKED),
+      ...(piece ? { piece } : {}),
+      gone: (Array.isArray(files.gone) ? files.gone : []).filter(named),
+    }
+  }
+
+  /**
+   * What this side lacks of the files a copy's entries name, each from the
+   * bytes it holds — never one it has anywhere, its own given back included.
+   */
+  private async wanting(copy: Copy): Promise<{ name: string; from: number }[]> {
+    const out: { name: string; from: number }[] = []
+    for (const name of copy.record.beside.keys()) {
+      if (out.length >= BESIDE_ASKED) break
+      if (copy.have.has(name) || copy.gone.has(name) || this.held.has(name)) continue
+      if (!BESIDE_NAME.test(name)) continue
+      const path = join(copy.dir, name)
+      if ((await sizeOf(path)) !== null) {
+        copy.have.add(name)
+        continue
+      }
+      if ((await this.found(name)) !== null) {
+        this.held.add(name)
+        continue
+      }
+      out.push({ name, from: (await sizeOf(`${path}.part`)) ?? 0 })
+    }
+    return out
+  }
+
+  /**
+   * For what a far machine lacks: a piece of the first it lacks that this one
+   * has, in at most `bytes`, and the ones it has nowhere — leaving out one a
+   * copy here is still waiting for, which may yet come.
+   */
+  private async filesFor(
+    machine: string,
+    lacks: readonly { name: string; from: number }[],
+    bytes: number,
+  ): Promise<{ piece?: BesidePiece; gone: string[] }> {
+    if (!this.beside) return { gone: [] }
+    const gone: string[] = []
+    let piece: BesidePiece | undefined
+    for (const { name, from } of lacks) {
+      const path = await this.found(name)
+      if (path === null) {
+        if (!this.coming(name, machine)) gone.push(name)
+        continue
+      }
+      if (piece || bytes === 0) continue
+      piece = (await this.pieceOf(path, name, from, bytes)) ?? undefined
+      if (!piece) gone.push(name)
+    }
+    return { ...(piece ? { piece } : {}), gone }
+  }
+
+  /** Whether a far machine lacks a file this one would give, or would say it has nowhere. */
+  private async owes(
+    machine: string,
+    lacks: readonly { name: string; from: number }[],
+  ): Promise<boolean> {
+    for (const { name } of lacks) {
+      if ((await this.found(name)) !== null || !this.coming(name, machine)) return true
+    }
+    return false
+  }
+
+  /** Where a file is here: where this record's entries say, beside this record, or in a copy. */
+  private async found(name: string): Promise<string | null> {
+    const places = [
+      this.own.beside.get(name),
+      this.beside ? join(this.beside, name) : null,
+      ...[...this.copies.values()].map((copy) => join(copy.dir, name)),
+    ]
+    for (const path of places) if (path && (await sizeOf(path)) !== null) return path
+    return null
+  }
+
+  /** Whether a copy here other than `except`'s names a file it does not have yet. */
+  private coming(name: string, except: string): boolean {
+    for (const [id, copy] of this.copies) {
+      if (id === except || copy.gone.has(name) || copy.have.has(name)) continue
+      if (copy.record.beside.has(name)) return true
+    }
+    return false
+  }
+
+  /** A piece of a file from `from` — from its start where it is shorter — or null, said, where it cannot be read. */
+  private async pieceOf(
+    path: string,
+    name: string,
+    from: number,
+    bytes: number,
+  ): Promise<BesidePiece | null> {
+    try {
+      const handle = await open(path, 'r')
+      try {
+        const { size } = await handle.stat()
+        const at = from <= size ? from : 0
+        const buffer = Buffer.alloc(Math.min(bytes, size - at))
+        const { bytesRead } = await handle.read(buffer, 0, buffer.length, at)
+        return {
+          name,
+          from: at,
+          data: buffer.subarray(0, bytesRead).toString('base64'),
+          done: at + bytesRead >= size,
+        }
+      } finally {
+        await handle.close()
+      }
+    } catch (err) {
+      this.warnOnce(
+        name,
+        `${name} beside the conversation could not be read to send: ${String(err)}`,
+      )
+      return null
+    }
+  }
+
+  /** A piece of a file into a copy's folder: appended where it follows, begun again from its start, else dropped. */
+  private async takeFile(copy: Copy, piece: BesidePiece): Promise<void> {
+    const path = join(copy.dir, piece.name)
+    const part = `${path}.part`
+    if (piece.from !== 0 && piece.from !== ((await sizeOf(part)) ?? 0)) return
+    await mkdir(dirname(part), { recursive: true })
+    const data = Buffer.from(piece.data, 'base64')
+    if (piece.from === 0) await writeFile(part, data, { mode: 0o600 })
+    else await appendFile(part, data, { mode: 0o600 })
+    if (!piece.done) return
+    await rename(part, path)
+    copy.have.add(piece.name)
+  }
+
+  /** A copy's files beside this record, where the entries taken in from it name them. Never throws. */
+  private async place(copy: Copy): Promise<void> {
+    if (!this.beside) return
+    for (const name of copy.have) {
+      if (this.placed.has(name)) continue
+      const to = join(this.beside, name)
+      try {
+        if ((await sizeOf(to)) === null) {
+          await mkdir(dirname(to), { recursive: true })
+          // A clone where the disk can make one, so the two cost the space once.
+          await copyFile(join(copy.dir, name), to, constants.COPYFILE_FICLONE)
+        }
+        this.placed.add(name)
+      } catch (err) {
+        this.warnOnce(
+          name,
+          `${name} from ${copy.name} could not be put beside the conversation: ${String(err)}`,
+        )
+      }
+    }
+  }
+
+  private warnOnce(name: string, text: string): void {
+    if (this.warned.has(name)) return
+    this.warned.add(name)
+    this.opts.warn?.(text)
   }
 
   // ── Settling ──────────────────────────────────────────────────────────────
@@ -396,6 +704,7 @@ export class SharedConversation {
       await this.own.look()
       await copy.record.look()
       out.push(await this.settleOne(copy, merging))
+      await this.place(copy)
     }
     return out
   }
@@ -456,6 +765,12 @@ function lastOnPath(format: ConversationFormat, lines: readonly string[]): strin
     if (read.kind === 'entry' && !read.side) return read.id
   }
   return null
+}
+
+/** A file's size, or null where there is none. */
+async function sizeOf(path: string): Promise<number | null> {
+  const found = await stat(path).catch(ifMissing(null))
+  return found?.isFile() ? found.size : null
 }
 
 /** What a machine calls itself, beside its copy, so a hub that restarts names it. */

@@ -43,6 +43,7 @@ export class ConversationRecord {
   private held: Held[] = []
   private chain: string[] = [CONVERSATION_CHAIN_START]
   private known = new Set<string>()
+  private named = new Map<string, string | null>()
   private size = 0
   private tail = ''
   private strange: string | null = null
@@ -60,6 +61,14 @@ export class ConversationRecord {
   /** The ids it holds. */
   get ids(): ReadonlySet<string> {
     return this.known
+  }
+
+  /**
+   * The files beside the record its entries name, each with where the first
+   * entry to name it says it is here (null in a copy, whose lines say nowhere).
+   */
+  get beside(): ReadonlyMap<string, string | null> {
+    return this.named
   }
 
   /** The chain over its first `n` canonical lines. */
@@ -128,12 +137,16 @@ export class ConversationRecord {
     this.known.add(read.id)
     this.held.push({ offset, length, id: read.id })
     this.chain.push(conversationChain(this.chain.at(-1) ?? CONVERSATION_CHAIN_START, read.text))
+    for (const one of read.beside ?? []) {
+      if (!this.named.has(one.name)) this.named.set(one.name, one.path)
+    }
   }
 
   private reset(): void {
     this.held = []
     this.chain = [CONVERSATION_CHAIN_START]
     this.known = new Set()
+    this.named = new Map()
     this.size = 0
     this.tail = ''
     this.strange = null

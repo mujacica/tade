@@ -29,6 +29,17 @@ import { sessionIdFor, transcriptFor } from './transcript.ts'
 // copy `uuid` and `parentUuid`. The session id needs nothing: it is made from
 // the task's name (`sessionIdFor`), so it is the same on every machine.
 //
+// **A large tool result is kept beside the record**, in the folder named for
+// the session (`besideOf`), and an entry names it by an absolute path into the
+// config folder of the machine that wrote it — "Full output saved to: …/<id>/
+// tool-results/<file>", and `persistedOutputPath` — which the model reads
+// when it needs more than the preview. That path is the one other thing
+// touched: blanked to `<tade:beside>/tool-results/<file>` to compare, and set
+// to this machine's folder on the way in, where the file itself is put after
+// it has travelled with the entries (`beside`, `conversation-share.ts`). A
+// path written some other way — `~/`, a folder with a space in it — is left
+// as it was, and its file does not travel.
+//
 // **Where `--resume` comes back to** was read out of the 2.1.311 that runs
 // here: the last `last-prompt` line's `leafUuid`, unless the record's last
 // entry descends from it, and the entry with the newest timestamp only where
@@ -79,6 +90,37 @@ const KEPT = new Set([
 ])
 
 type Entry = Record<string, unknown>
+
+/** What a path into a record's side folder is written as in a canonical line. */
+const BESIDE = '<tade:beside>'
+
+/**
+ * A large tool result's path as Claude Code writes it, under any account's
+ * folder and any session's (a conversation carried from another keeps naming
+ * where it was): the file's name there is the first group.
+ */
+const RESULT_AT =
+  /(?<![\w.~-])(?:\/[^/"\\\s<>]+)+?\/projects\/[^/"\\\s]+\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(tool-results\/[A-Za-z0-9_-](?:[A-Za-z0-9_.-]{0,126}[A-Za-z0-9_-])?)/g
+
+/** The same, blanked in a canonical line. */
+const RESULT_NAMED =
+  /<tade:beside>\/(tool-results\/[A-Za-z0-9_-](?:[A-Za-z0-9_.-]{0,126}[A-Za-z0-9_-])?)/g
+
+/** A line with every large result's path blanked, and the files it names. */
+function blanked(line: string): {
+  text: string
+  beside: { name: string; path: string | null }[]
+} {
+  if (!line.includes('/tool-results/')) return { text: line, beside: [] }
+  const beside: { name: string; path: string | null }[] = []
+  for (const [, name] of line.matchAll(RESULT_NAMED))
+    beside.push({ name: name as string, path: null })
+  const text = line.replace(RESULT_AT, (path: string, name: string) => {
+    beside.push({ name, path })
+    return `${BESIDE}/${name}`
+  })
+  return { text, beside }
+}
 
 /** What a line parsed to, where writing that back out gives the line exactly. */
 function parsed(line: string): Entry | string {
@@ -137,6 +179,9 @@ export const CLAUDE_CONVERSATION: ConversationFormat = {
     }
     const side = entry.isSidechain === true
     const message = (type === 'user' || type === 'assistant') && entry.isMeta !== true
+    const { text, beside } = blanked(
+      typeof entry.cwd === 'string' ? JSON.stringify({ ...entry, cwd: '' }) : line,
+    )
     return {
       kind: 'entry',
       id: uuid,
@@ -145,13 +190,23 @@ export const CLAUDE_CONVERSATION: ConversationFormat = {
       message,
       opens: message && !side && opens(entry),
       side,
-      text: typeof entry.cwd === 'string' ? JSON.stringify({ ...entry, cwd: '' }) : line,
+      text,
+      ...(beside.length > 0 ? { beside } : {}),
     }
   },
 
   localised(text, here) {
     const entry = JSON.parse(text) as Entry
-    return typeof entry.cwd === 'string' ? JSON.stringify({ ...entry, cwd: here.cwd }) : text
+    const line = typeof entry.cwd === 'string' ? JSON.stringify({ ...entry, cwd: here.cwd }) : text
+    const folder = here.beside
+    if (folder === undefined) return line
+    // Escaped as JSON would, since it lands inside a string of the line.
+    const at = JSON.stringify(folder).slice(1, -1)
+    return line.replace(RESULT_NAMED, (_, name: string) => `${at}/${name}`)
+  },
+
+  besideOf(record) {
+    return record.replace(/\.jsonl$/, '')
   },
 
   copied(text, to) {
@@ -227,7 +282,10 @@ export async function takeInto(
   if (lines.length === 0) return
   const record = await recordFor(task, cwd, configDir)
   const here = await realpath(cwd).catch(ifMissing(cwd))
-  const written = lines.map((line) => CLAUDE_CONVERSATION.localised(line, { cwd: here }))
+  const beside = CLAUDE_CONVERSATION.besideOf?.(record)
+  const written = lines.map((line) =>
+    CLAUDE_CONVERSATION.localised(line, { cwd: here, ...(beside ? { beside } : {}) }),
+  )
   const like = lines.at(-1) as string
   const point = leaf
     ? CLAUDE_CONVERSATION.pointer(leaf, 'what happened on another machine', like)

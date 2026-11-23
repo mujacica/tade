@@ -401,6 +401,14 @@ else reads it:
 - **Touch only the fields you name.** Claude Code's lines are taken only where `JSON.stringify` gives
   the line back byte for byte, and only `cwd` (blanked to compare, set per machine on the way in)
   and, on a copy, `uuid`/`parentUuid` change. Copies keep every other byte.
+- **What the record keeps beside it travels with it.** Claude Code's large tool results live in
+  `<session>/tool-results/`, and an entry names one by an absolute path into the writing machine's
+  config folder, which the model reads for more than the preview. So that path is blanked too
+  (`<tade:beside>/…`), each entry says which files it names (`beside`), the format says where they
+  live (`besideOf`), and the exchange carries them by name in pieces beside the entries
+  (`conversation-share.ts`) into `machines/<id>/conversation/`, then settling puts them beside this
+  record. A harness that keeps none leaves `besideOf` out. Subagents' transcripts are not named by
+  any entry and do not travel.
 - **Say where it comes back to.** Claude Code's `--resume` follows the last `last-prompt`'s
   `leafUuid` unless the last entry descends from it, so a merge ends on one (`pointer`); pi comes
   back to the last line, so it needs none. Pin it with a test against the installed binary and a
