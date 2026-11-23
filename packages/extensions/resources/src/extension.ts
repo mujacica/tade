@@ -1,19 +1,18 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { type ExtensionContext, object, oneOf, type TadeExtension } from '@tade/extensions-core'
+import { diskLow, type MachineLook, room } from './machine.ts'
 import {
-  attribute,
   type By,
-  History,
+  type History,
   type LaneRef,
   megabytes,
-  parsePs,
   percent,
   type Sample,
-  sampleOf,
   sparkline,
   totals,
 } from './usage.ts'
+import { Watch, type Watched } from './watch.ts'
 
 // Resources: what Tade and everything it runs is using — by project, by kind,
 // by agent, by process — kept for the last hour, in the status bar and on
@@ -36,6 +35,11 @@ export interface ResourcesOptions {
   /** Samples no more often than this, in milliseconds, however often they are asked for. */
   every?: number
   history?: number
+  /**
+   * The watch it reads, shared with whatever else in this process watches the
+   * machine (`machineWatch`); its own unless given.
+   */
+  watch?: Watch
 }
 
 /** Lanes as the workbench last wrote them down, for asking without a window. */
@@ -67,9 +71,14 @@ function lanesFromDisk(home: string): LaneRef[] {
  * Tade uses, CPU and memory side by side, so the heavy one is seen before it
  * is read.
  */
-export function chart(now: Sample, history: History, period: number): string {
+export function chart(
+  now: Sample & { machine?: MachineLook },
+  history: History,
+  period: number,
+): string {
   const lines = [
     `**Tade is using ${percent(now.total.cpu)} CPU and ${megabytes(now.total.rss)} of memory**, across ${now.total.processes} process${now.total.processes === 1 ? '' : 'es'}.`,
+    ...(now.machine ? ['', machineSaid(now.machine)] : []),
   ]
   const sections = [
     { title: 'By project', rows: totals(now, 'project'), limit: 12 },
@@ -132,40 +141,45 @@ function bar(part: number, whole: number, cells = BARS): string {
   return '█'.repeat(filled) + '░'.repeat(cells - filled)
 }
 
+/**
+ * The machine in a sentence: how busy, how loaded, how full, how much room.
+ * What it could not say is said as `—`, never as nought.
+ */
+export function machineSaid(machine: MachineLook): string {
+  const cores = machine.cores === null ? '' : ` of ${machine.cores} cores`
+  const cpu = machine.cpu === null ? '—' : percent(machine.cpu)
+  const load = machine.load === null ? '' : `, load ${machine.load.toFixed(2)}`
+  const memory = machine.memory
+    ? `${megabytes(machine.memory.used)} of ${megabytes(machine.memory.total)}`
+    : '—'
+  const disk = machine.disk
+    ? `${room(machine.disk.free)} free of ${room(machine.disk.total)}${
+        machine.disk.volumes > 1 ? ` (the fullest of ${machine.disk.volumes} volumes)` : ''
+      }${diskLow(machine.disk) ? ' — **running out**' : ''}`
+    : '—'
+  return `**This machine:** CPU ${cpu}${cores}${load} · memory ${memory} · disk ${disk}.`
+}
+
 export function resourcesExtension(options: ResourcesOptions = {}): TadeExtension {
-  const history = new History(options.history ?? 720)
-  let taking: Promise<Sample> | null = null
+  const watch = options.watch ?? new Watch({ history: options.history ?? 720 })
+  const history = watch.history
 
   /** A sample no older than the interval: taken now only when the last one is stale. */
   const sample = async (
     ctx: ExtensionContext & { tade?: { pid: number; lanes(): readonly LaneRef[] } | null },
-  ): Promise<Sample> => {
+  ): Promise<Watched> => {
     const every =
       typeof ctx.settings.every === 'number' && ctx.settings.every > 0
         ? ctx.settings.every * 1000
         : (options.every ?? 5_000)
-    const latest = history.latest()
-    if (latest && ctx.now() - latest.at < every) return latest
-    // Two asking at once share one `ps`.
-    if (taking) return taking
-    taking = (async () => {
-      const started = performance.now()
-      const listed = await ctx.exec('ps', ['-A', '-o', 'pid=,ppid=,rss=,pcpu=,args='], {
-        timeoutMs: 5_000,
-      })
-      if (listed.code !== 0)
-        throw new Error(`ps could not be read: ${listed.stderr.trim() || `exit ${listed.code}`}`)
-      const groups = attribute(parsePs(listed.stdout), {
-        window: ctx.tade?.pid ?? null,
-        lanes: ctx.tade ? ctx.tade.lanes() : lanesFromDisk(ctx.home),
-      })
-      const taken = sampleOf(groups, ctx.now(), performance.now() - started)
-      history.add(taken)
-      return taken
-    })().finally(() => {
-      taking = null
+    return watch.sample({
+      every,
+      now: ctx.now(),
+      exec: (command, args, opts) => ctx.exec(command, args, opts),
+      window: ctx.tade?.pid ?? null,
+      lanes: ctx.tade ? ctx.tade.lanes() : lanesFromDisk(ctx.home),
+      paths: [ctx.home, ...ctx.projects.map((one) => one.root)],
     })
-    return taking
   }
 
   const limits = (ctx: ExtensionContext) => ({
@@ -174,9 +188,11 @@ export function resourcesExtension(options: ResourcesOptions = {}): TadeExtensio
       (typeof ctx.settings.warn_memory === 'number' ? ctx.settings.warn_memory : 4096) * 1024 ** 2,
   })
 
-  const report = (now: Sample, by: readonly By[], period: number): string => {
+  const report = (now: Watched, by: readonly By[], period: number): string => {
     const lines = [
       `**Tade is using ${percent(now.total.cpu)} CPU and ${megabytes(now.total.rss)} of memory**, across ${now.total.processes} process${now.total.processes === 1 ? '' : 'es'}.`,
+      '',
+      machineSaid(now.machine),
     ]
     const table = (title: string, rows: ReturnType<typeof totals>, limit = 12) => {
       if (rows.length === 0) return
@@ -226,6 +242,7 @@ export function resourcesExtension(options: ResourcesOptions = {}): TadeExtensio
       'Breaks it down by agent, where one total hides the worker at a whole core.',
       'Keeps a few words in the status bar; clicking them opens the whole picture.',
       'One `ps` for the machine, shared by every reader: watching costs nothing.',
+      'Says the machine too — its CPU, memory and the room left on the disk — and warns under a tenth free.',
     ],
     settings: [
       {
@@ -262,7 +279,7 @@ export function resourcesExtension(options: ResourcesOptions = {}): TadeExtensio
       {
         name: 'resources_usage',
         description:
-          'How much CPU and memory Tade and everything it runs is using right now — the window, the orchestrator, each agent and terminal, and helpers — by project, by kind, by agent or by process, with the average and peak over a recent period. Use it when asked how heavy Tade is, what is using the CPU or memory, or whether an agent is running away.',
+          'How much CPU and memory Tade and everything it runs is using right now — the window, the orchestrator, each agent and terminal, and helpers — by project, by kind, by agent or by process, with the average and peak over a recent period; and the machine as a whole: its CPU, load, memory used and the room left on the disk the work is on. Use it when asked how heavy Tade is, what is using the CPU or memory, how much disk is left, or whether an agent is running away.',
         parameters: object({
           by: oneOf(
             ['all', 'project', 'kind', 'agent', 'process'],
@@ -291,6 +308,7 @@ export function resourcesExtension(options: ResourcesOptions = {}): TadeExtensio
             ),
             data: {
               total: now.total,
+              machine: now.machine,
               took: now.took,
               groups: now.groups.map(({ processes, ...group }) => ({
                 ...group,
@@ -312,6 +330,7 @@ export function resourcesExtension(options: ResourcesOptions = {}): TadeExtensio
           /^how (much|heavy) is tade( using)?$/i,
           /^(show|what'?s|what is) (the )?(tade )?(resource|cpu|memory) usage$/i,
           /^what is (using|eating) (the|my) (cpu|memory|ram)$/i,
+          /^how much (disk|disk space|space|room) (is )?(left|free)( on (the|this|my) (disk|machine))?$/i,
         ],
       },
     ],
@@ -319,9 +338,16 @@ export function resourcesExtension(options: ResourcesOptions = {}): TadeExtensio
       const now = await sample(ctx)
       const limit = limits(ctx)
       const heavy = now.total.cpu > limit.cpu || now.total.rss > limit.memory
+      // The room left on the disk the work is on: under a tenth of it, a
+      // warning however light Tade is, because a full disk stops every agent
+      // at once and says so in nobody's words. Where it cannot be asked it is
+      // left out rather than drawn as nought.
+      const disk = now.machine.disk
       return {
-        text: `${percent(now.total.cpu)} · ${megabytes(now.total.rss)}`,
-        tone: heavy ? 'warning' : 'quiet',
+        text: `${percent(now.total.cpu)} · ${megabytes(now.total.rss)}${
+          disk ? ` · ${room(disk.free)} free` : ''
+        }`,
+        tone: heavy || diskLow(disk) ? 'warning' : 'quiet',
       }
     },
     view: async (ctx) => chart(await sample(ctx), history, PERIODS['15m'] ?? 900_000),

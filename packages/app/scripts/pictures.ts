@@ -397,7 +397,7 @@ export const PICTURES: readonly Picture[] = [
     scenario: 'resource-usage',
     crop: 'panel',
     about:
-      'What Tade and everything it runs is using: CPU and memory by project, by kind, and by agent.',
+      'What Tade and everything it runs is using: CPU and memory by project, by kind, and by agent, and the machine itself — its CPU, load, memory and the room left on its disk.',
   },
   {
     file: 'extensions.svg',

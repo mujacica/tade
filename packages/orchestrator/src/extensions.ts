@@ -26,7 +26,7 @@ import { checksExtension } from '@tade/extension-checks'
 import { depsExtension } from '@tade/extension-deps'
 import { intakeExtension } from '@tade/extension-intake'
 import { jevExtension } from '@tade/extension-jev'
-import { resourcesExtension } from '@tade/extension-resources'
+import { machineWatch, resourcesExtension } from '@tade/extension-resources'
 import { reviewExtension } from '@tade/extension-review'
 import { sentryExtension } from '@tade/extension-sentry'
 import {
@@ -234,7 +234,8 @@ export const BUILTIN_EXTENSIONS: readonly TadeExtension[] = [
   jevExtension,
   reviewExtension,
   sentryExtension,
-  resourcesExtension(),
+  // The one watch of this machine, which the away view reads too.
+  resourcesExtension({ watch: machineWatch }),
 ]
 
 /**

@@ -84,7 +84,16 @@ function resourceChart(): string {
   })
   const now = history.latest()
   if (!now) throw new Error('a chart needs a sample')
-  return chart(now, history, 900_000)
+  // And the machine itself, as the same look found it: a laptop with room to spare.
+  const machine = {
+    at: now.at,
+    cores: 10,
+    cpu: 23,
+    load: 3.18,
+    memory: { used: 22.6 * 1024 ** 3, total: 32 * 1024 ** 3 },
+    disk: { free: 412 * 1024 ** 3, total: 994 * 1024 ** 3, volumes: 1 },
+  }
+  return chart({ ...now, machine }, history, 900_000)
 }
 
 /**
@@ -668,7 +677,14 @@ export const EXTENSION_SCREENS: Scenario[] = [
       'What Tade is using, kept in the status bar and clicked open: by project, kind, agent and process, with the last fifteen minutes.',
     state: { ...base(), panel: extensionViewPanel('resources') },
     frame: frame({
-      statuses: [{ extension: 'resources', text: '91% · 783 MB', tone: 'quiet', viewable: true }],
+      statuses: [
+        {
+          extension: 'resources',
+          text: '91% · 783 MB · 412 GB free',
+          tone: 'quiet',
+          viewable: true,
+        },
+      ],
       panel: {
         extensionView: {
           title: 'Resources',
