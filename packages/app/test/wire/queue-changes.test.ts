@@ -1,5 +1,8 @@
+import type { PlannedAgent } from '@tade/core'
+import { makeCollector, type StatusCollector } from '@tade/status'
 import { readTaskFile, type Workbench } from '@tade/workbench'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { Live } from '../../src/live.ts'
 import {
   type FakeTerminal,
   type Repo,
@@ -349,5 +352,228 @@ describe('changing work already queued', () => {
         (await readTaskFile(home, 'app/later-step'))?.start?.prompt ===
         'do the later part and the docs',
     )
+  })
+})
+
+// A wait written while a look at status is under way — which, with a day's
+// work in the journal, is nearly always. On 2026-11-23 the answer to `after`
+// came from the look that had read the task files before the wait was
+// written: "Done" beside every wait but the one just added, again and again,
+// and the orchestrator re-sent the list with replace and lost the waits it had
+// not repeated. These hold that look at the gate, so it happens every time.
+describe('a wait written while the window is looking', () => {
+  let client: Workbench
+  let home: string
+  const { start } = windowUnderTest((wired) => {
+    client = wired.client
+    home = wired.home
+  })
+  const closing: StatusCollector[] = []
+  afterEach(async () => {
+    vi.restoreAllMocks()
+    await Promise.all(closing.splice(0).map((one) => one.close()))
+  })
+
+  /**
+   * The window's looks at status, each of which can be held once it has read
+   * the task files, or answered `unknown` as a look that ran out of time is.
+   * Counted as each lands, so a test waits on looks rather than on a clock.
+   */
+  function looks() {
+    const own = makeCollector('here')
+    closing.push(own)
+    let gate: Promise<void> | null = null
+    let open = () => {}
+    let held = 0
+    let landed = 0
+    let unknown = false
+    const status: StatusCollector = {
+      id: own.id,
+      collect: async (ask) => {
+        const answer = await own.collect(ask)
+        if (gate) {
+          held += 1
+          await gate
+          held -= 1
+        }
+        landed += 1
+        return unknown ? { known: false, why: 'status ran out of time' } : answer
+      },
+      close: () => own.close(),
+    }
+    return {
+      status,
+      hold() {
+        gate = new Promise((resolve) => {
+          open = () => {
+            gate = null
+            resolve()
+          }
+        })
+      },
+      release: () => open(),
+      held: () => held,
+      landed: () => landed,
+      answerUnknown: () => {
+        unknown = true
+      },
+    }
+  }
+
+  /**
+   * One agent at work, a design waiting on it and parked, and a check of the
+   * day waiting on both — so finishing the first starts nothing by itself.
+   */
+  async function world(seen: ReturnType<typeof looks>) {
+    const window = await start({ status: seen.status })
+    const agent = (name: string, over: Partial<PlannedAgent> = {}): PlannedAgent => ({
+      name,
+      said: name,
+      prompt: '',
+      after: [],
+      touches: [],
+      ...over,
+    })
+    await client.planTasks({
+      project: 'app',
+      said: 'early, then a design and a check of the day',
+      agents: [
+        agent('early'),
+        agent('design', {
+          produces: 'design.md',
+          after: [{ agent: 'early', why: 'designs what it found' }],
+        }),
+        agent('batch', {
+          after: [
+            { agent: 'early', why: 'checks the day' },
+            { agent: 'design', why: 'checks the design' },
+          ],
+        }),
+      ],
+    })
+    await until('early at work', () => client.runs().length === 1, SPAWNING_MS)
+    await client.parkTask('app/design', true)
+    // And the pass that started it over, which looks again on its way out.
+    const from = seen.landed()
+    await until('two more looks', () => seen.landed() >= from + 2)
+    return window.queueTools()
+  }
+
+  /** Queued work made and parked a moment ago, waiting on the first. */
+  async function hud() {
+    await client.planTasks({
+      project: 'app',
+      said: 'one more',
+      agents: [
+        {
+          name: 'hud',
+          said: 'hud',
+          prompt: '',
+          after: [{ agent: 'early', why: 'after it' }],
+          touches: [],
+        },
+      ],
+    })
+    await client.parkTask('app/hud', true)
+  }
+
+  /** The workbench's own write, with a mark once it has been written. */
+  function markWrites() {
+    const written = { yes: false }
+    const write = client.changeQueued.bind(client)
+    client.changeQueued = async (req) => {
+      const out = await write(req)
+      written.yes = true
+      return out
+    }
+    return written
+  }
+
+  it('answers with the wait it was given, not with the look that began before it', async () => {
+    const seen = looks()
+    const tools = await world(seen)
+    // Made, queued and parked moments before, while a look is under way.
+    seen.hold()
+    await until('a look under way', () => seen.held() === 1)
+    await hud()
+    // The look under way lets go the moment the change asks for one, which is
+    // when the window used to be handed that look as if it were new.
+    const written = markWrites()
+    const refresh = Live.prototype.refresh
+    vi.spyOn(Live.prototype, 'refresh').mockImplementation(function (this: Live, asked = true) {
+      if (asked && written.yes) seen.release()
+      return refresh.call(this, asked)
+    })
+    const answer = await tools.change({
+      task: 'app/batch',
+      change: 'after',
+      after: [
+        { task: 'design', why: 'checks the design', approved: true },
+        { task: 'hud', why: 'checks the hud' },
+      ],
+    })
+    expect(answer).toContain('app/batch waits on app/early, app/design and app/hud')
+    expect(answer).toContain('the person has approved what app/design produced')
+    expect((await readTaskFile(home, 'app/batch'))?.start?.after.map((dep) => dep.task)).toEqual([
+      'app/early',
+      'app/design',
+      'app/hud',
+    ])
+  })
+
+  it('answers out of the task file when the look after the change came back unknown', async () => {
+    const seen = looks()
+    const tools = await world(seen)
+    await hud()
+    await client.markDone('app/early', { by: 'you' })
+    // A look that has heard of the hud, then looks that cannot say.
+    const from = seen.landed()
+    await until('two more looks', () => seen.landed() >= from + 2)
+    seen.answerUnknown()
+    const answer = await tools.change({
+      task: 'app/batch',
+      change: 'after',
+      replace: true,
+      after: [
+        { task: 'early', why: 'checks the day' },
+        { task: 'hud', why: 'checks the hud' },
+      ],
+    })
+    expect(answer).toBe(
+      'Done. app/batch waits on app/hud, and starts by itself once that has finished. app/early has already finished, so waiting on it holds nothing; the wait is kept.',
+    )
+    // And the stale look did not start it on the wait it no longer had alone.
+    expect(client.runs().some((run) => run.task === 'app/batch')).toBe(false)
+  })
+
+  it('never starts work on a look that began before a wait was written on it', async () => {
+    const seen = looks()
+    await world(seen)
+    // Waiting on the first alone, as a look has seen it.
+    await client.changeQueued({
+      task: 'app/batch',
+      change: 'after',
+      replace: true,
+      after: [{ task: 'early', why: 'checks the day' }],
+      by: 'you',
+    })
+    const seenAlone = seen.landed()
+    await until('two more looks', () => seen.landed() >= seenAlone + 2)
+    seen.hold()
+    await until('a look under way', () => seen.held() === 1)
+    // A person's wait, written while that look is out: nothing asks for a new one.
+    await client.changeQueued({
+      task: 'app/batch',
+      change: 'after',
+      after: [{ task: 'design', why: 'checks the design' }],
+      by: 'you',
+    })
+    // What the look under way says it waits on has now finished.
+    await client.markDone('app/early', { by: 'you' })
+    const from = seen.landed()
+    seen.release()
+    await until('that look and two after it', () => seen.landed() >= from + 3)
+    expect(client.runs().some((run) => run.task === 'app/batch')).toBe(false)
+    expect(await client.events({ types: ['queue_started'], task: 'app/batch' })).toEqual([])
   })
 })

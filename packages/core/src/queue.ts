@@ -733,6 +733,8 @@ export function checkWaits(req: {
   replace: boolean
   /** Every task Tade has, by qualified id. */
   tasks: ReadonlySet<string>
+  /** Tasks Tade had and removed: refused like one it never had, and said so. */
+  removed?: ReadonlySet<string>
   /** What other queued work waits on; work that has started waits on nothing. */
   waits: (task: string) => readonly string[]
   /** Whether a task says it produces a document; unsaid, nothing is refused for it. */
@@ -764,7 +766,9 @@ export function checkWaits(req: {
       problems.push(`${req.task} cannot wait on itself`)
     } else if (!req.tasks.has(task)) {
       problems.push(
-        `${req.task} cannot wait on ${said || 'nothing'}, which is not a task Tade has: wait only on one tade_queue or tade_status lists`,
+        req.removed?.has(task)
+          ? `${req.task} cannot wait on ${said}, which was removed: wait only on one tade_queue or tade_status lists`
+          : `${req.task} cannot wait on ${said || 'nothing'}, which is not a task Tade has: wait only on one tade_queue or tade_status lists`,
       )
     } else if (dep.approved && req.produces && !req.produces(task)) {
       problems.push(

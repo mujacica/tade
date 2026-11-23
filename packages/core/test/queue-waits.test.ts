@@ -101,6 +101,13 @@ describe('a wait written on queued work', () => {
         'tade/a cannot wait on web/ghost, which is not a task Tade has: wait only on one tade_queue or tade_status lists',
       ],
     })
+    // One Tade had and removed is refused the same way, and said to be removed.
+    expect(check({ after: [{ task: 'gone', why: '' }], removed: new Set(['tade/gone']) })).toEqual({
+      ok: false,
+      problems: [
+        'tade/a cannot wait on gone, which was removed: wait only on one tade_queue or tade_status lists',
+      ],
+    })
   })
 
   it('refuses a loop through existing queued work, and says which way it goes round', () => {

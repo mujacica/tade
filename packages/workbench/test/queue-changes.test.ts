@@ -180,10 +180,97 @@ describe('changing queued work', () => {
         after: [{ task: 'three', why: '' }],
         by: 'orchestrator',
       }),
-    ).rejects.toThrow(/cannot wait on three, which is not a task Tade has/)
+    ).rejects.toThrow(/cannot wait on three, which was removed/)
     // Nothing refused was written.
     expect((await readTaskFile(home, 'app/one'))?.start?.after).toEqual([])
     expect(await client.events({ types: ['queue_changed'] })).toEqual([])
+  })
+
+  it('keeps every wait a change names, or refuses the whole change naming each it could not keep', async () => {
+    // Waits already written, added to one at a time and once as a list —
+    // the shape of a verification task that waits on a whole day's work.
+    await client.planTasks({
+      project: 'app',
+      said: 'a day of work, then one task that checks all of it',
+      agents: [
+        agent('four'),
+        agent('five', { produces: 'design.md' }),
+        agent('six'),
+        agent('batch', { after: [{ agent: 'one', why: 'checks it' }] }),
+      ],
+    })
+    await client.changeQueued({
+      task: 'app/batch',
+      change: 'after',
+      after: [{ task: 'four', why: 'checks it' }],
+      by: 'orchestrator',
+    })
+    // Moments after it was made and parked: a new task is a task to wait on.
+    await client.planTasks({
+      project: 'app',
+      said: 'one more',
+      agents: [agent('seven')],
+    })
+    await client.parkTask('app/seven', true)
+    const added = await client.changeQueued({
+      task: 'app/batch',
+      change: 'after',
+      after: [
+        { task: 'five', why: 'its design, approved', approved: true },
+        { task: 'seven', why: 'checks it' },
+        // Already waited on: kept in its place, with the reason said now.
+        { task: 'one', why: 'checks it again' },
+      ],
+      by: 'orchestrator',
+    })
+    const all = [
+      { task: 'app/four', why: 'checks it' },
+      { task: 'app/five', why: 'its design, approved', approved: true },
+      { task: 'app/seven', why: 'checks it' },
+      { task: 'app/one', why: 'checks it again' },
+    ]
+    expect(added?.after).toEqual(all)
+    expect((await readTaskFile(home, 'app/batch'))?.start?.after).toEqual(all)
+
+    // One wait that cannot be kept refuses the whole change, and every one
+    // that cannot is named with why: a task removed, and one never made.
+    await client.removeTask({
+      root: repo.root,
+      worktree: repo.root,
+      branch: '',
+      task: 'app/six',
+      force: true,
+    })
+    const refused = client.changeQueued({
+      task: 'app/batch',
+      change: 'after',
+      after: [
+        { task: 'three', why: 'checks it' },
+        { task: 'six', why: 'checks it' },
+        { task: 'ghost', why: 'checks it' },
+      ],
+      by: 'orchestrator',
+    })
+    await expect(refused).rejects.toThrow(
+      [
+        'app/batch cannot wait on six, which was removed: wait only on one tade_queue or tade_status lists',
+        'app/batch cannot wait on ghost, which is not a task Tade has: wait only on one tade_queue or tade_status lists',
+      ].join('; '),
+    )
+    // Nor the one it could have kept: refused is refused whole.
+    expect((await readTaskFile(home, 'app/batch'))?.start?.after).toEqual(all)
+    // And a list that replaces keeps every one it names.
+    const replaced = await client.changeQueued({
+      task: 'app/batch',
+      change: 'after',
+      replace: true,
+      after: [
+        { task: 'seven', why: 'checks it' },
+        { task: 'three', why: 'checks it' },
+      ],
+      by: 'orchestrator',
+    })
+    expect(replaced?.after.map((dep) => dep.task)).toEqual(['app/seven', 'app/three'])
   })
 
   it("hands a removed task's waits on to what waited on it, and nothing waits on it while it goes", async () => {
@@ -232,7 +319,7 @@ describe('changing queued work', () => {
     expect(handed).toEqual({ status: 'fulfilled', value: [{ task: 'app/three', after }] })
     expect(late.status).toBe('rejected')
     expect(String((late as PromiseRejectedResult).reason)).toMatch(
-      /cannot wait on two, which is not a task Tade has/,
+      /cannot wait on two, which was removed/,
     )
 
     // Written into its task file, every other field as it was, and said with

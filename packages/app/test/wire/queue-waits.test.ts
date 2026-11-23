@@ -121,7 +121,7 @@ describe('picking what queued work waits on', () => {
     // Saved as it stands, the queue refuses it in words, in the panel.
     const save = find('Save')
     click(save.col + 1, save.row)
-    await until('refused', () => onScreen('not a task Tade has'))
+    await until('refused', () => onScreen('which was removed'))
     const drop = find('Drop 1 gone')
     click(drop.col + 1, drop.row)
     await until('dropped', () => onScreen('0 picked'))

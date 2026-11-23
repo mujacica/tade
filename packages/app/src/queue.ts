@@ -572,6 +572,17 @@ export function nowSays(
 }
 
 /**
+ * The waits just written on work that has already finished: kept, and named,
+ * because "waits on" lists only what still holds it, and a wait missing from
+ * that list read as a wait dropped. Null where there are none.
+ */
+export function alreadyFinishedSays(finished: readonly string[]): string | null {
+  if (finished.length === 0) return null
+  const one = finished.length === 1
+  return `${joined(finished)} ${one ? 'has' : 'have'} already finished, so waiting on ${one ? 'it holds' : 'them hold'} nothing; ${one ? 'the wait is' : 'the waits are'} kept.`
+}
+
+/**
  * What a change to queued work came to: what started, then where each piece
  * it was about stands now. One piece is a sentence; several are lines.
  */

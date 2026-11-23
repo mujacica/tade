@@ -1,5 +1,6 @@
 import {
   agentMachine,
+  approvedFrom,
   atOnceIn,
   describeQueueState,
   expandHome,
@@ -16,10 +17,13 @@ import {
   projectOf,
   projectsIn,
   QUEUE_CHANGES,
+  type Queued,
   queueStateOf,
   readyToStart,
+  type StartCondition,
   type StartSays,
   startFrom,
+  type Wait,
   waitsElsewhere,
 } from '@tade/core'
 import { type HandedOn, handOnWaits, readTaskFile } from '@tade/workbench'
@@ -30,6 +34,7 @@ import { promptPanel } from '../panels/small/state.ts'
 import { type WaitsPanel, type WaitsView, waitRowsOf, waitsPanel } from '../panels/waits/state.ts'
 import type { PanelInputs } from '../panels.ts'
 import {
+  alreadyFinishedSays,
   changedSays,
   describeQueue,
   describeSchedule,
@@ -319,9 +324,28 @@ export class Queue implements Subject {
     // every other choice about the queue. The rule is unchanged: what starts
     // is what `readyToStart` says is ready, as far as there is room.
     for (const task of readyToStart(inWrittenOrder(items, facts.events), facts, room)) {
-      const item = items.find((one) => one.task === task)
+      const seen = items.find((one) => one.task === task)
       const worktree = live.worktreeOf(task)
-      if (!item || !worktree) continue
+      if (!seen || !worktree) continue
+      // What it waits on, read once more out of its task file at the moment of
+      // starting: the look these items came from may have begun before a wait
+      // was written on it, and a wait read a moment late must still hold.
+      let onFile: StartCondition | undefined
+      try {
+        onFile = (await readTaskFile(this.wire.opts.home, task))?.start
+      } catch (err) {
+        // Not started on a look that may be stale, and said once, as a wait
+        // is: nobody has to answer it, and the next look reads the file again.
+        const because = `its task file could not be read again before starting (${why(err)}), so the next look tries again`
+        if (this.waitSaid.get(task) !== because) {
+          this.waitSaid.set(task, because)
+          this.said(`${task} waits: ${because}`)
+          this.deps.orchestrator().note(`${task} waits: ${because}`)
+        }
+        continue
+      }
+      const item = onFile ? { ...seen, start: onFile } : seen
+      if (onFile && queueStateOf(item, facts).kind !== 'ready') continue
       // And what a schedule or a watch made, asked about the plan at the same
       // moment for the same reason (`planHold`).
       const outside = intakeOf(intake, task)
@@ -543,7 +567,7 @@ export class Queue implements Subject {
           change === 'start' &&
           (this.wire.live?.queued ?? []).some((one) => one.task === req.task && one.parked)
         const since = this.starts
-        await this.wire.opts.client.changeQueued({
+        const written = await this.wire.opts.client.changeQueued({
           ...(req.task ? { task: req.task } : {}),
           ...(req.project ? { project: req.project } : {}),
           ...(change === 'order' ? { order } : {}),
@@ -576,18 +600,43 @@ export class Queue implements Subject {
                 ? `Done: ${req.task} is picked up.`
                 : 'Done.'
               : `Done: ${req.project ? `${req.project}'s queue` : 'the queue'} is ${change === 'pause' ? 'paused' : 'back on'}.`
-        const now = this.nowOf(about.filter((one) => !started.includes(one)))
+        // What a wait or a retell wrote is answered out of the task file it
+        // wrote, never out of the last look's copy of it, which may have begun
+        // before the change or come back unknown and left the one before it
+        // standing. On 2026-11-23 answering from that read "Done" beside every
+        // wait but the one just added, again and again, and the orchestrator
+        // re-sent the list with replace and lost the waits it had not repeated.
+        const fresh =
+          written && req.task && !started.includes(req.task)
+            ? await this.queuedNow(req.task)
+            : { item: null }
+        const now = this.nowOf(
+          about.filter((one) => !started.includes(one)),
+          fresh.item,
+        )
         const past = started.flatMap((one) => {
           const line = this.pastSaid.get(one)
           return line ? [`${line}.`] : []
         })
+        // A wait on work that has already finished holds nothing, and is said,
+        // since "waits on" names only what still holds it.
+        const finished =
+          change === 'after' && req.task && written
+            ? alreadyFinishedSays(this.finishedOf(req.task, req.after ?? [], written))
+            : null
         // The orchestrator's own start waits for room like the queue's: it is
         // told what takes it past the limit, which is the person's to ask.
         const room =
           change === 'start' && req.task && !started.includes(req.task) && !req.said
             ? this.roomSays(req.task)
             : null
-        return [changedSays(lead, started, now), ...past, ...(room ? [room] : [])].join(' ')
+        return [
+          changedSays(lead, started, now),
+          ...(fresh.trouble ? [fresh.trouble] : []),
+          ...(finished ? [finished] : []),
+          ...past,
+          ...(room ? [room] : []),
+        ].join(' ')
       },
       plan: async (asked) => {
         // Checked against what the projects are already on, which no plan can
@@ -849,7 +898,10 @@ export class Queue implements Subject {
     for (const task of quiet) this.answering.add(task)
     try {
       await this.advancing?.catch(() => {})
-      await this.wire.live?.refresh()
+      // A look begun after the change, never the one under way: the beat's
+      // look had often read the task files before the change was written, and
+      // the pass after it then read every wait but the one just added.
+      await this.wire.live?.refreshSince()
       await this.advance()
     } finally {
       for (const task of quiet) this.answering.delete(task)
@@ -873,15 +925,72 @@ export class Queue implements Subject {
     return `${item.project} is at its limit of ${limit}: a start the person asks for goes past it, so pass their words asking for it as said.`
   }
 
-  /** Where each piece of queued work stands now, in a sentence each. */
-  private nowOf(tasks: readonly string[]): string[] {
+  /**
+   * Where each piece of queued work stands now, in a sentence each — `fresh`,
+   * where given, as its task file says it now rather than as the last look did.
+   */
+  private nowOf(tasks: readonly string[], fresh: Queued | null = null): string[] {
     const live = this.wire.live
     if (!live) return []
     const facts = live.queueFacts()
     return tasks.map((task) => {
-      const item = live.queued.find((one) => one.task === task)
+      const item = fresh?.task === task ? fresh : live.queued.find((one) => one.task === task)
       return nowSays(task, item ? queueStateOf(item, facts) : null, clockOf)
     })
+  }
+
+  /**
+   * One piece of queued work as its task file says it is now, null where it
+   * is not queued work any more, or why its file could not be read back. Read off the file rather than the last
+   * look, which may be a look begun before the change that is being answered.
+   */
+  private async queuedNow(task: string): Promise<{ item: Queued | null; trouble?: string }> {
+    let file: Awaited<ReturnType<typeof readTaskFile>>
+    try {
+      file = await readTaskFile(this.wire.opts.home, task)
+    } catch (err) {
+      // The change is written; only reading it back failed, and the answer says so.
+      return {
+        item: null,
+        trouble: `Its task file could not be read back (${why(err)}), so where it stands is as the last look saw it: tade_queue reads it again.`,
+      }
+    }
+    if (!file?.start || this.wire.opts.client.runs().some((run) => run.task === task)) {
+      return { item: null }
+    }
+    const seen = this.wire.live?.queued.find((one) => one.task === task)
+    return {
+      item: {
+        task,
+        project: seen?.project ?? file.project,
+        parked: file.parked === true,
+        start: file.start,
+        ...(seen?.by ? { by: seen.by } : {}),
+      },
+    }
+  }
+
+  /**
+   * Which of the waits just asked for hold nothing, because the work is here
+   * and finished — and approved, where an approval was asked for too. Named as
+   * written (`written`), so a bare name reads as its qualified id.
+   */
+  private finishedOf(task: string, asked: readonly Wait[], written: StartCondition): string[] {
+    const facts = this.wire.live?.queueFacts()
+    if (!facts) return []
+    const here = task.split('/')[0] ?? ''
+    const named = new Set(
+      asked.map((dep) => {
+        const said = dep.task.trim()
+        return said.includes('/') || waitsElsewhere(said) ? said : `${here}/${said}`
+      }),
+    )
+    const approved = written.after.some((dep) => dep.approved) ? approvedFrom(facts.events) : null
+    return written.after
+      .filter((dep) => named.has(dep.task) && !waitsElsewhere(dep.task))
+      .filter((dep) => facts.finished.has(dep.task))
+      .filter((dep) => !dep.approved || approved?.has(dep.task) === true)
+      .map((dep) => dep.task)
   }
 
   /**

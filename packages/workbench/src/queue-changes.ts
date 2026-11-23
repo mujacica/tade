@@ -142,7 +142,7 @@ function waitOn(
   req: QueueChangeRequest & { task: string },
 ): Promise<StartCondition> {
   return aloneOn(`${tade.home}#waits`, async () => {
-    const { tasks, started } = await tasksKnown(tade)
+    const { tasks, started, removed } = await tasksKnown(tade)
     const file = await queuedFile(tade.home, req.task, started)
     // What every other piece of queued work waits on, for the loop check:
     // work that has started waits on nothing any more, so no loop runs through it.
@@ -177,6 +177,7 @@ function waitOn(
       after: req.after ?? [],
       replace: req.replace === true,
       tasks,
+      removed,
       waits: (task) => waits.get(task) ?? [],
       produces: (task) => producing.get(task) ?? true,
       // The other machines' journals kept here, read only where a wait names
@@ -328,17 +329,21 @@ export function handOnWaits(
 /** Every task there is, and which of them have ever started, as the journal says. */
 async function tasksKnown(
   tade: QueueChanger,
-): Promise<{ tasks: Set<string>; started: Set<string> }> {
+): Promise<{ tasks: Set<string>; started: Set<string>; removed: Set<string> }> {
   const events = await tade.log.read({ types: ['task_created', 'task_removed', 'run_started'] })
   const tasks = new Set<string>()
   const started = new Set<string>()
+  const removed = new Set<string>()
   for (const event of events) {
     if (!event.task) continue
     if (event.type === 'task_created') tasks.add(event.task)
-    if (event.type === 'task_removed') tasks.delete(event.task)
+    if (event.type === 'task_removed') {
+      tasks.delete(event.task)
+      removed.add(event.task)
+    }
     if (event.type === 'run_started') started.add(event.task)
   }
-  return { tasks, started }
+  return { tasks, started, removed }
 }
 
 /**

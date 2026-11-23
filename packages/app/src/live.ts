@@ -1032,6 +1032,19 @@ export class Live {
   }
 
   /**
+   * A look begun after this was asked for, which `refresh` is not: it hands
+   * back the look already under way, and that one may have read the task
+   * files before whoever asks wrote one. Whatever is written and then read
+   * back — a wait on queued work above all — asks for this. The look under
+   * way is waited out, then asked again: one begun since is as good as new.
+   */
+  async refreshSince(): Promise<void> {
+    const under = this.refreshing
+    await this.refresh()
+    if (under) await this.refresh()
+  }
+
+  /**
    * The lower pane's tabs (`tabsFrom`), said only where they moved, like the
    * tasks. Read off the registry as they are said, never as a look began: the
    * window asks the moment it opens one, and a look begun before that must
