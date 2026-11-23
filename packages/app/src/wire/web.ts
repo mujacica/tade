@@ -58,6 +58,7 @@ import type { AwayDeps } from './web-deps.ts'
 import { builtFrom, turnTo } from './web-follow.ts'
 import { EVERYTHING, widen } from './web-grants.ts'
 import { halvesFor } from './web-halves.ts'
+import { restartingFrom } from './web-restart.ts'
 import { knownHere, Lanes } from './web-lanes.ts'
 import { carryConnect, carryLink, isConnect, isLink } from './web-link.ts'
 import { ownedFor } from './web-owned.ts'
@@ -279,6 +280,8 @@ export class Away implements Subject {
         hooks: hooksFor(this.wire, () => this.config(), this.deps.doorbell),
       }),
       ...ownedFor(this.wire, () => this.panelFacts(), this.deps.lifecycle, this.deps.inventory),
+      // Tade started again from the person's own phone, through the window's own reload.
+      restarting: restartingFrom(this.wire, this.deps.reloadStops),
       ...(this.deps.feeds && { feeds: this.deps.feeds.web() }),
       ...(this.deps.conversation && { conversation: this.deps.conversation.web() }),
       ...(this.deps.acts && {

@@ -231,7 +231,11 @@ export class App {
         credentialProblem: (provider) => this.machine.credentialProblem(provider),
         machines: () => this.remotes.machines(),
       },
-      away: { copy: (text) => copyText(text, (data) => this.terminal.write(data)) },
+      away: {
+        copy: (text) => copyText(text, (data) => this.terminal.write(data)),
+        // A restart from the person's own phone ends what this window would.
+        reloadStops: () => this.window.reloadStops(),
+      },
     })
     this.wire = this.heart.wire
     this.looks = new Looks({

@@ -432,9 +432,56 @@ declare module '*/assets/palette.js' {
 
 declare module '*/assets/shell-bars.js' {
   export function shellBars(
-    standing: { refused: string | null; restart: boolean; changed: boolean; newer: boolean },
-    does: { reload: () => void; update: () => void },
-  ): readonly { key: string; lead: string; under: string; press?: { said: string } }[]
+    standing: {
+      refused: string | null
+      restart: boolean
+      restarting?: {
+        theirs: boolean
+        stops: number
+        armed: boolean
+        busy: boolean
+        going: boolean
+        said: string | null
+        cannot: boolean
+      }
+      changed: boolean
+      newer: boolean
+    },
+    does: { reload: () => void; update: () => void; restart?: () => void },
+  ): readonly {
+    key: string
+    lead: string
+    under: string
+    press?: { said: string; does: () => void }
+  }[]
+}
+
+declare module '*/assets/restart.js' {
+  export const RESTART_PATH: string
+  export function restarter(
+    ctx: {
+      ask: (
+        method: string,
+        path: string,
+        body?: unknown,
+      ) => Promise<{ status: number; body: unknown }>
+      session: () => unknown
+    },
+    paint: () => void,
+  ): {
+    standing(): {
+      theirs: boolean
+      stops: number
+      armed: boolean
+      busy: boolean
+      going: boolean
+      said: string | null
+      cannot: boolean
+    }
+    press(): void
+    going(): boolean
+    back(): void
+  }
 }
 
 declare module '*/assets/agent-menu.js' {

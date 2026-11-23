@@ -368,7 +368,8 @@ describe('the owner’s table', () => {
     // agent here is told (`shared-notes.ts`); and where each project is
     // checked out, a path no phone reads (`repositories.ts`); what this machine
     // is, every machine's inventory and the press that moves the keys into one
-    // file (`machines.ts`), what one of its watches has already found (`watch-seen.ts`), one of
+    // file (`machines.ts`), Tade started again on the code on disk now
+    // (`restarted.ts`), what one of its watches has already found (`watch-seen.ts`), one of
     // its documents, and one of its tools that only reads, run with this
     // machine's own keys (`machine.ts`, `document.ts`, `tool-read.ts`); what
     // another machine of the person's has, kept here as a copy
@@ -400,6 +401,7 @@ describe('the owner’s table', () => {
       'POST /api/machine',
       'POST /api/machines',
       'POST /api/machines/press',
+      'POST /api/restart',
       'POST /api/inventory',
       'POST /api/watch/seen',
       'POST /api/document',

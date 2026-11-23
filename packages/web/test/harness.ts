@@ -235,6 +235,7 @@ export async function start(
       ServerOptions,
       | 'machine'
       | 'machines'
+      | 'restarting'
       | 'inventoryTold'
       | 'seen'
       | 'watchSeen'

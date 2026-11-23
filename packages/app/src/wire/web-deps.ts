@@ -118,6 +118,13 @@ export interface AwayDeps {
   /** The window's clipboard, for the pairing link's `Copy` (`web-link.ts`). */
   copy(text: string): Promise<boolean>
   /**
+   * How many lanes starting the window again would end (`Window.reloadStops`),
+   * for a restart from the person's own phone (`web-restart.ts`): the face's,
+   * because only a window starts again. Absent with no screen, where the
+   * phone is told this Tade cannot start itself again.
+   */
+  reloadStops?: () => number
+  /**
    * The schedules subject, for a webhook delivery to make a watch look now
    * (`wire/doorbell.ts`): its one method that does, never the subject, for
    * `talk`'s reason — a route is one property access from whatever it holds.

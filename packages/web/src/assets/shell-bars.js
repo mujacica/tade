@@ -11,9 +11,10 @@ import { NOT_SECURE } from './install.js'
  *
  * `standing` is what `boot.js` holds: why this browser kept no copy (`refused`,
  * null where it did), whether Tade runs older code than its own files
- * (`restart`), whether the page's files changed on the machine (`changed`),
- * and whether a new shell waits (`newer`). `does` is the two presses, so this
- * file reaches nothing itself.
+ * (`restart`) and where pressing to restart it stands (`restarting`, from
+ * `restart.js`), whether the page's files changed on the machine (`changed`),
+ * and whether a new shell waits (`newer`). `does` is the three presses, so
+ * this file reaches nothing itself.
  */
 export function shellBars(standing, does) {
   const said = []
@@ -36,17 +37,7 @@ export function shellBars(standing, does) {
           : 'Everything else here works exactly as it does now.',
     })
   }
-  if (standing.restart) {
-    // Said by a Tade running from its repository whose own code changed after
-    // it started (`reloading.ts`): this page may be newer than what answers it.
-    said.push({
-      key: 'restart',
-      tone: 'is-stale',
-      glyph: '⚠',
-      lead: 'Tade’s code changed since it started.',
-      under: 'Parts of this page may not work until Tade is restarted at the machine.',
-    })
-  }
+  if (standing.restart) said.push(restartBar(standing.restarting ?? NOT_ASKED, does.restart))
   if (standing.changed) {
     said.push({
       key: 'changed',
@@ -73,4 +64,75 @@ export function shellBars(standing, does) {
     })
   }
   return said
+}
+
+/** A restart nobody has pressed, on a device that may not ask for one. */
+const NOT_ASKED = {
+  theirs: false,
+  stops: 0,
+  armed: false,
+  busy: false,
+  going: false,
+  said: null,
+  cannot: false,
+}
+
+/**
+ * Tade's code changed since it started — said by a Tade running from its
+ * repository (`reloading.ts`), so this page may be newer than what answers it.
+ *
+ * **The person's own phone restarts it from here** (`POST /api/restart`,
+ * `restart.js` holds the press): one press where nothing would stop, and where
+ * lanes run inside the window and would, the machine answers how many and the
+ * second press is on that number — the window's reload panel, asked from
+ * away. Any other device is told who can. Each state is its own key, because
+ * a bar keeps its press until its key changes (`barsIn`).
+ */
+function restartBar(asked, restart) {
+  const base = { tone: 'is-stale', glyph: '⚠', lead: 'Tade’s code changed since it started.' }
+  if (asked.going) {
+    return {
+      key: 'restart-going',
+      tone: 'is-stale',
+      glyph: '↻',
+      lead: 'Tade is starting again.',
+      under: 'This page reconnects by itself when it is back. Agents reopen where they were.',
+    }
+  }
+  if (!asked.theirs) {
+    return {
+      ...base,
+      key: 'restart',
+      under:
+        'Parts of this page may not work until Tade is restarted — at the machine, or from a device with full access.',
+    }
+  }
+  if (asked.busy) {
+    return { ...base, key: 'restart-busy', under: 'Asking the machine to start Tade again.' }
+  }
+  if (asked.said !== null) {
+    return {
+      ...base,
+      key: 'restart-said',
+      under: asked.said,
+      // Where Tade cannot start itself again, pressing again would not either.
+      ...(asked.cannot ? {} : { press: { said: 'Try again', does: restart } }),
+    }
+  }
+  if (asked.armed) {
+    const n = asked.stops
+    return {
+      ...base,
+      key: 'restart-armed',
+      lead: `Restarting stops ${n} lane${n === 1 ? '' : 's'} running inside Tade.`,
+      under: 'They reopen where they were once Tade is back. Press again to restart anyway.',
+      press: { said: 'Restart anyway', does: restart },
+    }
+  }
+  return {
+    ...base,
+    key: 'restart',
+    under: 'Parts of this page may not work until Tade starts again on its new code.',
+    press: { said: 'Restart Tade', does: restart },
+  }
 }

@@ -35,6 +35,7 @@ const THEIRS = [
   'machine',
   'machines',
   'machines press',
+  'restart',
   'inventory',
   'document',
   'tool',
@@ -299,6 +300,7 @@ async function wired(): Promise<{ one: Running; asked: string[] }> {
       owned: {
         machine: heard('machine'),
         machines: { shown: heard('machines'), press: heard('machines press') },
+        restarting: { standing: heard('restart'), restart: heard('restart') },
         inventoryTold: heard('inventory'),
         seen: heard('seen'),
         watchSeen: heard('watch seen'),

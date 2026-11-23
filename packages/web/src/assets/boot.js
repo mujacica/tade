@@ -54,6 +54,7 @@ import { pairScreen } from './pair.js'
 import { palette } from './palette.js'
 import { passkeys } from './passkey.js'
 import { looking, resend } from './push.js'
+import { restarter } from './restart.js'
 import { roomOn } from './room.js'
 import { movedFrom, PAGE_OF, viewOf } from './routes.js'
 import {
@@ -210,6 +211,9 @@ const proving = passkeys({
   paint: () => paint(),
   credentials: () => navigator.credentials,
 })
+
+// Restarting Tade from the restart bar (`restart.js`): the person's own phone's.
+const restarting = restarter(ctx, () => paint())
 
 // The frame, with the desk's three parts in it: built once, after the context
 // they send through, and patched on every paint like a screen.
@@ -457,8 +461,12 @@ function offered() {
   }
   said.push(
     ...shellBars(
-      { refused, restart, changed, newer },
-      { reload: () => location.reload(), update: () => void takeUpdate() },
+      { refused, restart, restarting: restarting.standing(), changed, newer },
+      {
+        reload: () => location.reload(),
+        update: () => void takeUpdate(),
+        restart: () => restarting.press(),
+      },
     ),
   )
   return said
@@ -504,6 +512,9 @@ function openStream() {
   source.addEventListener('open', () => {
     seen = { ...seen, open: true, lastAt: Date.now() }
     tries = 0
+    // A Tade that answers again says for itself whether a restart is owed.
+    restart = false
+    restarting.back()
     paint()
   })
   source.addEventListener('snapshot', (event) => took(event, applySnapshot))
@@ -525,8 +536,15 @@ function openStream() {
     paint()
   })
   source.addEventListener('notice', (event) => {
-    seen = { ...seen, ended: toldIn(event.data, 'Tade is closing, so this stream is ending') }
     source?.close()
+    // Closing because it was asked from here to start again: it is coming back.
+    if (restarting.going()) {
+      seen = { ...seen, open: false }
+      setTimeout(() => void again(), backoffAt(tries))
+      paint()
+      return
+    }
+    seen = { ...seen, ended: toldIn(event.data, 'Tade is closing, so this stream is ending') }
     paint()
   })
   source.addEventListener('revoked', () => {

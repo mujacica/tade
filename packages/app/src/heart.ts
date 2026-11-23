@@ -81,7 +81,7 @@ export type ProjectsFace = Pick<ProjectsDeps, 'rememberWindow'>
 /** The conversation's screen: where it is scrolled, what is said aloud, the line it was typed on. */
 export type OrchestratorFace = Omit<OrchestratorDeps, 'useConfig' | 'nobodyHere'>
 /** The pairing link's `Copy`, which is a clipboard. */
-export type AwayFace = Pick<AwayDeps, 'copy'>
+export type AwayFace = Pick<AwayDeps, 'copy' | 'reloadStops'>
 
 /** What a face adds to the heart. */
 export interface Face {

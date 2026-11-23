@@ -303,7 +303,10 @@ describe('the real folder', () => {
     // until an agent's row offered what the window's does (about 7.5 KB:
     // `agent-menu.js`, the window's own menu read and drawn as a sheet, and
     // each row's start, stop, close and long-press in `side.js`) took it to 452.
-    expect(wire).toBeLessThan(455 * 1024)
+    // 455 until the restart bar offered the restart itself (about 1.8 KB:
+    // `restart.js`, the press and what the machine answered, and the bar's
+    // states in `shell-bars.js`) took it to 456.
+    expect(wire).toBeLessThan(458 * 1024)
     // And the files as they sit, which is what a browser holds once it has
     // them: about a megabyte, with the comments every module carries. 768
     // until the pages were redrawn one at a time, each 40–90 KB as it sits.

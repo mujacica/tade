@@ -12,6 +12,7 @@ import { type OpenAnswer, openHere } from './opened.ts'
 import { carryPresence } from './presence.ts'
 import { type RecordsAnswer, recordsHere } from './records.ts'
 import { type RepositoriesAnswer, repositoriesHere } from './repositories.ts'
+import { type RestartAnswer, restartHere } from './restarted.ts'
 import { seenHere } from './seen.ts'
 import type { ServerOptions } from './serving.ts'
 import { type ActBody, type ActDone, actHere, outboxHere } from './shared-acts.ts'
@@ -33,7 +34,8 @@ import { type WatchSeenAnswer, watchSeenHere } from './watch-seen.ts'
 // over the same SSH (`repositories.ts`), and what this machine is, one of its
 // documents and one of its tools that only reads (`machine.ts`, `document.ts`,
 // `tool-read.ts`), every machine's inventory and the press that moves the keys
-// into one file (`machines.ts`), what another machine of theirs has (`inventory-told.ts`), what one of its watches has already found (`watch-seen.ts`), its public name's records looked at now (`records.ts`),
+// into one file (`machines.ts`), Tade started again on the code on disk now
+// (`restarted.ts`), what another machine of theirs has (`inventory-told.ts`), what one of its watches has already found (`watch-seen.ts`), its public name's records looked at now (`records.ts`),
 // work it hands this machine to start here (`taken.ts`), and
 // a project it is moving here, opened (`opened.ts`). One door in `server.ts` for all of them (`OWNED_DOOR`),
 // because each is the SSH key's word and nothing an ordinary phone's session
@@ -63,6 +65,7 @@ export const OWNED_DOOR: ReadonlySet<string> = new Set([
   'machine',
   'machines',
   'machines press',
+  'restart',
   'inventory',
   'watch seen',
   'document',
@@ -93,6 +96,7 @@ export async function carryOwned(
     | 'repositories'
     | 'machine'
     | 'machines'
+    | 'restarting'
     | 'inventoryTold'
     | 'document'
     | 'tool'
@@ -116,6 +120,7 @@ export async function carryOwned(
         | RepositoriesAnswer
         | MachineAnswer
         | MachinesAnswer
+        | RestartAnswer
         | InventoryToldAnswer
         | WatchSeenAnswer
         | DocumentAnswer
@@ -138,6 +143,7 @@ export async function carryOwned(
   if (route === 'machine') return machineHere(req, device, opts.machine)
   if (route === 'machines') return machinesHere(req, device, opts.machines)
   if (route === 'machines press') return machinesPressHere(req, device, opts.machines)
+  if (route === 'restart') return restartHere(req, device, opts.restarting)
   if (route === 'inventory') return inventoryToldHere(req, device, opts.inventoryTold, now)
   if (route === 'watch seen') return watchSeenHere(req, device, opts.watchSeen)
   if (route === 'seen') return seenHere(req, device, now, opts.seen)

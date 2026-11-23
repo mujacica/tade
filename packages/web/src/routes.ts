@@ -774,6 +774,19 @@ export const OWNED: readonly Route[] = [
     here: true,
     theirs: true,
   },
+  // Tade started again on the code on disk now (`restarted.ts`), from the
+  // page's restart bar: what the SSH key that started it may do. A press that
+  // would stop lanes is answered with how many and does nothing, so stopping
+  // work is a second press on the number somebody was shown.
+  {
+    method: 'POST',
+    path: '/api/restart',
+    name: 'restart',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
   // What another machine of the person's has, told here (`inventory-told.ts`):
   // its sign-ins and keys by name and digest, kept as a copy in this home so
   // a guided setup run here can walk it. A file written in this home, which

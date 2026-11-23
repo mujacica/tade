@@ -22,6 +22,7 @@ import type { Grant, Reach } from './reach.ts'
 import type { WebReading } from './reading.ts'
 import type { WebRecords } from './records.ts'
 import type { WebRepositories } from './repositories.ts'
+import type { WebRestarting } from './restarted.ts'
 import type { WebSeen } from './seen.ts'
 import type { WebActs } from './shared-acts.ts'
 import type { WebConversation } from './shared-conversation.ts'
@@ -302,6 +303,11 @@ export interface ServerOptions {
    * path nobody wired.
    */
   machines?: WebMachines
+  /**
+   * Tade started again from the person's own phone (`restarted.ts`). Absent,
+   * the route is the `404` of a path nobody wired.
+   */
+  restarting?: WebRestarting
   document?: WebDocument
   tool?: WebToolRead
   /**
