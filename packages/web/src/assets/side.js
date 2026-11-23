@@ -22,12 +22,11 @@
 // somebody's work, and what a device keeps has no text in it
 // (`LAST_VIEW_IS_A_COPY`).
 
-import { standingOf } from './acts.js'
-import { agentMenu, holdOpens, sendAct } from './agent-menu.js'
+import { agentMenu, agentPresses, holdOpens } from './agent-menu.js'
 import { classOn, el, glyphOf, into, keyed, markIn, textIn, toneOn } from './dom.js'
 import { count, shortClockOf } from './figures.js'
 import { checkMark, queueMark, rowMark, taskMark } from './glyphs.js'
-import { icon, iconIn } from './icons.js'
+import { icon } from './icons.js'
 import { pathOf, taskPath } from './routes.js'
 import { projectsOf, queueIn, runAt, tasksIn } from './store.js'
 import {
@@ -39,7 +38,6 @@ import {
   queueTree,
   sideAgents,
 } from './tree.js'
-import { fullAccessOf } from './trouble.js'
 
 /** The side, built once: a heading, a list of projects, and the press that folds it. */
 export function sideOf(ctx = null) {
@@ -233,116 +231,19 @@ function createAgent(acting) {
     el('span', { class: 'name' }),
     el('span', { class: 'doing' }),
   )
-  const presses = agentPresses(node, acting)
+  const presses = agentPresses(acting, () => node.querySelector('.side-said'))
   into(line, link, presses.node)
   // What the window says beside the agent you have open, drawn only under that one.
   const detail = el('div', { class: 'side-detail' })
   detail.hidden = true
   into(detail, factLink(), factLink(), factLink())
   // What came of the last press on this row, said under it and let go.
-  const said = el('p', { class: 'side-said', attrs: { role: 'status' } })
+  const said = el('p', { class: 'side-said agent-said', attrs: { role: 'status' } })
   said.hidden = true
   into(node, line, detail, said)
   node.sidePresses = presses
   if (acting !== null) holdOpens(link, (from) => presses.openMenu(from))
   return node
-}
-
-/**
- * Start or stop, close, and ⋯: the window's row's own presses, each through the
- * act door with what the row says it can be asked (`standingOf`). A verb this
- * device was not granted is not drawn at all; one it was, that cannot be done
- * now, is not drawn here and is in the menu with its reason.
- */
-function agentPresses(item, acting) {
-  const node = el('div', { class: 'side-acts' })
-  const toggle = el('button', { class: 'tap icon side-press', attrs: { type: 'button' } })
-  into(toggle, icon('play'))
-  const shut = el('button', { class: 'tap icon side-press is-danger', attrs: { type: 'button' } })
-  into(shut, icon('close'))
-  const more = el('button', {
-    class: 'tap icon side-press',
-    attrs: { type: 'button', 'aria-haspopup': 'dialog' },
-  })
-  into(more, icon('more'))
-  into(node, toggle, shut, more)
-  node.hidden = acting === null
-  let task = null
-  let toggleVerb = null
-  let asked = null
-  let askedTimer = null
-  let saidTimer = null
-  let going = false
-
-  const label = (press, verb, words) => {
-    press.setAttribute('aria-label', asked === verb ? `Tap again to ${words.toLowerCase()}` : words)
-    press.title = asked === verb ? 'Tap again to confirm' : words
-    classOn(press, 'asked', asked === verb)
-  }
-  const relabel = () => {
-    const name = task?.name ?? ''
-    if (toggleVerb !== null) {
-      label(toggle, toggleVerb, toggleVerb === 'stop' ? `Stop ${name}` : `Start ${name}`)
-    }
-    label(shut, 'remove', `Close ${name}`)
-    more.setAttribute('aria-label', `More for ${name}`)
-    more.title = 'More'
-  }
-  const press = async (verb) => {
-    if (acting === null || task === null || going) return
-    if ((verb === 'stop' || verb === 'remove') && asked !== verb) {
-      asked = verb
-      clearTimeout(askedTimer)
-      askedTimer = setTimeout(() => {
-        asked = null
-        relabel()
-      }, 4_000)
-      relabel()
-      return
-    }
-    asked = null
-    relabel()
-    going = true
-    const said = item.querySelector('.side-said')
-    said.hidden = false
-    const came = await sendAct(acting.ctx, verb, acting.rowOf(task.id), {}, said)
-    going = false
-    clearTimeout(saidTimer)
-    // Said long enough to read, then let go: the row itself shows what is true now.
-    saidTimer = setTimeout(
-      () => {
-        said.hidden = true
-      },
-      came.ok ? 6_000 : 12_000,
-    )
-  }
-  toggle.addEventListener('click', () => void press(toggleVerb))
-  shut.addEventListener('click', () => void press('remove'))
-  const openMenu = (from) => {
-    if (acting === null || task === null) return
-    const id = task.id
-    acting.menu.open(id, from, () => acting.rowOf(id))
-  }
-  more.addEventListener('click', () => openMenu(more))
-
-  return {
-    node,
-    openMenu,
-    update(row, acts) {
-      task = row
-      // Whether this is the person's own device, off its own session: a drawing
-      // hint, asked again of the record at the act (`Verb.theirs`).
-      const theirs = acting !== null && fullAccessOf(acting.ctx.session?.() ?? null)
-      const stop = standingOf('stop', row, acts)
-      const start = standingOf('start', row, acts)
-      toggleVerb = stop.kind === 'yes' ? 'stop' : start.kind === 'yes' ? 'start' : null
-      toggle.hidden = toggleVerb === null
-      if (toggleVerb !== null) iconIn(toggle, toggleVerb === 'stop' ? 'stop' : 'play')
-      // Closing removes its worktree and branch: the person's own device's alone.
-      shut.hidden = !theirs || standingOf('remove', row, acts).kind !== 'yes'
-      relabel()
-    },
-  }
 }
 
 function factLink() {

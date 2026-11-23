@@ -1,12 +1,12 @@
 // The agents: every one running. One of them looked into is `pages/agent-pane.js`.
 //
-// **Read-only, and the absences are the point.** Nothing here writes to an
-// agent: there is no box that types into a lane, no key that reaches one, and
-// no route a page could use for either. What a person on a phone may say to an
-// agent goes through the verbs on the task screen (`steer`, a message into a
-// conversation that is already running) or through Tade (`talk.js`, and the
-// strip on a desk) — both of which already exist, are gated at the machine and
-// are written down under the device's id.
+// **Nothing here types into a lane.** There is no box that reaches one and no
+// key that does. What a person on a phone may say to an agent goes through the
+// verbs on the task screen (`steer`, a message into a conversation that is
+// already running) or through Tade (`talk.js`, and the strip on a desk). What
+// they may *do* to one is what the window's own row offers — stop, close, and
+// its menu on a ⋯, a long-press or a right-click (`agent-menu.js`) — each a
+// verb gated at the machine and written down under the device's id.
 //
 // **What its screen shows is asked for only while somebody is looking.** The
 // pane asks `/api/agent/...` while its page is open and visible, every
@@ -20,6 +20,7 @@
 // markup, never a link, never a colour read out of an escape — and what the
 // machine took out of them (`screen.ts`) is drawn as the `…` it left.
 
+import { agentMenu, agentPresses, holdOpens } from './agent-menu.js'
 import { classOn, el, empty, glyphOf, into, keyed, markIn, stateIn, textIn } from './dom.js'
 import { ageSaid, count } from './figures.js'
 import { rowMark, taskMark } from './glyphs.js'
@@ -36,8 +37,13 @@ import { panel } from './ui.js'
  * The window's own side list as a page. On a desk it is also a column beside
  * every screen (`desk.js`), and both read `agentsOf` so they cannot disagree.
  */
-export function agentsScreen() {
+export function agentsScreen(ctx = null) {
   const node = el('div')
+  // The presses each row reads its agent through: the one menu, and the rows
+  // as last drawn, so a press echoes what the screen shows.
+  const rows = new Map()
+  const acting =
+    ctx === null ? null : { ctx, menu: agentMenu(ctx), rowOf: (id) => rows.get(id) ?? null }
   const made = section('AGENTS', { top: true })
   const groups = el('div')
   const none = empty('no agent is running')
@@ -48,6 +54,8 @@ export function agentsScreen() {
     node,
     update(view) {
       const agents = agentsOf(view.store)
+      rows.clear()
+      for (const task of agents) rows.set(task.id, task)
       textIn(made.figure, count(agents.length))
       made.figure.setAttribute('aria-label', `${agents.length} agents running`)
       none.hidden = agents.length > 0
@@ -56,7 +64,7 @@ export function agentsScreen() {
         byProject(agents),
         (group) => group.project,
         createGroup,
-        (one, group) => fillGroup(one, group, view),
+        (one, group) => fillGroup(one, group, view, acting),
       )
       const idle = view.store.rows.tasks.size - agents.length
       // **Counted, never left out in silence**: a page of four agents that did
@@ -89,7 +97,7 @@ function createGroup() {
   return made.node
 }
 
-function fillGroup(node, group, view) {
+function fillGroup(node, group, view, acting) {
   const [head, body] = node.children
   const [heading, figure] = head.children
   const [list] = body.children
@@ -100,12 +108,22 @@ function fillGroup(node, group, view) {
     list,
     group.agents,
     (task) => task.id,
-    createAgentRow,
+    () => agentRowWith(acting),
     (one, task) => fillAgentRow(one, task, view),
   )
 }
 
+/** One agent's row, alone: the overview's, which `keyed` builds with no argument of ours. */
 export function createAgentRow() {
+  return agentRowWith(null)
+}
+
+/**
+ * One agent's row; with `acting`, its presses at its end and a line under it
+ * for what came of one. Its own name, so `keyed` handing a builder the row it
+ * is for can never be read as the presses' context.
+ */
+function agentRowWith(acting) {
   const node = el('li')
   const link = el('a', { attrs: { href: '/' } })
   const glyph = glyphOf(taskMark('working'))
@@ -115,6 +133,15 @@ export function createAgentRow() {
   const why = el('span', { class: 'under' })
   into(link, glyph, name, aside, runs, why)
   into(node, link)
+  if (acting !== null) {
+    const said = el('p', { class: 'agent-said', attrs: { role: 'status' } })
+    said.hidden = true
+    const presses = agentPresses(acting, () => said)
+    into(node, presses.node, said)
+    node.classList.add('with-acts')
+    node.agentPresses = presses
+    holdOpens(link, (from) => presses.openMenu(from))
+  }
   return node
 }
 
@@ -135,6 +162,7 @@ export function fillAgentRow(node, task, view) {
   textIn(runs, runsOn(task))
   textIn(why, task.reason)
   classOn(link, 'stalled', task.stalled)
+  node.agentPresses?.update(task, view.may?.acts ?? {})
 }
 
 /**

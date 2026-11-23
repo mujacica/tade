@@ -77,6 +77,54 @@
   vertical-align: -0.15em;
 }
 
+/*
+  An agent on the Agents list with what the window's row offers at its end:
+  stop or start, close, ⋯ — each a whole target. The rule between rows goes
+  across the presses too, and on a phone held upright, where three targets
+  beside the row would squeeze its name, they stand under it at its end.
+*/
+.agent-list > li.with-acts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.agent-list > li.with-acts + li.with-acts {
+  border-block-start: var(--border);
+}
+
+.agent-list > li.with-acts + li.with-acts > a {
+  border-block-start: 0;
+}
+
+/* Held down, the row opens its menu rather than Safari's own sheet for a link. */
+.agent-list > li.with-acts > a {
+  -webkit-touch-callout: none;
+}
+
+.agent-list > li.with-acts > .agent-acts {
+  padding-inline-end: var(--s2);
+}
+
+.agent-list > li.with-acts > .agent-said {
+  grid-column: 1 / -1;
+  margin: 0 var(--s4) var(--s2);
+  font-size: var(--step--1);
+  color: var(--heading);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 479px) {
+  .agent-list > li.with-acts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .agent-list > li.with-acts > .agent-acts {
+    justify-self: end;
+    padding-block-end: var(--s1);
+  }
+}
+
 /* The row the keyboard is on, and the one `j`/`k` moves: a step lighter again. */
 .rows > li.on > a,
 .rows > li.on > div {

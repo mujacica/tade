@@ -346,7 +346,10 @@ describe('the real folder', () => {
     // and why a page tells a Tade too old from a box not ticked) took it to
     // 1418. 1422 until an agent's row offered what the window's does (27 KB as
     // it sits: `agent-menu.js` and its reasons, the row's presses in `side.js`
-    // and the sheet's rules) took it to 1445.
-    expect(raw).toBeLessThan(1448 * 1024)
+    // and the sheet's rules) took it to 1445. 1448 until the Agents list's
+    // rows had the same presses (3 KB as it sits: the presses moved beside
+    // the menu so both lists build them once, and the rows' rules) took it to
+    // 1449.
+    expect(raw).toBeLessThan(1452 * 1024)
   })
 })
