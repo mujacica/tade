@@ -1,4 +1,4 @@
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, chmodSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -185,5 +185,25 @@ describe('memory over the socket', () => {
     expect((await client.recall('checkout/refunds')).map((n) => n.text)).toEqual([
       'the staging key rotates on the 1st',
     ])
+  })
+})
+
+// The notes are the person's own words: nobody else on the machine reads them.
+describe('who may read the notes', () => {
+  const modeOf = (path: string) => statSync(path).mode & 0o777
+
+  it('writes the notes file readable by its owner alone', () => {
+    const home = tmp('tade-mem-')
+    Memory.open(home).remember('deploys freeze on Fridays', null, 'test', NOW)
+    expect(modeOf(join(home, 'memory.jsonl'))).toBe(0o600)
+  })
+
+  it('narrows a notes file an older Tade left readable by everybody, and keeps its notes', () => {
+    const home = tmp('tade-mem-')
+    Memory.open(home).remember('deploys freeze on Fridays', null, 'test', NOW)
+    chmodSync(join(home, 'memory.jsonl'), 0o644)
+    const memory = Memory.open(home)
+    expect(modeOf(join(home, 'memory.jsonl'))).toBe(0o600)
+    expect(memory.all().map((n) => n.text)).toEqual(['deploys freeze on Fridays'])
   })
 })

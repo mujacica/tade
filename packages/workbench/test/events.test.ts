@@ -1,4 +1,4 @@
-import { appendFileSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, chmodSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import type { TadeEvent, Urgency } from '@tade/core'
@@ -353,5 +353,34 @@ describe('EventIndex', () => {
     expect(gone).toBe(1)
     expect(index.query({}).map((e) => e.seq)).toEqual([1, 2, 4, 5, 6, 7, 8, 9, 10])
     index.close()
+  })
+})
+
+// The journal holds what the person said and every note, so other people on
+// the machine may not read it — nor its index, which is a copy of it.
+describe('who may read the journal', () => {
+  const modeOf = (path: string) => statSync(path).mode & 0o777
+
+  it('makes the journal and its index readable by their owner alone', async () => {
+    const p = paths()
+    const log = await EventLog.open(p)
+    await log.append({ type: 'lane_opened', lane: 'a/b/agent' })
+    expect(modeOf(p.path)).toBe(0o600)
+    for (const one of [p.indexPath, `${p.indexPath}-wal`, `${p.indexPath}-shm`]) {
+      if (statSync(one, { throwIfNoEntry: false })) expect(modeOf(one)).toBe(0o600)
+    }
+    await log.close()
+  })
+
+  it('narrows a journal and an index an older Tade left readable by everybody', async () => {
+    const p = paths()
+    await (await EventLog.open(p)).close()
+    const made = [p.path, p.indexPath, `${p.indexPath}-wal`, `${p.indexPath}-shm`].filter(
+      (one) => statSync(one, { throwIfNoEntry: false }) !== undefined,
+    )
+    for (const one of made) chmodSync(one, 0o644)
+    const log = await EventLog.open(p)
+    for (const one of made) expect(modeOf(one), one).toBe(0o600)
+    await log.close()
   })
 })

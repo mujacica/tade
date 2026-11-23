@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs'
-import { type FileHandle, mkdir, open, rm } from 'node:fs/promises'
+import { chmod, type FileHandle, mkdir, open, rm } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { createInterface } from 'node:readline'
 import {
@@ -122,7 +122,15 @@ export class EventLog {
           return null
         })
       : null
-    const fh = await open(opts.path, 'a')
+    // The journal holds what the person said and every note, so it is the
+    // owner's alone, as config.yaml is: created 0600, and one an older Tade
+    // made 0644 is narrowed on every open. A narrowing that fails is said,
+    // never what stops the window opening.
+    const fh = await open(opts.path, 'a', 0o600)
+    let unnarrowed: string | null = null
+    await fh.chmod(0o600).catch((cause: unknown) => {
+      unnarrowed = `could not make ${opts.path} readable by its owner alone: ${String(cause)}`
+    })
     const tail = await scanTail(opts.path)
     const { lastSeq, corrupt } = tail
     // A number already handed out is never handed out again. Compaction may
@@ -157,6 +165,10 @@ export class EventLog {
         }
       }
     }
+    // The index is a copy of the journal, so it is narrowed as the journal is,
+    // with its write-ahead log and shared memory: SQLite makes those two with
+    // the database's own mode, so narrowing all three keeps them narrow.
+    if (index && indexPath && unnarrowed === null) unnarrowed = await narrowIndex(indexPath)
     const log = new EventLog(opts.path, fh, from, index, indexPath, opts.subscriberQueue ?? 1_000)
     // Before anything is appended, so the first setting changed after an open
     // is stamped later than every one the journal already holds. A journal
@@ -178,6 +190,7 @@ export class EventLog {
     }
     if (trouble) await log.append({ type: 'warning', detail: { message: trouble } })
     if (unindexed) await log.append({ type: 'warning', detail: { message: unindexed } })
+    if (unnarrowed) await log.append({ type: 'warning', detail: { message: unnarrowed } })
     if (unstamped) await log.append({ type: 'warning', detail: { message: unstamped } })
     if (compacted) await log.recordCompaction(compacted)
     return log
@@ -423,6 +436,22 @@ function agrees(index: EventIndex, compacted: Compaction | null, tail: Tail): bo
   if (gone.length === 0) return index.maxSeq() === tail.lastSeq
   index.forget(gone)
   return index.maxSeq() === tail.lastSeq && index.count() === tail.parsed
+}
+
+/** Make the index and its write-ahead files their owner's alone; what could not be, said. */
+async function narrowIndex(indexPath: string): Promise<string | null> {
+  const failed = await Promise.all(
+    ['', '-wal', '-shm'].map((suffix) =>
+      chmod(`${indexPath}${suffix}`, 0o600).then(
+        () => null,
+        (cause: NodeJS.ErrnoException) => (cause.code === 'ENOENT' ? null : String(cause)),
+      ),
+    ),
+  )
+  const said = failed.filter((one) => one !== null)
+  return said.length === 0
+    ? null
+    : `could not make the index of ${indexPath} readable by its owner alone: ${said.join('; ')}`
 }
 
 /** Delete the index and its write-ahead files, which is always safe: it is derived. */

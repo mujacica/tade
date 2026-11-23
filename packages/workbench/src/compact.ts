@@ -356,7 +356,8 @@ interface Rewritten {
  * both being handed a timestamp to compare against.
  */
 async function rewrite(path: string, tmp: string, drop: number): Promise<Rewritten> {
-  const fh = await open(tmp, 'w')
+  // Renamed over the journal, so made as the journal is: its owner's alone.
+  const fh = await open(tmp, 'w', 0o600)
   let written = 0
   let seen = 0
   const gone: IndexedRow[] = []

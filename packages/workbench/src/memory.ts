@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { appendFileSync, mkdirSync, readFileSync, statSync } from 'node:fs'
+import { appendFileSync, chmodSync, mkdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   allNotes,
@@ -58,6 +58,13 @@ import { z } from 'zod'
 // this home's own and never given.
 
 const FILE = 'memory.jsonl'
+
+/**
+ * The notes are the person's own words, so the file is its owner's alone, as
+ * `config.yaml` is: made `0600`, and one an older Tade left `0644` narrowed
+ * whenever it is opened (`narrow`).
+ */
+const OWNERS_ALONE = 0o600
 
 /**
  * How big the notes file may grow by what other machines give (`take`): a
@@ -209,6 +216,7 @@ export class Memory {
   static open(home: string): Memory {
     mkdirSync(home, { recursive: true })
     const path = join(home, FILE)
+    narrow(path)
     return new Memory(path, load(path))
   }
 
@@ -398,7 +406,7 @@ export class Memory {
       const text = out.map((line) => `${line}\n`).join('')
       const size = statSync(this.path, { throwIfNoEntry: false })?.size ?? 0
       if (size + Buffer.byteLength(text) > NOTES_TAKEN_MOST) throw new Error(NOTES_FULL)
-      appendFileSync(this.path, text)
+      appendFileSync(this.path, text, { mode: OWNERS_ALONE })
     }
     this.notes = load(this.path)
     return took
@@ -470,7 +478,7 @@ export class Memory {
   }
 
   private append(line: object): void {
-    appendFileSync(this.path, `${JSON.stringify(line)}\n`)
+    appendFileSync(this.path, `${JSON.stringify(line)}\n`, { mode: OWNERS_ALONE })
   }
 }
 
@@ -664,4 +672,13 @@ function earlier(a: Retired, b: Retired): boolean {
   return (
     (a.at.localeCompare(b.at) || a.by.localeCompare(b.by) || a.because.localeCompare(b.because)) < 0
   )
+}
+
+/** Narrow the notes file to its owner (`OWNERS_ALONE`); one not written yet is nothing to narrow. */
+function narrow(path: string): void {
+  try {
+    chmodSync(path, OWNERS_ALONE)
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code !== 'ENOENT') throw cause
+  }
 }
