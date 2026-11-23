@@ -96,3 +96,5 @@ export type HarnessFeature =
   | 'compact'
   /** Coming back to a conversation declared what it was first told, not what it is told now. */
   | 'pins'
+  /** The conversation it is driven headless in, kept as one on every machine (`conversation.replicate`). */
+  | 'conversation'

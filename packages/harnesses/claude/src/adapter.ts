@@ -15,6 +15,7 @@ import {
 } from '@tade/core'
 import {
   type AccountStatus,
+  type ConversationReplica,
   endHeadless,
   forgetRunFiles,
   type HarnessAccount,
@@ -60,6 +61,7 @@ import {
   tokensIn,
   windowIn,
 } from './compact.ts'
+import { CLAUDE_CONVERSATION, recordFor, takeInto } from './conversation.ts'
 import {
   headlessArgs,
   headlessEnv,
@@ -316,6 +318,21 @@ export class ClaudeAdapter implements WorkerAdapter {
   }
   private planLimits: PlanLimits | null = null
   private offered: Set<string> | null = null
+  /** What each headless run was started with, so it can be started again on its record (`reload`). */
+  private readonly started = new Map<string, WorkerSpec>()
+
+  /**
+   * The orchestrator's conversation, one on every machine (`conversation.ts`):
+   * read as entries of its record, appended to, and read again by starting
+   * the process again on `--resume` — a launch the window makes every time it
+   * opens, and never in the middle of a turn.
+   */
+  readonly conversation: ConversationReplica = {
+    format: CLAUDE_CONVERSATION,
+    recordFor: (task, cwd) => recordFor(task, cwd, this.opts.configDir),
+    take: (task, cwd, lines, leaf) => takeInto(task, cwd, this.opts.configDir, lines, leaf),
+    reload: (run) => this.reload(run),
+  }
 
   constructor(opts: ClaudeAdapterOptions) {
     const home = opts.home ?? homedir()
@@ -757,6 +774,7 @@ export class ClaudeAdapter implements WorkerAdapter {
    */
   async start(spec: WorkerSpec): Promise<WorkerHandle> {
     if (this.runs.has(spec.run)) throw new Error(`run already started: ${spec.run}`)
+    this.started.set(spec.run, spec)
     await trustFolder(spec.cwd, this.opts.configDir).catch(() => {})
     const files = this.filesFor(spec, { hooks: false })
     const going = await transcriptFor(spec.task, this.opts.configDir)
@@ -1118,6 +1136,28 @@ export class ClaudeAdapter implements WorkerAdapter {
     // is cut short, so the end of it is said here.
     await this.inTurn(entry, () => this.keys(entry, '\x1b'))
     this.settle(entry, 'aborted')
+  }
+
+  /**
+   * Read its record again: the process ended and started on `--resume`, with
+   * everything it was started with but a first instruction. Between turns
+   * only — a turn in flight is refused rather than cut across, because
+   * interrupting it may never be a way of restarting it.
+   */
+  private async reload(run: RunId): Promise<void> {
+    const entry = this.require(run)
+    const spec = this.started.get(run)
+    if (!entry.child || !spec) {
+      throw new Error('Claude Code reads its record again only for a run Tade started headless')
+    }
+    if (entry.turn === 'running' || entry.compacting) {
+      throw new Error(
+        'Claude Code is in the middle of a turn, and reads its record again only between them',
+      )
+    }
+    endHeadless(entry.child)
+    await this.forget(entry)
+    await this.start({ ...spec, prompt: '' })
   }
 
   /** `/compact` over the protocol, between turns: settled by the `result` it ends with. */

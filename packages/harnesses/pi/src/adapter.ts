@@ -17,6 +17,7 @@ import {
 } from '@tade/core'
 import {
   type AccountStatus,
+  type ConversationReplica,
   endHeadless,
   type HarnessModel,
   type HarnessProbe,
@@ -46,6 +47,7 @@ import {
   type WorkerSignalListener,
   type WorkerSpec,
 } from '@tade/harnesses-core'
+import { PI_CONVERSATION, piRecordFor, piTakeInto } from './conversation.ts'
 import { carryHere, folderOf, sessionsHere } from './folder.ts'
 import {
   type AvailableModel,
@@ -294,6 +296,10 @@ export class PiAdapter implements WorkerAdapter {
     // at every launch and kept in no session, so nothing it was told is pinned.
     compact: 'idle',
     pins: false,
+    // Its session is a tree of entries by id, and `switch_session` reads it
+    // again between turns: the orchestrator's conversation is one on every
+    // machine (`conversation.ts`).
+    conversation: { replicate: true },
     why: {
       compact:
         'compacts only between turns, and an agent in a lane only when /compact is typed into it',
@@ -325,6 +331,27 @@ export class PiAdapter implements WorkerAdapter {
   // Keyed by run rather than held on the run itself, so a caller can subscribe
   // before `start()` returns: the first signals arrive while it is still running.
   private readonly listeners = new Map<string, Set<WorkerSignalListener>>()
+
+  /**
+   * The orchestrator's conversation, one on every machine (`conversation.ts`):
+   * its headless session read as entries, appended to, and read again by
+   * `switch_session` to the same file — between turns, never in one.
+   */
+  readonly conversation: ConversationReplica = {
+    format: PI_CONVERSATION,
+    recordFor: (task) => piRecordFor(task, join(this.opts.runDir, 'sessions')),
+    take: (task, cwd, lines) => piTakeInto(task, cwd, join(this.opts.runDir, 'sessions'), lines),
+    reload: async (run) => {
+      const entry = this.require(run)
+      if (!entry.child)
+        throw new Error('pi reads its session again only for a run Tade started headless')
+      const sessionPath = await piRecordFor(entry.handle.task, join(this.opts.runDir, 'sessions'))
+      const answer = await this.rpc(entry, { type: 'switch_session', sessionPath })
+      if ((answer as { data?: { cancelled?: unknown } }).data?.cancelled === true) {
+        throw new Error('pi would not read its session again: an extension of its own cancelled it')
+      }
+    },
+  }
   private readonly opts: Required<
     Omit<
       PiAdapterOptions,

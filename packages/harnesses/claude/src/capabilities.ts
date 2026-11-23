@@ -68,6 +68,9 @@ export function claudeCapabilities(
     // id stay, and it says what is left (`compact_boundary`).
     compact: 'idle',
     pins,
+    // Its record is a tree of entries by uuid, and `--resume` reads it again:
+    // the orchestrator's conversation is one on every machine (`conversation.ts`).
+    conversation: { replicate: true },
     why: {
       model:
         'takes a model only when it starts, so changing it starts the agent again, keeping the conversation',

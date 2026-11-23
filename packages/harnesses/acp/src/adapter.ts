@@ -121,7 +121,10 @@ export class AcpAdapter implements WorkerAdapter {
     accounts: false,
     compact: 'none',
     pins: false,
+    conversation: { replicate: false },
     why: {
+      conversation:
+        'keeps its conversation inside the agent it drives, where Tade cannot read it as entries, so each machine has its own',
       permissionGate:
         'is asked only about the calls the agent itself chooses to ask about over ACP — what it does without asking, Tade sees only once it is done',
       steer:

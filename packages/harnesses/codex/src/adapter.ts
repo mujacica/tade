@@ -263,7 +263,10 @@ export class CodexAdapter implements WorkerAdapter {
     // start (`SessionStart`), so nothing it was told is pinned.
     compact: 'none',
     pins: false,
+    conversation: { replicate: false },
     why: {
+      conversation:
+        'keeps a thread Tade cannot append to as entries of a tree, so each machine has a conversation of its own',
       compact:
         'has /compact only in its own terminal, and runs one process per turn when Tade draws it, with nothing in between to ask',
       model:

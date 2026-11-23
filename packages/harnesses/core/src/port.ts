@@ -10,6 +10,7 @@ import type {
 } from '@tade/core'
 import { z } from 'zod'
 import type { ToolAnswer } from './answer.ts'
+import type { ConversationFormat } from './conversation.ts'
 import type { HistoryAsk, HistoryPage } from './history.ts'
 import type { HarnessFeature, ImageSupport, Support } from './offer.ts'
 import type { HarnessSession } from './sessions.ts'
@@ -441,6 +442,15 @@ export interface WorkerCapabilities {
    */
   pins: boolean
   /**
+   * The conversation Tade drives headless (`start`) — the orchestrator's — can
+   * be one conversation on every machine (`replicate`): its record read as
+   * entries of a tree, entries from another machine appended to it, and the
+   * running process told to read it again between turns (`conversation` on
+   * the adapter). Where it cannot, every machine has a conversation of its own,
+   * and `why.conversation` says so.
+   */
+  conversation: { replicate: boolean }
+  /**
    * The sentence a person sees beside something this harness does only partly
    * or not at all, in its own words. Every feature that is not `live` (or
    * `true`) says why: whatever reaches a person is a sentence somebody wrote.
@@ -788,6 +798,11 @@ export interface WorkerAdapter {
    */
   carryConversation(task: TaskId, cwd: string, to: WorkerAdapter): Promise<boolean>
   /**
+   * The conversation a task's agent is driven headless in, as one on every
+   * machine: present exactly where `capabilities.conversation.replicate` is.
+   */
+  readonly conversation?: ConversationReplica
+  /**
    * Take away what this harness wrote for each of these runs so that a line
    * could launch it — settings, instructions, the pictures it was pointed at —
    * and never a conversation, which is a task's and not a run's. Asked only of
@@ -865,6 +880,29 @@ export interface WorkerAdapter {
   detach(): Promise<void>
   /** End every agent we are running, and release everything. */
   shutdown(): Promise<void>
+}
+
+/**
+ * Replicating one conversation across machines (`WorkerAdapter.conversation`):
+ * the harness's record read and written in its own format, which nothing else
+ * reads (`ConversationFormat`, `conversation.ts`).
+ */
+export interface ConversationReplica {
+  readonly format: ConversationFormat
+  /** Where a task's record is on this machine for `cwd`, whether or not there is one yet. */
+  recordFor(task: TaskId, cwd: string): Promise<string>
+  /**
+   * Canonical lines appended to a task's record here, each written for this
+   * machine, and then — where the harness reads one — the line that points
+   * it at `leaf` to come back to. Only ever appends.
+   */
+  take(task: TaskId, cwd: string, lines: readonly string[], leaf: string | null): Promise<void>
+  /**
+   * Have a headless run read its record again, between turns and never in
+   * one: what it has in memory is the conversation before `take`, and the
+   * next thing it wrote would branch off that rather than carry on after it.
+   */
+  reload(run: RunId): Promise<void>
 }
 
 export class WorkerNotFoundError extends Error {

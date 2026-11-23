@@ -92,6 +92,9 @@ const PARTIAL: Array<[HarnessFeature, (adapter: WorkerAdapter) => boolean]> = [
   // short, or had to compact it to bring what it was told up to date.
   ['compact', (a) => a.capabilities.compact !== 'live'],
   ['pins', (a) => a.capabilities.pins],
+  // What a person reads where the one conversation cannot live on every
+  // machine, and every machine then has its own.
+  ['conversation', (a) => !a.capabilities.conversation.replicate],
 ]
 
 let counter = 0

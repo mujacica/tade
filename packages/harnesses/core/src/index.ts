@@ -1,5 +1,7 @@
 export * from './answer.ts'
 export * from './channel.ts'
+export * from './conversation.ts'
+export * from './conversation-file.ts'
 export * from './forget.ts'
 export * from './headless.ts'
 export * from './history.ts'
