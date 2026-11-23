@@ -339,6 +339,9 @@ What the ssh link turned out to need, each held by its tests:
   paths are hashes, because a socket path is capped near 104 bytes.
 - **`BatchMode` always**: there is nobody at a terminal to answer, so a key with a passphrase fails at
   once with ssh's own words. The one connection that is not is `terminal`'s, which a person is at.
+- **`ForwardAgent=no` and `StrictHostKeyChecking=yes` on every session** (`NO_AGENT`, `KNOWN_ONLY`),
+  on the command line so a person's `~/.ssh/config` cannot loosen them; only `known.ts` names its
+  own checking, for the first meeting (`test/known-only.test.ts`, `test/agent.test.ts`).
 - **A machine never met is met on a press, by ssh's own verdict and ssh's own line** (`known.ts`).
   `identify` asks ssh under `StrictHostKeyChecking=yes` whether the host is known, new or changed,
   and for one that is not simply known lets ssh write what the host offers into a throwaway

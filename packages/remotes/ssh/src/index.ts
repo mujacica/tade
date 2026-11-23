@@ -26,10 +26,18 @@ import {
   type RepositoryThere,
   type TerminalThere,
 } from '@tade/remotes-core'
-import { attachThere, lineOk, MOSH_AGAIN_MS, MOSH_PROGRAM, NO_AGENT, serverOk } from './attach.ts'
+import {
+  attachThere,
+  KNOWN_ONLY,
+  lineOk,
+  MOSH_AGAIN_MS,
+  MOSH_PROGRAM,
+  NO_AGENT,
+  serverOk,
+} from './attach.ts'
 import { changedSays, identify, trust } from './known.ts'
 
-export { MOSH_PORTS, MOSH_PROGRAM, moshPortsSaid, NO_AGENT } from './attach.ts'
+export { KNOWN_ONLY, MOSH_PORTS, MOSH_PROGRAM, moshPortsSaid, NO_AGENT } from './attach.ts'
 
 // A RemoteLink over SSH: the one way there is to reach another machine's Tade
 // today.
@@ -88,10 +96,12 @@ export const SSH_PROGRAM: RequiredProgram = {
 
 /**
  * What every connection is held to: never asks, never hands the far end this
- * machine's SSH agent (`NO_AGENT`), notices a dead link in ten seconds.
+ * machine's SSH agent (`NO_AGENT`), meets no host it was not told of
+ * (`KNOWN_ONLY`), notices a dead link in ten seconds.
  */
 const QUIET = [
   ...NO_AGENT,
+  ...KNOWN_ONLY,
   '-o',
   'BatchMode=yes',
   '-o',
@@ -313,6 +323,7 @@ class Ssh {
         ...(this.options.args ?? []),
         '-t',
         ...NO_AGENT,
+        ...KNOWN_ONLY,
         '-o',
         'ConnectTimeout=10',
         '-S',

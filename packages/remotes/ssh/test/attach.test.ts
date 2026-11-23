@@ -94,7 +94,7 @@ describe('the terminal it opens', () => {
     expect(opened.command).toBe('/opt/bin/mosh')
     expect(opened.by).toBe('mosh')
     expect(opened.args).toEqual([
-      "--ssh='ssh' '-F' '/tmp/cfg' '-o' 'ForwardAgent=no' '-S' '/run/r-1.ctl' '-o' 'ConnectTimeout=10'",
+      "--ssh='ssh' '-F' '/tmp/cfg' '-o' 'ForwardAgent=no' '-o' 'StrictHostKeyChecking=yes' '-S' '/run/r-1.ctl' '-o' 'ConnectTimeout=10'",
       '--server=/usr/bin/mosh-server',
       '--',
       'me@vps',

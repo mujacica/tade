@@ -45,6 +45,18 @@ import type { TerminalThere } from '@tade/remotes-core'
  */
 export const NO_AGENT: readonly string[] = ['-o', 'ForwardAgent=no']
 
+/**
+ * **A host is reached only as it was written down**, whatever the person's own
+ * ssh config says for it — `StrictHostKeyChecking no` (or `accept-new`) is a
+ * line people paste to get past a prompt once, and under it a machine in
+ * between would be met as the box and handed this machine's owner session.
+ * A host never met is met on a press, in `known.ts`, which names its own
+ * checking and never uses this. On the command line, so it wins over the
+ * config, on every session the link runs — the calls, pairing, the master, the
+ * terminals and git's.
+ */
+export const KNOWN_ONLY: readonly string[] = ['-o', 'StrictHostKeyChecking=yes']
+
 /** What mosh needs let through on the far machine, as a firewall names it. */
 export const MOSH_PORTS = 'UDP 60000–61000'
 
@@ -109,7 +121,16 @@ function word(value: string): string {
 export function attachThere(at: Attaching): TerminalThere {
   // mosh takes a host, never a URI: a destination with a port of its own goes over ssh.
   if (at.mosh !== null && !at.address.startsWith('ssh://')) {
-    const ssh = [at.ssh, ...at.before, ...NO_AGENT, '-S', at.control, '-o', 'ConnectTimeout=10']
+    const ssh = [
+      at.ssh,
+      ...at.before,
+      ...NO_AGENT,
+      ...KNOWN_ONLY,
+      '-S',
+      at.control,
+      '-o',
+      'ConnectTimeout=10',
+    ]
     return {
       command: at.mosh.here,
       args: [
@@ -131,6 +152,7 @@ export function attachThere(at: Attaching): TerminalThere {
       ...at.before,
       '-t',
       ...NO_AGENT,
+      ...KNOWN_ONLY,
       '-o',
       'ConnectTimeout=10',
       '-o',
