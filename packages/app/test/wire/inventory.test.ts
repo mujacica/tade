@@ -199,7 +199,13 @@ describe('what this machine has, as the window holds it', () => {
         news: () => {},
         remotes: () => [
           { name: 'vps', inventory: ipax, at: NOW, said: null },
-          { name: 'never', inventory: null, at: null, said: 'it has not answered yet' },
+          {
+            name: 'never',
+            inventory: null,
+            at: null,
+            said: 'it has not answered yet',
+            trouble: 'down',
+          },
         ],
         // Under what it calls itself, as a machine that links here is: never the name given it here.
         synced: () => [
@@ -220,6 +226,9 @@ describe('what this machine has, as the window holds it', () => {
         ['vps', said],
         ['never', 'cannot tell'],
       ])
+      // What keeps one from saying is carried as its kind, for the phone's fix.
+      expect(settings.map((one) => one.trouble ?? null)).toEqual([null, null, 'down'])
+      expect(phone.columns?.map((one) => one.trouble ?? null)).toEqual([null, null, 'down'])
     })
   }
 

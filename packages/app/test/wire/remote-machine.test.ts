@@ -202,6 +202,22 @@ describe('what another machine has', () => {
     expect(far.inventories.map((one) => one.machine)).toEqual(['mac', 'mac'])
   })
 
+  it('says a machine whose link went down is down, as a kind the phone gives a fix for', async () => {
+    const { far, remotes, until } = await linked()
+    await until('vps answered', () => remotes.inventories()[0]?.said === null)
+    // A Tade that has not looked at itself yet is not trouble.
+    expect(remotes.inventories()[0]?.trouble).toBeNull()
+    await far.close()
+    await until('the link went down', () => remotes.inventories()[0]?.trouble === 'down')
+  })
+
+  it('says nothing is wrong with a machine that said what it has', async () => {
+    const { far, remotes, until } = await linked()
+    far.machine = { ...MACHINE, inventory: inventory('vps', AT) }
+    await until('vps said what it has', () => remotes.inventories()[0]?.inventory !== null)
+    expect(remotes.inventories()[0]?.trouble).toBeNull()
+  })
+
   it('tells a Tade that has not looked at itself yet, which is new enough to keep it', async () => {
     const { far, remotes, until, vpsNow } = await linked(undefined, undefined, inventory('mac', AT))
     await until('vps said what it is', () => vpsNow()?.detail.about !== null)
