@@ -313,7 +313,7 @@ export function orchestratorTools(
 
   tool(
     'tade_run_start',
-    'Start an agent working on an existing task. The prompt is what the agent is told first; files the human attached to what you are answering go with it. When they named a model for the work ("use opus"), pass it here so the agent starts on it: Tade finds it before anything starts, and when it cannot tell which model they meant nothing starts and it says what to ask them. A project at its max_parallel refuses a start unless the person asked for this one: then pass their words as said, and it starts past the limit and says by how much.',
+    'Start an agent working on an existing task. The prompt is what the agent is told first, and an agent never told anything needs one — without it nothing starts; left out for one that was told before, it is opened again where it left off. Files the human attached to what you are answering go with it. When they named a model for the work ("use opus"), pass it here so the agent starts on it: Tade finds it before anything starts, and when it cannot tell which model they meant nothing starts and it says what to ask them. A project at its max_parallel refuses a start unless the person asked for this one: then pass their words as said, and it starts past the limit and says by how much.',
     object(
       {
         task: string('task id, like checkout/refunds'),

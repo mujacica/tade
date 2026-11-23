@@ -18,8 +18,15 @@ describe('starting an agent for the orchestrator', () => {
   const started: Array<Record<string, unknown>> = []
   let handedOff = 0
   const theirs = ['Start refunds now, even past the limit']
+  // What the journal says of each task's agent: refunds was told something before.
+  const heard: Record<string, Array<Record<string, unknown>>> = {
+    'app/refunds': [{ type: 'run_started', detail: { told: true } }],
+  }
 
   const tade = {
+    async events(filter: { task: string }) {
+      return heard[filter.task] ?? []
+    },
     log: {
       async read() {
         return theirs.map((text) => ({ type: 'said', detail: { text } }))
@@ -135,6 +142,16 @@ describe('starting an agent for the orchestrator', () => {
     await call(path, 'worker/start', { task: 'app/refunds', cwd: '/src/app', prompt: '' })
     expect(handedOff).toBe(0)
     expect(started).toEqual([{ task: 'app/refunds', cwd: '/src/app', prompt: '' }])
+  })
+
+  // 2026-11-22: started with no prompt, an agent never told anything sat idle
+  // while the orchestrator went on as if it were working.
+  it('starts nothing that says nothing to an agent never told anything, and says what to pass', async () => {
+    const path = await listen()
+    const answer = await call(path, 'worker/start', { task: 'app/new', cwd: '/src/app' })
+    expect(answer.error?.message).toMatch(/never been told anything, so nothing was started/)
+    expect(answer.error?.message).toMatch(/pass prompt/)
+    expect(started).toEqual([])
   })
 })
 

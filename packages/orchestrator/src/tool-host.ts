@@ -26,6 +26,7 @@ import {
   readTaskFile,
   reopenClosedChat,
   theirLine,
+  toldAnything,
   type Workbench,
   wouldRunSays,
 } from '@tade/workbench'
@@ -472,6 +473,18 @@ export class ToolHost {
         // found is a question for the human, never a run on some other model.
         const prompt = String(p.prompt ?? '')
         const cwd = String(p.cwd)
+        // Nothing to say to an agent never told anything is an agent that sits
+        // idle and reads as started (2026-11-22): refused before anything starts.
+        if (!prompt.trim()) {
+          const task = String(p.task)
+          // A journal that would not answer refuses the start with why.
+          const heard = await tade.events({ types: ['run_started', 'turn_started'], task })
+          if (!toldAnything(heard)) {
+            throw new Error(
+              `${task}'s agent has never been told anything, so nothing was started: pass prompt with what it should do first — "do what your context file says" is enough when its context has the brief`,
+            )
+          }
+        }
         // Among what the task's own harness offers.
         const model = p.model
           ? await tade.resolveModelFor(String(p.task), String(p.model))

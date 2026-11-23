@@ -100,6 +100,7 @@ import {
   listAccounts,
   noConversationSays,
   planSources,
+  toldAnything,
   wasTold,
 } from './accounts.ts'
 import { answerAgentTool } from './agent-tools.ts'
@@ -137,6 +138,7 @@ import { type KeptSchedule, Schedules } from './schedules.ts'
 import { continueRun as continueAgent } from './sleep.ts'
 import { takeTitle, taskSaid, titleForWork } from './task-said.ts'
 import {
+  aloneOn,
   beginFrom,
   createTask,
   guardName,
@@ -1567,12 +1569,36 @@ export class Workbench {
    * an agent is `reopenAgent`, which says nothing.
    */
   async startAgent(req: StartRunRequest): Promise<LaneRecord & { over?: PastLimit }> {
-    const over = await this.guardParallel(req.task, req.pastLimit === true)
-    try {
-      return await this.launchAgent(req, over)
-    } finally {
-      this.pastGuard.delete(req.task)
-    }
+    // One start of a task's agent at a time. Between the "already running"
+    // check and the spawn are seconds of asking harnesses and the journal, and
+    // on 2026-11-23 a click opening a task the orchestrator had just made got
+    // through first with nothing said: the start carrying its prompt was then
+    // refused as already running, and the agent sat idle for ten minutes.
+    return aloneOn(`${this.home}#agent:${req.task}`, async () => {
+      if (req.prompt !== '') await this.stopUntold(req.task)
+      const over = await this.guardParallel(req.task, req.pastLimit === true)
+      try {
+        return await this.launchAgent(req, over)
+      } finally {
+        this.pastGuard.delete(req.task)
+      }
+    })
+  }
+
+  /**
+   * Stop an agent that is running but has never been told anything, so a start
+   * with an opening instruction can launch it with one — an opening is said
+   * at launch (`LaunchSpec.opening`) and not to a running agent. Only if Tade
+   * started it, nothing in the journal says it was told something or had a
+   * turn, and it is not in one now. Anything else stays, and the start is
+   * refused as before.
+   */
+  private async stopUntold(task: string): Promise<void> {
+    const lane = `${task}/agent` as LaneId
+    if (!this.registry.get(lane)?.alive || this.workers.turnOf(lane) === 'running') return
+    const heard = await this.log.read({ types: ['run_started', 'turn_started'], task })
+    if (!heard.some((event) => event.type === 'run_started') || toldAnything(heard)) return
+    await this.stopAgent(task)
   }
 
   /** `startAgent` once the limit has answered. */

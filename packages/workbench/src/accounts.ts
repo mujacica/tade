@@ -230,6 +230,14 @@ export function wasTold(events: readonly TadeEvent[], harness: string): boolean 
   return false
 }
 
+/**
+ * Whether a task's agent was ever told anything, in any harness: a start that
+ * carried a prompt, or a turn. `run_started` and `turn_started` events.
+ */
+export function toldAnything(events: readonly TadeEvent[]): boolean {
+  return events.some((event) => event.type === 'turn_started' || event.detail.told === true)
+}
+
 /** What opening an agent says when its harness keeps no conversation for it on any sign-in. */
 export function noConversationSays(task: string, harness: string): string {
   return `${task}'s agent was told what to do, and ${harness} keeps no record of its conversation on any account here, so there is nothing to open: nothing was started. Starting it with a prompt begins a new conversation, which will not remember the old one.`
