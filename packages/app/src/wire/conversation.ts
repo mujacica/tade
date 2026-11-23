@@ -1,10 +1,5 @@
 import { type ConversationAsk, hubOf, machineLabel, printable } from '@tade/core'
-import type {
-  ConversationAnswer,
-  HubLink,
-  MachineNamed,
-  OneConversation,
-} from '@tade/harnesses-core'
+import type { HubLink, MachineNamed, OneConversation } from '@tade/harnesses-core'
 import type { Remote, RemoteLink } from '@tade/remotes-core'
 import type { WebConversation } from '@tade/web'
 import { clockOf, type Wiring, why } from './context.ts'
@@ -118,7 +113,8 @@ export class FleetConversation {
         const held = this.reach?.(name)
         if (!held?.live) throw new Error(`${name} is not linked`)
         const answer = await held.link.request(name, DOOR, ask)
-        if (answer.status === 200) return answer.body as ConversationAnswer
+        // Unread: the exchange checks every answer before it takes anything (`ConversationReply`).
+        if (answer.status === 200) return answer.body
         // An older Tade there has no such door: said in words, and carried on apart.
         const said = (answer.body as { said?: unknown } | null)?.said
         throw new Error(

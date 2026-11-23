@@ -77,3 +77,45 @@ export const ConversationBody = z.strictObject({
 })
 
 export type ConversationAsk = z.infer<typeof ConversationBody>
+
+/** The most one answer of the far side carries, in entries and in a file's piece. */
+export const SHARE_ANSWER = 512 * 1024
+
+/**
+ * What the far side answers, as the asking machine reads it before anything
+ * else does: whatever another machine's door sends back is text from that
+ * machine, so nothing of it is trusted for its shape. A field this does not
+ * name is dropped rather than refused, so a newer Tade there still answers.
+ */
+export const ConversationReply = z.object({
+  machine: z.object({ id: z.string().regex(MACHINE_ID), name: z.string().min(1).max(120) }),
+  harness: z.string().min(1).max(64),
+  held: z.object({ after: Count, h: Hash, piece: Count.optional() }),
+  after: Count,
+  // Every line is at least one character of the answer's bytes, so there are never more.
+  lines: z.array(z.string().max(SHARE_LINE)).max(SHARE_ANSWER),
+  piece: z.object({ text: z.string().max(SHARE_LINE), from: Count, done: z.boolean() }).optional(),
+  more: z.boolean(),
+  entries: Count,
+  lease: z
+    .object({
+      granted: z.boolean(),
+      holder: z.object({ name: z.string().min(1).max(120), since: z.number() }).optional(),
+    })
+    .optional(),
+  refused: z.string().max(4_096).optional(),
+  files: z
+    .object({
+      lacks: z.array(z.object({ name: BesideName, from: Count })).max(BESIDE_ASKED),
+      piece: z
+        .object({
+          name: BesideName,
+          from: Count,
+          data: z.base64().max(SHARE_ANSWER),
+          done: z.boolean(),
+        })
+        .optional(),
+      gone: z.array(BesideName).max(BESIDE_ASKED),
+    })
+    .optional(),
+})

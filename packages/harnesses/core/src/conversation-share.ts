@@ -15,9 +15,11 @@ import {
   BESIDE_ASKED,
   BESIDE_NAME,
   type ConversationAsk,
+  ConversationReply,
   feedDir,
   type LeaseOp,
   MACHINE_ID,
+  SHARE_ANSWER,
   SHARE_LINE,
 } from '@tade/core'
 import { appendixFor, type ConversationFormat, mergeConversations } from './conversation.ts'
@@ -78,7 +80,7 @@ export const RENEW_MS = 20_000
 
 /** How much one request gives, and how much one answer carries. */
 const GIVE_BYTES = 48 * 1024
-const ANSWER_BYTES = 512 * 1024
+const ANSWER_BYTES = SHARE_ANSWER
 
 /** How much of a file one request gives — `SHARE_LINE` in base64 — and one answer carries. */
 const GIVE_FILE = (SHARE_LINE / 4) * 3
@@ -412,9 +414,14 @@ export class SharedConversation {
    * holds anything the other lacks. Throws what the link threw, and a line it
    * could not take; answers what the far side refused, which is said rather
    * than retried. A `take` the far side would not grant stops it at once.
+   *
+   * `send` answers whatever the far side's door sent back, unread: every
+   * answer is checked here (`ConversationReply`) before anything is taken
+   * from it, and one that is not an answer, says it is this machine, or
+   * changes machine partway throws — so no caller can trust one by a cast.
    */
   async exchange(
-    send: (ask: ConversationAsk) => Promise<ConversationAnswer>,
+    send: (ask: ConversationAsk) => Promise<unknown>,
     lease?: { op: LeaseOp; key: string },
     rounds = Number.POSITIVE_INFINITY,
   ): Promise<{
@@ -427,7 +434,10 @@ export class SharedConversation {
   }> {
     // First who this is and, with it, the lease: what the far side holds of
     // this machine comes back with it, so nothing is given twice.
-    const opened = await send({ from: this.me, harness: this.harness, ...(lease ? { lease } : {}) })
+    const opened = this.answerOf(
+      await send({ from: this.me, harness: this.harness, ...(lease ? { lease } : {}) }),
+      null,
+    )
     const answered = { there: opened.machine, ...(opened.lease ? { lease: opened.lease } : {}) }
     if (opened.refused) return { ...answered, took: 0, complete: false, refused: opened.refused }
     if (lease?.op === 'take' && opened.lease?.granted === false) {
@@ -452,7 +462,7 @@ export class SharedConversation {
           )
         : null
       const wants = files ? await this.wanting(copy) : []
-      const answer = await send({
+      const reply = await send({
         from: this.me,
         harness: this.harness,
         give,
@@ -467,6 +477,7 @@ export class SharedConversation {
             }
           : {}),
       })
+      const answer = this.answerOf(reply, opened.machine)
       if (answer.refused) return { ...answered, took, complete: false, refused: answer.refused }
       this.hold.set(there, { ...answer.held, piece: answer.held.piece ?? 0 })
       const said = this.saidOf(answer, copy.name)
@@ -502,6 +513,34 @@ export class SharedConversation {
       }
     }
     return { ...answered, took, complete: whole }
+  }
+
+  /**
+   * One answer of the far side's, checked for its shape before anything reads
+   * it: from a machine that is not this one, and — after the first — from the
+   * one that answered first. Throws, in words, what it is not.
+   */
+  private answerOf(raw: unknown, first: MachineNamed | null): ConversationAnswer {
+    const parsed = ConversationReply.safeParse(raw)
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0]
+      const where = issue?.path.length ? ` (${issue.path.join('.')})` : ''
+      throw new Error(
+        `an answer that is not one of the conversation's exchange came back${where}, so nothing of it is taken`,
+      )
+    }
+    const answer = parsed.data
+    if (answer.machine.id === this.me.id) {
+      throw new Error(
+        `an answer came back as from this machine (${this.me.name}), so nothing of it is taken`,
+      )
+    }
+    if (first && answer.machine.id !== first.id) {
+      throw new Error(
+        `an answer came back from ${answer.machine.name} partway through an exchange with ${first.name}, so nothing of it is taken`,
+      )
+    }
+    return answer
   }
 
   /** What to give: this record's lines after what the far side holds, or from the start where that does not agree. */

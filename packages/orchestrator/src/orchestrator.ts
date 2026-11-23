@@ -174,6 +174,13 @@ export interface OrchestratorOptions {
 export interface TurnGate {
   before(wait: boolean): Promise<void>
   after(): Promise<void>
+  /**
+   * Tade's sentence about what another machine wrote that the record took in
+   * since the last turn here, once, or null: put at the head of the prompt,
+   * above everything else, so the model reads those entries as another
+   * machine's and never as words said to it here.
+   */
+  framed?(): string | null
 }
 
 export interface OrchestratorUsage {
@@ -685,6 +692,12 @@ export class Orchestrator {
     }
   }
 
+  /** A prompt with the gate's sentence about another machine's entries above it, where there is one. */
+  private framing(text: string): string {
+    const frame = this.gate?.framed?.() ?? null
+    return frame ? `${frame}\n\n${text}` : text
+  }
+
   /** A turn of its own is over: what it said goes to the other machines. Never throws. */
   private closed(): void {
     void this.gate?.after()
@@ -749,7 +762,7 @@ export class Orchestrator {
     await this.afterCompacting()
     await this.opened(true)
     this.working = true
-    await this.adapter.prompt(ORCHESTRATOR_RUN, text, images)
+    await this.adapter.prompt(ORCHESTRATOR_RUN, this.framing(text), images)
   }
 
   /**
@@ -833,7 +846,7 @@ export class Orchestrator {
     try {
       await this.adapter.prompt(
         ORCHESTRATOR_RUN,
-        [cameFromAway(arm), '', wordsHeading(arm), text].join('\n'),
+        this.framing([cameFromAway(arm), '', wordsHeading(arm), text].join('\n')),
       )
     } catch (error) {
       // It never started, so nothing is in flight and the host must not stay
@@ -855,7 +868,7 @@ export class Orchestrator {
     await this.afterCompacting()
     await this.opened(true)
     this.working = true
-    await this.adapter.prompt(ORCHESTRATOR_RUN, text, [], { whenBusy: 'queue' })
+    await this.adapter.prompt(ORCHESTRATOR_RUN, this.framing(text), [], { whenBusy: 'queue' })
   }
 
   /**

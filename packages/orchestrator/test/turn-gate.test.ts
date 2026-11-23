@@ -65,6 +65,26 @@ describe('the gate around a turn of its own', () => {
     expect(adapter.prompted).toHaveLength(2)
   })
 
+  it('puts the gate’s sentence about another machine’s entries above the prompt, and nothing where it has none', async () => {
+    const adapter = harness()
+    const one = await start(adapter)
+    const frames = [
+      'Tade: since your last turn on mac, the conversation took in entries written on another machine (2 on vps).',
+    ]
+    one.useTurns({
+      before: async () => {},
+      after: async () => {},
+      framed: () => frames.shift() ?? null,
+    })
+    await one.ask('what word did I say?')
+    adapter.emit(ORCHESTRATOR_RUN, { type: 'idle' })
+    await one.ask('and before that?')
+    expect(adapter.prompted.map((p) => p.message)).toEqual([
+      'Tade: since your last turn on mac, the conversation took in entries written on another machine (2 on vps).\n\nwhat word did I say?',
+      'and before that?',
+    ])
+  })
+
   it('refuses a paired device while another machine’s turn holds the conversation, and sends it nothing', async () => {
     const adapter = harness()
     const one = await start(adapter)
