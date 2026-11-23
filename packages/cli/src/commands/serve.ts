@@ -39,7 +39,8 @@ import { ownUnit, restartAsService } from './serve-restart.ts'
 // (`notify.ts`) once it holds the home, its away view listens and a stop
 // would close it as a signal does — so a Mac's link can reach it the moment
 // the unit is active — and that it is stopping when it closes. Under that
-// unit the person's phone can restart it, as systemd's restart
+// unit the person's phone can restart it, and so can the orchestrator's
+// `tade_reload` (the heart's `updateTools`), as systemd's restart
 // (`serve-restart.ts`), where a window would have re-execed itself.
 
 /** What runs here with no screen, said first. */
@@ -51,7 +52,7 @@ export const SERVES =
  * log is deciding whether this is enough for their machine.
  */
 export const NOT_SERVED =
-  'Not under `tade serve` yet: links to other machines, and updating Tade from the orchestrator — `tade app` does them.'
+  'Not under `tade serve` yet: links to other machines, and running an update from the orchestrator — `tade app` does them.'
 
 /** What the orchestrator is told of a part of the window `tade serve` does not have. */
 const WITHOUT = 'is not done by `tade serve`, which has no screen: `tade app` does it'

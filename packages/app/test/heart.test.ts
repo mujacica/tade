@@ -352,6 +352,22 @@ describe('the heart, with no screen', () => {
     )
   })
 
+  it('starts Tade again when the orchestrator is asked to, through whatever keeps it', async () => {
+    // `tade serve` handed the orchestrator's tools a heart with no update
+    // tools, so `tade_reload` only ever said `tade app` does it.
+    let restarted = 0
+    const one = await alone({
+      reloadWindow: async () => {
+        restarted += 1
+      },
+    })
+    await client.log.append({ type: 'said', task: null, detail: { text: 'restart tade' } })
+    expect(await one.updateTools().reload({ said: 'restart tade' })).toContain(
+      'Reloading in a moment',
+    )
+    await until('the restart', async () => restarted === 1)
+  })
+
   it('turns a server off that a terminal turned off, on its next beat, with no screen', async () => {
     const { settings, config, extensions, search } = await sentryOn()
     const ended: (boolean | undefined)[] = []

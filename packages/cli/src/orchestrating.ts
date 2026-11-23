@@ -149,8 +149,9 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
   // may touch is checked there rather than in its own process.
   const settings = () => part((one) => one.settings, 'the settings')
   const watches = () => part((one) => one.watches, 'the watches')
-  // Updating and reloading are the window's: the run is in a terminal it puts
-  // in front, and the person's words are checked there.
+  // Updating and reloading are what holds the home's, and the person's words
+  // are checked there: a run is in a terminal a window puts in front, so with
+  // no screen only reading and reloading are answered.
   const updates = () => part((one) => one.updates, 'updating and reloading Tade')
   const remotes = () => part((one) => one.remotes, 'linking to other machines')
   // Acting on another machine is the heart's, so a hub with no screen acts on

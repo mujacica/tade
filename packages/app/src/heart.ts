@@ -26,6 +26,7 @@ import {
   configPathOf,
   type Thinker,
   type Wiring,
+  why,
   wiringFor,
 } from './wire/context.ts'
 import { type ConversationPlace, FleetConversation } from './wire/conversation.ts'
@@ -44,9 +45,11 @@ import { Projects, type ProjectsDeps, type ProjectTools } from './wire/projects.
 import { Queue, type QueueTools } from './wire/queue.ts'
 import { Schedules, type WatchTools } from './wire/schedules.ts'
 import { Settings, type SettingsDeps, type SettingTools } from './wire/settings.ts'
+import { Updates, type UpdateTools } from './wire/updates.ts'
 import { noTwins, type WatchTwinsHere } from './wire/watch-where.ts'
 import { Away, type AwayDeps } from './wire/web.ts'
 import { talkingThrough } from './wire/web-asking.ts'
+import { reloadStopsOf } from './wire/window.ts'
 
 // The part of the window that runs with no screen: the beat, and on it the
 // queue, schedules and watches, intake, and the full checks once a batch where
@@ -389,6 +392,8 @@ export class Heart {
    * phone scrolled past what it holds — so the heart's, with or without a face.
    */
   readonly earlier: Earlier
+  /** What `tade_updates` and `tade_reload` are answered with where there is no screen; made when asked. */
+  private updates: Updates | null = null
 
   constructor(opts: AppOptions, face: Face, said: ((line: Said) => void) | null = null) {
     this.opts = opts
@@ -785,6 +790,34 @@ export class Heart {
   /** Its tool calls run on another machine, and other machines' run here (`acts.ts`). */
   machineActs(): MachineActs {
     return this.acts
+  }
+
+  /**
+   * What the orchestrator's update and reload tools do with no screen (`tade
+   * serve`): what is installed and current is read, and Tade is started again
+   * by whatever keeps it (`AppOptions.reloadWindow`, systemd's restart under
+   * the unit Tade wrote). A window answers them itself (`App.updateTools`).
+   */
+  updateTools(): UpdateTools {
+    this.updates ??= new Updates(this.wire, {
+      faceless: true,
+      // Only ever where nothing would stop, or the person's phone asked:
+      // `Updates` refuses every other reload with no screen.
+      reload: () => {
+        this.wire.opts
+          .reloadWindow?.()
+          .catch((err: unknown) =>
+            this.wire.note(new Error(`Starting Tade again failed: ${why(err)}`)),
+          )
+      },
+      reloadStops: () => reloadStopsOf(this.wire),
+      arm: () => this.orchestrator.arm(),
+      // Never reached: running an update is refused with no screen.
+      terminal: async () => null,
+      news: (said) => this.orchestrator.note(said),
+      ownCode: () => ({ changed: this.ownCode.owed(), startedOn: this.ownCode.startedOn() }),
+    })
+    return this.updates.tools()
   }
 
   /**

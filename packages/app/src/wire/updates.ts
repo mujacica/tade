@@ -32,6 +32,7 @@ import {
   typedFor,
 } from '../updates.ts'
 import { type Actions, notify, type Subject, saidLately, type Wiring, why } from './context.ts'
+import { NO_WINDOW } from './web-restart.ts'
 
 // Keeping what Tade runs current, from the window: what the Updates page reads,
 // the check the window makes on a clock, the strip's chip, and the one way an
@@ -88,7 +89,18 @@ export interface UpdatesDeps {
    * one an update made. Nothing, for an installed Tade.
    */
   ownCode?: () => { changed: readonly string[]; startedOn: string | null }
+  /**
+   * No screen (`tade serve`): nothing is put in front of anybody, so running
+   * an update is refused (`RUN_NEEDS_A_SCREEN`), a reload that would stop
+   * lanes goes only on the person's own words from their own phone, and one
+   * with nothing to start Tade again is refused (`NO_WINDOW`). Absent, a window.
+   */
+  faceless?: true
 }
+
+/** Why `tade_updates_run` is refused with no screen: an update is typed where somebody watches it. */
+export const RUN_NEEDS_A_SCREEN =
+  'Running an update is not done by `tade serve`, which has no screen: each one is typed into a terminal put in front of somebody, and nothing is in front of anybody here. `tade update` run on this machine does it, or `tade app` does it from the orchestrator.'
 
 /** What the orchestrator's update tools do, answered from this window. */
 export interface UpdateTools {
@@ -426,6 +438,7 @@ export class Updates implements Subject {
         )
       },
       run: async (req) => {
+        if (this.deps.faceless) throw new Error(RUN_NEEDS_A_SCREEN)
         await this.asked(req.said, updateNamedBy, UPDATE_REACH.because, 'an update')
         if (this.going) {
           throw new Error(
@@ -457,11 +470,22 @@ export class Updates implements Subject {
         const stops = this.deps.reloadStops()
         const arm = this.deps.arm?.()
         const reload = this.wire.opts.reloadWindow
+        const theirs = arm?.how === 'owner' && arm.theirs === true
+        // With no screen there is no panel to ask at, and maybe nothing to
+        // start Tade again: said, never answered as though it were reloading.
+        if (this.deps.faceless) {
+          if (!reload) throw new Error(NO_WINDOW)
+          if (stops > 0 && !theirs) {
+            throw new Error(
+              `${stops} lane${stops === 1 ? '' : 's'} run inside this Tade and would stop, and with no screen there is no panel to ask at: a restart that stops them is theirs to ask for from their own phone, or to press on its restart bar.`,
+            )
+          }
+        }
         // **Asked from the person's own phone, their words are the press**:
         // the panel this window would put up is at a screen they are not at,
         // so the count is said where the phone shows it — the conversation —
         // and the window starts again as the restart bar's second press does.
-        if (stops > 0 && reload && arm?.how === 'owner' && arm.theirs === true) {
+        if (stops > 0 && reload && theirs) {
           const said = stopsAndComeBack(stops)
           this.wire.put(
             withTranscript(

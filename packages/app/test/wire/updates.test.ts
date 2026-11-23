@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { type AppState, initialState } from '../../src/model.ts'
 import type { Wiring } from '../../src/wire/context.ts'
-import { stopsAndComeBack, Updates } from '../../src/wire/updates.ts'
+import { RUN_NEEDS_A_SCREEN, stopsAndComeBack, Updates } from '../../src/wire/updates.ts'
+import { NO_WINDOW } from '../../src/wire/web-restart.ts'
 import { lookWith, program } from '../updates-fixture.ts'
 
 // Keeping what Tade runs current, from the window: the chip's facts, the check
@@ -42,6 +43,10 @@ function world(
     stops?: number
     /** How far the turn in flight reaches: the keyboard's unless given. */
     arm?: Arm
+    /** No screen (`tade serve`). */
+    faceless?: boolean
+    /** Nothing that would start Tade again: a `tade serve` started by hand. */
+    noReload?: boolean
   } = {},
 ) {
   const did: Did[] = []
@@ -90,9 +95,13 @@ function world(
       home,
       client,
       // The window's own reload, the one the restart bar's press ends in.
-      reloadWindow: async () => {
-        did.push({ what: 'reloadWindow', with: [] })
-      },
+      ...(over.noReload
+        ? {}
+        : {
+            reloadWindow: async () => {
+              did.push({ what: 'reloadWindow', with: [] })
+            },
+          }),
       ...(over.asking
         ? {
             updates: async (_config: unknown, _home: string, ask: boolean) => {
@@ -122,6 +131,7 @@ function world(
     reload: () => did.push({ what: 'reload', with: [] }),
     reloadStops: () => over.stops ?? 0,
     ...(over.arm ? { arm: () => over.arm as Arm } : {}),
+    ...(over.faceless ? { faceless: true as const } : {}),
     terminal: async (name) => {
       did.push({ what: 'terminal', with: [name] })
       return 'shop/terminals/1'
@@ -451,6 +461,68 @@ describe('the orchestrator’s tools', () => {
       await waitFor(() => other.did.some((d) => d.what === 'reload'))
       expect(other.did.some((d) => d.what === 'reloadWindow')).toBe(false)
     }
+  })
+
+  describe('with no screen', () => {
+    const phone: Arm = { how: 'owner', device: 'a1b2c3d4e5f60718', theirs: true }
+
+    it('starts Tade again where nothing would stop, answering before it goes', async () => {
+      const serve = world({ said: ['restart tade'], faceless: true })
+      expect(await serve.subject.tools().reload({ said: 'restart tade' })).toContain(
+        'Reloading in a moment',
+      )
+      expect(serve.did.some((d) => d.what === 'reload')).toBe(false)
+      await waitFor(() => serve.did.some((d) => d.what === 'reload'))
+    })
+
+    it('goes ahead on their words from their own phone where lanes would stop', async () => {
+      const serve = world({ said: ['restart tade'], stops: 2, arm: phone, faceless: true })
+      expect(await serve.subject.tools().reload({ said: 'restart tade' })).toBe(stopsAndComeBack(2))
+      await waitFor(() => serve.did.some((d) => d.what === 'reloadWindow'))
+    })
+
+    it('stops no lanes on a turn that is not their phone’s, since there is no panel to ask at', async () => {
+      for (const arm of [
+        undefined,
+        { how: 'owner', device: 'machine vps' },
+        { how: 'remote', device: 'a1b2c3d4e5f60718', projects: null, may: ['answer'] },
+      ] as (Arm | undefined)[]) {
+        const serve = world({
+          said: ['restart tade'],
+          stops: 1,
+          faceless: true,
+          ...(arm ? { arm } : {}),
+        })
+        await expect(serve.subject.tools().reload({ said: 'restart tade' })).rejects.toThrow(
+          '1 lane run inside this Tade and would stop',
+        )
+        // Refused before anything is put on a clock to start it again.
+        expect(serve.did.some((d) => d.what === 'reload' || d.what === 'reloadWindow')).toBe(false)
+      }
+    })
+
+    it('says nothing would start it again where no service keeps it', async () => {
+      const serve = world({ said: ['restart tade'], faceless: true, noReload: true })
+      await expect(serve.subject.tools().reload({ said: 'restart tade' })).rejects.toThrow(
+        NO_WINDOW,
+      )
+    })
+
+    it('still asks for their words first', async () => {
+      const serve = world({ said: ['how are things'], faceless: true })
+      await expect(serve.subject.tools().reload({ said: 'reload' })).rejects.toThrow(
+        'Nothing they have said asks for a reload',
+      )
+    })
+
+    it('runs no update, saying why, and still reads what is current', async () => {
+      const serve = world({ asking: true, said: ['install the updates'], faceless: true })
+      await expect(
+        serve.subject.tools().run({ which: [], said: 'install the updates' }),
+      ).rejects.toThrow(RUN_NEEDS_A_SCREEN)
+      expect(serve.did.some((d) => d.what === 'terminal')).toBe(false)
+      expect(JSON.parse(await serve.subject.tools().read(true))).toMatchObject({ asked: true })
+    })
   })
 
   it('says what the last run did when asked what is current', async () => {
