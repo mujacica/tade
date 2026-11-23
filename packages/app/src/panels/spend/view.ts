@@ -171,7 +171,6 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   // window the tabs are on — there is no such thing as last Tuesday's plan.
   rows.push(blank(inner))
   rows.push(row().space().text('PLAN', skin.label).build())
-  const whose = 17
   // Two cells short of the ten it was, which is what pays for the mark in front
   // of a name: the bar says nothing the share beside it does not, and a name is
   // the one thing here that cannot be cut without lying.
@@ -181,11 +180,32 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   const standings = [...(view?.plan ?? [])].sort(
     (a, b) => Number(b.windows.length > 0) - Number(a.windows.length > 0),
   )
+  // As wide as the longest name, where the room allows: `claude-code @personal`
+  // cut to `claude-code @per…` is two sign-ins that read the same. The room is
+  // what is left once everything after the name fits — the window, its bar,
+  // when it comes back, when it was said and what it would have cost — since
+  // a wider name that pushes `≈$3.74 at list` off the edge cuts that instead.
+  // Past it, the account goes on the line under its harness (`signInLines`).
+  const after =
+    1 +
+    4 +
+    planBar +
+    1 +
+    4 +
+    2 +
+    17 +
+    16 +
+    Math.max(0, ...standings.map((one) => visibleWidth(atList(one))))
+  const whose = Math.max(
+    17,
+    Math.min(Math.max(0, ...standings.map((one) => visibleWidth(one.label))), inner - LEAD - after),
+  )
   if (standings.length === 0) {
     rows.push(row().space(3).text('No plan reported.', skin.hint).build())
   }
   for (const standing of standings) {
     const drawn: Line[] = []
+    const names = signInLines(standing.label, whose)
     // What its turns in the window above would have cost at list price, on the
     // sign-in's own first line: a figure of the same kind `ccusage` gives, and
     // a plan pays a flat fee, so nobody is billed it. It sits in this list and
@@ -200,6 +220,7 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
         : row().space(LEAD)
     if (standing.cannotTell === null) {
       let top = true
+      let at = 0
       for (const window of standing.windows) {
         const used = Math.round(window.used)
         // One rule for when a plan is worrying, in core, because the strip and
@@ -209,7 +230,7 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
           pressure === 'tight' ? skin.bad : pressure === 'warm' ? skin.waiting : skin.done
         const left = window.resetsIn
         const line = lead(top)
-          .text(padTo(top ? standing.label : '', whose))
+          .text(padTo(names[at] ?? '', whose))
           .space()
           .text(pad(window.label, 4), skin.hint)
           .meter(Math.min(1, used / 100), planBar, tone)
@@ -229,7 +250,10 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
         if (top && listed) line.text(listed, skin.hint)
         drawn.push(line.build())
         top = false
+        at += 1
       }
+      // What is left of the name, under the windows it did not fit beside.
+      for (const rest of names.slice(at)) drawn.push(row().space(LEAD).text(rest).build())
     } else {
       // Two words, not the harness's paragraph. That a plan has nothing to
       // show is the fact; *why* — it prices each turn instead, it has not
@@ -240,7 +264,7 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
       // answerable when the share is not.
       drawn.push(
         lead(true)
-          .text(padTo(standing.label, whose))
+          .text(padTo(names[0] ?? '', whose))
           .space()
           // Padded to where the bars' own `said … ago` ends, so a figure on this
           // row and a figure on one that could tell stand in one column.
@@ -248,6 +272,7 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
           .text(listed, skin.hint)
           .build(),
       )
+      for (const rest of names.slice(1)) drawn.push(row().space(LEAD).text(rest).build())
     }
     // The projects that name it as theirs, whatever the machine says: the same
     // mark, and `in` for where — the Accounts page's `new agents in search` as
@@ -263,6 +288,12 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
         else line.space(2)
         drawn.push(line.text(said, skin.hint).build())
       })
+    }
+    // And the orchestrator, in the word the Accounts page says it with, under
+    // the name like the projects: which sign-in it runs as is the other
+    // default somebody looks for when a plan is nearly gone.
+    if (standing.uses?.orchestrator) {
+      drawn.push(row().space(LEAD).text('orchestrator', skin.hint).build())
     }
     rows.push(...drawn)
   }
@@ -405,6 +436,18 @@ export function spendColumns(
   // that says nothing the number beside it does not already say.
   const meter = room >= 40 ? 10 : room >= 30 ? 8 : room >= 22 ? 6 : 0
   return { name: Math.max(4, room - meter), model, meter }
+}
+
+/**
+ * A sign-in's name over the lines it needs: whole where it fits, and past that
+ * its harness on one line and its account on the next, because the account is
+ * what tells two of one harness's sign-ins apart and the harness is not.
+ */
+export function signInLines(label: string, width: number): string[] {
+  if (visibleWidth(label) <= width) return [label]
+  const at = label.indexOf(' ')
+  if (at === -1) return nameLines(label, width)
+  return [...nameLines(label.slice(0, at), width), ...nameLines(label.slice(at + 1), width)]
 }
 
 /** Below this a name is not a name, so the column beside it gives way instead. */

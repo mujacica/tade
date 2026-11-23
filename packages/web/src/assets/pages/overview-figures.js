@@ -12,7 +12,15 @@
 // Nothing here touches the DOM.
 
 import { mayFor } from '../access.js'
-import { money, planPressure, shortClockOf, tokensSaid, untilSaid } from '../figures.js'
+import {
+  defaultsSaid,
+  money,
+  planPressure,
+  shortClockOf,
+  signInLabel,
+  tokensSaid,
+  untilSaid,
+} from '../figures.js'
 import { projectShape } from '../glance.js'
 import { pathOf } from '../routes.js'
 import {
@@ -208,6 +216,11 @@ export function moneyOf(store) {
  * Every plan window any account reported, fullest first — the one that runs
  * out first is the one that stops the work — each as a gauge's figures.
  *
+ * Each is named by its sign-in (`signInLabel`), never by its harness alone:
+ * four gauges that all said `claude-code` were four answers nobody could tell
+ * apart. Who runs as it by default rides beside it (`defaultsSaid`), as the
+ * window's Spend page marks it.
+ *
  * *Not granted*, *none reported* and *cannot tell* are three dashes with three
  * words, and never a gauge at nought. An account that pays per token has no
  * window to run out of and is not drawn.
@@ -215,15 +228,24 @@ export function moneyOf(store) {
 export function gaugesOf(store, now) {
   if (!mayFor(store, 'plans')) return [unread('not granted to this device')]
   const out = []
-  for (const row of plansOf(store)) {
+  const rows = plansOf(store)
+  for (const row of rows) {
+    const who = signInLabel(row, rows)
+    const marks = defaultsSaid(row.uses)
+    // The harness, then the account on a line of its own: a gauge is narrower
+    // than `claude-code @personal`, and a line broken anywhere else breaks the
+    // name — at its hyphen, or through the account.
+    const at = who.indexOf(' ')
+    const named = at === -1 ? who : `${who.slice(0, at)}\n${who.slice(at + 1)}`
     if ((row.windows ?? []).length === 0) {
       if (row.pays === 'per-token') continue
+      // Its line on a phone says the name and the dash's word in one.
       out.push({
-        ...unread(`${row.harness} · cannot tell`),
+        ...unread(`${who} · cannot tell`),
         key: row.id,
-        label: `${row.harness} plan`,
-        window: null,
-        who: row.harness,
+        label: `${who} plan`,
+        marks,
+        under: [`${named} · cannot tell`, marks].filter((line) => line !== '').join('\n'),
       })
       continue
     }
@@ -231,14 +253,21 @@ export function gaugesOf(store, now) {
       const until = untilSaid(window.resetsAt, now)
       out.push({
         key: `${row.id}:${window.label}`,
-        label: `${row.harness} ${window.label} window`,
+        label: `${who} ${window.label} window`,
         window: window.label,
-        who: row.harness,
+        who,
+        marks,
         share: window.used,
         said: `${Math.round(window.used)}%`,
-        // Which window first, then whose, then when it starts over: two lines
-        // under a gauge (`overview.css`), so no gauge's words wrap differently.
-        under: `${window.label} · ${row.harness}${until === null ? '' : `\nresets ${until === 'now' ? 'now' : `in ${until}`}`}`,
+        // Which window first, then whose, then who runs as it, then when it
+        // starts over: a line each under a gauge (`overview.css`).
+        under: [
+          `${window.label} · ${named}`,
+          marks,
+          until === null ? '' : `resets ${until === 'now' ? 'now' : `in ${until}`}`,
+        ]
+          .filter((line) => line !== '')
+          .join('\n'),
         pressure: planPressure(window.used),
       })
     }
@@ -257,6 +286,7 @@ function unread(why) {
     label: 'Plan',
     window: null,
     who: why,
+    marks: '',
     share: null,
     said: null,
     under: why,

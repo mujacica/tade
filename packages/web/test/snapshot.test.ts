@@ -281,7 +281,10 @@ describe('the projection', () => {
       newAgents: false,
       projects: [],
       notShown: 0,
-    })
+    }) // The orchestrator's sign-in says so; nobody else's says anything about it.
+    expect(
+      uses(['spend', 'accounts'], { uses: { newAgents: false, projects: [], orchestrator: true } }),
+    ).toEqual({ newAgents: false, projects: [], notShown: 0, orchestrator: true })
   })
 
   it('counts the projects past the budget rather than cutting them in silence', () => {

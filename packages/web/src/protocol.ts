@@ -594,6 +594,8 @@ export const PlanRowSchema = z.strictObject({
       projects: z.array(z.string()),
       /** How many more projects name it than `projects` carries. */
       notShown: z.int().nonnegative(),
+      /** The orchestrator runs as it. Absent from an older Tade, which did not say. */
+      orchestrator: z.boolean().optional(),
     })
     .nullable(),
 })

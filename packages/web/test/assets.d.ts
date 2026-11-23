@@ -873,6 +873,7 @@ declare module '*/assets/pages/overview-figures.js' {
     label: string
     window: string | null
     who: string
+    marks: string
     share: number | null
     said: string | null
     under: string

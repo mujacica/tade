@@ -737,7 +737,16 @@ describe('accounts', () => {
     expect(accountFor(config, 'folio', 'claude-code')).toBeNull()
     expect(accountFor(config, 'shop', 'claude-code')).toBe('personal')
     expect(orchestratorAccount(config)).toBeNull()
-    expect(signInUse(config, 'claude-code', null)).toEqual({ newAgents: true, projects: ['folio'] })
+    // The orchestrator on the own sign-in by its name is on the own sign-in, and says so.
+    expect(signInUse(config, 'claude-code', null)).toEqual({
+      newAgents: true,
+      projects: ['folio'],
+      orchestrator: true,
+    })
+    expect(signInUse(config, 'claude-code', 'personal')).toEqual({
+      newAgents: false,
+      projects: ['shop'],
+    })
     expect(isOwnSignIn(config, 'claude-code', 'sentry')).toBe(true)
     expect(isOwnSignIn(config, 'claude-code', 'default')).toBe(true)
     expect(isOwnSignIn(config, 'codex', 'sentry')).toBe(false)

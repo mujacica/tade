@@ -617,6 +617,63 @@ describe('who runs as each sign-in', () => {
     expect(projects.indexOf('▸')).toBe(plain.indexOf('claude-code'))
     expect(marked.indexOf('5h')).toBe(plain.indexOf('cannot tell'))
   })
+  // Amir's four gauges all said `claude-code`: two sign-ins of one harness must
+  // never read as one, at any width the page is drawn at.
+  it('names two sign-ins of one harness apart, whole, and marks the orchestrator’s', () => {
+    const week = (used: number) => ({
+      at: NOW - 60_000,
+      windows: [
+        { label: '5h', used, resetsAt: NOW + 3_600_000 },
+        { label: '7d', used, resetsAt: NOW + 86_400_000 },
+      ],
+    })
+    const signIns: PlanSource[] = [
+      { ...own, said: null, uses: { newAgents: false, projects: [] } },
+      {
+        ...own,
+        account: 'personal',
+        said: week(93),
+        uses: { newAgents: true, projects: [] },
+      },
+      {
+        ...own,
+        account: 'vrolta-company',
+        said: week(2),
+        uses: { newAgents: false, projects: [], orchestrator: true },
+      },
+    ]
+    for (const width of WIDTHS) {
+      const rows = drawPanel(
+        { ...spendPanel(), by: 'harness' },
+        context({ width, spend: viewBy('harness', [onPlan()], [], signIns) }),
+      ).panel.rows.map((row) => inside(stripTerminalSequences(row)))
+      const plan = rows.slice(rows.indexOf('PLAN'), rows.indexOf('BUDGETS'))
+      // The names only: what follows them may be cut at the panel's edge.
+      const said = plan
+        .map((row) => row.slice(0, 2 + 'claude-code @vrolta-company'.length))
+        .join('\n')
+      // Each account's name whole, on its own line or beside its harness.
+      expect(said, `at ${width}`).toMatch(/(claude-code @personal|claude-code\s.*\n\s*@personal)/)
+      expect(said, `at ${width}`).toMatch(
+        /(claude-code @vrolta-company|claude-code\s.*\n\s*@vrolta-company)/,
+      )
+      expect(said, `at ${width}`).not.toContain('…')
+      const orchestrator = plan.findIndex((row) => row === 'orchestrator')
+      expect(orchestrator, `at ${width}`).toBeGreaterThan(
+        plan.findIndex((row) => row.includes('vrolta')),
+      )
+      expect(plan.filter((row) => row === 'orchestrator')).toHaveLength(1)
+    }
+    // Where there is the room — nothing at list after it — each is one name on
+    // one line, as `tade_limits` says it.
+    const wide = drawPanel(
+      { ...spendPanel(), by: 'harness' },
+      context({ width: 160, spend: viewBy('harness', [], [], signIns) }),
+    ).panel.rows.map((row) => inside(stripTerminalSequences(row)))
+    expect(wide.some((row) => /^▸ claude-code @personal\s+5h/.test(row))).toBe(true)
+    expect(wide.some((row) => /^claude-code @vrolta-company\s+5h/.test(row))).toBe(true)
+    expect(wide.some((row) => /^claude-code\s+cannot tell/.test(row))).toBe(true)
+  })
 })
 
 describe('how long a model was working, beside how long its agent was open', () => {

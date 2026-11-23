@@ -102,6 +102,11 @@ export interface SignInUse {
   newAgents: boolean
   /** The projects whose own answer is this sign-in, by name. */
   projects: string[]
+  /**
+   * The orchestrator runs as it (`orchestratorAccount`). Only ever present as
+   * true: absent is either not it, or a gatherer that did not say.
+   */
+  orchestrator?: true
 }
 
 /** Who runs as one sign-in — `account` null for the harness's own — by the machine's and each project's answer. */
@@ -110,7 +115,13 @@ export function signInUse(config: Config, harness: string, account: string | nul
     .filter(([, project]) => project.accounts?.[harness as HarnessId] !== undefined)
     .filter(([name]) => accountFor(config, name, harness) === account)
     .map(([name]) => name)
-  return { newAgents: accountFor(config, null, harness) === account, projects }
+  const orchestrator =
+    config.orchestrator.harness === harness && orchestratorAccount(config) === account
+  return {
+    newAgents: accountFor(config, null, harness) === account,
+    projects,
+    ...(orchestrator ? { orchestrator: true as const } : {}),
+  }
 }
 
 /**

@@ -239,6 +239,39 @@ export function sinceSaid(at) {
   return `— these figures are what has been spent since ${shortClockOf(at)}, and nothing before it`
 }
 
+/**
+ * What a sign-in is called, as the window's strip and Spend page and
+ * `tade_limits` call it (`@tade/core`'s `planLabel`): `claude-code` for the
+ * harness's own, `claude-code @personal` for an added account or the name its
+ * own was given.
+ *
+ * A device not granted `accounts` is sent no names, and two of one harness's
+ * sign-ins would read as one twice: there each unnamed one past the first is
+ * told apart by its place, `claude-code #2` — which says nothing the rows do
+ * not, how many there are and the order they arrive in (`plansKeyed`).
+ */
+export function signInLabel(row, rows) {
+  const account = row.account?.words ?? null
+  if (account !== null) return `${row.harness} @${account}`
+  const unnamed = rows.filter(
+    (one) => one.harness === row.harness && (one.account?.words ?? null) === null,
+  )
+  const at = unnamed.findIndex((one) => one.id === row.id)
+  return unnamed.length < 2 || at <= 0 ? row.harness : `${row.harness} #${at + 1}`
+}
+
+/**
+ * Who runs as a sign-in by default, in a word each: `new agents` where the
+ * machine's new agents do, `orchestrator` where the orchestrator does. Empty
+ * where neither, and where it was not sent.
+ */
+export function defaultsSaid(uses) {
+  if (uses === null || uses === undefined) return ''
+  return [uses.newAgents ? 'new agents' : '', uses.orchestrator ? 'orchestrator' : '']
+    .filter((word) => word !== '')
+    .join(' · ')
+}
+
 /** How long until a moment, or null where there is no moment to count to. */
 export function untilSaid(at, now) {
   if (at === null || at === undefined || at === '') return null

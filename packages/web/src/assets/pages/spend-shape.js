@@ -7,7 +7,15 @@
 // turns would have cost at list is in no total. `≥` where a figure is a floor,
 // and `—` with its word where nobody could say — never a nought.
 
-import { onPlanOf, planPressure, pricedOf, shortClockOf, tokens, untilSaid } from '../figures.js'
+import {
+  onPlanOf,
+  planPressure,
+  pricedOf,
+  shortClockOf,
+  signInLabel,
+  tokens,
+  untilSaid,
+} from '../figures.js'
 import { pathOf, taskPath } from '../routes.js'
 import { spendFold } from '../store.js'
 
@@ -237,7 +245,8 @@ const LINES = {
 /**
  * Who runs as a sign-in, in the window's Accounts page's words: `new agents`
  * where the machine's do, and `in` with the projects that name it as theirs —
- * `new agents in search` where only they do. Empty where nobody runs as it,
+ * `new agents in search` where only they do — and `orchestrator` where the
+ * orchestrator runs as it, as the Accounts page says. Empty where nobody runs as it,
  * and where it was not sent: not granted, or not said, which the page draws
  * as nothing, as the window does, rather than as nobody.
  */
@@ -245,8 +254,9 @@ export function usesSaid(uses) {
   if (uses === null || uses === undefined) return ''
   const names = [...uses.projects, ...(uses.notShown > 0 ? [`${uses.notShown} more`] : [])]
   const where = names.length === 0 ? '' : `in ${names.join(', ')}`
-  if (uses.newAgents) return where === '' ? 'new agents' : `new agents · ${where}`
-  return where === '' ? '' : `new agents ${where}`
+  const parts = uses.newAgents ? ['new agents', where] : [where === '' ? '' : `new agents ${where}`]
+  if (uses.orchestrator) parts.push('orchestrator')
+  return parts.filter((one) => one !== '').join(' · ')
 }
 
 /**
@@ -277,7 +287,9 @@ export function plansShape(rows, now) {
       key: row.id,
       harness: row.harness,
       account,
-      name: account ?? row.harness,
+      // Its own sign-in by its harness, and one of several a device was not
+      // told the names of by its place, so no two cards say the same name.
+      name: account ?? signInLabel(row, rows),
       kind,
       windows,
       tightest,

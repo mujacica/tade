@@ -386,6 +386,20 @@ const PLANS: PlanSource[] = [
     },
     uses: { newAgents: true, projects: [] },
   },
+  // A second sign-in of the same harness, which the orchestrator runs as: the
+  // two must read as two, on every surface that names them.
+  {
+    harness: 'claude-code',
+    account: 'personal',
+    can: 'while-working',
+    pays: 'plan',
+    why: 'reports it as one of its agents replies, so there is nothing to show until one has',
+    said: {
+      at: NOW - 22 * 60_000,
+      windows: [{ label: '7d', used: 93, resetsAt: NOW + 86_400_000 }],
+    },
+    uses: { newAgents: false, projects: [], orchestrator: true },
+  },
   {
     harness: 'codex',
     account: null,

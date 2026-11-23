@@ -359,7 +359,10 @@ describe('the real folder', () => {
     // sits: `restart.js` and the bar's states in `shell-bars.js`) took it to
     // 1454. 1457, already 1461 at 14d2781d, until each machine said what it is
     // doing (10 KB as it sits: the figures' words and why a machine that says
-    // none is said so, and the tiles' rules) took it to 1471.
-    expect(raw).toBeLessThan(1472 * 1024)
+    // none is said so, and the tiles' rules) took it to 1471. 1472 until each
+    // plan gauge named its sign-in and who runs as it (3 KB as it sits:
+    // `signInLabel`, `defaultsSaid` and why a name is wrapped and never cut)
+    // took it to 1474.
+    expect(raw).toBeLessThan(1477 * 1024)
   })
 })

@@ -240,10 +240,11 @@ describe('the plan windows', () => {
   it('are every window, fullest first, with whose, how full and when it starts over', () => {
     const store = held({
       plans: [
-        plan(),
+        plan({ account: 'work', uses: { newAgents: false, projects: [] } }),
         plan({
           harness: 'codex',
-          account: 'me@example.invalid',
+          account: 'me',
+          uses: { newAgents: false, projects: [] },
           windows: [
             { label: '5h', used: 93, resetsAt: Date.parse('2026-10-08T15:00:00.000Z') },
             { label: 'week', used: 10, resetsAt: 0 },
@@ -253,15 +254,57 @@ describe('the plan windows', () => {
     })
     const gauges = gaugesOf(store, NOW)
     expect(gauges.map((one) => [one.who, one.window, one.share, one.pressure])).toEqual([
-      ['codex', '5h', 93, 'tight'],
-      ['claude-code', '5h', 42, 'fine'],
-      ['codex', 'week', 10, 'fine'],
+      ['codex @me', '5h', 93, 'tight'],
+      ['claude-code @work', '5h', 42, 'fine'],
+      ['codex @me', 'week', 10, 'fine'],
     ])
     expect(gauges[0]?.said).toBe('93%')
-    expect(gauges[0]?.under).toBe('5h · codex\nresets in 30m')
-    expect(gauges[1]?.under).toBe('5h · claude-code\nresets in 3h 30m')
+    // The account on a line of its own, so a gauge narrower than the name
+    // wraps it there and never through it.
+    expect(gauges[0]?.under).toBe('5h · codex\n@me\nresets in 30m')
+    expect(gauges[1]?.under).toBe('5h · claude-code\n@work\nresets in 3h 30m')
     // A window whose harness did not say when it starts over says nothing about it.
-    expect(gauges[2]?.under).toBe('week · codex')
+    expect(gauges[2]?.under).toBe('week · codex\n@me')
+  })
+
+  it('names two sign-ins of one harness apart, and marks who runs as each by default', () => {
+    const windows = (used: number) => [{ label: '7d', used, resetsAt: 0 }]
+    const plans = [
+      plan({ account: null, windows: [], cannotTell: 'has not said yet', uses: undefined }),
+      plan({
+        account: 'personal',
+        windows: windows(93),
+        uses: { newAgents: true, projects: [] },
+      }),
+      plan({
+        account: 'vrolta',
+        windows: windows(2),
+        uses: { newAgents: false, projects: [], orchestrator: true },
+      }),
+      plan({ harness: 'codex', account: null, windows: [], cannotTell: 'quiet', uses: undefined }),
+    ]
+    const gauges = gaugesOf(held({ plans }), NOW)
+    expect(gauges.map((one) => one.who)).toEqual([
+      'claude-code @personal',
+      'claude-code @vrolta',
+      'claude-code · cannot tell',
+      'codex · cannot tell',
+    ])
+    expect(new Set(gauges.map((one) => one.label)).size).toBe(gauges.length)
+    expect(gauges.map((one) => one.marks)).toEqual(['new agents', 'orchestrator', '', ''])
+    expect(gauges[0]?.under).toBe('7d · claude-code\n@personal\nnew agents')
+    expect(gauges[1]?.under).toBe('7d · claude-code\n@vrolta\norchestrator')
+    expect(gauges[2]?.under).toBe('claude-code · cannot tell')
+
+    // A device sent no names still tells them apart, by their place alone.
+    const nameless = gaugesOf(held({ plans }, ['spend']), NOW)
+    expect(nameless.map((one) => one.who)).toEqual([
+      'claude-code #2',
+      'claude-code #3',
+      'claude-code · cannot tell',
+      'codex · cannot tell',
+    ])
+    expect(nameless.map((one) => one.marks)).toEqual(['', '', '', ''])
   })
 
   it('says not granted, none reported and cannot tell as three dashes, never a gauge at nought', () => {
@@ -272,10 +315,19 @@ describe('the plan windows', () => {
       { share: null, under: 'none reported' },
     ])
     const told = gaugesOf(
-      held({ plans: [plan({ windows: [], cannotTell: 'the harness reports no plan' })] }),
+      held({
+        plans: [plan({ account: null, windows: [], cannotTell: 'the harness reports no plan' })],
+      }),
       NOW,
     )
-    expect(told).toMatchObject([{ share: null, window: null, under: 'claude-code · cannot tell' }])
+    expect(told).toMatchObject([
+      {
+        share: null,
+        window: null,
+        who: 'claude-code · cannot tell',
+        under: 'claude-code · cannot tell\nnew agents',
+      },
+    ])
   })
 
   it('leaves out an account that pays per token, which has no window to run out of', () => {

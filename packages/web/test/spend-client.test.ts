@@ -313,6 +313,25 @@ describe('the plans', () => {
     expect(only?.name).toBe('claude-code')
   })
 
+  it('tells two sign-ins of one harness apart by their place where it is sent no names', () => {
+    const plans = snapshotOf(
+      input({
+        reach: reach(['spend']),
+        plans: [
+          plan({ account: null }),
+          plan({ account: 'personal' }),
+          plan({ account: 'vrolta' }),
+        ],
+      }),
+      NOW,
+    ).plans
+    expect(plansShape(plans, NOW).map((one) => one.name)).toEqual([
+      'claude-code',
+      'claude-code #2',
+      'claude-code #3',
+    ])
+  })
+
   it('says who runs as each, in the Accounts page’s words', () => {
     // The fixture's sign-in: new agents run as it, and both projects name it.
     expect(cards().map((one) => one.uses)).toEqual([
@@ -327,6 +346,13 @@ describe('the plans', () => {
     )
     expect(usesSaid({ newAgents: false, projects: ['a', 'b'], notShown: 3 })).toBe(
       'new agents in a, b, 3 more',
+    )
+    // The orchestrator's sign-in says so, after whose new agents.
+    expect(usesSaid({ newAgents: true, projects: [], notShown: 0, orchestrator: true })).toBe(
+      'new agents · orchestrator',
+    )
+    expect(usesSaid({ newAgents: false, projects: [], notShown: 0, orchestrator: true })).toBe(
+      'orchestrator',
     )
     // Nobody runs as it: nothing to say, and nothing said.
     expect(usesSaid({ newAgents: false, projects: [], notShown: 0 })).toBe('')

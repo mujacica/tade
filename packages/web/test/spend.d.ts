@@ -72,6 +72,9 @@ declare module '*/assets/pages/spend-shape.js' {
   export function plansShape(rows: readonly any[], now: number): Card[]
   export function pressureSaid(card: Card): string
   export function usesSaid(
-    uses: { newAgents: boolean; projects: string[]; notShown: number } | null | undefined,
+    uses:
+      | { newAgents: boolean; projects: string[]; notShown: number; orchestrator?: boolean }
+      | null
+      | undefined,
   ): string
 }

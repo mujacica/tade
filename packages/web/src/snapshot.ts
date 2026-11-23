@@ -466,7 +466,12 @@ function usesOf(uses: PlanStanding['uses'], reach: Reach, budget: Budget): PlanR
   if (uses === undefined) return null
   const seen = uses.projects.filter((project) => sees(reach, project))
   const projects = seen.slice(0, budget.projects)
-  return { newAgents: uses.newAgents, projects, notShown: seen.length - projects.length }
+  return {
+    newAgents: uses.newAgents,
+    projects,
+    notShown: seen.length - projects.length,
+    ...(uses.orchestrator ? { orchestrator: true } : {}),
+  }
 }
 
 function freshnessOf(input: SnapshotInput, now: number, budget: Budget): Freshness {

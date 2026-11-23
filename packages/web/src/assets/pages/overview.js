@@ -374,12 +374,15 @@ function createMeter() {
   return node
 }
 
-/** The window first — `5h`, `week` — because two accounts' names cut to the same ellipsis. */
+/**
+ * The window first — `5h`, `week` — then whose, the whole name, and who runs
+ * as it by default: a name is wrapped on a phone, never cut.
+ */
 function fillMeter(node, one) {
   const [name, value, bar] = node.children
   textIn(name.firstChild, one.window ?? '')
   name.firstChild.hidden = one.window === null
-  textIn(name.lastChild, one.who)
+  textIn(name.lastChild, one.marks === '' ? one.who : `${one.who} · ${one.marks}`)
   textIn(value, one.share === null ? '—' : one.said)
   bar.hidden = one.share === null
   if (one.share !== null) meterIn(bar, one.share, one.pressure)
