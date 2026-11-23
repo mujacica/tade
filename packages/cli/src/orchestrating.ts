@@ -76,6 +76,7 @@ export type Holding = Pick<
       | 'handOff'
       | 'showTerminal'
       | 'conversationPlace'
+      | 'machineActs'
     >
   >
 
@@ -127,6 +128,7 @@ interface Held {
   updates: ReturnType<NonNullable<Holding['updateTools']>> | undefined
   inventory: ReturnType<NonNullable<Holding['inventoryTools']>> | undefined
   remotes: ReturnType<NonNullable<Holding['remoteTools']>> | undefined
+  acts: ReturnType<NonNullable<Holding['machineActs']>> | undefined
   away: ReturnType<Holding['awayTools']>
 }
 
@@ -151,6 +153,9 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
   // in front, and the person's words are checked there.
   const updates = () => part((one) => one.updates, 'updating and reloading Tade')
   const remotes = () => part((one) => one.remotes, 'linking to other machines')
+  // Acting on another machine is the heart's, so a hub with no screen acts on
+  // the machines that link to it too, through its outbox.
+  const acts = () => part((one) => one.acts, 'acting on another machine')
   // What each machine has is the heart's, so a box with no screen answers it too.
   const inventory = () => part((one) => one.inventory, 'what each machine has')
   const status = async () => {
@@ -248,6 +253,8 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
       intake: async (req) => remotes().intake(req),
       tool: async (req) => remotes().tool(req),
     },
+    // One of these tool calls run on another machine through its own gate.
+    acts: { act: async (req) => acts().act(req) },
     updates: {
       read: async (check) => updates().read(check),
       run: async (req) => updates().run(req),
@@ -514,8 +521,12 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
         updates: holding.updateTools?.(),
         inventory: holding.inventoryTools?.(),
         remotes: holding.remoteTools?.(),
+        acts: holding.machineActs?.(),
         away: holding.awayTools(),
       }
+      // What another machine of the person's asks done here goes through this
+      // machine's own gate: the same methods, judged the same way.
+      held.acts?.useRunner((method, params, arm) => tools.act(method, params, arm))
     },
     start: () => {
       // The window does not wait for it: it is a model in another process and

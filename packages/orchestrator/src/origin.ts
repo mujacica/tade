@@ -240,6 +240,9 @@ export const REMOTE_TOOLS: Readonly<Record<string, Reaching>> = {
   tade_remote_tell: { kind: 'local', because: OWNS_ELSEWHERE },
   // Makes work there as its owner, and takes it away from here.
   tade_task_move: { kind: 'local', because: OWNS_ELSEWHERE },
+  // Any of these tools, run on another machine through its gate as its owner:
+  // the narrowing of a phone's turn would be left behind on this side.
+  tade_remote_act: { kind: 'local', because: OWNS_ELSEWHERE },
 
   // Grants, credentials, and who is asked.
   tade_setting_change: { kind: 'local', because: GRANTS },
@@ -517,6 +520,7 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
   'remote/documents': never(READS_ELSEWHERE),
   'remote/intake': never(READS_ELSEWHERE),
   'remote/tool': never(READS_ELSEWHERE),
+  'remote/act': never(OWNS_ELSEWHERE),
   'worker/list': never(READS_WIDE),
   'worker/stop': never(CONFIRMS),
   'events/read': never(READS_WIDE),

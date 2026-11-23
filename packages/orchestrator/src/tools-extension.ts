@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { spawn } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { connect } from 'node:net'
@@ -63,6 +64,27 @@ interface PiApi extends Gateable {
   /** Switches this session only; the default for new sessions is left alone. */
   setModel?(model: unknown): Promise<boolean>
 }
+
+/**
+ * A tool call being run on another machine of the person's (`tade_remote_act`):
+ * while it runs, every call the tool makes back to Tade is sent there instead
+ * (`remote/act`), each under a key of its own so a call sent twice over a link
+ * that dropped is done there once. The machine's own gate decides each.
+ */
+const elsewhere = new AsyncLocalStorage<{
+  machine: string
+  asked: string
+  key: string
+  n: number
+}>()
+
+/** Tools that are about this machine or this conversation alone, and are never run on another. */
+const ONLY_HERE = new Set([
+  'tade_remote_act',
+  'tade_remote_tell',
+  'tade_task_move',
+  'tade_orchestrator_model',
+])
 
 const SOCKET = process.env.TADE_SOCKET ?? ''
 const CLI = process.env.TADE_CLI ?? 'tade'
@@ -700,6 +722,44 @@ export function orchestratorTools(
         decision: { allow: false, reason: String(p.reason ?? 'denied') },
       }),
   )
+
+  tool(
+    'tade_remote_act',
+    'Do something on another machine of the person’s with one of your own tools, as you would here: start or steer work there, approve or deny what its agents wait on, park, resume, plan, queue, change one of its settings, open a terminal there. Name the machine as it is named under "Other machines" (or as it calls itself where it links here), the tool by its name (`tade_run_start`, `tade_setting_change`…) and that tool’s own input. It runs on that machine through that machine’s own rules, exactly as if its orchestrator had made the call — what it refuses there is refused, in its words, and an `asked` setting there takes the person’s own words from here, which go with it. This is one conversation on every machine, so the answer is yours to tell the person. Refused unless a line of theirs names that machine — pass that line, word for word, in `asked`; refused, with since when, while that machine is closed, asleep or lost; and a machine that links here rather than the other way round takes it when its window next asks, within a few seconds while it is open. Tools that only read already take a `machine` of their own, and need not come here. Never reached from a turn that came from a paired device without full access.',
+    object(
+      {
+        machine: string('the machine, by the name it has here: `vps`'),
+        tool: string('one of your own tools, by its name: `tade_run_start`'),
+        input: {
+          type: 'object',
+          description: 'that tool’s own input, as you would give it here',
+        },
+        asked: string(
+          'what the person said that asked for this, word for word. Tade checks it against what they actually said and that it names the machine, so pass their sentence and never your own summary of it',
+        ),
+      },
+      ['machine', 'tool', 'asked'],
+    ),
+    async (p, callId, ctx) => {
+      const name = String(p.tool ?? '')
+      const target = tools.find((one) => one.name === name)
+      if (!target)
+        throw new Error(`I have no tool called ${name || 'that'} to run on another machine.`)
+      if (ONLY_HERE.has(name)) {
+        throw new Error(
+          `${name} is about this machine or this conversation alone, so it is not run on another.`,
+        )
+      }
+      const input =
+        typeof p.input === 'object' && p.input !== null && !Array.isArray(p.input)
+          ? (p.input as Record<string, unknown>)
+          : {}
+      return elsewhere.run(
+        { machine: String(p.machine ?? ''), asked: String(p.asked ?? ''), key: callId, n: 0 },
+        () => target.run(input, callId, ctx),
+      )
+    },
+  )
   return tools
 }
 
@@ -748,6 +808,19 @@ function alone(what: 'model' | 'thinking'): string {
 }
 
 async function worktreeOf(task: string): Promise<string | null> {
+  // On another machine (`tade_remote_act`) a task is that machine's to look
+  // up: its status is asked there, like every other call the tool makes.
+  if (elsewhere.getStore()) {
+    const seen = await rpc('status/read', {})
+    const there = (typeof seen === 'string' ? JSON.parse(seen) : seen) as {
+      projects?: Array<{ tasks?: Array<{ id: string; worktree: string }> }>
+    }
+    for (const project of there.projects ?? []) {
+      const found = project.tasks?.find((t) => t.id === task)
+      if (found) return found.worktree
+    }
+    return null
+  }
   const status = JSON.parse(await runCli(['status', '--json'])) as {
     projects: Array<{ tasks: Array<{ id: string; worktree: string }> }>
   }
@@ -760,6 +833,14 @@ async function worktreeOf(task: string): Promise<string | null> {
 
 /** The CLI, with exactly the arguments given: for a command `status`'s flags are not its own. */
 function runTade(args: string[]): Promise<string> {
+  const there = elsewhere.getStore()
+  if (there) {
+    return Promise.reject(
+      new Error(
+        `this tool reads this machine’s own files, so it cannot be run on ${there.machine}: ask with the reading tool’s own \`machine\` instead`,
+      ),
+    )
+  }
   // `spawn`, in a group of its own like all Tade starts: `execFile` drops `detached`.
   const child = spawn(CLI, [...CLI_ARGS, ...args], {
     detached: true,
@@ -784,6 +865,18 @@ function runCli(args: string[]): Promise<string> {
 
 /** Minimal JSON-RPC 2.0 client: one connection per call, Content-Length framed. */
 function rpc(method: string, params: Record<string, unknown>): Promise<unknown> {
+  // Inside `tade_remote_act`: the call goes to that machine, and its gate decides it.
+  const there = elsewhere.getStore()
+  if (there && method !== 'remote/act') {
+    there.n += 1
+    return rpc('remote/act', {
+      machine: there.machine,
+      asked: there.asked,
+      key: `${there.key}:${there.n}`,
+      method,
+      params,
+    })
+  }
   if (!SOCKET) return Promise.reject(new Error('TADE_SOCKET is not set: no way back to Tade'))
   return new Promise((resolve, reject) => {
     const socket = connect(SOCKET)

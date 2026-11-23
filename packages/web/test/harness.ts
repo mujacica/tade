@@ -18,6 +18,7 @@ import {
   webServer,
 } from '../src/server.ts'
 import type { ServerOptions } from '../src/serving.ts'
+import type { WebActs } from '../src/shared-acts.ts'
 import type { WebConversation } from '../src/shared-conversation.ts'
 import type { WebFeeds } from '../src/shared-feeds.ts'
 import type { WebNotes } from '../src/shared-notes.ts'
@@ -218,6 +219,7 @@ export async function start(
     /** The window's half of sharing journals, for a test of an owner sharing them. */
     feeds?: WebFeeds
     conversation?: WebConversation
+    acts?: WebActs
     /** The window's projects and branches, for a test of an owner asking where they are. */
     repositories?: WebRepositories
     /** What the window says this machine is, a document, a tool that reads, work it takes, and a carry. */
@@ -290,6 +292,7 @@ export async function start(
     ...(opts.notes === undefined ? {} : { notes: opts.notes }),
     ...(opts.feeds === undefined ? {} : { feeds: opts.feeds }),
     ...(opts.conversation === undefined ? {} : { conversation: opts.conversation }),
+    ...(opts.acts === undefined ? {} : { acts: opts.acts }),
     ...(opts.repositories === undefined ? {} : { repositories: opts.repositories }),
     ...(opts.hooks === undefined ? {} : { hooks: opts.hooks }),
     ...(opts.connecting === undefined ? {} : { connecting: opts.connecting }),

@@ -15,6 +15,7 @@ import {
   withTranscript,
 } from './model.ts'
 import { type Entry, REPEAT_MS, tadeDid } from './transcript.ts'
+import { MachineActs } from './wire/acts.ts'
 import { Agents, type AgentsDeps } from './wire/agents.ts'
 import { Batches } from './wire/batches.ts'
 import { CloseWhenDone } from './wire/close-when-done.ts'
@@ -376,6 +377,8 @@ export class Heart {
   readonly feeds: FleetFeeds
   /** The orchestrator's conversation, one on every machine (`conversation.ts`). */
   readonly conversation: FleetConversation
+  /** Its tool calls run on another machine through that machine's own gate, and theirs here (`acts.ts`). */
+  readonly acts: MachineActs
   /**
    * What was said to the orchestrator before what the conversation holds, read
    * back out of its record: by a face scrolled to the top, and by a page on a
@@ -493,8 +496,16 @@ export class Heart {
       },
       later: () => void this.earlier.later(),
     })
+    this.acts = new MachineActs(this.wire, {
+      say: (said) => {
+        this.put(notice(this.current, said, this.now()))
+        face.draw()
+      },
+      seen: () => this.machinesSeen.all(),
+    })
     this.away = new Away(this.wire, {
       machines: this.machinesSeen,
+      acts: this.acts,
       inventory: this.inventory,
       feeds: this.feeds,
       conversation: this.conversation,
@@ -590,6 +601,7 @@ export class Heart {
         void this.sync.beat()
         this.inventory.beat()
         this.conversation.beat(this.orchestrator.busy())
+        this.acts.beat(Object.keys(this.wire.opts.config.remotes))
         this.away.beat()
         void this.foldConfig()
         face.beat(tasks, moved)
@@ -750,6 +762,11 @@ export class Heart {
   /** What makes the orchestrator's conversation one on every machine, for whoever starts it. */
   conversationPlace(): ConversationPlace {
     return this.conversation.place()
+  }
+
+  /** Its tool calls run on another machine, and other machines' run here (`acts.ts`). */
+  machineActs(): MachineActs {
+    return this.acts
   }
 
   /**

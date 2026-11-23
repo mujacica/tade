@@ -24,6 +24,7 @@ import type { MenuItem, MenuSubject, ThinkerOffers } from '../panels/menu/state.
 import type { PromptPanel } from '../panels/small/state.ts'
 import type { Panel, PanelInputs } from '../panels.ts'
 import type { ThinkerEvent } from '../transcript.ts'
+import { quotedWords } from './acting.ts'
 import type { Hold } from './awake.ts'
 import type { MachineNetwork } from './network.ts'
 import { Outbox } from './outbox.ts'
@@ -388,9 +389,12 @@ export function why(err: unknown): string {
  */
 export async function saidLately(wire: Wiring, most: number): Promise<string[]> {
   const events = await wire.opts.client.events({ types: ['said'], limit: most }).catch(() => [])
-  return events.flatMap((event) =>
+  const here = events.flatMap((event) =>
     typeof event.detail.text === 'string' ? [event.detail.text] : [],
   )
+  // And, for an act another machine of the person's sent here, the lines of
+  // theirs it carried from where they typed them (`acting.ts`).
+  return [...here, ...quotedWords()]
 }
 
 export interface Wiring {

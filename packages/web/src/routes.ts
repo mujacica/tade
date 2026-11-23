@@ -691,6 +691,29 @@ export const OWNED: readonly Route[] = [
     here: true,
     theirs: true,
   },
+  // Another machine of the person's acting here through this machine's own
+  // gate (`shared-acts.ts`): what it reaches is what this machine's own
+  // orchestrator reaches, which the SSH key to this box reaches already.
+  {
+    method: 'POST',
+    path: '/api/acts',
+    name: 'acts',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
+  // What this machine's orchestrator wants done on a machine that links here,
+  // which this one can never call: handed over when that one asks.
+  {
+    method: 'POST',
+    path: '/api/acts/outbox',
+    name: 'acts outbox',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
   // Where each project is checked out here and the branches its work is on
   // (`repositories.ts`): a path on this machine, which no phone reads, for the
   // fetch another machine of the person's makes over the same SSH. A read.

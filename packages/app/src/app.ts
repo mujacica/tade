@@ -11,6 +11,7 @@ import { type AppState, addTurn, focusTask, setQuestion } from './model.ts'
 import { FRAME_MS } from './pace.ts'
 import { pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
 import { Router } from './wire/actions.ts'
+import type { MachineActs } from './wire/acts.ts'
 import type { Agents } from './wire/agents.ts'
 import { Awake, caffeineHold } from './wire/awake.ts'
 import { Checks } from './wire/checks.ts'
@@ -317,6 +318,8 @@ export class App {
     })
     // The orchestrator's conversation reaches the hub over the same links.
     this.heart.conversation.withReach((name) => this.remotes.reachFor(name))
+    // And so do acts on another machine (`tade_remote_act`).
+    this.heart.acts.withReach((name) => this.remotes.reachFor(name))
     this.voice = new Voice(this.wire, {
       submit: () => this.keyboard.submit(),
       say: (said) => this.orchestrator.say(said),
@@ -742,6 +745,11 @@ export class App {
   /** What makes the orchestrator's conversation one on every machine, for whoever starts it. */
   conversationPlace(): ConversationPlace {
     return this.heart.conversationPlace()
+  }
+
+  /** Its tool calls run on another machine, and other machines' run here. */
+  machineActs(): MachineActs {
+    return this.heart.machineActs()
   }
 
   /** What the orchestrator's `tade_remote_tell` does, over this window's links. */

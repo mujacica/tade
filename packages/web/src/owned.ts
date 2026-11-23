@@ -14,6 +14,7 @@ import { type RecordsAnswer, recordsHere } from './records.ts'
 import { type RepositoriesAnswer, repositoriesHere } from './repositories.ts'
 import { seenHere } from './seen.ts'
 import type { ServerOptions } from './serving.ts'
+import { type ActBody, type ActDone, actHere, outboxHere } from './shared-acts.ts'
 import { type ConversationShareAnswer, conversationHere } from './shared-conversation.ts'
 import { type FeedsShareAnswer, feedsHere } from './shared-feeds.ts'
 import { type NotesShareAnswer, shareHere } from './shared-notes.ts'
@@ -55,6 +56,8 @@ export const OWNED_DOOR: ReadonlySet<string> = new Set([
   'share notes',
   'share feeds',
   'conversation',
+  'acts',
+  'acts outbox',
   'repositories',
   'carry',
   'machine',
@@ -86,6 +89,7 @@ export async function carryOwned(
     | 'notes'
     | 'feeds'
     | 'conversation'
+    | 'acts'
     | 'repositories'
     | 'machine'
     | 'machines'
@@ -107,6 +111,8 @@ export async function carryOwned(
         | NotesShareAnswer
         | FeedsShareAnswer
         | ConversationShareAnswer
+        | ActDone
+        | { acts: ActBody[] }
         | RepositoriesAnswer
         | MachineAnswer
         | MachinesAnswer
@@ -126,6 +132,8 @@ export async function carryOwned(
   if (route === 'share notes') return shareHere(req, device, opts.notes)
   if (route === 'share feeds') return feedsHere(req, device, opts.feeds)
   if (route === 'conversation') return conversationHere(req, device, opts.conversation)
+  if (route === 'acts') return actHere(req, device, opts.acts)
+  if (route === 'acts outbox') return outboxHere(req, device, opts.acts)
   if (route === 'repositories') return repositoriesHere(req, device, opts.repositories)
   if (route === 'machine') return machineHere(req, device, opts.machine)
   if (route === 'machines') return machinesHere(req, device, opts.machines)

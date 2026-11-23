@@ -586,6 +586,23 @@ export const REMOTE_MOVE_REACH: Reaches = {
     'it makes work on another machine as its owner and takes it away from this one, so it happens when they name that machine',
 }
 
+/**
+ * How far the orchestrator reaches into doing something on another machine of
+ * the person's with one of its own tools (`tade_remote_act`): the call run
+ * there through that machine's own gate, as its own orchestrator's would be.
+ *
+ * `asked`, and what is asked for is **that machine, by its name**
+ * (`remoteNamedBy`), for `REMOTE_TELL_REACH`'s reason: what it does there it
+ * does as that machine's owner. Every other gate on the far side still holds —
+ * its setting reach, its queue's rules, its own `asked` words — and like every
+ * `asked` this can only refuse.
+ */
+export const REMOTE_ACT_REACH: Reaches = {
+  reach: 'asked',
+  because:
+    'it does what its own orchestrator would on another machine, as that machine’s owner, so it happens when they name that machine',
+}
+
 /** The line of theirs that names a machine this one is linked to, or null when none does. */
 export function remoteNamedBy(machine: string, lines: readonly string[]): string | null {
   return namedBy({ path: machine, title: machine }, lines)

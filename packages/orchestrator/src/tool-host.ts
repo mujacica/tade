@@ -40,7 +40,7 @@ import {
 import { noteMethods } from './host-notes.ts'
 import { doneRuleOf, scheduleMethods } from './host-queue.ts'
 import { type RaceHost, raceMethods } from './host-race.ts'
-import { type RemoteHost, remoteMethods } from './host-remotes.ts'
+import { type ActHost, actMethods, type RemoteHost, remoteMethods } from './host-remotes.ts'
 import { type ReplayHost, replayMethods } from './host-replay.ts'
 import { templateMethods } from './host-templates.ts'
 import { type Arming, allowMethod, allowTool, waiting } from './origin.ts'
@@ -191,6 +191,8 @@ export interface ToolHostOptions {
   replay?: ReplayHost
   /** Passing a sentence to another machine's orchestrator: the window's link (`host-remotes.ts`). */
   remotes?: RemoteHost
+  /** One of these tool calls run on another machine through its own gate (`tade_remote_act`). */
+  acts?: ActHost
   /** Runs the orchestrator's extension tools. Without it, it has none. */
   extensions?: (call: {
     tool: string
@@ -265,6 +267,8 @@ export class ToolHost {
       ...replayMethods(() => opts.replay),
       // Another machine's orchestrator, over the window's link to it: `host-remotes.ts`.
       ...remoteMethods(() => opts.remotes),
+      // One of these, asked of another machine instead: its gate decides it.
+      ...actMethods(() => opts.acts),
       // Work that arrived from outside, read and never acted on. Two methods
       // and deliberately not a third: there is no way from here to approve,
       // refuse or retry one, and no way to change a grant — `settingReach`
@@ -676,6 +680,27 @@ export class ToolHost {
         error: { code: -32000, message: err instanceof Error ? err.message : String(err) },
       })
     }
+  }
+
+  /**
+   * One of this host's methods, asked for by another machine of the person's
+   * (`tade_remote_act` there), under the arm that act came with: judged by the
+   * same gate every call here is, so it reaches exactly what this machine's
+   * own orchestrator would under that arm. Never sent on to a third machine.
+   */
+  async act(method: string, params: Record<string, unknown>, arm: Arm): Promise<unknown> {
+    const handler = this.methods[method]
+    if (!handler) throw new Error(`no such method: ${method}`)
+    if (method === 'remote/act')
+      throw new Error('an act from another machine is not sent on to a third')
+    if (arm.how === 'remote') {
+      const allowed = allowMethod(method, params, arm, this.projectFor(method, params))
+      if (!allowed.ok) {
+        this.opts.remote?.refused(arm, method, allowed.said)
+        throw new Error(allowed.said)
+      }
+    }
+    return handler(params, arm)
   }
 
   /**

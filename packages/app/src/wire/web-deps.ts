@@ -1,4 +1,5 @@
 import type { InboxRow } from '@tade/core'
+import type { MachineActs } from './acts.ts'
 import type { FleetConversation } from './conversation.ts'
 import type { Waking } from './doorbell.ts'
 import type { FleetFeeds } from './feeds.ts'
@@ -48,6 +49,13 @@ export interface AwayDeps {
    * wired.
    */
   conversation?: Pick<FleetConversation, 'web'>
+  /**
+   * Another machine of the person's acting here through this machine's own
+   * gate (`acts.ts`): `/api/acts`, and the outbox a machine that links here
+   * asks for what this one's orchestrator wants done there. Absent, both are
+   * the `404` of a path nobody wired.
+   */
+  acts?: Pick<MachineActs, 'take' | 'outboxFor'>
   /** What the approve/deny keys do when no device is waiting to be let in. */
   decided(allow: boolean): void | Promise<void>
   /** Said in the strip, where somebody who was not looking at the panel sees it. */

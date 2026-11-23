@@ -45,6 +45,7 @@ import { approvalInFront } from '../model.ts'
 import { ASKING_FIRST, AWAY_CONTROLS, awayPanel, BEHIND_THE_PANEL } from '../panels/away/state.ts'
 import type { AwayView } from '../panels/away/view.ts'
 import type { PanelInputs } from '../panels.ts'
+import type { ActAnswer } from './acts.ts'
 import { type Actions, notify, type Subject, type Submits, type Wiring } from './context.ts'
 import { hooksFor } from './doorbell.ts'
 import { evaluationsAnswer } from './evaluations.ts'
@@ -280,6 +281,15 @@ export class Away implements Subject {
       ...ownedFor(this.wire, () => this.panelFacts(), this.deps.lifecycle, this.deps.inventory),
       ...(this.deps.feeds && { feeds: this.deps.feeds.web() }),
       ...(this.deps.conversation && { conversation: this.deps.conversation.web() }),
+      ...(this.deps.acts && {
+        acts: {
+          take: (act, _device, label) =>
+            this.deps.acts?.take({ ...act, from: label }) as Promise<ActAnswer>,
+          outbox: async (answers, _device, label) => ({
+            acts: this.deps.acts?.outboxFor(label, answers) ?? [],
+          }),
+        },
+      }),
       // The guided pages that connect GitHub, Slack and Linear (`web-connect.ts`):
       // this machine's own door and an owner's, and the callbacks where each
       // sends a browser — Linear's tokens handed to the window's holder.

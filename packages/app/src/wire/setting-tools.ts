@@ -14,6 +14,7 @@ import {
   spokenAs,
 } from '@tade/core'
 import { isCredential } from '@tade/web'
+import { byActing } from './acting.ts'
 import { configPathOf, saidLately, tilde, type Wiring } from './context.ts'
 
 // The orchestrator's settings tools, answered from this window: `tade_settings`
@@ -194,7 +195,8 @@ export async function askedSetting(
     }
     await namedOrRefused(wire, setting, because, entriesChanged(setting, req.value))
   }
-  return page.write(path, req.value, 'orchestrator', req.said.trim())
+  // `orchestrator via vps` for an act another machine of the person's sent here.
+  return page.write(path, req.value, byActing('orchestrator'), req.said.trim())
 }
 
 /**

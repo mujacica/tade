@@ -39,9 +39,47 @@ export interface RemoteHost {
   tool(req: { machine: string; tool: string; input: Record<string, unknown> }): Promise<string>
 }
 
+/**
+ * One of the orchestrator's own tool calls run on another machine of the
+ * person's, through that machine's own gate (`tade_remote_act`): the
+ * window's or the heart's (`acts.ts`), since a machine with no screen acts on
+ * the ones that link to it too.
+ */
+export interface ActHost {
+  act(req: {
+    machine: string
+    asked: string
+    key: string
+    method: string
+    params: Record<string, unknown>
+  }): Promise<unknown>
+}
+
 /** A string parameter where one was given, or nothing: never `"undefined"`. */
 const given = (value: unknown): string | undefined =>
   typeof value === 'string' && value !== '' ? value : undefined
+
+/** `remote/act`: one method of this host's, asked of another machine instead (`tade_remote_act`). */
+export function actMethods(host: () => ActHost | undefined): Record<string, Handler> {
+  return {
+    'remote/act': async (p) => {
+      const found = host()
+      if (!found) throw new Error('nothing here acts on another machine')
+      const params =
+        typeof p.params === 'object' && p.params !== null && !Array.isArray(p.params)
+          ? (p.params as Record<string, unknown>)
+          : {}
+      const result = await found.act({
+        machine: String(p.machine ?? ''),
+        asked: String(p.asked ?? ''),
+        key: String(p.key ?? ''),
+        method: String(p.method ?? ''),
+        params,
+      })
+      return typeof result === 'string' ? result : JSON.stringify(result)
+    },
+  }
+}
 
 export function remoteMethods(host: () => RemoteHost | undefined): Record<string, Handler> {
   const window = (): RemoteHost => {

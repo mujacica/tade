@@ -22,6 +22,7 @@ import type { WebReading } from './reading.ts'
 import type { WebRecords } from './records.ts'
 import type { WebRepositories } from './repositories.ts'
 import type { WebSeen } from './seen.ts'
+import type { WebActs } from './shared-acts.ts'
 import type { WebConversation } from './shared-conversation.ts'
 import type { WebFeeds } from './shared-feeds.ts'
 import type { WebNotes } from './shared-notes.ts'
@@ -275,6 +276,13 @@ export interface ServerOptions {
    * nobody wired.
    */
   conversation?: WebConversation
+  /**
+   * Another machine of the person's acting here through this machine's own
+   * gate, and the outbox a machine that links here asks for what this one's
+   * orchestrator wants done there (`shared-acts.ts`). Absent, both routes are
+   * the `404` of a path nobody wired.
+   */
+  acts?: WebActs
   /**
    * Where each project is checked out here and the branches its work is on,
    * for an owner's window on another machine to fetch (`repositories.ts`).
