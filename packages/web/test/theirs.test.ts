@@ -256,7 +256,7 @@ describe('the door, for a route that is the SSH key’s', () => {
     }
   })
 
-  it('keeps this machine’s own door sessionless, as it was', () => {
+  it('keeps this machine’s own door sessionless, a press there carrying a ticket instead', () => {
     const door = {
       host: 'localhost:7654',
       origin: 'http://localhost:7654',
@@ -267,9 +267,18 @@ describe('the door, for a route that is the SSH key’s', () => {
       const verdict = allowed(
         through({ ...door, token: null, cookie: null }),
         route,
-        guarding({ session: null }),
+        guarding({ session: null, ticketed: true }),
       )
       expect(verdict.ok, route.name).toBe(true)
+    }
+    // With none, the page still answers and no press does (`connect-tickets.ts`).
+    for (const route of [CONNECT_PAGE, ...PRESSES]) {
+      const verdict = allowed(
+        through({ ...door, token: null, cookie: null }),
+        route,
+        guarding({ session: null }),
+      )
+      expect(verdict.ok, route.name).toBe(route === CONNECT_PAGE)
     }
   })
 })

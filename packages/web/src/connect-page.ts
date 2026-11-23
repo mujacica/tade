@@ -55,10 +55,13 @@ export const TOKEN_META = 'tade-csrf'
  *
  * Where the page was drawn for the person's own device off this machine's
  * door, its session's token is in a `meta` (`TOKEN_META`) and goes with every
- * press, as the away view's page sends it; on this machine's door there is none.
+ * press, as the away view's page sends it; on this machine's door it is the
+ * ticket the link was opened with, out of its fragment (`connect-tickets.ts`),
+ * which the server never sees and so never draws back.
  */
 const SCRIPT = `
 const token = document.querySelector('meta[name="${TOKEN_META}"]')?.content
+  || new URLSearchParams(location.hash.slice(1)).get('ticket')
 document.addEventListener('click', async (event) => {
   const button = event.target.closest('button[data-press]')
   if (!button) return

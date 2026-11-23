@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { CONNECT_UNTICKETED } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import {
   type Asking,
@@ -741,14 +742,16 @@ describe('a route for this machine alone', () => {
 
 describe('the pages that connect a source', () => {
   // The page and its presses are this machine's alone and
-  // ask no session — reaching that door is what a session would prove — and a
-  // press is asked every cross-site layer a mutation is; where GitHub sends
-  // the browser back is answered on any door, for the word `connected.ts` asks.
+  // ask no session; a press is asked every cross-site layer a mutation is and,
+  // since loopback is every account here, a connect ticket that holds (which
+  // the server reads: `ticketed`); where GitHub sends the browser back is
+  // answered on any door, for the word `connected.ts` asks.
   const by = (name: string) => CONNECTS.find((one) => one.name === name) as Route
   const PAGE = by('connect page')
   const PRESS = by('connect github make')
   const BACK = by('connect github made')
-  const MINE = guarding({ bound: ['127.0.0.1', '::1'], session: null })
+  const MINE = guarding({ bound: ['127.0.0.1', '::1'], session: null, ticketed: true })
+  const UNTICKETED = guarding({ bound: ['127.0.0.1', '::1'], session: null })
   const NAME = 'tade.example.com'
   const PUBLIC = guarding({ surface: { ...LAN, trustedHosts: [NAME] }, session: null })
   const press = (over: Partial<Asking> = {}): Asking =>
@@ -772,6 +775,24 @@ describe('the pages that connect a source', () => {
       ),
     ).toMatchObject({ ok: true, device: '' })
     expect(allowed(press(), PRESS, MINE)).toMatchObject({ ok: true, device: '' })
+  })
+
+  it('refuses a press on this machine that carries no ticket, however exact its headers', () => {
+    // A program that is not a browser sends whatever `Origin` it likes.
+    const verdict = allowed(press(), PRESS, UNTICKETED)
+    expect(verdict.ok).toBe(false)
+    if (!verdict.ok) {
+      expect(verdict.refusal.error).toBe('no_session')
+      expect(verdict.refusal.said).toBe(CONNECT_UNTICKETED)
+    }
+    // The page is a read, and shows no secret: it asks none.
+    expect(
+      allowed(
+        asking({ host: 'localhost:7654', listener: 'loopback', site: 'none', cookie: null }),
+        PAGE,
+        UNTICKETED,
+      ),
+    ).toMatchObject({ ok: true })
   })
 
   it('is the 404 of a path nobody built anywhere but this machine, a phone’s session or not', () => {

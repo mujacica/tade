@@ -61,7 +61,10 @@ describe('the connect pages, from Settings › Intake', () => {
     expect(col).toBeGreaterThan(heading.col)
     click(col + 2, heading.row)
     await until('it opened', () => wired.opened.length > 0)
-    expect(wired.opened.at(-1)?.args).toContain(url)
+    // Drawn as the address, opened with a ticket on it that every press there carries.
+    const opened = wired.opened.at(-1)?.args.find((one) => one.startsWith(url)) ?? ''
+    expect(opened).toMatch(/#ticket=[A-Za-z0-9_-]{27}$/)
+    expect(screen().some((row) => row.includes('#ticket='))).toBe(false)
     await until('the flash', () => screen().some((row) => row.includes('opened the connect pages')))
   })
 

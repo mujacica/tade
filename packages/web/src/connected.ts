@@ -19,6 +19,7 @@ import {
   notInstalledPage,
   PAGE_CSP,
 } from './connect-page.ts'
+import { mintConnectTicket } from './connect-tickets.ts'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { headersFor } from './headers.ts'
@@ -45,19 +46,19 @@ import { ownsOrTheirs } from './surface.ts'
 // the door, a `lan` bind is public, and a session that is not theirs is the
 // `404` of a path nobody built.
 //
-// **On this door no session is asked**, and that is the one new thing here.
-// What a session would prove — that this is the person — is what reaching this
-// door already is; what it would add on top is the cross-site layers, and those
-// are asked anyway: a press is a `POST` with an exact `Origin`, JSON only and
+// **On this door no session is asked, and a ticket is** (`connect-tickets.ts`).
+// The page is opened in whatever browser is here, or through another machine's
+// link, neither of which holds a session; the cross-site layers are asked
+// anyway — a press is a `POST` with an exact `Origin`, JSON only and
 // `Sec-Fetch-Site: same-origin` where sent, so no page in a browser here can
-// make one for somebody. What an account of another person on this machine
-// could do through a loopback port is replace the App with one of its own,
-// which reads nothing of yours until somebody with admin on your repositories
-// installs it there — and, for Slack, keep a signing secret or a token of its
-// own choosing: deliveries it signs then only make the watch look sooner, and
-// a token of another workspace's reads that workspace, where nobody on your
-// `from` list asks anything. What it costs you is your own app's working,
-// which the page then says is broken.
+// make one for somebody. But loopback is every account on this machine, and a
+// program that is not a browser sends whatever headers it likes, so a press
+// also carries the ticket its link was opened with: printed by `tade web
+// connect`, minted by Open or Copy on Settings › Intake, or handed to another
+// machine of the person's over its owner session (`connectHere`, `ticket`),
+// whose `tade remote connect` puts it on each press it carries. Without one,
+// another account here could replace the App or keep a signing secret or token
+// of its own choosing; with one, only somebody running as you can.
 //
 // **What a source's own page shows the person and hands over no other way** —
 // Slack's signing secret, its client's id and secret, or with no public name
@@ -548,11 +549,17 @@ function html(res: ServerResponse, status: number, page: string): void {
  * send that browser back to; without one the way in is this machine's own
  * `/connect`, which `tade remote connect` there serves to its browser over the
  * link (`RemoteLink.pages`), and the answer says so.
+ *
+ * **And a ticket, asked for** (`ticket`): what that link puts on each press it
+ * carries to this machine's own door (`connect-tickets.ts`), since the browser
+ * there was handed none — minted for an owner's session, which is the SSH key.
  */
 export async function connectHere(
   req: IncomingMessage,
   device: Device,
-  at: Pick<Connecting, 'connecting' | 'states' | 'publicName' | 'host' | 'secure' | 'now'>,
+  at: Pick<Connecting, 'connecting' | 'states' | 'publicName' | 'host' | 'secure' | 'now'> & {
+    home: string
+  },
 ): Promise<{ body: ConnectAnswer } | { refusal: Refusal }> {
   const connecting = at.connecting
   if (connecting === undefined) return { refusal: refuse('no_such') }
@@ -561,8 +568,12 @@ export async function connectHere(
   if (!got.read) return { refusal: got.refusal }
   const asked = OwnerAskSchema.safeParse(got.body)
   if (!asked.success) return { refusal: refuse('malformed') }
-  const { source, press, ...rest } = asked.data
+  const { source, press, ticket, ...rest } = asked.data
   const seen = await connecting.page(source)
+  if (ticket === true) {
+    const minted = await mintConnectTicket(at.home, at.now)
+    return { body: { ...seen, publicName: at.publicName, form: null, ticket: minted.ticket } }
+  }
   if (press === undefined) return { body: { ...seen, publicName: at.publicName, form: null } }
   if (at.publicName === null) {
     return {
@@ -589,6 +600,8 @@ export async function connectHere(
 export const OwnerAskSchema = PressSchema.extend({
   source: z.enum(CONNECT_SOURCES),
   press: z.enum(['make', 'install']).optional(),
+  /** A ticket for this machine's own pages, for the link that serves them elsewhere (`pages.ts`). */
+  ticket: z.literal(true).optional(),
 })
 
 const Said = z.string().max(600)
@@ -639,6 +652,11 @@ export const ConnectAnswerSchema = z.object({
     .nullable(),
   /** Why a press made nothing. */
   cannot: Said.optional(),
+  /** A ticket for this machine's own pages, where one was asked for (`connect-tickets.ts`). */
+  ticket: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{27}$/)
+    .optional(),
 })
 export interface ConnectAnswer {
   page: ConnectPage
@@ -647,4 +665,5 @@ export interface ConnectAnswer {
   publicName: string | null
   form: ConnectForm | null
   cannot?: string
+  ticket?: string
 }

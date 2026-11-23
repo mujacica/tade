@@ -4,9 +4,10 @@ import { request } from 'node:http'
 import { connect } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { CONNECT_STATE_MS, type ConnectPage } from '@tade/core'
+import { CONNECT_STATE_MS, CONNECT_UNTICKETED, type ConnectPage } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { PAGE_CSP } from '../src/connect-page.ts'
+import { CONNECT_TICKET_MS, mintConnectTicket } from '../src/connect-tickets.ts'
 import {
   ConnectAnswerSchema,
   type ConnectReturn,
@@ -22,7 +23,8 @@ import { type Answer, ask, closeAll, pair, type Running, start } from './harness
 
 // The guided pages that connect a source, over a real listener:
 // the page and its presses answer on this machine's own door with no
-// session and every cross-site layer that can apply, a press mints a one-time
+// session, every cross-site layer that can apply and — for a press — a connect
+// ticket (`connect-tickets.ts`), a press mints a one-time
 // word for the host GitHub will send the browser back to, and a callback is
 // answered for that word alone — once, for that host, within ten minutes. The
 // guard's half is `guard.test.ts`'s cross-product; what the window does with a
@@ -185,21 +187,27 @@ function connecting(
   return { half, asked }
 }
 
+/** What a person pasted from Slack's own page, in its shape. */
+const PASTED = 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6'
+
 /** This machine's own name for the listener: the door the page answers on. */
 const here = (one: Running) => `localhost:${one.host.split(':')[1]}`
 
-function press(
+/** A press as the page makes it: with a ticket the link was opened with, unless a test says otherwise. */
+async function press(
   one: Running,
   path: string,
   body: unknown = {},
   headers: Record<string, string> = {},
 ) {
+  const { ticket } = await mintConnectTicket(one.home, Date.now())
   return ask(one, path, {
     method: 'POST',
     headers: {
       host: here(one),
       origin: `http://${here(one)}`,
       'content-type': 'application/json',
+      [CSRF_HEADER]: ticket,
       ...headers,
     },
     body: JSON.stringify(body),
@@ -245,13 +253,90 @@ describe('the guided page', () => {
     expect(page.status).toBe(200)
   })
 
-  it('says on the page that this door asks no session, so anything on this machine can press it', async () => {
-    // A choice kept on purpose (`CONNECT_IS_HERE`): said where it is used, not only in the code.
+  it('says on the page where a link with a ticket on it comes from', async () => {
+    // Said where it is used, not only in the code (`CONNECT_IS_HERE`).
     const { half } = connecting()
     const one = await start({}, { connecting: half })
     const page = await ask(one, '/connect', { headers: { host: here(one) } })
-    expect(page.text).toContain('with no session asked, so anything running on this machine')
+    expect(page.text).toContain('opened from a link with a ticket on it: `tade web connect`')
+    expect(page.text).not.toContain('anything running on this machine can press')
     expect(page.text).not.toContain('nothing a phone holds')
+  })
+
+  it('draws no ticket, which is in the link’s fragment and never reaches it', async () => {
+    const { half } = connecting()
+    const one = await start({}, { connecting: half })
+    const { ticket } = await mintConnectTicket(one.home, Date.now())
+    const page = await ask(one, `/connect?ticket=${ticket}`, { headers: { host: here(one) } })
+    expect(page.status).toBe(200)
+    expect(page.text).not.toContain(ticket)
+    // The script reads it out of the fragment, and sends it as a press's token.
+    expect(page.text).toContain("get('ticket')")
+  })
+})
+
+describe('a press on this machine’s own door, which every account here reaches', () => {
+  // Loopback is every account on this machine, and a program that is not a
+  // browser sends any `Origin` it likes, so the cross-site layers alone let
+  // another account replace an App or a signing secret. A ticket is what only
+  // somebody running as you was handed.
+  it('is refused with no ticket, a ticket never minted, or one that ran out — and keeps nothing', async () => {
+    const { half, asked } = connecting()
+    let at = Date.now()
+    const one = await start({}, { connecting: half, now: () => at })
+    const old = await mintConnectTicket(one.home, at)
+    at += CONNECT_TICKET_MS + 1
+    for (const token of [null, 'A'.repeat(27), old.ticket, 'not a ticket']) {
+      const answer = await press(
+        one,
+        '/connect/slack/keep',
+        { signing_secret: PASTED },
+        token === null ? { [CSRF_HEADER]: '' } : { [CSRF_HEADER]: token },
+      )
+      expect(answer.status, String(token)).toBe(401)
+      expect(JSON.parse(answer.text).said).toBe(CONNECT_UNTICKETED)
+    }
+    for (const token of [null, old.ticket]) {
+      const made = await press(
+        one,
+        '/connect/github/make',
+        {},
+        token === null ? { [CSRF_HEADER]: '' } : { [CSRF_HEADER]: token },
+      )
+      expect(made.status).toBe(401)
+    }
+    expect(asked.kept).toEqual([])
+    expect(asked.wants).toEqual([])
+  })
+
+  it('is let through with a ticket minted here, pressed as often as the page needs', async () => {
+    const { half, asked } = connecting()
+    const one = await start({}, { connecting: half })
+    const { ticket } = await mintConnectTicket(one.home, Date.now())
+    for (let i = 0; i < 2; i++) {
+      const kept = await press(
+        one,
+        '/connect/slack/keep',
+        { signing_secret: PASTED },
+        { [CSRF_HEADER]: ticket },
+      )
+      expect(kept.status, kept.text).toBe(200)
+    }
+    expect(asked.kept).toEqual([{ signing_secret: PASTED }, { signing_secret: PASTED }])
+  })
+
+  it('still asks every cross-site layer of a press that carries a ticket', async () => {
+    const { half, asked } = connecting()
+    const one = await start({}, { connecting: half })
+    const elsewhere: Record<string, string>[] = [
+      { origin: 'https://evil.example' },
+      { 'content-type': 'text/plain' },
+    ]
+    for (const headers of elsewhere) {
+      const answer = await press(one, '/connect/slack/keep', { signing_secret: PASTED }, headers)
+      expect(answer.status).toBe(403)
+    }
+    expect(asked.kept).toEqual([])
   })
 })
 
@@ -362,7 +447,9 @@ describe('where GitHub sends the browser back', () => {
     let at = 1_800_000_000_000
     const { half, asked } = connecting()
     const one = await start({}, { connecting: half, now: () => at })
-    const state = stateOf(await press(one, '/connect/github/make'))
+    // A ticket on this window's clock, which is not the wall's.
+    const { ticket } = await mintConnectTicket(one.home, at)
+    const state = stateOf(await press(one, '/connect/github/make', {}, { [CSRF_HEADER]: ticket }))
     at += CONNECT_STATE_MS
     expect((await back(one, `/connect/github/made?code=c&state=${state}`)).status).toBe(404)
     expect(asked.codes).toEqual([])
@@ -712,6 +799,27 @@ describe('an owner asking from another machine', () => {
     // And the way in that is one step from the machine asking, not a forward written by hand.
     expect(answer.cannot).toContain('open /connect here with `tade remote connect`')
     expect(asked.wants).toEqual([])
+  })
+
+  it('hands an owner a ticket this machine’s own door then takes, for the link that serves its pages', async () => {
+    const { half, asked } = connecting()
+    const one = await start({}, { connecting: half })
+    const answer = await asOwner(one, { source: 'github', ticket: true })
+    expect(answer.status).toBe(200)
+    const read = ConnectAnswerSchema.parse(JSON.parse(answer.text))
+    expect(read.form).toBeNull()
+    const ticket = read.ticket ?? ''
+    expect(ticket).toMatch(/^[A-Za-z0-9_-]{27}$/)
+    const kept = await press(
+      one,
+      '/connect/slack/keep',
+      { signing_secret: PASTED },
+      {
+        [CSRF_HEADER]: ticket,
+      },
+    )
+    expect(kept.status, kept.text).toBe(200)
+    expect(asked.kept).toEqual([{ signing_secret: PASTED }])
   })
 
   it('answers no device that is not an owner', async () => {

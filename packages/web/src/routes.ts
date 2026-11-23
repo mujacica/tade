@@ -169,9 +169,9 @@ export interface Route {
   /**
    * What this route is in connecting a source
    * (`connected.ts`), where it is one of `CONNECTS`: the guided `page`, one
-   * `press` on it — each answered on this machine's door with no session,
-   * because reaching that door is what a session would prove, and to the
-   * person's own device on any other under its session (`theirs`) — or where the
+   * `press` on it — each answered on this machine's door with no session, a
+   * press there carrying a connect ticket instead (`connect-tickets.ts`), and
+   * to the person's own device on any other under its session (`theirs`) — or where the
    * source sends the browser `back`, answered on any door and only for the
    * one-time word a press minted.
    */
@@ -893,7 +893,9 @@ export const OWNED: readonly Route[] = [
  *
  * A table of its own because none of them is anything a device asks: the page
  * and its presses are this machine's alone (`here`) and ask no session, since
- * turning a source on is `never`-tier and reaching that door is the person —
+ * turning a source on is `never`-tier — a press there carrying a ticket only
+ * somebody running as the person was handed (`connect-tickets.ts`), because
+ * loopback is every account on this machine —
  * **but the person's own device** (`theirs`), which is asked for them on any
  * other door under its session, as every other act of its is: its cookie and
  * token, an exact `Origin`, a trusted origin and the passkey;

@@ -265,21 +265,24 @@ a device still has none of the scopes that change anything until somebody at thi
   is asked a trusted origin and the passkey, as acting is.
 - **Connecting a source is the owner's tenth, and its own table besides** (`/api/connect`,
   `CONNECTS`). Turning a source on is `never`-tier, so the page and its presses
-  answer on this machine's own door (`here`) **and ask no session**: reaching that door is what a
-  session would prove — the keyboard, or the SSH key that can already edit `config.yaml` — and
-  every cross-site layer that can apply is still asked of a press (exact `Origin`, JSON,
-  `Sec-Fetch-Site`), so no page in a browser here can make one for somebody. What another account
-  on this machine could do through a loopback port is replace the App with one of its own, which
-  reads nothing of the person's until somebody with admin on their repositories installs it. A press
+  answer on this machine's own door (`here`) **and ask no session, but a press asks a ticket**
+  (`src/connect-tickets.ts`): every cross-site layer that can apply is asked of a press (exact
+  `Origin`, JSON, `Sec-Fetch-Site`), so no page in a browser here can make one for somebody — but
+  loopback is every account on this machine and a program that is not a browser sends any header it
+  likes, so a press also carries, in the token header, a ticket its link was opened with: `tade web
+  connect` prints one, the window's Open and Copy mint one, and an owner asks `/api/connect` with
+  `ticket: true` for one, which another machine's `pages` puts on each press it carries. The digest
+  is in `<home>/connect-tickets.jsonl` (`0600`), the ticket in the link's fragment alone, an hour
+  each, sixteen at most; the server reads whether it holds (`Guarding.ticketed`) for a press alone. A press
   mints a one-time word (`ConnectStates`, in memory, ten minutes, sixteen at most) **for the host
   the source will send the browser back to** — the public name where there is one, else the door
   the press came in at — and a callback (`connects: 'back'`, on any door) is answered only for that
   word at that host, burned before the code is exchanged. The pages are drawn by the server, not
   the away view's page: no session, no worker, no asset, and a content policy of their own that
   names their one script and stylesheet by digest and lets a form go to GitHub alone (`PAGE_CSP`).
-  **On this machine's own door they ask no session**, a choice kept on purpose — the window opens them
-  in whatever browser is here and another machine's `pages` carries no cookie — so anything running
-  here can press them, and `CONNECT_IS_HERE` says so on the page.
+  **On this machine's own door they ask no session** — the window opens them in whatever browser is
+  here and another machine's `pages` carries no cookie — which is why the ticket stands in for one;
+  `CONNECT_IS_HERE` says on the page where a link with one comes from.
   The owner's route exists because the Mac's link ends in a socket no browser opens: it presses
   only where that machine has a public name, and the Mac writes the form into a page in its own
   home that posts itself to GitHub, or opens Slack's address as it is — each held to its source's
@@ -1036,7 +1039,9 @@ again next week.
 `src/connect-where.ts`, which Settings › Intake draws too): this machine's own loopback door and the
 `ssh -L` that reaches it, because they are `here` routes — never the public name, and for an off
 surface or a `lan` bind a reason on standard error and exit 1 rather than a link to a refusal. It
-reads the config and the lock, opens nothing, and says nothing answers where no window is open.
+reads the config and the lock, mints a connect ticket for the link's fragment (the one thing it
+writes: a digest in `connect-tickets.jsonl`), opens nothing, and says nothing answers where no window
+is open.
 
 `pair` **writes a code, and needs no window to** (argued in
 `src/pending.ts`). It used to only point at the panel: a ticket lived in the window's memory and the

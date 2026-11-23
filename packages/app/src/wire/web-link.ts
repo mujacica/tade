@@ -1,4 +1,4 @@
-import type { ConnectWhere, Tickets } from '@tade/web'
+import { type ConnectWhere, mintConnectTicket, type Tickets, ticketed } from '@tade/web'
 import { launch, openerForLink } from '../editor.ts'
 import { AWAY_CONTROLS } from '../panels/away/state.ts'
 import { CONNECT_CONTROLS } from '../panels/settings/connect.ts'
@@ -60,8 +60,11 @@ export function isConnect(control: string): boolean {
 /**
  * Open the guided pages that connect a source, or copy where they are: read
  * at the press from the listener as it is then (`connectWhere`), never out of
- * what was drawn. Throws a sentence where nothing serves them any more, or the
- * clipboard would not take it.
+ * what was drawn — and with a ticket minted at the press on the link
+ * (`connect-tickets.ts`), which every press on the pages carries, so what is
+ * drawn is the address and what is opened or copied is the way in. Throws a
+ * sentence where nothing serves them any more, or the clipboard would not
+ * take it.
  */
 export async function carryConnect(
   wire: Wiring,
@@ -70,13 +73,13 @@ export async function carryConnect(
   deps: { copy(text: string): Promise<boolean> },
 ): Promise<void> {
   if (where.url === null) throw new Error(`The connect pages are not here: ${where.why}.`)
+  const url = ticketed(where.url, (await mintConnectTicket(wire.opts.home, wire.now())).ticket)
   if (control === CONNECT_CONTROLS.open) {
-    const opener = openerForLink(where.url)
+    const opener = openerForLink(url)
     if (opener.kind === 'detached') await (wire.opts.open ?? launch)(opener)
     flash(wire, 'opened the connect pages')
     return
   }
-  if (!(await deps.copy(where.url)))
-    throw new Error('Where the connect pages are could not be copied.')
+  if (!(await deps.copy(url))) throw new Error('Where the connect pages are could not be copied.')
   flash(wire, 'copied where the connect pages are')
 }

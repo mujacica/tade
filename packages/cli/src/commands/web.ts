@@ -25,6 +25,7 @@ import {
   type Device,
   devicesPath,
   GRANTS,
+  mintConnectTicket,
   mintOwner,
   PENDING_MS,
   pairingUrl,
@@ -35,6 +36,7 @@ import {
   SCOPES,
   type Surface,
   surfaceOf,
+  ticketed,
   writeCode,
 } from '@tade/web'
 import { heldBy } from '@tade/workbench/lock'
@@ -296,7 +298,16 @@ export function registerWeb(program: Command, io: Io, setExit: (code: number) =>
       }
       // Only this machine's own door (`connect-where.ts`): the pages are never
       // on a public name, and an off or `lan` surface is a reason, not a link.
-      const where = connectWhere(surfaceOf(loaded.config.surfaces.web))
+      const found = connectWhere(surfaceOf(loaded.config.surfaces.web))
+      // A ticket on the link (`connect-tickets.ts`), which every press on the
+      // pages carries: loopback is every account here, and this terminal is you.
+      const where =
+        found.url === null
+          ? found
+          : {
+              ...found,
+              url: ticketed(found.url, (await mintConnectTicket(tadeHome(), Date.now())).ticket),
+            }
       const window = (await heldBy(tadeHome())) !== null
       if (opts.json) {
         io.out(JSON.stringify({ ...where, answering: where.url !== null && window }, null, 2))
@@ -304,7 +315,7 @@ export function registerWeb(program: Command, io: Io, setExit: (code: number) =>
         io.err(where.why)
       } else {
         io.out(where.url)
-        io.out(`open it ${where.how}`)
+        io.out(`open it ${where.how}, within the hour its ticket is good for`)
       }
       if (where.url === null) setExit(Exit.error)
       else if (!window) io.err(NOTHING_ANSWERS)

@@ -3,7 +3,13 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PUSH_IS_WHILE_OPEN } from '@tade/core'
-import { appendDevice, CONNECT_OFF, CONNECT_ON_LAN, writeDevices } from '@tade/web'
+import {
+  appendDevice,
+  CONNECT_OFF,
+  CONNECT_ON_LAN,
+  connectTicketHolds,
+  writeDevices,
+} from '@tade/web'
 import { lockHome } from '@tade/workbench/lock'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -482,10 +488,15 @@ describe('tade web connect', () => {
     const said = await tade()
     expect(said.code).toBe(0)
     // Never the public name, where they are the 404 of a path nobody built.
-    expect(said.stdout.split('\n')).toEqual([
-      'http://localhost:7711/connect',
-      'open it here, or from another machine through `ssh -L 7711:localhost:7711`',
-    ])
+    const [url, how, ...rest] = said.stdout.split('\n')
+    // A ticket on it, in the fragment, which every press carries: one held here.
+    expect(url).toMatch(/^http:\/\/localhost:7711\/connect#ticket=[A-Za-z0-9_-]{27}$/)
+    expect(how).toBe(
+      'open it here, or from another machine through `ssh -L 7711:localhost:7711`, within the hour its ticket is good for',
+    )
+    expect(rest).toEqual([])
+    const ticket = url?.split('#ticket=')[1] ?? ''
+    expect(await connectTicketHolds(home, ticket, Date.now())).toBe(true)
     expect(said.stdout).not.toContain('tade.example.com')
     expect(said.stderr).toContain('no window is open on this home, so nothing answers')
   })
@@ -497,7 +508,7 @@ describe('tade web connect', () => {
       const said = await tade('--json')
       expect(said.code).toBe(0)
       expect(JSON.parse(said.stdout)).toEqual({
-        url: 'http://localhost:7654/connect',
+        url: expect.stringMatching(/^http:\/\/localhost:7654\/connect#ticket=[A-Za-z0-9_-]{27}$/),
         how: 'here, or from another machine through `ssh -L 7654:localhost:7654`',
         answering: true,
       })

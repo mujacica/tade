@@ -8,6 +8,7 @@ import { answerHere } from './answering.ts'
 import { carryAsk } from './asked.ts'
 import { assetsDir, readAssets } from './assets.ts'
 import { carryChange } from './configured.ts'
+import { connectTicketHolds } from './connect-tickets.ts'
 import { ConnectStates, carryConnect, connectHere } from './connected.ts'
 import { appendDevice, type Device, listing, readDevices } from './devices.ts'
 import { carrySave } from './drafted.ts'
@@ -241,6 +242,12 @@ export function webServer(opts: ServerOptions): WebServer {
       session:
         host === null ? null : sessionOf(asking.cookie, devices.devices, asking.host ?? '', now()),
       now: now(),
+      // What a press on this machine's own door carries in place of a session
+      // (`connect-tickets.ts`): read for a press alone, and only where a token
+      // in a ticket's shape was offered.
+      ticketed:
+        found.route.connects === 'press' &&
+        (await connectTicketHolds(opts.home, asking.token, now())),
     }
 
     const verdict = allowed(asking, found.route, guarding)
@@ -428,7 +435,10 @@ export function webServer(opts: ServerOptions): WebServer {
       case 'sign out':
         return signOut(res, verdict.origin, device, found.params.id ?? '')
       case 'connect': {
-        const said = await connectHere(req, device, connectAt(asking.host ?? ''))
+        const said = await connectHere(req, device, {
+          ...connectAt(asking.host ?? ''),
+          home: opts.home,
+        })
         return 'refusal' in said ? answer(res, said.refusal) : json(res, said.body)
       }
       case 'passkey challenge':

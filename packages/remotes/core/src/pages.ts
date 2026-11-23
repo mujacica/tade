@@ -8,7 +8,9 @@ import {
 } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { Duplex } from 'node:stream'
-import { saidOf } from './call.ts'
+import { CONNECT_SOURCES } from '@tade/core'
+import { CSRF_HEADER } from '@tade/web'
+import { callOver, saidOf } from './call.ts'
 import { LinkError, type PagesHere, type Remote } from './port.ts'
 
 // Another machine's guided pages that connect a source (`/connect`, `@tade/web`'s
@@ -33,10 +35,20 @@ import { LinkError, type PagesHere, type Remote } from './port.ts'
 // with a deadline; and it listens only while somebody holds it open — `tade
 // remote connect`, until ctrl+c.
 //
+// **A ticket on every press** (`connect-tickets.ts` in `@tade/web`): that
+// machine's own door asks one in place of a session, and the browser here was
+// handed none, so each press is preceded by an owner's ask for one over the
+// same link (`/api/connect`, `ticket`) — this machine's session there, which
+// is the SSH key — and carries it in the header the page would have. Whatever
+// the browser sent in that header is never passed on. A far end too old to
+// mint one asks none, and its press goes as it is.
+//
 // **Still a port on loopback**, which every account on this machine reaches
-// while it is open, as it would the forward. What that reaches there is what
-// that machine's own door is (`CONNECT_IS_HERE`): an app made or replaced, a
-// secret kept, and nothing that grants anybody anything.
+// while it is open, as it would the forward — and what it carries, it carries
+// with that ticket. So what another account here may do through it, for as
+// long as somebody holds it open, is what that machine's own door is
+// (`CONNECT_IS_HERE`): an app made or replaced, a secret kept, and nothing
+// that grants anybody anything; ctrl+c ends it.
 
 /** How long one request to the pages may take, there and back. */
 export const PAGE_MS = 30_000
@@ -56,6 +68,8 @@ const NOT_THERE = new Set([
   'upgrade',
   'cookie',
   'authorization',
+  // The ticket goes as this link asked for it, never as a browser here says.
+  CSRF_HEADER,
 ])
 const NOT_BACK = new Set([
   'connection',
@@ -119,7 +133,14 @@ async function pass(
     clearTimeout(timer)
     stream?.destroy()
   })
+  let ticket: string | null
   try {
+    const asked = req.method === 'POST' ? await ticketFor(connect, remote, ms) : { ticket: null }
+    if ('cannot' in asked) {
+      say(res, 502, asked.cannot)
+      return
+    }
+    ticket = asked.ticket
     stream = await connect()
   } catch (err) {
     say(res, 502, err instanceof LinkError ? err.message : saidOf(err, remote))
@@ -138,7 +159,11 @@ async function pass(
       // The browser's own `Host` and `Origin`, which are this door's: that
       // machine answers them as its own loopback door, and mints a callback's
       // word for this one.
-      headers: { ...only(req.headers, NOT_THERE), connection: 'close' },
+      headers: {
+        ...only(req.headers, NOT_THERE),
+        ...(ticket === null ? {} : { [CSRF_HEADER]: ticket }),
+        connection: 'close',
+      },
     },
     (back) => {
       if (res.headersSent) {
@@ -152,6 +177,37 @@ async function pass(
   )
   out.on('error', (err) => say(res, 502, saidOf(err, remote)))
   req.pipe(out)
+}
+
+/** What a press goes with: a ticket, none for a far end too old to mint one, or why not. */
+type Ticket = { ticket: string | null } | { cannot: string }
+
+/** A ticket's shape, as that machine mints one. */
+const TICKET = /^[A-Za-z0-9_-]{27}$/
+
+/**
+ * A ticket for one press, asked of that machine as its owner. An answer that
+ * did not understand the ask (`400`) is a Tade from before tickets, whose door
+ * asks none; any other refusal is said, since the press would only be refused
+ * after it for a reason the page could not name.
+ */
+async function ticketFor(
+  connect: () => Promise<Duplex>,
+  remote: Remote,
+  ms: number,
+): Promise<Ticket> {
+  const source = CONNECT_SOURCES[0]
+  const answer = await callOver(connect, remote, '/api/connect', { source, ticket: true }, ms)
+  const body = answer.body as { ticket?: unknown; said?: unknown } | null
+  if (answer.status === 200) {
+    const ticket = typeof body?.ticket === 'string' && TICKET.test(body.ticket) ? body.ticket : null
+    return { ticket }
+  }
+  if (answer.status === 400) return { ticket: null }
+  const said = typeof body?.said === 'string' ? `: ${body.said.slice(0, 200)}` : ''
+  return {
+    cannot: `${remote.name} would not hand this machine a ticket for its pages (${answer.status}${said})`,
+  }
 }
 
 /** The headers but those named. */

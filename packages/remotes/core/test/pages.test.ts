@@ -36,7 +36,10 @@ afterEach(async () => {
 
 /** A far end that answers every request, and what reached it. */
 async function farEnd(
-  answer: (res: import('node:http').ServerResponse) => void = (res) => {
+  answer: (
+    res: import('node:http').ServerResponse,
+    req: import('node:http').IncomingMessage,
+  ) => void = (res) => {
     res.writeHead(200, { 'content-type': 'text/html', 'set-cookie': 'tade=theirs; Path=/' })
     res.end('<h1>Connect</h1>')
   },
@@ -50,7 +53,7 @@ async function farEnd(
     })
     req.on('end', () => {
       reached.push({ method: req.method, url: req.url, headers: req.headers, body })
-      answer(res)
+      answer(res, req)
     })
   })
   await new Promise<void>((done) => far?.listen(0, '127.0.0.1', done))
@@ -105,16 +108,86 @@ describe('another machine’s connect pages, served here', () => {
       body: '{"signing_secret":"x"}',
     })
     expect(press.status).toBe(200)
-    expect(reached.map((one) => [one.method, one.url, one.body])).toEqual([
+    // The owner's ask for a ticket aside (below), what the browser sent.
+    const passed = reached.filter((one) => one.url !== '/api/connect')
+    expect(passed.map((one) => [one.method, one.url, one.body])).toEqual([
       ['GET', '/connect', ''],
       ['POST', '/connect/slack/keep', '{"signing_secret":"x"}'],
     ])
-    for (const one of reached) {
+    for (const one of passed) {
       expect(one.headers.host).toBe(here.host)
       expect(one.headers.cookie).toBeUndefined()
       expect(one.headers.authorization).toBeUndefined()
     }
-    expect(reached[1]?.headers.origin).toBe(here.origin)
+    expect(passed[1]?.headers.origin).toBe(here.origin)
+  })
+
+  it('puts a ticket that machine handed its owner on every press, and none on a read', async () => {
+    const TICKET = 'T'.repeat(27)
+    const { reached, dial } = await farEnd((res, req) => {
+      if (req.url === '/api/connect') {
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ ticket: TICKET }))
+        return
+      }
+      res.writeHead(200, { 'content-type': 'text/html' })
+      res.end('<h1>Connect</h1>')
+    })
+    pages = await pagesOver(dial, REMOTE)
+    const here = new URL(pages.url)
+    await ask(pages.url)
+    const press = await ask(`${here.origin}/connect/slack/keep`, {
+      method: 'POST',
+      // Whatever a browser here says the ticket is, it is not passed on.
+      headers: { origin: here.origin, 'content-type': 'application/json', 'x-tade-csrf': 'mine' },
+      body: '{}',
+    })
+    expect(press.status).toBe(200)
+    expect(reached.map((one) => [one.method, one.url])).toEqual([
+      ['GET', '/connect'],
+      ['POST', '/api/connect'],
+      ['POST', '/connect/slack/keep'],
+    ])
+    // Asked as this machine's owner session there, for a ticket and nothing else.
+    expect(reached[1]?.headers.cookie).toContain('d.c')
+    expect(reached[1]?.headers['x-tade-csrf']).toBe('x')
+    expect(JSON.parse(reached[1]?.body ?? '{}')).toMatchObject({ ticket: true })
+    expect(reached[0]?.headers['x-tade-csrf']).toBeUndefined()
+    expect(reached[2]?.headers['x-tade-csrf']).toBe(TICKET)
+  })
+
+  it('says why where that machine would not hand over a ticket, and presses nothing', async () => {
+    const { reached, dial } = await farEnd((res, req) => {
+      res.writeHead(req.url === '/api/connect' ? 403 : 200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ error: 'out_of_scope', said: 'this device was not granted that' }))
+    })
+    pages = await pagesOver(dial, REMOTE)
+    const here = new URL(pages.url).origin
+    const press = await ask(`${here}/connect/slack/keep`, {
+      method: 'POST',
+      headers: { origin: here, 'content-type': 'application/json' },
+      body: '{}',
+    })
+    expect(press.status).toBe(502)
+    expect(press.body).toContain('vps would not hand this machine a ticket for its pages (403')
+    expect(reached.map((one) => one.url)).toEqual(['/api/connect'])
+  })
+
+  it('presses with no ticket where that machine is a Tade from before them, which asks none', async () => {
+    const { reached, dial } = await farEnd((res, req) => {
+      res.writeHead(req.url === '/api/connect' ? 400 : 200, { 'content-type': 'application/json' })
+      res.end('{}')
+    })
+    pages = await pagesOver(dial, REMOTE)
+    const here = new URL(pages.url).origin
+    const press = await ask(`${here}/connect/slack/keep`, {
+      method: 'POST',
+      headers: { origin: here, 'content-type': 'application/json' },
+      body: '{}',
+    })
+    expect(press.status).toBe(200)
+    expect(reached.map((one) => one.url)).toEqual(['/api/connect', '/connect/slack/keep'])
+    expect(reached[1]?.headers['x-tade-csrf']).toBeUndefined()
   })
 
   it('passes a callback with its query, as the source sent the browser back', async () => {
