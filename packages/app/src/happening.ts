@@ -126,6 +126,20 @@ function waits(pane: AgentPane): string[] {
   return lines
 }
 
+/**
+ * What another machine's journal, as the copy kept here has it, says of one of
+ * its tasks: what its agent has been up to, and where the task stood — every
+ * line marked with the machine, because it is that machine's word and not this
+ * one's look.
+ */
+export function happeningThere(machine: string, work: WorkSummary | null): string {
+  if (!work || work.empty) return ''
+  const lines = [...beenDoing(work)]
+  if (work.state) lines.unshift(`${work.state}, as its journal last said`)
+  if (work.moved) lines.push(work.moved)
+  return lines.map((line) => `on ${machine}: ${line}`).join('\n')
+}
+
 /** What the journal says the agent has been up to, and what stopped it. */
 function beenDoing(work: WorkSummary | null): string[] {
   if (!work || work.empty) return []

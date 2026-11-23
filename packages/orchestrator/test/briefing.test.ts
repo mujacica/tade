@@ -422,3 +422,72 @@ describe('what it opens knowing with several repositories', () => {
     expect(said).not.toContain('/h/t/old.md')
   })
 })
+
+describe('what it opens knowing about the other machines', () => {
+  it('gives each other machine its own section, labelled, with its own clock marked', () => {
+    const said = composeBriefing({
+      now: NOW,
+      events: [event('tade_closing', null, {}, 30)],
+      fleet: [
+        {
+          name: 'vps',
+          events: [
+            event('run_started', 'api/migrate', {}, 50),
+            event('queue_held', 'api/backfill', { because: 'it needs the schema task first' }, 40),
+          ],
+        },
+        { name: 'quiet', events: [] },
+      ],
+    })
+    expect(said).toContain(
+      'On vps, from the copy of its journal kept here (it last wrote something down ~40m ago, by its own clock',
+    )
+    expect(said).toContain(
+      '- api/migrate: its agent was working when it last wrote (started ~50m ago)',
+    )
+    expect(said).toContain(
+      '- api/backfill: held there, waiting on the person: it needs the schema task first (~40m ago)',
+    )
+    // A machine whose copy has nothing in it is not a section of nothing.
+    expect(said).not.toContain('On quiet')
+  })
+
+  it('caps each machine per project and in all, and counts what it left out — four machines never become one machine’s worth', () => {
+    const busy = Array.from({ length: 12 }, (_, n) =>
+      event('task_created', `p${n % 4}/t${n}`, {}, 100 - n),
+    )
+    const said = composeBriefing({
+      now: NOW,
+      events: [event('tade_closing', null, {}, 5)],
+      projects: ['here'],
+      fleet: [
+        { name: 'hub', events: busy },
+        { name: 'mac', events: [event('task_created', 'tade/schema', {}, 20)] },
+      ],
+    }) as string
+    const hub = said.slice(said.indexOf('On hub'), said.indexOf('On mac'))
+    // Three a project, four projects: twelve kept per project, eight shown in all.
+    expect(hub.match(/^- p\d\/t\d+/gm)).toHaveLength(8)
+    expect(hub).toContain('- 4 more on hub not listed')
+    // The Mac's one task is still said, whatever the hub had.
+    expect(said).toContain('On mac')
+    expect(said).toContain('- tade/schema:')
+  })
+
+  it('says each machine’s queued work in its own section, as that machine’s to start, capped and counted', () => {
+    const queued = Array.from({ length: 6 }, (_, n) =>
+      event('task_created', `api/q${n}`, { after: [] }, 30 - n),
+    )
+    const said = composeBriefing({
+      now: NOW,
+      events: [event('tade_closing', null, {}, 5)],
+      fleet: [{ name: 'vps', events: [...queued, event('queue_started', 'api/q0', {}, 10)] }],
+    }) as string
+    expect(said).toContain(
+      'Queued on vps (last heard ~10m ago, by its own clock; only vps starts it):',
+    )
+    expect(said).toContain('- vps:api/q1')
+    expect(said).not.toContain('- vps:api/q0')
+    expect(said).toContain('- 1 more on vps not listed')
+  })
+})

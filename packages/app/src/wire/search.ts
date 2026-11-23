@@ -39,6 +39,7 @@ import {
 } from '../search.ts'
 import { doing } from '../view/rows.ts'
 import { type Actions, notify, type Subject, type Submits, type Wiring, why } from './context.ts'
+import type { FleetJournals } from './fleet-journals.ts'
 
 // Search matches letters, and asking is what happens when they are not enough.
 //
@@ -121,6 +122,12 @@ export interface SearchDeps {
   run(action: string): Promise<void>
   /** Other machines and their projects, where there are any (`Remotes.machines`). */
   machines(): Machines
+  /**
+   * What each other machine's journal, as the copy kept here has it, says of
+   * one of its projects and its tasks (`fleet-journals.ts`). Absent, its rows
+   * say only their names.
+   */
+  fleet?: Pick<FleetJournals, 'look' | 'aboutTask' | 'aboutProject'>
   /** Every plan, as the Plans screen folds them (`Plans.rows`), or null before the first look. */
   plans(): readonly PlanRow[] | null
 }
@@ -691,9 +698,14 @@ export class Search implements Subject {
     }
     // Where there are other machines, every project and agent says which it is
     // on: two projects called `tade` are otherwise two rows nobody can choose
-    // between. What another machine said goes nowhere but the row, never into
-    // `about`, which is the half that may leave this one.
+    // between. What another machine's projection said goes nowhere but the
+    // row; what its journal says, kept here as a copy (`fleet-journals.ts`),
+    // goes into `about` the way this machine's own journal does, each line
+    // labelled with the machine — so a task finished on the hub is found by
+    // its name here.
     const { here, remotes } = this.deps.machines()
+    const fleet = this.deps.fleet
+    if (remotes.length > 0) fleet?.look()
     for (const project of projects(this.wire.state)) {
       entries.push({
         id: `project:${project}`,
@@ -708,7 +720,14 @@ export class Search implements Subject {
       for (const project of machine.projects) {
         const id = `remote:${machine.name}:${project.name}`
         const label = project.title ?? project.name
-        entries.push({ id, kind: 'project', label, detail: `on ${machine.name}`, mark: '▣' })
+        entries.push({
+          id,
+          kind: 'project',
+          label,
+          detail: `on ${machine.name}`,
+          mark: '▣',
+          ...about(fleet?.aboutProject(machine.name, project.name)),
+        })
         for (const agent of project.agents) {
           entries.push({
             id: `${id}\0${agent.id}`,
@@ -717,6 +736,7 @@ export class Search implements Subject {
             detail: `in ${project.name} on ${machine.name}`,
             mark: markGlyph(agent.mark),
             tone: MARK_TONES[agent.mark],
+            ...about(fleet?.aboutTask(machine.name, agent.id)),
           })
         }
       }

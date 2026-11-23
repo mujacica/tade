@@ -24,7 +24,7 @@ export interface Telling {
 
 export type TellingInput = Pick<
   OrchestratorOptions,
-  'config' | 'notes' | 'activity' | 'now' | 'extensions' | 'journal' | 'queue' | 'efforts'
+  'config' | 'notes' | 'activity' | 'now' | 'extensions' | 'journal' | 'queue' | 'efforts' | 'fleet'
 > & {
   home: string
   /** The tools it wrote for itself that load beside Tade's own. */
@@ -52,6 +52,7 @@ export function tellingOf(opts: TellingInput): Telling {
     projects: Object.keys(config?.projects ?? {}),
     ...(opts.efforts ? { efforts: opts.efforts } : {}),
     ...(opts.queue ? { queue: opts.queue } : {}),
+    ...(opts.fleet ? { fleet: opts.fleet } : {}),
   })
   // Only the lessons that still apply: one about a project nobody has touched
   // in a month is noise in every prompt.

@@ -2,15 +2,21 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { App } from '@tade/app'
 import { thinkerOffers } from '@tade/app/panels/menu/state'
+import { clockOf } from '@tade/app/wire/context'
 import {
   activityFrom,
   type Config,
+  type EventType,
   effortsIn,
   finishedFrom,
+  fleetOfFeeds,
   historyFrom,
   LOCAL,
   loadConfig,
+  machineLabel,
   modelDetail,
+  QUEUED_THERE_READS,
+  queuedElsewhereSays,
   type ThinkingLevel,
   TOLD_EVENTS,
   type ToldPrint,
@@ -28,6 +34,7 @@ import {
 } from '@tade/orchestrator'
 import type { StatusCollector } from '@tade/status'
 import type { Workbench } from '@tade/workbench'
+import { readFeeds } from '@tade/workbench/feeds'
 import { livenessTableFrom } from '@tade/workbench/lane-liveness'
 import { shareConversation } from './one-conversation.ts'
 import { againForToolsAt, TOOLS_AGAIN } from './tools-again.ts'
@@ -186,7 +193,17 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
     // Files you attached go to the agents the orchestrator starts in answer.
     handOff: async (task) => (await held?.holding.handOff?.(task)) ?? { note: '', images: [] },
     queue: {
-      describe: async () => queue().describe(),
+      // With every other machine's queued work after this one's, each its own
+      // section out of the copy of its journal kept here: only it starts any.
+      describe: async () => {
+        const here = await queue().describe()
+        const there = queuedElsewhereSays(
+          fleetOfFeeds(machineLabel(), await feedsHere(QUEUED_THERE_READS)),
+          Date.now(),
+          clockOf,
+        )
+        return there.length > 0 ? [here, '', ...there].join('\n') : here
+      },
       change: async (req) => queue().change(req),
       plan: async (plan) => queue().plan(plan),
       schedule: async (req) => queue().schedule(req),
@@ -281,6 +298,22 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
       ).text,
   })
 
+  // Every other machine's journal as the copies under this home have it, each
+  // labelled; what could not be read is written down and left out.
+  const feedsHere = async (types?: readonly string[]) =>
+    (
+      await readFeeds(home, types ? { types: types as EventType[] } : {}).catch((err: unknown) => {
+        void client.log.append({
+          type: 'warning',
+          task: null,
+          detail: {
+            message: `the orchestrator: other machines' journals could not be read for it: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        })
+        return []
+      })
+    ).map((feed) => ({ name: feed.name, events: feed.events }))
+
   // Everything it is started with, read again at every start: also what
   // `toldNow` composes, so the two can only differ by what really moved.
   const thinkerOptions = async (): Promise<OrchestratorOptions & { config: Config }> => {
@@ -291,6 +324,8 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
     // The journal it opens on: what its own lessons are measured against, and
     // what it is told happened while it was not running.
     const journal = await client.events({ limit: 2_000 }).catch(() => [])
+    // And every other machine's, as the copies kept here have it: a section each.
+    const fleet = await feedsHere()
     return {
       home,
       socket: tools.path,
@@ -302,6 +337,7 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
       // And which of its own lessons still apply.
       activity: activityFrom(historyFrom(journal, Date.now()), Object.keys(config.projects)),
       journal,
+      fleet,
       // What it was tracking: the queue's own words, so the briefing and
       // tade_queue can never say different things.
       queue: await held?.queue.describe().catch(() => ''),

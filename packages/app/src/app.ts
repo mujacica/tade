@@ -30,6 +30,7 @@ import type { Earlier } from './wire/earlier.ts'
 import { Evaluations } from './wire/evaluations.ts'
 import { Extensions } from './wire/extensions.ts'
 import { Files } from './wire/files.ts'
+import { FleetJournals } from './wire/fleet-journals.ts'
 import { frameOf } from './wire/frame.ts'
 import { Images } from './wire/images.ts'
 import type { Intake } from './wire/intake.ts'
@@ -265,6 +266,16 @@ export class App {
       run: (action) => this.router.run(action),
       machines: () => this.remotes.machines(),
       plans: () => this.plans.rows(),
+      fleet: new FleetJournals({
+        home: this.wire.opts.home,
+        now: () => this.wire.now(),
+        idOf: (remote) => this.heart.feeds.syncedWith(remote)?.id ?? null,
+        say: (said) => {
+          this.wire.note(new Error(said))
+          this.wire.draw()
+        },
+        draw: () => this.wire.draw(),
+      }),
     })
     this.window = new Window(this.wire, {
       setTitle: (title) => this.terminal.setTitle(title),

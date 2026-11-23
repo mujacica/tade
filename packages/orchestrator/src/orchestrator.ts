@@ -105,6 +105,12 @@ export interface OrchestratorOptions {
    */
   journal?: readonly TadeEvent[]
   /**
+   * The copies of every other machine's journal kept here (`readFeeds`), each
+   * labelled with what that machine calls itself: a section each in the
+   * briefing, capped per machine and with what was left out counted.
+   */
+  fleet?: readonly { name: string; events: readonly TadeEvent[] }[]
+  /**
    * What is queued and scheduled, in the queue's own words — the same answer
    * `tade_queue` gives. Only a window has a queue, so only a window has this.
    */

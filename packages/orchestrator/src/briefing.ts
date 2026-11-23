@@ -3,8 +3,10 @@ import {
   documentsIn,
   type Effort,
   effortSays,
+  fleetOfFeeds,
   historyFrom,
   producedClause,
+  queuedElsewhereSays,
   type TadeEvent,
   undecidedProposals,
   waitingDocuments,
@@ -57,6 +59,15 @@ export interface BriefingInput {
    * this is a fold of the journal.
    */
   efforts?: readonly Effort[]
+  /**
+   * Every other machine's journal, as the copy kept here last had it
+   * (`readFeeds`): one section each, labelled with what that machine calls
+   * itself and capped the way this machine's is — per project, then per
+   * machine, with what was left out counted — so four machines never come to
+   * one machine's worth of lines without a word. Its times are its own clock's,
+   * marked `~`. Its queued work is its own section's too: only it starts any.
+   */
+  fleet?: readonly { name: string; events: readonly TadeEvent[] }[]
 }
 
 /** Enough to recognise the thread, few enough that nobody skips the section. */
@@ -74,6 +85,10 @@ const TASKS = 6
  * budget on; one project briefs exactly as it always did.
  */
 const PER_PROJECT = 3
+/** How many lines one other machine's section has at most, before the rest are counted. */
+const PER_MACHINE = 8
+/** How many of one other machine's queued tasks are named, before the rest are counted. */
+const QUEUED_PER_MACHINE = 4
 /** What finished long enough ago to be history rather than news. */
 const STALE = 3 * 86_400_000
 
@@ -218,6 +233,8 @@ export function composeBriefing(input: BriefingInput): string | null {
   const queue = input.queue?.trim()
   if (queue) sections.push(['What is queued and scheduled:', queue].join('\n'))
 
+  sections.push(...fleetSections(input, Math.min(most, PER_PROJECT)))
+
   const said = lastSaid(events, input.said ?? SAID)
   if (said.length > 0) {
     sections.push(
@@ -234,6 +251,74 @@ export function composeBriefing(input: BriefingInput): string | null {
     ...sections,
     'That is what the journal said as Tade opened, not what is true now. Anything current — where a task is, what is queued, what an agent did — is tade_status, tade_queue and tade_logs to answer.',
   ].join('\n\n')
+}
+
+/**
+ * One section per other machine, out of the copy of its journal kept here, in
+ * the briefing's shape: what its agents were doing, what it holds waiting on
+ * the person, the rest of its work most recently touched first — capped per
+ * project and then per machine, each cap counted — and its queued work.
+ */
+function fleetSections(input: BriefingInput, most: number): string[] {
+  const out: string[] = []
+  for (const feed of input.fleet ?? []) {
+    const events = feed.events
+    if (events.length === 0) continue
+    const there = (at: number) => `~${ago(Math.max(0, input.now - at))}`
+    const lines: string[] = []
+    const running = stillRunning(events)
+    const held = stillHeld(events)
+    const gone = removed(events)
+    const finished = finishedBy(events, input.now)
+    for (const run of running) {
+      lines.push(
+        `- ${run.task}: its agent was working when it last wrote (started ${there(when(run.ts))})`,
+      )
+    }
+    for (const one of held) {
+      lines.push(
+        `- ${one.task}: held there, waiting on the person: ${one.because} (${there(when(one.ts))})`,
+      )
+    }
+    const busy = new Set([...running.map((run) => run.task), ...held.map((one) => one.task)])
+    const rest = perProject(
+      historyFrom(events, input.now).tasks.filter(
+        (task) => !gone.has(task.task) && !busy.has(task.task),
+      ),
+      (task) => task.task,
+      most,
+    )
+    for (const task of rest.kept) {
+      const touched = there(task.lastEventAt)
+      const done = finished.get(task.task)
+      lines.push(
+        done
+          ? `- ${task.task}: finished ${touched} — ${done}`
+          : task.state
+            ? `- ${task.task}: ${task.state} as of ${touched}`
+            : `- ${task.task}: nothing written down since ${touched}`,
+      )
+    }
+    const shown = lines.slice(0, PER_MACHINE)
+    const over = lines.length - shown.length
+    const queued = queuedElsewhereSays(
+      fleetOfFeeds('', [{ name: feed.name, events }]),
+      input.now,
+      (at) => there(at),
+      QUEUED_PER_MACHINE,
+    )
+    const last = events.at(-1)
+    out.push(
+      [
+        `On ${feed.name}, from the copy of its journal kept here (it last wrote something down ${last ? there(when(last.ts)) : 'never'}, by its own clock; its agents and queue are its own to run — tade_status with machine: ${feed.name} says how it stands now):`,
+        ...(shown.length > 0 ? shown : ['- nothing about work in what it has written down']),
+        ...leftOut(rest.left),
+        ...(over > 0 ? [`- ${over} more on ${feed.name} not listed`] : []),
+        ...queued,
+      ].join('\n'),
+    )
+  }
+  return out
 }
 
 /**
