@@ -593,7 +593,31 @@ describe.skipIf(cannot !== null)(
       expect(conflicts(vps.journal())).toEqual([
         expect.objectContaining({ path: 'queue.holds', kept: 'orchestrator', lost: 'ask' }),
       ])
-      await until('the conflict said here', () => shown('Changed on both vps and here'))
+      // Said here: in what the window said, and its end drawn as the strip's latest words.
+      // Not its first words on screen: each side is named by its host name, and a
+      // runner's is sixty characters, so at eighty columns the sentence is six rows and
+      // its start has scrolled above the strip's four — said all the same. Read as a
+      // person reads wrapped text, rows joined, since where it wraps is the host's too.
+      const said = () =>
+        (
+          window as unknown as { wire: { state: { transcript: { entries: { text?: string }[] } } } }
+        ).wire.state.transcript.entries.filter((one) =>
+          one.text?.startsWith('Changed on both vps and here: queue.holds: '),
+        )
+      const strip = () => {
+        const lines = rows()
+        const top = lines.findLastIndex(
+          (row) => row.startsWith('━') && row.includes('orchestrator'),
+        )
+        const end = lines.findIndex((row, at) => at > top && row.startsWith('─'))
+        return lines
+          .slice(top + 1, end)
+          .map((row) => row.replace(/[▕█]\s*$/, '').trim())
+          .filter((row) => row !== '')
+          .join(' ')
+      }
+      await until('the conflict said here', () => said().length > 0 && strip().endsWith('’s kept.'))
+      expect(said()).toHaveLength(1)
       // The box's own stays its own, and so does what it pinned.
       expect(configOf(vps.home).workspace.driver).toBe('pty')
       expect(configOf(vps.home).checks.before).toBe('commit')
