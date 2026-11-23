@@ -97,7 +97,10 @@ async function toldHere(wire: Wiring, news: CarryNews): Promise<void> {
         () => '',
         (err: unknown) => ` It is not written down here: ${why(err)}`,
       )
-    notify(wire, `Changed on both ${news.from} and here: ${conflictSays(one, clockOf)}${unwritten}`)
+    notify(
+      wire,
+      `Changed on both ${news.from} and here: ${conflictSays(one, clockOf, news.from)}${unwritten}`,
+    )
   }
   for (const one of news.landed) {
     notify(

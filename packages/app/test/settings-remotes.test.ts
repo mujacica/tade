@@ -43,6 +43,7 @@ const LIST: Checklist = {
         machine: 'box-1',
         at: { wall: Date.UTC(2026, 9, 17, 14, 0), count: 0, machine: 'box-1' },
       },
+      mine: 'kept',
     },
   ],
   pinned: [{ what: 'checks', where: 'there' }],
@@ -194,7 +195,7 @@ describe('Settings › Remotes', () => {
     expect(drawn).toMatch(/Next start +approvals\.mode/)
     expect(drawn).toMatch(/Both changed +queue\.holds/)
     expect(drawn.replace(/[│▕█\s]+/g, ' ')).toMatch(
-      /box-1 set ask at .+, mac set orchestrator at .+; mac’s kept\./,
+      /vps set ask at .+, this machine set orchestrator at .+; this machine’s kept\./,
     )
     expect(drawn).toMatch(/Taken here +notes\.keep_days/)
     expect(drawn).toMatch(/Kept there +checks/)

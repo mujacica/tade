@@ -559,17 +559,28 @@ export interface SettingConflict {
   path: string
   kept: { value: string; machine: string; at: Stamp | null }
   lost: { value: string; machine: string; at: Stamp | null }
+  /** Which side is the machine that settled it: two machines may share a host name. */
+  mine: 'kept' | 'lost'
 }
 
 /**
  * The conflict as said, once, on each machine: "approvals.mode: vps set ask
- * at 14:02, mac set auto at 14:05; mac's kept". `hm` is the clock face of a
- * stamp, the caller's, so this stays pure.
+ * at 14:02, this machine set auto at 14:05; this machine’s kept". Each side
+ * is named as the person names it — this machine, and the other by `there`,
+ * what this one calls it (the remote's name) — never by two host names, which
+ * may be one. `hm` is the clock face of a stamp, the caller's, so this stays pure.
  */
-export function conflictSays(c: SettingConflict, hm: (wall: number) => string): string {
-  const one = (side: SettingConflict['kept']) =>
-    `${side.machine} set ${side.value === '' ? 'nothing' : side.value} ${side.at === null ? 'before anything wrote it down' : `at ${hm(side.at.wall)}`}`
-  return `${c.path}: ${one(c.lost)}, ${one(c.kept)}; ${c.kept.machine}’s kept.`
+export function conflictSays(
+  c: SettingConflict,
+  hm: (wall: number) => string,
+  there: string,
+): string {
+  const who = (side: 'kept' | 'lost') => (side === c.mine ? 'this machine' : there)
+  const one = (side: 'kept' | 'lost') => {
+    const { value, at } = c[side]
+    return `${who(side)} set ${value === '' ? 'nothing' : value} ${at === null ? 'before anything wrote it down' : `at ${hm(at.wall)}`}`
+  }
+  return `${c.path}: ${one('lost')}, ${one('kept')}; ${who('kept')}’s kept.`
 }
 
 /**

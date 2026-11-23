@@ -472,7 +472,7 @@ export function drawRemotes(
     // and whose stood, said whole under it; what was not taken, and why.
     for (const one of list?.conflicts ?? []) {
       line('Both changed', one.path, skin.waiting)
-      say(conflictSays(one, ctx.date), skin.hint, deep, 3)
+      say(conflictSays(one, ctx.date, at), skin.hint, deep, 3)
     }
     if (list !== null && list.taken.length > 0) line('Taken here', list.taken.join(', '), skin.done)
     for (const one of list?.newer ?? []) {

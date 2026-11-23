@@ -515,16 +515,38 @@ describe('a peer’s change to what widens agents', () => {
 })
 
 describe('a conflict, said', () => {
+  const hm = (wall: number) => (wall === 1 ? '14:02' : '14:05')
+
   it('says both values, both machines and when, and whose stood', () => {
     const said = conflictSays(
       {
         path: 'approvals.mode',
         kept: { value: 'auto', machine: 'mac', at: { wall: 2, count: 0, machine: 'mac' } },
-        lost: { value: 'ask', machine: 'vps', at: { wall: 1, count: 0, machine: 'vps' } },
+        lost: { value: 'ask', machine: 'box-1', at: { wall: 1, count: 0, machine: 'box-1' } },
+        mine: 'kept',
       },
-      (wall) => (wall === 1 ? '14:02' : '14:05'),
+      hm,
+      'vps',
     )
-    expect(said).toBe('approvals.mode: vps set ask at 14:02, mac set auto at 14:05; mac’s kept.')
+    expect(said).toBe(
+      'approvals.mode: vps set ask at 14:02, this machine set auto at 14:05; this machine’s kept.',
+    )
+  })
+
+  it('names each side as the person does, not by a host name both may share', () => {
+    const said = conflictSays(
+      {
+        path: 'queue.holds',
+        kept: { value: 'orchestrator', machine: 'mac', at: { wall: 2, count: 0, machine: 'mac' } },
+        lost: { value: 'ask', machine: 'mac', at: { wall: 1, count: 0, machine: 'mac' } },
+        mine: 'lost',
+      },
+      hm,
+      'vps',
+    )
+    expect(said).toBe(
+      'queue.holds: this machine set ask at 14:02, vps set orchestrator at 14:05; vps’s kept.',
+    )
   })
 })
 

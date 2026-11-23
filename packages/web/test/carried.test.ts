@@ -255,6 +255,7 @@ describe('carrying a setup here', () => {
         at: { wall: 3_000, count: 0, machine: 'mac' },
       },
       lost: { value: 'ask', machine: 'vps', at: { wall: 2_000, count: 0, machine: 'vps' } },
+      mine: 'lost',
     }
     expect(told).toEqual([{ from: 'mac', conflicts: [conflict], landed: [], refused: [] }])
   })

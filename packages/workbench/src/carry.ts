@@ -456,6 +456,7 @@ export function takeBack(
         path: one.path,
         kept: { value: shownValue(mine.value), machine: me, at: mine.stamp },
         lost: { value: one.conflict.value, machine: there, at: stampOf(one.conflict.hlc) },
+        mine: 'kept',
       })
     }
     if (one.outcome !== 'newer' || !('value' in one)) continue
@@ -502,6 +503,7 @@ export function takeBack(
         path: one.path,
         kept: { value: shownValue(theirs.value), machine: there, at: theirs.stamp },
         lost: { value: shownValue(ours.value), machine: me, at: ours.stamp },
+        mine: 'lost',
       })
     }
     if (widens) {
@@ -670,7 +672,8 @@ export function checklistLines(list: Checklist, how: { address: string; tade: st
       `carried to ${list.remote}: ${count(list.carried.length, 'setting or file', 'settings and files')}, kept in step from now on`,
     )
   }
-  for (const one of list.conflicts) lines.push(`  changed on both: ${conflictSays(one, clockOf)}`)
+  for (const one of list.conflicts)
+    lines.push(`  changed on both: ${conflictSays(one, clockOf, list.remote)}`)
   if (list.taken.length > 0) lines.push(`  newer there, taken here: ${list.taken.join(', ')}`)
   for (const one of list.newer) lines.push(`  ${one.what}: ${one.why}`)
   for (const one of list.theirs) {

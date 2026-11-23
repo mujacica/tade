@@ -205,6 +205,7 @@ describe('what comes back newer', () => {
         path: 'queue.holds',
         kept: { value: 'orchestrator', machine: 'vps', at: at(5_000, 'vps') },
         lost: { value: 'ask', machine: 'mac', at: at(2_000, 'mac') },
+        mine: 'lost',
       },
     ])
   })

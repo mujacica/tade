@@ -336,8 +336,8 @@ export async function applyCarry(
   const settings: CarriedSetting[] = []
   const toWrite: Write[] = []
   const news: CarryNews = { from: body.from, conflicts: [], landed: [], refused: [] }
-  const conflictOf = (path: string, kept: Side, lost: Side): void => {
-    news.conflicts.push({ path, kept, lost })
+  const conflictOf = (path: string, kept: Side, lost: Side, mine: 'kept' | 'lost'): void => {
+    news.conflicts.push({ path, kept, lost, mine })
   }
   const me = carrying.machine()
   for (const leaf of body.settings) {
@@ -391,7 +391,7 @@ export async function applyCarry(
           ? { conflict: { value: theirSide.value, hlc: textOfStamp(came.stamp) } }
           : {}),
       })
-      if (settled.conflict) conflictOf(leaf.path, mySide, theirSide)
+      if (settled.conflict) conflictOf(leaf.path, mySide, theirSide, 'kept')
       continue
     }
     if (!peerMayWrite(leaf.path, came.by)) {
@@ -420,7 +420,7 @@ export async function applyCarry(
         ? { conflict: { value: mySide.value, hlc: textOfStamp(mine.stamp) } }
         : {}),
     })
-    if (settled.conflict) conflictOf(leaf.path, theirSide, mySide)
+    if (settled.conflict) conflictOf(leaf.path, theirSide, mySide, 'lost')
     if (settingReach(leaf.path).reach === 'never' && came.by !== null) {
       news.landed.push({ path: leaf.path, now: shownValue(came.value), by: came.by })
     }

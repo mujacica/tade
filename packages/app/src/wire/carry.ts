@@ -271,7 +271,9 @@ export class Carries {
         (err: unknown) =>
           ` It is not written down here: ${err instanceof Error ? err.message : String(err)}`,
       )
-      this.deps.say(`Changed on both ${name} and here: ${conflictSays(one, clockOf)}${unwritten}`)
+      this.deps.say(
+        `Changed on both ${name} and here: ${conflictSays(one, clockOf, name)}${unwritten}`,
+      )
     }
     for (const one of back.landed) {
       if (!taken.includes(one.path)) continue
