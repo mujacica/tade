@@ -76,7 +76,7 @@ export class OwnCode {
     this.root = root
   }
 
-  /** Note what Tade starts on. Never throws: a checkout git cannot read owes nothing. */
+  /** Note what Tade starts on. A checkout git cannot read owes nothing, and is never looked at. */
   async begin(): Promise<void> {
     if (this.root === null || this.start !== null) return
     const root = this.root
@@ -94,6 +94,11 @@ export class OwnCode {
    * nothing else is looking, and nothing is owed yet. Synchronous and never
    * awaited — the beat is on the thread that draws. `moved` is called once,
    * the first time a reload is owed.
+   *
+   * Nothing is caught here: git answers with a code rather than throwing, so
+   * what could reject is `moved` or a file that could not be read, and that is
+   * an unawaited promise `watchProcess` reports rather than a look that went
+   * quiet. The next beat looks again.
    */
   beat(now: number, moved: () => void): void {
     if (this.start === null || this.changed.length > 0 || this.looking !== null) return
@@ -105,7 +110,6 @@ export class OwnCode {
         this.changed = changed
         moved()
       })
-      .catch(() => {})
       .finally(() => {
         this.looking = null
       })
@@ -171,13 +175,14 @@ function names(z: string): string[] {
   return z.split('\0').filter((name) => name !== '')
 }
 
-/** What a file holds, as a hash; `''` where it is not there. */
+/** What a file holds, as a hash; `''` where it is not there. Any other failure to read it throws. */
 async function fingerprint(root: string, path: string): Promise<string> {
   try {
     return createHash('sha1')
       .update(await readFile(join(root, path)))
       .digest('hex')
-  } catch {
-    return ''
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return ''
+    throw err
   }
 }

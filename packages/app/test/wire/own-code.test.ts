@@ -103,6 +103,18 @@ describe('a reload owed by Tade’s own code', () => {
     expect(own.owed()).toEqual(['packages/app/src/wire/updates.ts'])
   })
 
+  it('lets what the told side throws reach whoever reports it, rather than swallowing it', async () => {
+    const repo = checkout()
+    const own = new OwnCode(repo.root)
+    await own.begin()
+    repo.commit('code', { 'packages/app/src/wire/updates.ts': 'export const a = 2\n' })
+    own.beat(0, () => {
+      throw new Error('the strip could not draw')
+    })
+    await expect(own.settled()).rejects.toThrow('the strip could not draw')
+    expect(own.owed()).toEqual(['packages/app/src/wire/updates.ts'])
+  })
+
   it('never looks without a checkout, or where git cannot read one', async () => {
     const none = new OwnCode(null)
     await none.begin()
