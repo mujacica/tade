@@ -6,8 +6,8 @@ import { ifMissing } from './machine-file.ts'
 
 // What a wait on another machine is settled by, read out of the copies of the
 // others' journals kept under this home (`feeds.ts`): each machine's
-// `task_*` and document lines, what it calls itself and what this machine
-// calls it, and when it was last heard — the `Fleet` the queue's rule reads
+// `task_*` and document lines, what it calls itself, what this machine calls
+// it and what it calls this one, and when it was last heard — the `Fleet` the queue's rule reads
 // (`@tade/core`'s `fleet-waits.ts`).
 //
 // **Asked on every look at the queue, so it costs a `stat` per copy** and
@@ -73,6 +73,7 @@ export class FleetWaits {
     const machine: FleetMachine = {
       name: meta.name,
       ...(sync?.called ? { called: sync.called } : {}),
+      ...(typeof sync?.calls === 'string' && sync.calls !== '' ? { calls: sync.calls } : {}),
       heardAt: heard > 0 ? heard : null,
       lines,
     }

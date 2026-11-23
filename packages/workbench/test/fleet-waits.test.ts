@@ -86,6 +86,21 @@ describe('the other machines, as a wait reads them', () => {
     copyOfVps(home, [line('task_created', 'api/a', at), line('task_done', 'api/a', at + DAY)])
     expect((await waits.read('mac')).machines[0]?.lines).toHaveLength(2)
   })
+
+  it('reads what a machine that links here calls this one, kept beside its copy', async () => {
+    const home = tmp('tade-fleet-')
+    const at = Date.parse('2026-11-20T10:00:00Z')
+    copyOfVps(home, [line('task_created', 'api/a', at)])
+    expect((await new FleetWaits(home).read('mac')).machines[0]?.calls).toBeUndefined()
+    writeFileSync(
+      join(feedDir(home, VPS), 'sync.json'),
+      JSON.stringify({ id: VPS, name: 'ipax', calls: 'laptop', way: 'from', state: { at } }),
+    )
+    expect((await new FleetWaits(home).read('mac')).machines[0]).toMatchObject({
+      name: 'ipax',
+      calls: 'laptop',
+    })
+  })
 })
 
 describe('dropping a wait on a machine gone quiet', () => {

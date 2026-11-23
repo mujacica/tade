@@ -389,6 +389,11 @@ export interface FeedsAsk {
   sync?: Omit<SyncSummary, 'feeds'>
   /** The last request of an exchange: the far side writes down where the two stand. */
   close?: boolean
+  /**
+   * Beside `close`: what the asker calls the far side (`remotes.<name>` there),
+   * kept with where the two stand — how a wait written there names it.
+   */
+  calls?: string
   give: Given[]
   want: Want[]
 }
@@ -740,8 +745,13 @@ export class Feeds {
     if (!MACHINE_ID.test(peer.id) || peer.id === this.me.id) return
     const dir = feedDir(this.home, peer.id)
     await mkdir(dir, { recursive: true })
+    const was =
+      kept.calls === undefined
+        ? jsonOf<KeptSync>(await readFile(join(dir, 'sync.json'), 'utf8').catch(ifMissing(null)))
+        : null
+    const calls = typeof was?.calls === 'string' ? { calls: was.calls } : {}
     const tmp = join(dir, `sync.json.${process.pid}.writing`)
-    await writeFile(tmp, `${JSON.stringify(kept, null, 2)}\n`)
+    await writeFile(tmp, `${JSON.stringify({ ...kept, ...calls }, null, 2)}\n`)
     await rename(tmp, join(dir, 'sync.json'))
   }
 }
@@ -752,6 +762,12 @@ export interface KeptSync {
   name: string
   /** Its name here (`remotes.<name>`), for a machine this one links to. */
   called?: string
+  /**
+   * What it calls this machine (`remotes.<name>` there), for a machine that
+   * links to this one: how its waits name this one. Kept through an exchange
+   * this machine dials, which does not say it.
+   */
+  calls?: string
   /**
    * What its link paired as, for a machine that links to this one: the name
    * its `machine_seen` lines carry, which need not be what it calls itself.
@@ -782,6 +798,7 @@ export async function answerFeeds(
       peer: MachineNamed,
       here: SyncSummary,
       there: SyncSummary,
+      calls: string | undefined,
     ) => Promise<SyncState | null>
   },
 ): Promise<FeedsAnswer> {
@@ -807,8 +824,12 @@ export async function answerFeeds(
   let state: SyncState | null = null
   if (ask.close === true && ask.sync !== undefined) {
     state =
-      (await opts.synced?.(ask.from, { feeds: have, ...sync }, { feeds: ask.have, ...ask.sync })) ??
-      null
+      (await opts.synced?.(
+        ask.from,
+        { feeds: have, ...sync },
+        { feeds: ask.have, ...ask.sync },
+        ask.calls,
+      )) ?? null
   }
   return { machine, have, sync, lines, took, ...(state === null ? {} : { state }) }
 }
@@ -977,7 +998,15 @@ export async function shareFeeds(
   // The closing summaries: where both now stand, written down on both sides.
   const hereNow = await feeds.summaries()
   const extras = await opts.extras()
-  const closing = await ask({ from, have: hereNow, sync: extras, close: true, give: [], want: [] })
+  const closing = await ask({
+    from,
+    have: hereNow,
+    sync: extras,
+    close: true,
+    calls: opts.name,
+    give: [],
+    want: [],
+  })
   out.here = { feeds: hereNow, ...extras }
   if (closing.have !== undefined) {
     out.thereSummary = { feeds: closing.have, ...(closing.sync ?? out.thereSummary) }

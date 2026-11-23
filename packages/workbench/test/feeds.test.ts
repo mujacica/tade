@@ -25,6 +25,7 @@ import { ensureMachine, type MachineFile, mintEpoch, readMachine } from '../src/
 
 const EXTRAS = { notes: 'n', settings: {}, pinned: [] }
 const extras = async () => EXTRAS
+const EXTRAS_SUMMARY = { feeds: [], ...EXTRAS }
 
 interface Machine {
   name: string
@@ -146,6 +147,35 @@ describe('one exchange', () => {
     const quiet = await again.done
     expect(quiet).toMatchObject({ took: 0, gave: 0, left: 0 })
     expect(again.link.asked()).toBe(2)
+    await mac.log.close()
+    await vps.log.close()
+  })
+
+  it('says on its closing request what the asker calls the far side, which keeps it through a dial the other way', async () => {
+    const mac = await machine('mac')
+    const vps = await machine('vps')
+    const told: (string | undefined)[] = []
+    const call = async (ask: FeedsAsk): Promise<Answer> => {
+      const body = await answerFeeds(vps.feeds, JSON.parse(JSON.stringify(ask)) as FeedsAsk, {
+        extras,
+        now: now(),
+        synced: async (_peer, here, there, calls) => {
+          told.push(calls)
+          return syncStateOf(here, there, { forks: 0, conflicts: 0, at: now() })
+        },
+      })
+      return { status: 200, body: JSON.parse(JSON.stringify(body)) }
+    }
+    await shareFeeds(mac.feeds, call, { name: 'hub', extras, now })
+    expect(told).toEqual(['hub'])
+    const peer = { id: mac.file.id, name: 'mac' }
+    const state = syncStateOf(EXTRAS_SUMMARY, EXTRAS_SUMMARY, { forks: 0, conflicts: 0, at: 0 })
+    const kept = () =>
+      JSON.parse(readFileSync(join(feedDir(vps.home, mac.file.id), 'sync.json'), 'utf8'))
+    await vps.feeds.keepSync(peer, { id: peer.id, name: 'mac', calls: 'hub', way: 'from', state })
+    // vps dials the Mac in turn, which says nothing of what the Mac calls vps.
+    await vps.feeds.keepSync(peer, { id: peer.id, name: 'mac', called: 'laptop', way: 'to', state })
+    expect(kept()).toMatchObject({ called: 'laptop', calls: 'hub', way: 'to' })
     await mac.log.close()
     await vps.log.close()
   })

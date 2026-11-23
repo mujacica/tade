@@ -466,6 +466,7 @@ export const FeedsBody = z.strictObject({
     })
     .optional(),
   close: z.boolean().optional(),
+  calls: NameText.optional(),
   give: z.array(GivenText).max(64),
   want: z.array(WantText).max(64),
 })

@@ -342,6 +342,35 @@ describe('writing a wait on another machine', () => {
     })
   })
 
+  it('refuses a loop through a wait that names this machine by the other machine’s own name for it', () => {
+    // vps links here as `laptop`, which this machine is not called anywhere else.
+    const named = (calls?: string): Fleet => ({
+      self: 'mac',
+      machines: [
+        machine('ipax', [line('task_created', 'api/a', { after: ['laptop:api/b'] })], {
+          called: 'vps',
+          ...(calls === undefined ? {} : { calls }),
+        }),
+      ],
+    })
+    expect(
+      checkWaits({ ...base, after: [{ task: 'vps:api/a', why: 'w' }], elsewhere: named('Laptop') }),
+    ).toEqual({
+      ok: false,
+      problems: [
+        'api/b cannot wait on vps:api/a: vps:api/a already waits on api/b, so neither could start',
+      ],
+    })
+    // Before vps has dialled and said it, the walk ends there: a loop missed, never a wait refused.
+    expect(
+      checkWaits({ ...base, after: [{ task: 'vps:api/a', why: 'w' }], elsewhere: named() }).ok,
+    ).toBe(true)
+    // Its name for this machine is its own: written here, `laptop` is no machine.
+    expect(waitThereProblem('api/b', 'laptop:api/a', named('laptop'), false)).toBe(
+      'api/b cannot wait on laptop:api/a: no machine called laptop has its journal kept here (the ones kept are vps)',
+    )
+  })
+
   it('walks no wait of work there that has started, and reads a bare name there as its own', () => {
     const started: Fleet = {
       self: 'mac',

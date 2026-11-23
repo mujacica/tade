@@ -4,6 +4,7 @@ import {
   changesIn,
   machineLabel,
   pinnedIn,
+  printable,
   registersHere,
   type SyncState,
   type SyncSummary,
@@ -179,11 +180,12 @@ export class FleetFeeds {
         extras: () => this.extras(),
         now: this.deps.now(),
         forked: (fork) => this.forked(fork),
-        synced: (peer, here, there) =>
+        synced: (peer, here, there, calls) =>
           this.stand(peer, here, there, {
             way: 'from',
             name: peer.name,
             label: seenName(label),
+            ...callsOf(calls),
             forks: 0,
           }),
       })
@@ -296,6 +298,7 @@ export class FleetFeeds {
       way: 'to' | 'from'
       name: string
       label?: string
+      calls?: string
       forks: number
       took?: number
       gave?: number
@@ -314,6 +317,7 @@ export class FleetFeeds {
         name: peer.name,
         ...(how.way === 'to' ? { called: how.name } : {}),
         ...(how.label === undefined ? {} : { label: how.label }),
+        ...(how.calls === undefined ? {} : { calls: how.calls }),
         way: how.way,
         state,
       })
@@ -426,6 +430,16 @@ export function conflictsSince(lines: readonly CarryLine[], name: string): numbe
 function leftSays(name: string, done: FeedsShared): string | null {
   if (done.left === 0) return null
   return `Not every journal line between this machine and ${name} went across yet: the rest go at the next exchange`
+}
+
+/**
+ * What a machine that dials here says it calls this one, as it may be kept:
+ * text only, bounded, and nothing where it said nothing — it is another
+ * machine's word, and a name a wait there is read by.
+ */
+function callsOf(calls: string | undefined): { calls?: string } {
+  const plain = calls === undefined ? '' : printable(calls).trim().slice(0, 60)
+  return plain === '' ? {} : { calls: plain }
 }
 
 function why(err: unknown): string {

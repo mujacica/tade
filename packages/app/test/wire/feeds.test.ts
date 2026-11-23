@@ -1,6 +1,6 @@
 import { copyFileSync, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { feedDir } from '@tade/core'
+import { feedDir, TAKEN_OUT } from '@tade/core'
 import type { Answer } from '@tade/remotes-core'
 import { EventLog } from '@tade/workbench/events'
 import { ensureMachine, type MachineFile, mintEpoch } from '@tade/workbench/machine-file'
@@ -121,12 +121,25 @@ describe('where this machine and another stand', () => {
     const there = JSON.parse(
       readFileSync(join(feedDir(vps.home, mac.file.id), 'sync.json'), 'utf8'),
     )
-    expect(there).toMatchObject({ name: 'mac', label: PAIRED, way: 'from' })
+    expect(there).toMatchObject({ name: 'mac', label: PAIRED, calls: 'vps', way: 'from' })
     // The same word again writes nothing; a new line that crossed is still in step.
     await vps.log.append({ type: 'task_done', task: 'p/one', detail: {} })
     await mac.feeds.share('vps', reach(vps))
     expect(await synced(mac)).toHaveLength(1)
     expect(await synced(vps)).toHaveLength(1)
+  })
+
+  it('keeps what the near side calls it as text, with what was taken out marked, and nothing where that is blank', async () => {
+    const mac = await side('mac')
+    const vps = await side('vps')
+    const there = () =>
+      JSON.parse(readFileSync(join(feedDir(vps.home, mac.file.id), 'sync.json'), 'utf8'))
+    await mac.feeds.share(' \u001b[2Jbox\u0007 ', reach(vps))
+    expect(there().calls).toBe(`${TAKEN_OUT}box${TAKEN_OUT}`)
+    // A later share that says nothing usable keeps the name already kept.
+    await mac.log.append({ type: 'said', detail: { text: 'again' } })
+    await mac.feeds.share(' ', reach(vps))
+    expect(there().calls).toBe(`${TAKEN_OUT}box${TAKEN_OUT}`)
   })
 
   it('writes a fork down and says it once', async () => {

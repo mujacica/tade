@@ -24,7 +24,10 @@ import { DOCUMENT_EVENTS } from './produces.ts'
 // **A machine is named by either of its names**: what this machine calls it
 // (`remotes.<name>`, which is what a person types) or what it calls itself
 // (the label its journal is kept under, which is what crosses to a third
-// machine). Pure: facts in, answers out, no clock.
+// machine). A wait written on a machine that links here may name this one by
+// that machine's own `remotes.<name>`, which it says as it dials
+// (`FeedsAsk.calls`) and is kept beside its copy. Pure: facts in, answers
+// out, no clock.
 
 /** The kinds of line out of other machines' journals a wait is settled by. */
 export const FLEET_WAIT_READS = [
@@ -46,6 +49,8 @@ export interface FleetMachine {
   name: string
   /** What this machine calls it, where this machine links to it (`remotes.<name>`). */
   called?: string
+  /** What it calls this machine, where it links to this one (its `remotes.<name>`): how its waits name this one. */
+  calls?: string
   /** When anything of it was last heard here, by this machine's clock; null for never. */
   heardAt: number | null
   /** The lines of its journal a wait is settled by (`FLEET_WAIT_READS`), oldest first. */
@@ -406,15 +411,21 @@ export function waitsThere(machine: FleetMachine, task: string): string[] {
   return waits
 }
 
+/** Whether a machine names this one by a name of its own: what it calls this one where it links here. */
+function callsSelf(writer: FleetMachine | null, name: string): boolean {
+  return writer?.calls !== undefined && writer.calls.toLowerCase() === name.toLowerCase()
+}
+
 /**
  * An id as written on one machine (null for this one), as this machine names
- * it: a task of its own bare, any other `<its own name>:<task>`. A machine
- * nothing here is called is left as written, which nothing waits from.
+ * it: a task of its own bare — by its label, or by the name the writer calls
+ * it — any other `<its own name>:<task>`. A machine nothing here is called is
+ * left as written, which nothing waits from.
  */
 function spelledHere(fleet: Fleet | undefined, writer: FleetMachine | null, id: string): string {
   const { machine, task } = parseWait(id)
   if (machine === null) return writer === null ? task : waitOn(writer.name, task)
-  if (isSelf(fleet, machine)) return task
+  if (isSelf(fleet, machine) || callsSelf(writer, machine)) return task
   const there = machineNamed(fleet, machine)
   return there === null ? id : waitOn(there.name, task)
 }
@@ -425,8 +436,9 @@ function spelledHere(fleet: Fleet | undefined, writer: FleetMachine | null, id: 
  * another's as the copy of its journal says (`waitsThere`), every move
  * followed. A wait is written on one machine at a time, so a loop closed on
  * two at once, before either heard the other, is not seen — and a machine
- * that names this one by a name of its own that never crossed here ends the
- * walk where it does, which can only miss a loop, never refuse a wait.
+ * that names this one by a name of its own that has not crossed here yet (it
+ * has not dialled since) ends the walk where it does, which can only miss a
+ * loop, never refuse a wait.
  */
 export function waitsAcross(
   fleet: Fleet | undefined,
