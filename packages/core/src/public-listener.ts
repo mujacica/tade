@@ -132,10 +132,21 @@ export const PUBLIC_PROGRAMS: readonly RequiredProgram[] = [CADDY]
  * phone rather than one for the internet: Caddy 2.11.7 sends it over a Unix
  * socket upstream and keeps one upstream connection per client address, which
  * is what makes the address right for every request on it.
+ *
+ * **HSTS, for a year, from Caddy** — the one that terminates TLS, so it is the
+ * one whose answers a browser believes it from. After the first visit a phone
+ * never asks the name over plain HTTP again, so a network in between (a café,
+ * a hotel) cannot answer that first `http://` request with a page of its own
+ * before Caddy's redirect. Not `includeSubDomains` and not `preload`: the
+ * name is one of somebody's, and what else lives under their domain is not
+ * Tade's to promise is HTTPS.
  */
+export const HSTS = 'max-age=31536000'
+
 export function caddySite(name: string, socket: string = publicSocket()): string {
   return [
     `${name} {`,
+    `	header Strict-Transport-Security "${HSTS}"`,
     `\treverse_proxy unix/${socket} {`,
     '\t\ttransport http {',
     '\t\t\tproxy_protocol v2',

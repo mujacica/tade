@@ -36,6 +36,41 @@
 export const CACHE_PREFIX = 'tade-'
 
 /**
+ * **The one Trusted Types policy the page has, and the one URL it makes.**
+ * The content policy says `require-trusted-types-for 'script'`, so a browser
+ * that keeps Trusted Types refuses every string handed to a script sink —
+ * `innerHTML`, a script's `src`, `eval` — and registering a worker is one of
+ * them. Nothing here uses the others (`assets.test.ts` holds that), so the
+ * policy is named (`trusted-types tade-worker`), made once, and refuses every
+ * URL but the worker's: script that got onto the page cannot make itself a
+ * worker of its own through it, and cannot make a second policy at all. A
+ * browser without Trusted Types has nothing to hand, and is handed the string.
+ * Held equal to `headers.ts` by `test/trusted-types.test.ts`.
+ */
+export const WORKER_POLICY = 'tade-worker'
+export const WORKER_URL = '/sw.js'
+
+/** What `register` is handed for the worker, made through `types` when the browser has them. */
+export function workerURLs(types) {
+  if (!types || typeof types.createPolicy !== 'function') return (url) => url
+  const policy = types.createPolicy(WORKER_POLICY, {
+    createScriptURL: (url) => {
+      if (url !== WORKER_URL) throw new TypeError(`${url} is not this page's worker`)
+      return url
+    },
+  })
+  return (url) => policy.createScriptURL(url)
+}
+
+let trusted = null
+
+/** The worker's URL as the page may hand it over: the policy made the first time it is asked. */
+function workerURL() {
+  if (trusted === null) trusted = workerURLs(globalThis.trustedTypes)
+  return trusted(WORKER_URL)
+}
+
+/**
  * Why a browser refused all of this, in the page's own words.
  *
  * **The one failure here nobody is told about by anything else.** A browser
@@ -103,7 +138,7 @@ export async function startInstall(shell, told) {
   if (reg === null) {
     if (shell === null || shell.install !== true) return 'off'
     try {
-      reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      reg = await navigator.serviceWorker.register(workerURL(), { scope: '/' })
     } catch {
       // A registration that will not take is not a page that stops working:
       // everything here is an addition to a page that already asks the

@@ -132,6 +132,9 @@ export const PAGE_CSP = [
   'form-action https://github.com',
   "frame-ancestors 'none'",
   "object-src 'none'",
+  // Its script writes text and a form's `action`, never markup, so it needs no policy at all.
+  "require-trusted-types-for 'script'",
+  "trusted-types 'none'",
 ].join('; ')
 
 /** Text as HTML, so nothing anybody else wrote can be markup. */

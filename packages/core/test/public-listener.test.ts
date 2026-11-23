@@ -85,6 +85,7 @@ describe('the site block', () => {
     expect(block).toBe(
       [
         'tade.example.com {',
+        '\theader Strict-Transport-Security "max-age=31536000"',
         '\treverse_proxy unix//run/tade/away.sock {',
         '\t\ttransport http {',
         '\t\t\tproxy_protocol v2',
@@ -96,6 +97,15 @@ describe('the site block', () => {
     )
     // Rewriting Host would make the guard refuse every request.
     expect(block).not.toMatch(/header_up|Host/)
+  })
+
+  it('tells a browser to use HTTPS for the name from now on, and promises nothing of its siblings', () => {
+    const block = caddySite('tade.example.com')
+    expect(block).toMatch(/^\theader Strict-Transport-Security "max-age=\d+"$/m)
+    // A year at least: shorter lets a phone that has not visited in a while ask over HTTP again.
+    const age = Number(/max-age=(\d+)/.exec(block)?.[1])
+    expect(age).toBeGreaterThanOrEqual(31_536_000)
+    expect(block).not.toMatch(/includeSubDomains|preload/)
   })
 })
 

@@ -9,11 +9,14 @@
 // **The policy is `default-src 'none'` and it is deliberately total.** The page
 // may load its own scripts, its own stylesheet, its own images and nothing
 // else: no CDN, no webfont, no analytics, no remote source map, and
-// `connect-src 'self'` means it cannot reach the internet at all. The page
-// renders text a person typed, text an agent wrote and — later — text from a
-// forge, so the useful question is not "is this page trustworthy" but "what can
-// script on it reach if it gets there", and the answer is this machine and
-// nothing else.
+// `connect-src 'self'` means no `fetch`, socket or beacon reaches anywhere but
+// this machine. The page renders text a person typed, text an agent wrote and
+// text from a forge, so the useful question is not "is this page trustworthy"
+// but "what can script on it reach if it gets there". **Not "nothing else"**:
+// no content policy governs a navigation (`location = …` carries what it likes
+// in a URL) or WebRTC, so script that got here could still send something out.
+// What stands against that is script never getting here — no HTML sink in the
+// page at all, and Trusted Types below so a browser refuses one if it appears.
 //
 // `manifest-src` and `worker-src` are the two the installed shell needs, and
 // both are `'self'`: the manifest is a file out of this folder and the worker
@@ -47,6 +50,13 @@ export const CSP = [
   "form-action 'none'",
   "frame-ancestors 'none'",
   "object-src 'none'",
+  // **Trusted Types: every script sink refuses a string.** Nothing in the page
+  // writes `innerHTML` or a script's `src`, so this costs nothing, and the day
+  // something does a browser that keeps Trusted Types refuses it rather than
+  // running what an agent wrote. The one policy is the worker's, which makes
+  // `/sw.js` and nothing else (`install.js`'s `WORKER_POLICY`).
+  "require-trusted-types-for 'script'",
+  'trusted-types tade-worker',
 ].join('; ')
 
 /**
