@@ -40,6 +40,11 @@ extension can watch Tade and hand an agent its own bug. It is off until someone 
   for Tade's own files.
 - **Paths and credentials go before anything leaves.** `scrub` replaces the person's home with `~`
   and takes out anything credential-shaped. Call it on every string you add, not at the call site.
+  **Shapes are the net, and the values held are the floor**: a VAPID key, a hex webhook secret or a
+  PEM block has no prefix to find, so every credential Tade holds (`heldIn` over the config and the
+  environment, re-read when the file changes — `heldBy` in the CLI) is taken out exactly, case and
+  all, at the one place things leave (`sentry.ts`: messages, exceptions, fingerprints, tags,
+  contexts and every log attribute).
 - **A dimension is an enum, and `DIMENSIONS` is narrower than `KEPT` on purpose.** A metric is split
   by project; a task id is a slug made from a title somebody wrote — unbounded as a series, and not
   Tade's to send. Anything that can be a sentence — `because`, `reason`, `message` — is never a

@@ -1,3 +1,4 @@
+import { readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import {
@@ -11,8 +12,16 @@ import {
   type Unsubscribe,
   workedOf,
 } from '@tade/core'
-import { type Later, openReporter, openReporterLater, type Reporter, saw } from '@tade/telemetry'
+import {
+  heldIn,
+  type Later,
+  openReporter,
+  openReporterLater,
+  type Reporter,
+  saw,
+} from '@tade/telemetry'
 import type { Workbench } from '@tade/workbench'
+import { parse as parseYaml } from 'yaml'
 import { version } from './version.ts'
 
 // Tade reporting its own trouble.
@@ -40,12 +49,42 @@ function telemetryOf(config: Config): Config['telemetry'] {
   return { ...config.telemetry, dsn }
 }
 
+/**
+ * Every credential this Tade holds, asked at each send: what the config it
+ * opened with holds, what the file holds now — a key pasted into Settings
+ * while the window runs is written there, and read again only when the file
+ * changed — and the environment's. A file that cannot be read keeps the last
+ * answer; nothing here may throw into the reporter.
+ */
+export function heldBy(config: Config, path = defaultConfigPath()): () => readonly string[] {
+  const opened = heldIn(config, process.env)
+  let seen = -1
+  let now: readonly string[] = opened
+  return () => {
+    try {
+      const changed = statSync(path).mtimeMs
+      if (changed !== seen) {
+        seen = changed
+        now = [
+          ...new Set([...opened, ...heldIn(parseYaml(readFileSync(path, 'utf8')), process.env)]),
+        ]
+      }
+    } catch {
+      // The last answer stands: a config mid-write is not a reason to send a key.
+    }
+    return now
+  }
+}
+
 /** What a reporter needs that the config does not say. */
-function here(opts: { sink?: (envelope: unknown) => void; now?: () => number }) {
+function here(config: Config, opts: { sink?: (envelope: unknown) => void; now?: () => number }) {
   return {
     release: `tade@${version()}`,
     // Paths are scrubbed against the person's own home, so nothing says who they are.
     home: homedir(),
+    // And every key it holds, exactly: a pattern cannot find a VAPID key, a
+    // hex webhook secret or a key whose issuer chose no prefix.
+    held: heldBy(config),
     root: ROOT,
     ...opts,
   }
@@ -56,7 +95,7 @@ export function reporterFor(
   config: Config,
   opts: { sink?: (envelope: unknown) => void; now?: () => number } = {},
 ): Promise<Reporter> {
-  return openReporter(telemetryOf(config), here(opts))
+  return openReporter(telemetryOf(config), here(config, opts))
 }
 
 /**
@@ -69,7 +108,7 @@ export function reporterLater(
   config: Config,
   opts: { sink?: (envelope: unknown) => void; now?: () => number } = {},
 ): Later {
-  return openReporterLater(telemetryOf(config), here(opts))
+  return openReporterLater(telemetryOf(config), here(config, opts))
 }
 
 /**

@@ -201,7 +201,7 @@ const ALLOWED: Record<string, number> = {
   'packages/cli/src/commands/update.ts': 1,
   // Moved out of `commands/app.ts` with the orchestrator's start, the same seven.
   'packages/cli/src/orchestrating.ts': 7,
-  'packages/cli/src/telemetry.ts': 2,
+  'packages/cli/src/telemetry.ts': 3,
   'packages/cli/src/version.ts': 1,
   'packages/cli/src/with-workbench.ts': 1,
   'packages/core/src/config-file.ts': 2,
@@ -302,7 +302,7 @@ const ALLOWED: Record<string, number> = {
   'packages/status/src/tests.ts': 1,
   'packages/telemetry/src/later.ts': 1,
   'packages/telemetry/src/open.ts': 2,
-  'packages/telemetry/src/sentry.ts': 2,
+  'packages/telemetry/src/sentry.ts': 3,
   'packages/telemetry/src/shape.ts': 1,
   'packages/voice/stt/src/openai.ts': 1,
   'packages/voice/stt/src/recorder.ts': 2,

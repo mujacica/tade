@@ -97,6 +97,12 @@ export interface ReporterOptions {
   agents: boolean
   /** Replaced with `~` wherever it appears, so no path says who you are. */
   home: string
+  /**
+   * Every credential Tade holds now (`heldIn`), taken out of everything sent
+   * exactly rather than by its shape. Asked at each send, so a key pasted in
+   * while Tade runs is taken out too; one that throws is treated as none.
+   */
+  held?: () => readonly string[]
   /** Where Tade itself is, so a stack frame in it is one you could fix. */
   root?: string
   /**

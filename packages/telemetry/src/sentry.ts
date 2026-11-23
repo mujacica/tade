@@ -61,7 +61,7 @@ async function start(options: ReporterOptions): Promise<typeof import('@sentry/n
     beforeSendTransaction: (event) => clean(event, options),
     // The whole of the logs gate, since v11 took `enableLogs` away: what is not
     // asked for is dropped here rather than never built. Nothing more leaves.
-    beforeSendLog: (log) => (options.logs ? log : null),
+    beforeSendLog: (log) => (options.logs ? cleanLog(log, options) : null),
     ...(options.sink
       ? {
           transport: () => ({
@@ -85,12 +85,53 @@ async function start(options: ReporterOptions): Promise<typeof import('@sentry/n
 function clean<T extends Event>(event: T, options: ReporterOptions): T {
   event.server_name = undefined
   const root = options.root ?? ''
+  const held = heldOf(options)
+  const out = (text: string): string => scrub(text, options.home, held)
   for (const one of event.exception?.values ?? []) {
     for (const frame of one.stacktrace?.frames ?? []) keepOwn(frame, options.home, root)
-    if (one.value) one.value = scrub(one.value, options.home).slice(0, VALUE_MAX * 4)
+    if (one.value) one.value = out(one.value).slice(0, VALUE_MAX * 4)
   }
-  if (typeof event.message === 'string') event.message = scrub(event.message, options.home)
+  if (typeof event.message === 'string') event.message = out(event.message)
+  if (event.logentry?.message) event.logentry.message = out(event.logentry.message)
+  // What was said about it goes out too, and a fingerprint is the message's
+  // shape: a held key in either is the same key sent.
+  if (event.fingerprint) event.fingerprint = event.fingerprint.map(out)
+  for (const [name, value] of Object.entries(event.tags ?? {})) {
+    if (typeof value === 'string' && event.tags) event.tags[name] = out(value)
+  }
+  for (const context of Object.values(event.contexts ?? {})) {
+    if (!context) continue
+    for (const [name, value] of Object.entries(context)) {
+      if (typeof value === 'string') context[name] = out(value)
+    }
+  }
   return event
+}
+
+/** A log line on its way out: its words and every word beside it, cleaned of what is held. */
+function cleanLog<T extends { message: unknown; attributes?: Record<string, unknown> }>(
+  log: T,
+  options: ReporterOptions,
+): T {
+  const held = heldOf(options)
+  if (typeof log.message === 'string') {
+    Object.assign(log, { message: scrub(log.message, options.home, held) })
+  }
+  for (const [name, value] of Object.entries(log.attributes ?? {})) {
+    if (typeof value === 'string' && log.attributes) {
+      log.attributes[name] = scrub(value, options.home, held)
+    }
+  }
+  return log
+}
+
+/** What is held now. Reporting never fails because asking did: then it is none. */
+function heldOf(options: ReporterOptions): readonly string[] {
+  try {
+    return options.held?.() ?? []
+  } catch {
+    return []
+  }
 }
 
 function keepOwn(frame: StackFrame, home: string, root: string): void {
@@ -169,13 +210,15 @@ export async function sentryReporter(options: ReporterOptions): Promise<Reporter
           // Nothing with a stack to group by: what it says is what it is.
           const said = typeof error === 'string' ? error : JSON.stringify(error)
           scope.setFingerprint([...(trouble.fingerprint ?? ['tade', shapeOf(said ?? '')])])
-          Sentry.captureMessage(`${trouble.where}: ${scrub(said ?? 'something', options.home)}`)
+          Sentry.captureMessage(
+            `${trouble.where}: ${scrub(said ?? 'something', options.home, heldOf(options))}`,
+          )
         }
       })
     },
     note(note) {
       if (closed || !options.logs) return
-      const said = scrub(note.said, options.home).slice(0, VALUE_MAX * 4)
+      const said = scrub(note.said, options.home, heldOf(options)).slice(0, VALUE_MAX * 4)
       const about = { ...(note.about ?? {}) }
       if (note.level === 'error') Sentry.logger.error(said, about)
       else if (note.level === 'warning') Sentry.logger.warn(said, about)

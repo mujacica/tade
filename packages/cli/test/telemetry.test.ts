@@ -1,11 +1,11 @@
-import { writeFileSync } from 'node:fs'
+import { utimesSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { ConfigSchema, loadConfig } from '@tade/core'
 import { Workbench } from '@tade/workbench'
 import { afterEach, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
-import { reportCrash, reporterFor, reportJournal } from '../src/telemetry.ts'
+import { heldBy, reportCrash, reporterFor, reportJournal } from '../src/telemetry.ts'
 
 // Tade reporting its own trouble. Nothing reaches a network: every send is
 // answered here, and what would have gone on the wire is read back as text.
@@ -152,3 +152,24 @@ it('reports a command that ended in a crash, on its way out', async () => {
   expect(event.tags?.where).toBe('tade status')
   expect(event.level).toBe('fatal')
 }, 30_000)
+
+it('takes out a key pasted into the config while Tade runs, as well as the ones it opened with', async () => {
+  const dir = tmp()
+  const path = join(dir, 'config.yaml')
+  const opened = 'f00dfacecafe0123456789abcdef0011'
+  writeFileSync(path, 'projects: {}\n')
+  const held = heldBy(
+    ConfigSchema.parse({ projects: {}, surfaces: { web: { push_key: opened } } }),
+    path,
+  )
+  expect(held()).toContain(opened)
+  const pasted = 'plainhexsecretwithoutanyprefix42'
+  writeFileSync(
+    path,
+    `projects: {}\nextensions:\n  intake:\n    linear_webhook_secret: ${pasted}\n`,
+  )
+  // A file written in the same millisecond reads as unchanged; the next one does not.
+  const later = new Date(Date.now() + 5_000)
+  utimesSync(path, later, later)
+  expect(held()).toEqual(expect.arrayContaining([opened, pasted]))
+})

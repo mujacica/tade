@@ -3,7 +3,7 @@ import { EventType, type TadeEvent } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { openReporter, saw } from '../src/open.ts'
 import type { Reporter } from '../src/port.ts'
-import { about, fromEvent, readDsn, scrub } from '../src/shape.ts'
+import { about, fromEvent, heldIn, readDsn, scrub } from '../src/shape.ts'
 
 // The proof that a leak cannot happen, rather than a sample of ones that do
 // not. `telemetry.test.ts` is about what Tade *does* send — an issue worth
@@ -207,5 +207,70 @@ describe('what actually reaches the wire', () => {
     for (const key of NOBODY_ELSE_S) expect(text, key).not.toContain(`${WORDS} (${key})`)
     // And the machine is nobody's business even in the words Tade wrote.
     expect(text).not.toContain(HOME)
+  })
+
+  it('takes out every credential Tade holds exactly, though none of them has a shape to find', async () => {
+    // A VAPID key is bare base64url, a webhook secret bare hex, and neither
+    // has a prefix a pattern could know: only the values held catch them.
+    const pushKey =
+      'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM'
+    const hookSecret = '9f2c4e8a1b3d5f7e9a0c2e4f6a8b0d1c'
+    const accountKey = 'plainvendorkey0123456789'
+    const config = {
+      surfaces: { web: { push_key: pushKey } },
+      extensions: { intake: { github_webhook_secret: hookSecret } },
+      accounts: { codex: { work: { key: accountKey } } },
+      // A key binding is not a key, and a variable's name is not its value.
+      voice: { key: 'ctrl+space-and-more' },
+      workers: { routes: { cheap: { api_key_env: 'OPENROUTER_API_KEY_NAME' } } },
+    }
+    const held = heldIn(config, { STRIPE_SECRET: 'whsec_plainvalue123', EDITOR: 'nvim-editor' })
+    expect(held).toEqual(
+      expect.arrayContaining([pushKey, hookSecret, accountKey, 'whsec_plainvalue123']),
+    )
+    expect(held).not.toContain('ctrl+space-and-more')
+    expect(held).not.toContain('OPENROUTER_API_KEY_NAME')
+    expect(held).not.toContain('nvim-editor')
+
+    const pem = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEG\n-----END PRIVATE KEY-----'
+    expect(scrub(`signing failed: ${pem} tail`, HOME)).toBe('signing failed: … tail')
+    // Cut short, the rest of the text goes with it rather than half a key.
+    expect(scrub('key: -----BEGIN EC PRIVATE KEY-----\nMHcCAQEE', HOME)).toBe('key: …')
+
+    const sent: unknown[] = []
+    reporter = await openReporter(
+      {
+        driver: 'sentry',
+        dsn: DSN,
+        errors: true,
+        logs: true,
+        metrics: true,
+        traces: 1,
+        agents: true,
+        environment: 'test',
+      },
+      {
+        release: 'tade@9.9.9',
+        home: HOME,
+        root: ROOT,
+        held: () => held,
+        sink: (one) => sent.push(one),
+      },
+    )
+    const words = `push ${pushKey} hook ${hookSecret.toUpperCase()} account ${accountKey}`
+    // A warning: its message, and its fingerprint, which is the message lowercased.
+    saw(reporter, event({ type: 'warning', detail: { message: words, reason: words } }), HOME)
+    // A crash, a line, and a held value inside what was said about either.
+    reporter.trouble({ error: new Error(words), where: 'the window', about: { reason: words } })
+    reporter.trouble({ error: words, where: 'tade' })
+    reporter.note({ at: 1, level: 'warning', said: words, about: { reason: words } })
+    await reporter.flush(2_000)
+
+    const text = JSON.stringify(sent)
+    expect(sent.length).toBeGreaterThan(0)
+    for (const value of [pushKey, hookSecret, accountKey]) {
+      expect(text).not.toContain(value)
+      expect(text.toLowerCase()).not.toContain(value.toLowerCase())
+    }
   })
 })

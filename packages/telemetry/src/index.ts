@@ -25,4 +25,4 @@ export {
   type Work,
 } from './port.ts'
 export { sentryReporter } from './sentry.ts'
-export { about, type Dsn, fromEvent, readDsn, scrub, shapeOf } from './shape.ts'
+export { about, type Dsn, fromEvent, HELD_FLOOR, heldIn, readDsn, scrub, shapeOf } from './shape.ts'

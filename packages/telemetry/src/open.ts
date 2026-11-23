@@ -30,6 +30,8 @@ export interface TelemetryHere {
   release: string
   /** The person's home, replaced with `~` in everything sent. */
   home: string
+  /** Every credential held now, taken out of everything sent exactly (`heldIn`). */
+  held?: () => readonly string[]
   /** Where Tade itself is, so a stack frame in it is one you could fix. */
   root?: string
   /** Somewhere to put what would have been sent, for tests. */
@@ -59,6 +61,7 @@ export async function openReporter(
     traces: config.traces,
     agents: config.agents,
     home: here.home,
+    ...(here.held ? { held: here.held } : {}),
     ...(here.root ? { root: here.root } : {}),
     ...(here.sink ? { sink: here.sink } : {}),
     ...(here.now ? { now: here.now } : {}),

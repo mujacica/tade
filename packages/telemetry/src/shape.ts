@@ -45,6 +45,9 @@ export function readDsn(dsn: string): Dsn | null {
  * but the last net under them.
  */
 const SECRETS: readonly RegExp[] = [
+  // A private key is many lines, and none of them is shaped like a token: the
+  // whole block goes, and the rest of the text with it when its end was cut.
+  /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|$)/g,
   /\bsntry[su]_[A-Za-z0-9_-]{8,}/g,
   /\bgh[pousr]_[A-Za-z0-9]{16,}/g,
   /\bxox[baprs]-[A-Za-z0-9-]{10,}/g,
@@ -58,12 +61,92 @@ const SECRETS: readonly RegExp[] = [
   /\b(?:bearer|token|authorization)[=:]\s*\S+/gi,
 ]
 
-/** Text with the machine's own paths and anything secret-looking taken out. */
-export function scrub(text: string, home: string): string {
+/**
+ * A held value shorter than this is not looked for: a short one is too likely
+ * to be an ordinary word, and no key worth the name is that short.
+ */
+export const HELD_FLOOR = 8
+
+/**
+ * Text with the credentials Tade holds, the machine's own paths and anything
+ * secret-looking taken out.
+ *
+ * **The patterns are a net, and `held` is the floor under it.** A VAPID key, a
+ * hex webhook secret or a key whose issuer chose no prefix has no shape to
+ * find, so every value Tade actually holds (`heldIn`) is taken out exactly —
+ * as the away view cleans a shown setting of `keysOf` — and before the
+ * patterns, which could cut a held value in half and leave the rest to be
+ * sent. Matched without case, because a fingerprint is lowercased
+ * (`shapeOf`) before it goes.
+ */
+export function scrub(text: string, home: string, held: readonly string[] = []): string {
   let out = text
+  for (const value of longestFirst(held)) out = out.replace(exactly(value), '…')
   if (home && home !== '/' && home !== '') out = out.split(home).join('~')
   for (const secret of SECRETS) out = out.replace(secret, '…')
   return out
+}
+
+/** The held values worth looking for, longest first so one inside another goes whole. */
+function longestFirst(held: readonly string[]): string[] {
+  const kept = new Set<string>()
+  for (const one of held) {
+    const value = one.trim()
+    if (value.length >= HELD_FLOOR) kept.add(value)
+  }
+  return [...kept].sort((a, b) => b.length - a.length)
+}
+
+function exactly(value: string): RegExp {
+  return new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+}
+
+/**
+ * Where a config keeps a credential: a leaf named like one. A bare `key` is
+ * one only in an account (`accounts.<harness>.<name>.key`), because elsewhere
+ * it is a key binding, and `*_env` is the name of a variable, not a value.
+ */
+function credentialLeaf(path: readonly string[]): boolean {
+  const leaf = path.at(-1) ?? ''
+  if (leaf === 'key') return path.includes('accounts')
+  return /(?:^|_)(?:token|secret|password)$|_key$/i.test(leaf)
+}
+
+/** Names an environment gives a credential — as the window cleans a screen of them. */
+const NAMED_LIKE_A_KEY =
+  /(?:secret|token|passw(?:or)?d|pwd|api_?key|access_?key|private_?key|credential|auth|dsn|cookie|session)/i
+
+/**
+ * Every credential a config tree and an environment hold, for `scrub` to take
+ * out exactly: each leaf named like one (`push_key`, `*_secret`, `*_token`,
+ * an account's `key`, an extension's keys under `extensions.<name>`), and every
+ * variable named like one, since the environment always wins. Pure and total:
+ * a tree of any shape is walked and nothing in it is trusted to be one.
+ */
+export function heldIn(
+  tree: unknown,
+  env: Readonly<Record<string, string | undefined>> = {},
+): string[] {
+  const out: string[] = []
+  const walk = (node: unknown, path: readonly string[], depth: number): void => {
+    if (depth > 32) return
+    if (typeof node === 'string') {
+      if (credentialLeaf(path)) out.push(node)
+      return
+    }
+    if (Array.isArray(node)) {
+      for (const one of node) walk(one, path, depth + 1)
+      return
+    }
+    if (node && typeof node === 'object') {
+      for (const [key, value] of Object.entries(node)) walk(value, [...path, key], depth + 1)
+    }
+  }
+  walk(tree, [], 0)
+  for (const [name, value] of Object.entries(env)) {
+    if (value && NAMED_LIKE_A_KEY.test(name)) out.push(value)
+  }
+  return longestFirst(out)
 }
 
 /**
