@@ -19,7 +19,16 @@ import {
   insetsAsVars,
 } from '../test/browser-duo-plan.ts'
 import { exitFor, type Finding, said, sayReport, worstOf } from '../test/browser-plan.ts'
-import { agentHeld, blocked, input, NOW, pasted, settingRows, task } from '../test/fixtures.ts'
+import {
+  agentHeld,
+  blocked,
+  input,
+  NOW,
+  pasted,
+  plan,
+  settingRows,
+  task,
+} from '../test/fixtures.ts'
 import { harnessTalk } from './browser-chat.ts'
 import { DUO_SHAPE } from './browser-snippets.ts'
 
@@ -206,6 +215,23 @@ function waiting(): TaskIn {
   }
 }
 
+/**
+ * The person's four sign-ins, three of them one harness: the fixture's one
+ * plan never put two `claude-code` gauges side by side, so a name that wrapped
+ * through itself or two gauges that read as one were never on the glass. The
+ * orchestrator runs as one and new agents as another, as on the machine.
+ */
+const SIGN_INS = [
+  plan({ account: null }),
+  plan({
+    account: 'personal',
+    windows: [{ label: '7d', used: 93, resetsAt: Date.parse('2026-10-09T14:00:00.000Z') }],
+    uses: { newAgents: false, projects: [], orchestrator: true },
+  }),
+  plan({ account: 'vrolta', uses: { newAgents: false, projects: ['sentry'] } }),
+  plan({ harness: 'codex', account: null, uses: { newAgents: true, projects: [] } }),
+]
+
 /** Where a run's home is made: beside the dependencies, and never committed. */
 const SCRATCH = fileURLToPath(new URL('../../../node_modules/.cache/', import.meta.url))
 
@@ -226,7 +252,14 @@ async function serve(home: string) {
       if (mine !== undefined) return mine
       const tasks = [task(), pasted(), waiting(), task({ id: 'tade/window', project: 'tade' })]
       const made = projector(
-        input({ reach, tasks, talk: harnessTalk(12), host: FIGURES, machines: MACHINES }),
+        input({
+          reach,
+          tasks,
+          plans: SIGN_INS,
+          talk: harnessTalk(12),
+          host: FIGURES,
+          machines: MACHINES,
+        }),
         NOW,
         {
           agent: () => agentHeld(),
