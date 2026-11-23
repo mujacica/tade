@@ -22,6 +22,7 @@ import {
   wordsHeading,
 } from '@tade/core'
 import {
+  type ConversationReplica,
   type HarnessModels,
   type HistoryAsk,
   type HistoryPage,
@@ -156,6 +157,17 @@ export interface OrchestratorOptions {
    * runs as another (`orchestrator.account`).
    */
   after?: Orchestrator
+}
+
+/**
+ * What happens around each turn of its own where its conversation is one on
+ * every machine (`OneConversation`, `@tade/harnesses-core`): before one, the
+ * turn lease and what the other machines said taken in; after it, what it said
+ * given back and the lease let go. `wait` false refuses rather than waits.
+ */
+export interface TurnGate {
+  before(wait: boolean): Promise<void>
+  after(): Promise<void>
 }
 
 export interface OrchestratorUsage {
@@ -383,6 +395,10 @@ export class Orchestrator {
   private compacting: Promise<void> | null = null
   /** What it was told at launch, and what of it its conversation holds: set once it has started. */
   private holding: Holding | null = null
+  /** Around each turn of its own, where its conversation is one on every machine. */
+  private gate: TurnGate | null = null
+  /** A turn being readied (`TurnGate.before`), which every other ask meanwhile waits for. */
+  private opening: Promise<void> | null = null
 
   private constructor(adapter: WorkerAdapter) {
     this.adapter = adapter
@@ -534,6 +550,7 @@ export class Orchestrator {
         // while a call from the turn is still in the air.
         orchestrator.leased = null
         orchestrator.working = false
+        orchestrator.closed()
         // The turn is over, so this is the last moment anything can notice it
         // ended on a tool call and said nothing. Said before `idle`, because
         // `idle` is what stops the spinner and the reason has to be on screen
@@ -547,6 +564,7 @@ export class Orchestrator {
         orchestrator.leased = null
         orchestrator.working = false
         orchestrator.gone = signal.error
+        orchestrator.closed()
         emit({ type: 'failed', reason: signal.error })
       } else if (signal.type === 'exited') {
         orchestrator.leased = null
@@ -605,6 +623,67 @@ export class Orchestrator {
     return orchestrator
   }
 
+  /**
+   * Its conversation as one on every machine: present where its harness can
+   * keep one (`capabilities.conversation.replicate`), null where it cannot.
+   */
+  get replica(): ConversationReplica | null {
+    return this.adapter.capabilities.conversation.replicate
+      ? (this.adapter.conversation ?? null)
+      : null
+  }
+
+  /** Which harness it talks through. */
+  get harness(): string {
+    return this.adapter.id
+  }
+
+  /** What readies and closes each turn of its own, where its conversation is one on every machine. */
+  useTurns(gate: TurnGate | null): void {
+    this.gate = gate
+  }
+
+  /**
+   * Its harness reads its record again, between turns: what another machine
+   * said, appended to it, is in the conversation from the next turn on. Never
+   * in a turn — that would be an interruption, and interrupting it may never
+   * be a way of restarting it.
+   */
+  async reload(): Promise<void> {
+    if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
+    if (this.working)
+      throw new Error(
+        'the orchestrator is answering, and reads its record again only between turns',
+      )
+    const replica = this.replica
+    if (!replica)
+      throw new Error(
+        `${this.adapter.id} ${this.adapter.capabilities.why.conversation ?? 'keeps a conversation of its own on each machine'}`,
+      )
+    await replica.reload(ORCHESTRATOR_RUN)
+  }
+
+  /** A turn readied, where it is not one already under way. */
+  private async opened(wait: boolean): Promise<void> {
+    const gate = this.gate
+    if (!gate || this.working) return
+    if (this.opening) {
+      await Promise.allSettled([this.opening])
+      return this.opened(wait)
+    }
+    this.opening = gate.before(wait)
+    try {
+      await this.opening
+    } finally {
+      this.opening = null
+    }
+  }
+
+  /** A turn of its own is over: what it said goes to the other machines. Never throws. */
+  private closed(): void {
+    void this.gate?.after()
+  }
+
   /** What its conversation was told, and what of it the conversation does not hold. */
   get told(): Holding | null {
     return this.holding
@@ -629,6 +708,8 @@ export class Orchestrator {
     if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
     if (this.working)
       throw new Error('the orchestrator is answering, and compacts only between turns')
+    // A compaction writes to its conversation like a turn does.
+    await this.opened(true)
     this.working = true
     const compacting = (async () => {
       try {
@@ -637,6 +718,7 @@ export class Orchestrator {
       } finally {
         this.working = false
         this.compacting = null
+        this.closed()
       }
     })()
     this.compacting = compacting
@@ -659,6 +741,7 @@ export class Orchestrator {
   async ask(text: string, images: readonly WorkerImage[] = []): Promise<void> {
     if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
     await this.afterCompacting()
+    await this.opened(true)
     this.working = true
     await this.adapter.prompt(ORCHESTRATOR_RUN, text, images)
   }
@@ -730,6 +813,12 @@ export class Orchestrator {
     if (this.leased !== null || this.working) {
       throw new Error('Tade is still answering the last thing it was asked')
     }
+    // Another machine's turn holds the conversation: refused with who, never
+    // waited for — a request from a phone that hangs is one it gives up on.
+    await this.opened(false)
+    if (this.leased !== null || this.working) {
+      throw new Error('Tade is still answering the last thing it was asked')
+    }
     // **Set before the prompt is sent, and that order is the whole of it.** A
     // lease taken after the harness has the message is a window in which the
     // turn's first tool call is judged as the person's.
@@ -758,6 +847,7 @@ export class Orchestrator {
   async tell(text: string): Promise<void> {
     if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
     await this.afterCompacting()
+    await this.opened(true)
     this.working = true
     await this.adapter.prompt(ORCHESTRATOR_RUN, text, [], { whenBusy: 'queue' })
   }

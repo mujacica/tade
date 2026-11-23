@@ -178,6 +178,27 @@ export class ConversationRecord {
     return out
   }
 
+  /** The canonical lines of the entries it holds that `wanted` names, in its order. */
+  async only(wanted: (id: string) => boolean): Promise<string[]> {
+    const out: string[] = []
+    const handle = await open(this.path, 'r')
+    try {
+      for (const one of this.held) {
+        if (!wanted(one.id)) continue
+        const buffer = Buffer.alloc(one.length)
+        const { bytesRead } = await handle.read(buffer, 0, one.length, one.offset)
+        if (bytesRead !== one.length)
+          throw new Error(`${this.path} shrank under Tade as it read it`)
+        const read = this.format.read(buffer.toString('utf8'))
+        if (read.kind !== 'entry') throw new Error(`${this.path} changed under Tade as it read it`)
+        out.push(read.text)
+      }
+    } finally {
+      await handle.close()
+    }
+    return out
+  }
+
   /** Every canonical line it holds, in its order: for a merge, which is rare. */
   all(): Promise<string[]> {
     return this.canonical(0)
