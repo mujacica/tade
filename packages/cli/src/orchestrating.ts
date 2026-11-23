@@ -29,6 +29,7 @@ import {
 import type { StatusCollector } from '@tade/status'
 import type { Workbench } from '@tade/workbench'
 import { livenessTableFrom } from '@tade/workbench/lane-liveness'
+import { shareConversation } from './one-conversation.ts'
 import { againForToolsAt, TOOLS_AGAIN } from './tools-again.ts'
 
 // The orchestrator, and the way back for its tools, for whatever holds the
@@ -59,7 +60,17 @@ export type Holding = Pick<
   | 'thinkerMovedTo'
   | 'thinkerFailed'
 > &
-  Partial<Pick<App, 'updateTools' | 'inventoryTools' | 'remoteTools' | 'handOff' | 'showTerminal'>>
+  Partial<
+    Pick<
+      App,
+      | 'updateTools'
+      | 'inventoryTools'
+      | 'remoteTools'
+      | 'handOff'
+      | 'showTerminal'
+      | 'conversationPlace'
+    >
+  >
 
 export interface OrchestratingOptions {
   client: Workbench
@@ -371,6 +382,18 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
             context: () => started.context,
             told: () => started.told,
           })
+          // One conversation on every machine, where its harness can keep one:
+          // what it could not open is written down, and it runs as this
+          // machine's alone meanwhile.
+          const place = holding.conversationPlace?.()
+          if (place) {
+            await shareConversation(started, place, options.cwd ?? process.cwd()).catch(
+              (err: unknown) =>
+                place.warn(
+                  `it could not be made one across the machines, so it is this machine's alone for now: ${err instanceof Error ? err.message : String(err)}`,
+                ),
+            )
+          }
           // Nothing chosen, so the harness picked: keep what it picked, so the
           // next time an agent switches model the orchestrator does not follow.
           if (!config.orchestrator.model) {
@@ -397,6 +420,9 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
     // Stopped first, so what it said last is in its conversation before that
     // is carried to another account, where one was chosen (`after`).
     const before = orchestrator ?? undefined
+    // Its conversation is answered for by the one that starts next.
+    holding.conversationPlace?.().use(null)
+    before?.useTurns(null)
     await stopOrchestrator()
     orchestrator = null
     starting = startThinker(holding, before)

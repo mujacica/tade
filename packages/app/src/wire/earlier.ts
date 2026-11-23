@@ -1,4 +1,4 @@
-import { askingEarlier, READ_FROM_END, withEarlier } from '../transcript.ts'
+import { askingEarlier, READ_FROM_END, withEarlier, withLater } from '../transcript.ts'
 import { type Actions, notify, type Subject, type Wiring, why } from './context.ts'
 
 // What was said to the orchestrator before this window opened.
@@ -67,6 +67,29 @@ export class Earlier implements Subject {
       this.reading = null
     })
     return this.reading
+  }
+
+  /**
+   * What was said after what is shown: another machine's turn, taken into
+   * this one's record between turns (`one-conversation.ts`), drawn below the
+   * conversation as it is written there. False is a record that could not be
+   * read, said where it happened.
+   */
+  async later(): Promise<boolean> {
+    const history = this.wire.opts.history
+    if (!history) return true
+    try {
+      const theirs = await this.said()
+      const page = await history({ limit: EARLIER_PAGE })
+      const now = this.wire.state.transcript
+      const next = withLater(now, page.items, (text) => theirs.has(text))
+      if (next !== now) this.put(next)
+      return true
+    } catch (err) {
+      notify(this.wire, `could not read what another machine said: ${why(err)}`)
+      this.wire.draw()
+      return false
+    }
   }
 
   private async read(before: string | null): Promise<boolean> {

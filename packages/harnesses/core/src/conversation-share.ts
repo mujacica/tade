@@ -1,6 +1,6 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { type ConversationAsk, type LeaseOp, SHARE_LINE } from '@tade/core'
+import { type ConversationAsk, feedDir, type LeaseOp, MACHINE_ID, SHARE_LINE } from '@tade/core'
 import { appendixFor, type ConversationFormat, mergeConversations } from './conversation.ts'
 import {
   appendLines,
@@ -130,9 +130,34 @@ interface Copy {
   piece: string
 }
 
-/** Where a home keeps its copy of another machine's conversation. */
+/**
+ * Where a home keeps its copy of another machine's conversation: beside the
+ * copy of its journal (`feedDir`), which refuses anything but a machine id, so
+ * no caller can make a path out of an id nothing checked.
+ */
 export function conversationCopyPath(home: string, machine: string): string {
-  return join(home, 'machines', machine, 'conversation.jsonl')
+  return join(feedDir(home, machine), 'conversation.jsonl')
+}
+
+/**
+ * The machines whose conversation a home keeps a copy of, with what each
+ * calls itself: what a hub takes up again after it restarts, before anybody
+ * has asked it anything.
+ */
+export async function conversationCopies(home: string): Promise<MachineNamed[]> {
+  const out: MachineNamed[] = []
+  const entries = await readdir(join(home, 'machines'), { withFileTypes: true }).catch(
+    ifMissing([]),
+  )
+  for (const entry of entries) {
+    // The folders a remote's name keeps (`machineDir`) are not copies of anybody's.
+    if (!entry.isDirectory() || !MACHINE_ID.test(entry.name)) continue
+    const name = await readFile(join(feedDir(home, entry.name), 'conversation.name'), 'utf8').catch(
+      ifMissing(null),
+    )
+    if (name !== null && name.trim() !== '') out.push({ id: entry.name, name: name.trim() })
+  }
+  return out
 }
 
 /** Said where two machines run their orchestrator on different harnesses. */
@@ -295,9 +320,12 @@ export class SharedConversation {
   async exchange(
     send: (ask: ConversationAsk) => Promise<ConversationAnswer>,
     lease?: { op: LeaseOp; key: string },
+    rounds = Number.POSITIVE_INFINITY,
   ): Promise<{
     there: MachineNamed
     took: number
+    /** Neither side lacks anything the other holds: false where `rounds` ran out first. */
+    complete: boolean
     refused?: string
     lease?: LeaseAnswer
   }> {
@@ -305,12 +333,14 @@ export class SharedConversation {
     // this machine comes back with it, so nothing is given twice.
     const opened = await send({ from: this.me, harness: this.harness, ...(lease ? { lease } : {}) })
     const answered = { there: opened.machine, ...(opened.lease ? { lease: opened.lease } : {}) }
-    if (opened.refused) return { ...answered, took: 0, refused: opened.refused }
-    if (lease?.op === 'take' && opened.lease?.granted === false) return { ...answered, took: 0 }
+    if (opened.refused) return { ...answered, took: 0, complete: false, refused: opened.refused }
+    if (lease?.op === 'take' && opened.lease?.granted === false) {
+      return { ...answered, took: 0, complete: false }
+    }
     const copy = await this.copyOf(opened.machine)
     this.hold.set(opened.machine.id, { ...opened.held, piece: opened.held.piece ?? 0 })
     let took = 0
-    for (let round = 0; round < 100_000; round++) {
+    for (let round = 0; round < rounds; round++) {
       await this.own.look()
       const give = await this.giving(opened.machine.id)
       const answer = await send({
@@ -319,7 +349,7 @@ export class SharedConversation {
         give,
         want: holdOf(copy),
       })
-      if (answer.refused) return { ...answered, took, refused: answer.refused }
+      if (answer.refused) return { ...answered, took, complete: false, refused: answer.refused }
       this.hold.set(opened.machine.id, { ...answer.held, piece: answer.held.piece ?? 0 })
       const before = copy.record.entries
       const refused = await this.taken(copy, {
@@ -335,9 +365,9 @@ export class SharedConversation {
         answer.held.after === this.own.entries &&
         answer.held.h === this.own.chainAt(this.own.entries) &&
         !answer.held.piece
-      if (theyHold && !answer.more && !answer.piece) return { ...answered, took }
+      if (theyHold && !answer.more && !answer.piece) return { ...answered, took, complete: true }
     }
-    throw new Error('the conversation exchange did not settle')
+    return { ...answered, took, complete: false }
   }
 
   /** What to give: this record's lines after what the far side holds, or from the start where that does not agree. */
@@ -430,7 +460,7 @@ function lastOnPath(format: ConversationFormat, lines: readonly string[]): strin
 
 /** What a machine calls itself, beside its copy, so a hub that restarts names it. */
 async function writeName(home: string, machine: MachineNamed): Promise<void> {
-  const path = join(home, 'machines', machine.id, 'conversation.name')
+  const path = join(feedDir(home, machine.id), 'conversation.name')
   if ((await readFile(path, 'utf8').catch(ifMissing(null))) === machine.name) return
   await mkdir(dirname(path), { recursive: true })
   await writeFile(path, machine.name, { mode: 0o600 })

@@ -25,6 +25,7 @@ import {
   type Wiring,
   type WorkerImageFile,
 } from './wire/context.ts'
+import type { ConversationPlace } from './wire/conversation.ts'
 import type { Earlier } from './wire/earlier.ts'
 import { Evaluations } from './wire/evaluations.ts'
 import { Extensions } from './wire/extensions.ts'
@@ -303,6 +304,8 @@ export class App {
       fold: () => this.heart.foldConfig(true),
       feeds: this.heart.feeds,
     })
+    // The orchestrator's conversation reaches the hub over the same links.
+    this.heart.conversation.withReach((name) => this.remotes.reachFor(name))
     this.voice = new Voice(this.wire, {
       submit: () => this.keyboard.submit(),
       say: (said) => this.orchestrator.say(said),
@@ -723,6 +726,11 @@ export class App {
   /** What the orchestrator's `tade_machines` and `tade_env_move` do. */
   inventoryTools(): InventoryTools {
     return this.heart.inventoryTools()
+  }
+
+  /** What makes the orchestrator's conversation one on every machine, for whoever starts it. */
+  conversationPlace(): ConversationPlace {
+    return this.heart.conversationPlace()
   }
 
   /** What the orchestrator's `tade_remote_tell` does, over this window's links. */

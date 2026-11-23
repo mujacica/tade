@@ -1,13 +1,15 @@
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ConversationAsk } from '@tade/core'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { type ConversationFormat, derivedHex, entriesOf } from '../src/conversation.ts'
 import {
   type ConversationAnswer,
+  conversationCopies,
   conversationCopyPath,
   LEASE_MS,
+  RENEW_MS,
   SharedConversation,
   TurnLease,
 } from '../src/conversation-share.ts'
@@ -96,7 +98,7 @@ function turn(on: Machine, said: string, at: string, size = 40): void {
   const reply = `${on.name}-${said}-a`
   appendFileSync(
     on.record,
-    [
+    `${[
       JSON.stringify({
         kind: 'say',
         role: 'user',
@@ -116,7 +118,7 @@ function turn(on: Machine, said: string, at: string, size = 40): void {
         text: 'r'.repeat(size),
         cwd: `/${on.name}`,
       }),
-    ].join('\n') + '\n',
+    ].join('\n')}\n`,
   )
   on.leaf = reply
 }
@@ -176,6 +178,30 @@ describe('each machine’s half of one conversation', () => {
     expect(readFileSync(conversationCopyPath(mac.home, vps.id), 'utf8')).toContain(
       'r'.repeat(200_000),
     )
+  })
+
+  it('stops after the rounds it was given, says it is not whole, and is whole after more', async () => {
+    const mac = machine('mac')
+    const vps = machine('vps')
+    for (let n = 0; n < 6; n++) turn(mac, `t${n}`, '2026-11-23T10:00:00.000Z', 30_000)
+    const first = await mac.shared.exchange(via(vps), undefined, 2)
+    expect(first.complete).toBe(false)
+    expect(idsOf(conversationCopyPath(vps.home, mac.id)).length).toBeLessThan(
+      idsOf(mac.record).length,
+    )
+    const rest = await mac.shared.exchange(via(vps))
+    expect(rest.complete).toBe(true)
+    expect(idsOf(conversationCopyPath(vps.home, mac.id))).toEqual(idsOf(mac.record))
+  })
+
+  it('makes a copy’s path out of a machine id and nothing else', () => {
+    const home = tmp('tade-conv-path-')
+    expect(conversationCopyPath(home, '00000000-0000-4000-8000-000000000001')).toBe(
+      join(home, 'machines', '00000000-0000-4000-8000-000000000001', 'conversation.jsonl'),
+    )
+    for (const id of ['../../etc', 'vps', '', '00000000-0000-4000-8000-00000000000/']) {
+      expect(() => conversationCopyPath(home, id)).toThrow('kept only by a machine id')
+    }
   })
 
   it('refuses a machine whose orchestrator runs on another harness, in words', async () => {
@@ -298,8 +324,10 @@ describe('the gate around a turn', () => {
     )
     // Waiting: it goes after the hub's turn.
     const waiting = macSide.one.before(true)
-    await new Promise((resolve) => setTimeout(resolve, 20))
-    expect(macSide.said.some((line) => line.startsWith('Waiting: vps is answering'))).toBe(true)
+    // Paced by the line itself, never a sleep.
+    await vi.waitFor(() =>
+      expect(macSide.said.some((line) => line.startsWith('Waiting: vps is answering'))).toBe(true),
+    )
     turn(vps, 'kestrel', '2026-11-23T12:00:00.000Z')
     await hubSide.one.after()
     await waiting
@@ -353,5 +381,387 @@ describe('the gate around a turn', () => {
     // The hub takes the merge in between turns, as every screen would show it.
     await hubSide.one.idle(false)
     expect(new Set(idsOf(vps.record))).toEqual(new Set(idsOf(mac.record)))
+  })
+})
+
+describe('what goes wrong around a turn, said rather than lost', () => {
+  function gated(on: Machine, hub: () => HubLink | null) {
+    const said: string[] = []
+    const one = new OneConversation({
+      shared: on.shared,
+      hub,
+      reload: async () => {},
+      say: (text) => said.push(text),
+      warn: (text) => said.push(`warn: ${text}`),
+      now: () => Date.now(),
+      clock: () => '14:02',
+      pause: async () => {},
+    })
+    return { one, said }
+  }
+
+  it('carries on here when the link goes in the middle of an exchange, and writes down why', async () => {
+    const mac = machine('mac')
+    const link: HubLink = {
+      name: 'vps',
+      up: true,
+      downSince: null,
+      send: async () => {
+        throw new Error('the connection to vps closed')
+      },
+    }
+    const { one, said } = gated(mac, () => link)
+    await one.before(true)
+    expect(said).toContain(
+      'warn: the conversation could not be exchanged with vps: the connection to vps closed',
+    )
+    expect(said.some((line) => line.includes('carrying on here'))).toBe(true)
+    // What the turn said could not be given back either: written down, and given next time.
+    await one.after()
+    expect(said).toContain(
+      'warn: what this turn said could not be given to vps yet: the connection to vps closed',
+    )
+  })
+
+  it('runs a turn on what is here while a first copy is still crossing, and merges nothing meanwhile', async () => {
+    const mac = machine('mac')
+    const vps = machine('vps')
+    for (let n = 0; n < 70; n++) turn(mac, `t${n}`, '2026-11-23T10:00:00.000Z', 45_000)
+    const hub = gated(vps, () => null)
+    const { one, said } = gated(mac, () => ({
+      name: 'vps',
+      up: true,
+      downSince: null,
+      send: (ask) => hub.one.answer(ask),
+    }))
+    await one.before(true)
+    expect(said).toContain(
+      'The conversation is still being copied to and from vps: this turn runs on what is here, and what went apart is merged once the copy is whole.',
+    )
+    expect(one.leased).toBe(true)
+    await one.after()
+  })
+
+  it('refuses a phone on the hub while a machine that links to it holds the lease', async () => {
+    const vps = machine('vps')
+    const { one } = gated(vps, () => null)
+    await one.answer({
+      from: { id: '99999999-9999-4999-8999-999999999999', name: 'mac' },
+      harness: 'toy',
+      lease: { op: 'take', key: 'k' },
+    })
+    await expect(one.before(false)).rejects.toThrow(
+      'mac is answering (since 14:02): this conversation takes one turn at a time across the machines',
+    )
+    expect(one.leased).toBe(false)
+  })
+
+  it('renews the lease once a tick while a turn runs, never while the link is down, and writes down one that failed', async () => {
+    // Paced by the interval itself, never by the clock: setInterval is faked,
+    // so each `tick` fires the renewal exactly once, and what is counted is
+    // renewals per tick — no stretch of real time is ever measured.
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    try {
+      const mac = machine('mac')
+      const vps = machine('vps')
+      const hub = gated(vps, () => null)
+      const renewals: string[] = []
+      let failing = false
+      let up = true
+      const link = (): HubLink => ({
+        name: 'vps',
+        up,
+        downSince: null,
+        send: async (ask) => {
+          if (ask.lease?.op === 'renew') {
+            renewals.push(failing ? 'failed' : 'renewed')
+            if (failing) throw new Error('vps did not answer')
+          }
+          return hub.one.answer(ask)
+        },
+      })
+      const tick = () => vi.advanceTimersByTime(RENEW_MS)
+      const { one, said } = gated(mac, link)
+      await one.before(true)
+      tick()
+      expect(renewals).toEqual(['renewed'])
+      failing = true
+      tick()
+      expect(renewals).toEqual(['renewed', 'failed'])
+      await vi.waitFor(() =>
+        expect(said).toContain(
+          'warn: the turn lease at vps could not be renewed: vps did not answer',
+        ),
+      )
+      // Down for three ticks: nothing asked of a hub it cannot reach.
+      up = false
+      tick()
+      tick()
+      tick()
+      expect(renewals).toEqual(['renewed', 'failed'])
+      // Back: the next tick renews again.
+      up = true
+      failing = false
+      tick()
+      expect(renewals).toEqual(['renewed', 'failed', 'renewed'])
+      await one.after()
+      expect(hub.one.lease.holder(Date.now())).toBeNull()
+      // And none once the turn is over.
+      tick()
+      expect(renewals).toHaveLength(3)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('says once that the conversation is not one across the machines while its record holds a line nobody knows', async () => {
+    const mac = machine('mac')
+    const vps = machine('vps')
+    turn(vps, 'kestrel', '2026-11-23T10:00:00.000Z')
+    await mac.shared.exchange(via(vps))
+    appendFileSync(mac.record, `${JSON.stringify({ kind: 'telepathy', id: 'z' })}\n`)
+    const { one, said } = gated(mac, () => null)
+    await one.before(true)
+    await one.after()
+    await one.before(true)
+    await one.after()
+    const refused = said.filter((line) => line.startsWith('The conversation is not one'))
+    expect(refused).toHaveLength(1)
+    expect(refused[0]).toContain('an entry of kind telepathy')
+  })
+
+  it('looks oftener while another machine’s turn holds the lease, and leaves a hub that is down alone', async () => {
+    const mac = machine('mac')
+    const vps = machine('vps')
+    const hub = gated(vps, () => null)
+    let up = true
+    const { one, said } = gated(mac, () => ({
+      name: 'vps',
+      up,
+      downSince: null,
+      send: (ask) => hub.one.answer(ask),
+    }))
+    await hub.one.before(true)
+    await one.idle(false)
+    expect(one.othersTurn).toBe(true)
+    await hub.one.after()
+    await one.idle(false)
+    expect(one.othersTurn).toBe(false)
+    // Down: nothing asked, nothing said.
+    up = false
+    await one.idle(false)
+    // Nothing between turns while a turn is going.
+    await one.idle(true)
+    expect(said).toEqual([])
+    // Taking in what came fails: written down, never thrown at the beat.
+    up = true
+    turn(vps, 'kestrel', '2026-11-23T10:00:00.000Z')
+    const broken = gated(
+      {
+        ...mac,
+        shared: Object.assign(Object.create(mac.shared), {
+          settle: async () => Promise.reject(new Error('disk full')),
+        }),
+      },
+      () => ({ name: 'vps', up: true, downSince: null, send: (ask) => hub.one.answer(ask) }),
+    )
+    await broken.one.idle(false)
+    expect(broken.said).toContain('warn: the conversation could not be taken in: disk full')
+  })
+})
+
+describe('a home that restarts, and lines given out of step', () => {
+  it('takes up the copies it keeps, by the names they were kept under', async () => {
+    const mac = machine('mac')
+    const vps = machine('vps')
+    turn(mac, 'heron', '2026-11-23T10:00:00.000Z')
+    await mac.shared.exchange(via(vps))
+    // The hub starts again: a new half over the same home and record.
+    const again = new SharedConversation({
+      home: vps.home,
+      me: { id: vps.id, name: 'vps' },
+      harness: 'toy',
+      format: TOY,
+      record: vps.record,
+      take: async (lines) => {
+        if (lines.length > 0) appendFileSync(vps.record, `${lines.join('\n')}\n`)
+      },
+    })
+    const kept = await conversationCopies(vps.home)
+    expect(kept).toEqual([{ id: mac.id, name: 'mac' }])
+    // Its own id, and a folder a remote's name keeps, are not copies to take up.
+    mkdirSync(join(vps.home, 'machines', 'vps-by-name'), { recursive: true })
+    await again.known([...(await conversationCopies(vps.home)), { id: vps.id, name: 'vps' }])
+    expect(await again.settle(false)).toEqual([{ from: 'mac', took: 2, merged: null }])
+    expect(await conversationCopies(tmp('tade-conv-empty-'))).toEqual([])
+  })
+
+  it('takes nothing given after a place it does not hold, and says where it stands instead', async () => {
+    const mac = machine('mac')
+    const vps = machine('vps')
+    const from = { id: mac.id, name: 'mac' }
+    const line = JSON.stringify({
+      kind: 'say',
+      role: 'user',
+      id: 'x',
+      parent: null,
+      at: 'a',
+      text: 'hi',
+      cwd: '',
+    })
+    const answer = await vps.shared.answer({
+      from,
+      harness: 'toy',
+      give: { after: 5, h: 'a'.repeat(64), lines: [line] },
+    })
+    expect(answer.held).toMatchObject({ after: 0 })
+    expect(answer.refused).toBeUndefined()
+    expect(answer.lines).toEqual([])
+  })
+
+  it('drops a piece out of step and starts the line again from its first piece', async () => {
+    const vps = machine('vps')
+    const from = { id: '33333333-3333-4333-8333-333333333333', name: 'mac' }
+    const start = '0'.repeat(64)
+    const line = JSON.stringify({
+      kind: 'say',
+      role: 'user',
+      id: 'long',
+      parent: null,
+      at: 'a',
+      text: 'y'.repeat(100),
+      cwd: '',
+    })
+    const give = (text: string, at: number, done: boolean) =>
+      vps.shared.answer({
+        from,
+        harness: 'toy',
+        give: { after: 0, h: start, lines: [], piece: { text, from: at, done } },
+      })
+    await give(line.slice(0, 40), 0, false)
+    // Out of step: what was held is dropped, and the giver is told to start the line again.
+    expect((await give(line.slice(60), 60, true)).held).toEqual({ after: 0, h: start })
+    // Begun again from its first piece, and finished.
+    await give(line.slice(0, 50), 0, false)
+    expect((await give(line.slice(50), 50, false)).held).toMatchObject({ piece: line.length })
+    const done = await give('', line.length, true)
+    expect(done.held.after).toBe(1)
+  })
+
+  it('refuses a line that is not an entry of the conversation, and keeps the copy as it was', async () => {
+    const vps = machine('vps')
+    const from = { id: '44444444-4444-4444-8444-444444444444', name: 'mac' }
+    const answer = await vps.shared.answer({
+      from,
+      harness: 'toy',
+      give: { after: 0, h: '0'.repeat(64), lines: [JSON.stringify({ kind: 'cost', usd: 1 })] },
+    })
+    expect(answer.refused).toBe(
+      'a line from mac is not an entry of the conversation Tade knows (the harness’s own bookkeeping), so its copy here stays as it was',
+    )
+    expect(answer.held.after).toBe(0)
+  })
+})
+
+describe('the rest of what the gate and the copies say', () => {
+  function gated(on: Machine, hub: () => HubLink | null) {
+    const said: string[] = []
+    const one = new OneConversation({
+      shared: on.shared,
+      hub,
+      reload: async () => {},
+      say: (text) => said.push(text),
+      warn: (text) => said.push(`warn: ${text}`),
+      now: () => Date.now(),
+      clock: () => '14:02',
+      pause: async () => {},
+    })
+    return { one, said }
+  }
+
+  it('says once that a hub on another harness keeps its own conversation, and runs the turn here', async () => {
+    const mac = machine('mac')
+    const vps = machine('vps')
+    const hub = gated(vps, () => null)
+    const link: HubLink = {
+      name: 'vps',
+      up: true,
+      downSince: null,
+      send: (ask) => hub.one.answer({ ...ask, harness: 'pi' }),
+    }
+    const { one, said } = gated(mac, () => link)
+    await one.before(true)
+    await one.after()
+    await one.before(true)
+    await one.after()
+    expect(said.filter((line) => line.includes('the same harness'))).toHaveLength(1)
+    // The beat says nothing new about it either.
+    await one.idle(false)
+    expect(said.filter((line) => line.includes('the same harness'))).toHaveLength(1)
+  })
+
+  it('waits on the hub for a machine that links to it, and says so once', async () => {
+    const vps = machine('vps')
+    const { one, said } = gated(vps, () => null)
+    const mac = { id: '55555555-5555-4555-8555-555555555555', name: 'mac' }
+    await one.answer({ from: mac, harness: 'toy', lease: { op: 'take', key: 'k' } })
+    const waiting = one.before(true)
+    await vi.waitFor(() =>
+      expect(said).toContain(
+        'Waiting: mac is answering (since 14:02), and this goes after its turn.',
+      ),
+    )
+    await one.answer({ from: mac, harness: 'toy', lease: { op: 'release', key: 'k' } })
+    await waiting
+    expect(one.leased).toBe(true)
+    await one.after()
+  })
+
+  it('writes down an exchange on the beat that failed, and throws nothing at it', async () => {
+    const mac = machine('mac')
+    const { one, said } = gated(mac, () => ({
+      name: 'vps',
+      up: true,
+      downSince: null,
+      send: async () => {
+        throw new Error('vps hung up')
+      },
+    }))
+    await one.idle(false)
+    expect(said).toEqual(['warn: the conversation could not be exchanged with vps: vps hung up'])
+  })
+
+  it('starts a copy over from line one where it is given from the start again', async () => {
+    const vps = machine('vps')
+    const from = { id: '66666666-6666-4666-8666-666666666666', name: 'mac' }
+    const say = (id: string) =>
+      JSON.stringify({ kind: 'say', role: 'user', id, parent: null, at: 'a', text: id, cwd: '' })
+    const start = '0'.repeat(64)
+    await vps.shared.answer({
+      from,
+      harness: 'toy',
+      give: { after: 0, h: start, lines: [say('a'), say('b')] },
+    })
+    const again = await vps.shared.answer({
+      from,
+      harness: 'toy',
+      give: { after: 0, h: start, lines: [say('c')] },
+    })
+    expect(again.held.after).toBe(1)
+    expect(idsOf(conversationCopyPath(vps.home, from.id))).toEqual(['c'])
+  })
+
+  it('reads the same entry twice in one record as one', () => {
+    const line = JSON.stringify({
+      kind: 'say',
+      role: 'user',
+      id: 'twice',
+      parent: null,
+      at: 'a',
+      text: 'x',
+      cwd: '',
+    })
+    const read = entriesOf(TOY, { name: 'mac', lines: [line, line] })
+    expect(read.ok && read.entries.map((one) => one.id)).toEqual(['twice'])
   })
 })

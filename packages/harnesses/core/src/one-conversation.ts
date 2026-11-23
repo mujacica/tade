@@ -22,8 +22,9 @@ import {
 //   its link, or here where this machine is the hub — waiting for it where a
 //   turn of another machine's holds it, said once; this machine's record and
 //   the hub's are exchanged; whatever another machine said is taken in
-//   (`SharedConversation.settle`), merged where the two forked, which only the
-//   lease's holder ever does; and the harness reads its record again
+//   (`SharedConversation.settle`), merged where the two forked — which only a
+//   machine that dials the hub ever does, holding the lease with both copies
+//   whole, so one fork is never merged twice; and the harness reads its record again
 //   (`reload`) where anything was appended, which is a reload between turns
 //   and never an interruption;
 // - **after** it (`after`): what it wrote is given to the hub, and the lease
@@ -68,6 +69,15 @@ export interface OneConversationOptions {
 /** How long between asks for a lease somebody else holds. */
 const LEASE_ASKED_EVERY_MS = 2_000
 
+/**
+ * How many requests one exchange makes at most: about two and a half
+ * megabytes given, more taken. A month's conversation is hundreds of
+ * megabytes the first time two machines meet, which no turn should wait for —
+ * the beat carries the rest across, and until it has, nothing forked is
+ * merged against a copy that is not whole.
+ */
+export const ROUNDS_AT_ONCE = 50
+
 export class OneConversation {
   /** The lease this machine keeps, as the hub. */
   readonly lease = new TurnLease()
@@ -86,6 +96,8 @@ export class OneConversation {
   private busy: Promise<unknown> | null = null
   /** Another machine's turn held the lease when the hub was last asked. */
   private others = false
+  /** The last exchange with the hub ended with neither side lacking anything. */
+  private whole = true
 
   constructor(opts: OneConversationOptions) {
     this.opts = opts
@@ -112,7 +124,10 @@ export class OneConversation {
     const hub = this.opts.hub()
     if (hub) await this.fromHub(hub, wait)
     else await this.here(wait)
-    const settled = await this.opts.shared.settle(this.holding !== null)
+    // A fork is merged by the machine that dials the hub, holding the lease,
+    // with both copies whole — the one place both are known to be. The hub
+    // only ever adopts: it cannot tell whether what it was given is all there is.
+    const settled = await this.opts.shared.settle(this.holding === 'hub' && this.whole)
     this.saySettled(settled)
     if (this.stale) {
       await this.opts.reload()
@@ -128,10 +143,11 @@ export class OneConversation {
     for (;;) {
       let done: Awaited<ReturnType<SharedConversation['exchange']>>
       try {
-        done = await this.opts.shared.exchange((ask) => hub.send(ask), {
-          op: 'take',
-          key: this.key,
-        })
+        done = await this.opts.shared.exchange(
+          (ask) => hub.send(ask),
+          { op: 'take', key: this.key },
+          ROUNDS_AT_ONCE,
+        )
       } catch (err) {
         // The link went as it was asked: this turn carries on here.
         this.opts.warn(`the conversation could not be exchanged with ${hub.name}: ${why(err)}`)
@@ -144,9 +160,16 @@ export class OneConversation {
       }
       const lease = done.lease
       if (!lease || lease.granted) {
+        this.whole = done.complete
+        if (!done.complete) {
+          this.once(
+            `The conversation is still being copied to and from ${hub.name}: this turn runs on what is here, and what went apart is merged once the copy is whole.`,
+            `copying:${hub.name}`,
+          )
+        }
         this.holding = 'hub'
         this.together(hub)
-        this.renewWith(hub)
+        this.renewEvery()
         return
       }
       const holder = lease.holder
@@ -205,6 +228,7 @@ export class OneConversation {
       await this.opts.shared.exchange(
         (ask) => hub.send(ask),
         holding === 'hub' ? { op: 'release', key: this.key } : undefined,
+        ROUNDS_AT_ONCE,
       )
     } catch (err) {
       // Given next time; the lease runs out by itself meanwhile.
@@ -236,10 +260,12 @@ export class OneConversation {
       const hub = this.opts.hub()
       if (hub?.up) {
         try {
-          const done = await this.opts.shared.exchange((ask) => hub.send(ask), {
-            op: 'look',
-            key: this.key,
-          })
+          const done = await this.opts.shared.exchange(
+            (ask) => hub.send(ask),
+            { op: 'look', key: this.key },
+            ROUNDS_AT_ONCE,
+          )
+          this.whole = done.complete
           this.others = done.lease?.granted === false
           this.together(hub)
           if (done.refused) this.once(done.refused)
@@ -249,17 +275,10 @@ export class OneConversation {
         }
       } else if (hub) {
         return
-      } else {
-        this.others = this.lease.holder(this.opts.now()) !== null
       }
-      // Here, a fork is merged too, with the lease this machine keeps taken for it.
-      const me = this.opts.shared.me
-      const merging = hub === null && this.lease.ask('take', me, this.key, this.opts.now()).granted
-      try {
-        this.saySettled(await this.opts.shared.settle(merging))
-      } finally {
-        if (merging) this.lease.ask('release', me, this.key, this.opts.now())
-      }
+      if (hub === null) this.others = this.lease.holder(this.opts.now()) !== null
+      // Only what nothing forked: a fork waits for a turn of a machine that dials the hub.
+      this.saySettled(await this.opts.shared.settle(false))
     })()
     this.busy = run
     try {
@@ -271,10 +290,12 @@ export class OneConversation {
     }
   }
 
-  private renewWith(hub: HubLink): void {
+  /** Renew the hub's lease while the turn runs, asking each time how the hub's link stands now. */
+  private renewEvery(): void {
     if (this.renewing) clearInterval(this.renewing)
     this.renewing = setInterval(() => {
-      if (!hub.up) return
+      const hub = this.opts.hub()
+      if (!hub?.up) return
       void hub
         .send({
           from: this.opts.shared.me,

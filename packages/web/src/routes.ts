@@ -677,6 +677,20 @@ export const OWNED: readonly Route[] = [
     here: true,
     theirs: true,
   },
+  // One orchestrator conversation on every machine (`shared-conversation.ts`):
+  // what it gives is kept as a copy in this home, apart from this machine's
+  // own record and checked against the chain over its lines; what it asks for
+  // is this machine's conversation; and the turn lease this machine keeps as
+  // the hub — so an owner's, as an edit to a file in this home over SSH is.
+  {
+    method: 'POST',
+    path: '/api/conversation',
+    name: 'conversation',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
   // Where each project is checked out here and the branches its work is on
   // (`repositories.ts`): a path on this machine, which no phone reads, for the
   // fetch another machine of the person's makes over the same SSH. A read.

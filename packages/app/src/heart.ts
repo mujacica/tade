@@ -26,6 +26,7 @@ import {
   type Wiring,
   wiringFor,
 } from './wire/context.ts'
+import { type ConversationPlace, FleetConversation } from './wire/conversation.ts'
 import { Earlier } from './wire/earlier.ts'
 import { type FleetFeeds, fleetFeedsFor } from './wire/feeds.ts'
 import { type Tellable, tellNow, tellOrKeep } from './wire/handed.ts'
@@ -373,6 +374,8 @@ export class Heart {
   readonly inventory: Inventories
   /** Every machine's journal, kept here and handed on to the next (`feeds.ts`). */
   readonly feeds: FleetFeeds
+  /** The orchestrator's conversation, one on every machine (`conversation.ts`). */
+  readonly conversation: FleetConversation
   /**
    * What was said to the orchestrator before what the conversation holds, read
    * back out of its record: by a face scrolled to the top, and by a page on a
@@ -483,10 +486,18 @@ export class Heart {
       this.put(notice(this.current, said, this.now()))
       face.draw()
     })
+    this.conversation = new FleetConversation(this.wire, {
+      say: (said) => {
+        this.put(notice(this.current, said, this.now()))
+        face.draw()
+      },
+      later: () => void this.earlier.later(),
+    })
     this.away = new Away(this.wire, {
       machines: this.machinesSeen,
       inventory: this.inventory,
       feeds: this.feeds,
+      conversation: this.conversation,
       earlier: () => this.earlier.more(),
       ...face.away,
       decided: (allow) => this.agents.decide(allow),
@@ -578,6 +589,7 @@ export class Heart {
         this.machinesSeen.beat()
         void this.sync.beat()
         this.inventory.beat()
+        this.conversation.beat(this.orchestrator.busy())
         this.away.beat()
         void this.foldConfig()
         face.beat(tasks, moved)
@@ -733,6 +745,11 @@ export class Heart {
   /** What the orchestrator's `tade_machines` and `tade_env_move` do, answered here. */
   inventoryTools(): InventoryTools {
     return this.inventory.tools()
+  }
+
+  /** What makes the orchestrator's conversation one on every machine, for whoever starts it. */
+  conversationPlace(): ConversationPlace {
+    return this.conversation.place()
   }
 
   /**

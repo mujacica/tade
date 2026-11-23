@@ -1,4 +1,5 @@
 import type { InboxRow } from '@tade/core'
+import type { FleetConversation } from './conversation.ts'
 import type { Waking } from './doorbell.ts'
 import type { FleetFeeds } from './feeds.ts'
 import type { Inventories } from './inventory.ts'
@@ -40,6 +41,13 @@ export interface AwayDeps {
    * `404` of a path nobody wired.
    */
   feeds?: Pick<FleetFeeds, 'web' | 'synced'>
+  /**
+   * The orchestrator's conversation, one on every machine (`conversation.ts`):
+   * the far half of `/api/conversation`, the exchange and the turn lease this
+   * machine keeps as the hub. Absent, the route is the `404` of a path nobody
+   * wired.
+   */
+  conversation?: Pick<FleetConversation, 'web'>
   /** What the approve/deny keys do when no device is waiting to be let in. */
   decided(allow: boolean): void | Promise<void>
   /** Said in the strip, where somebody who was not looking at the panel sees it. */

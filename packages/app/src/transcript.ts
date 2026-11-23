@@ -244,6 +244,24 @@ export function withEarlier(
   }
 }
 
+/**
+ * What was said in the conversation after what is shown — on another machine,
+ * taken into this one's record between turns — put below it, drawn as
+ * `withEarlier` draws a page. Only what is newer than the newest line shown,
+ * so a page read twice adds nothing.
+ */
+export function withLater(
+  transcript: Transcript,
+  items: readonly HistoryItem[],
+  theirs: (text: string) => boolean,
+): Transcript {
+  const last = transcript.entries.reduce((most, entry) => Math.max(most, entry.at), 0)
+  const newer = items.filter((item) => item.at > last)
+  if (newer.length === 0) return transcript
+  const made = withEarlier({ ...transcript, entries: [] }, newer, null, theirs).entries
+  return { ...transcript, entries: [...transcript.entries, ...made] }
+}
+
 /** The page before what is shown is being read. */
 export function askingEarlier(transcript: Transcript): Transcript {
   return transcript.earlier
