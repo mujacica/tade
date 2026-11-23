@@ -1,5 +1,12 @@
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { createServer } from 'node:net'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -30,10 +37,10 @@ import {
   writeStandInModels,
 } from '../../../../test/fixtures/stand-in-model.ts'
 import { recordFromShell } from '../../../cli/src/config-write.ts'
-import { makeSshLink } from '../../../remotes/ssh/src/index.ts'
+import { makeSshLink, pathsFor } from '../../../remotes/ssh/src/index.ts'
 import { startSshd } from '../../../remotes/ssh/test/sshd.ts'
 import type { App } from '../../src/app.ts'
-import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
+import { type FakeTerminal, SPAWNING_MS, screenOf, until, windowUnderTest } from './harness.ts'
 
 // The remote story, end to end, as far as it runs on one machine with no
 // root — the half of the rehearsal CI can hold. Its other half needs a box of
@@ -64,6 +71,12 @@ import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.t
 // And each machine's journal kept on the other: the box's lines here and this
 // Mac's there, each a copy of what travels exactly as written, the two said to
 // be in step on both, and `tade machines` saying so from the files.
+//
+// And work waiting on work across them: queued work here after a task on the
+// box, held while that task works, held while the cable is cut and it finishes
+// there, and started once its `task_done` has come back over the link; and a
+// plan's work for later placed on the box, the hub, and started there with
+// this Mac shut.
 
 const bin = fileURLToPath(new URL('../../../cli/src/bin.ts', import.meta.url))
 const sshd = await startSshd()
@@ -100,8 +113,17 @@ afterEach(() => {
   for (const child of started.splice(0)) if (child.exitCode === null) child.kill('SIGTERM')
 })
 
-/** One box, its checkout a fresh repository or, given `from`, a clone of the checkout there. */
-async function box(name: string, project: string, dir: string, from?: string): Promise<Box> {
+/**
+ * One box, its checkout a fresh repository or, given `from`, a clone of the
+ * checkout there; its pi pointed at `standIn`, the shared stand-in unless named.
+ */
+async function box(
+  name: string,
+  project: string,
+  dir: string,
+  from?: string,
+  standIn = model.url,
+): Promise<Box> {
   const repo = mkrepo()
   repo.commit('first')
   let root = repo.root
@@ -114,7 +136,7 @@ async function box(name: string, project: string, dir: string, from?: string): P
     runGit(root, 'remote', 'set-url', 'origin', `git@github.com:acme/${project}.git`)
   }
   const pi = join(repo.home, 'pi')
-  writeStandInModels(pi, model.url)
+  writeStandInModels(pi, standIn)
   writeFileSync(
     join(repo.home, 'config.yaml'),
     [
@@ -652,5 +674,163 @@ describe.skipIf(cannot !== null)(
       ])
       await window.stop()
     }, 360_000)
+
+    it('holds work here after a task on the box while it works and while the cable is cut, and starts it once its task_done comes back', async () => {
+      if (typeof sshd === 'string') return
+      // The box's agent works long enough to be waited on, cut off, and finish apart.
+      const slow = await startStandIn({ workSeconds: 45 })
+      try {
+        const vps = await box('vps', 'app', sshd.dir, undefined, slow.url)
+        const remotes = pair(sshd, [vps])
+        // The link's own ssh config, so the cable can be cut and put back.
+        const cable = join(wired.home, 'ssh_config')
+        copyFileSync(sshd.config, cable)
+        terminal.rows = 50
+        terminal.columns = 160
+        const window = await wired.start({
+          config: ConfigSchema.parse({ projects: { app: { root: wired.repo.root } }, remotes }),
+          remoteLinks: { ssh: (options) => makeSshLink({ ...options, args: ['-F', cable] }) },
+          thinker: { ask: async () => 'ok', tell: async () => {} },
+        })
+        const idOf = (home: string) =>
+          (JSON.parse(readFileSync(join(home, 'machine.json'), 'utf8')) as { id: string }).id
+        const copy = () => {
+          const path = join(feedDir(wired.home, idOf(vps.home)), 'events.jsonl')
+          return existsSync(path) ? readFileSync(path, 'utf8') : ''
+        }
+        const done = /"type":"task_done"[^\n]*"task":"app\/migrate"/
+        const started = async () =>
+          (await wired.client.log.read({ types: ['queue_started'], task: 'app/billing' })).length >
+          0
+
+        // A on the box, started from its tab; B here, after it, once the copy
+        // of the box's journal kept here says A was made.
+        await say('vps', 'start app/migrate: migrate the schema')
+        await until(
+          'the box’s journal here, with the migration made',
+          () => /"type":"task_created"[^\n]*"task":"app\/migrate"/.test(copy()),
+          150_000,
+        )
+        await wired.client.createTask({
+          project: 'app',
+          slug: 'billing',
+          intent: 'billing, once the migration on vps is in',
+          by: 'you',
+          start: {
+            after: [{ task: 'vps:app/migrate', why: 'it needs the new table' }],
+            prompt: 'Build billing.',
+            touches: [],
+          },
+        })
+        await until('billing waits on the box', async () =>
+          (await window.queueTools().describe()).includes('app/billing — after vps:app/migrate'),
+        )
+        expect(vps.journal()).not.toMatch(done)
+        expect(await started()).toBe(false)
+
+        // The cable cut: the master ended, and ssh pointed where nothing answers.
+        writeFileSync(
+          cable,
+          readFileSync(sshd.config, 'utf8').replace(/Port \d+/, `Port ${await freePort()}`),
+        )
+        const ended = spawnSync(
+          'ssh',
+          ['-F', cable, '-S', pathsFor(wired.home, 'vps', 0).control, '-O', 'exit', 'far'],
+          { encoding: 'utf8', timeout: 15_000 },
+        )
+        expect(ended.status, ended.stderr).toBe(0)
+        await until('the migration finished on the box', () => done.test(vps.journal()), 180_000)
+        // Looks go by with the copy behind, and billing stays where it is.
+        await window.queueTools().advance()
+        await window.queueTools().advance()
+        expect(copy()).not.toMatch(done)
+        expect(await started()).toBe(false)
+        expect(await window.queueTools().describe()).toContain('vps last heard')
+
+        // The cable put back: the box's task_done comes over it, and billing starts.
+        copyFileSync(sshd.config, cable)
+        await until('the migration’s task_done in the copy here', () => done.test(copy()), 150_000)
+        await until('billing started by the queue', started, SPAWNING_MS)
+        const [first] = await wired.client.log.read({
+          types: ['queue_started'],
+          task: 'app/billing',
+        })
+        expect(first?.detail.after).toEqual(['vps:app/migrate'])
+        await window.stop()
+      } finally {
+        await slow.close()
+      }
+    }, 600_000)
+
+    it('places a plan’s work for later on the box, the hub, and the box starts it with this Mac shut', async () => {
+      if (typeof sshd === 'string') return
+      runGit(wired.repo.root, 'remote', 'add', 'origin', 'git@github.com:acme/app.git')
+      const vps = await box('vps', 'app', sshd.dir)
+      const remotes = pair(sshd, [vps])
+      const window = await wired.start({
+        config: ConfigSchema.parse({ projects: { app: { root: wired.repo.root } }, remotes }),
+        remoteLinks: { ssh: (options) => makeSshLink({ ...options, args: ['-F', sshd.config] }) },
+        thinker: { ask: async () => 'ok', tell: async () => {} },
+      })
+      // Placed on the box only once it has said which of its projects is this repository.
+      await until(
+        'the box has said which project is this repository',
+        async () =>
+          (
+            await window.queueTools().plan({
+              project: 'app',
+              said: 'a probe',
+              agents: [
+                {
+                  name: `probe-${Date.now()}`,
+                  said: 'probe',
+                  prompt: 'probe',
+                  after: [],
+                  touches: [],
+                  at: TOMORROW,
+                },
+              ],
+            })
+          ).includes('went to vps'),
+        150_000,
+      )
+      const answer = await window.queueTools().plan({
+        project: 'app',
+        said: 'the nightly report, tonight',
+        agents: [
+          {
+            name: 'nightly',
+            said: 'the nightly report',
+            prompt: 'Build the nightly report.',
+            after: [],
+            touches: [],
+            at: new Date(Date.now() + 40_000).toISOString(),
+          },
+        ],
+      })
+      expect(answer).toContain('app/nightly went to vps')
+      expect(await readTaskFile(wired.home, 'app/nightly')).toBeNull()
+      await window.stop()
+
+      // This Mac shut, the box starts it when its time comes, and its agent finishes there.
+      const closed = /"type":"machine_seen"[^\n]*"way":"from","state":"closed"/
+      const began = /"type":"queue_started"[^\n]*"task":"app\/nightly"/
+      await until('the box started it', () => began.test(vps.journal()), 120_000)
+      await until(
+        'and its agent finished there',
+        () => /"type":"task_done"[^\n]*"task":"app\/nightly"/.test(vps.journal()),
+        180_000,
+      )
+      const lines = vps.journal().split('\n')
+      const shut = lines.findIndex((one) => closed.test(one))
+      expect(shut).toBeGreaterThanOrEqual(0)
+      expect(lines.findIndex((one) => began.test(one))).toBeGreaterThan(shut)
+      const taken = lines.find(
+        (one) => one.includes('"type":"task_taken"') && one.includes('"task":"app/nightly"'),
+      )
+      expect(
+        (JSON.parse(taken ?? '{}') as { detail?: { placed?: string } }).detail?.placed,
+      ).toContain(`placed on vps from ${machineLabel()}: it waits for later and nothing ties it to`)
+    }, 480_000)
   },
 )
