@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { z } from 'zod'
@@ -96,7 +97,8 @@ export async function mintConnectTicket(
   // Written whole beside it and moved into place, so a reader finds the old
   // file or the new one and never half of either; created `0600` rather than
   // narrowed afterwards, and narrowed again in case somebody widened it.
-  const next = `${path}.${process.pid}.next`
+  // Its own name each time, so two mints at once never share one.
+  const next = `${path}.${randomBytes(6).toString('hex')}.next`
   await writeFile(next, kept.map((one) => `${JSON.stringify(one)}\n`).join(''), { mode: 0o600 })
   await rename(next, path)
   await chmod(path, 0o600).catch(() => {})
