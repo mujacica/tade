@@ -174,6 +174,10 @@ describe('what a browser cannot be asked', () => {
     expect(CHECKS as readonly string[]).toContain('queue')
   })
 
+  it("names the Machines page drawn for the person's own device", () => {
+    expect(CHECKS as readonly string[]).toContain('machines')
+  })
+
   it('names nothing cut to fit, and what Tade is doing said whole', () => {
     for (const check of ['cut', 'doing'])
       expect(CHECKS as readonly string[], check).toContain(check)

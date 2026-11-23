@@ -165,6 +165,10 @@ export const CHECKS = [
   // own queued-work menu, a tap on Pause asks for one queue act, and what the
   // device may not ask (Remove, the person's own device's) is not on it.
   'queue',
+  // The Machines page for the person's own device, at both phones' widths
+  // (`browser-machines.ts`): the grid drawn, a line per machine for every item
+  // and nothing refused, fitting the screen with every control a thumb's size.
+  'machines',
   // The three an installed shell owns. `install` is a real registration in a
   // real browser; `offline-cold` is a deep link opened with the network off,
   // which is the whole point of the thing; `no-api-cache` enumerates every

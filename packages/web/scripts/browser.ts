@@ -10,7 +10,7 @@ import type { MachinesAnswer } from '../src/machines.ts'
 import { GRANTS, type Grant, type Reach } from '../src/reach.ts'
 import { projector } from '../src/reading.ts'
 import { webServer } from '../src/server.ts'
-import { OFF } from '../src/surface.ts'
+import { OFF, SCOPES } from '../src/surface.ts'
 import { Tickets } from '../src/tickets.ts'
 import {
   allUnrun,
@@ -32,6 +32,7 @@ import { chatAt, harnessTalk } from './browser-chat.ts'
 import { deskAt, lanesSeen, paletteAt, unpairedAt } from './browser-desk.ts'
 import { doingAt, type Running } from './browser-doing.ts'
 import { frameAt } from './browser-frame.ts'
+import { machinesAt } from './browser-machines.ts'
 import { momentsAt } from './browser-moments.ts'
 import { asPwa } from './browser-pwa.ts'
 import { queueAt } from './browser-queue.ts'
@@ -811,6 +812,15 @@ async function asActing(
   // so removing the work is not (`browser-queue.ts`).
   await queueAt(page as never, origin, found, asked, QUEUED.id)
   await asPwa({ context, origin, found })
+  // **The Machines page, on this same device made the person's own**: every
+  // scope granted at the machine, through the one door a scope widens through,
+  // since a sixth pairing would be refused — last, so nothing above is asked
+  // of a device it was not paired as (`browser-machines.ts`).
+  await allowDevice(home, device, [...SCOPES], new Date())
+  await machinesAt(page as never, origin, found, {
+    machines: (MACHINES.columns ?? []).map((one) => one.machine),
+    rows: MACHINES.rows.map((one) => ({ label: one.label, cells: one.cells.length })),
+  })
   await context.close()
   granting = []
 }
