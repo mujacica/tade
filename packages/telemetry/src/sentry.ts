@@ -82,10 +82,11 @@ async function start(options: ReporterOptions): Promise<typeof import('@sentry/n
  * kept only for Tade's own files — the frames of anything else are somebody
  * else's code, which is not Tade's to send anywhere.
  */
-function clean<T extends Event>(event: T, options: ReporterOptions): T {
+function clean<T extends Event>(event: T, options: ReporterOptions): T | null {
   event.server_name = undefined
   const root = options.root ?? ''
   const held = heldOf(options)
+  if (held === null) return null
   const out = (text: string): string => scrub(text, options.home, held)
   for (const one of event.exception?.values ?? []) {
     for (const frame of one.stacktrace?.frames ?? []) keepOwn(frame, options.home, root)
@@ -112,8 +113,9 @@ function clean<T extends Event>(event: T, options: ReporterOptions): T {
 function cleanLog<T extends { message: unknown; attributes?: Record<string, unknown> }>(
   log: T,
   options: ReporterOptions,
-): T {
+): T | null {
   const held = heldOf(options)
+  if (held === null) return null
   if (typeof log.message === 'string') {
     Object.assign(log, { message: scrub(log.message, options.home, held) })
   }
@@ -125,12 +127,17 @@ function cleanLog<T extends { message: unknown; attributes?: Record<string, unkn
   return log
 }
 
-/** What is held now. Reporting never fails because asking did: then it is none. */
-function heldOf(options: ReporterOptions): readonly string[] {
+/**
+ * What is held now, or null where asking threw — and then **nothing is sent**:
+ * a send that cannot know which keys to take out is a send that may carry one,
+ * which is worse than a report lost. Not reported either, because a report is
+ * this same path; `heldBy` in the CLI, the one there is, never throws.
+ */
+function heldOf(options: ReporterOptions): readonly string[] | null {
   try {
     return options.held?.() ?? []
   } catch {
-    return []
+    return null
   }
 }
 
@@ -211,14 +218,15 @@ export async function sentryReporter(options: ReporterOptions): Promise<Reporter
           const said = typeof error === 'string' ? error : JSON.stringify(error)
           scope.setFingerprint([...(trouble.fingerprint ?? ['tade', shapeOf(said ?? '')])])
           Sentry.captureMessage(
-            `${trouble.where}: ${scrub(said ?? 'something', options.home, heldOf(options))}`,
+            `${trouble.where}: ${scrub(said ?? 'something', options.home, heldOf(options) ?? [])}`,
           )
         }
       })
     },
     note(note) {
       if (closed || !options.logs) return
-      const said = scrub(note.said, options.home, heldOf(options)).slice(0, VALUE_MAX * 4)
+      // Where asking what is held throws, `cleanLog` drops the line on its way out.
+      const said = scrub(note.said, options.home, heldOf(options) ?? []).slice(0, VALUE_MAX * 4)
       const about = { ...(note.about ?? {}) }
       if (note.level === 'error') Sentry.logger.error(said, about)
       else if (note.level === 'warning') Sentry.logger.warn(said, about)

@@ -273,4 +273,35 @@ describe('what actually reaches the wire', () => {
       expect(text.toLowerCase()).not.toContain(value.toLowerCase())
     }
   })
+
+  it('sends nothing at all where asking what is held throws, rather than send it half-cleaned', async () => {
+    const secret = '9f2c4e8a1b3d5f7e9a0c2e4f6a8b0d1c'
+    const sent: unknown[] = []
+    reporter = await openReporter(
+      {
+        driver: 'sentry',
+        dsn: DSN,
+        errors: true,
+        logs: true,
+        metrics: true,
+        traces: 1,
+        agents: true,
+        environment: 'test',
+      },
+      {
+        release: 'tade@9.9.9',
+        home: HOME,
+        root: ROOT,
+        held: () => {
+          throw new Error('the config could not be read')
+        },
+        sink: (one) => sent.push(one),
+      },
+    )
+    reporter.trouble({ error: new Error(`hook ${secret}`), where: 'the window' })
+    reporter.trouble({ error: `hook ${secret}`, where: 'tade' })
+    reporter.note({ at: 1, level: 'warning', said: `hook ${secret}` })
+    await reporter.flush(2_000)
+    expect(JSON.stringify(sent)).not.toContain(secret)
+  })
 })
