@@ -172,7 +172,9 @@ export class ProjectSync {
   /**
    * The orchestrator's `tade_project_sync`: the rules now, origin fetched
    * first. Where the project says `ask` or `off`, only on a line of the
-   * person's naming it — the line is the asking.
+   * person's naming it — the line is the asking. Under `origin`, nothing said
+   * moves it only as far as origin's commits, as a look would; a line of
+   * theirs naming it moves it to another machine's too.
    */
   async now(req: { project: string; machine?: string; said?: string }): Promise<string> {
     const project = (this.deps.projects() ?? []).find((one) => one.name === req.project)
@@ -182,8 +184,17 @@ export class ProjectSync {
       )
     }
     const mode = this.deps.mode(req.project)
+    const said = req.said?.trim() ?? ''
+    if (mode === 'origin' && said === '') {
+      const outcome = await this.run(req.project, {
+        fetchOrigin: true,
+        mode,
+        asked: true,
+        ...(req.machine ? { only: [req.machine] } : {}),
+      })
+      return outcome.said
+    }
     if (mode !== 'ff') {
-      const said = req.said?.trim() ?? ''
       if (said === '') {
         throw new Error(
           `projects.${req.project}.sync is ${mode}, so ${req.project} is moved only when somebody asks for it. Pass what they said, word for word.`,

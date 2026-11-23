@@ -281,11 +281,26 @@ describe('the heart, with no screen', () => {
     return runGit(there, 'rev-parse', 'HEAD').trim()
   }
 
-  it('keeps a project in step with another machine’s mirrored branch by itself, and writes it down', async () => {
-    const theirs = await vpsAhead()
+  it('leaves a commit only another machine has for the person, by default', async () => {
+    await vpsAhead()
     const was = repo.head()
     const one = await alone()
-    // Its own beat, with nobody asking: `ff` is the default.
+    await until('a look', () => one.live?.world != null)
+    // `origin` is the default: the vps's commit is nobody's reviewed work, so nothing said moves nothing.
+    expect(await one.configTools().syncProject({ project: 'app' })).toContain(
+      'projects.app.sync is origin',
+    )
+    expect(repo.head()).toBe(was)
+    expect(await client.events({ types: ['project_synced'] })).toEqual([])
+  })
+
+  it('keeps a project in step with another machine’s mirrored branch by itself under ff, and writes it down', async () => {
+    const theirs = await vpsAhead()
+    const was = repo.head()
+    const one = await alone({
+      config: ConfigSchema.parse({ projects: { app: { root: repo.root, sync: 'ff' } } }),
+    })
+    // Its own beat, with nobody asking: the project said `ff`.
     await until(
       'the move',
       async () => (await client.events({ types: ['project_synced'] })).length > 0,

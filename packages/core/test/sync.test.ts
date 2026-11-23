@@ -183,12 +183,28 @@ describe('the rules', () => {
     expect(syncVerdict(facts({ dirty: ['src/one.ts'] }), 'ask').kind).toBe('refused')
     expect(syncVerdict(facts(), 'off')).toMatchObject({ kind: 'still' })
   })
+
+  it('under origin, moves to a commit origin has, and asks about one only another machine has', () => {
+    const fromOrigin = { kind: 'one', sha: C, from: ['origin'] } as const
+    const both = { kind: 'one', sha: C, from: ['origin', 'vps'] } as const
+    expect(syncVerdict(facts({ target: fromOrigin }), 'origin')).toMatchObject({ kind: 'move' })
+    expect(syncVerdict(facts({ target: both }), 'origin')).toMatchObject({ kind: 'move' })
+    // The box's commit nobody reviewed: never moved unasked, checked out or not.
+    const boxOnly = syncVerdict(facts(), 'origin')
+    expect(boxOnly).toMatchObject({ kind: 'ask', target: C, from: ['vps'] })
+    expect(boxOnly.kind === 'ask' && boxOnly.why).toContain('projects.app.sync is origin')
+    expect(syncVerdict(facts({ at: { kind: 'nowhere' } }), 'origin').kind).toBe('ask')
+    // Every safety rule still comes first.
+    expect(syncVerdict(facts({ dirty: ['src/one.ts'] }), 'origin').kind).toBe('refused')
+  })
 })
 
 describe('the setting', () => {
-  it('is ff unless the project says otherwise, and refuses anything else', () => {
+  it('is origin unless the project says otherwise, and refuses anything else', () => {
     const config = ConfigSchema.parse({ projects: { app: { root: '/src/app' } } })
-    expect(syncFor(config.projects, 'app')).toBe('ff')
+    expect(syncFor(config.projects, 'app')).toBe('origin')
+    const ff = parseConfig('projects:\n  app:\n    root: /src/app\n    sync: ff\n')
+    expect(ff.ok && syncFor(ff.config.projects, 'app')).toBe('ff')
     const asked = parseConfig('projects:\n  app:\n    root: /src/app\n    sync: ask\n')
     expect(asked.ok && syncFor(asked.config.projects, 'app')).toBe('ask')
     const wrong = parseConfig('projects:\n  app:\n    root: /src/app\n    sync: always\n')

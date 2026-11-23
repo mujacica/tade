@@ -528,8 +528,9 @@ nothing. Every agent working in that checkout is told HEAD moved and which files
 two branches have parted, the merge comes to the orchestrator as a proposal, worked in a worktree
 of its own. The Mac also hands its own branches to the VPS's mirror over the same connection, so
 commits nobody pushed to origin reach a VPS that cannot dial the Mac. Each project says whether
-(Settings › Projects › Keep in step: `ff` by default, `ask`, `off`), and "sync tade with the vps"
-does it now.
+(Settings › Projects › Keep in step: `origin` by default — origin's commits move it by themselves,
+and a commit only the other machine has waits until you say so — or `ff`, `ask`, `off`), and "sync
+tade with the vps" does it now.
 
 **And its watches run on one of them.** A watch on GitHub, Slack, Linear, Sentry or your
 dependencies finds the same thing from either machine, so one red build would be two findings and

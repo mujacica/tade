@@ -35,15 +35,23 @@ import type { ProjectConfig } from './config.ts'
 // `sync.ts`, the lock, the journal and the telling are the window's.
 
 /** What `projects.<name>.sync` may say. */
-export const PROJECT_SYNC = ['ff', 'ask', 'off'] as const
+export const PROJECT_SYNC = ['ff', 'origin', 'ask', 'off'] as const
 export type ProjectSync = (typeof PROJECT_SYNC)[number]
 
-/** What a project that says nothing does: the person asked for projects kept in step. */
-export const SYNC_BY_DEFAULT: ProjectSync = 'ff'
+/**
+ * What a project that says nothing does: the person asked for projects kept in
+ * step, so origin's branch moves this checkout by itself — but a commit only
+ * another machine has waits for the person. Origin is where branch protection
+ * and review live; a machine's mirror is whatever that machine committed, and
+ * fast-forwarding to it unasked would hand a compromised box (or an agent
+ * injected there) this machine's commit hook and test runs. `ff` is the
+ * person's to choose.
+ */
+export const SYNC_BY_DEFAULT: ProjectSync = 'origin'
 
 /** Each answer, as the Settings row and the tool say it. */
 export const SYNC_MEANS =
-  'ff: fast-forwarded by itself whenever every safety rule passes, and a merge proposed when the branches have parted; ask: the orchestrator is told it could move and moves it when you say so; off: never moved'
+  "ff: fast-forwarded by itself whenever every safety rule passes, to origin's or another machine's branch, and a merge proposed when the branches have parted; origin: the same, but a commit only another machine has is asked about, like ask; ask: the orchestrator is told it could move and moves it when you say so; off: never moved"
 
 /** How a project keeps its branch in step: its own answer, or the default. */
 export function syncFor(
@@ -205,10 +213,15 @@ export function syncVerdict(facts: SyncFacts, mode: ProjectSync): SyncVerdict {
     }
   }
   const moving = { target: target.sha, from, behind: facts.behind }
+  // Under `origin`, a target origin has too moves by itself; one only machines have is asked.
+  const asks = mode === 'ask' || (mode === 'origin' && !from.includes(ORIGIN))
+  const asking = (): SyncVerdict => ({
+    kind: 'ask',
+    why: askSays(project, branch, theirs, facts.behind, mode),
+    ...moving,
+  })
   if (facts.at.kind === 'nowhere') {
-    return mode === 'ask'
-      ? { kind: 'ask', why: askSays(project, branch, theirs, facts.behind), ...moving }
-      : { kind: 'move', ...moving, byRef: true }
+    return asks ? asking() : { kind: 'move', ...moving, byRef: true }
   }
   const dir = facts.at.dir
   if (facts.committing) {
@@ -232,14 +245,22 @@ export function syncVerdict(facts: SyncFacts, mode: ProjectSync): SyncVerdict {
       paths,
     }
   }
-  if (mode === 'ask') {
-    return { kind: 'ask', why: askSays(project, branch, theirs, facts.behind), ...moving }
-  }
+  if (asks) return asking()
   return { kind: 'move', ...moving, byRef: false }
 }
 
-function askSays(project: string, branch: string, theirs: string, behind: number): string {
-  return `${theirs} is ${commits(behind)} ahead of ${branch} here and fast-forwards cleanly, but projects.${project}.sync is ask, so nothing moved`
+function askSays(
+  project: string,
+  branch: string,
+  theirs: string,
+  behind: number,
+  mode: ProjectSync,
+): string {
+  const because =
+    mode === 'origin'
+      ? `origin has not got it and projects.${project}.sync is origin, which moves only to origin's commits by itself`
+      : `projects.${project}.sync is ${mode}`
+  return `${theirs} is ${commits(behind)} ahead of ${branch} here and fast-forwards cleanly, but ${because}, so nothing moved`
 }
 
 /** A source as a sentence names it: `origin's main`, `vps's main`. */

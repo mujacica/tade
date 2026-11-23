@@ -254,6 +254,18 @@ describe('keeping a project in step', () => {
     )
   })
 
+  it('under origin, moves to origin’s commits by itself and from the tool with nothing said', async () => {
+    const { here, pushThere } = twoMachines()
+    const first = pushThere({ 'README.md': 'from origin\n' })
+    const one = syncing(here, { mode: 'origin' })
+    await one.sync.beat()
+    expect(here.head()).toBe(first)
+    expect(one.told).toEqual([])
+    const second = pushThere({ 'README.md': 'from origin again\n' })
+    await expect(one.sync.now({ project: 'app' })).resolves.toContain('fast-forwarded')
+    expect(here.head()).toBe(second)
+  })
+
   it('says in the tool’s answer that a project in step is in step', async () => {
     const { here } = twoMachines()
     const one = syncing(here)

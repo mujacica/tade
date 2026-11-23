@@ -223,7 +223,7 @@ export function projectGroups(config: Config): SettingGroup[] {
           path: `projects.${name}.sync`,
           title: 'Keep in step',
           means: `whether ${name}'s branch here is fast-forwarded to origin's and your other machines' — ${SYNC_MEANS}. Nobody's uncommitted work is ever touched: a move it would collide with is refused, naming the files`,
-          short: `ff, ask or off for ${name}'s branch; unset is ${SYNC_BY_DEFAULT}`,
+          short: `ff, origin, ask or off for ${name}'s branch; unset is ${SYNC_BY_DEFAULT}`,
           value: project.sync ?? '',
           fallback: SYNC_BY_DEFAULT,
           type: { kind: 'choice', options: ['', ...PROJECT_SYNC] } as const,

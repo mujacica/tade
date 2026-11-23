@@ -123,6 +123,7 @@ async function box(
   dir: string,
   from?: string,
   standIn = model.url,
+  sync?: 'ff',
 ): Promise<Box> {
   const repo = mkrepo()
   repo.commit('first')
@@ -143,6 +144,7 @@ async function box(
       'projects:',
       `  ${project}:`,
       `    root: ${root}`,
+      ...(sync ? [`    sync: ${sync}`] : []),
       'surfaces:',
       '  web:',
       '    enabled: true',
@@ -423,7 +425,8 @@ describe.skipIf(cannot !== null)(
       // One repository on both: the VPS's checkout a clone of the Mac's, then
       // a commit on the Mac that never went to origin.
       runGit(wired.repo.root, 'remote', 'add', 'origin', 'git@github.com:acme/app.git')
-      const vps = await box('vps', 'app', sshd.dir, wired.repo.root)
+      // `ff` said there: by default a commit only another machine has waits for the person.
+      const vps = await box('vps', 'app', sshd.dir, wired.repo.root, model.url, 'ff')
       const was = runGit(vps.root, 'rev-parse', 'HEAD').trim()
       const mine = wired.repo.commit('only on the Mac', { 'pricing.ts': 'never pushed\n' })
       const remotes = pair(sshd, [vps])
