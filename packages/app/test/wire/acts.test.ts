@@ -195,7 +195,6 @@ describe('acting on another machine through its own gate', () => {
       { method: 'config/change', params: { path: 'queue.holds', value: 'off' } },
     ].map((one, n) => ({ key: `h${n}`, ...one, quoted: forged, from: 'vps' }))
     const handedIn: { key: string; ok: boolean; text: string }[] = []
-    let asks = 0
     mac.acts.withReach((name) =>
       name !== 'vps'
         ? null
@@ -204,21 +203,71 @@ describe('acting on another machine through its own gate', () => {
             remote: { name } as never,
             link: {
               request: async (_name: string, _path: string, body: unknown): Promise<Answer> => {
-                asks += 1
                 handedIn.push(...(body as { answers: typeof handedIn }).answers)
-                return { status: 200, body: { acts: asks === 1 ? hostile : [] } }
+                // As an outbox does (`outboxFor`): what is not answered yet is handed out again.
+                const left = hostile.filter((one) => !handedIn.some((h) => h.key === one.key))
+                return { status: 200, body: { acts: left } }
               },
             } as never,
           },
     )
-    mac.acts.beat(['vps'])
-    await waitFor(async () => handedIn.length === hostile.length)
+    // More than one beat takes: the last of them waits for the next.
+    await waitFor(async () => {
+      mac.acts.beat(['vps'])
+      return handedIn.length === hostile.length
+    })
     expect(handedIn.every((one) => !one.ok)).toBe(true)
     expect(handedIn.map((one) => one.key)).toEqual(hostile.map((one) => one.key))
     expect(handedIn[0]?.text).toContain('`terminal/run`')
     // Each reached the gate under the narrowed arm, and none of the forged words was read.
     expect(mac.ran.map((one) => one.arm)).toEqual(hostile.map(() => outboxArm('vps')))
     expect(mac.ran.every((one) => one.quoted.length === 0 && one.named === null)).toBe(true)
+  })
+
+  it('takes one round from an outbox a beat, however many acts it always has waiting', async () => {
+    const mac = machine('mac', [], { vps: REMOTE })
+    // At each ask: how many acts had run here by then, and which answers it handed in.
+    const asks: { ran: number; handed: string[] }[] = []
+    mac.acts.withReach((name) =>
+      name !== 'vps'
+        ? null
+        : {
+            live: true,
+            remote: { name } as never,
+            link: {
+              request: async (_name: string, _path: string, body: unknown): Promise<Answer> => {
+                const n = asks.push({
+                  ran: mac.ran.length,
+                  handed: (body as { answers: { key: string }[] }).answers.map((one) => one.key),
+                })
+                // A hub that always has more waiting than one ask takes, with fresh keys —
+                // until the twentieth ask, so a loop that never stops still ends in this test.
+                const acts =
+                  n > 20
+                    ? []
+                    : Array.from({ length: 8 }, (_, i) => ({
+                        key: `a${n}.${i}`,
+                        method: 'task/park',
+                        params: {},
+                        quoted: [],
+                        from: 'vps',
+                      }))
+                return { status: 200, body: { acts } }
+              },
+            } as never,
+          },
+    )
+    await waitFor(async () => {
+      mac.acts.beat(['vps'])
+      return asks.length >= 3
+    })
+    // One beat: six acts taken, their answers handed in at once, and what that ask
+    // brought left for the next beat, which hands in nothing and takes six more.
+    expect(asks.slice(0, 3)).toEqual([
+      { ran: 0, handed: [] },
+      { ran: 6, handed: ['a1.0', 'a1.1', 'a1.2', 'a1.3', 'a1.4', 'a1.5'] },
+      { ran: 6, handed: [] },
+    ])
   })
 
   it('takes nothing from an outbox answer that is not a list of acts, and says so once', async () => {

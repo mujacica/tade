@@ -8,7 +8,7 @@ import {
   remoteNamedBy,
 } from '@tade/core'
 import { type Answer, LinkError, type Remote, type RemoteLink } from '@tade/remotes-core'
-import { readOutboxAnswer } from '@tade/web'
+import { type ActBody, readOutboxAnswer } from '@tade/web'
 import { actingFor } from './acting.ts'
 import { clockOf, saidLately, type Wiring, why } from './context.ts'
 import { seenName } from './machines-seen.ts'
@@ -63,6 +63,11 @@ export const OUTBOX_WAITS_MS = 5 * 60_000
 const ANSWER_MOST = 8_000
 /** How many answers one outbox ask hands in. */
 const ANSWERS_AT_ONCE = 6
+/**
+ * How many acts one beat takes from a hub's outbox: what one ask hands back in.
+ * The rest wait there, unanswered, for the next beat.
+ */
+const ACTS_AT_ONCE = ANSWERS_AT_ONCE
 
 /** How long an answered act is kept by its key, so one asked again is answered and not done again. */
 const ANSWERS_KEPT_MS = 30 * 60_000
@@ -337,7 +342,28 @@ export class MachineActs {
     }
   }
 
+  /**
+   * One round: hand in what is owed, take at most `ACTS_AT_ONCE` of what waits,
+   * and hand their answers in at once rather than at the next beat, so whoever
+   * waits there hears now. Those last asks only hand in: what they bring waits
+   * for the next beat, so a hub that always has one more act — a hostile one
+   * can — gets one round a beat and never a loop.
+   */
   private async ask(name: string, link: RemoteLink): Promise<void> {
+    const acts = await this.handIn(name, link)
+    if (acts === null) return
+    for (const act of acts.slice(0, ACTS_AT_ONCE)) {
+      const done = await this.take({ ...act, from: name }, 'outbox')
+      this.owed.set(name, [...(this.owed.get(name) ?? []), done])
+    }
+    // Each ask that is answered hands in at least one and adds none, so this ends.
+    while ((this.owed.get(name) ?? []).length > 0) {
+      if ((await this.handIn(name, link)) === null) return
+    }
+  }
+
+  /** One outbox ask: answers owed handed in, and the acts it hands back, or `null` where there are none to read. */
+  private async handIn(name: string, link: RemoteLink): Promise<ActBody[] | null> {
     // A request is 64 KB at most: a few answers at a time, a long one cut, saying where.
     const owed = this.owed.get(name) ?? []
     const answers = owed.slice(0, ANSWERS_AT_ONCE).map((one) =>
@@ -355,10 +381,10 @@ export class MachineActs {
       // A link that went is the link's own news; the answers wait for the next ask.
       if (!(err instanceof LinkError))
         this.deps.say(`${name}'s outbox could not be asked: ${why(err)}`)
-      return
+      return null
     }
     // An older Tade there has no outbox: nothing waits in one.
-    if (answer.status !== 200) return
+    if (answer.status !== 200) return null
     this.owed.set(name, owed.slice(answers.length))
     const acts = readOutboxAnswer(answer.body)
     if (acts === null) {
@@ -368,14 +394,9 @@ export class MachineActs {
           `${name}'s outbox answered with something that is not a list of acts, so nothing in it was done here`,
         )
       }
-      return
+      return null
     }
     this.malformed.delete(name)
-    for (const act of acts) {
-      const done = await this.take({ ...act, from: name }, 'outbox')
-      this.owed.set(name, [...(this.owed.get(name) ?? []), done])
-    }
-    // Answered at once rather than at the next ask, so whoever waits there hears now.
-    if ((this.owed.get(name) ?? []).length > 0) await this.ask(name, link)
+    return acts
   }
 }
