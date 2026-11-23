@@ -57,8 +57,10 @@ export type Note = z.infer<typeof NoteSchema> & {
   /**
    * The machine it was taken on, where that is another one: what the machine
    * it came from here called it (`came` in `memory.jsonl`). Absent for a note
-   * taken here. Folded out of the file like `retired`, and said only where
-   * somebody asks about a note — never in what anybody is told.
+   * taken here. Folded out of the file like `retired`. What a model is told
+   * lists such a note apart from this machine's, as material and never as the
+   * person's words (`NOTES_FROM_ELSEWHERE`): it is that machine's word that they
+   * said it.
    */
   from?: string
 }

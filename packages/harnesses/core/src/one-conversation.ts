@@ -44,6 +44,15 @@ import {
 // asked for from a paired device does not wait for the lease — it is refused
 // with who is answering, like any busy conversation is — because a request
 // from a phone that hangs for minutes is one it gives up on.
+//
+// **Waiting for the hub's lease has a deadline** (`LEASE_WAITED_AT_MOST_MS`),
+// past which the turn runs here apart, exactly as it would with the hub down,
+// and the two are merged at the first turn here that gets the lease. The
+// lease is the hub's word, and any agent on the hub runs as the same user as
+// its Tade: one that keeps renewing a lease — or a hub that never lets one go
+// — would otherwise hold every turn here for as long as it liked. A holder
+// waited out once is not waited for again until a lease is granted here, so
+// it costs one wait and not one per turn.
 
 /** The hub's link, where another machine is the hub. */
 export interface HubLink {
@@ -79,6 +88,13 @@ export interface OneConversationOptions {
 const LEASE_ASKED_EVERY_MS = 2_000
 
 /**
+ * How long a turn here waits for the hub's lease while another machine's turn
+ * holds it, before it runs here apart: longer than most turns, and short of
+ * the forever a holder that never lets go would make it.
+ */
+export const LEASE_WAITED_AT_MOST_MS = 3 * 60_000
+
+/**
  * How many requests one exchange makes at most: about two and a half
  * megabytes given, more taken. A month's conversation is hundreds of
  * megabytes the first time two machines meet, which no turn should wait for —
@@ -111,6 +127,8 @@ export class OneConversation {
   private one: string | null = null
   /** How many entries each other machine's copy added to the record here since this machine's last turn. */
   private readonly came = new Map<string, number>()
+  /** The machine whose hold on the hub's lease a turn here last waited out, until one is granted here. */
+  private outwaited: string | null = null
 
   constructor(opts: OneConversationOptions) {
     this.opts = opts
@@ -163,6 +181,7 @@ export class OneConversation {
       this.apart(hub)
       return
     }
+    const started = this.opts.now()
     for (;;) {
       let done: Awaited<ReturnType<SharedConversation['exchange']>>
       try {
@@ -185,6 +204,7 @@ export class OneConversation {
       }
       const lease = done.lease
       if (!lease || lease.granted) {
+        this.outwaited = null
         this.whole = done.complete
         if (!done.complete) {
           this.once(
@@ -205,6 +225,17 @@ export class OneConversation {
         throw new Error(
           `${who}: this conversation takes one turn at a time across the machines, so say it again once it is done`,
         )
+      // Holding nothing: the turn runs here apart, and `after` gives what it
+      // wrote without a lease to let go.
+      const name = holder?.name ?? ''
+      if (this.outwaited === name || this.opts.now() - started >= LEASE_WAITED_AT_MOST_MS) {
+        this.outwaited = name
+        this.once(
+          `${who}, and a turn here waits on it ${LEASE_WAITED_AT_MOST_MS / 60_000} minutes at most: this turn runs here apart, and the two are merged at the first turn here that gets the lease.`,
+          `outwaited:${holder?.name}:${holder?.since}`,
+        )
+        return
+      }
       this.once(
         `Waiting: ${who}, and this goes after its turn.`,
         `wait:${holder?.name}:${holder?.since}`,

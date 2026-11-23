@@ -15,7 +15,7 @@ import {
   SharedConversation,
   TurnLease,
 } from '../src/conversation-share.ts'
-import { type HubLink, OneConversation } from '../src/one-conversation.ts'
+import { type HubLink, LEASE_WAITED_AT_MOST_MS, OneConversation } from '../src/one-conversation.ts'
 
 // Each machine's half of one conversation, two homes on one disk: the
 // exchange brings each the other's entries, a line too long for one request
@@ -562,6 +562,58 @@ describe('the gate around a turn', () => {
     await hubSide.one.before(true)
     expect(idsOf(vps.record)).toEqual(idsOf(mac.record))
     await hubSide.one.after()
+  })
+
+  it('stops waiting for a lease another machine never lets go, runs the turn apart, and does not wait for that holder again', async () => {
+    const mac = machine('mac')
+    const vps = machine('vps')
+    const hubSide = gate(vps, () => null)
+    const link: HubLink = {
+      name: 'vps',
+      up: true,
+      downSince: null,
+      send: (ask) => hubSide.one.answer(ask),
+    }
+    // The Mac's clock moves only by its own waits, so the deadline is reached by asking and never by a sleep.
+    let now = 0
+    const said: string[] = []
+    let asks = 0
+    const macSide = new OneConversation({
+      shared: mac.shared,
+      hub: () => link,
+      reload: async () => {},
+      say: (text) => said.push(text),
+      warn: (text) => said.push(`warn: ${text}`),
+      now: () => now,
+      clock: () => '14:02',
+      pause: async (ms) => {
+        asks++
+        now += ms
+      },
+    })
+    // The hub's turn holds the lease and never lets it go.
+    await hubSide.one.before(true)
+    await macSide.before(true)
+    expect(macSide.leased).toBe(false)
+    expect(now).toBeGreaterThanOrEqual(LEASE_WAITED_AT_MOST_MS)
+    expect(said).toContain(
+      'vps is answering (since 14:02), and a turn here waits on it 3 minutes at most: this turn runs here apart, and the two are merged at the first turn here that gets the lease.',
+    )
+    // What the turn wrote apart is still given to the hub, with no lease to let go.
+    turn(mac, 'heron', '2026-11-23T12:10:00.000Z')
+    await macSide.after()
+    expect(hubSide.one.lease.holder(Date.now())?.name).toBe('vps')
+    // The same holder is not waited for again, and that is not said again.
+    const waited = asks
+    await macSide.before(true)
+    expect(asks).toBe(waited)
+    expect(said.filter((line) => line.includes('3 minutes at most'))).toHaveLength(1)
+    await macSide.after()
+    // Once the hub lets go, the lease is taken and waited for as before.
+    await hubSide.one.after()
+    await macSide.before(true)
+    expect(macSide.leased).toBe(true)
+    await macSide.after()
   })
 
   it('opens the next turn with Tade’s sentence naming the machine what came in was written on, once', async () => {
