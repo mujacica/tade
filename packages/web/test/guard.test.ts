@@ -660,6 +660,41 @@ describe('this machine is the loopback listener and a loopback Host, both', () =
     }
   })
 
+  it('refuses the public name on the loopback listener, where no passkey would be asked', () => {
+    // Caddy reaches the public name through the socket, so on loopback the
+    // name is something on this machine with a stolen cookie, and `proven`
+    // asks the passkey of the public listener alone. Refused at the door there.
+    const surface = { ...LAN, trustedHosts: [NAME], publicName: NAME, passkeyMs: 3_600_000 }
+    const session = { ...SESSION, scopes: ['read', 'steer'] as const, host: NAME }
+    const at = (proved: number | null) => ({ ...BESIDE, surface, session: { ...session, proved } })
+    const act = (listener: 'loopback' | 'public') =>
+      asking({
+        listener,
+        host: NAME,
+        cookie: 'tade_away=whatever',
+        method: 'POST',
+        path: STEER.path,
+        origin: `https://${NAME}`,
+        contentType: 'application/json',
+        token: SESSION.csrf,
+      })
+    for (const proved of [null, NOW - 60_000]) {
+      const verdict = allowed(act('loopback'), STEER, at(proved))
+      expect(verdict.ok, `proved ${proved}`).toBe(false)
+      if (!verdict.ok) expect(verdict.refusal.error).toBe('bad_origin')
+      const read = allowed(asking({ listener: 'loopback', host: NAME }), READ, at(proved))
+      expect(read.ok, `read, proved ${proved}`).toBe(false)
+    }
+    expect(hostAllowed(NAME.toUpperCase(), 'loopback', at(null))).toBe(false)
+    // On the public listener the same act is asked its passkey, and goes once proved.
+    const unproved = allowed(act('public'), STEER, at(null))
+    expect(unproved.ok).toBe(false)
+    if (!unproved.ok) expect(unproved.refusal.error).toBe('unproven')
+    expect(allowed(act('public'), STEER, at(NOW - 60_000)).ok).toBe(true)
+    // A name a proxy to loopback answers for is `trusted_hosts`, and stays let in.
+    expect(hostAllowed(NAME, 'loopback', BESIDE)).toBe(true)
+  })
+
   it('says which listener in the journal’s sentence, and not the page’s', () => {
     const verdict = allowed(asking({ host: 'localhost:7654' }), READ, BESIDE)
     expect(verdict.ok).toBe(false)

@@ -182,6 +182,13 @@ export function hostAllowed(host: string | null, listener: Listener, guarding: G
   const bare = hostOf(host)
   if (bare === null) return false
   if (loopbackHost(bare)) return listener === 'loopback'
+  // **The public name is the public listener's alone**, the mirror of the
+  // rule above. Caddy reaches it through the socket (`listeners.ts`), so on
+  // the loopback listener the name is a claim made by something already on
+  // this machine — and there `proven` asks no passkey, so a stolen cookie
+  // would skip it. A proxy to loopback is `trusted_hosts`, never `public`.
+  const named = guarding.surface.publicName
+  if (listener === 'loopback' && named !== null && sameHost(named, bare)) return false
   const allowed = [...guarding.bound, ...guarding.surface.trustedHosts]
   // `0.0.0.0` and `::` are what was *bound*, never what a browser asks for: a
   // request that named either is a request nobody's browser made. What a phone
