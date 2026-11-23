@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { OUTSIDE_IS_MATERIAL } from './compose.ts'
+import { fenceFor, OUTSIDE_IS_MATERIAL } from './compose.ts'
 import { THINKING_LEVELS, type ThinkingLevel } from './config.ts'
 import { DONE_RULES } from './model.ts'
 import { doneFor, type Persona, PersonaDone } from './personas.ts'
@@ -651,22 +651,6 @@ function contextFor(req: {
     lines.push('', `## ${one.name}`, '', OUTSIDE_IS_MATERIAL, '', fence, one.text.trimEnd(), fence)
   }
   return `${lines.join('\n')}\n`
-}
-
-/**
- * A code fence long enough that the text inside it cannot end it early.
- *
- * Fenced, and not because escaping makes a markdown file tamper-proof — it
- * does not. It is because where the outside text *ends* has to be unambiguous:
- * unfenced, a ticket body containing its own `## ` heading makes whatever
- * follows look like another of Tade's own sections, and with two document
- * inputs the first can dress the second up as a instruction from here. A fence
- * also renders it as what it is: data somebody else wrote, not prose addressed
- * to the agent. The sentence above it is still what does the actual work.
- */
-function fenceFor(text: string): string {
-  const longest = Math.max(0, ...[...text.matchAll(/`+/g)].map((run) => run[0].length))
-  return '`'.repeat(Math.max(3, longest + 1))
 }
 
 /** A template with its personas folded in, which is what a published one is. */

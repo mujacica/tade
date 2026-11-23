@@ -1,4 +1,13 @@
-import { mkdtempSync, readFileSync, statSync } from 'node:fs'
+import {
+  chmodSync,
+  lstatSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -32,6 +41,33 @@ describe('a key is a setting', () => {
     const path = join(home(), 'config.yaml')
     writeSetting(path, secretPath('jev', 'key'), KEY)
     expect(statSync(path).mode & 0o077).toBe(0)
+  })
+
+  it('never puts a key into a file somebody else can read, even for a moment', () => {
+    // `mode` on a write only applies to a file being made: written in place, a
+    // `0644` config held the new key world-readable until it was narrowed. A
+    // new file, renamed over, never is — and a crash leaves the old one whole.
+    const dir = home()
+    const path = join(dir, 'config.yaml')
+    writeFileSync(path, 'projects: {}\n')
+    chmodSync(path, 0o644)
+    const before = statSync(path).ino
+    writeSetting(path, secretPath('jev', 'key'), KEY)
+    expect(statSync(path).mode & 0o777).toBe(0o600)
+    expect(statSync(path).ino).not.toBe(before)
+    expect(readdirSync(dir)).toEqual(['config.yaml'])
+  })
+
+  it('writes through a config kept somewhere else by a link, rather than replacing the link', () => {
+    const dir = home()
+    const real = join(dir, 'dotfiles.yaml')
+    const path = join(dir, 'config.yaml')
+    writeFileSync(real, 'projects: {}\n', { mode: 0o600 })
+    symlinkSync(real, path)
+    writeSetting(path, secretPath('jev', 'key'), KEY)
+    expect(lstatSync(path).isSymbolicLink()).toBe(true)
+    expect(readFileSync(real, 'utf8')).toContain(KEY)
+    expect(readdirSync(dir).sort()).toEqual(['config.yaml', 'dotfiles.yaml'])
   })
 
   it('takes a key out when the field is cleared', async () => {

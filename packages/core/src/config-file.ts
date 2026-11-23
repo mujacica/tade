@@ -1,4 +1,13 @@
-import { chmodSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { parseDocument, parse as parseYaml, YAMLParseError } from 'yaml'
@@ -121,8 +130,7 @@ export function writeSetting(
   // A home nothing has written yet — `tade web on` on a new box before setup —
   // is made here rather than an ENOENT out of a stack trace.
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
-  writeFileSync(path, doc.toString(), { mode: 0o600 })
-  ownerOnly(path)
+  ownerOnly(path, doc.toString())
 }
 
 /**
@@ -130,17 +138,34 @@ export function writeSetting(
  * Sentry they watch, a DSN anybody holding it could send events to, and the
  * keys they pasted in. `0600` is the whole of what that buys — the agents they
  * run run as them and can read it like any other file of theirs, which is said
- * where somebody is deciding (`KEYS_AND_AGENTS`). Writing with `mode` only
- * covers a file that is being made; one that was already there is narrowed
- * here, keeping whatever the owner may do with it and taking away what
- * everybody else could.
+ * where somebody is deciding (`KEYS_AND_AGENTS`). One that was already there
+ * keeps whatever the owner may do with it and loses what everybody else could.
+ *
+ * Written whole beside it and renamed over, so a crash mid-write leaves the old
+ * file rather than half of the new one, and the new text is never readable by
+ * anybody else: `mode` on a write only applies to a file being made, so writing
+ * in place into a `0644` config held the new key world-readable until it was
+ * narrowed afterwards. A symlinked config — kept in somebody's dotfiles — is
+ * written through, never replaced by a file.
  */
-export function ownerOnly(path: string): void {
+function ownerOnly(path: string, text: string): void {
+  let target = path
+  let mode = 0o600
   try {
-    const mode = statSync(path).mode & 0o777
-    if (mode & 0o077) chmodSync(path, mode & 0o700)
+    target = realpathSync(path)
+    mode = statSync(target).mode & 0o700
   } catch {
-    // A file we cannot stat or chmod is not a reason to lose the setting.
+    // No file yet: it is made `0600`.
+  }
+  const temp = `${target}.${process.pid}.tmp`
+  rmSync(temp, { force: true })
+  try {
+    writeFileSync(temp, text, { mode, flag: 'wx' })
+    chmodSync(temp, mode)
+    renameSync(temp, target)
+  } catch (err) {
+    rmSync(temp, { force: true })
+    throw err
   }
 }
 

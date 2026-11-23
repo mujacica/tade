@@ -100,7 +100,8 @@ describe("Tade's own checks", () => {
   it('do not read what only the runner can do', async () => {
     const read = await readChecks({ name: 'tade', root })
     const said = read.problems.join('\n')
-    expect(said).toContain('actions/checkout@v5')
+    // Pinned by commit (`release.test.ts`), so named by it.
+    expect(said).toMatch(/actions\/checkout@[0-9a-f]{40}/)
     expect(said).toContain('prepares the machine rather than checking the code')
     expect(read.checks.map((check) => check.id)).not.toContain('tmux')
     expect(read.checks.map((check) => check.id)).not.toContain('restic')

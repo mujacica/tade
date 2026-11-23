@@ -459,6 +459,24 @@ describe('the release workflow', () => {
     expect(push.branches).toBeUndefined()
   })
 
+  it('runs only code pinned to one commit, in the job that may publish and the gate before it', () => {
+    // A tag can be moved by whoever holds the action's repository, and
+    // `npm@latest` is whatever was published that morning — each would run
+    // beside `id-token: write`, able to publish as this package. A full commit
+    // id cannot be moved, and npm is named by its exact version.
+    for (const path of [RELEASE_PATH, CI_PATH]) {
+      const flow = parse(readFileSync(join(ROOT, path), 'utf8')) as Workflow
+      for (const step of Object.values(flow.jobs).flatMap((job) => job.steps ?? [])) {
+        if (step.uses && !step.uses.startsWith('./')) {
+          expect(step.uses, path).toMatch(/^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/)
+        }
+        for (const npm of (step.run ?? '').matchAll(/npm install -g (\S+)/g)) {
+          expect(npm[1], path).toMatch(/^npm@\d+\.\d+\.\d+$/)
+        }
+      }
+    }
+  })
+
   it('takes a short-lived token from GitHub and reads no secret of its own', () => {
     // Trusted publishing: npm exchanges this for a token good for one publish
     // of this package from this workflow. A secret read here would be a

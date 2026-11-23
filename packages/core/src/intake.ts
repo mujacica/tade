@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { OUTSIDE_IS_MATERIAL } from './compose.ts'
+import { fenceFor, OUTSIDE_IS_MATERIAL } from './compose.ts'
 import type { Template } from './templates.ts'
 
 // Work that arrives from outside this machine: a ticket somebody filed, a
@@ -308,7 +308,10 @@ export function intakeContext(one: Intake): string {
       `${one.attachments.length} attachment${one.attachments.length === 1 ? '' : 's'} ${one.attachments.length === 1 ? 'is' : 'are'} referenced and ${one.attachments.length === 1 ? 'was' : 'were'} not downloaded: ${named}.`,
     )
   }
-  lines.push('', OUTSIDE_IS_MATERIAL, '', '```', one.verbatim.trimEnd(), '```')
+  // Longer than any run of backticks in the body, so a ticket cannot close
+  // the fence and write the rest of this file as though it were Tade's.
+  const fence = fenceFor(one.verbatim)
+  lines.push('', OUTSIDE_IS_MATERIAL, '', fence, one.verbatim.trimEnd(), fence)
   return `${lines.join('\n')}\n`
 }
 

@@ -57,12 +57,12 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       tarball: ${{ steps.pack.outputs.tarball }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           # Every tag, because the changelog is grouped by release and a
           # shallow clone has no history to group.
           fetch-depth: 0
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: '22'
           # Off, because this job has no package manager and must not need
@@ -117,7 +117,7 @@ jobs:
           cd dist/package
           name=$(npm pack --silent --pack-destination ..)
           echo "tarball=$name" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: tade-sh
           path: |
@@ -136,11 +136,11 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: '22'
           package-manager-cache: false
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: tade-sh
       - name: install it and run it
@@ -202,14 +202,16 @@ jobs:
           echo "::error::Make the repository public before tagging, or take --provenance off the publish step"
           echo "::error::below and lose the attestation. Nothing has been published."
           exit 1
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: '22'
           package-manager-cache: false
           registry-url: https://registry.npmjs.org
-      # Node 22 ships npm 10, which cannot do trusted publishing at all.
-      - run: npm install -g npm@latest
-      - uses: actions/download-artifact@v4
+      # Node 22 ships npm 10, which cannot do trusted publishing at all. An exact
+      # version, because this job holds `id-token: write`: whatever `latest`
+      # happened to be on the day would run with the right to publish as us.
+      - run: npm install -g npm@11.21.2
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: tade-sh
       - name: publish to npm

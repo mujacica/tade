@@ -439,8 +439,12 @@ A person's, at a keyboard, and not something an agent can or should do. Say it t
 
 Two things the workflow already handles, so that nobody adds them again: `--provenance` is
 redundant under trusted publishing, which attests by default, and harmless; and `npm install -g
-npm@latest` is there because trusted publishing wants npm ≥ 11.5.1 and the Node 22 the workflow
-pins ships npm 10.
+npm@<exact>` is there because trusted publishing wants npm ≥ 11.5.1 and the Node 22 the workflow
+pins ships npm 10. **Everything the workflows run is pinned** — npm by exact version, every action
+by full commit id with its tag in a comment — because the publish job holds `id-token: write` and a
+moved tag or a new `latest` would run with it; `test/release.test.ts` holds both. Moving one forward
+is resolving the new tag to its commit (`gh api repos/<owner>/<action>/git/ref/tags/<tag>`, and
+through `git/tags/<sha>` when that answers a tag object rather than a commit).
 
 **Never add an npm token.** Trusted publishing hands the workflow a token good for one publish of
 one package from one workflow; a token in a repository is a credential that outlives every reason it
