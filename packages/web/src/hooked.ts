@@ -92,19 +92,12 @@ export class HookDoor {
       return this.opts.answer(res, refuse('no_such'))
     }
     const now = this.opts.now()
-    const count = this.tries.add(source, now)
-    if (count > HOOK_TRIES) {
-      if (count === HOOK_TRIES + 1) {
-        this.opts.tell({
-          type: 'warning',
-          detail: {
-            message: `more than ${HOOK_TRIES} ${source} deliveries came in a minute, so the rest are told to slow down; the poll still finds what they were about`,
-            where: source,
-          },
-        })
-      }
-      return this.opts.answer(res, refuse('slow_down', { after: this.tries.after(source, now) }))
-    }
+    // **Verified first, counted second.** The budget is the source's: counted
+    // before the signature, anybody who knows the path could spend it with
+    // junk and have the source's own deliveries told to slow down. A body is
+    // bounded (`HOOK_BODY_MAX`) and its check is one HMAC, so a delivery that
+    // does not verify costs no more than reading it — and is a line a minute
+    // (`counted`), never a wake.
     const raw = await bounded(req, HOOK_BODY_MAX)
     if (raw === null) {
       this.counted({ source, delivery: '', verified: false, why: 'too big' }, now)
@@ -126,9 +119,25 @@ export class HookDoor {
       // map of the door, and the sender's move is the same either way.
       return this.opts.answer(res, refuse('bad_origin'))
     }
+    const count = this.tries.add(source, now)
+    if (count > HOOK_TRIES) {
+      if (count === HOOK_TRIES + 1) {
+        this.opts.tell({
+          type: 'warning',
+          detail: {
+            message: `more than ${HOOK_TRIES} ${source} deliveries came in a minute, so the rest are told to slow down; the poll still finds what they were about`,
+            where: source,
+          },
+        })
+      }
+      return this.opts.answer(res, refuse('slow_down', { after: this.tries.after(source, now) }))
+    }
     const delivery = deliveryDigest(checked.delivery)
     const said: HookRung = { source, delivery, verified: true, event: checked.event }
-    if (delivery !== '' && this.saw(source, delivery)) {
+    // A repeat is known by what the signature covers (`kept`), never by an id
+    // the sender may write afresh: GitHub signs no delivery id and no moment.
+    const kept = deliveryDigest(checked.kept)
+    if (kept !== '' && this.saw(source, kept)) {
       this.counted({ ...said, woke: [], why: 'duplicate' }, now)
       return this.opts.json(res, {})
     }

@@ -47,7 +47,14 @@ import {
   type Told,
   type WebServer,
 } from './serving.ts'
-import { clearCookie, renamed, renewal, renewedCookie, sessionOf } from './sessions.ts'
+import {
+  clearCookie,
+  mayBeSession,
+  renamed,
+  renewal,
+  renewedCookie,
+  sessionOf,
+} from './sessions.ts'
 import { cursorOf } from './stream.ts'
 import { type Listener, type Origin, reachOf, type Scope, sameHost } from './surface.ts'
 
@@ -208,9 +215,12 @@ export function webServer(opts: ServerOptions): WebServer {
     // credential.
     const host = asking.host === null ? null : hostOf(asking.host)
     // A connect page or press is read it too: off this machine's door it is
-    // the person's own device's, under its session (`Route.theirs`).
+    // the person's own device's, under its session (`Route.theirs`). **Nor
+    // where no session was offered** (`mayBeSession`): the file only grows,
+    // and a request with no cookie — or junk in one — is anybody's, as often
+    // as they like; every such request is `no_session` whatever the file says.
     const devices =
-      found.route.public === true || found.route.connects === 'back'
+      found.route.public === true || found.route.connects === 'back' || !mayBeSession(asking.cookie)
         ? NO_DEVICES
         : await readDevices(opts.home)
     saidSkipped(devices.skipped)

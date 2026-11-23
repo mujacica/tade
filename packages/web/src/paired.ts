@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { appendDevice, readDevices } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
-import { type Asking, PAIR_TRIES, type Window } from './guard.ts'
+import { type Asking, PAIR_TRIES, pairKeyOf, type Window } from './guard.ts'
 import { claimWritten } from './pending.ts'
 import type { Grant } from './reach.ts'
 import { inTime, labelOf, readBody } from './request.ts'
@@ -72,11 +72,13 @@ export async function carryPairing(
   ctx: Pairing,
 ): Promise<void> {
   const { asking, request, now, tell } = ctx
-  if (ctx.pairing.over(asking.from, now())) {
+  // Per network rather than per address where the address is IPv6 (`pairKeyOf`).
+  const tries = pairKeyOf(asking.from)
+  if (ctx.pairing.over(tries, now())) {
     ctx.said(`pairing refused: ${PAIR_TRIES} tries already`)
-    return ctx.answer(refuse('slow_down', { after: ctx.pairing.after(asking.from, now()) }))
+    return ctx.answer(refuse('slow_down', { after: ctx.pairing.after(tries, now()) }))
   }
-  ctx.pairing.add(asking.from, now())
+  ctx.pairing.add(tries, now())
 
   const got = await readBody(req)
   if (!got.read) return ctx.answer(got.refusal)

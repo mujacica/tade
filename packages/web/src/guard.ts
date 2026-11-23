@@ -546,11 +546,13 @@ export const PAIR_WINDOW_MS = 10 * 60_000
  * A count per key inside a sliding window, which is both rate limits.
  *
  * Bounded by construction: a key whose window has run out is dropped on the
- * next look, and the whole map is dropped once it is over `most` keys — which
- * is what keeps a stream of made-up peers from being a memory leak with a
- * rate limiter's name on it. Dropping it is safe in the only direction that
- * matters: it loses counts, so the worst it does is forgive, and it cannot
- * make Tade refuse somebody it should not.
+ * next look, and past `keys` keys the ones heard from longest ago are dropped
+ * — **those still under their allowance first**, so a stream of made-up peers
+ * from many addresses churns among themselves and never wipes the count of a
+ * peer that is at its limit. It used to clear the whole map, which made a
+ * thousand fresh addresses a reset for everybody. Dropping only ever loses
+ * counts, so the worst it does is forgive; it cannot make Tade refuse somebody
+ * it should not.
  */
 export class Window {
   private readonly seen = new Map<string, number[]>()
@@ -566,10 +568,12 @@ export class Window {
 
   /** How many times this key has been counted inside the window, including now. */
   add(key: string, now: number): number {
-    this.forget(now)
     const kept = (this.seen.get(key) ?? []).filter((at) => now - at < this.ms)
     kept.push(now)
+    // Last in the map's order, which is the order heard from.
+    this.seen.delete(key)
     this.seen.set(key, kept)
+    this.forget(now)
     return kept.length
   }
 
@@ -594,6 +598,39 @@ export class Window {
     for (const [key, times] of this.seen) {
       if (times.every((at) => now - at >= this.ms)) this.seen.delete(key)
     }
-    if (this.seen.size > this.keys) this.seen.clear()
+    for (const under of [true, false]) {
+      for (const [key, times] of this.seen) {
+        if (this.seen.size <= this.keys) return
+        if (!under || times.filter((at) => now - at < this.ms).length < this.most) {
+          this.seen.delete(key)
+        }
+      }
+    }
   }
+}
+
+/**
+ * Who a pairing try is counted against: the address, or for IPv6 its /64.
+ *
+ * One phone's network is a /64, and whoever holds one can pick from 2^64
+ * addresses in it — so counted per address, the limit is no limit for anybody
+ * with IPv6. An IPv4 address mapped into IPv6 is its IPv4 address. Anything
+ * that is not an address is itself.
+ */
+export function pairKeyOf(address: string): string {
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(address)
+  if (mapped?.[1] !== undefined) return mapped[1]
+  const bare = address.split('%')[0] ?? ''
+  if (!/^[0-9a-f:]+$/i.test(bare) || !bare.includes(':')) return address
+  const halves = bare.split('::')
+  if (halves.length > 2) return address
+  const head = halves[0] === '' ? [] : (halves[0] ?? '').split(':')
+  const tail = halves.length === 2 && halves[1] !== '' ? (halves[1] ?? '').split(':') : []
+  const missing = 8 - head.length - tail.length
+  if (missing < 0 || (halves.length === 1 && missing !== 0)) return address
+  const groups = [...head, ...Array<string>(missing).fill('0'), ...tail]
+  return `${groups
+    .slice(0, 4)
+    .map((group) => Number.parseInt(group, 16).toString(16))
+    .join(':')}::/64`
 }

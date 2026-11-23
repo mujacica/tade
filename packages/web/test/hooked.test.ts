@@ -172,6 +172,21 @@ describe('a delivery that verifies', () => {
     expect(asked.woke).toHaveLength(1)
   })
 
+  it('is a repeat under a fresh delivery id too, since GitHub signs the body and not the id', async () => {
+    const { one, socket, asked } = await up()
+    await deliver(socket, '/hooks/github', ISSUE, github(ISSUE, 'delivery-1'))
+    await woken(asked)
+    // A captured delivery, sent again with an id of the sender's choosing.
+    const again = await deliver(socket, '/hooks/github', ISSUE, github(ISSUE, 'delivery-2'))
+    expect(again.status).toBe(200)
+    expect(asked.matched).toHaveLength(1)
+    expect(rungs(one)[1]).toMatchObject({ verified: true, why: 'duplicate', woke: [] })
+    // Another body is another delivery, whatever id it carries.
+    const other = JSON.stringify({ ...JSON.parse(ISSUE), action: 'unlabeled' })
+    await deliver(socket, '/hooks/github', other, github(other, 'delivery-1'))
+    expect(asked.matched).toHaveLength(2)
+  })
+
   it('wakes nothing where it is about nothing watched here, and says so', async () => {
     const { one, socket, asked } = await up({ match: async () => [] })
     expect((await deliver(socket, '/hooks/github', ISSUE, github(ISSUE))).status).toBe(200)
@@ -340,8 +355,11 @@ describe('what is not a doorbell', () => {
 
   it('is told to slow down past the rate a source gets, said once, and asks nothing', async () => {
     const { one, socket, asked } = await up({ match: async () => [] })
-    const forged = github(ISSUE, 'x', 'guess')
-    for (let n = 0; n < HOOK_TRIES; n++) await deliver(socket, '/hooks/github', ISSUE, forged)
+    const body = (n: number) => JSON.stringify({ ...JSON.parse(ISSUE), n })
+    for (let n = 0; n < HOOK_TRIES; n++) {
+      await deliver(socket, '/hooks/github', body(n), github(body(n), `d-${n}`))
+    }
+    expect(asked.matched).toHaveLength(HOOK_TRIES)
     const over = await deliver(socket, '/hooks/github', ISSUE, github(ISSUE))
     expect(over.status).toBe(429)
     expect(Number(over.headers['retry-after'])).toBeGreaterThan(0)
@@ -350,6 +368,20 @@ describe('what is not a doorbell', () => {
       (told) => told.type === 'warning' && String(told.detail.message).includes('slow down'),
     )
     expect(warned).toHaveLength(1)
-    expect(asked.matched).toEqual([])
+    expect(asked.matched).toHaveLength(HOOK_TRIES)
+  })
+
+  it('never spends the source’s budget on deliveries that do not verify', async () => {
+    // Anybody who knows the path can send junk; it must not make the
+    // source's own deliveries be told to slow down.
+    const { socket, asked } = await up()
+    const forged = github(ISSUE, 'x', 'guess')
+    for (let n = 0; n < HOOK_TRIES + 5; n++) {
+      expect((await deliver(socket, '/hooks/github', ISSUE, forged)).status).toBe(403)
+    }
+    const real = await deliver(socket, '/hooks/github', ISSUE, github(ISSUE))
+    expect(real.status).toBe(200)
+    await woken(asked)
+    expect(asked.woke).toHaveLength(1)
   })
 })

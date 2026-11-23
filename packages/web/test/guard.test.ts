@@ -10,6 +10,7 @@ import {
   isJson,
   originMatches,
   originOf,
+  pairKeyOf,
   parseOrigin,
   quoted,
   schemesFor,
@@ -999,8 +1000,33 @@ describe('the sliding window both rate limits are', () => {
   it('is bounded, so a stream of made-up peers is not a leak', () => {
     const window = new Window(5, 60_000, 4)
     for (let at = 0; at < 50; at++) window.add(`peer-${at}`, at)
-    // Over the ceiling it is cleared, which loses counts and so can only ever
-    // forgive — never refuse somebody it should not have.
-    expect(window.count('peer-49', 50)).toBeLessThanOrEqual(1)
+    // Over the ceiling the ones heard from longest ago go, which loses counts
+    // and so can only ever forgive — never refuse somebody it should not have.
+    expect(window.count('peer-49', 50)).toBe(1)
+    expect(window.count('peer-0', 50)).toBe(0)
+  })
+
+  it('keeps refusing a peer at its limit however many made-up peers come after it', () => {
+    // Clearing the whole map past the ceiling made a thousand fresh addresses
+    // a reset for everybody, the one already refused included.
+    const window = new Window(5, 60_000, 4)
+    for (let n = 0; n < 5; n++) window.add('guesser', n)
+    expect(window.over('guesser', 5)).toBe(true)
+    for (let at = 10; at < 2_000; at++) window.add(`fresh-${at}`, at)
+    expect(window.over('guesser', 2_000)).toBe(true)
+  })
+
+  it('counts IPv6 tries by the network they come from, since one holds 2^64 addresses', () => {
+    expect(pairKeyOf('2001:db8:1:2:aaaa:bbbb:cccc:dddd')).toBe('2001:db8:1:2::/64')
+    expect(pairKeyOf('2001:db8:1:2::9')).toBe('2001:db8:1:2::/64')
+    expect(pairKeyOf('2001:0db8:0001:0002::1%en0')).toBe('2001:db8:1:2::/64')
+    expect(pairKeyOf('::1')).toBe('0:0:0:0::/64')
+    expect(pairKeyOf('::ffff:203.0.113.9')).toBe('203.0.113.9')
+    expect(pairKeyOf('203.0.113.9')).toBe('203.0.113.9')
+    expect(pairKeyOf('unknown')).toBe('unknown')
+    const window = new Window(5, 60_000)
+    for (let n = 0; n < 5; n++) window.add(pairKeyOf(`2001:db8:1:2::${n + 1}`), n)
+    expect(window.over(pairKeyOf('2001:db8:1:2::ffff'), 5)).toBe(true)
+    expect(window.over(pairKeyOf('2001:db8:1:3::1'), 5)).toBe(false)
   })
 })

@@ -61,8 +61,16 @@ export interface HookDelivery {
 export type HookChecked =
   | {
       ok: true
-      /** The source's own id for it, or '' where it sent none: what the ring is kept by. */
+      /** The source's own id for it, or '' where it sent none: what the journal names it by. */
       delivery: string
+      /**
+       * What a repeat is known by (`HookDoor`'s ring), or '' where nothing is
+       * kept: always something the signature covers. GitHub's and Linear's
+       * delivery ids are headers nobody signs, so a captured delivery sent
+       * again under a fresh id would ring again — theirs is the signed body.
+       * Slack's `event_id` is inside the body it signs.
+       */
+      kept: string
       /** What kind of thing happened, as a bounded word. */
       event: string
       /** What it rings, or null where it is about nothing a watch reads: Slack's URL check. */
@@ -91,6 +99,11 @@ export function deliveryDigest(id: string): string {
   return id === '' ? '' : createHash('sha256').update(id).digest('hex').slice(0, 16)
 }
 
+/** A signed body as a repeat is known by: two deliveries of one body are one delivery. */
+function bodyKept(raw: Buffer): string {
+  return `body ${createHash('sha256').update(raw).digest('hex')}`
+}
+
 const CHECKS: Readonly<Record<HookSource, (delivery: HookDelivery) => HookChecked>> = {
   github(delivery) {
     const sent = delivery.header('x-hub-signature-256')
@@ -104,6 +117,7 @@ const CHECKS: Readonly<Record<HookSource, (delivery: HookDelivery) => HookChecke
     return {
       ok: true,
       delivery: delivery.header('x-github-delivery') ?? '',
+      kept: bodyKept(delivery.raw),
       event,
       address: { source: 'github', event, where: repositoryOf(body.repository) },
       answer: {},
@@ -128,6 +142,7 @@ const CHECKS: Readonly<Record<HookSource, (delivery: HookDelivery) => HookChecke
       return {
         ok: true,
         delivery: '',
+        kept: '',
         event: 'url_verification',
         address: null,
         answer: { challenge },
@@ -147,6 +162,7 @@ const CHECKS: Readonly<Record<HookSource, (delivery: HookDelivery) => HookChecke
     return {
       ok: true,
       delivery: typeof body.event_id === 'string' ? body.event_id : '',
+      kept: typeof body.event_id === 'string' ? body.event_id : '',
       event,
       address: { source: 'slack', event, where, ...(item === null ? {} : { item }) },
       answer: {},
@@ -169,6 +185,7 @@ const CHECKS: Readonly<Record<HookSource, (delivery: HookDelivery) => HookChecke
     return {
       ok: true,
       delivery: delivery.header('linear-delivery') ?? '',
+      kept: bodyKept(delivery.raw),
       event,
       address: { source: 'linear', event, where: teamOf(objectOf(body.data)) },
       answer: {},

@@ -102,6 +102,18 @@ export function splitCookie(value: string): { device: string; secret: string } |
 }
 
 /**
+ * Whether a `Cookie` header carries something shaped like a session at all —
+ * one of the two names, a device id and a secret of the length this program
+ * mints. Asked before the device list is read (`server.ts`), so a request with
+ * no cookie, or with junk in one, costs no disk read and no parse.
+ */
+export function mayBeSession(cookie: string | null): boolean {
+  if (cookie === null) return false
+  const value = presentedIn(cookie)?.value ?? null
+  return value !== null && splitCookie(value) !== null
+}
+
+/**
  * The session a cookie is, or null — and null is the only other answer.
  *
  * Expired, revoked, for a device that is not there, for a host it was not
