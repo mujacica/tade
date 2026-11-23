@@ -239,6 +239,8 @@ let broke = []
 let newer = false
 /** Whether the page's own files changed on the machine and a reload is owed. */
 let changed = false
+/** Whether the machine's Tade runs older code than its own files, until restarted. */
+let restart = false
 /**
  * Why this browser kept no copy, where the machine offered one — or null.
  *
@@ -476,6 +478,17 @@ function offered() {
           : 'Everything else here works exactly as it does now.',
     })
   }
+  if (restart) {
+    // Said by a Tade running from its repository whose own code changed after
+    // it started (`reloading.ts`): this page may be newer than what answers it.
+    said.push({
+      key: 'restart',
+      tone: 'is-stale',
+      glyph: '⚠',
+      lead: 'Tade’s code changed since it started.',
+      under: 'Parts of this page may not work until Tade is restarted at the machine.',
+    })
+  }
   if (changed) {
     said.push({
       key: 'changed',
@@ -584,6 +597,11 @@ function openStream() {
       return
     }
     changed = true
+    paint()
+  })
+  source.addEventListener('restart', () => {
+    alive()
+    restart = true
     paint()
   })
   source.addEventListener('too_many', () => {

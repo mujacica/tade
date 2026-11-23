@@ -133,6 +133,8 @@ export class Streams {
   /** The epoch every frame is stamped with. Set once, by the window. */
   private epoch = ''
   private stopping = false
+  /** The frame saying this listener's own code changed since it started, once it has. */
+  private restart: string | null = null
 
   constructor(opts: StreamOptions = {}) {
     this.perDevice = Math.max(1, opts.perDevice ?? PER_DEVICE)
@@ -202,6 +204,9 @@ export class Streams {
     const held = new Held(req.device, req.until, req.sink, req.now)
     this.peers.push(held)
     held.send(STREAM_OPENING, req.now)
+    // A page that opens after the code changed is told too: it is the one
+    // most likely to be the new screen asking for the new route.
+    if (this.restart !== null) held.send(this.restart, req.now)
 
     const resume = resumeFrom(req.cursor, this.epoch, req.rev, ring.held)
     if (resume.kind === 'replay') {
@@ -315,6 +320,21 @@ export class Streams {
    */
   reloadAll(): void {
     const frame = sseFrame({ event: 'reload', data: {} })
+    for (const peer of [...this.peers]) peer.send(frame, peer.wroteAt)
+  }
+
+  /**
+   * Every open page, and every one opened from now on, is told that the
+   * listener's own code changed since it started.
+   *
+   * Only ever called by a listener running from the repository
+   * (`reloading.ts`). Node does not load a module twice, so whatever the page
+   * reloads into may ask a route this listener does not have until Tade is
+   * restarted — and there is nothing the page can do about that but say so.
+   */
+  restartAll(): void {
+    const frame = sseFrame({ event: 'restart', data: {} })
+    this.restart = frame
     for (const peer of [...this.peers]) peer.send(frame, peer.wroteAt)
   }
 

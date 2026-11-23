@@ -74,6 +74,9 @@ export const STREAM_EVENTS = [
   // The page's own files changed under a listener running from the
   // repository (`reloading.ts`): never sent by an installed Tade.
   'reload',
+  // Its own code changed under such a listener, which nothing reloads, so the
+  // page is told Tade has to be restarted.
+  'restart',
 ] as const
 export type StreamEvent = (typeof STREAM_EVENTS)[number]
 

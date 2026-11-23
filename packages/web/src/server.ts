@@ -35,7 +35,7 @@ import { passkeyStanding } from './passkeys.ts'
 import { type Sink, Streams } from './peers.ts'
 import { carryPush } from './pushed.ts'
 import { Receipts } from './receipts.ts'
-import { fromSource, watchFolder } from './reloading.ts'
+import { fromSource, isServerCode, SETTLE_MS, serverDir, watchFolder } from './reloading.ts'
 import { askingOf, header, pathOf, queryOf, readBody } from './request.ts'
 import { type Route, routeFor, routesFor } from './routes.ts'
 import {
@@ -832,12 +832,25 @@ export function webServer(opts: ServerOptions): WebServer {
       publicTrouble = up.trouble
       // **Live reload, from the repository only** (`reloading.ts`): the
       // folder changed on disk, so what was read is dropped and every open
-      // page is told. An installed Tade is never this.
+      // page is told. An installed Tade is never this. Its own code is
+      // watched too, because that is never reloaded: once it changed, every
+      // page is told Tade has to be restarted to serve it.
       if (opts.liveReload === true && fromSource() && bound.length > 0) {
-        unwatch = watchFolder(assetsDir(), () => {
+        const pages = watchFolder(assetsDir(), () => {
           files.reset()
           streams.reloadAll()
         })
+        const code = watchFolder(
+          serverDir(),
+          () => streams.restartAll(),
+          SETTLE_MS,
+          undefined,
+          isServerCode,
+        )
+        unwatch = () => {
+          pages()
+          code()
+        }
       }
       return bound
     },

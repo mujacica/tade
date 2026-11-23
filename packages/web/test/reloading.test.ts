@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Streams } from '../src/peers.ts'
 import { projector } from '../src/reading.ts'
-import { fromSource, type Watch, watchFolder } from '../src/reloading.ts'
+import { fromSource, isServerCode, serverDir, type Watch, watchFolder } from '../src/reloading.ts'
 import { STREAM_EVENTS } from '../src/stream.ts'
 import { input, NOW, reach } from './fixtures.ts'
 
@@ -27,7 +27,12 @@ describe('watching the folder', () => {
   // real one failed this as `expected 0 to be greater than 0` — about the OS's
   // pace, never about the burst.
   function standIn() {
-    const was = { dir: '', persistent: true as boolean, closed: false, heard: () => {} }
+    const was = {
+      dir: '',
+      persistent: true as boolean,
+      closed: false,
+      heard: (_event?: string, _file?: string | null) => {},
+    }
     const on: Watch = (dir, options, heard) => {
       Object.assign(was, { dir, persistent: options.persistent, heard })
       return {
@@ -74,6 +79,25 @@ describe('watching the folder', () => {
     expect(was.closed).toBe(true)
   })
 
+  it('counts only the files it was told to, by the name the OS gave', () => {
+    vi.useFakeTimers()
+    const { was, on } = standIn()
+    let said = 0
+    const stop = watchFolder('/src', () => (said += 1), 50, on, isServerCode)
+    // A page's own file, the assets folder itself, and a change the OS could
+    // not name are not the server's code.
+    was.heard('change', 'boot.js')
+    was.heard('rename', 'assets')
+    was.heard('change', null)
+    vi.advanceTimersByTime(1_000)
+    expect(said).toBe(0)
+    // A route table is.
+    was.heard('change', 'routes.ts')
+    vi.advanceTimersByTime(50)
+    expect(said).toBe(1)
+    stop()
+  })
+
   // The stand-in proves the burst, and only a real folder proves a real write
   // gets through `fs.watch` to `changed` at all. Linux only: inotify is
   // listening when `watch` returns and says a write at once, where FSEvents
@@ -103,10 +127,21 @@ describe('watching the folder', () => {
   })
 })
 
+describe('the server’s own code', () => {
+  it('is the `.ts` beside this module, and never what the page is made of', () => {
+    expect(serverDir('file:///Users/me/tade/packages/web/src/reloading.ts')).toBe(
+      '/Users/me/tade/packages/web/src',
+    )
+    expect(isServerCode('routes.ts')).toBe(true)
+    expect(isServerCode('boot.js')).toBe(false)
+    expect(isServerCode('frame.css')).toBe(false)
+    expect(isServerCode('assets')).toBe(false)
+    expect(isServerCode(null)).toBe(false)
+  })
+})
+
 describe('telling the open pages', () => {
-  it('sends every stream one reload and leaves it open', () => {
-    expect(STREAM_EVENTS).toContain('reload')
-    const streams = new Streams()
+  function sinkAndOpen(streams: Streams) {
     const sink = {
       wrote: [] as string[],
       ended: false,
@@ -127,6 +162,32 @@ describe('telling the open pages', () => {
       rev: 0,
       now: NOW,
     })
+    return sink
+  }
+
+  it('says nothing about restarting until the code changed', () => {
+    const sink = sinkAndOpen(new Streams())
+    expect(sink.wrote.join('')).not.toContain('event: restart')
+  })
+
+  // The trap this closes: the page reloads into a screen whose route the
+  // running server never loaded, and reads its `404` as a refusal.
+  it('tells every open page, and every page opened later, that Tade must restart', () => {
+    expect(STREAM_EVENTS).toContain('restart')
+    const streams = new Streams()
+    const before = sinkAndOpen(streams)
+    streams.restartAll()
+    expect(before.wrote.join('')).toContain('event: restart')
+    expect(before.ended).toBe(false)
+    const after = sinkAndOpen(streams)
+    expect(after.wrote.join('')).toContain('event: restart')
+    expect(after.ended).toBe(false)
+  })
+
+  it('sends every stream one reload and leaves it open', () => {
+    expect(STREAM_EVENTS).toContain('reload')
+    const streams = new Streams()
+    const sink = sinkAndOpen(streams)
     streams.reloadAll()
     expect(sink.wrote.join('')).toContain('event: reload')
     expect(sink.ended).toBe(false)
