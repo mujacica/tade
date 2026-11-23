@@ -20,6 +20,7 @@ import {
   linkOver,
   type OwnerSession,
   type PairAt,
+  type Paired,
   type Reaching,
   type Remote,
   type RemoteLink,
@@ -36,6 +37,20 @@ import {
   serverOk,
 } from './attach.ts'
 import { changedSays, identify, trust } from './known.ts'
+import {
+  AUTHORIZED_KEYS,
+  accepted,
+  blobOf,
+  commentFor,
+  forget,
+  INSTALL,
+  keyable,
+  keyOf,
+  mint,
+  publicLine,
+  REMOVE,
+  signInArgs,
+} from './own-key.ts'
 
 export { KNOWN_ONLY, MOSH_PORTS, MOSH_PROGRAM, moshPortsSaid, NO_AGENT } from './attach.ts'
 
@@ -78,6 +93,12 @@ export interface SshOptions extends LinkOptions {
   args?: readonly string[]
   /** The environment ssh runs with. Tade's own when not given. */
   env?: Readonly<Record<string, string | undefined>>
+  /**
+   * Where a remote's sshd reads the keys it takes, from that user's home:
+   * `.ssh/authorized_keys` unless a test names its own sshd's, so the suite
+   * never writes into the home of whoever runs it.
+   */
+  authorizedKeys?: string
 }
 
 export const SSH_PROGRAM: RequiredProgram = {
@@ -158,8 +179,13 @@ export function quoted(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
-/** The arguments that start a master with its forward, for one remote. */
-export function masterArgs(paths: Paths, port: number, address: string): string[] {
+/** The arguments that start a master with its forward, for one remote, signing in with `signIn`. */
+export function masterArgs(
+  paths: Paths,
+  port: number,
+  address: string,
+  signIn: readonly string[] = [],
+): string[] {
   return [
     '-M',
     '-S',
@@ -168,6 +194,7 @@ export function masterArgs(paths: Paths, port: number, address: string): string[
     '-N',
     '-T',
     ...QUIET,
+    ...signIn,
     '-o',
     'ExitOnForwardFailure=yes',
     '-o',
@@ -233,6 +260,18 @@ class Ssh {
     })
   }
 
+  /** This link's own key for one remote, where it can have one: `keyOf`. */
+  private keyFor(remote: string): string | null {
+    // A name the config could not hold has no key: it signs in as ssh would.
+    return keyable(remote) ? keyOf(this.options.home, remote) : null
+  }
+
+  /** What every connection to this remote signs in with: its own key alone, where it has one. */
+  private signIn(remote: string): string[] {
+    const key = this.keyFor(remote)
+    return key === null ? [] : signInArgs(key)
+  }
+
   /** ssh with these arguments after the link's own, for the host-key looks. */
   runArgs(args: readonly string[], timeoutMs: number) {
     return this.run(args, timeoutMs)
@@ -254,6 +293,7 @@ class Ssh {
       [
         ...(this.options.args ?? []),
         ...QUIET,
+        ...this.signIn(remote.name),
         '-S',
         controlOf(this.options.home, remote.name),
         '-W',
@@ -289,6 +329,7 @@ class Ssh {
           { code, stderr: said, timedOut: false, missing: false },
           remote.address,
           remote.tade,
+          this.signIn(remote.name).length > 0,
         )
       } catch (err) {
         stream.destroy(err as Error)
@@ -324,6 +365,7 @@ class Ssh {
         '-t',
         ...NO_AGENT,
         ...KNOWN_ONLY,
+        ...this.signIn(remote.name),
         '-o',
         'ConnectTimeout=10',
         '-S',
@@ -348,6 +390,7 @@ class Ssh {
       this.options.ssh ?? 'ssh',
       ...(this.options.args ?? []),
       ...QUIET,
+      ...this.signIn(remote.name),
       '-o',
       'ControlMaster=no',
       '-S',
@@ -385,7 +428,7 @@ class Ssh {
     const there = here === null ? null : await this.moshServer(remote)
     return attachThere({
       ssh: this.options.ssh ?? 'ssh',
-      before: this.options.args ?? [],
+      before: [...(this.options.args ?? []), ...this.signIn(remote.name)],
       control: controlOf(this.options.home, remote.name),
       address: remote.address,
       line,
@@ -434,6 +477,7 @@ class Ssh {
     const ran = await this.run(
       [
         ...QUIET,
+        ...this.signIn(remote.name),
         '-S',
         controlOf(this.options.home, remote.name),
         '--',
@@ -448,8 +492,11 @@ class Ssh {
     return path
   }
 
-  /** Run `tade web pair --owner` there, and read back what it printed once. */
-  async pair(at: PairAt): Promise<OwnerSession> {
+  /**
+   * Run `tade web pair --owner` there, and read back what it printed once —
+   * then, where asked, give the link a key of its own there (`own-key.ts`).
+   */
+  async pair(at: PairAt): Promise<Paired> {
     checked(at.address, at.tade)
     const ran = await this.run(
       [
@@ -461,20 +508,118 @@ class Ssh {
       ASK_MS,
     )
     trouble(ran, at.address, at.tade)
-    return sessionIn(ran.stdout, at.address)
+    const session: OwnerSession = sessionIn(ran.stdout, at.address)
+    if (at.ownCredentialFor === undefined) return session
+    return { ...session, signsIn: await this.ownKey(at, at.ownCredentialFor) }
   }
 
-  /** Run `tade web revoke <device>` there. */
+  /**
+   * Mint this link's own key, write it there over what reached the machine
+   * just now, and prove it signs in — answering, whatever came of it, what
+   * the person is to be told. Nothing here fails the pairing: a link that
+   * could not have its own key signs in as it did a moment ago.
+   */
+  private async ownKey(at: PairAt, name: string): Promise<string> {
+    const before = `${at.address} is signed into as before, with whatever ssh reaches it by`
+    const key = this.keyFor(name)
+    if (key === null) return `${name} cannot have a key of its own, so ${before}`
+    const comment = commentFor(at.label, name)
+    let line: string
+    try {
+      line = await mint(key, comment)
+    } catch (err) {
+      return `no key of its own could be made for ${name} (${(err as Error).message}), so ${before}`
+    }
+    const file = this.options.authorizedKeys ?? AUTHORIZED_KEYS
+    const installed = await this.run(
+      [...QUIET, '--', at.address, remoteSh(INSTALL, file, line)],
+      ASK_MS,
+    )
+    if (installed.code !== 0) {
+      await forget(key)
+      const said = lastLine(installed.stderr) || `it exited ${installed.code}`
+      return `${name}’s own key could not be written to ${keptAt(file)} there (${said}), so ${before}`
+    }
+    // A sign-in of its own, never over a master the person's config may hold
+    // open: one riding that would prove the key it signed in with, not this one.
+    const proved = await this.run(
+      [
+        ...QUIET,
+        ...signInArgs(key),
+        '-o',
+        'ControlMaster=no',
+        '-o',
+        'ControlPath=none',
+        '-v',
+        '--',
+        at.address,
+        'true',
+      ],
+      ASK_MS,
+    )
+    if (proved.code === 0 && accepted(proved.stderr, key)) {
+      return `${name} signs in there with a key of its own, ${key}, written to ${keptAt(file)} there as the line ending \`${comment}\`: taking that line out takes this machine’s way in away and leaves every other key alone, and \`tade remote remove ${name}\` takes it out by itself`
+    }
+    // That machine reads its keys from somewhere else: the line is taken back
+    // out rather than left where it means nothing.
+    await this.run([...QUIET, '--', at.address, remoteSh(REMOVE, file, blobOf(line))], ASK_MS)
+    await forget(key)
+    return `${at.address} would not sign in with ${name}’s own key from ${keptAt(file)} — it reads the keys it takes from somewhere else — so it was taken back out, and ${before}`
+  }
+
+  /**
+   * Run `tade web revoke <device>` there, and take this link's own key back
+   * out of that machine and this one, where it has one.
+   */
   async unpair(remote: Remote): Promise<void> {
     checked(remote.address, remote.tade)
     if (!/^[0-9a-f]{8,64}$/.test(remote.session.device)) {
       throw new LinkError('failed', 'that is not a device id this link would pass to a shell')
     }
+    const key = this.keyFor(remote.name)
+    const signIn = this.signIn(remote.name)
+    const file = this.options.authorizedKeys ?? AUTHORIZED_KEYS
     const ran = await this.run(
-      [...QUIET, '--', remote.address, `${remote.tade} web revoke ${remote.session.device}`],
+      [
+        ...QUIET,
+        ...signIn,
+        '--',
+        remote.address,
+        `${remote.tade} web revoke ${remote.session.device}`,
+      ],
       ASK_MS,
     )
-    trouble(ran, remote.address, remote.tade)
+    try {
+      trouble(ran, remote.address, remote.tade, signIn.length > 0)
+    } catch (err) {
+      if (key === null || signIn.length === 0 || !(err instanceof LinkError)) throw err
+      throw new LinkError(
+        err.problem,
+        `${err.message} — and ${remote.name}’s own key is still in ${keptAt(file)} there, the line ending \`${await commentOf(key)}\`, and in ${key} here`,
+      )
+    }
+    if (key === null || signIn.length === 0) return
+    let line: string
+    try {
+      line = await publicLine(key)
+    } catch (err) {
+      throw new LinkError(
+        'failed',
+        `signed out there, but ${remote.name}’s own key could not be read here to take it out of ${keptAt(file)} there: ${(err as Error).message}`,
+      )
+    }
+    const removed = await this.run(
+      [...QUIET, ...signIn, '--', remote.address, remoteSh(REMOVE, file, blobOf(line))],
+      ASK_MS,
+    )
+    if (removed.code !== 0) {
+      const said = lastLine(removed.stderr) || `it exited ${removed.code}`
+      throw new LinkError(
+        'failed',
+        `signed out there, but ${remote.name}’s own key could not be taken out of ${keptAt(file)} there (${said}): take out the line ending \`${line.split(' ')[2] ?? ''}\` by hand, then delete ${key} here`,
+      )
+    }
+    await forget(key)
   }
 
   reaching(remote: Remote): Reaching {
@@ -514,8 +659,9 @@ class Ssh {
     // path, or one whose forward was taken away: neither is ours to trust.
     if (check.code === 0) await this.down(remote, paths.control)
     await mkdir(join(paths.control, '..'), { recursive: true, mode: 0o700 })
-    const ran = await this.run(masterArgs(paths, port, remote.address), DIAL_MS - 5_000)
-    trouble(ran, remote.address, remote.tade)
+    const signIn = this.signIn(remote.name)
+    const ran = await this.run(masterArgs(paths, port, remote.address, signIn), DIAL_MS - 5_000)
+    trouble(ran, remote.address, remote.tade, signIn.length > 0)
     return door
   }
 
@@ -564,6 +710,7 @@ function trouble(
   ran: { code: number; stderr: string; timedOut: boolean; missing: boolean },
   address: string,
   tade: string,
+  ownKey = false,
 ): void {
   if (ran.missing) throw new LinkError('missing', 'there is no ssh on this machine')
   if (ran.timedOut) throw new LinkError('timed out', `${address} did not answer in time`)
@@ -577,6 +724,14 @@ function trouble(
       throw new LinkError(
         'failed',
         `${said} — this machine has never met ${address}: \`tade remote add\` shows its key and asks before anything is sent`,
+      )
+    }
+    if (ownKey && /permission denied/i.test(ran.stderr)) {
+      // Its own key alone is what it offered, so this is that line gone there:
+      // somebody took this machine's way in away, which is what the key is for.
+      throw new LinkError(
+        'failed',
+        `${said} — ${address} no longer takes this link’s own key: its line in that machine’s authorized_keys was taken out. \`tade remote remove\` it here, and add it again if that was not meant`,
       )
     }
     if (/permission denied|passphrase|password/i.test(ran.stderr)) {
@@ -594,6 +749,24 @@ function trouble(
     )
   }
   throw new LinkError('failed', said === '' ? `${tade} there exited ${ran.code}` : `there: ${said}`)
+}
+
+/** One script run there by `sh`, its arguments each one quoted word: the person's shell may be fish. */
+function remoteSh(script: string, file: string, arg: string): string {
+  return `sh -c ${quoted(script)} tade-link ${quoted(file)} ${quoted(arg)}`
+}
+
+/** Where that machine keeps the keys it takes, as the person would type it there. */
+function keptAt(file: string): string {
+  return file.startsWith('/') ? file : `~/${file}`
+}
+
+/** The comment on this link's own key, for saying which line is its — or why it could not be read. */
+async function commentOf(key: string): Promise<string> {
+  return publicLine(key).then(
+    (line) => line.split(' ')[2] ?? '',
+    (err: unknown) => `(which could not be read here: ${(err as Error).message})`,
+  )
 }
 
 /**

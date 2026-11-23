@@ -904,7 +904,10 @@ preferences, personas and published templates, signs in each harness this Mac us
 sign-in in your terminal — a subscription token never passes through Tade — and ends with a
 checklist of what was carried and what still needs you; Settings › Remotes shows the same. Keys,
 MCP servers, the telemetry DSN and intake's grants wait on a press. A box whose `tade` is not on the
-PATH an SSH command gets takes `--tade ~/.local/bin/tade`.
+PATH an SSH command gets takes `--tade ~/.local/bin/tade`. **The link signs in with a key of its
+own**, written to that box's `~/.ssh/authorized_keys` as one line ending `tade-link:<this Mac>-><name>`,
+so taking that line out cuts this Mac off without touching your own key, and `tade remote remove`
+takes it out itself; `--your-key` keeps your own, for a key that needs a touch per use.
 
 **From then on, your preferences are one set on both machines.** A setting changed on either — at
 the keyboard, from your phone, by the orchestrator on your word — reaches the other the next time

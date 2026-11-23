@@ -377,6 +377,8 @@ export interface AddOpts {
   label?: string
   json?: boolean
   acceptKey?: string[]
+  /** Sign in there with the person's own SSH key, as before, rather than one minted for this link. */
+  yourKey?: boolean
 }
 
 /** Where a `remote` command runs: the terminal, the home, and the links. A test hands its own. */
@@ -436,7 +438,12 @@ export async function addRemote(place: Place, name: string, opts: AddOpts): Prom
   const label = opts.label ?? machineLabel()
   let session: Awaited<ReturnType<typeof link.pair>>
   try {
-    session = await link.pair({ address: opts.ssh, tade: opts.tade, label })
+    session = await link.pair({
+      address: opts.ssh,
+      tade: opts.tade,
+      label,
+      ...(opts.yourKey === true ? {} : { ownCredentialFor: name }),
+    })
   } catch (err) {
     io.err(
       `could not pair with ${opts.ssh}: ${err instanceof LinkError ? err.message : String(err)}`,
@@ -480,6 +487,7 @@ export async function addRemote(place: Place, name: string, opts: AddOpts): Prom
       `${name}: this machine is an owner of the Tade at ${opts.ssh}, as device ${session.device}`,
     )
   }
+  if (session.signsIn !== undefined) io.err(session.signsIn)
   io.err(REMOTE_KEPT_HERE)
   io.err(OWNER_IS_YOUR_SSH_KEY)
   // Then what this machine was set up with, carried there, and what is left.

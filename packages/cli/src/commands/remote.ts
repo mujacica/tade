@@ -87,6 +87,10 @@ export function registerRemote(program: Command, io: Io, setExit: (code: number)
       'trust a machine never met, for exactly this host key fingerprint (repeat for each)',
       (one: string, all: string[] = []) => [...all, one],
     )
+    .option(
+      '--your-key',
+      'sign in there with your own SSH key, as ssh does by itself, rather than a key made for this link alone — keep it where your key needs a touch per use',
+    )
     .option('--json', 'machine-readable output (never the session)')
     .action(async (name: string, opts: AddOpts) => {
       await addRemote(shellPlace(io, setExit, opts.json === true), name, opts)

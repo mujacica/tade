@@ -213,6 +213,10 @@ over loopback) and `ssh`.
   remote's loopback listener (`Reaching`). `linkOver` builds the rest — the stream follower, the
   cursor, the deadlines, the backoff, the presence — once (`follow.ts`), over rules that are pure
   (`held.ts`). An implementation may build its own; the suite holds it to the same things.
+- **A link may sign in with a credential of its own** (`PairAt.ownCredentialFor`, `Paired.signsIn`):
+  `ssh` mints a key per remote at pairing, installs and proves it there, uses it alone
+  (`IdentitiesOnly`) wherever its file is, and takes it out at `unpair` (`remotes/ssh/src/own-key.ts`).
+  Nothing about it may fail a pairing: one that cannot have it signs in as before, and says why.
 - **Nothing a frame draws waits on it.** `open`, `beat`, `wake` and `present` return at once and
   **never throw** — a remote that cannot be reached at all is a link that is down with the reason,
   and `linkOver` turns a `reaching` that throws into exactly that. A dial overtaken by another (a

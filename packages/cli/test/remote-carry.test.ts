@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { loadConfig, personaDirs, stampText, TALK_TO_REMOTE, writeSetting } from '@tade/core'
-import type { LinkOptions, RemoteLink } from '@tade/remotes-core'
+import type { LinkOptions, PairAt, RemoteLink } from '@tade/remotes-core'
 import { type FarEnd, startFarEnd } from '@tade/remotes-core/far'
 import { readDevices } from '@tade/web'
 import { WINDOW_TAKES } from '@tade/workbench/carry'
@@ -436,6 +436,24 @@ describe('tade remote add, carrying this machine’s setup', () => {
     expect(exit).toBe(1)
     expect(err.join('\n')).toContain('printed a session this Tade cannot keep')
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).not.toContain('ab12cd34')
+  })
+
+  it('asks for a key of the link’s own by the name it is added as, says what came of it, and keeps yours when told', async () => {
+    const asked: PairAt[] = []
+    const pair = async (at: PairAt) => {
+      asked.push(at)
+      return { ...(await far.pair(at.label)), signsIn: 'vps signs in there with a key of its own' }
+    }
+    await add(nobody, {}, { pair } as Partial<RemoteLink>)
+    expect(exit).toBe(0)
+    expect(asked.at(-1)?.ownCredentialFor).toBe('vps')
+    expect(err).toContain('vps signs in there with a key of its own')
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).not.toContain('signs in')
+
+    writeSetting(join(home, 'config.yaml'), 'remotes.vps', undefined)
+    await add(nobody, { yourKey: true }, { pair } as Partial<RemoteLink>)
+    expect(exit).toBe(0)
+    expect(asked.at(-1)).not.toHaveProperty('ownCredentialFor')
   })
 
   it('answers --json with the remote and its checklist, and never the session', async () => {
