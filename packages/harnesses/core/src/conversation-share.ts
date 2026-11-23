@@ -451,6 +451,7 @@ export class SharedConversation {
             give.lines.length === 0 && !give.piece ? GIVE_FILE : 0,
           )
         : null
+      const wants = files ? await this.wanting(copy) : []
       const answer = await send({
         from: this.me,
         harness: this.harness,
@@ -459,7 +460,7 @@ export class SharedConversation {
         ...(files
           ? {
               files: {
-                want: await this.wanting(copy),
+                want: wants,
                 ...(files.piece ? { give: files.piece } : {}),
                 gone: files.gone,
               },
@@ -488,14 +489,15 @@ export class SharedConversation {
         !answer.held.piece
       whole = theyHold && !answer.more && !answer.piece
       // Files go on moving after the entries are whole, until a round moves
-      // none and this side owes the far one nothing it said it lacks.
+      // none, this side owes the far one nothing it said it lacks, and wants
+      // nothing it has not asked for — the entries just taken may name some.
       const moved =
         files !== null &&
         (files.piece !== undefined ||
           files.gone.length > 0 ||
           said.piece !== undefined ||
           said.gone.length > 0)
-      if (whole && !moved && !(speaks && (await this.owes(there, said.lacks)))) {
+      if (whole && !moved && !(speaks && (await this.unsettled(there, said.lacks, copy, wants)))) {
         return { ...answered, took, complete: true }
       }
     }
@@ -585,15 +587,22 @@ export class SharedConversation {
     return { ...(piece ? { piece } : {}), gone }
   }
 
-  /** Whether a far machine lacks a file this one would give, or would say it has nowhere. */
-  private async owes(
+  /**
+   * Whether another round would move a file: the far machine lacks one this
+   * one would give or say it has nowhere, or this one wants one it did not
+   * ask for in the round just made.
+   */
+  private async unsettled(
     machine: string,
     lacks: readonly { name: string; from: number }[],
+    copy: Copy,
+    asked: readonly { name: string }[],
   ): Promise<boolean> {
     for (const { name } of lacks) {
       if ((await this.found(name)) !== null || !this.coming(name, machine)) return true
     }
-    return false
+    const before = new Set(asked.map((one) => one.name))
+    return (await this.wanting(copy)).some((one) => !before.has(one.name))
   }
 
   /** Where a file is here: where this record's entries say, beside this record, or in a copy. */

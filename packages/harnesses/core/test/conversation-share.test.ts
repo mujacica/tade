@@ -98,7 +98,7 @@ const BESIDE_TOY: ConversationFormat = {
 }
 
 let made = 0
-function machine(name: string, format = TOY): Machine {
+function machine(name: string, format = TOY, warn?: (text: string) => void): Machine {
   const home = tmp(`tade-conv-${name}-`)
   const record = join(home, 'record', 'conversation.jsonl')
   mkdirSync(join(home, 'record'), { recursive: true })
@@ -123,6 +123,7 @@ function machine(name: string, format = TOY): Machine {
           `${lines.map((line) => format.localised(line, { cwd: `/${name}`, ...(beside ? { beside } : {}) })).join('\n')}\n`,
         )
       },
+      ...(warn ? { warn } : {}),
     }),
   }
   return one
@@ -384,6 +385,26 @@ describe('the files kept beside the record', () => {
     }
     expect((await mac.shared.exchange(older)).complete).toBe(true)
     expect(asked.some((ask) => 'files' in ask)).toBe(false)
+  })
+
+  it('says once that a file that came could not be put beside the record, and takes the entries in all the same', async () => {
+    const warned: string[] = []
+    const mac = machine('mac', BESIDE_TOY, (text) => warned.push(text))
+    const vps = machine('vps', BESIDE_TOY)
+    result(vps, 'bstuck.txt', 1_000, '2026-11-23T10:00:00.000Z')
+    // Where the Mac keeps its files is a file, so nothing can go in it.
+    writeFileSync(mac.record.replace(/\.jsonl$/, ''), 'not a folder')
+    await mac.shared.exchange(door(vps))
+    // It came, though only one side had a file and the entries naming it came last.
+    expect(
+      existsSync(join(conversationFilesPath(mac.home, vps.id), 'tool-results', 'bstuck.txt')),
+    ).toBe(true)
+    expect(await mac.shared.settle(true)).toMatchObject([{ from: 'vps', took: 3 }])
+    await mac.shared.settle(true)
+    expect(warned).toHaveLength(1)
+    expect(warned[0]).toMatch(
+      /^tool-results\/bstuck\.txt from vps could not be put beside the conversation: /,
+    )
   })
 
   it('refuses a file whose name would lead out of the folder it is written into', async () => {
