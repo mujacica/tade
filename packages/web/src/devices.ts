@@ -138,13 +138,13 @@ const RenewedLine = z.strictObject({
 })
 
 /**
- * What a person at the machine granted this device beyond reading.
+ * What a person at the machine says this device may do, after pairing.
  *
- * **A line of its own, and the only way a scope widens.** Pairing mints
- * `read`, because a keypress with one question on it cannot honestly grant
- * more than that; letting a device *act* is a second decision, made at the
- * machine, about one device, and this is the record of it. A request can never
- * write one: nothing in `routes.ts` grants anything, which is
+ * **A line of its own, and the only way a scope changes after pairing.**
+ * Pairing mints every scope by default (the owner's decision: the away view is
+ * the whole of Tade, opt-out rather than opt-in), and whatever is ticked or
+ * unticked at the machine afterwards is a second decision, about one device,
+ * and this is the record of it. A request can never write one: nothing in `routes.ts` grants anything, which is
  * *pairing and scopes are never remote* — the thing that grants
  * authority is never reachable from inside the authority it granted.
  *

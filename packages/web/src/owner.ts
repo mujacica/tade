@@ -33,8 +33,10 @@ import { SCOPES } from './surface.ts'
 //    on this machine** (`thisMachine`) **and** the record says owner now
 //    (`web-asking.ts`'s `armOf`). Either alone is a device's ordinary turn.
 //
-// What it does **not** change: its words are never a `said` line, so an
-// `asked`-tier setting still needs the person's own; every act is recorded as
+// What it does **not** change: its words are a `said` line only where the
+// machine that sent them says the person typed them there (`AskCall.typed`,
+// `web-asking.ts`), so another machine's model can never name an `asked`-tier
+// setting through it; every act is recorded as
 // `device <id>`; and `tade web revoke <id>` ends it with no window and no
 // network. `OWNER_IS_YOUR_SSH_KEY` (`@tade/core`) says the rest where one is
 // minted: anything that can use your SSH key can use it, an agent on the

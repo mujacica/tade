@@ -361,9 +361,11 @@ export function scopesOn(origin: Origin, surface: Surface, granted: readonly Sco
 /**
  * What a device may do, in widening order.
  *
- * Pairing mints `read` and nothing else; everything above it is a grant made
- * at the machine, per device, through the one door that widens one
- * (`allowDevice`). A route's required scope is declared in the route table
+ * Pairing mints every scope unless somebody unticks some at the machine
+ * (`EVERYTHING` in the window, `SCOPES` for a terminal code unless
+ * `--read-only`), under the origin's ceiling (`scopesOn`); changing one later
+ * is a grant made at the machine, per device, through the one door that
+ * changes one (`allowDevice`). A route's required scope is declared in the route table
  * (`routes.ts`), and `test/routes.test.ts` asserts no route in `ROUTES` needs
  * more than `read` — which is the half of the guarantee a type cannot give.
  *
