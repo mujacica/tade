@@ -1,10 +1,10 @@
-import { ConfigSchema } from '@tade/core'
+import { type Arm, ConfigSchema } from '@tade/core'
 import { rememberUpdates, type UpdateLook } from '@tade/workbench/programs'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { type AppState, initialState } from '../../src/model.ts'
 import type { Wiring } from '../../src/wire/context.ts'
-import { Updates } from '../../src/wire/updates.ts'
+import { stopsAndComeBack, Updates } from '../../src/wire/updates.ts'
 import { lookWith, program } from '../updates-fixture.ts'
 
 // Keeping what Tade runs current, from the window: the chip's facts, the check
@@ -38,6 +38,10 @@ function world(
     detach?: boolean
     /** Files of Tade's own code changed in its checkout since it started (`own-code.ts`). */
     ownCode?: readonly string[]
+    /** How many lanes a reload would end. */
+    stops?: number
+    /** How far the turn in flight reaches: the keyboard's unless given. */
+    arm?: Arm
   } = {},
 ) {
   const did: Did[] = []
@@ -85,6 +89,10 @@ function world(
       }),
       home,
       client,
+      // The window's own reload, the one the restart bar's press ends in.
+      reloadWindow: async () => {
+        did.push({ what: 'reloadWindow', with: [] })
+      },
       ...(over.asking
         ? {
             updates: async (_config: unknown, _home: string, ask: boolean) => {
@@ -112,7 +120,8 @@ function world(
   const told: string[] = []
   const subject = new Updates(wire, {
     reload: () => did.push({ what: 'reload', with: [] }),
-    reloadStops: () => 0,
+    reloadStops: () => over.stops ?? 0,
+    ...(over.arm ? { arm: () => over.arm as Arm } : {}),
     terminal: async (name) => {
       did.push({ what: 'terminal', with: [name] })
       return 'shop/terminals/1'
@@ -402,6 +411,46 @@ describe('the orchestrator’s tools', () => {
     // Answered first: the reload ends the turn the answer would have gone to.
     expect(yes.did.some((d) => d.what === 'reload')).toBe(false)
     await waitFor(() => yes.did.some((d) => d.what === 'reload'))
+  })
+
+  it('asks at the panel where lanes would stop and the keyboard asked', async () => {
+    const here = world({ said: ['restart tade'], stops: 2 })
+    expect(await here.subject.tools().reload({ said: 'restart tade' })).toContain(
+      'the reload panel is theirs to press',
+    )
+    await waitFor(() => here.did.some((d) => d.what === 'reload'))
+    expect(here.did.some((d) => d.what === 'reloadWindow')).toBe(false)
+  })
+
+  it('goes ahead on their words from their own phone, saying where the phone shows what stops and comes back', async () => {
+    const phone = world({
+      said: ['restart tade'],
+      stops: 2,
+      arm: { how: 'owner', device: 'a1b2c3d4e5f60718', theirs: true },
+    })
+    const said = await phone.subject.tools().reload({ said: 'restart tade' })
+    expect(said).toBe(stopsAndComeBack(2))
+    expect(said).toContain('2 lanes run inside this window, so they stop now')
+    expect(said).toContain('comes back where it left off')
+    // In the conversation, which is what the phone shows: no panel at a screen it cannot reach.
+    expect(phone.at().transcript.entries.at(-1)).toMatchObject({ kind: 'tade', text: said })
+    expect(phone.did.some((d) => d.what === 'reloadWindow')).toBe(false)
+    await waitFor(() => phone.did.some((d) => d.what === 'reloadWindow'))
+    expect(phone.did.some((d) => d.what === 'reload')).toBe(false)
+  })
+
+  it('never takes a narrower device’s turn, or a machine link’s, for the person’s press', async () => {
+    for (const arm of [
+      { how: 'remote', device: 'a1b2c3d4e5f60718', projects: null, may: ['answer', 'steer'] },
+      { how: 'owner', device: 'machine vps' },
+    ] as Arm[]) {
+      const other = world({ said: ['restart tade'], stops: 1, arm })
+      expect(await other.subject.tools().reload({ said: 'restart tade' })).toContain(
+        'the reload panel is theirs to press',
+      )
+      await waitFor(() => other.did.some((d) => d.what === 'reload'))
+      expect(other.did.some((d) => d.what === 'reloadWindow')).toBe(false)
+    }
   })
 
   it('says what the last run did when asked what is current', async () => {

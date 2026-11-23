@@ -1,5 +1,6 @@
 import type { WebRestarting } from '@tade/web'
 import { type Wiring, why } from './context.ts'
+import { reloadStopsOf } from './window.ts'
 
 // Tade started again from the person's own phone (`@tade/web`'s
 // `restarted.ts`): the window's own reload — the one ctrl+r's `reload` and the
@@ -10,8 +11,11 @@ import { type Wiring, why } from './context.ts'
 // driver's lanes outlive the window nothing stops and nothing is asked; where
 // they would stop, the window asks at its screen and the phone is answered the
 // number, so the press that ends them is one made on it (`Window.reloadStops`,
-// which a face hands in). With no face (`tade serve`) there is no window to
-// start again, and that is said rather than offered.
+// which a face hands in). With no face (`tade serve`) the count is the same
+// fold over the lanes (`reloadStopsOf`), and starting again is its service's:
+// under the unit `tade host service` wrote, `serve.ts` hands in a reload that
+// asks systemd to restart it. A `tade serve` nothing keeps has nobody to start
+// it again, and that is said rather than offered.
 //
 // Written down as the device's (`web_did`, `verb: restart`) before the window
 // goes, and started a moment after the answer, so the phone is told.
@@ -19,16 +23,18 @@ import { type Wiring, why } from './context.ts'
 /** How long the answer is given to reach the phone before the window ends. */
 const ANSWERED_MS = 500
 
-/** Said where Tade has no window to start again. */
+/** Said where nothing could start this Tade again: a `tade serve` no service keeps. */
 export const NO_WINDOW =
-  'Tade here runs with no window (`tade serve`), so it cannot start itself again: restart it where it was started.'
+  'Tade here runs with no window and no service keeping it (`tade serve`, started by hand), so nothing would start it again: restart it where it was started, or run it as the service (`tade host service`).'
 
-export function restartingFrom(wire: Wiring, stops?: () => number): WebRestarting {
+export function restartingFrom(
+  wire: Wiring,
+  stops: () => number = () => reloadStopsOf(wire),
+): WebRestarting {
   let going = false
   return {
     standing: () => {
-      const reload = wire.opts.reloadWindow
-      if (stops === undefined || reload === undefined) return { cannot: NO_WINDOW }
+      if (wire.opts.reloadWindow === undefined) return { cannot: NO_WINDOW }
       return { stops: going ? 0 : stops() }
     },
     restart: (device) => {

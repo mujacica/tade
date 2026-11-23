@@ -298,6 +298,7 @@ export class App {
     this.updates = new Updates(this.wire, {
       reload: () => this.window.reload(),
       reloadStops: () => this.window.reloadStops(),
+      arm: () => this.orchestrator.arm(),
       terminal: (name) => this.machine.watched(name),
       news: (said) => this.orchestrator.note(said),
       ownCode: () => ({

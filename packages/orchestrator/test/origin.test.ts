@@ -255,6 +255,15 @@ describe('what a remote turn may reach', () => {
     }
   })
 
+  it('keeps restarting Tade from a narrower device, however much it was granted, and opens it to theirs', () => {
+    const narrower = arm({ may: ['answer', 'steer'] })
+    expect(allowTool('tade_reload', narrower).ok).toBe(false)
+    expect(allowMethod('window/reload', { said: 'restart tade' }, narrower).ok).toBe(false)
+    const yours: Arm = { how: 'owner', device: 'a1b2c3d4e5f60718', theirs: true }
+    expect(allowTool('tade_reload', yours).ok).toBe(true)
+    expect(allowMethod('window/reload', { said: 'restart tade' }, yours).ok).toBe(true)
+  })
+
   it('lets a granted tier through, and only the tier it was granted', () => {
     expect(allowTool('tade_status', arm()).ok).toBe(true)
     expect(allowTool('tade_approve', arm({ may: ['answer'] })).ok).toBe(true)

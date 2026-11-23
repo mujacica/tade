@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import {
+  type Arm,
   type LaneId,
   LINES_LOOKED_BACK,
   RELOAD_REACH,
@@ -15,8 +16,10 @@ import {
   type UpdateLook,
 } from '@tade/workbench/programs'
 import type { Frame } from '../frame.ts'
+import { withTranscript } from '../model.ts'
 import { updateActions } from '../panels/settings/state.ts'
 import type { ReloadPanel } from '../panels/small/state.ts'
+import { tadeDid } from '../transcript.ts'
 import {
   behindIn,
   endedIn,
@@ -69,6 +72,12 @@ export interface UpdatesDeps {
   reload(): void
   /** How many lanes a reload would stop: none where the driver's lanes outlive the window. */
   reloadStops(): number
+  /**
+   * How far the orchestrator's turn in flight reaches (`Orchestrator.arm`):
+   * a reload asked from the person's own phone is pressed there, never on a
+   * panel at a screen it cannot reach. Absent, every turn is the keyboard's.
+   */
+  arm?(): Arm
   /** The terminal of that name, opened if it is not there and put in front; null with no project. */
   terminal(name: string): Promise<string | null>
   /** Tell the orchestrator, with the next thing somebody says. */
@@ -446,6 +455,28 @@ export class Updates implements Subject {
       reload: async (req) => {
         await this.asked(req.said, reloadNamedBy, RELOAD_REACH.because, 'a reload')
         const stops = this.deps.reloadStops()
+        const arm = this.deps.arm?.()
+        const reload = this.wire.opts.reloadWindow
+        // **Asked from the person's own phone, their words are the press**:
+        // the panel this window would put up is at a screen they are not at,
+        // so the count is said where the phone shows it — the conversation —
+        // and the window starts again as the restart bar's second press does.
+        if (stops > 0 && reload && arm?.how === 'owner' && arm.theirs === true) {
+          const said = stopsAndComeBack(stops)
+          this.wire.put(
+            withTranscript(
+              this.wire.state,
+              tadeDid(this.wire.state.transcript, said, this.wire.now()),
+            ),
+          )
+          this.wire.draw()
+          setTimeout(() => {
+            reload().catch((err: unknown) =>
+              this.wire.note(new Error(`A reload asked from away failed: ${why(err)}`)),
+            )
+          }, ANSWERED_MS)
+          return said
+        }
         // After the answer is on its way: a reload ends this window, and with it
         // the turn the answer would have gone to.
         setTimeout(() => this.deps.reload(), ANSWERED_MS)
@@ -481,6 +512,12 @@ export class Updates implements Subject {
     }
     this.wire.draw()
   }
+}
+
+/** What a reload asked from the person's own phone says it ends, and that it comes back. */
+export function stopsAndComeBack(stops: number): string {
+  const lanes = `${stops} lane${stops === 1 ? '' : 's'}`
+  return `Restarting Tade in a moment, as asked from your phone: ${lanes} run inside this window, so ${stops === 1 ? 'it stops' : 'they stop'} now, and every agent among them comes back where it left off when Tade opens again.`
 }
 
 /** The answer, or null when it did not come in time. */

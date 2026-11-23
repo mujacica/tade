@@ -48,6 +48,22 @@ export interface WindowDeps {
   news(): void
 }
 
+/** The lanes ending this Tade now would end, counting `besides` beside the agents' own. */
+function stoppingOf(wire: Pick<Wiring, 'opts' | 'state'>, besides: number): number {
+  if (wire.opts.client.driver.capabilities.detach) return 0
+  return wire.state.panes.reduce((n, pane) => n + pane.lanes.length, 0) + besides
+}
+
+/**
+ * How many lanes starting Tade again would end — the agents' and the
+ * terminals', which a close leaves running and a reload does not: none where
+ * the driver's lanes outlive it. The window's reload panel asks on it, and so
+ * does a restart from away, with a face or without one (`web-restart.ts`).
+ */
+export function reloadStopsOf(wire: Pick<Wiring, 'opts' | 'state'>): number {
+  return stoppingOf(wire, wire.state.terminals.length)
+}
+
 export class Window implements Subject {
   private readonly wire: Wiring
   private readonly deps: WindowDeps
@@ -174,7 +190,7 @@ export class Window implements Subject {
 
   /** How many lanes a reload would end: none where the driver's lanes outlive the window. */
   reloadStops(): number {
-    return this.stopping(this.wire.state.terminals.length)
+    return reloadStopsOf(this.wire)
   }
 
   /** Whether going now would end work nobody could find again. */
@@ -184,8 +200,7 @@ export class Window implements Subject {
 
   /** The lanes going now would end, counting `besides` beside the agents' own. */
   private stopping(besides: number): number {
-    if (this.wire.opts.client.driver.capabilities.detach) return 0
-    return this.wire.state.panes.reduce((n, pane) => n + pane.lanes.length, 0) + besides
+    return stoppingOf(this.wire, besides)
   }
 
   /** The bottom panel at that size, or back to the size it was. */

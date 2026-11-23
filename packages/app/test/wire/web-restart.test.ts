@@ -4,17 +4,32 @@ import { NO_WINDOW, restartingFrom } from '../../src/wire/web-restart.ts'
 
 // Tade started again from the person's own phone (`web-restart.ts`): the
 // window's own reload, written down as the device's before it goes and started
-// only once the answer has had its moment — and said, not offered, where there
-// is no window to start again.
+// only once the answer has had its moment — and said, not offered, where
+// nothing would start it again. With no face (`tade serve`) the count is the
+// window's own fold over the lanes.
 
 afterEach(() => {
   vi.useRealTimers()
 })
 
 /** The few parts of a window the half reaches, recording what it did. */
-function wiring(reload: boolean) {
+function wiring(
+  reload: boolean,
+  lanes: { detach: boolean; panes: number[]; terminals: number } = {
+    detach: true,
+    panes: [],
+    terminals: 0,
+  },
+) {
   const did: string[] = []
   const wire = {
+    state: {
+      panes: lanes.panes.map((n, at) => ({
+        task: `shop/${at}`,
+        lanes: Array.from({ length: n }, (_, one) => ({ id: `shop/${at}/${one}`, kind: 'agent' })),
+      })),
+      terminals: Array.from({ length: lanes.terminals }, (_, one) => ({ id: `t${one}` })),
+    },
     opts: {
       ...(reload && {
         reloadWindow: async () => {
@@ -22,6 +37,7 @@ function wiring(reload: boolean) {
         },
       }),
       client: {
+        driver: { capabilities: { detach: lanes.detach } },
         log: {
           append: async (event: { type: string; detail: Record<string, string> }) => {
             did.push(`${event.type} ${JSON.stringify(event.detail)}`)
@@ -40,9 +56,17 @@ describe('restarting from the person’s own phone', () => {
     expect(restartingFrom(wire, () => 2).standing()).toEqual({ stops: 2 })
   })
 
-  it('says it cannot where there is no face to ask, or no window to start again', () => {
-    expect(restartingFrom(wiring(true).wire).standing()).toEqual({ cannot: NO_WINDOW })
+  it('says it cannot where nothing would start it again: a `tade serve` no service keeps', () => {
+    expect(restartingFrom(wiring(false).wire).standing()).toEqual({ cannot: NO_WINDOW })
     expect(restartingFrom(wiring(false).wire, () => 0).standing()).toEqual({ cannot: NO_WINDOW })
+  })
+
+  it('counts, with no face, what the window’s reload panel would: every lane, where they die with Tade', () => {
+    // `tade serve` under the unit: its reload is the service's restart.
+    const dying = wiring(true, { detach: false, panes: [2, 1], terminals: 1 })
+    expect(restartingFrom(dying.wire).standing()).toEqual({ stops: 4 })
+    const outliving = wiring(true, { detach: true, panes: [2, 1], terminals: 1 })
+    expect(restartingFrom(outliving.wire).standing()).toEqual({ stops: 0 })
   })
 
   it('writes the restart down as the device’s, then reloads once, after the answer', async () => {

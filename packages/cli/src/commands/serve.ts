@@ -18,6 +18,7 @@ import { notifier, takeNotifySocket } from '../notify.ts'
 import { type Orchestrating, orchestrating } from '../orchestrating.ts'
 import { closeAll, endSoon, hangingUp, leftBehind, onSignals } from '../quitting.ts'
 import { reporterLater, reportJournal } from '../telemetry.ts'
+import { ownUnit, restartAsService } from './serve-restart.ts'
 
 // `tade serve` — the window with no screen, for a machine nobody sits at.
 //
@@ -37,7 +38,9 @@ import { reporterLater, reportJournal } from '../telemetry.ts'
 // Under the unit `tade host service` writes, it tells systemd it is ready
 // (`notify.ts`) once it holds the home, its away view listens and a stop
 // would close it as a signal does — so a Mac's link can reach it the moment
-// the unit is active — and that it is stopping when it closes.
+// the unit is active — and that it is stopping when it closes. Under that
+// unit the person's phone can restart it, as systemd's restart
+// (`serve-restart.ts`), where a window would have re-execed itself.
 
 /** What runs here with no screen, said first. */
 export const SERVES =
@@ -164,6 +167,7 @@ export function registerServe(program: Command, io: Io, setExit: (code: number) 
           without: WITHOUT,
         })
         thinking = tools
+        const restart = restartAsService(ownUnit())
         heart = await Heart.alone(
           {
             client,
@@ -177,6 +181,9 @@ export function registerServe(program: Command, io: Io, setExit: (code: number) 
             extensions,
             extensionWorkbench: forExtensions,
             report,
+            // Started again from the person's own phone, where the unit Tade
+            // wrote keeps it: systemd's restart (`serve-restart.ts`).
+            ...(restart && { reloadWindow: restart }),
             // Its conversation, kept short and told what it is told now, as
             // the window keeps it (`Keeping`).
             restartThinker: () => tools.restart(),
