@@ -32,6 +32,7 @@ import { z } from 'zod'
 //   {"also":{at,text},scopes,by,at}      the same words, about more (null: everything)
 //   {"retire":{at,text},because,by,at}   no longer told to anybody, still read on asking
 //   {"came":{at,text},from,at}           taken on another machine, and came from there
+//   {"heard":digest,from,at}             a retire or forget line another machine gave
 //
 // **Shared between homes** (`notes-shared.ts`):
 // every line but `came` is given to the other machines this one is linked to,
@@ -42,6 +43,13 @@ import { z } from 'zod'
 // one note (`named`), and of two retirements of one note the earlier is the one
 // it was retired with — the same answer on both sides. `came` is each home's
 // own record of where a note it took was taken, and is never given.
+//
+// **Only this machine retires or forgets a note taken here.** Any agent on a
+// linked machine runs as the person there and can append to its file, so a
+// retire or forget line from there is only that machine's word: it is
+// written, so both files stay the same union and the exchange's sums meet,
+// with a `heard` line beside it, and the fold applies it only to a note that
+// was itself taken elsewhere (`came`). Never given either.
 
 const FILE = 'memory.jsonl'
 
@@ -73,6 +81,12 @@ const CameSchema = z.strictObject({
   at: z.string(),
 })
 
+const HeardSchema = z.strictObject({
+  heard: z.string().regex(/^[0-9a-f]{16}$/),
+  from: z.string().regex(MACHINE_NAMED),
+  at: z.string(),
+})
+
 /** One line of the file, read: which kind it is, and the value it was written as. */
 type Read =
   | { kind: 'note'; note: Note; raw: unknown }
@@ -80,6 +94,7 @@ type Read =
   | { kind: 'also'; line: z.infer<typeof AlsoSchema>; raw: unknown }
   | { kind: 'retire'; line: z.infer<typeof RetireSchema>; raw: unknown }
   | { kind: 'came'; line: z.infer<typeof CameSchema>; raw: unknown }
+  | { kind: 'heard'; line: z.infer<typeof HeardSchema>; raw: unknown }
 
 /** A line this home may give another (`shared`): what names it, as written, and where its note was taken. */
 export interface Shared {
@@ -305,9 +320,13 @@ export class Memory {
       // Written again from the value, which is one line whatever spacing it came in.
       out.push(JSON.stringify(read.raw))
       took.lines++
+      const from = one.from !== undefined && MACHINE_NAMED.test(one.from) ? one.from : giver
+      if (read.kind === 'retire' || read.kind === 'forget') {
+        // Another machine's word: it may not take back a note taken here (the fold).
+        out.push(JSON.stringify({ heard: digest, from, at: new Date(now).toISOString() }))
+      }
       if (read.kind !== 'note') continue
       took.notes++
-      const from = one.from !== undefined && MACHINE_NAMED.test(one.from) ? one.from : giver
       const came = { at: read.note.at, text: read.note.text }
       out.push(JSON.stringify({ came, from, at: new Date(now).toISOString() }))
     }
@@ -379,7 +398,9 @@ function readLine(raw: unknown): Read | null {
   const retire = RetireSchema.safeParse(raw)
   if (retire.success) return { kind: 'retire', line: retire.data, raw }
   const came = CameSchema.safeParse(raw)
-  return came.success ? { kind: 'came', line: came.data, raw } : null
+  if (came.success) return { kind: 'came', line: came.data, raw }
+  const heard = HeardSchema.safeParse(raw)
+  return heard.success ? { kind: 'heard', line: heard.data, raw } : null
 }
 
 /** What names a note: when it was said and what it said, which together are one note. */
@@ -388,7 +409,7 @@ function named(note: { at: string; text: string }): string {
 }
 
 /** The note a later word is about. */
-function aboutOf(read: Exclude<Read, { kind: 'note' }>): { at: string; text: string } {
+function aboutOf(read: Exclude<Read, { kind: 'note' | 'heard' }>): { at: string; text: string } {
   if (read.kind === 'forget') return read.line.forget
   if (read.kind === 'also') return read.line.also
   if (read.kind === 'retire') return read.line.retire
@@ -397,12 +418,12 @@ function aboutOf(read: Exclude<Read, { kind: 'note' }>): { at: string; text: str
 
 /**
  * What names a line among every home's: a note by `named`, and a later word by
- * the note it is about and everything it says. Null for `came`, which is this
- * home's own and never given.
+ * the note it is about and everything it says. Null for `came` and `heard`,
+ * which are this home's own and never given.
  */
 function keyOf(read: Read): string | null {
   if (read.kind === 'note') return named(read.note)
-  if (read.kind === 'came') return null
+  if (read.kind === 'came' || read.kind === 'heard') return null
   const about = aboutOf(read)
   const { by, at } = read.line
   if (read.kind === 'forget') return JSON.stringify(['forget', about.at, about.text, at, by])
@@ -423,12 +444,18 @@ function digestOf(key: string): string {
  * note it is about still applies: the same lines in any order are the same
  * notes. A note held twice is one. Of two retirements the earlier stands —
  * a home only ever retires a note once, so it is two homes' answer, and
- * both must come to the same one.
+ * both must come to the same one. A retire or forget line another machine
+ * gave (`heard`) is no word about a note taken here, which only this
+ * machine's own lines retire or forget.
  */
 function fold(lines: readonly Read[]): Note[] {
   const notes: Note[] = []
   const index = new Map<string, number>()
+  const cameFrom = new Set<string>()
+  const heard = new Set<string>()
   for (const one of lines) {
+    if (one.kind === 'came') cameFrom.add(named(one.line.came))
+    if (one.kind === 'heard') heard.add(one.line.heard)
     if (one.kind !== 'note') continue
     const key = named(one.note)
     if (index.has(key)) continue
@@ -437,10 +464,15 @@ function fold(lines: readonly Read[]): Note[] {
   }
   const forgotten = new Set<number>()
   for (const one of lines) {
-    if (one.kind === 'note') continue
-    const at = index.get(named(aboutOf(one)))
+    if (one.kind === 'note' || one.kind === 'heard') continue
+    const about = named(aboutOf(one))
+    const at = index.get(about)
     const was = at === undefined ? undefined : notes[at]
     if (at === undefined || was === undefined) continue
+    if ((one.kind === 'retire' || one.kind === 'forget') && !cameFrom.has(about)) {
+      const key = heard.size === 0 ? null : keyOf(one)
+      if (key !== null && heard.has(digestOf(key))) continue
+    }
     if (one.kind === 'forget') forgotten.add(at)
     else if (one.kind === 'also') notes[at] = widen(was, one.line.scopes)
     else if (one.kind === 'came') {

@@ -193,7 +193,7 @@ describe('an exchange between two homes', () => {
   it('carries a retirement and a note taken back, either way', async () => {
     const mac = Memory.open(tmp('tade-mac-'))
     const vps = Memory.open(tmp('tade-vps-'))
-    const kept = mac.remember('hover the purple too', 'app/purple', 'orchestrator', NOW)
+    const kept = vps.remember('hover the purple too', 'app/purple', 'orchestrator', NOW)
     const slip = mac.remember('a slip of the tongue', null, 'voice', NOW + 1)
     await shareNotes(mac, farAt(vps, 'vps'), { from: 'mac', name: 'vps' })
 
@@ -207,6 +207,39 @@ describe('an exchange between two homes', () => {
         'app/purple finished 4 days ago',
       ])
     }
+  })
+
+  it('never lets another machine retire or take back a note taken here, and the next is one look', async () => {
+    const mac = Memory.open(tmp('tade-mac-'))
+    const vps = Memory.open(tmp('tade-vps-'))
+    const kept = mac.remember('deploys freeze on Fridays', null, 'voice', NOW)
+    const also = mac.remember('refunds go through the ledger', null, 'orchestrator', NOW + 1)
+    await shareNotes(mac, farAt(vps, 'vps'), { from: 'mac', name: 'vps' })
+
+    // What any agent on the box could write: its own Tade's word, never the Mac's.
+    vps.retire({ at: kept.at }, 'not needed any more', 'orchestrator', NOW + 2)
+    vps.forget(also, 'window', NOW + 3)
+    await shareNotes(mac, farAt(vps, 'vps'), { from: 'mac', name: 'vps' })
+
+    expect(
+      Memory.open(join(mac.path, '..'))
+        .all()
+        .map((n) => n.text),
+    ).toEqual([also.text, kept.text])
+    // Held there, as that machine's own word, and the two files are one union.
+    expect(vps.all({ retired: true }).map((n) => [n.text, n.retired?.because])).toEqual([
+      [kept.text, 'not needed any more'],
+    ])
+    expect(file(mac)).toContain('"heard"')
+    expect(mac.shared().some((one) => one.line.includes('"heard"'))).toBe(false)
+    const asked: NotesAsk[] = []
+    const again = await shareNotes(mac, farAt(vps, 'vps', asked), { from: 'mac', name: 'vps' })
+    expect(again).toMatchObject({ same: true })
+    expect(asked).toHaveLength(1)
+
+    // This machine's own word still does it.
+    mac.retire({ at: kept.at }, 'the freeze was lifted', 'cli', NOW + 4)
+    expect(mac.all().map((n) => n.text)).toEqual([also.text])
   })
 
   it('reaches a third machine through the one between, saying where it was taken', async () => {
