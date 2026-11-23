@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, rm } from 'node:fs/promises'
+import { chmod, mkdir, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { readRuns } from '@tade/checks-core'
 import {
@@ -380,7 +380,17 @@ export class Workbench {
   }
 
   static async open(opts: WorkbenchOptions): Promise<Workbench> {
-    await mkdir(opts.home, { recursive: true })
+    // The home holds the journal, the notes, the keys and every file beside
+    // them, so it is its owner's alone: made 0700, and one an older Tade made
+    // 0755 narrowed on every open, which keeps out other people on the machine
+    // whatever mode each file in it was written with. A narrowing that fails
+    // is said, never what stops the window opening.
+    await mkdir(opts.home, { recursive: true, mode: 0o700 })
+    const unnarrowed = await chmod(opts.home, 0o700).then(
+      () => null,
+      (cause: unknown) =>
+        `could not make ${opts.home} readable by its owner alone: ${String(cause)}`,
+    )
     const lock = await lockHome(opts.home)
     // Kept out here so the failure path can close it: an open that got as far
     // as the journal and then went wrong — no driver, a registry that would not
@@ -401,6 +411,7 @@ export class Workbench {
         journal: { maxBytes: config.journal.max_mb * 1_048_576 },
       })
       journal = log
+      if (unnarrowed) await log.append({ type: 'warning', detail: { message: unnarrowed } })
       // A home met for the first time is not news; a known one whose journal
       // began again, or whose machine file would not read, is.
       if (machine.newEpoch !== null) {

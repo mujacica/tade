@@ -214,7 +214,7 @@ export class Memory {
   }
 
   static open(home: string): Memory {
-    mkdirSync(home, { recursive: true })
+    mkdirSync(home, { recursive: true, mode: 0o700 })
     const path = join(home, FILE)
     narrow(path)
     return new Memory(path, load(path))

@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs'
+import { chmodSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { LaneId, TadeEvent } from '@tade/core'
 import { ECHO_CHILD, until } from '@tade/drivers-core/conformance'
@@ -162,6 +162,20 @@ describe('the workbench', () => {
     // workbench, which is worse than the corruption it was guarding against.
     client = await Workbench.open({ home, version: '9.9.9' })
     expect(client.info().home).toBe(home)
+  })
+
+  // Everything Tade keeps is in the home, some of it written 0644 (the window's
+  // own files, the lock), so the home itself is what keeps other people out.
+  it('makes its home readable by its owner alone, and narrows one an older Tade left open', async () => {
+    const modeOf = (path: string) => statSync(path).mode & 0o777
+    await client.close()
+    const fresh = join(tmp('tade-workbench-'), 'home')
+    const made = await Workbench.open({ home: fresh, version: '9.9.9' })
+    expect(modeOf(fresh)).toBe(0o700)
+    await made.close()
+    chmodSync(home, 0o755)
+    client = await Workbench.open({ home, version: '9.9.9' })
+    expect(modeOf(home)).toBe(0o700)
   })
 
   it('closing twice is safe', async () => {
