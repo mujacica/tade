@@ -30,6 +30,12 @@ describe.each(cleaners)('a path glued to other text, through %s', (_, clean) => 
     expect(said.startsWith(`{"cwd":"${ELIDED}`)).toBe(true)
   })
 
+  it('is taken out of a file URL, which names somewhere on the machine', () => {
+    expect(clean('open file:///Users/someone/x')).toBe(`open file:${ELIDED}`)
+    expect(clean('href="FILE://host/share/x"')).toBe(`href="FILE:${ELIDED}"`)
+    expect(clean('see profile://host/a/b')).toBe('see profile://host/a/b')
+  })
+
   it('leaves a URL, a relative path and a comment marker where they are', () => {
     const kept = 'see https://example.invalid/a/b and/or src/a/b.ts, x(a/b/c) // done'
     expect(clean(kept)).toBe(kept)

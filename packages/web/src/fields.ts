@@ -262,7 +262,8 @@ function elide(word: string): string | null {
  * `OPENS`, and what is taken is from there to the word's closing punctuation.
  * That can take a little after the path with it (`","n":1}` behind a path in
  * JSON), which is the direction this is allowed to be wrong in. A `:` before
- * `//` is a URL's scheme rather than a field's end, so `https://x/a/b` stays.
+ * `//` is a URL's scheme rather than a field's end, so `https://x/a/b` stays —
+ * except `file://`, whose URL is a machine path (`fileScheme`).
  */
 export function pathIn(word: string): { from: number; to: number } | null {
   const head = /^[([<"'`«]*/.exec(word)?.[0] ?? ''
@@ -281,7 +282,20 @@ const OPENS = new Set(['(', '[', '<', '{', '"', "'", '`', '«', '=', ',', ':'])
 function opensAt(word: string, at: number): boolean {
   const before = word[at - 1] ?? ''
   if (!OPENS.has(before)) return false
-  return before !== ':' || !word.startsWith('//', at)
+  return before !== ':' || !word.startsWith('//', at) || fileScheme(word, at - 1)
+}
+
+/**
+ * Whether the `:` at `colon` ends a `file` scheme — the one URL whose host and
+ * path are somewhere on a machine (`file:///Users/x`, `file://host/share/x`), so
+ * what follows its `//` is taken like any other path. Four characters compared
+ * where they stand, because `opensAt` is asked at every opening in a word; and
+ * only where `file` is the whole scheme, so `profile://x/y` is still a URL.
+ */
+function fileScheme(word: string, colon: number): boolean {
+  const from = colon - 4
+  if (from < 0 || word.slice(from, colon).toLowerCase() !== 'file') return false
+  return !/[A-Za-z0-9+.-]/.test(word[from - 1] ?? '')
 }
 
 const SEPARATOR = /[/\\]/
