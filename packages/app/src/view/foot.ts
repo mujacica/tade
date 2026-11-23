@@ -505,6 +505,7 @@ export function renderFoot(
   // than a figure that is one click away. What is left of it gives up its bars
   // last of all: a percent with no bar is still the figure.
   const full = {
+    statuses: true,
     model: true,
     account: true,
     thinking: true,
@@ -530,6 +531,11 @@ export function renderFoot(
   // A device reading this machine is the other thing, and outlasts the figures.
   // So does the updates chip, which is only ever drawn when it wants somebody,
   // and goes just before a device reading would.
+  //
+  // What extensions keep here goes just before the model chooser, as its own
+  // step: a figure that grows a few columns — the machine's resources — must
+  // not take the one control said nowhere else down with it, and the figure is
+  // said again in its extension's own view.
   const on = frame.remote?.on === true
   const shed: Array<keyof typeof full> = [
     ...(on ? [] : (['remote'] as const)),
@@ -541,6 +547,7 @@ export function renderFoot(
     'thinking',
     'updates',
     ...(on ? (['remote'] as const) : []),
+    'statuses',
     'model',
     'runtime',
     'bars',
@@ -553,7 +560,7 @@ export function renderFoot(
   const status = (show: (typeof tries)[number]) => (r: Row) => {
     const { owe, pay, owing } = seams(skin)
     // What extensions keep here — what Tade is using — clicked for their view.
-    if (show.model) {
+    if (show.statuses) {
       for (const one of frame.statuses ?? []) {
         const view: Target = { kind: 'action', name: `extension-view:${one.extension}` }
         const tone =
