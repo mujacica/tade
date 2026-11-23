@@ -75,6 +75,11 @@ export function takenSaid(file) {
   return `${file.taken} taken out — a path, a key or something shaped like one`
 }
 
+/** A state box as `stateBoxIn` takes it; `icon` absent lets the kind choose its mark. */
+function boxOf(kind, title, line, icon) {
+  return icon === undefined ? { kind, title, line } : { kind, icon, title, line }
+}
+
 /**
  * The region's state for an answer that has no files, as `{ kind, title, line }`,
  * or null where there are files to draw. `failed` is the trouble's own words.
@@ -82,43 +87,39 @@ export function takenSaid(file) {
 export function stateFor(answer, failed) {
   if (answer === null) {
     if (failed === null) return null
-    return { kind: 'error', icon: 'alert', title: 'Could not read its changes', line: failed }
+    return boxOf('error', 'Could not read its changes', failed, 'alert')
   }
   switch (answer.says) {
     case 'files':
       return null
     case 'none':
-      return {
-        kind: 'empty',
-        title: 'Nothing changed yet',
-        line: answer.base === null ? 'Its tree matches HEAD.' : `Its tree matches ${answer.base}.`,
-      }
+      return boxOf(
+        'empty',
+        'Nothing changed yet',
+        answer.base === null ? 'Its tree matches HEAD.' : `Its tree matches ${answer.base}.`,
+      )
     case 'not looked':
-      return {
-        kind: 'loading',
-        title: 'Looking at its tree',
-        line: 'The machine has not looked yet.',
-      }
+      return boxOf('loading', 'Looking at its tree', 'The machine has not looked yet.')
     case 'not granted':
-      return {
-        kind: 'empty',
-        icon: 'devices',
-        title: 'Changes not granted',
-        line: 'A diff is source: it goes with “see screens”, ticked for this device at the machine.',
-      }
+      return boxOf(
+        'empty',
+        'Changes not granted',
+        'A diff is source: it goes with “see screens”, ticked for this device at the machine.',
+        'devices',
+      )
     case 'not here':
-      return {
-        kind: 'empty',
-        icon: 'folder',
-        title: 'Not on this device',
-        line: 'This agent is not one this device may read, or its task is not on Tade’s list any more.',
-      }
+      return boxOf(
+        'empty',
+        'Not on this device',
+        'This agent is not one this device may read, or its task is not on Tade’s list any more.',
+        'folder',
+      )
     default:
-      return {
-        kind: 'error',
-        icon: 'alert',
-        title: 'Could not read its changes',
-        line: 'git did not answer at the machine in time.',
-      }
+      return boxOf(
+        'error',
+        'Could not read its changes',
+        'git did not answer at the machine in time.',
+        'alert',
+      )
   }
 }

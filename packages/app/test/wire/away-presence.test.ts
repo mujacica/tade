@@ -26,6 +26,8 @@ function windowAt(lines: TadeEvent[] = [], fails = false) {
     now: () => now,
     live: { tasks: [{ task: 'tade/deploy', state: 'blocked', approval: { tool: 'Bash' } }] },
     opts: {
+      // What the card's spend fold reads (`sinceHere`): no prices said, no accounts.
+      config: { prices: {}, accounts: {} },
       client: {
         log: {
           append: async (line: Pick<TadeEvent, 'type' | 'detail'>) => {
