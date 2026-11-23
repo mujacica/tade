@@ -539,6 +539,7 @@ function openStream() {
     source?.close()
     // Closing because it was asked from here to start again: it is coming back.
     if (restarting.going()) {
+      restarting.ended()
       seen = { ...seen, open: false }
       setTimeout(() => void again(), backoffAt(tries))
       paint()

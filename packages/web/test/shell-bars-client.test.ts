@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { restarter } from '../src/assets/restart.js'
+import { DID_NOT_GO, GONE_BY_MS, restarter } from '../src/assets/restart.js'
 import { shellBars } from '../src/assets/shell-bars.js'
 import { GRANTS } from '../src/reach.ts'
 import { SCOPES } from '../src/surface.ts'
@@ -102,6 +102,8 @@ describe('the restart press', () => {
   function pressing(answers: { status: number; body: unknown }[], you: unknown = FULL) {
     const sent: unknown[] = []
     let painted = 0
+    // The clock, held: each deadline the press sets, run when a test says.
+    const due: { fn: () => void; ms: number }[] = []
     const one = restarter(
       {
         ask: async (_method, path, body) => {
@@ -113,8 +115,9 @@ describe('the restart press', () => {
       () => {
         painted += 1
       },
+      (fn, ms) => due.push({ fn, ms }),
     )
-    return { one, sent, painted: () => painted }
+    return { one, sent, due, painted: () => painted }
   }
 
   const settle = () => new Promise((done) => setTimeout(done, 0))
@@ -154,6 +157,23 @@ describe('the restart press', () => {
     await settle()
     expect(down.one.standing().said).not.toBeNull()
     expect(down.one.standing().cannot).toBe(false)
+  })
+
+  it('says a restart did not happen where the stream never ended by its deadline', async () => {
+    const going = { status: 200, body: { restarting: true, stops: 0, said: null } }
+    const stuck = pressing([going])
+    stuck.one.press()
+    await settle()
+    expect(stuck.due.map((one) => one.ms)).toEqual([GONE_BY_MS])
+    for (const one of stuck.due) one.fn()
+    expect(stuck.one.standing()).toMatchObject({ going: false, said: DID_NOT_GO, cannot: false })
+    // Ended in time, the deadline finds it going and leaves it.
+    const went = pressing([going])
+    went.one.press()
+    await settle()
+    went.one.ended()
+    for (const one of went.due) one.fn()
+    expect(went.one.going()).toBe(true)
   })
 
   it('reads whether this device may ask off its own session', () => {

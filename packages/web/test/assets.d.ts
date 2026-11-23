@@ -458,6 +458,8 @@ declare module '*/assets/shell-bars.js' {
 
 declare module '*/assets/restart.js' {
   export const RESTART_PATH: string
+  export const GONE_BY_MS: number
+  export const DID_NOT_GO: string
   export function restarter(
     ctx: {
       ask: (
@@ -468,6 +470,7 @@ declare module '*/assets/restart.js' {
       session: () => unknown
     },
     paint: () => void,
+    later?: (fn: () => void, ms: number) => unknown,
   ): {
     standing(): {
       theirs: boolean
@@ -480,6 +483,7 @@ declare module '*/assets/restart.js' {
     }
     press(): void
     going(): boolean
+    ended(): void
     back(): void
   }
 }
