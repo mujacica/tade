@@ -254,29 +254,70 @@ function elide(word: string): string | null {
  * (`screen.ts`), where a path the terminal wrapped onto two rows is one word
  * only once the rows are joined again — so the decision is this one and the
  * cutting is that file's.
+ *
+ * **A path is often glued to what is around it**: `readFile('/Users/x/.ssh/id')`,
+ * `--out=/home/x/y`, `{"cwd":"/Users/x/y"}` — a call's arguments and an
+ * agent's screen are mostly this. So a path may begin at the word's start, past
+ * its opening brackets and quotes, or anywhere inside it right after one of
+ * `OPENS`, and what is taken is from there to the word's closing punctuation.
+ * That can take a little after the path with it (`","n":1}` behind a path in
+ * JSON), which is the direction this is allowed to be wrong in. A `:` before
+ * `//` is a URL's scheme rather than a field's end, so `https://x/a/b` stays.
  */
 export function pathIn(word: string): { from: number; to: number } | null {
   const head = /^[([<"'`«]*/.exec(word)?.[0] ?? ''
-  const tail = /[)\]>"'`»,;:.]*$/.exec(word)?.[0] ?? ''
-  const bare = word.slice(head.length, word.length - tail.length)
-  if (bare === '' || !absolute(bare)) return null
-  return { from: head.length, to: word.length - tail.length }
+  const tail = /[)\]}>"'`»,;:.]*$/.exec(word)?.[0] ?? ''
+  const to = word.length - tail.length
+  for (let from = head.length; from < to; from += 1) {
+    if (from > head.length && !opensAt(word, from)) continue
+    if (absolute(word, from, to)) return { from, to }
+  }
+  return null
 }
 
+/** What a path glued into a word is found right after. */
+const OPENS = new Set(['(', '[', '<', '{', '"', "'", '`', '«', '=', ',', ':'])
+
+function opensAt(word: string, at: number): boolean {
+  const before = word[at - 1] ?? ''
+  if (!OPENS.has(before)) return false
+  return before !== ':' || !word.startsWith('//', at)
+}
+
+const SEPARATOR = /[/\\]/
+
 /**
- * Whether a word names somewhere on a machine rather than somewhere in a
- * repository.
+ * Whether `word[from, to)` names somewhere on a machine rather than somewhere
+ * in a repository.
  *
  * `~/x` and `C:\x` say so in their first character. A word starting with `/`
  * needs a second separator, so that `/` on its own — and the `/` somebody
- * wrote between two words — is left where it is.
+ * wrote between two words — is left where it is. Read without slicing and
+ * stopping as soon as it can say, because `pathIn` asks it at every opening
+ * inside a word, and a minified line is one word.
  */
-function absolute(word: string): boolean {
-  if (/^~[/\\]/.test(word) || /^[A-Za-z]:[/\\]/.test(word)) return true
-  if (!/^[/\\]/.test(word)) return false
+function absolute(word: string, from: number, to: number): boolean {
+  const first = word[from] ?? ''
+  const second = word[from + 1] ?? ''
+  if (from + 1 < to && first === '~' && SEPARATOR.test(second)) return true
+  if (
+    from + 2 < to &&
+    /[A-Za-z]/.test(first) &&
+    second === ':' &&
+    SEPARATOR.test(word[from + 2] ?? '')
+  ) {
+    return true
+  }
+  if (!SEPARATOR.test(first)) return false
   // Separators and nothing else name nowhere: `//` is a comment on an agent's
   // screen and a rule in somebody's sentence, and taking it out says nothing
   // was there when something was.
-  if (/^[/\\]+$/.test(word)) return false
-  return (word.match(/[/\\]/g) ?? []).length >= 2
+  let separators = 0
+  let other = false
+  for (let at = from; at < to; at += 1) {
+    if (SEPARATOR.test(word[at] ?? '')) separators += 1
+    else other = true
+    if (other && separators >= 2) return true
+  }
+  return false
 }
