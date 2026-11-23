@@ -4,8 +4,10 @@ import {
   DONE_RULE_MEANS,
   printable,
   printableLines,
+  type QueuedThere,
   type QueueState,
   thereSays,
+  waitOn,
 } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, type Target } from '../hits.ts'
@@ -189,9 +191,13 @@ export function queueSection(
     rows: (row) => {
       const view = queueViewOf(state)
       const entries = queueRows(state)
+      // Other machines' queued work, after this machine's own: only that
+      // machine starts it, so it is not in this tree and has nothing to press.
+      const there = thereHere(state, frame).map((one) => thereRow(width, skin, one, frame))
       // Where there is a choice, and always where the view is leaving something
       // out: one nothing can widen again is work hidden with no way back to it.
       const controls = all > 1 || narrowing(view) ? [queueControls(row(), view)] : []
+      if (entries.length === 0 && there.length > 0) return [...controls, ...tabList(there, width)]
       if (entries.length === 0) {
         // Why there is nothing, in the words of the reason there is nothing:
         // wrapped rather than cut, because the reason is the whole of what
@@ -209,14 +215,61 @@ export function queueSection(
       return [
         ...controls,
         ...tabList(
-          entries.map((one, i) =>
-            queueRow(width, skin, pointer, one, stems[i] ?? { stem: '', bars: '' }, frame, tree),
-          ),
+          [
+            ...entries.map((one, i) =>
+              queueRow(width, skin, pointer, one, stems[i] ?? { stem: '', bars: '' }, frame, tree),
+            ),
+            ...there,
+          ],
           width,
         ),
       ]
     },
   }
+}
+
+/**
+ * Other machines' queued work in the project in front of you (`queuedThere`,
+ * by the project its id names there): on a hub, the work tied to a laptop
+ * whose lid is shut, which waits for that laptop.
+ */
+export function thereHere(state: AppState, frame: Frame): readonly QueuedThere[] {
+  const all = frame.queuedThere ?? []
+  return state.project === null ? all : all.filter((one) => one.project === state.project)
+}
+
+/**
+ * What another machine's queued work waits for, in the room under a name:
+ * `queuedThereSays`'s answer without saying the machine twice, since a side
+ * thirty columns wide cuts the sentence before when it was last heard.
+ */
+function thereSaid(one: QueuedThere, frame: Frame): string {
+  const heard =
+    one.silentDays !== null
+      ? `silent ${one.silentDays} days`
+      : one.heardAt === null
+        ? 'never heard'
+        : `heard ${clockOf(frame)(one.heardAt)}`
+  return `waits for ${one.machine} · ${heard}`
+}
+
+/**
+ * Another machine's queued work as a tab: `◌ mac:schema`, named as a wait
+ * would name it, and under it that it waits for that machine and when it was
+ * last heard (`thereSaid`). Grey, and with no hit at all: its card is on that
+ * machine, and nothing here starts it, so a press would offer what is not there.
+ */
+function thereRow(width: number, skin: Skin, one: QueuedThere, frame: Frame): ListItem {
+  const edge = Math.max(0, width - TAB_EDGES)
+  const name = printable(inProject(one.project, waitOn(one.machine, one.task)))
+  const first = new Row(edge, skin).space()
+  first.text('◌', skin.faded).space()
+  first.text(shortened(name, Math.max(1, first.width - first.used)), skin.faded)
+  const said = new Row(edge, skin).space(3)
+  said.text(shortened(printable(thereSaid(one, frame)), Math.max(1, edge - 4)), skin.hint)
+  // A tab's ground and ends, and none of its hits.
+  const tab = (inner: { text: string }) => ({ text: ` ${skin.item(inner.text, null)} `, hits: [] })
+  return { rows: [tab(first.build()), tab(said.build())], band: null }
 }
 
 /**

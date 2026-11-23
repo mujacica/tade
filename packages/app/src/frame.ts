@@ -5,6 +5,7 @@ import type {
   InboxRow,
   OnPlan,
   PlanStanding,
+  QueuedThere,
   Race,
   Runtime,
   WorkflowField,
@@ -489,6 +490,12 @@ export interface Frame {
    * repository (`wire/moves.ts`). Absent or empty, its card offers none.
    */
   startsOn?: Readonly<Record<string, readonly string[]>>
+  /**
+   * Every other machine's queued work, out of the copies of their journals kept
+   * here (`queuedThere`): drawn in the SMART QUEUE as waiting for that machine,
+   * with nothing to press, since only that machine starts it.
+   */
+  queuedThere?: readonly QueuedThere[]
   /** Each other machine's orchestrator, a tab beside this one's (`talk-tab.ts`). */
   talkTabs?: readonly TalkTab[]
   /** That machine's conversation, while its orchestrator's tab is in front (`wire/remote-talk.ts`). */

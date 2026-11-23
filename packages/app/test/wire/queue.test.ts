@@ -1,4 +1,4 @@
-import { readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ConfigSchema, taskDir } from '@tade/core'
 import type { Workbench } from '@tade/workbench'
@@ -850,5 +850,49 @@ describe('the window, and the work waiting in it', () => {
       },
       SPAWNING_MS,
     )
+  })
+
+  it('draws another machine’s queued work in its project’s queue, waiting for that machine', async () => {
+    // The copy of a laptop's journal this home keeps: one piece queued there,
+    // and one that was queued and has started since.
+    const dir = join(home, 'machines', '44444444-4444-4444-8444-444444444444')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(
+      join(dir, 'feed.json'),
+      JSON.stringify({
+        machine: '44444444-4444-4444-8444-444444444444',
+        name: 'laptop',
+        epoch: { id: '0123456789abcdef', at: '2026-11-22T10:00:00.000Z' },
+        forks: [],
+      }),
+    )
+    const line = (seq: number, type: string, task: string, detail: object) =>
+      JSON.stringify({
+        seq,
+        ts: '2026-11-22T10:00:00.000Z',
+        type,
+        urgency: 'notable',
+        task,
+        lane: null,
+        run: null,
+        detail,
+      })
+    writeFileSync(
+      join(dir, 'events.jsonl'),
+      `${[
+        line(1, 'task_created', 'app/schema', { after: [] }),
+        line(2, 'task_created', 'app/begun', { after: [] }),
+        line(3, 'queue_started', 'app/begun', {}),
+      ].join('\n')}\n`,
+    )
+    await start()
+    await until(
+      'the laptop’s queued work in the side',
+      () => screenOf(terminal.written).some((row) => row.includes('◌ laptop:schema')),
+      SPAWNING_MS,
+    )
+    const rows = screenOf(terminal.written)
+    expect(rows.some((row) => row.includes('waits for laptop'))).toBe(true)
+    expect(rows.some((row) => row.includes('laptop:begun'))).toBe(false)
   })
 })

@@ -21,7 +21,7 @@ import { widthOf } from '../width.ts'
 import { elsewhereSections } from './elsewhere.ts'
 import { intakeSection } from './intake.ts'
 import { listItem, rowsHere } from './list.ts'
-import { type QueueTree, queueSection, queueSpread, queueStems } from './queue.ts'
+import { type QueueTree, queueSection, queueSpread, queueStems, thereHere } from './queue.ts'
 import {
   barBeside,
   isScrolling,
@@ -66,7 +66,8 @@ export function renderSidebar(
   // With nothing waiting the queue is quiet: still there, still a heading you
   // can open, and folded until you do. Only work — the standing rules are
   // SCHEDULES', which is quiet or not on its own.
-  const waiting = queuedCount(state)
+  // Other machines' queued work counts too: on a hub it may be all there is.
+  const waiting = queuedCount(state) + thereHere(state, frame).length
   const queueOpen = sectionOpen(state, 'queue', waiting === 0)
   // The project's standing rules, read once: the section is handed them, the way
   // the queue is handed its count, because the side draws four times a second.

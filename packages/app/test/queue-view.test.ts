@@ -545,6 +545,61 @@ describe('the smart queue down the side', () => {
     expect(after.some((row) => row.includes('nothing is queued'))).toBe(true)
   })
 
+  it('draws other machines’ queued work after this one’s, waiting for that machine', () => {
+    const there: Frame['queuedThere'] = [
+      {
+        machine: 'mac',
+        task: 'checkout/schema',
+        project: 'checkout',
+        heardAt: 1_000,
+        silentDays: null,
+      },
+      { machine: 'mac', task: 'search/index', project: 'search', heardAt: 1_000, silentDays: null },
+    ]
+    const at = { width: 200, height: 60, queuedThere: there, clock: () => '14:02' }
+    const drawn = draw(queued(), frame(at))
+    const rows = drawn.rows.map(plain)
+    const side = (name: string) => rows.findIndex((row) => row.includes(name))
+    // Counted with this machine's own, and only the project in front's.
+    expect(rows[side('SMART QUEUE')]).toMatch(/SMART QUEUE +\(?4\)?/)
+    expect(side('mac:schema')).toBeGreaterThan(side('docs-typos'))
+    expect(rows[side('mac:schema')]).toContain('◌ mac:schema')
+    expect(rows[side('mac:schema') + 1]).toContain('waits for mac · heard 14:02')
+    expect(side('index')).toBe(-1)
+    // Nothing to press: its card is on that machine, and only it starts it.
+    // What is under it is the side's own: its scrolling, its bar, its edge.
+    const row = side('mac:schema')
+    const sides = new Set(['scroll', 'scrollbar', 'divider'])
+    const pressed = drawn.hits.filter(
+      (hit) =>
+        (hit.row === row || hit.row === row + 1) && hit.from < 36 && !sides.has(hit.target.kind),
+    )
+    expect(pressed).toEqual([])
+    for (const one of drawn.rows) expect(visibleWidth(one)).toBe(200)
+  })
+
+  it('is open with only another machine’s work in it: on a hub that may be all there is', () => {
+    const quiet = {
+      ...quietWindow(),
+      project: 'checkout',
+      folded: ['changes', 'files', 'notes', 'where'],
+    }
+    const there: Frame['queuedThere'] = [
+      {
+        machine: 'mac',
+        task: 'checkout/schema',
+        project: 'checkout',
+        heardAt: null,
+        silentDays: null,
+      },
+    ]
+    const rows = renderApp(quiet, frame({ width: 200, height: 40, queuedThere: there })).map(plain)
+    expect(rows.find((row) => row.includes('SMART QUEUE'))).toMatch(/▾ SMART QUEUE +\(?1\)?/)
+    expect(rows.some((row) => row.includes('◌ mac:schema'))).toBe(true)
+    expect(rows.some((row) => row.includes('waits for mac · never heard'))).toBe(true)
+    expect(rows.some((row) => row.includes('nothing is queued'))).toBe(false)
+  })
+
   it('stays folded when you fold it with work waiting in it', () => {
     const shut = toggleSection(queued(), 'queue', false)
     expect(shut.folded).toContain('queue')

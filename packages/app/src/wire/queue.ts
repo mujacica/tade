@@ -203,6 +203,12 @@ export class Queue implements Subject {
     })
   }
 
+  /** Other machines' queued work, drawn after this machine's own. */
+  facts(): Partial<Frame> {
+    const live = this.wire.live
+    return live ? { queuedThere: live.queuedThere } : {}
+  }
+
   /**
    * There is no pause-everything button: pausing is done to one piece of work,
    * beside its name. The whole queue can still be held from the orchestrator

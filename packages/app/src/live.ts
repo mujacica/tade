@@ -17,7 +17,9 @@ import {
   machineLabel,
   pricesFrom,
   type Queued,
+  type QueuedThere,
   type QueueFacts,
+  queuedThere,
   queueStanding,
   queueStateOf,
   type Reality,
@@ -300,6 +302,8 @@ export class Live {
   private fleet: Fleet | undefined = undefined
   /** Why the last look could not read them, as it was said; null where it could. */
   private fleetTrouble: string | null = null
+  /** Their queued work as the last look folded it, kept while it says the same (`queuedThere`). */
+  private there: readonly QueuedThere[] = []
 
   private constructor(opts: LiveOptions) {
     this.opts = opts
@@ -414,6 +418,16 @@ export class Live {
   /** Work made and waiting to start, oldest first, as the last look saw it. */
   get queued(): readonly Queued[] {
     return this.queue
+  }
+
+  /**
+   * Every other machine's queued work, out of the copies of their journals the
+   * last look read: drawn in the SMART QUEUE as waiting for that machine. The
+   * same list until a look finds a different one, since a frame keeps a region
+   * by identity.
+   */
+  get queuedThere(): readonly QueuedThere[] {
+    return this.there
   }
 
   /** Everything the queue's rules read, as of now. */
@@ -1146,6 +1160,8 @@ export class Live {
       if (trouble !== null && trouble !== this.fleetTrouble) this.opts.onWarning?.(trouble)
       this.fleetTrouble = trouble
       const facts = this.queueFacts()
+      const there = queuedThere(this.fleet, facts.now)
+      if (JSON.stringify(there) !== JSON.stringify(this.there)) this.there = there
       const queued = new Map<string, QueuedView>()
       const placed = placedFrom(this.queueEvents)
       for (const item of this.queue) {
@@ -1165,7 +1181,12 @@ export class Live {
       // kept, and is drawn by nobody: it was ~0.7 frames a second on a window
       // nobody touched. `generatedAt` is the one part of a look that always moves.
       const snapshots = snapshotsFrom(workspace, pending, lanes, this.finished, queued)
-      const said = JSON.stringify([{ ...workspace, generatedAt: '' }, pending, snapshots])
+      const said = JSON.stringify([
+        { ...workspace, generatedAt: '' },
+        pending,
+        snapshots,
+        this.there,
+      ])
       const moved = said !== this.answered
       if (moved) {
         this.answered = said

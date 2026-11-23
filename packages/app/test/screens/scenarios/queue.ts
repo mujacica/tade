@@ -7,7 +7,7 @@ import {
   withProjects,
   withTasks,
 } from '../../../src/model.ts'
-import { base, frame, type Scenario, showing, utcClock } from './fixtures.ts'
+import { base, frame, NOW, type Scenario, showing, utcClock } from './fixtures.ts'
 
 // Work that has not started: the SMART QUEUE, the SCHEDULES under it, and the
 // plans behind both.
@@ -454,6 +454,37 @@ export const QUEUE_SCREENS: Scenario[] = [
       hover: { kind: 'action', name: 'queue-scope:all' },
     },
     frame: frame({ screen: '', height: 30, clock: utcClock }),
+  },
+  {
+    name: 'waiting-for-another-machine',
+    about:
+      'Work queued on another machine, in this project’s SMART QUEUE after this machine’s own: on a hub with the laptop’s lid shut, the laptop’s journal kept here is the only place it can be seen. Each is named as a wait would name it, `mac:migrations`, grey and with nothing to press — only that machine starts it — and says it waits for that machine and when it was last heard, or that it has gone silent for days.',
+    state: {
+      ...withTasks(withProjects(initialState(), ['checkout']), chainTasks),
+      project: 'checkout',
+      folded: ['changes', 'files', 'notes', 'where'],
+    },
+    frame: frame({
+      screen: '',
+      height: 40,
+      clock: utcClock,
+      queuedThere: [
+        {
+          machine: 'mac',
+          task: 'checkout/migrations',
+          project: 'checkout',
+          heardAt: NOW - 3_600_000,
+          silentDays: null,
+        },
+        {
+          machine: 'laptop',
+          task: 'checkout/old-branch',
+          project: 'checkout',
+          heardAt: NOW - 9 * 86_400_000,
+          silentDays: 9,
+        },
+      ],
+    }),
   },
   {
     name: 'nothing-is-next',

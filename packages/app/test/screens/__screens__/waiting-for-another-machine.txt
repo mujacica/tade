@@ -1,0 +1,40 @@
+ ▄▀   T A D E      checkout ⠋ ◌4   ×  ≡     +       ⠋ 1 working      ctrl   +   k   search      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  1            +    █│ checkout › schema    agent    actions     +          claude-opus-5 ▾     high ▾     ×   
+                             █│─────────────────────────────────────────────────────────────────────────────────────────
+ ▌ ⠋ schema                  █│                                                                                         
+ ▌   working                 █│                                                                                         
+                             █│                                                                                         
+ ▾ SMART QUEUE  6      plan  █│                                                                                         
+   all   next                █│                                                                                         
+                             █│                                                                                         
+   ◌ tidy-mailer      next   █│                                                                                         
+     ❯ waiting for room      █│                                                                                         
+                             █│                                                                                         
+     ◌ api         1 ahead   █│                                                                                         
+     │ ◆ after schema        █│                                                                                         
+     │                       █│                                                                                         
+     ╰─◌ client              █│                                                                                         
+       │ ◆ after api         █│                                                                                         
+       │                     █│                                                                                         
+       ╰─◌ docs              █│                                                                                         
+           ◆ after client    █│                                                                                         
+                             █│                                                                                         
+   ◌ mac:migrations          ▕│                                                                                         
+     waits for mac · hear…   ▕│                                                                                         
+                             ▕│                                                                                         
+   ◌ laptop:old-branch       ▕│                                                                                         
+     waits for laptop · s…   ▕│                                                                                         
+                             ▕│                                                                                         
+███████████████████████████▕▕ │                                                                                         
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
+                                                                                                                        
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 
