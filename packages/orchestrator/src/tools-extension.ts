@@ -821,6 +821,18 @@ async function worktreeOf(task: string): Promise<string | null> {
     }
     return null
   }
+  // The window's own answer, out of the task's file: `tade status` derives
+  // every project to find one folder, which takes seconds. Asked only where
+  // the window cannot say: a worktree moved by hand (null), or the window
+  // refusing this one method — older than this file, or a paired device's
+  // turn, which is never handed a path. Anything else is thrown.
+  if (SOCKET) {
+    const known = await rpc('task/worktree', { task }).catch((err: Error) => {
+      if (err.message.includes('task/worktree')) return null
+      throw err
+    })
+    if (typeof known === 'string' && known !== '') return known
+  }
   const status = JSON.parse(await runCli(['status', '--json'])) as {
     projects: Array<{ tasks: Array<{ id: string; worktree: string }> }>
   }

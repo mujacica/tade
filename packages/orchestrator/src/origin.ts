@@ -471,6 +471,8 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
   'check/propose': never(EXECUTES),
   'task/done': never(CONFIRMS),
   'task/rename': never(PUBLISHES),
+  // A path, which is what a narrowed device is never handed.
+  'task/worktree': never(READS_WIDE),
   'queue/plan': never(EXECUTES),
   'queue/list': never(READS_WIDE),
   'documents/list': never(READS_WIDE),

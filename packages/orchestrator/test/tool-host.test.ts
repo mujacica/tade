@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs'
+import { rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Plan } from '@tade/core'
 import { Workbench } from '@tade/workbench'
@@ -194,6 +194,44 @@ describe('steering work that has not started', () => {
     expect(stopped.error?.message).toBe('no agent running on app/ran')
     const none = await call(path, 'worker/steer', { task: 'app/ghost', message: 'hello' })
     expect(none.error?.message).toBe('no agent running on app/ghost')
+  })
+})
+
+describe('where one task works', () => {
+  let host: ToolHost | null = null
+  let client: Workbench | null = null
+
+  afterEach(async () => {
+    await host?.close()
+    await client?.close().catch(() => {})
+    host = null
+    client = null
+  })
+
+  it('is read out of its own records, and is nothing where they cannot say', async () => {
+    const repo = mkrepo()
+    const home = tmp('tade-where-')
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
+    const tade = await Workbench.open({ home, sessionsRoot: tmp('tade-sessions-') })
+    client = tade
+    const own = await tade.createTask({
+      project: 'app',
+      slug: 'refunds',
+      intent: 'refunds',
+      workspace: 'worktree',
+    })
+    await tade.createTask({ project: 'app', slug: 'vat', intent: 'vat', workspace: 'checkout' })
+    const path = join(tmp('tade-tools-'), 'tools.sock')
+    host = await ToolHost.listen({ tade, path })
+    const where = async (task: string) => (await call(path, 'task/worktree', { task })).result
+
+    expect(await where('app/refunds')).toBe(own.worktree)
+    // Beside the others, in the project's own checkout.
+    expect(await where('app/vat')).toBe(repo.root)
+    expect(await where('app/ghost')).toBeNull()
+    // A worktree that is not where it was made: only `tade status` can find it.
+    rmSync(own.worktree, { recursive: true, force: true })
+    expect(await where('app/refunds')).toBeNull()
   })
 })
 

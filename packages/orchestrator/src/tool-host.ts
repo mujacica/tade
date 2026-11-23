@@ -1,9 +1,10 @@
-import { chmod, mkdir, rm } from 'node:fs/promises'
+import { chmod, mkdir, rm, stat } from 'node:fs/promises'
 import { createServer, type Server, type Socket } from 'node:net'
 import { dirname } from 'node:path'
 import {
   type Arm,
   type DoneRule,
+  expandHome,
   inboxProvenance,
   inboxWaiting,
   type LaneId,
@@ -439,6 +440,11 @@ export class ToolHost {
       // anybody else reads as the person having picked it up (`proposalsIn`),
       // and lifting a park on work from outside is refused it (`NotYours`).
       'task/park': (p) => tade.parkTask(String(p.task), p.parked === true, { by: 'orchestrator' }),
+      // Where one task works, for the tools that act on it (`worktreeOf` in
+      // `tools-extension.ts`), which used to run all of `tade status` to find
+      // one folder: seconds, every project's git looked at. Null where its own
+      // records cannot say, and the tool asks `tade status` then.
+      'task/worktree': (p) => whereTaskWorks(tade, String(p.task)),
       'task/rename': (p) =>
         tade.renameAgent({
           task: String(p.task),
@@ -819,6 +825,30 @@ function planOf(p: Record<string, unknown>): Plan {
  * (`agentPrompt`). Here and not in `steerAgent`, because the words name the
  * orchestrator's tools and the CLI steers through the workbench too.
  */
+/**
+ * Where a task works, out of its file and the line that made it — what the
+ * window reads it from too (`whereItWorks`): the project's checkout for one
+ * that shares it, as the config has it now, and otherwise the worktree it was
+ * made in. Null where there is no task file, or the folder is not there any
+ * more (a worktree moved by hand), since only `tade status` finds that one.
+ */
+async function whereTaskWorks(tade: Workbench, task: string): Promise<string | null> {
+  const file = await readTaskFile(tade.home, task)
+  if (!file) return null
+  const configured = tade.config.projects[file.project]?.root
+  const [made] = await tade.log.read({ task, types: ['task_created'] })
+  const shared = file.workspace === 'checkout' || made?.detail.workspace === 'checkout'
+  const recorded = typeof made?.detail.worktree === 'string' ? made.detail.worktree : null
+  const where = shared && configured ? expandHome(configured) : recorded
+  if (!where) return null
+  const seen = await stat(where).catch((err: NodeJS.ErrnoException) => {
+    // Gone is an answer — the tool asks `tade status` then — and a look that failed is not.
+    if (err.code === 'ENOENT' || err.code === 'ENOTDIR') return null
+    throw err
+  })
+  return seen?.isDirectory() ? where : null
+}
+
 async function notStartedYet(tade: Workbench, task: string): Promise<Error | null> {
   const file = await readTaskFile(tade.home, task).catch(() => null)
   if (!file?.start) return null

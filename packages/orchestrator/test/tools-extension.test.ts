@@ -218,9 +218,17 @@ describe('a tool that needs to know where a task works', () => {
   const status = JSON.stringify({
     projects: [{ tasks: [{ id: 'shop/refunds', worktree: '/tmp/wt/refunds' }] }],
   })
+  /** A window that knows where shop/refunds works, and nothing else. */
+  const knowing = (call: Call) =>
+    call.method === 'task/worktree'
+      ? call.params.task === 'shop/refunds'
+        ? '/tmp/wt/refunds'
+        : null
+      : { ok: true }
+  const started = (host: Host) => host.calls.filter((call) => call.method !== 'task/worktree')
 
-  it('starts an agent in the worktree it found, with the model that was named', async () => {
-    const host = await hostListening()
+  it('asks the window where the task works, and runs no `tade status` to find out', async () => {
+    const host = await hostListening(knowing)
     const cli = fakeCli(status)
     const { by } = await tools({ TADE_SOCKET: host.path, TADE_CLI: cli.path })
 
@@ -229,34 +237,74 @@ describe('a tool that needs to know where a task works', () => {
       'c1',
       {},
     )
-    expect(host.calls[0]).toEqual({
-      method: 'worker/start',
-      params: {
-        task: 'shop/refunds',
-        cwd: '/tmp/wt/refunds',
-        prompt: 'cover the wire',
-        model: 'opus',
+    expect(host.calls).toEqual([
+      { method: 'task/worktree', params: { task: 'shop/refunds' } },
+      {
+        method: 'worker/start',
+        params: {
+          task: 'shop/refunds',
+          cwd: '/tmp/wt/refunds',
+          prompt: 'cover the wire',
+          model: 'opus',
+        },
       },
-    })
+    ])
+    // Seconds of every project's git, for one folder the window already knew.
+    expect(() => ranWith(cli.argv)).toThrow()
+  })
+
+  it('asks `tade status` where the window cannot say, or will not answer that one question', async () => {
+    for (const said of [
+      null,
+      // A window older than this file.
+      { error: 'no such method: task/worktree' },
+      // A paired device's turn, which is never handed a path.
+      { error: '`task/worktree`: what it answers carries more than this device may read' },
+    ]) {
+      const host = await hostListening((call) =>
+        call.method === 'task/worktree' ? said : { ok: true },
+      )
+      const cli = fakeCli(status)
+      const { by } = await tools({ TADE_SOCKET: host.path, TADE_CLI: cli.path })
+
+      await by('tade_run_start').run({ task: 'shop/refunds', prompt: 'go' }, 'c1', {})
+      expect(ranWith(cli.argv)).toEqual(['status --json --no-pr'])
+      expect(started(host)[0]).toMatchObject({
+        method: 'worker/start',
+        params: { cwd: '/tmp/wt/refunds' },
+      })
+    }
+  })
+
+  it('carries any other failure of the window, rather than starting from a guess', async () => {
+    const host = await hostListening((call) =>
+      call.method === 'task/worktree' ? { error: 'the journal would not read' } : { ok: true },
+    )
+    const cli = fakeCli(status)
+    const { by } = await tools({ TADE_SOCKET: host.path, TADE_CLI: cli.path })
+    await expect(by('tade_run_start').run({ task: 'shop/refunds' }, 'c1', {})).rejects.toThrow(
+      'the journal would not read',
+    )
+    expect(started(host)).toEqual([])
   })
 
   it('leaves the model out where nobody named one', async () => {
-    const host = await hostListening()
+    const host = await hostListening(knowing)
     const { by } = await tools({ TADE_SOCKET: host.path, TADE_CLI: fakeCli(status).path })
     await by('tade_run_start').run({ task: 'shop/refunds' }, 'c1', {})
     // Not `model: ''`, which is a model nobody can find.
-    expect(host.calls[0]?.params).not.toHaveProperty('model')
-    expect(host.calls[0]?.params).toMatchObject({ prompt: '' })
+    expect(started(host)[0]?.params).not.toHaveProperty('model')
+    expect(started(host)[0]?.params).toMatchObject({ prompt: '' })
   })
 
   it('refuses a task nothing knows about, naming it', async () => {
-    const host = await hostListening()
+    const host = await hostListening(knowing)
     const { by } = await tools({ TADE_SOCKET: host.path, TADE_CLI: fakeCli(status).path })
     await expect(by('tade_run_start').run({ task: 'shop/vat' }, 'c1', {})).rejects.toThrow(
       'no such task: shop/vat',
     )
     // Refused before anything started, rather than started somewhere wrong.
-    expect(host.calls).toEqual([])
+    expect(started(host)).toEqual([])
   })
 })
 
