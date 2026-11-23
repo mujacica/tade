@@ -7,6 +7,7 @@ import {
   readdir,
   readFile,
   rename,
+  rm,
   stat,
   writeFile,
 } from 'node:fs/promises'
@@ -19,6 +20,7 @@ import {
   feedDir,
   type LeaseOp,
   MACHINE_ID,
+  PeerRoom,
   SHARE_ANSWER,
   SHARE_LINE,
 } from '@tade/core'
@@ -85,6 +87,13 @@ const ANSWER_BYTES = SHARE_ANSWER
 /** How much of a file one request gives — `SHARE_LINE` in base64 — and one answer carries. */
 const GIVE_FILE = (SHARE_LINE / 4) * 3
 const ANSWER_FILE = (ANSWER_BYTES / 4) * 3
+
+/**
+ * The longest line of another machine's conversation held while its pieces
+ * arrive: a large tool result travels beside the entries as a file, so a line
+ * this long is no entry anybody wrote — and held in memory, it is the window's.
+ */
+const PIECE_MOST = 16 * 1024 * 1024
 
 /** A machine, by its id and what it calls itself. */
 export interface MachineNamed {
@@ -182,6 +191,12 @@ export interface SharedConversationOptions {
   take: (lines: readonly string[], leaf: string | null) => Promise<void>
   /** A file beside a record that could not be read or put in place: said, and the rest carries on. */
   warn?: (text: string) => void
+  /**
+   * How much more of what other machines give fits on this disk (`PeerRoom`,
+   * `@tade/core`'s `peer-disk.ts`), shared with the copies of their journals.
+   * One of its own under `home` where none is handed over.
+   */
+  room?: PeerRoom
 }
 
 interface Copy {
@@ -255,9 +270,12 @@ export class SharedConversation {
   private readonly held = new Set<string>()
   /** What was said about a file, once each. */
   private readonly warned = new Set<string>()
+  /** How much more of what other machines give fits here. */
+  private readonly room: PeerRoom
 
   constructor(opts: SharedConversationOptions) {
     this.opts = opts
+    this.room = opts.room ?? new PeerRoom(opts.home)
     this.me = opts.me
     this.harness = opts.harness
     this.own = new ConversationRecord(opts.record, opts.format)
@@ -354,6 +372,10 @@ export class SharedConversation {
       else if (piece.from === 0) copy.piece = piece.text
       // Out of step: dropped, and `held.piece` asks for the line from its start.
       else copy.piece = ''
+      if (copy.piece.length > PIECE_MOST) {
+        copy.piece = ''
+        return `a line from ${copy.name} ran past ${PIECE_MOST / 1024 ** 2} MB in pieces, which no entry is, so its copy here stays as it was`
+      }
       if (piece.done && copy.piece.length >= piece.from + piece.text.length) {
         lines.push(copy.piece)
         copy.piece = ''
@@ -366,7 +388,12 @@ export class SharedConversation {
         return `a line from ${copy.name} is not an entry of the conversation Tade knows (${what}), so its copy here stays as it was`
       }
     }
+    const bytes = lines.reduce((sum, line) => sum + Buffer.byteLength(line) + 1, 0)
+    if (bytes > 0 && !(await this.room.fits(bytes, Date.now()))) {
+      return `${copy.name}’s conversation was not taken: ${this.room.says()}`
+    }
     await appendLines(record.path, lines)
+    this.room.spent(bytes)
     await record.look()
     return undefined
   }
@@ -701,10 +728,24 @@ export class SharedConversation {
     const path = join(copy.dir, piece.name)
     const part = `${path}.part`
     if (piece.from !== 0 && piece.from !== ((await sizeOf(part)) ?? 0)) return
-    await mkdir(dirname(part), { recursive: true })
     const data = Buffer.from(piece.data, 'base64')
+    // A file whose last piece never comes grows a `.part` for ever: all of it
+    // is counted against the room every machine's gifts share here.
+    if (!(await this.room.fits(data.length, Date.now()))) {
+      this.warnOnce(
+        `room ${piece.name}`,
+        `${piece.name} from ${copy.name} was not taken: ${this.room.says()}`,
+      )
+      // Not asked for again while this window runs, or the exchange asks for
+      // it every round for ever; the next one to open asks once more.
+      copy.gone.add(piece.name)
+      await rm(part, { force: true })
+      return
+    }
+    await mkdir(dirname(part), { recursive: true })
     if (piece.from === 0) await writeFile(part, data, { mode: 0o600 })
     else await appendFile(part, data, { mode: 0o600 })
+    this.room.spent(data.length)
     if (!piece.done) return
     await rename(part, path)
     copy.have.add(piece.name)

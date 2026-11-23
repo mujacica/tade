@@ -1,4 +1,4 @@
-import { CARRY_SCHEMA, type CarryLeaf, stampText } from '@tade/core'
+import { CARRY_SCHEMA, type CarryLeaf, peerMayWrite, personBy, stampText } from '@tade/core'
 import type { CarryAnswer } from '@tade/remotes-core'
 import { describe, expect, it } from 'vitest'
 import {
@@ -6,6 +6,7 @@ import {
   checklistLines,
   checklistOf,
   leftToDo,
+  relayedBy,
   type Setup,
   takeBack,
   WINDOW_TAKES,
@@ -192,7 +193,8 @@ describe('what comes back newer', () => {
       {
         path: 'queue.holds',
         value: 'orchestrator',
-        stamp: { hlc: stampText(at(5_000, 'vps')), origin: 'window' },
+        // That machine's word for who changed it, never the person here.
+        stamp: { hlc: stampText(at(5_000, 'vps')), origin: 'window on vps' },
       },
       { path: 'notes.keep_days', value: 9, stamp: { hlc: stampText(at(1_000, 'vps')) } },
       { path: 'agents.commit', value: 'never', stamp: { hlc: stampText(at(1, 'vps')) } },
@@ -282,7 +284,11 @@ describe('what comes back newer', () => {
     ])
     const unpressed = takeBack(mine, came, 'mac')
     expect(unpressed.writes.map((one) => one.path)).toEqual(['notes.keep_days'])
-    expect(unpressed.writes[0]?.stamp.origin).toBe('cli')
+    expect(unpressed.writes[0]?.stamp.origin).toBe('cli on vps')
+    // So a third machine this one carries to never takes it for the person.
+    expect(personBy(unpressed.writes[0]?.stamp.origin ?? null)).toBe(false)
+    expect(peerMayWrite('approvals.mode', 'window on vps')).toBe(false)
+    expect(relayedBy('cli on vps', 'hub')).toBe('cli on vps')
     expect(unpressed.refused.map((one) => one.what)).toEqual([
       'approvals.mode',
       'workers.routes.cheap.provider',
@@ -294,7 +300,11 @@ describe('what comes back newer', () => {
         value: 'auto',
         stamp: { hlc: stampText(at(9, 'v')), origin: 'window' },
       },
-      { path: 'notes.keep_days', value: 9, stamp: { hlc: stampText(at(9, 'v')), origin: 'cli' } },
+      {
+        path: 'notes.keep_days',
+        value: 9,
+        stamp: { hlc: stampText(at(9, 'v')), origin: 'cli on vps' },
+      },
     ])
     expect(pressed.landed).toEqual([{ path: 'approvals.mode', now: 'auto' }])
     expect(pressed.refused.map((one) => one.what)).toEqual(['workers.routes.cheap.provider'])

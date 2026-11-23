@@ -1,7 +1,14 @@
 import { randomBytes } from 'node:crypto'
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
-import { type ConversationAsk, ConversationBody } from '@tade/core'
+import { type ConversationAsk, ConversationBody, PeerRoom } from '@tade/core'
 import { describe, expect, it, vi } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { type ConversationFormat, derivedHex, entriesOf } from '../src/conversation.ts'
@@ -98,7 +105,12 @@ const BESIDE_TOY: ConversationFormat = {
 }
 
 let made = 0
-function machine(name: string, format = TOY, warn?: (text: string) => void): Machine {
+function machine(
+  name: string,
+  format = TOY,
+  warn?: (text: string) => void,
+  room?: PeerRoom,
+): Machine {
   const home = tmp(`tade-conv-${name}-`)
   const record = join(home, 'record', 'conversation.jsonl')
   mkdirSync(join(home, 'record'), { recursive: true })
@@ -124,6 +136,7 @@ function machine(name: string, format = TOY, warn?: (text: string) => void): Mac
         )
       },
       ...(warn ? { warn } : {}),
+      ...(room ? { room } : {}),
     }),
   }
   return one
@@ -356,6 +369,22 @@ describe('the files kept beside the record', () => {
     const asked: ConversationAsk[] = []
     await mac.shared.exchange(door(vps, asked))
     expect(asked).toHaveLength(2)
+  })
+
+  it('takes no more of another machine’s files than the room every machine’s gifts share here, and says so', async () => {
+    const warned: string[] = []
+    // A ceiling well under the file, walked at every take, so the test counts bytes.
+    const room = new PeerRoom(tmp('tade-conv-room-'), { most: 200_000, every: 0 })
+    const mac = machine('mac', BESIDE_TOY, (text) => warned.push(text), room)
+    const vps = machine('vps', BESIDE_TOY)
+    result(vps, 'toolu_big.json', 900_000, '2026-11-23T10:05:00.000Z')
+    await mac.shared.exchange(door(vps))
+    await mac.shared.exchange(door(vps))
+    const kept = join(conversationFilesPath(mac.home, vps.id), 'tool-results', 'toolu_big.json')
+    expect(existsSync(kept)).toBe(false)
+    const part = `${kept}.part`
+    expect(existsSync(part) ? statSync(part).size : 0).toBeLessThanOrEqual(200_000)
+    expect(warned.filter((text) => text.includes(room.says()))).toHaveLength(1)
   })
 
   it('says once that a file is nowhere, and is not asked for it again', async () => {

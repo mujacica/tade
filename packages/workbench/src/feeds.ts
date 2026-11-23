@@ -24,6 +24,7 @@ import {
   laterEpoch,
   MACHINE_ID,
   matchesFilter,
+  PeerRoom,
   printable,
   type SyncState,
   type SyncSummary,
@@ -423,6 +424,9 @@ export interface FeedsAnswer {
   state?: SyncState
 }
 
+/** What a new copy costs before its first line, as `PeerRoom` counts it: its folder's `feed.json`. */
+const COPY_BYTES = 1024
+
 /** A refusal that means: give it again from line one. */
 const FROM_START = 'from the start'
 
@@ -437,16 +441,27 @@ export class Feeds {
   /** Lines given in pieces, waiting for the rest, by who gave them and where. */
   private readonly pieces = new Map<string, { text: string; at: number }>()
   private queue: Promise<unknown> = Promise.resolve()
+  /**
+   * How much more of what other machines give fits on this disk, all of it
+   * together (`@tade/core`'s `peer-disk.ts`): copies set aside by forks, and
+   * machines nobody here has heard of, count as much as any.
+   */
+  private readonly room: PeerRoom
 
-  private constructor(home: string, me: MachineNamed & { epoch: Epoch }) {
+  private constructor(home: string, me: MachineNamed & { epoch: Epoch }, room: PeerRoom) {
     this.home = home
     this.me = me
     this.own = new FeedFile(join(home, 'events.jsonl'), false)
+    this.room = room
   }
 
   /** Every feed under a home, read; this machine's own journal too, which may take a moment where it is big. */
-  static async open(home: string, me: MachineNamed & { epoch: Epoch }): Promise<Feeds> {
-    const feeds = new Feeds(home, me)
+  static async open(
+    home: string,
+    me: MachineNamed & { epoch: Epoch },
+    opts: { room?: PeerRoom } = {},
+  ): Promise<Feeds> {
+    const feeds = new Feeds(home, me, opts.room ?? new PeerRoom(home))
     const entries = await readdir(join(home, 'machines'), { withFileTypes: true }).catch(
       ifMissing([]),
     )
@@ -571,6 +586,9 @@ export class Feeds {
     }
     if (copy === undefined || laterEpoch(given.epoch, copy.meta.epoch) > 0) {
       if (given.after !== 0) return no(FROM_START)
+      // A new copy is a folder and its `feed.json` before any line: a machine
+      // id made up per beat would be a folder per beat, so it asks for room too.
+      if (!(await this.room.fits(COPY_BYTES, now))) return no(this.room.says())
       if (copy !== undefined) forked = await this.setAside(copy, 'epoch', giver, now)
       copy = await this.begin(given, copy?.meta.forks ?? [])
     } else if (copy.file.hAt(given.after) !== given.h && given.after <= copy.file.seq) {
@@ -618,7 +636,10 @@ export class Feeds {
       }
       fresh.push({ line, seq: head.seq, h })
     }
+    const bytes = fresh.reduce((sum, one) => sum + Buffer.byteLength(one.line) + 1, 0)
+    if (bytes > 0 && !(await this.room.fits(bytes, now))) return no(this.room.says())
     await copy.file.append(fresh)
+    this.room.spent(bytes)
     return {
       took: {
         machine: given.machine,
@@ -693,6 +714,7 @@ export class Feeds {
 
   /** A new copy of one machine's journal, for the life `given` is of. */
   private async begin(given: Given, forks: CopyMeta['forks']): Promise<Copy> {
+    this.room.spent(COPY_BYTES)
     const dir = feedDir(this.home, given.machine)
     await mkdir(dir, { recursive: true })
     const meta: CopyMeta = {

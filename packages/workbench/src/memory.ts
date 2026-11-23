@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   allNotes,
@@ -58,6 +58,19 @@ import { z } from 'zod'
 // this home's own and never given.
 
 const FILE = 'memory.jsonl'
+
+/**
+ * How big the notes file may grow by what other machines give (`take`): a
+ * person's notes are a few hundred kilobytes in a year (0.4 MB, measured
+ * 2026-11-23), and any agent on a linked machine can append to its own file,
+ * which is then given here a megabyte a round. Past this nothing more is
+ * taken, and that is said; what is noted here is never refused.
+ */
+export const NOTES_TAKEN_MOST = 32 * 1024 * 1024
+
+/** What is said where `NOTES_TAKEN_MOST` stopped a take. */
+export const NOTES_FULL =
+  'the notes file here is past 32 MB, so nothing more another machine gives is taken: notes are never that many, so something there is writing them — retire what is not yours there, or look at what wrote them'
 
 const Named = z.strictObject({ at: z.string(), text: z.string() })
 
@@ -381,7 +394,12 @@ export class Memory {
       const came = { at: read.note.at, text: read.note.text }
       out.push(JSON.stringify({ came, from, at: new Date(now).toISOString() }))
     }
-    if (out.length > 0) appendFileSync(this.path, out.map((line) => `${line}\n`).join(''))
+    if (out.length > 0) {
+      const text = out.map((line) => `${line}\n`).join('')
+      const size = statSync(this.path, { throwIfNoEntry: false })?.size ?? 0
+      if (size + Buffer.byteLength(text) > NOTES_TAKEN_MOST) throw new Error(NOTES_FULL)
+      appendFileSync(this.path, text)
+    }
     this.notes = load(this.path)
     return took
   }

@@ -15,6 +15,16 @@ import { DOCUMENT_EVENTS } from './produces.ts'
 // machine that is only switched off would come back to find its work started
 // on without it.
 //
+// **That `task_done` is vps's word, and nothing here can check it.** Anything
+// that runs on vps — an agent there runs as you — can append one to its
+// journal, and a relay can hand on lines of vps's past what this machine has
+// heard from vps itself; the chain over a copy proves one history, not who
+// wrote it. A release on that word is kept on purpose: all it can do is start
+// work the person queued here to start after it, and asking for a press at
+// every one would end the night's queue on a machine with its lid shut. What
+// would change it is a signature per machine on its journal, which nothing
+// makes yet.
+//
 // **A move is a forwarding pointer.** `task_moved {to, as}` in the journal of
 // the machine a task left and `task_taken {from, was}` in the journal of the
 // one that took it say together where it went, so a wait follows it — across

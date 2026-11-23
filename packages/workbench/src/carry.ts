@@ -485,7 +485,9 @@ export function takeBack(
     }
     // Taken on a press, it is the person's here — never what that machine
     // said, which would go on to a third machine as if it were checked.
-    const origin = widens ? 'window' : one.by
+    // Taken by itself, who changed it is that machine's word, and written as
+    // one (`relayedBy`): so it never reaches a third machine as the person's.
+    const origin = widens ? 'window' : relayedBy(one.by, there)
     back.writes.push({
       path: one.path,
       value: theirs.value,
@@ -507,6 +509,21 @@ export function takeBack(
     }
   }
   return back
+}
+
+/**
+ * Who changed a setting, as this machine writes down another machine's word
+ * for it: `window on vps`, never `window`. A `by` is a claim this machine
+ * cannot check — an agent there can edit its config and be `file` — and
+ * written as itself, it would be passed on to a third machine as the person
+ * here (`personBy`), where a `never` path from it would land unasked. One
+ * already named as another machine's word stays as it is, so a relay through
+ * many machines names the first.
+ */
+export function relayedBy(by: string | undefined, there: string): string | undefined {
+  if (by === undefined) return undefined
+  if (/ on [^\s]+$/.test(by)) return by.slice(0, 200)
+  return `${by} on ${there}`.slice(0, 200)
 }
 
 /**

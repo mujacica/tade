@@ -1,6 +1,15 @@
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { CHAIN_START, chainNext, feedDir, stateHash, syncStateOf, travels } from '@tade/core'
+import {
+  CHAIN_START,
+  chainNext,
+  feedDir,
+  PeerRoom,
+  peersBytes,
+  stateHash,
+  syncStateOf,
+  travels,
+} from '@tade/core'
 import type { Answer } from '@tade/remotes-core'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -232,6 +241,38 @@ describe('one exchange', () => {
     expect(gap.took.refused).toBe('from the start')
     expect(copyOf(vps, mac)).toHaveLength(at)
     await mac.log.close()
+    await vps.log.close()
+  })
+})
+
+describe('what other machines may fill this disk with', () => {
+  it('stops at one ceiling for all of them together, however many machine ids are made up, and says why', async () => {
+    const vps = await machine('vps')
+    // A ceiling a few lines wide, walked at every take, so the test counts bytes.
+    const room = new PeerRoom(vps.home, { most: 4_096, every: 0 })
+    vps.feeds = await Feeds.open(vps.home, { ...vps.file, name: 'vps' }, { room })
+    const epoch = vps.file.epoch
+    const lineOf = (seq: number) =>
+      JSON.stringify({ seq, ts: 'x', type: 'said', detail: { text: 'y'.repeat(400) } })
+    const refused: string[] = []
+    // Whoever controls one machine hands this one a journal per invented id.
+    for (let n = 0; n < 40; n++) {
+      const id = `${n.toString(16).padStart(8, '0')}-0000-4000-8000-000000000000`
+      const given = {
+        machine: id,
+        name: `made-up-${n}`,
+        epoch,
+        after: 0,
+        h: CHAIN_START,
+        lines: [lineOf(1), lineOf(2)],
+      }
+      const took = await vps.feeds.take(given, { id, name: `made-up-${n}` }, now())
+      if (took.took.refused !== undefined) refused.push(took.took.refused)
+    }
+    expect(await peersBytes(vps.home)).toBeLessThanOrEqual(4_096 + 1_024)
+    expect(refused.length).toBeGreaterThan(30)
+    expect(refused[0]).toBe(room.says())
+    expect(room.says()).toContain('safe to delete')
     await vps.log.close()
   })
 })
