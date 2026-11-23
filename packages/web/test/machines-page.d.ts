@@ -37,6 +37,9 @@ declare module '*/assets/pages/machines-shape.js' {
   export function notesOf(
     answer: unknown,
   ): { id: string; label: string; note: string; said: string }[]
+  export function waitingOf(
+    answer: unknown,
+  ): { id: string; label: string; note: string; said: string }[]
   export const NOTE_PRESSES: readonly { answer: 'take' | 'leave'; word: string }[]
   export function underWay(answer: unknown): boolean
   export function diffTone(line: string): string

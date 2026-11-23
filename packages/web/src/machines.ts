@@ -12,7 +12,8 @@ import { fullAccessLacks, ownsOrTheirs } from './surface.ts'
 // again: the keys the shell's files set, moved into one file, shown first as a
 // diff with every value hidden and done only on a second press. And a change
 // another machine gave to a note taken here, taken or left on a press
-// (`MachinesNote`).
+// (`MachinesNote`), and a change made here that waits for a press on the
+// machine its note was taken on (`MachinesWaiting`).
 //
 // **Theirs, as `/api/machine` is** (`here` and `theirs` in `routes.ts`): what
 // it reads is what `tade machine` over the SSH key reads, and what the move
@@ -92,6 +93,29 @@ export interface MachinesAnswer {
   agents: string
   /** Changes to notes taken here, each waiting for Take it here or Leave it. */
   notes: readonly MachinesNote[]
+  /**
+   * This machine's changes to notes taken on another, done here and waiting
+   * for the person's press there (`MachinesWaiting`). Absent from a window
+   * older than them.
+   */
+  waiting?: readonly MachinesWaiting[]
+}
+
+/**
+ * A change made or given here to a note taken on another machine, which that
+ * machine said it holds for the person's press there (`@tade/workbench`'s
+ * `NotesAsk.held`): done here, and still told to every agent there until it is
+ * taken. Only to look at — the press is that machine's.
+ */
+export interface MachinesWaiting {
+  /** What names the change, as the press there does. */
+  id: string
+  /** What it did and where it waits: `Retired · waits on mac`. */
+  label: string
+  /** The note's words. */
+  note: string
+  /** The whole of it in a sentence. */
+  said: string
 }
 
 /**

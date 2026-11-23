@@ -167,6 +167,9 @@ export interface HeldChange {
   scopes?: string[] | null
 }
 
+/** A retire, forget or also line, by what names it (`Memory.changes`): a `HeldChange` short of where it was heard. */
+export type NoteChange = Omit<HeldChange, 'from' | 'heard'>
+
 /** A line this home may give another (`shared`): what names it, as written, and where its note was taken. */
 export interface Shared {
   /** What names the line, digested (`digestOf`): two homes compare these, never the words. */
@@ -448,6 +451,36 @@ export class Memory {
         by: one.line.by,
         at: one.line.at,
         heard: came.at,
+        ...(one.kind === 'retire' ? { because: one.line.because } : {}),
+        ...(one.kind === 'also' ? { scopes: one.line.scopes } : {}),
+      })
+    }
+    return out
+  }
+
+  /**
+   * The retire, forget and also lines this home holds that these digests name,
+   * in the order written: what another machine says it holds for a press there
+   * (`NotesAsk.held`), said here in this home's own words. A digest naming
+   * nothing here, or a line of another kind, is left out. Read from the file.
+   */
+  changes(digests: readonly string[]): NoteChange[] {
+    const wanted = new Set(digests)
+    if (wanted.size === 0) return []
+    const out: NoteChange[] = []
+    for (const one of readAll(this.path)) {
+      if (one.kind !== 'retire' && one.kind !== 'forget' && one.kind !== 'also') continue
+      const key = keyOf(one)
+      const digest = key === null ? null : digestOf(key)
+      if (digest === null || !wanted.has(digest)) continue
+      wanted.delete(digest)
+      const about = aboutOf(one)
+      out.push({
+        digest,
+        kind: one.kind,
+        note: { at: about.at, text: about.text },
+        by: one.line.by,
+        at: one.line.at,
         ...(one.kind === 'retire' ? { because: one.line.because } : {}),
         ...(one.kind === 'also' ? { scopes: one.line.scopes } : {}),
       })

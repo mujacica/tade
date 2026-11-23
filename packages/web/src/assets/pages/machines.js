@@ -6,6 +6,9 @@
 // there are any, the notes taken on this machine that another one retired,
 // took back or widened, each waiting for Take it here or Leave it: a linked
 // machine's word about a note is only that machine's, and this phone is yours.
+// Then, only to look at, the notes taken on another machine that were changed
+// here and wait for a press there, which until then still tells them as they
+// were.
 //
 // **What somebody opening this wants first** is whether their machines agree:
 // how many there are, what is missing on this one and what differs between
@@ -40,6 +43,7 @@ import {
   notesOf,
   pressesOf,
   underWay,
+  waitingOf,
 } from './machines-shape.js'
 
 /** Where the page is asked, and where a press goes. */
@@ -65,6 +69,10 @@ const AGAIN_MS = 30_000
 /** What a held change to a note is, behind its section's `?`. */
 const NOTES_HINT =
   'Another machine retired, took back or widened a note that was taken on this one. Any agent there runs as you and could have written it, so it is only that machine’s word until you take it here. Leave it, and the note stays as it is.'
+
+/** What a change waiting on another machine is, behind its section's `?`. */
+const WAITING_HINT =
+  'A note taken on another machine that you retired, took back or widened here. It is done here, and that machine still tells it as it was to every agent there until you press Take it here on its Machines page or in its Settings › Remotes.'
 
 /** What the move is, said once where somebody is deciding — behind its `?`. */
 const MOVE_HINT =
@@ -163,6 +171,10 @@ export function machinesScreen(ctx) {
   const noteTrouble = problem()
   into(changed.body, noteList, noteTrouble)
 
+  const waits = section('WAITING ON ANOTHER MACHINE', { hint: WAITING_HINT })
+  const waitList = panel('ul', 'mc-items')
+  into(waits.body, waitList)
+
   const seen = section('EACH MACHINE')
   const columnList = panel('ul', 'mc-machines')
   into(seen.body, columnList)
@@ -191,7 +203,7 @@ export function machinesScreen(ctx) {
   into(top.tools, again)
 
   const body = el('div', { class: 'mc-body' })
-  into(body, lead, changed.node, seen.node, nothing, items, moving.node)
+  into(body, lead, changed.node, waits.node, seen.node, nothing, items, moving.node)
   into(top.body, coming, failed, body)
   into(node, top.node)
 
@@ -253,6 +265,10 @@ export function machinesScreen(ctx) {
     changed.node.hidden = notes.length === 0
     textIn(changed.figure, notes.length === 0 ? '' : String(notes.length))
     keyed(noteList, notes, (one) => one.id, createNote, fillNote)
+    const waiting = waitingOf(answer)
+    waits.node.hidden = waiting.length === 0
+    textIn(waits.figure, waiting.length === 0 ? '' : String(waiting.length))
+    keyed(waitList, waiting, (one) => one.id, createWaiting, fillWaiting)
     seen.node.hidden = answer.columns === null
     keyed(columnList, columns, (one) => one.machine, createColumn, fillColumn)
 
@@ -344,6 +360,25 @@ export function machinesScreen(ctx) {
     for (const press of presses.children) {
       press.onclick = () => void settled(one.id, press.dataset.answer)
     }
+  }
+
+  /** One change waiting on another machine: what it did and where, the note, and the sentence — no press. */
+  function createWaiting() {
+    const node = el('li', { class: 'mc-item' })
+    into(
+      node,
+      el('span', { class: 'mc-label' }),
+      el('span', { class: 'mc-note' }),
+      el('span', { class: 'mc-said' }),
+    )
+    return node
+  }
+
+  function fillWaiting(node, one) {
+    const [label, note, said] = node.children
+    textIn(label, one.label)
+    textIn(note, `“${one.note}”`)
+    textIn(said, one.said)
   }
 
   async function settled(note, answer) {

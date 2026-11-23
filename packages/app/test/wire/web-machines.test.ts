@@ -1,9 +1,11 @@
 import { ENV_FILE_SAID, KEYS_AND_AGENTS } from '@tade/core'
 import { Memory } from '@tade/workbench/memory'
+import { answerNotes, type NotesAsk, shareNotes } from '@tade/workbench/notes-shared'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { CANCEL, type MachinesShown } from '../../src/panels/settings/machines.ts'
 import type { Wiring } from '../../src/wire/context.ts'
+import { notesFor, WaitingThere } from '../../src/wire/notes-shared.ts'
 import { type MachinesHeld, machinesFrom } from '../../src/wire/web-machines.ts'
 
 // The Machines page as this window answers the person's own phone
@@ -141,6 +143,54 @@ describe('the Machines page, as this window answers a phone', () => {
     expect(leaving.settle(leaving.shown().notes[0]?.id ?? '', 'leave', 'device d1')).toBe(true)
     expect(other.all().map((one) => one.text)).toEqual(['deploys freeze on Fridays'])
     expect(leaving.shown().notes).toEqual([])
+  })
+
+  it('shows a note taken on another machine and retired here as waiting there, only to look at, until that machine says it is not', async () => {
+    // The Mac holds the link and asks; the box answers at its door and is the page here.
+    const mac = Memory.open(tmp('tade-machines-'))
+    const box = Memory.open(tmp('tade-machines-'))
+    const kept = mac.remember('deploys freeze on Fridays', null, 'voice', AT)
+    const door = (ask: NotesAsk) =>
+      Promise.resolve({ status: 200, body: answerNotes(box, ask, ask.from, 'vps', AT) })
+    await shareNotes(mac, door, { from: 'mac', name: 'vps' })
+    box.retire({ at: kept.at }, 'the freeze was lifted', 'device phone', AT + 1)
+    await shareNotes(mac, door, { from: 'mac', name: 'vps' })
+    const [change] = mac.held()
+
+    const waiting = new WaitingThere()
+    const { wire } = wiring(box)
+    const machines = machinesFrom(wire, held(SHOWN).inventory, waiting)
+    // Done here at once, and nothing said of it before the Mac's next exchange.
+    expect(box.all()).toEqual([])
+    expect(machines.shown().waiting).toEqual([])
+    const opening = { from: 'mac', sum: '0'.repeat(64), give: [], want: [] }
+    await notesFor(wire, waiting)(
+      { ...opening, held: [change?.digest ?? ''] },
+      {
+        device: 'd-mac',
+        from: 'mac',
+      },
+    )
+    expect(machines.shown().waiting).toEqual([
+      {
+        id: change?.digest,
+        label: 'Retired · waits on mac',
+        note: 'deploys freeze on Fridays',
+        said: 'Retired here; mac still tells it to every agent there until you take it there — device phone: the freeze was lifted',
+      },
+    ])
+    // Nothing to press here: it is the Mac's.
+    expect(machines.shown().notes).toEqual([])
+    expect(machines.settle(change?.digest ?? '', 'take', 'device d1')).toBe(false)
+    // A round after the opening says nothing of it, and leaves what was said.
+    await notesFor(wire, waiting)(
+      { from: 'mac', give: [], want: [] },
+      { device: 'd-mac', from: 'mac' },
+    )
+    expect(machines.shown().waiting).toHaveLength(1)
+    // Taken on the Mac: its next opening names none, and none is shown.
+    await notesFor(wire, waiting)(opening, { device: 'd-mac', from: 'mac' })
+    expect(machines.shown().waiting).toEqual([])
   })
 
   it('says a press that failed rather than dropping it', async () => {

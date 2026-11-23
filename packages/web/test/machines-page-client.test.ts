@@ -15,6 +15,7 @@ import {
   notesOf,
   pressesOf,
   underWay,
+  waitingOf,
 } from '../src/assets/pages/machines-shape.js'
 import type { MachinesAnswer } from '../src/machines.ts'
 
@@ -140,6 +141,13 @@ describe('the Machines page’s words', () => {
       ['take', 'Take it here'],
       ['leave', 'Leave it'],
     ])
+  })
+
+  it('lists the changes made here that wait on another machine, and none from an older window', () => {
+    const one = { id: '0123456789abcdef', label: 'Retired · waits on mac', note: 'n', said: 's' }
+    expect(waitingOf({ ...ANSWER, waiting: [one] })).toEqual([one])
+    expect(waitingOf(ANSWER)).toEqual([])
+    expect(waitingOf(null)).toEqual([])
   })
 
   it('asks again soon only while something is under way', () => {

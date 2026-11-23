@@ -39,6 +39,9 @@ export const WANT_MOST = 500
 /** What one answer gives, in bytes of lines, before it leaves the rest for the next round. */
 export const ANSWER_BYTES = 1024 * 1024
 
+/** How many held changes the opening request names: the far side reads no more. */
+export const HELD_MOST = 1_000
+
 /** The most rounds one exchange takes before it leaves the rest for the next. */
 const ROUNDS_MOST = 64
 
@@ -54,6 +57,12 @@ export interface NotesAsk {
   give: Given[]
   /** Digests of lines this side does not have. */
   want: string[]
+  /**
+   * Opening it: the far side's changes to notes taken on the asking side that
+   * wait for the person's press there (`Memory.held`), by digest. Absent where
+   * none wait, which a far side reads as none.
+   */
+  held?: string[]
 }
 
 /** A line the far side answered with: as `Given`, and the digest it holds it by. */
@@ -161,7 +170,17 @@ export async function shareNotes(
   const ask = async (body: NotesAsk) => answerOf(await call(body), opts.name)
   const here = memory.shared()
   const sum = sumOf(here.map((one) => one.digest))
-  const first = await ask({ from: opts.from, sum, give: [], want: [] })
+  const held = memory
+    .held()
+    .filter((one) => one.from === opts.name)
+    .map((one) => one.digest)
+    .slice(0, HELD_MOST)
+  const opening: NotesAsk = { from: opts.from, sum, give: [], want: [] }
+  let opened = await call(held.length > 0 ? { ...opening, held } : opening)
+  // A Tade older than this one refuses a body it does not know whole: asked
+  // again without what waits here, it shares as before and only cannot say so.
+  if (held.length > 0 && opened.status === 400) opened = await call(opening)
+  const first = answerOf(opened, opts.name)
   const out: Exchanged = {
     same: first.sum === sum,
     took: 0,

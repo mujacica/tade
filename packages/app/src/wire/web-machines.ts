@@ -3,7 +3,7 @@ import type { MachinesAnswer, WebMachines } from '@tade/web'
 import { CANCEL } from '../panels/settings/machines.ts'
 import { type Wiring, why } from './context.ts'
 import type { Inventories } from './inventory.ts'
-import { HELD_DOES, heldSaid } from './notes-shared.ts'
+import { HELD_DOES, heldSaid, type WaitingThere, waitingSaid } from './notes-shared.ts'
 
 // The Machines page as this window answers the person's own phone
 // (`@tade/web`'s `machines.ts`): what Settings › Machines draws, out of the
@@ -15,19 +15,29 @@ import { HELD_DOES, heldSaid } from './notes-shared.ts'
 // **And a change another machine gave to a note taken here** (`Memory.held`),
 // taken or left from the phone as from Settings › Remotes, written in
 // `memory.jsonl` as the device's press. Read from the file each time the page
-// asks, which is a request and not a frame.
+// asks, which is a request and not a frame. **And a change made here that
+// waits for a press on the machine its note was taken on** (`WaitingThere`),
+// only to look at: the press is that machine's.
 
 /** What of the inventory subject the page reads and presses. */
 export type MachinesHeld = Pick<Inventories, 'shown' | 'look' | 'planMove' | 'move' | 'action'>
 
-export function machinesFrom(wire: Wiring, inventory: MachinesHeld): WebMachines {
+export function machinesFrom(
+  wire: Wiring,
+  inventory: MachinesHeld,
+  waiting?: WaitingThere,
+): WebMachines {
   const started = (doing: Promise<unknown>) =>
     void doing.catch((err: unknown) =>
       wire.note(new Error(`A press from away failed: ${why(err)}`)),
     )
   const memory = () => wire.opts.client.memory
   return {
-    shown: () => ({ ...answerOf(inventory), notes: notesOf(wire) }),
+    shown: () => ({
+      ...answerOf(inventory),
+      notes: notesOf(wire),
+      waiting: waitingOf(wire, waiting),
+    }),
     press: (press, by) => {
       if (press === 'look') started(inventory.look(true))
       else if (press === 'plan') started(inventory.planMove())
@@ -63,7 +73,17 @@ function notesOf(wire: Wiring): MachinesAnswer['notes'] {
   }))
 }
 
-function answerOf(inventory: MachinesHeld): Omit<MachinesAnswer, 'notes'> {
+/** The changes made here waiting for a press where their note was taken, as the page says them. */
+function waitingOf(wire: Wiring, waiting: WaitingThere | undefined): MachinesAnswer['waiting'] {
+  return (waiting?.shown(wire.opts.client.memory) ?? []).map(({ machine, change }) => ({
+    id: change.digest,
+    label: `${HELD_DOES[change.kind]} · waits on ${printable(machine)}`,
+    note: printable(change.note.text),
+    said: waitingSaid(machine, change),
+  }))
+}
+
+function answerOf(inventory: MachinesHeld): Omit<MachinesAnswer, 'notes' | 'waiting'> {
   const shown = inventory.shown()
   const words = { file: ENV_FILE_SAID, agents: KEYS_AND_AGENTS }
   if (shown === null) {

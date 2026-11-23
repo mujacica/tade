@@ -2,7 +2,7 @@ import { stat } from 'node:fs/promises'
 import { machineLabel, printable } from '@tade/core'
 import { type Held, LinkError, type Remote, type RemoteLink } from '@tade/remotes-core'
 import type { WebNotes } from '@tade/web'
-import type { HeldChange, Memory } from '@tade/workbench/memory'
+import type { HeldChange, Memory, NoteChange } from '@tade/workbench/memory'
 import {
   answerNotes,
   type Exchanged,
@@ -37,6 +37,14 @@ import type { Wiring } from './context.ts'
 // it moved, so the Remotes page asks nothing of the disk four times a second;
 // taken or left from there (`settle`) or from the person's own phone
 // (`web-machines.ts`).
+//
+// **And the other way, a change made here waits for a press there**: a
+// machine sharing with this one names, opening each exchange, the changes it
+// holds from here (`NotesAsk.held`), kept by `WaitingThere` for as long as
+// this window is open — the asker says it again at its next exchange, which a
+// press there brings within a beat — so this machine's own Machines page can
+// say a note it retired is still told to every agent on the machine it was
+// taken on.
 
 /** How long a linked remote goes before its notes are looked at again anyway. */
 const AGAIN_MS = 10 * 60_000
@@ -214,6 +222,49 @@ export class SharedNotes {
   }
 }
 
+/**
+ * What each machine that shares notes with this one last said it holds of
+ * this one's changes, for the person's press there (`NotesAsk.held`): only
+ * digests, kept only while the window is open, each machine's list replaced
+ * whole by its next opening request.
+ */
+export class WaitingThere {
+  private readonly told = new Map<string, readonly string[]>()
+
+  /** A machine opened an exchange: what it holds from here now, in place of what it held. */
+  heard(machine: string, digests: readonly string[]): void {
+    if (digests.length === 0) this.told.delete(machine)
+    else this.told.set(machine, [...digests])
+  }
+
+  /** Each change waiting on another machine, in this home's own words, with the machine it waits on. */
+  shown(memory: Memory): { machine: string; change: NoteChange }[] {
+    return [...this.told].flatMap(([machine, digests]) =>
+      memory.changes(digests).map((change) => ({ machine, change })),
+    )
+  }
+}
+
+/**
+ * A change made here that waits on `machine`, in words: `Retired here; mac
+ * still tells it to every agent there until you take it there — device phone:
+ * the freeze was lifted`. Made printable here, as `heldSaid` is.
+ */
+export function waitingSaid(machine: string, change: NoteChange): string {
+  const there = printable(machine)
+  const by = printable(change.by)
+  const until = 'until you take it there'
+  if (change.kind === 'retire') {
+    return `Retired here; ${there} still tells it to every agent there ${until} — ${by}: ${printable(change.because ?? '')}`
+  }
+  if (change.kind === 'forget') {
+    return `Taken back here; ${there} still tells it to every agent there ${until} — ${by}`
+  }
+  const more =
+    change.scopes == null ? 'everything' : change.scopes.map((one) => printable(one)).join(', ')
+  return `Told to ${more} here; ${there} tells it only where it did ${until} — ${by}`
+}
+
 /** What each kind of held change would do, as its label begins. */
 export const HELD_DOES = { retire: 'Retired', forget: 'Taken back', also: 'Widened' } as const
 
@@ -270,10 +321,13 @@ export function sharedNotesFor(
 /**
  * The window's `WebNotes`: another machine's notes taken into this home's —
  * the workbench's own memory, so every agent and the orchestrator here are
- * told them from now on — and written down where anything was taken.
+ * told them from now on — and written down where anything was taken; and what
+ * it holds of this one's changes for a press there, kept in `waiting`.
  */
-export function notesFor(wire: Wiring): WebNotes {
+export function notesFor(wire: Wiring, waiting?: WaitingThere): WebNotes {
   return async (body, by) => {
+    // Only the opening request says what waits there; the rounds after leave it out.
+    if (body.sum !== undefined) waiting?.heard(by.from, body.held ?? [])
     const answer = answerNotes(wire.opts.client.memory, body, by.from, machineLabel(), wire.now())
     if (answer.took > 0 || answer.refused > 0) {
       await wire.opts.client.log.append({

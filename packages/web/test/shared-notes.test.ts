@@ -64,6 +64,7 @@ describe('sharing notes', () => {
       sum: SUM,
       give: [{ line: NOTE, from: 'build-box' }],
       want: [DIGEST],
+      held: [DIGEST],
     }
     const said = await asOwner(one, made, body)
     expect(said.status, said.text).toBe(200)
@@ -100,6 +101,8 @@ describe('sharing notes', () => {
       { ...fine, give: [{ line: 'x'.repeat(32_001) }] },
       { ...fine, give: [{ line: NOTE, from: 'a\nb' }] },
       { ...fine, want: ['../../etc'] },
+      { ...fine, held: ['../../etc'] },
+      { ...fine, held: Array.from({ length: 1_001 }, () => DIGEST) },
       { ...fine, also: 'more' },
       { give: [], want: [] },
       null,

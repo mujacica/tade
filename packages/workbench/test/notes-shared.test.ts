@@ -288,6 +288,71 @@ describe('an exchange between two homes', () => {
     })
   })
 
+  it('tells the far side, opening each exchange, which of its changes wait for a press here, until the press', async () => {
+    const mac = Memory.open(tmp('tade-mac-'))
+    const vps = Memory.open(tmp('tade-vps-'))
+    const kept = mac.remember('deploys freeze on Fridays', null, 'voice', NOW)
+    const also = mac.remember('refunds go through the ledger', null, 'voice', NOW + 1)
+    await shareNotes(mac, farAt(vps, 'vps'), { from: 'mac', name: 'vps' })
+    let asked: NotesAsk[] = []
+    await shareNotes(mac, farAt(vps, 'vps', asked), { from: 'mac', name: 'vps' })
+    // Nothing waits: no list, so a far side older than this reads the same body it always did.
+    expect(asked.every((one) => one.held === undefined)).toBe(true)
+
+    // The person, on their phone paired to the box: done there at once, held here.
+    vps.retire({ at: kept.at }, 'the freeze was lifted', 'device phone', NOW + 2)
+    vps.forget(also, 'device phone', NOW + 3)
+    await shareNotes(mac, farAt(vps, 'vps'), { from: 'mac', name: 'vps' })
+    asked = []
+    await shareNotes(mac, farAt(vps, 'vps', asked), { from: 'mac', name: 'vps' })
+    const told = asked[0]?.held ?? []
+    expect(told).toEqual(mac.held().map((one) => one.digest))
+    // The box names them in its own words, by the digest alone.
+    expect(vps.changes(told).map((one) => [one.kind, one.note.text, one.by, one.because])).toEqual([
+      ['retire', kept.text, 'device phone', 'the freeze was lifted'],
+      ['forget', also.text, 'device phone', undefined],
+    ])
+    expect(vps.changes(['0123456789abcdef'])).toEqual([])
+    // Only to another machine about its own changes: a third is told none of them.
+    asked = []
+    await shareNotes(mac, farAt(Memory.open(tmp('tade-ipax-')), 'ipax', asked), {
+      from: 'mac',
+      name: 'ipax',
+    })
+    expect(asked[0]?.held).toBeUndefined()
+
+    // Taken here on the press: the next exchange names only what still waits.
+    mac.settle(told[0] ?? '', 'take', 'window', NOW + 4)
+    asked = []
+    await shareNotes(mac, farAt(vps, 'vps', asked), { from: 'mac', name: 'vps' })
+    expect(asked[0]?.held).toEqual([told[1]])
+    mac.settle(told[1] ?? '', 'leave', 'window', NOW + 5)
+    asked = []
+    await shareNotes(mac, farAt(vps, 'vps', asked), { from: 'mac', name: 'vps' })
+    expect(asked[0]?.held).toBeUndefined()
+  })
+
+  it('shares with a far side too old to read what waits here, asking again without it', async () => {
+    const mac = Memory.open(tmp('tade-mac-'))
+    const vps = Memory.open(tmp('tade-vps-'))
+    const kept = mac.remember('deploys freeze on Fridays', null, 'voice', NOW)
+    await shareNotes(mac, farAt(vps, 'vps'), { from: 'mac', name: 'vps' })
+    vps.retire({ at: kept.at }, 'the freeze was lifted', 'device phone', NOW + 1)
+    await shareNotes(mac, farAt(vps, 'vps'), { from: 'mac', name: 'vps' })
+    expect(mac.held()).toHaveLength(1)
+    mac.remember('refunds go through the ledger', null, 'voice', NOW + 2)
+
+    // An older Tade's door refuses a body it does not know whole, as `strictObject` does.
+    const asked: NotesAsk[] = []
+    const near = farAt(vps, 'vps', asked)
+    const older = async (ask: NotesAsk): Promise<Answer> =>
+      ask.held === undefined ? near(ask) : { status: 400, body: { error: 'malformed' } }
+    const done = await shareNotes(mac, older, { from: 'mac', name: 'vps' })
+    expect(done).toMatchObject({ same: false, gave: 1, left: 0 })
+    expect(vps.all().map((n) => n.text)).toEqual(['refunds go through the ledger'])
+    expect(asked[0]?.held).toBeUndefined()
+  })
+
   it('holds a note taken here told about more by another machine, until the press takes it', async () => {
     const mac = Memory.open(tmp('tade-mac-'))
     const vps = Memory.open(tmp('tade-vps-'))

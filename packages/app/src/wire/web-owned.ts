@@ -1,7 +1,7 @@
 import type { Inventory } from '@tade/core'
 import type { Wiring } from './context.ts'
 import type { Inventories } from './inventory.ts'
-import { notesFor } from './notes-shared.ts'
+import { notesFor, WaitingThere } from './notes-shared.ts'
 import { watchSeenFrom } from './watch-seen.ts'
 import { attachingFor } from './web-attach.ts'
 import type { Lifecycle } from './web-lifecycle.ts'
@@ -32,9 +32,12 @@ export function ownedFor(
   lifecycle?: Lifecycle,
   inventory?: Pick<Inventories, 'latest' | 'heard'> & MachinesHeld,
 ) {
+  // What another machine holds of this one's changes to its notes, told by
+  // its share and drawn on the Machines page.
+  const waiting = new WaitingThere()
   return {
     attaching: attachingFor(wire.opts.client),
-    notes: notesFor(wire),
+    notes: notesFor(wire, waiting),
     repositories: repositoriesFrom(
       () => wire.live?.world ?? null,
       wire.opts.home,
@@ -59,7 +62,7 @@ export function ownedFor(
     // What another machine of the person's has, kept here (`inventory.ts`).
     ...(inventory && {
       inventoryTold: (told: Inventory, device: string) => inventory.heard(told, device),
-      machines: machinesFrom(wire, inventory),
+      machines: machinesFrom(wire, inventory, waiting),
     }),
     ...(lifecycle === undefined ? {} : { opening: openingFrom(wire, lifecycle) }),
   }

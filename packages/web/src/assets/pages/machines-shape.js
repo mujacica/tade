@@ -156,6 +156,14 @@ export function notesOf(answer) {
   return answer?.notes ?? []
 }
 
+/**
+ * The changes made on this machine to notes taken on another, waiting for a
+ * press there: only to look at, and none from a window older than them.
+ */
+export function waitingOf(answer) {
+  return answer?.waiting ?? []
+}
+
 /** The two presses on a held change to a note, as Settings › Remotes words them. */
 export const NOTE_PRESSES = [
   { answer: 'take', word: 'Take it here' },

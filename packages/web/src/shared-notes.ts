@@ -49,6 +49,8 @@ const NotesBody = z.strictObject({
     .array(z.strictObject({ line: z.string().min(2).max(LINE_MOST), from: Named.optional() }))
     .max(2_000),
   want: z.array(Digest).max(1_000),
+  /** Opening it: this machine's changes to the asker's notes that wait there for a press. */
+  held: z.array(Digest).max(1_000).optional(),
 })
 
 export type NotesBody = z.infer<typeof NotesBody>
