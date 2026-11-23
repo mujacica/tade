@@ -19,12 +19,12 @@ const LINE = JSON.stringify({ seq: 1, ts: 'x', type: 'said', detail: {} })
 
 /** A machine whose window answers a share, and what it was handed. */
 async function machine() {
-  const handed: { body: FeedsBody; device: string }[] = []
+  const handed: { body: FeedsBody; device: string; label: string }[] = []
   const one = await start(
     {},
     {
-      feeds: async (body, device): Promise<FeedsShareAnswer> => {
-        handed.push({ body, device })
+      feeds: async (body, device, label): Promise<FeedsShareAnswer> => {
+        handed.push({ body, device, label })
         return { machine: { id: MAC, name: 'vps' }, lines: [], took: [] }
       },
     },
@@ -54,7 +54,7 @@ function asOwner(one: Running, made: Awaited<ReturnType<typeof owner>>, body: un
 const fine = { from: { id: MAC, name: 'mac' }, give: [], want: [] }
 
 describe('sharing journals', () => {
-  it('hands an owner’s lines to the window with the device that sent them, and answers what it said', async () => {
+  it('hands an owner’s lines to the window with the device that sent them and what it paired as, and answers what it said', async () => {
     const { one, handed } = await machine()
     const made = await owner(one)
     const body = {
@@ -67,7 +67,7 @@ describe('sharing journals', () => {
     const said = await asOwner(one, made, body)
     expect(said.status, said.text).toBe(200)
     expect(JSON.parse(said.text)).toMatchObject({ machine: { id: MAC, name: 'vps' } })
-    expect(handed).toEqual([{ body, device: made.device }])
+    expect(handed).toEqual([{ body, device: made.device, label: 'mac' }])
   })
 
   it('refuses a phone that is not the person’s own, and never asks the window', async () => {

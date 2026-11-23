@@ -81,7 +81,7 @@ export class MachinesSeen {
 
   /** A machine that links here said something of itself (`/api/seen`), at `at` in this clock. */
   heard(machine: string, word: SeenWord, at: number): void {
-    const name = nameOf(machine)
+    const name = seenName(machine)
     const was = this.inbound.get(name) ?? this.fromLine(name)
     this.moved(name, inboundSaid(name, was, word, at))
   }
@@ -154,8 +154,11 @@ function keyOf(way: string, machine: string): string {
   return `${way} ${machine}`
 }
 
-/** A machine's label as it may be written down and drawn: text only, bounded. */
-function nameOf(label: string): string {
+/**
+ * A machine's label as it may be written down and drawn: text only, bounded —
+ * the name its `machine_seen` lines carry, and its sync state is kept under.
+ */
+export function seenName(label: string): string {
   const plain = printable(label).trim().slice(0, 60)
   return plain === '' ? 'a machine' : plain
 }

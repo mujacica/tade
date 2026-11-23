@@ -32,6 +32,9 @@ interface Side {
 
 let clock = Date.parse('2026-11-22T10:00:00Z')
 
+/** What the near side's link paired as on the far side's door, which need not be its name. */
+const PAIRED = 'Amir’s laptop'
+
 async function side(name: string): Promise<Side> {
   const home = tmp(`tade-fleet-${name}-`)
   const file = (await ensureMachine(home, clock)).file
@@ -71,7 +74,9 @@ function reach(far: Side) {
       request: async (_name: string, _path: string, body: unknown): Promise<Answer> => ({
         status: 200,
         body: JSON.parse(
-          JSON.stringify(await far.feeds.web()(JSON.parse(JSON.stringify(body)), 'd1')),
+          JSON.stringify(
+            await far.feeds.web()(JSON.parse(JSON.stringify(body)), 'd1', ` ${PAIRED} `),
+          ),
         ),
       }),
     } as never,
@@ -111,6 +116,12 @@ describe('where this machine and another stand', () => {
       way: 'to',
       state: { word: 'in step' },
     })
+    // The far side keeps the near one under what it paired as, which its
+    // `machine_seen` lines name it by — not what it calls itself.
+    const there = JSON.parse(
+      readFileSync(join(feedDir(vps.home, mac.file.id), 'sync.json'), 'utf8'),
+    )
+    expect(there).toMatchObject({ name: 'mac', label: PAIRED, way: 'from' })
     // The same word again writes nothing; a new line that crossed is still in step.
     await vps.log.append({ type: 'task_done', task: 'p/one', detail: {} })
     await mac.feeds.share('vps', reach(vps))

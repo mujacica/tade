@@ -27,6 +27,7 @@ import {
 import { sumOf } from '@tade/workbench/notes-shared'
 import { parse as parseYaml } from 'yaml'
 import { configPathOf, type Wiring } from './context.ts'
+import { seenName } from './machines-seen.ts'
 
 // Every machine's journal kept on every machine of the person's, from the
 // window (`@tade/workbench`'s `feeds.ts` is the store and the exchange): the
@@ -173,13 +174,18 @@ export class FleetFeeds {
 
   /** The heart's `WebFeeds`: another machine's exchange answered here. */
   web(): WebFeeds {
-    return async (body) =>
+    return async (body, _device, label) =>
       answerFeeds(await this.feeds(), body as FeedsAsk, {
         extras: () => this.extras(),
         now: this.deps.now(),
         forked: (fork) => this.forked(fork),
         synced: (peer, here, there) =>
-          this.stand(peer, here, there, { way: 'from', name: peer.name, forks: 0 }),
+          this.stand(peer, here, there, {
+            way: 'from',
+            name: peer.name,
+            label: seenName(label),
+            forks: 0,
+          }),
       })
   }
 
@@ -286,7 +292,14 @@ export class FleetFeeds {
     peer: MachineNamed,
     here: SyncSummary,
     there: SyncSummary,
-    how: { way: 'to' | 'from'; name: string; forks: number; took?: number; gave?: number },
+    how: {
+      way: 'to' | 'from'
+      name: string
+      label?: string
+      forks: number
+      took?: number
+      gave?: number
+    },
   ): Promise<SyncState> {
     const lines = await this.deps.lines(['settings_conflict', 'remote_synced'])
     const conflicts = conflictsSince(lines, how.name)
@@ -300,6 +313,7 @@ export class FleetFeeds {
         id: peer.id,
         name: peer.name,
         ...(how.way === 'to' ? { called: how.name } : {}),
+        ...(how.label === undefined ? {} : { label: how.label }),
         way: how.way,
         state,
       })

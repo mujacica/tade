@@ -112,9 +112,9 @@ export function fleetRows(
   }
   for (const state of seen) {
     if (state.way !== 'from') continue
-    const named = (one: CopyHeld) =>
-      one.sync?.way === 'from' && one.sync.name.toLowerCase() === state.machine.toLowerCase()
-    rows.push(rowOf(state.machine, 'from', state, copyFor(named), null))
+    // By what its link paired as, never what it calls itself: the two need not agree.
+    const paired = (one: CopyHeld) => one.sync?.way === 'from' && one.sync.label === state.machine
+    rows.push(rowOf(state.machine, 'from', state, copyFor(paired), null))
   }
   for (const copy of copies) {
     if (used.has(copy.meta.machine) || copy.meta.machine === hereId) continue

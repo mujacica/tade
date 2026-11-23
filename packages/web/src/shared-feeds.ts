@@ -38,8 +38,12 @@ export interface FeedsShareAnswer {
   state?: unknown
 }
 
-/** The window's half: take what was given into the copies here, and answer. Throws the reason. */
-export type WebFeeds = (body: FeedsBody, device: string) => Promise<FeedsShareAnswer>
+/**
+ * The window's half: take what was given into the copies here, and answer.
+ * Throws the reason. `label` is what the device paired as — what a machine
+ * that links here is seen by (`/api/seen`) — and attacker-controlled text.
+ */
+export type WebFeeds = (body: FeedsBody, device: string, label: string) => Promise<FeedsShareAnswer>
 
 /**
  * The route: an owner's body read once, checked, and handed to the window.
@@ -57,5 +61,5 @@ export async function feedsHere(
   if (!got.read) return { refusal: got.refusal }
   const parsed = FeedsSchema.safeParse(got.body)
   if (!parsed.success) return { refusal: refuse('malformed') }
-  return { body: await feeds(parsed.data, device.id) }
+  return { body: await feeds(parsed.data, device.id, device.label) }
 }

@@ -752,6 +752,11 @@ export interface KeptSync {
   name: string
   /** Its name here (`remotes.<name>`), for a machine this one links to. */
   called?: string
+  /**
+   * What its link paired as, for a machine that links to this one: the name
+   * its `machine_seen` lines carry, which need not be what it calls itself.
+   */
+  label?: string
   /** `to`: this machine dialled it. `from`: it dialled this one. */
   way: 'to' | 'from'
   state: SyncState

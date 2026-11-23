@@ -25,6 +25,7 @@ const REMOTE = (name: string) =>
 
 const VPS = '22222222-2222-4222-8222-222222222222'
 const LAPTOP = '33333333-3333-4333-8333-333333333333'
+const MAC2 = '44444444-4444-4444-8444-444444444444'
 const EPOCH = { id: 'aaaaaaaaaaaaaaaa', at: '2026-11-20T10:00:00.000Z' }
 
 let saved: NodeJS.ProcessEnv
@@ -151,6 +152,32 @@ describe('tade machines', () => {
       ['mac2', 'from', 'lost', 0, null],
       ['laptop', 'relayed', null, 4, null],
     ])
+  })
+
+  it('finds where a machine that links here stands by what its link paired as, not what it calls itself', async () => {
+    const dir = home()
+    copy(dir, MAC2, 'studio', 7, {
+      id: MAC2,
+      name: 'studio',
+      label: 'mac2',
+      way: 'from',
+      state: {
+        word: 'in step',
+        here: 'a',
+        there: 'a',
+        behind: 0,
+        ahead: 0,
+        forks: 0,
+        conflicts: 0,
+        differ: [],
+        at: Date.parse('2026-11-22T11:55:00Z'),
+      },
+    })
+    const said = await tade(dir, 'machines')
+    expect(said.out).toContain(
+      'mac2  lost 2026-11-22 12:00 — no goodbye: asleep, or off the network · in step (as of 2026-11-22 11:55) · 7 journal lines kept here',
+    )
+    expect(said.out).not.toContain('studio')
   })
 
   it('says a home Tade never opened has no id yet', async () => {
