@@ -189,7 +189,7 @@ describe("Claude Code's record, for one conversation on every machine", () => {
       writeFileSync(`${account}/settings.json`, JSON.stringify({ apiKeyHelper: 'echo sk-fake' }))
       writeFileSync(`${account}/.claude.json`, JSON.stringify({ hasCompletedOnboarding: true }))
       const cwd = await realpath(tmp('tade-claude-merge-work-'))
-      const one = new ClaudeAdapter({ runDir: tmp('tcm-'), configDir: account })
+      const one = new ClaudeAdapter({ runDir: tmp('tcc-merge-'), configDir: account })
       adapter = one
       const replica = one.conversation
 

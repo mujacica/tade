@@ -139,7 +139,7 @@ describe("pi's session, for one conversation on every machine", () => {
       const cwd = tmp('tade-pi-merge-work-')
       adapter = new PiAdapter({
         runDir,
-        socketDir: tmp('pm-'),
+        socketDir: tmp('wx-'),
         supervise: false,
         args: ['-e', writeProviderExtension(runDir)],
         env: { ...process.env, TADE_TEST_BASE_URL: model.url },
