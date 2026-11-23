@@ -954,6 +954,19 @@ or `1 conflict`, and how much of its journal is kept here — as Settings › Ma
 Machines page do under each machine's name. A task's name is never used twice across your machines:
 one made on two of them while they were apart is renamed when it moves, and said.
 
+**One orchestrator, everywhere.** On Claude Code or pi, the conversation you have with Tade is the
+same conversation on every machine: tell the Mac something, close the lid, ask the box from your
+phone, and it answers from what you told the Mac — the same session, never introduced twice. A turn
+runs on the machine where you said it, with that machine's own account, and one at a time across
+your machines: the always-on box keeps whose turn it is, and something said elsewhere meanwhile waits
+for that turn and says so. When the two cannot reach each other, each carries on and says so; when
+they can again, what happened on the other is put after a marker in the conversation, word for word,
+and nothing either side said is lost or rewritten. The orchestrator acts on any machine with its own
+tools — start, steer, park, approve, change a setting there — and each act runs through that
+machine's own rules, once, even over a link that dropped; a setting there that needs your words
+takes the ones you typed where you were. Its briefing, the queue it reads and search cover every
+machine, each labelled with its name.
+
 **Several remotes**: run `tade remote add` once for each. `tade remote list` names them, `tade remote
 remove vps` signs this Mac out of one. While the window is open it holds one SSH connection to each
 and dials again by itself after a dropped network, and at once when the lid opens.

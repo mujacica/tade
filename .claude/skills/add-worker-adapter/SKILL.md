@@ -388,6 +388,31 @@ through Tade, so a `/compact` is not theirs to send. Two declarations and one me
   and an `orchestrator_told` / `orchestrator_compacted` in the journal — is `keepingDue`
   (`core/src/told.ts`) and `app/src/wire/keeping.ts`. Nothing in it names a harness.
 
+**One conversation on every machine is a capability too** (`capabilities.conversation.replicate`,
+with `why.conversation` where it is not, and `WorkerAdapter.conversation` exactly where it is). The
+adapter owns its record's format (`ConversationFormat`, beside it as `conversation.ts`), and nothing
+else reads it:
+
+- **`read(line)`** says what each line is: an entry of the tree (id, parent, time, whether it is a
+  message and whether it opens a turn), the harness's own bookkeeping for this machine — never
+  replicated — or a shape it does not know, which **stops the merge** rather than being guessed at.
+  Name the bookkeeping types you know (Claude Code's `KEPT`) rather than treating everything without
+  an id as bookkeeping: a future type that carries structure must stop things, not travel silently.
+- **Touch only the fields you name.** Claude Code's lines are taken only where `JSON.stringify` gives
+  the line back byte for byte, and only `cwd` (blanked to compare, set per machine on the way in)
+  and, on a copy, `uuid`/`parentUuid` change. Copies keep every other byte.
+- **Say where it comes back to.** Claude Code's `--resume` follows the last `last-prompt`'s
+  `leafUuid` unless the last entry descends from it, so a merge ends on one (`pointer`); pi comes
+  back to the last line, so it needs none. Pin it with a test against the installed binary and a
+  scripted model (`claude/test/conversation.test.ts`, `pi/test/conversation.test.ts`), and run it
+  again when the harness moves forward.
+- **`reload(run)`** reads the record again between turns only, never in one: Claude Code ends the
+  headless process and starts it on `--resume` with the spec it was started with; pi answers
+  `switch_session`. A turn in flight is refused.
+- The merge itself, the exchange, the turn lease and the gate around each turn are harness-neutral
+  (`harnesses-core`'s `conversation.ts`, `conversation-share.ts`, `one-conversation.ts`) and are
+  property-tested there; an adapter adds a format, never a second merge.
+
 ## Rules
 
 - **Never infer state from rendered output.** A signal comes from a structured channel (an

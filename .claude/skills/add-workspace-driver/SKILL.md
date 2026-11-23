@@ -276,6 +276,25 @@ over loopback) and `ssh`.
   (`namesElsewhere`); a take whose name the two made apart is renamed and said, one that came by a
   take before is refused. The property test and the 20,000-line ceilings are
   `workbench/test/feeds.test.ts`; two real `tade serve` over sshd are the rehearsal's last case.
+- **The orchestrator's conversation is one on every machine** where its harness can keep one
+  (`add-worker-adapter`'s *Being the thing you talk to*). Each machine keeps its own record, which
+  only ever grows, and a copy of each other machine's conversation entries beside its journal's copy
+  (`conversationCopyPath`, built on `feedDir`). The hub is whatever `hubOf` names; the window asks it
+  over the held link at `POST /api/conversation` (`app/src/wire/conversation.ts`, the far half the
+  heart's), and the hub keeps the turn lease in memory, run out after 90 s unless renewed. **Before
+  each turn** the gate (`one-conversation.ts`) takes the lease, exchanges in bounded rounds, takes in
+  what came and has the harness read its record again; **after it** gives back and lets go. Where
+  the hub cannot be reached it carries on and says so once. **Only a machine that dials the hub,
+  holding the lease with both copies whole, ever merges a fork** — the hub only adopts, since it
+  cannot tell whether what it was given is all there is — so one fork is never merged twice. A
+  phone's turn is refused with who is answering rather than kept waiting.
+- **The orchestrator acts on any machine through that machine's own gate** (`tade_remote_act`):
+  inside it every call the tool makes back to Tade goes there as `remote/act` under a key of its own,
+  and the far side runs it by `ToolHost.act` under an owner's arm (`app/src/wire/acts.ts`), once per
+  key. A machine that links here cannot be called, so its acts wait in this machine's outbox, asked
+  for on that machine's beat (`POST /api/acts/outbox`) — the hub never holds a credential for the
+  Mac. The person's `said` lines travel with an act and count there only while it runs
+  (`acting.ts`), and what it changes is written `orchestrator via <machine>`.
 - **A browser here reaches that machine's own `/connect` through `pages`** (`pages.ts`, `tade remote
   connect`): what a source's own page shows the person is pasted into that machine's page and never
   carried by an owner's ask, so a loopback port here passes `GET`/`POST` on `/connect` and below,
