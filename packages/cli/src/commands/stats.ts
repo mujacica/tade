@@ -85,6 +85,7 @@ export function registerStats(program: Command, io: Io, setExit: (code: number) 
           since: 0,
           runs: runFactsFrom(runs),
           prices: pricesFrom(cfg.ok ? cfg.config.prices : {}),
+          ...(cfg.ok ? { accounts: cfg.config.accounts } : {}),
         }).byTask
         const judged = cfg.ok ? await findingsHere(cfg.config, home) : null
         const evals = evaluationsFrom(events, {
@@ -112,6 +113,7 @@ export function registerStats(program: Command, io: Io, setExit: (code: number) 
                     since: 0,
                     runs: runFactsFrom(feed.events),
                     prices: pricesFrom(cfg.ok ? cfg.config.prices : {}),
+                    ...(cfg.ok ? { accounts: cfg.config.accounts } : {}),
                   },
                 ).byTask,
                 findings: null,

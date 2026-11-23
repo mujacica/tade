@@ -1,5 +1,6 @@
 import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
+import type { TaskSpent } from '../src/frame.ts'
 import { initialState, withProjects, withTasks } from '../src/model.ts'
 import { COLOUR } from '../src/skin.ts'
 import { NO_POINTER, type Pointer } from '../src/ui.ts'
@@ -23,7 +24,7 @@ if (pane === undefined) throw new Error('withTasks made no pane')
 
 const WIDTH = 29
 
-const row = (spent: { tokens: number; usd: number } | undefined, pointer: Pointer = NO_POINTER) =>
+const row = (spent: TaskSpent | undefined, pointer: Pointer = NO_POINTER) =>
   stripTerminalSequences(
     taskRow(WIDTH, COLOUR, pointer, { ...pane, focused: false }, spent, 0).rows[0]?.text ?? '',
   )
@@ -78,5 +79,15 @@ describe('an agent whose work would collide with another’s', () => {
     expect(marked).toContain('… ⇄')
     expect(visibleWidth(marked)).toBe(WIDTH)
     expect(row(undefined)).not.toContain('⇄')
+  })
+
+  it('marks money by the kind of claim it is, and draws a plan’s work as tokens', () => {
+    // A bill bare, a harness's guess `~`, a published rate `≈` — the marks the
+    // Spend page gives the same figures — and a plan's turns, which are no
+    // money, in tokens on every row alike.
+    expect(row({ tokens: 1_000, usd: 1.36, usdExact: 1.36 })).toContain(' $1.36')
+    expect(row({ tokens: 1_000, usd: 2.03, usdEstimated: 2.03 })).toContain('~$2.03')
+    expect(row({ tokens: 1_000, usd: 2.18, usdListed: 2.18 })).toContain('≈$2.18')
+    expect(row({ tokens: 95_600_000, usd: 0 })).toContain('95.6M tok')
   })
 })

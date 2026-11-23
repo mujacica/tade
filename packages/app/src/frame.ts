@@ -689,6 +689,18 @@ export interface Frame {
  */
 export type McpState = 'unknown' | 'alive' | 'gone'
 
+/**
+ * What an agent's row is told it cost: its billed money and tokens, and the
+ * three kinds that money is made of where the fold said (`Spend`).
+ */
+export interface TaskSpent {
+  tokens: number
+  usd: number
+  usdExact?: number
+  usdEstimated?: number
+  usdListed?: number
+}
+
 export interface Spend {
   tokens: number
   usd: number
@@ -714,7 +726,8 @@ export interface Spend {
    * the strip still says `—` about; a plan's turns alone are no bill at all.
    */
   unpricedBill?: boolean
-  byTask: Readonly<Record<string, { tokens: number; usd: number }>>
+  /** Per agent: what its row draws, with the kinds of money it is made of (`TaskSpent`). */
+  byTask: Readonly<Record<string, TaskSpent>>
   /** How long the agents have run today, all of them added together. */
   runtime?: Runtime
 }

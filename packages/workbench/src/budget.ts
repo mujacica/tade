@@ -45,7 +45,11 @@ export async function guardBudget(
     return
   }
   const prices = pricesFrom(tade.config.prices)
-  const today = spendFrom(events, { since: startOfToday(now), prices })
+  const today = spendFrom(events, {
+    since: startOfToday(now),
+    prices,
+    accounts: tade.config.accounts,
+  })
   const state = startBudget({
     project,
     spent: { project: today.byProject[project] ?? noSpend(), machine: today.total },

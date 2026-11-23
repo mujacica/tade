@@ -85,7 +85,11 @@ export async function landedCases(opts: {
     projects: new Set([opts.project]),
   }).filter((one) => one.landed && one.done !== null)
   if (outcomes.length === 0) return []
-  const spent = spendFrom(opts.events, { since: 0, prices: pricesFrom(opts.config.prices) }).byTask
+  const spent = spendFrom(opts.events, {
+    since: 0,
+    prices: pricesFrom(opts.config.prices),
+    accounts: opts.config.accounts,
+  }).byTask
   const runtime = runtimeFrom(opts.events, { now: opts.now }).byTask
   const created = new Map<string, Record<string, unknown>>()
   const commits = new Map<string, { sha: string; at: string; added: number; removed: number }[]>()
@@ -427,7 +431,11 @@ export async function replaysOnDisk(opts: {
     if (event.type === 'task_done') finished.add(event.task)
     if (event.type === 'task_removed') removed.add(event.task)
   }
-  const spent = spendFrom(opts.events, { since: 0, prices: pricesFrom(opts.config.prices) }).byTask
+  const spent = spendFrom(opts.events, {
+    since: 0,
+    prices: pricesFrom(opts.config.prices),
+    accounts: opts.config.accounts,
+  }).byTask
   const ran = runtimeFrom(opts.events, { now: opts.now }).byTask
   const facts = new Map<string, ReplayEntrantFacts>()
   for (const started of records.started.values()) {

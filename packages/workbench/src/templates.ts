@@ -167,7 +167,11 @@ export async function budgetFrom(
     return { budget: [], machine: null }
   }
   const prices = pricesFrom(deps.config.prices)
-  const spend = spendFrom(usage, { since: startOfToday(Date.now()), prices })
+  const spend = spendFrom(usage, {
+    since: startOfToday(Date.now()),
+    prices,
+    accounts: deps.config.accounts,
+  })
   const said = (state: BudgetState): string =>
     state.reason
       ? `${state.reason}${state.verdict === 'over' ? ' — a start would be refused' : state.verdict === 'warn' ? ' — near its budget' : ''}`

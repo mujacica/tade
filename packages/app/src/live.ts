@@ -948,6 +948,7 @@ export class Live {
     const report = spendFrom(this.usage.events, {
       since,
       prices: pricesFrom(this.opts.config.prices),
+      accounts: this.opts.config.accounts,
     })
     this.spent = { since, of: this.usage.size, report }
     return report

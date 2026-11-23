@@ -71,6 +71,7 @@ export function usdByTask(wire: Wiring): Readonly<Record<string, number | null>>
   const report = spendFrom(live.spending.events, {
     since: 0,
     prices: pricesFrom(wire.opts.config.prices),
+    accounts: wire.opts.config.accounts,
   })
   return Object.fromEntries(
     Object.entries(report.byTask).map(([task, spend]) => [task, spend.hasCost ? spend.usd : null]),

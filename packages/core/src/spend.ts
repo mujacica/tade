@@ -307,15 +307,30 @@ export const HARNESS_FACTS: Readonly<Record<string, HarnessFacts>> = {
 }
 
 /**
+ * How each added account is paid for, as `config.accounts` says it: the kind a
+ * person wrote down, and nothing else — the same answer the PLAN list reads
+ * (`paysFor` in the workbench).
+ */
+export type AccountKinds = Readonly<Record<string, { kind: 'subscription' | 'api-key' }>>
+
+/**
  * Whether these dollars are money somebody is billed.
  *
  * False for a subscription's own sign-in, where the figure is the harness's
  * guess at what an API would have charged and nobody is charged it — money
  * that means nothing added to a figure that means something. What was used up
  * there is the plan's windows, which are their own list and in no total.
+ *
+ * And false for an added account somebody wrote down as a subscription. Every
+ * account was read as money once, so a second Claude Code plan beside the
+ * first had its turns priced at list and drawn as a bill: the agent rows read
+ * `$2.03` under one on the own sign-in reading `95.6M tok`, the same work on
+ * the same kind of plan. An account the reader was told nothing about — no
+ * config to hand, or one since removed — keeps its money: it may be billed per
+ * token, and dropping a bill is the worse mistake.
  */
-export function isMoney(facts: RunFacts): boolean {
-  if (facts.account !== null) return true
+export function isMoney(facts: RunFacts, accounts?: AccountKinds): boolean {
+  if (facts.account !== null) return accounts?.[facts.account]?.kind !== 'subscription'
   return HARNESS_FACTS[facts.harness]?.usd !== 'none'
 }
 
@@ -433,6 +448,11 @@ export interface SpendWindow {
    * figure without waiting for a release.
    */
   prices?: PriceTable
+  /**
+   * How each added account is paid for (`config.accounts`), so a subscription
+   * added beside a harness's own sign-in is a plan here too (`isMoney`).
+   */
+  accounts?: AccountKinds
 }
 
 export interface SpendReport {
@@ -500,7 +520,7 @@ export function spendFrom(
     // What this turn's money is and who worked it out, decided once for the
     // event and given to every bucket it counts towards, so the total and the
     // per-provider figure can never disagree about what money is.
-    const charge = chargeOf(event, facts, model, window.prices)
+    const charge = chargeOf(event, facts, model, window.prices, window.accounts)
     for (const bucket of buckets) add(bucket, event, charge)
   }
   return report
@@ -558,6 +578,7 @@ function chargeOf(
   facts: RunFacts,
   model: string,
   over: PriceTable | undefined,
+  accounts: AccountKinds | undefined,
 ): Charged {
   const count = (key: string) => {
     const value = event.detail[key]
@@ -569,7 +590,7 @@ function chargeOf(
   // those same tokens would have cost at a published rate is still a fact worth
   // having, and is the one people leave for `ccusage`, so it is worked out and
   // handed back as its own figure, in no total (`Spend.usdOnPlan`).
-  if (!isMoney(facts)) {
+  if (!isMoney(facts, accounts)) {
     const price = priceFor(model, over)
     const onPlan = (price && estimateUsd(tokensIn(event), price)) ?? 0
     return { ...nothing, priced: false, onPlan, onPlanUnrated: onPlan <= 0, plan: true }

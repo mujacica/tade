@@ -4,6 +4,7 @@ import {
   nobodyHere,
   presenceLineDue,
   presentBefore,
+  pricesFrom,
   type SinceItem,
   sinceHere,
 } from '@tade/core'
@@ -98,7 +99,13 @@ export class Presences {
     return async (device, cut) => {
       const events = await this.wire.opts.client.log.read({ types: SINCE_READS })
       const since = presentBefore(events, cut)
-      const here = since === null ? null : sinceHere(events, since, this.wire.now())
+      const here =
+        since === null
+          ? null
+          : sinceHere(events, since, this.wire.now(), {
+              prices: pricesFrom(this.wire.opts.config.prices),
+              accounts: this.wire.opts.config.accounts,
+            })
       return sinceAnswerOf(here, this.waiting(), reachOf(device))
     }
   }

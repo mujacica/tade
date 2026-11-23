@@ -234,8 +234,12 @@ its adapter may not exist here any more — so it is a table keyed by the id, he
 test (`packages/workbench/test/harnesses.test.ts`) so the two can never drift.
 
 It only ever **corrects a wish**: nothing is invented for a harness this Tade does not run, nothing
-for one that routes, and an account beside a subscription keeps its own money, because it may be
-billed per token and the plan says nothing about it.
+for one that routes. **An added account is paid for as somebody wrote it down** (`config.accounts`,
+handed to the fold as `SpendWindow.accounts`, the same answer `paysFor` gives the PLAN list): a
+`subscription` is a plan, an `api-key` is money, and one the reader was told nothing about keeps its
+money, because dropping a bill is the worse mistake. Read as money whatever its kind, a second Claude
+Code plan's turns were priced at list and drawn as unmarked bills on the agent rows, under the first
+plan's tokens — so **every `spendFrom` with the config to hand passes `accounts` beside `prices`**.
 
 What this changes is said plainly rather than done quietly: in the journal this was found in, eleven
 thousand Claude Code events say `provider: openrouter`, and the money it adds up to went from $3,057

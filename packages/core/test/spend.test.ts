@@ -341,6 +341,45 @@ describe('what a reader may believe about a harness', () => {
     expect(report.byAccount['claude-code@billed']?.usd).toBe(3)
     expect(pricedOf(report.total)).toBe('estimate')
   })
+
+  it('reads an account written down as a subscription as a plan, the way the PLAN list does', () => {
+    // A second Claude Code plan beside the first. It was read as money because
+    // it was an account, so its turns were priced at list and drawn as bills
+    // under the first plan's tokens: the same work, two claims.
+    const turn = (account: string) =>
+      usage({
+        detail: {
+          harness: 'claude-code',
+          account,
+          model: 'claude-opus-5',
+          input: 1_000_000,
+          output: 0,
+          tokens: 1_000_000,
+          usd: 0,
+          priced: 'none',
+        },
+      })
+    const accounts = {
+      personal: { kind: 'subscription' },
+      metered: { kind: 'api-key' },
+    } as const
+    const report = spendFrom([turn('personal'), turn('metered'), turn('gone')], {
+      since: 0,
+      accounts,
+    })
+    const plan = report.byAccount['claude-code@personal']
+    expect(plan?.usd).toBe(0)
+    expect(plan?.hasCost).toBe(false)
+    expect(plan?.usdOnPlan).toBeGreaterThan(0)
+    // Billed per token, and priced here off the published rate.
+    expect(report.byAccount['claude-code@metered']?.usdListed).toBeGreaterThan(0)
+    // One the reader was told nothing about keeps its money: dropping a bill
+    // is the worse mistake.
+    expect(report.byAccount['claude-code@gone']?.usdListed).toBeGreaterThan(0)
+    // And so does every account, where nobody handed the reader the config.
+    const told = spendFrom([turn('personal')], { since: 0 })
+    expect(told.total.usdListed).toBeGreaterThan(0)
+  })
 })
 
 // One model has as many spellings as there are ways of reaching it, and the

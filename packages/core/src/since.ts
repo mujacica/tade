@@ -3,7 +3,7 @@ import type { TadeEvent } from './events.ts'
 import { documentsIn, waitingDocuments } from './produces.ts'
 import { undecidedProposals } from './proposals.ts'
 import { duration } from './runtime.ts'
-import { type Spend, spendFrom } from './spend.ts'
+import { type Spend, type SpendWindow, spendFrom } from './spend.ts'
 
 // "Since you were here": what a machine's own journal
 // says happened from the last moment it counted the person present — what
@@ -151,7 +151,13 @@ export interface SinceHere {
  * document triaged or a task started again is not news to come back to — and
  * is newest first, which is the order somebody reads a catch-up in.
  */
-export function sinceHere(events: readonly TadeEvent[], since: number, now: number): SinceHere {
+export function sinceHere(
+  events: readonly TadeEvent[],
+  since: number,
+  now: number,
+  /** The machine's prices and accounts, so its spend is the figure the window draws. */
+  priced: Pick<SpendWindow, 'prices' | 'accounts'> = {},
+): SinceHere {
   const after = (event: TadeEvent) => (at(event) ?? Number.NEGATIVE_INFINITY) >= since
   const finished = new Map<string, SinceItem>()
   const held = new Map<string, SinceItem>()
@@ -194,7 +200,7 @@ export function sinceHere(events: readonly TadeEvent[], since: number, now: numb
     documents: newestFirst(documents),
     held: newestFirst([...held.values()]),
     proposed: newestFirst(proposed),
-    spend: spendFrom(events, { since }).total,
+    spend: spendFrom(events, { since, ...priced }).total,
   }
 }
 

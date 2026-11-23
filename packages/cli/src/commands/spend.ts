@@ -80,6 +80,7 @@ export function registerSpend(program: Command, io: Io): void {
         since,
         runs: facts,
         prices: pricesFrom(cfg.ok ? cfg.config.prices : {}),
+        ...(cfg.ok ? { accounts: cfg.config.accounts } : {}),
       })
       // Timed by what each run turned out to be on rather than by what its
       // route asked for, so one agent is one model row and not two.

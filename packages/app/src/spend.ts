@@ -1,4 +1,5 @@
 import {
+  type AccountKinds,
   accountBucket,
   type Budget,
   type BudgetVerdict,
@@ -273,6 +274,8 @@ export function spendView(
     plan?: readonly PlanSource[]
     /** Prices per model beyond the ones Tade ships, as `config.prices` holds them. */
     prices?: PriceTable
+    /** How each added account is paid for, as `config.accounts` says (`isMoney`). */
+    accounts?: AccountKinds
   },
 ): SpendView {
   const since = sinceOf(opts.window, opts.now, opts.openedAt)
@@ -284,7 +287,12 @@ export function spendView(
   // Built once and asked three times: the panel redraws four times a second,
   // and rebuilding it per question is a pass over the whole journal each time.
   const facts = runs.facts
-  const report = spendFrom(usage, { since, runs: facts, prices: opts.prices })
+  const report = spendFrom(usage, {
+    since,
+    runs: facts,
+    prices: opts.prices,
+    accounts: opts.accounts,
+  })
   const models = lastModels(usage)
   // What each run turned out to be on, so the hours and the dollars of one
   // agent land on one row. A route asks for `anthropic/claude-opus-5` and
@@ -325,7 +333,7 @@ export function spendView(
   } else {
     const orchestrator = spendFrom(
       usage.filter((event) => event.task === null && event.detail.by === 'orchestrator'),
-      { since, runs: facts, prices: opts.prices },
+      { since, runs: facts, prices: opts.prices, accounts: opts.accounts },
     ).total
     rows = [
       ...(orchestrator.tokens > 0 || orchestrator.usd > 0
@@ -365,7 +373,7 @@ export function spendView(
 
   const today = spendFrom(
     events.filter((event) => event.type === 'usage'),
-    { since: startOfToday(opts.now), runs: facts, prices: opts.prices },
+    { since: startOfToday(opts.now), runs: facts, prices: opts.prices, accounts: opts.accounts },
   )
   const budgets = opts.projects.map((project): BudgetRow => {
     const spent = today.byProject[project] ?? noSpend()

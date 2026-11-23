@@ -99,6 +99,7 @@ export class Spend implements Subject {
       // the config each draw rather than kept: it is a handful of entries, and
       // a price held in a field is one that goes stale the moment it changes.
       prices: pricesFrom(this.wire.opts.config.prices),
+      accounts: this.wire.opts.config.accounts,
       budgets: Object.fromEntries(
         Object.entries(this.wire.opts.config.projects).map(([name, project]) => [
           name,

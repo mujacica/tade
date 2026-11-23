@@ -1,5 +1,6 @@
-import { printable } from '@tade/core'
+import { MONEY_MARK, noSpend, pricedOf, printable } from '@tade/core'
 import type { LaneScrolling } from '@tade/drivers-core'
+import type { TaskSpent } from '../frame.ts'
 import type { Hit, ScrollArea, Target } from '../hits.ts'
 import { pointingIn, rowHit, shift } from '../hits.ts'
 import {
@@ -329,13 +330,19 @@ const TOKENS_SLOT = widthOf('999k tok') + 1
  * with `…` rather than pushing anything off the edge — and what it has cost,
  * in a slot of its own (`COST_SLOT`). Under the pointer, a close and a menu
  * take the cost's place, each lit in turn: close in red, since it is a close.
+ *
+ * What it cost is money somebody is billed, marked as the kind of claim it is
+ * (`MONEY_MARK`: nothing for a bill, `~` for a harness's guess, `≈` for a
+ * published rate) — and where a plan paid, which is no money, its tokens. The
+ * same claim on every row: a second plan's turns once came through as list
+ * prices with no mark, and read as bills under the first plan's `95.6M tok`.
  */
 export function taskRow(
   width: number,
   skin: Skin,
   pointer: Pointer,
   task: AgentPane & { focused: boolean; dragging?: boolean },
-  spent: { tokens: number; usd: number } | undefined,
+  spent: TaskSpent | undefined,
   now: number,
 ): ListItem {
   const target: Target = { kind: 'task', task: task.task }
@@ -348,7 +355,7 @@ export function taskRow(
   const cost =
     !buttons && spent && (spent.usd > 0 || spent.tokens > 0)
       ? spent.usd > 0
-        ? dollars(spent.usd)
+        ? `${MONEY_MARK[pricedOf({ ...noSpend(), ...spent })]}${dollars(spent.usd)}`
         : tokens(spent.tokens)
       : ''
   // The one being dragged is lit wherever it would land.

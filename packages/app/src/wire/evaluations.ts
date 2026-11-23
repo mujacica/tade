@@ -92,6 +92,7 @@ export function evaluationsNow(
     return spendFrom(live.spending.events, {
       since: 0,
       prices: pricesFrom(wire.opts.config.prices),
+      accounts: wire.opts.config.accounts,
     }).byTask
   })
   const merged = live.tasks.filter((task) => task.state === 'merged').map((task) => task.task)
