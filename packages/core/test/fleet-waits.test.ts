@@ -289,6 +289,86 @@ describe('writing a wait on another machine', () => {
     ])
   })
 
+  it('refuses a loop that goes round through another machine, whichever side it is closed from', () => {
+    // vps's api/a was made waiting on this machine's api/b, by this machine's own name.
+    const looped: Fleet = {
+      self: 'mac',
+      machines: [
+        machine('ipax', [line('task_created', 'api/a', { after: ['mac:api/b'] })], {
+          called: 'vps',
+        }),
+      ],
+    }
+    expect(
+      checkWaits({ ...base, after: [{ task: 'vps:api/a', why: 'w' }], elsewhere: looped }),
+    ).toEqual({
+      ok: false,
+      problems: [
+        'api/b cannot wait on vps:api/a: vps:api/a already waits on api/b, so neither could start',
+      ],
+    })
+    // Closed by a wait on work here, which waits on vps's in turn, rewritten there since.
+    const rewritten: Fleet = {
+      self: 'mac',
+      machines: [
+        machine(
+          'ipax',
+          [
+            line('task_created', 'api/a'),
+            line('queue_changed', 'api/a', {
+              change: 'after',
+              after: [{ task: 'mac:api/b', why: 'its schema' }],
+            }),
+          ],
+          { called: 'vps' },
+        ),
+      ],
+    }
+    expect(
+      checkWaits({
+        ...base,
+        after: [{ task: 'api/c', why: 'w' }],
+        tasks: new Set(['api/b', 'api/c']),
+        waits: (task) => (task === 'api/c' ? ['vps:api/a'] : []),
+        elsewhere: rewritten,
+      }),
+    ).toEqual({
+      ok: false,
+      problems: [
+        'api/b cannot wait on api/c: api/c already waits on api/b through ipax:api/a, so none of them could start',
+      ],
+    })
+  })
+
+  it('walks no wait of work there that has started, and reads a bare name there as its own', () => {
+    const started: Fleet = {
+      self: 'mac',
+      machines: [
+        machine(
+          'ipax',
+          [
+            line('task_created', 'api/a', { after: ['mac:api/b'] }),
+            line('queue_started', 'api/a', { after: ['mac:api/b'] }),
+          ],
+          { called: 'vps' },
+        ),
+      ],
+    }
+    expect(
+      checkWaits({ ...base, after: [{ task: 'vps:api/a', why: 'w' }], elsewhere: started }).ok,
+    ).toBe(true)
+    // `api/b` written on vps is vps's own api/b, not this machine's.
+    const bare: Fleet = {
+      self: 'mac',
+      machines: [
+        machine('ipax', [line('task_created', 'api/a', { after: ['api/b'] })], { called: 'vps' }),
+      ],
+    }
+    expect(
+      checkWaits({ ...base, after: [{ task: 'vps:api/a', why: 'w' }], elsewhere: bare }).ok,
+    ).toBe(true)
+  })
+
   it('refuses one with no other machine kept at all', () => {
     expect(waitThereProblem('api/b', 'vps:api/a', undefined, false)).toBe(
       'api/b cannot wait on vps:api/a: no machine called vps has its journal kept here',

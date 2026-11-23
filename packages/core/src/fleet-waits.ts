@@ -33,6 +33,9 @@ export const FLEET_WAIT_READS = [
   'task_moved',
   'task_taken',
   'task_removed',
+  // What its queued work waits on in turn, for the loop check (`waitsThere`).
+  'queue_changed',
+  'queue_started',
   // Whether the person approved a document a wait is for (`approvedFrom`).
   ...DOCUMENT_EVENTS,
 ] as const satisfies readonly EventType[]
@@ -363,4 +366,80 @@ export function waitThereProblem(
     return `${waiting} cannot wait for ${id}'s document to be approved: a document is approved on the machine that holds it, so wait for ${id} to finish instead`
   }
   return null
+}
+
+/** The tasks a line of another machine's journal says its task waits on: a list of ids, or of waits. */
+function waitedOn(after: unknown): string[] {
+  if (!Array.isArray(after)) return []
+  const ids: string[] = []
+  for (const one of after) {
+    const id = typeof one === 'string' ? one : (one as { task?: unknown } | null)?.task
+    if (typeof id === 'string' && id.trim() !== '') ids.push(id.trim())
+  }
+  return ids
+}
+
+/**
+ * What a task of another machine waits on, as the copy of its journal kept
+ * here says: what it was made or taken with (`task_created`, `task_taken`),
+ * then every `queue_changed` that rewrote it — and nothing once it started
+ * (`queue_started`), finished, was removed or moved away, as at home. Each id
+ * as that machine wrote it.
+ */
+export function waitsThere(machine: FleetMachine, task: string): string[] {
+  let waits: string[] = []
+  for (const line of machine.lines) {
+    if (line.task !== task) continue
+    if (line.type === 'task_created' || line.type === 'task_taken') {
+      waits = waitedOn(line.detail.after)
+    } else if (line.type === 'queue_changed' && line.detail.change === 'after') {
+      waits = waitedOn(line.detail.after)
+    } else if (
+      line.type === 'queue_started' ||
+      line.type === 'task_done' ||
+      line.type === 'task_removed' ||
+      line.type === 'task_moved'
+    ) {
+      waits = []
+    }
+  }
+  return waits
+}
+
+/**
+ * An id as written on one machine (null for this one), as this machine names
+ * it: a task of its own bare, any other `<its own name>:<task>`. A machine
+ * nothing here is called is left as written, which nothing waits from.
+ */
+function spelledHere(fleet: Fleet | undefined, writer: FleetMachine | null, id: string): string {
+  const { machine, task } = parseWait(id)
+  if (machine === null) return writer === null ? task : waitOn(writer.name, task)
+  if (isSelf(fleet, machine)) return task
+  const there = machineNamed(fleet, machine)
+  return there === null ? id : waitOn(there.name, task)
+}
+
+/**
+ * What queued work waits on across every machine whose journal is kept here,
+ * for the loop check (`checkWaits`): this machine's own as `here` answers,
+ * another's as the copy of its journal says (`waitsThere`), every move
+ * followed. A wait is written on one machine at a time, so a loop closed on
+ * two at once, before either heard the other, is not seen — and a machine
+ * that names this one by a name of its own that never crossed here ends the
+ * walk where it does, which can only miss a loop, never refuse a wait.
+ */
+export function waitsAcross(
+  fleet: Fleet | undefined,
+  own: readonly TadeEvent[],
+  here: (task: string) => readonly string[],
+): (task: string) => readonly string[] {
+  return (id) => {
+    const followed = waitsElsewhere(id) ? followWait(id, fleet, own) : null
+    if (followed === null || followed.kind === 'here') {
+      return here(followed?.task ?? id).map((dep) => spelledHere(fleet, null, dep))
+    }
+    if (followed.kind === 'unseen' || followed.finished || followed.removed) return []
+    const { machine } = followed
+    return waitsThere(machine, followed.task).map((dep) => spelledHere(fleet, machine, dep))
+  }
 }

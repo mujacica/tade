@@ -179,9 +179,15 @@ function waitOn(
       tasks,
       waits: (task) => waits.get(task) ?? [],
       produces: (task) => producing.get(task) ?? true,
-      // The other machines' journals kept here, read only where a wait names one.
-      ...((req.after ?? []).some((dep) => waitsElsewhere(dep.task))
-        ? { elsewhere: await new FleetWaits(tade.home).read(machineLabel()) }
+      // The other machines' journals kept here, read only where a wait names
+      // one — asked for, or already written on queued work here, which a loop
+      // back through another machine would go round by.
+      ...((req.after ?? []).some((dep) => waitsElsewhere(dep.task)) ||
+      [...waits.values()].some((its) => its.some(waitsElsewhere))
+        ? {
+            elsewhere: await new FleetWaits(tade.home).read(machineLabel()),
+            moves: await tade.log.read({ types: ['task_moved', 'task_taken'] }),
+          }
         : {}),
     })
     if (!checked.ok) throw new Error(checked.problems.join('; '))

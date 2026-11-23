@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { feedDir } from '@tade/core'
+import { feedDir, machineLabel } from '@tade/core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { FleetWaits } from '../src/fleet-waits.ts'
@@ -169,5 +169,24 @@ describe('dropping a wait on a machine gone quiet', () => {
         by: 'you',
       }),
     ).rejects.toThrow('no machine called nas has its journal kept here (the ones kept are vps)')
+  })
+
+  it('refuses a wait on work on another machine that already waits on this one', async () => {
+    copyOfVps(
+      home,
+      [line('task_created', 'api/x', Date.now(), { after: [`${machineLabel()}:app/b`] })],
+      Date.now(),
+    )
+    await expect(
+      client.changeQueued({
+        task: 'app/b',
+        change: 'after',
+        after: [{ task: 'vps:api/x', why: 'its endpoint' }],
+        by: 'you',
+      }),
+    ).rejects.toThrow(
+      'app/b cannot wait on vps:api/x: vps:api/x already waits on app/b, so neither could start',
+    )
+    expect((await readTaskFile(home, 'app/b'))?.start?.after).toHaveLength(2)
   })
 })

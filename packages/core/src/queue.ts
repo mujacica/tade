@@ -6,6 +6,7 @@ import {
   followWait,
   thereSays,
   type WaitThere,
+  waitsAcross,
   waitsElsewhere,
   waitThere,
   waitThereProblem,
@@ -736,8 +737,14 @@ export function checkWaits(req: {
   waits: (task: string) => readonly string[]
   /** Whether a task says it produces a document; unsaid, nothing is refused for it. */
   produces?: (task: string) => boolean
-  /** The person's other machines, for a wait on one (`vps:api/migrate`); unsaid, such a wait is refused. */
+  /**
+   * The person's other machines, for a wait on one (`vps:api/migrate`); unsaid,
+   * such a wait is refused. Said, the loop check walks their queued work's
+   * waits too, as the copies of their journals kept here say them.
+   */
   elsewhere?: Fleet
+  /** This machine's own `task_moved` and `task_taken` lines, so a wait that walks there follows a move back. */
+  moves?: readonly TadeEvent[]
 }): WaitsCheck {
   const problems: string[] = []
   const here = req.task.split('/')[0] ?? req.task
@@ -777,9 +784,11 @@ export function checkWaits(req: {
   const after = [...kept, ...added]
   // From each new wait, whether its own waits lead back here. Only what is
   // added can close a loop: what it already waited on was checked when it was
-  // written, and taking a wait away never makes one.
+  // written, and taking a wait away never makes one. A loop may go round
+  // through other machines: A here waiting on vps:B while vps's B waits on A.
+  const waits = req.elsewhere ? waitsAcross(req.elsewhere, req.moves ?? [], req.waits) : req.waits
   for (const dep of added) {
-    const through = pathTo(dep.task, req.task, req.waits)
+    const through = pathTo(dep.task, req.task, waits)
     if (!through) continue
     const middle = through.slice(1, -1)
     problems.push(
