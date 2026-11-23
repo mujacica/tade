@@ -278,7 +278,18 @@ export function agentMenu(ctx) {
     opener = null
   }
 
+  // A redraw replaces the focused row, and focus would fall out of the sheet,
+  // past its Escape and Tab: it goes back to that item, or the first one.
+  const inside = () => box.contains(document.activeElement) && document.activeElement.offsetParent
   const draw = () => {
+    const held = inside() ? (document.activeElement.dataset.item ?? '') : null
+    paint()
+    if (held === null || node.hidden || inside()) return
+    const rows = [...list.querySelectorAll('.amenu-item:not(.is-off)')]
+    ;(rows.find((one) => one.dataset.item === held) ?? rows[0] ?? close).focus()
+  }
+
+  const paint = () => {
     const name = rowOf()?.name ?? task.slice(task.indexOf('/') + 1)
     back.hidden = sub === null && typing === null
     textIn(
@@ -312,8 +323,8 @@ export function agentMenu(ctx) {
       class: 'amenu-item',
       attrs:
         tag === 'a'
-          ? { href: taskPath(task) }
-          : { type: 'button', ...(off ? { 'aria-disabled': 'true' } : {}) },
+          ? { href: taskPath(task), 'data-item': item.id }
+          : { type: 'button', 'data-item': item.id, ...(off ? { 'aria-disabled': 'true' } : {}) },
     })
     classOn(press, 'is-danger', item.danger)
     classOn(press, 'is-off', off)
