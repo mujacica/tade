@@ -30,6 +30,11 @@
   background: color-mix(in srgb, var(--ground) 80%, transparent);
 }
 
+/* Under its box, not dock.css's z 7, or every tap on a row lands on the scrim and closes it. */
+.palette > .scrim {
+  z-index: 0;
+}
+
 .pal {
   position: relative;
   display: grid;
