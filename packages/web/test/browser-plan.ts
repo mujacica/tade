@@ -121,6 +121,8 @@ export const CHECKS = [
   // The frame pinned to the screen's edges (`browser-frame.ts`): the document
   // never scrolls, and the screen, the menu and the side each scroll alone.
   'frame',
+  // The command bar (`browser-desk.ts`): opened, filtered and left by the
+  // keys at every width, and on the touch phone opened and gone through by taps.
   'palette',
   'lanes',
   // The conversation with Tade read as a chat (`browser-chat.ts`): it opens

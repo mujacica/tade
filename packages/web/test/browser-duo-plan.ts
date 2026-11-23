@@ -98,6 +98,7 @@ export const DUO_LOOKS: readonly DuoLook[] = [
   { name: 'pairing', path: '/pair', ready: '#label', paired: false },
   { name: 'overview', path: '/', ready: 'main .page-overview' },
   { name: 'agent', path: '/t/sentry/away-projection', ready: '.screen pre' },
+  { name: 'changes', path: '/t/sentry/away-projection/changes', ready: '.ag-file' },
   { name: 'agents', path: '/agents' },
   { name: 'queue', path: '/queue' },
   { name: 'project', path: '/p/sentry' },

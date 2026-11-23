@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Outcome, WebActing } from '../src/acting.ts'
+import type { ChangedIn } from '../src/changes.ts'
 import { allowDevice } from '../src/devices.ts'
 import type { MachineIn, TaskIn } from '../src/input.ts'
 import type { Host } from '../src/protocol.ts'
@@ -232,6 +233,61 @@ const SIGN_INS = [
   plan({ harness: 'codex', account: null, uses: { newAgents: true, projects: [] } }),
 ]
 
+/**
+ * **An agent's changes at their widest**, for the changes screen: a path deep
+ * enough to wrap at every width, a line far longer than any screen (which
+ * scrolls inside its card, never the page), a counted file beside one git did
+ * not count, a new file, a deleted one, a binary, one git showed nothing for,
+ * one it could not be asked about in time, and a machine path the cleaning
+ * takes out and counts.
+ */
+const CHANGED: ChangedIn[] = [
+  {
+    path: 'packages/web/src/assets/pages/agent-changes-and-everything-under-them/a-file-named-at-length.ts',
+    mark: 'M',
+    added: 3,
+    removed: 2,
+    text: [
+      'diff --git a/x b/x',
+      '--- a/x',
+      '+++ b/x',
+      '@@ -10,7 +10,8 @@ export function changesScreen(where, ctx) {',
+      "   const node = el('div', { class: 'ag-changes' })",
+      `-  const old = ${JSON.stringify('a removed line '.repeat(30))}`,
+      `+  const added = [${Array.from({ length: 40 }, (_, at) => `'an added word ${at}'`).join(', ')}]`,
+      '+  let answer = null',
+      '+  const home = "/Users/someone/.config/tade/config.yaml"',
+      '   let failed = null',
+      '-  let asking = false',
+      '\\ No newline at end of file',
+      '',
+    ].join('\n'),
+  },
+  {
+    path: 'README.md',
+    mark: 'A',
+    added: null,
+    removed: null,
+    text: 'diff --git a/README.md b/README.md\n@@ -0,0 +1,2 @@\n+# Tade\n+A control room.\n',
+  },
+  { path: 'old.txt', mark: 'D', added: 0, removed: 1, text: '@@ -1 +0,0 @@\n-gone\n' },
+  {
+    path: 'images/away-page.png',
+    mark: 'M',
+    added: null,
+    removed: null,
+    text: 'Binary files a/i and b/i differ\n',
+  },
+  { path: 'scripts/run.sh', mark: 'M', added: 0, removed: 0, text: null },
+  {
+    path: 'packages/core/src/a-very-slow-file-to-diff.ts',
+    mark: 'M',
+    added: 40,
+    removed: 12,
+    text: 'unread',
+  },
+]
+
 /** Where a run's home is made: beside the dependencies, and never committed. */
 const SCRATCH = fileURLToPath(new URL('../../../node_modules/.cache/', import.meta.url))
 
@@ -269,6 +325,7 @@ async function serve(home: string) {
       held.set(reach.device, made)
       return made
     },
+    changes: { read: () => Promise.resolve({ files: CHANGED, base: 'main' }), known: () => [] },
     tickets,
     tell: () => {},
     confirm: async () => ({ let: true, projects: null, granted: [...GRANTS] }),

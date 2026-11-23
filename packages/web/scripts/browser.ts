@@ -29,7 +29,7 @@ import {
 } from '../test/browser-plan.ts'
 import { agentHeld, input, NOW, note, queued, settingRows, task } from '../test/fixtures.ts'
 import { chatAt, harnessTalk } from './browser-chat.ts'
-import { deskAt, lanesSeen, paletteAt, unpairedAt } from './browser-desk.ts'
+import { deskAt, lanesSeen, paletteAt, paletteTappedAt, unpairedAt } from './browser-desk.ts'
 import { doingAt, type Running } from './browser-doing.ts'
 import { frameAt } from './browser-frame.ts'
 import { machinesAt } from './browser-machines.ts'
@@ -804,6 +804,9 @@ async function asActing(
   } catch (problem) {
     for (const check of ['controls', 'touch', 'typing']) found(check, at, 'fail', said(problem))
   }
+  // **The command bar, tapped**: this is the one page with a touch screen,
+  // and the keyboard's own check cannot tell a row from what covers it.
+  await paletteTappedAt(page as never, origin, at, found)
   // **The installed shell, on this same device**: pairing is rate limited per
   // address, the five tries are spent, and this is the right phone to ask
   // anyway — narrow, touch, granted (`browser-pwa.ts`).

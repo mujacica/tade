@@ -181,8 +181,12 @@ function moved(was: Stands, now: Stands): string[] {
   for (const [part, box] of Object.entries(was.parts)) {
     const then = now.parts[part]
     if (box === null || then === null || then === undefined) continue
-    if (Math.abs(box.top - then.top) > 1 || Math.abs(box.bottom - then.bottom) > 1) {
-      out.push(`${part} moved ${String(then.top - box.top)}px`)
+    // Both edges, because a part that grew in place moved only its bottom:
+    // "moved 0px" was all a header that changed height ever said.
+    const top = then.top - box.top
+    const bottom = then.bottom - box.bottom
+    if (Math.abs(top) > 1 || Math.abs(bottom) > 1) {
+      out.push(`${part}'s top moved ${String(top)}px and its bottom ${String(bottom)}px`)
     }
   }
   if (now.scrolled.page !== 0) out.push(`the document scrolled ${String(now.scrolled.page)}px`)

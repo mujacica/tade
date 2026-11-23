@@ -380,3 +380,62 @@ export async function paletteAt(
     found('palette', where, 'fail', said(problem))
   }
 }
+
+/** What of Playwright's page a tap needs: a context made with `hasTouch`. */
+interface Touching {
+  goto: (url: string, opts?: object) => Promise<unknown>
+  waitForSelector: (selector: string, opts?: object) => Promise<unknown>
+  evaluate: (body: string) => Promise<unknown>
+  waitForTimeout: (ms: number) => Promise<void>
+  keyboard: { type: (text: string) => Promise<void> }
+  locator: (selector: string) => {
+    first: () => { tap: (opts?: object) => Promise<void> }
+    nth: (at: number) => { tap: (opts?: object) => Promise<void> }
+  }
+}
+
+/** What is on top at the centre of the `at`th row: the row itself, or what covers it. */
+const ON_TOP = (at: number) => `(() => {
+  const row = document.querySelectorAll('.pal-list [role="option"]')[${String(at)}]
+  if (!row) return 'no row'
+  const box = row.getBoundingClientRect()
+  const top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+  if (top !== null && row.contains(top)) return ''
+  return top === null ? 'nothing' : top.tagName.toLowerCase() + (top.className ? '.' + String(top.className).split(' ').join('.') : '')
+})()`
+
+/**
+ * The command bar on a phone, **tapped**: the header's press opens it and a tap
+ * on a row goes there. The keyboard check above never reaches a row by its
+ * place on the glass, so a scrim drawn over the box — every tap landing on it
+ * and closing the bar (7eece732) — passed it. Here what is on top at a row's
+ * centre must be the row, and Playwright's tap, which refuses an element
+ * something else would take the press of, must reach it.
+ */
+export async function paletteTappedAt(
+  page: Touching,
+  origin: string,
+  at: string,
+  found: Found,
+): Promise<void> {
+  const where = `the command bar @ ${at}`
+  try {
+    await page.goto(`${origin}/`, { waitUntil: READY })
+    await page.waitForSelector('main .section', { timeout: 10_000 })
+    await page.locator('header button.cmd').first().tap({ timeout: 5_000 })
+    await until(page, `document.querySelector('.palette')?.hidden === false`)
+    await page.keyboard.type('queue')
+    const typed = (await page.evaluate(BAR)) as { rows: string[] }
+    const row = typed.rows.indexOf('Queue')
+    if (row < 0) throw new Error(`typing queue offered ${typed.rows.join(', ')}`)
+    const over = (await page.evaluate(ON_TOP(row))) as string
+    if (over !== '') throw new Error(`the Queue row is under ${over}, so a tap lands there`)
+    await page.locator('.pal-list [role="option"]').nth(row).tap({ timeout: 5_000 })
+    await until(page, `location.pathname === '/queue'`)
+    const went = (await page.evaluate(BAR)) as { open: boolean }
+    if (went.open) throw new Error('it stayed open after the tap went')
+    found('palette', where, 'pass', 'opened by a tap, and a tap on a row went there and closed it')
+  } catch (problem) {
+    found('palette', where, 'fail', said(problem))
+  }
+}
