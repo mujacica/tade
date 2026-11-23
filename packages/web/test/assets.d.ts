@@ -896,15 +896,37 @@ declare module '*/assets/pages/overview-figures.js' {
 declare module '*/assets/machines.js' {
   interface MachineRowIn {
     name: string
-    way: 'to' | 'from'
+    way: 'to' | 'from' | 'here'
     state: 'up' | 'asleep' | 'closed' | 'lost'
-    since: string
+    since: string | null
+    host?: unknown
+  }
+  type Pressure = 'fine' | 'warm' | 'tight'
+  interface Tile {
+    label: string
+    said: string
+    under: string
+    pressure: Pressure
+  }
+  interface Figures {
+    cpu: Tile & { trail: (number | null)[] }
+    memory: Tile & { trail: (number | null)[] }
+    disk: Tile & { used: number | null }
+    tade: string
+    at: string | null
   }
   export function machinesOf(store: { machines?: readonly MachineRowIn[] } | null): MachineRowIn[]
   export function machineSaid(row: MachineRowIn): string
   export function machineWay(row: MachineRowIn): string
   export function machineTone(row: MachineRowIn): string
   export function machineFix(row: MachineRowIn): string | null
+  export function hereOf(store: { host?: unknown } | null): MachineRowIn | null
+  export function figuresOf(host: unknown): Figures | null
+  export function noFiguresSaid(row: MachineRowIn): string
+  export function figuresAsOf(row: MachineRowIn, figures: Figures | null): string | null
+  export function megabytesSaid(bytes: number): string
+  export function roomSaid(bytes: number): string
+  export function percentSaid(value: number): string
 }
 
 declare module '*/assets/room.js' {

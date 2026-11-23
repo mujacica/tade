@@ -78,7 +78,7 @@ const COLLECTIONS = [
 export function emptyStore() {
   const rows = {}
   for (const name of COLLECTIONS) rows[name] = new Map()
-  return { rows, pages: {}, fresh: null, you: null, machines: [], rev: -1, had: false }
+  return { rows, pages: {}, fresh: null, you: null, machines: [], host: null, rev: -1, had: false }
 }
 
 /**
@@ -100,6 +100,8 @@ export function applySnapshot(store, snapshot) {
   store.you = snapshot.you
   // The person's other machines, as this one has seen them; an older Tade sends none.
   store.machines = snapshot.machines ?? []
+  // This machine's own figures; an older Tade sends none, which is none and not nought.
+  store.host = snapshot.host ?? null
   store.rev = snapshot.fresh.rev
   store.had = true
   return null
@@ -129,6 +131,7 @@ export function applyDelta(store, delta) {
   if (delta.fresh !== null && delta.fresh !== undefined) store.fresh = delta.fresh
   if (delta.you !== undefined) store.you = delta.you
   if (delta.machines !== undefined) store.machines = delta.machines
+  if (delta.host !== undefined) store.host = delta.host
   store.rev = delta.rev
   return null
 }

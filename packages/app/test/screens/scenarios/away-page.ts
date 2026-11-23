@@ -687,8 +687,46 @@ function device(id: string, label: string, pairedDaysAgo: number): Device {
 export const DESK = device('dev_4e1d9b07', 'MacBook Air', 12)
 export const PHONE = device('dev_9a2c6f31', 'iPhone', 9)
 
+const GB = 1024 ** 3
+
+/** A trail of looks for a sparkline: a morning's shape, five seconds apart. */
+const trail = (base: number, swing: number) =>
+  Array.from(
+    { length: 36 },
+    (_, at) => Math.round((base + swing * Math.sin(at / 4) + (at % 5) * 0.8) * 10) / 10,
+  )
+
+/**
+ * The machines' own figures: the Mac the page talks to, comfortable; the VPS
+ * it links to, its disk nearly full — the one thing on the page that is red
+ * for a reason no agent gave.
+ */
+const HERE_FIGURES = {
+  at: new Date(NOW).toISOString(),
+  cores: 10,
+  cpu: 23,
+  load: 3.18,
+  memory: { used: 22.6 * GB, total: 32 * GB },
+  tade: { cpu: 91, memory: 783 * 1024 ** 2, processes: 8 },
+  disk: { free: 412 * GB, total: 994 * GB, volumes: 1 },
+  trail: { cpu: trail(24, 9), memory: trail(68, 2) },
+}
+
+const VPS_FIGURES = {
+  at: new Date(ago(0.1)).toISOString(),
+  cores: 4,
+  cpu: 61,
+  load: 2.9,
+  memory: { used: 6.1 * GB, total: 8 * GB },
+  tade: { cpu: 148, memory: 1.9 * GB, processes: 14 },
+  disk: { free: 6.2 * GB, total: 80 * GB, volumes: 1 },
+  trail: { cpu: trail(55, 14), memory: trail(74, 3) },
+}
+
 function input(reach: Reach): SnapshotInput {
   return {
+    host: HERE_FIGURES,
+    machines: [{ name: 'vps', way: 'to', state: 'up', since: ago(240), host: VPS_FIGURES }],
     lifetime: { epoch: '0f9e1c2a-0000-4000-8000-000000000000', rev: 1, openedAt: ago(180) },
     reach,
     projects: PROJECTS,

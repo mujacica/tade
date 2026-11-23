@@ -646,11 +646,69 @@ export type You = z.infer<typeof YouSchema>
  * the way `you` does. A name and a state are metadata, sent to every device.
  * An older Tade sends none, which a reader takes as an empty list.
  */
+/** How many of a machine's newest looks a sparkline is drawn from. */
+export const HOST_TRAIL = 36
+
+/**
+ * A machine's own figures, as it last looked (`@tade/extension-resources`'s
+ * watch): how busy its processors are, its load, its memory used of the
+ * whole, what Tade and its agents use of it, and the room on the fullest disk
+ * its work is on — with a short trail of the processors and memory for a
+ * sparkline. **Null is "it cannot say"**, never nought: the first look has no
+ * processors' share yet, a platform with no reading of memory says none, and
+ * an older Tade sends no figures at all.
+ *
+ * Another machine's figures are that machine's word, carried on its own
+ * snapshot or with its word that it is up (`/api/seen`), so every number is
+ * bounded here and a row that does not read as this is no figures at all.
+ */
+export const HostSchema = z.strictObject({
+  /** When it looked, in that machine's own clock. */
+  at: z.string().max(40),
+  cores: z.int().positive().max(65_536).nullable(),
+  /** Percent of the whole machine busy, 0–100. */
+  cpu: z.number().min(0).max(100).nullable(),
+  /** The one-minute load average. */
+  load: z.number().min(0).max(1_000_000).nullable(),
+  /** Bytes. */
+  memory: z.strictObject({ used: z.number().min(0), total: z.number().positive() }).nullable(),
+  /** What Tade and everything it runs use: percent of one core, bytes, processes. */
+  tade: z
+    .strictObject({
+      cpu: z.number().min(0).max(6_553_600),
+      memory: z.number().min(0),
+      processes: z.int().min(0).max(1_000_000),
+    })
+    .nullable(),
+  /** The fullest volume Tade's home and the projects are on, in bytes, and how many there are. */
+  disk: z
+    .strictObject({
+      free: z.number().min(0),
+      total: z.number().positive(),
+      volumes: z.int().positive().max(1_000),
+    })
+    .nullable(),
+  /** The newest looks' processors and memory, in percent, oldest first; null where one could not say. */
+  trail: z.strictObject({
+    cpu: z.array(z.number().min(0).max(100).nullable()).max(HOST_TRAIL),
+    memory: z.array(z.number().min(0).max(100).nullable()).max(HOST_TRAIL),
+  }),
+})
+export type Host = z.infer<typeof HostSchema>
+
+/** Another machine's figures as this one may pass them on: read for their shape, or none. */
+export function hostFigures(value: unknown): Host | null {
+  const read = HostSchema.safeParse(value)
+  return read.success ? read.data : null
+}
+
 export const MachineRowSchema = z.strictObject({
   name: z.string(),
   way: z.enum(MACHINE_WAYS),
   state: z.enum(MACHINE_STATES),
   since: z.string(),
+  /** Its figures as it last told this machine, or null where it never has. */
+  host: HostSchema.nullable(),
 })
 export type MachineRow = z.infer<typeof MachineRowSchema>
 
@@ -684,6 +742,8 @@ export const SnapshotSchema = z.strictObject({
   runs: z.array(RunRowSchema),
   workflows: z.array(WorkflowRowSchema),
   machines: z.array(MachineRowSchema),
+  /** This machine's own figures, or null before its first look or where it cannot look. */
+  host: HostSchema.nullable(),
 })
 export type Snapshot = z.infer<typeof SnapshotSchema>
 
@@ -749,6 +809,8 @@ export const DeltaSchema = z.strictObject({
   you: YouSchema.optional(),
   /** Every machine, whole, whenever any of them moved. */
   machines: z.array(MachineRowSchema).optional(),
+  /** This machine's figures, whole, whenever they moved. */
+  host: HostSchema.nullable().optional(),
 })
 export type Delta = z.infer<typeof DeltaSchema>
 

@@ -59,6 +59,23 @@ export interface PairAt {
   tade: string
   /** What this machine is called in that machine's device list. */
   label: string
+  /**
+   * The name this machine will keep the remote by (`remotes.<name>`), where
+   * from now on it is to sign in there with a credential minted for this link
+   * alone, which that machine can take back without touching any other. Absent,
+   * it signs in however it reached the remote, as before.
+   */
+  ownCredentialFor?: string
+}
+
+/** What pairing came to: the session, and what this machine signs in there with from now on. */
+export interface Paired extends OwnerSession {
+  /**
+   * For the person, in the link's own words: the credential it minted for this
+   * link, where it is and how that machine takes it back — or why it has none
+   * and signs in as before. Absent where none was asked for.
+   */
+  signsIn?: string
 }
 
 /** What an implementation can do. Call sites branch on these, never on `id`. */
@@ -274,7 +291,7 @@ export interface RemoteLink {
    * Make this machine an owner of the Tade at `address`: run its pairing there
    * and hand back the session it printed. Throws `LinkError`.
    */
-  pair(at: PairAt): Promise<OwnerSession>
+  pair(at: PairAt): Promise<Paired>
   /** Sign this machine out there: the remote forgets the device. Throws `LinkError`. */
   unpair(remote: Remote): Promise<void>
   /**
@@ -398,4 +415,11 @@ export interface LinkOptions {
   home: string
   /** The clock frames are timed by. `Date.now` unless a test moves it. */
   now?: () => number
+  /**
+   * This machine's own figures (`@tade/web`'s `Host`), asked each time it says
+   * to a remote that it is up (`/api/seen`), so the person's phone looking at
+   * that machine sees this one's processors, memory and disk too. Null, or
+   * absent, sends none.
+   */
+  figures?: () => unknown
 }

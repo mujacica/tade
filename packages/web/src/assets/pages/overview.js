@@ -37,6 +37,8 @@ import {
   gaugeIn,
   ringIn,
   ringOf,
+  spark,
+  sparkIn,
   stat,
   statIn,
   stats,
@@ -58,7 +60,17 @@ import {
 import { ageSaid } from '../figures.js'
 import { rowMark, taskMark } from '../glyphs.js'
 import { icon } from '../icons.js'
-import { machineFix, machineSaid, machinesOf, machineTone, machineWay } from '../machines.js'
+import {
+  figuresAsOf,
+  figuresOf,
+  hereOf,
+  machineFix,
+  machineSaid,
+  machinesOf,
+  machineTone,
+  machineWay,
+  noFiguresSaid,
+} from '../machines.js'
 import { quickActs } from '../quick.js'
 import { pathOf, taskPath } from '../routes.js'
 import { section } from '../rows.js'
@@ -121,8 +133,9 @@ export function nowScreen(ctx = null) {
   const recentList = panel('ul', 'rows')
   into(recent.body, recentWhy.body, recentList)
 
-  // **The person's other machines**, as this one has seen them: which are up
-  // and which closed, slept or went quiet — only where there are any.
+  // **The person's machines**: this one first, with its processors, memory and
+  // disk, then the others as this one has seen them — which are up and which
+  // closed, slept or went quiet — each with the figures it last said.
   const machines = section('MACHINES')
   foldable(machines, 'overview:machines')
   const machineList = panel('ul', 'rows')
@@ -213,7 +226,8 @@ export function nowScreen(ctx = null) {
         },
       )
 
-      const seen = machinesOf(store)
+      const here = hereOf(store)
+      const seen = [...(here === null ? [] : [here]), ...machinesOf(store)]
       machines.node.hidden = seen.length === 0
       textIn(machines.figure, seen.length === 0 ? '' : String(seen.length))
       keyed(
@@ -562,6 +576,9 @@ function fillProject(node, row) {
 
 function createMachine() {
   const node = el('li', { class: 'ov-machine' })
+  // A span: a `div` straight under a row is drawn as a row of its own (`.rows > li > div`).
+  const figs = el('span', { class: 'ov-figs' })
+  into(figs, figTile('CPU', true), figTile('Memory', true), figTile('Disk', false))
   into(
     node,
     el('span', { class: 'glyph' }),
@@ -569,12 +586,40 @@ function createMachine() {
     el('span', { class: 'aside' }),
     el('span', { class: 'under' }),
     el('span', { class: 'under ov-fix' }),
+    figs,
+    el('span', { class: 'ov-figs-line' }),
   )
   return node
 }
 
+/** One figure: its label, its value, the line under it, and a trail or a meter beneath. */
+function figTile(label, trail) {
+  const node = el('div', { class: 'ov-fig', attrs: { role: 'group', 'aria-label': label } })
+  into(
+    node,
+    el('span', { class: 'ov-fig-label', text: label }),
+    el('span', { class: 'ov-fig-value' }),
+    el('span', { class: 'ov-fig-under' }),
+    trail ? spark() : meter(),
+  )
+  return node
+}
+
+function fillTile(node, one, drawn) {
+  const [, value, under, shape] = node.children
+  textIn(value, one.said)
+  textIn(under, one.under)
+  classOn(value, 'is-unknown', one.said === '—')
+  const tone = one.pressure === 'tight' ? 'failed' : one.pressure === 'warm' ? 'here' : ''
+  // Red past nine tenths, amber past three quarters, and the word says it too.
+  toneOn(value, tone ? `t-${tone}` : '')
+  if ('trail' in one) sparkIn(shape, one.trail, tone || 'working')
+  else meterIn(shape, one.used ?? 0, one.pressure)
+  shape.hidden = drawn === false
+}
+
 function fillMachine(node, row) {
-  const [glyph, name, said, way, fix] = node.children
+  const [glyph, name, said, way, fix, figs, line] = node.children
   textIn(glyph, row.state === 'up' ? '●' : '○')
   toneOn(glyph, machineTone(row))
   textIn(name, row.name)
@@ -582,6 +627,21 @@ function fillMachine(node, row) {
   textIn(way, machineWay(row))
   textIn(fix, machineFix(row) ?? '')
   fix.hidden = fix.textContent === ''
+  const figures = figuresOf(row.host ?? null)
+  figs.hidden = figures === null
+  if (figures !== null) {
+    const [cpu, memory, disk] = figs.children
+    fillTile(cpu, figures.cpu)
+    fillTile(memory, figures.memory)
+    fillTile(disk, figures.disk, figures.disk.used !== null)
+  }
+  // Not up, what it last said is drawn as of then, and quieter.
+  const asOf = figures === null ? null : figuresAsOf(row, figures)
+  classOn(figs, 'is-stale', asOf !== null)
+  textIn(
+    line,
+    figures === null ? noFiguresSaid(row) : [figures.tade, asOf].filter(Boolean).join(' — '),
+  )
 }
 
 function createChange() {

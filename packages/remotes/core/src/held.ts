@@ -4,6 +4,7 @@ import {
   COLLECTIONS,
   cursorOf,
   type Delta,
+  hostFigures,
   PRESENCE_MOST_MS,
   PROTOCOL_VERSION,
   type Snapshot,
@@ -322,10 +323,16 @@ export function readSnapshot(data: string): Snapshot | string {
   for (const collection of COLLECTIONS) {
     if (!Array.isArray(value[collection])) return `the remote sent a snapshot with no ${collection}`
   }
-  // The person's other machines came later than the protocol's version, so an
-  // older Tade sends none: read as none rather than refused.
-  if (!Array.isArray(value.machines)) return { ...value, machines: [] } as unknown as Snapshot
-  return value as unknown as Snapshot
+  // The person's other machines and the machine's own figures came later than
+  // the protocol's version, so an older Tade sends neither: read as none rather
+  // than refused. Figures that do not read as figures are none too
+  // (`hostFigures`): another machine's numbers are bounded before anything
+  // here draws or passes one on.
+  return {
+    ...value,
+    machines: Array.isArray(value.machines) ? value.machines : [],
+    host: hostFigures(value.host ?? null),
+  } as unknown as Snapshot
 }
 
 /** A delta, read the same way: the version, its revision, and the two maps. */
@@ -342,6 +349,8 @@ export function readDelta(data: string): Delta | string {
   if (value.fresh !== null && !isObject(value.fresh)) {
     return 'the remote sent a delta with a freshness that is not one'
   }
+  // Its figures, where it sent them, bounded as a snapshot's are.
+  if ('host' in value) return { ...value, host: hostFigures(value.host) } as unknown as Delta
   return value as unknown as Delta
 }
 

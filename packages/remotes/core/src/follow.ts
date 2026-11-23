@@ -57,6 +57,14 @@ const POST_MS = 10_000
  */
 export const GOODBYE_MS = 2_000
 
+/** What a follower is told by whoever holds it. */
+export interface FollowOptions {
+  now: () => number
+  changed: (held: Held) => void
+  /** This machine's own figures, said with its word that it is up; null for none. */
+  figures?: () => unknown
+}
+
 export class Follower {
   private held: Held
   /** The stream being read, while there is one. */
@@ -79,18 +87,20 @@ export class Follower {
   private seenAt: number | null = null
   private seenPosting = false
   private seenRefused = false
+  /**
+   * Whether the remote refused this machine's figures with its word: an older
+   * Tade there reads a body with them as malformed, so they are left off until
+   * its stream opens again, and the word that it is up still gets through.
+   */
+  private figuresRefused = false
   /** When this machine went to sleep, where it woke from one: told once the link is back. */
   private went: number | null = null
 
   private readonly remote: Remote
   private readonly reaching: Reaching
-  private readonly opts: { now: () => number; changed: (held: Held) => void }
+  private readonly opts: FollowOptions
 
-  constructor(
-    remote: Remote,
-    reaching: Reaching,
-    opts: { now: () => number; changed: (held: Held) => void },
-  ) {
+  constructor(remote: Remote, reaching: Reaching, opts: FollowOptions) {
     this.remote = remote
     this.reaching = reaching
     this.opts = opts
@@ -151,7 +161,19 @@ export class Follower {
     this.seenPosting = true
     try {
       const body = went === null ? { state: 'up' } : { state: 'up', slept: Math.max(0, now - went) }
-      const status = await post(door, '/api/seen', body, this.remote)
+      const figures = this.figuresRefused ? null : (this.opts.figures?.() ?? null)
+      let status = await post(
+        door,
+        '/api/seen',
+        figures === null ? body : { ...body, host: figures },
+        this.remote,
+      )
+      // An older Tade there, which reads figures as a malformed body: said
+      // again without them, so the word that this machine is up gets through.
+      if (status === 400 && figures !== null) {
+        this.figuresRefused = true
+        status = await post(door, '/api/seen', body, this.remote)
+      }
       if (status === 404) this.seenRefused = true
       // Told, or never to be: either way it is not said again.
       if (went !== null && (status === 200 || status === 404) && this.went === went)
@@ -295,6 +317,7 @@ export class Follower {
       // machine is up at once, and one that refused before is asked again.
       this.seenAt = null
       this.seenRefused = false
+      this.figuresRefused = false
       res.setEncoding('utf8')
       let rest = ''
       res.on('data', (chunk: string) => {

@@ -270,7 +270,7 @@ export class Away implements Subject {
       earlier: this.earlierHalf(),
       present: (device, at) => this.presences.seen(device, at),
       ...(this.deps.machines && {
-        seen: (device, word, at) => this.deps.machines?.heard(device.label, word, at),
+        seen: (device, word, at, host) => this.deps.machines?.heard(device.label, word, at, host),
       }),
       looking: (device, at) => this.push.looking(device, at),
       since: this.presences.since(),
@@ -960,6 +960,8 @@ export class Away implements Subject {
       // The person's other machines as this one has seen them: a phone looking at the VPS is told
       // the Mac is closed.
       machines: this.deps.machines?.rows() ?? [],
+      // And this machine's own figures: its processors, memory and disk, and Tade's share of them.
+      host: this.deps.machines?.host() ?? null,
       reach,
       lifetime: {
         // The **server's** epoch, so a snapshot's freshness and a delta's `id`

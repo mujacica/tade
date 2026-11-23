@@ -73,7 +73,7 @@ async function remote(then: (res: ServerResponse, path: string) => void): Promis
   return (server.address() as AddressInfo).port
 }
 
-function linkTo(port: number): RemoteLink {
+function linkTo(port: number, figures?: () => unknown): RemoteLink {
   const link = linkOver(
     {
       id: 'test',
@@ -84,7 +84,7 @@ function linkTo(port: number): RemoteLink {
       reaching: () => ({ reach: async () => ({ host: '127.0.0.1', port }), drop: async () => {} }),
       connect: () => Promise.reject(new Error('not here')),
     },
-    { home: '/nonexistent/home' },
+    { home: '/nonexistent/home', ...(figures && { figures }) },
   )
   links.push(link)
   return link
@@ -167,6 +167,41 @@ describe('this machine telling a remote it is up', () => {
     await until(link, 'the link up again', () => link.held('vps')?.link.kind === 'live')
     await link.goodbye()
     expect(heard.at(-1)).toEqual({ state: 'closed' })
+  })
+
+  it('says this machine’s own figures with its word, and an older Tade there is told it without them', async () => {
+    const figures = { at: 'now', cpu: 12 }
+    const { port, heard } = await listening()
+    const link = linkTo(port, () => figures)
+    link.open(REMOTE)
+    await until(link, 'the first word', () => heard.length >= 1)
+    expect(heard[0]).toEqual({ state: 'up', host: figures })
+    // A remote with no figures on its own snapshot — an older Tade — is held with none.
+    await until(link, 'the snapshot', () => link.held('vps')?.projection !== null)
+    expect(link.held('vps')?.projection?.host).toBeNull()
+
+    const bodies: unknown[] = []
+    const older = await remote((res, path) => {
+      if (path !== '/api/seen') return
+      let body = ''
+      res.req.setEncoding('utf8')
+      res.req.on('data', (chunk: string) => {
+        body += chunk
+      })
+      res.req.on('end', () => {
+        const read = JSON.parse(body) as Record<string, unknown>
+        bodies.push(read)
+        res.writeHead('host' in read ? 400 : 200).end('{}')
+      })
+    })
+    const old = linkTo(older, () => figures)
+    old.open({ ...REMOTE, name: 'vps' })
+    await until(old, 'the word said again without them', () => bodies.length >= 2)
+    expect(bodies.slice(0, 2)).toEqual([{ state: 'up', host: figures }, { state: 'up' }])
+    // Not offered again on every word until its stream opens again.
+    for (let at = 1; at <= 3; at++) old.beat(Date.now() + 15_000 * at)
+    await until(old, 'the next words', () => bodies.length >= 3)
+    expect(bodies.slice(2).every((one) => !('host' in (one as object)))).toBe(true)
   })
 
   it('stops asking a remote that does not take it, and says goodbye to nothing there', async () => {

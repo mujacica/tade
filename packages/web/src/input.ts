@@ -11,7 +11,7 @@ import type {
 import type { AgentLane, Can, Cannot, ProjectFacts, TaskFacts } from './acting.ts'
 import type { Places } from './command.ts'
 import type { IntakeIn, RunIn, SourceIn, WorkflowIn } from './factory.ts'
-import type { CHAT_LINE_KINDS } from './protocol.ts'
+import type { CHAT_LINE_KINDS, Host } from './protocol.ts'
 import type { Reach } from './reach.ts'
 
 // What the away view is handed, and the reason it is handed this and not more.
@@ -691,6 +691,12 @@ export interface SnapshotInput {
    * none.
    */
   machines?: readonly MachineIn[]
+  /**
+   * This machine's own figures, as its watch last looked
+   * (`@tade/extension-resources`). Absent or null is a machine that has not
+   * looked, which projects as none rather than as nought.
+   */
+  host?: Host | null
 }
 
 /** One of the person's other machines, as the window hands it over. */
@@ -701,4 +707,10 @@ export interface MachineIn {
   state: MachineState
   /** Since when, in this machine's clock. */
   since: number
+  /**
+   * Its figures as it last told this machine — on its own snapshot, or with
+   * its word that it is up — as that machine sent them: read for their shape
+   * when they are projected (`hostFigures`), so a figure out of bounds is none.
+   */
+  host?: unknown
 }

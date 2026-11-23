@@ -672,12 +672,28 @@ because a column is read down.
 */
 .page-overview .ov-machine {
   display: grid;
-  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  grid-template-columns: 1.5rem minmax(0, 1fr) minmax(0, max-content);
   gap: 2px var(--s3);
   align-items: baseline;
   min-height: calc(var(--tap) + var(--s2));
   padding-block: var(--s2);
   padding-inline: var(--s4);
+}
+
+.page-overview .ov-machine > .aside {
+  text-align: end;
+}
+
+/*
+  On a phone, either way up, how a machine stands goes under its name rather than beside it:
+  `lost 16:20 — no goodbye: asleep, or off the network` beside `mac-mini`
+  leaves the name a letter or two to a line.
+*/
+@media (max-width: 48rem) {
+  .page-overview .ov-machine > .aside {
+    grid-column: 2 / -1;
+    text-align: start;
+  }
 }
 
 .page-overview .ov-machine + .ov-machine {
@@ -686,6 +702,91 @@ because a column is read down.
 
 .page-overview .ov-fix {
   color: var(--bright);
+}
+
+/*
+  What each machine is doing: three tiles across the row — processors, memory,
+  disk — each a figure, the line that says what it is of, and a trail or a
+  meter under it; then Tade's own share in a line. Three across from the
+  narrowest phone up: a tile is a short figure over a short line, and the
+  line wraps inside its tile rather than pushing the row wider.
+*/
+.page-overview .ov-figs {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s2);
+  margin-block-start: var(--s2);
+}
+
+.page-overview .ov-figs[hidden] {
+  display: none;
+}
+
+.page-overview .ov-fig {
+  display: grid;
+  align-self: stretch;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r2);
+  background: var(--raised);
+}
+
+.page-overview .ov-fig-label {
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+}
+
+.page-overview .ov-fig-value {
+  color: var(--bright);
+  font-size: var(--step-1);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lead-tight);
+  overflow-wrap: anywhere;
+}
+
+.page-overview .ov-fig-value.is-unknown {
+  color: var(--heading);
+}
+
+/* Amber past three quarters, red past nine tenths, and the line under it says so in words. */
+.page-overview .ov-fig-value.t-here {
+  color: var(--amber);
+}
+
+.page-overview .ov-fig-value.t-failed {
+  color: var(--red);
+}
+
+.page-overview .ov-fig-under {
+  color: var(--heading);
+  font-size: var(--step--1);
+  line-height: var(--lead-tight);
+  overflow-wrap: anywhere;
+}
+
+.page-overview .ov-fig > .ui-spark {
+  height: 1.25rem;
+  margin-block-start: var(--s1);
+}
+
+.page-overview .ov-fig > .ui-meter {
+  align-self: end;
+  margin-block-start: var(--s2);
+}
+
+.page-overview .ov-figs-line {
+  grid-column: 1 / -1;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* A machine that is not up: what it last said, quieter, with when beside it. */
+.page-overview .ov-figs.is-stale {
+  opacity: 0.6;
 }
 
 @media (min-width: 1280px) {

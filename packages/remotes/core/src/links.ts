@@ -12,9 +12,9 @@ import {
   type LinkCapabilities,
   LinkError,
   type LinkOptions,
-  type OwnerSession,
   type PagesHere,
   type PairAt,
+  type Paired,
   type Remote,
   type RemoteLink,
   type RepositoryThere,
@@ -36,7 +36,7 @@ export interface Transport {
   readonly id: string
   readonly capabilities: LinkCapabilities
   readonly programs: readonly RequiredProgram[]
-  pair(at: PairAt): Promise<OwnerSession>
+  pair(at: PairAt): Promise<Paired>
   unpair(remote: Remote): Promise<void>
   /** How to reach one remote's listener: made once per `open`, dropped with it. */
   reaching(remote: Remote): Reaching
@@ -93,7 +93,7 @@ export const KEEP_EVERY_MS = 5_000
 
 /** A whole link out of a transport. */
 export function linkOver(transport: Transport, options: LinkOptions): RemoteLink {
-  return new Links(transport, options.now ?? Date.now, options.home)
+  return new Links(transport, options.now ?? Date.now, options.home, options.figures)
 }
 
 /** What keeping one remote's projection on disk stands at. */
@@ -117,17 +117,24 @@ class Links implements RemoteLink {
   private readonly now: () => number
   private readonly home: string
   private readonly keeping = new Map<string, Keeping>()
+  private readonly figures: () => unknown
 
-  constructor(transport: Transport, now: () => number, home: string) {
+  constructor(
+    transport: Transport,
+    now: () => number,
+    home: string,
+    figures: () => unknown = () => null,
+  ) {
     this.transport = transport
     this.now = now
     this.home = home
+    this.figures = figures
     this.id = transport.id
     this.capabilities = transport.capabilities
     this.programs = transport.programs
   }
 
-  pair(at: PairAt): Promise<OwnerSession> {
+  pair(at: PairAt): Promise<Paired> {
     return this.transport.pair(at)
   }
 
@@ -207,6 +214,7 @@ class Links implements RemoteLink {
     const follower = new Follower(remote, this.reachingOf(remote), {
       now: this.now,
       changed: () => this.told(remote.name),
+      figures: this.figures,
     })
     follower.press(this.pressedAt)
     this.followers.set(remote.name, follower)

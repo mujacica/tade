@@ -21,11 +21,12 @@ import type { MachinesHeld } from './web-machines.ts'
 export interface AwayDeps {
   /**
    * The person's other machines (`machines-seen.ts`): what one that links here
-   * said of itself (`/api/seen`), and every one as the projection draws it.
-   * Two methods, never the subject. Absent, the route is the `404` of a path
-   * nobody wired and the projection names no machine.
+   * said of itself (`/api/seen`), every one as the projection draws it, and
+   * this machine's own figures. Three methods, never the subject. Absent, the
+   * route is the `404` of a path nobody wired and the projection names no
+   * machine and no figures.
    */
-  machines?: Pick<MachinesSeen, 'heard' | 'rows'>
+  machines?: Pick<MachinesSeen, 'heard' | 'rows' | 'host'>
   /**
    * What this machine has, as its last look found it, for `/api/machine`; and
    * what another machine of the person's tells it it has, kept here

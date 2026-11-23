@@ -40,7 +40,7 @@ import type {
   SpendOut,
   TaskRow,
 } from './protocol.ts'
-import { PROTOCOL_VERSION } from './protocol.ts'
+import { hostFigures, PROTOCOL_VERSION } from './protocol.ts'
 import { has, type Reach, readsOf, sees } from './reach.ts'
 
 // The projection. One pure function of what it is handed and the moment.
@@ -723,6 +723,7 @@ export function snapshotOf(
     runs: runPage.rows.map((one) => runRow(one, reach, budget)),
     workflows: workflowPage.rows.map((one) => workflowRow(one, reach, budget)),
     machines: machineRows(input.machines ?? []),
+    host: input.host ?? null,
   }
 }
 
@@ -734,6 +735,7 @@ function machineRows(machines: readonly MachineIn[]): Snapshot['machines'] {
       way: one.way,
       state: one.state,
       since: new Date(one.since).toISOString(),
+      host: hostFigures(one.host ?? null),
     }))
     .filter((one) => one.name !== '')
     .sort((a, b) => byText(`${a.way} ${a.name}`, `${b.way} ${b.name}`))

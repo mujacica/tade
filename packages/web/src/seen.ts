@@ -3,6 +3,7 @@ import { type SeenWord, SLEPT_MOST_MS } from '@tade/core'
 import { z } from 'zod'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
+import { type Host, hostFigures } from './protocol.ts'
 import { readBody } from './request.ts'
 import { ownsOrTheirs } from './surface.ts'
 
@@ -27,25 +28,47 @@ import { ownsOrTheirs } from './surface.ts'
 // 4. **It can only say what it is.** It reaches no project and starts
 //    nothing: the worst a session could do with it is say a machine is up or
 //    closed, which the next silence corrects (`lost`).
+// 5. **Its figures are its own word about itself, and only numbers.** A word
+//    that it is up may carry the machine's own figures (`HostSchema`) — its
+//    processors, memory and disk, for the person's phone to read. Figures
+//    that do not read as figures are none rather than a refusal, so a newer
+//    machine's shape never costs an older one the word that it is up.
 
 const SeenBody = z.discriminatedUnion('state', [
-  z.strictObject({ state: z.literal('up'), slept: z.int().min(0).max(SLEPT_MOST_MS).optional() }),
+  z.strictObject({
+    state: z.literal('up'),
+    slept: z.int().min(0).max(SLEPT_MOST_MS).optional(),
+    host: z.unknown().optional(),
+  }),
   z.strictObject({ state: z.literal('closed') }),
 ])
 
-/** The window's half: a machine link said this, at this moment in this machine's clock. */
-export type WebSeen = (device: Pick<Device, 'id' | 'label'>, word: SeenWord, at: number) => void
+/**
+ * The window's half: a machine link said this, at this moment in this
+ * machine's clock — and, with a word that it is up, its own figures, or null
+ * where it sent none that read as figures.
+ */
+export type WebSeen = (
+  device: Pick<Device, 'id' | 'label'>,
+  word: SeenWord,
+  at: number,
+  host: Host | null,
+) => void
 
 /** One word out of a body, for this device: what it said, or why it is refused. Pure. */
 export function seenOf(
   body: unknown,
   device: Pick<Device, 'owner' | 'scopes' | 'granted'>,
-): { ok: true; word: SeenWord } | { ok: false; refusal: Refusal } {
+): { ok: true; word: SeenWord; host: Host | null } | { ok: false; refusal: Refusal } {
   if (!ownsOrTheirs(device)) return { ok: false, refusal: refuse('out_of_scope') }
   const got = SeenBody.safeParse(body)
   if (!got.success) return { ok: false, refusal: refuse('malformed') }
-  if (got.data.state === 'closed') return { ok: true, word: { state: 'closed' } }
-  return { ok: true, word: { state: 'up', slept: got.data.slept ?? null } }
+  if (got.data.state === 'closed') return { ok: true, word: { state: 'closed' }, host: null }
+  return {
+    ok: true,
+    word: { state: 'up', slept: got.data.slept ?? null },
+    host: hostFigures(got.data.host ?? null),
+  }
 }
 
 /** The route. `seen` absent is a window that did not wire it: the `404` of a path nobody built. */
@@ -60,6 +83,6 @@ export async function seenHere(
   if (!got.read) return { refusal: got.refusal }
   const said = seenOf(got.body, device)
   if (!said.ok) return { refusal: said.refusal }
-  seen(device, said.word, now)
+  seen(device, said.word, now, said.host)
   return { body: { at: new Date(now).toISOString() } }
 }

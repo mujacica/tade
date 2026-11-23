@@ -305,8 +305,11 @@ describe('the real folder', () => {
     // each row's start, stop, close and long-press in `side.js`) took it to 452.
     // 455 until the restart bar offered the restart itself (about 1.8 KB:
     // `restart.js`, the press and what the machine answered, and the bar's
-    // states in `shell-bars.js`) took it to 456.
-    expect(wire).toBeLessThan(458 * 1024)
+    // states in `shell-bars.js`) took it to 456. 458 until each machine said
+    // what it is doing (about 2.7 KB: `machines.js`'s words for CPU, memory
+    // and disk, and the three tiles a machine row draws them in) took it from
+    // 457.8 at 14d2781d to 460.5.
+    expect(wire).toBeLessThan(462 * 1024)
     // And the files as they sit, which is what a browser holds once it has
     // them: about a megabyte, with the comments every module carries. 768
     // until the pages were redrawn one at a time, each 40–90 KB as it sits.
@@ -354,7 +357,9 @@ describe('the real folder', () => {
     // the menu so both lists build them once, and the rows' rules) took it to
     // 1449. 1452 until the restart bar offered the restart itself (5 KB as it
     // sits: `restart.js` and the bar's states in `shell-bars.js`) took it to
-    // 1454.
-    expect(raw).toBeLessThan(1457 * 1024)
+    // 1454. 1457, already 1461 at 14d2781d, until each machine said what it is
+    // doing (10 KB as it sits: the figures' words and why a machine that says
+    // none is said so, and the tiles' rules) took it to 1471.
+    expect(raw).toBeLessThan(1472 * 1024)
   })
 })

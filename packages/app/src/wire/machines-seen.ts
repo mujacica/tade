@@ -11,8 +11,9 @@ import {
   seenDetail,
 } from '@tade/core'
 import type { Held } from '@tade/remotes-core'
-import type { MachineIn } from '@tade/web'
+import type { Host, MachineIn } from '@tade/web'
 import { notify, type Wiring } from './context.ts'
+import { hereFiguresFor } from './host-figures.ts'
 
 // Which of the person's machines are up, as this window has seen them, and the
 // `machine_seen` lines that say when each changed (`@tade/core`'s
@@ -29,6 +30,12 @@ import { notify, type Wiring } from './context.ts'
 // is written only where a state moves. A machine that links here and was up
 // when this window last closed is not assumed still up: until it beats again
 // it is drawn as that line said, as of then.
+//
+// **And each machine's figures, as it last said them**: its processors, memory
+// and disk, off its own snapshot for one this machine links to, and with its
+// word that it is up for one that links here. Held in memory and never
+// written down — a figure is a sample, and a sample is never a journal line —
+// so a window opened since has none until the machine says them again.
 
 /** What the window writes and says, named once so a test can hand it over. */
 export interface MachinesSeenDeps {
@@ -40,6 +47,8 @@ export interface MachinesSeenDeps {
   say(said: string): void
   /** Something moved: a frame, and a beat of the away view. */
   draw(): void
+  /** This machine's own figures, never waited on; null before its first look. */
+  here?(): Host | null
 }
 
 export class MachinesSeen {
@@ -48,6 +57,8 @@ export class MachinesSeen {
   private readonly last = new Map<string, MachineSeen>()
   /** The machines that link here, as their beats stand, by name. */
   private readonly inbound = new Map<string, Inbound>()
+  /** Each machine's figures as it last said them, by `${way} ${machine}`, as it sent them. */
+  private readonly figures = new Map<string, unknown>()
   private seeded: Promise<void> | null = null
 
   constructor(deps: MachinesSeenDeps) {
@@ -79,9 +90,14 @@ export class MachinesSeen {
     return this.seeded
   }
 
-  /** A machine that links here said something of itself (`/api/seen`), at `at` in this clock. */
-  heard(machine: string, word: SeenWord, at: number): void {
+  /**
+   * A machine that links here said something of itself (`/api/seen`), at `at`
+   * in this clock — with its figures, where its word that it is up carried any.
+   * A goodbye leaves the last ones it sent, drawn as of when it looked.
+   */
+  heard(machine: string, word: SeenWord, at: number, host: Host | null = null): void {
     const name = seenName(machine)
+    if (word.state !== 'closed' && host !== null) this.figures.set(keyOf('from', name), host)
     const was = this.inbound.get(name) ?? this.fromLine(name)
     this.moved(name, inboundSaid(name, was, word, at))
   }
@@ -100,6 +116,10 @@ export class MachinesSeen {
    * which is this machine having slept rather than that one having gone.
    */
   linked(held: Held): void {
+    // Its figures ride on its own snapshot, whatever its link is doing now:
+    // what was last heard stays, drawn as of when that machine looked.
+    const host = held.projection?.host ?? null
+    if (host !== null) this.figures.set(keyOf('to', held.remote), host)
     const state = linkedState(held)
     if (state === null) return
     const key = keyOf('to', held.remote)
@@ -123,7 +143,13 @@ export class MachinesSeen {
       way: one.way,
       state: one.state,
       since: one.since ?? one.at,
+      host: this.figures.get(keyOf(one.way, one.machine)) ?? null,
     }))
+  }
+
+  /** This machine's own figures, as the away view projects them: null before its first look. */
+  host(): Host | null {
+    return this.deps.here?.() ?? null
   }
 
   /** How a machine that links here last stood, from its last line, as the beat reads it. */
@@ -172,7 +198,13 @@ export function linkedState(held: Held): MachineState | null {
 
 /** The window's own, out of its wiring: the journal it holds, and the strip. */
 export function machinesSeenFor(wire: Wiring): MachinesSeen {
+  const said = (text: string) => {
+    notify(wire, text)
+    wire.draw()
+  }
+  const here = hereFiguresFor(wire, said)
   return new MachinesSeen({
+    here: () => here.now(),
     append: async (line) => {
       await wire.opts.client.log.append(line)
     },

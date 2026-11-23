@@ -3,7 +3,8 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Outcome, WebActing } from '../src/acting.ts'
 import { allowDevice } from '../src/devices.ts'
-import type { TaskIn } from '../src/input.ts'
+import type { MachineIn, TaskIn } from '../src/input.ts'
+import type { Host } from '../src/protocol.ts'
 import { GRANTS, type Reach } from '../src/reach.ts'
 import { projector } from '../src/reading.ts'
 import { webServer } from '../src/server.ts'
@@ -118,6 +119,33 @@ const shots = (() => {
   return at === -1 ? null : (process.argv[at + 1] ?? null)
 })()
 
+const GB = 1024 ** 3
+
+/**
+ * The machines with their figures, each tile at its widest: four-figure
+ * memory, a load of two decimals, a disk running out with its words, and a
+ * machine that is not up drawn as of when it last said them.
+ */
+const FIGURES: Host = {
+  at: new Date(NOW).toISOString(),
+  cores: 10,
+  cpu: 23,
+  load: 13.18,
+  memory: { used: 22.6 * GB, total: 128 * GB },
+  tade: { cpu: 191, memory: 1.9 * GB, processes: 18 },
+  disk: { free: 1.5 * GB, total: 1.9 * 1024 * GB, volumes: 3 },
+  trail: {
+    cpu: Array.from({ length: 36 }, (_, at) => (at % 7 === 3 ? null : 20 + (at % 9) * 4)),
+    memory: Array.from({ length: 36 }, (_, at) => 60 + (at % 4)),
+  },
+}
+
+const MACHINES: MachineIn[] = [
+  { name: 'vps', way: 'to', state: 'up', since: NOW - 3_600_000, host: FIGURES },
+  { name: 'mac-mini', way: 'from', state: 'lost', since: NOW - 600_000, host: FIGURES },
+  { name: 'old-box', way: 'to', state: 'up', since: NOW - 60_000 },
+]
+
 /** The window, answering every verb, so a granted device draws every control. */
 const answering: WebActing = {
   unlocked: () => true,
@@ -197,10 +225,14 @@ async function serve(home: string) {
       const mine = held.get(reach.device)
       if (mine !== undefined) return mine
       const tasks = [task(), pasted(), waiting(), task({ id: 'tade/window', project: 'tade' })]
-      const made = projector(input({ reach, tasks, talk: harnessTalk(12) }), NOW, {
-        agent: () => agentHeld(),
-        settings: () => ({ groups: settingRows(), known: [] }),
-      })
+      const made = projector(
+        input({ reach, tasks, talk: harnessTalk(12), host: FIGURES, machines: MACHINES }),
+        NOW,
+        {
+          agent: () => agentHeld(),
+          settings: () => ({ groups: settingRows(), known: [] }),
+        },
+      )
       held.set(reach.device, made)
       return made
     },
