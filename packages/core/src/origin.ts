@@ -301,14 +301,19 @@ const OWNER_ASKED =
  * What an owner device is, said where one is minted (`tade web pair --owner`).
  *
  * The fact, then what stands against it, in one breath — the shape every
- * sentence in `away.ts` has. The middle clause is the one a person deciding has
- * to picture: an agent on the machine that holds the secret can use it, because
- * it runs as you with your SSH agent, and so could already `ssh` here.
+ * sentence in `away.ts` has. The middle clauses are the ones a person deciding
+ * has to picture: its words are the person's where it says they were typed
+ * (`AskCall.typed` makes a `said` line, `web-asking.ts`) — the owner argument,
+ * kept on purpose, and the step an agent holding the secret would take — and an
+ * agent on the machine that holds the secret can use it, because it runs as
+ * you with your SSH agent, and so could already `ssh` here.
  */
 export const OWNER_IS_YOUR_SSH_KEY =
   'An owner device is a session minted over SSH and bound to this machine’s own address, so it ' +
   'works only through this machine or an SSH connection to it, never over a public name — and ' +
-  'whatever it asks Tade to do reaches what you would reach at this keyboard. Anything that can ' +
+  'whatever it asks Tade to do reaches what you would reach at this keyboard. Where it says you ' +
+  'typed its words at your own machine, they are taken as yours here, as if typed at this one, ' +
+  'and can name a setting for Tade to change. Anything that can ' +
   'use your SSH key can use it, an agent on the machine you keep it on included, which could ' +
   'already `ssh` here; a key that needs a touch per use makes each new connection your act. ' +
   '`tade web revoke <device>` ends it, with no window and no network.'

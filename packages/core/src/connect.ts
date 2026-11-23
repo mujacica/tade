@@ -701,6 +701,13 @@ function linearDeliveries(look: LinearLook, connected: boolean): ConnectStep {
 /**
  * Said where the pages are offered, once: who may use them, and what they
  * cannot do.
+ *
+ * **On this machine's own door they ask for no session**, and that is a choice
+ * kept on purpose (`connected.ts`): they are opened in whatever browser is
+ * here, or through another machine's link, neither of which holds one — so
+ * anything running on this machine can press them too, and could replace an
+ * App or a signing secret with its own. Said here, where somebody decides to
+ * use them, rather than only in the code.
  */
 export const CONNECT_IS_HERE =
-  'These pages answer on this machine alone — here, or through SSH — and nothing a phone holds reaches them. Connecting lets Tade read; it grants nobody anything: whose words count and whether Tade may answer are still yours to write in Settings › Intake.'
+  'These pages answer on this machine’s own door — here, or through SSH — with no session asked, so anything running on this machine can press them too; anywhere else only your own device reaches them, under its session and passkey. Connecting lets Tade read; it grants nobody anything: whose words count and whether Tade may answer are still yours to write in Settings › Intake.'

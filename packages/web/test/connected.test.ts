@@ -244,6 +244,15 @@ describe('the guided page', () => {
     const page = await ask(one, '/connect', { headers: { host: here(one), cookie: phone.cookie } })
     expect(page.status).toBe(200)
   })
+
+  it('says on the page that this door asks no session, so anything on this machine can press it', async () => {
+    // A choice kept on purpose (`CONNECT_IS_HERE`): said where it is used, not only in the code.
+    const { half } = connecting()
+    const one = await start({}, { connecting: half })
+    const page = await ask(one, '/connect', { headers: { host: here(one) } })
+    expect(page.text).toContain('with no session asked, so anything running on this machine')
+    expect(page.text).not.toContain('nothing a phone holds')
+  })
 })
 
 describe('a press', () => {

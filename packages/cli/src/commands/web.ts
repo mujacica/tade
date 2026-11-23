@@ -541,6 +541,10 @@ interface Pairing {
  * phone's own nothing; that link is for this machine, or a browser at the far
  * end of an SSH forward.
  */
+/** What a `tade web pair` link is worth, said under it. */
+export const LINK_IS_THE_ACCESS =
+  'nobody is asked when it is opened: whoever opens the link first is paired with it and makes its passkey, so give it to no one and paste it nowhere'
+
 async function pairCode(
   io: Io,
   setExit: (code: number) => void,
@@ -572,7 +576,15 @@ async function pairCode(
   if (pairing.json) {
     io.out(
       JSON.stringify(
-        { device: written.device, url, host, until, answering: pairing.window },
+        {
+          device: written.device,
+          url,
+          host,
+          until,
+          answering: pairing.window,
+          // What claiming it grants, said in the answer a script reads too.
+          access: pairing.readOnly ? 'read' : 'full',
+        },
         null,
         2,
       ),
@@ -595,6 +607,11 @@ async function pairCode(
       ? 'it may read everything and change nothing'
       : 'full access: it may read and do whatever is turned on here, and the AWAY VIEW panel takes any of it back',
   )
+  // **Nobody is asked at the claim**, unlike the window's own code, whose
+  // claim waits for a press there: the link is the access itself, and the
+  // first to open it also makes the passkey. Full access by default is the
+  // person's call; saying what holding the link is worth is ours.
+  io.out(LINK_IS_THE_ACCESS)
   if (surface.bind === 'lan') io.out(LAN)
   io.out(`\`tade web revoke ${written.device}\` takes the code back before anybody uses it`)
   if (!pairing.window) io.err(NOTHING_ANSWERS)

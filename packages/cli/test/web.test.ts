@@ -7,6 +7,7 @@ import { appendDevice, CONNECT_OFF, CONNECT_ON_LAN, writeDevices } from '@tade/w
 import { lockHome } from '@tade/workbench/lock'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
+import { LINK_IS_THE_ACCESS } from '../src/commands/web.ts'
 
 const bin = fileURLToPath(new URL('../src/bin.ts', import.meta.url))
 
@@ -283,17 +284,29 @@ describe('tade web', () => {
       expect(drawn.code).toBe(0)
       expect(drawn.stdout).toContain('█')
       expect(drawn.stdout).toContain('https://tade.example.com/pair#t=')
+      // Full access by default, and the link is that access: nobody is asked at the claim.
+      expect(drawn.stdout).toContain('full access')
+      expect(drawn.stdout).toContain(LINK_IS_THE_ACCESS)
+      const full = await tade('web', 'pair', '--json')
+      expect((JSON.parse(full.stdout) as Record<string, unknown>).access).toBe('full')
       const json = await tade('web', 'pair', '--json', '--read-only')
       const got = JSON.parse(json.stdout) as Record<string, unknown>
+      expect(got.access).toBe('read')
       expect(got.host).toBe('tade.example.com')
       expect(String(got.url)).toMatch(/^https:\/\/tade\.example\.com\/pair#t=/)
       expect(got.answering).toBe(false)
       // A second code takes the first back: only the one just printed is
       // claimable, as the window's panel has it.
       const written = await lines()
-      expect(written.map((line) => line.kind)).toEqual(['pending', 'revoked', 'pending'])
+      expect(written.map((line) => line.kind)).toEqual([
+        'pending',
+        'revoked',
+        'pending',
+        'revoked',
+        'pending',
+      ])
       expect(written[0]).toMatchObject({ label: 'my phone' })
-      expect(written[2]).toMatchObject({ scopes: ['read'] })
+      expect(written[4]).toMatchObject({ scopes: ['read'] })
       const devices = await tade('web', 'devices')
       expect(devices.stdout).toContain(`a code from the terminal  ${String(got.device)}  unclaimed`)
       const status = JSON.parse((await tade('web', 'status', '--json')).stdout) as {
@@ -316,6 +329,8 @@ describe('tade web', () => {
       expect(got.host).toBe('localhost:7654')
       expect(got.cookie).toMatch(new RegExp(`^tade_away=${got.device}\\.[A-Za-z0-9_-]{43}$`))
       expect(said.stderr).toContain('never over a public name')
+      // Its words count as the person's where it says they were typed: said where it is minted.
+      expect(said.stderr).toContain('they are taken as yours here')
       const written = await lines()
       expect(written[0]).toMatchObject({
         kind: 'paired',
