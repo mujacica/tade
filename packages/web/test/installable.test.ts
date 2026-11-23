@@ -352,7 +352,9 @@ describe('the real folder', () => {
     // and the sheet's rules) took it to 1445. 1448 until the Agents list's
     // rows had the same presses (3 KB as it sits: the presses moved beside
     // the menu so both lists build them once, and the rows' rules) took it to
-    // 1449.
-    expect(raw).toBeLessThan(1452 * 1024)
+    // 1449. 1452 until the restart bar offered the restart itself (5 KB as it
+    // sits: `restart.js` and the bar's states in `shell-bars.js`) took it to
+    // 1454.
+    expect(raw).toBeLessThan(1457 * 1024)
   })
 })

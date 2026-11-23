@@ -18,7 +18,7 @@ const ASKED = {
   armed: false,
   busy: false,
   going: false,
-  said: null,
+  said: null as string | null,
   cannot: false,
 }
 
