@@ -498,6 +498,9 @@ importers:
 
   packages/extensions/resources:
     dependencies:
+      '@tade/core':
+        specifier: workspace:*
+        version: link:../../core
       '@tade/extensions-core':
         specifier: workspace:*
         version: link:../core

@@ -195,6 +195,10 @@ const ALLOWED: Record<string, number> = {
   'packages/cli/src/commands/lanes.ts': 1,
   'packages/cli/src/commands/mcp.ts': 1,
   'packages/cli/src/commands/proposals.ts': 2,
+  // `ownUnit`: a cgroup that cannot be read is no unit, so no restart is
+  // offered, and the bar says nobody would start it again. Off Linux there is
+  // no /proc to read at all, and that is the ordinary answer, not a failure.
+  'packages/cli/src/commands/serve-restart.ts': 1,
   'packages/cli/src/commands/setup-facts.ts': 6,
   'packages/cli/src/commands/setup-watches.ts': 1,
   'packages/cli/src/commands/setup.ts': 2,
@@ -234,6 +238,11 @@ const ALLOWED: Record<string, number> = {
   'packages/extensions/jev/src/review.ts': 1,
   'packages/extensions/jev/src/reviews.ts': 3,
   'packages/extensions/resources/src/extension.ts': 1,
+  // `MachineEye`: a reading that throws is null, "this machine cannot say",
+  // drawn as a dash and never as nought (`UNRECORDED`) — the memory, a disk
+  // left out of the tightest, a kernel call. Asked every few seconds, so a
+  // reason would be the same line again and again with nobody to act on it.
+  'packages/extensions/resources/src/machine.ts': 3,
   'packages/extensions/review/src/branch.ts': 1,
   'packages/extensions/review/src/extension.ts': 6,
   'packages/extensions/review/src/record.ts': 3,
@@ -326,6 +335,9 @@ const ALLOWED: Record<string, number> = {
   'packages/web/src/assets/routes.js': 2,
   'packages/web/src/assets/sw.js': 1,
   'packages/web/src/configured.ts': 1,
+  // `held`: a line that is not JSON is skipped, as a journal's bad line is —
+  // a ticket lost to it is refused like a run-out one, and a new link mints another.
+  'packages/web/src/connect-tickets.ts': 1,
   'packages/web/src/devices.ts': 3,
   'packages/web/src/drafted.ts': 1,
   'packages/web/src/endpoint.ts': 1,

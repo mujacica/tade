@@ -1,6 +1,6 @@
-import { execFile } from 'node:child_process'
 import { stat, statfs } from 'node:fs/promises'
 import { cpus, freemem, loadavg, totalmem } from 'node:os'
+import { runProgram } from '@tade/core'
 import type { ExecResult } from '@tade/extensions-core'
 import { MachineEye, type MachineLook, type MachineReaders } from './machine.ts'
 import { attribute, History, type LaneRef, parsePs, type Sample, sampleOf } from './usage.ts'
@@ -112,24 +112,17 @@ function round1(value: number): number {
   return Math.round(value * 10) / 10
 }
 
-/** A program run with a deadline, spawned asynchronously. Never throws. */
-export function run(
+/** A program run with a deadline, in a group of its own (`runProgram`). Never throws. */
+export async function run(
   command: string,
   args: readonly string[],
   options: { timeoutMs?: number } = {},
 ): Promise<ExecResult> {
-  return new Promise((done) => {
-    execFile(
-      command,
-      [...args],
-      { timeout: options.timeoutMs ?? 5_000, maxBuffer: 32 * 1024 ** 2, encoding: 'utf8' },
-      (err, stdout, stderr) => {
-        const code =
-          err === null ? 0 : typeof (err as { code?: unknown }).code === 'number' ? err.code : 1
-        done({ code: Number(code), stdout, stderr: stderr || (err?.message ?? '') })
-      },
-    )
+  const ran = await runProgram(command, args, {
+    timeoutMs: options.timeoutMs ?? 5_000,
+    maxBuffer: 32 * 1024 ** 2,
   })
+  return { code: ran.code, stdout: ran.stdout, stderr: ran.stderr }
 }
 
 /** The kernel's own answers on this machine. */
