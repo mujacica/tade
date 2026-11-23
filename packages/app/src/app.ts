@@ -319,6 +319,7 @@ export class App {
       screens: () => this.screens,
       files: () => this.files,
       seen: (held) => this.heart.machinesSeen.linked(held),
+      figures: () => this.heart.machinesSeen.host(),
       inventory: () => this.heart.inventory.latest(),
       synced: (project) => this.heart.sync.poke(project),
       settings: () => this.settings,
