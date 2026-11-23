@@ -11,8 +11,8 @@ import type { Frame } from '../frame.ts'
 import { type Machine, type Machines, type Missed, missedOf, type RemoteTalk } from '../machines.ts'
 import { ORCHESTRATOR_TAB } from '../model.ts'
 import { type TalkShown, talkingTo, talkSays, talkTabsOf, talkTranscript } from '../talk-tab.ts'
-import type { Entry } from '../transcript.ts'
-import { notify, saidLately, type Wiring, why } from './context.ts'
+import { type Entry, onATurn } from '../transcript.ts'
+import { flash, notify, saidLately, type Wiring, why } from './context.ts'
 
 // Another machine's orchestrator, talked to from this window:
 // what is typed on its tab, sent to it as this machine's owner;
@@ -27,6 +27,11 @@ import { notify, saidLately, type Wiring, why } from './context.ts'
 // answering somebody else is that machine's to refuse. What it answers is said
 // on the tab as text, and **nothing typed on a machine's tab ever reaches this
 // machine's orchestrator** — not when the machine is down, not when it refuses.
+//
+// **Escape on this machine's own line stops a turn on the hub** where the two
+// are one conversation (`oneWith`) and its turn runs there: a turn runs where
+// its input arrived, so the one in flight may be the hub's, and the same door
+// stops it, said in the strip rather than on a tab nobody is looking at.
 //
 // **The card is asked for on every link coming back, and only then**
 // (`/api/since`): how long ago it came back is the one thing sent, as an age,
@@ -45,6 +50,8 @@ export interface RemoteTalkDeps {
   reach(machine: string): { link: RemoteLink; remote: Remote; live: boolean } | null
   machines(): Machines
   skew(machine: string): number
+  /** The hub this machine's own conversation is one with (`FleetConversation.oneWith`), or null. */
+  oneWith?(): string | null
 }
 
 /**
@@ -185,9 +192,16 @@ export class RemoteTalks {
       .machines()
       .remotes.filter((one) => one.link === 'live' && one.talk?.busy === true)
       .map((one) => one.name)
+    const hub = this.deps.oneWith?.() ?? null
+    const there = hub !== null && busy.includes(hub) ? hub : null
     const was = this.wire.state.talkBusy
-    if (busy.length === was.length && busy.every((name, at) => name === was[at])) return
-    this.wire.put({ ...this.wire.state, talkBusy: busy })
+    if (
+      busy.length === was.length &&
+      busy.every((name, at) => name === was[at]) &&
+      there === this.wire.state.turnThere
+    )
+      return
+    this.wire.put({ ...this.wire.state, talkBusy: busy, turnThere: there })
   }
 
   /**
@@ -211,11 +225,20 @@ export class RemoteTalks {
     return true
   }
 
-  /** Escape on a machine's tab: its turn stopped there. False where no machine's tab is in front. */
+  /**
+   * Escape on a machine's tab: its turn stopped there. On this machine's own
+   * line, with no turn here, the hub's turn of the same conversation. False
+   * where neither is, which leaves it to this machine's orchestrator.
+   */
   interrupt(): boolean {
     const name = talkingTo(this.wire.state)
-    if (name === null) return false
-    void this.stop(name)
+    if (name !== null) {
+      void this.stop(name)
+      return true
+    }
+    const hub = this.wire.state.turnThere
+    if (hub === null || onATurn(this.wire.state.transcript)) return false
+    void this.stop(hub, true)
     return true
   }
 
@@ -409,20 +432,23 @@ export class RemoteTalks {
   }
 
   /** Stop that machine's turn, where one is in flight there. */
-  private async stop(name: string): Promise<void> {
+  /** Its turn stopped there, said on its tab — or in the strip, from this machine's own line (`own`). */
+  private async stop(name: string, own = false): Promise<void> {
     const machine = this.deps.machines().remotes.find((one) => one.name === name)
     const reach = this.deps.reach(name)
     const talk = machine?.talk ?? null
     if (reach === null || !reach.live || talk === null || talk.rev === null || !talk.busy) return
+    const refused = (text: string) => (own ? notify(this.wire, text) : this.note(name, text))
     try {
       const answer = await reach.link.request(name, '/api/ask/stop', {
         was: talk.rev,
         key: randomBytes(12).toString('base64url'),
         rev: machine?.rev ?? 0,
       })
-      if (answer.status !== 200) this.note(name, refusedSaid(answer, name))
+      if (answer.status !== 200) refused(refusedSaid(answer, name))
+      else if (own) flash(this.wire, `stopped the orchestrator's turn on ${name}`)
     } catch (err) {
-      this.note(name, `${name}: ${printable(why(err))}`)
+      refused(`${name}: ${printable(why(err))}`)
     }
     this.wire.draw()
   }

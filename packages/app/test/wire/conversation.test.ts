@@ -51,7 +51,7 @@ const TOY: ConversationFormat = {
 let made = 0
 
 /** One machine: a home, its record, its gate, and the window's half over a wiring that has what it reads. */
-function side(name: string, remotes: Record<string, unknown> = {}) {
+function side(name: string, remotes: Record<string, unknown> = {}, harness = 'toy') {
   const home = tmp(`tade-fleet-conv-${name}-`)
   const record = join(home, 'record.jsonl')
   mkdirSync(home, { recursive: true })
@@ -77,7 +77,7 @@ function side(name: string, remotes: Record<string, unknown> = {}) {
   const shared = new SharedConversation({
     home,
     me: place.me(),
-    harness: 'toy',
+    harness,
     format: TOY,
     record,
     take: async (lines) => {
@@ -133,9 +133,23 @@ describe('one conversation, from the heart and the window', () => {
       `${JSON.stringify({ role: 'user', id: 'v1', parent: null, at: '2026-11-23T10:00:00.000Z', text: 'heron' })}\n`,
     )
     expect(mac.fleet.hub()).toMatchObject({ name: 'vps', up: true })
+    expect(mac.fleet.oneWith()).toBeNull()
     mac.fleet.beat(false)
     await waitFor(() => mac.drawn() > 0)
     expect(mac.said).toEqual([])
+    // One conversation with the hub now, so a turn there is escape's to stop from here.
+    expect(mac.fleet.oneWith()).toBe('vps')
+  })
+
+  it('is not one with a hub that runs another harness, whose turns stay its own', async () => {
+    const vps = side('vps', {}, 'other')
+    const mac = side('mac', { vps: REMOTE })
+    mac.fleet.withReach(linkTo(vps))
+    await mac.one.before(true)
+    expect(mac.said.join('\n')).toContain('the same harness')
+    expect(mac.one.joined).toBeNull()
+    expect(mac.fleet.oneWith()).toBeNull()
+    await mac.one.after()
   })
 
   it('keeps the lease itself where no hub is named, and its door answers a machine that links here', async () => {
@@ -160,6 +174,7 @@ describe('one conversation, from the heart and the window', () => {
       'vps runs a Tade with no one conversation across machines: upgrade Tade there',
     )
     expect(mac.said.join('\n')).toContain('carrying on here')
+    expect(mac.fleet.oneWith()).toBeNull()
     await mac.one.after()
   })
 

@@ -98,9 +98,21 @@ export class OneConversation {
   private others = false
   /** The last exchange with the hub ended with neither side lacking anything. */
   private whole = true
+  /** The hub whose last exchange was the same conversation as this one's: not refused, not failed. */
+  private one: string | null = null
 
   constructor(opts: OneConversationOptions) {
     this.opts = opts
+  }
+
+  /**
+   * The hub this conversation is one with, as the last exchange said, or null:
+   * a turn running there is a turn of this conversation, which escape here
+   * stops. A hub that refused — another harness keeps its own — or could not
+   * be asked is not, and its turns are its own.
+   */
+  get joined(): string | null {
+    return this.one
   }
 
   /** Whether a lease is held for a turn of this machine's now. */
@@ -151,9 +163,11 @@ export class OneConversation {
       } catch (err) {
         // The link went as it was asked: this turn carries on here.
         this.opts.warn(`the conversation could not be exchanged with ${hub.name}: ${why(err)}`)
+        this.one = null
         this.apart(hub)
         return
       }
+      this.one = done.refused ? null : hub.name
       if (done.refused) {
         this.once(done.refused)
         return
@@ -189,6 +203,7 @@ export class OneConversation {
   }
 
   private async here(wait: boolean): Promise<void> {
+    this.one = null
     const me = this.opts.shared.me
     for (;;) {
       const answer = this.lease.ask('take', me, this.key, this.opts.now())
@@ -267,16 +282,21 @@ export class OneConversation {
           )
           this.whole = done.complete
           this.others = done.lease?.granted === false
+          this.one = done.refused ? null : hub.name
           this.together(hub)
           if (done.refused) this.once(done.refused)
         } catch (err) {
           this.opts.warn(`the conversation could not be exchanged with ${hub.name}: ${why(err)}`)
+          this.one = null
           return
         }
       } else if (hub) {
         return
       }
-      if (hub === null) this.others = this.lease.holder(this.opts.now()) !== null
+      if (hub === null) {
+        this.one = null
+        this.others = this.lease.holder(this.opts.now()) !== null
+      }
       // Only what nothing forked: a fork waits for a turn of a machine that dials the hub.
       this.saySettled(await this.opts.shared.settle(false))
     })()

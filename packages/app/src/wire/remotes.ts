@@ -861,6 +861,8 @@ export function remotesFor(
     fold: () => Promise<void>
     /** The heart's journals of other machines (`feeds.ts`), shared with each machine linked here. */
     feeds?: FleetFeeds
+    /** The hub this machine's own conversation is one with, whose turn escape here stops (`conversation.ts`). */
+    oneWith?: () => string | null
   },
 ): Remotes {
   const say = (said: string) => {
@@ -929,7 +931,9 @@ export function remotesFor(
     say,
   })
     .withAgents((remotes) => new RemoteAgents(wire, reachingOf(remotes)))
-    .withTalks((remotes) => new RemoteTalks(wire, reachingOf(remotes)))
+    .withTalks(
+      (remotes) => new RemoteTalks(wire, { ...reachingOf(remotes), oneWith: subjects.oneWith }),
+    )
     .withNotes((remotes) => sharedNotesFor(wire, (name) => remotes.reachFor(name), say))
     .withFeeds(subjects.feeds)
     .withMirrors((remotes) =>

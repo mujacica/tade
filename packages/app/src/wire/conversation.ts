@@ -130,6 +130,16 @@ export class FleetConversation {
     }
   }
 
+  /**
+   * The hub this window's own conversation is one with, so a turn running
+   * there is escape's to stop from here (`remote-talk.ts`); null where none is
+   * named, or the last exchange with it was refused or failed.
+   */
+  oneWith(): string | null {
+    const joined = this.one?.joined ?? null
+    return joined !== null && hubOf(this.wire.opts.config).hub?.name === joined ? joined : null
+  }
+
   /** The far half: one request of a machine that links here. */
   web(): WebConversation {
     return async (body) => {

@@ -315,6 +315,7 @@ export class App {
       settings: () => this.settings,
       fold: () => this.heart.foldConfig(true),
       feeds: this.heart.feeds,
+      oneWith: () => this.heart.conversation.oneWith(),
     })
     // The orchestrator's conversation reaches the hub over the same links.
     this.heart.conversation.withReach((name) => this.remotes.reachFor(name))
