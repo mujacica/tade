@@ -25,13 +25,13 @@ import {
   registerAt,
   registersHere,
   type SettingConflict,
-  settingReach,
   settle,
   shownValue,
   stampAhead,
   stampOf,
   stampText,
   takenOnAPress,
+  takenOnlyOnAPress,
   textOf,
 } from '@tade/core'
 import { signInLasts } from '@tade/harnesses-core'
@@ -431,9 +431,10 @@ export interface TakenBack {
  * is later than this machine's — or that this machine has nothing for — is
  * written here with the register it came with, so it is not carried back as
  * news. A key, this machine's own and what it pinned are never taken, and a
- * change to what widens agents here only on the person's press here (`take`,
- * `takenOnAPress`) — whoever that machine says made it, since nothing here can
- * check that — and then written as the press's here. Pure: what the window
+ * change to what widens agents here, or to what every agent is told, only on
+ * the person's press here (`take`, `takenOnlyOnAPress`, `takenOnAPress`) —
+ * whoever that machine says made it, since nothing here can check that — and
+ * then written as the press's here. Pure: what the window
  * writes is its own.
  *
  * And the conflicts of the whole carry, as this machine says them: the ones
@@ -475,7 +476,8 @@ export function takeBack(
     }
     const settled = settle(ours, theirs)
     if (settled.keep !== 'incoming') continue
-    const widens = settingReach(one.path).reach === 'never'
+    // What widens agents, or what every agent is told: a press here, never that machine's word.
+    const widens = takenOnlyOnAPress(one.path)
     if (widens && !take.has(one.path)) {
       const why = takenOnAPress(shownValue(theirs.value), theirs.by, there)
       back.refused.push({ what: one.path, why, press: true })

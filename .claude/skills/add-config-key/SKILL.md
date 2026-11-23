@@ -266,7 +266,9 @@ The rules the table stands on:
   to widen the linking machine waits for a press there** (`takenOnAPress`, `remote:take`, Settings ›
   Remotes): `by` is the box's word, and its agents run as you, so `tade config` or an edit to its
   file makes them `cli` or `file`. A take is written as `window` here, never as the box's claim, so
-  it does not relay on as checked. Landing is said in the strip; a refusal is said with why.
+  it does not relay on as checked. Landing is said in the strip; a refusal is said with why. **So
+  does what every agent is told** (`agents.instructions`, `asked` but a prompt to every new agent):
+  a key that becomes prompt text goes in `TOLD_EVERY_AGENT` (`takenOnlyOnAPress`).
 - **Two Tades that carry differently refuse rather than guess.** Every body says `schema`
   (`CARRY_SCHEMA`); one that is not the receiver's own is refused `426` before anything is written,
   an older receiver refuses the stamped body as malformed, and the sender says which machine to

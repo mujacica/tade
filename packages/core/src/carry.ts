@@ -527,7 +527,26 @@ export function notThePersonSays(by: string | null, from: string): string {
  */
 export function takenOnAPress(value: string, by: string | null, from: string): string {
   const who = by === null ? 'it does not say' : `it says ${by}`
-  return `there it is ${value === '' ? 'nothing' : value}; what agents may do here changes only on your press here, since whose change it was is ${from}’s word alone (${who}) — Settings › Remotes takes it`
+  return `there it is ${value === '' ? 'nothing' : value}; what agents may do or are told here changes only on your press here, since whose change it was is ${from}’s word alone (${who}) — Settings › Remotes takes it`
+}
+
+/**
+ * What every agent here is told as the person's own rules, in their words
+ * (`composeAgentPrompt`): `asked` to the orchestrator, but a line of it is an
+ * instruction to every new agent on this machine — "run this first" under
+ * `approvals.mode: bypass` is a command run as you. So, coming back newer from
+ * a machine this one links to, it waits for a press here like what widens
+ * agents does, since whose words they are is that machine's alone.
+ */
+const TOLD_EVERY_AGENT: ReadonlySet<string> = new Set(['agents.instructions'])
+
+/**
+ * Whether a newer value come back from a machine this one links to is taken
+ * here only on the person's press (`takenOnAPress`): what widens agents
+ * (`never`), and what every agent is told as the person's rules.
+ */
+export function takenOnlyOnAPress(path: string): boolean {
+  return settingReach(path).reach === 'never' || TOLD_EVERY_AGENT.has(path)
 }
 
 /** Whether `machine.pinned` keeps this path to this machine: names it, a section it is in, or a part of it. */
