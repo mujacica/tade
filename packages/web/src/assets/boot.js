@@ -30,7 +30,7 @@ import { answersWith } from './conversation.js'
 import { deskParts } from './desk.js'
 import { docksOn, forgetFolds } from './docks.js'
 import { classOn, el, textIn } from './dom.js'
-import { forget, NOT_SECURE, startInstall, takeUpdate } from './install.js'
+import { forget, startInstall, takeUpdate } from './install.js'
 import { backoffAt, connectionOf, outsideOf, standingOf } from './live.js'
 import { countsOf, forgetView, lastSeenScreen, readView, saveView } from './offline.js'
 import { taskScreen } from './pages/agent.js'
@@ -69,6 +69,7 @@ import {
   shell,
   titleFor,
 } from './shell.js'
+import { shellBars } from './shell-bars.js'
 import {
   agentsOf,
   applyDelta,
@@ -442,14 +443,9 @@ function paint() {
 }
 
 /**
- * The update bar, which is the whole of how a new shell reaches somebody.
- *
- * A bar with a button and never a reload. The page may be holding a note
- * somebody typed on a train, and there is no version of *we reloaded and lost
- * it* that is worth a fresher stylesheet — so the worker waits
- * (`sw.js` never calls `skipWaiting` on install), this says so, and the swap
- * happens on a press. The second line is the half people need before they dare
- * press it.
+ * The bars the shell raises about the page itself, after the session's: how
+ * long it has, its passkey, and then `shellBars` — a copy refused, code newer
+ * than what answers, the page changed, a new version ready.
  */
 function offered() {
   const said = []
@@ -459,55 +455,12 @@ function offered() {
     said.push(...proving.bars(held.session))
     proving.ready()
   }
-  if (refused !== null) {
-    // **The silent failure, said once.** A browser on a plain address over a
-    // network refuses a worker, a cache and an install without a word, so a
-    // person who turned this on at the machine sees nothing happen and has
-    // nothing to go on. The clause for the fixable half is the domain's own.
-    said.push({
-      key: 'refused',
-      tone: 'is-stale',
-      glyph: '⚠',
-      lead:
-        refused === 'insecure'
-          ? 'This address cannot keep a copy of this page.'
-          : 'This browser will not keep a copy of this page.',
-      under:
-        refused === 'insecure'
-          ? `Installing ${NOT_SECURE} one. Everything else here works as it is.`
-          : 'Everything else here works exactly as it does now.',
-    })
-  }
-  if (restart) {
-    // Said by a Tade running from its repository whose own code changed after
-    // it started (`reloading.ts`): this page may be newer than what answers it.
-    said.push({
-      key: 'restart',
-      tone: 'is-stale',
-      glyph: '⚠',
-      lead: 'Tade’s code changed since it started.',
-      under: 'Parts of this page may not work until Tade is restarted at the machine.',
-    })
-  }
-  if (changed) {
-    said.push({
-      key: 'changed',
-      tone: 'is-stale',
-      glyph: '↻',
-      lead: 'This page changed on the machine.',
-      under: 'Nothing reloads while something is typed here. Reload when it is sent or kept.',
-      press: { said: 'Reload', does: () => location.reload() },
-    })
-  }
-  if (!newer) return said
-  said.push({
-    key: 'update',
-    tone: 'is-stale',
-    glyph: '↑',
-    lead: 'A new version of this page is ready.',
-    under: 'Nothing reloads until you tap. Anything you have typed stays where it is.',
-    press: { said: 'Reload', does: () => void takeUpdate() },
-  })
+  said.push(
+    ...shellBars(
+      { refused, restart, changed, newer },
+      { reload: () => location.reload(), update: () => void takeUpdate() },
+    ),
+  )
   return said
 }
 

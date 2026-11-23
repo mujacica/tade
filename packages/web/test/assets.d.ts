@@ -430,6 +430,13 @@ declare module '*/assets/palette.js' {
   }
 }
 
+declare module '*/assets/shell-bars.js' {
+  export function shellBars(
+    standing: { refused: string | null; restart: boolean; changed: boolean; newer: boolean },
+    does: { reload: () => void; update: () => void },
+  ): readonly { key: string; lead: string; under: string; press?: { said: string } }[]
+}
+
 declare module '*/assets/agent-menu.js' {
   export const HOLD_MS: number
   export function menuPath(task: string): string
