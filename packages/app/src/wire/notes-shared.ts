@@ -44,7 +44,11 @@ import type { Wiring } from './context.ts'
 // this window is open — the asker says it again at its next exchange, which a
 // press there brings within a beat — so this machine's own Machines page can
 // say a note it retired is still told to every agent on the machine it was
-// taken on.
+// taken on. **And the same from the side that asks**: a remote answers the
+// opening with what it holds from here (`NotesAnswer.held`), which
+// `SharedNotes` keeps per remote, resolved into this home's words as it comes
+// so Settings › Remotes reads no file to draw it, and tells `WaitingThere`
+// for this machine's own Machines page.
 
 /** How long a linked remote goes before its notes are looked at again anyway. */
 const AGAIN_MS = 10 * 60_000
@@ -63,6 +67,8 @@ export interface SharedNotesDeps {
   /** Said in the strip: an exchange that could not be made, once per trouble. */
   say: (said: string) => void
   now: () => number
+  /** Told what each remote holds of this one's changes, for the away view's Machines page. */
+  waiting?: WaitingThere
 }
 
 export class SharedNotes {
@@ -82,6 +88,8 @@ export class SharedNotes {
   private unlooked: string | null = null
   /** The changes to notes taken here waiting for a press, as the file last stood. */
   private waiting: HeldChange[] = []
+  /** Each remote's last word on this one's changes it holds for a press there, in this home's words. */
+  private readonly there = new Map<string, NoteChange[]>()
 
   constructor(deps: SharedNotesDeps) {
     this.deps = deps
@@ -108,6 +116,8 @@ export class SharedNotes {
     this.owed.delete(name)
     this.troubled.delete(name)
     this.theirs.delete(name)
+    this.there.delete(name)
+    this.deps.waiting?.heard(name, [], 'answered')
   }
 
   /**
@@ -140,6 +150,7 @@ export class SharedNotes {
         { from: this.deps.from(), name, now: this.deps.now },
       )
       this.troubles(name, leftSays(name, done) ?? refusedSays(name, done))
+      this.heardThere(name, done.held)
       if (done.took > 0 || done.gave > 0 || done.refused > 0) {
         const detail = { with: name, took: done.took, notes: done.notes, gave: done.gave }
         await this.deps
@@ -171,6 +182,19 @@ export class SharedNotes {
   /** The changes another machine gave to notes taken here, waiting for a press here. Never reads. */
   held(): readonly HeldChange[] {
     return this.waiting
+  }
+
+  /** This one's changes that a remote said, at its last exchange, it holds for a press there. Never reads. */
+  waitingOn(name: string): readonly NoteChange[] {
+    return this.there.get(name) ?? []
+  }
+
+  /** What a remote answered it holds from here: kept in this home's words, and told to the Machines page. */
+  private heardThere(name: string, digests: readonly string[]): void {
+    const changes = digests.length === 0 ? [] : this.deps.memory().changes(digests)
+    if (changes.length === 0) this.there.delete(name)
+    else this.there.set(name, changes)
+    this.deps.waiting?.heard(name, digests, 'answered')
   }
 
   /** The person's press on one, here: what it was, in a sentence, or why it could not be. */
@@ -224,23 +248,35 @@ export class SharedNotes {
 
 /**
  * What each machine that shares notes with this one last said it holds of
- * this one's changes, for the person's press there (`NotesAsk.held`): only
- * digests, kept only while the window is open, each machine's list replaced
- * whole by its next opening request.
+ * this one's changes, for the person's press there: only digests, kept only
+ * while the window is open, each machine's list replaced whole by its next
+ * word — an exchange it opened here (`asked`, `NotesAsk.held`) or one this
+ * window opened there (`answered`, `NotesAnswer.held`), kept apart because the
+ * two name this machine differently there.
  */
 export class WaitingThere {
-  private readonly told = new Map<string, readonly string[]>()
+  private readonly told = new Map<string, { machine: string; digests: readonly string[] }>()
 
-  /** A machine opened an exchange: what it holds from here now, in place of what it held. */
-  heard(machine: string, digests: readonly string[]): void {
-    if (digests.length === 0) this.told.delete(machine)
-    else this.told.set(machine, [...digests])
+  /** A machine said what it holds from here now, in place of what it held. */
+  heard(machine: string, digests: readonly string[], way: 'asked' | 'answered' = 'asked'): void {
+    const key = `${way} ${machine}`
+    if (digests.length === 0) this.told.delete(key)
+    else this.told.set(key, { machine, digests: [...digests] })
   }
 
-  /** Each change waiting on another machine, in this home's own words, with the machine it waits on. */
+  /**
+   * Each change waiting on another machine, in this home's own words, with the
+   * machine it waits on. A change waits only where its note was taken, so one
+   * named both ways is drawn once.
+   */
   shown(memory: Memory): { machine: string; change: NoteChange }[] {
-    return [...this.told].flatMap(([machine, digests]) =>
-      memory.changes(digests).map((change) => ({ machine, change })),
+    const seen = new Set<string>()
+    return [...this.told.values()].flatMap(({ machine, digests }) =>
+      memory.changes(digests).flatMap((change) => {
+        if (seen.has(change.digest)) return []
+        seen.add(change.digest)
+        return [{ machine, change }]
+      }),
     )
   }
 }
@@ -305,8 +341,10 @@ export function sharedNotesFor(
   wire: Wiring,
   reach: SharedNotesDeps['reach'],
   say: SharedNotesDeps['say'],
+  waiting?: WaitingThere,
 ): SharedNotes {
   return new SharedNotes({
+    ...(waiting && { waiting }),
     memory: () => wire.opts.client.memory,
     reach,
     from: () => machineLabel(),

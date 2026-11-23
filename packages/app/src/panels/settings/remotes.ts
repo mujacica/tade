@@ -22,8 +22,9 @@ import type { SettingsPanel } from './state.ts'
 // what became of this one's setup there — what was carried and is kept in
 // step, what applies only when Tade next starts there, what that machine
 // changed itself, what waits on a press — a note taken here that it retired,
-// took back or told about more among them (`HeldNoteShown`) — whether its tab
-// here takes a message,
+// took back or told about more among them (`HeldNoteShown`), and one taken
+// there that this machine changed, which waits on a press there and is only
+// looked at here (`WaitingNoteShown`) — whether its tab here takes a message,
 // and each harness's own sign-in there (`@tade/workbench/carry`'s checklist,
 // the one `tade remote add` ends with).
 //
@@ -74,7 +75,12 @@ export interface RemoteShown {
   versus?: Versus | null
   /** What it changed of notes taken here, waiting for a press here (`Memory.held`). */
   held?: readonly HeldNoteShown[]
+  /** What this machine changed of notes taken there, waiting for a press there (`NotesAnswer.held`). */
+  waiting?: readonly WaitingNoteShown[]
 }
+
+/** A change this machine made to a note taken on that one, as the page draws it: the press is there. */
+export type WaitingNoteShown = HeldNoteShown
 
 /** A change that machine gave to a note taken here, as the page draws it. */
 export interface HeldNoteShown {
@@ -478,6 +484,10 @@ export function drawRemotes(
       line(one.label, `“${one.note}”`, skin.waiting)
       say(one.said, skin.hint, deep, 3)
       buttons([`remote:note-take:${at}:${one.digest}`, `remote:note-leave:${at}:${one.digest}`])
+    }
+    for (const one of remote.waiting ?? []) {
+      line(one.label, `“${one.note}”`, skin.waiting)
+      say(one.said, skin.hint, deep, 3)
     }
     const pinnedThere = (list?.pinned ?? []).filter((one) => one.where === 'there')
     if (pinnedThere.length > 0) {

@@ -353,6 +353,74 @@ describe('an exchange between two homes', () => {
     expect(asked[0]?.held).toBeUndefined()
   })
 
+  it('hears from the far side, answering each opening, which of this side’s changes wait for a press there, until the press', async () => {
+    // The Mac asks; the note was taken on the box, and the Mac retires it.
+    const mac = Memory.open(tmp('tade-mac-'))
+    const vps = Memory.open(tmp('tade-vps-'))
+    const kept = vps.remember('deploys freeze on Fridays', null, 'voice', NOW)
+    const also = vps.remember('refunds go through the ledger', null, 'voice', NOW + 1)
+    const first = await shareNotes(mac, farAt(vps, 'vps'), { from: 'mac', name: 'vps' })
+    // Nothing waits there: none heard, and a far side's answer carries no list.
+    expect(first.held).toEqual([])
+    expect(
+      answerNotes(vps, { from: 'mac', sum: '0'.repeat(64), give: [], want: [] }, 'mac', 'vps', NOW)
+        .held,
+    ).toBeUndefined()
+
+    // Done here at once, where the note was taken elsewhere; held on the box, and said in
+    // the answer to the round that gave it.
+    mac.retire({ at: kept.at }, 'the freeze was lifted', 'window', NOW + 2)
+    mac.forget(also, 'window', NOW + 3)
+    const gave = await shareNotes(mac, farAt(vps, 'vps'), { from: 'mac', name: 'vps' })
+    expect(vps.held().map((one) => one.from)).toEqual(['mac', 'mac'])
+    expect(gave.held).toEqual(vps.held().map((one) => one.digest))
+    // Both sides the same now, and still said: the opening is then the whole exchange.
+    const again = await shareNotes(mac, farAt(vps, 'vps'), { from: 'mac', name: 'vps' })
+    expect(again.same).toBe(true)
+    expect(again.held).toEqual(gave.held)
+    // The Mac names them in its own words, by the digest alone.
+    expect(mac.changes(again.held).map((one) => [one.kind, one.note.text, one.by])).toEqual([
+      ['retire', kept.text, 'window'],
+      ['forget', also.text, 'window'],
+    ])
+    // Only the asker's own: another machine asking is told none of them.
+    const ipax = answerNotes(
+      vps,
+      { from: 'ipax', sum: '0'.repeat(64), give: [], want: [] },
+      'ipax',
+      'vps',
+      NOW,
+    )
+    expect(ipax.held).toBeUndefined()
+    // A round after the opening says it as well.
+    expect(answerNotes(vps, { from: 'mac', give: [], want: [] }, 'mac', 'vps', NOW).held).toEqual(
+      gave.held,
+    )
+
+    // Taken on the box: the next exchange names only what still waits there, then none.
+    vps.settle(gave.held[0] ?? '', 'take', 'device phone', NOW + 4)
+    expect((await shareNotes(mac, farAt(vps, 'vps'), { from: 'mac', name: 'vps' })).held).toEqual([
+      gave.held[1],
+    ])
+    vps.settle(gave.held[1] ?? '', 'leave', 'device phone', NOW + 5)
+    expect((await shareNotes(mac, farAt(vps, 'vps'), { from: 'mac', name: 'vps' })).held).toEqual(
+      [],
+    )
+  })
+
+  it('takes no list of what waits there that is not digests', async () => {
+    const mac = Memory.open(tmp('tade-mac-'))
+    const vps = Memory.open(tmp('tade-vps-'))
+    const near = farAt(vps, 'vps')
+    const odd = async (ask: NotesAsk): Promise<Answer> => {
+      const answer = await near(ask)
+      return { ...answer, body: { ...(answer.body as object), held: ['not a digest'] } }
+    }
+    await expect(shareNotes(mac, odd, { from: 'mac', name: 'vps' })).rejects.toThrow(
+      'vps answered with something that is not its notes',
+    )
+  })
+
   it('holds a note taken here told about more by another machine, until the press takes it', async () => {
     const mac = Memory.open(tmp('tade-mac-'))
     const vps = Memory.open(tmp('tade-vps-'))

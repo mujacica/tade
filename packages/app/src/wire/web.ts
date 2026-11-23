@@ -286,7 +286,13 @@ export class Away implements Subject {
       ...(this.deps.doorbell && {
         hooks: hooksFor(this.wire, () => this.config(), this.deps.doorbell),
       }),
-      ...ownedFor(this.wire, () => this.panelFacts(), this.deps.lifecycle, this.deps.inventory),
+      ...ownedFor(
+        this.wire,
+        () => this.panelFacts(),
+        this.deps.lifecycle,
+        this.deps.inventory,
+        this.deps.waiting,
+      ),
       // Tade started again from the person's own phone, through the window's own reload.
       restarting: restartingFrom(this.wire, this.deps.reloadStops),
       ...(this.deps.feeds && { feeds: this.deps.feeds.web() }),

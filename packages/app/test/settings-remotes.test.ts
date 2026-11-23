@@ -12,7 +12,7 @@ import {
   remotePresses,
 } from '../src/panels/settings/remotes.ts'
 import { type SettingsPanel, settingsKey } from '../src/panels/settings/state.ts'
-import { heldShown } from '../src/wire/remotes.ts'
+import { heldShown, waitingShown } from '../src/wire/remotes.ts'
 import { drawnAt, panelFor, plainRows, WIDTHS } from './settings-panel.ts'
 
 // Settings › Remotes: each other machine's Tade this one is an owner of, and
@@ -277,6 +277,28 @@ describe('Settings › Remotes', () => {
     expect(drawn).toContain('vps would retire “deploys freeze on Fridays” — device')
     expect(drawn).toContain('Take it here')
     expect(drawn).toContain('Leave it')
+  })
+
+  it('lists a note taken there that this machine changed as waiting there, with nothing to press here', () => {
+    const waiting = waitingShown(
+      [
+        {
+          digest: '0123456789abcdef',
+          kind: 'retire',
+          note: { at: '2026-10-17T09:00:00.000Z', text: 'deploys freeze on Fridays' },
+          by: 'window',
+          at: '2026-10-17T10:00:00.000Z',
+          because: 'the freeze was lifted',
+        },
+      ],
+      'vps',
+    )
+    const told: RemoteShown = { ...VPS, waiting }
+    const before = remoteActions([VPS]).map((one) => one.id)
+    expect(remoteActions([told]).map((one) => one.id)).toEqual(before)
+    const drawn = page([told]).replace(/ +/g, ' ')
+    expect(drawn).toContain('Retired here “deploys freeze on Fridays”')
+    expect(drawn).toContain('Retired here; vps still tells it to every agent there')
   })
 
   it('walks moving a project there one press at a time, and asks twice before closing it here', () => {

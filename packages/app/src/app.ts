@@ -325,6 +325,7 @@ export class App {
       settings: () => this.settings,
       fold: () => this.heart.foldConfig(true),
       feeds: this.heart.feeds,
+      waiting: this.heart.waitingThere,
       oneWith: () => this.heart.conversation.oneWith(),
     })
     // The orchestrator's conversation reaches the hub over the same links.

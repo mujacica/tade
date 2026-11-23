@@ -19,7 +19,7 @@ import {
 import type { Held, MakeRemoteLink, Remote, RemoteLink } from '@tade/remotes-core'
 import type { TakenWrite } from '@tade/workbench/carry'
 import { heldIn } from '@tade/workbench/config-changes'
-import type { HeldChange } from '@tade/workbench/memory'
+import type { HeldChange, NoteChange } from '@tade/workbench/memory'
 import { runningVersion } from '@tade/workbench/programs'
 import {
   type LinkWord,
@@ -47,6 +47,7 @@ import {
   REMOTES,
   type RemoteShown,
   remoteActions,
+  type WaitingNoteShown,
 } from '../panels/settings/remotes.ts'
 import type { Ui } from '../screen.ts'
 import { remoteStanding } from '../view/standing.ts'
@@ -66,7 +67,14 @@ import type { FleetFeeds, FleetSync } from './feeds.ts'
 import type { InventoryThere } from './inventory.ts'
 import { type Mirrors, mirrorsFor } from './mirrors.ts'
 import { Moves, type MoveTools } from './moves.ts'
-import { HELD_DOES, heldSaid, type SharedNotes, sharedNotesFor } from './notes-shared.ts'
+import {
+  HELD_DOES,
+  heldSaid,
+  type SharedNotes,
+  sharedNotesFor,
+  type WaitingThere,
+  waitingSaid,
+} from './notes-shared.ts'
 import type { Places } from './placing.ts'
 import type { ProjectDoor } from './project-moves.ts'
 import { RemoteAgents } from './remote-agent.ts'
@@ -633,6 +641,7 @@ export class Remotes implements Subject {
           versus: this.versusOf(machines.find((machine) => machine.name === name) ?? null),
           ...(this.moves === null ? {} : { moves: this.moves.projects.projectMoves(name) }),
           held: heldShown(this.notes?.held() ?? [], name),
+          waiting: waitingShown(this.notes?.waitingOn(name) ?? [], name),
         }
       }),
     )
@@ -905,6 +914,8 @@ export function remotesFor(
     fold: () => Promise<void>
     /** The heart's journals of other machines (`feeds.ts`), shared with each machine linked here. */
     feeds?: FleetFeeds
+    /** Told what each remote holds of this machine's changes to its notes, for the away view's Machines page. */
+    waiting?: WaitingThere
     /** The hub this machine's own conversation is one with, whose turn escape here stops (`conversation.ts`). */
     oneWith?: () => string | null
   },
@@ -979,7 +990,9 @@ export function remotesFor(
     .withTalks(
       (remotes) => new RemoteTalks(wire, { ...reachingOf(remotes), oneWith: subjects.oneWith }),
     )
-    .withNotes((remotes) => sharedNotesFor(wire, (name) => remotes.reachFor(name), say))
+    .withNotes((remotes) =>
+      sharedNotesFor(wire, (name) => remotes.reachFor(name), say, subjects.waiting),
+    )
     .withFeeds(subjects.feeds)
     .withMirrors((remotes) =>
       mirrorsFor(wire, (name) => remotes.reachFor(name), say, subjects.synced),
@@ -1063,4 +1076,14 @@ export function heldShown(held: readonly HeldChange[], name: string): HeldNoteSh
       note: printable(one.note.text),
       said: heldSaid(one),
     }))
+}
+
+/** This machine's changes to notes taken on one remote, waiting for a press there, as its block draws them. */
+export function waitingShown(changes: readonly NoteChange[], name: string): WaitingNoteShown[] {
+  return changes.map((one) => ({
+    digest: one.digest,
+    label: `${HELD_DOES[one.kind]} here`,
+    note: printable(one.note.text),
+    said: waitingSaid(name, one),
+  }))
 }

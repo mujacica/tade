@@ -63,6 +63,8 @@ export interface NotesShareAnswer {
   lines: { line: string; digest?: string; from?: string }[]
   took: number
   refused: number
+  /** Answering the opening request: the asker's changes to this machine's notes that wait here for a press. */
+  held?: string[]
 }
 
 /** Who a share is from, as the window writes it down. */

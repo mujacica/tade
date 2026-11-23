@@ -4,7 +4,7 @@ import { Memory } from '@tade/workbench/memory'
 import { answerNotes, type NotesAsk } from '@tade/workbench/notes-shared'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { SharedNotes, type SharedNotesDeps } from '../../src/wire/notes-shared.ts'
+import { SharedNotes, type SharedNotesDeps, WaitingThere } from '../../src/wire/notes-shared.ts'
 import { closeAll, DEVICE, machine, SECRET, shared, waitFor } from './away-harness.ts'
 
 // The person's notes shared with another machine, from the window that holds
@@ -98,7 +98,7 @@ describe('sharing notes with a real far window', () => {
 })
 
 /** A window sharing with `vps`, answered in-process by a far home of its own. */
-function sharing(over: { status?: number; fail?: () => never } = {}) {
+function sharing(over: { status?: number; fail?: () => never; waiting?: WaitingThere } = {}) {
   const near = Memory.open(tmp('tade-near-'))
   const far = Memory.open(tmp('tade-far-'))
   const state = { now: NOW, live: true, notes: [] as string[] }
@@ -124,6 +124,7 @@ function sharing(over: { status?: number; fail?: () => never } = {}) {
     log: async () => {},
     say: (one) => said.push(one),
     now: () => state.now,
+    ...(over.waiting && { waiting: over.waiting }),
   })
   /** What the remote's projection says of its notes, as `Remotes` hands it over on every move. */
   const projected = () =>
@@ -204,6 +205,49 @@ describe('when a window shares by itself', () => {
     expect(notes.held()).toEqual([])
     expect(near.all()).toEqual([])
     expect(() => notes.settle(held?.digest ?? '', 'leave', 'window')).toThrow(/not waiting/)
+  })
+
+  it('keeps what the remote holds of a change made here for a press there, in this home’s words, until it says it is not', async () => {
+    const waiting = new WaitingThere()
+    const { near, far, notes } = sharing({ waiting })
+    const kept = far.remember('deploys freeze on Fridays', null, 'voice', NOW)
+    await notes.share('vps')
+    expect(notes.waitingOn('vps')).toEqual([])
+    // Done here at once, where the note was taken on the box; held there for a press.
+    near.retire({ at: kept.at }, 'the freeze was lifted', 'window', NOW + 1)
+    await notes.share('vps')
+    const [change] = far.held()
+    expect(notes.waitingOn('vps')).toEqual([
+      expect.objectContaining({
+        digest: change?.digest,
+        kind: 'retire',
+        note: { at: kept.at, text: kept.text },
+        by: 'window',
+        because: 'the freeze was lifted',
+      }),
+    ])
+    // The same, for this machine's own Machines page.
+    expect(waiting.shown(near).map(({ machine, change }) => [machine, change.digest])).toEqual([
+      ['vps', change?.digest],
+    ])
+    // Only that remote's: another is told none of it.
+    expect(notes.waitingOn('ipax')).toEqual([])
+
+    // Taken on the box: its next answer names none, and none is kept.
+    far.settle(change?.digest ?? '', 'take', 'device phone', NOW + 2)
+    await notes.share('vps')
+    expect(notes.waitingOn('vps')).toEqual([])
+    expect(waiting.shown(near)).toEqual([])
+
+    // A remote gone takes what it said with it.
+    const paused = far.remember('pause the queue', null, 'voice', NOW + 3)
+    await notes.share('vps')
+    expect(near.forget(paused, 'window', NOW + 4)).toBe(true)
+    await notes.share('vps')
+    expect(notes.waitingOn('vps')).toHaveLength(1)
+    notes.forget('vps')
+    expect(notes.waitingOn('vps')).toEqual([])
+    expect(waiting.shown(near)).toEqual([])
   })
 
   it('says once what it could not give: a note too long to share stays where it was taken', async () => {

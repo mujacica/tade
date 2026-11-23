@@ -6,6 +6,7 @@ import type { FleetFeeds } from './feeds.ts'
 import type { Inventories } from './inventory.ts'
 import type { LinearTokens } from './linear-tokens.ts'
 import type { MachinesSeen } from './machines-seen.ts'
+import type { WaitingThere } from './notes-shared.ts'
 import type { Settings } from './settings.ts'
 import type { Talking } from './web-asking.ts'
 import type { FactoryHeld } from './web-beat.ts'
@@ -36,6 +37,12 @@ export interface AwayDeps {
    * two are the `404` of a path nobody wired.
    */
   inventory?: Pick<Inventories, 'latest' | 'heard'> & MachinesHeld
+  /**
+   * What each other machine holds of this one's changes to notes taken there,
+   * for a press there (`notes-shared.ts`), drawn on the Machines page. Absent,
+   * the page knows only what machines that share with this one tell its door.
+   */
+  waiting?: WaitingThere
   /**
    * Every machine's journal kept here and handed on (`feeds.ts`): the far half
    * of `/api/feeds/share`, and where each machine stands for the phone's

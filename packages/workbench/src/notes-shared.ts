@@ -86,6 +86,14 @@ export interface NotesAnswer {
   took: number
   /** How many it would not take, as not one of the file's kinds. */
   refused: number
+  /**
+   * The asking side's changes to notes taken on this side that wait for the
+   * person's press here (`Memory.held`), by digest — `NotesAsk.held` the other
+   * way — as they stand after what this request gave, so a retirement given in
+   * a round is named in that round's answer. Absent where none wait, or from a
+   * far side older than this field, which the asking side reads as none.
+   */
+  held?: string[]
 }
 
 /** The sum of a home's lines: the same on two homes exactly when they hold the same lines. */
@@ -99,7 +107,7 @@ export function sumOf(digests: readonly string[]): string {
  * The far half, answered on the remote's own door: take what was given — the
  * giver named as `giver` where a note does not say — then answer what was
  * asked for, and, opened with a sum that is not this side's, every digest it
- * holds.
+ * holds — and what it holds from the giver for a press here.
  */
 export function answerNotes(
   memory: Memory,
@@ -122,6 +130,7 @@ export function answerNotes(
     if (bytes > ANSWER_BYTES && lines.length > 0) break
     lines.push({ line: one.line, digest, ...(one.from ? { from: one.from } : {}) })
   }
+  const held = heldFrom(memory, giver)
   return {
     machine,
     sum,
@@ -129,7 +138,17 @@ export function answerNotes(
     lines,
     took: took.lines,
     refused: took.refused,
+    ...(held.length > 0 ? { held } : {}),
   }
+}
+
+/** The changes `machine` gave to notes taken here that wait for a press here, by digest: as many as the far side reads. */
+function heldFrom(memory: Memory, machine: string): string[] {
+  return memory
+    .held()
+    .filter((one) => one.from === machine)
+    .map((one) => one.digest)
+    .slice(0, HELD_MOST)
 }
 
 /** What one exchange came to, from the side that asked. */
@@ -146,6 +165,13 @@ export interface Exchanged {
   refused: number
   /** Lines left for the next exchange: too long to give, or past the rounds one exchange takes. */
   left: number
+  /**
+   * This side's changes to notes taken on the far side that wait for the
+   * person's press there, by digest, as its last answer said
+   * (`NotesAnswer.held`): empty where none do, or where the far side is too
+   * old to say.
+   */
+  held: string[]
 }
 
 /**
@@ -170,11 +196,7 @@ export async function shareNotes(
   const ask = async (body: NotesAsk) => answerOf(await call(body), opts.name)
   const here = memory.shared()
   const sum = sumOf(here.map((one) => one.digest))
-  const held = memory
-    .held()
-    .filter((one) => one.from === opts.name)
-    .map((one) => one.digest)
-    .slice(0, HELD_MOST)
+  const held = heldFrom(memory, opts.name)
   const opening: NotesAsk = { from: opts.from, sum, give: [], want: [] }
   let opened = await call(held.length > 0 ? { ...opening, held } : opening)
   // A Tade older than this one refuses a body it does not know whole: asked
@@ -188,6 +210,7 @@ export async function shareNotes(
     gave: 0,
     refused: 0,
     left: 0,
+    held: first.held ?? [],
   }
   if (out.same) return out
   if (first.have === undefined) {
@@ -209,6 +232,7 @@ export async function shareNotes(
     give = give.slice(sending.length)
     out.gave += answer.took
     out.refused += answer.refused
+    out.held = answer.held ?? []
     const took = memory.take(answer.lines, opts.name, now())
     out.took += took.lines
     out.notes += took.notes
@@ -248,11 +272,13 @@ function answerOf(answer: Answer, name: string): NotesAnswer {
   const body = answer.body as Partial<NotesAnswer> | null
   const lines = Array.isArray(body?.lines) ? body.lines : null
   const have = body?.have
+  const held = body?.held
   if (
     body === null ||
     typeof body.sum !== 'string' ||
     lines === null ||
-    (have !== undefined && !(Array.isArray(have) && have.every(isDigest)))
+    (have !== undefined && !(Array.isArray(have) && have.every(isDigest))) ||
+    (held !== undefined && !(Array.isArray(held) && held.every(isDigest)))
   ) {
     throw new NotesRefused('failed', `${name} answered with something that is not its notes`)
   }
@@ -271,6 +297,7 @@ function answerOf(answer: Answer, name: string): NotesAnswer {
     }),
     took: typeof body.took === 'number' ? body.took : 0,
     refused: typeof body.refused === 'number' ? body.refused : 0,
+    ...(held !== undefined ? { held: held.slice(0, HELD_MOST) } : {}),
   }
 }
 

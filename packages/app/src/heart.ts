@@ -37,6 +37,7 @@ import { Intake } from './wire/intake.ts'
 import { Inventories, type InventoriesDeps, type InventoryTools } from './wire/inventory.ts'
 import { LinearTokens, lending } from './wire/linear-tokens.ts'
 import { type MachinesSeen, machinesSeenFor } from './wire/machines-seen.ts'
+import { WaitingThere } from './wire/notes-shared.ts'
 import { Orchestrator, type OrchestratorDeps } from './wire/orchestrator.ts'
 import { OwnCode } from './wire/own-code.ts'
 import type { Places } from './wire/placing.ts'
@@ -382,6 +383,12 @@ export class Heart {
   readonly inventory: Inventories
   /** Every machine's journal, kept here and handed on to the next (`feeds.ts`). */
   readonly feeds: FleetFeeds
+  /**
+   * What each other machine holds of this one's changes to notes taken there,
+   * for a press there: told by its share both ways (`notes-shared.ts`), drawn
+   * on the away view's Machines page.
+   */
+  readonly waitingThere = new WaitingThere()
   /** The orchestrator's conversation, one on every machine (`conversation.ts`). */
   readonly conversation: FleetConversation
   /** Its tool calls run on another machine through that machine's own gate, and theirs here (`acts.ts`). */
@@ -517,6 +524,7 @@ export class Heart {
       machines: this.machinesSeen,
       acts: this.acts,
       inventory: this.inventory,
+      waiting: this.waitingThere,
       feeds: this.feeds,
       conversation: this.conversation,
       earlier: () => this.earlier.more(),

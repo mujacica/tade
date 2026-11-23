@@ -31,10 +31,10 @@ export function ownedFor(
   away: () => PanelFacts,
   lifecycle?: Lifecycle,
   inventory?: Pick<Inventories, 'latest' | 'heard'> & MachinesHeld,
-) {
   // What another machine holds of this one's changes to its notes, told by
-  // its share and drawn on the Machines page.
-  const waiting = new WaitingThere()
+  // its share either way and drawn on the Machines page.
+  waiting: WaitingThere = new WaitingThere(),
+) {
   return {
     attaching: attachingFor(wire.opts.client),
     notes: notesFor(wire, waiting),
