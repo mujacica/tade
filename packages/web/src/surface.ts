@@ -483,6 +483,23 @@ export function fullAccess(device: {
 }
 
 /**
+ * What a device lacks of full access, by name: the scopes, then the reading
+ * grants. Empty for a device that has it. What a refusal of a route that is
+ * the person's own device's names (`Refusal.needs`), so the page can say which
+ * boxes to tick rather than only that something is missing.
+ */
+export function fullAccessLacks(device: {
+  scopes?: readonly string[]
+  granted: readonly string[]
+}): string[] {
+  const scopes = device.scopes ?? []
+  return [
+    ...SCOPES.filter((scope) => !scopes.includes(scope)),
+    ...GRANTS.filter((grant) => !device.granted.includes(grant)),
+  ]
+}
+
+/**
  * Whether a device is the person's own: full access, and **not a machine
  * link** (`tade web pair --owner`), whose words may be another machine's
  * model's and whose reach stays the one it was paired with — the same two

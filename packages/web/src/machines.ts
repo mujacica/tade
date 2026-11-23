@@ -3,7 +3,7 @@ import { z } from 'zod'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
-import { ownsOrTheirs } from './surface.ts'
+import { fullAccessLacks, ownsOrTheirs } from './surface.ts'
 
 // The Machines page, for the person's own phone: what each of their machines
 // has, item by item — the window's Settings › Machines grid, a row per sign-in,
@@ -37,6 +37,11 @@ export interface MachinesColumn {
   said: string | null
   /** Where it and this machine stand (`syncSaid`): `in step`, `behind by 3 lines`. Null where not compared. */
   synced?: string | null
+  /**
+   * What keeps it from saying, as a kind the page gives a fix for: its link
+   * down, this machine signed out there, a Tade there too old. Null for none.
+   */
+  trouble?: 'down' | 'signed_out' | 'too_old' | null
 }
 
 /** One cell: `✓` set, `✗` missing, `≠` a different key, `—` not used there, `?` cannot tell. */
@@ -107,11 +112,20 @@ export async function machinesHere(
   machines: WebMachines | undefined,
 ): Promise<{ body: MachinesAnswer } | { refusal: Refusal }> {
   if (machines === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
+  if (!ownsOrTheirs(device)) return { refusal: notTheirs(device) }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   if (!z.strictObject({}).safeParse(got.body).success) return { refusal: refuse('malformed') }
   return { body: machines.shown() }
+}
+
+/**
+ * A device that is not the person's own, refused with every box it lacks for
+ * full access named (`Refusal.needs`): ticking full access for it at the
+ * machine is the whole fix, and the page says which ones are missing.
+ */
+function notTheirs(device: Device): Refusal {
+  return refuse('out_of_scope', { needs: fullAccessLacks(device) })
 }
 
 const PressSchema = z.strictObject({ press: z.enum(MACHINES_PRESSES) })
@@ -127,7 +141,7 @@ export async function machinesPressHere(
   machines: WebMachines | undefined,
 ): Promise<{ body: MachinesAnswer } | { refusal: Refusal }> {
   if (machines === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
+  if (!ownsOrTheirs(device)) return { refusal: notTheirs(device) }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const parsed = PressSchema.safeParse(got.body)

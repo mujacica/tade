@@ -64,6 +64,21 @@ export interface Refusal {
    * anything a reader could learn something from.
    */
   rev?: string
+  /**
+   * What was missing, by Tade's own names, where a refusal is about one: the
+   * scopes and grants a device lacks (`out_of_scope`) — every one it lacks for
+   * full access where a route is the person's own device's — or `https`, where
+   * a device that may act asked over a connection that is not trusted
+   * (`locked` from the guard).
+   *
+   * **So the page can say the exact box to tick rather than "not granted"**:
+   * the person's own phone was told to tick full access when what refused it
+   * was something else entirely, and there was nothing on the wire to tell the
+   * two apart. Only ever told to a device with a session (both refusals come
+   * after the session layer), and only names from Tade's own vocabulary — the
+   * page draws a name it knows and nothing else (`trouble.js`).
+   */
+  needs?: readonly string[]
 }
 
 const SAID: Readonly<Record<ErrorKind, { status: number; said: string }>> = {
@@ -115,7 +130,7 @@ const SAID: Readonly<Record<ErrorKind, { status: number; said: string }>> = {
 /** The refusal for a kind, with its status and its sentence already decided. */
 export function refuse(
   error: ErrorKind,
-  extra: { after?: number; request?: string; rev?: string } = {},
+  extra: { after?: number; request?: string; rev?: string; needs?: readonly string[] } = {},
 ): Refusal {
   const { status, said } = SAID[error]
   return {
@@ -125,16 +140,18 @@ export function refuse(
     ...(extra.after === undefined ? {} : { after: extra.after }),
     ...(extra.request === undefined ? {} : { request: extra.request }),
     ...(extra.rev === undefined ? {} : { rev: extra.rev }),
+    ...(extra.needs === undefined || extra.needs.length === 0 ? {} : { needs: extra.needs }),
   }
 }
 
 /** What goes in the body: the shape above, minus the status it is sent with. */
-export function bodyOf(refusal: Refusal): Record<string, string | number> {
+export function bodyOf(refusal: Refusal): Record<string, string | number | readonly string[]> {
   return {
     error: refusal.error,
     said: refusal.said,
     ...(refusal.after === undefined ? {} : { after: refusal.after }),
     ...(refusal.request === undefined ? {} : { request: refusal.request }),
     ...(refusal.rev === undefined ? {} : { rev: refusal.rev }),
+    ...(refusal.needs === undefined ? {} : { needs: refusal.needs }),
   }
 }

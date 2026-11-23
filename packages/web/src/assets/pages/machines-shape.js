@@ -165,19 +165,47 @@ export function leftSaid(one) {
   return `left: ${one.name} at ${one.where} — ${one.why}`
 }
 
+/** A trouble, as `trouble.js` shapes one: what happened, why, the fix and its steps. */
+function trouble(title, why, fix, steps) {
+  return { title, why, fix, steps }
+}
+
 /**
- * Why the page could not be read, in its own words where the refusal is the
- * device not being the person's own: the routes answer only a device with full
- * access, which is ticked at the machine. Null for every other refusal, which
- * `trouble.js` words.
+ * What keeps one of the person's other machines from saying what it has, and
+ * how they fix it themselves — out of the column's `trouble` kind, never its
+ * sentence, which is the window's (`columnSaid` still draws that). Null for
+ * this machine and for one with nothing wrong.
  */
-export function refusedSaid(got) {
-  const kind = got?.body?.error
-  if (kind !== 'out_of_scope' && kind !== 'no_such') return null
-  // `trouble.js`'s shape, a heading and the one thing to do.
-  const title = 'Only your own device'
-  return {
-    title,
-    fix: 'Your machines are shown to a device with full access: tick it for this one at the machine',
+export function columnTrouble(column) {
+  if (!column || column.here) return null
+  const name = column.machine
+  if (column.trouble === 'down') {
+    return trouble(
+      'Link down',
+      `This machine cannot reach ${name} right now.`,
+      `Check ${name} is on and online`,
+      [
+        `Check ${name} is on and online`,
+        `Open Tade there: \`tade app\`, or \`tade serve\``,
+        `At this machine: \`tade remote status ${name}\``,
+      ],
+    )
   }
+  if (column.trouble === 'signed_out') {
+    return trouble(
+      'Signed out there',
+      `${name} no longer knows this machine’s session.`,
+      'Link the two again',
+      ['Link the two again', `At this machine: \`tade remote add ${name} --ssh <host>\``],
+    )
+  }
+  if (column.trouble === 'too_old') {
+    return trouble(
+      'Tade there is too old',
+      `The Tade on ${name} does not say what it has yet.`,
+      `Update Tade on ${name}`,
+      [`Update Tade on ${name}`, `There: \`tade update\`, then open it again`],
+    )
+  }
+  return null
 }

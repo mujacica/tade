@@ -22,18 +22,18 @@ import { el, into, keyed, skeleton, textIn } from '../dom.js'
 import { shortClockOf } from '../figures.js'
 import { icon } from '../icons.js'
 import { section } from '../rows.js'
-import { troubleOf, UNKNOWN_TROUBLE } from '../trouble.js'
+import { theirsTrouble, UNKNOWN_TROUBLE } from '../trouble.js'
 import { callout, panel, problem, problemIn, stateBox, stateBoxIn } from '../ui.js'
 import {
   cellSaid,
   columnSaid,
+  columnTrouble,
   diffTone,
   groupsOf,
   leadOf,
   leftSaid,
   markTone,
   pressesOf,
-  refusedSaid,
   underWay,
 } from './machines-shape.js'
 
@@ -41,11 +41,17 @@ import {
 export const MACHINES_PATH = '/api/machines'
 export const PRESS_PATH = '/api/machines/press'
 
-/** A region's state, as `stateBoxIn` takes it: a kind, its heading, a line and the one press. */
-function boxOf(kind, heading, line = null, action = null) {
+/** A region's state, as `stateBoxIn` takes it: a kind, its heading, a line, its steps and the one press. */
+function boxOf(kind, heading, line = null, action = null, steps = null) {
   const title = heading
-  return { kind, title, line, action }
+  return { kind, title, line, action, steps }
 }
+
+/**
+ * Refusals that asking again on a clock will not change: a device that is not
+ * the person's own, and a Tade too old to have the page. Each says its fix.
+ */
+const FOR_GOOD = new Set(['out_of_scope', 'no_such', 'not_offered'])
 
 /** How often an open page asks again while something is under way, and while nothing is. */
 const SOON_MS = 1_500
@@ -55,18 +61,31 @@ const AGAIN_MS = 30_000
 const MOVE_HINT =
   'Your shell’s files can keep their keys in one file instead, which your login shell and `tade serve` both read, and which you keep in step between machines yourself. Shown first as a diff with every value hidden; each file is copied beside itself, a fresh login shell is asked before and after, and anything different puts every file back byte for byte.'
 
-/** One machine, as the list of them heads the page. */
+/**
+ * One machine, as the list of them heads the page — and, where its link is
+ * down, this machine is signed out there or its Tade is too old, what to do
+ * about it (`columnTrouble`). Not an alert: it is a state, read with the page.
+ */
 function createColumn() {
   const node = el('li', { class: 'mc-machine' })
-  into(node, icon('laptop'), el('span', { class: 'mc-name' }), el('span', { class: 'mc-asof' }))
+  const trouble = problem()
+  trouble.removeAttribute('role')
+  into(
+    node,
+    icon('laptop'),
+    el('span', { class: 'mc-name' }),
+    el('span', { class: 'mc-asof' }),
+    trouble,
+  )
   return node
 }
 
 function fillColumn(node, column) {
-  const [, name, asOf] = node.children
+  const [, name, asOf, trouble] = node.children
   textIn(name, column.machine)
   node.classList.toggle('is-here', column.here)
   textIn(asOf, columnSaid(column, shortClockOf))
+  problemIn(trouble, columnTrouble(column))
 }
 
 /** One item: its name, a line per machine, and where it is set here. */
@@ -197,10 +216,13 @@ export function machinesScreen(ctx) {
       failed,
       refused === null
         ? null
-        : boxOf('error', refused.title, refused.fix, {
-            word: 'Ask again',
-            run: () => void load(),
-          }),
+        : boxOf(
+            'error',
+            refused.title,
+            refused.why ?? refused.fix,
+            { word: 'Ask again', run: () => void load() },
+            refused.steps ?? null,
+          ),
     )
     body.hidden = answer === null
     if (answer === null) return
@@ -287,7 +309,7 @@ export function machinesScreen(ctx) {
     const got = await ctx.ask('POST', PRESS_PATH, { press: one.id })
     if (gone) return
     if (got.status === 200 && Array.isArray(got.body?.rows)) answer = got.body
-    else problemIn(trouble, troubleOf(got) ?? UNKNOWN_TROUBLE)
+    else problemIn(trouble, theirsTrouble(got, ctx.session()) ?? UNKNOWN_TROUBLE)
     draw()
     later()
   }
@@ -304,11 +326,15 @@ export function machinesScreen(ctx) {
       answer = got.body
       refused = null
     } else if (answer === null) {
-      refused = refusedSaid(got) ?? troubleOf(got) ?? UNKNOWN_TROUBLE
+      // Told apart by what the page knows of its own session: a Tade too old
+      // for this page, or the boxes this device lacks — never "tick full
+      // access" for a device that has it.
+      refused = theirsTrouble(got, ctx.session()) ?? UNKNOWN_TROUBLE
     }
     draw()
-    // A device that is not the person's own is not asked again on a clock.
-    if (answer !== null || refusedSaid(got) === null) later()
+    // A device that is not the person's own, or a Tade without the page, is
+    // not asked again on a clock: the fix is somebody's act, and Ask again is there.
+    if (answer !== null || !FOR_GOOD.has(got?.body?.error)) later()
   }
 
   again.addEventListener('click', () => void pressed({ id: 'look' }))

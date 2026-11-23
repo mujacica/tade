@@ -32,6 +32,19 @@ export function machineWay(row) {
   return row.way === 'to' ? 'this machine links to it' : 'it links to this machine'
 }
 
+/**
+ * What the person does about a machine that is not up, in a few words — or
+ * null for one that is. A goodbye is Tade closed there; a sleep wakes on its
+ * own; a silence is a machine off or off the network, and the link comes back
+ * by itself once it answers.
+ */
+export function machineFix(row) {
+  if (row.state === 'closed') return 'To fix: open Tade there — tade app, or tade serve'
+  if (row.state === 'asleep') return 'To fix: wake it; its work carries on'
+  if (row.state === 'lost') return 'To fix: check it is on and online; it relinks by itself'
+  return null
+}
+
 /** The tone a state is drawn in: up is calm, a goodbye is quiet, a silence is a warning. */
 export function machineTone(row) {
   if (row.state === 'up') return 't-done'

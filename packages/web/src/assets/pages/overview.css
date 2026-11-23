@@ -666,6 +666,28 @@ because a column is read down.
   }
 }
 
+/*
+  The person's other machines: a row's own grid — its mark, its name and how
+  it stands, then how it links and, under one that is not up, what to do.
+*/
+.page-overview .ov-machine {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  gap: 2px var(--s3);
+  align-items: baseline;
+  min-height: calc(var(--tap) + var(--s2));
+  padding-block: var(--s2);
+  padding-inline: var(--s4);
+}
+
+.page-overview .ov-machine + .ov-machine {
+  border-block-start: var(--border);
+}
+
+.page-overview .ov-fix {
+  color: var(--bright);
+}
+
 @media (min-width: 1280px) {
   /* The agents are down the side now; the overview's own copy steps aside while it is open. */
   .frame:not(.side-mini) .ov-agents {

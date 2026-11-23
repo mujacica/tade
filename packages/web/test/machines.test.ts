@@ -119,7 +119,12 @@ describe('the Machines page, for the person’s own phone', () => {
     const phone = await pair(one)
     // Everything to read, but not every scope: not the person's own.
     await grantDevice(one.home, phone.device, GRANTS, new Date())
-    expect((await post(one, phone, '/api/machines', {})).status).toBe(403)
+    const refused = await post(one, phone, '/api/machines', {})
+    expect(refused.status).toBe(403)
+    // Every box it lacks for full access is named, and no grant it has.
+    const body = JSON.parse(refused.text)
+    expect(body.error).toBe('out_of_scope')
+    expect(body.needs).toEqual(SCOPES.filter((one) => one !== 'read'))
     expect((await post(one, phone, '/api/machines/press', { press: 'look' })).status).toBe(403)
     expect(machines.pressed).toEqual([])
     const none = await start()

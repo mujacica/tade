@@ -80,6 +80,8 @@ export interface InventoryThere {
   at: number | null
   /** Why it has nothing to say: an older Tade, a link that is down. */
   said: string | null
+  /** The kind of that trouble (`MachineColumn.trouble`), or null for none. */
+  trouble?: 'down' | 'signed_out' | 'too_old' | null
 }
 
 /** What the orchestrator's `tade_machines` and `tade_env_move` reach (`host-machine.ts`'s `InventoryHost`). */
@@ -413,6 +415,8 @@ export class Inventories implements Subject {
         here: at === 0,
         synced:
           at === 0 || this.deps.synced === undefined ? null : syncedFor(synced, one.inventory?.id),
+        trouble:
+          at === 0 ? null : (there.find((each) => each.name === one.machine)?.trouble ?? null),
         said:
           one.inventory !== null
             ? null

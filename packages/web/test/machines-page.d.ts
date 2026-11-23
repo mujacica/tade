@@ -13,6 +13,7 @@ declare module '*/assets/pages/machines-shape.js' {
     here: boolean
     said: string | null
     synced?: string | null
+    trouble?: 'down' | 'signed_out' | 'too_old' | null
   }
   type Tile = {
     key: string
@@ -36,5 +37,7 @@ declare module '*/assets/pages/machines-shape.js' {
   export function underWay(answer: unknown): boolean
   export function diffTone(line: string): string
   export function leftSaid(one: { name: string; where: string; why: string }): string
-  export function refusedSaid(got: unknown): { title: string; fix: string } | null
+  export function columnTrouble(
+    column: Column | undefined,
+  ): { title: string; why: string; fix: string; steps: readonly string[] } | null
 }

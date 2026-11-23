@@ -746,14 +746,26 @@ declare module '*/assets/pair.js' {
 declare module '*/assets/trouble.js' {
   export interface Trouble {
     title: string
+    /** The cause, in one sentence. */
+    why?: string
     fix: string
+    /** The *how to fix this* list, in the order the steps are done. */
+    steps?: readonly string[]
   }
-  export const TROUBLES: Record<string, Trouble>
-  export const UNKNOWN_TROUBLE: Trouble
-  export function troubleOf(
-    answer: { status: number; body: unknown } | null | undefined,
-    where?: string,
-  ): Trouble | null
+  type Answer = { status: number; body: unknown } | null | undefined
+  type You = { label?: string; scopes?: readonly string[]; reads?: readonly string[] } | null
+  export const AWAY_PLACE: string
+  export const SCOPE_NAMES: readonly string[]
+  export const GRANT_NAMES: readonly string[]
+  export const TROUBLES: Record<string, Required<Trouble>>
+  export const TOO_OLD: Required<Trouble>
+  export const UNKNOWN_TROUBLE: Required<Trouble>
+  export function needsOf(body: unknown): string[]
+  export function boxesFor(needs: readonly string[]): string[]
+  export function troubleOf(answer: Answer, where?: string, you?: You): Required<Trouble> | null
+  export function fullAccessOf(you: You | undefined): boolean
+  export function fullAccessLacks(you: You | undefined): string[]
+  export function theirsTrouble(answer: Answer, you: You | undefined): Required<Trouble> | null
   export function troubleSaid(trouble: Trouble): string
 }
 
@@ -821,6 +833,7 @@ declare module '*/assets/machines.js' {
   export function machineSaid(row: MachineRowIn): string
   export function machineWay(row: MachineRowIn): string
   export function machineTone(row: MachineRowIn): string
+  export function machineFix(row: MachineRowIn): string | null
 }
 
 declare module '*/assets/room.js' {

@@ -418,6 +418,7 @@ export function allowed(asking: Asking, route: Route, guarding: Guarding): Verdi
     return no(
       'out_of_scope',
       `needs ${route.needs}, device has ${session.scopes.join(', ') || 'nothing'}`,
+      [route.needs],
     )
   }
 
@@ -433,10 +434,13 @@ export function allowed(asking: Asking, route: Route, guarding: Guarding): Verdi
   const what = route.needs === 'read' ? route.name : route.needs
   const read =
     route.connects === 'page' ? { ...origin, scheme: readScheme(asking, host, guarding) } : origin
+  // `https` is named, because this `locked` and a setting turned off are two
+  // different fixes and the page could not tell them apart (`Refusal.needs`).
   if (acts && !trusted(read, guarding.surface)) {
     return no(
       'locked',
       `${what} from ${origin.scheme}://${origin.host}, which is not a trusted origin`,
+      ['https'],
     )
   }
 
@@ -486,8 +490,8 @@ function readScheme(asking: Asking, host: string, guarding: Guarding): string {
   return schemesFor(asking, host, guarding.surface).includes('https') ? 'https' : 'http'
 }
 
-function no(error: ErrorKind, why: string): Verdict {
-  return { ok: false, refusal: refuse(error), why }
+function no(error: ErrorKind, why: string, needs?: readonly string[]): Verdict {
+  return { ok: false, refusal: refuse(error, needs === undefined ? {} : { needs }), why }
 }
 
 /** A session's host against the one offered, port and all. */

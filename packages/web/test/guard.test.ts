@@ -431,7 +431,11 @@ describe('the scope, and the trusted origin an act needs', () => {
       guarding({ session: { ...SESSION, scopes: ['read'] } }),
     )
     expect(verdict.ok).toBe(false)
-    if (!verdict.ok) expect(verdict.refusal.error).toBe('out_of_scope')
+    if (!verdict.ok) {
+      expect(verdict.refusal.error).toBe('out_of_scope')
+      // The scope it lacks is named, so the page says the box to tick.
+      expect(verdict.refusal.needs).toEqual(['steer'])
+    }
   })
 
   it('refuses an act over plain HTTP off this machine, however it was granted', () => {
@@ -449,6 +453,8 @@ describe('the scope, and the trusted origin an act needs', () => {
     if (!verdict.ok) {
       expect(verdict.refusal.error).toBe('locked')
       expect(verdict.why).toContain('not a trusted origin')
+      // Named apart from a setting turned off: the fix is https, not a switch.
+      expect(verdict.refusal.needs).toEqual(['https'])
     }
   })
 

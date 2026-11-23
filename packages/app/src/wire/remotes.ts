@@ -390,10 +390,19 @@ export class Remotes implements Subject {
     return Object.keys(this.fromFile ?? this.deps.remotes()).map((name) => {
       const held = this.about?.held(name) ?? null
       const answer = held?.answer ?? null
+      const link = this.links.get(this.holder.get(name) ?? '')?.held(name)?.link.kind ?? null
       return {
         name,
         inventory: answer?.inventory ?? null,
         at: answer?.inventory ? (held?.at ?? null) : null,
+        trouble:
+          link === 'down'
+            ? 'down'
+            : link === 'ended'
+              ? 'signed_out'
+              : answer !== null && answer.inventory === undefined
+                ? 'too_old'
+                : null,
         said:
           held?.said ??
           (answer === null

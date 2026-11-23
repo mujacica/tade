@@ -39,6 +39,13 @@ export interface MachineColumn {
    * Absent for this machine, and for one they have not been compared with.
    */
   synced?: string | null
+  /**
+   * What kind of trouble keeps it from saying, where there is one: its link
+   * down, this machine signed out there, or a Tade there too old to say what it
+   * has. A kind rather than a sentence, so a page can give the fix without
+   * reading `said` back (the away view's Machines page).
+   */
+  trouble?: 'down' | 'signed_out' | 'too_old' | null
 }
 
 /** What moving the keys would do, shown before the press that does it. */

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   cellSaid,
   columnSaid,
+  columnTrouble,
   diffTone,
   groupsOf,
   KIND_TITLE,
@@ -11,7 +12,6 @@ import {
   MARK_SAID,
   markTone,
   pressesOf,
-  refusedSaid,
   underWay,
 } from '../src/assets/pages/machines-shape.js'
 import type { MachinesAnswer } from '../src/machines.ts'
@@ -142,10 +142,16 @@ describe('the Machines page’s words', () => {
     expect(leftSaid({ name: 'A', where: '~/.zshrc:3', why: 'set by a command' })).toBe(
       'left: A at ~/.zshrc:3 — set by a command',
     )
-    expect(refusedSaid({ status: 403, body: { error: 'out_of_scope' } })?.title).toBe(
-      'Only your own device',
+  })
+
+  it('says what to do about a machine whose link is down, signed out or too old', () => {
+    const column = { machine: 'vps', asOf: null, here: false, said: 'x' }
+    expect(columnTrouble({ ...column, trouble: 'down' })?.steps.join(' ')).toContain(
+      'tade remote status vps',
     )
-    expect(refusedSaid({ status: 404, body: { error: 'no_such' } })).not.toBeNull()
-    expect(refusedSaid({ status: 0, body: null })).toBeNull()
+    expect(columnTrouble({ ...column, trouble: 'signed_out' })?.fix).toBe('Link the two again')
+    expect(columnTrouble({ ...column, trouble: 'too_old' })?.fix).toBe('Update Tade on vps')
+    expect(columnTrouble(column)).toBeNull()
+    expect(columnTrouble({ ...column, here: true, trouble: 'down' })).toBeNull()
   })
 })

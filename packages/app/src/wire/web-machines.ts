@@ -50,6 +50,7 @@ function answerOf(inventory: MachinesHeld): MachinesAnswer {
       said: one.said,
       // Only where the two were compared, so a page from before says what it did.
       ...(one.synced ? { synced: one.synced } : {}),
+      ...(one.trouble ? { trouble: one.trouble } : {}),
     })),
     rows: shown.rows.map((row) => ({
       id: row.id,

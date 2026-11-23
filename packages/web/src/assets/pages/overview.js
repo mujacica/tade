@@ -58,7 +58,7 @@ import {
 import { ageSaid } from '../figures.js'
 import { rowMark, taskMark } from '../glyphs.js'
 import { icon } from '../icons.js'
-import { machineSaid, machinesOf, machineTone, machineWay } from '../machines.js'
+import { machineFix, machineSaid, machinesOf, machineTone, machineWay } from '../machines.js'
 import { quickActs } from '../quick.js'
 import { pathOf, taskPath } from '../routes.js'
 import { section } from '../rows.js'
@@ -561,24 +561,27 @@ function fillProject(node, row) {
 /* ── what changed ──────────────────────────────────────────────────────────── */
 
 function createMachine() {
-  const node = el('li')
+  const node = el('li', { class: 'ov-machine' })
   into(
     node,
     el('span', { class: 'glyph' }),
     el('span', { class: 'name' }),
     el('span', { class: 'aside' }),
     el('span', { class: 'under' }),
+    el('span', { class: 'under ov-fix' }),
   )
   return node
 }
 
 function fillMachine(node, row) {
-  const [glyph, name, said, way] = node.children
+  const [glyph, name, said, way, fix] = node.children
   textIn(glyph, row.state === 'up' ? '●' : '○')
   toneOn(glyph, machineTone(row))
   textIn(name, row.name)
   textIn(said, machineSaid(row))
   textIn(way, machineWay(row))
+  textIn(fix, machineFix(row) ?? '')
+  fix.hidden = fix.textContent === ''
 }
 
 function createChange() {

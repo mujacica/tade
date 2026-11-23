@@ -1,7 +1,13 @@
 import { seenSaid } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { shortClockOf } from '../src/assets/figures.js'
-import { machineSaid, machinesOf, machineTone, machineWay } from '../src/assets/machines.js'
+import {
+  machineFix,
+  machineSaid,
+  machinesOf,
+  machineTone,
+  machineWay,
+} from '../src/assets/machines.js'
 
 // The person's other machines on the page: which are up, and which closed,
 // slept or went quiet — in the window's own words (`seenSaid`), so a phone and
@@ -30,6 +36,19 @@ describe('the machines a page draws', () => {
         seenSaid({ state, at: Date.parse(AT), since: null }, clock),
       )
     }
+  })
+
+  it('says what to do about a machine that is not up, and nothing about one that is', () => {
+    const row = (state: 'up' | 'closed' | 'asleep' | 'lost') => ({
+      name: 'vps',
+      way: 'to' as const,
+      state,
+      since: AT,
+    })
+    expect(machineFix(row('up'))).toBeNull()
+    expect(machineFix(row('closed'))).toContain('tade app')
+    expect(machineFix(row('asleep'))).toContain('wake it')
+    expect(machineFix(row('lost'))).toContain('on and online')
   })
 
   it('says which way it is linked, and draws a silence louder than a goodbye', () => {

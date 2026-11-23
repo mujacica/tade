@@ -38,18 +38,24 @@
 .mc-machine {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
+  align-content: start;
   align-items: center;
   column-gap: var(--s2);
   min-width: 0;
 }
 
-.mc-machine .ic {
+.mc-machine > .ic {
   grid-row: span 2;
   color: var(--heading);
 }
 
-.mc-machine.is-here .ic {
+.mc-machine.is-here > .ic {
   color: var(--amber);
+}
+
+.mc-machine > .ui-problem {
+  grid-column: 1 / -1;
+  margin-block-start: var(--s2);
 }
 
 .mc-name {
