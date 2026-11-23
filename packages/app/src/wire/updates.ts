@@ -73,6 +73,12 @@ export interface UpdatesDeps {
   terminal(name: string): Promise<string | null>
   /** Tell the orchestrator, with the next thing somebody says. */
   news(said: string): void
+  /**
+   * The files of Tade's own code that changed in its checkout since it started
+   * (`own-code.ts`), and the commit it started on: a reload owed as surely as
+   * one an update made. Nothing, for an installed Tade.
+   */
+  ownCode?: () => { changed: readonly string[]; startedOn: string | null }
 }
 
 /** What the orchestrator's update tools do, answered from this window. */
@@ -128,14 +134,30 @@ export class Updates implements Subject {
   facts(): Partial<Frame> {
     const behind = behindIn(this.look).length
     const going = this.going
-    if (!going && this.moved === null && behind === 0) return {}
+    const reload = this.reloadOwed() !== null
+    if (!going && !reload && behind === 0) return {}
     return {
       updates: {
         behind,
         running: going ? { done: going.done, of: going.steps.length } : null,
-        reload: this.moved !== null,
+        reload,
       },
     }
+  }
+
+  /**
+   * Why this window is owed a reload, or null: what an update moved Tade to,
+   * or which of its own files changed in its checkout since it started.
+   */
+  private reloadOwed(): string | null {
+    if (this.moved !== null) return this.moved
+    const own = this.deps.ownCode?.()
+    if (!own || own.changed.length === 0) return null
+    const [first, ...rest] = own.changed
+    const more =
+      rest.length === 0 ? '' : ` and ${rest.length} more file${rest.length === 1 ? '' : 's'}`
+    const since = own.startedOn ? ` since it started on ${own.startedOn.slice(0, 8)}` : ''
+    return `Tade's own code changed in its checkout${since}: ${first}${more}. This window runs the code it opened on until it reloads.`
   }
 
   actions(): Actions {
@@ -388,7 +410,7 @@ export class Updates implements Subject {
                 }
               : null,
             lastRun: this.ran,
-            reloadOwed: this.moved,
+            reloadOwed: this.reloadOwed(),
           },
           null,
           2,

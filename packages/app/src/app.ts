@@ -296,6 +296,10 @@ export class App {
       reloadStops: () => this.window.reloadStops(),
       terminal: (name) => this.machine.watched(name),
       news: (said) => this.orchestrator.note(said),
+      ownCode: () => ({
+        changed: this.heart.ownCode.owed(),
+        startedOn: this.heart.ownCode.startedOn(),
+      }),
     })
     this.awake = new Awake(
       this.wire,

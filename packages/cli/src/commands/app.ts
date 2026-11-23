@@ -3,6 +3,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { App } from '@tade/app'
+import { ownCheckoutOption } from '@tade/app/wire/own-code'
 import {
   defaultConfigPath,
   extensionsRoot,
@@ -272,6 +273,9 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           // never reaches the network it runs on.
           updates: (config, at, ask) =>
             lookAtUpdates(config, at, { ask, also: voiceDeclared(config.surfaces.voice) }),
+          // Run from its repository, a change to Tade's own code there is a
+          // reload owed; an installed Tade has no checkout and owes none.
+          ...ownCheckoutOption(),
           // The public name's certificate, the same way: only a real window dials.
           certificate: (name) => lookAtCertificate(name),
           // And the records it needs, looked at when Settings shows its row.

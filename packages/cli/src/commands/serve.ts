@@ -1,4 +1,5 @@
 import { Heart, saidLine } from '@tade/app/heart'
+import { ownCheckoutOption } from '@tade/app/wire/own-code'
 import { defaultConfigPath, keptByService, loadConfig, tadeHome, type Unclosed } from '@tade/core'
 import type { ExtensionWorkbench } from '@tade/extensions-core'
 import {
@@ -169,6 +170,8 @@ export function registerServe(program: Command, io: Io, setExit: (code: number) 
             config: cfg.config,
             home,
             cwd: process.cwd(),
+            // Run from its repository, its away pages are told when Tade's own code moved.
+            ...ownCheckoutOption(),
             keptBy: keptByService(process.env, process.platform),
             status: looking,
             extensions,

@@ -36,6 +36,8 @@ function world(
     now?: number
     check?: 'daily' | 'weekly' | 'never'
     detach?: boolean
+    /** Files of Tade's own code changed in its checkout since it started (`own-code.ts`). */
+    ownCode?: readonly string[]
   } = {},
 ) {
   const did: Did[] = []
@@ -116,6 +118,9 @@ function world(
       return 'shop/terminals/1'
     },
     news: (said) => told.push(said),
+    ...(over.ownCode
+      ? { ownCode: () => ({ changed: over.ownCode ?? [], startedOn: 'df4df5b1bcdff6ec' }) }
+      : {}),
   })
   return { subject, did, told, reads, home, at: () => state }
 }
@@ -141,6 +146,18 @@ describe('the strip’s chip', () => {
     )
     await one.subject.recall()
     expect(one.subject.facts()).toEqual({ updates: { behind: 2, running: null, reload: false } })
+  })
+
+  it('turns into the reload once Tade’s own code changed in its checkout', async () => {
+    expect(world({ ownCode: [] }).subject.facts()).toEqual({})
+    const one = world({
+      ownCode: ['packages/app/src/wire/updates.ts', 'packages/web/src/routes.ts'],
+    })
+    expect(one.subject.facts()).toEqual({ updates: { behind: 0, running: null, reload: true } })
+    const read = JSON.parse(await one.subject.tools().read(false))
+    expect(read.reloadOwed).toBe(
+      "Tade's own code changed in its checkout since it started on df4df5b1: packages/app/src/wire/updates.ts and 1 more file. This window runs the code it opened on until it reloads.",
+    )
   })
 
   it('keeps nothing that never asked what is current', async () => {

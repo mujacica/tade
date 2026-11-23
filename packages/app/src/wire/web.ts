@@ -397,6 +397,15 @@ export class Away implements Subject {
    * request is not idle — and memoised until the next beat, so four tabs of
    * one phone asking at once is one build.
    */
+  /**
+   * Every open page, and every one opened after — on this listener or the next
+   * this window starts — is told Tade's own code changed since it started
+   * (`own-code.ts`), so a screen newer than the routes answering it says so.
+   */
+  restart(): void {
+    this.streams.restartAll()
+  }
+
   beat(): void {
     if (this.server === null) return
     const now = this.wire.now()

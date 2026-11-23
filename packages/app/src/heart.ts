@@ -36,6 +36,7 @@ import { Inventories, type InventoriesDeps, type InventoryTools } from './wire/i
 import { LinearTokens, lending } from './wire/linear-tokens.ts'
 import { type MachinesSeen, machinesSeenFor } from './wire/machines-seen.ts'
 import { Orchestrator, type OrchestratorDeps } from './wire/orchestrator.ts'
+import { OwnCode } from './wire/own-code.ts'
 import type { Places } from './wire/placing.ts'
 import { type ProjectSync, projectSyncFor } from './wire/project-sync.ts'
 import { Projects, type ProjectsDeps, type ProjectTools } from './wire/projects.ts'
@@ -367,6 +368,8 @@ export class Heart {
   readonly orchestrator: Orchestrator
   /** The away view and its notifications: who may read Tade from off this machine. */
   readonly away: Away
+  /** Whether Tade's own checkout moved under it since it started, where it runs from one (`own-code.ts`). */
+  readonly ownCode: OwnCode
   /** The person's other machines as this one has seen them: up, asleep, closed, lost (`machines-seen.ts`). */
   readonly machinesSeen: MachinesSeen
   /** Each project's branch kept in step with origin and the person's other machines (`project-sync.ts`). */
@@ -503,6 +506,7 @@ export class Heart {
       },
       seen: () => this.machinesSeen.all(),
     })
+    this.ownCode = new OwnCode(this.opts.checkout ?? null)
     this.away = new Away(this.wire, {
       machines: this.machinesSeen,
       acts: this.acts,
@@ -578,6 +582,8 @@ export class Heart {
     this.put(withProjects(this.current, Object.keys(config.projects), titlesOf(config)))
     // Which machines were up when this one last looked, read back before anything links.
     void this.machinesSeen.seed()
+    // What Tade's own checkout is as it starts, before an agent can commit to it.
+    void this.ownCode.begin()
     const live = await Live.start({
       client: this.opts.client,
       config: this.opts.config,
@@ -603,6 +609,12 @@ export class Heart {
         this.conversation.beat(this.orchestrator.busy())
         this.acts.beat(Object.keys(this.wire.opts.config.remotes))
         this.away.beat()
+        // Once a minute at most, and never again once owed: the strip, the
+        // away bar and `tade_updates` all read it from here.
+        this.ownCode.beat(this.now(), () => {
+          this.away.restart()
+          face.draw()
+        })
         void this.foldConfig()
         face.beat(tasks, moved)
       },

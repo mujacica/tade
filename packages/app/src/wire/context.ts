@@ -251,6 +251,13 @@ export interface AppOptions {
    */
   updates?: (config: Config, home: string, ask: boolean) => Promise<UpdateLook>
   /**
+   * The repository this Tade runs from, where it runs from source
+   * (`ownCheckout`). Given, its HEAD is noted at start and looked at once a
+   * minute, and a change to Tade's own code is a reload owed (`own-code.ts`);
+   * without it — an installed Tade, a test's window — none ever is.
+   */
+  checkout?: string
+  /**
    * A look at the certificate a public name answers with (`lookAtCertificate`).
    * Given, the away view looks on a clock of its own while a public listener
    * is up (`web-public.ts`); without it nothing dials — a test's window.
