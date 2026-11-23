@@ -493,6 +493,42 @@ function inlineNodes(parts) {
   return nodes
 }
 
+/** The words of some inline parts, as a person reads them. */
+function wordsOf(parts) {
+  return parts
+    .map((part) => (part.t === 'text' || part.t === 'code' ? part.v : wordsOf(part.c ?? [])))
+    .join('')
+}
+
+/**
+ * Where a link goes, said beside its words — or null where its words are where
+ * it goes already.
+ *
+ * **Words can say anything, and the address is what is followed.** A reply
+ * that quotes a ticket or a review comment can carry a link whose words are
+ * `Prove your passkey again` and whose address is evil.example's, and drawn
+ * as its words alone it is an ordinary link of Tade's. So a link whose words
+ * are not its own address, or its host, says the host it goes to — as the
+ * browser's own parser reads it, so `good.example@evil.example` and a
+ * backslash say `evil.example`,
+ * and a look-alike name says its `xn--` spelling. A mail link says the address.
+ * Where the browser cannot parse it here, the whole address is said.
+ */
+export function whereOf(href, words) {
+  if (href === null) return null
+  const mail = /^mailto:/i.test(href)
+  const host = mail
+    ? href.slice('mailto:'.length).split('?')[0]
+    : typeof URL.canParse === 'function' && URL.canParse(href)
+      ? new URL(href).host
+      : href
+  const said = words.trim().toLowerCase().replace(/\/+$/, '')
+  const plain = href.toLowerCase().replace(/\/+$/, '')
+  const bare = plain.replace(/^(?:https?:\/\/|mailto:)/, '')
+  if (said === plain || said === bare || said === host.toLowerCase()) return null
+  return host
+}
+
 /**
  * A link that may go somewhere is an `<a>` that leaves this page; one that may
  * not is its words, so what somebody wrote is still there to read.
@@ -510,6 +546,10 @@ function linkNode(part) {
   // A picture is never fetched: it is a link to one, named as a picture.
   if (part.picture) node.append(document.createTextNode('picture: '))
   node.append(...words)
+  // Inside the link, so whatever reads it out — a person, a screen reader —
+  // reads where it goes with what it says.
+  const where = whereOf(part.href, wordsOf(part.c))
+  if (where !== null) node.append(document.createTextNode(` (${where})`))
   return node
 }
 

@@ -131,10 +131,37 @@ describe('what the reader makes of somebody else’s markup', () => {
     }
   })
 
+  it('says where a link goes wherever its words are not its address', () => {
+    const said = (text: string) => drawn(text).querySelectorAll('a')[0]?.textContent
+    // The disguise: words that read as Tade's own, to somewhere else.
+    expect(said('[Prove your passkey again](https://evil.example/x)')).toBe(
+      'Prove your passkey again (evil.example)',
+    )
+    // Words that are an address, of another place.
+    expect(said('[https://good.example](https://evil.example)')).toBe(
+      'https://good.example (evil.example)',
+    )
+    // Where the browser would go, not where the words before the @ point.
+    expect(said('[log in](https://good.example@evil.example/)')).toBe('log in (evil.example)')
+    expect(said('[mail](mailto:someone@evil.example?subject=x)')).toBe(
+      'mail (someone@evil.example)',
+    )
+    // A link that says where it goes says nothing more.
+    for (const plain of [
+      '<https://ok.example/a>',
+      'https://ok.example/a',
+      '[https://ok.example/a/](https://ok.example/a)',
+      '[ok.example](https://ok.example/a)',
+    ]) {
+      expect(said(plain), plain).not.toContain('(')
+    }
+  })
+
   it('fetches no picture: one is a link to it, named as a picture', () => {
     const node = drawn('![a cat](https://example.invalid/cat.png)')
     expect(node.querySelectorAll('img')).toEqual([])
-    expect(node.querySelector('a')?.textContent).toBe('picture: a cat')
+    // And, its words not being its address, where it is.
+    expect(node.querySelector('a')?.textContent).toBe('picture: a cat (example.invalid)')
   })
 
   it('refuses every spelling of an address that is not one of the three', () => {
