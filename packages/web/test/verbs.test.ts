@@ -3,20 +3,28 @@ import type { From, Outcome, ParkCall, WebActing } from '../src/acting.ts'
 import { BOUNDS, projectRev, taskRev } from '../src/acting.ts'
 import { ACTS, CONNECTS, OWNED, ROUTES, routeFor, routesFor } from '../src/routes.ts'
 import {
+  ACCOUNT,
   ANSWER,
   boundTo,
   CLOSE,
   CONTEXT,
   DONE,
+  HARNESS,
   INTAKE,
   KEY,
+  MODEL,
+  MOVE,
   NOTE,
   OPEN,
   PARK,
   QUEUE,
+  REMOVE,
+  RENAME,
   REOPEN,
+  START,
   STEER,
   STOP,
+  THINKING,
   targetOf,
   VERBS,
   type Verb,
@@ -73,6 +81,14 @@ const BODIES: Readonly<Record<string, Record<string, unknown>>> = {
   reopen: { ...EVERY },
   close: { ...PROJECT, confirm: true },
   open: { ...PROJECT },
+  start: { ...EVERY },
+  remove: { ...EVERY, confirm: true },
+  rename: { ...EVERY, title: 'the migration agent' },
+  model: { ...EVERY, model: 'anthropic/claude-opus-5' },
+  thinking: { ...EVERY, level: 'high' },
+  account: { ...EVERY, account: 'work' },
+  harness: { ...EVERY, harness: 'claude-code' },
+  move: { ...EVERY, machine: 'vps', confirm: true },
 }
 
 /** That verb's own valid body, with whatever a test wants changed. */
@@ -88,6 +104,7 @@ const TYPED = [
   'the migration runs',
   'the fix is in the adapter',
   'the ticket says the column is nullable',
+  'the migration agent',
 ]
 
 function asked(over: Record<string, unknown> = {}) {
@@ -147,8 +164,26 @@ describe('the verb table', () => {
         ['reopen', 'agents'],
         ['close', 'projects'],
         ['open', 'projects'],
+        // The rest of an agent's own menu, at the agents scope: what may be
+        // asked of an agent beyond telling it something. The four that delete
+        // work, hand it away or change whose sign-in it runs on are the
+        // person's own device's alone besides (`theirs`, below).
+        ['start', 'agents'],
+        ['remove', 'agents'],
+        ['rename', 'agents'],
+        ['model', 'agents'],
+        ['thinking', 'agents'],
+        ['account', 'agents'],
+        ['harness', 'agents'],
+        ['move', 'agents'],
       ]),
     )
+    expect(VERBS.filter((verb) => verb.theirs === true).map((verb) => verb.name)).toEqual([
+      'remove',
+      'account',
+      'harness',
+      'move',
+    ])
     // And none of them needs `read`, which would be every paired device.
     for (const verb of VERBS) {
       expect(['answer', 'steer', 'agents', 'projects']).toContain(verb.needs)
@@ -190,6 +225,10 @@ describe('the verb table', () => {
         'branch',
         'url',
       ]) {
+        // A verb named for the thing takes it — **by name, out of the list the
+        // machine itself offered**, asked again at the act (`agent-doors.ts`) —
+        // and no other verb takes it at all.
+        if (verb.name === name) continue
         expect(verb.read(bodyFor(verb, { [name]: 'anything' })).ok, `${verb.name} ${name}`).toBe(
           false,
         )
@@ -315,6 +354,45 @@ describe('what each verb will and will not read', () => {
     for (const confirm of [false, 'true', null, undefined]) {
       expect(INTAKE.read({ ...EVERY, confirm }).ok, String(confirm)).toBe(false)
     }
+  })
+
+  it('asks the same of removing an agent and handing it away, which asking again does not undo', () => {
+    expect(REMOVE.read({ ...EVERY, confirm: true }).ok).toBe(true)
+    expect(MOVE.read({ ...EVERY, machine: 'vps', confirm: true }).ok).toBe(true)
+    for (const confirm of [false, 'true', null, undefined]) {
+      expect(REMOVE.read({ ...EVERY, confirm }).ok, String(confirm)).toBe(false)
+      expect(MOVE.read({ ...EVERY, machine: 'vps', confirm }).ok, String(confirm)).toBe(false)
+    }
+  })
+
+  it('names a model, a level, an account, a harness and a machine, never a sentence', () => {
+    // A name out of a list the machine offered, asked again at the act: the
+    // body bounds its shape so nothing that reads as an instruction or a path
+    // from the root can arrive in one.
+    expect(MODEL.read({ ...EVERY, model: 'claude-opus-5' }).ok).toBe(true)
+    for (const model of ['', '/etc/passwd', 'opus 5', '-rf', 'x'.repeat(201), 'a\nb']) {
+      expect(MODEL.read({ ...EVERY, model }).ok, model).toBe(false)
+    }
+    expect(THINKING.read({ ...EVERY, level: 'xhigh' }).ok).toBe(true)
+    for (const level of ['ultra', 'High', '', null]) {
+      expect(THINKING.read({ ...EVERY, level }).ok, String(level)).toBe(false)
+    }
+    // Its own sign-in has no name of Tade's: the empty string, and only it.
+    expect(ACCOUNT.read({ ...EVERY, account: '' }).ok).toBe(true)
+    expect(ACCOUNT.read({ ...EVERY, account: 'sk-ant-api03 key' }).ok).toBe(false)
+    expect(HARNESS.read({ ...EVERY, harness: 'codex' }).ok).toBe(true)
+    for (const harness of ['Claude Code', '../pi', '', 'x'.repeat(41)]) {
+      expect(HARNESS.read({ ...EVERY, harness }).ok, harness).toBe(false)
+    }
+    expect(MOVE.read({ ...EVERY, machine: 'home mac', confirm: true }).ok).toBe(true)
+    for (const machine of ['../../etc', '/root', '']) {
+      expect(MOVE.read({ ...EVERY, machine, confirm: true }).ok, machine).toBe(false)
+    }
+    // A name is a name: what a body that parses names is asked again of the
+    // machine, which offers its own machines and nothing a device typed.
+    expect(RENAME.read({ ...EVERY, title: '   ' }).ok).toBe(false)
+    expect(RENAME.read({ ...EVERY, title: 'x'.repeat(BOUNDS.title + 1) }).ok).toBe(false)
+    expect(START.read({ ...EVERY, prompt: 'do the work' }).ok).toBe(false)
   })
 
   it('bounds a note and a context block, and refuses one made of nothing', () => {
@@ -504,6 +582,14 @@ describe('the route table', () => {
       '/api/act/reopen',
       '/api/act/close',
       '/api/act/open',
+      '/api/act/start',
+      '/api/act/remove',
+      '/api/act/rename',
+      '/api/act/model',
+      '/api/act/thinking',
+      '/api/act/account',
+      '/api/act/harness',
+      '/api/act/move',
     ])
     for (const route of ACTS) {
       expect(route.method).toBe('POST')

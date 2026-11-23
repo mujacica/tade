@@ -101,7 +101,7 @@ function blockFor(verb, ctx) {
     going = false
     press.disabled = false
     if (deny !== null) deny.disabled = false
-    const came = afterAnswer(answer, ctx.sentence(answer))
+    const came = afterAnswer(answer, ctx.sentence(answer), ctx.session?.() ?? null)
     answerIn(said, came.said, came.trouble)
     // **Only what actually happened clears the box.** A `409` is the world
     // having moved, and throwing away a paragraph somebody typed on a phone

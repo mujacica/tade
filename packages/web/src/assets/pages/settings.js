@@ -377,11 +377,11 @@ export function settingsScreen(ctx) {
       trouble = null
       problemIn(failed, null)
     } else if (answer === null) {
-      trouble = troubleOf(got) ?? UNKNOWN_TROUBLE
+      trouble = troubleOf(got, '', ctx.session?.() ?? null) ?? UNKNOWN_TROUBLE
     } else {
       // What was read before stays: a failed read again is not a reason to
       // take away the settings it could not replace.
-      problemIn(failed, troubleOf(got) ?? UNKNOWN_TROUBLE, {
+      problemIn(failed, troubleOf(got, '', ctx.session?.() ?? null) ?? UNKNOWN_TROUBLE, {
         word: 'Ask again',
         run: () => void load(),
       })

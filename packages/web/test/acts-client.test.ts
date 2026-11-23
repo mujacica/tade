@@ -12,6 +12,7 @@ import {
   controlsFor,
   headingFor,
   howSaid,
+  MENU_SHOWN,
   NEEDS,
   PROJECT_SHOWN,
   QUEUE_ASKS,
@@ -21,6 +22,7 @@ import {
   settingsSaid,
   shownOf,
   standingOf,
+  THEIRS,
   wordsFor,
 } from '../src/assets/acts.js'
 import { draftStore, reasonFor, saidOn, whoSaid } from '../src/assets/talk.js'
@@ -74,10 +76,18 @@ describe('the scope each verb needs, written twice', () => {
   })
 
   it('draws a control for every verb there is, and for nothing else', () => {
-    // A task's page draws the task verbs and a project's page the project
-    // ones: together they are the table, and neither draws the other's.
-    expect([...SHOWN].sort()).toEqual(
+    // A task's page draws the task verbs — as a block each, or in its menu —
+    // and a project's page the project ones: together they are the table, and
+    // none draws another's.
+    expect([...SHOWN, ...MENU_SHOWN].sort()).toEqual(
       VERBS.filter((verb) => verb.on === 'task')
+        .map((verb) => verb.name)
+        .sort(),
+    )
+    expect(SHOWN.filter((verb) => MENU_SHOWN.includes(verb))).toEqual([])
+    // Whose device a verb is for alone, written twice like its scope.
+    expect([...THEIRS].sort()).toEqual(
+      VERBS.filter((verb) => verb.theirs === true)
         .map((verb) => verb.name)
         .sort(),
     )

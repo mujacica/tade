@@ -1,8 +1,18 @@
 import type { Config, InboxRow, Queued, TadeEvent } from '@tade/core'
-import type { Device, ProjectIn, ServerOptions, Surface, TaskFacts, WebPushing } from '@tade/web'
-import { surfaceOf } from '@tade/web'
+import type {
+  Device,
+  ProjectIn,
+  ServerOptions,
+  Surface,
+  TaskFacts,
+  WebMenus,
+  WebPushing,
+} from '@tade/web'
+import { NotOffered, surfaceOf } from '@tade/web'
 import type { Workbench } from '@tade/workbench'
+import type { AgentMenuDoors } from './agent-doors.ts'
 import { type ActingDeps, webActing } from './web-acting.ts'
+import { agentActing } from './web-agent.ts'
 import { type Talking, webAsking } from './web-asking.ts'
 import { steeringFor } from './web-beat.ts'
 import { webDrafting } from './web-drafting.ts'
@@ -76,6 +86,10 @@ export function halvesFor(surface: Surface, deps: Halving): Partial<ServerOption
     // act, which is what makes turning the setting off take effect now
     // rather than at the next restart.
     ...(surface.acting ? { acting: actingFor(deps) } : {}),
+    // **Whatever acting says**: the menu's items that are the page's own —
+    // open its screen, copy its branch — ask nothing of the machine, and the
+    // rest are left out for a device that may not ask them (`menuFor`).
+    ...(menusFor(deps.lifecycle) === undefined ? {} : { menus: menusFor(deps.lifecycle) }),
     // **Handed over only where the setting says so**, like acting and for
     // the same reason: with talking off there is no `WebAsking` and no
     // asking route, so a crafted call is the `404` of a path nobody built.
@@ -183,5 +197,26 @@ function actingFor(deps: Halving): ServerOptions['acting'] {
       seenProject: (name) => projectSeen(deps.projects(), name),
     },
   }
-  return { ...webActing(doors), ...lifecycleActing(doors) }
+  return {
+    ...webActing(doors),
+    ...lifecycleActing(doors),
+    ...agentActing({ ...doors, menus: () => menusOf(deps.lifecycle) }),
+  }
+}
+
+/** The window's doors for an agent's menu, or a refusal where it was wired without them. */
+function menusOf(lifecycle: Lifecycle): AgentMenuDoors {
+  const menus = lifecycle.menus?.()
+  if (menus === undefined)
+    throw new NotOffered('this window does not offer an agent’s menu from away')
+  return menus
+}
+
+/**
+ * One agent's menu for a device (`agent-menu.ts`), where the window has the
+ * doors for it — the window's own list, built when it is asked.
+ */
+export function menusFor(lifecycle: Lifecycle): WebMenus | undefined {
+  if (lifecycle.menus === undefined) return undefined
+  return { menu: (task, theirs) => menusOf(lifecycle).menu(task, theirs) }
 }

@@ -139,7 +139,7 @@ export function agentPane(where, ctx, told = () => {}) {
         answer = withHeld(answer, got.body)
         failed = null
       } else {
-        failed = troubleSaid(troubleOf(got) ?? UNKNOWN_TROUBLE)
+        failed = troubleSaid(troubleOf(got, '', ctx.session?.() ?? null) ?? UNKNOWN_TROUBLE)
       }
       draw()
       told()

@@ -267,7 +267,7 @@ function approveIn(parent, ctx) {
     const body = bodyFor('intake', held, keyOf(), ctx.revOf(), {})
     void ctx.ask('POST', '/api/act/intake', body).then((answer) => {
       press.disabled = false
-      const came = afterAnswer(answer, ctx.sentence(answer))
+      const came = afterAnswer(answer, ctx.sentence(answer), ctx.session?.() ?? null)
       answerIn(said, came.said, came.trouble)
       textIn(press, wordsFor('intake', held ?? {}))
       // **The key is kept across a retry and minted again only once it

@@ -354,6 +354,17 @@ export const ROUTES: readonly Route[] = [
     needs: 'read',
     mutates: false,
   },
+  // **One agent's menu, read when somebody opens it** (`agent-menu.ts`): the
+  // window's own list of what may be done to it, each item with why not where
+  // it cannot be done now, cut to what this device may ask. A `GET`, and it
+  // changes nothing: every press on it is its own verb, through the act gate.
+  {
+    method: 'GET',
+    path: '/api/agent/:project/:task/menu',
+    name: 'agent menu',
+    needs: 'read',
+    mutates: false,
+  },
   {
     method: 'GET',
     path: '/api/talk/answer/:call',

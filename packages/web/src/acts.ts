@@ -74,7 +74,7 @@ export type Admitted = { ok: true } | { ok: false; refusal: Refusal; why: string
  * true since. That is the point — a gate that only ever asked at pairing is a
  * gate a person cannot close.
  */
-export function admit(asked: Asked, needs: Scope, standing: Standing): Admitted {
+export function admit(asked: Asked, needs: Scope, standing: Standing, theirs = false): Admitted {
   // 1. The capability, read now. A person who turned it off a second ago meant
   //    it, and the route table they turned it off after is still the one the
   //    window built when it started.
@@ -87,6 +87,14 @@ export function admit(asked: Asked, needs: Scope, standing: Standing): Admitted 
   //    drift — and the cost of asking twice is this line.
   if (!standing.scopes.includes(needs)) {
     return no('out_of_scope', `${asked.verb} needs ${needs}, device has ${said(standing.scopes)}`)
+  }
+
+  // 2b. Whose device it is, for the verbs that are the person's own device's
+  //     alone (`Verb.theirs`): full access and not a machine link, read off
+  //     the record at this request (`reachOf`), so unticking one box is an
+  //     ordinary device at the next press. No scope stands in for it.
+  if (theirs && standing.reach.theirs !== true) {
+    return no('out_of_scope', `${asked.verb} is for your own device with full access`)
   }
 
   // 3. The project. **The per-project boundary, and it is the read scope.** A

@@ -116,6 +116,22 @@ export interface TaskExtra {
 export interface Steering {
   how: How | null
   why: string
+  /**
+   * What else its harness lets a person ask of its agent, read off the same
+   * capabilities through `offer()` where a run said which harness it is on.
+   * Absent where nothing knows, which offers what the window's own menu offers
+   * then: everything, refused at the act if the harness says no.
+   */
+  offers?: AgentAble
+}
+
+/** What a harness lets a person ask of a task's agent beyond telling it something. */
+export interface AgentAble {
+  harness: string
+  model: Steering
+  thinking: Steering
+  /** Whether it can be moved to another account of its harness. */
+  accounts: boolean
 }
 
 /** Nothing is running, so there is nothing to tell. */
@@ -205,18 +221,49 @@ export function ableOn(task: AbleFacts): { can: Can[]; cannot: Cannot[] } {
   else yes('intake')
 
   // The lifecycle, read off the agent's **own lane** and never off `agents`,
-  // which counts a stopped lane as a signal too. Nothing here may start an
-  // agent that never ran: that is said, with where it is done instead.
+  // which counts a stopped lane as a signal too. `reopen` brings back one that
+  // ran; one that never ran is `start`'s, which is said.
   if (task.lane === 'running') yes('stop')
   else no('stop', task.lane === 'stopped' ? 'its agent is already stopped' : NEVER_RAN)
   if (task.lane === 'stopped') yes('reopen')
   else no('reopen', task.lane === 'running' ? 'its agent is running' : NEVER_RAN)
 
+  // The rest of the window's own agent menu, each by the rule its item there is
+  // drawn by (`menuItems`): what it needs of the lane, and what the harness
+  // offers through `offer()`. **Start says nothing to its agent**, so it is
+  // refused only where a start would be another act's: work in the queue,
+  // whose own Start now is its door, and a stranger's request not yet approved.
+  const running = task.lane === 'running'
+  if (running) no('start', 'its agent is running')
+  else if (task.queue !== '') no('start', 'it is queued work: Start now in its queue starts it')
+  else if (task.origin === 'intake' && task.parked && !task.finished) {
+    no(
+      'start',
+      'it came from outside this machine: approving it is its own act, with its own checks',
+    )
+  } else yes('start')
+  yes('remove')
+  yes('rename')
+  const offers = task.steering.offers
+  for (const verb of ['model', 'thinking'] as const) {
+    const offered = offers?.[verb] ?? { how: 'now' as How, why: '' }
+    if (!running) no(verb, 'its agent is not running')
+    else if (offered.how === null) no(verb, offered.why)
+    else yes(verb, offered.how)
+  }
+  // Another account or harness carries the conversation and starts a running
+  // agent again there; a stopped one takes it at its next start.
+  if (offers !== undefined && !offers.accounts) no('account', `one account in ${offers.harness}`)
+  else yes('account', running ? 'restart' : 'now')
+  yes('harness', running ? 'restart' : 'now')
+  if (running) yes('move')
+  else no('move', 'its agent is not running: only running work is handed over')
+
   return { can, cannot }
 }
 
 /** Why there is no agent to stop or to open again: none ever ran. */
-const NEVER_RAN = 'no agent has run on it, and starting one is done at the machine'
+const NEVER_RAN = 'no agent has run on it: Start starts one'
 
 /** What `ableOn` reads. Named, so a test can build one without a `Task`. */
 export interface AbleFacts {

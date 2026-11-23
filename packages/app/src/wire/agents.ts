@@ -1,4 +1,5 @@
 import {
+  type Asker,
   atOnceIn,
   type Config,
   chatTaskOf,
@@ -100,6 +101,8 @@ export interface AgentRoutes {
 export interface HandsOver {
   handItems(task: string): MenuItem[]
   hand(task: string, machine: string): void
+  /** The same hand-over for whoever asked from away: what was set going, or a throw saying why not. */
+  handOver(task: string, machine: string, by: Asker): Promise<string>
 }
 
 /** An agent opened again past its project's limit, and by how much. */
@@ -449,6 +452,24 @@ export class Agents implements Subject {
     this.wire.put(
       acknowledge({ ...this.wire.state, panel: null }, `removed ${panel.task}`, this.wire.now()),
     )
+  }
+
+  /**
+   * Remove one agent for a request from away: the menu's Remove agent, said
+   * where you look with who asked, and throwing rather than putting a failure
+   * on the notice line nobody away can read.
+   */
+  async removeExactly(task: string, by: string): Promise<void> {
+    const error = await this.removeOne(task)
+    if (error) throw new Error(error)
+    await this.wire.live?.refresh()
+    notify(this.wire, `${by} removed ${task} — its worktree and branch with it`)
+    this.wire.draw()
+  }
+
+  /** Who hands work to another machine here, where this window links machines. */
+  handsOver(): HandsOver | null {
+    return this.deps.handsOver()
   }
 
   /**

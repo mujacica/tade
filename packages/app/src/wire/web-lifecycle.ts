@@ -20,6 +20,7 @@ import {
 } from '@tade/web'
 import { agentLaneOf, type ProjectLine, projectLines } from '../away-lifecycle.ts'
 import { isRepo, whatIsAt } from '../projects.ts'
+import type { AgentMenuDoors } from './agent-doors.ts'
 import { type ActingDeps, after, onTask } from './web-acting.ts'
 
 // The window's end of the four lifecycle verbs: an agent stopped and opened
@@ -79,6 +80,11 @@ export interface ProjectDoors {
 export interface Lifecycle {
   agents(): AgentDoors
   projects(): ProjectDoors
+  /**
+   * The rest of an agent's menu (`agent-doors.ts`): absent where a window was
+   * wired without it, and then each of those verbs is `not_offered`.
+   */
+  menus?(): AgentMenuDoors
 }
 
 /** What the four verbs need beyond `ActingDeps`: the subjects, and the project rows. */

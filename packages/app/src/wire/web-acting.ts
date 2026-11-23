@@ -43,6 +43,7 @@ import {
   ParkMovedOn,
 } from '@tade/workbench'
 import type { Steering } from '../away.ts'
+import type { AgentActing } from './web-agent.ts'
 import { BOXES, readsAfter, ticked } from './web-boxes.ts'
 import type { LifecycleActing, LifecycleDeps } from './web-lifecycle.ts'
 
@@ -191,7 +192,9 @@ export interface GrantDeps {
  * there is no shape here a path, a command, a setting, a credential or a new
  * agent could arrive in (`acting.ts` has the list and the argument).
  */
-export function webActing(deps: ActingDeps): Omit<WebActing, keyof LifecycleActing> {
+export function webActing(
+  deps: ActingDeps,
+): Omit<WebActing, keyof LifecycleActing | keyof AgentActing> {
   return {
     // Read out of the live config at every act. **This is the half of the
     // setting that can only ever take authority away**, which is why it is a

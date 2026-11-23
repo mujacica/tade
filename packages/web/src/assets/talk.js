@@ -299,7 +299,7 @@ export function composerOf(ctx, words) {
     settle()
     const answer = await ctx.ask('POST', `/api/ask/${what}`, body)
     going = false
-    const came = afterAnswer(answer, ctx.sentence(answer))
+    const came = afterAnswer(answer, ctx.sentence(answer), ctx.session?.() ?? null)
     answerIn(said, came.said, came.trouble)
     if (came.clear && what === 'ask') {
       box.value = ''

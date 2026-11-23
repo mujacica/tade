@@ -133,6 +133,14 @@ const answering: WebActing = {
   reopen: (call) => did(call),
   close: (call) => did({ was: call.was }),
   open: (call) => did({ was: call.was }),
+  start: (call) => did(call),
+  remove: (call) => did(call),
+  rename: (call) => did(call),
+  model: (call) => did(call),
+  thinking: (call) => did(call),
+  account: (call) => did(call),
+  harness: (call) => did(call),
+  move: (call) => did(call),
 }
 
 function did(call: { was: string }): Promise<Outcome> {

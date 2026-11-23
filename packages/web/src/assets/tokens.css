@@ -196,6 +196,9 @@
   --p1: 0%;
   --p2: 0%;
   --p3: 0%;
+  /* Where an agent's menu opens at a desk, beside what was pressed (`agent-menu.js`). */
+  --mx: 0px;
+  --my: 0px;
   /*
     The rest of a chart's geometry (`charts.js`), each set per element through
     the CSSOM and nought until it is: a mark's tone (a `tone-*` class sets it),

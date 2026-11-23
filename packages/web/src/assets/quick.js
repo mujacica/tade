@@ -71,7 +71,7 @@ export function quickActs(ctx, opts = {}) {
     going = false
     press.disabled = false
     if (answer.status === 200) felt()
-    const came = afterAnswer(answer, ctx.sentence(answer))
+    const came = afterAnswer(answer, ctx.sentence(answer), ctx.session?.() ?? null)
     answerIn(said, came.said, came.trouble)
   }
 

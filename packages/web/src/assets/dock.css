@@ -346,6 +346,52 @@
 }
 
 /*
+  An agent's row and its presses on one line: the row as it was, and at its
+  end what the window's row offers — start or stop, close, and ⋯ for the rest
+  of its menu — each a whole target (`--tap`), quiet until the pointer or a
+  finger is on it. Held down, the row opens its menu, so it never brings up
+  the browser's own sheet for a link.
+*/
+.side-line {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+}
+
+.side-line .side-agent {
+  flex: 1 1 auto;
+  min-width: 0;
+  -webkit-touch-callout: none;
+}
+
+.side-acts {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.side-press {
+  color: var(--heading);
+}
+
+.side-press.is-danger:hover {
+  color: var(--red);
+}
+
+/* Asked once, waiting for the second tap: the amber ground a press that counts has (`.press.asked`). */
+.side-press.asked {
+  color: var(--ink);
+  background: var(--amber);
+}
+
+/* What came of the last press on a row, under it and let go. */
+.side-said {
+  margin: 0 0 var(--s2) calc(var(--s2) + 1rem);
+  font-size: var(--step--1);
+  color: var(--heading);
+  overflow-wrap: anywhere;
+}
+
+/*
   What the window says beside the agent you have open — its run and its
   checks, the ACTIONS page in two lines — hung under it on an amber rule.
 */
@@ -698,6 +744,8 @@
   .side-mini .side-label,
   .side-mini .side-quiet,
   .side-mini .side-queue,
+  .side-mini .side-acts,
+  .side-mini .side-said,
   .side-mini .side-run,
   .side-mini .side-detail,
   .side-mini .side-none,

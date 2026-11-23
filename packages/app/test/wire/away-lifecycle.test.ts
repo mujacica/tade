@@ -177,14 +177,15 @@ describe('stopping an agent and opening it again', () => {
     expect(await one.client.events({ types: ['lane_closed'] })).toEqual([])
   })
 
-  it('never starts an agent on a task no agent has run on', async () => {
+  it('never reopens a task no agent has run on: starting one is `start`, saying nothing to it', async () => {
     const one = await machine()
     await paired(one.home, one.port, ['read', 'agents'])
     await one.away.open()
     await one.refresh()
     const row = rowOf(one, one.task)
     expect(row.lane).toBe('none')
-    expect(row.cannot.find((each) => each.verb === 'reopen')?.why).toContain('done at the machine')
+    expect(row.cannot.find((each) => each.verb === 'reopen')?.why).toContain('Start starts one')
+    expect(row.can.map((each) => each.verb)).toContain('start')
     // Crafted anyway, with the row's own revision: nothing here by that name.
     const no = await act(one.port, 'reopen', { task: one.task, was: row.rev, key: KEY, rev: 0 })
     expect(no.status).toBe(404)
@@ -502,7 +503,7 @@ describe('granting it, at the machine', () => {
     expect(before).toMatchObject({ mayAct: true, mayStop: false, mayClose: false })
 
     await press(one, `${AWAY_CONTROLS.agents}${DEVICE}`)
-    expect(one.news.join(' ')).toContain('can stop an agent or open it again')
+    expect(one.news.join(' ')).toContain('can start, stop, rename or switch an agent’s model')
     expect(one.away.panel()?.away?.devices[0]).toMatchObject({
       mayAct: true,
       mayStop: true,
@@ -540,7 +541,7 @@ describe('granting it, at the machine', () => {
 
     // Pressed again, it is taken back — and nothing else with it.
     await press(one, `${AWAY_CONTROLS.agents}${DEVICE}`)
-    expect(one.news.join(' ')).toContain('can no longer stop an agent')
+    expect(one.news.join(' ')).toContain('can no longer start, stop')
     expect(one.away.panel()?.away?.devices[0]).toMatchObject({ mayAct: true, mayStop: false })
   })
 

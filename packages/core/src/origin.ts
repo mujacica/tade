@@ -46,6 +46,8 @@
 // closed list, declared where the thing it reaches is declared, with deny as
 // the answer to everything unnamed.
 
+import type { Asker } from './events.ts'
+
 /**
  * Who asked. The provenance of one act or one turn.
  *
@@ -68,7 +70,7 @@ export type Who =
  * about their own phone, and an id is 16 hex characters that mean nothing on
  * their own. The one thing neither ever becomes is a `said` line.
  */
-export function byOf(who: Who): string {
+export function byOf(who: Who): Asker {
   return who.how === 'local' ? 'you' : `device ${who.device}`
 }
 

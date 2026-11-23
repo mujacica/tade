@@ -41,6 +41,22 @@ export const SHOWN = [
 ]
 
 /**
+ * The verbs an agent's menu carries (`agent-menu.js`) rather than a block of
+ * their own on its page: the rest of what the window's own row offers. With
+ * `SHOWN` they are every verb about a task, and neither list has the other's.
+ */
+export const MENU_SHOWN = [
+  'start',
+  'remove',
+  'rename',
+  'model',
+  'thinking',
+  'account',
+  'harness',
+  'move',
+]
+
+/**
  * The verbs a project's page draws a control for: the two about the whole of
  * it. A project row carries `can` and `cannot` over exactly these, as a task
  * row does over `SHOWN`.
@@ -81,7 +97,23 @@ export const NEEDS = {
   reopen: 'agents',
   close: 'projects',
   open: 'projects',
+  // The rest of an agent's own menu, at the agents scope.
+  start: 'agents',
+  remove: 'agents',
+  rename: 'agents',
+  model: 'agents',
+  thinking: 'agents',
+  account: 'agents',
+  harness: 'agents',
+  move: 'agents',
 }
+
+/**
+ * The verbs only the person's own device may ask for, whatever another was
+ * granted — the page's copy of `Verb.theirs`, held equal by the same test as
+ * `NEEDS`. A drawing hint: the machine asks the device's record at the act.
+ */
+export const THEIRS = ['remove', 'account', 'harness', 'move']
 
 /**
  * What the queue control offers, and the word on each.
@@ -295,7 +327,20 @@ export function bodyFor(verb, row, key, rev, typed) {
     case 'intake':
       return { ...every, confirm: true }
     case 'stop':
+    case 'remove':
       return { ...every, confirm: true }
+    case 'rename':
+      return { ...every, title: typed.title ?? '' }
+    case 'model':
+      return { ...every, model: typed.choice ?? '' }
+    case 'thinking':
+      return { ...every, level: typed.choice ?? '' }
+    case 'account':
+      return { ...every, account: typed.choice ?? '' }
+    case 'harness':
+      return { ...every, harness: typed.choice ?? '' }
+    case 'move':
+      return { ...every, machine: typed.machine ?? '', confirm: true }
     default:
       return every
   }
@@ -311,7 +356,7 @@ export function bodyFor(verb, row, key, rev, typed) {
  * one failure they cannot undo. `said` is Tade's own sentence either way: the
  * server's for a success, the refusal's for everything else.
  */
-export function afterAnswer(answer, sentence) {
+export function afterAnswer(answer, sentence, you = null) {
   const ok = answer?.status === 200
   return {
     ok,
@@ -326,7 +371,7 @@ export function afterAnswer(answer, sentence) {
     trouble:
       ok || answer?.body?.error === 'gone' || answer?.body?.error === 'stale'
         ? null
-        : troubleOf(answer),
+        : troubleOf(answer, '', you),
   }
 }
 
@@ -343,7 +388,17 @@ export function afterAnswer(answer, sentence) {
  * means *do not*.
  */
 export function confirms(verb) {
-  return verb === 'done' || verb === 'intake' || verb === 'stop' || verb === 'close'
+  // Removing an agent deletes its worktree and branch, and handing one to
+  // another machine stops it here once it runs there: neither is undone by
+  // asking again.
+  return (
+    verb === 'done' ||
+    verb === 'intake' ||
+    verb === 'stop' ||
+    verb === 'close' ||
+    verb === 'remove' ||
+    verb === 'move'
+  )
 }
 
 /**
@@ -378,6 +433,10 @@ export function wordsFor(verb, row) {
       return 'Close this project'
     case 'open':
       return 'Open it again'
+    case 'start':
+      return 'Start its agent'
+    case 'remove':
+      return 'Remove agent'
     default:
       return ''
   }

@@ -248,7 +248,7 @@ export async function letOneConfigure(
 
 /** What each lifecycle scope lets a device do, in the strip's words. */
 export const RUNS = {
-  agents: 'stop an agent or open it again',
+  agents: 'start, stop, rename or switch an agent’s model',
   projects: 'close a project or open it again',
 } as const
 

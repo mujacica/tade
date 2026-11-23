@@ -430,6 +430,16 @@ declare module '*/assets/palette.js' {
   }
 }
 
+declare module '*/assets/agent-menu.js' {
+  export const HOLD_MS: number
+  export function menuPath(task: string): string
+  export function menuTyped(
+    act: { with?: Readonly<Record<string, string>> } | null | undefined,
+    choice?: string,
+    typed?: string,
+  ): Record<string, string>
+}
+
 declare module '*/assets/ui.js' {
   export function notShownSaid(n: number): string
 }
@@ -441,6 +451,8 @@ declare module '*/assets/quick.js' {
 
 declare module '*/assets/acts.js' {
   export const SHOWN: readonly string[]
+  export const MENU_SHOWN: readonly string[]
+  export const THEIRS: readonly string[]
   export const PROJECT_SHOWN: readonly string[]
   export const PAIRS: Readonly<Record<string, string>>
   export const NEEDS: Readonly<Record<string, string>>
@@ -496,6 +508,7 @@ declare module '*/assets/acts.js' {
   export function afterAnswer(
     answer: unknown,
     sentence: string,
+    you?: unknown,
   ): {
     ok: boolean
     clear: boolean

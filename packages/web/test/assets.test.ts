@@ -101,11 +101,16 @@ describe('what the client may never do', () => {
         'outerHTML',
         'insertAdjacentHTML',
         'write',
+        'writeln',
         'eval',
         'Function',
-      ])
-        for (const reached of [`.${banned}`, `['${banned}']`, `["${banned}"]`])
+      ]) {
+        // The whole name, so `navigator.clipboard.writeText` — copying a
+        // branch's name — is not `document.write`.
+        expect(text, `${name} reaches .${banned}`).not.toMatch(new RegExp(`\\.${banned}\\b`))
+        for (const reached of [`['${banned}']`, `["${banned}"]`])
           expect(text, `${name} reaches ${reached}`).not.toContain(reached)
+      }
       expect(text, `${name} calls eval`).not.toMatch(/\beval\s*\(/)
       expect(text, `${name} builds a function`).not.toMatch(/\bnew Function\b/)
     }

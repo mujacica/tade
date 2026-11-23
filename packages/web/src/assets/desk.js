@@ -36,7 +36,7 @@ const STRIP_LINES = 8
 
 /** The two parts, built once, empty until the first paint fills them. */
 export function deskParts(ctx) {
-  const side = sideOf()
+  const side = sideOf(ctx)
 
   const dock = el('section', { class: 'dock', attrs: { 'aria-labelledby': 'dock-head' } })
   const head = el('div', { class: 'dock-head' })

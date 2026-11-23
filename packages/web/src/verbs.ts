@@ -1,4 +1,4 @@
-import { TaskId } from '@tade/core'
+import { MACHINE_NAMED, TaskId, THINKING_LEVELS } from '@tade/core'
 import { z } from 'zod'
 import {
   BOUNDS,
@@ -123,6 +123,44 @@ const StopBody = z.strictObject({ ...Every, confirm: z.literal(true) })
 
 const ReopenBody = z.strictObject({ ...Every })
 
+const StartBody = z.strictObject({ ...Every })
+
+const RemoveBody = z.strictObject({ ...Every, confirm: z.literal(true) })
+
+const RenameBody = z.strictObject({ ...Every, title: authored(BOUNDS.title) })
+
+/**
+ * A name out of a list the machine itself offered, never free text: bounded,
+ * and the characters a model id, an account name or a harness id are made of.
+ * The window asks the list again at the act, so a name that is the right shape
+ * and in no list is refused there.
+ */
+const Named = z
+  .string()
+  .max(200)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._:/@+-]*$/)
+
+const ModelBody = z.strictObject({ ...Every, model: Named })
+
+const ThinkingBody = z.strictObject({ ...Every, level: z.enum(THINKING_LEVELS) })
+
+/** `''` is the harness's own sign-in, which has no name of Tade's. */
+const AccountBody = z.strictObject({ ...Every, account: z.union([z.literal(''), Named]) })
+
+const HarnessBody = z.strictObject({
+  ...Every,
+  harness: z
+    .string()
+    .max(40)
+    .regex(/^[a-z0-9][a-z0-9-]*$/),
+})
+
+const MoveBody = z.strictObject({
+  ...Every,
+  machine: z.string().regex(MACHINE_NAMED),
+  confirm: z.literal(true),
+})
+
 /**
  * What a verb about a whole project carries: the project instead of a task.
  *
@@ -200,6 +238,17 @@ export interface Verb {
    * neither carries the other's.
    */
   on: 'task' | 'project'
+  /**
+   * Whether only **the person's own device** may ask for it — full access,
+   * not a machine link (`theirsOf`) — whatever scope another was granted.
+   *
+   * For the acts that delete work or change whose sign-in or which harness an
+   * agent runs as: what a box ticked for *stop and reopen agents* was never
+   * read as. Asked at the gate (`admit`, off `Reach.theirs`), which reads the
+   * device's record at every request, so unticking a box is an ordinary
+   * device at the next press.
+   */
+  theirs?: true
   read(body: unknown): Reading
 }
 
@@ -676,20 +725,226 @@ export const OPEN: Verb = {
   },
 }
 
+/** One task's own act, built the same way for every agent verb below. */
+function onTaskOf(
+  verb: string,
+  call: { task: string; was: string; key: string; rev: number },
+  payload: string,
+  said: string,
+  run: Asked['run'],
+): Reading {
+  return {
+    ok: true,
+    asked: {
+      verb,
+      task: call.task,
+      project: projectOf(call.task),
+      was: call.was,
+      key: call.key,
+      rev: call.rev,
+      payload,
+      said,
+      run,
+    },
+  }
+}
+
+/**
+ * Start a task's agent: the window's own Start agent, saying nothing to it.
+ *
+ * `agents`, beside `stop` and `reopen`, and the same decision from its third
+ * side. **There is no opening instruction in it** (`StartAgentCall`): where an
+ * agent ran it comes back where it left off, and where none did one starts on
+ * what its task already said at the machine — so the text an agent acts on is
+ * never a device's. Refused where it is running, for work that is queued (the
+ * queue's own Start now is its door) and for work that came from outside until
+ * it is approved (`intake`).
+ */
+export const START: Verb = {
+  name: 'start',
+  needs: 'agents',
+  about: 'start a task’s agent, saying nothing to it: where it left off if it ran before',
+  on: 'task',
+  read(body) {
+    const got = StartBody.safeParse(body)
+    if (!got.success) return { ok: false }
+    const call = got.data
+    return onTaskOf('start', call, 'start', 'started its agent', (acting, from) =>
+      acting.start({ task: call.task, was: call.was }, from),
+    )
+  },
+}
+
+/**
+ * Close a task's agent for good: stopped, off the list, its worktree and
+ * branch removed — the window's Remove agent.
+ *
+ * **The person's own device alone** (`theirs`), two presses and a literal:
+ * it deletes work that may not be merged anywhere, which a box ticked for
+ * stopping agents was never read as allowing.
+ */
+export const REMOVE: Verb = {
+  name: 'remove',
+  needs: 'agents',
+  about: 'close a task’s agent for good, removing its worktree and branch',
+  on: 'task',
+  theirs: true,
+  read(body) {
+    const got = RemoveBody.safeParse(body)
+    if (!got.success) return { ok: false }
+    const call = got.data
+    return onTaskOf('remove', call, 'remove', 'removed its agent', (acting, from) =>
+      acting.remove({ task: call.task, was: call.was, confirm: true }, from),
+    )
+  },
+}
+
+/** What an agent is called: the task file's title, told to its session where the harness can take it. */
+export const RENAME: Verb = {
+  name: 'rename',
+  needs: 'agents',
+  about: 'change what a task’s agent is called',
+  on: 'task',
+  read(body) {
+    const got = RenameBody.safeParse(body)
+    if (!got.success) return { ok: false }
+    const call = got.data
+    return onTaskOf('rename', call, `title=${call.title}`, 'renamed its agent', (acting, from) =>
+      acting.rename({ task: call.task, was: call.was, title: call.title }, from),
+    )
+  },
+}
+
+/** Switch a running agent's model, among what its own harness offers. */
+export const MODEL: Verb = {
+  name: 'model',
+  needs: 'agents',
+  about: 'switch a running agent to another model its harness offers',
+  on: 'task',
+  read(body) {
+    const got = ModelBody.safeParse(body)
+    if (!got.success) return { ok: false }
+    const call = got.data
+    return onTaskOf('model', call, `model=${call.model}`, 'switched its model', (acting, from) =>
+      acting.model({ task: call.task, was: call.was, model: call.model }, from),
+    )
+  },
+}
+
+/** How hard a running agent thinks, among the levels its harness offers. */
+export const THINKING: Verb = {
+  name: 'thinking',
+  needs: 'agents',
+  about: 'change how hard a running agent thinks',
+  on: 'task',
+  read(body) {
+    const got = ThinkingBody.safeParse(body)
+    if (!got.success) return { ok: false }
+    const call = got.data
+    return onTaskOf(
+      'thinking',
+      call,
+      `level=${call.level}`,
+      'changed how hard it thinks',
+      (acting, from) =>
+        acting.thinking({ task: call.task, was: call.was, level: call.level }, from),
+    )
+  },
+}
+
+/**
+ * Run an agent as another account of its harness, by name. **The person's own
+ * device alone**: it decides whose sign-in and whose plan the work is paid
+ * from, which is a credential's question even though no credential crosses.
+ */
+export const ACCOUNT: Verb = {
+  name: 'account',
+  needs: 'agents',
+  about: 'run an agent as another account of its harness, its conversation with it',
+  on: 'task',
+  theirs: true,
+  read(body) {
+    const got = AccountBody.safeParse(body)
+    if (!got.success) return { ok: false }
+    const call = got.data
+    return onTaskOf(
+      'account',
+      call,
+      `account=${call.account}`,
+      'moved it to another account',
+      (acting, from) =>
+        acting.account({ task: call.task, was: call.was, account: call.account }, from),
+    )
+  },
+}
+
+/** Run an agent in another harness. **The person's own device alone**, for `account`'s reason. */
+export const HARNESS: Verb = {
+  name: 'harness',
+  needs: 'agents',
+  about: 'run an agent in another harness, starting it again there if it is running',
+  on: 'task',
+  theirs: true,
+  read(body) {
+    const got = HarnessBody.safeParse(body)
+    if (!got.success) return { ok: false }
+    const call = got.data
+    return onTaskOf(
+      'harness',
+      call,
+      `harness=${call.harness}`,
+      'moved it to another harness',
+      (acting, from) =>
+        acting.harness({ task: call.task, was: call.was, harness: call.harness }, from),
+    )
+  },
+}
+
+/**
+ * Hand a running agent to another of the person's machines: the window's own
+ * Hand to. **The person's own device alone**, and two presses: the work goes
+ * to a machine the device names, which is where its project is checked out
+ * already and nowhere else.
+ */
+export const MOVE: Verb = {
+  name: 'move',
+  needs: 'agents',
+  about: 'hand a running agent to another of your machines that has its project',
+  on: 'task',
+  theirs: true,
+  read(body) {
+    const got = MoveBody.safeParse(body)
+    if (!got.success) return { ok: false }
+    const call = got.data
+    return onTaskOf(
+      'move',
+      call,
+      `machine=${call.machine}`,
+      'handed it to another machine',
+      (acting, from) =>
+        acting.move({ task: call.task, was: call.was, machine: call.machine, confirm: true }, from),
+    )
+  },
+}
+
 /**
  * The verbs there are, and the whole of what a paired device may ever do.
  *
- * Twelve, and the order is the order they arrived in rather than a ranking:
+ * Twenty, and the order is the order they arrived in rather than a ranking:
  * park went first because it was the smallest act that proved the path, the
- * next seven are the scope matrix filled in, and the last four are the lifecycle
- * — an agent stopped and opened again, a project closed and opened again. What
- * they have in common is the shape the first one established — a target, the
- * state it expects, and a method on `WebActing` — and what they have in common
- * is also the limit: **none of them takes a path, a command, a credential, a
- * setting or a prompt**, and the three acts that are `never remote` are absent
- * rather than refused. There is no push, no merge, no check override, no
- * account change, no grant and no new agent, because there is no method here
- * one could be called through.
+ * next seven are the scope matrix filled in, the next four are the lifecycle
+ * — an agent stopped and opened again, a project closed and opened again —
+ * and the last eight are the rest of the window's own agent menu, so a phone
+ * can do to an agent what a press on its row can. What they have in common is
+ * the shape the first one established — a target, the state it expects, and a
+ * method on `WebActing` — and what they have in common is also the limit:
+ * **none of them takes a path, a command, a credential, a setting or a
+ * prompt**. A model, an account, a harness or a machine is a *name* out of
+ * what the machine itself offered, asked again at the act; the four that
+ * delete work, hand it to another machine or change whose sign-in or harness
+ * an agent runs on are the person's own device's alone (`Verb.theirs`). There is no push, no merge, no check
+ * override, no grant and no opening instruction, because there is no method
+ * here one could be called through.
  *
  * Two in the matrix are deliberately not here, each for a reason that is not
  * "nobody got to it":
@@ -723,6 +978,14 @@ export const VERBS: readonly Verb[] = [
   REOPEN,
   CLOSE,
   OPEN,
+  START,
+  REMOVE,
+  RENAME,
+  MODEL,
+  THINKING,
+  ACCOUNT,
+  HARNESS,
+  MOVE,
 ]
 
 /** The verb of that name, or null. The one lookup, and it is closed. */

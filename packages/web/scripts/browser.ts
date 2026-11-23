@@ -229,6 +229,14 @@ const recording: WebActing = {
   reopen: (call) => did('reopen', call),
   close: (call) => did('close', { task: call.project, was: call.was }),
   open: (call) => did('open', { task: call.project, was: call.was }),
+  start: (call) => did('start', call),
+  remove: (call) => did('remove', call),
+  rename: (call) => did('rename', call),
+  model: (call) => did('model', call),
+  thinking: (call) => did('thinking', call),
+  account: (call) => did('account', call),
+  harness: (call) => did('harness', call),
+  move: (call) => did('move', call),
 }
 
 function did(verb: string, call: { task: string; was: string }): Promise<Outcome> {

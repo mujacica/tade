@@ -19,12 +19,13 @@ import type { Scope } from './surface.ts'
 // diff as the argument for them. The `never remote` lines are
 // kept by this file having no shape they could arrive in:
 //
-// - no `startAgent`, which is the one verb that turns text into execution.
-//   `steer` is a message into a conversation that is **already** running and
-//   the window refuses it where no agent is; `reopen` brings back an agent
-//   that already has a conversation, saying nothing to it, and is refused
-//   where no agent has ever run — so neither carries an opening instruction
-//   and neither can make an agent that was not there;
+// - no opening instruction, which is the one thing that turns text into
+//   execution. `steer` is a message into a conversation that is **already**
+//   running and the window refuses it where no agent is; `reopen` brings back
+//   an agent that already has a conversation, and `start` is the window's own
+//   Start agent — both say **nothing** to it, so what an agent started from
+//   away works on is what its task already said at the machine, and no field
+//   here could carry anything else;
 // - no file path. The one verb that writes a file (`context`) names a **task
 //   id** and the window works out where that task's own files are, so there
 //   is no path on the wire to contain, no `..` to refuse and no symlink to
@@ -34,7 +35,9 @@ import type { Scope } from './surface.ts'
 // - no push, merge, review answer or check override;
 // - no setting, no credential, no extension, no MCP server, no device and no
 //   intake grant — the thing that grants authority is never reachable from
-//   inside the authority it granted;
+//   inside the authority it granted. Running an agent as another account or
+//   in another harness names one **by its name**, among what this machine
+//   already set up, and only the person's own device may (`Verb.theirs`);
 // - no reach into the `ToolHost`, which is a Unix socket in
 //   `@tade/orchestrator` for the window's own children and is not this
 //   (`test/separation.test.ts`).
@@ -215,6 +218,71 @@ export interface StopAgentCall extends Target {
  */
 export type ReopenAgentCall = Target
 
+/**
+ * Start a task's agent: the window's own Start agent. Where one ran before it
+ * comes back where it left off; where none ever did, one starts on what the
+ * task already says. **Nothing is said to it either way** — there is no field
+ * for an opening instruction, so what it works on was decided at the machine.
+ */
+export type StartAgentCall = Target
+
+/**
+ * Close a task's agent for good: the window's Remove agent — its agent
+ * stopped, the task off the list, and its worktree and branch with it.
+ *
+ * The one verb here that **deletes** something, so it is the person's own
+ * device's alone (`Verb.theirs`), takes two presses and a literal, and names
+ * what it loses in its answer.
+ */
+export interface RemoveAgentCall extends Target {
+  confirm: true
+}
+
+/** What a task's agent is called, in the person's words. Kept verbatim, bounded. */
+export interface RenameAgentCall extends Target {
+  title: string
+}
+
+/**
+ * Switch a running agent to another model, as its harness names it.
+ *
+ * The id is one its own harness offered (`AgentMenuIn.choices.model`), and
+ * the window asks the harness to resolve it again at the act: another
+ * harness's model is no model at all to this one.
+ */
+export interface ModelAgentCall extends Target {
+  model: string
+}
+
+/** How hard a running agent thinks, one of the levels its harness offers. */
+export interface ThinkingAgentCall extends Target {
+  level: string
+}
+
+/**
+ * Run an agent as another account of its harness, by the account's **name**
+ * — never a credential — or `''` for the harness's own sign-in. Its
+ * conversation goes with it and a running one starts again there.
+ */
+export interface AccountAgentCall extends Target {
+  account: string
+}
+
+/** Run an agent in another harness, by its id; a running one starts again there. */
+export interface HarnessAgentCall extends Target {
+  harness: string
+}
+
+/**
+ * Hand a running agent to another of the person's machines that holds its
+ * project, as the window's own Hand to does: the work goes there and stops
+ * here once it is running there.
+ */
+export interface MoveAgentCall extends Target {
+  machine: string
+  confirm: true
+}
+
 /** What a project-wide act was about, and what the caller had seen. */
 export interface ProjectTarget {
   /** The project's name, which is the per-project scope boundary itself. */
@@ -251,7 +319,7 @@ export type OpenProjectCall = ProjectTarget
  *
  * `stopped` is a lane the registry kept with its spec — closed on purpose,
  * ended by itself, or lost with a window — and is what `reopen` brings back.
- * `none` is a task no agent has run on, which nothing here may start.
+ * `none` is a task no agent has run on, which `start` starts and `reopen` never does.
  */
 export const AGENT_LANES = ['none', 'running', 'stopped'] as const
 export type AgentLane = (typeof AGENT_LANES)[number]
@@ -344,6 +412,14 @@ export interface WebActing {
   reopen(call: ReopenAgentCall, from: From): Promise<Outcome>
   close(call: CloseProjectCall, from: From): Promise<Outcome>
   open(call: OpenProjectCall, from: From): Promise<Outcome>
+  start(call: StartAgentCall, from: From): Promise<Outcome>
+  remove(call: RemoveAgentCall, from: From): Promise<Outcome>
+  rename(call: RenameAgentCall, from: From): Promise<Outcome>
+  model(call: ModelAgentCall, from: From): Promise<Outcome>
+  thinking(call: ThinkingAgentCall, from: From): Promise<Outcome>
+  account(call: AccountAgentCall, from: From): Promise<Outcome>
+  harness(call: HarnessAgentCall, from: From): Promise<Outcome>
+  move(call: MoveAgentCall, from: From): Promise<Outcome>
 }
 
 /** That the thing moved on since the caller looked. Thrown by a verb. */
@@ -471,6 +547,8 @@ export const BOUNDS = {
   add: 4_000,
   /** What a task finished as. A headline, not a report. */
   summary: 500,
+  /** What an agent is called. A name, not a description. */
+  title: 200,
 } as const
 
 /**

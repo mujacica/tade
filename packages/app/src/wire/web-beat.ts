@@ -20,7 +20,7 @@ import {
   writtenOrder,
 } from '@tade/core'
 import type { JudgeFinding } from '@tade/extensions-core'
-import { offer, type WorkerCapabilities } from '@tade/harnesses-core'
+import { type Offer, offer, type WorkerCapabilities } from '@tade/harnesses-core'
 import {
   type CheckTreeIn,
   commandOut,
@@ -91,7 +91,31 @@ export function steeringFor(client: Harnessed, task: string): Steering {
   if (capabilities === null) {
     return { how: null, why: `nothing here knows what ${harness || 'its harness'} can do` }
   }
-  return steeringOf(offer(capabilities, 'steer', capabilities.steer))
+  return {
+    ...steeringOf(offer(capabilities, 'steer', capabilities.steer)),
+    // What else the window's own menu asks of the same capabilities, through
+    // the same `offer()` (`agentOffers`), so the phone's menu and the
+    // window's turn the same items off for the same reason.
+    offers: {
+      harness,
+      model: offeredAs(offer(capabilities, 'model', capabilities.model), `not in ${harness}`),
+      thinking: offeredAs(
+        offer(capabilities, 'thinking', capabilities.thinking),
+        `not in ${harness}`,
+      ),
+      accounts: capabilities.accounts,
+    },
+  }
+}
+
+/**
+ * `steeringOf` for something other than steering: the harness's own sentence
+ * where it wrote one, and the window's menu word where it did not — never
+ * "cannot be told anything" about a model.
+ */
+function offeredAs(offered: Offer, word: string): Steering {
+  const steering = steeringOf(offered)
+  return steering.how === null && offered.note === null ? { how: null, why: word } : steering
 }
 
 /** What `steeringFor` reads of the workbench. Two accessors, both held values. */

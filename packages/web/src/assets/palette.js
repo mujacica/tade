@@ -319,7 +319,7 @@ export function palette(ctx) {
     going = true
     const answer = await ctx.ask('POST', path, body)
     going = false
-    const came = afterAnswer(answer, ctx.sentence(answer))
+    const came = afterAnswer(answer, ctx.sentence(answer), ctx.session?.() ?? null)
     if (came.ok) felt()
     answerIn(status, came.said, came.trouble)
     return came

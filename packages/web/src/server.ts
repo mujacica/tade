@@ -3,6 +3,7 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { publicSocket, routesOf } from '@tade/core'
 import { carryOut, type Did } from './acted.ts'
+import { type MenuStanding, menuHere } from './agent-menu.ts'
 import { answerHere } from './answering.ts'
 import { carryAsk } from './asked.ts'
 import { assetsDir, readAssets } from './assets.ts'
@@ -390,6 +391,8 @@ export function webServer(opts: ServerOptions): WebServer {
         const before = queryOf(req.url ?? '/').get('before')
         return json(res, await momentsHere(found.params, before, reachOf(device), opts))
       }
+      case 'agent menu':
+        return json(res, await menuHere(found.params, reachOf(device), menuStanding(device), opts))
       case 'agent answer':
       case 'talk answer':
         return json(res, await answerHere(found.route.name, found.params, reachOf(device), opts))
@@ -653,6 +656,20 @@ export function webServer(opts: ServerOptions): WebServer {
    * device record was read a moment ago, and a grant narrowed a second ago
    * counts. One function, so five doors cannot disagree about it.
    */
+  /**
+   * What one agent's menu may offer this device: its scopes, whether acting is
+   * on now (no acting half is no act at all), and whether it is the person's
+   * own — read off the record at this request, as the act gate reads it.
+   */
+  function menuStanding(device: Device): MenuStanding {
+    const acting = opts.acting
+    return {
+      scopes: device.scopes as Scope[],
+      acting: acting !== undefined && opts.surface.acting && asked(() => acting.unlocked(), false),
+      theirs: reachOf(device).theirs === true,
+    }
+  }
+
   function standing(device: Device, at: At, unlocked: () => boolean) {
     return {
       receipts,

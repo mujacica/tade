@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { HookRung, NetworkAddress } from '@tade/core'
 import type { WebActing } from './acting.ts'
+import type { WebMenus } from './agent-menu.ts'
 import type { WebAnswers } from './answered.ts'
 import type { WebAsking } from './asking.ts'
 import type { WebAttaching } from './attached.ts'
@@ -314,6 +315,12 @@ export interface ServerOptions {
    * window holds and an agent's says its record could not be read.
    */
   earlier?: WebEarlier
+  /**
+   * One agent's menu as the window's own row offers it, built when a device
+   * opens it (`agent-menu.ts`). Absent, the route answers with no items and
+   * says why.
+   */
+  menus?: WebMenus
   /**
    * This machine's public name's records, looked at now, for an owner's window
    * on another machine whose Settings › Remotes is open on it (`records.ts`).

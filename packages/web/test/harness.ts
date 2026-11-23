@@ -67,6 +67,14 @@ export function actingStub(over: Partial<WebActing> = {}): WebActing {
     reopen: no('reopen'),
     close: no('close'),
     open: no('open'),
+    start: no('start'),
+    remove: no('remove'),
+    rename: no('rename'),
+    model: no('model'),
+    thinking: no('thinking'),
+    account: no('account'),
+    harness: no('harness'),
+    move: no('move'),
     ...over,
   }
 }

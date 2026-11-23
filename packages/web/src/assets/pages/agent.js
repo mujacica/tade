@@ -32,6 +32,7 @@
 
 import { mayFor } from '../access.js'
 import { SHOWN } from '../acts.js'
+import { agentMenu } from '../agent-menu.js'
 import { heat, heatIn, steps, stepsIn, toneIn } from '../charts.js'
 import { actsIn } from '../controls.js'
 import {
@@ -106,6 +107,22 @@ export function taskScreen(where, ctx) {
   // The pages its dev servers serve, a press out each, before them.
   const serving = servingIn(bar.tools)
   if (quick !== null) into(bar.tools, quick.node)
+  // Everything the window's own row offers on it, as its menu: start, stop,
+  // rename, its model and harness, handing it away, removing it — the same
+  // sheet the side's ⋯ opens (`agent-menu.js`).
+  let held = null
+  const menu = live ? agentMenu(ctx) : null
+  if (menu !== null) {
+    const more = el('button', {
+      class: 'tap icon',
+      attrs: { type: 'button', 'aria-haspopup': 'dialog', 'aria-label': `More for ${where.task}` },
+    })
+    into(more, icon('more'))
+    more.addEventListener('click', () =>
+      menu.open(`${where.project}/${where.task}`, more, () => held),
+    )
+    into(bar.tools, more)
+  }
 
   const coming = el('div', { class: 'ag-coming' })
   into(coming, skeleton(3), skeleton(6))
@@ -172,6 +189,7 @@ export function taskScreen(where, ctx) {
       view = next
       const had = view.store.had === true
       const task = had ? taskAt(view.store, where.project, where.task) : null
+      held = task
       coming.hidden = had
       stateBoxIn(
         gone,

@@ -685,3 +685,216 @@ main:has(> * > .section.composer-dock:last-child) {
 .ui-call .glyph.is-spinning::after {
   content: none;
 }
+
+/* ── one agent's menu (`agent-menu.js`) ────────────────────────────────────── */
+
+/*
+  The window's right-click menu on an agent, as a sheet from the bottom on a
+  phone — where the thumb is, every item a whole target — and as a panel
+  beside what was pressed at a desk, placed through the CSSOM (`--mx`, `--my`).
+  The page behind it dims and does not scroll, as under the command bar.
+*/
+.amenu {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  display: grid;
+  align-items: end;
+}
+
+.amenu-box {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  max-height: min(80vh, 36rem);
+  padding-block-end: env(safe-area-inset-bottom);
+  border-radius: var(--r4) var(--r4) 0 0;
+  background: var(--panel);
+  border: 1px solid var(--chrome);
+  overflow: hidden;
+  transition:
+    transform var(--ease-sheet),
+    opacity var(--ease-sheet);
+}
+
+@starting-style {
+  .amenu-box {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+
+.amenu-top {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--bar);
+  padding-inline: var(--s2);
+  border-block-end: var(--border);
+}
+
+.amenu-head {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding-inline-start: var(--s2);
+  font-size: var(--step-0);
+  font-weight: var(--w-strong);
+  color: var(--bright);
+  overflow-wrap: anywhere;
+}
+
+.amenu-list {
+  margin: 0;
+  padding: var(--s1) 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* A rule above an item, as the window's menu draws one between its groups. */
+.amenu-row.is-rule {
+  margin-block-start: var(--s1);
+  padding-block-start: var(--s1);
+  border-block-start: var(--border);
+}
+
+.amenu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  min-height: var(--tap);
+  padding: var(--s2) var(--inset);
+  border: 0;
+  background: none;
+  color: var(--bright);
+  font: inherit;
+  font-size: var(--step-0);
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.amenu-item:hover:not(.is-off),
+.amenu-item:focus-visible {
+  background: var(--surface);
+}
+
+.amenu-item.is-danger {
+  color: var(--red);
+}
+
+.amenu-item.asked {
+  background: var(--amber);
+  color: var(--ink);
+}
+
+/* What cannot be done now: still there, with the window's word for why, and not a press. */
+.amenu-item.is-off {
+  color: var(--heading);
+  cursor: default;
+}
+
+.amenu-words {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.amenu-label {
+  overflow-wrap: anywhere;
+}
+
+/* A reason and a note are facts somebody acts on at 13px: `--heading`, never `--quiet`. */
+.amenu-why,
+.amenu-note {
+  font-size: var(--step--1);
+  color: var(--heading);
+  overflow-wrap: anywhere;
+}
+
+.amenu-note {
+  flex: 0 0 auto;
+  max-width: 45%;
+  text-align: end;
+}
+
+.amenu-item.asked .amenu-note {
+  color: var(--ink);
+}
+
+.amenu-mark {
+  flex: 0 0 1rem;
+  color: var(--amber);
+  text-align: center;
+}
+
+.amenu-more {
+  color: var(--heading);
+  transform: rotate(-90deg);
+}
+
+.amenu-none {
+  padding: var(--s3) var(--inset);
+  color: var(--heading);
+}
+
+.amenu-form {
+  display: flex;
+  gap: var(--s2);
+  padding: var(--s3) var(--inset);
+}
+
+.amenu-form input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 0 var(--s3);
+  border: 1px solid var(--chrome);
+  border-radius: var(--r1);
+  background: var(--surface);
+  color: var(--bright);
+  /* 17px, so iOS does not zoom the page when this takes focus. */
+  font-size: var(--step-1);
+}
+
+.amenu-said {
+  margin: 0;
+  padding: 0 var(--inset) var(--s3);
+  font-size: var(--step--1);
+  color: var(--heading);
+  overflow-wrap: anywhere;
+}
+
+.amenu-said:empty {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  /* A desk has a pointer: beside what was pressed, the size of a menu. */
+  .amenu {
+    display: block;
+  }
+
+  .amenu .scrim {
+    background: none;
+  }
+
+  .amenu-box {
+    position: absolute;
+    inset-inline-start: var(--mx);
+    inset-block-start: var(--my);
+    width: 18rem;
+    max-height: min(70vh, 32rem);
+    padding-block-end: 0;
+    border-radius: var(--r4);
+    box-shadow: var(--lift);
+  }
+
+  @starting-style {
+    .amenu-box {
+      transform: translateY(-4px);
+    }
+  }
+}

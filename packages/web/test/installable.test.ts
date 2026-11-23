@@ -299,8 +299,11 @@ describe('the real folder', () => {
     // show said its own cause and the steps to fix it (about 2.5 KB:
     // `trouble.js`'s cause and steps per kind, the boxes a device lacks, a Tade
     // too old for its page, the *how to fix this* list in `ui.js`, and a fix
-    // per machine that is down, signed out or too old) took it to 445.
-    expect(wire).toBeLessThan(447 * 1024)
+    // per machine that is down, signed out or too old) took it to 445. 447
+    // until an agent's row offered what the window's does (about 7.5 KB:
+    // `agent-menu.js`, the window's own menu read and drawn as a sheet, and
+    // each row's start, stop, close and long-press in `side.js`) took it to 452.
+    expect(wire).toBeLessThan(455 * 1024)
     // And the files as they sit, which is what a browser holds once it has
     // them: about a megabyte, with the comments every module carries. 768
     // until the pages were redrawn one at a time, each 40–90 KB as it sits.
@@ -341,7 +344,9 @@ describe('the real folder', () => {
     // took it to 1399. 1404 until every refusal said its cause and the steps
     // to fix it (14 KB as it sits, most of it `trouble.js`'s steps per kind
     // and why a page tells a Tade too old from a box not ticked) took it to
-    // 1418.
-    expect(raw).toBeLessThan(1422 * 1024)
+    // 1418. 1422 until an agent's row offered what the window's does (27 KB as
+    // it sits: `agent-menu.js` and its reasons, the row's presses in `side.js`
+    // and the sheet's rules) took it to 1445.
+    expect(raw).toBeLessThan(1448 * 1024)
   })
 })

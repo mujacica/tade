@@ -2290,7 +2290,13 @@ export class Workbench {
    * over it; told to its session when it is running, and when it next starts
    * otherwise. Its branch keeps its name: renaming a branch is its own choice.
    */
-  async renameAgent(req: { task: string; worktree: string; title: string }): Promise<string> {
+  async renameAgent(req: {
+    task: string
+    worktree: string
+    title: string
+    /** Who asked: the keyboard, or a device from away (`byOf`). */
+    by?: Asker
+  }): Promise<string> {
     const title = req.title.replace(/\s+/g, ' ').trim()
     if (!title) throw new Error('what should it be called?')
     await setTitle(this.home, req.task, title, true)
@@ -2299,7 +2305,11 @@ export class Workbench {
     if (this.registry.get(run as unknown as LaneId)?.alive && this.canQuietly(req.task, 'rename')) {
       await this.workers.name(run, title).catch(() => {})
     }
-    await this.log.append({ type: 'task_named', task: req.task, detail: { title, by: 'you' } })
+    await this.log.append({
+      type: 'task_named',
+      task: req.task,
+      detail: { title, by: req.by ?? 'you' },
+    })
     return title
   }
 

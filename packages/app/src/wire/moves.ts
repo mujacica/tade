@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import {
+  type Asker,
   LINES_LOOKED_BACK,
   machineLabel,
   machineNamed,
@@ -169,7 +170,8 @@ export interface MoveTools {
   move(req: { task: string; machine: string; asked: string }): Promise<string>
 }
 
-type By = 'you' | 'orchestrator'
+/** Who asked: the keyboard, the orchestrator, or a device from away (`byOf`). */
+type By = Asker
 
 export class Moves {
   private readonly wire: Wiring

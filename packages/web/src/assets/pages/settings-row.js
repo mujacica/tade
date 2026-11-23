@@ -275,7 +275,7 @@ function editorFor(row, opts) {
     armed = false
     press.disabled = false
     word()
-    const came = afterAnswer(got, opts.ctx.sentence(got))
+    const came = afterAnswer(got, opts.ctx.sentence(got), opts.ctx.session?.() ?? null)
     answerIn(said, came.said, came.trouble)
     // What is true now goes into the row, and the box is emptied only by a
     // `200`: a `409` is the world having moved, not a reason to throw away a

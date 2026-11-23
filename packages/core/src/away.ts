@@ -131,12 +131,15 @@ export const ACTING_IS_NOT_YOU =
   'answering, with this machine’s paths shortened — where the task works as ./, your home as ~, ' +
   'any other path cut to its last name — and every key Tade holds taken out; one that may not is ' +
   'shown only the tool’s name. Where you granted that device each of them, it can also stop an ' +
-  'agent or open a stopped one again where it left off, and close a project or open a closed one ' +
+  'agent or open a stopped one again where it left off, start one — saying nothing to it — ' +
+  'rename it, switch its model or how hard it thinks, and close a project or open a closed one ' +
   'again: closing deletes nothing and stops nothing, but the project’s own settings go with it ' +
-  'and opening it puts back only where it lives. Beyond that one line, acting can never change a ' +
-  'setting — that is a switch of its own — read a credential, run a command, start an agent that ' +
-  'has never run, push, merge or overrule a check; what your own device reaches past that, it ' +
-  'reaches by talking to Tade or on Settings, as you would here. Acting needs this machine ' +
+  'and opening it puts back only where it lives. Only your own device can remove an agent with ' +
+  'its worktree and branch, run it as another account or in another harness, or hand it to ' +
+  'another of your machines. Beyond that, acting can never change a setting — that is a switch ' +
+  'of its own — read a credential, run a command, start an agent on words a device typed, push, ' +
+  'merge or overrule a check; what your own device reaches past that, it reaches by talking to ' +
+  'Tade or on Settings, as you would here. Acting needs this machine ' +
   'itself or an https origin you named in Trusted hostnames, so a credential that crossed a network in ' +
   'the clear never buys one — and every act is in the journal under the device that took it.'
 

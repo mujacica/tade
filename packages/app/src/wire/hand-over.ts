@@ -1,4 +1,4 @@
-import { runProgram, type TadeEvent } from '@tade/core'
+import { type Asker, runProgram, type TadeEvent } from '@tade/core'
 import { CLONE_URL } from '@tade/web'
 
 // A running task handed to another machine of the person's,
@@ -99,7 +99,8 @@ export interface HandOverAsked {
   /** Its project there. */
   there: string
   branch: string
-  by: 'you' | 'orchestrator'
+  /** Who asked: the keyboard, the orchestrator, or a device by its id (`byOf`). */
+  by: Asker
   /** When its agent was told, as the journal wrote it down. */
   at: number
   /** Its id, which the machine there knows it by once taken; null where an older window wrote none. */
@@ -124,7 +125,7 @@ export function handOversOpen(lines: readonly TadeEvent[]): HandOverAsked[] {
     const { to, there, branch, by } = line.detail
     const at = Date.parse(line.ts)
     if (typeof to !== 'string' || typeof there !== 'string' || typeof branch !== 'string') continue
-    if ((by !== 'you' && by !== 'orchestrator') || Number.isNaN(at)) continue
+    if (!askerOf(by) || Number.isNaN(at)) continue
     const id = typeof line.detail.id === 'string' ? line.detail.id : null
     const head = typeof line.detail.head === 'string' ? line.detail.head : null
     open.set(task, { task, machine: to, there, branch, by, at, id, head })
@@ -253,4 +254,13 @@ export function withoutCredential(url: string): string {
 /** The project half of a task's id. */
 export function projectOf(task: string): string {
   return task.slice(0, Math.max(0, task.indexOf('/')))
+}
+
+/** Whether a line's `by` is one an asker writes: `you`, `orchestrator`, or `device <id>`. */
+function askerOf(by: unknown): by is Asker {
+  return (
+    by === 'you' ||
+    by === 'orchestrator' ||
+    (typeof by === 'string' && /^device [0-9a-f]{16}$/.test(by))
+  )
 }

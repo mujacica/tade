@@ -16,6 +16,7 @@ import {
 } from './model.ts'
 import { type Entry, REPEAT_MS, tadeDid } from './transcript.ts'
 import { MachineActs } from './wire/acts.ts'
+import { agentMenuDoors } from './wire/agent-doors.ts'
 import { Agents, type AgentsDeps } from './wire/agents.ts'
 import { Batches } from './wire/batches.ts'
 import { CloseWhenDone } from './wire/close-when-done.ts'
@@ -530,7 +531,12 @@ export class Heart {
       // The one door a setting is written by: the key nothing types, and a change from away.
       settings: this.settings,
       // Stopping and closing from away, through the same doors a press goes through.
-      lifecycle: { agents: () => this.agents, projects: () => this.projects },
+      lifecycle: {
+        agents: () => this.agents,
+        projects: () => this.projects,
+        // The rest of an agent's menu, through the same calls its row's presses make.
+        menus: () => agentMenuDoors(this.wire, this.agents),
+      },
       doorbell: { wake: (id, item) => this.schedules.wake(id, item) },
       linear: this.linear,
     })

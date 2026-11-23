@@ -149,5 +149,13 @@ export function farActing(acted: FarAct[]): WebActing {
     reopen: did('reopen'),
     close: did('close'),
     open: did('open'),
+    start: did('start'),
+    remove: did('remove'),
+    rename: did('rename'),
+    model: did('model'),
+    thinking: did('thinking'),
+    account: did('account'),
+    harness: did('harness'),
+    move: did('move'),
   }
 }
