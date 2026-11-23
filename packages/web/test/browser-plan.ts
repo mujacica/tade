@@ -160,6 +160,11 @@ export const CHECKS = [
   'controls',
   'touch',
   'typing',
+  // Queued work down the side, at a small phone's width and a large one's
+  // (`browser-queue.ts`): a whole-target ⋯ and a hold each open the window's
+  // own queued-work menu, a tap on Pause asks for one queue act, and what the
+  // device may not ask (Remove, the person's own device's) is not on it.
+  'queue',
   // The three an installed shell owns. `install` is a real registration in a
   // real browser; `offline-cold` is a deep link opened with the network off,
   // which is the whole point of the thing; `no-api-cache` enumerates every

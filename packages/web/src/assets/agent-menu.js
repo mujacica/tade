@@ -98,6 +98,10 @@ export function holdOpens(node, open) {
   })
   node.addEventListener('pointerup', cancel)
   node.addEventListener('pointercancel', cancel)
+  // A hold's click would hit the menu's scrim.
+  node.addEventListener('touchend', (event) => {
+    if (held) event.preventDefault()
+  })
   node.addEventListener(
     'click',
     (event) => {

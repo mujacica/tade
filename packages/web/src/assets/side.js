@@ -168,11 +168,13 @@ function fillProject(node, project, view, at) {
   if (shut) return
 
   const [agentsHead, groups, noAgents, queueHead, queue] = body.children
-  const agents = sideAgents(tasksIn(view.store, project.name))
+  const tasks = tasksIn(view.store, project.name)
+  const agents = sideAgents(tasks)
   textIn(agentsHead.children[1], agents.length === 0 ? '' : String(agents.length))
   noAgents.hidden = agents.length > 0
   textIn(noAgents, noAgentsSaid(view.store))
-  for (const task of agents) at.rows.set(task.id, task)
+  // Queued work's too, for its ⋯.
+  for (const task of tasks) at.rows.set(task.id, task)
   keyed(
     groups,
     agentGroups(agents),
@@ -190,7 +192,7 @@ function fillProject(node, project, view, at) {
     queuePaused(rows) ? 'paused' : rows.length === 0 ? 'nothing queued' : '',
   )
   queue.hidden = rows.length === 0
-  treeIn(queue, queueTree(rows), project.name, view)
+  treeIn(queue, queueTree(rows), project.name, view, at)
 }
 
 /* ── its agents ────────────────────────────────────────────────────────────── */
@@ -331,18 +333,20 @@ function factIn(node, glyph, tone, word, said) {
  * stylesheet draws the window's `╰─` from the nesting alone. Plain lists rather
  * than `role="tree"`, which promises arrow keys this does not answer.
  */
-function treeIn(list, nodes, project, view) {
+function treeIn(list, nodes, project, view, at) {
   keyed(
     list,
     nodes,
     (one) => one.row.task,
-    createPiece,
-    (item, one) => fillPiece(item, one, project, view),
+    () => createPiece(at.acting),
+    (item, one) => fillPiece(item, one, project, view, at),
   )
 }
 
-function createPiece() {
+/** Queued work, its ⋯ and hold opening the window's queued-work menu. */
+function createPiece(acting) {
   const node = el('li')
+  const line = el('div', { class: 'side-line' })
   const link = el('a', { class: 'side-piece', attrs: { href: '/' } })
   into(
     link,
@@ -351,22 +355,42 @@ function createPiece() {
     el('span', { class: 'at' }),
     el('span', { class: 'why' }),
   )
-  const under = el('ul')
-  into(node, link, under)
+  const acts = el('span', { class: 'side-acts' })
+  const more = el('button', {
+    class: 'tap icon side-press',
+    attrs: { type: 'button', 'aria-haspopup': 'dialog', title: 'More' },
+  })
+  into(more, icon('more'))
+  into(acts, more)
+  acts.hidden = true
+  into(line, link, acts)
+  into(node, line, el('ul'))
+  const open = (from) => {
+    const id = node.pieceTask
+    if (id) acting.menu.open(id, from, () => acting.rowOf(id))
+  }
+  more.addEventListener('click', () => open(more))
+  if (acting !== null) holdOpens(link, open)
   return node
 }
 
-function fillPiece(node, one, project, view) {
-  const [link, under] = node.children
-  const [glyph, name, at, why] = link.children
+function fillPiece(node, one, project, view, at) {
+  const [line, under] = node.children
+  const [link, acts] = line.children
+  const [glyph, name, when, why] = link.children
   const row = one.row
   if (row.state.kind === 'there') link.removeAttribute('href')
   else link.setAttribute('href', taskPath(row.task))
   markIn(glyph, queueMark(row.state))
   textIn(name, queueName(row))
-  textIn(at, queueAt(row.state, shortClockOf))
+  textIn(when, queueAt(row.state, shortClockOf))
   textIn(why, queueLine(row.state, project))
   classOn(node, 'is-held', row.state.kind === 'held')
+  // Not for work elsewhere.
+  const offered = at.acting !== null && row.state.kind !== 'there' && at.rows.has(row.task)
+  node.pieceTask = offered ? row.task : null
+  acts.hidden = !offered
+  acts.firstChild.setAttribute('aria-label', `More for ${queueName(row)}`)
   under.hidden = one.children.length === 0
-  treeIn(under, one.children, project, view)
+  treeIn(under, one.children, project, view, at)
 }

@@ -25,7 +25,7 @@ import { el, into, keyed, skeleton, textIn } from '../dom.js'
 import { shortClockOf } from '../figures.js'
 import { icon } from '../icons.js'
 import { section } from '../rows.js'
-import { theirsTrouble, UNKNOWN_TROUBLE } from '../trouble.js'
+import { fullAccessOf, theirsTrouble, UNKNOWN_TROUBLE } from '../trouble.js'
 import { callout, panel, problem, problemIn, stateBox, stateBoxIn } from '../ui.js'
 import {
   cellSaid,
@@ -234,7 +234,7 @@ export function machinesScreen(ctx) {
             'error',
             refused.title,
             refused.why ?? refused.fix,
-            { word: 'Ask again', run: () => void load() },
+            { word: 'Ask again', run: () => void load(true) },
             refused.steps ?? null,
           ),
     )
@@ -378,7 +378,15 @@ export function machinesScreen(ctx) {
     timer = setTimeout(() => void load(), underWay(answer) ? SOON_MS : AGAIN_MS)
   }
 
-  async function load() {
+  // Not full access: refused unasked, but Ask again asks.
+  async function load(asked = false) {
+    const you = ctx.session()
+    if (!asked && answer === null && you != null && !fullAccessOf(you)) {
+      refused =
+        theirsTrouble({ status: 403, body: { error: 'out_of_scope' } }, you) ?? UNKNOWN_TROUBLE
+      draw()
+      return
+    }
     const got = await ctx.ask('POST', MACHINES_PATH, {})
     if (gone) return
     if (got.status === 200 && Array.isArray(got.body?.rows)) {

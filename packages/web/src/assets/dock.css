@@ -358,7 +358,8 @@
   gap: var(--s1);
 }
 
-.side-line .side-agent {
+.side-line .side-agent,
+.side-line .side-piece {
   flex: 1 1 auto;
   min-width: 0;
   -webkit-touch-callout: none;
@@ -483,11 +484,11 @@
   border-inline-start: 1px solid var(--chrome);
 }
 
-.side-queue li:has(> ul:not([hidden])) > .side-piece {
+.side-queue li:has(> ul:not([hidden])) > .side-line > .side-piece {
   position: relative;
 }
 
-.side-queue li:has(> ul:not([hidden])) > .side-piece::after {
+.side-queue li:has(> ul:not([hidden])) > .side-line > .side-piece::after {
   content: "";
   position: absolute;
   inset-inline-start: calc(var(--s2) + 0.5rem);
@@ -496,7 +497,7 @@
   border-inline-start: 1px solid var(--chrome);
 }
 
-.side-queue ul li:has(> ul:not([hidden])) > .side-piece::after {
+.side-queue ul li:has(> ul:not([hidden])) > .side-line > .side-piece::after {
   inset-inline-start: 0.5rem;
 }
 
@@ -507,7 +508,7 @@
 }
 
 /* Held work is what stops a chain: its reason in its tone, as the window draws it. */
-.side-queue li.is-held > .side-piece .why {
+.side-queue li.is-held > .side-line > .side-piece .why {
   color: var(--body);
 }
 

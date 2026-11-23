@@ -3,8 +3,10 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Moved, NotOffered, type Outcome, type WebActing } from '../src/acting.ts'
 import { type ActivityIn, AGENT, MOMENTS } from '../src/agent.ts'
+import type { MenuItemIn } from '../src/agent-menu.ts'
 import { allowDevice } from '../src/devices.ts'
 import type { ChatIn, TalkIn } from '../src/input.ts'
+import type { MachinesAnswer } from '../src/machines.ts'
 import { GRANTS, type Grant, type Reach } from '../src/reach.ts'
 import { projector } from '../src/reading.ts'
 import { webServer } from '../src/server.ts'
@@ -25,13 +27,14 @@ import {
   WIDTHS,
   worstOf,
 } from '../test/browser-plan.ts'
-import { agentHeld, input, NOW, note, settingRows } from '../test/fixtures.ts'
+import { agentHeld, input, NOW, note, queued, settingRows, task } from '../test/fixtures.ts'
 import { chatAt, harnessTalk } from './browser-chat.ts'
 import { deskAt, lanesSeen, paletteAt, unpairedAt } from './browser-desk.ts'
 import { doingAt, type Running } from './browser-doing.ts'
 import { frameAt } from './browser-frame.ts'
 import { momentsAt } from './browser-moments.ts'
 import { asPwa } from './browser-pwa.ts'
+import { queueAt } from './browser-queue.ts'
 import {
   AXE,
   CONTROLS,
@@ -157,14 +160,18 @@ async function serve() {
       reaches.set(reach.device, reach)
       const mine = held.get(reach.device)
       if (mine !== undefined) return mine
-      const made = projector(input({ reach, talk: harnessTalk(), notes: NOTES }), NOW, {
-        agent: () =>
-          agentHeld({
-            activity: LIFE.slice(0, AGENT.activity),
-            earlier: LIFE[AGENT.activity - 1]?.id ?? null,
-          }),
-        settings: () => ({ groups: settingRows(), known: [] }),
-      })
+      const made = projector(
+        input({ reach, talk: harnessTalk(), notes: NOTES, tasks: TASKS }),
+        NOW,
+        {
+          agent: () =>
+            agentHeld({
+              activity: LIFE.slice(0, AGENT.activity),
+              earlier: LIFE[AGENT.activity - 1]?.id ?? null,
+            }),
+          settings: () => ({ groups: settingRows(), known: [] }),
+        },
+      )
       held.set(reach.device, made)
       return made
     },
@@ -188,6 +195,21 @@ async function serve() {
       },
       known: () => [],
       places: () => ({ work: null, tade: null, home: null }),
+    },
+    // **The Machines page's half**, as the window hands it over
+    // (`machinesFrom`): the grid as it stands and a press that starts and never
+    // waits — so the page is drawn from an answer rather than the `404` of a
+    // route nobody wired.
+    // **One agent's menu, as the window builds it**: queued work's own
+    // (`queueMenuItems`, mapped by `awayMenuOf`), so the side's ⋯ on a piece
+    // opens what the window's right-click does; the route cuts it per device.
+    menus: {
+      menu: (id) => Promise.resolve(id === QUEUED.id ? { items: QUEUE_MENU } : null),
+    },
+    machines: {
+      shown: () => MACHINES,
+      press: () => true,
+      settle: () => false,
     },
     tickets,
     tell: () => {},
@@ -261,6 +283,109 @@ function did(verb: string, call: { task: string; was: string }): Promise<Outcome
  * (`browser-whole.ts`). Every beat the harness makes carries it.
  */
 const NOTES = [...input().notes, note({ text: WHOLE_NOTE, summary: '', scope: null })]
+
+/**
+ * **The fixture's queued piece, with its task's row**, as the window's
+ * projection carries every queued task among the tasks: a press on the
+ * piece echoes that row's revision, so without it the side has nothing to
+ * press. Queued, no agent, and the queue its one control.
+ */
+const QUEUED = task({
+  id: queued().task,
+  state: 'queued',
+  reason: { kind: 'clause', said: 'waits on sentry/away-projection' },
+  title: 'Serve the away view behind pairing',
+  agents: 0,
+  lanes: 0,
+  lane: 'none',
+  starts: 0,
+  effort: '',
+  review: null,
+  can: [
+    { verb: 'queue', how: 'now' },
+    { verb: 'park', how: 'now' },
+    { verb: 'done', how: 'now' },
+    { verb: 'note', how: 'now' },
+    { verb: 'context', how: 'now' },
+  ],
+  cannot: [
+    { verb: 'answer', why: 'nothing is waiting on an answer' },
+    { verb: 'steer', why: 'no agent is running' },
+    { verb: 'intake', why: 'it did not come from outside this machine' },
+    { verb: 'stop', why: 'no agent is running' },
+    { verb: 'reopen', why: 'it is queued work: the queue starts it' },
+  ],
+})
+
+/** Every task the harness's projection carries: the fixture's, and the queued one's row. */
+const TASKS = [...input().tasks, QUEUED]
+
+/** Queued work's menu as the window maps it (`awayMenuOf(queueMenuItems(…))`) for waiting work. */
+const QUEUE_MENU: MenuItemIn[] = [
+  ['open', 'Open', { kind: 'page', does: 'open' }],
+  ['queue-start', 'Start now', { kind: 'verb', verb: 'queue', with: { change: 'start' } }],
+  ['queue-first', 'Do this one first', { kind: 'verb', verb: 'queue', with: { change: 'first' } }],
+  ['queue-pause', 'Pause', { kind: 'verb', verb: 'queue', with: { change: 'pause' } }],
+  ['queue-wait', 'Wait for a retry', { kind: 'verb', verb: 'queue', with: { change: 'wait' } }],
+  ['queue-after', 'Wait on…', { kind: 'here' }],
+  ['queue-retell', 'Retell…', { kind: 'here' }],
+  ['rename', 'Rename…', { kind: 'type', verb: 'rename', value: 'away-auth-server' }],
+  ['queue-remove', 'Remove', { kind: 'verb', verb: 'remove' }],
+].map(([id, label, act]) => ({
+  id: id as string,
+  label: label as string,
+  off:
+    id === 'queue-wait'
+      ? 'not held'
+      : id === 'queue-after'
+        ? 'what it waits on is changed at the machine'
+        : id === 'queue-retell'
+          ? 'what it is told is changed at the machine'
+          : null,
+  note: null,
+  danger: id === 'queue-remove',
+  divider: id === 'queue-remove',
+  act: act as MenuItemIn['act'],
+}))
+
+/**
+ * What the Machines page is answered: this machine and one linked one, a
+ * sign-in and a key each — a mark of every kind but one, and a key a shell
+ * file sets, so the grid is drawn with something in every cell.
+ */
+const MACHINES: MachinesAnswer = {
+  columns: [
+    { machine: 'mac', asOf: null, here: true, said: null },
+    { machine: 'vps', asOf: new Date(NOW - 600_000).toISOString(), here: false, said: null },
+  ],
+  rows: [
+    {
+      id: 'sign-in:claude',
+      kind: 'sign-in',
+      label: 'Claude Code',
+      cells: [
+        { mark: '✓', days: 21, where: [], said: null },
+        { mark: '?', days: null, where: [], said: null },
+      ],
+    },
+    {
+      id: 'secret:linear',
+      kind: 'secret',
+      label: 'Linear key',
+      cells: [
+        { mark: '✓', days: null, where: ['~/.zshenv:14'], said: 'only a shell sets it' },
+        { mark: '✗', days: null, where: [], said: null },
+      ],
+    },
+  ],
+  looking: false,
+  plan: null,
+  busy: false,
+  said: null,
+  file: '~/.config/tade/env',
+  agents: 'any agent on this machine can read a key written down',
+  notes: [],
+}
 
 const LIFE: ActivityIn[] = Array.from({ length: 240 }, (_, n) => {
   const id = 240 - n
@@ -681,6 +806,10 @@ async function asActing(
   // **The installed shell, on this same device**: pairing is rate limited per
   // address, the five tries are spent, and this is the right phone to ask
   // anyway — narrow, touch, granted (`browser-pwa.ts`).
+  // **Queued work down the side, pressed**, on this same device: it may steer,
+  // so the queue's choices are on its menu, and it is not the person's own,
+  // so removing the work is not (`browser-queue.ts`).
+  await queueAt(page as never, origin, found, asked, QUEUED.id)
   await asPwa({ context, origin, found })
   await context.close()
   granting = []
@@ -709,7 +838,7 @@ async function nudge(
 ): Promise<void> {
   const made = held.get(device)
   if (made === undefined) throw new Error('no projector for this device')
-  const next = input({ talk: harnessTalk() })
+  const next = input({ talk: harnessTalk(), tasks: TASKS })
   const first = next.tasks[0]
   if (first === undefined) throw new Error('no task to move')
   const delta = made.beat(

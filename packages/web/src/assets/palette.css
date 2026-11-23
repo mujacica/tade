@@ -702,6 +702,11 @@ main:has(> * > .section.composer-dock:last-child) {
   align-items: end;
 }
 
+/* Under its box, not dock.css's z 7. */
+.amenu > .scrim {
+  z-index: 0;
+}
+
 .amenu-box {
   position: relative;
   display: grid;

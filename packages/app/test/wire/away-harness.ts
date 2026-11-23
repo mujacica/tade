@@ -10,6 +10,7 @@ import {
   type GitSnapshot,
   LOCAL,
   type Queued,
+  type QueueState,
   type TadeEvent,
   taskDir,
   type Workspace,
@@ -31,7 +32,7 @@ import { parse } from 'yaml'
 import { copyRepo, mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import type { ActionsView } from '../../src/frame.ts'
 import type { Live } from '../../src/live.ts'
-import { type AppState, initialState } from '../../src/model.ts'
+import { type AppState, initialState, withTasks } from '../../src/model.ts'
 import { awayPanel } from '../../src/panels/away/state.ts'
 import type { Transcript } from '../../src/transcript.ts'
 import type { Wiring } from '../../src/wire/context.ts'
@@ -127,6 +128,12 @@ export interface Machine {
    * `queueStateOf`.
    */
   queued(task: string): void
+  /**
+   * The window's side draws this task as queued work, standing as `state`
+   * says: what its pane carries (`withTasks`), which is what its menu is
+   * built from (`queueMenuItems`) — the window's own list, not this file's.
+   */
+  queuedPane(task: string, state: QueueState): void
   /**
    * What the last look at this task's checks said: red, or nothing at all.
    *
@@ -520,6 +527,15 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
         running: null,
         notes: [],
       } as unknown as ActionsView),
+    queuedPane: (task, standing) => {
+      state = withTasks(state, [
+        {
+          task,
+          state: 'queued',
+          queued: { state: standing, after: [], prompt: 'do the thing', touches: [], at: null },
+        },
+      ])
+    },
     queued: (task) =>
       void queued.push({
         task,
